@@ -4,10 +4,7 @@ import {
   loadPersistedProjectId,
 } from "@/components/agent/chat/hooks/agentProjectStorage";
 import { VideoCanvas } from "./VideoCanvas";
-import {
-  createInitialVideoState,
-  type VideoCanvasState,
-} from "./types";
+import { createInitialVideoState, type VideoCanvasState } from "./types";
 
 export function VideoPage() {
   const [state, setState] = useState<VideoCanvasState>(() =>

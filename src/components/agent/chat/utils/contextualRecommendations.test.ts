@@ -60,9 +60,9 @@ describe("getContextualRecommendations", () => {
     });
 
     expect(recommendations.length).toBeGreaterThan(0);
-    expect(
-      recommendations.some(([label]) => label.includes("Team")),
-    ).toBe(true);
+    expect(recommendations.some(([label]) => label.includes("Team"))).toBe(
+      true,
+    );
   });
 
   it("开启多代理偏好后应优先返回 team runtime 测试提示词", () => {

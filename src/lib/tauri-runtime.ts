@@ -33,12 +33,10 @@ export function hasTauriRuntimeMarkers(): boolean {
 }
 
 export function hasTauriInvokeCapability(): boolean {
-  const tauriGlobal = getTauriGlobal() as
-    | {
-        core?: { invoke?: unknown };
-        invoke?: unknown;
-      }
-    | null;
+  const tauriGlobal = getTauriGlobal() as {
+    core?: { invoke?: unknown };
+    invoke?: unknown;
+  } | null;
   const internals = getTauriInternals();
 
   return (
@@ -49,14 +47,12 @@ export function hasTauriInvokeCapability(): boolean {
 }
 
 export function hasTauriEventCapability(): boolean {
-  const tauriGlobal = getTauriGlobal() as
-    | {
-        event?: {
-          listen?: unknown;
-          emit?: unknown;
-        };
-      }
-    | null;
+  const tauriGlobal = getTauriGlobal() as {
+    event?: {
+      listen?: unknown;
+      emit?: unknown;
+    };
+  } | null;
   const internals = getTauriInternals();
 
   return (

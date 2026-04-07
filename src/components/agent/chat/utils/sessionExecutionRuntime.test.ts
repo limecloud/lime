@@ -221,12 +221,13 @@ describe("sessionExecutionRuntime", () => {
   });
 
   it("应把 TeamDefinition 转成 session recent_team_selection 请求载荷", () => {
-    const builtinTeam = createTeamDefinitionFromPreset(
-      "code-triage-team",
-    );
+    const builtinTeam = createTeamDefinitionFromPreset("code-triage-team");
 
     expect(
-      createSessionRecentTeamSelectionFromTeamDefinition(builtinTeam, "general"),
+      createSessionRecentTeamSelectionFromTeamDefinition(
+        builtinTeam,
+        "general",
+      ),
     ).toEqual({
       disabled: false,
       theme: "general",

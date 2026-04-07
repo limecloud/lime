@@ -79,8 +79,8 @@ export function AutomationJobDetailsDialog({
                   {job.name}
                 </span>
                 <span className="block">
-                  {workspaceName ?? job.workspace_id} · {describeSchedule(job)} ·{" "}
-                  {payloadKindLabel(job.payload.kind)}
+                  {workspaceName ?? job.workspace_id} · {describeSchedule(job)}{" "}
+                  · {payloadKindLabel(job.payload.kind)}
                 </span>
               </DialogDescription>
             </DialogHeader>
@@ -148,7 +148,9 @@ export function AutomationJobDetailsDialog({
                       <div>技能项: {serviceSkillContext.title}</div>
                       <div>目录来源: {serviceSkillContext.sourceLabel}</div>
                       <div>工作主题: {serviceSkillContext.theme || "-"}</div>
-                      <div>主稿绑定: {serviceSkillContext.contentId || "-"}</div>
+                      <div>
+                        主稿绑定: {serviceSkillContext.contentId || "-"}
+                      </div>
                     </div>
                     {serviceSkillContext.slotSummary.length ? (
                       <div className="mt-3 rounded-[16px] border border-slate-200/80 bg-white px-3 py-3">
@@ -172,7 +174,9 @@ export function AutomationJobDetailsDialog({
                         <div className="text-xs font-medium text-slate-700">
                           补充要求
                         </div>
-                        <div className="mt-1">{serviceSkillContext.userInput}</div>
+                        <div className="mt-1">
+                          {serviceSkillContext.userInput}
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -186,7 +190,9 @@ export function AutomationJobDetailsDialog({
                       </div>
                       <Badge
                         variant={
-                          job.delivery.mode === "announce" ? "secondary" : "outline"
+                          job.delivery.mode === "announce"
+                            ? "secondary"
+                            : "outline"
                         }
                       >
                         {deliveryModeLabel(job)}
@@ -206,7 +212,9 @@ export function AutomationJobDetailsDialog({
                       <div>
                         投递编码:{" "}
                         {outputFormatLabel(
-                          resolveDeliveryOutputFormat(job.delivery.output_format),
+                          resolveDeliveryOutputFormat(
+                            job.delivery.output_format,
+                          ),
                         )}
                       </div>
                       <div>
@@ -252,21 +260,27 @@ export function AutomationJobDetailsDialog({
                     {job.last_delivery ? (
                       <>
                         <div className="mt-3 space-y-2 text-sm">
-                          <div>时间: {formatTime(job.last_delivery.attempted_at)}</div>
                           <div>
-                            渠道: {deliveryChannelLabel(job.last_delivery.channel)}
+                            时间: {formatTime(job.last_delivery.attempted_at)}
+                          </div>
+                          <div>
+                            渠道:{" "}
+                            {deliveryChannelLabel(job.last_delivery.channel)}
                           </div>
                           <div>目标: {job.last_delivery.target || "-"}</div>
                           <div>
                             契约:{" "}
-                            {outputSchemaLabel(job.last_delivery.output_schema)} /{" "}
+                            {outputSchemaLabel(job.last_delivery.output_schema)}{" "}
+                            /{" "}
                             {outputFormatLabel(job.last_delivery.output_format)}
                           </div>
                           <div>
-                            投递键: {job.last_delivery.delivery_attempt_id || "-"}
+                            投递键:{" "}
+                            {job.last_delivery.delivery_attempt_id || "-"}
                           </div>
                           <div>
-                            执行重试: {job.last_delivery.execution_retry_count ?? 0}
+                            执行重试:{" "}
+                            {job.last_delivery.execution_retry_count ?? 0}
                             {" / "}
                             投递尝试: {job.last_delivery.delivery_attempts ?? 0}
                           </div>
@@ -318,15 +332,15 @@ export function AutomationJobDetailsDialog({
                     jobRuns.map((run) => {
                       const infoMessage = resolveRunInfoMessage(run);
                       const delivery = resolveRunDelivery(run);
-                      const runServiceSkillContext = resolveRunServiceSkillContext(
-                        run,
-                        serviceSkillContext,
-                      );
+                      const runServiceSkillContext =
+                        resolveRunServiceSkillContext(run, serviceSkillContext);
                       const runServiceSkillTaskLine = runServiceSkillContext
                         ? describeServiceSkillTaskLine(runServiceSkillContext)
                         : null;
                       const runServiceSkillSlotPreview = runServiceSkillContext
-                        ? describeServiceSkillSlotPreview(runServiceSkillContext)
+                        ? describeServiceSkillSlotPreview(
+                            runServiceSkillContext,
+                          )
                         : null;
 
                       return (
@@ -344,7 +358,9 @@ export function AutomationJobDetailsDialog({
                           </div>
                           <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
                             <span>ID: {run.id}</span>
-                            <span>Session: {resolveRunSessionId(run) ?? "-"}</span>
+                            <span>
+                              Session: {resolveRunSessionId(run) ?? "-"}
+                            </span>
                             <span>完成: {formatTime(run.finished_at)}</span>
                           </div>
                           {infoMessage ? (
@@ -369,7 +385,9 @@ export function AutomationJobDetailsDialog({
                                   {runServiceSkillContext.runnerLabel}
                                 </Badge>
                                 <Badge variant="outline">
-                                  {runServiceSkillContext.executionLocationLabel}
+                                  {
+                                    runServiceSkillContext.executionLocationLabel
+                                  }
                                 </Badge>
                               </div>
                               {runServiceSkillTaskLine ? (
@@ -397,10 +415,13 @@ export function AutomationJobDetailsDialog({
                             >
                               <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
                                 <span>
-                                  输出投递 / {deliveryChannelLabel(delivery.channel)}
+                                  输出投递 /{" "}
+                                  {deliveryChannelLabel(delivery.channel)}
                                 </span>
                                 <Badge
-                                  variant={deliveryStatusVariant(delivery.success)}
+                                  variant={deliveryStatusVariant(
+                                    delivery.success,
+                                  )}
                                 >
                                   {delivery.success ? "成功" : "失败"}
                                 </Badge>

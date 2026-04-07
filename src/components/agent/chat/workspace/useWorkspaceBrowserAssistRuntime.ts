@@ -62,8 +62,7 @@ const EXISTING_SESSION_LAUNCH_ERROR_PATTERNS = [
 ];
 
 function isExistingSessionLaunchError(error: unknown): boolean {
-  const message =
-    error instanceof Error ? error.message : String(error ?? "");
+  const message = error instanceof Error ? error.message : String(error ?? "");
   const normalized = message.trim().toLowerCase();
   return EXISTING_SESSION_LAUNCH_ERROR_PATTERNS.some((pattern) =>
     normalized.includes(pattern),
@@ -95,17 +94,15 @@ function resolveBrowserActionPageSnapshot(
 
   return {
     url:
-      readFirstString([pageInfo, normalizedResultData], [
-        "url",
-        "target_url",
-        "targetUrl",
-      ]) || fallbackUrl,
+      readFirstString(
+        [pageInfo, normalizedResultData],
+        ["url", "target_url", "targetUrl"],
+      ) || fallbackUrl,
     title:
-      readFirstString([pageInfo, normalizedResultData], [
-        "title",
-        "target_title",
-        "targetTitle",
-      ]) || fallbackTitle,
+      readFirstString(
+        [pageInfo, normalizedResultData],
+        ["title", "target_title", "targetTitle"],
+      ) || fallbackTitle,
   };
 }
 
@@ -357,9 +354,9 @@ export function useWorkspaceBrowserAssistRuntime({
 
     return Boolean(
       openBrowserAssistOnMount ||
-        initialSiteSkillLaunch ||
-        browserAssistArtifact ||
-        latestBrowserAssistSessionFromMessages,
+      initialSiteSkillLaunch ||
+      browserAssistArtifact ||
+      latestBrowserAssistSessionFromMessages,
     );
   }, [
     activeTheme,
@@ -512,7 +509,8 @@ export function useWorkspaceBrowserAssistRuntime({
           phase: "running",
           adapterName: initialSiteSkillLaunch.adapterName,
           skillTitle:
-            initialSiteSkillLaunch.skillTitle || initialSiteSkillLaunch.adapterName,
+            initialSiteSkillLaunch.skillTitle ||
+            initialSiteSkillLaunch.adapterName,
           profileKey: initialSiteSkillLaunch.profileKey,
           targetId: initialSiteSkillLaunch.targetId,
           message: `正在通过已附着的浏览器会话执行 ${initialSiteSkillLaunch.skillTitle || initialSiteSkillLaunch.adapterName}。`,
@@ -556,7 +554,8 @@ export function useWorkspaceBrowserAssistRuntime({
                 : "error",
             adapterName: initialSiteSkillLaunch.adapterName,
             skillTitle:
-              initialSiteSkillLaunch.skillTitle || initialSiteSkillLaunch.adapterName,
+              initialSiteSkillLaunch.skillTitle ||
+              initialSiteSkillLaunch.adapterName,
             profileKey: result.profile_key,
             targetId: result.target_id,
             sourceUrl: result.source_url,
@@ -588,7 +587,8 @@ export function useWorkspaceBrowserAssistRuntime({
           phase: "success",
           adapterName: initialSiteSkillLaunch.adapterName,
           skillTitle:
-            initialSiteSkillLaunch.skillTitle || initialSiteSkillLaunch.adapterName,
+            initialSiteSkillLaunch.skillTitle ||
+            initialSiteSkillLaunch.adapterName,
           profileKey: result.profile_key,
           targetId: result.target_id,
           sourceUrl: result.source_url,
@@ -614,7 +614,8 @@ export function useWorkspaceBrowserAssistRuntime({
           phase: "error",
           adapterName: initialSiteSkillLaunch.adapterName,
           skillTitle:
-            initialSiteSkillLaunch.skillTitle || initialSiteSkillLaunch.adapterName,
+            initialSiteSkillLaunch.skillTitle ||
+            initialSiteSkillLaunch.adapterName,
           profileKey: initialSiteSkillLaunch.profileKey,
           targetId: initialSiteSkillLaunch.targetId,
           message: error instanceof Error ? error.message : String(error),
@@ -723,11 +724,8 @@ export function useWorkspaceBrowserAssistRuntime({
         throw new Error(result.error || "附着当前 Chrome 导航失败");
       }
 
-      const { url: nextUrl, title: nextTitle } = resolveBrowserActionPageSnapshot(
-        result.data,
-        url,
-        fallbackTitle,
-      );
+      const { url: nextUrl, title: nextTitle } =
+        resolveBrowserActionPageSnapshot(result.data, url, fallbackTitle);
 
       commitBrowserAssistSessionState(
         createBrowserAssistSessionState({
@@ -870,9 +868,9 @@ export function useWorkspaceBrowserAssistRuntime({
         }
 
         if (!result) {
-          throw (lastError instanceof Error
+          throw lastError instanceof Error
             ? lastError
-            : new Error("浏览器导航失败"));
+            : new Error("浏览器导航失败");
         }
 
         const { url: nextUrl, title: nextTitle } =
@@ -1020,7 +1018,8 @@ export function useWorkspaceBrowserAssistRuntime({
         }
 
         if (shouldRestrictBrowserAssistToAttachedSession) {
-          const errorMessage = buildAttachedSessionOnlyErrorMessage("浏览器协助");
+          const errorMessage =
+            buildAttachedSessionOnlyErrorMessage("浏览器协助");
           upsertGeneralArtifact(
             buildFailedBrowserAssistArtifact({
               scopeKey: browserAssistScopeKey,
@@ -1274,7 +1273,10 @@ export function useWorkspaceBrowserAssistRuntime({
         browserAssistSessionState.profileKey || generalBrowserAssistProfileKey
       }:${browserAssistSessionState.url || currentUrl || "pending"}`;
     if (
-      shouldAutoOpenPassiveBrowserAssist(nextArtifact, browserAssistLaunching) &&
+      shouldAutoOpenPassiveBrowserAssist(
+        nextArtifact,
+        browserAssistLaunching,
+      ) &&
       autoOpenedBrowserAssistSessionIdRef.current !== autoOpenKey
     ) {
       autoOpenedBrowserAssistSessionIdRef.current = autoOpenKey;

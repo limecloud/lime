@@ -8,8 +8,10 @@ export type DeepSearchWorkbenchCommandTrigger =
   | "@deep"
   | "@deepsearch";
 
-export interface ParsedDeepSearchWorkbenchCommand
-  extends Omit<ParsedSearchWorkbenchCommand, "trigger" | "depth"> {
+export interface ParsedDeepSearchWorkbenchCommand extends Omit<
+  ParsedSearchWorkbenchCommand,
+  "trigger" | "depth"
+> {
   trigger: DeepSearchWorkbenchCommandTrigger;
   depth: "deep";
 }

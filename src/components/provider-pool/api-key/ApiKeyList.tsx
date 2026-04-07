@@ -270,113 +270,110 @@ export const ApiKeyList: React.FC<ApiKeyListProps> = ({
         </div>
       </div>
 
-        {showAddForm ? (
-          <div
-            className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50/80 p-4"
-            data-testid="add-api-key-form"
-          >
-            <div
-              className="space-y-4"
-              data-testid="add-api-key-fields-stack"
-            >
-              <div className="min-w-0 space-y-1.5">
-                <Label htmlFor="new-api-key" className="text-xs font-medium">
-                  API Key <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="new-api-key"
-                    type={showApiKey ? "text" : "password"}
-                    value={newApiKey}
-                    onChange={(e) => setNewApiKey(e.target.value)}
-                    placeholder="输入 API Key"
-                    className="border-slate-200 bg-white pr-10"
-                    disabled={isAdding}
-                    autoComplete="new-password"
-                    data-testid="new-api-key-input"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    tabIndex={-1}
-                  >
-                    {showApiKey ? <EyeSlashIcon /> : <EyeIcon />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="min-w-0 space-y-1.5">
-                <Label htmlFor="new-alias" className="text-xs font-medium">
-                  别名（可选）
-                </Label>
+      {showAddForm ? (
+        <div
+          className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50/80 p-4"
+          data-testid="add-api-key-form"
+        >
+          <div className="space-y-4" data-testid="add-api-key-fields-stack">
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor="new-api-key" className="text-xs font-medium">
+                API Key <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
                 <Input
-                  id="new-alias"
-                  type="text"
-                  value={newAlias}
-                  onChange={(e) => setNewAlias(e.target.value)}
-                  placeholder="例如：生产主账号"
+                  id="new-api-key"
+                  type={showApiKey ? "text" : "password"}
+                  value={newApiKey}
+                  onChange={(e) => setNewApiKey(e.target.value)}
+                  placeholder="输入 API Key"
+                  className="border-slate-200 bg-white pr-10"
                   disabled={isAdding}
-                  className="border-slate-200 bg-white"
-                  autoComplete="off"
-                  data-testid="new-alias-input"
+                  autoComplete="new-password"
+                  data-testid="new-api-key-input"
                 />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  tabIndex={-1}
+                >
+                  {showApiKey ? <EyeSlashIcon /> : <EyeIcon />}
+                </button>
               </div>
             </div>
 
-            {error ? (
-              <p className="mt-3 text-xs text-red-500" data-testid="add-error">
-                {error}
-              </p>
-            ) : null}
-
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCancel}
+            <div className="min-w-0 space-y-1.5">
+              <Label htmlFor="new-alias" className="text-xs font-medium">
+                别名（可选）
+              </Label>
+              <Input
+                id="new-alias"
+                type="text"
+                value={newAlias}
+                onChange={(e) => setNewAlias(e.target.value)}
+                placeholder="例如：生产主账号"
                 disabled={isAdding}
-              >
-                取消
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleAdd}
-                disabled={isAdding || !newApiKey.trim()}
-                data-testid="confirm-add-button"
-              >
-                {isAdding ? "添加中..." : "确认添加"}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {apiKeys.length > 0 ? (
-          <div className="mt-4 space-y-3" data-testid="api-key-items">
-            {apiKeys.map((apiKey) => (
-              <ApiKeyItem
-                key={apiKey.id}
-                apiKey={apiKey}
-                onToggle={onToggle}
-                onDelete={onDelete}
-                loading={loading}
-                className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3 hover:bg-slate-100/80"
+                className="border-slate-200 bg-white"
+                autoComplete="off"
+                data-testid="new-alias-input"
               />
-            ))}
-          </div>
-        ) : (
-          !showAddForm && (
-            <div
-              className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50/60 px-4 py-10 text-center"
-              data-testid="empty-state"
-            >
-              <p className="text-sm font-medium text-slate-900">暂无 API Key</p>
-              <p className="mt-1 text-xs text-slate-500">
-                先新增第一把 Key，之后再做连接测试与模型刷新
-              </p>
             </div>
-          )
-        )}
+          </div>
+
+          {error ? (
+            <p className="mt-3 text-xs text-red-500" data-testid="add-error">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              disabled={isAdding}
+            >
+              取消
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleAdd}
+              disabled={isAdding || !newApiKey.trim()}
+              data-testid="confirm-add-button"
+            >
+              {isAdding ? "添加中..." : "确认添加"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {apiKeys.length > 0 ? (
+        <div className="mt-4 space-y-3" data-testid="api-key-items">
+          {apiKeys.map((apiKey) => (
+            <ApiKeyItem
+              key={apiKey.id}
+              apiKey={apiKey}
+              onToggle={onToggle}
+              onDelete={onDelete}
+              loading={loading}
+              className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3 hover:bg-slate-100/80"
+            />
+          ))}
+        </div>
+      ) : (
+        !showAddForm && (
+          <div
+            className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50/60 px-4 py-10 text-center"
+            data-testid="empty-state"
+          >
+            <p className="text-sm font-medium text-slate-900">暂无 API Key</p>
+            <p className="mt-1 text-xs text-slate-500">
+              先新增第一把 Key，之后再做连接测试与模型刷新
+            </p>
+          </div>
+        )
+      )}
     </div>
   );
 };

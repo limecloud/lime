@@ -18,12 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Switch } from "@/components/ui/switch";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -182,8 +177,9 @@ export function AutomationSettings({
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
   const [dialogInitialValues, setDialogInitialValues] =
     useState<AutomationJobDialogInitialValues | null>(null);
-  const [workspaceTab, setWorkspaceTab] =
-    useState<AutomationWorkspaceTab>(initialWorkspaceTab ?? "tasks");
+  const [workspaceTab, setWorkspaceTab] = useState<AutomationWorkspaceTab>(
+    initialWorkspaceTab ?? "tasks",
+  );
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const autoOpenedInitialJobIdRef = useRef<string | null>(null);
 
@@ -203,7 +199,9 @@ export function AutomationSettings({
   }, [jobs]);
   const selectedServiceSkillContext = useMemo(
     () =>
-      selectedJobId ? serviceSkillContextByJobId.get(selectedJobId) ?? null : null,
+      selectedJobId
+        ? (serviceSkillContextByJobId.get(selectedJobId) ?? null)
+        : null,
     [selectedJobId, serviceSkillContextByJobId],
   );
   const legacyBrowserJobCount = useMemo(
@@ -718,7 +716,8 @@ export function AutomationSettings({
               <CardContent>
                 {legacyBrowserJobCount > 0 ? (
                   <div className="mb-4 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-6 text-amber-800">
-                    检测到 {legacyBrowserJobCount} 条旧浏览器自动化任务。系统已停用这类任务，不会再后台启动
+                    检测到 {legacyBrowserJobCount}{" "}
+                    条旧浏览器自动化任务。系统已停用这类任务，不会再后台启动
                     Chrome；请删除旧任务，并改用 Agent 对话任务重建。
                   </div>
                 ) : null}
@@ -755,7 +754,9 @@ export function AutomationSettings({
                           data-testid={`automation-template-${template.id}`}
                           variant="ghost"
                           className="mt-5 w-full justify-between rounded-[16px] border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-                          onClick={() => openCreateDialog(template.initialValues)}
+                          onClick={() =>
+                            openCreateDialog(template.initialValues)
+                          }
                         >
                           {template.actionLabel}
                           <ArrowRight className="h-4 w-4" />
@@ -792,11 +793,15 @@ export function AutomationSettings({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="min-w-[320px]">任务</TableHead>
-                          <TableHead className="min-w-[140px]">工作区</TableHead>
+                          <TableHead className="min-w-[140px]">
+                            工作区
+                          </TableHead>
                           <TableHead className="min-w-[150px]">调度</TableHead>
                           <TableHead className="min-w-[110px]">模式</TableHead>
                           <TableHead className="min-w-[210px]">状态</TableHead>
-                          <TableHead className="min-w-[150px]">执行窗口</TableHead>
+                          <TableHead className="min-w-[150px]">
+                            执行窗口
+                          </TableHead>
                           <TableHead className="min-w-[240px] text-right">
                             操作
                           </TableHead>
@@ -804,7 +809,9 @@ export function AutomationSettings({
                       </TableHeader>
                       <TableBody>
                         {jobs.map((job) => {
-                          const jobDetailMessage = riskyJobMessageMap.get(job.id);
+                          const jobDetailMessage = riskyJobMessageMap.get(
+                            job.id,
+                          );
                           const serviceSkillContext =
                             serviceSkillContextByJobId.get(job.id) ?? null;
                           const serviceSkillTaskLine = serviceSkillContext
@@ -815,7 +822,8 @@ export function AutomationSettings({
                                 serviceSkillContext,
                               )
                             : null;
-                          const legacyBrowserJob = isLegacyBrowserAutomation(job);
+                          const legacyBrowserJob =
+                            isLegacyBrowserAutomation(job);
                           return (
                             <TableRow
                               key={job.id}
@@ -886,7 +894,9 @@ export function AutomationSettings({
                               <TableCell className="align-top">
                                 <div className="space-y-2">
                                   <div className="flex flex-wrap gap-2">
-                                    <Badge variant={statusVariant(job.last_status)}>
+                                    <Badge
+                                      variant={statusVariant(job.last_status)}
+                                    >
                                       {statusLabel(job.last_status)}
                                     </Badge>
                                     {legacyBrowserJob ? (
@@ -898,7 +908,9 @@ export function AutomationSettings({
                                       <Badge variant="outline">已停用</Badge>
                                     ) : null}
                                     {job.auto_disabled_until ? (
-                                      <Badge variant="destructive">冷却中</Badge>
+                                      <Badge variant="destructive">
+                                        冷却中
+                                      </Badge>
                                     ) : null}
                                   </div>
                                   {jobDetailMessage ? (
@@ -934,7 +946,8 @@ export function AutomationSettings({
                                       void handleRunNow(job);
                                     }}
                                     disabled={
-                                      runningJobId === job.id || legacyBrowserJob
+                                      runningJobId === job.id ||
+                                      legacyBrowserJob
                                     }
                                   >
                                     <Play className="mr-1 h-4 w-4" />
@@ -992,7 +1005,10 @@ export function AutomationSettings({
                       <p className="mt-2 text-sm text-slate-500">
                         从这里开始创建结构化任务，之后所有定时执行都只走这套链路。
                       </p>
-                      <Button className="mt-5" onClick={() => openCreateDialog()}>
+                      <Button
+                        className="mt-5"
+                        onClick={() => openCreateDialog()}
+                      >
                         <Plus className="mr-2 h-4 w-4" />
                         新建第一条任务
                       </Button>
@@ -1019,31 +1035,42 @@ export function AutomationSettings({
                       />
                     </div>
                   </div>
-                  <LatestRunStatusBadge source="automation" label="统一执行状态" />
+                  <LatestRunStatusBadge
+                    source="automation"
+                    label="统一执行状态"
+                  />
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                    <div className="text-sm font-medium text-slate-900">调度器</div>
+                    <div className="text-sm font-medium text-slate-900">
+                      调度器
+                    </div>
                     <div className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
                       {status?.running ? "运行中" : "已停止"}
                     </div>
                   </div>
                   <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                    <div className="text-sm font-medium text-slate-900">最近轮询</div>
+                    <div className="text-sm font-medium text-slate-900">
+                      最近轮询
+                    </div>
                     <div className="mt-3 text-base font-semibold text-slate-900">
                       {formatTime(status?.last_polled_at)}
                     </div>
                   </div>
                   <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                    <div className="text-sm font-medium text-slate-900">下次轮询</div>
+                    <div className="text-sm font-medium text-slate-900">
+                      下次轮询
+                    </div>
                     <div className="mt-3 text-base font-semibold text-slate-900">
                       {formatTime(status?.next_poll_at)}
                     </div>
                   </div>
                   <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                    <div className="text-sm font-medium text-slate-900">活跃任务</div>
+                    <div className="text-sm font-medium text-slate-900">
+                      活跃任务
+                    </div>
                     <div className="mt-3 text-base font-semibold text-slate-900">
                       {status?.active_job_name ?? "当前空闲"}
                     </div>
@@ -1072,7 +1099,9 @@ export function AutomationSettings({
         onOpenChange={setDetailDialogOpen}
         job={selectedJob}
         workspaceName={
-          selectedJob ? workspaceNameMap.get(selectedJob.workspace_id) ?? null : null
+          selectedJob
+            ? (workspaceNameMap.get(selectedJob.workspace_id) ?? null)
+            : null
         }
         serviceSkillContext={selectedServiceSkillContext}
         jobRuns={jobRuns}

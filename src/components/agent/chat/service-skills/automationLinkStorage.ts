@@ -258,7 +258,9 @@ export function resolveServiceSkillAutomationLinks(
     }
   });
 
-  return [...merged.values()].sort((left, right) => right.linkedAt - left.linkedAt);
+  return [...merged.values()].sort(
+    (left, right) => right.linkedAt - left.linkedAt,
+  );
 }
 
 export function listServiceSkillAutomationLinks(): ServiceSkillAutomationLinkRecord[] {
@@ -357,7 +359,9 @@ export function buildServiceSkillAutomationStatusMap(
 
     const statusLabel = job.auto_disabled_until
       ? "冷却中"
-      : resolveStatusLabel(job.running_started_at ? "running" : job.last_status);
+      : resolveStatusLabel(
+          job.running_started_at ? "running" : job.last_status,
+        );
 
     result[link.skillId] = {
       jobId: job.id,

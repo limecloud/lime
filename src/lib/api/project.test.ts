@@ -64,9 +64,7 @@ describe("项目管理 API", () => {
     });
 
     it("应该调用命令获取 workspace 根目录", async () => {
-      vi.mocked(safeInvoke).mockResolvedValueOnce(
-        "/Users/test/.lime/projects",
-      );
+      vi.mocked(safeInvoke).mockResolvedValueOnce("/Users/test/.lime/projects");
 
       const root = await getWorkspaceProjectsRoot();
 
@@ -865,7 +863,6 @@ describe("TYPE_CONFIGS", () => {
     expect(TYPE_CONFIGS["persistent"].canvasType).toBeNull();
     expect(TYPE_CONFIGS["temporary"].canvasType).toBeNull();
   });
-
 });
 
 // ============================================================================

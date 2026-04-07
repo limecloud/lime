@@ -7,10 +7,7 @@ import type { SessionModelPreference } from "../hooks/agentChatShared";
 import type { ChatToolPreferences } from "./chatToolPreferences";
 import { normalizeHarnessSessionMode } from "./harnessSessionMode";
 
-const HARNESS_WEB_SEARCH_PREFERENCE_KEYS = [
-  "web_search",
-  "webSearch",
-] as const;
+const HARNESS_WEB_SEARCH_PREFERENCE_KEYS = ["web_search", "webSearch"] as const;
 const HARNESS_THINKING_PREFERENCE_KEYS = [
   "thinking",
   "thinking_enabled",
@@ -265,9 +262,7 @@ function normalizeComparableTeamRole(
     id: normalizeComparableText(role["id"]),
     label: normalizeComparableText(role["label"]),
     summary: normalizeComparableText(role["summary"]),
-    profileId: normalizeComparableText(
-      role["profile_id"] ?? role["profileId"],
-    ),
+    profileId: normalizeComparableText(role["profile_id"] ?? role["profileId"]),
     roleKey: normalizeComparableText(role["role_key"] ?? role["roleKey"]),
     skillIds: normalizeComparableSkillIds(
       role["skill_ids"] ?? role["skillIds"],
@@ -411,7 +406,8 @@ export function buildSubmitOpRuntimeCompaction(
     executionRuntime?.provider_name?.trim() ||
     null;
   const runtimeModelName = executionRuntime?.model_name?.trim() || null;
-  const knownProviderSelector = syncedProviderSelector || runtimeProviderSelector;
+  const knownProviderSelector =
+    syncedProviderSelector || runtimeProviderSelector;
   const knownModelName = syncedModelName || runtimeModelName;
   const shouldSubmitProviderPreference =
     !knownProviderSelector ||
@@ -463,8 +459,7 @@ export function buildSubmitOpRuntimeCompaction(
       knownWebSearchPreference !== webSearch);
   const shouldSubmitThinking =
     typeof thinking === "boolean" &&
-    (knownThinkingPreference === null ||
-      knownThinkingPreference !== thinking);
+    (knownThinkingPreference === null || knownThinkingPreference !== thinking);
   const requestTaskPreference = readHarnessPreferenceFromRequestMetadata(
     requestMetadata,
     HARNESS_TASK_PREFERENCE_KEYS,
@@ -540,7 +535,10 @@ export function buildSubmitOpRuntimeCompaction(
     knownRecentContentId !== null &&
     requestContentId === knownRecentContentId
   ) {
-    metadata = omitHarnessFieldsFromRequestMetadata(metadata, HARNESS_CONTENT_ID_KEYS);
+    metadata = omitHarnessFieldsFromRequestMetadata(
+      metadata,
+      HARNESS_CONTENT_ID_KEYS,
+    );
   }
 
   const requestAccessMode = normalizeComparableText(
@@ -554,19 +552,27 @@ export function buildSubmitOpRuntimeCompaction(
     knownRecentAccessMode !== null &&
     requestAccessMode === knownRecentAccessMode
   ) {
-    metadata = omitHarnessFieldsFromRequestMetadata(metadata, HARNESS_ACCESS_MODE_KEYS);
+    metadata = omitHarnessFieldsFromRequestMetadata(
+      metadata,
+      HARNESS_ACCESS_MODE_KEYS,
+    );
   }
 
   const requestTheme = normalizeComparableText(
     readHarnessStringFromRequestMetadata(metadata, HARNESS_THEME_KEYS),
   );
-  const knownRecentTheme = normalizeComparableText(executionRuntime?.recent_theme);
+  const knownRecentTheme = normalizeComparableText(
+    executionRuntime?.recent_theme,
+  );
   if (
     requestTheme !== null &&
     knownRecentTheme !== null &&
     requestTheme === knownRecentTheme
   ) {
-    metadata = omitHarnessFieldsFromRequestMetadata(metadata, HARNESS_THEME_KEYS);
+    metadata = omitHarnessFieldsFromRequestMetadata(
+      metadata,
+      HARNESS_THEME_KEYS,
+    );
   }
 
   const requestSessionMode = normalizeHarnessSessionMode(
@@ -597,7 +603,10 @@ export function buildSubmitOpRuntimeCompaction(
     knownRecentGateKey !== null &&
     requestGateKey === knownRecentGateKey
   ) {
-    metadata = omitHarnessFieldsFromRequestMetadata(metadata, HARNESS_GATE_KEY_KEYS);
+    metadata = omitHarnessFieldsFromRequestMetadata(
+      metadata,
+      HARNESS_GATE_KEY_KEYS,
+    );
   }
 
   const requestRunTitle = normalizeComparableText(
@@ -611,7 +620,10 @@ export function buildSubmitOpRuntimeCompaction(
     knownRecentRunTitle !== null &&
     requestRunTitle === knownRecentRunTitle
   ) {
-    metadata = omitHarnessFieldsFromRequestMetadata(metadata, HARNESS_RUN_TITLE_KEYS);
+    metadata = omitHarnessFieldsFromRequestMetadata(
+      metadata,
+      HARNESS_RUN_TITLE_KEYS,
+    );
   }
 
   return {

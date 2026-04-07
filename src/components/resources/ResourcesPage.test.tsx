@@ -9,10 +9,7 @@ import {
 } from "@/components/image-gen/test-utils";
 import { ResourcesPage } from "./ResourcesPage";
 
-const {
-  mockLoadResources,
-  resourcesState,
-} = vi.hoisted(() => {
+const { mockLoadResources, resourcesState } = vi.hoisted(() => {
   const nextState = {
     projectId: "project-1",
     items: [
@@ -136,9 +133,8 @@ vi.mock("./store", () => ({
     currentFolder: (state: typeof resourcesState) => state.currentFolder,
     canNavigateUp: (state: typeof resourcesState) => state.canNavigateUp,
   },
-  useResourcesStore: (
-    selector: (state: typeof resourcesState) => unknown,
-  ) => selector(resourcesState),
+  useResourcesStore: (selector: (state: typeof resourcesState) => unknown) =>
+    selector(resourcesState),
 }));
 
 const mountedRoots: MountedRoot[] = [];

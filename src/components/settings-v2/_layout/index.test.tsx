@@ -8,13 +8,12 @@ const {
   mockPreloadDeveloperDefaultSections,
   mockCloudProviderSettings,
   mockSettingsHomePage,
-} =
-  vi.hoisted(() => ({
-    mockSettingsSidebar: vi.fn(),
-    mockPreloadDeveloperDefaultSections: vi.fn(),
-    mockCloudProviderSettings: vi.fn(),
-    mockSettingsHomePage: vi.fn(),
-  }));
+} = vi.hoisted(() => ({
+  mockSettingsSidebar: vi.fn(),
+  mockPreloadDeveloperDefaultSections: vi.fn(),
+  mockCloudProviderSettings: vi.fn(),
+  mockSettingsHomePage: vi.fn(),
+}));
 
 const { mockResolveOemCloudRuntimeContext } = vi.hoisted(() => ({
   mockResolveOemCloudRuntimeContext: vi.fn(),
@@ -27,14 +26,9 @@ vi.mock("./SettingsSidebar", () => ({
   },
 }));
 
-vi.mock(
-  "@/lib/workspace/workbenchUi",
-  () => ({
-    CanvasBreadcrumbHeader: ({ label }: { label: string }) => (
-      <div>{label}</div>
-    ),
-  }),
-);
+vi.mock("@/lib/workspace/workbenchUi", () => ({
+  CanvasBreadcrumbHeader: ({ label }: { label: string }) => <div>{label}</div>,
+}));
 
 vi.mock("../general/appearance", () => ({
   AppearanceSettings: () => <div>appearance</div>,

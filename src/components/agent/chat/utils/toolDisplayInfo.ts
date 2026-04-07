@@ -1595,11 +1595,15 @@ export const resolveToolPrimarySubject = (
   }
 
   if (normalizedName === "teamcreate" || normalizedName === "teamdelete") {
-    return resolveToolArgumentPreview(args, ["team_name", "teamName"]) || "当前团队";
+    return (
+      resolveToolArgumentPreview(args, ["team_name", "teamName"]) || "当前团队"
+    );
   }
 
   if (normalizedName === "listpeers") {
-    return resolveToolArgumentPreview(args, ["team_name", "teamName"]) || "当前团队";
+    return (
+      resolveToolArgumentPreview(args, ["team_name", "teamName"]) || "当前团队"
+    );
   }
 
   if (

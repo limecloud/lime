@@ -123,11 +123,17 @@ function collectFieldMatches(text: string): ReportFieldMatch[] {
 
   return baseMatches.map((match, index) => ({
     ...match,
-    end: index + 1 < baseMatches.length ? baseMatches[index + 1]!.start : text.length,
+    end:
+      index + 1 < baseMatches.length
+        ? baseMatches[index + 1]!.start
+        : text.length,
   }));
 }
 
-function stripExplicitFields(text: string, matches: ReportFieldMatch[]): string {
+function stripExplicitFields(
+  text: string,
+  matches: ReportFieldMatch[],
+): string {
   if (matches.length === 0) {
     return text;
   }
@@ -167,7 +173,9 @@ function extractReportFields(text: string): ExtractedReportFields {
   });
 
   const strippedText = trimDecorations(stripExplicitFields(text, matches));
-  const leadingSite = normalizeSite(strippedText.match(LEADING_SITE_REGEX)?.[1]);
+  const leadingSite = normalizeSite(
+    strippedText.match(LEADING_SITE_REGEX)?.[1],
+  );
   const inlineTimeRange = strippedText.match(INLINE_TIME_RANGE_REGEX)?.[1];
   const strippedWithoutSite = leadingSite
     ? trimDecorations(strippedText.replace(LEADING_SITE_REGEX, ""))

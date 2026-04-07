@@ -179,8 +179,8 @@ const MarkdownContainer = styled.div`
 
   th,
   td {
-    border-right: 1px solid hsl(var(--border));
-    border-bottom: 1px solid hsl(var(--border));
+    border-right: 1px solid rgba(167, 243, 208, 0.42);
+    border-bottom: 1px solid rgba(167, 243, 208, 0.42);
     padding: 0.45rem 0.65rem;
     vertical-align: top;
     text-align: left;
@@ -190,10 +190,10 @@ const MarkdownContainer = styled.div`
     font-weight: 600;
     background: linear-gradient(
       180deg,
-      hsl(var(--muted) / 0.78) 0%,
-      hsl(var(--muted) / 0.96) 100%
+      rgba(220, 252, 231, 0.45) 0%,
+      rgba(220, 252, 231, 0.8) 100%
     );
-    color: hsl(var(--foreground));
+    color: #14532d;
     white-space: nowrap;
   }
 
@@ -206,7 +206,7 @@ const MarkdownContainer = styled.div`
   }
 
   tbody tr:nth-child(even) td {
-    background: hsl(var(--muted) / 0.22);
+    background: rgba(220, 252, 231, 0.15);
   }
 
   a {
@@ -245,14 +245,14 @@ const MarkdownDivider = styled.hr`
 const MarkdownQuoteCard = styled.blockquote`
   margin: 0 0 0.95em;
   padding: 0;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid rgba(167, 243, 208, 0.5);
   border-radius: 20px;
   background: linear-gradient(
     180deg,
     hsl(var(--background)) 0%,
-    hsl(var(--muted) / 0.58) 100%
+    rgba(220, 252, 231, 0.3) 100%
   );
-  box-shadow: 0 14px 34px -30px rgba(15, 23, 42, 0.25);
+  box-shadow: 0 14px 34px -30px rgba(15, 23, 42, 0.18);
   overflow: hidden;
 `;
 
@@ -432,7 +432,7 @@ const MarkdownBlockActionButton = styled.button`
 const MarkdownTableScroll = styled.div`
   margin: 0 0 0.82em;
   overflow-x: auto;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid rgba(167, 243, 208, 0.6);
   border-radius: 14px;
   background: hsl(var(--background));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -515,11 +515,16 @@ function resolveCodePresentationMode(
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
-  const arrowRows = lines.filter((line) => FLOW_ARROW_ONLY_PATTERN.test(line)).length;
+  const arrowRows = lines.filter((line) =>
+    FLOW_ARROW_ONLY_PATTERN.test(line),
+  ).length;
   const bulletRows = lines.filter((line) => /^[-*]\s+/.test(line)).length;
   const hasCodeSignals = CODE_SIGNAL_PATTERN.test(trimmed);
 
-  if ((PLAIN_TEXT_LANGUAGES.has(normalizedLanguage) || !hasCodeSignals) && arrowRows >= 2) {
+  if (
+    (PLAIN_TEXT_LANGUAGES.has(normalizedLanguage) || !hasCodeSignals) &&
+    arrowRows >= 2
+  ) {
     return "flow";
   }
 
@@ -583,23 +588,34 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
       };
     }, []);
 
-    const handleCopy = React.useCallback(async (copyKey: string, value: string) => {
-      try {
-        await navigator.clipboard.writeText(value);
-        setCopied(copyKey);
-        if (copyTimeoutRef.current !== null) {
-          window.clearTimeout(copyTimeoutRef.current);
+    const handleCopy = React.useCallback(
+      async (copyKey: string, value: string) => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(copyKey);
+          if (copyTimeoutRef.current !== null) {
+            window.clearTimeout(copyTimeoutRef.current);
+          }
+          copyTimeoutRef.current = window.setTimeout(
+            () => setCopied(null),
+            1200,
+          );
+        } catch {
+          // 剪贴板在受限上下文里可能不可用，这里保持静默降级。
         }
-        copyTimeoutRef.current = window.setTimeout(() => setCopied(null), 1200);
-      } catch {
-        // 剪贴板在受限上下文里可能不可用，这里保持静默降级。
-      }
-    }, []);
+      },
+      [],
+    );
 
     const getSelectedMarkdownText = React.useCallback(() => {
       const block = blockRef.current;
       const selection = window.getSelection();
-      if (!block || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      if (
+        !block ||
+        !selection ||
+        selection.rangeCount === 0 ||
+        selection.isCollapsed
+      ) {
         return null;
       }
 
@@ -647,14 +663,18 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
       const selectedText =
         getSelectedMarkdownText() ?? selectionSnapshotRef.current ?? undefined;
       selectionSnapshotRef.current = null;
-      onQuoteContent(selectedText?.trim().length ? selectedText : normalizedContent);
+      onQuoteContent(
+        selectedText?.trim().length ? selectedText : normalizedContent,
+      );
     }, [getSelectedMarkdownText, normalizedContent, onQuoteContent]);
 
     const handleCopyContent = React.useCallback(async () => {
       const selectedText =
         getSelectedMarkdownText() ?? selectionSnapshotRef.current ?? undefined;
       selectionSnapshotRef.current = null;
-      const copyValue = selectedText?.trim().length ? selectedText : normalizedContent;
+      const copyValue = selectedText?.trim().length
+        ? selectedText
+        : normalizedContent;
       if (!copyValue) {
         return;
       }
@@ -880,11 +900,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
               aria-label="复制内容区块"
               title={isContentCopied ? "已复制" : "复制内容区块"}
             >
-              {isContentCopied ? (
-                <Check size={14} />
-              ) : (
-                <Copy size={14} />
-              )}
+              {isContentCopied ? <Check size={14} /> : <Copy size={14} />}
             </MarkdownBlockActionButton>
           </MarkdownBlockActions>
         ) : null}
@@ -1042,7 +1058,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                 },
                 code({ inline, className, children, ...props }: any) {
                   const content = String(
-                    Array.isArray(children) ? children.join("") : children || "",
+                    Array.isArray(children)
+                      ? children.join("")
+                      : children || "",
                   );
                   const isInlineCode =
                     typeof inline === "boolean"

@@ -4,7 +4,9 @@ import { normalizeProjectId } from "../utils/topicProjectResolution";
 export const LAST_PROJECT_ID_KEY = "agent_last_project_id";
 export const SESSION_WORKSPACE_STORAGE_KEY_PREFIX = "agent_session_workspace_";
 
-export function getSessionWorkspaceStorageKey(sessionId: string): string | null {
+export function getSessionWorkspaceStorageKey(
+  sessionId: string,
+): string | null {
   const normalizedSessionId = sessionId.trim();
   if (!normalizedSessionId) {
     return null;

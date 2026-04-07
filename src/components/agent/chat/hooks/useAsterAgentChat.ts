@@ -216,14 +216,19 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     session.sessionId &&
     session.topics.some((topic) => topic.id === session.sessionId),
   );
-  const activeExecutionRuntime = useMemo<
-    AsterSessionExecutionRuntime | null
-  >(() => {
-    const threadStatus = session.threadRead?.status;
-    const shouldPreferRuntime =
-      stream.isSending || threadStatus === "running" || threadStatus === "queued";
-    return shouldPreferRuntime ? session.executionRuntime : null;
-  }, [session.executionRuntime, session.threadRead?.status, stream.isSending]);
+  const activeExecutionRuntime =
+    useMemo<AsterSessionExecutionRuntime | null>(() => {
+      const threadStatus = session.threadRead?.status;
+      const shouldPreferRuntime =
+        stream.isSending ||
+        threadStatus === "running" ||
+        threadStatus === "queued";
+      return shouldPreferRuntime ? session.executionRuntime : null;
+    }, [
+      session.executionRuntime,
+      session.threadRead?.status,
+      stream.isSending,
+    ]);
 
   useAgentRuntimeSyncEffects({
     runtime,

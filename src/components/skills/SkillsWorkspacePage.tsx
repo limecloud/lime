@@ -75,7 +75,10 @@ function normalizeKeyword(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function matchesText(query: string, ...values: Array<string | undefined>): boolean {
+function matchesText(
+  query: string,
+  ...values: Array<string | undefined>
+): boolean {
   const normalizedQuery = normalizeKeyword(query);
   if (!normalizedQuery) {
     return true;
@@ -113,7 +116,10 @@ function getCloudRunStatusLabel(status: string): string {
   }
 }
 
-function buildCloudRunSuccessMessage(skill: ServiceSkillHomeItem, run: ServiceSkillRun): string {
+function buildCloudRunSuccessMessage(
+  skill: ServiceSkillHomeItem,
+  run: ServiceSkillRun,
+): string {
   const summary = run.outputSummary?.trim();
   if (summary) {
     return summary;
@@ -156,12 +162,13 @@ function resolveSkillCardStatusDetail(skill: ServiceSkillHomeItem): string {
 }
 
 function resolveSkillGroupKey(skill: ServiceSkillHomeItem): string {
-  return (skill as ServiceSkillHomeItem & { groupKey?: string }).groupKey ?? "general";
+  return (
+    (skill as ServiceSkillHomeItem & { groupKey?: string }).groupKey ??
+    "general"
+  );
 }
 
-export function SkillsWorkspacePage({
-  onNavigate,
-}: SkillsWorkspacePageProps) {
+export function SkillsWorkspacePage({ onNavigate }: SkillsWorkspacePageProps) {
   const {
     skills: serviceSkills,
     groups: skillGroups,
@@ -720,27 +727,41 @@ export function SkillsWorkspacePage({
 
           {(serviceSkillsError || localSkillsError) && (
             <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
-              {serviceSkillsError ? `云目录加载失败：${serviceSkillsError}` : null}
+              {serviceSkillsError
+                ? `云目录加载失败：${serviceSkillsError}`
+                : null}
               {serviceSkillsError && localSkillsError ? "；" : null}
-              {localSkillsError ? `本地技能加载失败：${localSkillsError}` : null}
+              {localSkillsError
+                ? `本地技能加载失败：${localSkillsError}`
+                : null}
             </div>
           )}
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="space-y-4"
+          >
             <div className="flex flex-col gap-3 rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <TabsList className="h-auto rounded-2xl bg-slate-100 p-1">
                   <TabsTrigger value="market" className="rounded-2xl px-4 py-2">
                     技能广场 {skillGroups.length > 0 ? skillGroups.length : ""}
                   </TabsTrigger>
-                  <TabsTrigger value="installed" className="rounded-2xl px-4 py-2">
-                    我的技能 {recentServiceSkills.length + installedLocalSkills.length}
+                  <TabsTrigger
+                    value="installed"
+                    className="rounded-2xl px-4 py-2"
+                  >
+                    我的技能{" "}
+                    {recentServiceSkills.length + installedLocalSkills.length}
                   </TabsTrigger>
                 </TabsList>
               </div>
 
               <div className="text-xs leading-5 text-slate-500">
-                {serviceSkillsLoading || localSkillsLoading || localSkillsRemoteLoading
+                {serviceSkillsLoading ||
+                localSkillsLoading ||
+                localSkillsRemoteLoading
                   ? "正在同步当前目录..."
                   : selectedGroup
                     ? `当前正在浏览 ${selectedGroup.title} 技能组。`

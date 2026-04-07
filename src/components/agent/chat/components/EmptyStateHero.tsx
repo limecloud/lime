@@ -134,7 +134,7 @@ const SloganLine = styled.p`
   width: fit-content;
   align-items: center;
   gap: 1.3rem;
-  
+
   /* lime gradient with scan effect */
   background: linear-gradient(
     90deg,
@@ -162,7 +162,11 @@ const SloganLine = styled.p`
     height: 0.92rem;
     flex-shrink: 0;
     border-radius: 9999px;
-    background: linear-gradient(135deg, rgba(132, 204, 22, 0.9), rgba(16, 185, 129, 0.75));
+    background: linear-gradient(
+      135deg,
+      rgba(132, 204, 22, 0.9),
+      rgba(16, 185, 129, 0.75)
+    );
     box-shadow: 0 0 0 12px rgba(132, 204, 22, 0.12);
   }
 `;
@@ -272,7 +276,6 @@ const HeroCard = styled.article.attrs({
       font-size: 0.92rem;
       line-height: 1.3;
     }
-
   }
 
   .card-media {
@@ -376,7 +379,9 @@ export function EmptyStateHero({
                   ) : null}
                   <LeadDescriptionText>{description}</LeadDescriptionText>
                   {supportingDescription ? (
-                    <LeadSupportingText>{supportingDescription}</LeadSupportingText>
+                    <LeadSupportingText>
+                      {supportingDescription}
+                    </LeadSupportingText>
                   ) : null}
                 </LeadTextGroup>
 
@@ -386,7 +391,9 @@ export function EmptyStateHero({
                       <span
                         key={badge.key}
                         className={`${EMPTY_STATE_BADGE_BASE_CLASSNAME} ${
-                          EMPTY_STATE_BADGE_TONE_CLASSNAMES[badge.tone || "slate"]
+                          EMPTY_STATE_BADGE_TONE_CLASSNAMES[
+                            badge.tone || "slate"
+                          ]
                         }`}
                       >
                         {badge.label}
@@ -394,11 +401,9 @@ export function EmptyStateHero({
                     ))}
                   </div>
                 ) : null}
-
               </LeadBody>
             </LeadBlock>
           </LeadColumn>
-
         </StageGrid>
 
         {prioritySlot ? (
@@ -483,7 +488,6 @@ export function EmptyStateHero({
             </HeroCard>
           ))}
         </CardsShell>
-
       </HeroContent>
     </HeroSection>
   );

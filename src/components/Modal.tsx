@@ -223,7 +223,9 @@ export function ModalFooter({
   className?: string;
 }) {
   return (
-    <div className={`shrink-0 flex flex-wrap justify-end gap-2 border-t px-6 py-4 ${className}`}>
+    <div
+      className={`shrink-0 flex flex-wrap justify-end gap-2 border-t px-6 py-4 ${className}`}
+    >
       {children}
     </div>
   );

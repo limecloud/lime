@@ -1,13 +1,6 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   saveChatToolPreferences,
   type ChatToolPreferences,
@@ -350,9 +343,7 @@ describe("useThemeScopedChatToolPreferences", () => {
       });
 
       expect(
-        harness
-          .getValue()
-          .getSyncedSessionRecentPreferences("session-sync-1"),
+        harness.getValue().getSyncedSessionRecentPreferences("session-sync-1"),
       ).toEqual({
         webSearch: true,
         thinking: true,

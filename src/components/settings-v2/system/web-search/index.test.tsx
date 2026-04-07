@@ -235,7 +235,9 @@ describe("WebSearchSettings", () => {
     await leaveTip(heroTip);
 
     const pexelsTip = await hoverTip("Pexels 接入说明");
-    expect(getBodyText()).toContain("申请地址：https://www.pexels.com/api/new/");
+    expect(getBodyText()).toContain(
+      "申请地址：https://www.pexels.com/api/new/",
+    );
     expect(getBodyText()).toContain("验证路径：插图 → 图片搜索 → 联网搜索。");
     await leaveTip(pexelsTip);
   });

@@ -163,9 +163,7 @@ export function WelcomeStep({ onNext, onSkip }: WelcomeStepProps) {
             <Mic />
           </FeatureIcon>
           <FeatureTitle>语音交互</FeatureTitle>
-          <FeatureDescription>
-            便捷的语音输入，提升对话效率
-          </FeatureDescription>
+          <FeatureDescription>便捷的语音输入，提升对话效率</FeatureDescription>
         </FeatureCard>
       </FeatureGrid>
 

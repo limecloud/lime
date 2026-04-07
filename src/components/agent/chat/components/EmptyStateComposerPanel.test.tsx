@@ -312,9 +312,9 @@ describe("EmptyStateComposerPanel", () => {
       onSend,
     });
 
-    const textarea = container.querySelector("textarea") as
-      | HTMLTextAreaElement
-      | null;
+    const textarea = container.querySelector(
+      "textarea",
+    ) as HTMLTextAreaElement | null;
     const pendingButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("稍后处理"),
     ) as HTMLButtonElement | undefined;
@@ -377,7 +377,9 @@ describe("EmptyStateComposerPanel", () => {
     expect(enableTeamButton).toBeTruthy();
 
     act(() => {
-      enableTeamButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      enableTeamButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
 
     expect(onSubagentEnabledChange).toHaveBeenCalledWith(true);
@@ -391,16 +393,14 @@ describe("EmptyStateComposerPanel", () => {
       onSubagentEnabledChange: vi.fn(),
     });
 
-    const continueButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("继续单代理"),
-    );
+    const continueButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("继续单代理"));
 
     expect(continueButton).toBeTruthy();
 
     act(() => {
-      continueButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
+      continueButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     expect(container.textContent).not.toContain("当前任务更适合 Team 协作");
@@ -427,7 +427,9 @@ describe("EmptyStateComposerPanel", () => {
       container.querySelector('[data-testid="empty-state-team-selector"]'),
     ).toBeNull();
     expect(
-      container.querySelector('[data-testid="empty-state-team-mode-enable-button"]'),
+      container.querySelector(
+        '[data-testid="empty-state-team-mode-enable-button"]',
+      ),
     ).toBeNull();
 
     const toggleButton = container.querySelector(
@@ -561,14 +563,14 @@ describe("EmptyStateComposerPanel", () => {
       input: "请拆成多个子任务分别分析、实现、验证，并最终统一回归验收",
     });
 
-    const enableButton = Array.from(
-      container.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("启用 Team")) as
-      | HTMLButtonElement
-      | undefined;
+    const enableButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("启用 Team"),
+    ) as HTMLButtonElement | undefined;
 
     expect(
-      container.querySelector('[data-testid="empty-state-team-mode-enable-button"]'),
+      container.querySelector(
+        '[data-testid="empty-state-team-mode-enable-button"]',
+      ),
     ).toBeNull();
     expect(
       container.querySelector('button[title="多代理偏好已关闭"]'),

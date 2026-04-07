@@ -132,7 +132,8 @@ function resolveDocumentStats(
     {
       label: "结构块",
       value: String(visibleBlocks.length),
-      detail: visibleBlocks.length > 0 ? "当前阅读面的可见内容块" : "暂无可见内容块",
+      detail:
+        visibleBlocks.length > 0 ? "当前阅读面的可见内容块" : "暂无可见内容块",
     },
     {
       label: "章节",
@@ -203,7 +204,10 @@ const SourceAppendix = memo(function SourceAppendix({
                 tone === "light" ? "text-slate-900" : "text-white",
               )}
             >
-              {source.label || source.locator?.url || source.locator?.path || source.id}
+              {source.label ||
+                source.locator?.url ||
+                source.locator?.path ||
+                source.id}
             </div>
             {source.snippet ? (
               <div
@@ -227,7 +231,9 @@ const SourceAppendix = memo(function SourceAppendix({
               </a>
             ) : null}
             {source.locator?.path ? (
-              <div className="mt-2 text-sm text-slate-500">{source.locator.path}</div>
+              <div className="mt-2 text-sm text-slate-500">
+                {source.locator.path}
+              </div>
             ) : null}
           </div>
         ))}
@@ -236,8 +242,8 @@ const SourceAppendix = memo(function SourceAppendix({
   );
 });
 
-export const ArtifactDocumentRenderer: React.FC<ArtifactDocumentRendererProps> = memo(
-  ({ document, tone = "light" }) => {
+export const ArtifactDocumentRenderer: React.FC<ArtifactDocumentRendererProps> =
+  memo(({ document, tone = "light" }) => {
     const visibleBlocks = useMemo(
       () => document.blocks.filter((block) => block.hidden !== true),
       [document.blocks],
@@ -403,7 +409,6 @@ export const ArtifactDocumentRenderer: React.FC<ArtifactDocumentRendererProps> =
         </article>
       </div>
     );
-  },
-);
+  });
 
 ArtifactDocumentRenderer.displayName = "ArtifactDocumentRenderer";

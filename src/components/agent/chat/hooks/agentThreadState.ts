@@ -1,6 +1,9 @@
 import type { AgentThreadItem, AgentThreadTurn } from "../types";
 
-function compareItemOrder(left: AgentThreadItem, right: AgentThreadItem): number {
+function compareItemOrder(
+  left: AgentThreadItem,
+  right: AgentThreadItem,
+): number {
   if (left.started_at !== right.started_at) {
     return left.started_at.localeCompare(right.started_at);
   }
@@ -64,7 +67,8 @@ export function markThreadActionItemSubmitted(
 
   return items.map((item) => {
     if (
-      (item.type !== "approval_request" && item.type !== "request_user_input") ||
+      (item.type !== "approval_request" &&
+        item.type !== "request_user_input") ||
       !requestIds.has(item.request_id)
     ) {
       return item;

@@ -15,10 +15,7 @@ interface UseSkillsOptions {
   includeRepos?: boolean;
 }
 
-export function useSkills(
-  app: AppType = "lime",
-  options?: UseSkillsOptions,
-) {
+export function useSkills(app: AppType = "lime", options?: UseSkillsOptions) {
   const cached = cache.get(app);
   const isCacheFresh = cached && Date.now() - cached.timestamp < CACHE_TTL_MS;
   const includeRepos = options?.includeRepos ?? true;
@@ -97,7 +94,14 @@ export function useSkills(
     if (includeRepos) {
       fetchRepos();
     }
-  }, [app, fetchAllSkills, fetchRepos, includeRepos, isCacheFresh, updateCache]);
+  }, [
+    app,
+    fetchAllSkills,
+    fetchRepos,
+    includeRepos,
+    isCacheFresh,
+    updateCache,
+  ]);
 
   const install = async (directory: string) => {
     await skillsApi.install(directory, app);

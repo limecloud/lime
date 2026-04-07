@@ -27,7 +27,9 @@ export class AppCrashBoundary extends React.Component<
     };
   }
 
-  static getDerivedStateFromError(error: Error): Partial<AppCrashBoundaryState> {
+  static getDerivedStateFromError(
+    error: Error,
+  ): Partial<AppCrashBoundaryState> {
     return {
       hasError: true,
       error,

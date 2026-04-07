@@ -25,7 +25,12 @@ const FIELD_LABEL_REGEX =
 const PROMPT_PREFIX_REGEX =
   /^\s*(总结|概括|提炼|摘要|summary|summarize)(?:\s|$|[:：])*/i;
 
-type SummaryFieldKey = "content" | "focus" | "length" | "style" | "outputFormat";
+type SummaryFieldKey =
+  | "content"
+  | "focus"
+  | "length"
+  | "style"
+  | "outputFormat";
 
 interface SummaryFieldMatch {
   key: SummaryFieldKey;
@@ -140,7 +145,9 @@ function collectFieldMatches(text: string): SummaryFieldMatch[] {
 
   return baseMatches.map((match, index) => {
     const nextStart =
-      index + 1 < baseMatches.length ? baseMatches[index + 1]!.start : text.length;
+      index + 1 < baseMatches.length
+        ? baseMatches[index + 1]!.start
+        : text.length;
     const remainder = text.slice(match.valueStart, nextStart);
 
     if (match.key === "length") {
@@ -161,7 +168,10 @@ function collectFieldMatches(text: string): SummaryFieldMatch[] {
   });
 }
 
-function stripExplicitFields(text: string, matches: SummaryFieldMatch[]): string {
+function stripExplicitFields(
+  text: string,
+  matches: SummaryFieldMatch[],
+): string {
   if (matches.length === 0) {
     return text;
   }

@@ -27,9 +27,7 @@ import {
   resolveWorkspaceEntry,
   type WorkspaceEntryPayload,
 } from "../workspaceEntry";
-import {
-  composeServiceSkillPrompt,
-} from "../service-skills/promptComposer";
+import { composeServiceSkillPrompt } from "../service-skills/promptComposer";
 import {
   buildServiceSkillAutomationAgentTurnPayloadContext,
   buildServiceSkillAutomationInitialValues,
@@ -446,16 +444,21 @@ export function useWorkspaceServiceSkillEntryActions({
         autoRunInitialPromptOnMount: true,
       };
     },
-    [activeTheme, createServiceSkillSeededContent, currentContentId, currentProjectId],
+    [
+      activeTheme,
+      createServiceSkillSeededContent,
+      currentContentId,
+      currentProjectId,
+    ],
   );
 
   const prepareServiceSkillSiteWorkspacePayload = useCallback(
     async (
       skill: ServiceSkillHomeItem,
       slotValues: ServiceSkillSlotValues,
-      launchReadiness:
-        | Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>>
-        | null,
+      launchReadiness: Awaited<
+        ReturnType<typeof siteGetAdapterLaunchReadiness>
+      > | null,
       options?: ServiceSkillLaunchOptions,
     ): Promise<WorkspaceEntryPayload> => {
       if (!isServiceSkillExecutableAsSiteAdapter(skill)) {
@@ -556,10 +559,13 @@ export function useWorkspaceServiceSkillEntryActions({
     [activeTheme, createServiceSkillSeededContent, currentProjectId],
   );
 
-  const handleServiceSkillSelect = useCallback((skill: ServiceSkillHomeItem) => {
-    setSelectedServiceSkill(skill);
-    setServiceSkillDialogOpen(true);
-  }, []);
+  const handleServiceSkillSelect = useCallback(
+    (skill: ServiceSkillHomeItem) => {
+      setSelectedServiceSkill(skill);
+      setServiceSkillDialogOpen(true);
+    },
+    [],
+  );
 
   const handleServiceSkillDialogOpenChange = useCallback((open: boolean) => {
     setServiceSkillDialogOpen(open);
@@ -591,9 +597,9 @@ export function useWorkspaceServiceSkillEntryActions({
       }
 
       const binding = skill.siteCapabilityBinding;
-      let launchReadiness:
-        | Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>>
-        | null = null;
+      let launchReadiness: Awaited<
+        ReturnType<typeof siteGetAdapterLaunchReadiness>
+      > | null = null;
       try {
         launchReadiness = await siteGetAdapterLaunchReadiness({
           adapter_name: binding.adapterName,
@@ -671,9 +677,9 @@ export function useWorkspaceServiceSkillEntryActions({
       options?: ServiceSkillLaunchOptions,
     ) => {
       if (isServiceSkillExecutableAsSiteAdapter(skill)) {
-        let launchReadiness:
-          | Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>>
-          | null = null;
+        let launchReadiness: Awaited<
+          ReturnType<typeof siteGetAdapterLaunchReadiness>
+        > | null = null;
         try {
           launchReadiness = await siteGetAdapterLaunchReadiness({
             adapter_name: skill.siteCapabilityBinding.adapterName,
@@ -801,10 +807,7 @@ export function useWorkspaceServiceSkillEntryActions({
             },
           );
         } catch (error) {
-          if (
-            options?.fallbackToWorkspaceOnCloudSubmitFailure &&
-            !runCreated
-          ) {
+          if (options?.fallbackToWorkspaceOnCloudSubmitFailure && !runCreated) {
             let workspacePayload: WorkspaceEntryPayload;
             try {
               workspacePayload = await prepareServiceSkillWorkspacePayload(
@@ -836,9 +839,12 @@ export function useWorkspaceServiceSkillEntryActions({
               skillId: skill.id,
               runnerType: skill.runnerType,
             });
-            toast.info(`${skill.title} 云端暂不可用，已切换到本地工作区继续。`, {
-              id: toastId,
-            });
+            toast.info(
+              `${skill.title} 云端暂不可用，已切换到本地工作区继续。`,
+              {
+                id: toastId,
+              },
+            );
             return;
           }
 
@@ -959,12 +965,7 @@ export function useWorkspaceServiceSkillEntryActions({
         toast.error(`准备本地自动化任务失败：${getErrorMessage(error)}`);
       }
     },
-    [
-      activeTheme,
-      currentProjectId,
-      handleServiceSkillLaunch,
-      input,
-    ],
+    [activeTheme, currentProjectId, handleServiceSkillLaunch, input],
   );
 
   const handleAutomationDialogOpenChange = useCallback((open: boolean) => {

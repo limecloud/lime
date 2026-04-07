@@ -75,7 +75,10 @@ describe("safeInvoke", () => {
     const result = await safeInvoke("workspace_list");
 
     expect(result).toEqual({ ok: true });
-    expect(mocks.invokeViaHttp).toHaveBeenCalledWith("workspace_list", undefined);
+    expect(mocks.invokeViaHttp).toHaveBeenCalledWith(
+      "workspace_list",
+      undefined,
+    );
     expect(mocks.baseInvoke).not.toHaveBeenCalled();
 
     expect(getInvokeTraceBuffer()).toEqual([
@@ -120,10 +123,15 @@ describe("safeInvoke", () => {
     vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
     mocks.baseInvoke.mockResolvedValueOnce(["mock-first"]);
 
-    await expect(safeInvoke("list_plugin_tasks")).resolves.toEqual(["mock-first"]);
+    await expect(safeInvoke("list_plugin_tasks")).resolves.toEqual([
+      "mock-first",
+    ]);
 
     expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
-    expect(mocks.baseInvoke).toHaveBeenCalledWith("list_plugin_tasks", undefined);
+    expect(mocks.baseInvoke).toHaveBeenCalledWith(
+      "list_plugin_tasks",
+      undefined,
+    );
   });
 
   it("HTTP bridge 与 mock 都失败时抛出 bridge 错误", async () => {
@@ -208,7 +216,9 @@ describe("safeInvoke", () => {
   it("事件桥失败且没有 Tauri 标记时会退回显式 mock 监听", async () => {
     const unlisten = vi.fn();
     mocks.hasDevBridgeEventListenerCapability.mockReturnValue(true);
-    mocks.listenViaHttpEvent.mockRejectedValueOnce(new Error("connection failed"));
+    mocks.listenViaHttpEvent.mockRejectedValueOnce(
+      new Error("connection failed"),
+    );
     mocks.explicitMockListen.mockResolvedValueOnce(unlisten);
 
     await expect(safeListen("companion-pet-status", vi.fn())).resolves.toBe(

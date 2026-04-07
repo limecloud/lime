@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Activity,
   AlertTriangle,
@@ -98,7 +104,9 @@ function ExecutionPanel({
             />
           </div>
         </div>
-        {aside ? <div className="flex flex-wrap items-center gap-2">{aside}</div> : null}
+        {aside ? (
+          <div className="flex flex-wrap items-center gap-2">{aside}</div>
+        ) : null}
       </div>
 
       <div className="mt-5">{children}</div>
@@ -658,7 +666,9 @@ export function ExecutionTrackerSettings() {
                   </p>
                   <Select
                     value={sourceFilter}
-                    onValueChange={(value) => setSourceFilter(value as SourceFilter)}
+                    onValueChange={(value) =>
+                      setSourceFilter(value as SourceFilter)
+                    }
                   >
                     <SelectTrigger className="h-11 rounded-2xl border-slate-200 bg-white text-slate-700">
                       <SelectValue placeholder="来源过滤" />
@@ -679,7 +689,9 @@ export function ExecutionTrackerSettings() {
                   </p>
                   <Select
                     value={statusFilter}
-                    onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+                    onValueChange={(value) =>
+                      setStatusFilter(value as StatusFilter)
+                    }
                   >
                     <SelectTrigger className="h-11 rounded-2xl border-slate-200 bg-white text-slate-700">
                       <SelectValue placeholder="状态过滤" />
@@ -800,7 +812,8 @@ export function ExecutionTrackerSettings() {
                       metadata 只在需要补充上下文时再看
                     </p>
                     <p className="mt-1 text-sm leading-6 text-slate-500">
-                      原始 metadata 信息量更大，适合在已经确定问题边界后再下钻，而不是一开始通读。
+                      原始 metadata
+                      信息量更大，适合在已经确定问题边界后再下钻，而不是一开始通读。
                     </p>
                   </div>
                 </div>
@@ -856,7 +869,9 @@ export function ExecutionTrackerSettings() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => void copyText(selectedSessionId, "会话 ID 已复制")}
+                        onClick={() =>
+                          void copyText(selectedSessionId, "会话 ID 已复制")
+                        }
                         className="rounded-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                       >
                         <Copy className="mr-1 h-4 w-4" />
@@ -893,7 +908,9 @@ export function ExecutionTrackerSettings() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => void copyText(selectedMetadata, "Metadata 已复制")}
+                        onClick={() =>
+                          void copyText(selectedMetadata, "Metadata 已复制")
+                        }
                         className="rounded-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                       >
                         <Copy className="mr-1 h-4 w-4" />

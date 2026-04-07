@@ -18,8 +18,7 @@ export interface SkillSelectionControllerProps {
 }
 
 export interface SkillSelectionProps
-  extends SkillSelectionSourceProps,
-    SkillSelectionControllerProps {
+  extends SkillSelectionSourceProps, SkillSelectionControllerProps {
   skills: Skill[];
   serviceSkills: ServiceSkillHomeItem[];
   activeSkill: Skill | null;

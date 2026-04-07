@@ -53,9 +53,14 @@ vi.mock("qrcode", () => ({
   },
 }));
 
-vi.mock("@/components/settings-v2/system/channels/ChannelsDebugWorkbench", () => ({
-  ChannelsDebugWorkbench: () => <div data-testid="channels-debug-workbench" />,
-}));
+vi.mock(
+  "@/components/settings-v2/system/channels/ChannelsDebugWorkbench",
+  () => ({
+    ChannelsDebugWorkbench: () => (
+      <div data-testid="channels-debug-workbench" />
+    ),
+  }),
+);
 
 import { ImConfigPage } from "./ImConfigPage";
 
@@ -152,8 +157,8 @@ function findButtonByTestId(testId: string): HTMLButtonElement {
 }
 
 function findButtonByText(text: string): HTMLButtonElement {
-  const button = Array.from(document.body.querySelectorAll("button")).find((item) =>
-    item.textContent?.includes(text),
+  const button = Array.from(document.body.querySelectorAll("button")).find(
+    (item) => item.textContent?.includes(text),
   );
   if (!(button instanceof HTMLButtonElement)) {
     throw new Error(`未找到按钮文案: ${text}`);
@@ -384,7 +389,9 @@ describe("ImConfigPage", () => {
         width: 320,
       }),
     );
-    expect(document.body.querySelector('img[alt="微信扫码二维码"]')).not.toBeNull();
+    expect(
+      document.body.querySelector('img[alt="微信扫码二维码"]'),
+    ).not.toBeNull();
     expect(document.body.textContent).toContain("群组策略");
     expect(document.body.textContent).toContain("账号参数");
     expect(document.body.textContent).toContain("联调检查");

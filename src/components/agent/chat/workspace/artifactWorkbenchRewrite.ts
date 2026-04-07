@@ -104,18 +104,30 @@ function resolveRewriteBlockFromOps(
 } {
   const upsertOp =
     ops.find(
-      (op): op is Extract<ArtifactDocumentOperation, { op: "artifact.upsert_block" }> =>
-        op.op === "artifact.upsert_block" && op.block.id === targetBlockId,
+      (
+        op,
+      ): op is Extract<
+        ArtifactDocumentOperation,
+        { op: "artifact.upsert_block" }
+      > => op.op === "artifact.upsert_block" && op.block.id === targetBlockId,
     ) ||
     ops.find(
-      (op): op is Extract<ArtifactDocumentOperation, { op: "artifact.upsert_block" }> =>
-        op.op === "artifact.upsert_block",
+      (
+        op,
+      ): op is Extract<
+        ArtifactDocumentOperation,
+        { op: "artifact.upsert_block" }
+      > => op.op === "artifact.upsert_block",
     ) ||
     null;
 
   const finalizeOp = ops.find(
-    (op): op is Extract<ArtifactDocumentOperation, { op: "artifact.finalize_version" }> =>
-      op.op === "artifact.finalize_version",
+    (
+      op,
+    ): op is Extract<
+      ArtifactDocumentOperation,
+      { op: "artifact.finalize_version" }
+    > => op.op === "artifact.finalize_version",
   );
 
   return {
@@ -175,17 +187,18 @@ export function resolveArtifactBlockRewriteCompletion(
     return {
       rawContent,
       suggestion: null,
-      warning:
-        "改写已完成，但当前返回结果没有包含可回填的目标 block。",
+      warning: "改写已完成，但当前返回结果没有包含可回填的目标 block。",
     };
   }
 
-  if (targetBlockId !== payload.entry.blockId || block.id !== payload.entry.blockId) {
+  if (
+    targetBlockId !== payload.entry.blockId ||
+    block.id !== payload.entry.blockId
+  ) {
     return {
       rawContent,
       suggestion: null,
-      warning:
-        "改写已完成，但当前返回 block 与所选目标不一致，暂不自动回填。",
+      warning: "改写已完成，但当前返回 block 与所选目标不一致，暂不自动回填。",
     };
   }
 
@@ -194,8 +207,7 @@ export function resolveArtifactBlockRewriteCompletion(
     return {
       rawContent,
       suggestion: null,
-      warning:
-        "改写已完成，但返回的 block 类型当前编辑面还不支持直接回填。",
+      warning: "改写已完成，但返回的 block 类型当前编辑面还不支持直接回填。",
     };
   }
 
@@ -345,7 +357,9 @@ function resolveOutlineWindow(
   document: ArtifactDocumentV1,
   targetBlockId: string,
 ): Array<Record<string, unknown>> {
-  const targetIndex = document.blocks.findIndex((block) => block.id === targetBlockId);
+  const targetIndex = document.blocks.findIndex(
+    (block) => block.id === targetBlockId,
+  );
   const start = Math.max(0, targetIndex - 2);
   const end = Math.min(document.blocks.length, targetIndex + 3);
 
@@ -406,9 +420,10 @@ function buildRewritePrompt(input: {
   } = input;
   const artifactPath = resolveArtifactProtocolFilePath(artifact);
   const outlineWindow = resolveOutlineWindow(document, entry.blockId);
-  const relevantSources = resolveRelevantSources(targetBlock, document.sources).map(
-    serializeSourceForPrompt,
-  );
+  const relevantSources = resolveRelevantSources(
+    targetBlock,
+    document.sources,
+  ).map(serializeSourceForPrompt);
 
   const sections = [
     "你正在执行 Lime Artifact Workbench 的局部改写任务。",
@@ -484,16 +499,23 @@ function buildRewritePrompt(input: {
 export function buildArtifactBlockRewriteRequest(
   payload: ArtifactBlockRewriteRunPayload,
 ): ArtifactBlockRewriteRequest {
-  const requestId = resolveArtifactRequestId(payload.artifact, payload.document);
+  const requestId = resolveArtifactRequestId(
+    payload.artifact,
+    payload.document,
+  );
   if (!requestId) {
     throw new Error("当前 Artifact 缺少 request id，暂时无法发起局部改写");
   }
 
-  const targetBlock = resolveTargetBlock(payload.document, payload.entry.blockId);
+  const targetBlock = resolveTargetBlock(
+    payload.document,
+    payload.entry.blockId,
+  );
   const instruction =
     normalizeText(payload.instruction) ||
     DEFAULT_ARTIFACT_BLOCK_REWRITE_INSTRUCTION;
-  const sourcePolicy = payload.document.sources.length > 0 ? "required" : "preferred";
+  const sourcePolicy =
+    payload.document.sources.length > 0 ? "required" : "preferred";
 
   return {
     prompt: buildRewritePrompt({

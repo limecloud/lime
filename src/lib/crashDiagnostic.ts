@@ -359,8 +359,7 @@ function buildMcpSummary(servers: McpServerInfo[]): McpDiagnosticSummary {
   return {
     total_servers: serverSummaries.length,
     running_servers: serverSummaries.filter((item) => item.is_running).length,
-    enabled_lime: serverSummaries.filter((item) => item.enabled_lime)
-      .length,
+    enabled_lime: serverSummaries.filter((item) => item.enabled_lime).length,
     enabled_claude: serverSummaries.filter((item) => item.enabled_claude)
       .length,
     enabled_codex: serverSummaries.filter((item) => item.enabled_codex).length,
@@ -407,10 +406,10 @@ function buildCollectionFailureNote(
 function hasRuntimeSnapshotData(snapshot: RuntimeDiagnosticSnapshot): boolean {
   return Boolean(
     snapshot.config_summary ||
-      snapshot.provider_pool_summary ||
-      snapshot.api_key_provider_summary ||
-      snapshot.mcp_summary ||
-      snapshot.terminal_summary,
+    snapshot.provider_pool_summary ||
+    snapshot.api_key_provider_summary ||
+    snapshot.mcp_summary ||
+    snapshot.terminal_summary,
   );
 }
 
@@ -1130,8 +1129,8 @@ async function copyTextViaTauriClipboard(text: string): Promise<boolean> {
 function isTauriRuntime(): boolean {
   return Boolean(
     typeof window !== "undefined" &&
-      ((window as any).__TAURI__?.core?.invoke ||
-        (window as any).__TAURI__?.invoke),
+    ((window as any).__TAURI__?.core?.invoke ||
+      (window as any).__TAURI__?.invoke),
   );
 }
 

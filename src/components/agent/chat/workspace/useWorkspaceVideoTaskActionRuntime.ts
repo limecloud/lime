@@ -208,9 +208,8 @@ export function useWorkspaceVideoTaskActionRuntime({
       }
 
       try {
-        const cancelledTask = await videoGenerationApi.cancelTask(
-          normalizedTaskId,
-        );
+        const cancelledTask =
+          await videoGenerationApi.cancelTask(normalizedTaskId);
         if (cancelledTask) {
           setChatMessages((previous) =>
             updateVideoPreviewByTaskId(previous, normalizedTaskId, (preview) =>

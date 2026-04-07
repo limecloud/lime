@@ -59,8 +59,7 @@ const TabsList: React.FC<TabsListProps> = ({
   </div>
 );
 
-interface TabsTriggerProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   value: string;
   className?: string;
   children: React.ReactNode;

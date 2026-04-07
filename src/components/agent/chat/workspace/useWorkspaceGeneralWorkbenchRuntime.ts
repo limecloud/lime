@@ -57,7 +57,8 @@ function hasFreshRunningQueueItem(
     }
 
     return (
-      Date.now() - startedAt.getTime() <= GENERAL_WORKBENCH_ACTIVE_RUN_MAX_AGE_MS
+      Date.now() - startedAt.getTime() <=
+      GENERAL_WORKBENCH_ACTIVE_RUN_MAX_AGE_MS
     );
   });
 }

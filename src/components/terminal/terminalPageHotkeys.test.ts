@@ -32,7 +32,10 @@ describe("terminal page hotkeys", () => {
 
   it("应解析终端滚动快捷键", () => {
     expect(
-      resolveTerminalPageHotkeyAction({ key: "End", shiftKey: true }, "windows"),
+      resolveTerminalPageHotkeyAction(
+        { key: "End", shiftKey: true },
+        "windows",
+      ),
     ).toBe("scroll-to-bottom");
     expect(
       resolveTerminalPageHotkeyAction(

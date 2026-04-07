@@ -52,8 +52,8 @@ const mountedRoots: MountedRoot[] = [];
 describe("CreateProjectDialog", () => {
   beforeEach(() => {
     mockGetWorkspaceProjectsRoot.mockResolvedValue("/tmp/workspace");
-    mockResolveProjectRootPath.mockImplementation(async (name: string) =>
-      `/tmp/workspace/${name}`,
+    mockResolveProjectRootPath.mockImplementation(
+      async (name: string) => `/tmp/workspace/${name}`,
     );
     mockGetProjectByRootPath.mockResolvedValue(null);
   });
@@ -110,7 +110,9 @@ describe("CreateProjectDialog", () => {
 
     await flushEffects(3);
 
-    expect(document.body.textContent ?? "").toContain("路径已存在项目：已存在项目");
+    expect(document.body.textContent ?? "").toContain(
+      "路径已存在项目：已存在项目",
+    );
     const createButton = findButtonByText(document.body, "创建", {
       exact: true,
     });

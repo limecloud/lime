@@ -25,7 +25,9 @@ interface GetStoredResourceProjectIdOptions {
   includeLegacy?: boolean;
 }
 
-const normalizeProjectId = (value: string | null | undefined): string | null => {
+const normalizeProjectId = (
+  value: string | null | undefined,
+): string | null => {
   if (!value) return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
@@ -85,12 +87,15 @@ export const setStoredResourceProjectId = (
   }
 
   window.dispatchEvent(
-    new CustomEvent<ResourceProjectChangeDetail>(RESOURCE_PROJECT_CHANGE_EVENT, {
-      detail: {
-        projectId: normalizedProjectId,
-        source: options?.source ?? "unknown",
+    new CustomEvent<ResourceProjectChangeDetail>(
+      RESOURCE_PROJECT_CHANGE_EVENT,
+      {
+        detail: {
+          projectId: normalizedProjectId,
+          source: options?.source ?? "unknown",
+        },
       },
-    }),
+    ),
   );
 };
 

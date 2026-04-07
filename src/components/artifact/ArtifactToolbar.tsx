@@ -461,16 +461,16 @@ export const ArtifactToolbar: React.FC<ArtifactToolbarProps> = memo(
       onToggleSource;
 
     return (
-      <div
-        className={cn(
-          "flex items-center gap-1 px-2 py-1.5 border-b",
-          tone === "light"
-            ? "border-border bg-background"
-            : "border-white/10 bg-[#21252b]",
-        )}
-      >
+    <div
+      className={cn(
+        "flex items-center px-4 py-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm gap-4",
+        tone === "light"
+          ? ""
+          : "border-white/10 bg-[#21252b]",
+      )}
+    >
         {/* 标题区域 */}
-        <div className="flex-1 flex items-center gap-2 min-w-0">
+        <div className="flex-1 flex items-center gap-3 min-w-0">
           {/* 类型图标 */}
           {entry && (
             <span
@@ -529,9 +529,10 @@ export const ArtifactToolbar: React.FC<ArtifactToolbarProps> = memo(
             </Badge>
           ) : null}
         </div>
+        <div className="w-px h-4 bg-slate-200/60 mx-2 shrink-0" />
 
         {/* 操作按钮区域 */}
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {/* 代码预览切换（仅 HTML/SVG 代码） */}
           {supportsSharedViewMode && onViewModeChange && (
             <div

@@ -58,10 +58,14 @@ export function CreateProjectDialog({
 
   const visibleTypes = useMemo(() => {
     const candidates =
-      allowedTypes && allowedTypes.length > 0 ? allowedTypes : USER_PROJECT_TYPES;
+      allowedTypes && allowedTypes.length > 0
+        ? allowedTypes
+        : USER_PROJECT_TYPES;
 
     return candidates.filter((candidate): candidate is ProjectType =>
-      USER_PROJECT_TYPES.includes(candidate as (typeof USER_PROJECT_TYPES)[number]),
+      USER_PROJECT_TYPES.includes(
+        candidate as (typeof USER_PROJECT_TYPES)[number],
+      ),
     );
   }, [allowedTypes]);
 

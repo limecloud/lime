@@ -14,7 +14,7 @@ interface ActionButtonProps {
 function resolveToneClassName(tone: ActionButtonProps["tone"]): string {
   switch (tone) {
     case "accent":
-      return "border-sky-200 bg-sky-50 text-sky-700 hover:border-sky-300 hover:bg-sky-100";
+      return "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100";
     case "warning":
       return "border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-100";
     default:
@@ -27,8 +27,9 @@ const ActionButton: React.FC<ActionButtonProps> = memo(
     <button
       data-testid={testId}
       type="button"
+      title={label}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition",
+        "inline-flex h-8 w-8 items-center justify-center rounded-full border transition",
         resolveToneClassName(tone),
         disabled &&
           "cursor-not-allowed opacity-50 hover:bg-inherit hover:text-inherit",
@@ -37,7 +38,6 @@ const ActionButton: React.FC<ActionButtonProps> = memo(
       disabled={disabled}
     >
       <span className="shrink-0">{icon}</span>
-      <span>{label}</span>
     </button>
   ),
 );
@@ -72,7 +72,7 @@ export const ArtifactWorkbenchToolbarActions: React.FC<ArtifactWorkbenchToolbarA
       archiveLabel,
       onToggleArchive,
     }) => (
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2.5">
         {showSaveToProject ? (
           <ActionButton
             testId="artifact-workbench-save-to-project"

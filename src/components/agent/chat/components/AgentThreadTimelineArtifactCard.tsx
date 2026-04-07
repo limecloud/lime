@@ -145,7 +145,9 @@ function resolveBlockLabel(
     normalizeText(record.text) ||
     normalizeText(record.markdown);
 
-  return label ? truncateInlineText(label, 20) : fallbackByType[block.type] || blockId;
+  return label
+    ? truncateInlineText(label, 20)
+    : fallbackByType[block.type] || blockId;
 }
 
 function resolveFallbackPreview(content: string | undefined): string | null {

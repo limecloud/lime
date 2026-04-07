@@ -563,8 +563,7 @@ interface PluginManagerProps {
   onNavigate?: (page: Page, params?: PageParams) => void;
 }
 
-const WINDOWS_RELEASES_URL =
-  "https://github.com/aiclientproxy/lime/releases";
+const WINDOWS_RELEASES_URL = "https://github.com/aiclientproxy/lime/releases";
 
 export function PluginManager({ onNavigate }: PluginManagerProps = {}) {
   const initialRuntimeFilters = useMemo(
@@ -1697,8 +1696,8 @@ export function PluginManager({ onNavigate }: PluginManagerProps = {}) {
                   data-testid="plugin-windows-version-requirement-notice"
                 >
                   当前已加载插件中有{" "}
-                  {pluginVersionRequirementNotice.affectedCount} 个插件要求更高主程序版本，
-                  最高要求 Lime {"\u003e="}{" "}
+                  {pluginVersionRequirementNotice.affectedCount}{" "}
+                  个插件要求更高主程序版本， 最高要求 Lime {"\u003e="}{" "}
                   {pluginVersionRequirementNotice.highestRequiredVersion}。
                 </div>
               )}

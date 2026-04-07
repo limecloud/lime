@@ -38,7 +38,9 @@ function projectCoverageCount(memory: ProjectMemory | null): number {
   return covered;
 }
 
-export function buildLayerMetrics(input: LayerMetricsInput): LayerMetricsResult {
+export function buildLayerMetrics(
+  input: LayerMetricsInput,
+): LayerMetricsResult {
   const projectCoverage = projectCoverageCount(input.projectMemory);
   const hasProjectSelection = !!input.projectId;
 

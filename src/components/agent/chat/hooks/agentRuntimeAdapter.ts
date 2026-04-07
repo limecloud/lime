@@ -50,7 +50,9 @@ export interface AgentRuntimeAdapter {
   ): Promise<string>;
   listSessions(): Promise<AsterSessionInfo[]>;
   getSession(sessionId: string): Promise<AsterSessionDetail>;
-  getSessionReadModel(sessionId: string): Promise<AsterSessionDetail["thread_read"]>;
+  getSessionReadModel(
+    sessionId: string,
+  ): Promise<AsterSessionDetail["thread_read"]>;
   replayRequest(
     sessionId: string,
     requestId: string,

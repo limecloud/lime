@@ -152,9 +152,9 @@ describe("useWorkspaceCanvasLayoutRuntime", () => {
 
     await render();
 
-    expect(
-      setLayoutMode.mock.calls.some((call) => call[0] === "chat"),
-    ).toBe(true);
+    expect(setLayoutMode.mock.calls.some((call) => call[0] === "chat")).toBe(
+      true,
+    );
   });
 
   it("stacked 自动收起侧栏后，不应在同一轮 general chat-canvas 中立刻反向展开", async () => {
@@ -249,9 +249,9 @@ describe("useWorkspaceCanvasLayoutRuntime", () => {
 
     await render();
 
-    expect(
-      setLayoutMode.mock.calls.some((call) => call[0] === "canvas"),
-    ).toBe(false);
+    expect(setLayoutMode.mock.calls.some((call) => call[0] === "canvas")).toBe(
+      false,
+    );
     expect(setGeneralCanvasState).not.toHaveBeenCalled();
     expect(setCanvasState).not.toHaveBeenCalled();
   });

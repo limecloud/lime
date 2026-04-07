@@ -29,8 +29,7 @@ export function useInputbarToolState({
   );
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const webSearchEnabled =
-    toolStates?.webSearch ?? localToolStates.webSearch;
+  const webSearchEnabled = toolStates?.webSearch ?? localToolStates.webSearch;
   const thinkingEnabled = toolStates?.thinking ?? localToolStates.thinking;
   const subagentEnabled = toolStates?.subagent ?? localToolStates.subagent;
 
@@ -127,12 +126,7 @@ export function useInputbarToolState({
       });
       toast.info(`多代理${enabled ? "偏好已开启" : "偏好已关闭"}`);
     },
-    [
-      subagentEnabled,
-      thinkingEnabled,
-      updateToolStates,
-      webSearchEnabled,
-    ],
+    [subagentEnabled, thinkingEnabled, updateToolStates, webSearchEnabled],
   );
 
   return {

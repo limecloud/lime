@@ -463,8 +463,7 @@ function buildCatalogWithXSceneEntry(): SkillCatalog {
     entries: [
       ...seeded.entries.filter(
         (entry) =>
-          entry.kind !== "scene" ||
-          entry.sceneKey !== "x-article-export",
+          entry.kind !== "scene" || entry.sceneKey !== "x-article-export",
       ),
       {
         id: "scene:x-article-export",
@@ -509,6 +508,7 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("@修图");
     expect(document.body.textContent).toContain("@重绘");
     expect(document.body.textContent).toContain("@视频");
+    expect(document.body.textContent).toContain("@配音");
     expect(document.body.textContent).toContain("@播报");
     expect(document.body.textContent).toContain("@素材");
     expect(document.body.textContent).toContain("@研报");
@@ -1072,9 +1072,13 @@ describe("CharacterMention", () => {
     });
 
     const onChangeSpy = vi.fn<(value: string) => void>();
-    const onSelectBuiltinCommand = vi.fn<
-      (command: BuiltinInputCommand, options?: { replayText?: string }) => void
-    >();
+    const onSelectBuiltinCommand =
+      vi.fn<
+        (
+          command: BuiltinInputCommand,
+          options?: { replayText?: string },
+        ) => void
+      >();
     const container = renderHarness({
       onChangeSpy,
       onSelectBuiltinCommand,
@@ -1312,6 +1316,30 @@ describe("CharacterMention", () => {
 
     expect(document.body.textContent).toContain("内建命令");
     expect(document.body.textContent).toContain("@发布");
+  });
+
+  it("输入 @配 时应同时展示配图与配音命令", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await act(async () => {
+      await import("./CharacterMentionPanel");
+    });
+
+    act(() => {
+      textarea.focus();
+      textarea.value = "@配";
+      textarea.setSelectionRange(2, 2);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("@配图");
+    expect(document.body.textContent).toContain("@配音");
   });
 
   it("服务技能过滤应支持命中别名", () => {

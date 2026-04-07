@@ -115,27 +115,26 @@ export function TeamWorkbenchSummaryPanel({
     .slice(0, 4);
   const displayRoleCount = hasRealTeamGraph
     ? executionSummary.totalSessionCount
-    : dispatchPreviewState?.members.length ?? 0;
-  const roleCards =
-    dispatchPreviewState?.members.length
-      ? dispatchPreviewState.members.map((member) => ({
-          id: member.id,
-          label: member.label,
-          roleKey: member.roleKey,
-          profileId: member.profileId,
-          summary: member.summary,
-          skillIds: member.skillIds,
-          statusMeta: resolveRuntimeMemberStatusMeta(member.status),
-        }))
-      : (selectedTeamRoles ?? []).map((role) => ({
-          id: role.id,
-          label: role.label,
-          roleKey: role.roleKey,
-          profileId: role.profileId,
-          summary: role.summary,
-          skillIds: role.skillIds ?? [],
-          statusMeta: null,
-        }));
+    : (dispatchPreviewState?.members.length ?? 0);
+  const roleCards = dispatchPreviewState?.members.length
+    ? dispatchPreviewState.members.map((member) => ({
+        id: member.id,
+        label: member.label,
+        roleKey: member.roleKey,
+        profileId: member.profileId,
+        summary: member.summary,
+        skillIds: member.skillIds,
+        statusMeta: resolveRuntimeMemberStatusMeta(member.status),
+      }))
+    : (selectedTeamRoles ?? []).map((role) => ({
+        id: role.id,
+        label: role.label,
+        roleKey: role.roleKey,
+        profileId: role.profileId,
+        summary: role.summary,
+        skillIds: role.skillIds ?? [],
+        statusMeta: null,
+      }));
   const summaryCards = [
     {
       label: "活跃 Agent",
@@ -159,7 +158,9 @@ export function TeamWorkbenchSummaryPanel({
           ? "当前成员"
           : "总会话",
       value: String(
-        hasRealTeamGraph ? executionSummary.totalSessionCount : displayRoleCount,
+        hasRealTeamGraph
+          ? executionSummary.totalSessionCount
+          : displayRoleCount,
       ),
       hint: hasRealTeamGraph
         ? "已进入团队图谱"
@@ -201,7 +202,7 @@ export function TeamWorkbenchSummaryPanel({
             ? dispatchPreviewState.errorMessage?.trim() ||
               "这次 Team 准备失败，可继续在当前对话中推进。"
             : runtimeSummaryText ||
-            "这里展示团队总览与运行密度；主对话只保留调度记录，角色执行正文在左侧 Team 画布查看。"}
+              "这里展示团队总览与运行密度；主对话只保留调度记录，角色执行正文在左侧 Team 画布查看。"}
         </p>
         {!hasRealTeamGraph && dispatchPreviewState ? (
           <div
@@ -221,7 +222,8 @@ export function TeamWorkbenchSummaryPanel({
         ) : null}
         {!hasRealTeamGraph && !dispatchPreviewState ? (
           <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-700">
-            尚未出现真实团队成员。开始分派成员后，左侧 Team 画布会自动切换为实时协作视图。
+            尚未出现真实团队成员。开始分派成员后，左侧 Team
+            画布会自动切换为实时协作视图。
           </div>
         ) : null}
       </section>

@@ -865,7 +865,8 @@ function CompanionProviderBridgeCard() {
                     还没有安装 Lime Pet
                   </p>
                   <p className="text-sm leading-6 text-amber-800">
-                    先安装桌宠客户端，再回到这里点击“开启桌宠”，Lime 会继续负责本地 Companion 宿主与状态同步。
+                    先安装桌宠客户端，再回到这里点击“开启桌宠”，Lime
+                    会继续负责本地 Companion 宿主与状态同步。
                   </p>
                 </div>
                 <button
@@ -1090,7 +1091,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
   const defaultView =
     initialView && workspaceViews.some((item) => item.value === initialView)
       ? initialView
-      : workspaceViews[0]?.value ?? "cloud";
+      : (workspaceViews[0]?.value ?? "cloud");
   const [activeView, setActiveView] =
     useState<ProviderWorkspaceView>(defaultView);
 
@@ -1231,7 +1232,9 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-lg font-semibold text-slate-900">
-                      {session.user.displayName || session.user.email || "已登录"}
+                      {session.user.displayName ||
+                        session.user.email ||
+                        "已登录"}
                     </p>
                     <WorkbenchInfoTip
                       ariaLabel="当前云端会话说明"

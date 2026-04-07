@@ -365,7 +365,9 @@ export function SiteAdapterCatalogTools() {
         </div>
 
         <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2">
-          <div>目录版本：{siteCatalogStatus?.catalog_version ?? "应用内置"}</div>
+          <div>
+            目录版本：{siteCatalogStatus?.catalog_version ?? "应用内置"}
+          </div>
           <div>租户：{siteCatalogStatus?.tenant_id ?? "未绑定租户"}</div>
         </div>
       </div>

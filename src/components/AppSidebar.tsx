@@ -19,11 +19,7 @@ import {
 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { getPluginsForSurface, PluginUIInfo } from "@/lib/api/pluginUI";
-import {
-  AgentPageParams,
-  Page,
-  PageParams,
-} from "@/types/page";
+import { AgentPageParams, Page, PageParams } from "@/types/page";
 import { getConfig } from "@/lib/api/appConfig";
 import {
   buildClawAgentParams,
@@ -88,7 +84,9 @@ const Container = styled.aside<{
   --sidebar-border: ${({ $themeMode }) =>
     $themeMode === "dark" ? "#2d3a46" : "#e2f0e2"};
   --sidebar-divider: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "rgba(148, 163, 184, 0.14)" : "rgba(132, 204, 22, 0.15)"};
+    $themeMode === "dark"
+      ? "rgba(148, 163, 184, 0.14)"
+      : "rgba(132, 204, 22, 0.15)"};
   --sidebar-hover: ${({ $themeMode }) =>
     $themeMode === "dark" ? "#22303c" : "#eef7ee"};
   --sidebar-active: ${({ $themeMode }) =>
@@ -109,13 +107,12 @@ const Container = styled.aside<{
   padding: ${({ $collapsed }) => ($collapsed ? "12px 6px" : "12px 10px")};
   position: relative;
   isolation: isolate;
-  background:
-    linear-gradient(
-      180deg,
-      var(--sidebar-surface-top) 0%,
-      var(--sidebar-surface-middle) 34%,
-      var(--sidebar-surface-bottom) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    var(--sidebar-surface-top) 0%,
+    var(--sidebar-surface-middle) 34%,
+    var(--sidebar-surface-bottom) 100%
+  );
   border-right: 1px solid var(--sidebar-border);
   box-shadow: 16px 0 36px -34px rgba(15, 23, 42, 0.42);
   transition:
@@ -178,7 +175,8 @@ const UserButton = styled.button<{ $collapsed?: boolean }>`
   padding: ${({ $collapsed }) => ($collapsed ? "8px" : "8px 10px")};
   cursor: pointer;
   color: var(--sidebar-foreground);
-  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "flex-start")};
+  justify-content: ${({ $collapsed }) =>
+    $collapsed ? "center" : "flex-start"};
   transition:
     background-color 0.18s ease,
     color 0.18s ease;
@@ -228,7 +226,8 @@ const SearchButton = styled.button<{ $collapsed?: boolean }>`
   color: var(--sidebar-muted);
   padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 10px")};
   cursor: pointer;
-  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "flex-start")};
+  justify-content: ${({ $collapsed }) =>
+    $collapsed ? "center" : "flex-start"};
   transition:
     border-color 0.18s ease,
     background-color 0.18s ease,
@@ -304,13 +303,16 @@ const NavButton = styled.button<{ $active?: boolean; $collapsed?: boolean }>`
     background-color 0.18s ease,
     color 0.18s ease,
     transform 0.18s ease;
-  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "flex-start")};
+  justify-content: ${({ $collapsed }) =>
+    $collapsed ? "center" : "flex-start"};
 
   &:hover {
     background: ${({ $active }) =>
       $active ? "var(--sidebar-active)" : "var(--sidebar-hover)"};
     color: ${({ $active }) =>
-      $active ? "var(--sidebar-active-foreground)" : "var(--sidebar-foreground)"};
+      $active
+        ? "var(--sidebar-active-foreground)"
+        : "var(--sidebar-foreground)"};
   }
 
   svg {
@@ -332,7 +334,10 @@ const NavLabel = styled.span<{ $collapsed?: boolean }>`
   display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
 `;
 
-const NavTrailingIcon = styled.span<{ $collapsed?: boolean; $active?: boolean }>`
+const NavTrailingIcon = styled.span<{
+  $collapsed?: boolean;
+  $active?: boolean;
+}>`
   display: ${({ $collapsed }) => ($collapsed ? "none" : "inline-flex")};
   align-items: center;
   justify-content: center;
@@ -387,7 +392,8 @@ const FooterArea = styled.div<{ $collapsed?: boolean }>`
 const ActionRow = styled.div<{ $collapsed?: boolean }>`
   display: flex;
   align-items: center;
-  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "space-between")};
+  justify-content: ${({ $collapsed }) =>
+    $collapsed ? "center" : "space-between"};
   padding: 0 2px;
 `;
 
@@ -412,7 +418,9 @@ const IconActionButton = styled.button<{ $active?: boolean }>`
     background: ${({ $active }) =>
       $active ? "var(--sidebar-active)" : "var(--sidebar-hover)"};
     color: ${({ $active }) =>
-      $active ? "var(--sidebar-active-foreground)" : "var(--sidebar-foreground)"};
+      $active
+        ? "var(--sidebar-active-foreground)"
+        : "var(--sidebar-foreground)"};
   }
 
   svg {
@@ -433,7 +441,8 @@ export function AppSidebar({
   currentPageParams,
   onNavigate,
 }: AppSidebarProps) {
-  const agentEntry = (currentPageParams as AgentPageParams | undefined)?.agentEntry;
+  const agentEntry = (currentPageParams as AgentPageParams | undefined)
+    ?.agentEntry;
   const isClawTaskCenter = currentPage === "agent" && agentEntry === "claw";
   const isNewTaskHome = currentPage === "agent" && agentEntry === "new-task";
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -461,7 +470,8 @@ export function AppSidebar({
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>(() =>
     MAIN_SIDEBAR_NAV_ITEMS.filter(
-      (item) => item.defaultExpanded && item.children && item.children.length > 0,
+      (item) =>
+        item.defaultExpanded && item.children && item.children.length > 0,
     ).map((item) => item.id),
   );
 
@@ -641,7 +651,8 @@ export function AppSidebar({
     };
 
     const activeGroupIds = MAIN_SIDEBAR_NAV_ITEMS.filter(
-      (item) => item.children && item.children.length > 0 && isGroupActive(item),
+      (item) =>
+        item.children && item.children.length > 0 && isGroupActive(item),
     ).map((item) => item.id);
 
     if (activeGroupIds.length === 0) {
@@ -807,7 +818,9 @@ export function AppSidebar({
         <MenuScroll>
           {filteredMainSections.map((section) => (
             <Section key={section.id} $collapsed={collapsed}>
-              <SectionTitle $collapsed={collapsed}>{section.title}</SectionTitle>
+              <SectionTitle $collapsed={collapsed}>
+                {section.title}
+              </SectionTitle>
               {section.items.map((item) => renderNavItem(item))}
             </Section>
           ))}
@@ -823,7 +836,9 @@ export function AppSidebar({
         <FooterArea $collapsed={collapsed}>
           {filteredFooterSections.map((section) => (
             <Section key={section.id} $collapsed={collapsed}>
-              <SectionTitle $collapsed={collapsed}>{section.title}</SectionTitle>
+              <SectionTitle $collapsed={collapsed}>
+                {section.title}
+              </SectionTitle>
               {section.items.map((item) => renderNavItem(item))}
             </Section>
           ))}

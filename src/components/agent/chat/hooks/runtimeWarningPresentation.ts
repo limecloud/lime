@@ -1,7 +1,6 @@
 export const ARTIFACT_DOCUMENT_REPAIRED_WARNING_CODE =
   "artifact_document_repaired";
-export const ARTIFACT_DOCUMENT_FAILED_WARNING_CODE =
-  "artifact_document_failed";
+export const ARTIFACT_DOCUMENT_FAILED_WARNING_CODE = "artifact_document_failed";
 export const ARTIFACT_DOCUMENT_PERSIST_FAILED_WARNING_CODE =
   "artifact_document_persist_failed";
 

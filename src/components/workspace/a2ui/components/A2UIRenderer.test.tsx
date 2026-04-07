@@ -228,7 +228,9 @@ describe("TextRenderer", () => {
     );
 
     const textNode = container.querySelector(".a2ui-text-block");
-    expect(textNode?.className).toContain(A2UI_RENDERER_TOKENS.textVariants.caption);
+    expect(textNode?.className).toContain(
+      A2UI_RENDERER_TOKENS.textVariants.caption,
+    );
     expect(container.textContent).toContain("辅助说明");
   });
 
@@ -250,7 +252,9 @@ describe("TextRenderer", () => {
     expect(container.querySelector("h1")?.textContent).toBe("标题");
     expect(container.querySelector("strong")?.textContent).toBe("重点");
     expect(
-      Array.from(container.querySelectorAll("li")).map((item) => item.textContent),
+      Array.from(container.querySelectorAll("li")).map(
+        (item) => item.textContent,
+      ),
     ).toEqual(["第一项", "第二项"]);
     expect(container.querySelector("a")?.getAttribute("href")).toBe(
       "https://example.com",

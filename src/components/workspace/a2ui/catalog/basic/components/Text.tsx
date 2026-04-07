@@ -59,12 +59,16 @@ const A2UI_MARKDOWN_COMPONENTS: Components = {
       {children}
     </h6>
   ),
-  ul: ({ children }) => <ul className="m-0 list-disc space-y-1 pl-5">{children}</ul>,
+  ul: ({ children }) => (
+    <ul className="m-0 list-disc space-y-1 pl-5">{children}</ul>
+  ),
   ol: ({ children }) => (
     <ol className="m-0 list-decimal space-y-1 pl-5">{children}</ol>
   ),
   li: ({ children }) => <li className="m-0 leading-[1.7]">{children}</li>,
-  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  strong: ({ children }) => (
+    <strong className="font-semibold">{children}</strong>
+  ),
   em: ({ children }) => <em className="italic">{children}</em>,
   a: ({ children, href, ...props }) => (
     <a

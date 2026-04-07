@@ -130,7 +130,9 @@ export function GeneralWorkbenchSidebarShell({
             onClick={() => onTabChange("context")}
           >
             <span className={SIDEBAR_TAB_LABEL_CLASSNAME}>上下文</span>
-            <span className={getSidebarTabCountClassName(activeTab === "context")}>
+            <span
+              className={getSidebarTabCountClassName(activeTab === "context")}
+            >
               {activeContextCount}
             </span>
           </button>
@@ -142,7 +144,9 @@ export function GeneralWorkbenchSidebarShell({
             onClick={() => onTabChange("workflow")}
           >
             <span className={SIDEBAR_TAB_LABEL_CLASSNAME}>编排</span>
-            <span className={getSidebarTabCountClassName(activeTab === "workflow")}>
+            <span
+              className={getSidebarTabCountClassName(activeTab === "workflow")}
+            >
               {branchCount}
             </span>
           </button>

@@ -10,10 +10,9 @@ const { mockGetAgentRuntimeSession } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/api/agentRuntime", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/agentRuntime")>(
-      "@/lib/api/agentRuntime",
-    );
+  const actual = await vi.importActual<typeof import("@/lib/api/agentRuntime")>(
+    "@/lib/api/agentRuntime",
+  );
   return {
     ...actual,
     getAgentRuntimeSession: mockGetAgentRuntimeSession,
@@ -34,12 +33,7 @@ vi.mock("@/components/ui/button", () => ({
     type?: "button" | "submit" | "reset";
     [key: string]: unknown;
   }) => (
-    <button
-      type={type}
-      className={className}
-      onClick={onClick}
-      {...props}
-    >
+    <button type={type} className={className} onClick={onClick} {...props}>
       {children}
     </button>
   ),
@@ -413,7 +407,9 @@ describe("TeamWorkspaceBoard", () => {
     expect(container.textContent).toContain("仓库探索");
     expect(container.textContent).toContain("最近进展 处理中");
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-1"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-1"]',
+      ),
     ).toBeFalsy();
     expect(
       container
@@ -453,7 +449,9 @@ describe("TeamWorkspaceBoard", () => {
     await expandLane(container, "child-1");
 
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-1"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-1"]',
+      ),
     ).toBeTruthy();
     expect(
       container
@@ -651,7 +649,9 @@ describe("TeamWorkspaceBoard", () => {
     expect(container.textContent).toContain("检索代理");
     expect(container.textContent).toContain("等待中 1");
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-current"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-current"]',
+      ),
     ).toBeFalsy();
     expect(
       container.querySelector('[data-testid="team-workspace-canvas-toolbar"]')
@@ -765,10 +765,14 @@ describe("TeamWorkspaceBoard", () => {
     expect(boardBody?.className).toContain("overflow-y-auto");
     expect(railList?.getAttribute("data-layout-kind")).toBe("free-canvas");
     expect(
-      container.querySelector('[data-testid="team-workspace-inspector-overlay"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-inspector-overlay"]',
+      ),
     ).toBeNull();
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-1"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-1"]',
+      ),
     ).toBeNull();
     expect(
       container
@@ -812,45 +816,63 @@ describe("TeamWorkspaceBoard", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-collapse-1"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-collapse-1"]',
+      ),
     ).toBeFalsy();
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-collapse-2"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-collapse-2"]',
+      ),
     ).toBeFalsy();
     expect(
       container
-        .querySelector('[data-testid="team-workspace-member-lane-child-collapse-1"]')
+        .querySelector(
+          '[data-testid="team-workspace-member-lane-child-collapse-1"]',
+        )
         ?.getAttribute("data-expanded"),
     ).toBe("false");
     expect(
       container
-        .querySelector('[data-testid="team-workspace-member-lane-child-collapse-2"]')
+        .querySelector(
+          '[data-testid="team-workspace-member-lane-child-collapse-2"]',
+        )
         ?.getAttribute("data-expanded"),
     ).toBe("false");
 
     await expandLane(container, "child-collapse-1");
 
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-collapse-1"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-collapse-1"]',
+      ),
     ).toBeTruthy();
     expect(
       container
-        .querySelector('[data-testid="team-workspace-member-lane-child-collapse-1"]')
+        .querySelector(
+          '[data-testid="team-workspace-member-lane-child-collapse-1"]',
+        )
         ?.getAttribute("data-expanded"),
     ).toBe("true");
     expect(
       container
-        .querySelector('[data-testid="team-workspace-member-lane-child-collapse-2"]')
+        .querySelector(
+          '[data-testid="team-workspace-member-lane-child-collapse-2"]',
+        )
         ?.getAttribute("data-expanded"),
     ).toBe("false");
 
     await expandLane(container, "child-collapse-2");
 
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-collapse-1"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-collapse-1"]',
+      ),
     ).toBeFalsy();
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-collapse-2"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-collapse-2"]',
+      ),
     ).toBeTruthy();
   });
 
@@ -889,8 +911,7 @@ describe("TeamWorkspaceBoard", () => {
             title: "状态切换",
             detail: "收到 team 状态事件，已切换为运行中。",
             statusLabel: "运行中",
-            badgeClassName:
-              "border border-sky-200 bg-sky-50 text-sky-700",
+            badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
           },
         ],
       },
@@ -910,7 +931,9 @@ describe("TeamWorkspaceBoard", () => {
     ).toContain("处理中");
     expect(container.textContent).toContain("最近进展 处理中");
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-live-1"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-live-1"]',
+      ),
     ).toBeFalsy();
 
     await expandLane(container, "child-live-1");
@@ -1428,22 +1451,23 @@ describe("TeamWorkspaceBoard", () => {
   });
 
   it("同一会话重新挂载后，应恢复上次保存的 lane 布局", async () => {
-    const boardProps: Partial<React.ComponentProps<typeof TeamWorkspaceBoard>> = {
-      currentSessionId: "parent-persist-1",
-      childSubagentSessions: [
-        {
-          id: "child-persist-1",
-          name: "持久化代理",
-          created_at: 1_710_000_000,
-          updated_at: 1_710_000_100,
-          session_type: "sub_agent",
-          runtime_status: "running",
-          latest_turn_status: "running",
-          task_summary: "验证会话级画布持久化",
-          role_hint: "reviewer",
-        },
-      ],
-    };
+    const boardProps: Partial<React.ComponentProps<typeof TeamWorkspaceBoard>> =
+      {
+        currentSessionId: "parent-persist-1",
+        childSubagentSessions: [
+          {
+            id: "child-persist-1",
+            name: "持久化代理",
+            created_at: 1_710_000_000,
+            updated_at: 1_710_000_100,
+            session_type: "sub_agent",
+            runtime_status: "running",
+            latest_turn_status: "running",
+            task_summary: "验证会话级画布持久化",
+            role_hint: "reviewer",
+          },
+        ],
+      };
 
     const firstContainer = await renderBoard(boardProps);
     const firstHeader = firstContainer.querySelector(
@@ -1490,7 +1514,9 @@ describe("TeamWorkspaceBoard", () => {
     await expandLane(container, "child-close-1");
 
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-close-1"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-close-1"]',
+      ),
     ).toBeTruthy();
 
     const closeButton = Array.from(container.querySelectorAll("button")).find(
@@ -1532,7 +1558,9 @@ describe("TeamWorkspaceBoard", () => {
     );
     expect(resumeButton).toBeTruthy();
     expect(
-      container.querySelector('[data-testid="team-workspace-member-detail-child-resume-1"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-member-detail-child-resume-1"]',
+      ),
     ).toBeTruthy();
 
     await act(async () => {
@@ -1768,9 +1796,7 @@ describe("TeamWorkspaceBoard", () => {
 
     expect(operations).toBeTruthy();
     expect(operations?.textContent).toContain("暂停处理");
-    expect(operations?.textContent).toContain(
-      "刚才已暂停 2 位协作成员的处理",
-    );
+    expect(operations?.textContent).toContain("刚才已暂停 2 位协作成员的处理");
   });
 
   it("点击 Team 轨迹项时应切换焦点到对应 agent", async () => {
@@ -1973,7 +1999,9 @@ describe("TeamWorkspaceBoard", () => {
     });
 
     await act(async () => {
-      interruptButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      interruptButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       await Promise.resolve();
     });
 
@@ -2081,7 +2109,9 @@ describe("TeamWorkspaceBoard", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="team-workspace-runtime-formation"]'),
+      container.querySelector(
+        '[data-testid="team-workspace-runtime-formation"]',
+      ),
     ).toBeTruthy();
     expect(
       container.querySelector('[data-testid="team-workspace-runtime-members"]'),

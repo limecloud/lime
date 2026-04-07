@@ -26,11 +26,7 @@ export function useWorkspaceConversationSendRuntime({
         sendExecutionStrategy,
       );
     },
-    [
-      chatToolPreferences.thinking,
-      chatToolPreferences.webSearch,
-      handleSend,
-    ],
+    [chatToolPreferences.thinking, chatToolPreferences.webSearch, handleSend],
   );
 
   return {

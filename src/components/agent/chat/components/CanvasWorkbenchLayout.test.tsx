@@ -24,21 +24,23 @@ type MockResizeObserverCallback = (
   observer: unknown,
 ) => void;
 
-const { mockListDirectory, mockToast, resizeObserverState } = vi.hoisted(() => ({
-  mockListDirectory: vi.fn(),
-  mockToast: {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-  },
-  resizeObserverState: {
-    width: 1280,
-    observers: [] as Array<{
-      callback: MockResizeObserverCallback;
-      target: Element | null;
-    }>,
-  },
-}));
+const { mockListDirectory, mockToast, resizeObserverState } = vi.hoisted(
+  () => ({
+    mockListDirectory: vi.fn(),
+    mockToast: {
+      success: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+    },
+    resizeObserverState: {
+      width: 1280,
+      observers: [] as Array<{
+        callback: MockResizeObserverCallback;
+        target: Element | null;
+      }>,
+    },
+  }),
+);
 
 vi.mock("sonner", () => ({
   toast: mockToast,
@@ -387,7 +389,8 @@ beforeEach(() => {
       disconnect = () => {
         resizeObserverState.observers = resizeObserverState.observers.filter(
           (observer) =>
-            observer.callback !== this.callback || observer.target !== this.target,
+            observer.callback !== this.callback ||
+            observer.target !== this.target,
         );
       };
     },
@@ -537,9 +540,9 @@ describe("CanvasWorkbenchLayout", () => {
     await flushEffects();
 
     expect(mockListDirectory).toHaveBeenCalledWith("/workspace");
-    expect(container.querySelector('[data-testid="preview-panel"]')?.textContent).toContain(
-      "default-canvas:draft.md",
-    );
+    expect(
+      container.querySelector('[data-testid="preview-panel"]')?.textContent,
+    ).toContain("default-canvas:draft.md");
 
     clickButtonByLabel(container, "切换画布标签-变更");
     await flushEffects();
@@ -558,9 +561,9 @@ describe("CanvasWorkbenchLayout", () => {
     clickButtonByLabel(container, "切换画布标签-产物");
     clickButtonByLabel(container, "选择画布产物-draft.md");
     await flushEffects();
-    expect(container.querySelector('[data-testid="preview-panel"]')?.textContent).toContain(
-      "artifact:draft.md",
-    );
+    expect(
+      container.querySelector('[data-testid="preview-panel"]')?.textContent,
+    ).toContain("artifact:draft.md");
 
     clickButtonByLabel(container, "切换画布标签-全部文件");
     await flushEffects();
@@ -639,15 +642,15 @@ describe("CanvasWorkbenchLayout", () => {
       container.querySelector('button[aria-label="展开当前文稿检查器"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector('[data-testid="canvas-workbench-document-inspector"]'),
+      container.querySelector(
+        '[data-testid="canvas-workbench-document-inspector"]',
+      ),
     ).toBeNull();
     expect(container.textContent).toContain("当前文稿");
     expect(container.textContent).toContain("统一在右侧切换产物与版本");
     expect(container.textContent).toContain("董事会季度复盘");
     expect(container.textContent).toContain("需要优先补齐来源与版本线索。");
-    expect(container.textContent).toContain(
-      "默认先收起概览、来源、版本与编辑",
-    );
+    expect(container.textContent).toContain("默认先收起概览、来源、版本与编辑");
 
     clickButtonByLabel(container, "展开当前文稿检查器");
     await flushEffects();
@@ -656,7 +659,9 @@ describe("CanvasWorkbenchLayout", () => {
       container.querySelector('button[aria-label="折叠当前文稿检查器"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector('[data-testid="canvas-workbench-document-inspector"]'),
+      container.querySelector(
+        '[data-testid="canvas-workbench-document-inspector"]',
+      ),
     ).not.toBeNull();
   });
 
@@ -746,7 +751,9 @@ describe("CanvasWorkbenchLayout", () => {
 
     await flushEffects();
 
-    expect(container.querySelector('[data-testid="team-preview"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="team-preview"]'),
+    ).not.toBeNull();
     expect(container.querySelector('[data-testid="team-panel"]')).toBeNull();
     expect(
       container.querySelector('button[aria-label="展开画布工作台"]'),
@@ -759,9 +766,7 @@ describe("CanvasWorkbenchLayout", () => {
 
   it("teamView 的 autoFocusToken 变化时应切到 Team Workbench", async () => {
     const renderPreview = vi.fn((target: CanvasWorkbenchPreviewTarget) => (
-      <div data-testid="fallback-preview">
-        fallback:{target.kind}
-      </div>
+      <div data-testid="fallback-preview">fallback:{target.kind}</div>
     ));
     const renderTeamPreview = vi.fn(
       (_options?: { stackedWorkbenchTrigger?: React.ReactNode }) => (
@@ -811,9 +816,15 @@ describe("CanvasWorkbenchLayout", () => {
     const harness = mountHarness(baseProps);
     await flushEffects();
 
-    expect(harness.container.querySelector('[data-testid="team-preview"]')).toBeNull();
-    expect(harness.container.querySelector('[data-testid="team-panel"]')).toBeNull();
-    expect(harness.container.querySelector('[data-testid="fallback-preview"]')).not.toBeNull();
+    expect(
+      harness.container.querySelector('[data-testid="team-preview"]'),
+    ).toBeNull();
+    expect(
+      harness.container.querySelector('[data-testid="team-panel"]'),
+    ).toBeNull();
+    expect(
+      harness.container.querySelector('[data-testid="fallback-preview"]'),
+    ).not.toBeNull();
 
     harness.rerender({
       ...baseProps,
@@ -824,8 +835,12 @@ describe("CanvasWorkbenchLayout", () => {
     });
     await flushEffects();
 
-    expect(harness.container.querySelector('[data-testid="team-preview"]')).not.toBeNull();
-    expect(harness.container.querySelector('[data-testid="team-panel"]')).not.toBeNull();
+    expect(
+      harness.container.querySelector('[data-testid="team-preview"]'),
+    ).not.toBeNull();
+    expect(
+      harness.container.querySelector('[data-testid="team-panel"]'),
+    ).not.toBeNull();
     expect(harness.container.textContent).toContain("多成员实时协作");
   });
 
@@ -1006,7 +1021,9 @@ describe("CanvasWorkbenchLayout", () => {
 
     await flushEffects();
 
-    expect(container.querySelector('[data-testid="team-preview"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="team-preview"]'),
+    ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="canvas-workbench-layout"]'),
     ).toBeNull();
@@ -1055,7 +1072,9 @@ describe("CanvasWorkbenchLayout", () => {
         .querySelector('[data-testid="canvas-workbench-layout"]')
         ?.getAttribute("data-panel-placement"),
     ).toBe("side");
-    expect(container.querySelector('[data-testid="canvas-workbench-trigger"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="canvas-workbench-trigger"]'),
+    ).toBeNull();
     expect(container.querySelector('[data-testid="team-panel"]')).toBeNull();
     expect(
       container.querySelector('button[aria-label="展开画布工作台"]'),

@@ -40,7 +40,10 @@ export function onCompactRightPanelOpen(
     }
 
     const detail = (event as CustomEvent<CompactRightPanelOpenDetail>).detail;
-    if (!detail || (detail.source !== "chat" && detail.source !== "workbench")) {
+    if (
+      !detail ||
+      (detail.source !== "chat" && detail.source !== "workbench")
+    ) {
       return;
     }
     listener(detail);

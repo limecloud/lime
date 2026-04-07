@@ -439,8 +439,8 @@ export function useBrowserRuntimeDebug(
     }
     const hasManagedSessionContext = Boolean(
       sessionState?.session_id ||
-        initialSessionId ||
-        sessions.some((session) => session.profile_key === selectedProfileKey),
+      initialSessionId ||
+      sessions.some((session) => session.profile_key === selectedProfileKey),
     );
     if (!hasManagedSessionContext) {
       setTargets([]);
@@ -648,7 +648,12 @@ export function useBrowserRuntimeDebug(
     } finally {
       setRefreshingState(false);
     }
-  }, [emitMessage, handleRecoverableError, sessionState?.session_id, syncBuffer]);
+  }, [
+    emitMessage,
+    handleRecoverableError,
+    sessionState?.session_id,
+    syncBuffer,
+  ]);
 
   const startStream = useCallback(
     async (mode: BrowserStreamMode = "both") => {
@@ -922,7 +927,11 @@ export function useBrowserRuntimeDebug(
     }
     lastRecoveredErrorKeyRef.current = recoveryKey;
     void recoverBrowserSession("检测到浏览器连接中断");
-  }, [recoverBrowserSession, sessionState?.last_error, sessionState?.session_id]);
+  }, [
+    recoverBrowserSession,
+    sessionState?.last_error,
+    sessionState?.session_id,
+  ]);
 
   useEffect(() => {
     if (!sessionState?.session_id || sessionState.connected) {

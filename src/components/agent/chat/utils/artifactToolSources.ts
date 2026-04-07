@@ -102,7 +102,7 @@ function mergeSource(
     id: current.id || incoming.id,
     type: incoming.type || current.type,
     label: incoming.label || current.label,
-    ...((current.locator || incoming.locator)
+    ...(current.locator || incoming.locator
       ? {
           locator: {
             ...(current.locator || {}),

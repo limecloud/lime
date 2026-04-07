@@ -21,12 +21,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Bot,
-  ShieldCheck,
-  Sparkles,
-  Trash2,
-} from "lucide-react";
+import { Bot, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { ProviderIcon } from "@/icons/providers";
 import { ApiKeyList } from "./ApiKeyList";
 import {
@@ -224,7 +219,7 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
   const showVerifiedModelState =
     !requiresLiveModelTruth || hasResolvedLiveModelDirectory;
   const defaultModel = showVerifiedModelState
-    ? draftCustomModels[0] ?? recommendedLatestModelId ?? null
+    ? (draftCustomModels[0] ?? recommendedLatestModelId ?? null)
     : null;
   const connectionReady =
     provider.enabled && hasRequiredApiAccess && hasResolvedLiveModelDirectory;
@@ -457,7 +452,9 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
                       triggerTestId="provider-connection-info-button"
                     >
                       <p>
-                        连接验证会用当前默认模型检查鉴权、路由和最小对话是否可用。未启用 Provider、缺少可用 Key 或模型目录尚未同步时不会放行测试。
+                        连接验证会用当前默认模型检查鉴权、路由和最小对话是否可用。未启用
+                        Provider、缺少可用 Key
+                        或模型目录尚未同步时不会放行测试。
                       </p>
                     </SectionInfoButton>
                   </div>

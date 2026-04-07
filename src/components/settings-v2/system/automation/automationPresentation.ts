@@ -236,9 +236,7 @@ export function statusLabel(status?: string | null): string {
   }
 }
 
-export function statusVariant(
-  status?: string | null,
-): AutomationBadgeVariant {
+export function statusVariant(status?: string | null): AutomationBadgeVariant {
   if (status === "success") {
     return "default";
   }
@@ -377,7 +375,9 @@ export function outputFormatLabel(format: AutomationOutputFormat): string {
   return format === "json" ? "JSON 编码" : "文本编码";
 }
 
-export function deliveryStatusVariant(success: boolean): AutomationBadgeVariant {
+export function deliveryStatusVariant(
+  success: boolean,
+): AutomationBadgeVariant {
   return success ? "default" : "destructive";
 }
 

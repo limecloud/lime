@@ -32,15 +32,17 @@ describe("generalResourceSync", () => {
 
   it("应能从标签中提取同步 hash 并识别已同步素材", () => {
     const filePath = "/tmp/project/outline.md";
-    const syncedMaterial = createMaterial(buildGeneralChatResourceTags(filePath));
+    const syncedMaterial = createMaterial(
+      buildGeneralChatResourceTags(filePath),
+    );
 
     expect(extractGeneralChatResourceHash(syncedMaterial)).toBe(
       buildGeneralChatResourceHash(filePath),
     );
     expect(hasGeneralChatResourceSync([syncedMaterial], filePath)).toBe(true);
-    expect(hasGeneralChatResourceSync([syncedMaterial], "/tmp/project/other.md")).toBe(
-      false,
-    );
+    expect(
+      hasGeneralChatResourceSync([syncedMaterial], "/tmp/project/other.md"),
+    ).toBe(false);
   });
 
   it("应根据文件扩展名推断可入库类型", () => {

@@ -11,28 +11,31 @@ import type {
   GeneralWorkbenchAddTextContextAction,
 } from "./useGeneralWorkbenchContextPanelState";
 
-export interface GeneralWorkbenchSidebarContextOrchestrationInput
-  extends Omit<BuildGeneralWorkbenchContextPanelPropsParams, "contextPanelState"> {
+export interface GeneralWorkbenchSidebarContextOrchestrationInput extends Omit<
+  BuildGeneralWorkbenchContextPanelPropsParams,
+  "contextPanelState"
+> {
   onAddTextContext?: GeneralWorkbenchAddTextContextAction;
   onAddLinkContext?: GeneralWorkbenchAddLinkContextAction;
   onAddFileContext?: GeneralWorkbenchAddFileContextAction;
 }
 
-export interface GeneralWorkbenchSidebarWorkflowOrchestrationInput
-  extends Omit<
-    BuildGeneralWorkbenchWorkflowPanelPropsParams,
-    | "creationTaskEventsCount"
-    | "isVersionMode"
-    | "onOpenArtifactWithDefaultApp"
-    | "onRevealArtifactInFinder"
-    | "workflowPanelState"
-  > {
+export interface GeneralWorkbenchSidebarWorkflowOrchestrationInput extends Omit<
+  BuildGeneralWorkbenchWorkflowPanelPropsParams,
+  | "creationTaskEventsCount"
+  | "isVersionMode"
+  | "onOpenArtifactWithDefaultApp"
+  | "onRevealArtifactInFinder"
+  | "workflowPanelState"
+> {
   activityLogs: SidebarActivityLog[];
   creationTaskEvents: GeneralWorkbenchCreationTaskEvent[];
 }
 
-export interface GeneralWorkbenchSidebarExecLogOrchestrationInput
-  extends Omit<BuildGeneralWorkbenchExecLogPropsParams, "execLogState"> {
+export interface GeneralWorkbenchSidebarExecLogOrchestrationInput extends Omit<
+  BuildGeneralWorkbenchExecLogPropsParams,
+  "execLogState"
+> {
   messages: Message[];
   skillDetailMap: Record<string, SkillDetailInfo | null>;
 }
@@ -47,19 +50,17 @@ export interface GeneralWorkbenchSidebarOrchestrationInput {
 export type GeneralWorkbenchSidebarContextOrchestrationSource =
   GeneralWorkbenchSidebarContextOrchestrationInput;
 
-export interface GeneralWorkbenchSidebarWorkflowOrchestrationSource
-  extends Omit<
-    GeneralWorkbenchSidebarWorkflowOrchestrationInput,
-    "creationTaskEvents"
-  > {
+export interface GeneralWorkbenchSidebarWorkflowOrchestrationSource extends Omit<
+  GeneralWorkbenchSidebarWorkflowOrchestrationInput,
+  "creationTaskEvents"
+> {
   creationTaskEvents?: GeneralWorkbenchCreationTaskEvent[];
 }
 
-export interface GeneralWorkbenchSidebarExecLogOrchestrationSource
-  extends Omit<
-    GeneralWorkbenchSidebarExecLogOrchestrationInput,
-    "messages" | "skillDetailMap"
-  > {
+export interface GeneralWorkbenchSidebarExecLogOrchestrationSource extends Omit<
+  GeneralWorkbenchSidebarExecLogOrchestrationInput,
+  "messages" | "skillDetailMap"
+> {
   messages?: Message[];
   skillDetailMap?: Record<string, SkillDetailInfo | null>;
 }

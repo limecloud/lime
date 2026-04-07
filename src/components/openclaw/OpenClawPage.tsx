@@ -185,7 +185,9 @@ function selectCurrentRuntimeCandidate(
 ): OpenClawRuntimeCandidate | null {
   return (
     (preferredRuntimeId
-      ? runtimeCandidates.find((candidate) => candidate.id === preferredRuntimeId)
+      ? runtimeCandidates.find(
+          (candidate) => candidate.id === preferredRuntimeId,
+        )
       : null) ||
     runtimeCandidates.find((candidate) => candidate.isPreferred) ||
     runtimeCandidates.find((candidate) => candidate.isActive) ||
@@ -198,8 +200,8 @@ function runtimeCandidateHasOpenClawInstallation(
 ): boolean {
   return Boolean(
     candidate?.openclawVersion ||
-      candidate?.openclawPath ||
-      candidate?.openclawPackagePath,
+    candidate?.openclawPath ||
+    candidate?.openclawPackagePath,
   );
 }
 
@@ -235,7 +237,9 @@ function formatRuntimeCandidateOpenClawSummary(
   return `${formatRuntimeCandidateLabel(candidate)} · 未检测到 OpenClaw`;
 }
 
-function trimOpenClawVersion(version: string | null | undefined): string | null {
+function trimOpenClawVersion(
+  version: string | null | undefined,
+): string | null {
   const trimmed = version?.trim();
   return trimmed ? trimmed : null;
 }
@@ -295,8 +299,8 @@ function hasOpenClawVersionMismatch(params: {
 
   return Boolean(
     installedComparable &&
-      runningComparable &&
-      installedComparable !== runningComparable,
+    runningComparable &&
+    installedComparable !== runningComparable,
   );
 }
 
@@ -437,9 +441,13 @@ function buildOpenClawRepairPrompt(
   ].join("\n");
 }
 
-function buildOpenClawRawLogsText(logs: OpenClawInstallProgressEvent[]): string {
+function buildOpenClawRawLogsText(
+  logs: OpenClawInstallProgressEvent[],
+): string {
   return logs.length > 0
-    ? logs.map((log) => `[${log.level.toUpperCase()}] ${log.message}`).join("\n")
+    ? logs
+        .map((log) => `[${log.level.toUpperCase()}] ${log.message}`)
+        .join("\n")
     : "";
 }
 
@@ -701,7 +709,7 @@ export function OpenClawPage({
 
     return Boolean(
       recommendedUpdateRuntimeCandidate &&
-        recommendedUpdateRuntimeCandidate.id !== currentRuntimeCandidate?.id,
+      recommendedUpdateRuntimeCandidate.id !== currentRuntimeCandidate?.id,
     );
   }, [
     currentRuntimeCandidate?.id,
@@ -868,7 +876,8 @@ export function OpenClawPage({
 
   const requestedOrFallbackSubpage =
     requestedSubpage ?? (onNavigate ? defaultSubpage : fallbackSubpage);
-  const allowInstallPage = environmentStatus?.openclaw.status === "needs_reload";
+  const allowInstallPage =
+    environmentStatus?.openclaw.status === "needs_reload";
   const currentSubpage = useMemo(
     () =>
       resolveOpenClawSubpage(
@@ -1114,11 +1123,14 @@ export function OpenClawPage({
 
       if (showToast) {
         if (result.hasUpdate) {
-          toast.info(`检测到 OpenClaw 新版本 ${result.latestVersion || ""}`.trim(), {
-            description: result.currentVersion
-              ? `当前版本 ${result.currentVersion}`
-              : "可以在当前工作台直接执行升级。",
-          });
+          toast.info(
+            `检测到 OpenClaw 新版本 ${result.latestVersion || ""}`.trim(),
+            {
+              description: result.currentVersion
+                ? `当前版本 ${result.currentVersion}`
+                : "可以在当前工作台直接执行升级。",
+            },
+          );
         } else if (result.message) {
           toast.warning("暂时无法确认更新状态。", {
             description: result.message,
@@ -1174,72 +1186,77 @@ export function OpenClawPage({
     [setPreferredRuntimeId],
   );
 
-  const refreshAll = useCallback(async (runtimeIdOverride?: string | null) => {
-    try {
-      const effectiveRuntimeId =
-        runtimeIdOverride === undefined ? preferredRuntimeId : runtimeIdOverride;
-      const runtimeSync =
-        await syncPreferredRuntimeSelection(effectiveRuntimeId);
-      if (runtimeSync.recoveredToAuto && runtimeSync.recoveryReason) {
-        toast.warning("已恢复为自动选择执行环境。", {
-          description: runtimeSync.recoveryReason,
-        });
-      }
+  const refreshAll = useCallback(
+    async (runtimeIdOverride?: string | null) => {
+      try {
+        const effectiveRuntimeId =
+          runtimeIdOverride === undefined
+            ? preferredRuntimeId
+            : runtimeIdOverride;
+        const runtimeSync =
+          await syncPreferredRuntimeSelection(effectiveRuntimeId);
+        if (runtimeSync.recoveredToAuto && runtimeSync.recoveryReason) {
+          toast.warning("已恢复为自动选择执行环境。", {
+            description: runtimeSync.recoveryReason,
+          });
+        }
 
-      const [environment, runtimes] = await Promise.all([
-        openclawApi.getEnvironmentStatus(),
-        openclawApi.listRuntimeCandidates(),
-      ]);
-      setRuntimeCandidates(runtimes);
-      setEnvironmentStatus(environment);
-      setInstalledStatus({
-        installed: environment.openclaw.status === "ok",
-        path: environment.openclaw.path,
-      });
-      setNodeStatus({
-        status:
-          environment.node.status === "missing"
-            ? "not_found"
-            : environment.node.status,
-        version: environment.node.version,
-        path: environment.node.path,
-      });
-      setGitStatus({
-        available: environment.git.status === "ok",
-        path: environment.git.path,
-      });
-      const updateResult =
-        environment.openclaw.status === "ok"
-          ? await openclawApi.checkUpdate().catch(() => null)
-          : null;
-      setUpdateInfo(updateResult);
-      const [gatewayRuntime, dashboardWindowOpenState] = await Promise.all([
-        refreshGatewayRuntime(),
-        refreshDashboardWindowState(),
-      ]);
-      return {
-        appliedRuntimeId: runtimeSync.appliedRuntimeId,
-        environment,
-        runtimes,
-        updateInfo: updateResult,
-        gatewayStatus: gatewayRuntime.status.status,
-        gatewayPort: gatewayRuntime.status.port,
-        healthInfo: gatewayRuntime.healthInfo,
-        channels: gatewayRuntime.channels,
-        dashboardWindowOpen: dashboardWindowOpenState,
-      } satisfies OpenClawRefreshSnapshot;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
-      return null;
-    } finally {
-      setStatusResolved(true);
-    }
-  }, [
-    preferredRuntimeId,
-    refreshDashboardWindowState,
-    refreshGatewayRuntime,
-    syncPreferredRuntimeSelection,
-  ]);
+        const [environment, runtimes] = await Promise.all([
+          openclawApi.getEnvironmentStatus(),
+          openclawApi.listRuntimeCandidates(),
+        ]);
+        setRuntimeCandidates(runtimes);
+        setEnvironmentStatus(environment);
+        setInstalledStatus({
+          installed: environment.openclaw.status === "ok",
+          path: environment.openclaw.path,
+        });
+        setNodeStatus({
+          status:
+            environment.node.status === "missing"
+              ? "not_found"
+              : environment.node.status,
+          version: environment.node.version,
+          path: environment.node.path,
+        });
+        setGitStatus({
+          available: environment.git.status === "ok",
+          path: environment.git.path,
+        });
+        const updateResult =
+          environment.openclaw.status === "ok"
+            ? await openclawApi.checkUpdate().catch(() => null)
+            : null;
+        setUpdateInfo(updateResult);
+        const [gatewayRuntime, dashboardWindowOpenState] = await Promise.all([
+          refreshGatewayRuntime(),
+          refreshDashboardWindowState(),
+        ]);
+        return {
+          appliedRuntimeId: runtimeSync.appliedRuntimeId,
+          environment,
+          runtimes,
+          updateInfo: updateResult,
+          gatewayStatus: gatewayRuntime.status.status,
+          gatewayPort: gatewayRuntime.status.port,
+          healthInfo: gatewayRuntime.healthInfo,
+          channels: gatewayRuntime.channels,
+          dashboardWindowOpen: dashboardWindowOpenState,
+        } satisfies OpenClawRefreshSnapshot;
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : String(error));
+        return null;
+      } finally {
+        setStatusResolved(true);
+      }
+    },
+    [
+      preferredRuntimeId,
+      refreshDashboardWindowState,
+      refreshGatewayRuntime,
+      syncPreferredRuntimeSelection,
+    ],
+  );
 
   useEffect(() => {
     if (!isActive) {
@@ -1669,7 +1686,9 @@ export function OpenClawPage({
     await runProgressOperation({
       kind: "install",
       target: "openclaw",
-      title: isWindowsPlatform ? "正在安装 OpenClaw" : "正在修复环境并安装 OpenClaw",
+      title: isWindowsPlatform
+        ? "正在安装 OpenClaw"
+        : "正在修复环境并安装 OpenClaw",
       description: isWindowsPlatform
         ? "当前环境已通过检测，正在继续安装 OpenClaw。"
         : "Lime 会先自动检查并修复 Node.js / Git，再继续安装 OpenClaw。",
@@ -1759,7 +1778,9 @@ export function OpenClawPage({
 
   const handleInstallNode = useCallback(async () => {
     if (isWindowsPlatform) {
-      toast.info("Windows 下请先手动下载安装 Node.js 22+，安装完成后重新检测。");
+      toast.info(
+        "Windows 下请先手动下载安装 Node.js 22+，安装完成后重新检测。",
+      );
       await handleDownloadNode();
       return;
     }
@@ -2098,7 +2119,9 @@ export function OpenClawPage({
       });
       toast.success("安装路径已复制。");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "复制安装路径失败。");
+      toast.error(
+        error instanceof Error ? error.message : "复制安装路径失败。",
+      );
     }
   }, [installedStatus?.path]);
 
@@ -2250,8 +2273,7 @@ export function OpenClawPage({
         fallbackErrorMessage: "复制 OpenClaw 日志失败，请重试。",
         permissionDeniedMessage:
           "剪贴板权限被系统拒绝，请先点击 Lime 窗口后重试复制日志。",
-        inactiveWindowMessage:
-          "当前窗口未激活，先点击 Lime 窗口后再复制日志。",
+        inactiveWindowMessage: "当前窗口未激活，先点击 Lime 窗口后再复制日志。",
       });
       toast.success("OpenClaw 纯日志已复制。");
     } catch (error) {
@@ -2293,7 +2315,9 @@ export function OpenClawPage({
       });
       toast.success("历史日志已复制。");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "复制历史日志失败。");
+      toast.error(
+        error instanceof Error ? error.message : "复制历史日志失败。",
+      );
     }
   }, [recentOperation?.rawLogsText]);
 
@@ -2452,8 +2476,8 @@ export function OpenClawPage({
       case "install":
         return softInstalled
           ? "当前运行中的 Gateway 或已识别到版本表明 OpenClaw 已可用，但命令解析仍未完全对齐。你可以继续下一步，后续再修正执行环境。"
-          : (environmentStatus?.summary ||
-              "先确认 Node.js、Git 与 OpenClaw 本体状态，再决定是否执行一键修复。");
+          : environmentStatus?.summary ||
+              "先确认 Node.js、Git 与 OpenClaw 本体状态，再决定是否执行一键修复。";
       case "installing":
       case "uninstalling":
       case "updating":
@@ -2571,7 +2595,9 @@ export function OpenClawPage({
         key: "dashboard",
         title: "桌面面板",
         value: dashboardWindowOpen ? "已打开" : "未打开",
-        description: dashboardUrl ? "Dashboard 地址已生成" : "等待生成 Dashboard 地址",
+        description: dashboardUrl
+          ? "Dashboard 地址已生成"
+          : "等待生成 Dashboard 地址",
         icon: MonitorSmartphone,
         iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
       },
@@ -2927,45 +2953,47 @@ export function OpenClawPage({
 
                 <TabsContent value="overview" className="mt-4">
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {summaryCards.map((card) => {
-                  const CardIcon = card.icon;
-                  return (
-                    <div
-                      key={card.key}
-                      className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-slate-800">
-                            {card.title}
-                          </p>
-                          <p
-                            className="mt-1 truncate text-xs leading-5 text-slate-500"
-                            title={card.descriptionTitle ?? card.description}
-                          >
-                            {card.description}
-                          </p>
-                        </div>
+                    {summaryCards.map((card) => {
+                      const CardIcon = card.icon;
+                      return (
                         <div
-                          className={cn(
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
-                            card.iconClassName,
-                          )}
+                          key={card.key}
+                          className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm"
                         >
-                          <CardIcon className="h-[18px] w-[18px]" />
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-slate-800">
+                                {card.title}
+                              </p>
+                              <p
+                                className="mt-1 truncate text-xs leading-5 text-slate-500"
+                                title={
+                                  card.descriptionTitle ?? card.description
+                                }
+                              >
+                                {card.description}
+                              </p>
+                            </div>
+                            <div
+                              className={cn(
+                                "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
+                                card.iconClassName,
+                              )}
+                            >
+                              <CardIcon className="h-[18px] w-[18px]" />
+                            </div>
+                          </div>
+                          <p
+                            className={cn(
+                              "mt-4 break-words text-2xl font-semibold tracking-tight text-slate-900",
+                              card.valueClassName,
+                            )}
+                          >
+                            {card.value}
+                          </p>
                         </div>
-                      </div>
-                      <p
-                        className={cn(
-                          "mt-4 break-words text-2xl font-semibold tracking-tight text-slate-900",
-                          card.valueClassName,
-                        )}
-                      >
-                        {card.value}
-                      </p>
-                    </div>
-                  );
-                })}
+                      );
+                    })}
                   </div>
                 </TabsContent>
 

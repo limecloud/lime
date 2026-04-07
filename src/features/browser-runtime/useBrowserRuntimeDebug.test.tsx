@@ -9,10 +9,7 @@ import {
   type MountedRoot,
 } from "@/components/workspace/hooks/testUtils";
 
-const {
-  mockBrowserRuntimeApi,
-  browserEventHandlerRef,
-} = vi.hoisted(() => ({
+const { mockBrowserRuntimeApi, browserEventHandlerRef } = vi.hoisted(() => ({
   mockBrowserRuntimeApi: {
     listBrowserProfiles: vi.fn(),
     listCdpTargets: vi.fn(),
@@ -54,13 +51,17 @@ function HookHarness(props: {
   initialSessionId?: string;
   openOnMount?: boolean;
 }) {
-  const runtime = useBrowserRuntimeDebug(props.sessions as any, props.onMessage, {
-    initialProfileKey: props.initialProfileKey ?? "general_browser_assist",
-    initialSessionId:
-      props.initialSessionId === undefined
-        ? "session-old"
-        : props.initialSessionId,
-  });
+  const runtime = useBrowserRuntimeDebug(
+    props.sessions as any,
+    props.onMessage,
+    {
+      initialProfileKey: props.initialProfileKey ?? "general_browser_assist",
+      initialSessionId:
+        props.initialSessionId === undefined
+          ? "session-old"
+          : props.initialSessionId,
+    },
+  );
   const { openSession, selectedProfileKey, sessionState, streaming } = runtime;
 
   React.useEffect(() => {
@@ -141,7 +142,8 @@ describe("useBrowserRuntimeDebug", () => {
         success: true,
         reused: false,
         browser_source: "chrome",
-        browser_path: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        browser_path:
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
         profile_dir: "/tmp/general_browser_assist",
         remote_debugging_port: 16312,
         pid: 12345,
@@ -192,7 +194,8 @@ describe("useBrowserRuntimeDebug", () => {
           sequence: 2,
           occurred_at: "2026-03-14T00:01:10Z",
           type: "session_error",
-          error: "读取 CDP 消息失败: IO error: Connection reset by peer (os error 54)",
+          error:
+            "读取 CDP 消息失败: IO error: Connection reset by peer (os error 54)",
         },
       });
       await Promise.resolve();
@@ -208,9 +211,9 @@ describe("useBrowserRuntimeDebug", () => {
       }),
     );
     expect(
-      container.querySelector("[data-testid='runtime-hook']")?.getAttribute(
-        "data-session-id",
-      ),
+      container
+        .querySelector("[data-testid='runtime-hook']")
+        ?.getAttribute("data-session-id"),
     ).toBe("session-new");
     expect(onMessage).toHaveBeenCalledWith(
       expect.objectContaining({

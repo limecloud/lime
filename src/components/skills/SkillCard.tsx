@@ -65,7 +65,10 @@ export function getSkillSource(skill: Skill): SkillSource {
   if (skill.catalogSource === "user") {
     return "local";
   }
-  if (skill.catalogSource !== "remote" && (!skill.repoOwner || !skill.repoName)) {
+  if (
+    skill.catalogSource !== "remote" &&
+    (!skill.repoOwner || !skill.repoName)
+  ) {
     return "local";
   }
   if (skill.repoOwner === "lime" && skill.repoName === "skills") {
@@ -331,8 +334,8 @@ export function SkillCard({
   const deprecatedFields = skill.standardCompliance?.deprecatedFields ?? [];
   const hasResourceBadges = Boolean(
     skill.resourceSummary?.hasScripts ||
-      skill.resourceSummary?.hasReferences ||
-      skill.resourceSummary?.hasAssets,
+    skill.resourceSummary?.hasReferences ||
+    skill.resourceSummary?.hasAssets,
   );
   const validationSummary =
     validationErrors[0] ??

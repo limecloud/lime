@@ -51,10 +51,13 @@ function buildTeamSelectionMemoryContent(params: {
     `Team：${team.label}`,
     `来源：${team.source}`,
     team.presetId ? `预设：${team.presetId}` : null,
-    normalizeLine(team.description) ? `说明：${normalizeLine(team.description)}` : null,
+    normalizeLine(team.description)
+      ? `说明：${normalizeLine(team.description)}`
+      : null,
     team.roles.length > 0 ? "角色：" : null,
-    ...team.roles.map((role) =>
-      `- ${role.label}：${normalizeLine(role.summary) || "负责当前子任务"}`
+    ...team.roles.map(
+      (role) =>
+        `- ${role.label}：${normalizeLine(role.summary) || "负责当前子任务"}`,
     ),
   ].filter((item): item is string => Boolean(item));
 
@@ -79,8 +82,8 @@ function buildSubagentMemoryContent(params: {
   sessionId?: string | null;
   childSubagentSessions?: AsterSubagentSessionInfo[];
 }): string | null {
-  const sessions = (params.childSubagentSessions || []).filter(
-    (session) => normalizeLine(session.name),
+  const sessions = (params.childSubagentSessions || []).filter((session) =>
+    normalizeLine(session.name),
   );
   if (sessions.length === 0) {
     return null;
@@ -108,8 +111,12 @@ function buildParentContextMemoryContent(
 
   return [
     `父会话：${context.parent_session_name || context.parent_session_id}`,
-    normalizeLine(context.role_hint) ? `当前角色：${normalizeLine(context.role_hint)}` : null,
-    normalizeLine(context.task_summary) ? `当前任务：${normalizeLine(context.task_summary)}` : null,
+    normalizeLine(context.role_hint)
+      ? `当前角色：${normalizeLine(context.role_hint)}`
+      : null,
+    normalizeLine(context.task_summary)
+      ? `当前任务：${normalizeLine(context.task_summary)}`
+      : null,
     siblingSessions.length > 0 ? "兄弟会话：" : null,
     ...siblingSessions.map(summarizeSubagentSession),
   ]
@@ -200,10 +207,7 @@ export function syncTeamMemoryShadowSnapshot(
   return nextSnapshot;
 }
 
-function readMemoryField(
-  lines: string[],
-  prefix: string,
-): string | null {
+function readMemoryField(lines: string[], prefix: string): string | null {
   const target = `${prefix}：`;
   const matchedLine = lines.find((line) => line.startsWith(target));
   if (!matchedLine) {
@@ -220,7 +224,9 @@ function parseRoleLines(lines: string[]) {
       const roleText = line.slice(2).trim();
       const separatorIndex = roleText.indexOf("：");
       const label =
-        separatorIndex >= 0 ? roleText.slice(0, separatorIndex).trim() : roleText;
+        separatorIndex >= 0
+          ? roleText.slice(0, separatorIndex).trim()
+          : roleText;
       const summary =
         separatorIndex >= 0
           ? roleText.slice(separatorIndex + 1).trim()
@@ -276,9 +282,7 @@ export function resolveSelectedTeamFromShadowSnapshot(
   }
 
   return normalizeTeamDefinition({
-    id:
-      presetId ||
-      `shadow-team-${label.replace(/\s+/g, "-").toLowerCase()}`,
+    id: presetId || `shadow-team-${label.replace(/\s+/g, "-").toLowerCase()}`,
     source: source === "custom" ? "custom" : "custom",
     label,
     description: description || "",
@@ -364,7 +368,9 @@ function serializeSnapshot(snapshot?: TeamMemorySnapshot | null): string {
 export function useTeamMemoryShadowSync(
   options: TeamMemoryShadowSyncOptions,
 ): TeamMemorySnapshot | null {
-  const storage = options.storage ?? (typeof localStorage === "undefined" ? null : localStorage);
+  const storage =
+    options.storage ??
+    (typeof localStorage === "undefined" ? null : localStorage);
   const [snapshot, setSnapshot] = useState<TeamMemorySnapshot | null>(null);
   const teamKey = useMemo(
     () => serializeTeamDefinition(options.selectedTeam),

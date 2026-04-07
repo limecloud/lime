@@ -91,7 +91,9 @@ export const useResourcesStore = create<ResourcesStore>((set, get) => ({
       const items = await fetchProjectResources(projectId);
       const hasCurrentFolder =
         !currentFolderId ||
-        items.some((item) => item.id === currentFolderId && item.kind === "folder");
+        items.some(
+          (item) => item.id === currentFolderId && item.kind === "folder",
+        );
       set({
         items,
         loading: false,

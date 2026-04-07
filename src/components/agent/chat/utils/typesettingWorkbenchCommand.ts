@@ -78,8 +78,12 @@ export function parseTypesettingWorkbenchCommand(
   }
 
   const body = (matched[2] || "").trim();
-  const explicitPlatform = body.match(EXPLICIT_TARGET_PLATFORM_REGEX)?.[1]?.trim();
-  const leadingPlatform = body.match(LEADING_TARGET_PLATFORM_REGEX)?.[1]?.trim();
+  const explicitPlatform = body
+    .match(EXPLICIT_TARGET_PLATFORM_REGEX)?.[1]
+    ?.trim();
+  const leadingPlatform = body
+    .match(LEADING_TARGET_PLATFORM_REGEX)?.[1]
+    ?.trim();
   const targetPlatform = normalizePlatform(explicitPlatform || leadingPlatform);
 
   return {

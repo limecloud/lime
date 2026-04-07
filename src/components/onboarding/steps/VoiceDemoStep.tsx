@@ -132,9 +132,8 @@ export function VoiceDemoStep({ onSuccess, onSkip }: VoiceDemoStepProps) {
     playStartSound();
 
     try {
-      const { startRecording: start, getRecordingStatus } = await import(
-        "@/lib/api/asrProvider"
-      );
+      const { startRecording: start, getRecordingStatus } =
+        await import("@/lib/api/asrProvider");
 
       await start();
 

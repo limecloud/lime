@@ -95,8 +95,7 @@ function resolveShellImportMeta(status?: string) {
     case "ok":
       return {
         label: "已导入",
-        className:
-          "border-emerald-200 bg-emerald-50 text-emerald-700",
+        className: "border-emerald-200 bg-emerald-50 text-emerald-700",
       };
     case "disabled":
       return {
@@ -521,7 +520,7 @@ export function EnvironmentSettings() {
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
               <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-1">
+                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-slate-900">
                         启用 Shell 环境导入
@@ -633,7 +632,8 @@ export function EnvironmentSettings() {
                   暂无显式环境变量覆盖
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  当前仅使用 Shell 导入与业务模块推导的运行时变量，适合先观察实际生效结果。
+                  当前仅使用 Shell
+                  导入与业务模块推导的运行时变量，适合先观察实际生效结果。
                 </p>
               </div>
             ) : (

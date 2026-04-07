@@ -5,7 +5,11 @@ import type {
   AgentRuntimeThreadReadModel,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
-import type { ActionRequired, AgentThreadItem, AgentThreadTurn } from "../types";
+import type {
+  ActionRequired,
+  AgentThreadItem,
+  AgentThreadTurn,
+} from "../types";
 
 export type ThreadReliabilityTone =
   | "running"
@@ -83,7 +87,10 @@ const NON_BLOCKING_RUNTIME_WARNING_CODES = new Set([
   "artifact_document_repaired",
 ]);
 
-type RuntimeIssueThreadItem = Extract<AgentThreadItem, { type: "error" | "warning" }>;
+type RuntimeIssueThreadItem = Extract<
+  AgentThreadItem,
+  { type: "error" | "warning" }
+>;
 
 function normalizeText(value?: string | null): string | null {
   if (typeof value !== "string") {
@@ -312,7 +319,9 @@ function resolveLatestTurn(
   return turns.length > 0 ? turns[turns.length - 1] : null;
 }
 
-export function resolveOutcomeTone(outcomeType?: string): ThreadReliabilityTone {
+export function resolveOutcomeTone(
+  outcomeType?: string,
+): ThreadReliabilityTone {
   const normalized = (outcomeType || "").toLowerCase();
   if (normalized.includes("complete")) {
     return "completed";
@@ -375,7 +384,8 @@ function deriveOutcomeFromTurn(
   if (latestTurn.status === "failed") {
     return {
       label: "执行失败",
-      summary: normalizeText(latestTurn.error_message) || "最近一次回合执行失败",
+      summary:
+        normalizeText(latestTurn.error_message) || "最近一次回合执行失败",
       primaryCause: normalizeText(latestTurn.error_message),
       retryable: true,
       endedAtLabel: formatTimeLabel(latestTurn.completed_at),
@@ -811,7 +821,10 @@ function buildRecommendations(params: {
       recommendations.add("当前执行已被运行时确认中断");
     }
   }
-  if (params.nextQueuedTurn && !((params.interruptState || "").toLowerCase().includes("interrupting"))) {
+  if (
+    params.nextQueuedTurn &&
+    !(params.interruptState || "").toLowerCase().includes("interrupting")
+  ) {
     recommendations.add(`可继续排队回合：${params.nextQueuedTurn.title}`);
   }
   if (params.outcome?.retryable) {

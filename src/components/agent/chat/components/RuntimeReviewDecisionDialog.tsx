@@ -144,14 +144,12 @@ export function RuntimeReviewDecisionDialog({
     }
   }, [open, template]);
 
-  const statusOptions =
-    template?.decision_status_options.length
-      ? template.decision_status_options
-      : DEFAULT_STATUS_OPTIONS;
-  const riskLevelOptions =
-    template?.risk_level_options.length
-      ? template.risk_level_options
-      : DEFAULT_RISK_LEVEL_OPTIONS;
+  const statusOptions = template?.decision_status_options.length
+    ? template.decision_status_options
+    : DEFAULT_STATUS_OPTIONS;
+  const riskLevelOptions = template?.risk_level_options.length
+    ? template.risk_level_options
+    : DEFAULT_RISK_LEVEL_OPTIONS;
 
   const handleSave = async () => {
     if (!template || !formState) {

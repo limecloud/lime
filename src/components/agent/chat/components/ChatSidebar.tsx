@@ -55,7 +55,7 @@ const STATUS_META: Record<
   draft: {
     label: "待补充",
     badgeClassName:
-      "border border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
+      "border border-slate-200/80 bg-white/80 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
     dotClassName: "bg-slate-400",
   },
   running: {
@@ -84,11 +84,7 @@ const STATUS_META: Record<
   },
 };
 
-type TaskSectionKey =
-  | "running"
-  | "waiting"
-  | "recent"
-  | "older";
+type TaskSectionKey = "running" | "waiting" | "recent" | "older";
 
 type ChatSidebarContextVariant = "default" | "task-center";
 
@@ -209,7 +205,10 @@ function resolveCurrentStatusPreview(
   pendingActionCount: number,
   workspaceError: boolean,
 ) {
-  if ((workspaceError || statusReason === "workspace_error") && status === "failed") {
+  if (
+    (workspaceError || statusReason === "workspace_error") &&
+    status === "failed"
+  ) {
     return "工作区异常，等待你重新选择本地目录后继续。";
   }
   if (status === "running") {
@@ -462,9 +461,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     recent: false,
     older: false,
   });
-  const [teamSectionCollapsedOverride, setTeamSectionCollapsedOverride] = useState<
-    boolean | null
-  >(null);
+  const [teamSectionCollapsedOverride, setTeamSectionCollapsedOverride] =
+    useState<boolean | null>(null);
   const [showAllChildSubagents, setShowAllChildSubagents] = useState(false);
   const [showAllSiblingSubagents, setShowAllSiblingSubagents] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
@@ -551,7 +549,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     () =>
       showAllChildSubagents
         ? sortedChildSubagentSessions
-        : sortedChildSubagentSessions.slice(0, TEAM_SECTION_INITIAL_CHILD_COUNT),
+        : sortedChildSubagentSessions.slice(
+            0,
+            TEAM_SECTION_INITIAL_CHILD_COUNT,
+          ),
     [showAllChildSubagents, sortedChildSubagentSessions],
   );
   const visibleSiblingSubagentSessions = useMemo(
@@ -662,7 +663,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   }, [teamSectionIdentity]);
 
   useEffect(() => {
-    if (sortedChildSubagentSessions.length <= TEAM_SECTION_INITIAL_CHILD_COUNT) {
+    if (
+      sortedChildSubagentSessions.length <= TEAM_SECTION_INITIAL_CHILD_COUNT
+    ) {
       setShowAllChildSubagents(false);
     }
   }, [sortedChildSubagentSessions.length]);
@@ -785,9 +788,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               </Badge>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-              <span>{options?.subtitle ?? resolveSubagentSessionTypeLabel(session.session_type)}</span>
-              {session.role_hint ? <span>角色 · {session.role_hint}</span> : null}
-              {updatedAt ? <span>更新于 {formatRelativeTime(updatedAt)}</span> : null}
+              <span>
+                {options?.subtitle ??
+                  resolveSubagentSessionTypeLabel(session.session_type)}
+              </span>
+              {session.role_hint ? (
+                <span>角色 · {session.role_hint}</span>
+              ) : null}
+              {updatedAt ? (
+                <span>更新于 {formatRelativeTime(updatedAt)}</span>
+              ) : null}
             </div>
             {session.task_summary ? (
               <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
@@ -802,7 +812,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   return (
     <aside
-      className="w-[308px] shrink-0 overflow-hidden rounded-[30px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(241,245,249,0.92)_100%)] shadow-sm shadow-slate-950/5 backdrop-blur dark:border-white/10 dark:bg-[#111318]"
+      className="w-[308px] shrink-0 overflow-hidden rounded-[30px] border border-emerald-200/40 bg-[linear-gradient(180deg,rgba(252,254,252,0.98)_0%,rgba(247,251,248,0.92)_100%)] shadow-sm shadow-slate-950/5 backdrop-blur dark:border-white/10 dark:bg-[#111318]"
       data-testid="chat-sidebar"
     >
       <div className="flex h-full min-h-0 flex-col gap-4 p-4">
@@ -814,14 +824,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               value={searchKeyword}
               onChange={(event) => setSearchKeyword(event.target.value)}
               placeholder="搜索任务标题或摘要"
-              className="h-11 w-full rounded-[18px] border border-slate-200/80 bg-white/92 pl-9 pr-3 text-sm text-slate-700 shadow-sm shadow-slate-950/5 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:focus:border-white/20 dark:focus:ring-white/10"
+              className="h-11 w-full rounded-[18px] border border-emerald-200/40 bg-white/90 pl-9 pr-3 text-sm text-slate-700 shadow-sm shadow-slate-950/5 outline-none transition focus:border-emerald-300/60 focus:ring-2 focus:ring-emerald-100/50 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:focus:border-white/20 dark:focus:ring-white/10"
             />
           </div>
 
           <button
             type="button"
             onClick={onNewChat}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[18px] bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm shadow-slate-950/10 transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[18px] bg-[#1a3b2b] px-4 text-sm font-semibold text-white shadow-sm shadow-[#1a3b2b]/10 transition hover:bg-[#132c20] dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
           >
             <Plus className="h-4 w-4" />
             新建任务
@@ -834,8 +844,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               className={cn(
                 "inline-flex h-9 flex-1 items-center justify-center rounded-2xl border px-2 text-xs font-medium transition",
                 statusFilter === "all"
-                  ? "border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900"
-                  : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
+                  ? "border-[#1a3b2b] bg-[#1a3b2b] text-white dark:border-white dark:bg-white dark:text-slate-900"
+                  : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
               )}
             >
               全部任务
@@ -846,8 +856,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               className={cn(
                 "inline-flex h-9 flex-1 items-center justify-center rounded-2xl border px-2 text-xs font-medium transition",
                 statusFilter === "active"
-                  ? "border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900"
-                  : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
+                  ? "border-[#1a3b2b] bg-[#1a3b2b] text-white dark:border-white dark:bg-white dark:text-slate-900"
+                  : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
               )}
             >
               仅看进行中
@@ -979,7 +989,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                         ) : null}
                         {currentTaskItem?.updatedAt ? (
                           <span>
-                            更新于 {formatRelativeTime(currentTaskItem.updatedAt)}
+                            更新于{" "}
+                            {formatRelativeTime(currentTaskItem.updatedAt)}
                           </span>
                         ) : null}
                       </div>
@@ -1069,7 +1080,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                     {taskHeadingLabel}
                   </div>
                   {taskHeadingHint ? (
-                    <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-[11px] leading-5 text-slate-400 dark:text-slate-400">
                       {taskHeadingHint}
                     </p>
                   ) : null}
@@ -1106,261 +1117,268 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
             ) : (
               <div className="space-y-3">
                 {sections.map((section) => {
-                const isOlderSection = section.key === "older";
-                const isSectionCollapsed = collapsedSections[section.key];
-                const visibleItems =
-                  isOlderSection && !showAllOlder
-                    ? section.items.slice(0, OLDER_TASKS_INITIAL_COUNT)
-                    : section.items;
+                  const isOlderSection = section.key === "older";
+                  const isSectionCollapsed = collapsedSections[section.key];
+                  const visibleItems =
+                    isOlderSection && !showAllOlder
+                      ? section.items.slice(0, OLDER_TASKS_INITIAL_COUNT)
+                      : section.items;
 
-                if (section.items.length === 0) {
-                  return null;
-                }
+                  if (section.items.length === 0) {
+                    return null;
+                  }
 
-                return (
-                  <section key={section.key} className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setCollapsedSections((prev) => ({
-                          ...prev,
-                          [section.key]: !prev[section.key],
-                        }))
-                      }
-                      className="flex w-full items-center justify-between rounded-2xl px-2.5 py-2 text-left transition hover:bg-white/78 dark:hover:bg-white/5"
-                    >
-                      <div className="flex items-center gap-2">
-                        <ChevronDown
-                          className={cn(
-                            "h-4 w-4 text-slate-400 transition-transform",
-                            isSectionCollapsed ? "-rotate-90" : "",
-                          )}
-                        />
-                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                          {section.title}
+                  return (
+                    <section key={section.key} className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCollapsedSections((prev) => ({
+                            ...prev,
+                            [section.key]: !prev[section.key],
+                          }))
+                        }
+                        className="flex w-full items-center justify-between rounded-2xl px-2.5 py-2 text-left transition hover:bg-white/78 dark:hover:bg-white/5"
+                      >
+                        <div className="flex items-center gap-2">
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 text-emerald-400 transition-transform",
+                              isSectionCollapsed ? "-rotate-90" : "",
+                            )}
+                          />
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            {section.title}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400">
+                          {section.items.length}
                         </span>
-                      </div>
-                      <span className="text-[11px] text-slate-400">
-                        {section.items.length}
-                      </span>
-                    </button>
+                      </button>
 
-                    {isSectionCollapsed ? null : (
-                      <div className="space-y-2">
-                        {visibleItems.map((item) => {
-                          const statusMeta = STATUS_META[item.status];
-                          const isResumableItem =
-                            item.status === "waiting" ||
-                            (item.status === "failed" &&
-                              item.statusReason === "workspace_error");
+                      {isSectionCollapsed ? null : (
+                        <div className="space-y-2">
+                          {visibleItems.map((item) => {
+                            const statusMeta = STATUS_META[item.status];
+                            const isResumableItem =
+                              item.status === "waiting" ||
+                              (item.status === "failed" &&
+                                item.statusReason === "workspace_error");
 
-                          return (
-                            <div
-                              key={item.id}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => {
-                                if (editingTopicId !== item.id) {
-                                  onSwitchTopic(item.id);
-                                }
-                              }}
-                              onDoubleClick={() =>
-                                handleStartEdit(item.id, item.title)
-                              }
-                              onKeyDown={(event) => {
-                                if (
-                                  event.key === "Enter" ||
-                                  event.key === " "
-                                ) {
-                                  event.preventDefault();
+                            return (
+                              <div
+                                key={item.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
                                   if (editingTopicId !== item.id) {
                                     onSwitchTopic(item.id);
                                   }
+                                }}
+                                onDoubleClick={() =>
+                                  handleStartEdit(item.id, item.title)
                                 }
-                              }}
-                              className={cn(
-                                "group rounded-[22px] border p-3.5 text-left shadow-sm shadow-slate-950/5 transition",
-                                isResumableItem
-                                  ? "border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.9)_0%,rgba(255,255,255,0.96)_100%)] shadow-sm shadow-amber-950/5 dark:border-amber-500/20 dark:bg-white/10"
-                                  : "",
-                                item.isCurrent
-                                  ? "border-slate-300 bg-white/98 ring-1 ring-slate-100 dark:border-white/15 dark:bg-white/10"
-                                  : "border-slate-200/70 bg-white/72 hover:border-slate-300 hover:bg-white/92 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/10 dark:hover:bg-white/5",
-                              )}
-                            >
-                              <div className="flex items-start gap-3">
-                                <span
-                                  className={cn(
-                                    "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full",
-                                    statusMeta.dotClassName,
-                                  )}
-                                />
-
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-start gap-2">
-                                    {editingTopicId === item.id ? (
-                                      <input
-                                        ref={editInputRef}
-                                        type="text"
-                                        value={editTitle}
-                                        onChange={(event) =>
-                                          setEditTitle(event.target.value)
-                                        }
-                                        onKeyDown={handleEditKeyDown}
-                                        onBlur={handleSaveEdit}
-                                        onClick={(event) =>
-                                          event.stopPropagation()
-                                        }
-                                        className="h-8 flex-1 rounded-xl border border-slate-300 bg-white px-2.5 text-sm font-medium text-slate-900 outline-none focus:border-slate-400 dark:border-white/10 dark:bg-[#17191f] dark:text-slate-100"
-                                      />
-                                    ) : (
-                                      <>
-                                        <div className="min-w-0 flex-1">
-                                          <div className="flex items-center gap-1.5">
-                                            <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                              {item.title || "未命名任务"}
-                                            </div>
-                                            {item.isPinned ? (
-                                              <Pin className="h-3.5 w-3.5 text-slate-400" />
-                                            ) : null}
-                                            {item.hasUnread ? (
-                                              <span className="h-2 w-2 rounded-full bg-sky-500" />
-                                            ) : null}
-                                          </div>
-                                        </div>
-                                        <div className="flex shrink-0 items-center gap-1 pt-0.5">
-                                          <div className="text-[11px] text-slate-400">
-                                            {formatRelativeTime(item.updatedAt)}
-                                          </div>
-                                          <button
-                                            type="button"
-                                            aria-label="删除任务"
-                                            title="删除任务"
-                                            className={cn(
-                                              "inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10 dark:hover:text-rose-300",
-                                              item.isCurrent
-                                                ? "opacity-100"
-                                                : "opacity-0 group-hover:opacity-100",
-                                            )}
-                                            onClick={(event) => {
-                                              event.stopPropagation();
-                                              handleDeleteClick(item.id);
-                                            }}
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </button>
-                                          <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                              <button
-                                                type="button"
-                                                aria-label="任务操作"
-                                                className={cn(
-                                                  "inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100",
-                                                  item.isCurrent
-                                                    ? "opacity-100"
-                                                    : "opacity-0 group-hover:opacity-100",
-                                                )}
-                                                onClick={(event) =>
-                                                  event.stopPropagation()
-                                                }
-                                              >
-                                                <MoreHorizontal className="h-4 w-4" />
-                                              </button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                              <DropdownMenuItem
-                                                onClick={() =>
-                                                  handleStartEdit(item.id, item.title)
-                                                }
-                                              >
-                                                <PencilLine className="h-4 w-4" />
-                                                重命名任务
-                                              </DropdownMenuItem>
-                                              <DropdownMenuItem
-                                                onClick={() =>
-                                                  handleTogglePinned(item.id)
-                                                }
-                                              >
-                                                {item.isPinned ? (
-                                                  <PinOff className="h-4 w-4" />
-                                                ) : (
-                                                  <Pin className="h-4 w-4" />
-                                                )}
-                                                {item.isPinned ? "取消固定" : "固定任务"}
-                                              </DropdownMenuItem>
-                                              <DropdownMenuSeparator />
-                                              <DropdownMenuItem
-                                                className="text-rose-600"
-                                                onClick={() =>
-                                                  handleDeleteClick(item.id)
-                                                }
-                                              >
-                                                <Trash2 className="h-4 w-4" />
-                                                删除任务
-                                              </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                          </DropdownMenu>
-                                        </div>
-                                      </>
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key === "Enter" ||
+                                    event.key === " "
+                                  ) {
+                                    event.preventDefault();
+                                    if (editingTopicId !== item.id) {
+                                      onSwitchTopic(item.id);
+                                    }
+                                  }
+                                }}
+                                className={cn(
+                                  "group rounded-[22px] border p-3.5 text-left shadow-sm shadow-slate-950/5 transition",
+                                  isResumableItem
+                                    ? "border-amber-200/80 bg-[linear-gradient(180deg,rgba(255,251,235,0.9)_0%,rgba(255,255,255,0.96)_100%)] shadow-sm shadow-amber-950/5 dark:border-amber-500/20 dark:bg-white/10"
+                                    : "",
+                                  item.isCurrent
+                                    ? "border-emerald-200/60 bg-white/98 ring-1 ring-emerald-50 dark:border-white/15 dark:bg-white/10"
+                                    : "border-slate-200/60 bg-white/72 hover:border-emerald-200/60 hover:bg-white/92 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/10 dark:hover:bg-white/5",
+                                )}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <span
+                                    className={cn(
+                                      "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full",
+                                      statusMeta.dotClassName,
                                     )}
-                                  </div>
+                                  />
 
-                                  <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                    {item.lastPreview}
-                                  </div>
-
-                                  <div className="mt-3 flex items-center gap-2">
-                                    <Badge
-                                      variant="outline"
-                                      className={cn(
-                                        "px-2.5 py-1 text-[11px] font-medium",
-                                        statusMeta.badgeClassName,
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-start gap-2">
+                                      {editingTopicId === item.id ? (
+                                        <input
+                                          ref={editInputRef}
+                                          type="text"
+                                          value={editTitle}
+                                          onChange={(event) =>
+                                            setEditTitle(event.target.value)
+                                          }
+                                          onKeyDown={handleEditKeyDown}
+                                          onBlur={handleSaveEdit}
+                                          onClick={(event) =>
+                                            event.stopPropagation()
+                                          }
+                                          className="h-8 flex-1 rounded-xl border border-slate-300 bg-white px-2.5 text-sm font-medium text-slate-900 outline-none focus:border-slate-400 dark:border-white/10 dark:bg-[#17191f] dark:text-slate-100"
+                                        />
+                                      ) : (
+                                        <>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5">
+                                              <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                                                {item.title || "未命名任务"}
+                                              </div>
+                                              {item.isPinned ? (
+                                                <Pin className="h-3.5 w-3.5 text-emerald-400" />
+                                              ) : null}
+                                              {item.hasUnread ? (
+                                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                              ) : null}
+                                            </div>
+                                          </div>
+                                          <div className="flex shrink-0 items-center gap-1 pt-0.5">
+                                            <div className="text-[11px] text-slate-400">
+                                              {formatRelativeTime(
+                                                item.updatedAt,
+                                              )}
+                                            </div>
+                                            <button
+                                              type="button"
+                                              aria-label="删除任务"
+                                              title="删除任务"
+                                              className={cn(
+                                                "inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10 dark:hover:text-rose-300",
+                                                item.isCurrent
+                                                  ? "opacity-100"
+                                                  : "opacity-0 group-hover:opacity-100",
+                                              )}
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                handleDeleteClick(item.id);
+                                              }}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </button>
+                                            <DropdownMenu>
+                                              <DropdownMenuTrigger asChild>
+                                                <button
+                                                  type="button"
+                                                  aria-label="任务操作"
+                                                  className={cn(
+                                                    "inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100",
+                                                    item.isCurrent
+                                                      ? "opacity-100"
+                                                      : "opacity-0 group-hover:opacity-100",
+                                                  )}
+                                                  onClick={(event) =>
+                                                    event.stopPropagation()
+                                                  }
+                                                >
+                                                  <MoreHorizontal className="h-4 w-4" />
+                                                </button>
+                                              </DropdownMenuTrigger>
+                                              <DropdownMenuContent align="end">
+                                                <DropdownMenuItem
+                                                  onClick={() =>
+                                                    handleStartEdit(
+                                                      item.id,
+                                                      item.title,
+                                                    )
+                                                  }
+                                                >
+                                                  <PencilLine className="h-4 w-4" />
+                                                  重命名任务
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                  onClick={() =>
+                                                    handleTogglePinned(item.id)
+                                                  }
+                                                >
+                                                  {item.isPinned ? (
+                                                    <PinOff className="h-4 w-4" />
+                                                  ) : (
+                                                    <Pin className="h-4 w-4" />
+                                                  )}
+                                                  {item.isPinned
+                                                    ? "取消固定"
+                                                    : "固定任务"}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                  className="text-rose-600"
+                                                  onClick={() =>
+                                                    handleDeleteClick(item.id)
+                                                  }
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                  删除任务
+                                                </DropdownMenuItem>
+                                              </DropdownMenuContent>
+                                            </DropdownMenu>
+                                          </div>
+                                        </>
                                       )}
-                                    >
-                                      {item.status === "running" ? (
-                                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                      ) : null}
-                                      {item.statusLabel}
-                                    </Badge>
-                                    <span className="text-[11px] text-slate-400">
-                                      {item.messagesCount > 0
-                                        ? `${item.messagesCount} 条消息`
-                                        : "尚未开始执行"}
-                                    </span>
-                                    {isResumableItem && onResumeTask ? (
-                                      <button
-                                        type="button"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          handleResumeTask(item);
-                                        }}
-                                        className="inline-flex items-center rounded-full border border-amber-200/80 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/15"
+                                    </div>
+
+                                    <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                      {item.lastPreview}
+                                    </div>
+
+                                    <div className="mt-3 flex items-center gap-2">
+                                      <Badge
+                                        variant="outline"
+                                        className={cn(
+                                          "px-2.5 py-1 text-[11px] font-medium",
+                                          statusMeta.badgeClassName,
+                                        )}
                                       >
-                                        继续任务
-                                      </button>
-                                    ) : null}
+                                        {item.status === "running" ? (
+                                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                        ) : null}
+                                        {item.statusLabel}
+                                      </Badge>
+                                      <span className="text-[11px] text-slate-400">
+                                        {item.messagesCount > 0
+                                          ? `${item.messagesCount} 条消息`
+                                          : "尚未开始执行"}
+                                      </span>
+                                      {isResumableItem && onResumeTask ? (
+                                        <button
+                                          type="button"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            handleResumeTask(item);
+                                          }}
+                                          className="inline-flex items-center rounded-full border border-amber-200/80 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/15"
+                                        >
+                                          继续任务
+                                        </button>
+                                      ) : null}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
 
-                        {isOlderSection &&
-                        section.items.length > OLDER_TASKS_INITIAL_COUNT &&
-                        !showAllOlder ? (
-                          <button
-                            type="button"
-                            onClick={() => setShowAllOlder(true)}
-                            className="w-full rounded-2xl border border-dashed border-slate-200 bg-white/75 px-3 py-2 text-sm font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
-                          >
-                            {olderSectionMoreLabel}
-                          </button>
-                        ) : null}
-                      </div>
-                    )}
-                  </section>
-                );
+                          {isOlderSection &&
+                          section.items.length > OLDER_TASKS_INITIAL_COUNT &&
+                          !showAllOlder ? (
+                            <button
+                              type="button"
+                              onClick={() => setShowAllOlder(true)}
+                              className="w-full rounded-2xl border border-dashed border-slate-200 bg-white/75 px-3 py-2 text-sm font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
+                            >
+                              {olderSectionMoreLabel}
+                            </button>
+                          ) : null}
+                        </div>
+                      )}
+                    </section>
+                  );
                 })}
               </div>
             )}

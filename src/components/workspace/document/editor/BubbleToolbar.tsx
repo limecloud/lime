@@ -116,7 +116,8 @@ export const BubbleToolbar: React.FC<BubbleToolbarProps> = ({ editor }) => {
       const preferredTop =
         start.top - wrapperRect.top - toolbarHeight - VERTICAL_GAP;
       const fallbackTop = start.bottom - wrapperRect.top + VERTICAL_GAP;
-      const resolvedTop = preferredTop >= EDGE_PADDING ? preferredTop : fallbackTop;
+      const resolvedTop =
+        preferredTop >= EDGE_PADDING ? preferredTop : fallbackTop;
       const clampedTop = Math.max(
         EDGE_PADDING,
         Math.min(

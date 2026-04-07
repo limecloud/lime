@@ -30,7 +30,10 @@ export async function listInstalledPlugins<T>(): Promise<T[]> {
 export async function listPluginTasks<T>(
   params: ListPluginTasksParams,
 ): Promise<T[]> {
-  return safeInvoke<T[]>("list_plugin_tasks", params as unknown as Record<string, unknown>);
+  return safeInvoke<T[]>(
+    "list_plugin_tasks",
+    params as unknown as Record<string, unknown>,
+  );
 }
 
 export async function getPluginQueueStats<T>(): Promise<T[]> {

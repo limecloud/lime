@@ -14,10 +14,7 @@ export interface ResolveCanvasTaskFileTargetResult<
 
 export function resolveCanvasTaskFileTarget<
   T extends RenderableTaskFileCandidate,
->(
-  files: T[],
-  selectedFileId?: string,
-): ResolveCanvasTaskFileTargetResult<T> {
+>(files: T[], selectedFileId?: string): ResolveCanvasTaskFileTargetResult<T> {
   if (files.length === 0) {
     return {
       targetFile: null,
@@ -57,8 +54,7 @@ export function resolveCanvasTaskFileTarget<
 
   return {
     targetFile: latestFile,
-    nextSelectedFileId:
-      selectedFileId === latestFile.id ? null : latestFile.id,
+    nextSelectedFileId: selectedFileId === latestFile.id ? null : latestFile.id,
   };
 }
 

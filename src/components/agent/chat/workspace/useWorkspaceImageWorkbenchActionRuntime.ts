@@ -17,9 +17,7 @@ import { emitCanvasImageInsertRequest } from "@/lib/canvasImageInsertBus";
 import { onImageWorkbenchTaskAction } from "@/lib/imageWorkbenchEvents";
 import type { MessageImage } from "../types";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
-import {
-  resolveImageWorkbenchSkillRequest,
-} from "./imageSkillLaunch";
+import { resolveImageWorkbenchSkillRequest } from "./imageSkillLaunch";
 import {
   collapseWhitespace,
   resolveImageWorkbenchActionLabel,

@@ -93,7 +93,9 @@ function describeGitignoreStatus(status: string): string {
   return ".gitignore 已写入本机模板规则";
 }
 
-async function initializeRuntimeAgentsGuide(project: RuntimeAgentsGuideProject) {
+async function initializeRuntimeAgentsGuide(
+  project: RuntimeAgentsGuideProject,
+) {
   const rootPath = project.rootPath.trim();
   if (!rootPath || runtimeAgentsInitializationRoots.has(rootPath)) {
     return;
@@ -135,10 +137,7 @@ export function notifyProjectRuntimeAgentsGuide(
   project: RuntimeAgentsGuideProject,
   options: NotifyRuntimeAgentsGuideOptions,
 ) {
-  const {
-    successMessage,
-    showSuccessWhenGuideAlreadySeen = true,
-  } = options;
+  const { successMessage, showSuccessWhenGuideAlreadySeen = true } = options;
   const rootPath = project.rootPath.trim();
   if (!rootPath || !markGuideAsShown(project)) {
     if (showSuccessWhenGuideAlreadySeen) {

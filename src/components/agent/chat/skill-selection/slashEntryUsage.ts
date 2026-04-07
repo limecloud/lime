@@ -89,7 +89,8 @@ export function recordSlashEntryUsage(
     ...listSlashEntryUsage().filter(
       (record) =>
         !(
-          record.kind === nextRecord.kind && record.entryId === nextRecord.entryId
+          record.kind === nextRecord.kind &&
+          record.entryId === nextRecord.entryId
         ),
     ),
   ].slice(0, MAX_SLASH_ENTRY_USAGE_RECORDS);

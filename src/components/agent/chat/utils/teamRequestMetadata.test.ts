@@ -72,8 +72,8 @@ describe("attachSelectedTeamToRequestMetadata", () => {
       },
     };
 
-    expect(
-      attachSelectedTeamToRequestMetadata(requestMetadata, {}),
-    ).toBe(requestMetadata);
+    expect(attachSelectedTeamToRequestMetadata(requestMetadata, {})).toBe(
+      requestMetadata,
+    );
   });
 });

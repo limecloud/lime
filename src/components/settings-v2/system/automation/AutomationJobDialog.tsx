@@ -716,7 +716,9 @@ export function AutomationJobDialog({
                   <div className="font-medium text-amber-900">
                     浏览器自动化已下线
                   </div>
-                  <div className="mt-2">{LEGACY_BROWSER_AUTOMATION_MESSAGE}</div>
+                  <div className="mt-2">
+                    {LEGACY_BROWSER_AUTOMATION_MESSAGE}
+                  </div>
                 </div>
                 <div className="rounded-[24px] border border-slate-200/80 bg-slate-50 px-4 py-4">
                   <div className="text-sm font-medium text-slate-900">
@@ -828,7 +830,9 @@ export function AutomationJobDialog({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">关闭</SelectItem>
-                          <SelectItem value="announce">任务完成后投递</SelectItem>
+                          <SelectItem value="announce">
+                            任务完成后投递
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -846,11 +850,12 @@ export function AutomationJobDialog({
                                   | "telegram"
                                   | "local_file"
                                   | "google_sheets";
-                                const contract = normalizeDeliveryOutputContract(
-                                  deliveryChannel,
-                                  current.delivery_output_schema,
-                                  current.delivery_output_format,
-                                );
+                                const contract =
+                                  normalizeDeliveryOutputContract(
+                                    deliveryChannel,
+                                    current.delivery_output_schema,
+                                    current.delivery_output_format,
+                                  );
                                 return {
                                   ...current,
                                   delivery_channel: deliveryChannel,
@@ -1008,9 +1013,9 @@ export function AutomationJobDialog({
                 ? "保存中..."
                 : isLegacyBrowserJob
                   ? "该类型不可保存"
-                : mode === "create"
-                  ? "创建任务"
-                  : "保存修改"}
+                  : mode === "create"
+                    ? "创建任务"
+                    : "保存修改"}
             </Button>
           </DialogFooter>
         </div>

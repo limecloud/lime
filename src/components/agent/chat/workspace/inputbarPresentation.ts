@@ -19,9 +19,9 @@ export function buildFloatingTeamWorkspaceDockProps({
   showFloatingInputOverlay,
   onActivateWorkbench,
   surfaceProps,
-}: BuildFloatingTeamWorkspaceDockPropsParams):
-  | ComponentProps<typeof TeamWorkspaceDock>
-  | null {
+}: BuildFloatingTeamWorkspaceDockPropsParams): ComponentProps<
+  typeof TeamWorkspaceDock
+> | null {
   if (!enabled || !showFloatingInputOverlay || layoutMode !== "chat") {
     return null;
   }

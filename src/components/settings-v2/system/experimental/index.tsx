@@ -199,11 +199,7 @@ const PRIMARY_BUTTON_CLASS_NAME =
 const FIELD_CLASS_NAME =
   "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm shadow-slate-950/5 outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-200";
 
-function DeferredPanelFallback({
-  label,
-}: {
-  label: string;
-}) {
+function DeferredPanelFallback({ label }: { label: string }) {
   return (
     <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm leading-6 text-slate-500">
       正在加载{label}...
@@ -1201,7 +1197,9 @@ export function ExperimentalSettings() {
                   语音快捷键、润色和翻译指令属于实验链路，适合单独验证输入体验。
                 </p>
               </div>
-              <Suspense fallback={<DeferredPanelFallback label="语音实验设置" />}>
+              <Suspense
+                fallback={<DeferredPanelFallback label="语音实验设置" />}
+              >
                 <VoiceSettings
                   config={voiceConfig}
                   onConfigChange={handleVoiceConfigChange}
@@ -1212,7 +1210,9 @@ export function ExperimentalSettings() {
             </div>
           ) : null}
 
-          <Suspense fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}>
+          <Suspense
+            fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}
+          >
             <WorkspaceRepairHistoryCard
               className="rounded-[26px] border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
               title="Workspace 自愈记录（实验室）"

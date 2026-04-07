@@ -104,7 +104,9 @@ describe("agentProjectStorage", () => {
       });
 
       expect(harness.getValue().projectId).toBe("project-updated");
-      expect(loadPersistedProjectId(LAST_PROJECT_ID_KEY)).toBe("project-updated");
+      expect(loadPersistedProjectId(LAST_PROJECT_ID_KEY)).toBe(
+        "project-updated",
+      );
     } finally {
       harness.unmount();
     }

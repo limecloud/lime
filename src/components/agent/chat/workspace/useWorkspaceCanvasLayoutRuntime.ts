@@ -7,7 +7,10 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import { createInitialCanvasState, type CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import {
+  createInitialCanvasState,
+  type CanvasStateUnion,
+} from "@/lib/workspace/workbenchCanvas";
 import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import {
   DEFAULT_CANVAS_STATE,
@@ -236,22 +239,14 @@ export function useWorkspaceCanvasLayoutRuntime({
     ) {
       setCanvasWorkbenchLayoutMode("split");
     }
-  }, [
-    activeTheme,
-    isThemeWorkbench,
-    layoutMode,
-    setCanvasWorkbenchLayoutMode,
-  ]);
+  }, [activeTheme, isThemeWorkbench, layoutMode, setCanvasWorkbenchLayoutMode]);
 
   useEffect(() => {
     if (activeTheme !== "general") {
       return;
     }
 
-    if (
-      !hasCurrentCanvasArtifact &&
-      !currentImageWorkbenchActive
-    ) {
+    if (!hasCurrentCanvasArtifact && !currentImageWorkbenchActive) {
       return;
     }
 
@@ -367,7 +362,9 @@ export function useWorkspaceCanvasLayoutRuntime({
           ...previous,
           isOpen: true,
           contentType:
-            previous.contentType === "empty" ? "markdown" : previous.contentType,
+            previous.contentType === "empty"
+              ? "markdown"
+              : previous.contentType,
           content: previous.content || FALLBACK_CANVAS_CONTENT,
         }));
       }

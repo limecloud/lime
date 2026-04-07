@@ -78,9 +78,9 @@ function hasConfiguredKeylessAccess(
 function isConfiguredApiKeyProvider(
   provider: ProviderWithKeysDisplay,
 ): boolean {
-  return provider.enabled && (
-    provider.api_key_count > 0 ||
-    hasConfiguredKeylessAccess(provider)
+  return (
+    provider.enabled &&
+    (provider.api_key_count > 0 || hasConfiguredKeylessAccess(provider))
   );
 }
 
@@ -114,31 +114,29 @@ export function buildConfiguredProviders(
     }
   });
 
-  safeApiKeyProviders
-    .filter(isConfiguredApiKeyProvider)
-    .forEach((provider) => {
-      let key = provider.id;
-      let label = provider.name;
+  safeApiKeyProviders.filter(isConfiguredApiKeyProvider).forEach((provider) => {
+    let key = provider.id;
+    let label = provider.name;
 
-      if (providerMap.has(key)) {
-        key = `${provider.id}_api_key`;
-        label = `${provider.name} API Key`;
-      }
+    if (providerMap.has(key)) {
+      key = `${provider.id}_api_key`;
+      label = `${provider.name} API Key`;
+    }
 
-      if (!providerMap.has(key)) {
-        providerMap.set(key, {
-          key,
-          label,
-          registryId: provider.id,
-          fallbackRegistryId: getRegistryIdFromType(provider.type),
-          type: provider.type,
-          credentialType: `${provider.type}_key`,
-          providerId: provider.id,
-          apiHost: provider.api_host,
-          customModels: provider.custom_models,
-        });
-      }
-    });
+    if (!providerMap.has(key)) {
+      providerMap.set(key, {
+        key,
+        label,
+        registryId: provider.id,
+        fallbackRegistryId: getRegistryIdFromType(provider.type),
+        type: provider.type,
+        credentialType: `${provider.type}_key`,
+        providerId: provider.id,
+        apiHost: provider.api_host,
+        customModels: provider.custom_models,
+      });
+    }
+  });
 
   return Array.from(providerMap.values());
 }
@@ -146,7 +144,9 @@ export function buildConfiguredProviders(
 export async function loadConfiguredProviders(
   options: LoadConfiguredProvidersOptions = {},
 ): Promise<ConfiguredProvider[]> {
-  const sourceOptions = options.forceRefresh ? { forceRefresh: true } : undefined;
+  const sourceOptions = options.forceRefresh
+    ? { forceRefresh: true }
+    : undefined;
   const [oauthCredentials, apiKeyProviders] = await Promise.all([
     providerPoolApi.getOverview(sourceOptions),
     apiKeyProviderApi.getProviders(sourceOptions),
@@ -187,8 +187,9 @@ export function useConfiguredProviders(
 ): UseConfiguredProvidersResult {
   const { autoLoad = true } = options;
   // 获取凭证池数据
-  const { overview: oauthCredentials, loading: oauthLoading } =
-    useProviderPool({ autoLoad });
+  const { overview: oauthCredentials, loading: oauthLoading } = useProviderPool(
+    { autoLoad },
+  );
   const { providers: apiKeyProviders, loading: apiKeyLoading } =
     useApiKeyProvider({ autoLoad });
 

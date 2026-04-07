@@ -395,7 +395,8 @@ export function DeveloperSettings() {
         console.error("保存处理工作台开关失败:", error);
         setMessage({
           type: "error",
-          text: error instanceof Error ? error.message : "保存处理工作台开关失败",
+          text:
+            error instanceof Error ? error.message : "保存处理工作台开关失败",
         });
       } finally {
         setWorkspaceHarnessSaving(false);
@@ -532,7 +533,9 @@ export function DeveloperSettings() {
                     checked={workspaceHarnessEnabled}
                     disabled={workspaceHarnessSaving}
                     onCheckedChange={(checked) => {
-                      void handleWorkspaceHarnessEnabledChange(Boolean(checked));
+                      void handleWorkspaceHarnessEnabledChange(
+                        Boolean(checked),
+                      );
                     }}
                   />
                 </div>
@@ -697,7 +700,9 @@ export function DeveloperSettings() {
             </div>
           </SurfacePanel>
 
-          <Suspense fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}>
+          <Suspense
+            fallback={<DeferredPanelFallback label="Workspace 自愈记录" />}
+          >
             <WorkspaceRepairHistoryCard
               className="rounded-[26px] border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5"
               description="仅用于开发排查，记录最近自动修复/迁移（不打断用户操作）"
@@ -712,7 +717,9 @@ export function DeveloperSettings() {
               title="剪贴板权限指引"
               description="如果复制诊断失败且属于权限问题，可按下面的系统指引恢复。"
             >
-              <Suspense fallback={<DeferredPanelFallback label="剪贴板权限指引" />}>
+              <Suspense
+                fallback={<DeferredPanelFallback label="剪贴板权限指引" />}
+              >
                 <ClipboardPermissionGuideCard />
               </Suspense>
             </SurfacePanel>

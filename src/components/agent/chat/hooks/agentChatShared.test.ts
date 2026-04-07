@@ -87,9 +87,8 @@ describe("agentChatShared", () => {
   });
 
   it("应优先展示待处理请求的摘要", () => {
-    const messages = createPendingActionMessages(
-      "请先确认发布标题后继续执行。",
-    );
+    const messages =
+      createPendingActionMessages("请先确认发布标题后继续执行。");
 
     expect(extractTaskPreviewFromMessages(messages)).toBe(
       "请先确认发布标题后继续执行。",

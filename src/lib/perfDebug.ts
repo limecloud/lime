@@ -45,7 +45,9 @@ export function logRenderPerf(
     JSON.stringify({
       renderCount,
       sinceLastCommitMs:
-        sinceLastCommitMs === null ? null : Number(sinceLastCommitMs.toFixed(2)),
+        sinceLastCommitMs === null
+          ? null
+          : Number(sinceLastCommitMs.toFixed(2)),
       ...payload,
     }),
   );

@@ -362,14 +362,12 @@ function renderSettingsContent(
 
     // 账号组
     case SettingsTabs.Profile:
-      return (
-        withSettingsContentFallback(
-          <>
-            <UserCenterSessionSettings />
-            {!hasManagedAccountProfile ? <ProfileSettings /> : null}
-          </>,
-          "正在加载账号资料...",
-        )
+      return withSettingsContentFallback(
+        <>
+          <UserCenterSessionSettings />
+          {!hasManagedAccountProfile ? <ProfileSettings /> : null}
+        </>,
+        "正在加载账号资料...",
       );
 
     case SettingsTabs.Stats:

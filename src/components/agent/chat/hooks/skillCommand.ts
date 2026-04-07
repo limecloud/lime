@@ -713,8 +713,9 @@ export async function tryExecuteSlashSkillCommand(
             })(),
           );
 
-          const finalizedArtifact =
-            emittedArtifact as ReturnType<typeof buildArtifactFromWrite> | null;
+          const finalizedArtifact = emittedArtifact as ReturnType<
+            typeof buildArtifactFromWrite
+          > | null;
           const finalizedArtifactPath = emittedArtifactPath;
           if (finalizedArtifact && finalizedArtifactPath) {
             onWriteFile?.(finalizedArtifact.content, finalizedArtifactPath, {

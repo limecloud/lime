@@ -47,9 +47,7 @@ import type {
 
 type ArtifactPreviewBaseProps = Omit<
   ComponentProps<typeof ArtifactWorkbenchPreview>,
-  | "artifact"
-  | "stackedWorkbenchTrigger"
-  | "onArtifactDocumentControllerChange"
+  "artifact" | "stackedWorkbenchTrigger" | "onArtifactDocumentControllerChange"
 >;
 type ImageWorkbenchCanvasProps = ComponentProps<typeof ImageTaskViewer>;
 type GeneralCanvasPanelProps = Omit<
@@ -443,10 +441,7 @@ export function useWorkspaceCanvasPreviewPresentation({
   );
 
   const renderArtifactWorkbenchPreview = useCallback(
-    (
-      artifact: Artifact,
-      options?: RenderArtifactWorkbenchPreviewOptions,
-    ) => (
+    (artifact: Artifact, options?: RenderArtifactWorkbenchPreviewOptions) => (
       <ArtifactWorkbenchPreview
         {...artifactWorkbenchPreviewBaseProps}
         artifact={artifact}

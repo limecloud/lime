@@ -26,13 +26,11 @@ export function buildOemLimeHubApiHost(
 }
 
 export function resolveOemLimeHubProviderName(
-  runtime:
-    | Pick<OemCloudRuntimeContext, "hubProviderName">
-    | null
-    | undefined,
+  runtime: Pick<OemCloudRuntimeContext, "hubProviderName"> | null | undefined,
 ): string {
   return (
-    normalizeText(runtime?.hubProviderName) || DEFAULT_OEM_LIME_HUB_PROVIDER_NAME
+    normalizeText(runtime?.hubProviderName) ||
+    DEFAULT_OEM_LIME_HUB_PROVIDER_NAME
   );
 }
 

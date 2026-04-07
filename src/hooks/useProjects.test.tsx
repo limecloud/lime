@@ -39,26 +39,30 @@ interface HookHarness {
   unmount: () => void;
 }
 
-function createProject(overrides: Partial<ReturnType<typeof buildProject>> = {}) {
+function createProject(
+  overrides: Partial<ReturnType<typeof buildProject>> = {},
+) {
   return buildProject(overrides);
 }
 
-function buildProject(overrides: Partial<{
-  id: string;
-  name: string;
-  workspaceType: "general";
-  rootPath: string;
-  isDefault: boolean;
-  settings: Record<string, unknown>;
-  createdAt: number;
-  updatedAt: number;
-  icon: string;
-  color: string;
-  isFavorite: boolean;
-  isArchived: boolean;
-  tags: string[];
-  defaultPersonaId?: string;
-}> = {}) {
+function buildProject(
+  overrides: Partial<{
+    id: string;
+    name: string;
+    workspaceType: "general";
+    rootPath: string;
+    isDefault: boolean;
+    settings: Record<string, unknown>;
+    createdAt: number;
+    updatedAt: number;
+    icon: string;
+    color: string;
+    isFavorite: boolean;
+    isArchived: boolean;
+    tags: string[];
+    defaultPersonaId?: string;
+  }> = {},
+) {
   return {
     id: "project-default",
     name: "默认项目",
@@ -133,13 +137,15 @@ describe("useProjects", () => {
 
   it("不应等待默认项目目录健康检查完成才暴露项目列表", async () => {
     const defaultProject = createProject();
-    let resolveEnsure: ((value: {
-      workspaceId: string;
-      rootPath: string;
-      existed: boolean;
-      created: boolean;
-      repaired: boolean;
-    }) => void) | null = null;
+    let resolveEnsure:
+      | ((value: {
+          workspaceId: string;
+          rootPath: string;
+          existed: boolean;
+          created: boolean;
+          repaired: boolean;
+        }) => void)
+      | null = null;
 
     projectApiMocks.listProjects.mockResolvedValueOnce([defaultProject]);
     projectApiMocks.getDefaultProject.mockResolvedValueOnce(defaultProject);
@@ -178,7 +184,7 @@ describe("useProjects", () => {
   it("DevBridge 瞬时不可用时应自动重试并恢复项目列表", async () => {
     const defaultProject = createProject();
     const bridgeError = new Error(
-      "[DevBridge] 浏览器模式无法连接后端桥接，命令 \"workspace_list\" 执行失败。",
+      '[DevBridge] 浏览器模式无法连接后端桥接，命令 "workspace_list" 执行失败。',
     );
 
     projectApiMocks.listProjects

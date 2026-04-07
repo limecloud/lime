@@ -80,9 +80,7 @@ export async function executionRunList(
   return await safeInvoke("execution_run_list", { limit, offset });
 }
 
-export async function executionRunGet(
-  runId: string,
-): Promise<AgentRun | null> {
+export async function executionRunGet(runId: string): Promise<AgentRun | null> {
   return await safeInvoke("execution_run_get", { runId });
 }
 

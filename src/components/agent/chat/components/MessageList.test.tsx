@@ -1630,7 +1630,7 @@ describe("MessageList", () => {
             id: "artifact-hidden-task-json",
             type: "code",
             title: "task-image-1.json",
-            content: "{\"status\":\"running\"}",
+            content: '{"status":"running"}',
             status: "complete",
             meta: {
               filePath: ".lime/tasks/image_generate/task-image-1.json",

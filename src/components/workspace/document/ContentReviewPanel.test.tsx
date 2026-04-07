@@ -113,7 +113,7 @@ describe("ContentReviewPanel", () => {
 
   it("未完成的结构化评审结果应显示统一加载卡片", () => {
     renderPanel({
-      reviewResult: "```a2ui\n{\n  \"type\": \"form\"\n",
+      reviewResult: '```a2ui\n{\n  "type": "form"\n',
       reviewRunning: false,
     });
 

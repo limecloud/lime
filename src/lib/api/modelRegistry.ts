@@ -221,9 +221,8 @@ export async function getProviderAliasConfig(
     return cloneValue(providerAliasConfigCache.get(normalizedProvider) ?? null);
   }
 
-  const existingPromise = providerAliasConfigLoadingPromises.get(
-    normalizedProvider,
-  );
+  const existingPromise =
+    providerAliasConfigLoadingPromises.get(normalizedProvider);
   if (existingPromise) {
     return cloneValue(await existingPromise);
   }
@@ -266,9 +265,9 @@ async function getAllAliasConfigsCached(
   }
 
   if (!allAliasConfigsLoadingPromise) {
-    allAliasConfigsLoadingPromise = safeInvoke<Record<string, ProviderAliasConfig>>(
-      "get_all_alias_configs",
-    )
+    allAliasConfigsLoadingPromise = safeInvoke<
+      Record<string, ProviderAliasConfig>
+    >("get_all_alias_configs")
       .then((configs) => {
         allAliasConfigsCache = cloneValue(configs);
         providerAliasConfigCache.clear();

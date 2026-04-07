@@ -177,7 +177,8 @@ export function useImageSearch() {
               [source]: {
                 ...prev[source],
                 results: nextResults,
-                total: response.total_hits ?? response.totalHits ?? response.total,
+                total:
+                  response.total_hits ?? response.totalHits ?? response.total,
                 page,
                 loading: false,
                 error: null,
@@ -200,7 +201,10 @@ export function useImageSearch() {
           response.hits?.length > 0
             ? response.hits.map((hit) => ({
                 id: hit.id,
-                previewUrl: pickFirstString(hit.thumbnail_url, hit.thumbnailUrl),
+                previewUrl: pickFirstString(
+                  hit.thumbnail_url,
+                  hit.thumbnailUrl,
+                ),
                 largeUrl: pickFirstString(hit.content_url, hit.contentUrl),
                 width: pickFirstNumber(hit.width),
                 height: pickFirstNumber(hit.height),
@@ -242,7 +246,8 @@ export function useImageSearch() {
               });
 
         const mapped = normalizedHits.filter(
-          (hit) => hit.previewUrl && hit.largeUrl && hit.width > 0 && hit.height > 0,
+          (hit) =>
+            hit.previewUrl && hit.largeUrl && hit.width > 0 && hit.height > 0,
         );
         const filtered = filterSquareIfNeeded(mapped, aspectRatio);
         setSourceStates((prev) => {

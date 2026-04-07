@@ -20,7 +20,9 @@ function createGroup(seed: Message): MessageTurnGroup {
   };
 }
 
-export function buildMessageTurnGroups(messages: Message[]): MessageTurnGroup[] {
+export function buildMessageTurnGroups(
+  messages: Message[],
+): MessageTurnGroup[] {
   const groups: MessageTurnGroup[] = [];
   let current: MessageTurnGroup | null = null;
 

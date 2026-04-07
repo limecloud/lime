@@ -125,7 +125,10 @@ export function parsePublishWorkbenchCommand(
   const { platformType, platformLabel } = normalizePlatform(
     explicitPlatform || leadingPlatform,
   );
-  const prompt = stripPromptDecorations(body, explicitPlatform || leadingPlatform);
+  const prompt = stripPromptDecorations(
+    body,
+    explicitPlatform || leadingPlatform,
+  );
 
   return {
     rawText: text,

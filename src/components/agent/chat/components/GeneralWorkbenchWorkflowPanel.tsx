@@ -20,7 +20,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { TopicBranchItem, TopicBranchStatus } from "../hooks/useTopicBranchBoard";
+import type {
+  TopicBranchItem,
+  TopicBranchStatus,
+} from "../hooks/useTopicBranchBoard";
 import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
 import type {
   GeneralWorkbenchActivityLogGroup,
@@ -249,8 +252,7 @@ function getWorkflowStepRowClassName(status: StepStatus) {
     "flex items-center gap-2 rounded-[12px] border px-2.5 py-2 text-sm leading-5",
     status === "completed" &&
       "border-emerald-200 bg-emerald-50/80 text-slate-900",
-    status === "active" &&
-      "border-sky-200 bg-sky-50/80 text-slate-900",
+    status === "active" && "border-sky-200 bg-sky-50/80 text-slate-900",
     status !== "completed" &&
       status !== "active" &&
       "border-slate-200/80 bg-white/82 text-slate-500",
@@ -274,7 +276,9 @@ function getBranchStatusText(status: TopicBranchStatus): string {
   return "备选";
 }
 
-function formatGateLabel(gateKey?: SidebarActivityLog["gateKey"]): string | null {
+function formatGateLabel(
+  gateKey?: SidebarActivityLog["gateKey"],
+): string | null {
   if (!gateKey || gateKey === "idle") {
     return null;
   }
@@ -320,7 +324,8 @@ function renderActivityLogItem(
   const gateLabel = formatGateLabel(group.gateKey);
   const runLabel = formatRunIdShort(group.runId);
   const sourceLabel = group.source?.trim() || "-";
-  const primaryLog = group.logs.find((log) => log.source === "skill") || group.logs[0];
+  const primaryLog =
+    group.logs.find((log) => log.source === "skill") || group.logs[0];
 
   return (
     <ActivityItem key={`activity-${group.key}`}>
@@ -351,14 +356,21 @@ function renderActivityLogItem(
               <span>{log.name}</span>
               <span className="ml-auto">{log.timeLabel}</span>
             </ActivityTitle>
-            {log.inputSummary ? <ActivityMeta>输入：{log.inputSummary}</ActivityMeta> : null}
-            {log.outputSummary ? <ActivityMeta>输出：{log.outputSummary}</ActivityMeta> : null}
+            {log.inputSummary ? (
+              <ActivityMeta>输入：{log.inputSummary}</ActivityMeta>
+            ) : null}
+            {log.outputSummary ? (
+              <ActivityMeta>输出：{log.outputSummary}</ActivityMeta>
+            ) : null}
           </ActivityStepItem>
         ))}
       </ActivityStepList>
       <ActionRow>
         {group.runId && onViewRunDetail ? (
-          <RunLinkButton type="button" onClick={() => onViewRunDetail(group.runId!)}>
+          <RunLinkButton
+            type="button"
+            onClick={() => onViewRunDetail(group.runId!)}
+          >
             运行：{runLabel || group.runId}
           </RunLinkButton>
         ) : null}
@@ -445,7 +457,10 @@ function GeneralWorkbenchWorkflowPanelComponent({
       <section className={cn(WORKFLOW_SECTION_CLASSNAME, "relative z-10")}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" className={WORKFLOW_NEW_TOPIC_BUTTON_CLASSNAME}>
+            <button
+              type="button"
+              className={WORKFLOW_NEW_TOPIC_BUTTON_CLASSNAME}
+            >
               <Plus size={14} />
               {isVersionMode ? "创建版本快照" : "新建分支任务"}
               <ChevronDown size={12} className="ml-auto" />
@@ -492,7 +507,10 @@ function GeneralWorkbenchWorkflowPanelComponent({
         </div>
         <div className={WORKFLOW_STEP_LIST_CLASSNAME}>
           {workflowSteps.map((step) => (
-            <div key={step.id} className={getWorkflowStepRowClassName(step.status)}>
+            <div
+              key={step.id}
+              className={getWorkflowStepRowClassName(step.status)}
+            >
               {getStepIcon(step.status)}
               <span>{step.title}</span>
             </div>
@@ -503,12 +521,16 @@ function GeneralWorkbenchWorkflowPanelComponent({
       <section className={WORKFLOW_SECTION_CLASSNAME}>
         <div className={WORKFLOW_SECTION_TITLE_CLASSNAME}>
           <span>{isVersionMode ? "产物版本" : "篇内分支"}</span>
-          <span className={WORKFLOW_SECTION_BADGE_CLASSNAME}>{branchItems.length}</span>
+          <span className={WORKFLOW_SECTION_BADGE_CLASSNAME}>
+            {branchItems.length}
+          </span>
         </div>
         <BranchList className="custom-scrollbar">
           {branchItems.length === 0 ? (
             <ActivityMeta>
-              {isVersionMode ? "暂无文稿版本，先生成或创建快照" : "暂无分支任务"}
+              {isVersionMode
+                ? "暂无文稿版本，先生成或创建快照"
+                : "暂无分支任务"}
             </ActivityMeta>
           ) : (
             branchItems.map((item) => (
@@ -522,16 +544,23 @@ function GeneralWorkbenchWorkflowPanelComponent({
                     {getBranchStatusText(item.status)}
                   </StatusBadge>
                   {!isVersionMode ? (
-                    <DeleteButton onClick={() => onDeleteTopic(item.id)} aria-label="删除分支">
+                    <DeleteButton
+                      onClick={() => onDeleteTopic(item.id)}
+                      aria-label="删除分支"
+                    >
                       <Trash2 size={12} />
                     </DeleteButton>
                   ) : null}
                 </BranchHead>
                 <ActionRow>
-                  <TinyButton onClick={() => onSetBranchStatus(item.id, "merged")}>
+                  <TinyButton
+                    onClick={() => onSetBranchStatus(item.id, "merged")}
+                  >
                     {isVersionMode ? "设为主稿" : "采纳到主稿"}
                   </TinyButton>
-                  <TinyButton onClick={() => onSetBranchStatus(item.id, "pending")}>
+                  <TinyButton
+                    onClick={() => onSetBranchStatus(item.id, "pending")}
+                  >
                     {isVersionMode ? "标记待评审" : "标记待决策"}
                   </TinyButton>
                 </ActionRow>
@@ -554,7 +583,11 @@ function GeneralWorkbenchWorkflowPanelComponent({
               className={TOGGLE_BUTTON_CLASSNAME}
               onClick={onToggleCreationTasks}
             >
-              {showCreationTasks ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              {showCreationTasks ? (
+                <ChevronDown size={13} />
+              ) : (
+                <ChevronRight size={13} />
+              )}
             </button>
           </span>
         </div>
@@ -585,7 +618,9 @@ function GeneralWorkbenchWorkflowPanelComponent({
                         {task.absolutePath ? (
                           <RunDetailArtifacts>
                             <RunDetailArtifactRow>
-                              <RunDetailArtifactPath>{task.absolutePath}</RunDetailArtifactPath>
+                              <RunDetailArtifactPath>
+                                {task.absolutePath}
+                              </RunDetailArtifactPath>
                               <RunDetailActionButton
                                 type="button"
                                 aria-label={`复制任务文件绝对路径-${task.taskId}`}
@@ -633,7 +668,11 @@ function GeneralWorkbenchWorkflowPanelComponent({
               className={TOGGLE_BUTTON_CLASSNAME}
               onClick={onToggleActivityLogs}
             >
-              {showActivityLogs ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              {showActivityLogs ? (
+                <ChevronDown size={13} />
+              ) : (
+                <ChevronRight size={13} />
+              )}
             </button>
           </span>
         </div>
@@ -659,15 +698,23 @@ function GeneralWorkbenchWorkflowPanelComponent({
               <RunDetailPanel>
                 <RunDetailTitle>运行详情</RunDetailTitle>
                 <RunDetailRow>ID：{activeRunDetail.id}</RunDetailRow>
-                <RunDetailRow>状态：{formatRunStatusLabel(activeRunDetail.status)}</RunDetailRow>
+                <RunDetailRow>
+                  状态：{formatRunStatusLabel(activeRunDetail.status)}
+                </RunDetailRow>
                 {runMetadataSummary.workflow ? (
-                  <RunDetailRow>工作流：{runMetadataSummary.workflow}</RunDetailRow>
+                  <RunDetailRow>
+                    工作流：{runMetadataSummary.workflow}
+                  </RunDetailRow>
                 ) : null}
                 {runMetadataSummary.executionId ? (
-                  <RunDetailRow>执行ID：{runMetadataSummary.executionId}</RunDetailRow>
+                  <RunDetailRow>
+                    执行ID：{runMetadataSummary.executionId}
+                  </RunDetailRow>
                 ) : null}
                 {runMetadataSummary.versionId ? (
-                  <RunDetailRow>版本ID：{runMetadataSummary.versionId}</RunDetailRow>
+                  <RunDetailRow>
+                    版本ID：{runMetadataSummary.versionId}
+                  </RunDetailRow>
                 ) : null}
                 {activeRunStagesLabel ? (
                   <RunDetailRow>阶段：{activeRunStagesLabel}</RunDetailRow>
@@ -696,7 +743,9 @@ function GeneralWorkbenchWorkflowPanelComponent({
                   <RunDetailArtifacts>
                     {runMetadataSummary.artifactPaths.map((artifactPath) => (
                       <RunDetailArtifactRow key={`run-detail-${artifactPath}`}>
-                        <RunDetailArtifactPath>{artifactPath}</RunDetailArtifactPath>
+                        <RunDetailArtifactPath>
+                          {artifactPath}
+                        </RunDetailArtifactPath>
                         <RunDetailActionButton
                           type="button"
                           aria-label={`复制产物路径-${artifactPath}`}
@@ -738,4 +787,6 @@ function GeneralWorkbenchWorkflowPanelComponent({
   );
 }
 
-export const GeneralWorkbenchWorkflowPanel = memo(GeneralWorkbenchWorkflowPanelComponent);
+export const GeneralWorkbenchWorkflowPanel = memo(
+  GeneralWorkbenchWorkflowPanelComponent,
+);

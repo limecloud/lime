@@ -145,7 +145,10 @@ function getEntryRecommendedSolutionUsageMap(): Map<
   EntryRecommendedSolutionUsageRecord
 > {
   return new Map(
-    listEntryRecommendedSolutionUsage().map((record) => [record.solutionId, record]),
+    listEntryRecommendedSolutionUsage().map((record) => [
+      record.solutionId,
+      record,
+    ]),
   );
 }
 

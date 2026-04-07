@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { TaskFile } from "../components/TaskFiles";
-import type { CreationMode, ThemeType } from "@/lib/workspace/workbenchContract";
+import type {
+  CreationMode,
+  ThemeType,
+} from "@/lib/workspace/workbenchContract";
 import { isSpecializedWorkbenchTheme } from "@/lib/workspace/workbenchContract";
 import { normalizeInitialTheme } from "../agentChatWorkspaceShared";
 import { normalizeSessionTaskFileType } from "./generalWorkbenchHelpers";
@@ -68,7 +71,9 @@ export function useWorkspaceSessionRestore({
 
     if (sessionMeta.theme && (!lockTheme || !initialTheme)) {
       const entryIsGeneral = !initialTheme || initialTheme === "general";
-      const restoredIsSpecializedTheme = isSpecializedWorkbenchTheme(sessionMeta.theme);
+      const restoredIsSpecializedTheme = isSpecializedWorkbenchTheme(
+        sessionMeta.theme,
+      );
       if (entryIsGeneral && restoredIsSpecializedTheme) {
         console.log(
           "[AgentChatPage] 通用对话入口，跳过恢复内容工作区主题:",
@@ -154,13 +159,7 @@ export function useWorkspaceSessionRestore({
     };
 
     void restoreFiles();
-  }, [
-    readSessionFile,
-    sessionFiles,
-    sessionId,
-    setTaskFiles,
-    taskFilesLength,
-  ]);
+  }, [readSessionFile, sessionFiles, sessionId, setTaskFiles, taskFilesLength]);
 
   return {
     resetRestoredSessionState,

@@ -103,7 +103,9 @@ export async function getPluginsWithUI(
   }
 
   if (!pluginsWithUILoadingPromise) {
-    pluginsWithUILoadingPromise = safeInvoke<PluginUIInfo[]>("get_plugins_with_ui")
+    pluginsWithUILoadingPromise = safeInvoke<PluginUIInfo[]>(
+      "get_plugins_with_ui",
+    )
       .then((plugins) => {
         const snapshot = clonePluginList(plugins);
         pluginsWithUICache = snapshot;

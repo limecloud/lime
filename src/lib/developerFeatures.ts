@@ -16,5 +16,8 @@ export function normalizeDeveloperConfig(
 export function isWorkspaceHarnessEnabled(
   config?: Pick<Config, "developer"> | null,
 ): boolean {
-  return normalizeDeveloperConfig(config?.developer).workspace_harness_enabled === true;
+  return (
+    normalizeDeveloperConfig(config?.developer).workspace_harness_enabled ===
+    true
+  );
 }

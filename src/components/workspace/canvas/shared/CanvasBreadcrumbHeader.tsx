@@ -41,8 +41,8 @@ const CurrentLabel = styled.span`
   color: hsl(var(--muted-foreground));
 `;
 
-export const CanvasBreadcrumbHeader: React.FC<CanvasBreadcrumbHeaderProps> = memo(
-  ({ label, onBackHome, backTitle = "返回新建任务" }) => {
+export const CanvasBreadcrumbHeader: React.FC<CanvasBreadcrumbHeaderProps> =
+  memo(({ label, onBackHome, backTitle = "返回新建任务" }) => {
     return (
       <Header>
         <HomeButton
@@ -57,7 +57,6 @@ export const CanvasBreadcrumbHeader: React.FC<CanvasBreadcrumbHeaderProps> = mem
         <CurrentLabel>{label}</CurrentLabel>
       </Header>
     );
-  },
-);
+  });
 
 CanvasBreadcrumbHeader.displayName = "CanvasBreadcrumbHeader";

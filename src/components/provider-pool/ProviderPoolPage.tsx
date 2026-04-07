@@ -357,7 +357,9 @@ export const ProviderPoolPage = forwardRef<
               Provider 与凭证
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              默认先管理 API Key Provider。OAuth、语音和中转服务保留在同一入口，但不再和日常 Provider 配置抢同一视觉焦点。
+              默认先管理 API Key
+              Provider。OAuth、语音和中转服务保留在同一入口，但不再和日常
+              Provider 配置抢同一视觉焦点。
             </p>
           </div>
         </div>
@@ -436,8 +438,8 @@ export const ProviderPoolPage = forwardRef<
             return (
               <button
                 key={providerType}
-              onClick={() => setActiveTab(providerType)}
-              title={providerLabels[providerType]}
+                onClick={() => setActiveTab(providerType)}
+                title={providerLabels[providerType]}
                 className={`group relative flex min-w-[120px] items-center justify-center gap-2 rounded-xl border px-3 py-2 transition-all ${
                   isActive
                     ? "border-slate-300 bg-white text-slate-950 shadow-sm"

@@ -346,7 +346,9 @@ export function ImageTaskViewer({
                       </div>
                       <div className="text-sm leading-6 text-slate-500">
                         {reason === "error"
-                          ? resolveImageUnavailableDescription(selectedTask?.mode)
+                          ? resolveImageUnavailableDescription(
+                              selectedTask?.mode,
+                            )
                           : resolveEmptyStateDescription(
                               selectedTask?.status,
                               selectedTask?.failureMessage,

@@ -27,7 +27,9 @@ function normalizeUrlCandidate(rawUrl: string): {
   };
 }
 
-function findFirstUrl(...values: Array<string | undefined>): string | undefined {
+function findFirstUrl(
+  ...values: Array<string | undefined>
+): string | undefined {
   for (const value of values) {
     if (!value) {
       continue;
@@ -79,12 +81,16 @@ function extractSearchResultFromRecord(
       normalizeSearchText(record.headline)) ||
     getHostnameFromUrl(url);
   const snippet =
-    (typeof record.summary === "string" && normalizeSearchText(record.summary)) ||
-    (typeof record.snippet === "string" && normalizeSearchText(record.snippet)) ||
+    (typeof record.summary === "string" &&
+      normalizeSearchText(record.summary)) ||
+    (typeof record.snippet === "string" &&
+      normalizeSearchText(record.snippet)) ||
     (typeof record.description === "string" &&
       normalizeSearchText(record.description)) ||
-    (typeof record.content === "string" && normalizeSearchText(record.content)) ||
-    (typeof record.preview === "string" && normalizeSearchText(record.preview)) ||
+    (typeof record.content === "string" &&
+      normalizeSearchText(record.content)) ||
+    (typeof record.preview === "string" &&
+      normalizeSearchText(record.preview)) ||
     (typeof record.text === "string" && normalizeSearchText(record.text)) ||
     undefined;
 
@@ -141,7 +147,13 @@ function parseSearchResultRecords(rawText: string): SearchResultPreviewItem[] {
           }
         }
 
-        for (const key of ["results", "items", "sources", "citations", "data"]) {
+        for (const key of [
+          "results",
+          "items",
+          "sources",
+          "citations",
+          "data",
+        ]) {
           const nested = record[key];
           if (nested) {
             queue.push(nested);
@@ -273,5 +285,10 @@ export function resolveSearchResultPreviewItemsFromText(
 }
 
 export function isUnifiedWebSearchToolName(toolName: string): boolean {
-  return toolName.replace(/[\s_-]+/g, "").trim().toLowerCase() === "websearch";
+  return (
+    toolName
+      .replace(/[\s_-]+/g, "")
+      .trim()
+      .toLowerCase() === "websearch"
+  );
 }

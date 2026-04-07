@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildClawAgentParams,
-  buildHomeAgentParams,
-} from "./navigation";
+import { buildClawAgentParams, buildHomeAgentParams } from "./navigation";
 
 describe("buildHomeAgentParams", () => {
   it("应返回 general 主题且解锁", () => {

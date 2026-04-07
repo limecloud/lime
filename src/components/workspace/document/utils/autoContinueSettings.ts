@@ -40,7 +40,10 @@ export const sanitizeAutoContinueSettings = (
   input: Partial<AutoContinueSettings> | null | undefined,
 ): AutoContinueSettings => {
   return {
-    enabled: normalizeBoolean(input?.enabled, DEFAULT_AUTO_CONTINUE_SETTINGS.enabled),
+    enabled: normalizeBoolean(
+      input?.enabled,
+      DEFAULT_AUTO_CONTINUE_SETTINGS.enabled,
+    ),
     fastModeEnabled: normalizeBoolean(
       input?.fastModeEnabled,
       DEFAULT_AUTO_CONTINUE_SETTINGS.fastModeEnabled,

@@ -7,7 +7,7 @@ function createArtifact(): Artifact {
     id: "artifact-live-1",
     type: "document",
     title: "live.artifact.json",
-    content: "{\"schemaVersion\":\"artifact_document.v1\"}",
+    content: '{"schemaVersion":"artifact_document.v1"}',
     status: "complete",
     meta: {
       filePath: ".lime/artifacts/thread-1/live.artifact.json",

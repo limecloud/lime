@@ -55,8 +55,8 @@ const preparedSend: PreparedAgentStreamUserInputSend = {
 
 describe("agentStreamPreparedSendDispatch", () => {
   function createEnv(): AgentStreamPreparedSendEnv {
-    const runPreparedSubmit = vi.fn(
-      async <T,>(task: () => Promise<T>) => task(),
+    const runPreparedSubmit = vi.fn(async <T>(task: () => Promise<T>) =>
+      task(),
     ) as unknown as AgentStreamPreparedSendEnv["runPreparedSubmit"];
     return {
       runtime: {} as never,

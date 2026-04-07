@@ -44,7 +44,10 @@ const TEAM_MEMORY_REQUEST_PRIORITY: Record<string, number> = {
 const SECRET_PATTERNS: Array<[string, RegExp]> = [
   ["api_key", /\bapi[_-]?key\s*[:=]\s*["']?[A-Za-z0-9._-]{8,}["']?/i],
   ["access_token", /\baccess[_-]?token\s*[:=]\s*["']?[A-Za-z0-9._-]{8,}["']?/i],
-  ["refresh_token", /\brefresh[_-]?token\s*[:=]\s*["']?[A-Za-z0-9._-]{8,}["']?/i],
+  [
+    "refresh_token",
+    /\brefresh[_-]?token\s*[:=]\s*["']?[A-Za-z0-9._-]{8,}["']?/i,
+  ],
   ["bearer", /\bbearer\s+[A-Za-z0-9._-]{12,}/i],
   ["openai", /\bsk-[A-Za-z0-9]{16,}\b/i],
 ];

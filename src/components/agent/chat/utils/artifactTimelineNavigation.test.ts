@@ -86,7 +86,9 @@ function createArtifact(): Artifact {
 
 describe("artifactTimelineNavigation", () => {
   it("应优先从 timeline file_artifact 的 diff 中提取 block 目标", () => {
-    const navigation = resolveTimelineArtifactNavigation(createFileArtifactItem());
+    const navigation = resolveTimelineArtifactNavigation(
+      createFileArtifactItem(),
+    );
 
     expect(navigation?.rootTarget.filePath).toBe(
       ".lime/artifacts/thread-1/demo.artifact.json",

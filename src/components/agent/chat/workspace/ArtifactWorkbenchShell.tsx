@@ -18,7 +18,9 @@ import {
 
 interface ArtifactWorkbenchShellProps {
   artifact: Artifact;
-  artifactOverlay: React.ComponentProps<typeof ArtifactCanvasOverlay>["overlay"] | null;
+  artifactOverlay:
+    | React.ComponentProps<typeof ArtifactCanvasOverlay>["overlay"]
+    | null;
   isStreaming: boolean;
   showPreviousVersionBadge: boolean;
   viewMode: React.ComponentProps<typeof ArtifactToolbar>["viewMode"];
@@ -31,7 +33,10 @@ interface ArtifactWorkbenchShellProps {
   >;
   onArtifactBlockRewriteRun?: (
     payload: ArtifactBlockRewriteRunPayload,
-  ) => Promise<ArtifactBlockRewriteCompletion> | ArtifactBlockRewriteCompletion | void;
+  ) =>
+    | Promise<ArtifactBlockRewriteCompletion>
+    | ArtifactBlockRewriteCompletion
+    | void;
   onCloseCanvas: () => void;
   actionsSlot?: React.ReactNode;
   documentController: ArtifactWorkbenchDocumentController;
@@ -89,7 +94,7 @@ function ArtifactWorkbenchShellLayout({
     <div
       data-testid="artifact-workbench-shell"
       data-layout-mode="canvas-only"
-      className="flex h-full flex-col rounded-[24px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5"
+      className="mt-5 mx-4 mb-4 flex h-[calc(100%-24px)] flex-col bg-transparent"
     >
       <ArtifactToolbar
         artifact={artifact}
@@ -100,12 +105,16 @@ function ArtifactWorkbenchShellLayout({
         previewSize={previewSize}
         onPreviewSizeChange={onPreviewSizeChange}
         tone="light"
-        displayBadgeLabel={showPreviousVersionBadge ? "预览上一版本" : undefined}
+        displayBadgeLabel={
+          showPreviousVersionBadge ? "预览上一版本" : undefined
+        }
         actionsSlot={actionsSlot}
       />
-      <div className="min-h-0 flex flex-1 flex-col">
+      <div className="mt-4 min-h-0 flex flex-1 flex-col bg-transparent">
         <div
-          ref={controller.rendererViewportRef as React.RefObject<HTMLDivElement>}
+          ref={
+            controller.rendererViewportRef as React.RefObject<HTMLDivElement>
+          }
           className={cn(
             "relative min-h-0 bg-white",
             controller.inspectorTab === "edit" && controller.canEditDocument
@@ -138,7 +147,9 @@ function ArtifactWorkbenchShellLayout({
                 previewSize={previewSize}
                 tone="light"
               />
-              {artifactOverlay ? <ArtifactCanvasOverlay overlay={artifactOverlay} /> : null}
+              {artifactOverlay ? (
+                <ArtifactCanvasOverlay overlay={artifactOverlay} />
+              ) : null}
             </>
           )}
         </div>
@@ -146,7 +157,6 @@ function ArtifactWorkbenchShellLayout({
     </div>
   );
 }
-export const ArtifactWorkbenchShell: React.FC<ArtifactWorkbenchShellProps> = memo(
-  (props) => <ArtifactWorkbenchShellLayout {...props} />,
-);
+export const ArtifactWorkbenchShell: React.FC<ArtifactWorkbenchShellProps> =
+  memo((props) => <ArtifactWorkbenchShellLayout {...props} />);
 ArtifactWorkbenchShell.displayName = "ArtifactWorkbenchShell";

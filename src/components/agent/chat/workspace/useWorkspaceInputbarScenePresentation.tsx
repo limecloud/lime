@@ -101,30 +101,26 @@ export function useWorkspaceInputbarScenePresentation({
     [visibleSelectedFileId, visibleTaskFiles],
   );
 
-  const {
-    teamWorkbenchSurfaceProps,
-    inputbarNode,
-    generalWorkbenchDialog,
-  } = useWorkspaceInputbarPresentation({
-    teamWorkbench: inputbarPresentation.teamWorkbench,
-    inputbar: {
-      ...inputbarPresentation.inputbar,
-      taskFiles: visibleTaskFiles,
-      selectedFileId: visibleSelectedFileId,
-      taskFilesExpanded,
-      onToggleTaskFiles: handleToggleTaskFiles,
-      onSelectCharacter: handleSelectCharacter,
-    },
-    floatingTeamWorkspaceDock:
-      inputbarPresentation.floatingTeamWorkspaceDock,
-    generalWorkbenchEntryPrompt:
-      inputbarPresentation.generalWorkbenchEntryPrompt,
-    onRestartGeneralWorkbenchEntryPrompt:
-      inputbarPresentation.onRestartGeneralWorkbenchEntryPrompt,
-    onContinueGeneralWorkbenchEntryPrompt:
-      inputbarPresentation.onContinueGeneralWorkbenchEntryPrompt,
-    generalWorkbenchDialog: inputbarPresentation.generalWorkbenchDialog,
-  });
+  const { teamWorkbenchSurfaceProps, inputbarNode, generalWorkbenchDialog } =
+    useWorkspaceInputbarPresentation({
+      teamWorkbench: inputbarPresentation.teamWorkbench,
+      inputbar: {
+        ...inputbarPresentation.inputbar,
+        taskFiles: visibleTaskFiles,
+        selectedFileId: visibleSelectedFileId,
+        taskFilesExpanded,
+        onToggleTaskFiles: handleToggleTaskFiles,
+        onSelectCharacter: handleSelectCharacter,
+      },
+      floatingTeamWorkspaceDock: inputbarPresentation.floatingTeamWorkspaceDock,
+      generalWorkbenchEntryPrompt:
+        inputbarPresentation.generalWorkbenchEntryPrompt,
+      onRestartGeneralWorkbenchEntryPrompt:
+        inputbarPresentation.onRestartGeneralWorkbenchEntryPrompt,
+      onContinueGeneralWorkbenchEntryPrompt:
+        inputbarPresentation.onContinueGeneralWorkbenchEntryPrompt,
+      generalWorkbenchDialog: inputbarPresentation.generalWorkbenchDialog,
+    });
 
   return {
     visibleTaskFiles,

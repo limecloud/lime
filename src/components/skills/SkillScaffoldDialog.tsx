@@ -20,9 +20,7 @@ export interface SkillScaffoldDialogProps {
   allowProjectTarget: boolean;
 }
 
-function getDefaultTarget(
-  allowProjectTarget: boolean,
-): SkillScaffoldTarget {
+function getDefaultTarget(allowProjectTarget: boolean): SkillScaffoldTarget {
   return allowProjectTarget ? "project" : "user";
 }
 

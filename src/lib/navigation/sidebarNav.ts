@@ -198,9 +198,7 @@ const CONFIGURABLE_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   ...CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS,
 ];
 
-export const DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS = [
-  "terminal",
-];
+export const DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS = ["terminal"];
 
 const CONFIGURABLE_SIDEBAR_NAV_ITEM_ID_SET = new Set<string>(
   CONFIGURABLE_SIDEBAR_NAV_ITEMS.map((item) => item.id),

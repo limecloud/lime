@@ -4,7 +4,9 @@ import { isHiddenInternalArtifactPath } from "./internalArtifactVisibility";
 describe("isHiddenInternalArtifactPath", () => {
   it("应隐藏 .lime/tasks 下的内部任务快照 JSON", () => {
     expect(
-      isHiddenInternalArtifactPath(".lime/tasks/image_generate/task-image-1.json"),
+      isHiddenInternalArtifactPath(
+        ".lime/tasks/image_generate/task-image-1.json",
+      ),
     ).toBe(true);
     expect(
       isHiddenInternalArtifactPath(
@@ -18,7 +20,9 @@ describe("isHiddenInternalArtifactPath", () => {
       isHiddenInternalArtifactPath("content-posts/demo.publish-pack.json"),
     ).toBe(false);
     expect(
-      isHiddenInternalArtifactPath(".lime/artifacts/thread-1/report.artifact.json"),
+      isHiddenInternalArtifactPath(
+        ".lime/artifacts/thread-1/report.artifact.json",
+      ),
     ).toBe(false);
     expect(isHiddenInternalArtifactPath("content-posts/demo-cover.png")).toBe(
       false,

@@ -18,11 +18,7 @@ import {
   TRAY_MODEL_SELECTED_EVENT,
   type TrayModelSelectedPayload,
 } from "@/lib/api/tray";
-import {
-  type AgentPageParams,
-  type Page,
-  type PageParams,
-} from "@/types/page";
+import { type AgentPageParams, type Page, type PageParams } from "@/types/page";
 import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 
 const LAST_PROJECT_ID_KEY = "agent_last_project_id";
@@ -69,13 +65,19 @@ function savePersistedProjectId(projectId: string): void {
   }
 }
 
-function resolveActiveProjectId(page: Page, pageParams?: PageParams): string | null {
+function resolveActiveProjectId(
+  page: Page,
+  pageParams?: PageParams,
+): string | null {
   return page === "agent"
     ? normalizeProjectId((pageParams as AgentPageParams | undefined)?.projectId)
     : null;
 }
 
-function resolveActiveTheme(page: Page, pageParams?: PageParams): string | undefined {
+function resolveActiveTheme(
+  page: Page,
+  pageParams?: PageParams,
+): string | undefined {
   if (page !== "agent") {
     return undefined;
   }
@@ -104,7 +106,10 @@ function resolvePersistedModelPreference(projectId: string | null): {
   };
 }
 
-function resolveTrayProjectId(page: Page, pageParams?: PageParams): string | null {
+function resolveTrayProjectId(
+  page: Page,
+  pageParams?: PageParams,
+): string | null {
   return (
     loadPersistedProjectId(LAST_PROJECT_ID_KEY) ||
     resolveActiveProjectId(page, pageParams)
@@ -219,37 +224,36 @@ export function useGlobalTrayModelSync({
 
     let dispose: (() => void) | null = null;
 
-    safeListen<TrayModelSelectedPayload>(
-      TRAY_MODEL_SELECTED_EVENT,
-      (event) => {
-        if (cancelled) {
-          return;
-        }
+    safeListen<TrayModelSelectedPayload>(TRAY_MODEL_SELECTED_EVENT, (event) => {
+      if (cancelled) {
+        return;
+      }
 
-        const providerType = event.payload?.providerType?.trim() || "";
-        const model = event.payload?.model?.trim() || "";
-        if (!providerType || !model) {
-          return;
-        }
+      const providerType = event.payload?.providerType?.trim() || "";
+      const model = event.payload?.model?.trim() || "";
+      if (!providerType || !model) {
+        return;
+      }
 
-        const projectId =
-          resolveTrayProjectId(currentPageRef.current, pageParamsRef.current);
-        const { providerKey, modelKey } = getAgentPreferenceKeys(projectId);
+      const projectId = resolveTrayProjectId(
+        currentPageRef.current,
+        pageParamsRef.current,
+      );
+      const { providerKey, modelKey } = getAgentPreferenceKeys(projectId);
 
-        savePersisted(providerKey, providerType);
-        savePersisted(modelKey, model);
+      savePersisted(providerKey, providerType);
+      savePersisted(modelKey, model);
 
-        if (projectId) {
-          savePersistedProjectId(projectId);
-        }
+      if (projectId) {
+        savePersistedProjectId(projectId);
+      }
 
-        void sync({
-          projectId,
-          providerType,
-          model,
-        });
-      },
-    )
+      void sync({
+        projectId,
+        providerType,
+        model,
+      });
+    })
       .then((unlisten) => {
         if (cancelled) {
           void unlisten();

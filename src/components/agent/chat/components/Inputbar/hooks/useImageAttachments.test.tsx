@@ -40,7 +40,8 @@ class MockFileReader {
 }
 
 function Harness() {
-  const { pendingImages, handlePaste, handleRemoveImage } = useImageAttachments();
+  const { pendingImages, handlePaste, handleRemoveImage } =
+    useImageAttachments();
 
   return (
     <div>

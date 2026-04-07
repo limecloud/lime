@@ -16,7 +16,10 @@ import {
 interface BuildCanvasWorkbenchDefaultPreviewParams {
   workspaceRoot: string | null;
   canvasRenderTheme: ThemeType;
-  generalCanvasState: Pick<GeneralCanvasState, "isOpen" | "content" | "filename">;
+  generalCanvasState: Pick<
+    GeneralCanvasState,
+    "isOpen" | "content" | "filename"
+  >;
   resolvedCanvasState: CanvasStateUnion | null;
   activeCanvasTaskFile: TaskFile | null;
 }

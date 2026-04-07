@@ -26,8 +26,7 @@ export interface CompatSubagentRuntimeStatus {
   progress: CompatSubagentProgress | null;
 }
 
-export interface CompatSubagentRuntimeDisplaySnapshot
-  extends CompatSubagentRuntimeStatus {
+export interface CompatSubagentRuntimeDisplaySnapshot extends CompatSubagentRuntimeStatus {
   error: string | null;
   result: SchedulerExecutionResult | null;
   summary: string | null;
@@ -36,8 +35,7 @@ export interface CompatSubagentRuntimeDisplaySnapshot
 }
 
 export interface CompatSubagentRuntimeSnapshot
-  extends CompatSubagentRuntimeState,
-    CompatSubagentRuntimeDisplaySnapshot {}
+  extends CompatSubagentRuntimeState, CompatSubagentRuntimeDisplaySnapshot {}
 
 export function summarizeCompatSubagentEvent(
   event: CompatSubagentEvent,

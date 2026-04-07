@@ -180,7 +180,10 @@ function normalizeArtifactSourceReliability(
   const normalized = normalizeText(value)?.toLowerCase() as
     | ArtifactDocumentSource["reliability"]
     | undefined;
-  if (normalized && ARTIFACT_DOCUMENT_SOURCE_RELIABILITY_VALUES.has(normalized)) {
+  if (
+    normalized &&
+    ARTIFACT_DOCUMENT_SOURCE_RELIABILITY_VALUES.has(normalized)
+  ) {
     return normalized;
   }
   return undefined;
@@ -198,7 +201,8 @@ function normalizeArtifactSourceLocator(
   const path = normalizeText(existing.path) || normalizeText(record.path);
   const lineStart =
     normalizeNumber(existing.lineStart) || normalizeNumber(record.lineStart);
-  const lineEnd = normalizeNumber(existing.lineEnd) || normalizeNumber(record.lineEnd);
+  const lineEnd =
+    normalizeNumber(existing.lineEnd) || normalizeNumber(record.lineEnd);
   const toolCallId =
     normalizeText(existing.toolCallId) ||
     normalizeText(record.toolCallId) ||
@@ -234,14 +238,21 @@ function normalizeArtifactSourceType(
   locator: ArtifactDocumentSource["locator"] | undefined,
   id: string,
 ): ArtifactDocumentSource["type"] {
-  const normalized = normalizeText(value)?.toLowerCase().replace(/[\s-]+/g, "_");
+  const normalized = normalizeText(value)
+    ?.toLowerCase()
+    .replace(/[\s-]+/g, "_");
   if (normalized === "browser") {
     return "web";
   }
   if (normalized === "search" || normalized === "searchresult") {
     return "search_result";
   }
-  if (normalized && ARTIFACT_DOCUMENT_SOURCE_TYPES.has(normalized as ArtifactDocumentSource["type"])) {
+  if (
+    normalized &&
+    ARTIFACT_DOCUMENT_SOURCE_TYPES.has(
+      normalized as ArtifactDocumentSource["type"],
+    )
+  ) {
     return normalized as ArtifactDocumentSource["type"];
   }
 
@@ -327,14 +338,17 @@ function normalizeVersionSummary(
     return null;
   }
 
-  const versionNo = normalizeNumber(record.versionNo) || normalizeNumber(record.version_no);
+  const versionNo =
+    normalizeNumber(record.versionNo) || normalizeNumber(record.version_no);
   if (!versionNo || versionNo <= 0) {
     return null;
   }
 
   const id = normalizeText(record.id) || `${artifactId}:v${versionNo}`;
-  const createdBy = normalizeText(record.createdBy) || normalizeText(record.created_by);
-  const createdAt = normalizeText(record.createdAt) || normalizeText(record.created_at);
+  const createdBy =
+    normalizeText(record.createdBy) || normalizeText(record.created_by);
+  const createdAt =
+    normalizeText(record.createdAt) || normalizeText(record.created_at);
   const snapshotPath =
     normalizeText(record.snapshotPath) || normalizeText(record.snapshot_path);
 
@@ -346,15 +360,21 @@ function normalizeVersionSummary(
       normalizeText(record.artifact_id) ||
       artifactId,
     versionNo,
-    ...(normalizeText(record.summary) ? { summary: normalizeText(record.summary) } : {}),
-    ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+    ...(normalizeText(record.summary)
+      ? { summary: normalizeText(record.summary) }
+      : {}),
+    ...(normalizeText(record.title)
+      ? { title: normalizeText(record.title) }
+      : {}),
     ...(normalizeText(record.kind)
       ? { kind: normalizeArtifactKind(record.kind) }
       : {}),
     ...(normalizeText(record.status)
       ? { status: normalizeArtifactStatus(record.status) }
       : {}),
-    ...(createdBy ? { createdBy: createdBy as "agent" | "user" | "automation" } : {}),
+    ...(createdBy
+      ? { createdBy: createdBy as "agent" | "user" | "automation" }
+      : {}),
     ...(createdAt ? { createdAt } : {}),
     ...(snapshotPath ? { snapshotPath } : {}),
   };
@@ -370,8 +390,10 @@ function normalizeSourceLink(
     return null;
   }
 
-  const blockId = normalizeText(record.blockId) || normalizeText(record.block_id);
-  const sourceRef = normalizeText(record.sourceRef) || normalizeText(record.source_ref);
+  const blockId =
+    normalizeText(record.blockId) || normalizeText(record.block_id);
+  const sourceRef =
+    normalizeText(record.sourceRef) || normalizeText(record.source_ref);
   if (!blockId || !sourceRef) {
     return null;
   }
@@ -400,7 +422,9 @@ function normalizeSourceLink(
       normalizeText(record.source_type) ||
       "unknown",
     sourceRef,
-    ...(normalizeText(record.label) ? { label: normalizeText(record.label) } : {}),
+    ...(normalizeText(record.label)
+      ? { label: normalizeText(record.label) }
+      : {}),
     ...(locator ? { locator } : {}),
   };
 }
@@ -426,7 +450,8 @@ function normalizeVersionDiff(
           return {
             ...entry,
             blockId,
-            changeType: changeType as ArtifactDocumentVersionDiff["changedBlocks"][number]["changeType"],
+            changeType:
+              changeType as ArtifactDocumentVersionDiff["changedBlocks"][number]["changeType"],
             ...(normalizeText(entry.beforeType)
               ? {
                   beforeType: normalizeText(
@@ -526,7 +551,10 @@ function buildFallbackRichTextBlock(
 
 function resolveRichTextBlockContent(
   record: Record<string, unknown>,
-): Pick<ArtifactDocumentBlock & { type: "rich_text" }, "contentFormat" | "content" | "markdown" | "tiptap" | "proseMirror"> | null {
+): Pick<
+  ArtifactDocumentBlock & { type: "rich_text" },
+  "contentFormat" | "content" | "markdown" | "tiptap" | "proseMirror"
+> | null {
   const declaredFormat = normalizeText(record.contentFormat)?.toLowerCase();
   if (declaredFormat === "prosemirror_json" && record.content !== undefined) {
     return {
@@ -541,7 +569,9 @@ function resolveRichTextBlockContent(
       contentFormat: "prosemirror_json",
       content,
       ...(record.tiptap !== undefined ? { tiptap: record.tiptap } : {}),
-      ...(record.proseMirror !== undefined ? { proseMirror: record.proseMirror } : {}),
+      ...(record.proseMirror !== undefined
+        ? { proseMirror: record.proseMirror }
+        : {}),
     };
   }
 
@@ -561,7 +591,9 @@ function resolveRichTextBlockContent(
   };
 }
 
-function normalizeCalloutTone(value: unknown): "info" | "success" | "warning" | "danger" | "neutral" {
+function normalizeCalloutTone(
+  value: unknown,
+): "info" | "success" | "warning" | "danger" | "neutral" {
   const normalized = normalizeText(value)?.toLowerCase();
   switch (normalized) {
     case "success":
@@ -620,7 +652,9 @@ function normalizeTableRows(
         return columns.map((column) => normalizeText(rowRecord[column]) || "");
       }
 
-      return Object.values(rowRecord).map((cell) => normalizeText(cell) || String(cell ?? ""));
+      return Object.values(rowRecord).map(
+        (cell) => normalizeText(cell) || String(cell ?? ""),
+      );
     })
     .filter((row): row is string[] => Boolean(row));
 }
@@ -660,7 +694,9 @@ function normalizeChecklistItems(record: Record<string, unknown>): Array<{
 
       const explicitState = normalizeText(itemRecord.state)?.toLowerCase();
       const state =
-        explicitState === "doing" || explicitState === "done" || explicitState === "todo"
+        explicitState === "doing" ||
+        explicitState === "done" ||
+        explicitState === "todo"
           ? explicitState
           : itemRecord.checked === true ||
               itemRecord.done === true ||
@@ -677,8 +713,11 @@ function normalizeChecklistItems(record: Record<string, unknown>): Array<{
     .filter(
       (
         item,
-      ): item is { id: string; text: string; state: "todo" | "doing" | "done" } =>
-        item !== null,
+      ): item is {
+        id: string;
+        text: string;
+        state: "todo" | "doing" | "done";
+      } => item !== null,
     );
 }
 
@@ -731,7 +770,10 @@ function normalizeMetricItems(record: Record<string, unknown>): Array<{
                 normalizeText(itemRecord.trend),
             }
           : {}),
-        ...(tone === "neutral" || tone === "success" || tone === "warning" || tone === "danger"
+        ...(tone === "neutral" ||
+        tone === "success" ||
+        tone === "warning" ||
+        tone === "danger"
           ? { tone }
           : {}),
       };
@@ -753,7 +795,8 @@ function resolveCitationSourceId(
   itemRecord: Record<string, unknown>,
   sources: ArtifactDocumentSource[],
 ): string | undefined {
-  const directId = normalizeText(itemRecord.sourceId) || normalizeText(itemRecord.source_id);
+  const directId =
+    normalizeText(itemRecord.sourceId) || normalizeText(itemRecord.source_id);
   if (directId) {
     return directId;
   }
@@ -769,7 +812,8 @@ function resolveCitationSourceId(
     }
   }
 
-  const label = normalizeText(itemRecord.label) || normalizeText(itemRecord.title);
+  const label =
+    normalizeText(itemRecord.label) || normalizeText(itemRecord.title);
   if (label) {
     const matchedByLabel = sources.find((source) => source.label === label);
     if (matchedByLabel) {
@@ -819,7 +863,9 @@ function normalizeCitationItems(
           : {}),
       };
     })
-    .filter((item): item is { sourceId: string; note?: string } => item !== null);
+    .filter(
+      (item): item is { sourceId: string; note?: string } => item !== null,
+    );
 }
 
 function normalizeBlock(
@@ -882,7 +928,9 @@ function normalizeBlock(
         ...(normalizeText(record.eyebrow)
           ? { eyebrow: normalizeText(record.eyebrow) }
           : {}),
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
         ...(normalizeStringArray(record.highlights)
           ? { highlights: normalizeStringArray(record.highlights) }
           : {}),
@@ -897,7 +945,9 @@ function normalizeBlock(
         ...base,
         type,
         items,
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
       };
     }
     case "rich_text": {
@@ -909,7 +959,9 @@ function normalizeBlock(
         ...base,
         type,
         ...richText,
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
       };
     }
     case "callout": {
@@ -926,7 +978,9 @@ function normalizeBlock(
         type,
         tone: normalizeCalloutTone(record.tone || record.variant),
         body: body || "",
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
         ...(body ? { content: body, text: body } : {}),
       };
     }
@@ -941,7 +995,9 @@ function normalizeBlock(
         type,
         columns,
         rows,
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
       };
     }
     case "checklist": {
@@ -953,7 +1009,9 @@ function normalizeBlock(
         ...base,
         type,
         items,
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
       };
     }
     case "metric_grid": {
@@ -965,7 +1023,9 @@ function normalizeBlock(
         ...base,
         type,
         metrics,
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
       };
     }
     case "quote": {
@@ -1001,7 +1061,9 @@ function normalizeBlock(
         ...base,
         type,
         items,
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
       };
     }
     case "image": {
@@ -1016,7 +1078,9 @@ function normalizeBlock(
         ...base,
         type,
         url,
-        ...(normalizeText(record.alt) ? { alt: normalizeText(record.alt) } : {}),
+        ...(normalizeText(record.alt)
+          ? { alt: normalizeText(record.alt) }
+          : {}),
         ...(normalizeText(record.caption)
           ? { caption: normalizeText(record.caption) }
           : {}),
@@ -1037,7 +1101,9 @@ function normalizeBlock(
         ...(normalizeText(record.language)
           ? { language: normalizeText(record.language) }
           : {}),
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
       };
     }
     case "divider":
@@ -1107,9 +1173,7 @@ function normalizeMetadata(
   const versionHistory = Array.isArray(rawVersionHistory)
     ? rawVersionHistory
         .map((item, index) => normalizeVersionSummary(item, index, artifactId))
-        .filter(
-          (item): item is ArtifactDocumentVersionSummary => item !== null,
-        )
+        .filter((item): item is ArtifactDocumentVersionSummary => item !== null)
         .sort((left, right) => right.versionNo - left.versionNo)
     : [];
   const rawSourceLinks =
@@ -1120,20 +1184,29 @@ function normalizeMetadata(
         .filter((item): item is ArtifactDocumentSourceLink => item !== null)
     : deriveSourceLinks(artifactId, blocks, sources);
   const versionDiff = normalizeVersionDiff(
-    record.currentVersionDiff || record.current_version_diff || record.artifactVersionDiff,
+    record.currentVersionDiff ||
+      record.current_version_diff ||
+      record.artifactVersionDiff,
   );
 
   return {
     ...record,
-    ...(normalizeText(record.theme) ? { theme: normalizeText(record.theme) } : {}),
+    ...(normalizeText(record.theme)
+      ? { theme: normalizeText(record.theme) }
+      : {}),
     ...(normalizeText(record.audience)
       ? { audience: normalizeText(record.audience) }
       : {}),
-    ...(normalizeText(record.intent) ? { intent: normalizeText(record.intent) } : {}),
+    ...(normalizeText(record.intent)
+      ? { intent: normalizeText(record.intent) }
+      : {}),
     ...(normalizeText(record.generatedBy) || normalizeText(record.generated_by)
       ? {
           generatedBy: (normalizeText(record.generatedBy) ||
-            normalizeText(record.generated_by)) as "agent" | "user" | "automation",
+            normalizeText(record.generated_by)) as
+            | "agent"
+            | "user"
+            | "automation",
         }
       : {}),
     ...(normalizeText(record.currentVersionId) ||
@@ -1190,7 +1263,12 @@ export function parseArtifactDocumentValue(
   }
   const artifactId =
     normalizeText(record.artifactId) || `artifact-document:${slugify(title)}`;
-  const metadata = normalizeMetadata(record.metadata, artifactId, blocks, sources);
+  const metadata = normalizeMetadata(
+    record.metadata,
+    artifactId,
+    blocks,
+    sources,
+  );
 
   return {
     schemaVersion: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
@@ -1256,7 +1334,9 @@ export function resolveArtifactDocumentPayload(input: {
     return fromContent;
   }
 
-  const fromMetadata = parseArtifactDocumentValue(input.metadata?.artifactDocument);
+  const fromMetadata = parseArtifactDocumentValue(
+    input.metadata?.artifactDocument,
+  );
   if (fromMetadata) {
     return fromMetadata;
   }
@@ -1268,7 +1348,9 @@ export function resolveArtifactDocumentPayload(input: {
   return input.previous || null;
 }
 
-function resolvePreviewFromBlocks(document: ArtifactDocumentV1): string | undefined {
+function resolvePreviewFromBlocks(
+  document: ArtifactDocumentV1,
+): string | undefined {
   for (const block of document.blocks) {
     if (block.type === "hero_summary") {
       const summary = normalizeText(block.summary);
@@ -1313,7 +1395,9 @@ function resolvePreviewFromBlocks(document: ArtifactDocumentV1): string | undefi
 export function resolveArtifactDocumentPreviewText(
   document: ArtifactDocumentV1,
 ): string | undefined {
-  return document.summary || resolvePreviewFromBlocks(document) || document.title;
+  return (
+    document.summary || resolvePreviewFromBlocks(document) || document.title
+  );
 }
 
 export function resolveArtifactDocumentVersionHistory(
@@ -1373,5 +1457,9 @@ export function resolveArtifactDocumentSourceLinks(
     return document.metadata.sourceLinks || [];
   }
 
-  return deriveSourceLinks(document.artifactId, document.blocks, document.sources);
+  return deriveSourceLinks(
+    document.artifactId,
+    document.blocks,
+    document.sources,
+  );
 }

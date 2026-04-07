@@ -1,13 +1,7 @@
 import type { CodexSlashStatusSnapshot } from "../commands";
-import {
-  executeCodexSlashCommand,
-  parseCodexSlashCommand,
-} from "../commands";
+import { executeCodexSlashCommand, parseCodexSlashCommand } from "../commands";
 import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
-import type {
-  ClearMessagesOptions,
-  SendMessageFn,
-} from "./agentChatShared";
+import type { ClearMessagesOptions, SendMessageFn } from "./agentChatShared";
 
 interface CreateAgentChatSendMessageOptions {
   baseStatusSnapshot: CodexSlashStatusSnapshot;

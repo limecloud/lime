@@ -29,7 +29,9 @@ export async function getScreenshotShortcutRuntimeStatus(): Promise<ScreenshotSh
 }
 
 export async function getVoiceShortcutRuntimeStatus(): Promise<VoiceShortcutRuntimeStatus> {
-  return safeInvoke<VoiceShortcutRuntimeStatus>("get_voice_shortcut_runtime_status");
+  return safeInvoke<VoiceShortcutRuntimeStatus>(
+    "get_voice_shortcut_runtime_status",
+  );
 }
 
 export async function getHotkeyRuntimeStatus(): Promise<HotkeyRuntimeStatus> {

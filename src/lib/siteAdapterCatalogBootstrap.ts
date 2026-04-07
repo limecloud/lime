@@ -6,8 +6,7 @@ import {
 
 const SITE_ADAPTER_CATALOG_BOOTSTRAP_EVENT =
   "lime:site-adapter-catalog-bootstrap";
-const SITE_ADAPTER_CATALOG_CHANGED_EVENT =
-  "lime:site-adapter-catalog-changed";
+const SITE_ADAPTER_CATALOG_CHANGED_EVENT = "lime:site-adapter-catalog-changed";
 
 declare global {
   interface Window {

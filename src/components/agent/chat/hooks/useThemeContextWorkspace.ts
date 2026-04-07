@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getContent, listContents, type ContentListItem } from "@/lib/api/project";
+import {
+  getContent,
+  listContents,
+  type ContentListItem,
+} from "@/lib/api/project";
 import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import { normalizeProjectId } from "../utils/topicProjectResolution";
 import { useMaterials } from "@/hooks/useMaterials";
@@ -95,14 +99,8 @@ export interface ThemeContextWorkspaceState {
     content: string;
     name?: string;
   }) => Promise<void>;
-  addLinkContext: (payload: {
-    url: string;
-    name?: string;
-  }) => Promise<void>;
-  addFileContext: (payload: {
-    path: string;
-    name?: string;
-  }) => Promise<void>;
+  addLinkContext: (payload: { url: string; name?: string }) => Promise<void>;
+  addFileContext: (payload: { path: string; name?: string }) => Promise<void>;
   sidebarContextItems: SidebarContextItem[];
   toggleContextActive: (contextId: string) => void;
   getContextDetail: (contextId: string) => ContextCatalogItem | null;
@@ -185,7 +183,9 @@ function normalizeText(value: string): string {
 function truncateContextBody(value: string, source: ContextSource): string {
   const normalized = normalizeText(value);
   const maxLength =
-    source === "search" ? SEARCH_CONTEXT_PREVIEW_LENGTH : LOCAL_CONTEXT_PREVIEW_LENGTH;
+    source === "search"
+      ? SEARCH_CONTEXT_PREVIEW_LENGTH
+      : LOCAL_CONTEXT_PREVIEW_LENGTH;
   if (normalized.length <= maxLength) {
     return normalized;
   }
@@ -216,10 +216,16 @@ function resolvePathFileName(path: string): string {
 }
 
 function resolveContentTimestamp(content: ContentListItem): number {
-  if (typeof content.updated_at === "number" && Number.isFinite(content.updated_at)) {
+  if (
+    typeof content.updated_at === "number" &&
+    Number.isFinite(content.updated_at)
+  ) {
     return content.updated_at;
   }
-  if (typeof content.created_at === "number" && Number.isFinite(content.created_at)) {
+  if (
+    typeof content.created_at === "number" &&
+    Number.isFinite(content.created_at)
+  ) {
     return content.created_at;
   }
   return 0;
@@ -373,7 +379,11 @@ function buildActiveContextPromptText(
       lines.push(`摘要：${body}`);
     }
 
-    if (item.source === "search" && item.citations && item.citations.length > 0) {
+    if (
+      item.source === "search" &&
+      item.citations &&
+      item.citations.length > 0
+    ) {
       lines.push("来源：");
       item.citations.slice(0, 5).forEach((citation) => {
         lines.push(`- ${citation.title} ${citation.url}`);
@@ -397,7 +407,8 @@ function resolveContextTokenEstimate(
   contextBodyById: Record<string, string>,
 ): number {
   const cachedBody = contextBodyById[item.id];
-  const sourceText = cachedBody || item.bodyText || item.previewText || item.name;
+  const sourceText =
+    cachedBody || item.bodyText || item.previewText || item.name;
   return estimateTokens(sourceText, item.estimatedTokens);
 }
 
@@ -433,10 +444,14 @@ export function useThemeContextWorkspace({
   const [contextSearchMode, setContextSearchModeState] =
     useState<ThemeContextSearchMode>("web");
   const [contextSearchLoading, setContextSearchLoading] = useState(false);
-  const [contextSearchError, setContextSearchError] = useState<string | null>(null);
+  const [contextSearchError, setContextSearchError] = useState<string | null>(
+    null,
+  );
   const [activeContextIds, setActiveContextIds] = useState<string[]>([]);
   const [manualContextIds, setManualContextIds] = useState<string[]>([]);
-  const [contextBodyById, setContextBodyById] = useState<Record<string, string>>({});
+  const [contextBodyById, setContextBodyById] = useState<
+    Record<string, string>
+  >({});
   const contextSelectionInitializedRef = useRef<string | null>(null);
   const contextSnapshotByToolCallRef = useRef<Record<string, string[]>>({});
   const contextBodyByIdRef = useRef<Record<string, string>>({});
@@ -543,18 +558,20 @@ export function useThemeContextWorkspace({
     });
 
     const dedupedProjectContents = dedupeContentsByTitle(projectContents);
-    const contentItems: ContextCatalogItem[] = dedupedProjectContents.map((content) => {
-      const snippet = `${content.title} ${content.content_type || ""} ${content.status || ""}`;
-      return {
-        id: `content:${content.id}`,
-        name: content.title,
-        source: "content",
-        normalizedText: normalizeText(snippet).toLowerCase(),
-        previewText: truncateContextBody(snippet, "content"),
-        estimatedTokens: 320,
-        createdAt: resolveContentTimestamp(content) || undefined,
-      };
-    });
+    const contentItems: ContextCatalogItem[] = dedupedProjectContents.map(
+      (content) => {
+        const snippet = `${content.title} ${content.content_type || ""} ${content.status || ""}`;
+        return {
+          id: `content:${content.id}`,
+          name: content.title,
+          source: "content",
+          normalizedText: normalizeText(snippet).toLowerCase(),
+          previewText: truncateContextBody(snippet, "content"),
+          estimatedTokens: 320,
+          createdAt: resolveContentTimestamp(content) || undefined,
+        };
+      },
+    );
 
     return [...generatedItems, ...materialItems, ...contentItems];
   }, [enabled, generatedSearchContexts, materials, projectContents]);
@@ -592,7 +609,9 @@ export function useThemeContextWorkspace({
     const manualStorageKey = buildManualContextStorageKey(contextProjectId);
     const persisted = loadTransient<string[]>(storageKey, []);
     const manualPersisted = loadTransient<string[]>(manualStorageKey, []);
-    const validPersisted = persisted.filter((id) => contextCatalog.some((item) => item.id === id));
+    const validPersisted = persisted.filter((id) =>
+      contextCatalog.some((item) => item.id === id),
+    );
     const validManualPersisted = manualPersisted.filter((id) =>
       contextCatalog.some((item) => item.id === id),
     );
@@ -604,7 +623,9 @@ export function useThemeContextWorkspace({
       );
     } else {
       setActiveContextIds(
-        contextCatalog.slice(0, DEFAULT_ACTIVE_CONTEXT_COUNT).map((item) => item.id),
+        contextCatalog
+          .slice(0, DEFAULT_ACTIVE_CONTEXT_COUNT)
+          .map((item) => item.id),
       );
       setManualContextIds([]);
     }
@@ -623,7 +644,10 @@ export function useThemeContextWorkspace({
     setActiveContextIds((previous) => {
       const validSet = new Set(contextCatalog.map((item) => item.id));
       const normalized = previous.filter((id) => validSet.has(id));
-      const targetCount = Math.min(DEFAULT_ACTIVE_CONTEXT_COUNT, contextCatalog.length);
+      const targetCount = Math.min(
+        DEFAULT_ACTIVE_CONTEXT_COUNT,
+        contextCatalog.length,
+      );
       if (normalized.length >= targetCount) {
         return normalized;
       }
@@ -663,7 +687,9 @@ export function useThemeContextWorkspace({
         return validActive;
       }
 
-      const removable = validActive.filter((id) => !manualContextIds.includes(id));
+      const removable = validActive.filter(
+        (id) => !manualContextIds.includes(id),
+      );
       if (removable.length === 0) {
         return validActive.slice(0, DEFAULT_CONTEXT_ITEM_LIMIT);
       }
@@ -680,7 +706,10 @@ export function useThemeContextWorkspace({
     });
   }, [contextCatalog, enabled, manualContextIds]);
 
-  const activeContextSet = useMemo(() => new Set(activeContextIds), [activeContextIds]);
+  const activeContextSet = useMemo(
+    () => new Set(activeContextIds),
+    [activeContextIds],
+  );
 
   const activeContextTokenUsage = useMemo(
     () =>
@@ -731,7 +760,9 @@ export function useThemeContextWorkspace({
     }
 
     if (removeSet.size > 0) {
-      setActiveContextIds((previous) => previous.filter((id) => !removeSet.has(id)));
+      setActiveContextIds((previous) =>
+        previous.filter((id) => !removeSet.has(id)),
+      );
     }
   }, [
     activeContextTokenUsage,
@@ -749,9 +780,13 @@ export function useThemeContextWorkspace({
       }
 
       if (item.source === "search") {
-        const summary = normalizeText(item.bodyText || item.previewText || item.name);
+        const summary = normalizeText(
+          item.bodyText || item.previewText || item.name,
+        );
         setContextBodyById((previous) =>
-          previous[item.id] === summary ? previous : { ...previous, [item.id]: summary },
+          previous[item.id] === summary
+            ? previous
+            : { ...previous, [item.id]: summary },
         );
         return summary;
       }
@@ -785,7 +820,10 @@ export function useThemeContextWorkspace({
           return normalizedBody;
         } catch (error) {
           console.warn("[useThemeContextWorkspace] 加载上下文正文失败:", error);
-          const fallbackBody = truncateContextBody(item.previewText || item.name, item.source);
+          const fallbackBody = truncateContextBody(
+            item.previewText || item.name,
+            item.source,
+          );
           setContextBodyById((previous) =>
             previous[item.id] === fallbackBody
               ? previous
@@ -856,7 +894,10 @@ export function useThemeContextWorkspace({
             : "failed";
         const logId = `${message.id}-${toolCall.id}`;
         const existingSnapshot = contextSnapshotByToolCallRef.current[logId];
-        if (!existingSnapshot || (existingSnapshot.length === 0 && activeContextIds.length > 0)) {
+        if (
+          !existingSnapshot ||
+          (existingSnapshot.length === 0 && activeContextIds.length > 0)
+        ) {
           contextSnapshotByToolCallRef.current[logId] = [...activeContextIds];
         }
 
@@ -878,7 +919,10 @@ export function useThemeContextWorkspace({
           name: toolCall.name,
           status,
           timeLabel: formatLogTimeLabel(message.timestamp),
-          durationLabel: formatDurationLabel(toolCall.startTime, toolCall.endTime),
+          durationLabel: formatDurationLabel(
+            toolCall.startTime,
+            toolCall.endTime,
+          ),
           applyTarget: resolveApplyTarget(toolCall.name),
           contextIds: contextSnapshotByToolCallRef.current[logId],
           inputSummary,
@@ -895,7 +939,8 @@ export function useThemeContextWorkspace({
   }, [activeContextIds, enabled, messages]);
 
   const activeContextPrompt = useMemo(
-    () => buildActiveContextPromptText(orderedActiveContextItems, contextBodyById),
+    () =>
+      buildActiveContextPromptText(orderedActiveContextItems, contextBodyById),
     [contextBodyById, orderedActiveContextItems],
   );
 
@@ -922,7 +967,10 @@ export function useThemeContextWorkspace({
       mergedContextBodies[id] = body;
     });
 
-    return buildActiveContextPromptText(orderedActiveContextItems, mergedContextBodies);
+    return buildActiveContextPromptText(
+      orderedActiveContextItems,
+      mergedContextBodies,
+    );
   }, [enabled, loadContextBody, orderedActiveContextItems]);
 
   const setContextSearchQuery = useCallback((value: string) => {
@@ -981,7 +1029,10 @@ export function useThemeContextWorkspace({
         mode: contextSearchMode,
       });
 
-      const contextId = buildGeneratedContextId(contextSearchMode, trimmedQuery);
+      const contextId = buildGeneratedContextId(
+        contextSearchMode,
+        trimmedQuery,
+      );
       const nextContext: GeneratedSearchContextItem = {
         id: contextId,
         name: result.title,
@@ -1011,7 +1062,9 @@ export function useThemeContextWorkspace({
       );
     } catch (error) {
       setContextSearchError(
-        error instanceof Error ? error.message : String(error || "上下文搜索失败"),
+        error instanceof Error
+          ? error.message
+          : String(error || "上下文搜索失败"),
       );
     } finally {
       setContextSearchLoading(false);
@@ -1040,7 +1093,10 @@ export function useThemeContextWorkspace({
         throw new Error("请输入文本内容");
       }
 
-      const firstLine = normalizedContent.split(/\r?\n/).find((line) => line.trim().length > 0) || "";
+      const firstLine =
+        normalizedContent
+          .split(/\r?\n/)
+          .find((line) => line.trim().length > 0) || "";
       const material = await uploadMaterial({
         projectId: contextProjectId,
         name: resolveContextTitle(payload.name || firstLine, "文本上下文"),
@@ -1119,7 +1175,10 @@ export function useThemeContextWorkspace({
 
       const material = await uploadMaterial({
         projectId: contextProjectId,
-        name: resolveContextTitle(payload.name || resolvePathFileName(normalizedPath), "上下文文件"),
+        name: resolveContextTitle(
+          payload.name || resolvePathFileName(normalizedPath),
+          "上下文文件",
+        ),
         type: "document",
         filePath: normalizedPath,
         tags: ["上下文", "文件"],

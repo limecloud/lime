@@ -46,7 +46,9 @@ export function resolveProjectDeletionFallback(
     return defaultProject.id;
   }
 
-  const nextProject = projects.find((project) => project.id !== deletedProjectId);
+  const nextProject = projects.find(
+    (project) => project.id !== deletedProjectId,
+  );
   return nextProject?.id || null;
 }
 
@@ -56,7 +58,9 @@ export function resolveSelectedProject(
   defaultProject: Project | null,
 ): Project | null {
   if (selectedProjectId) {
-    const matchedProject = projects.find((project) => project.id === selectedProjectId);
+    const matchedProject = projects.find(
+      (project) => project.id === selectedProjectId,
+    );
     if (matchedProject) {
       return matchedProject;
     }

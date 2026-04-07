@@ -21,9 +21,7 @@ interface RecordWorkspaceRepairInput {
 const WORKSPACE_REPAIR_HISTORY_KEY = "lime.workspace_repair_history.v1";
 const MAX_WORKSPACE_REPAIR_HISTORY = 50;
 
-export function recordWorkspaceRepair(
-  input: RecordWorkspaceRepairInput,
-): void {
+export function recordWorkspaceRepair(input: RecordWorkspaceRepairInput): void {
   if (!input.workspaceId || !input.rootPath) return;
 
   const nextRecord: WorkspaceRepairRecord = {
@@ -102,7 +100,9 @@ function writeWorkspaceRepairHistory(records: WorkspaceRepairRecord[]): void {
   localStorage.setItem(WORKSPACE_REPAIR_HISTORY_KEY, JSON.stringify(records));
 }
 
-function isWorkspaceRepairRecord(value: unknown): value is WorkspaceRepairRecord {
+function isWorkspaceRepairRecord(
+  value: unknown,
+): value is WorkspaceRepairRecord {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   return (

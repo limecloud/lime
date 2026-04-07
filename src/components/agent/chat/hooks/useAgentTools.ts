@@ -40,7 +40,9 @@ function upsertSubmittedAction(
   actions: ActionRequired[],
   nextAction: ActionRequired,
 ): ActionRequired[] {
-  const next = actions.filter((item) => item.requestId !== nextAction.requestId);
+  const next = actions.filter(
+    (item) => item.requestId !== nextAction.requestId,
+  );
   next.push(nextAction);
   return next;
 }
@@ -202,10 +204,11 @@ export function useAgentTools(options: UseAgentToolsOptions) {
 
           setSubmittedActionsInFlight((prev) =>
             upsertSubmittedAction(prev, {
-              ...(metadataAction || persistedAction || {
-                requestId: effectiveRequestId,
-                actionType,
-              }),
+              ...(metadataAction ||
+                persistedAction || {
+                  requestId: effectiveRequestId,
+                  actionType,
+                }),
               requestId: effectiveRequestId,
               actionType,
               status: "submitted",
@@ -237,10 +240,11 @@ export function useAgentTools(options: UseAgentToolsOptions) {
           refreshSessionId = sessionIdRef.current;
           setSubmittedActionsInFlight((prev) =>
             upsertSubmittedAction(prev, {
-              ...(metadataAction || persistedAction || {
-                requestId: effectiveRequestId,
-                actionType,
-              }),
+              ...(metadataAction ||
+                persistedAction || {
+                  requestId: effectiveRequestId,
+                  actionType,
+                }),
               requestId: effectiveRequestId,
               actionType,
               status: "submitted",

@@ -8,7 +8,10 @@ export interface SendScreenshotChatParams {
 export async function sendScreenshotChat(
   params: SendScreenshotChatParams,
 ): Promise<void> {
-  await safeInvoke("send_screenshot_chat", params as unknown as Record<string, unknown>);
+  await safeInvoke(
+    "send_screenshot_chat",
+    params as unknown as Record<string, unknown>,
+  );
 }
 
 export async function closeScreenshotChatWindow(): Promise<void> {

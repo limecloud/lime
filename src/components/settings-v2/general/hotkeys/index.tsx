@@ -217,9 +217,8 @@ export function HotkeysSettings() {
   const [experimentalConfig, setExperimentalConfig] =
     useState<ExperimentalFeatures | null>(null);
   const [voiceConfig, setVoiceConfig] = useState<VoiceInputConfig | null>(null);
-  const [runtimeStatus, setRuntimeStatus] = useState<HotkeyRuntimeStatus | null>(
-    null,
-  );
+  const [runtimeStatus, setRuntimeStatus] =
+    useState<HotkeyRuntimeStatus | null>(null);
   const [runtimeAvailability, setRuntimeAvailability] =
     useState<RuntimeAvailability>("ready");
 
@@ -356,9 +355,7 @@ export function HotkeysSettings() {
                 全局运行中 {catalog.summary.globalReady} / 3
               </SummaryChip>
               <SummaryChip
-                tone={
-                  runtimeAvailability === "ready" ? "success" : "warning"
-                }
+                tone={runtimeAvailability === "ready" ? "success" : "warning"}
               >
                 {runtimeAvailability === "ready"
                   ? "运行时状态已连接"

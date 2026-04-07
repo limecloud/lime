@@ -41,11 +41,9 @@ vi.mock("@/lib/api/project", () => ({
 vi.mock(
   "@/components/settings-v2/system/shared/ClipboardPermissionGuideCard",
   () => ({
-    ClipboardPermissionGuideCard: ({
-      className,
-    }: {
-      className?: string;
-    }) => <div className={className}>clipboard-guide</div>,
+    ClipboardPermissionGuideCard: ({ className }: { className?: string }) => (
+      <div className={className}>clipboard-guide</div>
+    ),
   }),
 );
 
@@ -73,11 +71,7 @@ function renderPanel(error: Error | null) {
 
   act(() => {
     root.render(
-      <CrashRecoveryPanel
-        error={error}
-        componentStack=""
-        onRetry={vi.fn()}
-      />,
+      <CrashRecoveryPanel error={error} componentStack="" onRetry={vi.fn()} />,
     );
   });
 
@@ -123,13 +117,8 @@ describe("CrashRecoveryPanel", () => {
 
   it("应为强制刷新资源构造带缓存刷新参数的地址", () => {
     expect(
-      buildCrashRecoveryReloadUrl(
-        "http://127.0.0.1:1420/settings",
-        "123456",
-      ),
-    ).toBe(
-      "http://127.0.0.1:1420/settings?__lime_resource_reload=123456",
-    );
+      buildCrashRecoveryReloadUrl("http://127.0.0.1:1420/settings", "123456"),
+    ).toBe("http://127.0.0.1:1420/settings?__lime_resource_reload=123456");
 
     const reloadUrl = buildCrashRecoveryReloadUrl(
       "http://127.0.0.1:1420/settings?tab=providers",

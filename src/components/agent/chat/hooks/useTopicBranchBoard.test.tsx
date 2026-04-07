@@ -32,7 +32,10 @@ interface ProbeProps {
   projectId?: string;
   currentTopicId: string | null;
   onSnapshot: (value: ReturnType<typeof useTopicBranchBoard>) => void;
-  externalStatusMap?: Record<string, "in_progress" | "pending" | "merged" | "candidate">;
+  externalStatusMap?: Record<
+    string,
+    "in_progress" | "pending" | "merged" | "candidate"
+  >;
   onStatusMapChange?: (
     next: Record<string, "in_progress" | "pending" | "merged" | "candidate">,
   ) => void;
@@ -82,7 +85,9 @@ describe("useTopicBranchBoard", () => {
       );
     });
 
-    const current = snapshot?.branchItems.find((item: { id: string }) => item.id === "topic-a");
+    const current = snapshot?.branchItems.find(
+      (item: { id: string }) => item.id === "topic-a",
+    );
     expect(current?.status).toBe("in_progress");
   });
 
@@ -110,7 +115,9 @@ describe("useTopicBranchBoard", () => {
       snapshot?.setTopicStatus("topic-b", "merged");
     });
 
-    const merged = snapshot?.branchItems.find((item: { id: string }) => item.id === "topic-b");
+    const merged = snapshot?.branchItems.find(
+      (item: { id: string }) => item.id === "topic-b",
+    );
     expect(merged?.status).toBe("merged");
   });
 
@@ -142,15 +149,22 @@ describe("useTopicBranchBoard", () => {
       );
     });
 
-    const current = snapshot?.branchItems.find((item: { id: string }) => item.id === "topic-a");
-    const merged = snapshot?.branchItems.find((item: { id: string }) => item.id === "topic-b");
+    const current = snapshot?.branchItems.find(
+      (item: { id: string }) => item.id === "topic-a",
+    );
+    const merged = snapshot?.branchItems.find(
+      (item: { id: string }) => item.id === "topic-b",
+    );
     expect(current?.status).toBe("in_progress");
     expect(merged?.status).toBe("merged");
   });
 
   it("外部托管模式应回调状态变更", async () => {
     let snapshot = null as ReturnType<typeof useTopicBranchBoard> | null;
-    let controlledMap: Record<string, "in_progress" | "pending" | "merged" | "candidate"> = {
+    let controlledMap: Record<
+      string,
+      "in_progress" | "pending" | "merged" | "candidate"
+    > = {
       "topic-a": "in_progress",
       "topic-b": "candidate",
     };

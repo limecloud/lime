@@ -71,10 +71,7 @@ function hasSameTrailingSegments(left: string[], right: string[]): boolean {
   return minLength > 0;
 }
 
-function appendArtifactProtocolPath(
-  paths: Set<string>,
-  value: unknown,
-): void {
+function appendArtifactProtocolPath(paths: Set<string>, value: unknown): void {
   const normalized = normalizeText(value);
   if (!normalized) {
     return;
@@ -86,10 +83,7 @@ function appendArtifactProtocolPath(
   }
 }
 
-function appendArtifactProtocolPaths(
-  paths: Set<string>,
-  value: unknown,
-): void {
+function appendArtifactProtocolPaths(paths: Set<string>, value: unknown): void {
   if (!Array.isArray(value)) {
     appendArtifactProtocolPath(paths, value);
     return;
@@ -194,17 +188,18 @@ export function extractArtifactProtocolPathsFromValue(
   return Array.from(paths);
 }
 
-export function normalizeArtifactProtocolPath(
-  value?: string | null,
-): string {
-  return typeof value === "string" ? splitArtifactProtocolPath(value).normalized : "";
+export function normalizeArtifactProtocolPath(value?: string | null): string {
+  return typeof value === "string"
+    ? splitArtifactProtocolPath(value).normalized
+    : "";
 }
 
 export function areArtifactProtocolPathsEquivalent(
   left?: string | null,
   right?: string | null,
 ): boolean {
-  const leftPath = typeof left === "string" ? splitArtifactProtocolPath(left) : null;
+  const leftPath =
+    typeof left === "string" ? splitArtifactProtocolPath(left) : null;
   const rightPath =
     typeof right === "string" ? splitArtifactProtocolPath(right) : null;
 
@@ -223,7 +218,9 @@ export function areArtifactProtocolPathsEquivalent(
 
   if (
     leftPath.segments.length === rightPath.segments.length &&
-    leftPath.segments.every((segment, index) => segment === rightPath.segments[index])
+    leftPath.segments.every(
+      (segment, index) => segment === rightPath.segments[index],
+    )
   ) {
     return true;
   }
@@ -245,9 +242,7 @@ export function areArtifactProtocolPathsEquivalent(
   return false;
 }
 
-export function isArtifactProtocolImagePath(
-  value?: string | null,
-): boolean {
+export function isArtifactProtocolImagePath(value?: string | null): boolean {
   const normalized = normalizeArtifactProtocolPath(value);
   if (!normalized) {
     return false;

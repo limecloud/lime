@@ -24,9 +24,9 @@ describe("crashReporting sanitizeCrashValue", () => {
     expect(String(sanitized.authorization)).toContain("Bearer ***");
     expect(String(sanitized.apiKey)).toContain("api_key=***");
     expect(String(sanitized.token)).toContain("refresh_token=***");
-    expect(String((sanitized.nested as Record<string, unknown>).message)).toContain(
-      "access_token=***",
-    );
+    expect(
+      String((sanitized.nested as Record<string, unknown>).message),
+    ).toContain("access_token=***");
   });
 
   it("应保留数字和布尔值结构", () => {

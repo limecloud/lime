@@ -251,9 +251,7 @@ function parseBrowserConnectorDeepLink(
  *
  * @returns Hook 返回值
  */
-export function useDeepLink(
-  options?: UseDeepLinkOptions,
-): UseDeepLinkReturn {
+export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
   const onOpenBrowserConnectorSettings =
     options?.onOpenBrowserConnectorSettings;
 

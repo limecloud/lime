@@ -1,11 +1,4 @@
-import {
-  Suspense,
-  lazy,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import {
   Film,
   Image as ImageIcon,
@@ -61,8 +54,7 @@ const MEDIA_SERVICE_TABS: MediaServiceTabMeta[] = [
     panelDescription:
       "适合统一新项目的出图入口、常用模型和默认质量参数，避免重复在项目里逐个配置。",
     badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    accentClassName:
-      "from-emerald-200/65 via-white to-sky-50/70",
+    accentClassName: "from-emerald-200/65 via-white to-sky-50/70",
     iconClassName: "border-emerald-200 bg-emerald-100 text-emerald-700",
     icon: ImageIcon,
   },
@@ -75,8 +67,7 @@ const MEDIA_SERVICE_TABS: MediaServiceTabMeta[] = [
     panelDescription:
       "视频能力通常依赖更少但更重的服务源，把默认策略放在一起更便于维护和排障。",
     badgeClassName: "border-sky-200 bg-sky-50 text-sky-700",
-    accentClassName:
-      "from-sky-200/60 via-white to-slate-50/90",
+    accentClassName: "from-sky-200/60 via-white to-slate-50/90",
     iconClassName: "border-sky-200 bg-sky-100 text-sky-700",
     icon: Film,
   },
@@ -89,8 +80,7 @@ const MEDIA_SERVICE_TABS: MediaServiceTabMeta[] = [
     panelDescription:
       "把配音、识别和基础语音交互放在同一页签内，可以更快判断当前语音链路是否完整。",
     badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
-    accentClassName:
-      "from-amber-200/65 via-white to-rose-50/60",
+    accentClassName: "from-amber-200/65 via-white to-rose-50/60",
     iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
     icon: Mic,
   },
@@ -120,11 +110,7 @@ function renderSectionContent(section: MediaServicesSection) {
   }
 }
 
-function MediaServiceContentFallback({
-  label,
-}: {
-  label: string;
-}) {
+function MediaServiceContentFallback({ label }: { label: string }) {
   return (
     <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/70 p-4 text-sm leading-6 text-slate-500">
       正在加载{label}配置...
@@ -154,10 +140,7 @@ export function MediaServicesSettings({
     });
   };
 
-  const activeMeta = useMemo(
-    () => getTabMeta(activeSection),
-    [activeSection],
-  );
+  const activeMeta = useMemo(() => getTabMeta(activeSection), [activeSection]);
   const ActiveIcon = activeMeta.icon;
 
   return (
@@ -226,17 +209,17 @@ export function MediaServicesSettings({
                 </div>
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                        {activeMeta.panelTitle}
-                      </h2>
-                      <WorkbenchInfoTip
-                        ariaLabel={`${activeMeta.panelTitle}说明`}
-                        content={activeMeta.panelDescription}
-                        tone="slate"
-                      />
-                      <span
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                    <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                      {activeMeta.panelTitle}
+                    </h2>
+                    <WorkbenchInfoTip
+                      ariaLabel={`${activeMeta.panelTitle}说明`}
+                      content={activeMeta.panelDescription}
+                      tone="slate"
+                    />
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-[11px] font-medium",
                         activeMeta.badgeClassName,
                       )}
                     >
@@ -309,7 +292,9 @@ export function MediaServicesSettings({
                         <ItemIcon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold">{item.label}</div>
+                        <div className="text-sm font-semibold">
+                          {item.label}
+                        </div>
                         <div className="mt-1 text-xs leading-5 text-slate-500">
                           {item.caption}
                         </div>

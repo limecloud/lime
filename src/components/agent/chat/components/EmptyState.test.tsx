@@ -284,12 +284,7 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    const expectedLabels = [
-      "技能",
-      "自动化",
-      "多代理",
-      "浏览器接入",
-    ];
+    const expectedLabels = ["技能", "自动化", "多代理", "浏览器接入"];
     const expectedAlts = [
       "技能能力卡占位图",
       "自动化能力卡占位图",
@@ -745,7 +740,7 @@ describe("EmptyState", () => {
           executionStrategy?: "react" | "code_orchestrated" | "auto",
           images?: unknown[],
         ) => void
-    >();
+      >();
     const container = renderEmptyState({
       input: "请输出一篇用户访谈纪要",
       activeTheme: "general",
@@ -826,9 +821,8 @@ describe("EmptyState", () => {
   it("通用主题工具栏应包含附件、思考、Plan 与多代理开关", async () => {
     const onThinkingEnabledChange = vi.fn<(enabled: boolean) => void>();
     const onSubagentEnabledChange = vi.fn<(enabled: boolean) => void>();
-    const setExecutionStrategy = vi.fn<
-      (strategy: "react" | "code_orchestrated" | "auto") => void
-    >();
+    const setExecutionStrategy =
+      vi.fn<(strategy: "react" | "code_orchestrated" | "auto") => void>();
     const container = renderEmptyState({
       activeTheme: "general",
       thinkingEnabled: false,
@@ -896,5 +890,4 @@ describe("EmptyState", () => {
 
     expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
   });
-
 });

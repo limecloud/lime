@@ -31,9 +31,10 @@ vi.mock("@/hooks/useProjects", () => ({
 }));
 
 vi.mock("@/lib/api/project", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api/project")>(
-    "@/lib/api/project",
-  );
+  const actual =
+    await vi.importActual<typeof import("@/lib/api/project")>(
+      "@/lib/api/project",
+    );
 
   return {
     ...actual,
@@ -98,7 +99,9 @@ vi.mock("@/components/ui/input", () => ({
 }));
 
 vi.mock("@/components/ui/popover", () => ({
-  Popover: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Popover: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   PopoverContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -114,13 +117,8 @@ vi.mock("@/components/ui/scroll-area", () => ({
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({
-    open,
-    children,
-  }: {
-    open: boolean;
-    children: React.ReactNode;
-  }) => (open ? <div>{children}</div> : null),
+  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div>{children}</div> : null,
   DialogContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -216,11 +214,9 @@ function findButton(
   container: HTMLElement,
   text: string,
 ): HTMLButtonElement | null {
-  return (
-    Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes(text),
-    ) || null
-  ) as HTMLButtonElement | null;
+  return (Array.from(container.querySelectorAll("button")).find((button) =>
+    button.textContent?.includes(text),
+  ) || null) as HTMLButtonElement | null;
 }
 
 async function flushAsync() {

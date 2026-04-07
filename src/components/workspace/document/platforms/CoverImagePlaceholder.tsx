@@ -136,7 +136,12 @@ export const CoverImagePlaceholder: React.FC<CoverImagePlaceholderProps> = memo(
           alt={alt || "封面图"}
           className={className}
           onError={() => setFailed(true)}
-          style={{ display: "block", maxWidth: "100%", margin: "1.5em auto", borderRadius: 8 }}
+          style={{
+            display: "block",
+            maxWidth: "100%",
+            margin: "1.5em auto",
+            borderRadius: 8,
+          }}
         />
       );
     }

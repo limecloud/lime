@@ -24,9 +24,7 @@ import type {
   ArtifactSetMetaOperation,
   ArtifactUpsertBlockOperation,
 } from "./types";
-import {
-  parseArtifactDocumentValue,
-} from "./parser";
+import { parseArtifactDocumentValue } from "./parser";
 
 const ARTIFACT_OPERATION_NAMES = new Set<ArtifactDocumentOperationName>([
   "artifact.create",
@@ -39,15 +37,16 @@ const ARTIFACT_OPERATION_NAMES = new Set<ArtifactDocumentOperationName>([
   "artifact.fail",
 ]);
 
-const ARTIFACT_INCREMENTAL_ENVELOPE_TYPES = new Set<ArtifactDocumentIncrementalEnvelopeType>([
-  "artifact.begin",
-  "artifact.meta.patch",
-  "artifact.source.upsert",
-  "artifact.block.upsert",
-  "artifact.block.remove",
-  "artifact.complete",
-  "artifact.fail",
-]);
+const ARTIFACT_INCREMENTAL_ENVELOPE_TYPES =
+  new Set<ArtifactDocumentIncrementalEnvelopeType>([
+    "artifact.begin",
+    "artifact.meta.patch",
+    "artifact.source.upsert",
+    "artifact.block.upsert",
+    "artifact.block.remove",
+    "artifact.complete",
+    "artifact.fail",
+  ]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -81,7 +80,9 @@ function normalizeSourceValue(value: unknown): ArtifactDocumentSource | null {
   return source as ArtifactDocumentSource;
 }
 
-function normalizeSourceArray(value: unknown): ArtifactDocumentSource[] | undefined {
+function normalizeSourceArray(
+  value: unknown,
+): ArtifactDocumentSource[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -118,15 +119,15 @@ function stripOptionalJsonFence(raw: string): string {
   return lines.slice(1, -1).join("\n").trim();
 }
 
-function normalizeOperation(
-  value: unknown,
-): ArtifactDocumentOperation | null {
+function normalizeOperation(value: unknown): ArtifactDocumentOperation | null {
   const record = asRecord(value);
   if (!record) {
     return null;
   }
 
-  const op = normalizeText(record.op) as ArtifactDocumentOperationName | undefined;
+  const op = normalizeText(record.op) as
+    | ArtifactDocumentOperationName
+    | undefined;
   if (!op || !ARTIFACT_OPERATION_NAMES.has(op)) {
     return null;
   }
@@ -138,14 +139,27 @@ function normalizeOperation(
         ...(parseArtifactDocumentValue(record.document)
           ? { document: parseArtifactDocumentValue(record.document)! }
           : asRecord(record.document)
-            ? { document: record.document as ArtifactCreateOperation["document"] }
+            ? {
+                document:
+                  record.document as ArtifactCreateOperation["document"],
+              }
             : {}),
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
         ...(normalizeText(record.kind)
-          ? { kind: normalizeText(record.kind) as ArtifactCreateOperation["kind"] }
+          ? {
+              kind: normalizeText(
+                record.kind,
+              ) as ArtifactCreateOperation["kind"],
+            }
           : {}),
         ...(normalizeText(record.status)
-          ? { status: normalizeText(record.status) as ArtifactCreateOperation["status"] }
+          ? {
+              status: normalizeText(
+                record.status,
+              ) as ArtifactCreateOperation["status"],
+            }
           : {}),
         ...(normalizeText(record.summary)
           ? { summary: normalizeText(record.summary) }
@@ -157,12 +171,22 @@ function normalizeOperation(
     case "artifact.set_meta":
       return {
         op,
-        ...(normalizeText(record.title) ? { title: normalizeText(record.title) } : {}),
+        ...(normalizeText(record.title)
+          ? { title: normalizeText(record.title) }
+          : {}),
         ...(normalizeText(record.kind)
-          ? { kind: normalizeText(record.kind) as ArtifactSetMetaOperation["kind"] }
+          ? {
+              kind: normalizeText(
+                record.kind,
+              ) as ArtifactSetMetaOperation["kind"],
+            }
           : {}),
         ...(normalizeText(record.status)
-          ? { status: normalizeText(record.status) as ArtifactSetMetaOperation["status"] }
+          ? {
+              status: normalizeText(
+                record.status,
+              ) as ArtifactSetMetaOperation["status"],
+            }
           : {}),
         ...(normalizeText(record.summary)
           ? { summary: normalizeText(record.summary) }
@@ -218,7 +242,10 @@ function normalizeOperation(
         blockId,
         source: source as ArtifactAttachSourceOperation["source"],
         ...(asRecord(record.sourceLink)
-          ? { sourceLink: record.sourceLink as ArtifactAttachSourceOperation["sourceLink"] }
+          ? {
+              sourceLink:
+                record.sourceLink as ArtifactAttachSourceOperation["sourceLink"],
+            }
           : {}),
       };
     }
@@ -229,7 +256,11 @@ function normalizeOperation(
           ? { summary: normalizeText(record.summary) }
           : {}),
         ...(normalizeText(record.status)
-          ? { status: normalizeText(record.status) as ArtifactFinalizeVersionOperation["status"] }
+          ? {
+              status: normalizeText(
+                record.status,
+              ) as ArtifactFinalizeVersionOperation["status"],
+            }
           : {}),
       };
     case "artifact.fail": {
@@ -329,7 +360,9 @@ function normalizeIncrementalEnvelope(
       return {
         type,
         artifactId,
-        ...(normalizeText(record.summary) ? { summary: normalizeText(record.summary) } : {}),
+        ...(normalizeText(record.summary)
+          ? { summary: normalizeText(record.summary) }
+          : {}),
       } satisfies ArtifactCompleteEnvelope;
     case "artifact.fail": {
       const reason = normalizeText(record.reason);
@@ -386,12 +419,16 @@ export function parseArtifactRewritePatchValue(
     block,
     ...(source ? { source } : {}),
     ...(sources ? { sources } : {}),
-    ...(normalizeText(record.summary) ? { summary: normalizeText(record.summary) } : {}),
+    ...(normalizeText(record.summary)
+      ? { summary: normalizeText(record.summary) }
+      : {}),
     ...(status ? { status } : {}),
   };
 }
 
-export function parseArtifactOpsValue(value: unknown): ArtifactOpsEnvelope | null {
+export function parseArtifactOpsValue(
+  value: unknown,
+): ArtifactOpsEnvelope | null {
   const record = asRecord(value);
   if (!record) {
     return null;
@@ -436,7 +473,9 @@ export function parseArtifactOperationCandidateValue(
   );
 }
 
-export function parseArtifactOpsString(raw: string): ArtifactOpsEnvelope | null {
+export function parseArtifactOpsString(
+  raw: string,
+): ArtifactOpsEnvelope | null {
   const normalized = stripOptionalJsonFence(raw);
   if (!normalized) {
     return null;

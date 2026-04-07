@@ -7,7 +7,10 @@ import {
 } from "./promptComposer";
 
 export function isServiceSkillSiteCapabilityBound(
-  skill: Pick<ServiceSkillItem, "defaultExecutorBinding" | "siteCapabilityBinding">,
+  skill: Pick<
+    ServiceSkillItem,
+    "defaultExecutorBinding" | "siteCapabilityBinding"
+  >,
 ): skill is Pick<
   ServiceSkillItem,
   "defaultExecutorBinding" | "siteCapabilityBinding"
@@ -73,16 +76,18 @@ export function buildSiteLaunchBlockedMessage(
       : launchReadiness.report_hint?.trim()
     : undefined;
 
-  return (
-    [message, reportHint, "请先在浏览器工作台完成连接、登录或授权后再重试。"]
-      .filter((item, index, items): item is string => {
-        if (!item) {
-          return false;
-        }
-        return items.indexOf(item) === index;
-      })
-      .join(" ")
-  );
+  return [
+    message,
+    reportHint,
+    "请先在浏览器工作台完成连接、登录或授权后再重试。",
+  ]
+    .filter((item, index, items): item is string => {
+      if (!item) {
+        return false;
+      }
+      return items.indexOf(item) === index;
+    })
+    .join(" ");
 }
 
 const SITE_LABELS: Record<string, string> = {
@@ -181,7 +186,9 @@ function buildSiteSkillPrimarySentence(
   skill: ServiceSkillItem,
   args: Record<string, unknown>,
 ): string {
-  const adapterName = normalizeAdapterName(skill.siteCapabilityBinding?.adapterName ?? "");
+  const adapterName = normalizeAdapterName(
+    skill.siteCapabilityBinding?.adapterName ?? "",
+  );
   const query = readStringArg(args, "query");
   const repo = readStringArg(args, "repo");
   const symbol = readStringArg(args, "symbol");
@@ -193,7 +200,9 @@ function buildSiteSkillPrimarySentence(
         ? `你帮我在 GitHub 找一下和${quoteNaturalValue(query)}相关的项目`
         : "你帮我在 GitHub 找一些值得关注的项目";
     case "github/issues": {
-      const stateLabel = resolveGithubIssuesStateLabel(readStringArg(args, "state"));
+      const stateLabel = resolveGithubIssuesStateLabel(
+        readStringArg(args, "state"),
+      );
       if (repo && query && stateLabel) {
         return `你帮我看一下 GitHub 上 ${repo} 仓库里 ${stateLabel}、和${quoteNaturalValue(query)}相关的 issue`;
       }
@@ -272,7 +281,10 @@ export function buildServiceSkillNaturalLaunchMessage(input: {
   );
   const normalizedUserInput = normalizeNaturalText(userInput);
 
-  if (!normalizedUserInput || isGenericContinuationUserInput(normalizedUserInput)) {
+  if (
+    !normalizedUserInput ||
+    isGenericContinuationUserInput(normalizedUserInput)
+  ) {
     return primarySentence;
   }
 
@@ -353,10 +365,13 @@ export function buildServiceSkillClawLaunchContext(
 export function buildServiceSkillClawLaunchRequestMetadata(
   context: ServiceSkillClawLaunchContext,
 ): Record<string, unknown> {
-  const readyLaunchReadiness = isSiteLaunchReadinessReady(context.launchReadiness)
+  const readyLaunchReadiness = isSiteLaunchReadinessReady(
+    context.launchReadiness,
+  )
     ? context.launchReadiness
     : undefined;
-  const attachedProfileKey = readyLaunchReadiness?.profileKey?.trim() || undefined;
+  const attachedProfileKey =
+    readyLaunchReadiness?.profileKey?.trim() || undefined;
   const browserRequirementReason =
     context.launchReadiness?.message ||
     "当前任务要求优先复用已连接的浏览器上下文执行站点技能，不应回退到 WebSearch。";
@@ -449,7 +464,9 @@ export function buildServiceSkillSiteCapabilitySaveTitle(
         case "skill.title":
           return normalizeTemplateSegment(skill.title);
         case "adapter.name":
-          return normalizeTemplateSegment(skill.siteCapabilityBinding.adapterName);
+          return normalizeTemplateSegment(
+            skill.siteCapabilityBinding.adapterName,
+          );
         default:
           return normalizeTemplateSegment(slotValueMap[rawToken]);
       }

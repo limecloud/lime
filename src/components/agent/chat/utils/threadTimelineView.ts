@@ -122,7 +122,10 @@ function isSubstantiveAssistantMessage(message: Message): boolean {
     return true;
   }
 
-  if (!Array.isArray(message.contentParts) || message.contentParts.length === 0) {
+  if (
+    !Array.isArray(message.contentParts) ||
+    message.contentParts.length === 0
+  ) {
     return false;
   }
 
@@ -157,7 +160,9 @@ function pickClosestAssistantMessage(
   }
 
   let bestDistance =
-    best.timestampMs === null ? Number.POSITIVE_INFINITY : Math.abs(best.timestampMs - targetMs);
+    best.timestampMs === null
+      ? Number.POSITIVE_INFINITY
+      : Math.abs(best.timestampMs - targetMs);
 
   for (const assistant of assistants.slice(1)) {
     const distance =
@@ -215,7 +220,9 @@ export function buildMessageTurnTimeline(
   turns: AgentThreadTurn[],
   items: AgentThreadItem[],
 ): Map<string, MessageTurnTimeline> {
-  const assistantMessages = messages.filter((message) => message.role === "assistant");
+  const assistantMessages = messages.filter(
+    (message) => message.role === "assistant",
+  );
   if (assistantMessages.length === 0 || turns.length === 0) {
     return new Map();
   }
@@ -262,18 +269,23 @@ export function buildMessageTurnTimeline(
       if (turnStartMs !== null && assistant.timestampMs < turnStartMs) {
         return false;
       }
-      if (nextTurnStartMs !== null && assistant.timestampMs >= nextTurnStartMs) {
+      if (
+        nextTurnStartMs !== null &&
+        assistant.timestampMs >= nextTurnStartMs
+      ) {
         return false;
       }
       return true;
     });
 
-    const assistantsAfterTurnStart = unassignedAssistants.filter((assistant) => {
-      if (assistant.timestampMs === null || turnStartMs === null) {
-        return true;
-      }
-      return assistant.timestampMs >= turnStartMs;
-    });
+    const assistantsAfterTurnStart = unassignedAssistants.filter(
+      (assistant) => {
+        if (assistant.timestampMs === null || turnStartMs === null) {
+          return true;
+        }
+        return assistant.timestampMs >= turnStartMs;
+      },
+    );
 
     const assistantMessage =
       pickClosestAssistantMessage(assistantsInTurnWindow, turnTargetMs) ||

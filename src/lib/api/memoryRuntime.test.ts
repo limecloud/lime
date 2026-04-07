@@ -68,26 +68,38 @@ describe("memoryRuntime API", () => {
     await expect(getContextMemoryAutoIndex()).resolves.toEqual(
       expect.objectContaining({ items: [] }),
     );
-    await expect(scaffoldRuntimeAgentsTemplate("workspace", "/tmp/workspace")).resolves.toEqual(
-      expect.objectContaining({ status: "created" }),
-    );
-    await expect(ensureWorkspaceLocalAgentsGitignore("/tmp/workspace")).resolves.toEqual(
-      expect.objectContaining({ status: "added" }),
-    );
+    await expect(
+      scaffoldRuntimeAgentsTemplate("workspace", "/tmp/workspace"),
+    ).resolves.toEqual(expect.objectContaining({ status: "created" }));
+    await expect(
+      ensureWorkspaceLocalAgentsGitignore("/tmp/workspace"),
+    ).resolves.toEqual(expect.objectContaining({ status: "added" }));
 
     expect(safeInvoke).toHaveBeenNthCalledWith(1, "memory_runtime_get_stats");
-    expect(safeInvoke).toHaveBeenNthCalledWith(2, "memory_runtime_request_analysis", {
-      fromTimestamp: undefined,
-      toTimestamp: undefined,
-    });
+    expect(safeInvoke).toHaveBeenNthCalledWith(
+      2,
+      "memory_runtime_request_analysis",
+      {
+        fromTimestamp: undefined,
+        toTimestamp: undefined,
+      },
+    );
     expect(safeInvoke).toHaveBeenNthCalledWith(3, "memory_runtime_cleanup");
-    expect(safeInvoke).toHaveBeenNthCalledWith(4, "memory_runtime_get_overview", {
-      limit: 200,
-    });
-    expect(safeInvoke).toHaveBeenNthCalledWith(5, "memory_get_effective_sources", {
-      activeRelativePath: undefined,
-      workingDir: undefined,
-    });
+    expect(safeInvoke).toHaveBeenNthCalledWith(
+      4,
+      "memory_runtime_get_overview",
+      {
+        limit: 200,
+      },
+    );
+    expect(safeInvoke).toHaveBeenNthCalledWith(
+      5,
+      "memory_get_effective_sources",
+      {
+        activeRelativePath: undefined,
+        workingDir: undefined,
+      },
+    );
     expect(safeInvoke).toHaveBeenNthCalledWith(6, "memory_get_auto_index", {
       workingDir: undefined,
     });
@@ -164,9 +176,9 @@ describe("memoryRuntime API", () => {
     await expect(scaffoldRuntimeAgentsTemplate("global")).resolves.toEqual(
       expect.objectContaining({ status: "exists" }),
     );
-    await expect(ensureWorkspaceLocalAgentsGitignore("/tmp/workspace")).resolves.toEqual(
-      expect.objectContaining({ status: "exists" }),
-    );
+    await expect(
+      ensureWorkspaceLocalAgentsGitignore("/tmp/workspace"),
+    ).resolves.toEqual(expect.objectContaining({ status: "exists" }));
   });
 
   it("应代理 context memory 自动记忆开关与写入命令", async () => {

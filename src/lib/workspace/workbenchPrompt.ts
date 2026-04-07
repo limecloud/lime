@@ -4,8 +4,6 @@
  * @module lib/workspace/workbenchPrompt
  */
 
-export {
-  generateGeneralWorkbenchPrompt,
-} from "@/lib/workspace/systemPrompt";
+export { generateGeneralWorkbenchPrompt } from "@/lib/workspace/systemPrompt";
 
 export { generateProjectMemoryPrompt } from "@/lib/workspace/projectPrompt";

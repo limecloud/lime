@@ -48,7 +48,9 @@ function isStaticChildList(children: ChildList): children is string[] {
   return Array.isArray(children);
 }
 
-function isFieldComponent(component: A2UIComponent): component is PromptFieldComponent {
+function isFieldComponent(
+  component: A2UIComponent,
+): component is PromptFieldComponent {
   return (
     component.component === "TextField" ||
     component.component === "ChoicePicker" ||
@@ -63,9 +65,7 @@ function isCompactField(component: PromptFieldComponent): boolean {
     case "TextField":
       return component.variant !== "longText";
     case "ChoicePicker":
-      return (
-        component.layout === "wrap" || component.layout === "horizontal"
-      );
+      return component.layout === "wrap" || component.layout === "horizontal";
     case "CheckBox":
     case "Slider":
     case "DateTimeInput":
@@ -169,7 +169,9 @@ function extractPromptStructure(response: A2UIResponse): {
   };
 }
 
-function buildStepDefinitions(fields: FieldDescriptor[]): ProgressiveA2UIStepDefinition[] {
+function buildStepDefinitions(
+  fields: FieldDescriptor[],
+): ProgressiveA2UIStepDefinition[] {
   const steps: ProgressiveA2UIStepDefinition[] = [];
   let currentFields: FieldDescriptor[] = [];
   let currentBudget = 0;
@@ -206,7 +208,9 @@ function buildStepDefinitions(fields: FieldDescriptor[]): ProgressiveA2UIStepDef
   return steps;
 }
 
-function cloneFieldComponent(component: PromptFieldComponent): PromptFieldComponent {
+function cloneFieldComponent(
+  component: PromptFieldComponent,
+): PromptFieldComponent {
   if (component.component === "ChoicePicker") {
     return {
       ...component,
@@ -355,13 +359,17 @@ export function buildProgressiveA2UIStepForm(
     childIds.push(sectionId);
   }
 
-  const clonedFields = step.fields.map((field) => cloneFieldComponent(field.component));
+  const clonedFields = step.fields.map((field) =>
+    cloneFieldComponent(field.component),
+  );
   components.push(...clonedFields);
 
   if (
     clonedFields.length === 2 &&
     step.fields.every((field) => field.isCompact) &&
-    step.fields.every((field) => field.sectionTitle === step.fields[0]?.sectionTitle)
+    step.fields.every(
+      (field) => field.sectionTitle === step.fields[0]?.sectionTitle,
+    )
   ) {
     const rowId = `${baseId}_row`;
     components.push({

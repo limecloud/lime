@@ -63,7 +63,10 @@ function shouldSkipGeneralArtifactWrite(params: {
   );
 }
 
-function isContentPostDocumentFile(fileName: string, fileType: string): boolean {
+function isContentPostDocumentFile(
+  fileName: string,
+  fileType: string,
+): boolean {
   return fileType === "document" && /^content-posts\/.+\.md$/i.test(fileName);
 }
 
@@ -238,7 +241,8 @@ export function useWorkspaceWriteFileAction({
                   (nextContent.length > 0 ? "complete" : "pending"),
               },
             });
-        const shouldKeepInBackground = shouldBackgroundGeneralArtifactWrite(context);
+        const shouldKeepInBackground =
+          shouldBackgroundGeneralArtifactWrite(context);
 
         if (
           shouldSkipGeneralArtifactWrite({
@@ -310,7 +314,8 @@ export function useWorkspaceWriteFileAction({
           ? currentGateKey
           : undefined;
       const isPrimaryArtifact =
-        !isThemeWorkbench || isGeneralWorkbenchPrimaryDocumentArtifact(fileName);
+        !isThemeWorkbench ||
+        isGeneralWorkbenchPrimaryDocumentArtifact(fileName);
       const shouldApplyToMainDocument =
         nextFileType === "document" &&
         isPrimaryArtifact &&
@@ -328,21 +333,20 @@ export function useWorkspaceWriteFileAction({
       });
       const themeWorkbenchDocumentStage =
         resolveThemeWorkbenchDocumentStage(socialGateKey);
-      const baseVersionMetadata =
-        shouldApplyToMainDocument
-          ? {
-              sourceFileName: fileName,
-              gateKey: socialGateKey,
-              runId: activeRunVersionId || undefined,
-              correlationId:
-                effectiveDocumentVersionId || activeRunVersionId || undefined,
-              artifactType: isContentPostDocumentFile(fileName, nextFileType)
-                ? "draft"
-                : undefined,
-              stage: themeWorkbenchDocumentStage,
-              versionLabel: effectiveVersionDescription,
-            }
-          : undefined;
+      const baseVersionMetadata = shouldApplyToMainDocument
+        ? {
+            sourceFileName: fileName,
+            gateKey: socialGateKey,
+            runId: activeRunVersionId || undefined,
+            correlationId:
+              effectiveDocumentVersionId || activeRunVersionId || undefined,
+            artifactType: isContentPostDocumentFile(fileName, nextFileType)
+              ? "draft"
+              : undefined,
+            stage: themeWorkbenchDocumentStage,
+            versionLabel: effectiveVersionDescription,
+          }
+        : undefined;
       const existingTaskFile = taskFilesRef.current.find(
         (file) => file.name === fileName,
       );
@@ -430,7 +434,9 @@ export function useWorkspaceWriteFileAction({
           metadata: baseVersionMetadata,
         });
 
-        if (socialStageLogRef.current[stageLogKey] !== effectiveVersionDescription) {
+        if (
+          socialStageLogRef.current[stageLogKey] !== effectiveVersionDescription
+        ) {
           socialStageLogRef.current[stageLogKey] = effectiveVersionDescription;
           activityLogger.log({
             eventType: "step_complete",

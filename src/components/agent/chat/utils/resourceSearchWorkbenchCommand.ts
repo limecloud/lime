@@ -46,7 +46,9 @@ interface ExtractedResourceFields {
   strippedText: string;
 }
 
-function normalizeTrigger(value: string): ResourceSearchWorkbenchCommandTrigger {
+function normalizeTrigger(
+  value: string,
+): ResourceSearchWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
   if (normalized === "@资源") {
     return "@资源";
@@ -72,7 +74,9 @@ function clampCount(value: number | null | undefined): number | undefined {
   return Math.max(1, Math.min(50, Math.trunc(value)));
 }
 
-function normalizeResourceType(value: string | undefined): ResourceSearchType | undefined {
+function normalizeResourceType(
+  value: string | undefined,
+): ResourceSearchType | undefined {
   const normalized = value?.trim().toLowerCase();
   if (!normalized) {
     return undefined;
@@ -123,15 +127,15 @@ function normalizeResourceType(value: string | undefined): ResourceSearchType | 
   return undefined;
 }
 
-function inferResourceTypeFromText(value: string): ResourceSearchType | undefined {
+function inferResourceTypeFromText(
+  value: string,
+): ResourceSearchType | undefined {
   const normalized = value.trim().toLowerCase();
   if (!normalized) {
     return undefined;
   }
 
-  if (
-    /(背景音乐|bgm|音乐\b|music\b)/i.test(normalized)
-  ) {
+  if (/(背景音乐|bgm|音乐\b|music\b)/i.test(normalized)) {
     return "bgm";
   }
   if (/(音效|声效|sfx|sound effect|sound\b)/i.test(normalized)) {
@@ -140,7 +144,9 @@ function inferResourceTypeFromText(value: string): ResourceSearchType | undefine
   if (/(视频素材|视频|video|clip)/i.test(normalized)) {
     return "video";
   }
-  if (/(图片|配图|插画|照片|image|photo|illustration|背景图)/i.test(normalized)) {
+  if (
+    /(图片|配图|插画|照片|image|photo|illustration|背景图)/i.test(normalized)
+  ) {
     return "image";
   }
   return undefined;
@@ -183,7 +189,9 @@ function collectFieldMatches(text: string): ResourceFieldMatch[] {
 
   return baseMatches.map((match, index) => {
     const nextStart =
-      index + 1 < baseMatches.length ? baseMatches[index + 1]!.start : text.length;
+      index + 1 < baseMatches.length
+        ? baseMatches[index + 1]!.start
+        : text.length;
     const remainder = text.slice(match.valueStart, nextStart);
 
     if (match.key === "count") {
@@ -204,7 +212,10 @@ function collectFieldMatches(text: string): ResourceFieldMatch[] {
   });
 }
 
-function stripExplicitFields(text: string, matches: ResourceFieldMatch[]): string {
+function stripExplicitFields(
+  text: string,
+  matches: ResourceFieldMatch[],
+): string {
   if (matches.length === 0) {
     return text;
   }
@@ -271,7 +282,16 @@ function stripLeadingResourceType(
   }
 
   const aliasMap: Record<ResourceSearchType, string[]> = {
-    image: ["图片", "图", "配图", "插画", "照片", "image", "photo", "illustration"],
+    image: [
+      "图片",
+      "图",
+      "配图",
+      "插画",
+      "照片",
+      "image",
+      "photo",
+      "illustration",
+    ],
     bgm: ["背景音乐", "音乐", "bgm", "music"],
     sfx: ["音效", "声效", "sfx", "sound"],
     video: ["视频素材", "视频", "video", "clip"],

@@ -168,7 +168,9 @@ describe("AppearanceSettings", () => {
     expect(text).toContain("左侧边栏导航");
     expect(text).toContain("主导航入口");
     expect(text).toContain("系统入口");
-    expect(text).toContain("核心入口固定显示：新建任务、任务中心、技能、消息渠道、资料库、灵感库");
+    expect(text).toContain(
+      "核心入口固定显示：新建任务、任务中心、技能、消息渠道、资料库、灵感库",
+    );
     expect(text).toContain("推荐行为");
     expect(text).toContain("OpenClaw");
     expect(text).toContain("资料库");
@@ -194,7 +196,8 @@ describe("AppearanceSettings", () => {
 
     expect(savedConfig.navigation.enabled_items).toEqual(["terminal", "tools"]);
     expect(
-      savedConfig.workspace_preferences.media_defaults.voice.preferredProviderId,
+      savedConfig.workspace_preferences.media_defaults.voice
+        .preferredProviderId,
     ).toBe("openai");
   });
 

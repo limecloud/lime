@@ -108,10 +108,7 @@ function resolveDescription(preview: MessageImageWorkbenchPreview): string {
   const statusMessage = preview.statusMessage?.trim();
   if (
     statusMessage &&
-    !(
-      preview.status !== "running" &&
-      isTransitionStatusMessage(statusMessage)
-    )
+    !(preview.status !== "running" && isTransitionStatusMessage(statusMessage))
   ) {
     return statusMessage;
   }
@@ -147,7 +144,9 @@ function resolveDescription(preview: MessageImageWorkbenchPreview): string {
   }
 }
 
-function resolvePlaceholderLabel(preview: MessageImageWorkbenchPreview): string {
+function resolvePlaceholderLabel(
+  preview: MessageImageWorkbenchPreview,
+): string {
   if (preview.status === "failed") {
     return "暂未生成成功";
   }
@@ -174,11 +173,11 @@ function shouldShowSourceFootnote(
 ): boolean {
   return Boolean(
     preview.mode === "edit" ||
-      preview.mode === "variation" ||
-      preview.sourceImageUrl?.trim() ||
-      preview.sourceImagePrompt?.trim() ||
-      preview.sourceImageRef?.trim() ||
-      preview.sourceImageCount,
+    preview.mode === "variation" ||
+    preview.sourceImageUrl?.trim() ||
+    preview.sourceImagePrompt?.trim() ||
+    preview.sourceImageRef?.trim() ||
+    preview.sourceImageCount,
   );
 }
 
@@ -214,7 +213,10 @@ function resolveSourceFootnote(
   return `${resolveSourceLabel(preview.mode)}：${resolveSourceSummary(preview)}`;
 }
 
-function renderPlaceholder(preview: MessageImageWorkbenchPreview, reason: string) {
+function renderPlaceholder(
+  preview: MessageImageWorkbenchPreview,
+  reason: string,
+) {
   return (
     <div className="flex aspect-[16/10] items-center justify-center bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] px-6 text-center">
       <div className="space-y-2">

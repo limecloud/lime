@@ -1,5 +1,9 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { parseAgentEvent, type AgentThreadItem, type AgentThreadTurn } from "@/lib/api/agentProtocol";
+import {
+  parseAgentEvent,
+  type AgentThreadItem,
+  type AgentThreadTurn,
+} from "@/lib/api/agentProtocol";
 import type {
   AsterExecutionStrategy,
   AsterSessionExecutionRuntime,
@@ -144,57 +148,60 @@ export async function registerAgentStreamTurnEventBinding(
     },
   });
 
-  return runtime.listenToTurnEvents(eventName, (event: { payload: unknown }) => {
-    const data = parseAgentEvent(event.payload);
-    if (!data) {
-      return;
-    }
+  return runtime.listenToTurnEvents(
+    eventName,
+    (event: { payload: unknown }) => {
+      const data = parseAgentEvent(event.payload);
+      if (!data) {
+        return;
+      }
 
-    handleTurnStreamEvent({
-      data,
-      requestState,
-      callbacks: {
-        activateStream: () =>
-          callbacks.activateStream(
-            activeSessionId,
-            effectiveWaitingRuntimeStatus,
-          ),
-        isStreamActivated: callbacks.isStreamActivated,
-        clearOptimisticItem: callbacks.clearOptimisticItem,
-        clearOptimisticTurn: callbacks.clearOptimisticTurn,
-        disposeListener: callbacks.disposeListener,
-        removeQueuedDraftMessages: callbacks.removeQueuedDraftMessages,
-        clearActiveStreamIfMatch: callbacks.clearActiveStreamIfMatch,
-        upsertQueuedTurn: callbacks.upsertQueuedTurn,
-        removeQueuedTurnState: callbacks.removeQueuedTurnState,
-        playToolcallSound: sounds.playToolcallSound,
-        playTypewriterSound: sounds.playTypewriterSound,
-        appendThinkingToParts,
-      },
-      observer,
-      eventName,
-      pendingTurnKey,
-      pendingItemKey,
-      assistantMsgId,
-      activeSessionId,
-      resolvedWorkspaceId,
-      effectiveExecutionStrategy,
-      content,
-      runtime,
-      webSearch,
-      warnedKeysRef,
-      actionLoggedKeys,
-      toolLogIdByToolId,
-      toolStartedAtByToolId,
-      toolNameByToolId,
-      onWriteFile,
-      setMessages,
-      setPendingActions,
-      setThreadItems,
-      setThreadTurns,
-      setCurrentTurnId,
-      setExecutionRuntime,
-      setIsSending,
-    });
-  });
+      handleTurnStreamEvent({
+        data,
+        requestState,
+        callbacks: {
+          activateStream: () =>
+            callbacks.activateStream(
+              activeSessionId,
+              effectiveWaitingRuntimeStatus,
+            ),
+          isStreamActivated: callbacks.isStreamActivated,
+          clearOptimisticItem: callbacks.clearOptimisticItem,
+          clearOptimisticTurn: callbacks.clearOptimisticTurn,
+          disposeListener: callbacks.disposeListener,
+          removeQueuedDraftMessages: callbacks.removeQueuedDraftMessages,
+          clearActiveStreamIfMatch: callbacks.clearActiveStreamIfMatch,
+          upsertQueuedTurn: callbacks.upsertQueuedTurn,
+          removeQueuedTurnState: callbacks.removeQueuedTurnState,
+          playToolcallSound: sounds.playToolcallSound,
+          playTypewriterSound: sounds.playTypewriterSound,
+          appendThinkingToParts,
+        },
+        observer,
+        eventName,
+        pendingTurnKey,
+        pendingItemKey,
+        assistantMsgId,
+        activeSessionId,
+        resolvedWorkspaceId,
+        effectiveExecutionStrategy,
+        content,
+        runtime,
+        webSearch,
+        warnedKeysRef,
+        actionLoggedKeys,
+        toolLogIdByToolId,
+        toolStartedAtByToolId,
+        toolNameByToolId,
+        onWriteFile,
+        setMessages,
+        setPendingActions,
+        setThreadItems,
+        setThreadTurns,
+        setCurrentTurnId,
+        setExecutionRuntime,
+        setIsSending,
+      });
+    },
+  );
 }

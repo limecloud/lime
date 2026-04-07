@@ -365,9 +365,7 @@ export function MyGalleryTab({ projectId, onNavigate }: MyGalleryTabProps) {
       contentId: targetContentId,
       canvasType: targetCanvasType,
       anchorHint:
-        targetCanvasType === "video"
-          ? "video_start_frame"
-          : "section_end",
+        targetCanvasType === "video" ? "video_start_frame" : "section_end",
       source: "gallery",
       image: {
         id: material.id,

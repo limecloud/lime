@@ -203,7 +203,10 @@ function buildCompatAskHelperText(hints: string[]): string | undefined {
 
 function normalizeCompatAskQuestionLabel(value: string): string {
   return stripTrailingPunctuation(
-    normalizePlainTextSurface(value).replace(COMPAT_ASK_FOLLOWUP_PREFIX_REGEX, ""),
+    normalizePlainTextSurface(value).replace(
+      COMPAT_ASK_FOLLOWUP_PREFIX_REGEX,
+      "",
+    ),
   );
 }
 
@@ -631,8 +634,9 @@ function parseLegacyQuestionnaire(content: string): {
     if (sectionMatch) {
       currentSection = {
         title:
-          stripTrailingPunctuation(normalizePlainTextSurface(sectionMatch[1])) ||
-          normalizePlainTextSurface(sectionMatch[1]),
+          stripTrailingPunctuation(
+            normalizePlainTextSurface(sectionMatch[1]),
+          ) || normalizePlainTextSurface(sectionMatch[1]),
         questions: [],
       };
       sections.push(currentSection);

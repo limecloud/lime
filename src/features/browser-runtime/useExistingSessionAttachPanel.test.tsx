@@ -30,10 +30,9 @@ const {
 }));
 
 vi.mock("./existingSessionBridgeClient", async () => {
-  const actual =
-    await vi.importActual<typeof import("./existingSessionBridgeClient")>(
-      "./existingSessionBridgeClient",
-    );
+  const actual = await vi.importActual<
+    typeof import("./existingSessionBridgeClient")
+  >("./existingSessionBridgeClient");
   return {
     ...actual,
     loadExistingSessionAttachContext: mockLoadExistingSessionAttachContext,
@@ -129,7 +128,9 @@ function createObserver(
 function createBridgeStatus(
   observerOverrides: Array<Partial<ChromeBridgeObserverSnapshot>> = [],
 ): ChromeBridgeStatusSnapshot {
-  const observers = observerOverrides.map((observer) => createObserver(observer));
+  const observers = observerOverrides.map((observer) =>
+    createObserver(observer),
+  );
   return {
     observer_count: observers.length,
     control_count: 0,
@@ -180,9 +181,7 @@ describe("useExistingSessionAttachPanel", () => {
     cleanupMountedRoots(mountedRoots);
   });
 
-  async function renderHook(
-    props: Omit<HookHarnessProps, "onReady"> = {},
-  ) {
+  async function renderHook(props: Omit<HookHarnessProps, "onReady"> = {}) {
     const mounted = mountHarness(
       HookHarness,
       {
@@ -323,8 +322,11 @@ describe("useExistingSessionAttachPanel", () => {
   });
 
   it("较旧的 read_page 结果不应覆盖较新的切页结果", async () => {
-    const deferredReadPage = createDeferredPromise<ChromeBridgePageInfo | null>();
-    mockReadExistingSessionPage.mockImplementationOnce(() => deferredReadPage.promise);
+    const deferredReadPage =
+      createDeferredPromise<ChromeBridgePageInfo | null>();
+    mockReadExistingSessionPage.mockImplementationOnce(
+      () => deferredReadPage.promise,
+    );
     mockLoadExistingSessionAttachContext
       .mockResolvedValueOnce({
         profile: ATTACH_PROFILE,
@@ -410,7 +412,9 @@ describe("useExistingSessionAttachPanel", () => {
 
     const mounted = await renderHook();
 
-    expect(getPanel().attachProfile?.profile_key).toBe(ATTACH_PROFILE.profile_key);
+    expect(getPanel().attachProfile?.profile_key).toBe(
+      ATTACH_PROFILE.profile_key,
+    );
 
     mockLoadExistingSessionAttachContext.mockImplementationOnce(
       () => deferredContext.promise,
@@ -438,6 +442,8 @@ describe("useExistingSessionAttachPanel", () => {
     });
     await flushEffects();
 
-    expect(getPanel().attachProfile?.profile_key).toBe(MANAGED_PROFILE.profile_key);
+    expect(getPanel().attachProfile?.profile_key).toBe(
+      MANAGED_PROFILE.profile_key,
+    );
   });
 });

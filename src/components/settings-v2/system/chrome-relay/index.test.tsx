@@ -541,7 +541,9 @@ describe("ChromeRelaySettings", () => {
     expect(mockWriteClipboardText.mock.calls[0]?.[0]).toContain(
       '"bridgeKey": "proxy_cast"',
     );
-    expect(container.textContent).toContain("默认浏览器连接器 配置已复制到剪贴板");
+    expect(container.textContent).toContain(
+      "默认浏览器连接器 配置已复制到剪贴板",
+    );
   });
 
   it("点击一键按钮时应启动浏览器协助", async () => {
@@ -643,7 +645,9 @@ describe("ChromeRelaySettings", () => {
     });
 
     expect(mockDisconnectBrowserConnectorSession).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("已断开 1 个扩展观察连接和 1 个控制连接");
+    expect(container.textContent).toContain(
+      "已断开 1 个扩展观察连接和 1 个控制连接",
+    );
   });
 
   it("默认不再展示扩展桥接诊断详情与能力清单", async () => {

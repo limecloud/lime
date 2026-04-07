@@ -2,15 +2,16 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockUseOemCloudAccess, mockFormatOemCloudDateTime } = vi.hoisted(() => ({
-  mockUseOemCloudAccess: vi.fn(),
-  mockFormatOemCloudDateTime: vi.fn((value?: string) => `fmt:${value ?? ""}`),
-}));
+const { mockUseOemCloudAccess, mockFormatOemCloudDateTime } = vi.hoisted(
+  () => ({
+    mockUseOemCloudAccess: vi.fn(),
+    mockFormatOemCloudDateTime: vi.fn((value?: string) => `fmt:${value ?? ""}`),
+  }),
+);
 
 vi.mock("@/hooks/useOemCloudAccess", () => ({
   useOemCloudAccess: () => mockUseOemCloudAccess(),
-  formatOemCloudDateTime: (value?: string) =>
-    mockFormatOemCloudDateTime(value),
+  formatOemCloudDateTime: (value?: string) => mockFormatOemCloudDateTime(value),
 }));
 
 import { UserCenterSessionSettings } from ".";

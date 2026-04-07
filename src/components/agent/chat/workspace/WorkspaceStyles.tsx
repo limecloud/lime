@@ -10,8 +10,8 @@ export const PageContainer = styled.div<{ $compact?: boolean }>`
   width: 100%;
   position: relative;
   min-height: 0;
-  gap: ${({ $compact }) => ($compact ? "8px" : "14px")};
-  padding: ${({ $compact }) => ($compact ? "4px 8px 8px" : "8px 14px 14px")};
+  gap: ${({ $compact }) => ($compact ? "8px" : "20px")};
+  padding: ${({ $compact }) => ($compact ? "4px 10px 10px" : "12px 20px 20px")};
   box-sizing: border-box;
   overflow: hidden;
   isolation: isolate;
@@ -23,15 +23,10 @@ export const PageContainer = styled.div<{ $compact?: boolean }>`
     ),
     radial-gradient(
       circle at 86% 14%,
-      rgba(16, 185, 129, 0.06),
+      rgba(16, 185, 129, 0.04),
       transparent 28%
     ),
-    radial-gradient(
-      circle at 72% 84%,
-      rgba(245, 158, 11, 0.04),
-      transparent 24%
-    ),
-    linear-gradient(180deg, #f8fafc 0%, #f8fafc 44%, #f3f8f5 100%);
+    linear-gradient(180deg, #f8fcf9 0%, #f8fcf9 44%, #f3f8f5 100%);
 
   > * {
     position: relative;
@@ -47,13 +42,9 @@ export const MainArea = styled.div<{ $compact?: boolean }>`
   min-height: 0;
   overflow: hidden;
   position: relative;
-  border: 1px solid rgba(226, 232, 240, 0.88);
-  border-radius: ${({ $compact }) => ($compact ? "24px" : "32px")};
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  box-shadow:
-    0 24px 72px -36px rgba(15, 23, 42, 0.18),
-    0 16px 28px -24px rgba(15, 23, 42, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.76);
+  background: transparent;
+  border: none;
+  box-shadow: none;
 `;
 
 function resolveContentSyncTone(status: SyncStatus): {

@@ -75,7 +75,8 @@ function buildCloudCatalog(): SkillCatalog {
         ...seeded.items[1]!,
         id: "cloud-video-dubbing",
         title: "云端视频配音",
-        summary: "把参考视频与文案提交到 OEM 云端执行，并把结果回流到本地工作区。",
+        summary:
+          "把参考视频与文案提交到 OEM 云端执行，并把结果回流到本地工作区。",
         executionLocation: "cloud_required",
         defaultExecutorBinding: "cloud_scene",
         themeTarget: "general",
@@ -268,9 +269,7 @@ describe("useServiceSkills", () => {
       await flushEffects();
 
       expect(harness.getValue().skills.length).toBeGreaterThanOrEqual(2);
-      expect(
-        harness.getValue().skills.map((skill) => skill.id),
-      ).toEqual(
+      expect(harness.getValue().skills.map((skill) => skill.id)).toEqual(
         expect.arrayContaining([
           "tenant-daily-briefing",
           "local-playbook-template",
@@ -329,7 +328,9 @@ describe("useServiceSkills", () => {
         }),
       );
       expect(
-        harness.getValue().skills.some((skill) => skill.id === "legacy-site-skill"),
+        harness
+          .getValue()
+          .skills.some((skill) => skill.id === "legacy-site-skill"),
       ).toBe(false);
       expect(harness.getValue().groups.map((group) => group.key)).toEqual([
         "general",
@@ -389,9 +390,7 @@ describe("useServiceSkills", () => {
 
       expect(harness.getValue().skills.length).toBeGreaterThanOrEqual(2);
       expect(harness.getValue().skills[0]?.id).toBe("tenant-daily-briefing");
-      expect(
-        harness.getValue().skills.map((skill) => skill.id),
-      ).toEqual(
+      expect(harness.getValue().skills.map((skill) => skill.id)).toEqual(
         expect.arrayContaining([
           "tenant-daily-briefing",
           "local-playbook-template",

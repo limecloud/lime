@@ -171,9 +171,8 @@ export function RecentImageInsertFloating({
   onNavigate,
 }: RecentImageInsertFloatingProps) {
   const [open, setOpen] = useState(false);
-  const [history, setHistory] = useState<CanvasImageInsertHistoryEntry[]>(
-    getHistoryPreview,
-  );
+  const [history, setHistory] =
+    useState<CanvasImageInsertHistoryEntry[]>(getHistoryPreview);
 
   useEffect(() => {
     const unsubscribeAck = onCanvasImageInsertAck(() => {
@@ -246,7 +245,10 @@ export function RecentImageInsertFloating({
                     </ItemTitle>
                     <ItemHint>{locationLabel}</ItemHint>
                   </ItemMeta>
-                  <LocateButton type="button" onClick={() => handleLocate(entry)}>
+                  <LocateButton
+                    type="button"
+                    onClick={() => handleLocate(entry)}
+                  >
                     <LocateFixed size={12} style={{ marginRight: 4 }} />
                     定位
                   </LocateButton>

@@ -58,7 +58,8 @@ describe("http-client", () => {
   });
 
   it("桥健康时会复用短期健康缓存，避免每次调用都重复探测", async () => {
-    const fetchMock = vi.fn<typeof fetch>()
+    const fetchMock = vi
+      .fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(null, { status: 200 }))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ result: ["project-a"] }), {
@@ -95,15 +96,18 @@ describe("http-client", () => {
     const fetchMock = createAbortablePendingFetch();
     const eventSourceMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal("EventSource", eventSourceMock as unknown as typeof EventSource);
+    vi.stubGlobal(
+      "EventSource",
+      eventSourceMock as unknown as typeof EventSource,
+    );
 
     const firstCheck = healthCheck();
     await vi.advanceTimersByTimeAsync(1000);
     await expect(firstCheck).resolves.toBe(false);
 
-    await expect(
-      listenViaHttpEvent("config-changed", vi.fn()),
-    ).rejects.toThrow("Failed to fetch");
+    await expect(listenViaHttpEvent("config-changed", vi.fn())).rejects.toThrow(
+      "Failed to fetch",
+    );
 
     expect(eventSourceMock).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);

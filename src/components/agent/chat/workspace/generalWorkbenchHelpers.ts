@@ -13,9 +13,7 @@ import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
 import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";
 import { parseSkillSlashCommand } from "../hooks/skillCommand";
-import {
-  CONTENT_POST_SKILL_KEY,
-} from "../utils/contentPostSkill";
+import { CONTENT_POST_SKILL_KEY } from "../utils/contentPostSkill";
 import type { Message } from "../types";
 import type { TaskFile } from "../components/TaskFiles";
 

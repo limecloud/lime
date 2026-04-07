@@ -31,7 +31,8 @@ export function useGeneralWorkbenchSidebarOrchestration({
 }: UseGeneralWorkbenchSidebarOrchestrationParams): GeneralWorkbenchSidebarOrchestration {
   const { isVersionMode, context, workflow, execLog } = input;
   const branchCount = workflow.branchItems.length;
-  const runDetailSessionId = workflow.activeRunDetail?.session_id?.trim() || null;
+  const runDetailSessionId =
+    workflow.activeRunDetail?.session_id?.trim() || null;
   const { handleRevealArtifactInFinder, handleOpenArtifactWithDefaultApp } =
     useGeneralWorkbenchArtifactActions({
       runDetailSessionId,

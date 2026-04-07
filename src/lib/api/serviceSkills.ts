@@ -166,7 +166,7 @@ interface ServiceSkillCatalogResponseEnvelope {
 const SERVICE_SKILL_CATALOG_STORAGE_KEY = "lime:service-skill-catalog:v1";
 const SERVICE_SKILL_CATALOG_CHANGED_EVENT =
   "lime:service-skill-catalog-changed";
-const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-04-07";
+const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-04-08";
 
 const PLATFORM_OPTIONS: ServiceSkillSlotOption[] = [
   { value: "xiaohongshu", label: "小红书" },
@@ -182,11 +182,7 @@ const SERVICE_SKILL_SURFACE_SCOPES: ServiceSkillSurfaceScope[] = [
   "workspace",
 ];
 
-const SERVICE_SKILL_TYPES: ServiceSkillType[] = [
-  "service",
-  "site",
-  "prompt",
-];
+const SERVICE_SKILL_TYPES: ServiceSkillType[] = ["service", "site", "prompt"];
 
 const SERVICE_SKILL_PROMPT_TEMPLATE_KEYS: ServiceSkillPromptTemplateKey[] = [
   "generic",
@@ -210,7 +206,8 @@ function toServiceSkillBundleMetadata(
   const metadata: Record<string, string> = {};
   const skillType =
     item.skillType ??
-    (item.defaultExecutorBinding === "browser_assist" || item.siteCapabilityBinding
+    (item.defaultExecutorBinding === "browser_assist" ||
+    item.siteCapabilityBinding
       ? "site"
       : "service");
   const outputDestination = resolveDerivedServiceSkillOutputDestination(item);
@@ -242,7 +239,9 @@ function toServiceSkillBundleMetadata(
   return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
-function resolveDerivedServiceSkillOutputDestination(item: ServiceSkillItem): string {
+function resolveDerivedServiceSkillOutputDestination(
+  item: ServiceSkillItem,
+): string {
   if (trimToUndefined(item.outputDestination)) {
     return item.outputDestination!.trim();
   }
@@ -289,7 +288,9 @@ function buildDerivedServiceSkillCompatibility(item: ServiceSkillItem): string {
 
   const compatibility = parts.join("；");
   return compatibility.length > MAX_SERVICE_SKILL_BUNDLE_COMPATIBILITY_LENGTH
-    ? compatibility.slice(0, MAX_SERVICE_SKILL_BUNDLE_COMPATIBILITY_LENGTH).trim()
+    ? compatibility
+        .slice(0, MAX_SERVICE_SKILL_BUNDLE_COMPATIBILITY_LENGTH)
+        .trim()
     : compatibility;
 }
 
@@ -320,7 +321,9 @@ function validateDerivedServiceSkillBundleName(name: string): string[] {
   return errors;
 }
 
-function validateDerivedServiceSkillBundleDescription(description: string): string[] {
+function validateDerivedServiceSkillBundleDescription(
+  description: string,
+): string[] {
   const trimmed = description.trim();
   if (!trimmed) {
     return ["skillBundle.description 不能为空"];
@@ -372,7 +375,8 @@ function buildDerivedServiceSkillBundleSummary(
     },
     standardCompliance: {
       isStandard: validationErrors.length === 0,
-      validationErrors: validationErrors.length > 0 ? validationErrors : undefined,
+      validationErrors:
+        validationErrors.length > 0 ? validationErrors : undefined,
       deprecatedFields: [],
     },
   };
@@ -420,7 +424,8 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         "帮我按这篇小红书轮播帖复刻一版，但保留我的品牌名和活动信息。",
         "参考这个轮播结构，做一版更克制、更像真实用户分享的文案。",
       ],
-      outputDestination: "结果会写回当前工作区中的内容草稿，方便继续改写和发布。",
+      outputDestination:
+        "结果会写回当前工作区中的内容草稿，方便继续改写和发布。",
       surfaceScopes: SERVICE_SKILL_SURFACE_SCOPES,
       promptTemplateKey: "replication",
       themeTarget: "general",
@@ -499,7 +504,8 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         "参考这个抖音视频结构，帮我写一版同节奏但更适合新品开箱的脚本。",
         "按这个视频框架拆一版口播脚本，重点弱化夸张表达。",
       ],
-      outputDestination: "结果会写回当前工作区中的脚本草稿，方便继续补镜头与口播。",
+      outputDestination:
+        "结果会写回当前工作区中的脚本草稿，方便继续补镜头与口播。",
       surfaceScopes: SERVICE_SKILL_SURFACE_SCOPES,
       promptTemplateKey: "replication",
       themeTarget: "general",
@@ -575,7 +581,8 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         "把这篇公众号文章拆成一个 90 秒 Slide 视频提纲。",
         "按文章内容生成一版适合 Bilibili 讲解视频的分镜结构。",
       ],
-      outputDestination: "结果会写回当前工作区中的提纲文档，方便继续补正文和分镜。",
+      outputDestination:
+        "结果会写回当前工作区中的提纲文档，方便继续补正文和分镜。",
       themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
       slotSchema: [
@@ -602,6 +609,71 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
           defaultValue: "bilibili",
           placeholder: "选择发布平台",
           options: PLATFORM_OPTIONS,
+        },
+      ],
+    },
+    {
+      id: "cloud-video-dubbing",
+      skillKey: "cloud-video-dubbing",
+      skillType: "service",
+      title: "云端视频配音",
+      summary:
+        "把视频素材、语言要求与旁白意图提交到云端，生成一版可继续加工的配音结果。",
+      category: "视频创作",
+      outputHint: "配音脚本 + 云端运行状态",
+      triggerHints: [
+        "已有视频素材，希望直接提交一版配音任务时使用。",
+        "需要围绕目标语言、旁白风格快速进入云端配音流程时使用。",
+      ],
+      source: "cloud_catalog",
+      runnerType: "instant",
+      defaultExecutorBinding: "cloud_scene",
+      executionLocation: "cloud_required",
+      defaultArtifactKind: "brief",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "适合已经有视频素材或旁白目标，希望直接提交一版云端配音任务。",
+        "如果有目标语言、声线或字幕偏好，建议直接写在命令里一起提交。",
+      ],
+      setupRequirements: [
+        "需要已登录 OEM 云端并具备有效 Session Token。",
+        "建议在视频项目内启动，方便结果回流到当前工作区。",
+      ],
+      examples: [
+        "给这条新品视频做一版英文配音，保留中英双语字幕。",
+        "参考这个视频链接，生成一版更有科技感的中文旁白配音稿。",
+      ],
+      outputDestination:
+        "任务会提交到 OEM 云端执行，结果状态与回流摘要会展示在当前工作区。",
+      surfaceScopes: SERVICE_SKILL_SURFACE_SCOPES,
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+      slotSchema: [
+        {
+          key: "reference_video",
+          label: "参考视频链接/素材",
+          type: "url",
+          required: true,
+          placeholder: "输入视频链接，或在命令里补充素材说明",
+        },
+        {
+          key: "target_language",
+          label: "目标语言",
+          type: "text",
+          required: false,
+          defaultValue: "中文",
+          placeholder: "例如 中文、英文、日文",
+        },
+        {
+          key: "voice_style",
+          label: "旁白风格",
+          type: "text",
+          required: false,
+          defaultValue: "自然清晰",
+          placeholder: "例如 自然清晰、科技感、温柔讲解",
         },
       ],
     },
@@ -638,7 +710,8 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         "把这个中文视频整理成一版英文配音稿，并保留双语字幕要求。",
         "参考这段素材，输出一版日文配音文本和字幕说明。",
       ],
-      outputDestination: "结果会写回当前工作区中的配音稿，方便继续进入配音与剪辑流程。",
+      outputDestination:
+        "结果会写回当前工作区中的配音稿，方便继续进入配音与剪辑流程。",
       themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
       slotSchema: [
@@ -1085,7 +1158,8 @@ function isServiceSkillItem(value: unknown): value is ServiceSkillItem {
 
   const item = value as Partial<ServiceSkillItem>;
   const skillTypeValid =
-    item.skillType === undefined || SERVICE_SKILL_TYPES.includes(item.skillType);
+    item.skillType === undefined ||
+    SERVICE_SKILL_TYPES.includes(item.skillType);
   const promptTemplateKeyValid =
     item.promptTemplateKey === undefined ||
     SERVICE_SKILL_PROMPT_TEMPLATE_KEYS.includes(item.promptTemplateKey);
@@ -1209,10 +1283,12 @@ function cloneServiceSkillCatalog(
             resourceSummary: { ...item.skillBundle.resourceSummary },
             standardCompliance: {
               ...item.skillBundle.standardCompliance,
-              validationErrors: item.skillBundle.standardCompliance.validationErrors
+              validationErrors: item.skillBundle.standardCompliance
+                .validationErrors
                 ? [...item.skillBundle.standardCompliance.validationErrors]
                 : undefined,
-              deprecatedFields: item.skillBundle.standardCompliance.deprecatedFields
+              deprecatedFields: item.skillBundle.standardCompliance
+                .deprecatedFields
                 ? [...item.skillBundle.standardCompliance.deprecatedFields]
                 : undefined,
             },
@@ -1364,7 +1440,9 @@ export function parseServiceSkillCatalog(
     return null;
   }
 
-  return cloneServiceSkillCatalog(mergeSeededLocalCustomServiceSkillItems(value));
+  return cloneServiceSkillCatalog(
+    mergeSeededLocalCustomServiceSkillItems(value),
+  );
 }
 
 function persistServiceSkillCatalog(catalog: ServiceSkillCatalog): void {
@@ -1448,9 +1526,7 @@ export function getSeededServiceSkillCatalog(): ServiceSkillCatalog {
   return cloneServiceSkillCatalog(SEEDED_SERVICE_SKILL_CATALOG);
 }
 
-function isSeededServiceSkillCatalog(
-  catalog: ServiceSkillCatalog,
-): boolean {
+function isSeededServiceSkillCatalog(catalog: ServiceSkillCatalog): boolean {
   return (
     catalog.tenantId === SEEDED_SERVICE_SKILL_CATALOG.tenantId &&
     catalog.version === SEEDED_SERVICE_SKILL_CATALOG.version

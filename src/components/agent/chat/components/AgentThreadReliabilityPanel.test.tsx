@@ -180,7 +180,9 @@ describe("AgentThreadReliabilityPanel", () => {
     expect(container.textContent).toContain("待处理请求");
     expect(container.textContent).toContain("Provider 失败");
     expect(container.textContent).toContain("审批等待超过阈值");
-    expect(container.textContent).toContain("审批等待过久，建议尽快处理或停止当前执行");
+    expect(container.textContent).toContain(
+      "审批等待过久，建议尽快处理或停止当前执行",
+    );
   });
 
   it("缺少 thread_read 时，应从当前 turn 与 pendingActions 推导并支持中断", async () => {
@@ -226,8 +228,8 @@ describe("AgentThreadReliabilityPanel", () => {
     expect(container.textContent).toContain("等待人工处理");
     expect(container.textContent).toContain("请确认是否继续发布");
 
-    const button = Array.from(container.querySelectorAll("button")).find((node) =>
-      node.textContent?.includes("停止当前执行"),
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (node) => node.textContent?.includes("停止当前执行"),
     );
     expect(button).toBeDefined();
 
@@ -271,8 +273,8 @@ describe("AgentThreadReliabilityPanel", () => {
       onInterruptCurrentTurn,
     });
 
-    const button = Array.from(container.querySelectorAll("button")).find((node) =>
-      node.textContent?.includes("停止当前执行"),
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (node) => node.textContent?.includes("停止当前执行"),
     );
     expect(button).toBeDefined();
 
@@ -460,7 +462,9 @@ describe("AgentThreadReliabilityPanel", () => {
     });
 
     expect(container.textContent).toContain("当前回合长时间无进展");
-    expect(container.textContent).toContain("当前回合长时间无进展，建议停止后恢复执行");
+    expect(container.textContent).toContain(
+      "当前回合长时间无进展，建议停止后恢复执行",
+    );
   });
 
   it("存在待处理请求时应支持重新拉起请求", async () => {
@@ -712,7 +716,9 @@ describe("AgentThreadReliabilityPanel", () => {
     expect(container.textContent).toContain("快速复制给 AI");
     expect(container.textContent).toContain("复制原始 JSON（debug）");
     expect(container.textContent).toContain("外部分析交接");
-    expect(container.textContent).toContain("analysis-brief.md / analysis-context.json");
+    expect(container.textContent).toContain(
+      "analysis-brief.md / analysis-context.json",
+    );
   });
 
   it("应支持复制原始 JSON 诊断数据", async () => {

@@ -156,7 +156,7 @@ describe("serviceSkills API", () => {
     const catalog = await getServiceSkillCatalog();
 
     expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-04-07");
+    expect(catalog.version).toBe("client-seed-2026-04-08");
   });
 
   it("当前 OEM 租户不匹配时不应读取其他租户的缓存目录", async () => {
@@ -169,14 +169,16 @@ describe("serviceSkills API", () => {
     const catalog = await getServiceSkillCatalog();
 
     expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-04-07");
+    expect(catalog.version).toBe("client-seed-2026-04-08");
   });
 
   it("旧的 seeded 本地缓存应自动升级到当前 seeded 目录", async () => {
     const oldSeeded = getSeededServiceSkillCatalog();
     const downgraded = {
       ...oldSeeded,
-      items: oldSeeded.items.filter((item) => item.id !== "daily-trend-briefing"),
+      items: oldSeeded.items.filter(
+        (item) => item.id !== "daily-trend-briefing",
+      ),
     };
 
     window.localStorage.setItem(
@@ -186,9 +188,9 @@ describe("serviceSkills API", () => {
 
     const catalog = await getServiceSkillCatalog();
 
-    expect(catalog.items.some((item) => item.id === "daily-trend-briefing")).toBe(
-      true,
-    );
+    expect(
+      catalog.items.some((item) => item.id === "daily-trend-briefing"),
+    ).toBe(true);
     const stored = window.localStorage.getItem("lime:service-skill-catalog:v1");
     expect(stored).toContain('"daily-trend-briefing"');
   });

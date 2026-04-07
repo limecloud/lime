@@ -140,20 +140,26 @@ describe("AppPageContent", () => {
     const container = renderContent("channels");
     await flushEffects();
 
-    expect(container.querySelector('[data-testid="im-config-page"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="im-config-page"]'),
+    ).not.toBeNull();
   });
 
   it("video 页面应渲染现役视频工作台入口", async () => {
     const container = renderContent("video");
     await flushEffects();
 
-    expect(container.querySelector('[data-testid="video-page"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="video-page"]'),
+    ).not.toBeNull();
   });
 
   it("settings 页面应渲染设置页入口", async () => {
     const container = renderContent("settings");
     await flushEffects();
 
-    expect(container.querySelector('[data-testid="settings-page"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="settings-page"]'),
+    ).not.toBeNull();
   });
 });

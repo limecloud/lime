@@ -226,7 +226,9 @@ export function OpenClawConfigurePage({
 
           <section className={openClawPanelClassName}>
             <div>
-              <h2 className="text-base font-semibold text-slate-900">模型配置</h2>
+              <h2 className="text-base font-semibold text-slate-900">
+                模型配置
+              </h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
                 选择服务商和主模型，启动时会自动确保配置同步到独立副本。
               </p>
@@ -234,8 +236,8 @@ export function OpenClawConfigurePage({
 
             {!hasProviders ? (
               <div className="mt-4 rounded-[22px] border border-dashed border-slate-300 bg-slate-50/80 px-4 py-6 text-sm leading-6 text-slate-500">
-                当前没有可用于 OpenClaw 的兼容 Provider。请先添加 API Key
-                类型的 Provider。
+                当前没有可用于 OpenClaw 的兼容 Provider。请先添加 API Key 类型的
+                Provider。
                 <div className="mt-3">
                   <button
                     type="button"
@@ -268,7 +270,9 @@ export function OpenClawConfigurePage({
                   主模型
                   <select
                     value={
-                      providerModels.some((model) => model.id === selectedModelId)
+                      providerModels.some(
+                        (model) => model.id === selectedModelId,
+                      )
                         ? selectedModelId
                         : ""
                     }
@@ -306,7 +310,8 @@ export function OpenClawConfigurePage({
 
                 {lastSynced ? (
                   <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    最近一次已同步：{lastSynced.providerId} / {lastSynced.modelId}
+                    最近一次已同步：{lastSynced.providerId} /{" "}
+                    {lastSynced.modelId}
                   </div>
                 ) : null}
               </div>
@@ -322,7 +327,8 @@ export function OpenClawConfigurePage({
                   当前状态
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
-                  安装完成后建议先查看 Gateway 状态，再决定是否同步配置或直接启动。
+                  安装完成后建议先查看 Gateway
+                  状态，再决定是否同步配置或直接启动。
                 </p>
               </div>
               <button
@@ -364,7 +370,8 @@ export function OpenClawConfigurePage({
               <div className="text-sm leading-7 text-amber-900/80">
                 <div className="font-medium text-amber-800">温馨提示</div>
                 <p className="mt-2">
-                  OpenClaw 具备较高系统权限，建议仅在可信环境中使用。点击启动后会优先同步当前
+                  OpenClaw
+                  具备较高系统权限，建议仅在可信环境中使用。点击启动后会优先同步当前
                   Provider 与模型配置。
                 </p>
               </div>
@@ -377,10 +384,7 @@ export function OpenClawConfigurePage({
               <button
                 type="button"
                 onClick={onOpenDocs}
-                className={cn(
-                  openClawSecondaryButtonClassName,
-                  "px-4 py-2.5",
-                )}
+                className={cn(openClawSecondaryButtonClassName, "px-4 py-2.5")}
               >
                 <ExternalLink className="h-4 w-4" />
                 查看文档

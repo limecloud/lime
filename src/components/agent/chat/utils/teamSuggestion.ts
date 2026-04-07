@@ -177,15 +177,11 @@ function inferSuggestedRoles(
     return ["explorer", "executor", "verifier"];
   }
 
-  if (
-    /研究|调研|资料|对比|结论|趋势|分析/i.test(normalizedInput)
-  ) {
+  if (/研究|调研|资料|对比|结论|趋势|分析/i.test(normalizedInput)) {
     return ["researcher", "planner", "reviewer"];
   }
 
-  if (
-    /文档|邮件|方案|汇报|提纲|草稿|写作/i.test(normalizedInput)
-  ) {
+  if (/文档|邮件|方案|汇报|提纲|草稿|写作/i.test(normalizedInput)) {
     return ["planner", "writer", "reviewer"];
   }
 
@@ -205,9 +201,7 @@ function inferSuggestedPresetId(
     return "code-triage-team";
   }
 
-  if (
-    /研究|调研|资料|对比|结论|趋势|分析|文档|方案/i.test(normalizedInput)
-  ) {
+  if (/研究|调研|资料|对比|结论|趋势|分析|文档|方案/i.test(normalizedInput)) {
     return "research-team";
   }
 
@@ -242,30 +236,45 @@ export function getTeamSuggestion({
   const explicitTeamIntent = matchAny(normalizedInput, EXPLICIT_TEAM_PATTERNS);
   if (explicitTeamIntent) {
     score += 0.52;
-    reasons.push("你已经显式提到 Team、多代理或父子线程，这类任务应走协作运行时。");
+    reasons.push(
+      "你已经显式提到 Team、多代理或父子线程，这类任务应走协作运行时。",
+    );
   }
 
-  const parallelSignals = countMatchedPatterns(normalizedInput, PARALLEL_PATTERNS);
+  const parallelSignals = countMatchedPatterns(
+    normalizedInput,
+    PARALLEL_PATTERNS,
+  );
   if (parallelSignals > 0) {
     score += parallelSignals > 1 ? 0.22 : 0.16;
-    reasons.push("描述里出现并行拆分或多角色分工信号，适合让主线程编排多个子代理。");
+    reasons.push(
+      "描述里出现并行拆分或多角色分工信号，适合让主线程编排多个子代理。",
+    );
   }
 
   const multiStageCount = countMultiStageKeywords(trimmedInput);
   if (multiStageCount >= 3) {
     score += 0.22;
-    reasons.push("任务同时包含分析、执行、验证等多个阶段，拆成团队协作更容易收敛。");
+    reasons.push(
+      "任务同时包含分析、执行、验证等多个阶段，拆成团队协作更容易收敛。",
+    );
   } else if (multiStageCount === 2) {
     score += 0.12;
   }
 
-  const verificationSignals = countMatchedPatterns(normalizedInput, VERIFY_PATTERNS);
+  const verificationSignals = countMatchedPatterns(
+    normalizedInput,
+    VERIFY_PATTERNS,
+  );
   if (verificationSignals > 0) {
     score += 0.12;
     reasons.push("你还要求验证、回归或汇总，说明主线程需要负责最终收口。");
   }
 
-  const complexitySignals = countMatchedPatterns(normalizedInput, COMPLEXITY_PATTERNS);
+  const complexitySignals = countMatchedPatterns(
+    normalizedInput,
+    COMPLEXITY_PATTERNS,
+  );
   if (complexitySignals > 0) {
     score += complexitySignals > 1 ? 0.16 : 0.1;
     reasons.push("需求涉及跨模块实现或联调，单线程连续处理的等待成本更高。");
@@ -293,7 +302,10 @@ export function getTeamSuggestion({
   }
 
   const normalizedScore = clampScore(score);
-  const suggestedPresetId = inferSuggestedPresetId(normalizedInput, activeTheme);
+  const suggestedPresetId = inferSuggestedPresetId(
+    normalizedInput,
+    activeTheme,
+  );
   return {
     score: normalizedScore,
     shouldSuggest: normalizedScore >= TEAM_SUGGESTION_THRESHOLD,

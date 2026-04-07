@@ -118,10 +118,15 @@ export function I18nPatchProvider({
       if (!candidate) {
         return;
       }
-      const rootNode = candidate.nodeType === Node.TEXT_NODE
-        ? candidate.parentElement
-        : candidate;
-      if (!rootNode || !rootNode.isConnected || isIgnoredMutationNode(rootNode)) {
+      const rootNode =
+        candidate.nodeType === Node.TEXT_NODE
+          ? candidate.parentElement
+          : candidate;
+      if (
+        !rootNode ||
+        !rootNode.isConnected ||
+        isIgnoredMutationNode(rootNode)
+      ) {
         return;
       }
 

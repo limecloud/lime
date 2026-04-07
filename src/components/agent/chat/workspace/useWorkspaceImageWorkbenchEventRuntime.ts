@@ -220,7 +220,9 @@ export function useWorkspaceImageWorkbenchEventRuntime({
           return previous;
         }
 
-        const updatedContent = previous.content.split(placeholder).join(imageUrl);
+        const updatedContent = previous.content
+          .split(placeholder)
+          .join(imageUrl);
         if (updatedContent === previous.content) {
           return previous;
         }

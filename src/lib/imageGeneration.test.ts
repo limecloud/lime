@@ -31,7 +31,9 @@ describe("imageGeneration", () => {
   });
 
   it("应按预设模型偏好自动选择 Provider", () => {
-    expect(findImageProviderForSelection(providers, "basic")?.id).toBe("new-api");
+    expect(findImageProviderForSelection(providers, "basic")?.id).toBe(
+      "new-api",
+    );
     expect(findImageProviderForSelection(providers, "jimeng")?.id).toBe(
       "doubao-image",
     );
@@ -47,7 +49,9 @@ describe("imageGeneration", () => {
   });
 
   it("应解析 Provider 可用模型列表", () => {
-    expect(getImageModelsForProvider("new-api", "openai")[0]?.id).toBe("dall-e-3");
+    expect(getImageModelsForProvider("new-api", "openai")[0]?.id).toBe(
+      "dall-e-3",
+    );
     expect(
       getImageModelsForProvider("custom-provider", "openai", ["gpt-image-1"])[0]
         ?.id,
@@ -74,6 +78,8 @@ describe("imageGeneration", () => {
       "https://fal.run/fal-ai",
     );
 
-    expect(models.map((model) => model.id)).toEqual(["fal-ai/flux-kontext/dev"]);
+    expect(models.map((model) => model.id)).toEqual([
+      "fal-ai/flux-kontext/dev",
+    ]);
   });
 });

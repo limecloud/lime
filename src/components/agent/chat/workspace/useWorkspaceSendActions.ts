@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Dispatch, SetStateAction } from "react";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
+import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
+import { getOrCreateDefaultProject } from "@/lib/api/project";
 import {
   getSeededSkillCatalog,
   listSkillCatalogCommandEntries,
@@ -26,6 +28,7 @@ import { parseTranscriptionWorkbenchCommand } from "../utils/transcriptionWorkbe
 import { parseTypesettingWorkbenchCommand } from "../utils/typesettingWorkbenchCommand";
 import { parseUrlParseWorkbenchCommand } from "../utils/urlParseWorkbenchCommand";
 import { parseVideoWorkbenchCommand } from "../utils/videoWorkbenchCommand";
+import { parseVoiceWorkbenchCommand } from "../utils/voiceWorkbenchCommand";
 import { parseWebpageWorkbenchCommand } from "../utils/webpageWorkbenchCommand";
 import { detectBrowserTaskRequirement } from "../utils/browserTaskRequirement";
 import { isTeamRuntimeRecommendation } from "../utils/contextualRecommendations";
@@ -133,6 +136,9 @@ type ParsedUrlParseWorkbenchCommand = NonNullable<
 type ParsedTypesettingWorkbenchCommand = NonNullable<
   ReturnType<typeof parseTypesettingWorkbenchCommand>
 >;
+type ParsedVoiceWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseVoiceWorkbenchCommand>
+>;
 type ParsedWebpageWorkbenchCommand = NonNullable<
   ReturnType<typeof parseWebpageWorkbenchCommand>
 >;
@@ -147,7 +153,9 @@ type CompletedMentionCommandUsage = {
 
 const MENTION_COMMAND_SKILL_ID_MAP = new Map(
   listSkillCatalogCommandEntries(getSeededSkillCatalog())
-    .filter((entry) => entry.triggers.some((trigger) => trigger.mode === "mention"))
+    .filter((entry) =>
+      entry.triggers.some((trigger) => trigger.mode === "mention"),
+    )
     .flatMap((entry) => {
       const commandKey = entry.commandKey.trim();
       const skillId = entry.binding?.skillId?.trim();
@@ -161,6 +169,15 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     return undefined;
   }
   return value as Record<string, unknown>;
+}
+
+function normalizeOptionalText(value?: string | null): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  return normalized ? normalized : undefined;
 }
 
 function resolveImageMentionCommandKey(
@@ -215,8 +232,7 @@ function resolveMentionCommandUsage(params: {
     const normalizedSkillId = skill.id.trim();
     const normalizedSkillKey = skill.skillKey?.trim();
     return (
-      normalizedSkillId === boundSkillId ||
-      normalizedSkillKey === boundSkillId
+      normalizedSkillId === boundSkillId || normalizedSkillKey === boundSkillId
     );
   });
 
@@ -345,7 +361,9 @@ function extractBoundSessionRequestContext(
 
     const scopedRequestContext =
       asRecord(launchMetadata[launch.requestContextKey]) ||
-      asRecord(asRecord(launchMetadata.request_context)?.[launch.requestContextKey]);
+      asRecord(
+        asRecord(launchMetadata.request_context)?.[launch.requestContextKey],
+      );
     if (!scopedRequestContext) {
       continue;
     }
@@ -1202,7 +1220,8 @@ function buildFormSkillLaunchRequestContext(params: {
   contentId?: string | null;
 }): Record<string, unknown> {
   const prompt =
-    params.parsedCommand.prompt.trim() || "请生成一个可直接在聊天区渲染的 A2UI 表单";
+    params.parsedCommand.prompt.trim() ||
+    "请生成一个可直接在聊天区渲染的 A2UI 表单";
 
   return {
     kind: "form_request",
@@ -1217,6 +1236,105 @@ function buildFormSkillLaunchRequestContext(params: {
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
       entry_source: "at_form_command",
+    },
+  };
+}
+
+function matchesVoiceCommandSkill(skill: ServiceSkillHomeItem): boolean {
+  const searchable = [
+    skill.id,
+    skill.skillKey,
+    skill.title,
+    skill.summary,
+    ...(skill.aliases ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return /配音|dubbing|voice/.test(searchable);
+}
+
+function resolveVoiceCommandServiceSkill(
+  serviceSkills: ServiceSkillHomeItem[],
+): ServiceSkillHomeItem | null {
+  return (
+    serviceSkills.find(
+      (skill) =>
+        matchesVoiceCommandSkill(skill) &&
+        (skill.defaultExecutorBinding === "cloud_scene" ||
+          skill.executionLocation === "cloud_required"),
+    ) ||
+    serviceSkills.find((skill) => matchesVoiceCommandSkill(skill)) ||
+    null
+  );
+}
+
+async function resolveVoiceSkillLaunchRequestContext(params: {
+  rawText: string;
+  parsedCommand: ParsedVoiceWorkbenchCommand;
+  serviceSkills: ServiceSkillHomeItem[];
+  projectId?: string | null;
+  contentId?: string | null;
+}): Promise<Record<string, unknown> | null> {
+  const skill = resolveVoiceCommandServiceSkill(params.serviceSkills);
+  if (!skill) {
+    toast.error("当前未安装可用的配音技能，请先同步技能目录后再试");
+    return null;
+  }
+
+  const prompt =
+    params.parsedCommand.prompt.trim() || params.parsedCommand.body.trim();
+  if (!prompt) {
+    toast.error("请补充清晰的配音要求后再提交");
+    return null;
+  }
+
+  let resolvedProjectId = normalizeOptionalText(params.projectId);
+  if (!resolvedProjectId && skill.readinessRequirements?.requiresProject) {
+    try {
+      const defaultProject = await getOrCreateDefaultProject();
+      resolvedProjectId = normalizeOptionalText(defaultProject?.id);
+    } catch {
+      resolvedProjectId = undefined;
+    }
+  }
+
+  if (!resolvedProjectId && skill.readinessRequirements?.requiresProject) {
+    toast.error("请先选择项目后再开始配音");
+    return null;
+  }
+
+  const runtime = resolveOemCloudRuntimeContext();
+
+  return {
+    kind: "cloud_scene",
+    service_scene_run: {
+      raw_text: params.rawText,
+      user_input: prompt,
+      entry_id: "command:voice_runtime",
+      scene_key: "voice_runtime",
+      command_prefix: params.parsedCommand.trigger,
+      linked_skill_id: skill.id,
+      skill_id: skill.id,
+      skill_key: skill.skillKey || undefined,
+      skill_title: skill.title,
+      skill_summary: skill.summary,
+      runner_type: skill.runnerType,
+      execution_kind: skill.defaultExecutorBinding,
+      execution_location: skill.executionLocation,
+      project_id: resolvedProjectId,
+      content_id: normalizeOptionalText(params.contentId),
+      entry_source: "at_voice_command",
+      target_language: params.parsedCommand.targetLanguage,
+      voice_style: params.parsedCommand.voiceStyle,
+      oem_runtime: {
+        scene_base_url: runtime.sceneBaseUrl,
+        tenant_id: runtime.tenantId,
+        session_token: runtime.sessionToken,
+        base_url: runtime.baseUrl,
+        gateway_base_url: runtime.gatewayBaseUrl,
+      },
     },
   };
 }
@@ -1258,8 +1376,12 @@ interface UseWorkspaceSendActionsParams {
     sourceText: string;
     sendOptions?: HandleSendOptions;
   }) => GeneralWorkbenchSendBoundaryState;
-  finalizeAfterSendSuccess: (boundary: GeneralWorkbenchSendBoundaryState) => void;
-  rollbackAfterSendFailure: (boundary: GeneralWorkbenchSendBoundaryState) => void;
+  finalizeAfterSendSuccess: (
+    boundary: GeneralWorkbenchSendBoundaryState,
+  ) => void;
+  rollbackAfterSendFailure: (
+    boundary: GeneralWorkbenchSendBoundaryState,
+  ) => void;
   prepareRuntimeTeamBeforeSend: UseRuntimeTeamFormationResult["prepareRuntimeTeamBeforeSend"];
   setRuntimeTeamDispatchPreview: Dispatch<
     SetStateAction<RuntimeTeamDispatchPreviewSnapshot | null>
@@ -1410,8 +1532,7 @@ export function useWorkspaceSendActions({
       const effectiveThinking = thinking ?? effectiveToolPreferences.thinking;
 
       const preparedActiveContextPrompt =
-        contextWorkspace.enabled &&
-        !contextWorkspace.activeContextPrompt.trim()
+        contextWorkspace.enabled && !contextWorkspace.activeContextPrompt.trim()
           ? contextWorkspace.prepareActiveContextPrompt().then(
               (value) => ({
                 ok: true as const,
@@ -2288,8 +2409,7 @@ export function useWorkspaceSendActions({
               ...existingHarnessMetadata,
               preferred_team_preset_id: "code-triage-team",
               code_command: {
-                kind:
-                  parsedCodeWorkbenchCommand.taskType || "implementation",
+                kind: parsedCodeWorkbenchCommand.taskType || "implementation",
                 prompt:
                   parsedCodeWorkbenchCommand.prompt ||
                   parsedCodeWorkbenchCommand.body,
@@ -2376,6 +2496,38 @@ export function useWorkspaceSendActions({
           "publish_runtime",
           resolveMentionCommandReplayText(parsedPublishWorkbenchCommand),
         );
+      }
+
+      const parsedVoiceWorkbenchCommand =
+        !sendOptions?.purpose && sourceText.trim()
+          ? parseVoiceWorkbenchCommand(sourceText)
+          : null;
+      if (parsedVoiceWorkbenchCommand) {
+        const requestContext = await resolveVoiceSkillLaunchRequestContext({
+          rawText: sourceText,
+          parsedCommand: parsedVoiceWorkbenchCommand,
+          serviceSkills,
+          projectId,
+          contentId,
+        });
+        if (!requestContext) {
+          clearSubmissionPreview();
+          return { kind: "done", result: false };
+        }
+
+        ensureSubmissionPreview();
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildServiceSceneLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            requestContext,
+          ),
+        };
+        markCompletedMentionCommand(
+          "voice_runtime",
+          resolveMentionCommandReplayText(parsedVoiceWorkbenchCommand),
+        );
+        hasBoundSkillLaunch = true;
       }
 
       if (!sendOptions?.purpose && sourceText.trim().startsWith("/")) {

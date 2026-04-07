@@ -102,12 +102,12 @@ function inferTaskType(body: string): CodeWorkbenchTaskType | undefined {
     return undefined;
   }
 
-  if (
-    /(?:代码评审|代码审查|code\s+review|\breview\b)/i.test(normalized)
-  ) {
+  if (/(?:代码评审|代码审查|code\s+review|\breview\b)/i.test(normalized)) {
     return "code_review";
   }
-  if (/(?:修复|修\s*bug|bug\s+fix|fix\s+bug|\bdebug\b|\bbug\b)/i.test(normalized)) {
+  if (
+    /(?:修复|修\s*bug|bug\s+fix|fix\s+bug|\bdebug\b|\bbug\b)/i.test(normalized)
+  ) {
     return "bug_fix";
   }
   if (/(?:重构|\brefactor\b)/i.test(normalized)) {
@@ -117,16 +117,17 @@ function inferTaskType(body: string): CodeWorkbenchTaskType | undefined {
     return "explain";
   }
   if (
-    /(?:实现|开发|\bimplementation\b|\bimplement\b|\bbuild\b)/i.test(
-      normalized,
-    )
+    /(?:实现|开发|\bimplementation\b|\bimplement\b|\bbuild\b)/i.test(normalized)
   ) {
     return "implementation";
   }
   return undefined;
 }
 
-function stripPromptDecorations(body: string, leadingTaskType?: string): string {
+function stripPromptDecorations(
+  body: string,
+  leadingTaskType?: string,
+): string {
   const leadingTaskTypeRegex = leadingTaskType
     ? new RegExp(
         `^${leadingTaskType.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[\\s,，。；;:：])`,
@@ -155,8 +156,12 @@ export function parseCodeWorkbenchCommand(
   const explicitTaskType = body.match(EXPLICIT_TASK_TYPE_REGEX)?.[1]?.trim();
   const leadingTaskType = body.match(LEADING_TASK_TYPE_REGEX)?.[1]?.trim();
   const taskType =
-    normalizeTaskType(explicitTaskType || leadingTaskType) || inferTaskType(body);
-  const prompt = stripPromptDecorations(body, explicitTaskType || leadingTaskType);
+    normalizeTaskType(explicitTaskType || leadingTaskType) ||
+    inferTaskType(body);
+  const prompt = stripPromptDecorations(
+    body,
+    explicitTaskType || leadingTaskType,
+  );
 
   return {
     rawText: text,

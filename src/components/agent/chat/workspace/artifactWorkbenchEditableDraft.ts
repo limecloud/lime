@@ -85,7 +85,9 @@ export function normalizeStringArray(value: unknown): string[] {
 
 function resolveRichTextContent(block: ArtifactDocumentBlock): string {
   return (
-    normalizeText(block.contentFormat === "markdown" ? block.content : undefined) ||
+    normalizeText(
+      block.contentFormat === "markdown" ? block.content : undefined,
+    ) ||
     normalizeText(block.markdown) ||
     normalizeText(block.text) ||
     normalizeText(block.content) ||
@@ -125,7 +127,9 @@ function splitPipeCells(value: string): string[] {
   return value
     .split("|")
     .map((item) => item.trim())
-    .filter((item, index, array) => item.length > 0 || index < array.length - 1);
+    .filter(
+      (item, index, array) => item.length > 0 || index < array.length - 1,
+    );
 }
 
 function normalizeChecklistDraftState(
@@ -306,7 +310,9 @@ export function parseMetricDraftItems(
       value: normalizedValue,
       note: note.trim() || undefined,
       tone:
-        normalizeMetricDraftTone(tone) || existingItems[index]?.tone || undefined,
+        normalizeMetricDraftTone(tone) ||
+        existingItems[index]?.tone ||
+        undefined,
     });
   });
 
@@ -345,14 +351,20 @@ export function parseTableDraftColumns(value: string): string[] {
   return lines;
 }
 
-export function parseTableDraftRows(value: string, columnCount: number): string[][] {
+export function parseTableDraftRows(
+  value: string,
+  columnCount: number,
+): string[][] {
   return splitDraftLines(value).map((line) => {
     const cells = splitPipeCells(line);
     if (columnCount <= 0) {
       return cells;
     }
 
-    return Array.from({ length: columnCount }, (_, index) => cells[index] || "");
+    return Array.from(
+      { length: columnCount },
+      (_, index) => cells[index] || "",
+    );
   });
 }
 
@@ -365,9 +377,9 @@ export function resolveCodeBlockContent(block: ArtifactDocumentBlock): string {
   );
 }
 
-export function resolveEditableCalloutTone(value: string): NonNullable<
-  Extract<ArtifactDocumentBlock, { type: "callout" }>["tone"]
-> {
+export function resolveEditableCalloutTone(
+  value: string,
+): NonNullable<Extract<ArtifactDocumentBlock, { type: "callout" }>["tone"]> {
   switch (value) {
     case "success":
       return "success";

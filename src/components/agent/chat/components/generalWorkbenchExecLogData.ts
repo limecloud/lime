@@ -22,9 +22,7 @@ function truncate(text: string, max = 300): string {
     return "";
   }
   const normalized = text.trim();
-  return normalized.length > max
-    ? `${normalized.slice(0, max)}…`
-    : normalized;
+  return normalized.length > max ? `${normalized.slice(0, max)}…` : normalized;
 }
 
 function formatExecLogJson(value: unknown): string | undefined {
@@ -161,7 +159,9 @@ function buildRunEntry(
           allowedTools: allowedTools.length > 0 ? allowedTools : undefined,
           whenToUse: skillDetail?.when_to_use?.trim() || undefined,
           artifactPaths:
-            group.artifactPaths.length > 0 ? [...group.artifactPaths] : undefined,
+            group.artifactPaths.length > 0
+              ? [...group.artifactPaths]
+              : undefined,
         }
       : undefined;
 
@@ -169,8 +169,14 @@ function buildRunEntry(
     group.artifactPaths.length > 0
       ? `产物：${group.artifactPaths.map((path) => path.split("/").pop()).join("、")}`
       : undefined;
-  const durationLabel = group.logs.find((log) => log.durationLabel)?.durationLabel;
-  const meta = [sourceRef ? `技能标识：${sourceRef}` : null, detailSummary, artifactSummary]
+  const durationLabel = group.logs.find(
+    (log) => log.durationLabel,
+  )?.durationLabel;
+  const meta = [
+    sourceRef ? `技能标识：${sourceRef}` : null,
+    detailSummary,
+    artifactSummary,
+  ]
     .filter((item): item is string => Boolean(item))
     .join(" · ");
 
@@ -221,7 +227,12 @@ export function buildGeneralWorkbenchExecLogEntries({
 
     for (const toolCall of message.toolCalls || []) {
       entries.push(
-        buildToolCallEntry(message.id, toolCall, message.timestamp, toolCallIndex),
+        buildToolCallEntry(
+          message.id,
+          toolCall,
+          message.timestamp,
+          toolCallIndex,
+        ),
       );
       toolCallIndex += 1;
     }
@@ -248,14 +259,18 @@ export function buildGeneralWorkbenchExecLogEntries({
       type: "task",
       typeLabel: "任务提交",
       content: group.label || group.taskType,
-      timestamp: latestTask?.createdAt ? new Date(latestTask.createdAt) : new Date(0),
+      timestamp: latestTask?.createdAt
+        ? new Date(latestTask.createdAt)
+        : new Date(0),
       status: "completed",
     });
   }
 
   entries.sort((left, right) => {
-    const leftTime = left.timestamp instanceof Date ? left.timestamp.getTime() : 0;
-    const rightTime = right.timestamp instanceof Date ? right.timestamp.getTime() : 0;
+    const leftTime =
+      left.timestamp instanceof Date ? left.timestamp.getTime() : 0;
+    const rightTime =
+      right.timestamp instanceof Date ? right.timestamp.getTime() : 0;
     return leftTime - rightTime;
   });
 
@@ -271,9 +286,10 @@ export function filterGeneralWorkbenchExecLogEntries(
   }
 
   return entries.filter((entry) => {
-    const timestamp = entry.timestamp instanceof Date
-      ? entry.timestamp.getTime()
-      : new Date(entry.timestamp).getTime();
+    const timestamp =
+      entry.timestamp instanceof Date
+        ? entry.timestamp.getTime()
+        : new Date(entry.timestamp).getTime();
     return Number.isFinite(timestamp) && timestamp > clearedAt;
   });
 }

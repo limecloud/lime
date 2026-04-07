@@ -154,10 +154,7 @@ export function buildHydratedAgentSessionSnapshot(
     snapshot: {
       sessionId: syncSessionId ? topicId : currentSessionId,
       messages: shouldPreserveExistingTimeline
-        ? mergeHydratedMessagesWithLocalState(
-            currentMessages,
-            hydratedMessages,
-          )
+        ? mergeHydratedMessagesWithLocalState(currentMessages, hydratedMessages)
         : hydratedMessages,
       threadTurns: nextThreadTurns,
       threadItems: nextThreadItems,

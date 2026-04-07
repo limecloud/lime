@@ -57,7 +57,8 @@ function mergeExecutionRuntime(
   const recentContentId =
     updates.recent_content_id ?? current?.recent_content_id ?? null;
   const mode = updates.mode ?? current?.mode ?? null;
-  const latestTurnId = updates.latest_turn_id ?? current?.latest_turn_id ?? null;
+  const latestTurnId =
+    updates.latest_turn_id ?? current?.latest_turn_id ?? null;
   const latestTurnStatus =
     updates.latest_turn_status ?? current?.latest_turn_status ?? null;
 

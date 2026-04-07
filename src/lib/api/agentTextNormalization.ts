@@ -89,9 +89,9 @@ export function normalizeLegacyToolSurfaceName(
   return LEGACY_TOOL_SURFACE_ALIASES[key] || normalized;
 }
 
-export function normalizeLegacyThreadItem<T extends { type?: unknown; text?: unknown }>(
-  item: T,
-): T {
+export function normalizeLegacyThreadItem<
+  T extends { type?: unknown; text?: unknown },
+>(item: T): T {
   if (item.type !== "turn_summary" || typeof item.text !== "string") {
     return item;
   }

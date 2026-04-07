@@ -137,10 +137,7 @@ export function useProjects(
             );
           })
           .catch((ensureError) => {
-            console.warn(
-              "[Projects] 默认项目目录健康检查失败:",
-              ensureError,
-            );
+            console.warn("[Projects] 默认项目目录健康检查失败:", ensureError);
           });
       }
     } catch (err) {

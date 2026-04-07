@@ -81,7 +81,10 @@ export function McpToolsBrowser({
         (acc, [serverName, serverTools]) => {
           const filtered = serverTools
             .filter((tool) => {
-              const displayName = getMcpInnerToolName(tool.name, tool.server_name);
+              const displayName = getMcpInnerToolName(
+                tool.name,
+                tool.server_name,
+              );
               const normalizedQuery = searchQuery.toLowerCase();
               return (
                 displayName.toLowerCase().includes(normalizedQuery) ||
@@ -91,7 +94,10 @@ export function McpToolsBrowser({
             })
             .sort((left, right) => {
               const leftName = getMcpInnerToolName(left.name, left.server_name);
-              const rightName = getMcpInnerToolName(right.name, right.server_name);
+              const rightName = getMcpInnerToolName(
+                right.name,
+                right.server_name,
+              );
               return leftName.localeCompare(rightName);
             });
           if (filtered.length > 0) {
@@ -145,7 +151,8 @@ export function McpToolsBrowser({
 
     return {
       title: "运行中的服务器暂未暴露工具",
-      description: "可以先刷新一次；如果仍为空，请检查服务器能力声明或连接日志。",
+      description:
+        "可以先刷新一次；如果仍为空，请检查服务器能力声明或连接日志。",
       actionLabel: "刷新工具列表",
       action: () => void onRefresh(),
     };
@@ -225,8 +232,12 @@ export function McpToolsBrowser({
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
               <Wrench className="h-5 w-5" />
             </div>
-            <p className="mt-3 font-medium text-foreground">{emptyState.title}</p>
-            <p className="mt-1 text-muted-foreground">{emptyState.description}</p>
+            <p className="mt-3 font-medium text-foreground">
+              {emptyState.title}
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              {emptyState.description}
+            </p>
             {emptyState.actionLabel && emptyState.action ? (
               <button
                 type="button"
@@ -306,7 +317,9 @@ export function McpToolsBrowser({
                                     </span>
                                     {onCallTool && (
                                       <button
-                                        onClick={() => onCallTool(tool.name, {})}
+                                        onClick={() =>
+                                          onCallTool(tool.name, {})
+                                        }
                                         className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
                                       >
                                         调用工具

@@ -634,8 +634,7 @@ export function applyLiveRuntimeState<T extends TeamWorkspaceRuntimeCard>(
     providerParallelBudget:
       liveState.providerParallelBudget ?? session.providerParallelBudget,
     queueReason: liveState.queueReason ?? session.queueReason,
-    retryableOverload:
-      liveState.retryableOverload ?? session.retryableOverload,
+    retryableOverload: liveState.retryableOverload ?? session.retryableOverload,
   };
 }
 
@@ -670,11 +669,15 @@ export function createRuntimeFormationStateFromTeam(params: {
     requestId: params.requestId,
     status: params.status,
     label: runtimeTeam?.label?.trim() || null,
-    summary: runtimeTeam ? buildTeamDefinitionSummary(runtimeTeam) || null : null,
+    summary: runtimeTeam
+      ? buildTeamDefinitionSummary(runtimeTeam) || null
+      : null,
     members: (runtimeTeam?.roles ?? []).map((role, index) => ({
       id: role.id?.trim() || `runtime-member-${index + 1}`,
       label: role.label?.trim() || `角色 ${index + 1}`,
-      summary: role.summary?.trim() || `${role.label || `角色 ${index + 1}`}负责当前子任务。`,
+      summary:
+        role.summary?.trim() ||
+        `${role.label || `角色 ${index + 1}`}负责当前子任务。`,
       profileId: role.profileId?.trim() || undefined,
       roleKey: role.roleKey?.trim() || undefined,
       skillIds: role.skillIds ? [...role.skillIds] : [],

@@ -109,7 +109,8 @@ describe("useRuntimeTeamFormation", () => {
     };
     await act(async () => {
       resultRef.current = await getValue().prepareRuntimeTeamBeforeSend({
-        input: "请把这个需求从多个角度拆解成子任务，分别调研竞品方案和技术实现路径，然后给出综合分析报告",
+        input:
+          "请把这个需求从多个角度拆解成子任务，分别调研竞品方案和技术实现路径，然后给出综合分析报告",
       });
     });
 
@@ -130,7 +131,8 @@ describe("useRuntimeTeamFormation", () => {
     };
     await act(async () => {
       resultRef.current = await getValue().prepareRuntimeTeamBeforeSend({
-        input: "请从多个维度拆解这个复杂需求，先做竞品调研，再做技术方案评估，最后输出可行性分析报告",
+        input:
+          "请从多个维度拆解这个复杂需求，先做竞品调研，再做技术方案评估，最后输出可行性分析报告",
       });
     });
 
@@ -147,7 +149,8 @@ describe("useRuntimeTeamFormation", () => {
     };
     await act(async () => {
       firstResultRef.current = await getValue().prepareRuntimeTeamBeforeSend({
-        input: "请先规划一个多角色协作的 team 来处理这个跨部门需求，需要调研、开发、测试三个角色分别推进各自负责的子任务",
+        input:
+          "请先规划一个多角色协作的 team 来处理这个跨部门需求，需要调研、开发、测试三个角色分别推进各自负责的子任务",
         subagentEnabled: true,
       });
     });
@@ -162,7 +165,8 @@ describe("useRuntimeTeamFormation", () => {
 
     await act(async () => {
       await getValue().prepareRuntimeTeamBeforeSend({
-        input: "请拆分成多个角色来协作执行这个跨领域的综合分析任务，需要数据分析师、行业研究员和报告撰写员分别负责各自模块",
+        input:
+          "请拆分成多个角色来协作执行这个跨领域的综合分析任务，需要数据分析师、行业研究员和报告撰写员分别负责各自模块",
       });
     });
 
@@ -200,7 +204,8 @@ describe("shouldPrepareRuntimeTeamBeforeSend", () => {
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: true,
         projectId: "project-1",
-        input: "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案，最后做交叉验证",
+        input:
+          "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案，最后做交叉验证",
       }),
     ).toBe(true);
   });
@@ -210,7 +215,8 @@ describe("shouldPrepareRuntimeTeamBeforeSend", () => {
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: false,
         projectId: "project-1",
-        input: "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案",
+        input:
+          "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案",
       }),
     ).toBe(false);
   });
@@ -220,7 +226,8 @@ describe("shouldPrepareRuntimeTeamBeforeSend", () => {
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: true,
         projectId: "",
-        input: "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案",
+        input:
+          "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案",
       }),
     ).toBe(false);
   });
@@ -240,7 +247,8 @@ describe("shouldPrepareRuntimeTeamBeforeSend", () => {
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: true,
         projectId: "project-1",
-        input: "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案",
+        input:
+          "请从多个角度拆解这个需求，调研竞品方案，然后分别给出技术实现方案和产品设计方案",
         purpose: "content_review",
       }),
     ).toBe(false);
@@ -261,7 +269,8 @@ describe("shouldPrepareRuntimeTeamBeforeSend", () => {
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: true,
         projectId: "project-1",
-        input: "生成一份关于人工智能在医疗领域应用的详细报告，需要包含市场分析、技术趋势、政策法规、典型案例和未来展望五个部分",
+        input:
+          "生成一份关于人工智能在医疗领域应用的详细报告，需要包含市场分析、技术趋势、政策法规、典型案例和未来展望五个部分",
       }),
     ).toBe(false);
 
@@ -269,7 +278,8 @@ describe("shouldPrepareRuntimeTeamBeforeSend", () => {
       shouldPrepareRuntimeTeamBeforeSend({
         subagentEnabled: true,
         projectId: "project-1",
-        input: "帮我写一篇关于可持续发展目标的深度分析报告，要求涵盖经济、环境和社会三个维度的详细分析以及各国实践案例",
+        input:
+          "帮我写一篇关于可持续发展目标的深度分析报告，要求涵盖经济、环境和社会三个维度的详细分析以及各国实践案例",
       }),
     ).toBe(false);
   });

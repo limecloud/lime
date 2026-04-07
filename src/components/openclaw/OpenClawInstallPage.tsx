@@ -214,10 +214,7 @@ export function OpenClawInstallPage({
   const openclawNeedsReload =
     environmentStatus?.openclaw.status === "needs_reload";
   const missingDependencies = environmentStatus
-    ? [
-        !nodeReady ? "Node.js" : null,
-        !gitReady ? "Git" : null,
-      ].filter(Boolean)
+    ? [!nodeReady ? "Node.js" : null, !gitReady ? "Git" : null].filter(Boolean)
     : [];
   const installBlockedByPlatform =
     desktopPlatform === "windows" && missingDependencies.length > 0;
@@ -226,27 +223,28 @@ export function OpenClawInstallPage({
     ? "重新安装 OpenClaw"
     : openclawNeedsReload
       ? "请先重新检测 OpenClaw"
-    : installBlockedByPlatform
-      ? `请先安装 ${missingDependencies.join(" / ")}`
-      : nodeReady && gitReady
-        ? "安装 OpenClaw"
-        : "一键修复环境并安装 OpenClaw";
-  const openclawInstallLabel = !openclawReady && !openclawNeedsReload
-    ? installBlockedByPlatform
-      ? `请先安装 ${missingDependencies.join(" / ")}`
-      : "安装 OpenClaw"
-    : undefined;
+      : installBlockedByPlatform
+        ? `请先安装 ${missingDependencies.join(" / ")}`
+        : nodeReady && gitReady
+          ? "安装 OpenClaw"
+          : "一键修复环境并安装 OpenClaw";
+  const openclawInstallLabel =
+    !openclawReady && !openclawNeedsReload
+      ? installBlockedByPlatform
+        ? `请先安装 ${missingDependencies.join(" / ")}`
+        : "安装 OpenClaw"
+      : undefined;
   const diagnostics = environmentStatus?.diagnostics;
   const hasDiagnostics = Boolean(
     diagnostics?.npmPath ||
-      diagnostics?.npmGlobalPrefix ||
-      diagnostics?.openclawPackagePath ||
-      diagnostics?.whereCandidates?.length ||
-      diagnostics?.supplementalSearchDirs?.length ||
-      diagnostics?.supplementalCommandCandidates?.length ||
-      diagnostics?.gitWhereCandidates?.length ||
-      diagnostics?.gitSupplementalSearchDirs?.length ||
-      diagnostics?.gitSupplementalCommandCandidates?.length,
+    diagnostics?.npmGlobalPrefix ||
+    diagnostics?.openclawPackagePath ||
+    diagnostics?.whereCandidates?.length ||
+    diagnostics?.supplementalSearchDirs?.length ||
+    diagnostics?.supplementalCommandCandidates?.length ||
+    diagnostics?.gitWhereCandidates?.length ||
+    diagnostics?.gitSupplementalSearchDirs?.length ||
+    diagnostics?.gitSupplementalCommandCandidates?.length,
   );
 
   const nodeStatusLabel = environmentStatus
@@ -412,8 +410,9 @@ export function OpenClawInstallPage({
           </div>
         ) : openclawNeedsReload ? (
           <div className="mt-4 rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-            已检测到 OpenClaw 包，但命令尚未生效。请先点击“重新检测”；若仍失败，请重启
-            Lime 后再试。
+            已检测到 OpenClaw
+            包，但命令尚未生效。请先点击“重新检测”；若仍失败，请重启 Lime
+            后再试。
           </div>
         ) : null}
       </section>
@@ -477,7 +476,8 @@ export function OpenClawInstallPage({
         <div className="mt-3 text-sm leading-7 text-slate-500">
           <p>- 优先复用系统里已满足要求的 Node.js / Git，避免重复安装。</p>
           <p>
-            - 缺失依赖时，优先尝试应用内一键安装；若当前平台不支持，则自动降级到手动下载引导。
+            -
+            缺失依赖时，优先尝试应用内一键安装；若当前平台不支持，则自动降级到手动下载引导。
           </p>
           {desktopPlatform === "windows" ? (
             <p>
@@ -576,8 +576,8 @@ export function OpenClawInstallPage({
                       key={item.key}
                       className={cn(
                         "rounded-[22px] border border-slate-200/80 bg-slate-50/80 px-4 py-3",
-                        item.key === "supplemental-command-candidates"
-                          || item.key === "git-supplemental-command-candidates"
+                        item.key === "supplemental-command-candidates" ||
+                          item.key === "git-supplemental-command-candidates"
                           ? "md:col-span-2"
                           : "",
                       )}

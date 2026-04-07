@@ -22,7 +22,11 @@ interface UseGeneralWorkbenchSidebarPresentationParams {
   onSidebarCollapsedChange: (collapsed: boolean) => void;
   sidebar: Omit<
     WorkspaceGeneralWorkbenchSidebarProps,
-    "visible" | "isThemeWorkbench" | "enablePanelCollapse" | "onRequestCollapse" | "workflow"
+    | "visible"
+    | "isThemeWorkbench"
+    | "enablePanelCollapse"
+    | "onRequestCollapse"
+    | "workflow"
   > & {
     workflow: GeneralWorkbenchSidebarWorkflowParams;
   };

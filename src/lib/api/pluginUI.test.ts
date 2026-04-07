@@ -68,14 +68,12 @@ describe("pluginUI API", () => {
   });
 
   it("forceRefresh 应绕过缓存重新请求", async () => {
-    mockSafeInvoke
-      .mockResolvedValueOnce(BASE_PLUGINS)
-      .mockResolvedValueOnce([
-        {
-          ...BASE_PLUGINS[0],
-          name: "Sidebar Plugin v2",
-        },
-      ]);
+    mockSafeInvoke.mockResolvedValueOnce(BASE_PLUGINS).mockResolvedValueOnce([
+      {
+        ...BASE_PLUGINS[0],
+        name: "Sidebar Plugin v2",
+      },
+    ]);
 
     await expect(getPluginsWithUI()).resolves.toEqual(BASE_PLUGINS);
     await expect(getPluginsWithUI({ forceRefresh: true })).resolves.toEqual([
@@ -89,14 +87,12 @@ describe("pluginUI API", () => {
   });
 
   it("notifyPluginUIChanged 应清空缓存并广播变更", async () => {
-    mockSafeInvoke
-      .mockResolvedValueOnce(BASE_PLUGINS)
-      .mockResolvedValueOnce([
-        {
-          ...BASE_PLUGINS[0],
-          name: "Sidebar Plugin refreshed",
-        },
-      ]);
+    mockSafeInvoke.mockResolvedValueOnce(BASE_PLUGINS).mockResolvedValueOnce([
+      {
+        ...BASE_PLUGINS[0],
+        name: "Sidebar Plugin refreshed",
+      },
+    ]);
 
     const changedListener = vi.fn();
     window.addEventListener("plugin-changed", changedListener);

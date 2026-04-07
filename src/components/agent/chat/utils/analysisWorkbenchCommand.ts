@@ -90,11 +90,17 @@ function collectFieldMatches(text: string): AnalysisFieldMatch[] {
 
   return baseMatches.map((match, index) => ({
     ...match,
-    end: index + 1 < baseMatches.length ? baseMatches[index + 1]!.start : text.length,
+    end:
+      index + 1 < baseMatches.length
+        ? baseMatches[index + 1]!.start
+        : text.length,
   }));
 }
 
-function stripExplicitFields(text: string, matches: AnalysisFieldMatch[]): string {
+function stripExplicitFields(
+  text: string,
+  matches: AnalysisFieldMatch[],
+): string {
   if (matches.length === 0) {
     return text;
   }

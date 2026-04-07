@@ -40,16 +40,20 @@ describe("Project API 集成测试", () => {
   });
 
   it("历史或未知工作台类型应在前端边界统一回退为 general", () => {
-    ["legacy-marketing", "legacy-research", "poster", "music", "script"].forEach(
-      (workspaceType) => {
-        expect(
-          normalizeProject({
-            id: `legacy-${workspaceType}`,
-            name: "旧项目",
-            workspace_type: workspaceType,
-          } as any).workspaceType,
-        ).toBe("general");
-      },
-    );
+    [
+      "legacy-marketing",
+      "legacy-research",
+      "poster",
+      "music",
+      "script",
+    ].forEach((workspaceType) => {
+      expect(
+        normalizeProject({
+          id: `legacy-${workspaceType}`,
+          name: "旧项目",
+          workspace_type: workspaceType,
+        } as any).workspaceType,
+      ).toBe("general");
+    });
   });
 });

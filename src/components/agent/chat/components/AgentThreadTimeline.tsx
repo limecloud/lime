@@ -273,7 +273,8 @@ function toToolCallState(item: AgentThreadItem): ToolCallState | null {
           item.error !== undefined ||
           item.exit_code !== undefined
             ? {
-                success: item.status === "completed" && item.error === undefined,
+                success:
+                  item.status === "completed" && item.error === undefined,
                 output: item.aggregated_output || "",
                 error: item.error,
                 metadata:
@@ -405,61 +406,61 @@ function ThinkingItemCard({
     () => parseAIResponse(displayText, false),
     [displayText],
   );
-  const hasStructuredPreview = parsedContent.hasA2UI || parsedContent.hasPending;
+  const hasStructuredPreview =
+    parsedContent.hasA2UI || parsedContent.hasPending;
   const shouldHideTurnSummaryContent =
     item.type === "turn_summary" &&
     !hasStructuredPreview &&
     isInternalRoutingTurnSummaryText(displayText);
 
-  const content =
-    hasStructuredPreview ? (
-      <div className="space-y-3">
-        {parsedContent.parts.map((part, index) => {
-          if (part.type === "a2ui" && typeof part.content !== "string") {
-            const readonlyResponse: A2UIResponse = {
-              ...part.content,
-              submitAction: undefined,
-            };
-
-            return (
-              <A2UITaskCard
-                key={`timeline-a2ui-${index}`}
-                response={readonlyResponse}
-                compact={true}
-                preview={true}
-                preset={TIMELINE_A2UI_TASK_CARD_PRESET}
-              />
-            );
-          }
-
-          if (part.type === "pending_a2ui") {
-            return (
-              <A2UITaskLoadingCard
-                key={`timeline-pending-a2ui-${index}`}
-                compact={true}
-                preset={TIMELINE_A2UI_TASK_CARD_PRESET}
-                subtitle="这一步还在整理，稍等一下。"
-              />
-            );
-          }
-
-          const textContent =
-            typeof part.content === "string" ? part.content.trim() : "";
-          if (!textContent) {
-            return null;
-          }
+  const content = hasStructuredPreview ? (
+    <div className="space-y-3">
+      {parsedContent.parts.map((part, index) => {
+        if (part.type === "a2ui" && typeof part.content !== "string") {
+          const readonlyResponse: A2UIResponse = {
+            ...part.content,
+            submitAction: undefined,
+          };
 
           return (
-            <MarkdownRenderer
-              key={`timeline-text-${index}`}
-              content={textContent}
+            <A2UITaskCard
+              key={`timeline-a2ui-${index}`}
+              response={readonlyResponse}
+              compact={true}
+              preview={true}
+              preset={TIMELINE_A2UI_TASK_CARD_PRESET}
             />
           );
-        })}
-      </div>
-    ) : shouldHideTurnSummaryContent ? null : (
-      <MarkdownRenderer content={displayText} />
-    );
+        }
+
+        if (part.type === "pending_a2ui") {
+          return (
+            <A2UITaskLoadingCard
+              key={`timeline-pending-a2ui-${index}`}
+              compact={true}
+              preset={TIMELINE_A2UI_TASK_CARD_PRESET}
+              subtitle="这一步还在整理，稍等一下。"
+            />
+          );
+        }
+
+        const textContent =
+          typeof part.content === "string" ? part.content.trim() : "";
+        if (!textContent) {
+          return null;
+        }
+
+        return (
+          <MarkdownRenderer
+            key={`timeline-text-${index}`}
+            content={textContent}
+          />
+        );
+      })}
+    </div>
+  ) : shouldHideTurnSummaryContent ? null : (
+    <MarkdownRenderer content={displayText} />
+  );
   const statusLabel =
     item.type === "turn_summary"
       ? item.status === "in_progress"
@@ -577,7 +578,12 @@ function InlinePlanBlock({
 
 function renderThinkingItemDetails(item: AgentThreadItem) {
   if (item.type === "plan") {
-    return <InlinePlanBlock content={item.text} isComplete={item.status !== "in_progress"} />;
+    return (
+      <InlinePlanBlock
+        content={item.text}
+        isComplete={item.status !== "in_progress"}
+      />
+    );
   }
 
   if (item.type === "reasoning" || item.type === "turn_summary") {
@@ -613,10 +619,12 @@ function isToolExecutionTimelineItem(item: AgentThreadItem): boolean {
   );
 }
 
-function extractCompactThinkingParts(item: Extract<
-  AgentThreadItem,
-  { type: "plan" | "reasoning" | "turn_summary" | "context_compaction" }
->) {
+function extractCompactThinkingParts(
+  item: Extract<
+    AgentThreadItem,
+    { type: "plan" | "reasoning" | "turn_summary" | "context_compaction" }
+  >,
+) {
   if (item.type === "context_compaction") {
     const title =
       item.stage === "completed" || item.status === "completed"
@@ -638,15 +646,20 @@ function extractCompactThinkingParts(item: Extract<
   }
 
   if (item.type === "reasoning") {
-    const { summaryText, bodyText, combinedText } = resolveReasoningDisplayText(item);
+    const { summaryText, bodyText, combinedText } =
+      resolveReasoningDisplayText(item);
     const previewSource = summaryText || combinedText;
     const lines = previewSource
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
-    const [title = item.status === "in_progress" ? "思考中" : "已完成思考", ...rest] =
-      lines;
-    const detail = [rest.join("\n").trim(), bodyText].filter(Boolean).join("\n\n");
+    const [
+      title = item.status === "in_progress" ? "思考中" : "已完成思考",
+      ...rest
+    ] = lines;
+    const detail = [rest.join("\n").trim(), bodyText]
+      .filter(Boolean)
+      .join("\n\n");
 
     const parsed = parseAIResponse(combinedText, false);
     if (parsed.hasA2UI || parsed.hasPending) {
@@ -886,7 +899,10 @@ function renderGroupItemDetails(
     <div className="py-1.5">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-sm font-medium text-foreground">{item.type}</span>
-        <Badge variant={resolveStatusBadgeVariant(item.status)} className="ml-auto">
+        <Badge
+          variant={resolveStatusBadgeVariant(item.status)}
+          className="ml-auto"
+        >
           {resolveItemStatusLabel(item.status)}
         </Badge>
       </div>
@@ -911,7 +927,9 @@ function renderTimelineItemDetails(
 ) {
   if (isThinkingTimelineItem(item)) {
     if (options?.groupedToolCall) {
-      return <GroupedThinkingRow item={item} groupMarker={options.groupMarker} />;
+      return (
+        <GroupedThinkingRow item={item} groupMarker={options.groupMarker} />
+      );
     }
     return renderThinkingItemDetails(item);
   }
@@ -927,7 +945,9 @@ function renderTimelineItemDetails(
   );
 }
 
-function resolveCompactTechnicalSummary(block: AgentThreadOrderedBlock): string {
+function resolveCompactTechnicalSummary(
+  block: AgentThreadOrderedBlock,
+): string {
   return `处理了 ${block.items.length} 个步骤`;
 }
 
@@ -1060,23 +1080,41 @@ function normalizeBlockPreviewLine(
 
   if (
     kind === "artifact" &&
-    !hasAnyPrefix(trimmed, ["看了 ", "读了 ", "写了 ", "改了 ", "动了 ", "产出了 "])
+    !hasAnyPrefix(trimmed, [
+      "看了 ",
+      "读了 ",
+      "写了 ",
+      "改了 ",
+      "动了 ",
+      "产出了 ",
+    ])
   ) {
     return `产出了 ${trimmed}`;
   }
 
   if (
     kind === "approval" &&
-    !hasAnyPrefix(trimmed, ["等你补充：", "等你确认：", "等你补充信息", "等你确认这一步"])
+    !hasAnyPrefix(trimmed, [
+      "等你补充：",
+      "等你确认：",
+      "等你补充信息",
+      "等你确认这一步",
+    ])
   ) {
     return `等你确认：${trimmed}`;
   }
 
-  if (kind === "alert" && !hasAnyPrefix(trimmed, ["收到提醒：", "碰到错误："])) {
+  if (
+    kind === "alert" &&
+    !hasAnyPrefix(trimmed, ["收到提醒：", "碰到错误："])
+  ) {
     return `收到提醒：${trimmed}`;
   }
 
-  if (kind === "subagent" && !hasAnyPrefix(trimmed, ["分给协作成员", "协作成员"])) {
+  if (
+    kind === "subagent" &&
+    !hasAnyPrefix(trimmed, ["分给协作成员", "协作成员"])
+  ) {
     return `分给协作成员处理 ${trimmed}`;
   }
 
@@ -1136,7 +1174,9 @@ function resolveBlockSummaryLines(block: AgentThreadOrderedBlock): string[] {
   }
 
   if (block.kind === "subagent") {
-    return [block.status === "completed" ? "协作成员处理完了" : "协作成员在处理"];
+    return [
+      block.status === "completed" ? "协作成员处理完了" : "协作成员在处理",
+    ];
   }
 
   if (block.kind === "other") {
@@ -1385,8 +1425,7 @@ function TimelineBlockCard({
   const visibleHeadline = headline;
   const visibleSupportingLines =
     isThinkingOnlyBlock && open ? [] : supportingLines;
-  const summaryCountLabel =
-    block.items.length > 1 ? block.countLabel : null;
+  const summaryCountLabel = block.items.length > 1 ? block.countLabel : null;
   const processMixLabel = resolveProcessMixLabel(block);
   const summaryDetailHint =
     hasDetailEntries && block.items.length > 1 && !open
@@ -1395,13 +1434,23 @@ function TimelineBlockCard({
   const summaryToneClassName = cn(
     "text-slate-900",
     block.status === "in_progress" && "text-sky-700",
-    block.kind === "approval" && block.status !== "completed" && "text-amber-800",
+    block.kind === "approval" &&
+      block.status !== "completed" &&
+      "text-amber-800",
     (block.status === "failed" || block.kind === "alert") && "text-rose-700",
   );
 
   return (
-    <div className="py-0.5" data-testid={`${dataTestId}:shell`} data-emphasis={emphasis}>
-      <details data-testid={dataTestId} data-emphasis={emphasis} open={hasDetailEntries ? open : true}>
+    <div
+      className="py-0.5"
+      data-testid={`${dataTestId}:shell`}
+      data-emphasis={emphasis}
+    >
+      <details
+        data-testid={dataTestId}
+        data-emphasis={emphasis}
+        open={hasDetailEntries ? open : true}
+      >
         <summary
           className={cn(
             "list-none rounded-md px-2 py-1.5",
@@ -1516,7 +1565,10 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
         (item) =>
           item.type !== "user_message" &&
           item.type !== "agent_message" &&
-          !(item.type === "file_artifact" && isHiddenInternalArtifactPath(item.path)),
+          !(
+            item.type === "file_artifact" &&
+            isHiddenInternalArtifactPath(item.path)
+          ),
       ),
     [items],
   );
@@ -1553,11 +1605,13 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
       data-testid="agent-thread-flow"
       data-placement={placement}
     >
-      {inlineStatusHint ? <ThreadInlineStatusHint hint={inlineStatusHint} /> : null}
+      {inlineStatusHint ? (
+        <ThreadInlineStatusHint hint={inlineStatusHint} />
+      ) : null}
       {displayModel.orderedBlocks.map((block, index) => {
         const blockHasFocusedItem = Boolean(
           focusedItemId &&
-            block.items.some((item) => item.id === focusedItemId),
+          block.items.some((item) => item.id === focusedItemId),
         );
 
         return (

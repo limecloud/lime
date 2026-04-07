@@ -17,10 +17,7 @@ import {
   listenViaHttpEvent,
   normalizeDevBridgeError,
 } from "./http-client";
-import {
-  invokeExplicitMock,
-  listenExplicitMock,
-} from "./explicitMockFallback";
+import { invokeExplicitMock, listenExplicitMock } from "./explicitMockFallback";
 import { shouldPreferMockInBrowser } from "./mockPriorityCommands";
 import {
   getTauriGlobal,
@@ -528,7 +525,10 @@ export async function safeListen<T = any>(
       return await baseListen(event, handler);
     } catch (error) {
       if (hasTauriRuntimeMarkers()) {
-        console.warn(`[safeListen] Tauri 事件桥调用失败，跳过监听: ${event}`, error);
+        console.warn(
+          `[safeListen] Tauri 事件桥调用失败，跳过监听: ${event}`,
+          error,
+        );
         return () => {};
       }
       throw error;
@@ -542,7 +542,10 @@ export async function safeListen<T = any>(
       if (!hasTauriRuntimeMarkers()) {
         return listenExplicitMock(event, handler);
       }
-      console.warn(`[safeListen] DevBridge 事件流调用失败，跳过监听: ${event}`, error);
+      console.warn(
+        `[safeListen] DevBridge 事件流调用失败，跳过监听: ${event}`,
+        error,
+      );
       return () => {};
     }
   }
@@ -567,13 +570,11 @@ export async function safeEmit(
   event: string,
   payload?: unknown,
 ): Promise<void> {
-  const tauriGlobal = getTauriGlobal() as
-    | {
-        event?: {
-          emit?: (event: string, payload?: unknown) => Promise<void>;
-        };
-      }
-    | null;
+  const tauriGlobal = getTauriGlobal() as {
+    event?: {
+      emit?: (event: string, payload?: unknown) => Promise<void>;
+    };
+  } | null;
 
   if (typeof tauriGlobal?.event?.emit === "function") {
     return tauriGlobal.event.emit(event, payload);

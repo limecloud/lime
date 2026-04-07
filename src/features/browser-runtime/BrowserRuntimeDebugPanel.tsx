@@ -309,9 +309,9 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
     !runtime.runtimeConnectionError &&
     Boolean(
       runtime.sessionState ||
-        runtime.openingSession ||
-        runtime.refreshingState ||
-        runtime.selectedSession,
+      runtime.openingSession ||
+      runtime.refreshingState ||
+      runtime.selectedSession,
     );
   const showAttachPresentation =
     shouldUseAttachPresentation && !preferRuntimeLivePresentation;
@@ -501,8 +501,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
       <div className={`space-y-2 overflow-auto text-xs ${maxHeightClass}`}>
         {!attachObserver ? (
           <div className="text-muted-foreground">
-            未检测到当前 Chrome 的桥接 observer，请先连接 Lime Browser
-            Bridge。
+            未检测到当前 Chrome 的桥接 observer，请先连接 Lime Browser Bridge。
           </div>
         ) : attachTabs.length === 0 ? (
           <div className="text-muted-foreground">
@@ -1378,9 +1377,7 @@ export function BrowserRuntimeDebugPanel(props: BrowserRuntimeDebugPanelProps) {
 
               <div className="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white">
                 {runtime.sessionState?.transport_kind ||
-                  (showAttachPresentation
-                    ? "existing_session"
-                    : "cdp_frames")}
+                  (showAttachPresentation ? "existing_session" : "cdp_frames")}
               </div>
 
               <div className="absolute bottom-3 left-3 right-3 rounded-md bg-black/60 px-3 py-2 text-[11px] text-white/90">

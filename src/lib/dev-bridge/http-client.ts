@@ -46,7 +46,10 @@ let bridgeConnectionBackoffUntil = 0;
 let bridgeHealthProbePromise: Promise<boolean> | null = null;
 
 function resolveEventSourceConstructor(): typeof EventSource | null {
-  if (typeof window !== "undefined" && typeof window.EventSource === "function") {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.EventSource === "function"
+  ) {
     return window.EventSource;
   }
 
@@ -134,7 +137,10 @@ async function fetchWithTimeout(
 
 async function ensureBridgeReachable(): Promise<void> {
   const now = Date.now();
-  if (bridgeLastHealthyAt > 0 && now - bridgeLastHealthyAt < DEV_BRIDGE_HEALTH_CACHE_MS) {
+  if (
+    bridgeLastHealthyAt > 0 &&
+    now - bridgeLastHealthyAt < DEV_BRIDGE_HEALTH_CACHE_MS
+  ) {
     return;
   }
 
@@ -183,8 +189,8 @@ function isTestEnvironment(): boolean {
 function isJsdomEnvironment(): boolean {
   return Boolean(
     typeof navigator !== "undefined" &&
-      typeof navigator.userAgent === "string" &&
-      navigator.userAgent.toLowerCase().includes("jsdom"),
+    typeof navigator.userAgent === "string" &&
+    navigator.userAgent.toLowerCase().includes("jsdom"),
   );
 }
 
@@ -252,11 +258,7 @@ function parseBridgeEventPayload<T>(raw: string): { payload: T } | null {
 
   try {
     const parsed = JSON.parse(raw) as { payload?: T };
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      "payload" in parsed
-    ) {
+    if (parsed && typeof parsed === "object" && "payload" in parsed) {
       return { payload: parsed.payload as T };
     }
     return { payload: parsed as T };
@@ -292,9 +294,7 @@ export async function listenViaHttpEvent<T = unknown>(
     );
     const listeners = new Set<DevBridgeEventHandler<unknown>>();
     let hasOpened = false;
-    let settleOpen:
-      | ((value: void | PromiseLike<void>) => void)
-      | null = null;
+    let settleOpen: ((value: void | PromiseLike<void>) => void) | null = null;
     let settleOpenError: ((reason?: unknown) => void) | null = null;
     const openPromise = new Promise<void>((resolve, reject) => {
       settleOpen = resolve;

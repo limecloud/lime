@@ -121,7 +121,10 @@ function buildLocalProviderModels(
   let allModels: EnhancedModelMetadata[] = [];
   let allModelIds: string[] = [];
 
-  if (selectedProvider.customModels && selectedProvider.customModels.length > 0) {
+  if (
+    selectedProvider.customModels &&
+    selectedProvider.customModels.length > 0
+  ) {
     const customModels = convertCustomModelsToMetadata(
       selectedProvider.customModels,
       selectedProvider.key,
@@ -172,9 +175,9 @@ function buildLocalProviderModels(
 
   const hasLocalModels = Boolean(
     sortedRegistryModels.length > 0 ||
-      (isAliasProvider(selectedProvider.key) &&
-        aliasConfig &&
-        aliasConfig.models.length > 0),
+    (isAliasProvider(selectedProvider.key) &&
+      aliasConfig &&
+      aliasConfig.models.length > 0),
   );
 
   return {

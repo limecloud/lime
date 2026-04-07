@@ -159,12 +159,17 @@ function buildRuntimeStatusEntry(
   return buildActivityEntry({
     id: `runtime-status:${sessionId}`,
     title: status.title.trim() || "当前进展",
-    detail: [status.detail, ...(status.checkpoints ?? []).map((item) => `• ${item}`)]
+    detail: [
+      status.detail,
+      ...(status.checkpoints ?? []).map((item) => `• ${item}`),
+    ]
       .map((item) => item.trim())
       .filter(Boolean)
       .join("\n"),
     statusLabel: waiting ? "稍后开始" : "处理中",
-    badgeClassName: waiting ? QUEUED_BADGE_CLASS_NAME : IN_PROGRESS_BADGE_CLASS_NAME,
+    badgeClassName: waiting
+      ? QUEUED_BADGE_CLASS_NAME
+      : IN_PROGRESS_BADGE_CLASS_NAME,
   });
 }
 
@@ -334,16 +339,19 @@ function buildLiveRuntimeState(
       patch.queuedTurnCount ??
       current?.queuedTurnCount ??
       session.queuedTurnCount,
-    teamPhase:
-      patch.teamPhase ?? current?.teamPhase ?? session.teamPhase,
+    teamPhase: patch.teamPhase ?? current?.teamPhase ?? session.teamPhase,
     teamParallelBudget:
       patch.teamParallelBudget ??
       current?.teamParallelBudget ??
       session.teamParallelBudget,
     teamActiveCount:
-      patch.teamActiveCount ?? current?.teamActiveCount ?? session.teamActiveCount,
+      patch.teamActiveCount ??
+      current?.teamActiveCount ??
+      session.teamActiveCount,
     teamQueuedCount:
-      patch.teamQueuedCount ?? current?.teamQueuedCount ?? session.teamQueuedCount,
+      patch.teamQueuedCount ??
+      current?.teamQueuedCount ??
+      session.teamQueuedCount,
     providerConcurrencyGroup:
       patch.providerConcurrencyGroup ??
       current?.providerConcurrencyGroup ??
@@ -390,7 +398,8 @@ function resolveFinalRuntimeStatus(params: {
   queuedTurnCount?: number;
 }): TeamWorkspaceRuntimeStatus {
   const queuedTurnCount =
-    params.queuedTurnCount ?? getQueuedTurnCount(params.session, params.current);
+    params.queuedTurnCount ??
+    getQueuedTurnCount(params.session, params.current);
   if (queuedTurnCount > 0) {
     return "queued";
   }
@@ -417,8 +426,14 @@ function projectRuntimeStreamEvent(params: {
   streamState?: SessionLiveStreamState;
   toolNameById?: Record<string, string>;
 }): TeamWorkspaceRuntimeStreamProjection | null {
-  const { sessionId, session, event, currentRuntime, streamState, toolNameById } =
-    params;
+  const {
+    sessionId,
+    session,
+    event,
+    currentRuntime,
+    streamState,
+    toolNameById,
+  } = params;
 
   switch (event.type) {
     case "item_started":
@@ -429,9 +444,13 @@ function projectRuntimeStreamEvent(params: {
 
       if (
         event.type === "item_completed" &&
-        (event.item.type === "agent_message" || event.item.type === "turn_summary")
+        (event.item.type === "agent_message" ||
+          event.item.type === "turn_summary")
       ) {
-        clearEntryIds.push(`stream-text:${sessionId}`, `runtime-status:${sessionId}`);
+        clearEntryIds.push(
+          `stream-text:${sessionId}`,
+          `runtime-status:${sessionId}`,
+        );
       }
 
       if (event.type === "item_completed" && event.item.type === "reasoning") {
@@ -443,7 +462,8 @@ function projectRuntimeStreamEvent(params: {
         clearEntryIds,
         clearTextDraft:
           event.type === "item_completed" &&
-          (event.item.type === "agent_message" || event.item.type === "turn_summary"),
+          (event.item.type === "agent_message" ||
+            event.item.type === "turn_summary"),
         clearThinkingDraft:
           event.type === "item_completed" && event.item.type === "reasoning",
         refreshPreview: event.type === "item_completed",
@@ -531,7 +551,10 @@ function projectRuntimeStreamEvent(params: {
         }),
         runtimeStatus: "running",
         latestTurnStatus: "running",
-        queuedTurnCount: Math.max(getQueuedTurnCount(session, currentRuntime) - 1, 0),
+        queuedTurnCount: Math.max(
+          getQueuedTurnCount(session, currentRuntime) - 1,
+          0,
+        ),
       };
     case "queue_removed": {
       const queuedTurnCount = Math.max(
@@ -569,36 +592,35 @@ function projectRuntimeStreamEvent(params: {
         runtimeStatus: "running",
         latestTurnStatus: "running",
       };
-    case "turn_completed":
-      {
-        const queuedTurnCount = getQueuedTurnCount(session, currentRuntime);
-        return {
-          entry: buildLifecycleActivityEntry({
-            sessionId,
-            key: "turn",
-            title: "阶段完成",
-            detail: "这一步已经完成，正在同步最新结果。",
-            statusLabel: "完成",
-            badgeClassName: COMPLETED_BADGE_CLASS_NAME,
-          }),
-          runtimeStatus: resolveFinalRuntimeStatus({
-            session,
-            current: currentRuntime,
-            terminalStatus: "completed",
-            queuedTurnCount,
-          }),
-          latestTurnStatus: "completed",
+    case "turn_completed": {
+      const queuedTurnCount = getQueuedTurnCount(session, currentRuntime);
+      return {
+        entry: buildLifecycleActivityEntry({
+          sessionId,
+          key: "turn",
+          title: "阶段完成",
+          detail: "这一步已经完成，正在同步最新结果。",
+          statusLabel: "完成",
+          badgeClassName: COMPLETED_BADGE_CLASS_NAME,
+        }),
+        runtimeStatus: resolveFinalRuntimeStatus({
+          session,
+          current: currentRuntime,
+          terminalStatus: "completed",
           queuedTurnCount,
-          clearEntryIds: [
-            `stream-text:${sessionId}`,
-            `stream-thinking:${sessionId}`,
-            `runtime-status:${sessionId}`,
-          ],
-          clearTextDraft: true,
-          clearThinkingDraft: true,
-          refreshPreview: true,
-        };
-      }
+        }),
+        latestTurnStatus: "completed",
+        queuedTurnCount,
+        clearEntryIds: [
+          `stream-text:${sessionId}`,
+          `stream-thinking:${sessionId}`,
+          `runtime-status:${sessionId}`,
+        ],
+        clearTextDraft: true,
+        clearThinkingDraft: true,
+        refreshPreview: true,
+      };
+    }
     case "turn_failed": {
       const queuedTurnCount = getQueuedTurnCount(session, currentRuntime);
       return {
@@ -607,7 +629,8 @@ function projectRuntimeStreamEvent(params: {
           key: "turn",
           title: "处理失败",
           detail:
-            event.turn.error_message?.trim() || "这一步处理失败，请查看错误详情。",
+            event.turn.error_message?.trim() ||
+            "这一步处理失败，请查看错误详情。",
           statusLabel: "需重试",
           badgeClassName: FAILED_BADGE_CLASS_NAME,
         }),
@@ -713,7 +736,7 @@ function buildActiveSubagentSnapshots(params: UseTeamWorkspaceRuntimeOptions) {
   }
 
   const siblingSessions = subagentParentContext
-    ? subagentParentContext.sibling_subagent_sessions ?? []
+    ? (subagentParentContext.sibling_subagent_sessions ?? [])
     : childSubagentSessions;
 
   siblingSessions.forEach((session) => {
@@ -761,8 +784,10 @@ export function useTeamWorkspaceRuntime(
   const [liveActivityBySessionId, setLiveActivityBySessionId] = useState<
     Record<string, TeamWorkspaceActivityEntry[]>
   >({});
-  const [activityRefreshVersionBySessionId, setActivityRefreshVersionBySessionId] =
-    useState<Record<string, number>>({});
+  const [
+    activityRefreshVersionBySessionId,
+    setActivityRefreshVersionBySessionId,
+  ] = useState<Record<string, number>>({});
   const refreshTimersRef = useRef<Record<string, number>>({});
   const activeSnapshotByIdRef = useRef<
     Map<string, TeamWorkspaceRuntimeSessionSnapshot>
@@ -853,7 +878,9 @@ export function useTeamWorkspaceRuntime(
   }, []);
 
   useEffect(() => {
-    const activeSessionIds = new Set(activeSnapshots.map((session) => session.id));
+    const activeSessionIds = new Set(
+      activeSnapshots.map((session) => session.id),
+    );
 
     Object.entries(refreshTimersRef.current).forEach(([sessionId, timerId]) => {
       if (activeSessionIds.has(sessionId)) {
@@ -884,12 +911,14 @@ export function useTeamWorkspaceRuntime(
     });
 
     setLiveRuntimeBySessionId((previous) => {
-      const nextEntries = Object.entries(previous).filter(([sessionId, live]) => {
-        if (!activeSessionIds.has(sessionId)) {
-          return false;
-        }
-        return baseFingerprintById.get(sessionId) === live.baseFingerprint;
-      });
+      const nextEntries = Object.entries(previous).filter(
+        ([sessionId, live]) => {
+          if (!activeSessionIds.has(sessionId)) {
+            return false;
+          }
+          return baseFingerprintById.get(sessionId) === live.baseFingerprint;
+        },
+      );
       if (nextEntries.length === Object.keys(previous).length) {
         return previous;
       }
@@ -910,9 +939,7 @@ export function useTeamWorkspaceRuntime(
 
   useEffect(() => {
     const eventNames = [
-      currentSessionId
-        ? currentSessionId
-        : null,
+      currentSessionId ? currentSessionId : null,
       subagentParentContext?.parent_session_id
         ? subagentParentContext.parent_session_id
         : null,
@@ -934,7 +961,9 @@ export function useTeamWorkspaceRuntime(
             return;
           }
 
-          const matchingSession = activeSnapshotByIdRef.current.get(data.session_id);
+          const matchingSession = activeSnapshotByIdRef.current.get(
+            data.session_id,
+          );
           if (!matchingSession) {
             return;
           }
@@ -959,7 +988,7 @@ export function useTeamWorkspaceRuntime(
               normalizedStatus === "closed" ||
               normalizedStatus === "idle"
                 ? 0
-                : current?.queuedTurnCount ?? matchingSession.queuedTurnCount;
+                : (current?.queuedTurnCount ?? matchingSession.queuedTurnCount);
             if (
               current?.runtimeStatus === normalizedStatus &&
               current.latestTurnStatus === normalizedStatus &&
@@ -1066,7 +1095,8 @@ export function useTeamWorkspaceRuntime(
           if (projection.rememberTool) {
             toolNameBySessionIdRef.current[sessionId] = {
               ...(toolNameBySessionIdRef.current[sessionId] ?? {}),
-              [projection.rememberTool.toolId]: projection.rememberTool.toolName,
+              [projection.rememberTool.toolId]:
+                projection.rememberTool.toolName,
             };
           }
 
@@ -1106,7 +1136,8 @@ export function useTeamWorkspaceRuntime(
             if (Object.keys(nextStreamState).length === 0) {
               delete liveStreamStateBySessionIdRef.current[sessionId];
             } else {
-              liveStreamStateBySessionIdRef.current[sessionId] = nextStreamState;
+              liveStreamStateBySessionIdRef.current[sessionId] =
+                nextStreamState;
             }
           }
 
@@ -1159,7 +1190,8 @@ export function useTeamWorkspaceRuntime(
                 current.teamQueuedCount === nextState.teamQueuedCount &&
                 current.providerConcurrencyGroup ===
                   nextState.providerConcurrencyGroup &&
-                current.providerParallelBudget === nextState.providerParallelBudget &&
+                current.providerParallelBudget ===
+                  nextState.providerParallelBudget &&
                 current.queueReason === nextState.queueReason &&
                 current.retryableOverload === nextState.retryableOverload &&
                 current.baseFingerprint === nextState.baseFingerprint
@@ -1182,7 +1214,10 @@ export function useTeamWorkspaceRuntime(
                 projection.clearEntryIds ?? [],
               );
               const nextEntries = projection.entry
-                ? upsertLiveActivityEntries(nextWithoutTransient, projection.entry)
+                ? upsertLiveActivityEntries(
+                    nextWithoutTransient,
+                    projection.entry,
+                  )
                 : nextWithoutTransient;
 
               if (nextEntries === existingEntries) {

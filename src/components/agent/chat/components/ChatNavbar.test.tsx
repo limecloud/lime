@@ -137,8 +137,12 @@ describe("ChatNavbar", () => {
     });
 
     expect(container.querySelector('[aria-label="切换历史"]')).not.toBeNull();
-    expect(container.querySelector('[aria-label="展开Harness"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="project-selector"]')).toBeNull();
+    expect(
+      container.querySelector('[aria-label="展开Harness"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="project-selector"]'),
+    ).toBeNull();
   });
 
   it("任务中心顶栏应展示轻量上下文提示", () => {

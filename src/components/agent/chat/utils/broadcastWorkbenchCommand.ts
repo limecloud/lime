@@ -1,7 +1,4 @@
-export type BroadcastWorkbenchCommandTrigger =
-  | "@播报"
-  | "@播客"
-  | "@broadcast";
+export type BroadcastWorkbenchCommandTrigger = "@播报" | "@播客" | "@broadcast";
 
 export interface ParsedBroadcastWorkbenchCommand {
   rawText: string;
@@ -76,9 +73,7 @@ function splitPromptAndContent(body: string): {
   }
 
   const promptSource = body.slice(0, matched.index).trim();
-  const contentSource = body
-    .slice(matched.index + matched[0].length)
-    .trim();
+  const contentSource = body.slice(matched.index + matched[0].length).trim();
 
   return {
     promptSource,
@@ -131,7 +126,9 @@ function collectFieldMatches(text: string): BroadcastFieldMatch[] {
 
   return baseMatches.map((match, index) => {
     const nextStart =
-      index + 1 < baseMatches.length ? baseMatches[index + 1]!.start : text.length;
+      index + 1 < baseMatches.length
+        ? baseMatches[index + 1]!.start
+        : text.length;
     const remainder = text.slice(match.valueStart, nextStart);
 
     if (match.key === "duration") {
@@ -164,7 +161,10 @@ function collectFieldMatches(text: string): BroadcastFieldMatch[] {
   });
 }
 
-function stripExplicitFields(text: string, matches: BroadcastFieldMatch[]): string {
+function stripExplicitFields(
+  text: string,
+  matches: BroadcastFieldMatch[],
+): string {
   if (matches.length === 0) {
     return text;
   }
@@ -190,7 +190,9 @@ function extractBroadcastFields(text: string): ExtractedBroadcastFields {
   };
 
   matches.forEach((match) => {
-    const rawValue = normalizeFieldValue(text.slice(match.valueStart, match.end));
+    const rawValue = normalizeFieldValue(
+      text.slice(match.valueStart, match.end),
+    );
     if (!rawValue) {
       return;
     }

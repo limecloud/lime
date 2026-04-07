@@ -92,8 +92,8 @@ describe("getSkillSource", () => {
    * Property 4: Source Classification Logic
    *
    * *For any* Skill object, the source classification SHALL return:
-    * - "builtin" if sourceKind="builtin"
-    * - "project" if catalogSource="project" and sourceKind!="builtin"
+   * - "builtin" if sourceKind="builtin"
+   * - "project" if catalogSource="project" and sourceKind!="builtin"
    * - "local" if catalogSource="user"
    * - "official" if repoOwner="lime" AND repoName="skills"
    * - "community" if repoOwner and repoName are present but not lime/skills
@@ -117,18 +117,15 @@ describe("getSkillSource", () => {
 
     test.prop([fc.constant("lime"), fc.constant("skills")], {
       numRuns: 100,
-    })(
-      "官方仓库 (lime/skills) 应返回 'official'",
-      (repoOwner, repoName) => {
-        const skill = createSkill({
-          catalogSource: "remote",
-          repoOwner,
-          repoName,
-        });
-        const source = getSkillSource(skill);
-        expect(source).toBe("official" as SkillSource);
-      },
-    );
+    })("官方仓库 (lime/skills) 应返回 'official'", (repoOwner, repoName) => {
+      const skill = createSkill({
+        catalogSource: "remote",
+        repoOwner,
+        repoName,
+      });
+      const source = getSkillSource(skill);
+      expect(source).toBe("official" as SkillSource);
+    });
 
     test.prop([nonLimeOwnerArb, repoNameArb], { numRuns: 100 })(
       "非 lime 所有者的仓库应返回 'community'",

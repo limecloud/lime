@@ -18,11 +18,17 @@ export function useImageAttachments() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const appendImageFile = useCallback(
-    async (file: File, successMessage?: string, preferredMediaType?: string) => {
+    async (
+      file: File,
+      successMessage?: string,
+      preferredMediaType?: string,
+    ) => {
       try {
         const image = await readImageAttachment(file, preferredMediaType);
         setPendingImages((prev) => [...prev, image]);
-        toast.success(successMessage ?? `已添加图片: ${file.name || "未命名图片"}`);
+        toast.success(
+          successMessage ?? `已添加图片: ${file.name || "未命名图片"}`,
+        );
       } catch {
         toast.error(`图片读取失败: ${file.name || "未命名图片"}`);
       }

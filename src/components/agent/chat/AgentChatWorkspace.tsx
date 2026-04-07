@@ -271,7 +271,9 @@ function resolveTaskPreviewArtifact(
   if (normalizedArtifactPath) {
     const matchedArtifact = messageArtifacts.find(
       (artifact) =>
-        !isHiddenInternalArtifactPath(resolveArtifactProtocolFilePath(artifact)) &&
+        !isHiddenInternalArtifactPath(
+          resolveArtifactProtocolFilePath(artifact),
+        ) &&
         (areArtifactProtocolPathsEquivalent(
           resolveArtifactProtocolFilePath(artifact),
           normalizedArtifactPath,
@@ -310,9 +312,7 @@ function normalizeVideoAspectRatio(
   }
 }
 
-function normalizeVideoResolution(
-  value?: string,
-): "480p" | "720p" | "1080p" {
+function normalizeVideoResolution(value?: string): "480p" | "720p" | "1080p" {
   switch (value) {
     case "480p":
     case "1080p":
@@ -527,7 +527,9 @@ export function AgentChatWorkspace({
         let resolvedRootPath = defaultProject.rootPath;
 
         try {
-          const ensuredWorkspace = await ensureWorkspaceReady(defaultProject.id);
+          const ensuredWorkspace = await ensureWorkspaceReady(
+            defaultProject.id,
+          );
           resolvedRootPath = ensuredWorkspace.rootPath || resolvedRootPath;
         } catch (error) {
           logAgentDebug(
@@ -1024,7 +1026,9 @@ export function AgentChatWorkspace({
             : theme
         ) as ThemeType;
         const rawBody = content.body || "";
-        const sanitizedBody = isCorruptedGeneralWorkbenchDocumentContent(rawBody)
+        const sanitizedBody = isCorruptedGeneralWorkbenchDocumentContent(
+          rawBody,
+        )
           ? ""
           : rawBody;
 
@@ -2173,8 +2177,8 @@ export function AgentChatWorkspace({
     pendingActionRequest,
   });
 
-  const generalWorkbenchSidebarRuntime = useWorkspaceGeneralWorkbenchSidebarRuntime(
-    {
+  const generalWorkbenchSidebarRuntime =
+    useWorkspaceGeneralWorkbenchSidebarRuntime({
       isThemeWorkbench,
       sessionId,
       messages,
@@ -2182,8 +2186,7 @@ export function AgentChatWorkspace({
       themeWorkbenchBackendRunState,
       contextActivityLogs: contextWorkspace.activityLogs,
       historyPageSize: GENERAL_WORKBENCH_HISTORY_PAGE_SIZE,
-    },
-  );
+    });
 
   const { handleViewContextDetail } = useWorkspaceContextDetailActions({
     contextWorkspace,
@@ -2460,12 +2463,10 @@ export function AgentChatWorkspace({
     setCanvasState,
   });
 
-  const submitImageWorkbenchAgentCommandRef =
-    useRef<
-      ((
-        params: SubmitImageWorkbenchAgentCommandParams,
-      ) => Promise<boolean>) | null
-    >(null);
+  const submitImageWorkbenchAgentCommandRef = useRef<
+    | ((params: SubmitImageWorkbenchAgentCommandParams) => Promise<boolean>)
+    | null
+  >(null);
   const imageWorkbenchActionRuntime = useWorkspaceImageWorkbenchActionRuntime({
     cancelImageTask: cancelMediaTaskArtifact,
     contentId,
@@ -2572,7 +2573,11 @@ export function AgentChatWorkspace({
           ),
         },
       ),
-    [effectiveChatToolPreferences.thinking, handleSendRef, webSearchPreferenceRef],
+    [
+      effectiveChatToolPreferences.thinking,
+      handleSendRef,
+      webSearchPreferenceRef,
+    ],
   );
   submitImageWorkbenchAgentCommandRef.current =
     submitImageWorkbenchAgentCommand;
@@ -2961,11 +2966,17 @@ export function AgentChatWorkspace({
       if (normalizedArtifactPath) {
         const matchedTaskFile = taskFiles.find(
           (file) =>
-            areArtifactProtocolPathsEquivalent(file.name, normalizedArtifactPath) ||
+            areArtifactProtocolPathsEquivalent(
+              file.name,
+              normalizedArtifactPath,
+            ) ||
             normalizeArtifactProtocolPath(file.name) === normalizedArtifactPath,
         );
         if (matchedTaskFile?.content?.trim()) {
-          handleWorkspaceFileClick(matchedTaskFile.name, matchedTaskFile.content);
+          handleWorkspaceFileClick(
+            matchedTaskFile.name,
+            matchedTaskFile.content,
+          );
           return;
         }
       }
@@ -3093,32 +3104,34 @@ export function AgentChatWorkspace({
     hasRealTeamGraph: teamSessionRuntime.hasRealTeamGraph,
     teamDispatchPreviewState,
   });
-  const generalWorkbenchShellRuntime = useWorkspaceGeneralWorkbenchShellRuntime({
-    showChatPanel: effectiveShowChatPanel,
-    showSidebar,
-    hasPendingA2UIForm,
-    contextHarnessRuntime,
-    generalWorkbenchScaffoldRuntime,
-    generalWorkbenchSidebarRuntime,
-    harnessInventoryRuntime,
-    handleCreateVersionSnapshot,
-    handleSwitchBranchVersion,
-    handleSetBranchStatus,
-    handleAddImage,
-    handleImportDocument,
-    handleViewContextDetail,
-    messages,
-    harnessState,
-    compatSubagentRuntime,
-    childSubagentSessions,
-    selectedTeamLabel,
-    selectedTeamSummary,
-    selectedTeamRoles: selectedTeam?.roles,
-    teamMemorySnapshot: resolvedTeamMemoryShadowSnapshot,
-    handleOpenSubagentSession,
-    handleHarnessLoadFilePreview,
-    handleFileClick: handleWorkspaceFileClick,
-  });
+  const generalWorkbenchShellRuntime = useWorkspaceGeneralWorkbenchShellRuntime(
+    {
+      showChatPanel: effectiveShowChatPanel,
+      showSidebar,
+      hasPendingA2UIForm,
+      contextHarnessRuntime,
+      generalWorkbenchScaffoldRuntime,
+      generalWorkbenchSidebarRuntime,
+      harnessInventoryRuntime,
+      handleCreateVersionSnapshot,
+      handleSwitchBranchVersion,
+      handleSetBranchStatus,
+      handleAddImage,
+      handleImportDocument,
+      handleViewContextDetail,
+      messages,
+      harnessState,
+      compatSubagentRuntime,
+      childSubagentSessions,
+      selectedTeamLabel,
+      selectedTeamSummary,
+      selectedTeamRoles: selectedTeam?.roles,
+      teamMemorySnapshot: resolvedTeamMemoryShadowSnapshot,
+      handleOpenSubagentSession,
+      handleHarnessLoadFilePreview,
+      handleFileClick: handleWorkspaceFileClick,
+    },
+  );
 
   useWorkspaceWorkflowProgressSync({
     enabled: isSpecializedThemeMode && hasMessages && steps.length > 0,
@@ -3283,10 +3296,8 @@ export function AgentChatWorkspace({
   const workspaceShellSceneRuntime = useWorkspaceConversationShellSceneRuntime({
     messageListEmptyStateVariant:
       agentEntry === "claw" ? "task-center" : "default",
-    navbarContextVariant:
-      agentEntry === "claw" ? "task-center" : "default",
-    sidebarContextVariant:
-      agentEntry === "claw" ? "task-center" : "default",
+    navbarContextVariant: agentEntry === "claw" ? "task-center" : "default",
+    sidebarContextVariant: agentEntry === "claw" ? "task-center" : "default",
     navigationActions,
     inputbarScene,
     canvasScene,

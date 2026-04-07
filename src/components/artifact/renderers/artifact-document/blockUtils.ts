@@ -207,7 +207,10 @@ function joinMarkdownSections(parts: Array<string | undefined>): string | null {
   return content ? content : null;
 }
 
-function buildMarkdownTable(columns: string[], rows: string[][]): string | null {
+function buildMarkdownTable(
+  columns: string[],
+  rows: string[][],
+): string | null {
   if (columns.length === 0 && rows.length === 0) {
     return null;
   }
@@ -226,8 +229,8 @@ function buildMarkdownTable(columns: string[], rows: string[][]): string | null 
   const header = `| ${columns.map(escapeMarkdownCell).join(" | ")} |`;
   const separator = `| ${columns.map(() => "---").join(" | ")} |`;
   const body = rows.map((row) => {
-    const normalizedRow = columns.map(
-      (_, index) => escapeMarkdownCell(row[index] || ""),
+    const normalizedRow = columns.map((_, index) =>
+      escapeMarkdownCell(row[index] || ""),
     );
     return `| ${normalizedRow.join(" | ")} |`;
   });
@@ -235,14 +238,18 @@ function buildMarkdownTable(columns: string[], rows: string[][]): string | null 
   return [header, separator, ...body].join("\n");
 }
 
-export function resolveFallbackRichText(block: ArtifactDocumentBlock): string | null {
+export function resolveFallbackRichText(
+  block: ArtifactDocumentBlock,
+): string | null {
   const record = resolveRecord(block);
   const directContent = resolvePortableRichText(block) || undefined;
 
   switch (block.type) {
     case "section_header":
       return joinMarkdownSections([
-        normalizeText(block.title) ? `## ${normalizeText(block.title)}` : undefined,
+        normalizeText(block.title)
+          ? `## ${normalizeText(block.title)}`
+          : undefined,
         normalizeText(block.description),
         directContent,
       ]);
@@ -250,7 +257,9 @@ export function resolveFallbackRichText(block: ArtifactDocumentBlock): string | 
       const highlights = normalizeStringArray(block.highlights);
       return joinMarkdownSections([
         normalizeText(block.eyebrow),
-        normalizeText(block.title) ? `## ${normalizeText(block.title)}` : undefined,
+        normalizeText(block.title)
+          ? `## ${normalizeText(block.title)}`
+          : undefined,
         normalizeText(block.summary),
         highlights.length > 0
           ? highlights.map((item) => `- ${item}`).join("\n")
@@ -261,14 +270,20 @@ export function resolveFallbackRichText(block: ArtifactDocumentBlock): string | 
     case "key_points": {
       const items = normalizeStringArray(block.items);
       return joinMarkdownSections([
-        normalizeText(block.title) ? `### ${normalizeText(block.title)}` : undefined,
-        items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : undefined,
+        normalizeText(block.title)
+          ? `### ${normalizeText(block.title)}`
+          : undefined,
+        items.length > 0
+          ? items.map((item) => `- ${item}`).join("\n")
+          : undefined,
         directContent,
       ]);
     }
     case "callout":
       return joinMarkdownSections([
-        normalizeText(block.title) ? `### ${normalizeText(block.title)}` : undefined,
+        normalizeText(block.title)
+          ? `### ${normalizeText(block.title)}`
+          : undefined,
         normalizeText(block.body) ||
           normalizeText(block.content) ||
           normalizeText(block.text),
@@ -278,14 +293,18 @@ export function resolveFallbackRichText(block: ArtifactDocumentBlock): string | 
       const columns = resolveTableColumns(block);
       const rows = resolveTableRows(block, columns);
       return joinMarkdownSections([
-        normalizeText(block.title) ? `### ${normalizeText(block.title)}` : undefined,
+        normalizeText(block.title)
+          ? `### ${normalizeText(block.title)}`
+          : undefined,
         buildMarkdownTable(columns, rows) || directContent,
       ]);
     }
     case "checklist": {
       const items = resolveChecklistItems(block);
       return joinMarkdownSections([
-        normalizeText(block.title) ? `### ${normalizeText(block.title)}` : undefined,
+        normalizeText(block.title)
+          ? `### ${normalizeText(block.title)}`
+          : undefined,
         items.length > 0
           ? items
               .map((item) => `- [${item.checked ? "x" : " "}] ${item.label}`)
@@ -297,7 +316,9 @@ export function resolveFallbackRichText(block: ArtifactDocumentBlock): string | 
     case "metric_grid": {
       const items = resolveMetricItems(block);
       return joinMarkdownSections([
-        normalizeText(block.title) ? `### ${normalizeText(block.title)}` : undefined,
+        normalizeText(block.title)
+          ? `### ${normalizeText(block.title)}`
+          : undefined,
         items.length > 0
           ? items
               .map((item) =>
@@ -322,16 +343,18 @@ export function resolveFallbackRichText(block: ArtifactDocumentBlock): string | 
       if (!quote) {
         return null;
       }
-      return attribution
-        ? `> ${quote}\n>\n> - ${attribution}`
-        : `> ${quote}`;
+      return attribution ? `> ${quote}\n>\n> - ${attribution}` : `> ${quote}`;
     }
     case "image":
       return joinMarkdownSections([
-        normalizeText(record?.title) ? `### ${normalizeText(record?.title)}` : undefined,
+        normalizeText(record?.title)
+          ? `### ${normalizeText(record?.title)}`
+          : undefined,
         normalizeText(block.caption),
         normalizeText(block.alt),
-        normalizeText(block.url) ? `图片地址：${normalizeText(block.url)}` : undefined,
+        normalizeText(block.url)
+          ? `图片地址：${normalizeText(block.url)}`
+          : undefined,
         directContent,
       ]);
     case "code_block": {
@@ -344,7 +367,9 @@ export function resolveFallbackRichText(block: ArtifactDocumentBlock): string | 
       }
       const language = normalizeText(block.language) || "";
       return joinMarkdownSections([
-        normalizeText(block.title) ? `### ${normalizeText(block.title)}` : undefined,
+        normalizeText(block.title)
+          ? `### ${normalizeText(block.title)}`
+          : undefined,
         `\`\`\`${language}\n${code}\n\`\`\``,
       ]);
     }

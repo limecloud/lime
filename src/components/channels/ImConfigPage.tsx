@@ -57,12 +57,10 @@ const ChannelsDebugWorkbench = lazy(() =>
   ),
 );
 
-type FlashMessage =
-  | {
-      type: "success" | "error";
-      text: string;
-    }
-  | null;
+type FlashMessage = {
+  type: "success" | "error";
+  text: string;
+} | null;
 
 type ManagedChannel = "telegram" | "feishu" | "wechat";
 
@@ -118,7 +116,9 @@ const DEFAULT_CHANNELS: ChannelsConfig = {
   },
 };
 
-function normalizeChannelsConfig(input?: Partial<ChannelsConfig>): ChannelsConfig {
+function normalizeChannelsConfig(
+  input?: Partial<ChannelsConfig>,
+): ChannelsConfig {
   return {
     telegram: {
       ...DEFAULT_CHANNELS.telegram,
@@ -609,7 +609,10 @@ function ModelSelect({
           return (
             <optgroup key={provider.key} label={provider.label}>
               {compatibleModels.map((model) => (
-                <option key={`${provider.key}/${model}`} value={`${provider.key}/${model}`}>
+                <option
+                  key={`${provider.key}/${model}`}
+                  value={`${provider.key}/${model}`}
+                >
                   {model}
                 </option>
               ))}
@@ -733,7 +736,11 @@ function QrCodePreview({ value }: { value: string }) {
 
   return (
     <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-      <img src={dataUrl} alt="微信扫码二维码" className="mx-auto h-[228px] w-[228px]" />
+      <img
+        src={dataUrl}
+        alt="微信扫码二维码"
+        className="mx-auto h-[228px] w-[228px]"
+      />
     </div>
   );
 }
@@ -780,7 +787,9 @@ function ChannelCard({
             className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3 text-sm last:border-b-0 last:pb-0"
           >
             <dt className="text-slate-500">{detail.label}</dt>
-            <dd className="text-right font-medium text-slate-800">{detail.value}</dd>
+            <dd className="text-right font-medium text-slate-800">
+              {detail.value}
+            </dd>
           </div>
         ))}
       </dl>
@@ -823,7 +832,9 @@ function TelegramConfigDialog({
       const result = await telegramChannelProbe();
       setMessage({
         type: result.ok ? "success" : "error",
-        text: result.message || (result.ok ? "Telegram 连接正常" : "Telegram 连接失败"),
+        text:
+          result.message ||
+          (result.ok ? "Telegram 连接正常" : "Telegram 连接失败"),
       });
     } catch (error) {
       setMessage({
@@ -837,7 +848,10 @@ function TelegramConfigDialog({
 
   const handleSave = async () => {
     if (draft.enabled && !draft.bot_token.trim()) {
-      setMessage({ type: "error", text: "启用 Telegram 前请先填写机器人 Token" });
+      setMessage({
+        type: "error",
+        text: "启用 Telegram 前请先填写机器人 Token",
+      });
       return;
     }
 
@@ -848,7 +862,9 @@ function TelegramConfigDialog({
         {
           ...draft,
           bot_token: draft.bot_token.trim(),
-          allowed_user_ids: draft.allowed_user_ids.map((item) => item.trim()).filter(Boolean),
+          allowed_user_ids: draft.allowed_user_ids
+            .map((item) => item.trim())
+            .filter(Boolean),
         },
         "Telegram 配置已保存",
       );
@@ -869,14 +885,18 @@ function TelegramConfigDialog({
       <ModalBody className="space-y-5">
         <SwitchField
           checked={draft.enabled}
-          onChange={(checked) => setDraft((current) => ({ ...current, enabled: checked }))}
+          onChange={(checked) =>
+            setDraft((current) => ({ ...current, enabled: checked }))
+          }
           title="启用 Telegram"
           description="机器人 Token、用户范围和联调都在这里。"
         />
         <SecretField
           label="机器人 Token"
           value={draft.bot_token}
-          onChange={(value) => setDraft((current) => ({ ...current, bot_token: value }))}
+          onChange={(value) =>
+            setDraft((current) => ({ ...current, bot_token: value }))
+          }
           placeholder="123456:ABC-DEF..."
         />
         <StringListEditor
@@ -889,7 +909,9 @@ function TelegramConfigDialog({
         />
         <ModelSelect
           value={draft.default_model}
-          onChange={(value) => setDraft((current) => ({ ...current, default_model: value }))}
+          onChange={(value) =>
+            setDraft((current) => ({ ...current, default_model: value }))
+          }
         />
         <ProbePanel
           description="填好 Token 后直接检测，不通再看日志。"
@@ -901,7 +923,11 @@ function TelegramConfigDialog({
       </ModalBody>
       <ModalFooter>
         <ActionButton onClick={onClose}>取消</ActionButton>
-        <ActionButton kind="primary" onClick={() => void handleSave()} disabled={busy}>
+        <ActionButton
+          kind="primary"
+          onClick={() => void handleSave()}
+          disabled={busy}
+        >
           保存
         </ActionButton>
       </ModalFooter>
@@ -937,7 +963,8 @@ function FeishuConfigDialog({
   const hasCredentials =
     draft.app_id.trim().length > 0 && draft.app_secret.trim().length > 0;
   const allowListLabel = dmPolicy === "allowlist" ? "白名单用户" : "已允许用户";
-  const showAllowListEditor = dmPolicy === "pairing" || dmPolicy === "allowlist";
+  const showAllowListEditor =
+    dmPolicy === "pairing" || dmPolicy === "allowlist";
   const statusTone = hasCredentials
     ? draft.enabled
       ? "success"
@@ -977,7 +1004,10 @@ function FeishuConfigDialog({
       setBusy(false);
       setMessage(null);
       setCredentialsOpen(
-        !(config.app_id?.trim().length > 0 && config.app_secret?.trim().length > 0),
+        !(
+          config.app_id?.trim().length > 0 &&
+          config.app_secret?.trim().length > 0
+        ),
       );
       setAdvancedOpen(false);
     }
@@ -1006,7 +1036,10 @@ function FeishuConfigDialog({
 
   const handleSave = async () => {
     if (draft.enabled && (!draft.app_id.trim() || !draft.app_secret.trim())) {
-      setMessage({ type: "error", text: "启用飞书前请先填写应用 ID 和应用密钥" });
+      setMessage({
+        type: "error",
+        text: "启用飞书前请先填写应用 ID 和应用密钥",
+      });
       return;
     }
 
@@ -1016,7 +1049,7 @@ function FeishuConfigDialog({
       const nextAllowFrom =
         draft.dm_policy === "open" && (draft.allow_from ?? []).length === 0
           ? ["*"]
-          : draft.allow_from ?? [];
+          : (draft.allow_from ?? []);
       await onSave(
         {
           ...draft,
@@ -1061,7 +1094,9 @@ function FeishuConfigDialog({
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="text-sm font-medium text-slate-900">配置状态</div>
+                <div className="text-sm font-medium text-slate-900">
+                  配置状态
+                </div>
                 <StatusBadge tone={statusTone}>{statusText}</StatusBadge>
               </div>
               <p className="text-sm leading-6 text-slate-600">
@@ -1075,7 +1110,10 @@ function FeishuConfigDialog({
               role="switch"
               aria-checked={draft.enabled}
               onClick={() =>
-                setDraft((current) => ({ ...current, enabled: !current.enabled }))
+                setDraft((current) => ({
+                  ...current,
+                  enabled: !current.enabled,
+                }))
               }
               className={cn(
                 "relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
@@ -1097,7 +1135,9 @@ function FeishuConfigDialog({
             <div className="space-y-3 px-4 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
-                  <div className="text-sm font-medium text-slate-900">当前机器人</div>
+                  <div className="text-sm font-medium text-slate-900">
+                    当前机器人
+                  </div>
                   <p className="text-xs text-slate-500">默认只看摘要。</p>
                 </div>
                 <button
@@ -1145,7 +1185,9 @@ function FeishuConfigDialog({
                 <TextField
                   label="应用 ID"
                   value={draft.app_id}
-                  onChange={(value) => setDraft((current) => ({ ...current, app_id: value }))}
+                  onChange={(value) =>
+                    setDraft((current) => ({ ...current, app_id: value }))
+                  }
                   placeholder="cli_xxxx"
                   mono
                 />
@@ -1168,11 +1210,11 @@ function FeishuConfigDialog({
           </div>
         </Collapsible>
 
-          <div className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-4">
-            <div className="space-y-1">
-              <div className="text-sm font-medium text-slate-900">准入策略</div>
-              <p className="text-xs text-slate-500">选择私聊如何进入。</p>
-            </div>
+        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white px-4 py-4">
+          <div className="space-y-1">
+            <div className="text-sm font-medium text-slate-900">准入策略</div>
+            <p className="text-xs text-slate-500">选择私聊如何进入。</p>
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             {policyOptions.map((option) => {
               const selected = dmPolicy === option.value;
@@ -1228,7 +1270,9 @@ function FeishuConfigDialog({
           {showAllowListEditor ? (
             <StringListEditor
               label={allowListLabel}
-              values={(draft.allow_from ?? []).filter((item) => item.trim() !== "*")}
+              values={(draft.allow_from ?? []).filter(
+                (item) => item.trim() !== "*",
+              )}
               onChange={(values) =>
                 setDraft((current) => ({ ...current, allow_from: values }))
               }
@@ -1251,8 +1295,12 @@ function FeishuConfigDialog({
                 className="flex w-full items-center justify-between px-4 py-3 text-left"
               >
                 <div>
-                  <div className="text-sm font-medium text-slate-900">高级配置</div>
-                  <p className="mt-1 text-xs text-slate-500">回调与兼容参数。</p>
+                  <div className="text-sm font-medium text-slate-900">
+                    高级配置
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    回调与兼容参数。
+                  </p>
                 </div>
                 {advancedOpen ? (
                   <ChevronDown className="h-4 w-4 text-slate-500" />
@@ -1398,7 +1446,11 @@ function FeishuConfigDialog({
       </ModalBody>
       <ModalFooter>
         <ActionButton onClick={onClose}>取消</ActionButton>
-        <ActionButton kind="primary" onClick={() => void handleSave()} disabled={busy}>
+        <ActionButton
+          kind="primary"
+          onClick={() => void handleSave()}
+          disabled={busy}
+        >
           保存
         </ActionButton>
       </ModalFooter>
@@ -1425,8 +1477,12 @@ function WechatConfigDialog({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<FlashMessage>(null);
   const [qrValue, setQrValue] = useState("");
-  const [runtimeAccounts, setRuntimeAccounts] = useState<WechatConfiguredAccount[]>([]);
-  const [loginResult, setLoginResult] = useState<WechatLoginWaitResult | null>(null);
+  const [runtimeAccounts, setRuntimeAccounts] = useState<
+    WechatConfiguredAccount[]
+  >([]);
+  const [loginResult, setLoginResult] = useState<WechatLoginWaitResult | null>(
+    null,
+  );
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [accountEditorOpen, setAccountEditorOpen] = useState(false);
@@ -1436,7 +1492,9 @@ function WechatConfigDialog({
     () => Object.keys(draft.accounts ?? {}),
     [draft.accounts],
   );
-  const activeAccount = activeAccountId ? draft.accounts?.[activeAccountId] : undefined;
+  const activeAccount = activeAccountId
+    ? draft.accounts?.[activeAccountId]
+    : undefined;
   const groupPolicy = normalizeWechatGroupPolicy(draft.group_policy);
   const streamingMode = normalizeStreamingMode(draft.streaming);
   const replyToMode = normalizeReplyToMode(draft.reply_to_mode);
@@ -1456,7 +1514,9 @@ function WechatConfigDialog({
     setAccountsOpen(false);
     setAccountEditorOpen(false);
     setActiveAccountId(
-      config.default_account?.trim() || Object.keys(config.accounts ?? {})[0] || "",
+      config.default_account?.trim() ||
+        Object.keys(config.accounts ?? {})[0] ||
+        "",
     );
 
     const requestId = scanRequestIdRef.current + 1;
@@ -1484,7 +1544,8 @@ function WechatConfigDialog({
       return;
     }
 
-    const preferredAccountId = draft.default_account?.trim() || accountIds[0] || "";
+    const preferredAccountId =
+      draft.default_account?.trim() || accountIds[0] || "";
     if (!preferredAccountId) {
       if (activeAccountId) {
         setActiveAccountId("");
@@ -1498,7 +1559,13 @@ function WechatConfigDialog({
     if (!activeAccountId || !accountIds.includes(activeAccountId)) {
       setActiveAccountId(preferredAccountId);
     }
-  }, [accountEditorOpen, accountIds, activeAccountId, draft.default_account, isOpen]);
+  }, [
+    accountEditorOpen,
+    accountIds,
+    activeAccountId,
+    draft.default_account,
+    isOpen,
+  ]);
 
   const patchAccount = useCallback(
     (
@@ -1509,7 +1576,9 @@ function WechatConfigDialog({
     ) => {
       setDraft((current) => {
         const baseAccounts = current.accounts ?? {};
-        const currentAccountDraft = baseAccounts[accountId] ?? { enabled: true };
+        const currentAccountDraft = baseAccounts[accountId] ?? {
+          enabled: true,
+        };
         return {
           ...current,
           accounts: {
@@ -1592,7 +1661,10 @@ function WechatConfigDialog({
         return;
       }
       setQrValue(result.qrcodeUrl);
-      setMessage({ type: "success", text: "二维码已生成，扫码后会自动等待登录结果" });
+      setMessage({
+        type: "success",
+        text: "二维码已生成，扫码后会自动等待登录结果",
+      });
 
       const waitResult = await wechatChannelLoginWait({
         sessionKey: result.sessionKey,
@@ -1611,7 +1683,10 @@ function WechatConfigDialog({
           ...current,
           enabled: true,
           bot_token: waitResult.botToken?.trim() || current.bot_token,
-          base_url: waitResult.baseUrl?.trim() || current.base_url || DEFAULT_WECHAT_BASE_URL,
+          base_url:
+            waitResult.baseUrl?.trim() ||
+            current.base_url ||
+            DEFAULT_WECHAT_BASE_URL,
           cdn_base_url: current.cdn_base_url || DEFAULT_WECHAT_CDN_BASE_URL,
           scanner_user_id: waitResult.userId?.trim() || current.scanner_user_id,
           default_account: nextAccountId,
@@ -1620,7 +1695,9 @@ function WechatConfigDialog({
             [nextAccountId]: {
               ...(current.accounts?.[nextAccountId] ?? {}),
               enabled: true,
-              bot_token: waitResult.botToken?.trim() || current.accounts?.[nextAccountId]?.bot_token,
+              bot_token:
+                waitResult.botToken?.trim() ||
+                current.accounts?.[nextAccountId]?.bot_token,
               scanner_user_id:
                 waitResult.userId?.trim() ||
                 current.accounts?.[nextAccountId]?.scanner_user_id,
@@ -1636,7 +1713,10 @@ function WechatConfigDialog({
             },
           },
         }));
-        setMessage({ type: "success", text: "微信已扫码成功，可以直接保存并启用" });
+        setMessage({
+          type: "success",
+          text: "微信已扫码成功，可以直接保存并启用",
+        });
         const accounts = await wechatChannelListAccounts();
         if (scanRequestIdRef.current === requestId) {
           setRuntimeAccounts(accounts);
@@ -1768,7 +1848,10 @@ function WechatConfigDialog({
             <div className="text-center text-xs leading-5 text-slate-500">
               微信扫码后会自动接入。
             </div>
-            <ActionButton onClick={() => void handleStartScan()} disabled={busy}>
+            <ActionButton
+              onClick={() => void handleStartScan()}
+              disabled={busy}
+            >
               重新生成二维码
             </ActionButton>
           </div>
@@ -1776,13 +1859,17 @@ function WechatConfigDialog({
           <div className="space-y-5">
             <SwitchField
               checked={draft.enabled}
-              onChange={(checked) => setDraft((current) => ({ ...current, enabled: checked }))}
+              onChange={(checked) =>
+                setDraft((current) => ({ ...current, enabled: checked }))
+              }
               title="启用微信"
               description="扫码后自动回填，保存时尝试启动。"
             />
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-slate-900">当前账号</span>
+                <span className="text-sm font-medium text-slate-900">
+                  当前账号
+                </span>
                 <StatusBadge
                   tone={draft.default_account?.trim() ? "success" : "warning"}
                 >
@@ -1805,7 +1892,10 @@ function WechatConfigDialog({
               <select
                 value={draft.dm_policy || "pairing"}
                 onChange={(event) =>
-                  setDraft((current) => ({ ...current, dm_policy: event.target.value }))
+                  setDraft((current) => ({
+                    ...current,
+                    dm_policy: event.target.value,
+                  }))
                 }
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
               >
@@ -1817,7 +1907,9 @@ function WechatConfigDialog({
             </div>
             {runtimeAccounts.length > 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-sm font-medium text-slate-900">已接入账号</div>
+                <div className="text-sm font-medium text-slate-900">
+                  已接入账号
+                </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {runtimeAccounts.map((account) => (
                     <button
@@ -1850,7 +1942,9 @@ function WechatConfigDialog({
                     className="flex w-full items-center justify-between px-4 py-3 text-left"
                   >
                     <div>
-                      <div className="text-sm font-medium text-slate-900">高级参数</div>
+                      <div className="text-sm font-medium text-slate-900">
+                        高级参数
+                      </div>
                       <p className="mt-1 text-xs text-slate-500">
                         群组、账号与兼容参数。
                       </p>
@@ -1880,14 +1974,20 @@ function WechatConfigDialog({
                       label="默认账号 ID"
                       value={draft.default_account || ""}
                       onChange={(value) =>
-                        setDraft((current) => ({ ...current, default_account: value }))
+                        setDraft((current) => ({
+                          ...current,
+                          default_account: value,
+                        }))
                       }
                       placeholder="默认账号 ID"
                     />
                     <ModelSelect
                       value={draft.default_model}
                       onChange={(value) =>
-                        setDraft((current) => ({ ...current, default_model: value }))
+                        setDraft((current) => ({
+                          ...current,
+                          default_model: value,
+                        }))
                       }
                     />
                     <div>
@@ -1922,7 +2022,10 @@ function WechatConfigDialog({
                       label="资源地址"
                       value={draft.cdn_base_url}
                       onChange={(value) =>
-                        setDraft((current) => ({ ...current, cdn_base_url: value }))
+                        setDraft((current) => ({
+                          ...current,
+                          cdn_base_url: value,
+                        }))
                       }
                       placeholder={DEFAULT_WECHAT_CDN_BASE_URL}
                       mono
@@ -1968,7 +2071,10 @@ function WechatConfigDialog({
                     label="已允许用户"
                     values={draft.allow_from ?? []}
                     onChange={(values) =>
-                      setDraft((current) => ({ ...current, allow_from: values }))
+                      setDraft((current) => ({
+                        ...current,
+                        allow_from: values,
+                      }))
                     }
                     placeholder="输入用户 ID 或 *"
                   />
@@ -1976,18 +2082,28 @@ function WechatConfigDialog({
                     label="群组允许用户"
                     values={draft.group_allow_from ?? []}
                     onChange={(values) =>
-                      setDraft((current) => ({ ...current, group_allow_from: values }))
+                      setDraft((current) => ({
+                        ...current,
+                        group_allow_from: values,
+                      }))
                     }
                     placeholder="输入用户 ID 或 *"
                   />
-                  <Collapsible open={accountsOpen} onOpenChange={setAccountsOpen}>
+                  <Collapsible
+                    open={accountsOpen}
+                    onOpenChange={setAccountsOpen}
+                  >
                     <div className="rounded-2xl border border-slate-200 bg-slate-50">
                       <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-4">
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-medium text-slate-900">账号参数</div>
+                            <div className="text-sm font-medium text-slate-900">
+                              账号参数
+                            </div>
                             <StatusBadge
-                              tone={accountIds.length > 0 ? "success" : "neutral"}
+                              tone={
+                                accountIds.length > 0 ? "success" : "neutral"
+                              }
                             >
                               {accountIds.length > 0
                                 ? `${accountIds.length} 个账号`
@@ -2004,10 +2120,14 @@ function WechatConfigDialog({
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <ActionButton onClick={addAccountDraft}>新增账号草稿</ActionButton>
+                          <ActionButton onClick={addAccountDraft}>
+                            新增账号草稿
+                          </ActionButton>
                           <button
                             type="button"
-                            onClick={() => setAccountsOpen((current) => !current)}
+                            onClick={() =>
+                              setAccountsOpen((current) => !current)
+                            }
                             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                           >
                             {accountsOpen ? "收起账号" : "展开账号"}
@@ -2034,7 +2154,9 @@ function WechatConfigDialog({
                                   <button
                                     key={accountId}
                                     type="button"
-                                    onClick={() => handleOpenAccountEditor(accountId)}
+                                    onClick={() =>
+                                      handleOpenAccountEditor(accountId)
+                                    }
                                     data-testid={`wechat-account-summary-${accountId}`}
                                     className={cn(
                                       "rounded-2xl border bg-white px-4 py-3 text-left transition",
@@ -2049,12 +2171,16 @@ function WechatConfigDialog({
                                           {account.name?.trim() || accountId}
                                         </div>
                                         <div className="text-xs text-slate-500">
-                                          {account.name?.trim() ? accountId : "未命名账号"}
+                                          {account.name?.trim()
+                                            ? accountId
+                                            : "未命名账号"}
                                         </div>
                                       </div>
                                       <div className="flex flex-wrap items-center gap-2">
                                         {draft.default_account === accountId ? (
-                                          <StatusBadge tone="success">默认账号</StatusBadge>
+                                          <StatusBadge tone="success">
+                                            默认账号
+                                          </StatusBadge>
                                         ) : null}
                                         <StatusBadge
                                           tone={
@@ -2063,19 +2189,23 @@ function WechatConfigDialog({
                                               : "warning"
                                           }
                                         >
-                                          {account.enabled !== false ? "已启用" : "已停用"}
+                                          {account.enabled !== false
+                                            ? "已启用"
+                                            : "已停用"}
                                         </StatusBadge>
                                       </div>
                                     </div>
                                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
                                       <span>
-                                        模型：{describeWechatAccountModel(account)}
+                                        模型：
+                                        {describeWechatAccountModel(account)}
                                       </span>
                                       <span>
                                         地址：
                                         {describeWechatAccountRoute(
                                           account,
-                                          draft.base_url || DEFAULT_WECHAT_BASE_URL,
+                                          draft.base_url ||
+                                            DEFAULT_WECHAT_BASE_URL,
                                         )}
                                       </span>
                                     </div>
@@ -2097,12 +2227,14 @@ function WechatConfigDialog({
                                         </div>
                                         <StatusBadge
                                           tone={
-                                            draft.default_account === activeAccountId
+                                            draft.default_account ===
+                                            activeAccountId
                                               ? "success"
                                               : "neutral"
                                           }
                                         >
-                                          {activeAccount.name?.trim() || activeAccountId}
+                                          {activeAccount.name?.trim() ||
+                                            activeAccountId}
                                         </StatusBadge>
                                       </div>
                                       <p className="text-xs text-slate-500">
@@ -2112,11 +2244,15 @@ function WechatConfigDialog({
                                     <button
                                       type="button"
                                       onClick={() =>
-                                        setAccountEditorOpen((current) => !current)
+                                        setAccountEditorOpen(
+                                          (current) => !current,
+                                        )
                                       }
                                       className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                                     >
-                                      {accountEditorOpen ? "收起详情" : "展开详情"}
+                                      {accountEditorOpen
+                                        ? "收起详情"
+                                        : "展开详情"}
                                       {accountEditorOpen ? (
                                         <ChevronDown className="h-4 w-4 text-slate-500" />
                                       ) : (
@@ -2132,12 +2268,14 @@ function WechatConfigDialog({
                                         </div>
                                         <StatusBadge
                                           tone={
-                                            draft.default_account === activeAccountId
+                                            draft.default_account ===
+                                            activeAccountId
                                               ? "success"
                                               : "neutral"
                                           }
                                         >
-                                          {draft.default_account === activeAccountId
+                                          {draft.default_account ===
+                                          activeAccountId
                                             ? "默认账号"
                                             : "账号草稿"}
                                         </StatusBadge>
@@ -2154,7 +2292,9 @@ function WechatConfigDialog({
                                           设为默认
                                         </ActionButton>
                                         <ActionButton
-                                          onClick={() => removeAccountDraft(activeAccountId)}
+                                          onClick={() =>
+                                            removeAccountDraft(activeAccountId)
+                                          }
                                         >
                                           删除
                                         </ActionButton>
@@ -2163,10 +2303,13 @@ function WechatConfigDialog({
                                     <SwitchField
                                       checked={activeAccount.enabled !== false}
                                       onChange={(checked) =>
-                                        patchAccount(activeAccountId, (current) => ({
-                                          ...current,
-                                          enabled: checked,
-                                        }))
+                                        patchAccount(
+                                          activeAccountId,
+                                          (current) => ({
+                                            ...current,
+                                            enabled: checked,
+                                          }),
+                                        )
                                       }
                                       title="启用该账号"
                                       description="关闭后保留参数，但不参与运行。"
@@ -2176,20 +2319,26 @@ function WechatConfigDialog({
                                         label="账号名称"
                                         value={activeAccount.name || ""}
                                         onChange={(value) =>
-                                          patchAccount(activeAccountId, (current) => ({
-                                            ...current,
-                                            name: value || undefined,
-                                          }))
+                                          patchAccount(
+                                            activeAccountId,
+                                            (current) => ({
+                                              ...current,
+                                              name: value || undefined,
+                                            }),
+                                          )
                                         }
                                         placeholder="主微信 / 运营号"
                                       />
                                       <ModelSelect
                                         value={activeAccount.default_model}
                                         onChange={(value) =>
-                                          patchAccount(activeAccountId, (current) => ({
-                                            ...current,
-                                            default_model: value,
-                                          }))
+                                          patchAccount(
+                                            activeAccountId,
+                                            (current) => ({
+                                              ...current,
+                                              default_model: value,
+                                            }),
+                                          )
                                         }
                                       />
                                     </div>
@@ -2198,10 +2347,13 @@ function WechatConfigDialog({
                                         label="账号服务地址"
                                         value={activeAccount.base_url || ""}
                                         onChange={(value) =>
-                                          patchAccount(activeAccountId, (current) => ({
-                                            ...current,
-                                            base_url: value || undefined,
-                                          }))
+                                          patchAccount(
+                                            activeAccountId,
+                                            (current) => ({
+                                              ...current,
+                                              base_url: value || undefined,
+                                            }),
+                                          )
                                         }
                                         placeholder={DEFAULT_WECHAT_BASE_URL}
                                         mono
@@ -2210,12 +2362,17 @@ function WechatConfigDialog({
                                         label="账号资源地址"
                                         value={activeAccount.cdn_base_url || ""}
                                         onChange={(value) =>
-                                          patchAccount(activeAccountId, (current) => ({
-                                            ...current,
-                                            cdn_base_url: value || undefined,
-                                          }))
+                                          patchAccount(
+                                            activeAccountId,
+                                            (current) => ({
+                                              ...current,
+                                              cdn_base_url: value || undefined,
+                                            }),
+                                          )
                                         }
-                                        placeholder={DEFAULT_WECHAT_CDN_BASE_URL}
+                                        placeholder={
+                                          DEFAULT_WECHAT_CDN_BASE_URL
+                                        }
                                         mono
                                       />
                                     </div>
@@ -2223,21 +2380,29 @@ function WechatConfigDialog({
                                       label="账号机器人 Token"
                                       value={activeAccount.bot_token || ""}
                                       onChange={(value) =>
-                                        patchAccount(activeAccountId, (current) => ({
-                                          ...current,
-                                          bot_token: value || undefined,
-                                        }))
+                                        patchAccount(
+                                          activeAccountId,
+                                          (current) => ({
+                                            ...current,
+                                            bot_token: value || undefined,
+                                          }),
+                                        )
                                       }
                                       placeholder="扫码成功后回填的 token"
                                     />
                                     <TextField
                                       label="账号扫码用户 ID"
-                                      value={activeAccount.scanner_user_id || ""}
+                                      value={
+                                        activeAccount.scanner_user_id || ""
+                                      }
                                       onChange={(value) =>
-                                        patchAccount(activeAccountId, (current) => ({
-                                          ...current,
-                                          scanner_user_id: value || undefined,
-                                        }))
+                                        patchAccount(
+                                          activeAccountId,
+                                          (current) => ({
+                                            ...current,
+                                            scanner_user_id: value || undefined,
+                                          }),
+                                        )
                                       }
                                       placeholder="扫码后的微信 user_id"
                                       mono
@@ -2263,7 +2428,11 @@ function WechatConfigDialog({
       </ModalBody>
       <ModalFooter>
         <ActionButton onClick={onClose}>取消</ActionButton>
-        <ActionButton kind="primary" onClick={() => void handleSave()} disabled={busy}>
+        <ActionButton
+          kind="primary"
+          onClick={() => void handleSave()}
+          disabled={busy}
+        >
           保存并启用
         </ActionButton>
       </ModalFooter>

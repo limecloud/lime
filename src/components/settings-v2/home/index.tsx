@@ -47,29 +47,25 @@ const groupMeta: Record<
 > = {
   account: {
     description: "个人资料、数据统计与账号相关信息。",
-    accentClassName:
-      "from-slate-200/70 via-white to-white",
+    accentClassName: "from-slate-200/70 via-white to-white",
     iconClassName: "border-slate-200 bg-slate-100 text-slate-700",
     icon: Settings2,
   },
   general: {
     description: "外观、快捷键、记忆等全局体验配置。",
-    accentClassName:
-      "from-sky-200/60 via-white to-white",
+    accentClassName: "from-sky-200/60 via-white to-white",
     iconClassName: "border-sky-200 bg-sky-100 text-sky-700",
     icon: Palette,
   },
   agent: {
     description: "服务商、技能与媒体能力的统一配置。",
-    accentClassName:
-      "from-emerald-200/70 via-white to-white",
+    accentClassName: "from-emerald-200/70 via-white to-white",
     iconClassName: "border-emerald-200 bg-emerald-100 text-emerald-700",
     icon: Brain,
   },
   system: {
     description: "连接器、MCP、环境变量与运行治理设置。",
-    accentClassName:
-      "from-amber-200/65 via-white to-white",
+    accentClassName: "from-amber-200/65 via-white to-white",
     iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
     icon: ShieldCheck,
   },

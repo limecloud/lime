@@ -25,12 +25,10 @@ interface MountedSidebar {
 const mountedSidebars: MountedSidebar[] = [];
 const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
 
-function mountSidebar(
-  options?: {
-    currentPage?: Page;
-    currentPageParams?: PageParams;
-  },
-): MountedSidebar["container"] {
+function mountSidebar(options?: {
+  currentPage?: Page;
+  currentPageParams?: PageParams;
+}): MountedSidebar["container"] {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -91,7 +89,9 @@ describe("AppSidebar", () => {
     expect(
       container.querySelector('button[aria-label="展开导航栏"]'),
     ).not.toBeNull();
-    expect(localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY)).toBe("true");
+    expect(localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY)).toBe(
+      "true",
+    );
   });
 
   it("新建任务页应自动展开导航栏，不沿用上一个页面的折叠状态", async () => {
@@ -107,7 +107,9 @@ describe("AppSidebar", () => {
     expect(
       container.querySelector('button[aria-label="折叠导航栏"]'),
     ).not.toBeNull();
-    expect(localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY)).toBe("false");
+    expect(localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY)).toBe(
+      "false",
+    );
   });
 
   it("旧导航配置未包含能力入口时也应显示固定能力分组和核心能力项", async () => {
@@ -142,7 +144,9 @@ describe("AppSidebar", () => {
 
     expect(container.textContent).toContain("能力");
     expect(
-      container.querySelector('button[aria-label="消息渠道"][aria-current="page"]'),
+      container.querySelector(
+        'button[aria-label="消息渠道"][aria-current="page"]',
+      ),
     ).not.toBeNull();
   });
 

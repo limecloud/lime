@@ -13,12 +13,7 @@ import React, {
   useCallback,
 } from "react";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
-import {
-  ChevronDown,
-  ChevronRight,
-  Loader2,
-  ExternalLink,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   AgentToolCallState as ToolCallState,
@@ -389,43 +384,43 @@ function normalizeSiteToolResultSummary(
   }
 
   return {
-      savedContent: hasSavedContent
-        ? {
-            contentId: readFirstNonEmptyString([savedContentRecord], [
-              "content_id",
-              "contentId",
-          ]),
-          projectId: readFirstNonEmptyString([savedContentRecord], [
-            "project_id",
-            "projectId",
-          ]),
-            title: readFirstNonEmptyString([savedContentRecord], ["title"]),
-            projectRootPath: readFirstNonEmptyString([savedContentRecord], [
-              "project_root_path",
-              "projectRootPath",
-            ]),
-            bundleRelativeDir: readFirstNonEmptyString([savedContentRecord], [
-              "bundle_relative_dir",
-              "bundleRelativeDir",
-            ]),
-            markdownRelativePath: readFirstNonEmptyString([savedContentRecord], [
-              "markdown_relative_path",
-              "markdownRelativePath",
-            ]),
-            imagesRelativeDir: readFirstNonEmptyString([savedContentRecord], [
-              "images_relative_dir",
-              "imagesRelativeDir",
-            ]),
-            metaRelativePath: readFirstNonEmptyString([savedContentRecord], [
-              "meta_relative_path",
-              "metaRelativePath",
-            ]),
-            imageCount: readFirstFiniteNumber([savedContentRecord], [
-              "image_count",
-              "imageCount",
-            ]),
-          }
-        : undefined,
+    savedContent: hasSavedContent
+      ? {
+          contentId: readFirstNonEmptyString(
+            [savedContentRecord],
+            ["content_id", "contentId"],
+          ),
+          projectId: readFirstNonEmptyString(
+            [savedContentRecord],
+            ["project_id", "projectId"],
+          ),
+          title: readFirstNonEmptyString([savedContentRecord], ["title"]),
+          projectRootPath: readFirstNonEmptyString(
+            [savedContentRecord],
+            ["project_root_path", "projectRootPath"],
+          ),
+          bundleRelativeDir: readFirstNonEmptyString(
+            [savedContentRecord],
+            ["bundle_relative_dir", "bundleRelativeDir"],
+          ),
+          markdownRelativePath: readFirstNonEmptyString(
+            [savedContentRecord],
+            ["markdown_relative_path", "markdownRelativePath"],
+          ),
+          imagesRelativeDir: readFirstNonEmptyString(
+            [savedContentRecord],
+            ["images_relative_dir", "imagesRelativeDir"],
+          ),
+          metaRelativePath: readFirstNonEmptyString(
+            [savedContentRecord],
+            ["meta_relative_path", "metaRelativePath"],
+          ),
+          imageCount: readFirstFiniteNumber(
+            [savedContentRecord],
+            ["image_count", "imageCount"],
+          ),
+        }
+      : undefined,
     savedProjectId,
     savedBy: readFirstNonEmptyString(candidates, ["saved_by", "savedBy"]),
     saveSkippedProjectId,
@@ -449,7 +444,9 @@ function resolveSiteProjectSourceLabel(source?: string): string | null {
   return null;
 }
 
-function resolveSiteAdapterSourceLabel(summary: SiteToolResultSummary): string | null {
+function resolveSiteAdapterSourceLabel(
+  summary: SiteToolResultSummary,
+): string | null {
   if (summary.adapterSourceKind === "server_synced") {
     return summary.adapterSourceVersion
       ? `服务端脚本 · ${summary.adapterSourceVersion}`
@@ -741,7 +738,8 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
 
   // 获取文件名
   const fileName = useMemo(
-    () => resolveToolPrimarySubjectFromInfo(toolCall.name, parsedArgs, filePath),
+    () =>
+      resolveToolPrimarySubjectFromInfo(toolCall.name, parsedArgs, filePath),
     [filePath, parsedArgs, toolCall.name],
   );
 
@@ -825,8 +823,11 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
 
     const notices: ToolResultNotice[] = [];
     const savedProjectId =
-      siteResultSummary.savedProjectId || siteResultSummary.savedContent?.projectId;
-    const savedSourceLabel = resolveSiteProjectSourceLabel(siteResultSummary.savedBy);
+      siteResultSummary.savedProjectId ||
+      siteResultSummary.savedContent?.projectId;
+    const savedSourceLabel = resolveSiteProjectSourceLabel(
+      siteResultSummary.savedBy,
+    );
 
     if (siteResultSummary.savedContent?.title) {
       let text = `结果已自动保存${
@@ -984,9 +985,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   const shouldShowRawSearchResultToggle =
     hasSearchResults && resultText !== "(无输出)";
   const shouldRenderResultPanel =
-    isExpanded &&
-    hasResult &&
-    (!hasSearchResults || showRawSearchResultOutput);
+    isExpanded && hasResult && (!hasSearchResults || showRawSearchResultOutput);
 
   const handleOpenExternalUrl = useCallback(async (url: string) => {
     try {
@@ -1007,7 +1006,13 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     ) {
       setIsExpanded(true);
     }
-  }, [isMessageStreaming, isRunning, hasResult, hasResultImages, hasSearchResults]);
+  }, [
+    isMessageStreaming,
+    isRunning,
+    hasResult,
+    hasResultImages,
+    hasSearchResults,
+  ]);
 
   useEffect(() => {
     if (hasSearchResults && !hasUserToggledExpandedRef.current) {
@@ -1042,7 +1047,10 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   return (
     <div className={cn("group", grouped && "pl-1")}>
       {grouped ? (
-        <div className="flex items-start gap-2 py-1.5" data-testid="tool-call-row">
+        <div
+          className="flex items-start gap-2 py-1.5"
+          data-testid="tool-call-row"
+        >
           <span className="pt-0.5 font-mono text-xs text-slate-400">
             {groupMarker}
           </span>
@@ -1165,9 +1173,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
       {hasSearchResults && isExpanded && (
         <div className="mb-2 ml-6 mt-1.5">
           <div className="mb-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
-            <span>
-              {searchSemantic.label}
-            </span>
+            <span>{searchSemantic.label}</span>
           </div>
           <SearchResultPreviewList
             items={searchResultItems}
@@ -1189,9 +1195,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
                   setShowRawSearchResultOutput((current) => !current)
                 }
               >
-                {showRawSearchResultOutput
-                  ? "收起原始输出"
-                  : "查看原始输出"}
+                {showRawSearchResultOutput ? "收起原始输出" : "查看原始输出"}
               </button>
             </div>
           ) : null}
@@ -1312,11 +1316,7 @@ export const ToolCallList: React.FC<ToolCallListProps> = ({
   for (const toolCall of toolCalls) {
     const isSearch = isUnifiedWebSearchToolName(toolCall.name);
     const lastGroup = groups[groups.length - 1];
-    if (
-      isSearch &&
-      lastGroup &&
-      lastGroup.type === "search"
-    ) {
+    if (isSearch && lastGroup && lastGroup.type === "search") {
       lastGroup.items.push(toolCall);
       continue;
     }

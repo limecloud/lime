@@ -122,9 +122,15 @@ describe("buildThreadReliabilityView", () => {
     });
 
     expect(view.summary).toContain("当前回合长时间无进展");
-    expect(view.recommendations).toContain("当前回合长时间无进展，建议停止后恢复执行");
-    expect(view.recommendations).toContain("Provider 故障通常可重试，建议稍后恢复或重发回合");
-    expect(view.recommendations).toContain("最近结果支持重试，可恢复或重新发起新回合");
+    expect(view.recommendations).toContain(
+      "当前回合长时间无进展，建议停止后恢复执行",
+    );
+    expect(view.recommendations).toContain(
+      "Provider 故障通常可重试，建议稍后恢复或重发回合",
+    );
+    expect(view.recommendations).toContain(
+      "最近结果支持重试，可恢复或重新发起新回合",
+    );
   });
 
   it("应识别审批超时并给出优先处理建议", () => {
@@ -175,7 +181,9 @@ describe("buildThreadReliabilityView", () => {
 
     expect(view.pendingRequests[0]?.waitingLabel).toBe("已等待 10 分钟");
     expect(view.recommendations).toContain("优先响应当前待处理请求");
-    expect(view.recommendations).toContain("审批等待过久，建议尽快处理或停止当前执行");
+    expect(view.recommendations).toContain(
+      "审批等待过久，建议尽快处理或停止当前执行",
+    );
   });
 
   it("应把 runtime 中断请求展示为中断中而非普通运行中", () => {
@@ -247,7 +255,8 @@ describe("buildThreadReliabilityView", () => {
           updated_at: "2026-03-23T09:58:30Z",
           type: "warning",
           code: "artifact_document_repaired",
-          message: "ArtifactDocument 已落盘: 已根据正文整理出一份可继续编辑的草稿。",
+          message:
+            "ArtifactDocument 已落盘: 已根据正文整理出一份可继续编辑的草稿。",
         },
       ],
     });

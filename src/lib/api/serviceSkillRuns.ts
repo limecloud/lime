@@ -62,7 +62,9 @@ function parseServiceSkillRun(value: unknown): ServiceSkillRun | null {
   }
 
   const id = normalizeText(value.id);
-  const status = normalizeText(value.status) as ServiceSkillRunStatus | undefined;
+  const status = normalizeText(value.status) as
+    | ServiceSkillRunStatus
+    | undefined;
   if (!id || !status) {
     return null;
   }
@@ -71,7 +73,9 @@ function parseServiceSkillRun(value: unknown): ServiceSkillRun | null {
     id,
     tenantId: normalizeText(value.tenantId),
     userId: normalizeText(value.userId),
-    runType: normalizeText(value.runType) as ServiceSkillRun["runType"] | undefined,
+    runType: normalizeText(value.runType) as
+      | ServiceSkillRun["runType"]
+      | undefined,
     sceneId: normalizeText(value.sceneId),
     sceneTemplateId: normalizeText(value.sceneTemplateId),
     releaseId: normalizeText(value.releaseId),
@@ -127,10 +131,16 @@ async function requestSceneEnvelope<T>(
   }
 
   if (!response.ok) {
-    throw new Error(payload?.message?.trim() || `请求失败 (${response.status})`);
+    throw new Error(
+      payload?.message?.trim() || `请求失败 (${response.status})`,
+    );
   }
 
-  if (!payload || payload.code !== undefined && payload.code >= 400 || payload.data === undefined) {
+  if (
+    !payload ||
+    (payload.code !== undefined && payload.code >= 400) ||
+    payload.data === undefined
+  ) {
     throw new Error(payload?.message?.trim() || "响应格式非法");
   }
 
@@ -170,7 +180,9 @@ export async function createServiceSkillRun(
   return run;
 }
 
-export async function getServiceSkillRun(runId: string): Promise<ServiceSkillRun> {
+export async function getServiceSkillRun(
+  runId: string,
+): Promise<ServiceSkillRun> {
   const normalizedRunId = runId.trim();
   if (!normalizedRunId) {
     throw new Error("run id 不能为空");

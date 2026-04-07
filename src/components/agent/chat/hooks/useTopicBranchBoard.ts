@@ -35,7 +35,9 @@ function buildStorageKey(projectId: string): string {
   return `${TOPIC_BRANCH_STATUS_KEY_PREFIX}${projectId}`;
 }
 
-function loadBranchStatusMap(storageKey: string): Record<string, TopicBranchStatus> {
+function loadBranchStatusMap(
+  storageKey: string,
+): Record<string, TopicBranchStatus> {
   try {
     const raw = sessionStorage.getItem(storageKey);
     if (!raw) {
@@ -95,8 +97,12 @@ export function useTopicBranchBoard({
   onStatusMapChange,
 }: UseTopicBranchBoardOptions) {
   const normalizedProjectId = normalizeProjectId(projectId);
-  const storageKey = normalizedProjectId ? buildStorageKey(normalizedProjectId) : null;
-  const [innerStatusMap, setInnerStatusMap] = useState<Record<string, TopicBranchStatus>>({});
+  const storageKey = normalizedProjectId
+    ? buildStorageKey(normalizedProjectId)
+    : null;
+  const [innerStatusMap, setInnerStatusMap] = useState<
+    Record<string, TopicBranchStatus>
+  >({});
   const useExternalState = !!(externalStatusMap && onStatusMapChange);
   const statusMap = useExternalState ? externalStatusMap : innerStatusMap;
 
@@ -104,11 +110,14 @@ export function useTopicBranchBoard({
     (
       updater:
         | Record<string, TopicBranchStatus>
-        | ((previous: Record<string, TopicBranchStatus>) => Record<string, TopicBranchStatus>),
+        | ((
+            previous: Record<string, TopicBranchStatus>,
+          ) => Record<string, TopicBranchStatus>),
     ) => {
       if (useExternalState) {
         const previous = externalStatusMap || {};
-        const next = typeof updater === "function" ? updater(previous) : updater;
+        const next =
+          typeof updater === "function" ? updater(previous) : updater;
         onStatusMapChange?.(next);
         return;
       }
@@ -191,8 +200,7 @@ export function useTopicBranchBoard({
         return {
           id: topic.id,
           title: topic.title,
-          status:
-            statusMap[topic.id] || resolveDefaultStatus(topic, isCurrent),
+          status: statusMap[topic.id] || resolveDefaultStatus(topic, isCurrent),
           isCurrent,
         };
       }),

@@ -177,7 +177,9 @@ function collectFieldMatches(text: string): SearchFieldMatch[] {
 
   return baseMatches.map((match, index) => {
     const nextStart =
-      index + 1 < baseMatches.length ? baseMatches[index + 1]!.start : text.length;
+      index + 1 < baseMatches.length
+        ? baseMatches[index + 1]!.start
+        : text.length;
     const remainder = text.slice(match.valueStart, nextStart);
 
     if (match.key === "depth") {
@@ -198,7 +200,10 @@ function collectFieldMatches(text: string): SearchFieldMatch[] {
   });
 }
 
-function stripExplicitFields(text: string, matches: SearchFieldMatch[]): string {
+function stripExplicitFields(
+  text: string,
+  matches: SearchFieldMatch[],
+): string {
   if (matches.length === 0) {
     return text;
   }

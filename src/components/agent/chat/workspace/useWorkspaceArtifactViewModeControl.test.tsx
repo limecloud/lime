@@ -9,9 +9,7 @@ type HookProps = Parameters<typeof useWorkspaceArtifactViewModeControl>[0];
 
 const mountedRoots: Array<{ container: HTMLDivElement; root: Root }> = [];
 
-function createArtifact(
-  overrides: Partial<Artifact> = {},
-): Artifact {
+function createArtifact(overrides: Partial<Artifact> = {}): Artifact {
   const content = overrides.content ?? "<html></html>";
   return {
     id: overrides.id ?? "artifact-html-1",
@@ -36,8 +34,9 @@ function renderHook(props?: Partial<HookProps>) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  let latestValue: ReturnType<typeof useWorkspaceArtifactViewModeControl> | null =
-    null;
+  let latestValue: ReturnType<
+    typeof useWorkspaceArtifactViewModeControl
+  > | null = null;
 
   const defaultProps: HookProps = {
     activeTheme: "general",

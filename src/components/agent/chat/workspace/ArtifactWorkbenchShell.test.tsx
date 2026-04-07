@@ -78,10 +78,12 @@ interface MountedShell {
 
 const mountedShells: MountedShell[] = [];
 
-interface ArtifactWorkbenchHarnessOverrides
-  extends Partial<
-    Omit<React.ComponentProps<typeof ArtifactWorkbenchShell>, "documentController">
-  > {
+interface ArtifactWorkbenchHarnessOverrides extends Partial<
+  Omit<
+    React.ComponentProps<typeof ArtifactWorkbenchShell>,
+    "documentController"
+  >
+> {
   onSaveArtifactDocument?: (
     artifact: Artifact,
     document: ArtifactDocumentV1,
@@ -341,7 +343,8 @@ function createAdvancedEditableArtifact(): Artifact {
     content,
     status: "complete",
     meta: {
-      filePath: ".lime/artifacts/thread-1/advanced-structured-edit.artifact.json",
+      filePath:
+        ".lime/artifacts/thread-1/advanced-structured-edit.artifact.json",
       filename: "advanced-structured-edit.artifact.json",
       language: "json",
     },
@@ -544,7 +547,9 @@ describe("ArtifactWorkbenchShell", () => {
     const buttons = Array.from(container.querySelectorAll("button"));
     const tabLabels = ["概览", "来源", "版本", "差异", "编辑"];
     for (const label of tabLabels) {
-      expect(buttons.find((button) => button.textContent?.includes(label))).toBeUndefined();
+      expect(
+        buttons.find((button) => button.textContent?.includes(label)),
+      ).toBeUndefined();
     }
   });
 
@@ -597,13 +602,15 @@ describe("ArtifactWorkbenchShell", () => {
       await Promise.resolve();
     });
 
-    const overviewTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("概览"),
-    );
+    const overviewTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("概览"));
     expect(overviewTrigger).not.toBeUndefined();
 
     await act(async () => {
-      overviewTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      overviewTrigger?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       await Promise.resolve();
     });
 
@@ -613,7 +620,9 @@ describe("ArtifactWorkbenchShell", () => {
     );
     expect(container.textContent).toContain("恢复稿");
     expect(
-      container.querySelector('[data-testid="artifact-recovery-continue-editing"]'),
+      container.querySelector(
+        '[data-testid="artifact-recovery-continue-editing"]',
+      ),
     ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="artifact-recovery-mark-ready"]'),
@@ -641,13 +650,15 @@ describe("ArtifactWorkbenchShell", () => {
       await Promise.resolve();
     });
 
-    const overviewTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("概览"),
-    );
+    const overviewTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("概览"));
     expect(overviewTrigger).not.toBeUndefined();
 
     await act(async () => {
-      overviewTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      overviewTrigger?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       await Promise.resolve();
     });
 
@@ -688,13 +699,15 @@ describe("ArtifactWorkbenchShell", () => {
       await Promise.resolve();
     });
 
-    const overviewTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("概览"),
-    );
+    const overviewTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("概览"));
     expect(overviewTrigger).not.toBeUndefined();
 
     await act(async () => {
-      overviewTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      overviewTrigger?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       await Promise.resolve();
     });
 
@@ -704,7 +717,9 @@ describe("ArtifactWorkbenchShell", () => {
     expect(markReadyButton).not.toBeNull();
 
     await act(async () => {
-      markReadyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      markReadyButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       await Promise.resolve();
     });
 
@@ -1044,7 +1059,7 @@ describe("ArtifactWorkbenchShell", () => {
 
   it("编辑态应支持触发 AI 改写当前块", async () => {
     const onArtifactBlockRewriteRun = vi.fn().mockResolvedValue({
-      rawContent: "{\"type\":\"artifact_rewrite_patch\"}",
+      rawContent: '{"type":"artifact_rewrite_patch"}',
       suggestion: {
         summary: "压缩冗余表达，保留事实信息",
         block: {
@@ -1161,7 +1176,7 @@ describe("ArtifactWorkbenchShell", () => {
   it("AI 改写建议应支持直接保存为新版本", async () => {
     const handleSaveArtifactDocument = vi.fn().mockResolvedValue(undefined);
     const onArtifactBlockRewriteRun = vi.fn().mockResolvedValue({
-      rawContent: "{\"type\":\"artifact_rewrite_patch\"}",
+      rawContent: '{"type":"artifact_rewrite_patch"}',
       suggestion: {
         summary: "压缩冗余表达，保留事实信息",
         block: {
@@ -1272,7 +1287,9 @@ describe("ArtifactWorkbenchShell", () => {
         }),
       }),
     );
-    expect(container.textContent).toContain("已把改写建议保存为当前文稿的新版本。");
+    expect(container.textContent).toContain(
+      "已把改写建议保存为当前文稿的新版本。",
+    );
   });
 
   it("应支持在 workbench 中编辑提示块并回写 tone 与正文", async () => {
@@ -1374,13 +1391,15 @@ describe("ArtifactWorkbenchShell", () => {
       await Promise.resolve();
     });
 
-    const keyPointsTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("关键结论"),
-    );
+    const keyPointsTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("关键结论"));
     expect(keyPointsTrigger).not.toBeUndefined();
 
     await act(async () => {
-      keyPointsTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      keyPointsTrigger?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       await Promise.resolve();
     });
 
@@ -1499,13 +1518,15 @@ describe("ArtifactWorkbenchShell", () => {
       await Promise.resolve();
     });
 
-    const checklistTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("推进清单"),
-    );
+    const checklistTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("推进清单"));
     expect(checklistTrigger).not.toBeUndefined();
 
     await act(async () => {
-      checklistTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      checklistTrigger?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       await Promise.resolve();
     });
 
@@ -1551,9 +1572,9 @@ describe("ArtifactWorkbenchShell", () => {
       }),
     );
 
-    const metricsTrigger = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("经营指标"),
-    );
+    const metricsTrigger = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("经营指标"));
     expect(metricsTrigger).not.toBeUndefined();
 
     await act(async () => {

@@ -41,7 +41,9 @@ function normalizeImageMimeType(
   return IMAGE_MIME_TYPE_BY_EXTENSION[extension] ?? null;
 }
 
-function buildClipboardCandidateKey(candidate: ClipboardImageCandidate): string {
+function buildClipboardCandidateKey(
+  candidate: ClipboardImageCandidate,
+): string {
   const { file, mediaType } = candidate;
   return [
     file.name || "clipboard-image",
@@ -84,7 +86,8 @@ export function readMessageImageFromDataUrl(dataUrl: string): MessageImage {
 }
 
 export function buildMessageImageDataUrl(image: MessageImage): string {
-  const normalizedMediaType = normalizeImageMimeType(image.mediaType) || "image/png";
+  const normalizedMediaType =
+    normalizeImageMimeType(image.mediaType) || "image/png";
   return `data:${normalizedMediaType};base64,${image.data}`;
 }
 

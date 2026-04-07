@@ -6,7 +6,11 @@ import {
   Globe,
   Search,
 } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { SearchResultPreviewItem } from "../utils/searchResultPreview";
 
@@ -226,7 +230,10 @@ export function SearchResultPreviewList({
           aria-label={expanded ? "收起搜索结果" : "展开搜索结果"}
         >
           <ChevronDown
-            className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")}
+            className={cn(
+              "h-3.5 w-3.5 transition-transform",
+              expanded && "rotate-180",
+            )}
           />
           <span>
             {expanded ? "收起结果" : `展开其余 ${hiddenCount} 条结果`}

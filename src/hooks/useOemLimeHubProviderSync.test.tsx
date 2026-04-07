@@ -25,7 +25,8 @@ vi.mock("@/lib/api/apiKeyProvider", () => ({
 }));
 
 vi.mock("@/lib/api/oemCloudControlPlane", () => ({
-  listClientProviderOfferModels: controlPlaneMocks.listClientProviderOfferModels,
+  listClientProviderOfferModels:
+    controlPlaneMocks.listClientProviderOfferModels,
 }));
 
 vi.mock("@/lib/tauri-runtime", () => ({
@@ -151,18 +152,20 @@ describe("useOemLimeHubProviderSync", () => {
 
     await flushEffects();
 
-    expect(controlPlaneMocks.listClientProviderOfferModels).toHaveBeenCalledWith(
-      "tenant-0001",
-      "offer-main",
+    expect(
+      controlPlaneMocks.listClientProviderOfferModels,
+    ).toHaveBeenCalledWith("tenant-0001", "offer-main");
+    expect(apiKeyProviderMocks.updateProvider).toHaveBeenCalledWith(
+      "lime-hub",
+      {
+        name: "Acme Hub",
+        api_host: "https://gateway.150404.xyz/root",
+        type: "openai",
+        enabled: true,
+        sort_order: 0,
+        custom_models: ["gpt-5.2-pro", "gpt-5.2-fast"],
+      },
     );
-    expect(apiKeyProviderMocks.updateProvider).toHaveBeenCalledWith("lime-hub", {
-      name: "Acme Hub",
-      api_host: "https://gateway.150404.xyz/root",
-      type: "openai",
-      enabled: true,
-      sort_order: 0,
-      custom_models: ["gpt-5.2-pro", "gpt-5.2-fast"],
-    });
   });
 
   it("bootstrap 切换到本地来源后应清空内部云端模型目录", async () => {
@@ -209,9 +212,14 @@ describe("useOemLimeHubProviderSync", () => {
 
     await flushEffects();
 
-    expect(controlPlaneMocks.listClientProviderOfferModels).not.toHaveBeenCalled();
-    expect(apiKeyProviderMocks.updateProvider).toHaveBeenCalledWith("lime-hub", {
-      custom_models: [],
-    });
+    expect(
+      controlPlaneMocks.listClientProviderOfferModels,
+    ).not.toHaveBeenCalled();
+    expect(apiKeyProviderMocks.updateProvider).toHaveBeenCalledWith(
+      "lime-hub",
+      {
+        custom_models: [],
+      },
+    );
   });
 });

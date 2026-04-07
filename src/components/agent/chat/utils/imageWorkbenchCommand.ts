@@ -23,8 +23,7 @@ const IMAGE_COMMAND_PREFIX_REGEX =
   /^\s*(@配图|@修图|@重绘|@image|\/image)(?:\s+|$)([\s\S]*)$/i;
 const TARGET_REF_REGEX = /#(img-[a-z0-9_-]+)/i;
 const SIZE_REGEX = /\b(\d{3,4}x\d{3,4})\b/i;
-const ASPECT_RATIO_REGEX =
-  /\b(1:1|16:9|9:16|4:3|3:4|3:2|2:3|21:9|4:5|5:4)\b/i;
+const ASPECT_RATIO_REGEX = /\b(1:1|16:9|9:16|4:3|3:4|3:2|2:3|21:9|4:5|5:4)\b/i;
 
 function normalizeTrigger(value: string): ImageWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();

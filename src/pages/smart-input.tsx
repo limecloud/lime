@@ -90,7 +90,9 @@ interface VoiceResetPayload {
   target?: string | null;
 }
 
-function normalizeVoiceTarget(value: string | null | undefined): VoiceTarget | null {
+function normalizeVoiceTarget(
+  value: string | null | undefined,
+): VoiceTarget | null {
   return value === "companion-pet" ? "companion-pet" : null;
 }
 
@@ -142,22 +144,19 @@ export function SmartInputPage() {
     setTimeout(() => setErrorMsg(null), 3000);
   }, []);
 
-  const applyResolvedVoiceText = useCallback(
-    async (finalText: string) => {
-      if (voiceTargetRef.current === "companion-pet") {
-        await safeEmit(COMPANION_PET_VOICE_TRANSCRIPT_EVENT, {
-          text: finalText,
-          source: "voice_window",
-        });
-        await getCurrentWindow().close();
-        return;
-      }
+  const applyResolvedVoiceText = useCallback(async (finalText: string) => {
+    if (voiceTargetRef.current === "companion-pet") {
+      await safeEmit(COMPANION_PET_VOICE_TRANSCRIPT_EVENT, {
+        text: finalText,
+        source: "voice_window",
+      });
+      await getCurrentWindow().close();
+      return;
+    }
 
-      setInputValue(finalText);
-      inputRef.current?.focus();
-    },
-    [],
-  );
+    setInputValue(finalText);
+    inputRef.current?.focus();
+  }, []);
 
   // 开始语音模式
   const startVoiceMode = useCallback(async () => {
@@ -250,11 +249,15 @@ export function SmartInputPage() {
 
     (async () => {
       try {
-        unlisten = await safeListen<VoiceResetPayload>("voice-reset", (event) => {
-          voiceTargetRef.current =
-            normalizeVoiceTarget(event.payload?.target) ?? getVoiceTargetFromUrl();
-          void startVoiceMode();
-        });
+        unlisten = await safeListen<VoiceResetPayload>(
+          "voice-reset",
+          (event) => {
+            voiceTargetRef.current =
+              normalizeVoiceTarget(event.payload?.target) ??
+              getVoiceTargetFromUrl();
+            void startVoiceMode();
+          },
+        );
       } catch (err) {
         console.error("[语音输入] 监听重置事件失败:", err);
       }

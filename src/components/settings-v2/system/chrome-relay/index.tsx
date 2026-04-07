@@ -249,7 +249,10 @@ function resolveBackendTone(item?: BrowserBackendStatusItem | null) {
 }
 
 function getSystemConnectorStatusTone(
-  connector: Pick<SystemConnectorSnapshot, "available" | "authorization_status">,
+  connector: Pick<
+    SystemConnectorSnapshot,
+    "available" | "authorization_status"
+  >,
 ) {
   if (!connector.available) {
     return "neutral" as const;
@@ -261,7 +264,10 @@ function getSystemConnectorStatusTone(
 }
 
 function getSystemConnectorStatusLabel(
-  connector: Pick<SystemConnectorSnapshot, "available" | "authorization_status" | "enabled">,
+  connector: Pick<
+    SystemConnectorSnapshot,
+    "available" | "authorization_status" | "enabled"
+  >,
 ) {
   if (!connector.available) {
     return "当前平台不支持";
@@ -319,8 +325,10 @@ export function ChromeRelaySettings() {
     useState<BrowserConnectorInstallStatus | null>(null);
   const [refreshingConnectorSettings, setRefreshingConnectorSettings] =
     useState(false);
-  const [refreshingConnectorInstallStatus, setRefreshingConnectorInstallStatus] =
-    useState(false);
+  const [
+    refreshingConnectorInstallStatus,
+    setRefreshingConnectorInstallStatus,
+  ] = useState(false);
   const [installingConnector, setInstallingConnector] = useState(false);
   const [savingConnectorEnabled, setSavingConnectorEnabled] = useState(false);
   const [openingExtensionsPage, setOpeningExtensionsPage] = useState(false);
@@ -772,9 +780,7 @@ export function ChromeRelaySettings() {
         await refreshConnectorInstallStatus(true);
         pushMessage({
           type: "success",
-          text: checked
-            ? "浏览器连接器已开启"
-            : "浏览器连接器已关闭",
+          text: checked ? "浏览器连接器已开启" : "浏览器连接器已关闭",
         });
       } catch (error) {
         pushMessage({
@@ -1619,9 +1625,8 @@ export function ChromeRelaySettings() {
 
         {!hasObserverConnected ? (
           <div className="rounded-[20px] border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm leading-6 text-amber-800">
-            未检测到扩展 observer 连接。请在对应 Chrome Profile 安装并打开
-            Lime Browser Bridge 扩展，然后填入上面的 Observer WS 与 Bridge
-            Key。
+            未检测到扩展 observer 连接。请在对应 Chrome Profile 安装并打开 Lime
+            Browser Bridge 扩展，然后填入上面的 Observer WS 与 Bridge Key。
           </div>
         ) : null}
 
@@ -1864,12 +1869,14 @@ export function ChromeRelaySettings() {
   const connectorEnabled = browserConnectorSettings?.enabled ?? true;
   const hasControlConnected = runtimeSummary.controlCount > 0;
   const hasCdpDirectAvailable = runtimeSummary.cdpAliveProfiles > 0;
-  const visibleSystemConnectors = (browserConnectorSettings?.system_connectors ?? [])
-    .filter((item) => item.visible !== false);
+  const visibleSystemConnectors = (
+    browserConnectorSettings?.system_connectors ?? []
+  ).filter((item) => item.visible !== false);
   const shouldShowSystemConnectors = visibleSystemConnectors.length > 0;
   const systemConnectorCount = visibleSystemConnectors.length;
-  const enabledSystemConnectorCount =
-    visibleSystemConnectors.filter((item) => item.enabled).length;
+  const enabledSystemConnectorCount = visibleSystemConnectors.filter(
+    (item) => item.enabled,
+  ).length;
   const systemConnectorTitle = /mac/i.test(window.navigator.platform)
     ? "macOS 连接器"
     : "系统连接器";
@@ -1952,7 +1959,10 @@ export function ChromeRelaySettings() {
       >
         <section className="rounded-[24px] border border-slate-200/80 bg-white p-2 shadow-sm shadow-slate-950/5">
           <TabsList className={PRIMARY_TABS_CLASS_NAME}>
-            <TabsTrigger value="core" className={getPrimaryTabClassName("core")}>
+            <TabsTrigger
+              value="core"
+              className={getPrimaryTabClassName("core")}
+            >
               核心设置
             </TabsTrigger>
             <TabsTrigger
@@ -1967,273 +1977,290 @@ export function ChromeRelaySettings() {
         <TabsContent value="core" className="mt-6 space-y-6">
           {activePrimaryTab === "core" ? (
             <>
-          <section className="relative overflow-hidden rounded-[30px] border border-sky-200/70 bg-[linear-gradient(135deg,rgba(247,251,255,0.98)_0%,rgba(255,255,255,0.98)_48%,rgba(246,250,248,0.96)_100%)] shadow-sm shadow-slate-950/5">
-            <div className="pointer-events-none absolute -left-16 top-[-48px] h-48 w-48 rounded-full bg-sky-200/25 blur-3xl" />
-            <div className="pointer-events-none absolute right-[-52px] top-[-24px] h-52 w-52 rounded-full bg-emerald-200/25 blur-3xl" />
+              <section className="relative overflow-hidden rounded-[30px] border border-sky-200/70 bg-[linear-gradient(135deg,rgba(247,251,255,0.98)_0%,rgba(255,255,255,0.98)_48%,rgba(246,250,248,0.96)_100%)] shadow-sm shadow-slate-950/5">
+                <div className="pointer-events-none absolute -left-16 top-[-48px] h-48 w-48 rounded-full bg-sky-200/25 blur-3xl" />
+                <div className="pointer-events-none absolute right-[-52px] top-[-24px] h-52 w-52 rounded-full bg-emerald-200/25 blur-3xl" />
 
-            <div className="relative flex flex-col gap-4 p-5 sm:p-6 lg:p-7">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                    连接器
-                  </h2>
-                  <WorkbenchInfoTip
-                    ariaLabel="连接器总览说明"
-                    content="先安装扩展，再开启连接器。这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。"
-                    tone="mint"
-                  />
-                </div>
-              </div>
+                <div className="relative flex flex-col gap-4 p-5 sm:p-6 lg:p-7">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                        连接器
+                      </h2>
+                      <WorkbenchInfoTip
+                        ariaLabel="连接器总览说明"
+                        content="先安装扩展，再开启连接器。这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。"
+                        tone="mint"
+                      />
+                    </div>
+                  </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-                <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-base font-semibold text-slate-900">
-                          安装 Lime Browser Bridge
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+                    <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-base font-semibold text-slate-900">
+                              安装 Lime Browser Bridge
+                            </p>
+                            <WorkbenchInfoTip
+                              ariaLabel="安装 Lime Browser Bridge 说明"
+                              content="选择安装目录，同步扩展文件，然后去 Chrome 扩展页加载已解压目录。"
+                              tone="slate"
+                            />
+                          </div>
+                        </div>
+                        <StatusPill tone={connectorInstallStatusTone}>
+                          {connectorInstallStatusLabel}
+                        </StatusPill>
+                      </div>
+
+                      <div className="mt-4 rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3">
+                        <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
+                          安装目录
                         </p>
-                        <WorkbenchInfoTip
-                          ariaLabel="安装 Lime Browser Bridge 说明"
-                          content="选择安装目录，同步扩展文件，然后去 Chrome 扩展页加载已解压目录。"
-                          tone="slate"
-                        />
+                        <p className="mt-2 break-all text-sm leading-6 text-slate-700">
+                          {browserConnectorSettings?.install_dir ||
+                            browserConnectorSettings?.install_root_dir ||
+                            "尚未选择安装目录"}
+                        </p>
+                        <p className="mt-2 text-xs leading-5 text-slate-500">
+                          内置版本{" "}
+                          {browserConnectorInstallStatus?.bundled_version ??
+                            "-"}
+                          {browserConnectorInstallStatus?.installed_version
+                            ? `，已安装 ${browserConnectorInstallStatus.installed_version}`
+                            : ""}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleInstallConnector(false)}
+                          disabled={installingConnector}
+                          className={PRIMARY_BUTTON_CLASS_NAME}
+                        >
+                          <FolderOpen className="h-4 w-4" />
+                          {installingConnector
+                            ? "同步中..."
+                            : connectorPrimaryActionLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleInstallConnector(true)}
+                          disabled={installingConnector}
+                          className={SECONDARY_BUTTON_CLASS_NAME}
+                        >
+                          重新选择目录
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleOpenConnectorInstallDirectory()
+                          }
+                          disabled={
+                            !browserConnectorInstallStatus?.install_dir ||
+                            openingInstallDirectory
+                          }
+                          className={SECONDARY_BUTTON_CLASS_NAME}
+                        >
+                          <FolderOpen className="h-4 w-4" />
+                          {openingInstallDirectory
+                            ? "打开中..."
+                            : "打开安装目录"}
+                        </button>
                       </div>
                     </div>
-                    <StatusPill tone={connectorInstallStatusTone}>
-                      {connectorInstallStatusLabel}
-                    </StatusPill>
-                  </div>
 
-                  <div className="mt-4 rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                      安装目录
-                    </p>
-                    <p className="mt-2 break-all text-sm leading-6 text-slate-700">
-                      {browserConnectorSettings?.install_dir ||
-                        browserConnectorSettings?.install_root_dir ||
-                        "尚未选择安装目录"}
-                    </p>
-                    <p className="mt-2 text-xs leading-5 text-slate-500">
-                      内置版本 {browserConnectorInstallStatus?.bundled_version ?? "-"}
-                      {browserConnectorInstallStatus?.installed_version
-                        ? `，已安装 ${browserConnectorInstallStatus.installed_version}`
-                        : ""}
-                    </p>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleInstallConnector(false)}
-                      disabled={installingConnector}
-                      className={PRIMARY_BUTTON_CLASS_NAME}
-                    >
-                      <FolderOpen className="h-4 w-4" />
-                      {installingConnector ? "同步中..." : connectorPrimaryActionLabel}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleInstallConnector(true)}
-                      disabled={installingConnector}
-                      className={SECONDARY_BUTTON_CLASS_NAME}
-                    >
-                      重新选择目录
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleOpenConnectorInstallDirectory()}
-                      disabled={
-                        !browserConnectorInstallStatus?.install_dir ||
-                        openingInstallDirectory
-                      }
-                      className={SECONDARY_BUTTON_CLASS_NAME}
-                    >
-                      <FolderOpen className="h-4 w-4" />
-                      {openingInstallDirectory ? "打开中..." : "打开安装目录"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
-                  <div className="space-y-1">
-                    <p className="text-base font-semibold text-slate-900">
-                      在 Chrome 中加载
-                    </p>
-                    <p className="text-sm leading-6 text-slate-500">
-                      安装后打开 Chrome 扩展页，开启开发者模式，再加载已解压目录。
-                    </p>
-                  </div>
-
-                  <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
-                    <p>1. 打开 `chrome://extensions`。</p>
-                    <p>2. 开启右上角“开发者模式”。</p>
-                    <p>3. 选择刚同步出来的 `Lime Browser Connector` 目录。</p>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleOpenBrowserExtensionsPage()}
-                      disabled={openingExtensionsPage}
-                      className={SECONDARY_BUTTON_CLASS_NAME}
-                    >
-                      <Link2 className="h-4 w-4" />
-                      {openingExtensionsPage ? "打开中..." : "打开 Chrome 扩展页"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void copyPlainText(
-                          "chrome://extensions",
-                          "chrome://extensions",
-                        )
-                      }
-                      className={SECONDARY_BUTTON_CLASS_NAME}
-                    >
-                      <Copy className="h-4 w-4" />
-                      复制扩展页地址
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="grid gap-5 xl:grid-cols-1">
-            <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5 sm:p-6">
-              <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-semibold text-slate-900">
-                      我的浏览器
-                    </h3>
-                    <p className="text-sm leading-6 text-slate-500">
-                      开启后，Lime 可以复用当前浏览器做页面观察和基础操作。
-                    </p>
-                  </div>
-                  <Switch
-                    aria-label="开启浏览器连接器"
-                    checked={connectorEnabled}
-                    disabled={savingConnectorEnabled}
-                    onCheckedChange={(checked) =>
-                      void handleSetConnectorEnabled(checked)
-                    }
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusPill tone={connectorInstallStatusTone}>
-                    {connectorInstallStatusLabel}
-                  </StatusPill>
-                  <StatusPill tone={connectorEnabled ? "success" : "neutral"}>
-                    {connectorEnabled ? "连接器已开启" : "连接器已关闭"}
-                  </StatusPill>
-                </div>
-              </div>
-
-              <div className="space-y-4 pt-4">
-                <div className="rounded-[22px] border border-slate-200/80 bg-slate-50 p-4">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
                       <div className="space-y-1">
-                        <p className="text-sm font-semibold text-slate-900">
-                          当前 Chrome 扩展桥接
+                        <p className="text-base font-semibold text-slate-900">
+                          在 Chrome 中加载
                         </p>
                         <p className="text-sm leading-6 text-slate-500">
-                          {hasObserverConnected
-                            ? `Lime 已连接当前 Chrome。当前共有 ${runtimeSummary.observerCount} 个观察连接、${runtimeSummary.controlCount} 个控制连接。`
-                            : browserConnectorInstallStatus?.message ||
-                              "先导出浏览器连接器到用户目录，再在 Chrome 扩展页加载已解压目录。"}
+                          安装后打开 Chrome
+                          扩展页，开启开发者模式，再加载已解压目录。
                         </p>
-                        {hasObserverConnected ? (
-                          <p className="text-xs leading-5 text-slate-500">
-                            当前资料：
-                            {connectedObserverProfiles.length > 0
-                              ? connectedObserverProfiles.join("、")
-                              : "当前 Chrome"}
-                          </p>
-                        ) : null}
                       </div>
+
+                      <div className="mt-4 space-y-2 text-sm leading-6 text-slate-600">
+                        <p>1. 打开 `chrome://extensions`。</p>
+                        <p>2. 开启右上角“开发者模式”。</p>
+                        <p>
+                          3. 选择刚同步出来的 `Lime Browser Connector` 目录。
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenBrowserExtensionsPage()}
+                          disabled={openingExtensionsPage}
+                          className={SECONDARY_BUTTON_CLASS_NAME}
+                        >
+                          <Link2 className="h-4 w-4" />
+                          {openingExtensionsPage
+                            ? "打开中..."
+                            : "打开 Chrome 扩展页"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void copyPlainText(
+                              "chrome://extensions",
+                              "chrome://extensions",
+                            )
+                          }
+                          className={SECONDARY_BUTTON_CLASS_NAME}
+                        >
+                          <Copy className="h-4 w-4" />
+                          复制扩展页地址
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="grid gap-5 xl:grid-cols-1">
+                <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5 sm:p-6">
+                  <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-semibold text-slate-900">
+                          我的浏览器
+                        </h3>
+                        <p className="text-sm leading-6 text-slate-500">
+                          开启后，Lime 可以复用当前浏览器做页面观察和基础操作。
+                        </p>
+                      </div>
+                      <Switch
+                        aria-label="开启浏览器连接器"
+                        checked={connectorEnabled}
+                        disabled={savingConnectorEnabled}
+                        onCheckedChange={(checked) =>
+                          void handleSetConnectorEnabled(checked)
+                        }
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill tone={connectorInstallStatusTone}>
+                        {connectorInstallStatusLabel}
+                      </StatusPill>
                       <StatusPill
-                        tone={hasObserverConnected ? "success" : "warning"}
+                        tone={connectorEnabled ? "success" : "neutral"}
                       >
-                        {hasObserverConnected ? "已连接" : "待连接"}
+                        {connectorEnabled ? "连接器已开启" : "连接器已关闭"}
                       </StatusPill>
                     </div>
                   </div>
-                </div>
 
-                {browserActionCapabilityGroups.read.length > 0 ||
-                browserActionCapabilityGroups.write.length > 0 ? (
-                  <div className="rounded-[22px] border border-slate-200/80 bg-white p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-900">
-                        动作配置
-                      </p>
-                      <p className="text-xs leading-5 text-slate-500">
-                        关闭后不再分发到浏览器。
-                      </p>
-                    </div>
-
-                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                      {[
-                        {
-                          title: "读取权限",
-                          items: browserActionCapabilityGroups.read,
-                        },
-                        {
-                          title: "写入权限",
-                          items: browserActionCapabilityGroups.write,
-                        },
-                      ]
-                        .filter((section) => section.items.length > 0)
-                        .map((section) => (
-                        <div
-                          key={section.title}
-                          className="rounded-[18px] border border-slate-200/80 bg-slate-50 p-3"
-                        >
-                          <p className="text-xs font-semibold tracking-[0.12em] text-slate-500">
-                            {section.title}
-                          </p>
-                          <div className="mt-3 divide-y divide-slate-200 overflow-hidden rounded-[16px] border border-slate-200/80 bg-white">
-                            {section.items.map(
-                              (capability: BrowserActionCapabilitySnapshot) => (
-                                <div
-                                  key={capability.key}
-                                  className="flex items-center justify-between gap-3 px-3 py-2.5"
-                                >
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium text-slate-900">
-                                      {capability.label}
-                                    </p>
-                                  </div>
-                                  <Switch
-                                    aria-label={`切换${capability.label}`}
-                                    checked={capability.enabled}
-                                    disabled={
-                                      updatingBrowserActionCapabilityKey ===
-                                      capability.key
-                                    }
-                                    onCheckedChange={(checked) =>
-                                      void handleSetBrowserActionCapabilityEnabled(
-                                        capability.key,
-                                        checked,
-                                      )
-                                    }
-                                  />
-                                </div>
-                              ),
-                            )}
+                  <div className="space-y-4 pt-4">
+                    <div className="rounded-[22px] border border-slate-200/80 bg-slate-50 p-4">
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold text-slate-900">
+                              当前 Chrome 扩展桥接
+                            </p>
+                            <p className="text-sm leading-6 text-slate-500">
+                              {hasObserverConnected
+                                ? `Lime 已连接当前 Chrome。当前共有 ${runtimeSummary.observerCount} 个观察连接、${runtimeSummary.controlCount} 个控制连接。`
+                                : browserConnectorInstallStatus?.message ||
+                                  "先导出浏览器连接器到用户目录，再在 Chrome 扩展页加载已解压目录。"}
+                            </p>
+                            {hasObserverConnected ? (
+                              <p className="text-xs leading-5 text-slate-500">
+                                当前资料：
+                                {connectedObserverProfiles.length > 0
+                                  ? connectedObserverProfiles.join("、")
+                                  : "当前 Chrome"}
+                              </p>
+                            ) : null}
                           </div>
+                          <StatusPill
+                            tone={hasObserverConnected ? "success" : "warning"}
+                          >
+                            {hasObserverConnected ? "已连接" : "待连接"}
+                          </StatusPill>
                         </div>
-                      ))}
+                      </div>
                     </div>
+
+                    {browserActionCapabilityGroups.read.length > 0 ||
+                    browserActionCapabilityGroups.write.length > 0 ? (
+                      <div className="rounded-[22px] border border-slate-200/80 bg-white p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-900">
+                            动作配置
+                          </p>
+                          <p className="text-xs leading-5 text-slate-500">
+                            关闭后不再分发到浏览器。
+                          </p>
+                        </div>
+
+                        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                          {[
+                            {
+                              title: "读取权限",
+                              items: browserActionCapabilityGroups.read,
+                            },
+                            {
+                              title: "写入权限",
+                              items: browserActionCapabilityGroups.write,
+                            },
+                          ]
+                            .filter((section) => section.items.length > 0)
+                            .map((section) => (
+                              <div
+                                key={section.title}
+                                className="rounded-[18px] border border-slate-200/80 bg-slate-50 p-3"
+                              >
+                                <p className="text-xs font-semibold tracking-[0.12em] text-slate-500">
+                                  {section.title}
+                                </p>
+                                <div className="mt-3 divide-y divide-slate-200 overflow-hidden rounded-[16px] border border-slate-200/80 bg-white">
+                                  {section.items.map(
+                                    (
+                                      capability: BrowserActionCapabilitySnapshot,
+                                    ) => (
+                                      <div
+                                        key={capability.key}
+                                        className="flex items-center justify-between gap-3 px-3 py-2.5"
+                                      >
+                                        <div className="min-w-0">
+                                          <p className="text-sm font-medium text-slate-900">
+                                            {capability.label}
+                                          </p>
+                                        </div>
+                                        <Switch
+                                          aria-label={`切换${capability.label}`}
+                                          checked={capability.enabled}
+                                          disabled={
+                                            updatingBrowserActionCapabilityKey ===
+                                            capability.key
+                                          }
+                                          onCheckedChange={(checked) =>
+                                            void handleSetBrowserActionCapabilityEnabled(
+                                              capability.key,
+                                              checked,
+                                            )
+                                          }
+                                        />
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-            </article>
-          </section>
+                </article>
+              </section>
             </>
           ) : null}
         </TabsContent>
@@ -2241,362 +2268,375 @@ export function ChromeRelaySettings() {
         <TabsContent value="advanced" className="mt-6 space-y-6">
           {activePrimaryTab === "advanced" ? (
             <>
-          <section
-            className={cn(
-              "grid gap-5",
-              shouldShowSystemConnectors
-                ? "xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]"
-                : "xl:grid-cols-1",
-            )}
-          >
-            <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5 sm:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-lg font-semibold text-slate-900">
-                  连接方式
-                </h3>
-                <p className="text-xs leading-5 text-slate-500">
-                  常用优先扩展，调试再用 CDP。
-                </p>
-              </div>
-
-              <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                <div className="rounded-[20px] border border-emerald-200 bg-emerald-50/70 p-4">
+              <section
+                className={cn(
+                  "grid gap-5",
+                  shouldShowSystemConnectors
+                    ? "xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]"
+                    : "xl:grid-cols-1",
+                )}
+              >
+                <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5 sm:p-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        浏览器扩展
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        安装一次，长期自动连接。
-                      </p>
-                    </div>
-                    <StatusPill
-                      tone={hasObserverConnected && hasControlConnected ? "success" : "warning"}
-                    >
-                      {hasObserverConnected && hasControlConnected
-                        ? "推荐"
-                        : "待完成"}
-                    </StatusPill>
-                  </div>
-                  <div className="mt-4 space-y-2 text-sm text-slate-600">
-                    <p>1. 打开 `chrome://extensions` 并开启开发者模式。</p>
-                    <p>2. 加载 `Lime Browser Connector` 目录。</p>
-                  </div>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleOpenBrowserExtensionsPage()}
-                      disabled={openingExtensionsPage}
-                      className={SECONDARY_BUTTON_CLASS_NAME}
-                    >
-                      <Link2 className="h-4 w-4" />
-                      {openingExtensionsPage ? "打开中..." : "打开扩展页"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void copyPlainText(
-                          "chrome://extensions",
-                          "chrome://extensions",
-                        )
-                      }
-                      className={SECONDARY_BUTTON_CLASS_NAME}
-                    >
-                      <Copy className="h-4 w-4" />
-                      复制扩展页地址
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-[20px] border border-sky-200 bg-sky-50/70 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        CDP 直连
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        零扩展，适合临时调试和人工接管。
-                      </p>
-                    </div>
-                    <StatusPill
-                      tone={hasCdpDirectAvailable ? "success" : "warning"}
-                    >
-                      {hasCdpDirectAvailable ? "已就绪" : "待接入"}
-                    </StatusPill>
-                  </div>
-                  <div className="mt-4 space-y-2 text-sm text-slate-600">
-                    <p>1. 打开 `chrome://inspect/#remote-debugging`。</p>
-                    <p>2. 按需开启远程调试并允许本地连接。</p>
-                  </div>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleOpenRemoteDebuggingPage()}
-                      disabled={openingRemoteDebuggingPage}
-                      className={SECONDARY_BUTTON_CLASS_NAME}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      {openingRemoteDebuggingPage ? "打开中..." : "打开远程调试页"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void copyPlainText(
-                          REMOTE_DEBUGGING_URL,
-                          "chrome://inspect/#remote-debugging",
-                        )
-                      }
-                      className={SECONDARY_BUTTON_CLASS_NAME}
-                    >
-                      <Copy className="h-4 w-4" />
-                      复制远程调试地址
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    void copyBridgeConfig("default", "默认浏览器连接器")
-                  }
-                  disabled={!bridgeEndpoint}
-                  className={SECONDARY_BUTTON_CLASS_NAME}
-                >
-                  <Copy className="h-4 w-4" />
-                  复制配置
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDisconnectBrowserConnector()}
-                  disabled={!hasObserverConnected || disconnectingConnector}
-                  className={SECONDARY_BUTTON_CLASS_NAME}
-                >
-                  {disconnectingConnector ? "断开中..." : "断开已连接扩展"}
-                </button>
-              </div>
-            </article>
-
-            {shouldShowSystemConnectors ? (
-              <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5 sm:p-6">
-                <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
-                  <div className="space-y-1">
                     <h3 className="text-lg font-semibold text-slate-900">
-                      {systemConnectorTitle}
+                      连接方式
                     </h3>
-                    <p className="text-sm leading-6 text-slate-500">
-                      按需开启系统能力，把授权和系统访问集中放在这里。
+                    <p className="text-xs leading-5 text-slate-500">
+                      常用优先扩展，调试再用 CDP。
                     </p>
                   </div>
-                  <span className="text-sm font-medium text-slate-500">
-                    {enabledSystemConnectorCount} / {systemConnectorCount} 已启用
-                  </span>
-                </div>
 
-                <div className="divide-y divide-slate-100">
-                  {visibleSystemConnectors.map((connector) => (
-                    <div
-                      key={connector.id}
-                      className="flex items-center justify-between gap-4 py-4"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
+                  <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                    <div className="rounded-[20px] border border-emerald-200 bg-emerald-50/70 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
                           <p className="text-sm font-semibold text-slate-900">
-                            {connector.label}
+                            浏览器扩展
                           </p>
-                          <StatusPill tone={getSystemConnectorStatusTone(connector)}>
-                            {getSystemConnectorStatusLabel(connector)}
-                          </StatusPill>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            安装一次，长期自动连接。
+                          </p>
                         </div>
-                        <p className="text-sm leading-6 text-slate-500">
-                          {connector.description}
-                        </p>
-                        {connector.capabilities.length > 0 ? (
-                          <p className="text-xs leading-5 text-slate-500">
-                            能力：{connector.capabilities.join(" / ")}
-                          </p>
-                        ) : null}
-                        {connector.last_error ? (
-                          <p className="text-xs text-rose-600">
-                            {connector.last_error}
-                          </p>
-                        ) : null}
+                        <StatusPill
+                          tone={
+                            hasObserverConnected && hasControlConnected
+                              ? "success"
+                              : "warning"
+                          }
+                        >
+                          {hasObserverConnected && hasControlConnected
+                            ? "推荐"
+                            : "待完成"}
+                        </StatusPill>
                       </div>
-                      <Switch
-                        aria-label={`切换${connector.label}`}
-                        checked={connector.enabled}
-                        disabled={
-                          !connector.available ||
-                          updatingSystemConnectorId === connector.id
-                        }
-                        onCheckedChange={(checked) =>
-                          void handleSetSystemConnectorEnabled(
-                            connector.id,
-                            checked,
-                          )
-                        }
-                      />
+                      <div className="mt-4 space-y-2 text-sm text-slate-600">
+                        <p>1. 打开 `chrome://extensions` 并开启开发者模式。</p>
+                        <p>2. 加载 `Lime Browser Connector` 目录。</p>
+                      </div>
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenBrowserExtensionsPage()}
+                          disabled={openingExtensionsPage}
+                          className={SECONDARY_BUTTON_CLASS_NAME}
+                        >
+                          <Link2 className="h-4 w-4" />
+                          {openingExtensionsPage ? "打开中..." : "打开扩展页"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void copyPlainText(
+                              "chrome://extensions",
+                              "chrome://extensions",
+                            )
+                          }
+                          className={SECONDARY_BUTTON_CLASS_NAME}
+                        >
+                          <Copy className="h-4 w-4" />
+                          复制扩展页地址
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </article>
-            ) : null}
-          </section>
 
-          <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5 sm:p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-1">
-                <h3 className="text-lg font-semibold text-slate-900">
-                  高级控制
-                </h3>
-                <p className="text-sm leading-6 text-slate-500">
-                  这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleLaunchBrowserAssist()}
-                  disabled={launchingAssist}
-                  className={PRIMARY_BUTTON_CLASS_NAME}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  {launchingAssist ? "启动中..." : "一键启动浏览器协助"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleOpenDebuggerWindow()}
-                  disabled={openingDebugger}
-                  className={SECONDARY_BUTTON_CLASS_NAME}
-                >
-                  <Bug className="h-4 w-4" />
-                  {openingDebugger ? "打开中..." : "打开独立调试窗口"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void refreshAll(false)}
-                  disabled={
-                    refreshingConnectorSettings ||
-                    refreshingConnectorInstallStatus ||
-                    refreshingSessions ||
-                    refreshingBridge ||
-                    refreshingBackends
-                  }
-                  className={SECONDARY_BUTTON_CLASS_NAME}
-                >
-                  <RefreshCw
-                    className={cn(
-                      "h-4 w-4",
-                      refreshingConnectorSettings ||
+                    <div className="rounded-[20px] border border-sky-200 bg-sky-50/70 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            CDP 直连
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            零扩展，适合临时调试和人工接管。
+                          </p>
+                        </div>
+                        <StatusPill
+                          tone={hasCdpDirectAvailable ? "success" : "warning"}
+                        >
+                          {hasCdpDirectAvailable ? "已就绪" : "待接入"}
+                        </StatusPill>
+                      </div>
+                      <div className="mt-4 space-y-2 text-sm text-slate-600">
+                        <p>1. 打开 `chrome://inspect/#remote-debugging`。</p>
+                        <p>2. 按需开启远程调试并允许本地连接。</p>
+                      </div>
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenRemoteDebuggingPage()}
+                          disabled={openingRemoteDebuggingPage}
+                          className={SECONDARY_BUTTON_CLASS_NAME}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          {openingRemoteDebuggingPage
+                            ? "打开中..."
+                            : "打开远程调试页"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void copyPlainText(
+                              REMOTE_DEBUGGING_URL,
+                              "chrome://inspect/#remote-debugging",
+                            )
+                          }
+                          className={SECONDARY_BUTTON_CLASS_NAME}
+                        >
+                          <Copy className="h-4 w-4" />
+                          复制远程调试地址
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyBridgeConfig("default", "默认浏览器连接器")
+                      }
+                      disabled={!bridgeEndpoint}
+                      className={SECONDARY_BUTTON_CLASS_NAME}
+                    >
+                      <Copy className="h-4 w-4" />
+                      复制配置
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDisconnectBrowserConnector()}
+                      disabled={!hasObserverConnected || disconnectingConnector}
+                      className={SECONDARY_BUTTON_CLASS_NAME}
+                    >
+                      {disconnectingConnector ? "断开中..." : "断开已连接扩展"}
+                    </button>
+                  </div>
+                </article>
+
+                {shouldShowSystemConnectors ? (
+                  <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5 sm:p-6">
+                    <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-semibold text-slate-900">
+                          {systemConnectorTitle}
+                        </h3>
+                        <p className="text-sm leading-6 text-slate-500">
+                          按需开启系统能力，把授权和系统访问集中放在这里。
+                        </p>
+                      </div>
+                      <span className="text-sm font-medium text-slate-500">
+                        {enabledSystemConnectorCount} / {systemConnectorCount}{" "}
+                        已启用
+                      </span>
+                    </div>
+
+                    <div className="divide-y divide-slate-100">
+                      {visibleSystemConnectors.map((connector) => (
+                        <div
+                          key={connector.id}
+                          className="flex items-center justify-between gap-4 py-4"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-slate-900">
+                                {connector.label}
+                              </p>
+                              <StatusPill
+                                tone={getSystemConnectorStatusTone(connector)}
+                              >
+                                {getSystemConnectorStatusLabel(connector)}
+                              </StatusPill>
+                            </div>
+                            <p className="text-sm leading-6 text-slate-500">
+                              {connector.description}
+                            </p>
+                            {connector.capabilities.length > 0 ? (
+                              <p className="text-xs leading-5 text-slate-500">
+                                能力：{connector.capabilities.join(" / ")}
+                              </p>
+                            ) : null}
+                            {connector.last_error ? (
+                              <p className="text-xs text-rose-600">
+                                {connector.last_error}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Switch
+                            aria-label={`切换${connector.label}`}
+                            checked={connector.enabled}
+                            disabled={
+                              !connector.available ||
+                              updatingSystemConnectorId === connector.id
+                            }
+                            onCheckedChange={(checked) =>
+                              void handleSetSystemConnectorEnabled(
+                                connector.id,
+                                checked,
+                              )
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ) : null}
+              </section>
+
+              <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5 sm:p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      高级控制
+                    </h3>
+                    <p className="text-sm leading-6 text-slate-500">
+                      这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleLaunchBrowserAssist()}
+                      disabled={launchingAssist}
+                      className={PRIMARY_BUTTON_CLASS_NAME}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {launchingAssist ? "启动中..." : "一键启动浏览器协助"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenDebuggerWindow()}
+                      disabled={openingDebugger}
+                      className={SECONDARY_BUTTON_CLASS_NAME}
+                    >
+                      <Bug className="h-4 w-4" />
+                      {openingDebugger ? "打开中..." : "打开独立调试窗口"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void refreshAll(false)}
+                      disabled={
+                        refreshingConnectorSettings ||
                         refreshingConnectorInstallStatus ||
                         refreshingSessions ||
                         refreshingBridge ||
                         refreshingBackends
-                        ? "animate-spin"
-                        : "",
-                    )}
-                  />
-                  刷新状态
-                </button>
-              </div>
-            </div>
+                      }
+                      className={SECONDARY_BUTTON_CLASS_NAME}
+                    >
+                      <RefreshCw
+                        className={cn(
+                          "h-4 w-4",
+                          refreshingConnectorSettings ||
+                            refreshingConnectorInstallStatus ||
+                            refreshingSessions ||
+                            refreshingBridge ||
+                            refreshingBackends
+                            ? "animate-spin"
+                            : "",
+                        )}
+                      />
+                      刷新状态
+                    </button>
+                  </div>
+                </div>
 
-            <div className="mt-5">
-              <Tabs
-                value={activeSectionTab}
-                onValueChange={(value) =>
-                  setActiveSectionTab(value as RelaySectionTab)
-                }
-                className="w-full"
-              >
-                <TabsList className={SECTION_TABS_CLASS_NAME}>
-                  <TabsTrigger
-                    value="overview"
-                    className={getSectionTabClassName("overview")}
+                <div className="mt-5">
+                  <Tabs
+                    value={activeSectionTab}
+                    onValueChange={(value) =>
+                      setActiveSectionTab(value as RelaySectionTab)
+                    }
+                    className="w-full"
                   >
-                    {renderSectionTabLabel(
-                      "overview",
-                      "总览",
-                      Sparkles,
-                      runtimeSummary.pendingCommands,
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="profile"
-                    className={getSectionTabClassName("profile")}
-                  >
-                    {renderSectionTabLabel(
-                      "profile",
-                      "Profile",
-                      Globe,
-                      runtimeSummary.runningProfiles,
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="bridge"
-                    className={getSectionTabClassName("bridge")}
-                  >
-                    {renderSectionTabLabel(
-                      "bridge",
-                      "桥接",
-                      Copy,
-                      runtimeSummary.observerCount,
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="backend"
-                    className={getSectionTabClassName("backend")}
-                  >
-                    {renderSectionTabLabel(
-                      "backend",
-                      "后端",
-                      Layers3,
-                      availableBackendCount,
-                    )}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="debug"
-                    className={getSectionTabClassName("debug")}
-                  >
-                    {renderSectionTabLabel(
-                      "debug",
-                      "调试",
-                      Bug,
-                      runtimeSummary.cdpAliveProfiles,
-                    )}
-                  </TabsTrigger>
-                </TabsList>
+                    <TabsList className={SECTION_TABS_CLASS_NAME}>
+                      <TabsTrigger
+                        value="overview"
+                        className={getSectionTabClassName("overview")}
+                      >
+                        {renderSectionTabLabel(
+                          "overview",
+                          "总览",
+                          Sparkles,
+                          runtimeSummary.pendingCommands,
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="profile"
+                        className={getSectionTabClassName("profile")}
+                      >
+                        {renderSectionTabLabel(
+                          "profile",
+                          "Profile",
+                          Globe,
+                          runtimeSummary.runningProfiles,
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="bridge"
+                        className={getSectionTabClassName("bridge")}
+                      >
+                        {renderSectionTabLabel(
+                          "bridge",
+                          "桥接",
+                          Copy,
+                          runtimeSummary.observerCount,
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="backend"
+                        className={getSectionTabClassName("backend")}
+                      >
+                        {renderSectionTabLabel(
+                          "backend",
+                          "后端",
+                          Layers3,
+                          availableBackendCount,
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="debug"
+                        className={getSectionTabClassName("debug")}
+                      >
+                        {renderSectionTabLabel(
+                          "debug",
+                          "调试",
+                          Bug,
+                          runtimeSummary.cdpAliveProfiles,
+                        )}
+                      </TabsTrigger>
+                    </TabsList>
 
-                <TabsContent value="overview" className="mt-5 space-y-6">
-                  {activeSectionTab === "overview" ? (
-                    <>
-                      {renderOverviewPanel()}
-                      {renderUsagePanel()}
-                    </>
-                  ) : null}
-                </TabsContent>
+                    <TabsContent value="overview" className="mt-5 space-y-6">
+                      {activeSectionTab === "overview" ? (
+                        <>
+                          {renderOverviewPanel()}
+                          {renderUsagePanel()}
+                        </>
+                      ) : null}
+                    </TabsContent>
 
-                <TabsContent value="profile" className="mt-5">
-                  {activeSectionTab === "profile"
-                    ? renderProfilePanel("profile-")
-                    : null}
-                </TabsContent>
+                    <TabsContent value="profile" className="mt-5">
+                      {activeSectionTab === "profile"
+                        ? renderProfilePanel("profile-")
+                        : null}
+                    </TabsContent>
 
-                <TabsContent value="bridge" className="mt-5">
-                  {activeSectionTab === "bridge" ? renderBridgePanel() : null}
-                </TabsContent>
+                    <TabsContent value="bridge" className="mt-5">
+                      {activeSectionTab === "bridge"
+                        ? renderBridgePanel()
+                        : null}
+                    </TabsContent>
 
-                <TabsContent value="backend" className="mt-5">
-                  {activeSectionTab === "backend" ? renderBackendPanel() : null}
-                </TabsContent>
+                    <TabsContent value="backend" className="mt-5">
+                      {activeSectionTab === "backend"
+                        ? renderBackendPanel()
+                        : null}
+                    </TabsContent>
 
-                <TabsContent value="debug" className="mt-5">
-                  {activeSectionTab === "debug" ? renderDebugPanel() : null}
-                </TabsContent>
-              </Tabs>
-            </div>
-          </section>
+                    <TabsContent value="debug" className="mt-5">
+                      {activeSectionTab === "debug" ? renderDebugPanel() : null}
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </section>
             </>
           ) : null}
         </TabsContent>

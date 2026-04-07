@@ -9,7 +9,8 @@ const mockUseProviderModels = vi.fn();
 const mockResolveVisionModel = vi.fn();
 
 vi.mock("@/hooks/useConfiguredProviders", () => ({
-  useConfiguredProviders: (options: unknown) => mockUseConfiguredProviders(options),
+  useConfiguredProviders: (options: unknown) =>
+    mockUseConfiguredProviders(options),
 }));
 
 vi.mock("@/hooks/useProviderModels", () => ({
@@ -131,6 +132,8 @@ describe("InputbarVisionCapabilityNotice", () => {
 
     const container = renderNotice();
 
-    expect(container.textContent).toContain("当前 Provider 暂无可用的多模态模型");
+    expect(container.textContent).toContain(
+      "当前 Provider 暂无可用的多模态模型",
+    );
   });
 });

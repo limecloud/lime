@@ -4,8 +4,7 @@ import { GeneralWorkbenchWorkflowPanel } from "./GeneralWorkbenchWorkflowPanel";
 import type { GeneralWorkbenchSidebarTab } from "./GeneralWorkbenchSidebarShell";
 import type { GeneralWorkbenchSidebarContentProps } from "./generalWorkbenchSidebarContentContract";
 
-export interface GeneralWorkbenchSidebarPanelsProps
-  extends GeneralWorkbenchSidebarContentProps {
+export interface GeneralWorkbenchSidebarPanelsProps extends GeneralWorkbenchSidebarContentProps {
   activeTab: GeneralWorkbenchSidebarTab;
 }
 

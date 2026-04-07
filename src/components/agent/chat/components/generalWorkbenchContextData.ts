@@ -80,6 +80,7 @@ export function resolveGeneralWorkbenchSelectedSearchResult(
     return null;
   }
   return (
-    searchContextItems.find((item) => item.id === selectedSearchResultId) || null
+    searchContextItems.find((item) => item.id === selectedSearchResultId) ||
+    null
   );
 }

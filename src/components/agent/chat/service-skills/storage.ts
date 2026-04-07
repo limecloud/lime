@@ -46,7 +46,10 @@ export function listServiceSkillUsage(): ServiceSkillUsageRecord[] {
   }
 }
 
-export function getServiceSkillUsageMap(): Map<string, ServiceSkillUsageRecord> {
+export function getServiceSkillUsageMap(): Map<
+  string,
+  ServiceSkillUsageRecord
+> {
   return new Map(
     listServiceSkillUsage().map((record) => [record.skillId, record]),
   );

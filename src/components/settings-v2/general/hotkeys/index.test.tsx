@@ -304,9 +304,7 @@ describe("HotkeysSettings", () => {
     await leaveTip(heroTip);
 
     const statTip = await hoverTip("已审计说明");
-    expect(getBodyText()).toContain(
-      "当前页只列出已接入实现且已核对的快捷键。",
-    );
+    expect(getBodyText()).toContain("当前页只列出已接入实现且已核对的快捷键。");
     await leaveTip(statTip);
   });
 });

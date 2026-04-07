@@ -10,7 +10,9 @@ import {
 
 function createStateSetter<T>(getValue: () => T, setValue: (value: T) => void) {
   return (next: T | ((prev: T) => T)) => {
-    setValue(typeof next === "function" ? (next as (prev: T) => T)(getValue()) : next);
+    setValue(
+      typeof next === "function" ? (next as (prev: T) => T)(getValue()) : next,
+    );
   };
 }
 
@@ -48,21 +50,36 @@ describe("agentStreamSubmissionLifecycle", () => {
       setActiveStream: (next) => {
         activeStream = next;
       },
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setQueuedTurns: createStateSetter(() => queuedTurns, (value) => {
-        queuedTurns = value;
-      }),
-      setThreadItems: createStateSetter(() => threadItems, (value) => {
-        threadItems = value;
-      }),
-      setThreadTurns: createStateSetter(() => threadTurns, (value) => {
-        threadTurns = value;
-      }),
-      setCurrentTurnId: createStateSetter(() => currentTurnId, (value) => {
-        currentTurnId = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setQueuedTurns: createStateSetter(
+        () => queuedTurns,
+        (value) => {
+          queuedTurns = value;
+        },
+      ),
+      setThreadItems: createStateSetter(
+        () => threadItems,
+        (value) => {
+          threadItems = value;
+        },
+      ),
+      setThreadTurns: createStateSetter(
+        () => threadTurns,
+        (value) => {
+          threadTurns = value;
+        },
+      ),
+      setCurrentTurnId: createStateSetter(
+        () => currentTurnId,
+        (value) => {
+          currentTurnId = value;
+        },
+      ),
     });
 
     expect(threadTurns).toHaveLength(1);
@@ -120,21 +137,36 @@ describe("agentStreamSubmissionLifecycle", () => {
       initialThreadId: "local-thread:assistant-2",
       listenerMapRef: { current: new Map() },
       setActiveStream: () => {},
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setQueuedTurns: createStateSetter(() => queuedTurns, (value) => {
-        queuedTurns = value;
-      }),
-      setThreadItems: createStateSetter(() => threadItems, (value) => {
-        threadItems = value;
-      }),
-      setThreadTurns: createStateSetter(() => threadTurns, (value) => {
-        threadTurns = value;
-      }),
-      setCurrentTurnId: createStateSetter(() => currentTurnId, (value) => {
-        currentTurnId = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setQueuedTurns: createStateSetter(
+        () => queuedTurns,
+        (value) => {
+          queuedTurns = value;
+        },
+      ),
+      setThreadItems: createStateSetter(
+        () => threadItems,
+        (value) => {
+          threadItems = value;
+        },
+      ),
+      setThreadTurns: createStateSetter(
+        () => threadTurns,
+        (value) => {
+          threadTurns = value;
+        },
+      ),
+      setCurrentTurnId: createStateSetter(
+        () => currentTurnId,
+        (value) => {
+          currentTurnId = value;
+        },
+      ),
     });
 
     lifecycle.markOptimisticFailure("发送失败");

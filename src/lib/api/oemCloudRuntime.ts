@@ -70,7 +70,12 @@ function extractTenantIdFromPayload(payload: unknown): string | null {
 
   const tenant = payload.tenant;
   if (isRecord(tenant)) {
-    const nestedTenantId = readRecordText(tenant, "id", "tenantId", "tenant_id");
+    const nestedTenantId = readRecordText(
+      tenant,
+      "id",
+      "tenantId",
+      "tenant_id",
+    );
     if (nestedTenantId) {
       return nestedTenantId;
     }
@@ -133,7 +138,9 @@ interface OemCloudRuntimeOverride {
   desktopOauthNextPath: string | null;
 }
 
-function parseOemCloudRuntimeOverride(payload: unknown): OemCloudRuntimeOverride {
+function parseOemCloudRuntimeOverride(
+  payload: unknown,
+): OemCloudRuntimeOverride {
   if (!isRecord(payload)) {
     return {
       baseUrl: null,
@@ -290,7 +297,8 @@ export function resolveOemCloudRuntimeContext(): OemCloudRuntimeContext | null {
   const bootstrapPayload =
     typeof window === "undefined" ? null : window.__LIME_BOOTSTRAP__;
   const bootstrapTenantId = extractTenantIdFromPayload(bootstrapPayload);
-  const bootstrapSessionToken = extractSessionTokenFromPayload(bootstrapPayload);
+  const bootstrapSessionToken =
+    extractSessionTokenFromPayload(bootstrapPayload);
   const storedTenantId =
     typeof window === "undefined" ? null : getStoredOemCloudTenantId();
   const storedSessionToken =

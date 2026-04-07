@@ -3,13 +3,12 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  mockUseConfiguredProviders,
-  mockUseProviderModels,
-} = vi.hoisted(() => ({
-  mockUseConfiguredProviders: vi.fn(),
-  mockUseProviderModels: vi.fn(),
-}));
+const { mockUseConfiguredProviders, mockUseProviderModels } = vi.hoisted(
+  () => ({
+    mockUseConfiguredProviders: vi.fn(),
+    mockUseProviderModels: vi.fn(),
+  }),
+);
 
 vi.mock("@/hooks/useConfiguredProviders", () => ({
   useConfiguredProviders: () => mockUseConfiguredProviders(),

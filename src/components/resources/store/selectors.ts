@@ -83,7 +83,7 @@ export const resourcesSelectors = {
 
   currentFolder: (state: ResourcesStore) =>
     state.currentFolderId
-      ? state.items.find((item) => item.id === state.currentFolderId) ?? null
+      ? (state.items.find((item) => item.id === state.currentFolderId) ?? null)
       : null,
 
   folderBreadcrumbs: createCachedSelector((state: ResourcesStore) => {

@@ -94,7 +94,7 @@ describe("BrowserAssistRenderer", () => {
     expect(container.textContent).toContain("浏览器协助已迁移到浏览器工作台");
     expect(container.textContent).toContain("session-1");
     expect(
-      container.querySelector("[data-testid=\"browser-runtime-workspace\"]"),
+      container.querySelector('[data-testid="browser-runtime-workspace"]'),
     ).toBeNull();
   });
 });

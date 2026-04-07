@@ -1,10 +1,4 @@
-import React, {
-  Suspense,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { FolderOpen, Loader2, RefreshCw, Zap } from "lucide-react";
 import {
   Popover,

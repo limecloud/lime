@@ -19,8 +19,7 @@ const TRANSLATION_COMMAND_PREFIX_REGEX =
   /^\s*(@翻译|@translate|@translation)(?:\s+|$)([\s\S]*)$/i;
 const FIELD_LABEL_REGEX =
   /(?:(内容|正文|原文|content|text)|(原语言|源语言|source(?:[_\s-]?language)?|source|from)|(目标语言|目标语种|语言|target(?:[_\s-]?language)?|target|to)|(风格|语气|style|tone)|(输出|格式|output|format))\s*[:：=]\s*/gi;
-const PROMPT_PREFIX_REGEX =
-  /^\s*(翻译|翻成|译成|translate)(?:\s|$|[:：])*/i;
+const PROMPT_PREFIX_REGEX = /^\s*(翻译|翻成|译成|translate)(?:\s|$|[:：])*/i;
 
 type TranslationFieldKey =
   | "content"
@@ -103,9 +102,7 @@ function normalizeLanguage(value: string | undefined): string | undefined {
   return aliasMap[normalized] || value?.trim();
 }
 
-function resolveFieldKey(
-  matched: RegExpExecArray,
-): TranslationFieldKey | null {
+function resolveFieldKey(matched: RegExpExecArray): TranslationFieldKey | null {
   if (matched[1]) {
     return "content";
   }
@@ -142,7 +139,10 @@ function collectFieldMatches(text: string): TranslationFieldMatch[] {
 
   return baseMatches.map((match, index) => ({
     ...match,
-    end: index + 1 < baseMatches.length ? baseMatches[index + 1]!.start : text.length,
+    end:
+      index + 1 < baseMatches.length
+        ? baseMatches[index + 1]!.start
+        : text.length,
   }));
 }
 
@@ -211,12 +211,8 @@ export function parseTranslationWorkbenchCommand(
   const fallbackPrompt = trimDecorations(
     [
       extracted.content || undefined,
-      extracted.sourceLanguage
-        ? `从${extracted.sourceLanguage}`
-        : undefined,
-      extracted.targetLanguage
-        ? `译为${extracted.targetLanguage}`
-        : undefined,
+      extracted.sourceLanguage ? `从${extracted.sourceLanguage}` : undefined,
+      extracted.targetLanguage ? `译为${extracted.targetLanguage}` : undefined,
       extracted.style || undefined,
       extracted.outputFormat || undefined,
     ]

@@ -375,7 +375,9 @@ export function OpenClawRuntimePage({
           </div>
 
           <section className={openClawPanelClassName}>
-            <div className="text-sm font-medium text-slate-900">更多访问方式</div>
+            <div className="text-sm font-medium text-slate-900">
+              更多访问方式
+            </div>
             <p className="mt-2 text-sm leading-6 text-slate-500">
               顶部已经提供桌面版快捷入口；这里保留桌面面板和 Dashboard
               访问页两种方式，便于日常使用与诊断 token、地址。
@@ -419,9 +421,12 @@ export function OpenClawRuntimePage({
           <section className={openClawPanelClassName}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-medium text-slate-900">版本升级</div>
+                <div className="text-sm font-medium text-slate-900">
+                  版本升级
+                </div>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  在工作台内执行智能升级。系统会优先走官方 `openclaw update`，失败时自动尝试同运行时的全局安装升级兜底。
+                  在工作台内执行智能升级。系统会优先走官方 `openclaw
+                  update`，失败时自动尝试同运行时的全局安装升级兜底。
                 </p>
               </div>
               <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
@@ -431,19 +436,25 @@ export function OpenClawRuntimePage({
 
             <div className="mt-4 grid gap-3">
               <div className={openClawSubPanelClassName}>
-                <div className="text-xs font-medium text-slate-500">已安装版本</div>
+                <div className="text-xs font-medium text-slate-500">
+                  已安装版本
+                </div>
                 <div className="mt-2 text-sm font-medium text-slate-900">
                   {installedVersionText}
                 </div>
               </div>
               <div className={openClawSubPanelClassName}>
-                <div className="text-xs font-medium text-slate-500">运行中版本</div>
+                <div className="text-xs font-medium text-slate-500">
+                  运行中版本
+                </div>
                 <div className="mt-2 text-sm font-medium text-slate-900">
                   {runningVersionText}
                 </div>
               </div>
               <div className={openClawSubPanelClassName}>
-                <div className="text-xs font-medium text-slate-500">更新通道</div>
+                <div className="text-xs font-medium text-slate-500">
+                  更新通道
+                </div>
                 <div className="mt-2 text-sm font-medium text-slate-900">
                   {updateInfo?.channel || "stable"}
                 </div>
@@ -454,13 +465,15 @@ export function OpenClawRuntimePage({
                 </div>
               </div>
               <div className={openClawSubPanelClassName}>
-                <div className="text-xs font-medium text-slate-500">升级状态</div>
+                <div className="text-xs font-medium text-slate-500">
+                  升级状态
+                </div>
                 <div className="mt-2 text-sm font-medium text-slate-900">
                   {versionMismatch
                     ? "新版本已安装，等待运行态切换"
                     : updateInfo?.hasUpdate
-                    ? `可升级至 ${updateInfo.latestVersion || "待确认"}`
-                    : "当前未检测到新版本"}
+                      ? `可升级至 ${updateInfo.latestVersion || "待确认"}`
+                      : "当前未检测到新版本"}
                 </div>
                 <div className="mt-1 text-xs leading-5 text-slate-500">
                   {updateDescription}
@@ -531,12 +544,12 @@ export function OpenClawRuntimePage({
                     <div
                       className={cn(
                         "mt-2 text-sm font-medium",
-                        versionMismatch
-                          ? "text-amber-700"
-                          : "text-emerald-700",
+                        versionMismatch ? "text-amber-700" : "text-emerald-700",
                       )}
                     >
-                      {versionMismatch ? "新版本已安装，运行态未切换" : "当前运行版本已对齐"}
+                      {versionMismatch
+                        ? "新版本已安装，运行态未切换"
+                        : "当前运行版本已对齐"}
                     </div>
                     <div className="mt-1 text-xs leading-5 text-slate-500">
                       {versionMismatch
@@ -634,16 +647,22 @@ export function OpenClawRuntimePage({
           </section>
 
           <section className={openClawPanelClassName}>
-            <div className="text-sm font-medium text-slate-900">当前运行摘要</div>
+            <div className="text-sm font-medium text-slate-900">
+              当前运行摘要
+            </div>
             <div className="mt-4 grid gap-3">
               <div className={openClawSubPanelClassName}>
-                <div className="text-xs font-medium text-slate-500">Gateway</div>
+                <div className="text-xs font-medium text-slate-500">
+                  Gateway
+                </div>
                 <div className="mt-2 text-sm font-medium text-slate-900">
                   {running ? "运行中" : gatewayStatus} · 端口 {gatewayPort}
                 </div>
               </div>
               <div className={openClawSubPanelClassName}>
-                <div className="text-xs font-medium text-slate-500">桌面面板</div>
+                <div className="text-xs font-medium text-slate-500">
+                  桌面面板
+                </div>
                 <div className="mt-2 text-sm font-medium text-slate-900">
                   {dashboardWindowOpen ? "已打开，可直接聚焦" : "尚未打开"}
                 </div>
@@ -714,7 +733,9 @@ export function OpenClawRuntimePage({
                 </div>
               </div>
               <div className={openClawSubPanelClassName}>
-                <div className="text-xs font-medium text-slate-500">建议动作</div>
+                <div className="text-xs font-medium text-slate-500">
+                  建议动作
+                </div>
                 <div className="mt-2 text-sm leading-6 text-slate-600">
                   {running
                     ? "直接打开桌面面板查看 Dashboard；如页面异常，先做健康检查再尝试重启。"

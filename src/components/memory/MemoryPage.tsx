@@ -439,10 +439,8 @@ function StatusPill({
         "rounded-full border px-3 py-1 text-xs font-medium",
         tone === "success" &&
           "border-emerald-200 bg-emerald-50 text-emerald-700",
-        tone === "warning" &&
-          "border-amber-200 bg-amber-50 text-amber-700",
-        tone === "neutral" &&
-          "border-slate-200 bg-white text-slate-500",
+        tone === "warning" && "border-amber-200 bg-amber-50 text-amber-700",
+        tone === "neutral" && "border-slate-200 bg-white text-slate-500",
       )}
     >
       {children}
@@ -481,7 +479,9 @@ function EmptyMemoryState({
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50">
         <BrainCircuit className="h-6 w-6 text-emerald-600" />
       </div>
-      <h3 className="mb-2 text-lg font-semibold text-slate-900">暂无灵感沉淀</h3>
+      <h3 className="mb-2 text-lg font-semibold text-slate-900">
+        暂无灵感沉淀
+      </h3>
       <p className="mx-auto mb-6 max-w-xl text-sm leading-7 text-slate-500">
         沉淀是渐进式能力。积累更多真实对话、参考和成果后，系统会逐步整理出更稳定、可复用的内容。
       </p>
@@ -1230,9 +1230,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
   );
 
   const sectionTitle =
-    activeSection === "home"
-      ? "灵感总览"
-      : CATEGORY_META[activeSection].label;
+    activeSection === "home" ? "灵感总览" : CATEGORY_META[activeSection].label;
 
   const sectionDescription =
     activeSection === "home"
@@ -1383,14 +1381,20 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
                           <div className="flex flex-wrap items-center gap-2">
                             <StatusPill
-                              tone={memoryConfig.enabled ? "success" : "warning"}
+                              tone={
+                                memoryConfig.enabled ? "success" : "warning"
+                              }
                             >
-                              {memoryConfig.enabled ? "沉淀已启用" : "沉淀已暂停"}
+                              {memoryConfig.enabled
+                                ? "沉淀已启用"
+                                : "沉淀已暂停"}
                             </StatusPill>
                             <StatusPill tone="neutral">
                               当前范围 {analysisScopeLabel}
                             </StatusPill>
-                            <StatusPill tone={projectId ? "success" : "warning"}>
+                            <StatusPill
+                              tone={projectId ? "success" : "warning"}
+                            >
                               {projectId ? "已选项目" : "未选项目"}
                             </StatusPill>
                             <StatusPill tone="neutral">
@@ -1564,7 +1568,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                   <button
                                     type="button"
                                     onClick={() =>
-                                      onNavigate?.("agent", buildHomeAgentParams())
+                                      onNavigate?.(
+                                        "agent",
+                                        buildHomeAgentParams(),
+                                      )
                                     }
                                     className={SECONDARY_BUTTON_CLASS_NAME}
                                   >
@@ -1682,7 +1689,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                               setAnalysisToDate("");
                             }}
                             disabled={
-                              analyzing || (!analysisFromDate && !analysisToDate)
+                              analyzing ||
+                              (!analysisFromDate && !analysisToDate)
                             }
                             className={SECONDARY_BUTTON_CLASS_NAME}
                           >
@@ -1697,25 +1705,33 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                             </div>
                             <div className="mt-3 grid gap-3 sm:grid-cols-2">
                               <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3">
-                                <p className="text-xs text-slate-500">分析会话</p>
+                                <p className="text-xs text-slate-500">
+                                  分析会话
+                                </p>
                                 <p className="mt-2 text-2xl font-semibold text-slate-900">
                                   {analysisResult.analyzed_sessions}
                                 </p>
                               </div>
                               <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3">
-                                <p className="text-xs text-slate-500">扫描消息</p>
+                                <p className="text-xs text-slate-500">
+                                  扫描消息
+                                </p>
                                 <p className="mt-2 text-2xl font-semibold text-slate-900">
                                   {analysisResult.analyzed_messages}
                                 </p>
                               </div>
                               <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3">
-                                <p className="text-xs text-slate-500">新增沉淀</p>
+                                <p className="text-xs text-slate-500">
+                                  新增沉淀
+                                </p>
                                 <p className="mt-2 text-2xl font-semibold text-slate-900">
                                   {analysisResult.generated_entries}
                                 </p>
                               </div>
                               <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3">
-                                <p className="text-xs text-slate-500">去重数量</p>
+                                <p className="text-xs text-slate-500">
+                                  去重数量
+                                </p>
                                 <p className="mt-2 text-2xl font-semibold text-slate-900">
                                   {analysisResult.deduplicated_entries}
                                 </p>
@@ -1754,7 +1770,9 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                 <button
                                   key={item.category}
                                   type="button"
-                                  onClick={() => setActiveSection(item.category)}
+                                  onClick={() =>
+                                    setActiveSection(item.category)
+                                  }
                                   className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96)_0%,rgba(248,250,252,0.92)_100%)] p-4 text-left transition hover:border-slate-300 hover:shadow-sm"
                                 >
                                   <div className="inline-flex items-center gap-1.5 text-xs text-slate-500">
@@ -1908,7 +1926,9 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         <button
                           type="button"
                           onClick={() =>
-                            onNavigate?.("settings", { tab: SettingsTabs.Memory })
+                            onNavigate?.("settings", {
+                              tab: SettingsTabs.Memory,
+                            })
                           }
                           className={SECONDARY_BUTTON_CLASS_NAME}
                         >
@@ -1974,7 +1994,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                 key={option}
                                 type="button"
                                 onClick={() =>
-                                  void saveMemoryConfig("retention_days", option)
+                                  void saveMemoryConfig(
+                                    "retention_days",
+                                    option,
+                                  )
                                 }
                                 className={cn(
                                   "rounded-full border px-3 py-2 text-xs font-medium transition",

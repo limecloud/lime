@@ -9,9 +9,7 @@ import type {
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { CompatSubagentRuntimeStatus } from "../utils/compatSubagentRuntime";
 import type { HarnessSessionState } from "../utils/harnessState";
-import {
-  getOutputSchemaRuntimeLabel,
-} from "../utils/sessionExecutionRuntime";
+import { getOutputSchemaRuntimeLabel } from "../utils/sessionExecutionRuntime";
 
 interface AgentRuntimeStripProps {
   activeTheme?: string;

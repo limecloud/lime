@@ -3,7 +3,10 @@ import type { AsterSubagentSessionInfo } from "@/lib/api/agentRuntime";
 import type { CompatSubagentEvent } from "./compatSubagentRuntime";
 import { sortThreadItems } from "./threadTimelineView";
 
-type SyntheticSubagentItem = Extract<AgentThreadItem, { type: "subagent_activity" }>;
+type SyntheticSubagentItem = Extract<
+  AgentThreadItem,
+  { type: "subagent_activity" }
+>;
 
 interface BuildSubagentTimelineItemsOptions {
   threadId?: string | null;
@@ -42,7 +45,11 @@ function resolveRunSummary(event: CompatSubagentEvent): string | undefined {
 function resolveTaskTitle(
   event: Extract<CompatSubagentEvent, { taskId: string }>,
 ): string {
-  if ("taskType" in event && typeof event.taskType === "string" && event.taskType.trim()) {
+  if (
+    "taskType" in event &&
+    typeof event.taskType === "string" &&
+    event.taskType.trim()
+  ) {
     return `${event.taskId} · ${event.taskType.trim()}`;
   }
   return event.taskId;
@@ -132,12 +139,10 @@ function resolveParentTurnIdForChildSession(
     return turnInWindow.id;
   }
 
-  const latestStartedBeforeChild = [...sortedTurns]
-    .reverse()
-    .find((turn) => {
-      const startedAtMs = resolveTimestampMs(turn.started_at);
-      return startedAtMs !== null && startedAtMs <= targetMs;
-    });
+  const latestStartedBeforeChild = [...sortedTurns].reverse().find((turn) => {
+    const startedAtMs = resolveTimestampMs(turn.started_at);
+    return startedAtMs !== null && startedAtMs <= targetMs;
+  });
   if (latestStartedBeforeChild) {
     return latestStartedBeforeChild.id;
   }
@@ -157,14 +162,19 @@ export function buildRealSubagentTimelineItems({
 
   const items = childSessions.reduce<SyntheticSubagentItem[]>(
     (collection, childSession, index) => {
-      const inferredTurnId = resolveParentTurnIdForChildSession(turns, childSession);
+      const inferredTurnId = resolveParentTurnIdForChildSession(
+        turns,
+        childSession,
+      );
       if (!inferredTurnId) {
         return collection;
       }
 
       const startedAt = new Date(childSession.created_at * 1000).toISOString();
       const updatedAt = new Date(childSession.updated_at * 1000).toISOString();
-      const status = resolveChildSubagentItemStatus(childSession.runtime_status);
+      const status = resolveChildSubagentItemStatus(
+        childSession.runtime_status,
+      );
 
       collection.push({
         id: `real:subagent:${childSession.id}`,
@@ -176,7 +186,9 @@ export function buildRealSubagentTimelineItems({
         completed_at: status === "in_progress" ? undefined : updatedAt,
         updated_at: updatedAt,
         type: "subagent_activity",
-        status_label: resolveChildSubagentStatusLabel(childSession.runtime_status),
+        status_label: resolveChildSubagentStatusLabel(
+          childSession.runtime_status,
+        ),
         title: childSession.name || "子代理会话",
         summary: childSession.task_summary,
         role: childSession.role_hint,

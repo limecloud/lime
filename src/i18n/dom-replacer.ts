@@ -91,10 +91,7 @@ function shouldSkipTextNode(node: Text): boolean {
   return false;
 }
 
-function replaceTextNode(
-  node: Text,
-  compiled: CompiledPatchMap,
-): boolean {
+function replaceTextNode(node: Text, compiled: CompiledPatchMap): boolean {
   const originalText = node.textContent;
   if (!originalText || !compiled.matcher) {
     return false;
@@ -114,10 +111,7 @@ function replaceTextNode(
   return true;
 }
 
-function replaceTextInNodeInternal(
-  root: Node,
-  language: Language,
-): number {
+function replaceTextInNodeInternal(root: Node, language: Language): number {
   if (!root.isConnected && root !== document.body) {
     return 0;
   }

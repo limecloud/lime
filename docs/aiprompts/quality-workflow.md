@@ -204,6 +204,7 @@ npm run bridge:health -- --timeout-ms 120000
 - 检查纯文本 `Claw @表单` 是否已经走 `原始用户消息 -> harness.form_skill_launch -> Agent 首刀 Skill(form_generate) -> ```a2ui simple form JSON` 主链，而不是退回普通聊天字段建议、卡在 `ToolSearch / WebSearch / Read / Glob / Grep` 这类通用工具偏航，或回流成单文件 HTML 表单原型；同时确认 render contract 已收敛为 `form + json`
 - 检查纯文本 `Claw @代码` 是否已经走 `原始用户消息 -> harness.code_command + preferred_team_preset_id -> code_orchestrated -> code_execution / tools / team runtime` 主链，而不是继续停留在普通聊天、没有打开 `task/subagent` 偏好，或把代码任务改写成另一套 prompt / workflow 旁路
 - 检查纯文本 `Claw @发布` 是否已经走 `原始用户消息 -> displayContent 保留 -> dispatch /content_post_with_cover -> content_post workflow` 主链，而不是直接把 `@发布` 文本原样当普通聊天发送，或重新造一套 `publish_task` 协议；同时确认平台后台类输入会继续触发 `browser_requirement`
+- 检查纯文本 `Claw @配音` 是否已经走 `原始用户消息 -> harness.service_scene_launch(scene_key=voice_runtime) -> Agent 首刀 lime_run_service_skill -> OEM scene run/timeline` 主链，而不是退回普通聊天解释、误走站点型 `service_skill_launch`，或重新回流旧的本地 TTS 测试命令；同时确认 `skill_id`、OEM runtime 上下文与最近使用记录都能写回
 - 检查产品型 `/scene-key` 是否已经走 `原始用户消息 -> harness.service_scene_launch -> Agent 首刀 lime_run_service_skill -> OEM run/timeline` 主链，而不是前端直接调用云端 run API
 - 如果某个 `/scene-key` 绑定的是 `site_adapter` 型技能，还要额外检查 `scene -> linkedSkillId -> 完整 ServiceSkill 目录 -> harness.service_skill_launch` 这条绑定链是否仍然成立，避免首页隐藏 site skill 后 slash scene 变成“目录可见但执行找不到 skill”
 - 如果某个 `site_adapter` 结果开始返回 `markdown_bundle`，还要确认保存链会把 Markdown、图片和 `meta.json` 一起落到项目导出目录，并把重写后的相对图片路径写回内容 metadata；同时确认聊天轻卡或 tool timeline 能显示项目目录、Markdown 路径和图片数量，不能只把远程图片 URL 或临时 DOM 文本留在聊天结果里
@@ -245,6 +246,7 @@ npm run bridge:health -- --timeout-ms 120000
 - 修改 `@PPT` parser、`useWorkspaceSendActions`、`runtime_turn`、`presentation_skill_launch`、`presentation_generate` skill 或演示稿 artifact 预览链路，尤其是调整 `Claw @PPT -> harness.presentation_skill_launch -> Agent 首刀 Skill(presentation_generate) -> write_file Markdown artifact` 主链
 - 修改 `@代码` parser、`useWorkspaceSendActions`、mention builtin command 或 `code_orchestrated` 发送边界，尤其是调整 `Claw @代码 -> harness.code_command -> code_orchestrated -> tools / team runtime` 主链
 - 修改 `@发布` parser、`useWorkspaceSendActions`、content post workflow 入口或浏览器门禁推导，尤其是调整 `Claw @发布 -> displayContent/raw -> /content_post_with_cover -> publish workflow` 主链
+- 修改 `@配音` parser、`useWorkspaceSendActions`、`service_scene_launch` 组装、OEM runtime 上下文注入或 `lime_run_service_skill` 配音场景接线，尤其是调整 `Claw @配音 -> harness.service_scene_launch(scene_key=voice_runtime) -> lime_run_service_skill -> OEM run/timeline` 主链
 - 修改 `/scene-key` 解析、`serviceSkillSceneLaunch`、`useWorkspaceSendActions`、`runtime_turn`、`prompt_context`、`lime_run_service_skill` 或 `client/skills` scene 目录协议，尤其是调整 `Claw /scene-key -> harness.service_scene_launch -> Agent 首刀 lime_run_service_skill -> OEM run/timeline` 主链
 - 修改 `src/lib/dev-bridge/`
 - 修改 `src/lib/tauri-mock/`
@@ -401,6 +403,13 @@ npm run bridge:health -- --timeout-ms 120000
 - `npx vitest run "src/components/agent/chat/utils/publishWorkbenchCommand.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/lib/api/skillCatalog.test.ts"`
 - 如有改动扩散到 `content_post_with_cover` slash skill 或写文件回流，再补 `skillCommand` / `MessageList` / general workbench 相关定向回归
 - 若浏览器门禁或 harness 协议继续扩散，再补 `npm run test:contracts`
+- 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
+
+如果本轮修改了 `Claw @配音` 或配音服务型技能接线，最低校验至少包含：
+
+- `npx vitest run "src/components/agent/chat/utils/voiceWorkbenchCommand.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/lib/api/skillCatalog.test.ts" "src/lib/api/serviceSkills.test.ts"`
+- 如有改动扩散到 `service_scene_launch` runtime、`lime_run_service_skill`、OEM scene run/poll 或云端结果回流，再补对应 `runtime_turn` / `prompt_context` / `tool_runtime/service_skill_tools` 定向测试
+- 若 `service_scene_launch` / harness 协议继续扩散，再补 `npm run test:contracts`
 - 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
 
 如果本轮修改了 Provider 模型真相源或设置页中的“支持的模型”展示逻辑，还应额外确认：

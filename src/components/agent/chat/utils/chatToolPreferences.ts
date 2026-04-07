@@ -70,11 +70,15 @@ export function getDefaultChatToolPreferences(
   return DEFAULT_CHAT_TOOL_PREFERENCES;
 }
 
-export function loadChatToolPreferences(theme?: string | null): ChatToolPreferences {
+export function loadChatToolPreferences(
+  theme?: string | null,
+): ChatToolPreferences {
   const defaults = getDefaultChatToolPreferences(theme);
 
   try {
-    const scopedRaw = localStorage.getItem(getScopedChatToolPreferencesKey(theme));
+    const scopedRaw = localStorage.getItem(
+      getScopedChatToolPreferencesKey(theme),
+    );
     if (scopedRaw) {
       return parseStoredPreferences(scopedRaw, defaults);
     }

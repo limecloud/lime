@@ -130,17 +130,11 @@ export const skillsApi = {
     return skills.map(normalizeSkill);
   },
 
-  async install(
-    directory: string,
-    app: AppType = "lime",
-  ): Promise<boolean> {
+  async install(directory: string, app: AppType = "lime"): Promise<boolean> {
     return safeInvoke("install_skill_for_app", { app, directory });
   },
 
-  async uninstall(
-    directory: string,
-    app: AppType = "lime",
-  ): Promise<boolean> {
+  async uninstall(directory: string, app: AppType = "lime"): Promise<boolean> {
     return safeInvoke("uninstall_skill_for_app", { app, directory });
   },
 

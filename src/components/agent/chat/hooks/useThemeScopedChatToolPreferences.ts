@@ -109,7 +109,10 @@ export function useThemeScopedChatToolPreferences(
             );
           })
           .catch((error) => {
-            console.warn("[AgentChat] 回写会话 recent_preferences 失败:", error);
+            console.warn(
+              "[AgentChat] 回写会话 recent_preferences 失败:",
+              error,
+            );
           });
       });
     },
@@ -142,12 +145,21 @@ export function useThemeScopedChatToolPreferences(
         return;
       }
 
-      const nextPreferences = runtimePreferences ?? loadChatToolPreferences(theme);
+      const nextPreferences =
+        runtimePreferences ?? loadChatToolPreferences(theme);
       const currentSessionId = sessionSync?.getSessionId()?.trim();
       if (runtimePreferences && currentSessionId) {
-        syncedSessionPreferenceRef.current.set(currentSessionId, nextPreferences);
+        syncedSessionPreferenceRef.current.set(
+          currentSessionId,
+          nextPreferences,
+        );
       }
-      if (areSameChatToolPreferences(chatToolPreferencesRef.current, nextPreferences)) {
+      if (
+        areSameChatToolPreferences(
+          chatToolPreferencesRef.current,
+          nextPreferences,
+        )
+      ) {
         lastHydratedSourceRef.current = nextSourceKey;
         return;
       }

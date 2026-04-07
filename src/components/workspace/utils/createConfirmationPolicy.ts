@@ -1,8 +1,5 @@
 import type { CreationMode } from "@/lib/workspace/workbenchContract";
-import type {
-  A2UIFormData,
-  A2UIResponse,
-} from "@/lib/workspace/a2ui";
+import type { A2UIFormData, A2UIResponse } from "@/lib/workspace/a2ui";
 
 export type CreateConfirmationSource =
   | "project_created"
@@ -229,7 +226,8 @@ export function buildCreateConfirmationA2UI(
         label: "补充说明（可选）",
         value: "",
         variant: "longText",
-        placeholder: "如果你有明确主题、素材、目标读者或限制条件，可以补充在这里",
+        placeholder:
+          "如果你有明确主题、素材、目标读者或限制条件，可以补充在这里",
         helperText: "选择“其他方式”时，建议在这里补充说明。",
         visible: {
           path: `formData.${optionId}.0`,

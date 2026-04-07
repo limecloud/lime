@@ -18,8 +18,11 @@ interface InputbarExecutionStrategySelectProps {
 export const InputbarExecutionStrategySelect: React.FC<
   InputbarExecutionStrategySelectProps
 > = (props) => {
-  const { isFullscreen = false, executionStrategy, setExecutionStrategy } =
-    props;
+  const {
+    isFullscreen = false,
+    executionStrategy,
+    setExecutionStrategy,
+  } = props;
 
   if (isFullscreen || !setExecutionStrategy) {
     return null;

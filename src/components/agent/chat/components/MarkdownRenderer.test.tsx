@@ -145,8 +145,8 @@ function renderHarness(
     {
       isStreaming: nextIsStreaming = isStreaming,
       collapseCodeBlocks: nextCollapseCodeBlocks = collapseCodeBlocks,
-      shouldCollapseCodeBlock: nextShouldCollapseCodeBlock =
-        shouldCollapseCodeBlock,
+      shouldCollapseCodeBlock:
+        nextShouldCollapseCodeBlock = shouldCollapseCodeBlock,
       showBlockActions: nextShowBlockActions = showBlockActions,
       onQuoteContent: nextOnQuoteContent = onQuoteContent,
     }: RenderOptions = {},
@@ -409,11 +409,7 @@ describe("MarkdownRenderer", () => {
   });
 
   it("代码块高亮应关闭 textShadow 与字体连字，避免中英混排发虚", () => {
-    const content = [
-      "```typescript",
-      "const answer = 42;",
-      "```",
-    ].join("\n");
+    const content = ["```typescript", "const answer = 42;", "```"].join("\n");
 
     const container = render(content);
     const syntaxHighlighter = container.querySelector(

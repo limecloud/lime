@@ -1,6 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { ActionRequired, Message } from "../types";
-import { appendActionRequiredToParts, resolveActionPromptKey } from "./agentChatCoreUtils";
+import {
+  appendActionRequiredToParts,
+  resolveActionPromptKey,
+} from "./agentChatCoreUtils";
 
 interface UpsertAssistantActionRequestOptions {
   assistantMsgId: string;

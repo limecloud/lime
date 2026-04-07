@@ -89,9 +89,7 @@ export function useWorkflowInputState({
 }: UseWorkflowInputStateParams) {
   const workflowQuickActions = useMemo(
     () =>
-      isWorkspaceVariant
-        ? resolveWorkflowQuickActions(workflowGate?.key)
-        : [],
+      isWorkspaceVariant ? resolveWorkflowQuickActions(workflowGate?.key) : [],
     [isWorkspaceVariant, workflowGate?.key],
   );
 

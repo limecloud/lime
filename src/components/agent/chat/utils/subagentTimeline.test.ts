@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRealSubagentTimelineItems, buildSyntheticSubagentTimelineItems } from "./subagentTimeline";
+import {
+  buildRealSubagentTimelineItems,
+  buildSyntheticSubagentTimelineItems,
+} from "./subagentTimeline";
 
 describe("subagentTimeline", () => {
   it("应将调度事件映射为子代理 timeline items", () => {
@@ -11,17 +14,20 @@ describe("subagentTimeline", () => {
       events: [
         { type: "started", totalTasks: 2 },
         { type: "taskStarted", taskId: "task-a", taskType: "research" },
-        { type: "progress", progress: {
-          total: 2,
-          completed: 0,
-          failed: 0,
-          running: 1,
-          pending: 1,
-          skipped: 0,
-          cancelled: false,
-          currentTasks: ["task-a"],
-          percentage: 50,
-        } },
+        {
+          type: "progress",
+          progress: {
+            total: 2,
+            completed: 0,
+            failed: 0,
+            running: 1,
+            pending: 1,
+            skipped: 0,
+            cancelled: false,
+            currentTasks: ["task-a"],
+            percentage: 50,
+          },
+        },
         { type: "taskCompleted", taskId: "task-a", durationMs: 1200 },
         { type: "completed", success: true, durationMs: 1800 },
       ],
@@ -29,9 +35,9 @@ describe("subagentTimeline", () => {
 
     expect(items.some((item) => item.id.includes(":run"))).toBe(true);
     expect(items.some((item) => item.id.includes("task-a"))).toBe(true);
-    expect(
-      items.find((item) => item.id.includes("task-a"))?.status,
-    ).toBe("completed");
+    expect(items.find((item) => item.id.includes("task-a"))?.status).toBe(
+      "completed",
+    );
   });
 
   it("缺少 thread 或 turn 时应返回空数组", () => {

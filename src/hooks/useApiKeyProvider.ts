@@ -24,9 +24,7 @@ import {
   subscribeProviderDataChanged,
 } from "@/lib/providerDataEvents";
 import { isDebugFlagEnabled } from "@/lib/perfDebug";
-import {
-  isOemManagedHubProvider,
-} from "@/lib/oemLimeHubProvider";
+import { isOemManagedHubProvider } from "@/lib/oemLimeHubProvider";
 
 // ============================================================================
 // Hook 返回类型
@@ -201,50 +199,59 @@ export function useApiKeyProvider(
   }, []);
 
   // ===== 加载 Provider 列表 =====
-  const fetchProviders = useCallback(async (force = false) => {
-    try {
-      if (!force && applyCachedProviders()) {
-        return;
-      }
+  const fetchProviders = useCallback(
+    async (force = false) => {
+      try {
+        if (!force && applyCachedProviders()) {
+          return;
+        }
 
-      if (providerCacheState.inFlight) {
-        providerDebugLog("[useApiKeyProvider] 复用进行中的 Provider 请求");
-        const inFlightData = await providerCacheState.inFlight;
-        setProviders(cloneProviders(inFlightData));
+        if (providerCacheState.inFlight) {
+          providerDebugLog("[useApiKeyProvider] 复用进行中的 Provider 请求");
+          const inFlightData = await providerCacheState.inFlight;
+          setProviders(cloneProviders(inFlightData));
+          setError(null);
+          setLoading(false);
+          return;
+        }
+
+        providerDebugLog("[useApiKeyProvider] 开始获取 Provider 列表...");
+        if (providers.length === 0) {
+          setLoading(true);
+        }
         setError(null);
-        setLoading(false);
-        return;
-      }
-
-      providerDebugLog("[useApiKeyProvider] 开始获取 Provider 列表...");
-      if (providers.length === 0) {
-        setLoading(true);
-      }
-      setError(null);
-      providerCacheState.inFlight = apiKeyProviderApi.getProviders(
-        force ? { forceRefresh: true } : undefined,
-      );
-      const data = await providerCacheState.inFlight;
-      providerDebugLog("[useApiKeyProvider] 获取到", data.length, "个 Provider");
-
-      // 打印每个 Provider 的 API Key 数量
-      data.forEach((p) => {
-        providerDebugLog(
-          `[useApiKeyProvider] Provider ${p.id} (${p.name}): ${p.api_keys?.length || 0} 个 API Key`,
+        providerCacheState.inFlight = apiKeyProviderApi.getProviders(
+          force ? { forceRefresh: true } : undefined,
         );
-      });
+        const data = await providerCacheState.inFlight;
+        providerDebugLog(
+          "[useApiKeyProvider] 获取到",
+          data.length,
+          "个 Provider",
+        );
 
-      writeProvidersToCache(data);
-      setProviders(cloneProviders(data));
-      providerDebugLog("[useApiKeyProvider] 状态已更新，providers 数组已刷新");
-    } catch (e) {
-      console.error("[useApiKeyProvider] 获取 Provider 列表失败:", e);
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      providerCacheState.inFlight = null;
-      setLoading(false);
-    }
-  }, [applyCachedProviders, providers.length]);
+        // 打印每个 Provider 的 API Key 数量
+        data.forEach((p) => {
+          providerDebugLog(
+            `[useApiKeyProvider] Provider ${p.id} (${p.name}): ${p.api_keys?.length || 0} 个 API Key`,
+          );
+        });
+
+        writeProvidersToCache(data);
+        setProviders(cloneProviders(data));
+        providerDebugLog(
+          "[useApiKeyProvider] 状态已更新，providers 数组已刷新",
+        );
+      } catch (e) {
+        console.error("[useApiKeyProvider] 获取 Provider 列表失败:", e);
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        providerCacheState.inFlight = null;
+        setLoading(false);
+      }
+    },
+    [applyCachedProviders, providers.length],
+  );
 
   const refreshAndNotify = useCallback(async () => {
     await fetchProviders(true);
@@ -510,7 +517,9 @@ export function useApiKeyProvider(
   const selectedProvider = useMemo(() => {
     providerDebugLog("[useApiKeyProvider] 计算 selectedProvider");
     if (!selectedProviderId) {
-      providerDebugLog("[useApiKeyProvider] selectedProvider: 没有选中的 Provider");
+      providerDebugLog(
+        "[useApiKeyProvider] selectedProvider: 没有选中的 Provider",
+      );
       return null;
     }
     const found = providers.find(

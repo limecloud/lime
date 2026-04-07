@@ -48,7 +48,9 @@ function normalizeRoleSummary(
   summary?: string | null,
   label?: string | null,
 ): string {
-  return normalizeText(summary) || `${normalizeRoleLabel(label)}负责当前子任务。`;
+  return (
+    normalizeText(summary) || `${normalizeRoleLabel(label)}负责当前子任务。`
+  );
 }
 
 export function createTeamDefinitionId(prefix = "team"): string {
@@ -107,7 +109,8 @@ export function cloneTeamDefinitionAsCustom(
     label,
     description:
       normalizeText(overrides?.description) || normalizeText(team.description),
-    theme: normalizeText(overrides?.theme) || normalizeText(team.theme) || undefined,
+    theme:
+      normalizeText(overrides?.theme) || normalizeText(team.theme) || undefined,
     presetId: team.presetId,
     roles: team.roles.map((role, index) => ({
       id: normalizeText(role.id) || `role-${index + 1}`,
@@ -116,7 +119,9 @@ export function cloneTeamDefinitionAsCustom(
       profileId: normalizeText(role.profileId) || undefined,
       roleKey: normalizeText(role.roleKey) || undefined,
       skillIds:
-        role.skillIds?.map((skillId) => normalizeText(skillId)).filter(Boolean) || [],
+        role.skillIds
+          ?.map((skillId) => normalizeText(skillId))
+          .filter(Boolean) || [],
     })),
     createdAt: now,
     updatedAt: now,
@@ -141,7 +146,9 @@ export function normalizeTeamDefinition(
         profileId: normalizeText(role.profileId) || undefined,
         roleKey: normalizeText(role.roleKey) || undefined,
         skillIds:
-          role.skillIds?.map((skillId) => normalizeText(skillId)).filter(Boolean) || [],
+          role.skillIds
+            ?.map((skillId) => normalizeText(skillId))
+            .filter(Boolean) || [],
       };
     })
     .filter((role) => role.label.trim().length > 0);
@@ -168,7 +175,9 @@ export function normalizeTeamDefinition(
   };
 }
 
-export function buildTeamDefinitionSummary(team?: TeamDefinition | null): string {
+export function buildTeamDefinitionSummary(
+  team?: TeamDefinition | null,
+): string {
   if (!team) {
     return "";
   }

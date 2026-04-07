@@ -8,9 +8,7 @@ import {
   buildTeamDefinitionSummary,
   createTeamDefinitionFromPreset,
 } from "../utils/teamDefinitions";
-import {
-  createTeamDefinitionFromExecutionRuntimeRecentTeamSelection,
-} from "../utils/sessionExecutionRuntime";
+import { createTeamDefinitionFromExecutionRuntimeRecentTeamSelection } from "../utils/sessionExecutionRuntime";
 import { resolveSelectedTeamFromShadowSnapshot } from "./useTeamMemoryShadowSync";
 import {
   loadCustomTeams,
@@ -84,7 +82,9 @@ function persistSelectedTeamShadowCache(
   if (team?.source === "custom") {
     const nextCustomTeams = [
       team,
-      ...loadCustomTeams().filter((existingTeam) => existingTeam.id !== team.id),
+      ...loadCustomTeams().filter(
+        (existingTeam) => existingTeam.id !== team.id,
+      ),
     ];
     saveCustomTeams(nextCustomTeams);
   }
@@ -161,8 +161,8 @@ export function useSelectedTeamPreference(
   );
   const hasRuntimeSelection = Boolean(
     runtimeSelectionMatchesTheme &&
-      runtimeSelection &&
-      (runtimeSelection.disabled || runtimeSelectedTeam),
+    runtimeSelection &&
+    (runtimeSelection.disabled || runtimeSelectedTeam),
   );
   const [selectedTeam, setSelectedTeamState] = useState<TeamDefinition | null>(
     () => resolveCurrentSelection(),
@@ -171,7 +171,9 @@ export function useSelectedTeamPreference(
   const lastScopeKeyRef = useRef(scopeKey);
   const lastHydratedSourceRef = useRef<string | null>(null);
   const lastBackfilledSourceRef = useRef<string | null>(null);
-  const pendingSessionTeamSyncRef = useRef(new Map<string, TeamDefinition | null>());
+  const pendingSessionTeamSyncRef = useRef(
+    new Map<string, TeamDefinition | null>(),
+  );
 
   if (lastScopeKeyRef.current !== scopeKey) {
     lastScopeKeyRef.current = scopeKey;
@@ -216,13 +218,13 @@ export function useSelectedTeamPreference(
       fallbackTeam,
     )}`;
 
-      if (workspacePreferenceState.kind !== "unset") {
-        if (lastHydratedSourceRef.current !== fallbackSourceKey) {
-          setSelectedTeamState((current) =>
-            areSameSelectedTeam(current, fallbackTeam) ? current : fallbackTeam,
-          );
-          lastHydratedSourceRef.current = fallbackSourceKey;
-        }
+    if (workspacePreferenceState.kind !== "unset") {
+      if (lastHydratedSourceRef.current !== fallbackSourceKey) {
+        setSelectedTeamState((current) =>
+          areSameSelectedTeam(current, fallbackTeam) ? current : fallbackTeam,
+        );
+        lastHydratedSourceRef.current = fallbackSourceKey;
+      }
 
       if (lastBackfilledSourceRef.current !== fallbackSourceKey) {
         scheduleSessionRecentTeamSelectionSync(fallbackTeam);

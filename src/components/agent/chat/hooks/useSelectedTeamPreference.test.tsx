@@ -216,7 +216,9 @@ describe("useSelectedTeamPreference", () => {
   });
 
   it("项目级持久化失败时应回滚到当前项目 Team", async () => {
-    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
     const engineeringTeam = createTeamDefinitionFromPreset(
       "code-triage-team",
     ) as TeamDefinition;
@@ -499,7 +501,11 @@ describe("useSelectedTeamPreference", () => {
       });
       await flushEffects();
 
-      expect(syncSpy).toHaveBeenCalledWith("session-1", researchTeam, "general");
+      expect(syncSpy).toHaveBeenCalledWith(
+        "session-1",
+        researchTeam,
+        "general",
+      );
       expect(loadSelectedTeamReference("general")).toEqual({
         id: "research-team",
         source: "builtin",
@@ -550,7 +556,11 @@ describe("useSelectedTeamPreference", () => {
       await flushEffects();
 
       expect(harness.getValue().selectedTeam?.id).toBe("research-team");
-      expect(syncSpy).toHaveBeenCalledWith("session-1", researchTeam, "general");
+      expect(syncSpy).toHaveBeenCalledWith(
+        "session-1",
+        researchTeam,
+        "general",
+      );
     } finally {
       harness.unmount();
     }

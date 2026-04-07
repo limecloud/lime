@@ -8,12 +8,7 @@
  * _需求: 2.2, 3.2, 5.2_
  */
 
-import React, {
-  Suspense,
-  lazy,
-  useState,
-  useCallback,
-} from "react";
+import React, { Suspense, lazy, useState, useCallback } from "react";
 import styled from "styled-components";
 import { withI18nPatch } from "./i18n/withI18nPatch";
 import { AppPageContent } from "./components/AppPageContent";
@@ -211,10 +206,9 @@ function AppContent() {
     onOpenBrowserConnectorSettings: handleOpenBrowserConnectorSettings,
   });
 
-  const { error: registryError, refresh: _refreshRegistry } =
-    useRelayRegistry({
-      autoLoad: hasTauriDesktopRuntime,
-    });
+  const { error: registryError, refresh: _refreshRegistry } = useRelayRegistry({
+    autoLoad: hasTauriDesktopRuntime,
+  });
   useAppStartupEffects({
     currentPage,
     registryError,

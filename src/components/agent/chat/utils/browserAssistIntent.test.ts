@@ -17,9 +17,9 @@ describe("browserAssistIntent", () => {
   });
 
   it("应识别不带协议头的域名并补全 https", () => {
-    expect(
-      extractExplicitUrlFromText("请访问 news.baidu.com/top"),
-    ).toBe("https://news.baidu.com/top");
+    expect(extractExplicitUrlFromText("请访问 news.baidu.com/top")).toBe(
+      "https://news.baidu.com/top",
+    );
   });
 
   it("没有显式 URL 时应回退为 Google 搜索地址", () => {
@@ -45,7 +45,9 @@ describe("browserAssistIntent", () => {
 
   it("只有链接总结诉求但没有浏览器意图时不应自动占用浏览器画布", () => {
     expect(
-      shouldAutoOpenBrowserAssistForPrompt("帮我总结 https://example.com 的内容"),
+      shouldAutoOpenBrowserAssistForPrompt(
+        "帮我总结 https://example.com 的内容",
+      ),
     ).toBe(false);
   });
 });

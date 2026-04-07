@@ -40,7 +40,8 @@ interface UseAgentContextOptions {
   workspaceId: string;
   sessionIdRef: MutableRefObject<string | null>;
   topicsUpdaterRef: MutableRefObject<
-    ((sessionId: string, executionStrategy: AsterExecutionStrategy) => void) | null
+    | ((sessionId: string, executionStrategy: AsterExecutionStrategy) => void)
+    | null
   >;
   sendMessageRef: MutableRefObject<SendMessageFn | null>;
   runtime: {
@@ -116,7 +117,9 @@ export function useAgentContext(options: UseAgentContextOptions) {
   const syncedSessionExecutionStrategyRef = useRef(
     new Map<string, AsterExecutionStrategy>(),
   );
-  const pendingSessionAccessModeSyncRef = useRef(new Map<string, AgentAccessMode>());
+  const pendingSessionAccessModeSyncRef = useRef(
+    new Map<string, AgentAccessMode>(),
+  );
 
   providerTypeRef.current = providerType;
   modelRef.current = model;
@@ -133,10 +136,13 @@ export function useAgentContext(options: UseAgentContextOptions) {
       targetProviderType: string,
       targetModel: string,
     ) => {
-      savePersisted(getSessionModelPreferenceKey(workspaceId, targetSessionId), {
-        providerType: targetProviderType,
-        model: targetModel,
-      });
+      savePersisted(
+        getSessionModelPreferenceKey(workspaceId, targetSessionId),
+        {
+          providerType: targetProviderType,
+          model: targetModel,
+        },
+      );
     },
     [workspaceId],
   );
@@ -468,9 +474,11 @@ export function useAgentContext(options: UseAgentContextOptions) {
           return;
         }
 
-        void syncAccessMode(trimmedSessionId, latestAccessMode).catch((error) => {
-          console.warn("[AsterChat] 更新会话 accessMode 失败:", error);
-        });
+        void syncAccessMode(trimmedSessionId, latestAccessMode).catch(
+          (error) => {
+            console.warn("[AsterChat] 更新会话 accessMode 失败:", error);
+          },
+        );
       });
     },
     [runtime],
@@ -545,13 +553,16 @@ export function useAgentContext(options: UseAgentContextOptions) {
     savePersisted(storageKey, accessMode);
   }, [accessMode, workspaceId]);
 
-  const triggerAIGuide = useCallback(async (initialPrompt?: string) => {
-    const sendMessage = sendMessageRef.current;
-    if (!sendMessage) {
-      throw new Error("发送器尚未就绪");
-    }
-    await sendMessage(initialPrompt?.trim() || "", [], false, false, true);
-  }, [sendMessageRef]);
+  const triggerAIGuide = useCallback(
+    async (initialPrompt?: string) => {
+      const sendMessage = sendMessageRef.current;
+      if (!sendMessage) {
+        throw new Error("发送器尚未就绪");
+      }
+      await sendMessage(initialPrompt?.trim() || "", [], false, false, true);
+    },
+    [sendMessageRef],
+  );
 
   const fixWorkspacePathAndRetry = useCallback(
     async (newPath: string) => {

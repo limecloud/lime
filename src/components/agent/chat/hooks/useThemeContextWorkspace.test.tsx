@@ -52,9 +52,13 @@ beforeEach(() => {
     title: "默认搜索上下文",
     summary: "默认搜索摘要",
     citations: [],
-    rawResponse: '{"title":"默认搜索上下文","summary":"默认搜索摘要","citations":[]}',
+    rawResponse:
+      '{"title":"默认搜索上下文","summary":"默认搜索摘要","citations":[]}',
   });
-  mockUseMaterials.mockReturnValue({ materials: [], getContent: vi.fn().mockResolvedValue("") });
+  mockUseMaterials.mockReturnValue({
+    materials: [],
+    getContent: vi.fn().mockResolvedValue(""),
+  });
 });
 
 afterEach(() => {
@@ -244,7 +248,9 @@ describe("useThemeContextWorkspace", () => {
     const contentItems = snapshot!.sidebarContextItems.filter(
       (item) => item.source === "content",
     );
-    const sameTitleItems = contentItems.filter((item) => item.name === "新帖子");
+    const sameTitleItems = contentItems.filter(
+      (item) => item.name === "新帖子",
+    );
 
     expect(sameTitleItems).toHaveLength(1);
     expect(sameTitleItems[0]?.id).toBe("content:content-new");
@@ -257,12 +263,11 @@ describe("useThemeContextWorkspace", () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockSearchThemeContextWithWebSearch.mockResolvedValue({
       title: "智能体泡沫观察",
-      summary: "2026 年市场对智能体基建和应用进入分化阶段，讨论聚焦落地成本、场景ROI与平台生态。",
-      citations: [
-        { title: "官方博客", url: "https://example.com/blog" },
-      ],
+      summary:
+        "2026 年市场对智能体基建和应用进入分化阶段，讨论聚焦落地成本、场景ROI与平台生态。",
+      citations: [{ title: "官方博客", url: "https://example.com/blog" }],
       rawResponse:
-        '{"title":"智能体泡沫观察","summary":"2026 年市场对智能体基建和应用进入分化阶段，讨论聚焦落地成本、场景ROI与平台生态。","citations":[{"title":"官方博客","url":"https://example.com/blog"}]}' ,
+        '{"title":"智能体泡沫观察","summary":"2026 年市场对智能体基建和应用进入分化阶段，讨论聚焦落地成本、场景ROI与平台生态。","citations":[{"title":"官方博客","url":"https://example.com/blog"}]}',
     });
 
     let snapshot: ThemeContextWorkspaceState | null = null;
@@ -297,17 +302,25 @@ describe("useThemeContextWorkspace", () => {
     expect(snapshot!.contextSearchQuery).toBe("");
     expect(snapshot!.sidebarContextItems[0]?.source).toBe("search");
     expect(snapshot!.sidebarContextItems[0]?.active).toBe(true);
-    expect(snapshot!.sidebarContextItems[0]?.previewText).toContain("2026 年市场");
-    expect(snapshot!.sidebarContextItems[0]?.citations?.[0]?.url).toBe("https://example.com/blog");
+    expect(snapshot!.sidebarContextItems[0]?.previewText).toContain(
+      "2026 年市场",
+    );
+    expect(snapshot!.sidebarContextItems[0]?.citations?.[0]?.url).toBe(
+      "https://example.com/blog",
+    );
     expect(snapshot!.activeContextPrompt).toContain("智能体泡沫观察");
     expect(snapshot!.activeContextPrompt).toContain("https://example.com/blog");
   });
 
   it("prepareActiveContextPrompt 应加载本地正文并拼入提示词", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    const mockMaterialGetContent = vi.fn().mockResolvedValue("品牌手册正文，包含品牌定位、目标人群和传播语气。");
+    const mockMaterialGetContent = vi
+      .fn()
+      .mockResolvedValue("品牌手册正文，包含品牌定位、目标人群和传播语气。");
     mockUseMaterials.mockReturnValue({
-      materials: [{ id: "m1", name: "品牌手册", description: "品牌资产", tags: [] }],
+      materials: [
+        { id: "m1", name: "品牌手册", description: "品牌资产", tags: [] },
+      ],
       getContent: mockMaterialGetContent,
     });
 

@@ -11,10 +11,7 @@ export type CanvasImageInsertSource =
   | "gallery"
   | "manual";
 
-export type CanvasImageTargetType =
-  | "auto"
-  | "document"
-  | "video";
+export type CanvasImageTargetType = "auto" | "document" | "video";
 
 export type CanvasImageInsertAnchorHint =
   | "cursor"
@@ -187,7 +184,9 @@ export const onCanvasImageInsertRequest = (
   };
 };
 
-export const emitCanvasImageInsertAck = (ack: Omit<CanvasImageInsertAck, "processedAt">) => {
+export const emitCanvasImageInsertAck = (
+  ack: Omit<CanvasImageInsertAck, "processedAt">,
+) => {
   if (!hasWindow()) return;
   const payload: CanvasImageInsertAck = {
     ...ack,

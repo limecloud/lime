@@ -57,7 +57,9 @@ export function buildServiceSkillWorkspaceSeed(
 
   return {
     title: skill.title.trim() || "技能工作稿",
-    contentType: getDefaultContentTypeForProject(normalizedTheme as ProjectType),
+    contentType: getDefaultContentTypeForProject(
+      normalizedTheme as ProjectType,
+    ),
     requestMetadata: shouldSeedArtifactDraft(skill)
       ? resolveServiceSkillArtifactRequestMetadata(skill.defaultArtifactKind)
       : undefined,

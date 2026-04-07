@@ -81,10 +81,7 @@ describe("runtimeAgentsGuideService", () => {
       "项目创建成功",
     );
 
-    expect(mockToastSuccess).toHaveBeenNthCalledWith(
-      2,
-      "项目创建成功",
-    );
+    expect(mockToastSuccess).toHaveBeenNthCalledWith(2, "项目创建成功");
   });
 
   it("点击一键初始化后应生成模板并补齐 gitignore", async () => {

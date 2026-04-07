@@ -1,5 +1,8 @@
 import type { BrowserTaskRequirement, Message } from "../types";
-import type { TeamRoleDefinition, TeamDefinitionSource } from "./teamDefinitions";
+import type {
+  TeamRoleDefinition,
+  TeamDefinitionSource,
+} from "./teamDefinitions";
 import type { AgentAccessMode } from "../hooks/agentChatStorage";
 import type { TeamMemoryShadowRequestMetadata } from "@/lib/teamMemorySync";
 import {
@@ -79,7 +82,9 @@ const LEGACY_HARNESS_STATE_KEYS = [
   "turnTeamBlueprint",
 ] as const;
 
-function clearLegacyHarnessStateFields(metadata: Record<string, unknown>): void {
+function clearLegacyHarnessStateFields(
+  metadata: Record<string, unknown>,
+): void {
   LEGACY_HARNESS_STATE_KEYS.forEach((key) => {
     delete metadata[key];
   });
@@ -143,10 +148,9 @@ export function buildHarnessRequestMetadata(
     },
     access_mode: accessMode || undefined,
     session_mode: normalizedSessionMode,
-    gate_key:
-      isGeneralWorkbenchSessionMode(normalizedSessionMode)
-        ? gateKey || undefined
-        : undefined,
+    gate_key: isGeneralWorkbenchSessionMode(normalizedSessionMode)
+      ? gateKey || undefined
+      : undefined,
     run_title: runTitle || undefined,
     content_id: contentId || undefined,
     preferred_team_preset_id: preferredTeamPresetId || undefined,

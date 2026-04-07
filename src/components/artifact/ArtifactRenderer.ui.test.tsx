@@ -185,9 +185,9 @@ describe("ArtifactRenderer 空内容态", () => {
     expect(container.textContent).toContain("正文段落");
     expect(container.textContent).toContain("主题 通用");
     expect(
-      container
-        .querySelector('[data-testid="artifact-document-renderer"] article')
-        ?.className,
+      container.querySelector(
+        '[data-testid="artifact-document-renderer"] article',
+      )?.className,
     ).toContain("max-w-[1100px]");
   });
 

@@ -190,8 +190,10 @@ export function useGeneralWorkbenchEntryPrompt({
 }: UseGeneralWorkbenchEntryPromptOptions) {
   const [generalWorkbenchEntryPrompt, setGeneralWorkbenchEntryPrompt] =
     useState<GeneralWorkbenchEntryPromptState | null>(null);
-  const [generalWorkbenchEntryCheckPending, setGeneralWorkbenchEntryCheckPending] =
-    useState(false);
+  const [
+    generalWorkbenchEntryCheckPending,
+    setGeneralWorkbenchEntryCheckPending,
+  ] = useState(false);
   const hydratedPromptSignatureRef = useRef<string | null>(null);
   const dismissedPromptSignatureRef = useRef<string | null>(null);
 

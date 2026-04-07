@@ -1,4 +1,10 @@
-import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Archive, PencilLine, RotateCcw, Save, SquarePen } from "lucide-react";
 import { browserRuntimeApi } from "./api";
 import type { BrowserEnvironmentPresetRecord } from "./api";
@@ -114,9 +120,10 @@ export function BrowserEnvironmentPresetManager(
     async (includeArchived = showArchived) => {
       setLoading(true);
       try {
-        const nextPresets = await browserRuntimeApi.listBrowserEnvironmentPresets({
-          include_archived: includeArchived,
-        });
+        const nextPresets =
+          await browserRuntimeApi.listBrowserEnvironmentPresets({
+            include_archived: includeArchived,
+          });
         const nextActivePresets = nextPresets.filter(
           (preset) => preset.archived_at === null,
         );
@@ -141,7 +148,13 @@ export function BrowserEnvironmentPresetManager(
         setLoading(false);
       }
     },
-    [onMessage, onPresetsChanged, onSelectedPresetChange, selectedPresetId, showArchived],
+    [
+      onMessage,
+      onPresetsChanged,
+      onSelectedPresetChange,
+      selectedPresetId,
+      showArchived,
+    ],
   );
 
   useEffect(() => {
@@ -202,12 +215,15 @@ export function BrowserEnvironmentPresetManager(
 
     setSubmitting(true);
     try {
-      const saved = await browserRuntimeApi.saveBrowserEnvironmentPreset(request);
+      const saved =
+        await browserRuntimeApi.saveBrowserEnvironmentPreset(request);
       await refreshPresets(showArchived);
       setForm(toFormState(saved));
       onMessage?.({
         type: "success",
-        text: form.id ? `已更新环境预设：${saved.name}` : `已创建环境预设：${saved.name}`,
+        text: form.id
+          ? `已更新环境预设：${saved.name}`
+          : `已创建环境预设：${saved.name}`,
       });
       setFormOpen(false);
     } catch (error) {
@@ -334,7 +350,10 @@ export function BrowserEnvironmentPresetManager(
             <input
               value={form.name}
               onChange={(event) =>
-                setForm((previous) => ({ ...previous, name: event.target.value }))
+                setForm((previous) => ({
+                  ...previous,
+                  name: event.target.value,
+                }))
               }
               className="h-10 w-full rounded-md border bg-background px-3"
               placeholder="例如：美区桌面住宅网络"

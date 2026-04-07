@@ -78,11 +78,15 @@ interface GeneralWorkbenchDialogSectionProps extends HarnessPanelBaseProps {
   activeTheme: ComponentProps<typeof AgentRuntimeStrip>["activeTheme"];
   toolPreferences: ComponentProps<typeof AgentRuntimeStrip>["toolPreferences"];
   isSending: ComponentProps<typeof AgentRuntimeStrip>["isSending"];
-  executionRuntime: ComponentProps<typeof AgentRuntimeStrip>["executionRuntime"];
+  executionRuntime: ComponentProps<
+    typeof AgentRuntimeStrip
+  >["executionRuntime"];
   isExecutionRuntimeActive: ComponentProps<
     typeof AgentRuntimeStrip
   >["isExecutionRuntimeActive"];
-  runtimeStatusTitle: ComponentProps<typeof AgentRuntimeStrip>["runtimeStatusTitle"];
+  runtimeStatusTitle: ComponentProps<
+    typeof AgentRuntimeStrip
+  >["runtimeStatusTitle"];
   selectedTeamRoleCount: ComponentProps<
     typeof AgentRuntimeStrip
   >["selectedTeamRoleCount"];

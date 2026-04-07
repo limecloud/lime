@@ -191,7 +191,13 @@ const TooltipContent: React.FC<TooltipContentProps> = ({
         return;
       }
 
-      setPosition(resolveTooltipPosition(anchorRef.current.getBoundingClientRect(), side, align));
+      setPosition(
+        resolveTooltipPosition(
+          anchorRef.current.getBoundingClientRect(),
+          side,
+          align,
+        ),
+      );
     };
 
     updatePosition();

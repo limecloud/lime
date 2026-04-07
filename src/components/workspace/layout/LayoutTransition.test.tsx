@@ -141,12 +141,15 @@ describe("LayoutTransition", () => {
     );
 
     expect(root?.getAttribute("data-layout-axis")).toBe("horizontal");
-    expect(root?.getAttribute("data-chat-panel-placement")).toBe("overlay-right");
+    expect(root?.getAttribute("data-chat-panel-placement")).toBe(
+      "overlay-right",
+    );
     expect(
       container.querySelector('[data-testid="layout-chat-overlay-trigger"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
+      container
+        .querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
         ?.getAttribute("data-overlay-state"),
     ).toBe("closed");
 
@@ -155,7 +158,8 @@ describe("LayoutTransition", () => {
     );
 
     expect(
-      container.querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
+      container
+        .querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
         ?.getAttribute("data-overlay-state"),
     ).toBe("open");
     expect(
@@ -177,7 +181,8 @@ describe("LayoutTransition", () => {
       container.querySelector('button[aria-label="收起右侧聊天区"]'),
     );
     expect(
-      container.querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
+      container
+        .querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
         ?.getAttribute("data-overlay-state"),
     ).toBe("closed");
   });
@@ -204,7 +209,8 @@ describe("LayoutTransition", () => {
       container.querySelector('button[aria-label="展开右侧聊天区"]'),
     );
     expect(
-      container.querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
+      container
+        .querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
         ?.getAttribute("data-overlay-state"),
     ).toBe("open");
 
@@ -214,7 +220,8 @@ describe("LayoutTransition", () => {
     });
 
     expect(
-      container.querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
+      container
+        .querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
         ?.getAttribute("data-overlay-state"),
     ).toBe("closed");
   });
@@ -242,7 +249,8 @@ describe("LayoutTransition", () => {
     });
 
     expect(
-      container.querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
+      container
+        .querySelector<HTMLElement>('[data-testid="layout-chat-panel"]')
         ?.getAttribute("data-overlay-state"),
     ).toBe("open");
     expect(

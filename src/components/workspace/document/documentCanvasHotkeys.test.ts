@@ -3,9 +3,9 @@ import { resolveDocumentCanvasHotkeyAction } from "./documentCanvasHotkeys";
 
 describe("document canvas hotkeys", () => {
   it("应解析撤销与重做快捷键", () => {
-    expect(
-      resolveDocumentCanvasHotkeyAction({ key: "z", ctrlKey: true }),
-    ).toBe("undo");
+    expect(resolveDocumentCanvasHotkeyAction({ key: "z", ctrlKey: true })).toBe(
+      "undo",
+    );
     expect(
       resolveDocumentCanvasHotkeyAction({
         key: "z",

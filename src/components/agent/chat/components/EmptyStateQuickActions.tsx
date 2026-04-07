@@ -263,10 +263,14 @@ export function EmptyStateQuickActions({
                       <button
                         type="button"
                         data-testid={
-                          item.testId ? `${item.testId}-secondary-status` : undefined
+                          item.testId
+                            ? `${item.testId}-secondary-status`
+                            : undefined
                         }
                         className={`inline-flex items-center rounded-full border px-2 py-1 text-[11px] font-medium transition-colors hover:brightness-95 ${STATUS_TONE_CLASSNAMES[item.secondaryStatusTone ?? "slate"]}`}
-                        title={item.secondaryStatusDescription ?? "打开对应任务"}
+                        title={
+                          item.secondaryStatusDescription ?? "打开对应任务"
+                        }
                         onClick={(event) => {
                           event.stopPropagation();
                           onSecondaryStatusAction(item);

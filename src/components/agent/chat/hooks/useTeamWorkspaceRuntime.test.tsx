@@ -4,19 +4,15 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTeamWorkspaceRuntime } from "./useTeamWorkspaceRuntime";
 
-const {
-  mockSafeListen,
-  mockParseAgentEvent,
-} = vi.hoisted(() => ({
+const { mockSafeListen, mockParseAgentEvent } = vi.hoisted(() => ({
   mockSafeListen: vi.fn(),
   mockParseAgentEvent: vi.fn((payload: unknown) => payload),
 }));
 
 vi.mock("@/lib/api/agentProtocol", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/agentProtocol")>(
-      "@/lib/api/agentProtocol",
-    );
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/agentProtocol")
+  >("@/lib/api/agentProtocol");
   return {
     ...actual,
     parseAgentEvent: mockParseAgentEvent,
@@ -90,7 +86,10 @@ describe("useTeamWorkspaceRuntime", () => {
     latestValue = null;
     mockParseAgentEvent.mockImplementation((payload: unknown) => payload);
     mockSafeListen.mockImplementation(
-      async (_eventName: string, _handler: (event: { payload: unknown }) => void) =>
+      async (
+        _eventName: string,
+        _handler: (event: { payload: unknown }) => void,
+      ) =>
         () => {},
     );
   });
@@ -111,12 +110,12 @@ describe("useTeamWorkspaceRuntime", () => {
   });
 
   it("收到 team 状态事件后，应立即投影 live runtime 与 live activity，并在去抖后递增刷新版本", async () => {
-    const listeners = new Map<
-      string,
-      (event: { payload: unknown }) => void
-    >();
+    const listeners = new Map<string, (event: { payload: unknown }) => void>();
     mockSafeListen.mockImplementation(
-      async (eventName: string, handler: (event: { payload: unknown }) => void) => {
+      async (
+        eventName: string,
+        handler: (event: { payload: unknown }) => void,
+      ) => {
         listeners.set(eventName, handler);
         return () => {
           listeners.delete(eventName);
@@ -150,34 +149,34 @@ describe("useTeamWorkspaceRuntime", () => {
     expect(
       latestValue?.liveActivityBySessionId["child-1"]?.[0]?.detail,
     ).toContain("已切换为处理中");
-    expect(
-      latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0,
-    ).toBe(0);
+    expect(latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0).toBe(
+      0,
+    );
 
     await act(async () => {
       vi.advanceTimersByTime(239);
       await Promise.resolve();
     });
-    expect(
-      latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0,
-    ).toBe(0);
+    expect(latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0).toBe(
+      0,
+    );
 
     await act(async () => {
       vi.advanceTimersByTime(1);
       await Promise.resolve();
     });
-    expect(
-      latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0,
-    ).toBe(1);
+    expect(latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0).toBe(
+      1,
+    );
   });
 
   it("收到子代理 runtime stream 事件后，应投影最近过程，并在关键完成事件后递增刷新版本", async () => {
-    const listeners = new Map<
-      string,
-      (event: { payload: unknown }) => void
-    >();
+    const listeners = new Map<string, (event: { payload: unknown }) => void>();
     mockSafeListen.mockImplementation(
-      async (eventName: string, handler: (event: { payload: unknown }) => void) => {
+      async (
+        eventName: string,
+        handler: (event: { payload: unknown }) => void,
+      ) => {
         listeners.set(eventName, handler);
         return () => {
           listeners.delete(eventName);
@@ -209,9 +208,9 @@ describe("useTeamWorkspaceRuntime", () => {
     expect(
       latestValue?.liveActivityBySessionId["child-1"]?.[0]?.detail,
     ).toContain("正在处理 browser_snapshot");
-    expect(
-      latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0,
-    ).toBe(0);
+    expect(latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0).toBe(
+      0,
+    );
 
     await act(async () => {
       listeners.get("agent_subagent_stream:child-1")?.({
@@ -239,18 +238,18 @@ describe("useTeamWorkspaceRuntime", () => {
       await Promise.resolve();
     });
 
-    expect(
-      latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0,
-    ).toBe(1);
+    expect(latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0).toBe(
+      1,
+    );
   });
 
   it("收到 turn_completed 后，应立即把 live runtime 从 running 回落到 completed", async () => {
-    const listeners = new Map<
-      string,
-      (event: { payload: unknown }) => void
-    >();
+    const listeners = new Map<string, (event: { payload: unknown }) => void>();
     mockSafeListen.mockImplementation(
-      async (eventName: string, handler: (event: { payload: unknown }) => void) => {
+      async (
+        eventName: string,
+        handler: (event: { payload: unknown }) => void,
+      ) => {
         listeners.set(eventName, handler);
         return () => {
           listeners.delete(eventName);
@@ -295,12 +294,12 @@ describe("useTeamWorkspaceRuntime", () => {
   });
 
   it("收到 final_done 且没有后续状态事件时，也应结束 running 状态", async () => {
-    const listeners = new Map<
-      string,
-      (event: { payload: unknown }) => void
-    >();
+    const listeners = new Map<string, (event: { payload: unknown }) => void>();
     mockSafeListen.mockImplementation(
-      async (eventName: string, handler: (event: { payload: unknown }) => void) => {
+      async (
+        eventName: string,
+        handler: (event: { payload: unknown }) => void,
+      ) => {
         listeners.set(eventName, handler);
         return () => {
           listeners.delete(eventName);
@@ -339,12 +338,12 @@ describe("useTeamWorkspaceRuntime", () => {
   });
 
   it("收到 error 后，应立即把 live runtime 从 running 回落到 failed", async () => {
-    const listeners = new Map<
-      string,
-      (event: { payload: unknown }) => void
-    >();
+    const listeners = new Map<string, (event: { payload: unknown }) => void>();
     mockSafeListen.mockImplementation(
-      async (eventName: string, handler: (event: { payload: unknown }) => void) => {
+      async (
+        eventName: string,
+        handler: (event: { payload: unknown }) => void,
+      ) => {
         listeners.set(eventName, handler);
         return () => {
           listeners.delete(eventName);
@@ -387,12 +386,12 @@ describe("useTeamWorkspaceRuntime", () => {
   });
 
   it("base snapshot 追平或 session 移除后，应自动清理过期 live 状态", async () => {
-    const listeners = new Map<
-      string,
-      (event: { payload: unknown }) => void
-    >();
+    const listeners = new Map<string, (event: { payload: unknown }) => void>();
     mockSafeListen.mockImplementation(
-      async (eventName: string, handler: (event: { payload: unknown }) => void) => {
+      async (
+        eventName: string,
+        handler: (event: { payload: unknown }) => void,
+      ) => {
         listeners.set(eventName, handler);
         return () => {
           listeners.delete(eventName);
@@ -435,7 +434,9 @@ describe("useTeamWorkspaceRuntime", () => {
     });
 
     expect(latestValue?.liveRuntimeBySessionId["child-1"]).toBeUndefined();
-    expect(latestValue?.liveActivityBySessionId["child-1"]?.length ?? 0).toBe(1);
+    expect(latestValue?.liveActivityBySessionId["child-1"]?.length ?? 0).toBe(
+      1,
+    );
 
     await render({
       childSubagentSessions: [],

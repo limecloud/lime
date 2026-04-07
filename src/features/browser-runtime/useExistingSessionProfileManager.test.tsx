@@ -32,10 +32,9 @@ const {
 }));
 
 vi.mock("./existingSessionBridgeClient", async () => {
-  const actual =
-    await vi.importActual<typeof import("./existingSessionBridgeClient")>(
-      "./existingSessionBridgeClient",
-    );
+  const actual = await vi.importActual<
+    typeof import("./existingSessionBridgeClient")
+  >("./existingSessionBridgeClient");
   return {
     ...actual,
     attachExistingSessionProfile: mockAttachExistingSessionProfile,
@@ -75,7 +74,9 @@ type HookHarnessProps = {
   existingSessionEnvironmentNotice?: string | null;
   onMessage?: (message: { type: "success" | "error"; text: string }) => void;
   onProfileLaunched?: (profileKey: string) => void;
-  onReady: (manager: ReturnType<typeof useExistingSessionProfileManager>) => void;
+  onReady: (
+    manager: ReturnType<typeof useExistingSessionProfileManager>,
+  ) => void;
 };
 
 function HookHarness(props: HookHarnessProps) {
@@ -109,7 +110,9 @@ function createObserver(
 function createBridgeStatus(
   observerOverrides: Array<Partial<ChromeBridgeObserverSnapshot>> = [],
 ): ChromeBridgeStatusSnapshot {
-  const observers = observerOverrides.map((observer) => createObserver(observer));
+  const observers = observerOverrides.map((observer) =>
+    createObserver(observer),
+  );
   return {
     observer_count: observers.length,
     control_count: 0,
@@ -203,7 +206,9 @@ describe("useExistingSessionProfileManager", () => {
     expect(mockLoadExistingSessionBridgeContext).toHaveBeenCalledWith(
       ATTACH_PROFILE.profile_key,
     );
-    expect(mockAttachExistingSessionProfile).toHaveBeenCalledWith(ATTACH_PROFILE);
+    expect(mockAttachExistingSessionProfile).toHaveBeenCalledWith(
+      ATTACH_PROFILE,
+    );
     expect(manager.bridgeConnectionCount).toBe(1);
     expect(manager.connectedAttachCount).toBe(1);
     expect(manager.pageInfoByProfileKey[ATTACH_PROFILE.profile_key]).toEqual(
@@ -270,9 +275,9 @@ describe("useExistingSessionProfileManager", () => {
     await flushEffects();
 
     expect(getManager().tabPanelsOpen[ATTACH_PROFILE.profile_key]).toBe(true);
-    expect(getManager().tabsByProfileKey[ATTACH_PROFILE.profile_key]).toHaveLength(
-      2,
-    );
+    expect(
+      getManager().tabsByProfileKey[ATTACH_PROFILE.profile_key],
+    ).toHaveLength(2);
     expect(mockListExistingSessionTabs).toHaveBeenCalledTimes(1);
 
     await act(async () => {
@@ -333,12 +338,12 @@ describe("useExistingSessionProfileManager", () => {
       ATTACH_PROFILE.profile_key,
       COMPOSE_TAB.id,
     );
-    expect(manager.pageInfoByProfileKey[ATTACH_PROFILE.profile_key]).toMatchObject(
-      {
-        title: "微博创作中心",
-        updated_at: "2026-03-16T10:00:08Z",
-      },
-    );
+    expect(
+      manager.pageInfoByProfileKey[ATTACH_PROFILE.profile_key],
+    ).toMatchObject({
+      title: "微博创作中心",
+      updated_at: "2026-03-16T10:00:08Z",
+    });
     expect(manager.tabsByProfileKey[ATTACH_PROFILE.profile_key]).toEqual([
       {
         id: "101",

@@ -35,10 +35,7 @@ import {
 } from "./contentReviewExperts";
 import { DocumentToolbar } from "./DocumentToolbar";
 import { DocumentRenderer } from "./DocumentRenderer";
-import {
-  NotionEditor,
-  type NotionEditorHandle,
-} from "./editor/NotionEditor";
+import { NotionEditor, type NotionEditorHandle } from "./editor/NotionEditor";
 import { PlatformTabs } from "./PlatformTabs";
 import { resolveDocumentCanvasHotkeyAction } from "./documentCanvasHotkeys";
 import {
@@ -130,7 +127,10 @@ const PLATFORM_LABELS: Record<PlatformType, string> = {
   markdown: "通用文稿",
 };
 
-function buildTextStylizePrompt(content: string, platform: PlatformType): string {
+function buildTextStylizePrompt(
+  content: string,
+  platform: PlatformType,
+): string {
   const normalizedContent = content.trim();
   const platformLabel = PLATFORM_LABELS[platform] ?? platform;
 

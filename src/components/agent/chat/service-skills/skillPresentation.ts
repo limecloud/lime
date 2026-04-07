@@ -39,7 +39,9 @@ const SERVICE_SKILL_TYPE_LABELS: Record<ServiceSkillType, string> = {
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(
-    new Set(values.map((value) => value.trim()).filter((value) => value.length > 0)),
+    new Set(
+      values.map((value) => value.trim()).filter((value) => value.length > 0),
+    ),
   );
 }
 
@@ -59,7 +61,11 @@ function resolveServiceSkillTypeFromBundle(
   item: Pick<ServiceSkillItem, "skillBundle">,
 ): ServiceSkillType | null {
   const skillType = readServiceSkillBundleMetadata(item, "Lime_skill_type");
-  if (skillType === "service" || skillType === "site" || skillType === "prompt") {
+  if (
+    skillType === "service" ||
+    skillType === "site" ||
+    skillType === "prompt"
+  ) {
     return skillType;
   }
   return null;
@@ -68,7 +74,10 @@ function resolveServiceSkillTypeFromBundle(
 export function resolveServiceSkillType(
   item: Pick<
     ServiceSkillItem,
-    "skillType" | "defaultExecutorBinding" | "siteCapabilityBinding" | "skillBundle"
+    | "skillType"
+    | "defaultExecutorBinding"
+    | "siteCapabilityBinding"
+    | "skillBundle"
   >,
 ): ServiceSkillType {
   if (item.skillType) {
@@ -113,7 +122,9 @@ export function getServiceSkillRunnerTone(
   return RUNNER_TONES[item.runnerType];
 }
 
-export function getServiceSkillRunnerDescription(item: ServiceSkillItem): string {
+export function getServiceSkillRunnerDescription(
+  item: ServiceSkillItem,
+): string {
   if (item.executionLocation === "cloud_required") {
     return "会提交到 OEM 云端执行，完成后再把结果回流到当前工作区。";
   }
@@ -133,7 +144,9 @@ export function getServiceSkillActionLabel(item: ServiceSkillItem): string {
   return LOCAL_ACTION_LABELS[item.runnerType];
 }
 
-export function getServiceSkillOutputDestination(item: ServiceSkillItem): string {
+export function getServiceSkillOutputDestination(
+  item: ServiceSkillItem,
+): string {
   if (item.outputDestination?.trim()) {
     return item.outputDestination.trim();
   }

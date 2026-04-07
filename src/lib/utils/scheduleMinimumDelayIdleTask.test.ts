@@ -13,13 +13,15 @@ describe("scheduleMinimumDelayIdleTask", () => {
 
   it("应先等待最小延迟，再进入 idle 阶段执行任务", () => {
     const task = vi.fn();
-    const requestIdleCallback = vi.fn((callback: (deadline: IdleDeadline) => void) => {
-      callback({
-        didTimeout: false,
-        timeRemaining: () => 50,
-      } as IdleDeadline);
-      return 1;
-    });
+    const requestIdleCallback = vi.fn(
+      (callback: (deadline: IdleDeadline) => void) => {
+        callback({
+          didTimeout: false,
+          timeRemaining: () => 50,
+        } as IdleDeadline);
+        return 1;
+      },
+    );
 
     vi.stubGlobal("requestIdleCallback", requestIdleCallback);
     vi.stubGlobal("cancelIdleCallback", vi.fn());

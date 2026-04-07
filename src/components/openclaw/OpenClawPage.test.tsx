@@ -222,10 +222,7 @@ vi.mock("./OpenClawRuntimePage", () => ({
         <button type="button" onClick={props.onUpdate}>
           触发升级
         </button>
-        <button
-          type="button"
-          onClick={props.onUseRecommendedUpdateRuntime}
-        >
+        <button type="button" onClick={props.onUseRecommendedUpdateRuntime}>
           切到推荐升级环境
         </button>
       </div>
@@ -285,7 +282,9 @@ function buildEnvironmentStatus(options?: {
   };
 }
 
-function renderPage(props?: Partial<React.ComponentProps<typeof OpenClawPage>>) {
+function renderPage(
+  props?: Partial<React.ComponentProps<typeof OpenClawPage>>,
+) {
   return renderIntoDom(<OpenClawPage isActive {...props} />, mountedRoots);
 }
 
@@ -427,7 +426,9 @@ describe("OpenClawPage", () => {
       "Windows 下请先手动下载安装 Git，并在安装时勾选加入 PATH，完成后重新检测。",
     );
     expect(mockGetGitDownloadUrl).toHaveBeenCalledTimes(1);
-    expect(mockOpenUrl).toHaveBeenCalledWith("https://git-scm.com/download/win");
+    expect(mockOpenUrl).toHaveBeenCalledWith(
+      "https://git-scm.com/download/win",
+    );
   });
 
   it("macOS 缺少 Node.js 时点击依赖安装应继续走应用内修复", async () => {
@@ -492,8 +493,7 @@ describe("OpenClawPage", () => {
         openclawPath: "C:/Users/demo/AppData/Roaming/npm",
         openclawMessage:
           "已在 npm 全局目录检测到 openclaw（0.4.1），但当前进程尚未解析到 openclaw 命令。请点击“重新检测”；若仍失败，请重启 Lime。",
-        summary:
-          "已检测到 OpenClaw 包，但命令尚未生效；请点击“重新检测”。",
+        summary: "已检测到 OpenClaw 包，但命令尚未生效；请点击“重新检测”。",
       }),
     );
 
@@ -581,7 +581,9 @@ describe("OpenClawPage", () => {
       20,
       "切换执行环境后未同步到后端",
     );
-    expect(mockGetEnvironmentStatus.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mockGetEnvironmentStatus.mock.calls.length).toBeGreaterThanOrEqual(
+      2,
+    );
   });
 
   it("命令待刷新但 Gateway 已运行时不应阻塞进入后续页面", async () => {
@@ -601,7 +603,10 @@ describe("OpenClawPage", () => {
     await flushEffects();
 
     await waitForCondition(
-      () => !!mounted.container.querySelector('[data-testid="openclaw-runtime-page"]'),
+      () =>
+        !!mounted.container.querySelector(
+          '[data-testid="openclaw-runtime-page"]',
+        ),
       40,
       "Gateway 已运行时仍被阻塞在安装页",
     );
@@ -677,8 +682,7 @@ describe("OpenClawPage", () => {
         gitStatus: "ok",
         openclawStatus: "ok",
         openclawVersion: "2026.3.13",
-        openclawPath:
-          "/Users/demo/.nvm/versions/node/v23.4.0/bin/openclaw",
+        openclawPath: "/Users/demo/.nvm/versions/node/v23.4.0/bin/openclaw",
         summary: "OpenClaw 已安装。",
       }),
     );
@@ -688,7 +692,10 @@ describe("OpenClawPage", () => {
     await flushEffects();
 
     await waitForCondition(
-      () => !!mounted.container.querySelector('[data-testid="openclaw-runtime-page"]'),
+      () =>
+        !!mounted.container.querySelector(
+          '[data-testid="openclaw-runtime-page"]',
+        ),
       40,
       "OpenClaw 运行页未在预期时间内渲染",
     );
@@ -714,8 +721,7 @@ describe("OpenClawPage", () => {
         gitStatus: "ok",
         openclawStatus: "ok",
         openclawVersion: "2026.3.8",
-        openclawPath:
-          "/Users/demo/.nvm/versions/node/v23.4.0/bin/openclaw",
+        openclawPath: "/Users/demo/.nvm/versions/node/v23.4.0/bin/openclaw",
         summary: "OpenClaw 已安装。",
       }),
     );
@@ -756,7 +762,10 @@ describe("OpenClawPage", () => {
     await flushEffects();
 
     await waitForCondition(
-      () => !!mounted.container.querySelector('[data-testid="openclaw-runtime-page"]'),
+      () =>
+        !!mounted.container.querySelector(
+          '[data-testid="openclaw-runtime-page"]',
+        ),
       40,
       "OpenClaw 运行页未在预期时间内渲染",
     );
@@ -791,8 +800,7 @@ describe("OpenClawPage", () => {
         gitStatus: "ok",
         openclawStatus: "ok",
         openclawVersion: "2026.3.13-zh.1",
-        openclawPath:
-          "/Users/demo/.nvm/versions/node/v23.4.0/bin/openclaw",
+        openclawPath: "/Users/demo/.nvm/versions/node/v23.4.0/bin/openclaw",
         summary: "OpenClaw 已安装。",
       }),
     );
@@ -835,7 +843,10 @@ describe("OpenClawPage", () => {
     await flushEffects();
 
     await waitForCondition(
-      () => !!mounted.container.querySelector('[data-testid="openclaw-runtime-page"]'),
+      () =>
+        !!mounted.container.querySelector(
+          '[data-testid="openclaw-runtime-page"]',
+        ),
       40,
       "OpenClaw 运行页未在预期时间内渲染",
     );

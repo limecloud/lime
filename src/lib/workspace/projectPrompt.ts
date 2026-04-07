@@ -93,7 +93,9 @@ function generateOutlinePrompt(outline: OutlineNode[]): string {
   if (outline.length === 0) return "";
 
   let prompt = "### 故事大纲\n\n";
-  const sortedOutline = [...outline].sort((left, right) => left.order - right.order);
+  const sortedOutline = [...outline].sort(
+    (left, right) => left.order - right.order,
+  );
   const rootNodes = sortedOutline.filter((node) => !node.parent_id);
 
   const renderNode = (node: OutlineNode, level = 0): string => {
@@ -104,7 +106,9 @@ function generateOutlinePrompt(outline: OutlineNode[]): string {
     }
     result += "\n";
 
-    const children = sortedOutline.filter((candidate) => candidate.parent_id === node.id);
+    const children = sortedOutline.filter(
+      (candidate) => candidate.parent_id === node.id,
+    );
     children.forEach((child) => {
       result += renderNode(child, level + 1);
     });

@@ -19,7 +19,10 @@ export function ArtifactCanvasOverlay({
     <div
       data-testid="artifact-transition-overlay"
       data-overlay-phase={overlay.phase}
-      className={cn("pointer-events-none absolute inset-x-4 top-4 z-20", className)}
+      className={cn(
+        "pointer-events-none absolute inset-x-4 top-4 z-20",
+        className,
+      )}
     >
       <div className="overflow-hidden rounded-2xl border border-border/70 bg-background/95 shadow-lg backdrop-blur">
         <div className="flex items-start gap-3 px-4 py-4">

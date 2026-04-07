@@ -122,21 +122,36 @@ describe("agentStreamFlowControl", () => {
       } as never,
       removeStreamListener,
       refreshSessionReadModel,
-      setQueuedTurns: createStateSetter(() => queuedTurns, (value) => {
-        queuedTurns = value;
-      }),
-      setThreadItems: createStateSetter(() => threadItems, (value) => {
-        threadItems = value;
-      }),
-      setThreadTurns: createStateSetter(() => threadTurns, (value) => {
-        threadTurns = value;
-      }),
-      setCurrentTurnId: createStateSetter(() => currentTurnId, (value) => {
-        currentTurnId = value;
-      }),
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
+      setQueuedTurns: createStateSetter(
+        () => queuedTurns,
+        (value) => {
+          queuedTurns = value;
+        },
+      ),
+      setThreadItems: createStateSetter(
+        () => threadItems,
+        (value) => {
+          threadItems = value;
+        },
+      ),
+      setThreadTurns: createStateSetter(
+        () => threadTurns,
+        (value) => {
+          threadTurns = value;
+        },
+      ),
+      setCurrentTurnId: createStateSetter(
+        () => currentTurnId,
+        (value) => {
+          currentTurnId = value;
+        },
+      ),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
       setActiveStream: (next) => {
         activeStream = next as never;
       },
@@ -182,9 +197,12 @@ describe("agentStreamFlowControl", () => {
         queuedTurnId: "queued-1",
         sessionIdRef,
         refreshSessionReadModel,
-        setQueuedTurns: createStateSetter(() => queuedTurns, (value) => {
-          queuedTurns = value;
-        }),
+        setQueuedTurns: createStateSetter(
+          () => queuedTurns,
+          (value) => {
+            queuedTurns = value;
+          },
+        ),
         notify,
       }),
     ).resolves.toBe(true);
@@ -208,9 +226,12 @@ describe("agentStreamFlowControl", () => {
         queuedTurnId: "queued-1",
         sessionIdRef,
         refreshSessionReadModel,
-        setQueuedTurns: createStateSetter(() => queuedTurns, (value) => {
-          queuedTurns = value;
-        }),
+        setQueuedTurns: createStateSetter(
+          () => queuedTurns,
+          (value) => {
+            queuedTurns = value;
+          },
+        ),
         notify,
       }),
     ).resolves.toBe(true);

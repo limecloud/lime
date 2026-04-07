@@ -389,8 +389,8 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                                 统一查看安装状态、仓库来源与可读内容，减少在不同入口之间来回切换。
                               </p>
                               <p>
-                                内置 Skill 默认可用；本地 Skill 支持直接查看；远程 Skill
-                                通过缓存展示。
+                                内置 Skill 默认可用；本地 Skill
+                                支持直接查看；远程 Skill 通过缓存展示。
                               </p>
                             </div>
                           }
@@ -495,9 +495,13 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                 tone="mint"
                 content={
                   <ul className="list-disc pl-4">
-                    <li>Built-in Skills 为应用内置技能，默认可用且不可卸载。</li>
+                    <li>
+                      Built-in Skills 为应用内置技能，默认可用且不可卸载。
+                    </li>
                     <li>Local Skills 直接从本地目录加载，不依赖远程仓库。</li>
-                    <li>Remote Skills 使用缓存展示，点击“刷新”才同步远程仓库。</li>
+                    <li>
+                      Remote Skills 使用缓存展示，点击“刷新”才同步远程仓库。
+                    </li>
                   </ul>
                 }
               />

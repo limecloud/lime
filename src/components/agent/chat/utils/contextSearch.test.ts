@@ -7,9 +7,7 @@ describe("normalizeSearchContextResult", () => {
       JSON.stringify({
         title: "智能体市场观察",
         summary: "市场讨论聚焦推理成本、工作流平台和企业落地节奏。",
-        citations: [
-          { title: "官方博客", url: "https://example.com/blog" },
-        ],
+        citations: [{ title: "官方博客", url: "https://example.com/blog" }],
       }),
       "智能体市场 2026",
       "web",

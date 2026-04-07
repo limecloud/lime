@@ -43,7 +43,6 @@ export function buildStepProgressProps({
   };
 }
 
-
 interface BuildTeamWorkspaceDockPropsParams {
   enabled: boolean;
   shouldShowFloatingInputOverlay: boolean;
@@ -62,9 +61,9 @@ export function buildTeamWorkspaceDockProps({
   onActivateWorkbench,
   withBottomOverlay,
   surfaceProps,
-}: BuildTeamWorkspaceDockPropsParams):
-  | ComponentProps<typeof TeamWorkspaceDock>
-  | null {
+}: BuildTeamWorkspaceDockPropsParams): ComponentProps<
+  typeof TeamWorkspaceDock
+> | null {
   if (!enabled || shouldShowFloatingInputOverlay || layoutMode !== "chat") {
     return null;
   }
@@ -108,7 +107,9 @@ interface BuildWorkspaceEmptyStatePropsParams {
     typeof EmptyState
   >["onCreationModeChange"];
   activeTheme: ComponentProps<typeof EmptyState>["activeTheme"];
-  onThemeChange?: NonNullable<ComponentProps<typeof EmptyState>["onThemeChange"]>;
+  onThemeChange?: NonNullable<
+    ComponentProps<typeof EmptyState>["onThemeChange"]
+  >;
   themeLocked: boolean;
   hasCanvasContent: boolean;
   hasContentId: boolean;
@@ -229,7 +230,9 @@ interface BuildWorkspaceNavbarPropsParams {
   isRunning: boolean;
   chrome: ComponentProps<typeof ChatNavbar>["chrome"];
   navbarContextVariant?: "default" | "task-center";
-  onToggleHistory: NonNullable<ComponentProps<typeof ChatNavbar>["onToggleHistory"]>;
+  onToggleHistory: NonNullable<
+    ComponentProps<typeof ChatNavbar>["onToggleHistory"]
+  >;
   showHistoryToggle: boolean;
   onBackToProjectManagement?: ComponentProps<
     typeof ChatNavbar
@@ -244,7 +247,9 @@ interface BuildWorkspaceNavbarPropsParams {
   onBackHome?: ComponentProps<typeof ChatNavbar>["onBackHome"];
   showHarnessToggle: boolean;
   harnessPanelVisible: boolean;
-  onToggleHarnessPanel?: ComponentProps<typeof ChatNavbar>["onToggleHarnessPanel"];
+  onToggleHarnessPanel?: ComponentProps<
+    typeof ChatNavbar
+  >["onToggleHarnessPanel"];
   harnessPendingCount: number;
   harnessAttentionLevel: ComponentProps<
     typeof ChatNavbar

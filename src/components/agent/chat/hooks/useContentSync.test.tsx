@@ -21,7 +21,9 @@ interface HookHarness {
   unmount: () => void;
 }
 
-function mountHook(options?: Parameters<typeof useContentSync>[0]): HookHarness {
+function mountHook(
+  options?: Parameters<typeof useContentSync>[0],
+): HookHarness {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);

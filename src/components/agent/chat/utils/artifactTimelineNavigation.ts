@@ -111,8 +111,8 @@ function resolveDocumentBlockIds(
   }
 
   const diffBlockIds =
-    resolveArtifactDocumentCurrentVersionDiff(document)?.changedBlocks
-      .map((block) => normalizeText(block.blockId))
+    resolveArtifactDocumentCurrentVersionDiff(document)
+      ?.changedBlocks.map((block) => normalizeText(block.blockId))
       .filter((blockId): blockId is string => Boolean(blockId)) || [];
   if (diffBlockIds.length > 0) {
     return dedupeStrings(diffBlockIds);
@@ -185,7 +185,9 @@ export function buildArtifactTimelineLinkIndex(params: {
   artifact: Artifact;
   items: AgentThreadItem[];
 }): Record<string, ArtifactTimelineLink[]> {
-  const artifactPath = normalizePath(resolveArtifactProtocolFilePath(params.artifact));
+  const artifactPath = normalizePath(
+    resolveArtifactProtocolFilePath(params.artifact),
+  );
   const document = resolveArtifactProtocolDocumentPayload({
     content: params.artifact.content,
     metadata: params.artifact.meta,
@@ -194,9 +196,7 @@ export function buildArtifactTimelineLinkIndex(params: {
     [
       normalizeText(params.artifact.id),
       normalizeText(document?.artifactId),
-      normalizeText(
-        asRecord(params.artifact.meta)?.artifactId,
-      ),
+      normalizeText(asRecord(params.artifact.meta)?.artifactId),
     ].filter((value): value is string => Boolean(value)),
   );
   const result = new Map<string, ArtifactTimelineLink[]>();

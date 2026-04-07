@@ -88,7 +88,7 @@
 
 - `CharacterMention`、`builtinCommands`、场景 slash 补全不得再各自维护一套业务命令静态常量
 - 服务端尚未返回 `entries` 时，允许网关层从 legacy `items` 兼容投影出 `entries`
-- 客户端必须保留 seeded fallback，不能因为服务端暂时不可用就让 `@配图`、`@PPT`、`@表单`、`@网页`、`@代码`、`@发布`、`@搜索`、`@深搜`、`@研报`、`@站点搜索`、`@读PDF`、`@总结`、`@翻译`、`@分析`、`@转写` 这类主链入口失能
+- 客户端必须保留 seeded fallback，不能因为服务端暂时不可用就让 `@配图`、`@配音`、`@PPT`、`@表单`、`@网页`、`@代码`、`@发布`、`@搜索`、`@深搜`、`@研报`、`@站点搜索`、`@读PDF`、`@总结`、`@翻译`、`@分析`、`@转写` 这类主链入口失能
 - `src/components/agent/chat/commands/catalog.ts` 只继续承接 Lime 本地 / Codex 原生命令；产品型 `/` 场景不应再长期硬编码在这里
 - 若服务端下发的 `renderContract` 超出 Lime 当前支持范围，优先由服务端回退到已支持类型，客户端也必须退化到通用 timeline / artifact 展示
 
@@ -224,6 +224,10 @@ Skill 执行链路同样遵循单一命令边界。当前前端入口为 `src/li
 `Claw` 的纯文本发布命令当前应收敛到现有发布工作流，而不是新开一条平行 runtime：
 
 - 工作流入口型命令：`@发布` / `@publish` / `@发文` / `@投稿` 在 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 中保留原始用户文本展示，但把实际 dispatch 改写到现有 `/content_post_with_cover ...` 主链，并把结构化 `publish_command` 写入 `request_metadata.harness.publish_command`。当前实现优先复用已有 `content_post_with_cover` 发布工作流、`content-posts/*.md` / `*.publish-pack.json` 产物链，以及 `detectBrowserTaskRequirement(...)` 推导出的浏览器门禁，而不是再发明新的 `publish_task` 协议。若输入里已明确平台后台，如微信公众号后台，必须继续写入 `browser_requirement=required_with_user_step` 与平台 launch URL；若只是整理发布稿而未指定平台，则允许先在同一工作流里生成发布稿与发布前检查，不强行要求浏览器。后续若统一 agent/workflow runtime 成熟，可以把 `@发布` 从当前 slash workflow 迁走，但在那之前不得同时维护第二套发布入口真相。
+
+`Claw` 的纯文本配音命令也应沿同一条服务型技能主链收敛：
+
+- Agent 驱动的配音命令：`@配音` / `@voice` / `@dubbing` / `@dub` 在 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 中保留原始用户文本发送。聊天发送边界会优先从当前 `serviceSkills` / seeded fallback 中解析配音能力（当前兜底为 `cloud-video-dubbing`），并把结构化 `service_scene_launch` 写入 `request_metadata.harness.service_scene_launch`，其中固定 `scene_key=voice_runtime`、`entry_source=at_voice_command`，同时注入 OEM `scene_base_url / tenant_id / session_token` 运行时上下文。Rust 侧 `runtime_turn.rs`、`prompt_context.rs` 与 `tool_runtime/service_skill_tools.rs` 会把当前 turn 切到 `workbench`，并强约束首刀优先调用 `lime_run_service_skill`，由 OEM scene runtime 负责 run / poll。当前上下文缺少明确配音要求时，允许 Agent 最多追问 1 个关键问题；但不能退回普通聊天解释、不能伪造“配音已完成”，也不能重新回流到旧的本地 TTS 测试命令。
 
 这些命令除了 Tauri `generate_handler!` 之外，也必须继续保持 DevBridge dispatcher 已桥接，避免浏览器模式、headless smoke 或 Playwright 续测时回退成 unknown command。
 

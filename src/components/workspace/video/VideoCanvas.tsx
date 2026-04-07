@@ -135,8 +135,7 @@ const SidebarContainer = styled.div<{ $collapsed: boolean }>`
   height: 100%;
   min-height: 0;
   background: transparent;
-  border-radius: ${({ $collapsed }) =>
-    $collapsed ? "0" : "28px 0 0 28px"};
+  border-radius: ${({ $collapsed }) => ($collapsed ? "0" : "28px 0 0 28px")};
   border: 1px solid
     ${({ $collapsed }) =>
       $collapsed ? "transparent" : "hsl(var(--border) / 0.7)"};

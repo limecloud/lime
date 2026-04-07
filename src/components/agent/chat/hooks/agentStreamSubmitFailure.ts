@@ -9,7 +9,10 @@ import {
 } from "../utils/agentRuntimeStatus";
 import { resolveAgentRuntimeErrorPresentation } from "../utils/agentRuntimeErrorPresentation";
 import { isWorkspacePathErrorMessage } from "./agentChatCoreUtils";
-import type { ActiveStreamState, StreamRequestState } from "./agentStreamSubmissionLifecycle";
+import type {
+  ActiveStreamState,
+  StreamRequestState,
+} from "./agentStreamSubmissionLifecycle";
 import type { WorkspacePathMissingState } from "./agentChatShared";
 
 interface StreamObserver {

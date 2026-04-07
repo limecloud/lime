@@ -338,8 +338,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     appendSelectedTextToRecommendation,
     setAppendSelectedTextToRecommendation,
   ] = useState(true);
-  const [entryRecommendedSolutionsVersion, setEntryRecommendedSolutionsVersion] =
-    useState(0);
+  const [
+    entryRecommendedSolutionsVersion,
+    setEntryRecommendedSolutionsVersion,
+  ] = useState(0);
 
   useEffect(() => {
     const loadConfigPreferences = async () => {
@@ -417,13 +419,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     subagentEnabled,
   ]);
 
-  const entryRecommendedSolutions = useMemo(
-    () => {
-      void entryRecommendedSolutionsVersion;
-      return listEntryRecommendedSolutions();
-    },
-    [entryRecommendedSolutionsVersion],
-  );
+  const entryRecommendedSolutions = useMemo(() => {
+    void entryRecommendedSolutionsVersion;
+    return listEntryRecommendedSolutions();
+  }, [entryRecommendedSolutionsVersion]);
 
   const selectedTextPreview = useMemo(() => {
     const normalized = (recommendationSelectedText || "")
@@ -488,11 +487,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     }
     const imagesToSend = pendingImages.length > 0 ? pendingImages : undefined;
 
-    onSend(
-      wrapTextWithDefaultSkill(input),
-      executionStrategy,
-      imagesToSend,
-    );
+    onSend(wrapTextWithDefaultSkill(input), executionStrategy, imagesToSend);
     setPendingImages([]);
     clearSelectedSkill?.();
   };
@@ -658,7 +653,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         key: "agent-teams",
         eyebrow: "支撑能力",
         title: "多代理",
-        value: subagentEnabled ? "当前任务支持并行协作" : "复杂任务可拆成并行分工",
+        value: subagentEnabled
+          ? "当前任务支持并行协作"
+          : "复杂任务可拆成并行分工",
         description:
           "当研究、方案和执行需要同时推进时，可把任务拆给多个代理并行处理，再统一回收结论。",
         icon: <Workflow className="h-5 w-5" />,
@@ -672,9 +669,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       key: "browser",
       eyebrow: "支撑能力",
       title: "浏览器接入",
-      value: browserAssistLoading
-        ? "正在检查连接状态"
-        : "CDP / 浏览器插件复用",
+      value: browserAssistLoading ? "正在检查连接状态" : "CDP / 浏览器插件复用",
       description:
         "登录、验证和网页动作可直接复用 CDP 或浏览器插件连接，不必再切到单独工作台。",
       icon: <Globe className="h-5 w-5" />,
@@ -686,7 +681,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             void onLaunchBrowserAssist();
           }
         : undefined,
-      mediaActionLabel: browserAssistLoading ? "浏览器连接准备中" : "连接浏览器",
+      mediaActionLabel: browserAssistLoading
+        ? "浏览器连接准备中"
+        : "连接浏览器",
       mediaActionDisabled: browserAssistLoading,
     });
 
@@ -847,9 +844,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                 handleApplyEntryRecommendedSolution(solution);
               }}
             >
-              <RecommendationShelfTitle>{solution.title}</RecommendationShelfTitle>
+              <RecommendationShelfTitle>
+                {solution.title}
+              </RecommendationShelfTitle>
               {solution.isRecent ? (
-                <RecommendationShelfMeta>{solution.badge}</RecommendationShelfMeta>
+                <RecommendationShelfMeta>
+                  {solution.badge}
+                </RecommendationShelfMeta>
               ) : null}
             </RecommendationShelfButton>
           </RecommendationShelfRow>

@@ -35,11 +35,9 @@ describe("hotkey platform helpers", () => {
       "⇧",
       "S",
     ]);
-    expect(formatShortcutTokens("CommandOrControl+Alt+Escape", "windows")).toEqual([
-      "Ctrl",
-      "Alt",
-      "Esc",
-    ]);
+    expect(
+      formatShortcutTokens("CommandOrControl+Alt+Escape", "windows"),
+    ).toEqual(["Ctrl", "Alt", "Esc"]);
     expect(formatShortcutTokens("", "other")).toEqual(["未设置"]);
   });
 

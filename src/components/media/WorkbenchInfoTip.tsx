@@ -123,7 +123,9 @@ export function WorkbenchInfoTip({
             $variant={variant}
           >
             <CircleHelp size={14} />
-            {variant === "pill" ? <TipTriggerText>{label}</TipTriggerText> : null}
+            {variant === "pill" ? (
+              <TipTriggerText>{label}</TipTriggerText>
+            ) : null}
           </TipTriggerButton>
         </TooltipTrigger>
         <TooltipContent side={side} align={align} className="whitespace-normal">

@@ -7,8 +7,10 @@ import React from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface CheckboxProps
-  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> {
+interface CheckboxProps extends Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  "onChange"
+> {
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
 }

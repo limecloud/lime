@@ -128,9 +128,9 @@ describe("autoImageInsert", () => {
     expect(next.indexOf("关键段落")).toBeLessThan(
       next.indexOf("https://img.example/building-closeup.jpg"),
     );
-    expect(next.indexOf("https://img.example/building-closeup.jpg")).toBeLessThan(
-      next.indexOf("最后一段补充材料"),
-    );
+    expect(
+      next.indexOf("https://img.example/building-closeup.jpg"),
+    ).toBeLessThan(next.indexOf("最后一段补充材料"));
   });
 
   it("应生成包含主题和小节的检索词", () => {

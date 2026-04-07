@@ -151,10 +151,7 @@ function createSkill(name: string, key: string, installed: boolean): Skill {
   };
 }
 
-function createServiceSkill(
-  id: string,
-  title: string,
-): ServiceSkillHomeItem {
+function createServiceSkill(id: string, title: string): ServiceSkillHomeItem {
   return {
     id,
     title,
@@ -356,9 +353,7 @@ describe("SkillSelector", () => {
   });
 
   it("应复用同一面板渲染服务技能并回调 onSelectServiceSkill", async () => {
-    const onSelectServiceSkill = vi.fn<
-      (skill: ServiceSkillHomeItem) => void
-    >();
+    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
     const serviceSkill = createServiceSkill(
       "github-repo-radar",
       "GitHub 仓库线索检索",

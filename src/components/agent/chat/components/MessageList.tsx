@@ -100,7 +100,10 @@ interface MessageListProps {
   /** Artifact 点击回调 */
   onArtifactClick?: (artifact: Artifact) => void;
   /** 打开消息结果预览 */
-  onOpenMessagePreview?: (target: MessagePreviewTarget, message: Message) => void;
+  onOpenMessagePreview?: (
+    target: MessagePreviewTarget,
+    message: Message,
+  ) => void;
   /** 打开子代理会话 */
   onOpenSubagentSession?: (sessionId: string) => void;
   /** 权限确认响应回调 */
@@ -697,7 +700,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
     const visibleArtifacts =
       artifacts?.filter(
         (artifact) =>
-          !isHiddenInternalArtifactPath(resolveArtifactProtocolFilePath(artifact)),
+          !isHiddenInternalArtifactPath(
+            resolveArtifactProtocolFilePath(artifact),
+          ),
       ) || [];
     if (visibleArtifacts.length === 0) {
       return null;
@@ -787,55 +792,53 @@ const MessageListInner: React.FC<MessageListProps> = ({
                 </p>
               </div>
             </div>
+          ) : isTaskCenterEmptyState ? (
+            <div className="flex min-h-[22rem] items-center justify-center py-6">
+              <section
+                data-testid="message-list-empty-task-center"
+                className="w-full max-w-[640px] rounded-[28px] border border-slate-200/80 bg-white px-6 py-6 text-left shadow-sm shadow-slate-950/5 md:px-7 md:py-7"
+              >
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-slate-200/80 bg-slate-50/80">
+                    <img
+                      src={logoImg}
+                      alt="Lime"
+                      className="h-7 w-7 opacity-80"
+                    />
+                  </div>
+                  <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                    任务中心
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[26px] font-semibold tracking-tight text-slate-900">
+                    回到进行中的任务和最近工作现场
+                  </p>
+                  <p className="max-w-[46rem] text-sm leading-7 text-slate-600">
+                    这里会承接最近会话、进行中的任务和刚恢复的工作内容。要开始一个全新目标，随时回到“新建任务”。
+                  </p>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
+                    左侧会继续显示最近任务
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
+                    恢复中的会话会自动回到这里
+                  </span>
+                </div>
+              </section>
+            </div>
           ) : (
-            isTaskCenterEmptyState ? (
-              <div className="flex min-h-[22rem] items-center justify-center py-6">
-                <section
-                  data-testid="message-list-empty-task-center"
-                  className="w-full max-w-[640px] rounded-[28px] border border-slate-200/80 bg-white px-6 py-6 text-left shadow-sm shadow-slate-950/5 md:px-7 md:py-7"
-                >
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-slate-200/80 bg-slate-50/80">
-                      <img
-                        src={logoImg}
-                        alt="Lime"
-                        className="h-7 w-7 opacity-80"
-                      />
-                    </div>
-                    <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-                      任务中心
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-[26px] font-semibold tracking-tight text-slate-900">
-                      回到进行中的任务和最近工作现场
-                    </p>
-                    <p className="max-w-[46rem] text-sm leading-7 text-slate-600">
-                      这里会承接最近会话、进行中的任务和刚恢复的工作内容。要开始一个全新目标，随时回到“新建任务”。
-                    </p>
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                      左侧会继续显示最近任务
-                    </span>
-                    <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                      恢复中的会话会自动回到这里
-                    </span>
-                  </div>
-                </section>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-64 text-muted-foreground opacity-50">
-                <img
-                  src={logoImg}
-                  alt="Lime"
-                  className="w-12 h-12 mb-4 opacity-20"
-                />
-                <p className="text-lg font-medium">开始一段新的对话吧</p>
-              </div>
-            )
+            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground opacity-50">
+              <img
+                src={logoImg}
+                alt="Lime"
+                className="w-12 h-12 mb-4 opacity-20"
+              />
+              <p className="text-lg font-medium">开始一段新的对话吧</p>
+            </div>
           ))}
 
         {messageGroups.map((group, groupIndex) => {

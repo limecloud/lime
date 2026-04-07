@@ -203,7 +203,9 @@ function MemoryPanel({
             ) : null}
           </div>
         </div>
-        {aside ? <div className="flex flex-wrap items-center gap-2">{aside}</div> : null}
+        {aside ? (
+          <div className="flex flex-wrap items-center gap-2">{aside}</div>
+        ) : null}
       </div>
 
       <div className="mt-5">{children}</div>
@@ -583,16 +585,24 @@ export function MemorySettings() {
     };
 
     if (target !== "global" && !workingDir) {
-      setMessage(`当前未获取到 workspace 路径，暂无法生成${targetLabelMap[target]}模板`);
+      setMessage(
+        `当前未获取到 workspace 路径，暂无法生成${targetLabelMap[target]}模板`,
+      );
       setTimeout(() => setMessage(null), 2500);
       return;
     }
 
     setScaffoldingTarget(target);
     try {
-      const result = await scaffoldRuntimeAgentsTemplate(target, workingDir, false);
+      const result = await scaffoldRuntimeAgentsTemplate(
+        target,
+        workingDir,
+        false,
+      );
       if (result.status === "exists") {
-        setMessage(`${targetLabelMap[target]}模板已存在，未覆盖：${result.path}`);
+        setMessage(
+          `${targetLabelMap[target]}模板已存在，未覆盖：${result.path}`,
+        );
       } else {
         setMessage(`已生成${targetLabelMap[target]}模板：${result.path}`);
       }
@@ -761,7 +771,9 @@ export function MemorySettings() {
             <div className="mt-5 flex items-center justify-between rounded-[20px] border border-slate-200 bg-slate-50/70 px-4 py-3">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-900">启用记忆</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    启用记忆
+                  </p>
                   <WorkbenchInfoTip
                     ariaLabel="启用记忆说明"
                     content="启用对话记忆功能，以便更好地理解上下文。"
@@ -847,7 +859,9 @@ export function MemorySettings() {
                 subtitle="可多选，用于决定先讲例子、难点还是拆解步骤。"
                 options={CHALLENGE_OPTIONS}
                 value={profile.challenge_preference || []}
-                onToggle={(option) => toggleMulti("challenge_preference", option)}
+                onToggle={(option) =>
+                  toggleMulti("challenge_preference", option)
+                }
                 className="xl:col-span-2"
               />
             </div>
@@ -867,7 +881,10 @@ export function MemorySettings() {
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
               >
                 <RefreshCw
-                  className={cn("h-3.5 w-3.5", loadingLayerMetrics && "animate-spin")}
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    loadingLayerMetrics && "animate-spin",
+                  )}
                 />
                 刷新
               </button>
@@ -876,7 +893,8 @@ export function MemorySettings() {
             {layerMetrics ? (
               <div className="space-y-3">
                 <div className="rounded-[20px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-600">
-                  已可用 {layerMetrics.readyLayers}/{layerMetrics.totalLayers} 层
+                  已可用 {layerMetrics.readyLayers}/{layerMetrics.totalLayers}{" "}
+                  层
                 </div>
                 {layerMetrics.cards.map((card) => (
                   <div
@@ -932,7 +950,10 @@ export function MemorySettings() {
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
               >
                 <RefreshCw
-                  className={cn("h-3.5 w-3.5", loadingSourceState && "animate-spin")}
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    loadingSourceState && "animate-spin",
+                  )}
                 />
                 刷新来源
               </button>
@@ -946,21 +967,29 @@ export function MemorySettings() {
                 </p>
               </div>
               <div className="rounded-[20px] border border-slate-200/80 bg-slate-50/70 px-4 py-4">
-                <p className="text-xs font-medium text-slate-500">@import 策略</p>
+                <p className="text-xs font-medium text-slate-500">
+                  @import 策略
+                </p>
                 <p className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
                   {resolveConfig.follow_imports ? "跟随导入" : "关闭导入"}
                 </p>
               </div>
               <div className="rounded-[20px] border border-slate-200/80 bg-slate-50/70 px-4 py-4">
-                <p className="text-xs font-medium text-slate-500">最大导入深度</p>
+                <p className="text-xs font-medium text-slate-500">
+                  最大导入深度
+                </p>
                 <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
                   {resolveConfig.import_max_depth ?? 5}
                 </p>
               </div>
               <div className="rounded-[20px] border border-slate-200/80 bg-slate-50/70 px-4 py-4">
-                <p className="text-xs font-medium text-slate-500">额外目录记忆</p>
+                <p className="text-xs font-medium text-slate-500">
+                  额外目录记忆
+                </p>
                 <p className="mt-2 text-lg font-semibold tracking-tight text-slate-900">
-                  {resolveConfig.load_additional_dirs_memory ? "已加载" : "未加载"}
+                  {resolveConfig.load_additional_dirs_memory
+                    ? "已加载"
+                    : "未加载"}
                 </p>
               </div>
             </div>
@@ -1087,7 +1116,8 @@ export function MemorySettings() {
                       void handleScaffoldRuntimeAgentsTemplate("workspace")
                     }
                     disabled={
-                      scaffoldingTarget !== null || !effectiveSources?.working_dir
+                      scaffoldingTarget !== null ||
+                      !effectiveSources?.working_dir
                     }
                     className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
                   >
@@ -1103,7 +1133,8 @@ export function MemorySettings() {
                       )
                     }
                     disabled={
-                      scaffoldingTarget !== null || !effectiveSources?.working_dir
+                      scaffoldingTarget !== null ||
+                      !effectiveSources?.working_dir
                     }
                     className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
                   >
@@ -1114,7 +1145,9 @@ export function MemorySettings() {
                   <button
                     type="button"
                     onClick={() => void handleEnsureWorkspaceLocalGitignore()}
-                    disabled={ensuringGitignore || !effectiveSources?.working_dir}
+                    disabled={
+                      ensuringGitignore || !effectiveSources?.working_dir
+                    }
                     className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
                   >
                     {ensuringGitignore
@@ -1289,7 +1322,9 @@ export function MemorySettings() {
         <div className="space-y-4">
           <div className="grid gap-4 xl:grid-cols-3">
             <label className="space-y-2 rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
-              <span className="text-sm font-semibold text-slate-900">入口文件</span>
+              <span className="text-sm font-semibold text-slate-900">
+                入口文件
+              </span>
               <input
                 type="text"
                 value={autoConfig.entrypoint || "MEMORY.md"}

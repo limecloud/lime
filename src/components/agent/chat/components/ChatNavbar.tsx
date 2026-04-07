@@ -46,8 +46,7 @@ interface ChatNavbarProps {
 const toolbarGroupClassName =
   "flex items-center rounded-[20px] border border-slate-200/80 bg-white/90 p-1.5 shadow-sm shadow-slate-950/5 backdrop-blur-sm";
 
-const toolbarDividerClassName =
-  "mx-1.5 h-6 w-px shrink-0 bg-slate-200/80";
+const toolbarDividerClassName = "mx-1.5 h-6 w-px shrink-0 bg-slate-200/80";
 
 const toolbarEmbeddedButtonClassName =
   "h-9 rounded-2xl border border-transparent px-3.5 text-xs shadow-none";
@@ -111,7 +110,8 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
       Boolean(onBackToProjectManagement));
   const showWorkspaceTools = showHistoryToggle || showCanvasToggle;
   const showProjectSelector = !isWorkspaceCompact;
-  const showCompactSettingsButton = isWorkspaceCompact && Boolean(onToggleSettings);
+  const showCompactSettingsButton =
+    isWorkspaceCompact && Boolean(onToggleSettings);
   const compactProjectSelectorClassName = isWorkspaceCompact
     ? "min-w-[184px] max-w-[248px]"
     : "min-w-[196px] max-w-[280px]";
@@ -141,7 +141,10 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className={cn(embeddedButtonClassName, toolbarTextButtonClassName)}
+                className={cn(
+                  embeddedButtonClassName,
+                  toolbarTextButtonClassName,
+                )}
                 onClick={onBackToResources}
               >
                 <FolderOpen size={16} className="mr-0.5" />
@@ -155,7 +158,10 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className={cn(embeddedButtonClassName, toolbarTextButtonClassName)}
+                className={cn(
+                  embeddedButtonClassName,
+                  toolbarTextButtonClassName,
+                )}
                 onClick={onBackToProjectManagement}
               >
                 项目管理
@@ -274,14 +280,19 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className={cn(embeddedButtonClassName, toolbarTextButtonClassName)}
+                className={cn(
+                  embeddedButtonClassName,
+                  toolbarTextButtonClassName,
+                )}
                 onClick={onCompactContext}
                 disabled={contextCompactionRunning}
                 aria-label="压缩上下文"
                 title="压缩上下文"
               >
                 <Box size={14} />
-                <span>{contextCompactionRunning ? "压缩中..." : "压缩上下文"}</span>
+                <span>
+                  {contextCompactionRunning ? "压缩中..." : "压缩上下文"}
+                </span>
               </Button>
             ) : null}
 
@@ -332,7 +343,6 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
             ) : null}
           </div>
         ) : null}
-
       </div>
     </Navbar>
   );

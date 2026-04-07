@@ -264,7 +264,9 @@ describe("ChannelsDebugWorkbench", () => {
     expect(text).toContain("这里只保留网关、日志和运行状态");
     expect(text).toContain("日志");
     expect(text).toContain("运行");
-    expect(document.body.querySelector('[data-testid="channel-log-tail-panel"]')).not.toBeNull();
+    expect(
+      document.body.querySelector('[data-testid="channel-log-tail-panel"]'),
+    ).not.toBeNull();
     expect(text).not.toContain("配置说明（通用）");
     expect(text).not.toContain("当前渠道：");
     expect(text).not.toContain("启用 Discord Bot");

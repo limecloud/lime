@@ -82,8 +82,7 @@ export function useWorkspaceContextHarnessRuntime({
       harnessPendingCount > 0 ||
       harnessState.hasSignals ||
       compatSubagentRuntime.isRunning);
-  const showHarnessToggle =
-    shouldAlwaysShowHarnessToggle || hasHarnessActivity;
+  const showHarnessToggle = shouldAlwaysShowHarnessToggle || hasHarnessActivity;
   const harnessAttentionLevel: "idle" | "active" | "warning" =
     harnessPendingCount > 0
       ? "warning"

@@ -80,11 +80,7 @@ export function useWorkspaceArtifactViewModeControl({
         artifactId: displayedArtifact.id,
       },
     );
-  }, [
-    activeTheme,
-    applyAutoArtifactViewMode,
-    displayedArtifact,
-  ]);
+  }, [activeTheme, applyAutoArtifactViewMode, displayedArtifact]);
 
   return {
     artifactViewMode,

@@ -106,9 +106,7 @@ interface TeamWorkspaceBoardProps {
     sessionIds: string[],
     timeoutMs?: number,
   ) => void | Promise<void>;
-  onCloseCompletedTeamSessions?: (
-    sessionIds: string[],
-  ) => void | Promise<void>;
+  onCloseCompletedTeamSessions?: (sessionIds: string[]) => void | Promise<void>;
   onCloseSubagentSession?: (sessionId: string) => void | Promise<void>;
   onResumeSubagentSession?: (sessionId: string) => void | Promise<void>;
   onOpenSubagentSession?: (sessionId: string) => void | Promise<void>;
@@ -279,8 +277,8 @@ function canStartCanvasPanGesture(
   }
 
   return (
-    target.closest('[data-team-workspace-canvas-pan-surface="true"]') !== null ||
-    target === currentTarget
+    target.closest('[data-team-workspace-canvas-pan-surface="true"]') !==
+      null || target === currentTarget
   );
 }
 
@@ -349,7 +347,8 @@ function resolveActivityEntryStatusMeta(
     case "completed":
       return {
         label: "完成",
-        badgeClassName: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+        badgeClassName:
+          "border border-emerald-200 bg-emerald-50 text-emerald-700",
       };
     default:
       return {
@@ -483,7 +482,9 @@ function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   );
 }
 
-function buildRuntimeDetailSummary(session?: TeamSessionCard | null): string | null {
+function buildRuntimeDetailSummary(
+  session?: TeamSessionCard | null,
+): string | null {
   if (!session) {
     return null;
   }
@@ -500,9 +501,14 @@ function buildRuntimeDetailSummary(session?: TeamSessionCard | null): string | n
     session.teamActiveCount !== undefined &&
     session.teamParallelBudget !== undefined
   ) {
-    parts.push(`处理中 ${session.teamActiveCount}/${session.teamParallelBudget}`);
+    parts.push(
+      `处理中 ${session.teamActiveCount}/${session.teamParallelBudget}`,
+    );
   }
-  if (session.providerParallelBudget === 1 && session.providerConcurrencyGroup) {
+  if (
+    session.providerParallelBudget === 1 &&
+    session.providerConcurrencyGroup
+  ) {
     parts.push(resolveTeamWorkspaceStableProcessingLabel());
   }
 
@@ -512,8 +518,8 @@ function buildRuntimeDetailSummary(session?: TeamSessionCard | null): string | n
 function isWaitableTeamSession(session?: TeamSessionCard | null) {
   return Boolean(
     session &&
-      session.sessionType !== "user" &&
-      !isTeamWorkspaceTerminalStatus(session.runtimeStatus),
+    session.sessionType !== "user" &&
+    !isTeamWorkspaceTerminalStatus(session.runtimeStatus),
   );
 }
 
@@ -540,7 +546,8 @@ function buildTeamWaitSummaryDisplay(
   }
 
   const resolvedName = summary.resolvedSessionId
-    ? sessionNameById.get(summary.resolvedSessionId) ?? summary.resolvedSessionId
+    ? (sessionNameById.get(summary.resolvedSessionId) ??
+      summary.resolvedSessionId)
     : "成员";
   const normalizedStatus = summary.resolvedStatus
     ? normalizeTeamWorkspaceRuntimeStatus(summary.resolvedStatus)
@@ -563,7 +570,7 @@ function buildTeamControlSummaryDisplay(
   const affectedCount = summary.affectedSessionIds.length;
   const firstAffectedId = summary.affectedSessionIds[0];
   const firstAffectedName = firstAffectedId
-    ? sessionNameById.get(firstAffectedId) ?? firstAffectedId
+    ? (sessionNameById.get(firstAffectedId) ?? firstAffectedId)
     : "成员";
 
   switch (summary.action) {
@@ -765,7 +772,10 @@ function resolveSessionBlueprintRoleId(
       ) {
         score += 8;
       }
-      if (sessionRoleKey && normalizeComparableText(role.roleKey) === sessionRoleKey) {
+      if (
+        sessionRoleKey &&
+        normalizeComparableText(role.roleKey) === sessionRoleKey
+      ) {
         score += 4;
       }
       if (
@@ -788,10 +798,7 @@ function resolveSessionBlueprintRoleId(
   if (candidates.length === 0) {
     return null;
   }
-  if (
-    candidates.length > 1 &&
-    candidates[0]?.score === candidates[1]?.score
-  ) {
+  if (candidates.length > 1 && candidates[0]?.score === candidates[1]?.score) {
     return null;
   }
 
@@ -809,7 +816,7 @@ function orderSessionsByRuntimeRoles(
   const runtimeRoles = (
     teamDispatchPreviewState.members.length > 0
       ? teamDispatchPreviewState.members
-      : teamDispatchPreviewState.blueprint?.roles ?? []
+      : (teamDispatchPreviewState.blueprint?.roles ?? [])
   ).map((role) => ({
     id: role.id,
     label: role.label,
@@ -821,7 +828,9 @@ function orderSessionsByRuntimeRoles(
     return sessions;
   }
 
-  const roleOrder = new Map(runtimeRoles.map((role, index) => [role.id, index]));
+  const roleOrder = new Map(
+    runtimeRoles.map((role, index) => [role.id, index]),
+  );
   const usedRoleIds = new Set<string>();
 
   return [...sessions]
@@ -973,7 +982,10 @@ function buildSessionLaneEmptyState(params: {
     return "这部分已经完成，结果会继续汇入当前内容。";
   }
 
-  if (session?.runtimeStatus === "failed" || session?.runtimeStatus === "aborted") {
+  if (
+    session?.runtimeStatus === "failed" ||
+    session?.runtimeStatus === "aborted"
+  ) {
     return "这一步没有顺利完成，你可以在下方查看细节并决定是否继续。";
   }
 
@@ -1052,7 +1064,10 @@ function resolveCanvasLanePreferredSize(params: {
     params.viewportWidth,
   );
   const gapX = TEAM_WORKSPACE_CANVAS_AUTO_LAYOUT_GAP_X;
-  const safeViewportWidth = Math.max(params.viewportWidth, columns >= 3 ? 1180 : 980);
+  const safeViewportWidth = Math.max(
+    params.viewportWidth,
+    columns >= 3 ? 1180 : 980,
+  );
   const usableWidth =
     safeViewportWidth -
     TEAM_WORKSPACE_CANVAS_VIEWPORT_PADDING * 2 -
@@ -1060,7 +1075,11 @@ function resolveCanvasLanePreferredSize(params: {
   const rawWidth = Math.floor(usableWidth / columns);
   const width =
     params.laneKind === "session"
-      ? clampCanvasNumber(rawWidth, 340, columns === 1 ? 560 : columns === 2 ? 460 : 390)
+      ? clampCanvasNumber(
+          rawWidth,
+          340,
+          columns === 1 ? 560 : columns === 2 ? 460 : 390,
+        )
       : clampCanvasNumber(rawWidth - 20, 320, columns === 1 ? 520 : 380);
   const height =
     params.laneKind === "session"
@@ -1083,8 +1102,7 @@ function buildCanvasStageHint(params: {
     hasRuntimeFormation,
     hasSelectedTeamPlan,
     teamDispatchPreviewState,
-  } =
-    params;
+  } = params;
 
   if (hasRealTeamGraph) {
     return "拖动画布空白处可平移，滚轮配合 Ctrl/Cmd 可缩放，拖动成员卡片可调整布局。";
@@ -1166,7 +1184,10 @@ function resolveLaneMatchingRuntimeMemberId(
   }
 
   const explicitRoleId = session.blueprintRoleId?.trim();
-  if (explicitRoleId && runtimeMembers.some((member) => member.id === explicitRoleId)) {
+  if (
+    explicitRoleId &&
+    runtimeMembers.some((member) => member.id === explicitRoleId)
+  ) {
     return explicitRoleId;
   }
 
@@ -1181,10 +1202,16 @@ function resolveLaneMatchingRuntimeMemberId(
   const candidates = runtimeMembers
     .map((member) => {
       let score = 0;
-      if (normalizedRoleLabel && normalizeComparableText(member.label) === normalizedRoleLabel) {
+      if (
+        normalizedRoleLabel &&
+        normalizeComparableText(member.label) === normalizedRoleLabel
+      ) {
         score += 8;
       }
-      if (normalizedRoleKey && normalizeComparableText(member.roleKey) === normalizedRoleKey) {
+      if (
+        normalizedRoleKey &&
+        normalizeComparableText(member.roleKey) === normalizedRoleKey
+      ) {
         score += 5;
       }
       if (
@@ -1204,10 +1231,7 @@ function resolveLaneMatchingRuntimeMemberId(
   if (candidates.length === 0) {
     return null;
   }
-  if (
-    candidates.length > 1 &&
-    candidates[0]?.score === candidates[1]?.score
-  ) {
+  if (candidates.length > 1 && candidates[0]?.score === candidates[1]?.score) {
     return null;
   }
   return candidates[0]?.memberId ?? null;
@@ -1232,10 +1256,16 @@ function resolveLaneMatchingPlannedRoleId(
   const candidates = plannedRoles
     .map((role) => {
       let score = 0;
-      if (normalizedRoleLabel && normalizeComparableText(role.label) === normalizedRoleLabel) {
+      if (
+        normalizedRoleLabel &&
+        normalizeComparableText(role.label) === normalizedRoleLabel
+      ) {
         score += 8;
       }
-      if (normalizedRoleKey && normalizeComparableText(role.roleKey) === normalizedRoleKey) {
+      if (
+        normalizedRoleKey &&
+        normalizeComparableText(role.roleKey) === normalizedRoleKey
+      ) {
         score += 5;
       }
       if (
@@ -1255,10 +1285,7 @@ function resolveLaneMatchingPlannedRoleId(
   if (candidates.length === 0) {
     return null;
   }
-  if (
-    candidates.length > 1 &&
-    candidates[0]?.score === candidates[1]?.score
-  ) {
+  if (candidates.length > 1 && candidates[0]?.score === candidates[1]?.score) {
     return null;
   }
   return candidates[0]?.roleId ?? null;
@@ -1279,10 +1306,16 @@ function resolveRuntimeMemberMatchingPlannedRoleId(
   const candidates = plannedRoles
     .map((role) => {
       let score = 0;
-      if (normalizedRoleLabel && normalizeComparableText(role.label) === normalizedRoleLabel) {
+      if (
+        normalizedRoleLabel &&
+        normalizeComparableText(role.label) === normalizedRoleLabel
+      ) {
         score += 8;
       }
-      if (normalizedRoleKey && normalizeComparableText(role.roleKey) === normalizedRoleKey) {
+      if (
+        normalizedRoleKey &&
+        normalizeComparableText(role.roleKey) === normalizedRoleKey
+      ) {
         score += 5;
       }
       if (
@@ -1302,10 +1335,7 @@ function resolveRuntimeMemberMatchingPlannedRoleId(
   if (candidates.length === 0) {
     return null;
   }
-  if (
-    candidates.length > 1 &&
-    candidates[0]?.score === candidates[1]?.score
-  ) {
+  if (candidates.length > 1 && candidates[0]?.score === candidates[1]?.score) {
     return null;
   }
   return candidates[0]?.roleId ?? null;
@@ -1403,12 +1433,12 @@ export function TeamWorkspaceBoard({
     "team-workspace";
   const [shellExpanded, setShellExpanded] = useState(defaultShellExpanded);
   const detailExpanded = !embedded;
-  const canvasViewportFallbackHeight =
-    embedded && !detailExpanded ? 720 : 560;
+  const canvasViewportFallbackHeight = embedded && !detailExpanded ? 720 : 560;
   const [canvasLayoutState, setCanvasLayoutState] =
-    useState<TeamWorkspaceCanvasLayoutState>(() =>
-      loadTeamWorkspaceCanvasLayout(canvasStorageScopeId) ??
-      createDefaultTeamWorkspaceCanvasLayoutState(),
+    useState<TeamWorkspaceCanvasLayoutState>(
+      () =>
+        loadTeamWorkspaceCanvasLayout(canvasStorageScopeId) ??
+        createDefaultTeamWorkspaceCanvasLayoutState(),
     );
   const [pendingSessionAction, setPendingSessionAction] = useState<{
     sessionId: string;
@@ -1438,12 +1468,11 @@ export function TeamWorkspaceBoard({
     width: 960,
     height: embedded ? 720 : 560,
   });
-  const canvasLayoutStateRef = useRef<TeamWorkspaceCanvasLayoutState>(
-    canvasLayoutState,
-  );
-  const canvasLaneLayoutsRef = useRef<Record<string, TeamWorkspaceCanvasItemLayout>>(
-    {},
-  );
+  const canvasLayoutStateRef =
+    useRef<TeamWorkspaceCanvasLayoutState>(canvasLayoutState);
+  const canvasLaneLayoutsRef = useRef<
+    Record<string, TeamWorkspaceCanvasItemLayout>
+  >({});
   const canvasInteractionCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -1602,10 +1631,8 @@ export function TeamWorkspaceBoard({
     () =>
       baseVisibleSessions.map(
         (session) =>
-          applyLiveRuntimeState(
-            session,
-            liveRuntimeBySessionId[session.id],
-          ) ?? session,
+          applyLiveRuntimeState(session, liveRuntimeBySessionId[session.id]) ??
+          session,
       ),
     [baseVisibleSessions, liveRuntimeBySessionId],
   );
@@ -1871,12 +1898,14 @@ export function TeamWorkspaceBoard({
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     () => railSessions[0]?.id ?? null,
   );
-  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     const defaultSelectedId = isChildSession
-      ? currentSessionId ?? railSessions[0]?.id ?? null
-      : memberCanvasSessions[0]?.id ?? railSessions[0]?.id ?? null;
+      ? (currentSessionId ?? railSessions[0]?.id ?? null)
+      : (memberCanvasSessions[0]?.id ?? railSessions[0]?.id ?? null);
 
     if (!selectedSessionId) {
       setSelectedSessionId(defaultSelectedId);
@@ -1909,7 +1938,9 @@ export function TeamWorkspaceBoard({
       return;
     }
 
-    if (!memberCanvasSessions.some((session) => session.id === expandedSessionId)) {
+    if (
+      !memberCanvasSessions.some((session) => session.id === expandedSessionId)
+    ) {
       setExpandedSessionId(null);
     }
   }, [expandedSessionId, memberCanvasSessions]);
@@ -1929,7 +1960,7 @@ export function TeamWorkspaceBoard({
     [baseRailSessions, selectedSessionId],
   );
   const selectedSessionActivityPreview = selectedSession
-    ? sessionActivityPreviewById[selectedSession.id] ?? null
+    ? (sessionActivityPreviewById[selectedSession.id] ?? null)
     : null;
   const selectedSessionActivityEntries = selectedSession
     ? mergeSessionActivityEntries(
@@ -1946,15 +1977,15 @@ export function TeamWorkspaceBoard({
     selectedSession && selectedSession.sessionType !== "user",
   );
   const selectedSessionActivityId = selectedSessionSupportsActivityPreview
-    ? selectedSession?.id ?? null
+    ? (selectedSession?.id ?? null)
     : null;
-  const selectedSessionActivityFingerprint = selectedSessionSupportsActivityPreview
-    ? buildSessionActivityFingerprint(selectedBaseSession)
-    : null;
-  const selectedSessionActivityRefreshVersion =
-    selectedSessionActivityId
-      ? (activityRefreshVersionBySessionId[selectedSessionActivityId] ?? 0)
-      : 0;
+  const selectedSessionActivityFingerprint =
+    selectedSessionSupportsActivityPreview
+      ? buildSessionActivityFingerprint(selectedBaseSession)
+      : null;
+  const selectedSessionActivityRefreshVersion = selectedSessionActivityId
+    ? (activityRefreshVersionBySessionId[selectedSessionActivityId] ?? 0)
+    : 0;
   const selectedSessionActivityShouldPoll =
     selectedSessionSupportsActivityPreview &&
     shouldPollSessionActivity(selectedSession);
@@ -2073,7 +2104,8 @@ export function TeamWorkspaceBoard({
       !selectedSessionActivityShouldPoll &&
       cachedPreview?.status === "ready" &&
       cachedPreview.fingerprint === fingerprint &&
-      (cachedPreview.refreshVersion ?? 0) === selectedSessionActivityRefreshVersion
+      (cachedPreview.refreshVersion ?? 0) ===
+        selectedSessionActivityRefreshVersion
     ) {
       return;
     }
@@ -2086,7 +2118,8 @@ export function TeamWorkspaceBoard({
         selectedSessionActivityRefreshVersion,
         {
           force:
-            (current?.refreshVersion ?? 0) < selectedSessionActivityRefreshVersion,
+            (current?.refreshVersion ?? 0) <
+            selectedSessionActivityRefreshVersion,
         },
       );
     };
@@ -2139,7 +2172,8 @@ export function TeamWorkspaceBoard({
 
           const refreshVersion =
             activityRefreshVersionBySessionId[session.id] ?? 0;
-          const cachedPreview = sessionActivityPreviewByIdRef.current[session.id];
+          const cachedPreview =
+            sessionActivityPreviewByIdRef.current[session.id];
           return syncSessionActivityPreview(
             session.id,
             buildSessionActivityFingerprint(session),
@@ -2187,7 +2221,8 @@ export function TeamWorkspaceBoard({
           normalizedSelectedTeamRoles,
         );
         const presetLabel = session.teamPresetId
-          ? getTeamPresetOption(session.teamPresetId)?.label ?? session.teamPresetId
+          ? (getTeamPresetOption(session.teamPresetId)?.label ??
+            session.teamPresetId)
           : undefined;
 
         return {
@@ -2219,7 +2254,8 @@ export function TeamWorkspaceBoard({
             .map((skill) => buildSkillDisplayName(skill)),
           session,
           previewText:
-            cardActivityPreview || buildSessionLaneEmptyState({ session, previewState }),
+            cardActivityPreview ||
+            buildSessionLaneEmptyState({ session, previewState }),
           previewEntries: mergedEntries.slice(0, 3),
         };
       }),
@@ -2232,70 +2268,64 @@ export function TeamWorkspaceBoard({
     ],
   );
 
-  const canvasBlueprintLanes = useMemo<TeamWorkspaceCanvasLane[]>(
-    () => {
-      if (hasRealTeamGraph) {
-        return [];
-      }
+  const canvasBlueprintLanes = useMemo<TeamWorkspaceCanvasLane[]>(() => {
+    if (hasRealTeamGraph) {
+      return [];
+    }
 
-      if (runtimeMembers.length > 0) {
-        return runtimeMembers.map((member) => {
-          const laneSummary = buildCanvasLaneTitleSummary(member);
-          const matchedPlannedRoleId = resolveRuntimeMemberMatchingPlannedRoleId(
-            member,
-            normalizedSelectedTeamRoles,
-          );
-          return {
-            id: member.id,
-            persistKey: `runtime:${member.id}`,
-            fallbackPersistKeys: matchedPlannedRoleId
-              ? [`planned:${matchedPlannedRoleId}`]
-              : [],
-            kind: "runtime" as const,
-            title: member.label,
-            summary: laneSummary.summary,
-            badgeLabel: laneSummary.badgeLabel,
-            badgeClassName: laneSummary.badgeClassName,
-            dotClassName: laneSummary.dotClassName,
-            roleLabel: resolveTeamWorkspaceRoleHintLabel(member.roleKey) || undefined,
-            profileLabel: undefined,
-            statusHint: laneSummary.statusHint,
-            updatedAtLabel: "等待成员加入",
-            skillLabels: [],
-            previewText: member.summary,
-            previewEntries: [],
-          };
-        });
-      }
-
-      return normalizedSelectedTeamRoles.map((role) => {
-        const laneSummary = buildPlannedRoleLaneSummary(role);
+    if (runtimeMembers.length > 0) {
+      return runtimeMembers.map((member) => {
+        const laneSummary = buildCanvasLaneTitleSummary(member);
+        const matchedPlannedRoleId = resolveRuntimeMemberMatchingPlannedRoleId(
+          member,
+          normalizedSelectedTeamRoles,
+        );
         return {
-          id: role.id,
-          persistKey: `planned:${role.id}`,
-          fallbackPersistKeys: [],
-          kind: "planned" as const,
-          title: role.label,
+          id: member.id,
+          persistKey: `runtime:${member.id}`,
+          fallbackPersistKeys: matchedPlannedRoleId
+            ? [`planned:${matchedPlannedRoleId}`]
+            : [],
+          kind: "runtime" as const,
+          title: member.label,
           summary: laneSummary.summary,
           badgeLabel: laneSummary.badgeLabel,
           badgeClassName: laneSummary.badgeClassName,
           dotClassName: laneSummary.dotClassName,
-          roleLabel: resolveTeamWorkspaceRoleHintLabel(role.roleKey) || undefined,
+          roleLabel:
+            resolveTeamWorkspaceRoleHintLabel(member.roleKey) || undefined,
           profileLabel: undefined,
           statusHint: laneSummary.statusHint,
-          updatedAtLabel: "计划分工",
+          updatedAtLabel: "等待成员加入",
           skillLabels: [],
-          previewText: role.summary,
+          previewText: member.summary,
           previewEntries: [],
         };
       });
-    },
-    [
-      hasRealTeamGraph,
-      normalizedSelectedTeamRoles,
-      runtimeMembers,
-    ],
-  );
+    }
+
+    return normalizedSelectedTeamRoles.map((role) => {
+      const laneSummary = buildPlannedRoleLaneSummary(role);
+      return {
+        id: role.id,
+        persistKey: `planned:${role.id}`,
+        fallbackPersistKeys: [],
+        kind: "planned" as const,
+        title: role.label,
+        summary: laneSummary.summary,
+        badgeLabel: laneSummary.badgeLabel,
+        badgeClassName: laneSummary.badgeClassName,
+        dotClassName: laneSummary.dotClassName,
+        roleLabel: resolveTeamWorkspaceRoleHintLabel(role.roleKey) || undefined,
+        profileLabel: undefined,
+        statusHint: laneSummary.statusHint,
+        updatedAtLabel: "计划分工",
+        skillLabels: [],
+        previewText: role.summary,
+        previewEntries: [],
+      };
+    });
+  }, [hasRealTeamGraph, normalizedSelectedTeamRoles, runtimeMembers]);
 
   const canvasLanes = hasRealTeamGraph
     ? canvasSessionLanes
@@ -2406,10 +2436,7 @@ export function TeamWorkspaceBoard({
   }, []);
 
   const bindCanvasMouseInteraction = useCallback(
-    (
-      onMove: (event: MouseEvent) => void,
-      onEnd?: () => void,
-    ) => {
+    (onMove: (event: MouseEvent) => void, onEnd?: () => void) => {
       canvasInteractionCleanupRef.current?.();
 
       const handleMouseMove = (event: MouseEvent) => {
@@ -2581,7 +2608,11 @@ export function TeamWorkspaceBoard({
         }));
       });
     },
-    [bindCanvasMouseInteraction, isCanvasPanModifierActive, updateCanvasViewport],
+    [
+      bindCanvasMouseInteraction,
+      isCanvasPanModifierActive,
+      updateCanvasViewport,
+    ],
   );
 
   const handleStartCanvasLaneDrag = useCallback(
@@ -2610,7 +2641,11 @@ export function TeamWorkspaceBoard({
         }));
       });
     },
-    [bindCanvasMouseInteraction, bringCanvasLaneToFront, updateCanvasLaneLayout],
+    [
+      bindCanvasMouseInteraction,
+      bringCanvasLaneToFront,
+      updateCanvasLaneLayout,
+    ],
   );
 
   const handleStartCanvasLaneResize = useCallback(
@@ -2680,7 +2715,11 @@ export function TeamWorkspaceBoard({
         });
       });
     },
-    [bindCanvasMouseInteraction, bringCanvasLaneToFront, updateCanvasLaneLayout],
+    [
+      bindCanvasMouseInteraction,
+      bringCanvasLaneToFront,
+      updateCanvasLaneLayout,
+    ],
   );
 
   const handleCanvasWheel = useCallback(
@@ -2720,7 +2759,9 @@ export function TeamWorkspaceBoard({
   }, [updateCanvasViewport]);
 
   const handleResetCanvasView = useCallback(() => {
-    updateCanvasViewport(() => createDefaultTeamWorkspaceCanvasLayoutState().viewport);
+    updateCanvasViewport(
+      () => createDefaultTeamWorkspaceCanvasLayoutState().viewport,
+    );
   }, [updateCanvasViewport]);
   const handleAutoArrangeCanvas = useCallback(() => {
     if (canvasLanes.length === 0) {
@@ -2985,8 +3026,10 @@ export function TeamWorkspaceBoard({
       return null;
     }
 
-    return [...teamControlSummary.requestedSessionIds, ...teamControlSummary.affectedSessionIds]
-      .some((sessionId) => railSessionNameById.has(sessionId))
+    return [
+      ...teamControlSummary.requestedSessionIds,
+      ...teamControlSummary.affectedSessionIds,
+    ].some((sessionId) => railSessionNameById.has(sessionId))
       ? teamControlSummary
       : null;
   }, [railSessionNameById, teamControlSummary]);
@@ -2998,7 +3041,8 @@ export function TeamWorkspaceBoard({
         teamControlSummary: visibleTeamControlSummary,
       }).filter(
         (entry) =>
-          !entry.targetSessionId || railSessions.some((session) => session.id === entry.targetSessionId),
+          !entry.targetSessionId ||
+          railSessions.some((session) => session.id === entry.targetSessionId),
       ),
     [
       railSessionNameById,
@@ -3024,38 +3068,40 @@ export function TeamWorkspaceBoard({
   );
   const canOpenSelectedSession = Boolean(
     selectedSession &&
-      onOpenSubagentSession &&
-      selectedSession.id !== currentSessionId,
+    onOpenSubagentSession &&
+    selectedSession.id !== currentSessionId,
   );
   const canWaitSelectedSession = Boolean(
-    selectedSession && isWaitableTeamSession(selectedSession) && onWaitSubagentSession,
+    selectedSession &&
+    isWaitableTeamSession(selectedSession) &&
+    onWaitSubagentSession,
   );
   const canSendSelectedSessionInput = Boolean(
     selectedSession &&
-      selectedSession.sessionType !== "user" &&
-      selectedSession.runtimeStatus !== "closed" &&
-      onSendSubagentInput &&
-      selectedSession.id !== currentSessionId,
+    selectedSession.sessionType !== "user" &&
+    selectedSession.runtimeStatus !== "closed" &&
+    onSendSubagentInput &&
+    selectedSession.id !== currentSessionId,
   );
   const canStopSelectedSession = Boolean(
     selectedSession &&
-      selectedSession.sessionType !== "user" &&
-      isTeamWorkspaceActiveStatus(
-        selectedSession.runtimeStatus ?? selectedSession.latestTurnStatus,
-      ) &&
-      onCloseSubagentSession,
+    selectedSession.sessionType !== "user" &&
+    isTeamWorkspaceActiveStatus(
+      selectedSession.runtimeStatus ?? selectedSession.latestTurnStatus,
+    ) &&
+    onCloseSubagentSession,
   );
   const canResumeSelectedSession = Boolean(
     selectedSession &&
-      selectedSession.sessionType !== "user" &&
-      selectedSession.runtimeStatus === "closed" &&
-      onResumeSubagentSession,
+    selectedSession.sessionType !== "user" &&
+    selectedSession.runtimeStatus === "closed" &&
+    onResumeSubagentSession,
   );
   const selectedActionPending = Boolean(
     selectedSession && pendingSessionAction?.sessionId === selectedSession.id,
   );
   const selectedSessionInputDraft = selectedSession
-    ? sessionInputDraftById[selectedSession.id] ?? ""
+    ? (sessionInputDraftById[selectedSession.id] ?? "")
     : "";
   const selectedSessionInputMessage = selectedSessionInputDraft.trim();
   const handleWaitAnyActiveTeamSessions = useCallback(async () => {
@@ -3090,7 +3136,9 @@ export function TeamWorkspaceBoard({
       if (!entry.targetSessionId) {
         return;
       }
-      if (!railSessions.some((session) => session.id === entry.targetSessionId)) {
+      if (
+        !railSessions.some((session) => session.id === entry.targetSessionId)
+      ) {
         return;
       }
       setSelectedSessionId(entry.targetSessionId);
@@ -3282,7 +3330,9 @@ export function TeamWorkspaceBoard({
 
   const selectedStatusMeta = resolveStatusMeta(selectedSession?.runtimeStatus);
   const detailVisible =
-    isEmptyShellState || !hasRealTeamGraph ? detailExpanded || shellExpanded : false;
+    isEmptyShellState || !hasRealTeamGraph
+      ? detailExpanded || shellExpanded
+      : false;
   const detailToggleLabel = detailVisible ? "收起细节" : "查看细节";
   const boardHeadline =
     !hasRealTeamGraph && runtimeFormationMeta
@@ -3310,7 +3360,9 @@ export function TeamWorkspaceBoard({
     });
   const useCompactCanvasChrome = hasRealTeamGraph;
   const runtimeDetailSummary = buildRuntimeDetailSummary(selectedSession);
-  const selectedPresetOption = getTeamPresetOption(selectedSession?.teamPresetId);
+  const selectedPresetOption = getTeamPresetOption(
+    selectedSession?.teamPresetId,
+  );
   const selectedSkills = selectedSession?.skills ?? [];
   const selectedMetadata = [
     selectedSession?.blueprintRoleLabel
@@ -3327,7 +3379,9 @@ export function TeamWorkspaceBoard({
     selectedSession?.createdFromTurnId
       ? `来自之前的任务 ${selectedSession.createdFromTurnId}`
       : null,
-    selectedSession && (selectedSession.teamQueuedCount ?? selectedSession.queuedTurnCount ?? 0) > 0
+    selectedSession &&
+    (selectedSession.teamQueuedCount ?? selectedSession.queuedTurnCount ?? 0) >
+      0
       ? `等待中 ${selectedSession.teamQueuedCount ?? selectedSession.queuedTurnCount}`
       : null,
     selectedSession?.teamActiveCount !== undefined &&
@@ -3368,7 +3422,9 @@ export function TeamWorkspaceBoard({
   const boardBodyClassName = embedded
     ? cn(
         "min-h-0 flex-1 overflow-y-auto overscroll-contain",
-        useCompactCanvasChrome ? "p-3 sm:p-3.5 space-y-2.5" : "p-3 sm:p-4 space-y-3",
+        useCompactCanvasChrome
+          ? "p-3 sm:p-3.5 space-y-2.5"
+          : "p-3 sm:p-4 space-y-3",
       )
     : cn(useCompactCanvasChrome ? "p-3 sm:p-3.5" : "p-3 sm:p-4");
   const canvasStageHeight =
@@ -3376,7 +3432,10 @@ export function TeamWorkspaceBoard({
       ? "clamp(560px, 76vh, 980px)"
       : TEAM_WORKSPACE_CANVAS_STAGE_HEIGHT;
   const railCardClassName = embedded
-    ? cn("pointer-events-auto", useCompactCanvasChrome ? "space-y-3" : "space-y-4")
+    ? cn(
+        "pointer-events-auto",
+        useCompactCanvasChrome ? "space-y-3" : "space-y-4",
+      )
     : "rounded-[22px] border border-slate-200 bg-slate-50 p-3.5 shadow-sm shadow-slate-950/5";
   const detailCardClassName = cn(
     embedded
@@ -3523,7 +3582,8 @@ export function TeamWorkspaceBoard({
               ) : null}
               {resolveTeamWorkspaceRoleHintLabel(selectedSession?.roleKey) ? (
                 <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-                  分工 {resolveTeamWorkspaceRoleHintLabel(selectedSession?.roleKey)}
+                  分工{" "}
+                  {resolveTeamWorkspaceRoleHintLabel(selectedSession?.roleKey)}
                 </span>
               ) : null}
               {selectedSession?.theme ? (
@@ -3602,7 +3662,9 @@ export function TeamWorkspaceBoard({
                   <Button
                     type="button"
                     size="sm"
-                    disabled={selectedActionPending || !selectedSessionInputMessage}
+                    disabled={
+                      selectedActionPending || !selectedSessionInputMessage
+                    }
                     onClick={() => void handleSelectedSessionSendInput(false)}
                   >
                     {selectedActionPending &&
@@ -3618,7 +3680,9 @@ export function TeamWorkspaceBoard({
                     type="button"
                     size="sm"
                     variant="outline"
-                    disabled={selectedActionPending || !selectedSessionInputMessage}
+                    disabled={
+                      selectedActionPending || !selectedSessionInputMessage
+                    }
                     onClick={() => void handleSelectedSessionSendInput(true)}
                   >
                     {selectedActionPending &&
@@ -3682,7 +3746,10 @@ export function TeamWorkspaceBoard({
                 </div>
                 <div className="mt-3 space-y-2.5">
                   {selectedSessionActivityEntries.map((entry) => (
-                    <div key={entry.id} className={inlineTimelineEntryClassName}>
+                    <div
+                      key={entry.id}
+                      className={inlineTimelineEntryClassName}
+                    >
                       <div className="flex flex-wrap items-center gap-2 text-[11px]">
                         <span className="font-semibold text-slate-800">
                           {entry.title}
@@ -3758,16 +3825,16 @@ export function TeamWorkspaceBoard({
                 来自之前的任务 {subagentParentContext.created_from_turn_id}
               </span>
             ) : null}
-            {!useCompactCanvasChrome && !isChildSession && totalTeamSessions > 0 ? (
+            {!useCompactCanvasChrome &&
+            !isChildSession &&
+            totalTeamSessions > 0 ? (
               <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700">
                 {totalTeamSessions} 位协作成员
               </span>
             ) : null}
           </div>
           {!useCompactCanvasChrome ? (
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              {boardHint}
-            </p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{boardHint}</p>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -3789,30 +3856,28 @@ export function TeamWorkspaceBoard({
               {detailToggleLabel}
             </Button>
           ) : null}
-          {isEmptyShellState
-            ? (
-                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
-                  {runtimeFormationMeta?.label || "还没有协作成员加入"}
-                </span>
-              )
-            : !useCompactCanvasChrome
-              ? Object.entries(statusSummary)
-                  .filter(([, count]) => count > 0)
-                  .map(([status, count]) => {
-                    const meta = resolveStatusMeta(status as RuntimeStatus);
-                    return (
-                      <span
-                        key={status}
-                        className={cn(
-                          "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium",
-                          meta.badgeClassName,
-                        )}
-                      >
-                        {meta.label} {count}
-                      </span>
-                    );
-                  })
-              : null}
+          {isEmptyShellState ? (
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
+              {runtimeFormationMeta?.label || "还没有协作成员加入"}
+            </span>
+          ) : !useCompactCanvasChrome ? (
+            Object.entries(statusSummary)
+              .filter(([, count]) => count > 0)
+              .map(([status, count]) => {
+                const meta = resolveStatusMeta(status as RuntimeStatus);
+                return (
+                  <span
+                    key={status}
+                    className={cn(
+                      "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium",
+                      meta.badgeClassName,
+                    )}
+                  >
+                    {meta.label} {count}
+                  </span>
+                );
+              })
+          ) : null}
           {isChildSession && onReturnToParentSession ? (
             <Button
               type="button"
@@ -3974,8 +4039,8 @@ export function TeamWorkspaceBoard({
           </div>
           {!useCompactCanvasChrome &&
           (canWaitAnyActiveTeamSession ||
-          canCloseCompletedTeamSessions ||
-          teamOperationEntries.length > 0) ? (
+            canCloseCompletedTeamSessions ||
+            teamOperationEntries.length > 0) ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {canWaitAnyActiveTeamSession ? (
                 <Button
@@ -3989,9 +4054,9 @@ export function TeamWorkspaceBoard({
                   {pendingTeamAction === "wait_any" ? (
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   ) : null}
-                    {pendingTeamAction === "wait_any"
-                      ? "等待中..."
-                      : "等待任一成员结果"}
+                  {pendingTeamAction === "wait_any"
+                    ? "等待中..."
+                    : "等待任一成员结果"}
                 </Button>
               ) : null}
               {canWaitAnyActiveTeamSession ? (
@@ -4011,9 +4076,9 @@ export function TeamWorkspaceBoard({
                   {pendingTeamAction === "close_completed" ? (
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   ) : null}
-                    {pendingTeamAction === "close_completed"
-                      ? "收起中..."
-                      : "收起已完成成员"}
+                  {pendingTeamAction === "close_completed"
+                    ? "收起中..."
+                    : "收起已完成成员"}
                 </Button>
               ) : null}
               {canCloseCompletedTeamSessions ? (
@@ -4098,10 +4163,12 @@ export function TeamWorkspaceBoard({
                     const content = (
                       <>
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={cn(
-                            "rounded-full px-2 py-0.5 text-[10px] font-medium",
-                            entry.badgeClassName,
-                          )}>
+                          <span
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                              entry.badgeClassName,
+                            )}
+                          >
                             {entry.title}
                           </span>
                           <span className="text-[11px] text-slate-500">
@@ -4146,7 +4213,12 @@ export function TeamWorkspaceBoard({
             )
           ) : null}
 
-          <div className={cn("mt-3", useCompactCanvasChrome ? "space-y-2.5" : "space-y-3")}>
+          <div
+            className={cn(
+              "mt-3",
+              useCompactCanvasChrome ? "space-y-2.5" : "space-y-3",
+            )}
+          >
             {!useCompactCanvasChrome ? (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
@@ -4241,7 +4313,9 @@ export function TeamWorkspaceBoard({
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-slate-500">
                   画布
                 </span>
-                <span className="truncate">空白处拖拽 · Space 手型 · A 整理 · F 适应</span>
+                <span className="truncate">
+                  空白处拖拽 · Space 手型 · A 整理 · F 适应
+                </span>
               </div>
               {canvasLanes.length > 0 ? (
                 <div
@@ -4370,7 +4444,10 @@ export function TeamWorkspaceBoard({
                                 data-testid={`team-workspace-member-lane-header-${lane.id}`}
                                 className="flex cursor-grab items-start justify-between gap-3 border-b border-slate-200 bg-slate-50/88 px-4 py-3 active:cursor-grabbing"
                                 onMouseDown={(event) =>
-                                  handleStartCanvasLaneDrag(lane.persistKey, event)
+                                  handleStartCanvasLaneDrag(
+                                    lane.persistKey,
+                                    event,
+                                  )
                                 }
                               >
                                 <div className="min-w-0 flex-1">
@@ -4426,21 +4503,24 @@ export function TeamWorkspaceBoard({
                                 <p className="text-sm leading-6 text-slate-600">
                                   {lane.summary}
                                 </p>
-                                {(lane.skillLabels.length > 0 || lane.presetLabel) ? (
+                                {lane.skillLabels.length > 0 ||
+                                lane.presetLabel ? (
                                   <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
                                     {lane.presetLabel ? (
                                       <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">
                                         {lane.presetLabel}
                                       </span>
                                     ) : null}
-                                    {lane.skillLabels.slice(0, 4).map((skillLabel) => (
-                                      <span
-                                        key={`${lane.persistKey}-${skillLabel}`}
-                                        className="rounded-full border border-slate-200 bg-white px-2 py-0.5"
-                                      >
-                                        {skillLabel}
-                                      </span>
-                                    ))}
+                                    {lane.skillLabels
+                                      .slice(0, 4)
+                                      .map((skillLabel) => (
+                                        <span
+                                          key={`${lane.persistKey}-${skillLabel}`}
+                                          className="rounded-full border border-slate-200 bg-white px-2 py-0.5"
+                                        >
+                                          {skillLabel}
+                                        </span>
+                                      ))}
                                   </div>
                                 ) : null}
                                 <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
@@ -4448,14 +4528,17 @@ export function TeamWorkspaceBoard({
                                     <PanelTop className="h-3 w-3" />
                                     <span>成员进展</span>
                                     <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
-                                      {lane.kind === "session" ? "最近进展" : "等待接入"}
+                                      {lane.kind === "session"
+                                        ? "最近进展"
+                                        : "等待接入"}
                                     </span>
                                   </div>
                                   <div className="min-h-0 flex-1 overflow-auto px-3 py-3">
                                     <p className="whitespace-pre-wrap break-words text-[12px] leading-5 text-slate-700">
                                       {lane.previewText}
                                     </p>
-                                    {lane.previewEntries && lane.previewEntries.length > 0 ? (
+                                    {lane.previewEntries &&
+                                    lane.previewEntries.length > 0 ? (
                                       <div className="mt-3 space-y-2">
                                         {lane.previewEntries.map((entry) => (
                                           <div
@@ -4505,7 +4588,9 @@ export function TeamWorkspaceBoard({
                                     ) : null}
                                   </div>
                                 </div>
-                                {expanded ? renderSelectedSessionInlineDetail() : null}
+                                {expanded
+                                  ? renderSelectedSessionInlineDetail()
+                                  : null}
                               </div>
                             </div>
                             {resizeHandles.map((handle) => (

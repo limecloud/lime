@@ -259,6 +259,15 @@ npm run test:contracts
 5. 等待工作流继续推进后，确认产物仍落在现有 `content-posts/*.md` / `*.publish-pack.json` 主链，而不是另一套发布任务协议
 6. 刷新页面或切换会话后再返回原话题，确认发布稿与发布包仍可恢复
 
+### Claw `@配音` 云端技能主链验证
+
+1. 在 `Claw` 对话框输入 `@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿`
+2. 确认聊天区保留原始 `@配音 ...` 文本，而不是被改写成 slash scene 或其它内部协议
+3. 如页面可查看发送详情或运行时摘要，确认 `request_metadata.harness.service_scene_launch.service_scene_run.scene_key=voice_runtime`，并且 `skill_id` 已绑定到当前可用的配音 service skill
+4. 确认首刀进入 `lime_run_service_skill` 主链，而不是普通聊天解释、站点型 `lime_site_run`，或旧的本地 TTS 测试命令
+5. 如果当前 OEM 云端会话缺失，确认界面明确提示需要登录 / 注入会话，而不是伪造“配音已完成”
+6. 刷新页面或切换会话后再返回原话题，确认该配音任务的时间线与最近使用状态仍可恢复
+
 ### Claw `@读PDF` Prompt Skill 验证
 
 1. 在 `Claw` 对话框输入 `@读PDF /tmp/agent-report.pdf 提炼三点结论并标注关键证据`

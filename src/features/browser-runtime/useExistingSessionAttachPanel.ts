@@ -48,11 +48,15 @@ type UseExistingSessionAttachPanelResult = {
   attachPageInfo: ChromeBridgePageInfo | null;
   shouldUseAttachPresentation: boolean;
   attachPresentation: ExistingSessionAttachPresentation;
-  loadAttachContext: (
-    options?: { quiet?: boolean },
-  ) => Promise<ExistingSessionAttachContext | null>;
-  loadAttachPage: (options?: { quiet?: boolean }) => Promise<ChromeBridgePageInfo | null>;
-  loadAttachTabs: (options?: { quiet?: boolean }) => Promise<ExistingSessionTabRecord[]>;
+  loadAttachContext: (options?: {
+    quiet?: boolean;
+  }) => Promise<ExistingSessionAttachContext | null>;
+  loadAttachPage: (options?: {
+    quiet?: boolean;
+  }) => Promise<ChromeBridgePageInfo | null>;
+  loadAttachTabs: (options?: {
+    quiet?: boolean;
+  }) => Promise<ExistingSessionTabRecord[]>;
   handleSwitchAttachTab: (tab: ExistingSessionTabRecord) => Promise<void>;
 };
 
@@ -61,12 +65,10 @@ export function useExistingSessionAttachPanel(
 ): UseExistingSessionAttachPanelResult {
   const { selectedProfileKey, initialProfileKey, sessionState, onMessage } =
     options;
-  const [attachProfile, setAttachProfile] = useState<BrowserProfileRecord | null>(
-    null,
-  );
-  const [attachBridgeStatus, setAttachBridgeStatus] = useState<
-    ExistingSessionAttachContext["bridgeStatus"]
-  >(null);
+  const [attachProfile, setAttachProfile] =
+    useState<BrowserProfileRecord | null>(null);
+  const [attachBridgeStatus, setAttachBridgeStatus] =
+    useState<ExistingSessionAttachContext["bridgeStatus"]>(null);
   const [attachContextLoading, setAttachContextLoading] = useState(false);
   const [attachPageLoading, setAttachPageLoading] = useState(false);
   const [attachTabsLoading, setAttachTabsLoading] = useState(false);
@@ -88,9 +90,9 @@ export function useExistingSessionAttachPanel(
   const attachObserver = useMemo(
     () =>
       activeAttachProfileKey
-        ? attachBridgeStatus?.observers.find(
+        ? (attachBridgeStatus?.observers.find(
             (observer) => observer.profile_key === activeAttachProfileKey,
-          ) ?? null
+          ) ?? null)
         : null,
     [activeAttachProfileKey, attachBridgeStatus],
   );
@@ -113,7 +115,12 @@ export function useExistingSessionAttachPanel(
         pageLoading: attachPageLoading,
         tabsLoading: attachTabsLoading,
       }),
-    [attachContextLoading, attachObserver, attachPageLoading, attachTabsLoading],
+    [
+      attachContextLoading,
+      attachObserver,
+      attachPageLoading,
+      attachTabsLoading,
+    ],
   );
   const attachPageInfo = useMemo(
     () => attachPageInfoOverride ?? attachObserver?.last_page_info ?? null,
@@ -140,8 +147,9 @@ export function useExistingSessionAttachPanel(
 
       setAttachContextLoading(true);
       try {
-        const attachContext =
-          await loadExistingSessionAttachContext(activeAttachProfileKey);
+        const attachContext = await loadExistingSessionAttachContext(
+          activeAttachProfileKey,
+        );
         const {
           bridgeStatus,
           observer: matchedObserver,
@@ -151,7 +159,10 @@ export function useExistingSessionAttachPanel(
         setAttachProfile(matchedProfile);
         setAttachBridgeStatus(bridgeStatus);
         setAttachPageInfoOverride((previous) => {
-          return mergeExistingSessionObserverPageInfo(previous, matchedObserver);
+          return mergeExistingSessionObserverPageInfo(
+            previous,
+            matchedObserver,
+          );
         });
 
         return attachContext;
@@ -180,7 +191,9 @@ export function useExistingSessionAttachPanel(
 
       setAttachPageLoading(true);
       try {
-        const nextPageInfo = await readExistingSessionPage(activeAttachProfileKey);
+        const nextPageInfo = await readExistingSessionPage(
+          activeAttachProfileKey,
+        );
         commitAttachPageInfo(nextPageInfo);
         await loadAttachContext({ quiet: true });
 

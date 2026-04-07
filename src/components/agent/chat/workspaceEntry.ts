@@ -1,8 +1,5 @@
 import { buildClawAgentParams } from "@/lib/workspace/navigation";
-import type {
-  AgentPageParams,
-  AgentSiteSkillLaunchParams,
-} from "@/types/page";
+import type { AgentPageParams, AgentSiteSkillLaunchParams } from "@/types/page";
 import type { CreationMode } from "./components/types";
 import type { MessageImage } from "./types";
 import type { ChatToolPreferences } from "./utils/chatToolPreferences";
@@ -47,9 +44,7 @@ export interface ResolveWorkspaceEntryInput {
   now?: () => number;
 }
 
-export type WorkspaceEntryRejectedReason =
-  | "missing_project"
-  | "empty_payload";
+export type WorkspaceEntryRejectedReason = "missing_project" | "empty_payload";
 
 export type ResolvedWorkspaceEntry =
   | {
@@ -65,9 +60,7 @@ export type ResolvedWorkspaceEntry =
       workspaceBootstrap: AgentChatWorkspaceBootstrap;
     };
 
-function asRecord(
-  value: unknown,
-): Record<string, unknown> | undefined {
+function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
   }

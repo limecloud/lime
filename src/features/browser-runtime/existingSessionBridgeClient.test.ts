@@ -15,10 +15,10 @@ const {
   mockBrowserExecuteAction,
   mockListBrowserProfiles,
 } = vi.hoisted(() => ({
-    mockGetChromeBridgeStatus: vi.fn(),
-    mockBrowserExecuteAction: vi.fn(),
-    mockListBrowserProfiles: vi.fn(),
-  }));
+  mockGetChromeBridgeStatus: vi.fn(),
+  mockBrowserExecuteAction: vi.fn(),
+  mockListBrowserProfiles: vi.fn(),
+}));
 
 vi.mock("./api", () => ({
   browserRuntimeApi: {
@@ -212,9 +212,9 @@ describe("existingSessionBridgeClient", () => {
   });
 
   it("应保留统一的缺失 observer 错误文案", () => {
-    expect(buildMissingExistingSessionObserverError("weibo_attach").message).toContain(
-      "profile_key=weibo_attach",
-    );
+    expect(
+      buildMissingExistingSessionObserverError("weibo_attach").message,
+    ).toContain("profile_key=weibo_attach");
   });
 
   it("应按 profile_key 匹配当前附着资料", () => {

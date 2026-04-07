@@ -320,9 +320,7 @@ describe("AutomationSettings", () => {
     await leaveTip(heroTip);
 
     const taskTip = await hoverTip("任务入口说明");
-    expect(getBodyText()).toContain(
-      "默认页只保留 Agent 对话任务相关动作。",
-    );
+    expect(getBodyText()).toContain("默认页只保留 Agent 对话任务相关动作。");
     await leaveTip(taskTip);
   });
 
@@ -340,9 +338,7 @@ describe("AutomationSettings", () => {
     expect(documentText).toContain("输出契约");
     expect(documentText).toContain("最近一次投递结果");
     expect(documentText).toContain("投递失败");
-    expect(documentText).toContain(
-      "写入本地文件失败: permission denied",
-    );
+    expect(documentText).toContain("写入本地文件失败: permission denied");
     expect(documentText).toContain("投递失败记为任务失败");
     expect(documentText).toContain("投递键: dlv-run-browser-1");
     expect(documentText).toContain("执行重试: 0 / 投递尝试: 2");
@@ -471,7 +467,9 @@ describe("AutomationSettings", () => {
     await openJobDetails(container, "job-browser-1");
 
     expect(
-      document.body.querySelector("[data-testid='automation-job-details-dialog']"),
+      document.body.querySelector(
+        "[data-testid='automation-job-details-dialog']",
+      ),
     ).not.toBeNull();
     expect(document.body.textContent).toContain("任务详情与历史");
     expect(document.body.textContent).toContain("浏览器巡检");
@@ -774,7 +772,9 @@ describe("AutomationSettings", () => {
     expect(runServiceSkillSummary?.textContent).toContain("技能任务运行上下文");
     expect(runServiceSkillSummary?.textContent).toContain("定时任务");
     expect(runServiceSkillSummary?.textContent).toContain("客户端执行");
-    expect(runServiceSkillSummary?.textContent).toContain("技能项: 每日趋势摘要");
+    expect(runServiceSkillSummary?.textContent).toContain(
+      "技能项: 每日趋势摘要",
+    );
     expect(runServiceSkillSummary?.textContent).toContain(
       "参数摘要: 监测平台: 小红书 · 行业关键词: AI 短视频",
     );
@@ -791,9 +791,7 @@ describe("AutomationSettings", () => {
     expect(dialogText).toContain("主稿绑定: content-service-skill-1");
     expect(dialogText).toContain("参数摘要");
     expect(dialogText).toContain("监测平台: X / Twitter");
-    expect(dialogText).toContain(
-      "行业关键词: AI Agent，创作者工具",
-    );
+    expect(dialogText).toContain("行业关键词: AI Agent，创作者工具");
     expect(dialogText).toContain("补充要求");
     expect(dialogText).toContain("重点关注新增热点与异常波动。");
     expect(dialogText).toContain("失败原因");

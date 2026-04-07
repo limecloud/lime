@@ -141,10 +141,13 @@ export function useContentSync(
     isSyncingRef.current = false;
   }, [clearTimers]);
 
-  useEffect(() => () => {
-    clearTimers();
-    isSyncingRef.current = false;
-  }, [clearTimers]);
+  useEffect(
+    () => () => {
+      clearTimers();
+      isSyncingRef.current = false;
+    },
+    [clearTimers],
+  );
 
   return { syncContent, syncStatus, resetStatus };
 }

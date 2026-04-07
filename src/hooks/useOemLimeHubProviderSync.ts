@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
-import { apiKeyProviderApi, type UpdateProviderRequest } from "@/lib/api/apiKeyProvider";
+import {
+  apiKeyProviderApi,
+  type UpdateProviderRequest,
+} from "@/lib/api/apiKeyProvider";
 import {
   type OemCloudBootstrapResponse,
   listClientProviderOfferModels,
@@ -38,7 +41,9 @@ function normalizeCustomModels(
     .map((value) => (typeof value === "string" ? value.trim() : ""))
     .filter(Boolean);
 
-  return normalized.filter((value, index) => normalized.indexOf(value) === index);
+  return normalized.filter(
+    (value, index) => normalized.indexOf(value) === index,
+  );
 }
 
 async function resolveSyncedCustomModels(
@@ -48,8 +53,7 @@ async function resolveSyncedCustomModels(
     return [];
   }
 
-  const snapshot =
-    getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>();
+  const snapshot = getOemCloudBootstrapSnapshot<OemCloudBootstrapResponse>();
   const preference = snapshot?.providerPreference;
   if (preference?.providerSource !== "oem_cloud" || !preference.providerKey) {
     return [];
@@ -109,7 +113,10 @@ export function useOemLimeHubProviderSync() {
         try {
           nextCustomModels = await resolveSyncedCustomModels(runtime);
         } catch (error) {
-          console.warn("[OEM] 同步云端模型目录失败，保留现有内部模型配置:", error);
+          console.warn(
+            "[OEM] 同步云端模型目录失败，保留现有内部模型配置:",
+            error,
+          );
         }
         if (disposed) {
           return;

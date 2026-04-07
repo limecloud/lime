@@ -99,7 +99,10 @@ export function OpenClawProgressPage({
               type="button"
               onClick={onCopyLogs}
               disabled={logs.length === 0}
-              className={cn(openClawSecondaryButtonClassName, "px-3 py-2 text-sm")}
+              className={cn(
+                openClawSecondaryButtonClassName,
+                "px-3 py-2 text-sm",
+              )}
             >
               <Copy className="h-4 w-4" />
               复制全部日志
@@ -108,7 +111,10 @@ export function OpenClawProgressPage({
               type="button"
               onClick={onCopyDiagnosticBundle}
               disabled={logs.length === 0}
-              className={cn(openClawSecondaryButtonClassName, "px-3 py-2 text-sm")}
+              className={cn(
+                openClawSecondaryButtonClassName,
+                "px-3 py-2 text-sm",
+              )}
             >
               <Copy className="h-4 w-4" />
               复制 JSON 诊断包
@@ -117,7 +123,10 @@ export function OpenClawProgressPage({
               type="button"
               onClick={onCopyRepairPrompt}
               disabled={!repairPrompt.trim()}
-              className={cn(openClawSecondaryButtonClassName, "px-3 py-2 text-sm")}
+              className={cn(
+                openClawSecondaryButtonClassName,
+                "px-3 py-2 text-sm",
+              )}
             >
               <Copy className="h-4 w-4" />
               复制修复提示词
@@ -126,7 +135,10 @@ export function OpenClawProgressPage({
               type="button"
               onClick={onAskAgentFix}
               disabled={!repairPrompt.trim() || handingOffToAgent}
-              className={cn(openClawSecondaryButtonClassName, "px-3 py-2 text-sm")}
+              className={cn(
+                openClawSecondaryButtonClassName,
+                "px-3 py-2 text-sm",
+              )}
             >
               {handingOffToAgent ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -139,7 +151,10 @@ export function OpenClawProgressPage({
               type="button"
               onClick={onClose}
               disabled={running}
-              className={cn(openClawSecondaryButtonClassName, "px-3 py-2 text-sm")}
+              className={cn(
+                openClawSecondaryButtonClassName,
+                "px-3 py-2 text-sm",
+              )}
             >
               {running ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {running ? "处理中" : "关闭"}
@@ -192,7 +207,9 @@ export function OpenClawProgressPage({
           <TabsContent value="summary" className="mt-4">
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className={openClawSubPanelClassName}>
-                <div className="text-xs font-medium text-slate-500">当前阶段</div>
+                <div className="text-xs font-medium text-slate-500">
+                  当前阶段
+                </div>
                 <div className="mt-2 text-sm font-medium text-slate-900">
                   {title || titleMap[kind]}
                 </div>
@@ -204,9 +221,12 @@ export function OpenClawProgressPage({
               </div>
 
               <div className={openClawSubPanelClassName}>
-                <div className="text-xs font-medium text-slate-500">诊断动作</div>
+                <div className="text-xs font-medium text-slate-500">
+                  诊断动作
+                </div>
                 <div className="mt-2 text-sm leading-6 text-slate-600">
-                  如果操作失败，可以切到“完整日志”直接复制，或复制 JSON 诊断包、修复提示词继续排障。
+                  如果操作失败，可以切到“完整日志”直接复制，或复制 JSON
+                  诊断包、修复提示词继续排障。
                 </div>
               </div>
             </div>

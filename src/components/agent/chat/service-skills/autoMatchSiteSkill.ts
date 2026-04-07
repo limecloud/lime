@@ -3,7 +3,9 @@ import { validateServiceSkillSlotValues } from "./promptComposer";
 import { isServiceSkillExecutableAsSiteAdapter } from "./siteCapabilityBinding";
 import type { ServiceSkillSlotValues } from "./types";
 
-export interface AutoMatchedSiteSkill<T extends ServiceSkillItem = ServiceSkillItem> {
+export interface AutoMatchedSiteSkill<
+  T extends ServiceSkillItem = ServiceSkillItem,
+> {
   skill: T;
   slotValues: ServiceSkillSlotValues;
   launchUserInput?: string;
@@ -57,7 +59,14 @@ const SEARCH_ADAPTER_MATCHERS: SearchAdapterMatcherConfig[] = [
     adapterName: "github/search",
     siteKeywords: ["github", "git hub", "git-hub"],
     actionKeywords: SEARCH_ACTION_KEYWORDS,
-    objectKeywords: ["项目", "仓库", "repo", "repos", "repository", "repositories"],
+    objectKeywords: [
+      "项目",
+      "仓库",
+      "repo",
+      "repos",
+      "repository",
+      "repositories",
+    ],
   },
   {
     adapterName: "bilibili/search",
@@ -220,7 +229,9 @@ function extractQueryAndSupplement(
   trailingKeywords: string[],
 ): { query: string; launchUserInput?: string } | null {
   const { core, launchUserInput } = splitCoreAndSupplement(value);
-  const query = cleanupQueryFragment(trimTrailingKeywords(core, trailingKeywords));
+  const query = cleanupQueryFragment(
+    trimTrailingKeywords(core, trailingKeywords),
+  );
   if (!query) {
     return null;
   }
@@ -254,7 +265,9 @@ function matchSearchAdapter(
   const actionMatchAfterSite = actionRegex.exec(afterSite);
   if (actionMatchAfterSite && actionMatchAfterSite.index >= 0) {
     const parsed = extractQueryAndSupplement(
-      afterSite.slice(actionMatchAfterSite.index + actionMatchAfterSite[0].length),
+      afterSite.slice(
+        actionMatchAfterSite.index + actionMatchAfterSite[0].length,
+      ),
       config.objectKeywords ?? [],
     );
     if (parsed) {
@@ -272,7 +285,10 @@ function matchSearchAdapter(
     return null;
   }
 
-  const parsed = extractQueryAndSupplement(afterSite, config.objectKeywords ?? []);
+  const parsed = extractQueryAndSupplement(
+    afterSite,
+    config.objectKeywords ?? [],
+  );
   if (!parsed) {
     return null;
   }
@@ -341,11 +357,15 @@ function matchYahooFinanceQuote(inputText: string): AdapterMatchResult | null {
 }
 
 function isGithubIssuesIntent(inputText: string): boolean {
-  return /(?:github|git hub|git-hub)/iu.test(inputText)
-    && buildKeywordRegex(GITHUB_ISSUE_KEYWORDS).test(inputText);
+  return (
+    /(?:github|git hub|git-hub)/iu.test(inputText) &&
+    buildKeywordRegex(GITHUB_ISSUE_KEYWORDS).test(inputText)
+  );
 }
 
-function detectGithubIssuesState(value: string): "open" | "closed" | "all" | undefined {
+function detectGithubIssuesState(
+  value: string,
+): "open" | "closed" | "all" | undefined {
   if (/(?:\ball\b|全部|所有)/iu.test(value)) {
     return "all";
   }
@@ -390,7 +410,9 @@ function stripLeadingGithubIssueContext(value: string): string {
   return next;
 }
 
-function matchGithubIssuesAdapter(inputText: string): AdapterMatchResult | null {
+function matchGithubIssuesAdapter(
+  inputText: string,
+): AdapterMatchResult | null {
   const normalized = normalizeInputText(inputText);
   if (!normalized || !isGithubIssuesIntent(normalized)) {
     return null;
@@ -402,8 +424,8 @@ function matchGithubIssuesAdapter(inputText: string): AdapterMatchResult | null 
   }
 
   const state =
-    detectGithubIssuesState(normalized.slice(0, repoMatch.index))
-    ?? detectGithubIssuesState(
+    detectGithubIssuesState(normalized.slice(0, repoMatch.index)) ??
+    detectGithubIssuesState(
       normalized.slice(repoMatch.index + repoMatch[0].length),
     );
   const tail = normalized.slice(repoMatch.index + repoMatch[0].length);

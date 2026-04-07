@@ -27,7 +27,9 @@ interface OpenClawExecutionEnvironmentCardProps {
   onChange: (runtimeId: string | null) => void;
 }
 
-function formatRuntimeHeading(candidate: OpenClawRuntimeCandidate | null): string {
+function formatRuntimeHeading(
+  candidate: OpenClawRuntimeCandidate | null,
+): string {
   if (!candidate) {
     return "自动选择";
   }
@@ -48,7 +50,9 @@ function formatRuntimeSelectionLabel(
     : `自动：${formatRuntimeHeading(candidate)}`;
 }
 
-function formatOpenClawStatus(candidate: OpenClawRuntimeCandidate | null): string {
+function formatOpenClawStatus(
+  candidate: OpenClawRuntimeCandidate | null,
+): string {
   if (!candidate) {
     return "尚未检测到可用运行时";
   }
@@ -137,7 +141,10 @@ export function OpenClawExecutionEnvironmentCard({
             <SelectTrigger className="h-auto rounded-2xl border-slate-200/80 bg-white px-4 py-3 text-left shadow-none focus:ring-slate-300">
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium text-slate-900">
-                  {formatRuntimeSelectionLabel(currentCandidate, preferredRuntimeId)}
+                  {formatRuntimeSelectionLabel(
+                    currentCandidate,
+                    preferredRuntimeId,
+                  )}
                 </div>
                 <div
                   className="mt-1 truncate text-xs text-slate-500"
@@ -155,7 +162,9 @@ export function OpenClawExecutionEnvironmentCard({
                 className="rounded-xl px-3 py-2.5"
               >
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900">自动选择</div>
+                  <div className="text-sm font-medium text-slate-900">
+                    自动选择
+                  </div>
                   <div className="mt-1 text-xs text-slate-500">
                     自动优先使用兼容且更合适的 Node/OpenClaw 运行时。
                   </div>
@@ -245,7 +254,11 @@ export function OpenClawExecutionEnvironmentCard({
           </div>
           <div
             className="mt-1 truncate text-[11px] leading-5 text-slate-500"
-            title={currentCandidate?.npmGlobalPrefix || currentCandidate?.npmPath || undefined}
+            title={
+              currentCandidate?.npmGlobalPrefix ||
+              currentCandidate?.npmPath ||
+              undefined
+            }
           >
             {currentCandidate?.npmGlobalPrefix
               ? compactPathLabel(currentCandidate.npmGlobalPrefix, 46)

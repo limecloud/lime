@@ -36,7 +36,9 @@ export function getSiteSkillAutoLaunchExample(
       continue;
     }
 
-    const adapterName = normalizeAdapterName(skill.siteCapabilityBinding.adapterName);
+    const adapterName = normalizeAdapterName(
+      skill.siteCapabilityBinding.adapterName,
+    );
     const example = SITE_SKILL_EXAMPLE_BY_ADAPTER[adapterName];
     if (example) {
       return example;

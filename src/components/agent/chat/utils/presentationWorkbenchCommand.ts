@@ -30,8 +30,7 @@ const LEADING_DECK_TYPE_REGEX =
   /^(路演PPT|融资PPT|销售PPT|培训PPT|汇报PPT|方案PPT|pitch(?:\s+deck)?|sales(?:\s+deck)?|training(?:\s+deck)?|report(?:\s+deck)?|proposal(?:\s+deck)?)(?=$|[\s,，。；;:：])/i;
 const LEADING_EXPLICIT_DECK_TYPE_REGEX =
   /^(?:类型|演示类型|type)\s*[:：=]?\s*(路演PPT|融资PPT|销售PPT|培训PPT|汇报PPT|方案PPT|pitch(?:\s+deck)?|sales(?:\s+deck)?|training(?:\s+deck)?|report(?:\s+deck)?|proposal(?:\s+deck)?)(?=$|[\s,，。；;:：])/i;
-const PRESENTATION_PROMPT_BOUNDARY_PATTERN =
-  String.raw`(?:\s+(?:帮我|给我|请|生成|制作|整理|输出|做一个|做个|create|generate|build|draft))`;
+const PRESENTATION_PROMPT_BOUNDARY_PATTERN = String.raw`(?:\s+(?:帮我|给我|请|生成|制作|整理|输出|做一个|做个|create|generate|build|draft))`;
 const LEADING_EXPLICIT_STYLE_REGEX = new RegExp(
   String.raw`^(?:风格|style)\s*[:：=]?\s*(.+?)(?=$|[,，。；;\n]|(?:\s+(?:受众|对象|audience|页数|页|slides?|类型|演示类型|type)\s*[:：=]?)|${PRESENTATION_PROMPT_BOUNDARY_PATTERN})`,
   "i",
@@ -83,7 +82,11 @@ function normalizeDeckType(
   ) {
     return "pitch_deck";
   }
-  if (normalized === "销售ppt" || normalized === "sales" || normalized === "sales deck") {
+  if (
+    normalized === "销售ppt" ||
+    normalized === "sales" ||
+    normalized === "sales deck"
+  ) {
     return "sales_deck";
   }
   if (
@@ -122,7 +125,9 @@ function consumeLeadingPresentationFields(body: string): {
   promptBody: string;
 } {
   let remaining = body.trim();
-  let deckType = normalizeDeckType(remaining.match(LEADING_DECK_TYPE_REGEX)?.[1]?.trim());
+  let deckType = normalizeDeckType(
+    remaining.match(LEADING_DECK_TYPE_REGEX)?.[1]?.trim(),
+  );
   let style: string | undefined;
   let audience: string | undefined;
   let slideCount: number | undefined;
@@ -167,8 +172,9 @@ function consumeLeadingPresentationFields(body: string): {
       continue;
     }
 
-    const slideCountRaw =
-      remaining.match(LEADING_EXPLICIT_SLIDE_COUNT_REGEX)?.[1]?.trim();
+    const slideCountRaw = remaining
+      .match(LEADING_EXPLICIT_SLIDE_COUNT_REGEX)?.[1]
+      ?.trim();
     if (slideCountRaw) {
       const parsedSlideCount = Number.parseInt(slideCountRaw, 10);
       slideCount =
@@ -218,13 +224,8 @@ export function parsePresentationWorkbenchCommand(
   }
 
   const body = (matched[2] || "").trim();
-  const {
-    deckType,
-    style,
-    audience,
-    slideCount,
-    promptBody,
-  } = consumeLeadingPresentationFields(body);
+  const { deckType, style, audience, slideCount, promptBody } =
+    consumeLeadingPresentationFields(body);
   const explicitDeckType = body.match(EXPLICIT_DECK_TYPE_REGEX)?.[1]?.trim();
   const leadingDeckType = body.match(LEADING_DECK_TYPE_REGEX)?.[1]?.trim();
   const prompt = stripPromptDecorations(

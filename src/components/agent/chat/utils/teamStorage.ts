@@ -39,10 +39,7 @@ function normalizeCustomTeamList(
     }
 
     const existing = uniqueTeams.get(normalized.id);
-    if (
-      !existing ||
-      (normalized.updatedAt || 0) >= (existing.updatedAt || 0)
-    ) {
+    if (!existing || (normalized.updatedAt || 0) >= (existing.updatedAt || 0)) {
       uniqueTeams.set(normalized.id, normalized);
     }
   }
@@ -91,8 +88,9 @@ function resolveTeamFromSelection(
   }
 
   return (
-    (customTeams || loadCustomTeams()).find((team) => team.id === selection.id) ||
-    null
+    (customTeams || loadCustomTeams()).find(
+      (team) => team.id === selection.id,
+    ) || null
   );
 }
 
@@ -210,7 +208,9 @@ export function loadCustomTeamsFromWorkspaceSettings(
 export function resolveCustomTeams(
   workspaceSettings?: WorkspaceSettings | null,
 ): TeamDefinition[] {
-  return loadCustomTeamsFromWorkspaceSettings(workspaceSettings) || loadCustomTeams();
+  return (
+    loadCustomTeamsFromWorkspaceSettings(workspaceSettings) || loadCustomTeams()
+  );
 }
 
 export function loadSelectedTeamReferenceFromWorkspaceSettings(
@@ -302,7 +302,8 @@ export function resolveSelectedTeamPreference({
   allowPersistedThemeFallback = true,
 }: ResolveSelectedTeamPreferenceOptions): TeamDefinition | null {
   const workspaceState = resolveWorkspaceTeamPreferenceState(workspaceSettings);
-  const workspaceCustomTeams = loadCustomTeamsFromWorkspaceSettings(workspaceSettings);
+  const workspaceCustomTeams =
+    loadCustomTeamsFromWorkspaceSettings(workspaceSettings);
   if (workspaceState.kind === "disabled") {
     return null;
   }

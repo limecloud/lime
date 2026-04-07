@@ -375,7 +375,9 @@ export function ServiceSkillLaunchDialog({
                   {siteLaunchReadiness.phase === "blocked" &&
                   canOpenBrowserRuntime ? (
                     <p className="mt-2 text-[11px] opacity-80">
-                      {buildSiteLaunchBlockedMessage(siteLaunchReadiness.result)}
+                      {buildSiteLaunchBlockedMessage(
+                        siteLaunchReadiness.result,
+                      )}
                     </p>
                   ) : null}
                   <button

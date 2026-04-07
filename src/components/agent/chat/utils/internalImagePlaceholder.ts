@@ -1,7 +1,8 @@
 import type { ContentPart, Message } from "../types";
 
 const BRACKET_IMAGE_PLACEHOLDER_RE = /\[\s*Image\s*#\d+\s*\]/gi;
-const BARE_IMAGE_PLACEHOLDER_RE = /(^|[\s,，;；])Image\s*#\d+(?=$|[\s,，;；])/gi;
+const BARE_IMAGE_PLACEHOLDER_RE =
+  /(^|[\s,，;；])Image\s*#\d+(?=$|[\s,，;；])/gi;
 const ONLY_IMAGE_PLACEHOLDERS_RE =
   /^\s*(?:(?:\[\s*Image\s*#\d+\s*\]|Image\s*#\d+)\s*[,，;；]?\s*)+$/i;
 const BRACKET_IMAGE_PLACEHOLDER_TEST_RE = /\[\s*Image\s*#\d+\s*\]/i;
@@ -84,7 +85,9 @@ export function sanitizeMessageTextForDisplay(
     return "";
   }
 
-  return collapseDisplayWhitespace(replaceImagePlaceholders(normalized, "图片"));
+  return collapseDisplayWhitespace(
+    replaceImagePlaceholders(normalized, "图片"),
+  );
 }
 
 export function sanitizeMessageTextForPreview(

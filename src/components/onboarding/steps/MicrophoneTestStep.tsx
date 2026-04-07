@@ -113,9 +113,8 @@ export function MicrophoneTestStep({
     setMaxVolume(0);
 
     try {
-      const { startRecording, getRecordingStatus } = await import(
-        "@/lib/api/asrProvider"
-      );
+      const { startRecording, getRecordingStatus } =
+        await import("@/lib/api/asrProvider");
 
       await startRecording();
 

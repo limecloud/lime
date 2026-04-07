@@ -25,7 +25,9 @@ import { iconComponents } from "./index";
 
 describe("Provider 图标系统", () => {
   const resourceProviderIds = fs
-    .readdirSync(path.join(process.cwd(), "src-tauri/resources/models/providers"))
+    .readdirSync(
+      path.join(process.cwd(), "src-tauri/resources/models/providers"),
+    )
     .filter((fileName) => fileName.endsWith(".json"))
     .map((fileName) => fileName.replace(/\.json$/, ""));
 

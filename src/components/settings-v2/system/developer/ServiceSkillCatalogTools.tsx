@@ -25,9 +25,8 @@ function toErrorText(error: unknown, fallback: string) {
 export function ServiceSkillCatalogTools() {
   const [busy, setBusy] = useState(false);
   const [catalogEditorValue, setCatalogEditorValue] = useState("");
-  const [serviceCatalog, setServiceCatalog] = useState<ServiceSkillCatalog | null>(
-    null,
-  );
+  const [serviceCatalog, setServiceCatalog] =
+    useState<ServiceSkillCatalog | null>(null);
   const [message, setMessage] = useState<DeveloperPanelMessage | null>(null);
 
   const showMessage = useCallback((next: DeveloperPanelMessage) => {

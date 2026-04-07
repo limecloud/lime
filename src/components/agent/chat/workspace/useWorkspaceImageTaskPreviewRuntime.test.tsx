@@ -603,7 +603,9 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
               provider: "fal",
               model: "flux-pro",
               result_snapshot: {
-                images: [{ url: "https://example.com/prefer-artifact-api.png" }],
+                images: [
+                  { url: "https://example.com/prefer-artifact-api.png" },
+                ],
               },
             },
           ],

@@ -122,7 +122,9 @@ function collectFieldMatches(text: string): SiteSearchFieldMatch[] {
 
   return baseMatches.map((match, index) => {
     const nextStart =
-      index + 1 < baseMatches.length ? baseMatches[index + 1]!.start : text.length;
+      index + 1 < baseMatches.length
+        ? baseMatches[index + 1]!.start
+        : text.length;
     const remainder = text.slice(match.valueStart, nextStart);
 
     if (match.key === "limit") {
@@ -143,7 +145,10 @@ function collectFieldMatches(text: string): SiteSearchFieldMatch[] {
   });
 }
 
-function stripExplicitFields(text: string, matches: SiteSearchFieldMatch[]): string {
+function stripExplicitFields(
+  text: string,
+  matches: SiteSearchFieldMatch[],
+): string {
   if (matches.length === 0) {
     return text;
   }
@@ -224,7 +229,9 @@ export function parseSiteSearchWorkbenchCommand(
       inlineLimit ? Number.parseInt(inlineLimit, 10) : undefined,
     );
     if (limit) {
-      promptSource = trimDecorations(promptSource.replace(INLINE_LIMIT_REGEX, " "));
+      promptSource = trimDecorations(
+        promptSource.replace(INLINE_LIMIT_REGEX, " "),
+      );
     }
   }
 

@@ -3,7 +3,11 @@
  * @description 文档编辑器快捷键定义与匹配
  */
 
-import { hasPrimaryModifier, normalizeHotkeyKey, type HotkeyEventLike } from "@/lib/hotkeys/platform";
+import {
+  hasPrimaryModifier,
+  normalizeHotkeyKey,
+  type HotkeyEventLike,
+} from "@/lib/hotkeys/platform";
 import type { AuditedHotkeyDefinition } from "@/lib/hotkeys/types";
 
 export const DOCUMENT_EDITOR_HOTKEYS: AuditedHotkeyDefinition[] = [

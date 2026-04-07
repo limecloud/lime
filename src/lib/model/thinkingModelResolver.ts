@@ -35,7 +35,8 @@ interface ResolveThinkingOffModelParams {
   rememberedBaseModel?: string | null;
 }
 
-const normalizeModelId = (modelId: string): string => modelId.trim().toLowerCase();
+const normalizeModelId = (modelId: string): string =>
+  modelId.trim().toLowerCase();
 
 const normalizeBaseModelKey = (modelId: string): string => {
   return normalizeModelId(modelId)
@@ -222,7 +223,9 @@ export function resolveBaseModelOnThinkingOff(
     if (rememberedMeta && !isReasoningModel(rememberedMeta.id, models)) {
       return {
         targetModelId: rememberedMeta.id,
-        switched: normalizeModelId(rememberedMeta.id) !== normalizeModelId(currentModelId),
+        switched:
+          normalizeModelId(rememberedMeta.id) !==
+          normalizeModelId(currentModelId),
         reason: "restored_base",
       };
     }
@@ -232,7 +235,8 @@ export function resolveBaseModelOnThinkingOff(
   if (fallbackBase) {
     return {
       targetModelId: fallbackBase.id,
-      switched: normalizeModelId(fallbackBase.id) !== normalizeModelId(currentModelId),
+      switched:
+        normalizeModelId(fallbackBase.id) !== normalizeModelId(currentModelId),
       reason: "restored_base",
     };
   }

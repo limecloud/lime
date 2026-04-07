@@ -55,9 +55,7 @@ interface AgentThreadReliabilityPanelProps {
   onResumeThread?: () => boolean | Promise<boolean>;
   onReplayPendingRequest?: (requestId: string) => boolean | Promise<boolean>;
   onLocatePendingRequest?: (requestId: string) => void;
-  onPromoteQueuedTurn?: (
-    queuedTurnId: string,
-  ) => boolean | Promise<boolean>;
+  onPromoteQueuedTurn?: (queuedTurnId: string) => boolean | Promise<boolean>;
   className?: string;
   harnessState?: HarnessSessionState | null;
   messages?: Message[];
@@ -76,7 +74,10 @@ function normalizeDiagnosticText(value?: string | null): string {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
 }
 
-function truncateDiagnosticText(value?: string | null, maxLength = 240): string {
+function truncateDiagnosticText(
+  value?: string | null,
+  maxLength = 240,
+): string {
   const normalized = normalizeDiagnosticText(value);
   if (!normalized) {
     return "";
@@ -145,9 +146,14 @@ function summarizeRecentMessages(messages: Message[]) {
       : null,
     action_request_count: message.actionRequests?.length || 0,
     action_request_titles:
-      message.actionRequests?.slice(0, 3).map((request) =>
-        truncateDiagnosticText(request.prompt || request.toolName || request.requestId, 120),
-      ) || [],
+      message.actionRequests
+        ?.slice(0, 3)
+        .map((request) =>
+          truncateDiagnosticText(
+            request.prompt || request.toolName || request.requestId,
+            120,
+          ),
+        ) || [],
     tool_calls:
       message.toolCalls?.slice(0, 4).map((toolCall) => ({
         id: toolCall.id,
@@ -175,8 +181,12 @@ function summarizeHarnessState(harnessState?: HarnessSessionState | null) {
       ? {
           phase: harnessState.runtimeStatus.phase,
           title: harnessState.runtimeStatus.title,
-          detail: truncateDiagnosticText(harnessState.runtimeStatus.detail, 220),
-          checkpoints: harnessState.runtimeStatus.checkpoints?.slice(0, 6) || [],
+          detail: truncateDiagnosticText(
+            harnessState.runtimeStatus.detail,
+            220,
+          ),
+          checkpoints:
+            harnessState.runtimeStatus.checkpoints?.slice(0, 6) || [],
           metadata: harnessState.runtimeStatus.metadata || null,
         }
       : null,
@@ -214,23 +224,30 @@ function summarizeHarnessState(harnessState?: HarnessSessionState | null) {
       truncated: signal.truncated || false,
       offloaded: signal.offloaded || false,
     })),
-    active_file_writes: harnessState.activeFileWrites.slice(0, 6).map((write) => ({
-      id: write.id,
-      path: write.path,
-      display_name: write.displayName,
-      phase: write.phase,
-      status: write.status,
-      preview: truncateDiagnosticText(write.preview || write.latestChunk, 160),
-    })),
-    recent_file_events: harnessState.recentFileEvents.slice(0, 8).map((event) => ({
-      id: event.id,
-      path: event.path,
-      display_name: event.displayName,
-      kind: event.kind,
-      action: event.action,
-      source_tool_name: event.sourceToolName,
-      preview: truncateDiagnosticText(event.preview, 140),
-    })),
+    active_file_writes: harnessState.activeFileWrites
+      .slice(0, 6)
+      .map((write) => ({
+        id: write.id,
+        path: write.path,
+        display_name: write.displayName,
+        phase: write.phase,
+        status: write.status,
+        preview: truncateDiagnosticText(
+          write.preview || write.latestChunk,
+          160,
+        ),
+      })),
+    recent_file_events: harnessState.recentFileEvents
+      .slice(0, 8)
+      .map((event) => ({
+        id: event.id,
+        path: event.path,
+        display_name: event.displayName,
+        kind: event.kind,
+        action: event.action,
+        source_tool_name: event.sourceToolName,
+        preview: truncateDiagnosticText(event.preview, 140),
+      })),
   };
 }
 
@@ -441,7 +458,9 @@ function buildReliabilityDiagnosticText(params: {
   sections.push("", "### 后端诊断聚合");
   if (threadRead?.diagnostics) {
     const diagnostics = threadRead.diagnostics;
-    sections.push(`- 最新回合状态：${diagnostics.latest_turn_status || "未知"}`);
+    sections.push(
+      `- 最新回合状态：${diagnostics.latest_turn_status || "未知"}`,
+    );
     sections.push(
       `- 最新回合开始时间：${diagnostics.latest_turn_started_at || "未知"}`,
     );
@@ -461,7 +480,9 @@ function buildReliabilityDiagnosticText(params: {
       `- 最新回合错误：${diagnostics.latest_turn_error_message || "无"}`,
     );
     sections.push(`- 中断原因：${diagnostics.interrupt_reason || "未知"}`);
-    sections.push(`- 中断来源：${diagnostics.runtime_interrupt_source || "未知"}`);
+    sections.push(
+      `- 中断来源：${diagnostics.runtime_interrupt_source || "未知"}`,
+    );
     sections.push(
       `- 中断请求时间：${diagnostics.runtime_interrupt_requested_at || "未知"}`,
     );
@@ -480,8 +501,12 @@ function buildReliabilityDiagnosticText(params: {
     sections.push(
       `- 最老待处理请求等待时长（秒）：${diagnostics.oldest_pending_request_wait_seconds ?? "无"}`,
     );
-    sections.push(`- 主阻塞类型：${diagnostics.primary_blocking_kind || "未知"}`);
-    sections.push(`- 主阻塞摘要：${diagnostics.primary_blocking_summary || "未知"}`);
+    sections.push(
+      `- 主阻塞类型：${diagnostics.primary_blocking_kind || "未知"}`,
+    );
+    sections.push(
+      `- 主阻塞摘要：${diagnostics.primary_blocking_summary || "未知"}`,
+    );
     sections.push(
       `- 最近 warning：${
         diagnostics.latest_warning
@@ -737,7 +762,9 @@ export const AgentThreadReliabilityPanel: React.FC<
       );
       toast.success("原始 JSON 已复制");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "复制原始 JSON 失败");
+      toast.error(
+        error instanceof Error ? error.message : "复制原始 JSON 失败",
+      );
     }
   };
 
@@ -773,11 +800,15 @@ export const AgentThreadReliabilityPanel: React.FC<
               </span>
             ) : null}
           </div>
-          <div className="mt-2 text-sm leading-6 text-muted-foreground">{summary}</div>
+          <div className="mt-2 text-sm leading-6 text-muted-foreground">
+            {summary}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
-          {view.updatedAtLabel ? <span>最近刷新 {view.updatedAtLabel}</span> : null}
+          {view.updatedAtLabel ? (
+            <span>最近刷新 {view.updatedAtLabel}</span>
+          ) : null}
           {view.interruptStateLabel ? (
             <Badge
               variant="outline"
@@ -812,9 +843,10 @@ export const AgentThreadReliabilityPanel: React.FC<
       </div>
       <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-[11px] leading-5 text-amber-900">
         当前入口属于 `compat` 线程级快速诊断，只覆盖当前 thread 的运行信号。
-        正式交给外部 Claude / Codex 分析时，请优先使用工作台“交接制品
-        → 外部分析交接”的 `analysis-brief.md / analysis-context.json`
-        主链；这里的“快速复制给 AI”只适合临时排障，“复制原始 JSON（debug）”适合程序化分析、存档或二次处理。
+        正式交给外部 Claude / Codex 分析时，请优先使用工作台“交接制品 →
+        外部分析交接”的 `analysis-brief.md / analysis-context.json`
+        主链；这里的“快速复制给 AI”只适合临时排障，“复制原始
+        JSON（debug）”适合程序化分析、存档或二次处理。
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-3">

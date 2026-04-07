@@ -94,7 +94,10 @@ const EXEC_LOG_DETAIL_TAG_LIST_CLASSNAME = "flex flex-wrap gap-1.5";
 const EXEC_LOG_DETAIL_TAG_CLASSNAME =
   "inline-flex min-h-6 items-center rounded-full border border-slate-200 bg-white px-2.5 text-[10.5px] font-medium text-slate-600";
 
-function matchesExecLogFilter(entry: ExecLogEntry, filter: ExecLogFilter): boolean {
+function matchesExecLogFilter(
+  entry: ExecLogEntry,
+  filter: ExecLogFilter,
+): boolean {
   if (filter === "skill") {
     return entry.type === "run";
   }
@@ -130,18 +133,14 @@ function getExecLogBadgeClassName(type: string, status?: string) {
     status === "completed" &&
       "border-emerald-200 bg-emerald-50 text-emerald-700",
     !status && type === "user" && "border-sky-200 bg-sky-50 text-sky-700",
-    !status &&
-      type === "thinking" &&
-      "border-sky-100 bg-sky-50 text-sky-600",
+    !status && type === "thinking" && "border-sky-100 bg-sky-50 text-sky-600",
     !status &&
       type === "response" &&
       "border-slate-200 bg-slate-100 text-slate-600",
     !status &&
       type === "run" &&
       "border-emerald-200 bg-emerald-50 text-emerald-700",
-    !status &&
-      type === "task" &&
-      "border-amber-200 bg-amber-50 text-amber-700",
+    !status && type === "task" && "border-amber-200 bg-amber-50 text-amber-700",
     !status && type === "tool" && "border-sky-200 bg-sky-50 text-sky-700",
   );
 }
@@ -206,7 +205,9 @@ export function GeneralWorkbenchExecLog({
 
   useEffect(() => {
     setExpandedEntryIds((previous) =>
-      previous.filter((entryId) => entries.some((entry) => entry.id === entryId)),
+      previous.filter((entryId) =>
+        entries.some((entry) => entry.id === entryId),
+      ),
     );
   }, [entries]);
 
@@ -216,7 +217,8 @@ export function GeneralWorkbenchExecLog({
         return null;
       }
       const isExpanded = expandedEntryIds.includes(entry.id);
-      const detailLabel = entry.detail.kind === "tool" ? "工具详情" : "技能详情";
+      const detailLabel =
+        entry.detail.kind === "tool" ? "工具详情" : "技能详情";
       const hasDetailContent =
         Boolean(entry.detail.sourceRef) ||
         Boolean(entry.detail.description) ||
@@ -241,13 +243,19 @@ export function GeneralWorkbenchExecLog({
             onClick={() => toggleDetail(entry.id)}
           >
             {isExpanded ? `收起${detailLabel}` : `查看${detailLabel}`}
-            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {isExpanded ? (
+              <ChevronDown size={12} />
+            ) : (
+              <ChevronRight size={12} />
+            )}
           </button>
           {isExpanded ? (
             <div className={EXEC_LOG_DETAIL_PANEL_CLASSNAME}>
               {entry.detail.argumentsText ? (
                 <div className={EXEC_LOG_DETAIL_SECTION_CLASSNAME}>
-                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>请求参数</div>
+                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>
+                    请求参数
+                  </div>
                   <div className={EXEC_LOG_DETAIL_TEXT_CLASSNAME}>
                     {entry.detail.argumentsText}
                   </div>
@@ -255,7 +263,9 @@ export function GeneralWorkbenchExecLog({
               ) : null}
               {entry.detail.resultText ? (
                 <div className={EXEC_LOG_DETAIL_SECTION_CLASSNAME}>
-                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>执行结果</div>
+                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>
+                    执行结果
+                  </div>
                   <div className={EXEC_LOG_DETAIL_TEXT_CLASSNAME}>
                     {entry.detail.resultText}
                   </div>
@@ -263,7 +273,9 @@ export function GeneralWorkbenchExecLog({
               ) : null}
               {entry.detail.errorText ? (
                 <div className={EXEC_LOG_DETAIL_SECTION_CLASSNAME}>
-                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>错误信息</div>
+                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>
+                    错误信息
+                  </div>
                   <div className={EXEC_LOG_DETAIL_TEXT_CLASSNAME}>
                     {entry.detail.errorText}
                   </div>
@@ -271,7 +283,9 @@ export function GeneralWorkbenchExecLog({
               ) : null}
               {entry.detail.sourceRef ? (
                 <div className={EXEC_LOG_DETAIL_SECTION_CLASSNAME}>
-                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>技能标识</div>
+                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>
+                    技能标识
+                  </div>
                   <div className={EXEC_LOG_DETAIL_TEXT_CLASSNAME}>
                     {entry.detail.sourceRef}
                   </div>
@@ -279,7 +293,9 @@ export function GeneralWorkbenchExecLog({
               ) : null}
               {entry.detail.description ? (
                 <div className={EXEC_LOG_DETAIL_SECTION_CLASSNAME}>
-                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>技能说明</div>
+                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>
+                    技能说明
+                  </div>
                   <div className={EXEC_LOG_DETAIL_TEXT_CLASSNAME}>
                     {entry.detail.description}
                   </div>
@@ -287,15 +303,20 @@ export function GeneralWorkbenchExecLog({
               ) : null}
               {entry.detail.whenToUse ? (
                 <div className={EXEC_LOG_DETAIL_SECTION_CLASSNAME}>
-                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>适用场景</div>
+                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>
+                    适用场景
+                  </div>
                   <div className={EXEC_LOG_DETAIL_TEXT_CLASSNAME}>
                     {entry.detail.whenToUse}
                   </div>
                 </div>
               ) : null}
-              {entry.detail.workflowSteps && entry.detail.workflowSteps.length > 0 ? (
+              {entry.detail.workflowSteps &&
+              entry.detail.workflowSteps.length > 0 ? (
                 <div className={EXEC_LOG_DETAIL_SECTION_CLASSNAME}>
-                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>工作流步骤</div>
+                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>
+                    工作流步骤
+                  </div>
                   <div className={EXEC_LOG_DETAIL_LIST_CLASSNAME}>
                     {entry.detail.workflowSteps.map((step, index) => (
                       <div
@@ -308,9 +329,12 @@ export function GeneralWorkbenchExecLog({
                   </div>
                 </div>
               ) : null}
-              {entry.detail.allowedTools && entry.detail.allowedTools.length > 0 ? (
+              {entry.detail.allowedTools &&
+              entry.detail.allowedTools.length > 0 ? (
                 <div className={EXEC_LOG_DETAIL_SECTION_CLASSNAME}>
-                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>允许工具</div>
+                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>
+                    允许工具
+                  </div>
                   <div className={EXEC_LOG_DETAIL_TAG_LIST_CLASSNAME}>
                     {entry.detail.allowedTools.map((toolName) => (
                       <span
@@ -323,9 +347,12 @@ export function GeneralWorkbenchExecLog({
                   </div>
                 </div>
               ) : null}
-              {entry.detail.artifactPaths && entry.detail.artifactPaths.length > 0 ? (
+              {entry.detail.artifactPaths &&
+              entry.detail.artifactPaths.length > 0 ? (
                 <div className={EXEC_LOG_DETAIL_SECTION_CLASSNAME}>
-                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>关联产物</div>
+                  <div className={EXEC_LOG_DETAIL_LABEL_CLASSNAME}>
+                    关联产物
+                  </div>
                   <div className={EXEC_LOG_DETAIL_LIST_CLASSNAME}>
                     {entry.detail.artifactPaths.map((artifactPath) => (
                       <div
@@ -410,10 +437,17 @@ export function GeneralWorkbenchExecLog({
         <div className={EXEC_LOG_TIMELINE_CLASSNAME}>
           {filteredEntries.map((entry) => (
             <div key={entry.id} className={EXEC_LOG_ITEM_CLASSNAME}>
-              <span className={getExecLogDotClassName(entry.type, entry.status)} />
+              <span
+                className={getExecLogDotClassName(entry.type, entry.status)}
+              />
               <div className={EXEC_LOG_ITEM_CARD_CLASSNAME}>
                 <div className={EXEC_LOG_HEADER_CLASSNAME}>
-                  <span className={getExecLogBadgeClassName(entry.type, entry.status)}>
+                  <span
+                    className={getExecLogBadgeClassName(
+                      entry.type,
+                      entry.status,
+                    )}
+                  >
                     {entry.typeLabel}
                   </span>
                   <span className={EXEC_LOG_TIME_CLASSNAME}>
@@ -424,15 +458,20 @@ export function GeneralWorkbenchExecLog({
                             minute: "2-digit",
                             second: "2-digit",
                           })
-                        : new Date(entry.timestamp).toLocaleTimeString("zh-CN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                          })
+                        : new Date(entry.timestamp).toLocaleTimeString(
+                            "zh-CN",
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                            },
+                          )
                       : ""}
                   </span>
                 </div>
-                <div className={EXEC_LOG_CONTENT_CLASSNAME}>{entry.content}</div>
+                <div className={EXEC_LOG_CONTENT_CLASSNAME}>
+                  {entry.content}
+                </div>
                 {entry.meta ? (
                   <div className={EXEC_LOG_META_CLASSNAME}>{entry.meta}</div>
                 ) : null}

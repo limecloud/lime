@@ -25,7 +25,9 @@ import type { AgentAccessMode } from "../hooks/agentChatStorage";
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
 
 type PreparedRuntimeTeamState = NonNullable<
-  Awaited<ReturnType<UseRuntimeTeamFormationResult["prepareRuntimeTeamBeforeSend"]>>
+  Awaited<
+    ReturnType<UseRuntimeTeamFormationResult["prepareRuntimeTeamBeforeSend"]>
+  >
 >;
 
 export interface ContextWorkspaceSummary {
@@ -44,9 +46,7 @@ type PreparedActiveContextPromptResult =
       error: unknown;
     };
 
-function asRecord(
-  value: unknown,
-): Record<string, unknown> | undefined {
+function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
   }
@@ -82,11 +82,7 @@ function readExistingTeamSource(
   metadata: Record<string, unknown> | undefined,
 ): TeamDefinitionSource | undefined {
   const source = readMetadataText(metadata, "selected_team_source");
-  if (
-    source === "builtin" ||
-    source === "custom" ||
-    source === "ephemeral"
-  ) {
+  if (source === "builtin" || source === "custom" || source === "ephemeral") {
     return source;
   }
   return undefined;
@@ -138,7 +134,8 @@ function readExistingTeamMemoryShadow(
   metadata: Record<string, unknown> | undefined,
 ): TeamMemoryShadowRequestMetadata | undefined {
   const rawShadow =
-    asRecord(metadata?.team_memory_shadow) ?? asRecord(metadata?.teamMemoryShadow);
+    asRecord(metadata?.team_memory_shadow) ??
+    asRecord(metadata?.teamMemoryShadow);
   const repoScope =
     readMetadataText(rawShadow, "repo_scope") ||
     readMetadataText(rawShadow, "repoScope");
@@ -165,9 +162,7 @@ function readExistingTeamMemoryShadow(
       };
     })
     .filter(
-      (
-        entry,
-      ): entry is TeamMemoryShadowRequestMetadata["entries"][number] =>
+      (entry): entry is TeamMemoryShadowRequestMetadata["entries"][number] =>
         entry !== null,
     );
 
@@ -300,8 +295,9 @@ export async function buildWorkspaceSendText(
       }
       activeContextPrompt = result.value.trim();
     } else {
-      activeContextPrompt =
-        (await contextWorkspace.prepareActiveContextPrompt()).trim();
+      activeContextPrompt = (
+        await contextWorkspace.prepareActiveContextPrompt()
+      ).trim();
     }
   } else if (activeContextPrompt) {
     // 发送路径优先使用现成上下文快照，后台继续补齐正文缓存以优化后续轮次。
@@ -324,15 +320,38 @@ export function hasServiceSkillLaunchRequestMetadata(
     return false;
   }
 
-  const launch =
+  const siteLaunch =
     asRecord(harness.service_skill_launch) ??
     asRecord(harness.serviceSkillLaunch);
-  if (!launch) {
+  if (siteLaunch) {
+    const adapterName = siteLaunch.adapter_name ?? siteLaunch.adapterName;
+    if (typeof adapterName === "string" && adapterName.trim().length > 0) {
+      return true;
+    }
+  }
+
+  const sceneLaunch =
+    asRecord(harness.service_scene_launch) ??
+    asRecord(harness.serviceSceneLaunch);
+  if (!sceneLaunch) {
     return false;
   }
 
-  const adapterName = launch.adapter_name ?? launch.adapterName;
-  return typeof adapterName === "string" && adapterName.trim().length > 0;
+  const serviceSceneRun =
+    asRecord(sceneLaunch.service_scene_run) ??
+    asRecord(sceneLaunch.serviceSceneRun) ??
+    asRecord(sceneLaunch.request_context) ??
+    asRecord(sceneLaunch.requestContext);
+  if (!serviceSceneRun) {
+    return false;
+  }
+
+  const skillId =
+    serviceSceneRun.skill_id ??
+    serviceSceneRun.skillId ??
+    serviceSceneRun.linked_skill_id ??
+    serviceSceneRun.linkedSkillId;
+  return typeof skillId === "string" && skillId.trim().length > 0;
 }
 
 export function hasModelSkillLaunchRequestMetadata(

@@ -94,8 +94,7 @@ const Select: React.FC<SelectProps> = ({
   );
 };
 
-interface SelectTriggerProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface SelectTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   className?: string;
   children: React.ReactNode;
 }

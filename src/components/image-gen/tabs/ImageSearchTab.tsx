@@ -852,9 +852,7 @@ export function ImageSearchTab({ projectId, onNavigate }: ImageSearchTabProps) {
       contentId: targetContentId,
       canvasType: targetCanvasType,
       anchorHint:
-        targetCanvasType === "video"
-          ? "video_start_frame"
-          : "section_end",
+        targetCanvasType === "video" ? "video_start_frame" : "section_end",
       source: image.provider === "pexels" ? "pexels" : "pixabay",
       image: {
         id: image.id,

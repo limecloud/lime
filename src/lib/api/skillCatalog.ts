@@ -78,7 +78,11 @@ export interface SkillCatalogCommandEntry {
   triggers: SkillCatalogCommandTrigger[];
   binding?: {
     skillId?: string;
-    executionKind?: SkillCatalogExecutionKind | "task_queue" | "server_api" | "cli";
+    executionKind?:
+      | SkillCatalogExecutionKind
+      | "task_queue"
+      | "server_api"
+      | "cli";
   };
   renderContract?: SkillCatalogRenderContract;
 }
@@ -145,7 +149,8 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     key: "github",
     title: "GitHub",
     summary: "围绕仓库与 Issue 的只读研究技能，直接复用真实登录态抓线索。",
-    entryHint: "先选一个 GitHub 技能，再补关键词或仓库名，结果会直接回流到当前工作区。",
+    entryHint:
+      "先选一个 GitHub 技能，再补关键词或仓库名，结果会直接回流到当前工作区。",
     themeTarget: "general",
     sort: 10,
   },
@@ -168,7 +173,8 @@ const SEEDED_SKILL_GROUP_PRESETS = [
   {
     key: "bilibili",
     title: "Bilibili",
-    summary: "围绕视频检索的只读站点技能，适合快速抓视频线索并回流到当前工作区。",
+    summary:
+      "围绕视频检索的只读站点技能，适合快速抓视频线索并回流到当前工作区。",
     entryHint: "先给检索词，再直接复用当前浏览器页面做一轮视频线索采集。",
     themeTarget: "general",
     sort: 40,
@@ -184,7 +190,8 @@ const SEEDED_SKILL_GROUP_PRESETS = [
   {
     key: "smzdm",
     title: "什么值得买",
-    summary: "围绕消费和商品检索的只读站点技能，适合快速抓价格、优惠与选品线索。",
+    summary:
+      "围绕消费和商品检索的只读站点技能，适合快速抓价格、优惠与选品线索。",
     entryHint: "输入商品关键词后直接采集结果，再回到 Claw 做整理和对比。",
     themeTarget: "general",
     sort: 60,
@@ -200,14 +207,16 @@ const SEEDED_SKILL_GROUP_PRESETS = [
   {
     key: "general",
     title: "通用技能",
-    summary: "保留现有写作、调研、趋势与持续跟踪能力，作为站点组之外的业务技能入口。",
-    entryHint: "如果任务不依赖站点登录态，直接从这里选一个通用技能进入工作模式。",
+    summary:
+      "保留现有写作、调研、趋势与持续跟踪能力，作为站点组之外的业务技能入口。",
+    entryHint:
+      "如果任务不依赖站点登录态，直接从这里选一个通用技能进入工作模式。",
     themeTarget: "general",
     sort: 90,
   },
 ] as const;
 const SEEDED_SKILL_CATALOG_VERSION =
-  "client-seed-skill-catalog-2026-04-07-z-code-runtime";
+  "client-seed-skill-catalog-2026-04-08-a-voice-runtime";
 const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
   {
     id: "command:image_generate",
@@ -300,6 +309,33 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     },
   },
   {
+    id: "command:voice_runtime",
+    title: "配音",
+    summary: "把视频或旁白需求切到云端配音技能主链，优先提交服务型技能运行。",
+    commandKey: "voice_runtime",
+    aliases: [
+      "voice",
+      "dubbing",
+      "dub",
+      "peiyin",
+      "配音",
+      "旁白",
+      "视频配音",
+      "语音配音",
+    ],
+    triggers: [{ mode: "mention", prefix: "@配音" }],
+    binding: {
+      skillId: "cloud-video-dubbing",
+      executionKind: "cloud_scene" as const,
+    },
+    renderContract: {
+      resultKind: "tool_timeline" as const,
+      detailKind: "scene_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
     id: "command:presentation_generate",
     title: "PPT",
     summary: "根据目标说明生成一份可直接讲述和继续导出的演示稿草稿。",
@@ -331,15 +367,7 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     title: "表单",
     summary: "根据目标说明生成可直接在聊天区渲染的 A2UI 表单。",
     commandKey: "form_generate",
-    aliases: [
-      "form",
-      "survey",
-      "biaodan",
-      "wenjuan",
-      "表单",
-      "问卷",
-      "报名表",
-    ],
+    aliases: ["form", "survey", "biaodan", "wenjuan", "表单", "问卷", "报名表"],
     triggers: [{ mode: "mention", prefix: "@表单" }],
     binding: {
       skillId: "form_generate",
@@ -456,14 +484,7 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     title: "素材",
     summary: "为当前内容提交图片、BGM、音效等资源检索任务。",
     commandKey: "modal_resource_search",
-    aliases: [
-      "resource",
-      "sucai",
-      "素材",
-      "资源",
-      "素材检索",
-      "资源检索",
-    ],
+    aliases: ["resource", "sucai", "素材", "资源", "素材检索", "资源检索"],
     triggers: [{ mode: "mention", prefix: "@素材" }],
     binding: {
       skillId: "modal_resource_search",
@@ -585,7 +606,8 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
   {
     id: "command:read_pdf",
     title: "读PDF",
-    summary: "读取本地或工作区 PDF，并通过真实文件读取 timeline 输出结构化解读。",
+    summary:
+      "读取本地或工作区 PDF，并通过真实文件读取 timeline 输出结构化解读。",
     commandKey: "read_pdf",
     aliases: [
       "pdf",
@@ -613,14 +635,7 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     title: "总结",
     summary: "提炼当前文本、对话或上下文中的关键结论与重点。",
     commandKey: "summary",
-    aliases: [
-      "summary",
-      "summarize",
-      "zongjie",
-      "总结",
-      "摘要",
-      "提炼重点",
-    ],
+    aliases: ["summary", "summarize", "zongjie", "总结", "摘要", "提炼重点"],
     triggers: [{ mode: "mention", prefix: "@总结" }],
     binding: {
       skillId: "summary",
@@ -664,14 +679,7 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     title: "分析",
     summary: "分析当前文本、对话或文件内容，输出判断、依据与待确认项。",
     commandKey: "analysis",
-    aliases: [
-      "analysis",
-      "analyze",
-      "fenxi",
-      "分析",
-      "拆解",
-      "研判",
-    ],
+    aliases: ["analysis", "analyze", "fenxi", "分析", "拆解", "研判"],
     triggers: [{ mode: "mention", prefix: "@分析" }],
     binding: {
       skillId: "analysis",
@@ -804,12 +812,7 @@ function resolveSkillCatalogExecutionKind(
 
 function parseCommandBindingExecutionKind(
   value: unknown,
-):
-  | SkillCatalogExecutionKind
-  | "task_queue"
-  | "server_api"
-  | "cli"
-  | undefined {
+): SkillCatalogExecutionKind | "task_queue" | "server_api" | "cli" | undefined {
   const normalized = normalizeText(value);
   if (
     normalized === "native_skill" ||
@@ -870,7 +873,9 @@ function normalizeSurfaceScopes(
   return scopes.length > 0 ? scopes : undefined;
 }
 
-function parseRenderContract(value: unknown): SkillCatalogRenderContract | undefined {
+function parseRenderContract(
+  value: unknown,
+): SkillCatalogRenderContract | undefined {
   if (!isPlainRecord(value)) {
     return undefined;
   }
@@ -912,7 +917,9 @@ function parseRenderContract(value: unknown): SkillCatalogRenderContract | undef
   };
 }
 
-function buildSkillEntryFromCatalogItem(item: SkillCatalogItem): SkillCatalogSkillEntry {
+function buildSkillEntryFromCatalogItem(
+  item: SkillCatalogItem,
+): SkillCatalogSkillEntry {
   return {
     id: `skill:${item.id}`,
     kind: "skill",
@@ -1138,17 +1145,16 @@ function resolveGroupTitle(groupKey: string): string {
   if (SITE_GROUP_TITLE_OVERRIDES[normalized]) {
     return SITE_GROUP_TITLE_OVERRIDES[normalized]!;
   }
-  return normalized
-    .split(/[-_]/)
-    .map(titleCaseSegment)
-    .join(" ");
+  return normalized.split(/[-_]/).map(titleCaseSegment).join(" ");
 }
 
 function resolveKnownGroupPreset(groupKey: string) {
   return SEEDED_SKILL_GROUP_PRESETS.find((preset) => preset.key === groupKey);
 }
 
-function buildFallbackGroupPreset(groupKey: string): Omit<SkillCatalogGroup, "itemCount"> {
+function buildFallbackGroupPreset(
+  groupKey: string,
+): Omit<SkillCatalogGroup, "itemCount"> {
   const title = resolveGroupTitle(groupKey);
   return {
     key: groupKey,
@@ -1246,7 +1252,9 @@ function normalizeSkillCatalog(catalog: SkillCatalog): SkillCatalog {
   });
 }
 
-function parseSkillCatalogExecution(value: unknown): SkillCatalogExecution | null {
+function parseSkillCatalogExecution(
+  value: unknown,
+): SkillCatalogExecution | null {
   if (!isPlainRecord(value)) {
     return null;
   }
@@ -1289,7 +1297,8 @@ function parseSkillCatalogExecution(value: unknown): SkillCatalogExecution | nul
 
   return {
     kind,
-    siteAdapterBinding: siteAdapterBindingEnvelope?.items[0]?.siteCapabilityBinding,
+    siteAdapterBinding:
+      siteAdapterBindingEnvelope?.items[0]?.siteCapabilityBinding,
   };
 }
 
@@ -1595,7 +1604,9 @@ function compareCatalogVersion(left: string, right: string): number {
   });
 }
 
-function isSeededCatalogCompatibleWithActiveTenant(catalog: SkillCatalog): boolean {
+function isSeededCatalogCompatibleWithActiveTenant(
+  catalog: SkillCatalog,
+): boolean {
   if (isSeededSkillCatalog(catalog)) {
     return true;
   }
@@ -1617,21 +1628,31 @@ function shouldRefreshSeededSkillCatalog(
   }
 
   for (const seededGroup of seeded.groups) {
-    const cachedGroup = cached.groups.find((group) => group.key === seededGroup.key);
-    if (!cachedGroup || JSON.stringify(cachedGroup) !== JSON.stringify(seededGroup)) {
+    const cachedGroup = cached.groups.find(
+      (group) => group.key === seededGroup.key,
+    );
+    if (
+      !cachedGroup ||
+      JSON.stringify(cachedGroup) !== JSON.stringify(seededGroup)
+    ) {
       return true;
     }
   }
 
   for (const seededItem of seeded.items) {
     const cachedItem = cached.items.find((item) => item.id === seededItem.id);
-    if (!cachedItem || JSON.stringify(cachedItem) !== JSON.stringify(seededItem)) {
+    if (
+      !cachedItem ||
+      JSON.stringify(cachedItem) !== JSON.stringify(seededItem)
+    ) {
       return true;
     }
   }
 
   for (const seededEntry of seeded.entries) {
-    const cachedEntry = cached.entries.find((entry) => entry.id === seededEntry.id);
+    const cachedEntry = cached.entries.find(
+      (entry) => entry.id === seededEntry.id,
+    );
     if (
       !cachedEntry ||
       JSON.stringify(cachedEntry) !== JSON.stringify(seededEntry)
@@ -1732,7 +1753,10 @@ export function isSeededSkillCatalog(catalog: SkillCatalog): boolean {
 
 export function saveSkillCatalog(
   catalog: SkillCatalog,
-  source: Exclude<SkillCatalogChangeSource, "seeded_fallback" | "cache_clear"> = "manual_override",
+  source: Exclude<
+    SkillCatalogChangeSource,
+    "seeded_fallback" | "cache_clear"
+  > = "manual_override",
 ): SkillCatalog {
   const normalized = parseSkillCatalog(catalog);
   if (!normalized) {
@@ -1842,7 +1866,9 @@ async function requestRemoteSkillCatalog(): Promise<SkillCatalog> {
   }
 
   if (!response.ok) {
-    throw new Error(payload?.message?.trim() || `请求失败 (${response.status})`);
+    throw new Error(
+      payload?.message?.trim() || `请求失败 (${response.status})`,
+    );
   }
 
   const catalog = parseSkillCatalog(payload?.data);

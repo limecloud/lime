@@ -1,7 +1,4 @@
-export type WebpageWorkbenchCommandTrigger =
-  | "@网页"
-  | "@webpage"
-  | "@landing";
+export type WebpageWorkbenchCommandTrigger = "@网页" | "@webpage" | "@landing";
 
 export type WebpageType =
   | "landing_page"
@@ -28,18 +25,15 @@ const EXPLICIT_PAGE_TYPE_REGEX =
   /(?:类型|页面类型|type)\s*[:：=]?\s*(落地页|landing(?:\s+page)?|官网|首页|home(?:\s+page)?|活动页|campaign(?:\s+page)?|产品页|product(?:\s+page)?|文档页|docs?(?:\s+page)?|作品集|portfolio|简历页|resume(?:\s+page)?)(?=$|[\s,，。；;:：])/i;
 const LEADING_PAGE_TYPE_REGEX =
   /^(落地页|landing(?:\s+page)?|官网|首页|home(?:\s+page)?|活动页|campaign(?:\s+page)?|产品页|product(?:\s+page)?|文档页|docs?(?:\s+page)?|作品集|portfolio|简历页|resume(?:\s+page)?)(?=$|[\s,，。；;:：])/i;
-const PROMPT_BOUNDARY_PATTERN =
-  String.raw`(?:\s+(?:帮我|给我|请|生成|制作|搭建|做一个|做个|create|generate|build))`;
-const EXPLICIT_STYLE_REGEX =
-  new RegExp(
-    String.raw`(?:风格|style)\s*[:：=]?\s*(.+?)(?=$|[,，。；;\n]|(?:\s+(?:技术|栈|tech|stack|framework|类型|页面类型|type)\s*[:：=]?)|${PROMPT_BOUNDARY_PATTERN})`,
-    "i",
-  );
-const EXPLICIT_TECH_STACK_REGEX =
-  new RegExp(
-    String.raw`(?:技术|栈|tech|stack|framework)\s*[:：=]?\s*(.+?)(?=$|[,，。；;\n]|(?:\s+(?:风格|style|类型|页面类型|type)\s*[:：=]?)|${PROMPT_BOUNDARY_PATTERN})`,
-    "i",
-  );
+const PROMPT_BOUNDARY_PATTERN = String.raw`(?:\s+(?:帮我|给我|请|生成|制作|搭建|做一个|做个|create|generate|build))`;
+const EXPLICIT_STYLE_REGEX = new RegExp(
+  String.raw`(?:风格|style)\s*[:：=]?\s*(.+?)(?=$|[,，。；;\n]|(?:\s+(?:技术|栈|tech|stack|framework|类型|页面类型|type)\s*[:：=]?)|${PROMPT_BOUNDARY_PATTERN})`,
+  "i",
+);
+const EXPLICIT_TECH_STACK_REGEX = new RegExp(
+  String.raw`(?:技术|栈|tech|stack|framework)\s*[:：=]?\s*(.+?)(?=$|[,，。；;\n]|(?:\s+(?:风格|style|类型|页面类型|type)\s*[:：=]?)|${PROMPT_BOUNDARY_PATTERN})`,
+  "i",
+);
 const PROMPT_PREFIX_REGEX =
   /^\s*(生成|制作|搭建|做一个|做个|create|generate|build)(?:\s|$|[:：])*/i;
 
@@ -64,7 +58,11 @@ function normalizePageType(value: string | undefined): WebpageType | undefined {
     return undefined;
   }
 
-  if (normalized === "落地页" || normalized === "landing page" || normalized === "landing") {
+  if (
+    normalized === "落地页" ||
+    normalized === "landing page" ||
+    normalized === "landing"
+  ) {
     return "landing_page";
   }
   if (
@@ -128,7 +126,9 @@ function stripPromptDecorations(body: string, pageType?: string): string {
     stripField(
       stripField(
         stripField(
-          body.replace(leadingPageTypeRegex, "").replace(PROMPT_PREFIX_REGEX, ""),
+          body
+            .replace(leadingPageTypeRegex, "")
+            .replace(PROMPT_PREFIX_REGEX, ""),
           EXPLICIT_PAGE_TYPE_REGEX,
         ),
         EXPLICIT_STYLE_REGEX,
@@ -153,8 +153,13 @@ export function parseWebpageWorkbenchCommand(
   const leadingPageType = body.match(LEADING_PAGE_TYPE_REGEX)?.[1]?.trim();
   const pageType = normalizePageType(explicitPageType || leadingPageType);
   const style = trimDecorations(body.match(EXPLICIT_STYLE_REGEX)?.[1] || "");
-  const techStack = trimDecorations(body.match(EXPLICIT_TECH_STACK_REGEX)?.[1] || "");
-  const prompt = stripPromptDecorations(body, explicitPageType || leadingPageType);
+  const techStack = trimDecorations(
+    body.match(EXPLICIT_TECH_STACK_REGEX)?.[1] || "",
+  );
+  const prompt = stripPromptDecorations(
+    body,
+    explicitPageType || leadingPageType,
+  );
 
   return {
     rawText: text,

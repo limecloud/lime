@@ -63,7 +63,9 @@ function resolveSlotDisplayValue(
     return "";
   }
 
-  const matchedOption = slot.options?.find((option) => option.value === resolved);
+  const matchedOption = slot.options?.find(
+    (option) => option.value === resolved,
+  );
   return matchedOption?.label?.trim() || resolved;
 }
 
@@ -247,14 +249,12 @@ function buildServiceSkillAutomationMetadata(input: {
   };
 }
 
-function buildServiceSkillAutomationRequestMetadata(
-  input: {
-    skill: ServiceSkillItem;
-    slotValues?: ServiceSkillSlotValues;
-    userInput?: string;
-    contentId?: string | null;
-  },
-): Record<string, unknown> | undefined {
+function buildServiceSkillAutomationRequestMetadata(input: {
+  skill: ServiceSkillItem;
+  slotValues?: ServiceSkillSlotValues;
+  userInput?: string;
+  contentId?: string | null;
+}): Record<string, unknown> | undefined {
   const { skill, slotValues, userInput, contentId } = input;
   const targetTheme = skill.themeTarget?.trim();
   const workspaceSeed = buildServiceSkillWorkspaceSeed(skill, targetTheme);

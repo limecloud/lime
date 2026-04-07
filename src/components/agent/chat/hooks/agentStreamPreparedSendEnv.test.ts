@@ -45,8 +45,7 @@ describe("createAgentStreamPreparedSendEnv", () => {
       setExecutionRuntime: noopDispatch<AsterSessionExecutionRuntime | null>(),
       setQueuedTurns: noopDispatch<QueuedTurnSnapshot[]>(),
       setPendingActions: noopDispatch<ActionRequired[]>(),
-      setWorkspacePathMissing:
-        noopDispatch<WorkspacePathMissingState | null>(),
+      setWorkspacePathMissing: noopDispatch<WorkspacePathMissingState | null>(),
       setIsSending: noopDispatch<boolean>(),
       playToolcallSound: () => undefined,
       playTypewriterSound: () => undefined,

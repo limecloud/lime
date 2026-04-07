@@ -71,7 +71,8 @@ export const DocumentRenderer: React.FC<ArtifactRendererProps> = memo(
     viewMode: externalViewMode,
     tone = "dark",
   }) => {
-    const [internalViewMode, setInternalViewMode] = useState<ViewMode>("preview");
+    const [internalViewMode, setInternalViewMode] =
+      useState<ViewMode>("preview");
     const viewMode = externalViewMode ?? internalViewMode;
     const artifactDocument = useMemo(
       () =>
@@ -157,14 +158,20 @@ export const DocumentRenderer: React.FC<ArtifactRendererProps> = memo(
           ) : (
             <>
               {artifactDocument ? (
-                <ArtifactDocumentRenderer document={artifactDocument} tone={tone} />
+                <ArtifactDocumentRenderer
+                  document={artifactDocument}
+                  tone={tone}
+                />
               ) : (
                 <div
                   className={`h-full overflow-auto px-4 py-3 ${
                     tone === "light" ? "bg-background" : ""
                   }`}
                 >
-                  <MarkdownRenderer content={artifact.content} isStreaming={isStreaming} />
+                  <MarkdownRenderer
+                    content={artifact.content}
+                    isStreaming={isStreaming}
+                  />
                 </div>
               )}
             </>

@@ -10,7 +10,9 @@ type GeneralWorkbenchSidebarPresentationParams = Parameters<
 type GeneralWorkbenchSidebarHistory = NonNullable<
   GeneralWorkbenchSidebarPresentationParams["sidebar"]["history"]
 >;
-type ContextHarnessRuntime = ReturnType<typeof useWorkspaceContextHarnessRuntime>;
+type ContextHarnessRuntime = ReturnType<
+  typeof useWorkspaceContextHarnessRuntime
+>;
 type HarnessInventoryRuntime = ReturnType<
   typeof useWorkspaceHarnessInventoryRuntime
 >;
@@ -97,10 +99,12 @@ export function useWorkspaceGeneralWorkbenchShellRuntime({
         onCreateVersionSnapshot: handleCreateVersionSnapshot,
         onSwitchBranchVersion: handleSwitchBranchVersion,
         onSetBranchStatus: handleSetBranchStatus,
-        workflowSteps: generalWorkbenchSidebarRuntime.generalWorkbenchWorkflowSteps,
+        workflowSteps:
+          generalWorkbenchSidebarRuntime.generalWorkbenchWorkflowSteps,
         onAddImage: handleAddImage,
         onImportDocument: handleImportDocument,
-        activityLogs: generalWorkbenchSidebarRuntime.generalWorkbenchActivityLogs,
+        activityLogs:
+          generalWorkbenchSidebarRuntime.generalWorkbenchActivityLogs,
         creationTaskEvents:
           generalWorkbenchScaffoldRuntime.generalWorkbenchCreationTaskEvents,
         onViewRunDetail:

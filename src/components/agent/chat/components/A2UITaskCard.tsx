@@ -1,9 +1,6 @@
 import { A2UIRenderer } from "@/lib/workspace/a2ui";
 import { cn } from "@/lib/utils";
-import type {
-  A2UIFormData,
-  A2UIResponse,
-} from "@/lib/workspace/a2ui";
+import type { A2UIFormData, A2UIResponse } from "@/lib/workspace/a2ui";
 import {
   DEFAULT_A2UI_TASK_CARD_PRESET,
   type A2UITaskCardPreset,

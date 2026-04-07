@@ -1169,7 +1169,10 @@ describe("HarnessStatusPanel", () => {
         setInputValue(strategyTextarea, "先补 runtime save，再补 UI 回归。");
       }
       if (regressionsTextarea) {
-        setInputValue(regressionsTextarea, "npm run test:contracts\nRust 定向测试");
+        setInputValue(
+          regressionsTextarea,
+          "npm run test:contracts\nRust 定向测试",
+        );
       }
       if (followupsTextarea) {
         setInputValue(followupsTextarea, "补充 HarnessStatusPanel 测试");

@@ -15,12 +15,11 @@ const {
   mockEmitCanvasImageInsertRequest,
   mockOnCanvasImageInsertAck,
   mockGetActiveContentTarget,
-} =
-  vi.hoisted(() => ({
-    mockEmitCanvasImageInsertRequest: vi.fn(),
-    mockOnCanvasImageInsertAck: vi.fn(),
-    mockGetActiveContentTarget: vi.fn(),
-  }));
+} = vi.hoisted(() => ({
+  mockEmitCanvasImageInsertRequest: vi.fn(),
+  mockOnCanvasImageInsertAck: vi.fn(),
+  mockGetActiveContentTarget: vi.fn(),
+}));
 const { mockToastSuccess, mockToastError } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
@@ -96,13 +95,16 @@ import { MyGalleryTab } from "./MyGalleryTab";
 const mountedRoots: MountedRoot[] = [];
 
 function renderTab(projectId: string | null = "project-1"): HTMLDivElement {
-  const mounted = renderIntoDom(<MyGalleryTab projectId={projectId} />, mountedRoots);
+  const mounted = renderIntoDom(
+    <MyGalleryTab projectId={projectId} />,
+    mountedRoots,
+  );
   return mounted.container;
 }
 
 function findButton(container: HTMLElement, text: string): HTMLButtonElement {
-  const target = Array.from(container.querySelectorAll("button")).find((button) =>
-    button.textContent?.includes(text),
+  const target = Array.from(container.querySelectorAll("button")).find(
+    (button) => button.textContent?.includes(text),
   );
   if (!target) {
     throw new Error(`未找到按钮: ${text}`);

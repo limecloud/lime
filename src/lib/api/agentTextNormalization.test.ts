@@ -53,7 +53,9 @@ describe("agentTextNormalization", () => {
     expect(normalizeLegacyToolSurfaceName("SyntheticOutputTool")).toBe(
       "StructuredOutput",
     );
-    expect(normalizeLegacyToolSurfaceName("AgentOutputTool")).toBe("TaskOutput");
+    expect(normalizeLegacyToolSurfaceName("AgentOutputTool")).toBe(
+      "TaskOutput",
+    );
     expect(normalizeLegacyToolSurfaceName("BashOutputTool")).toBe("TaskOutput");
   });
 

@@ -126,7 +126,8 @@ export function createAgentStreamSubmissionLifecycle(
     setMessages((prev) =>
       prev.filter(
         (msg) =>
-          msg.id !== assistantMsgId && (userMsgId ? msg.id !== userMsgId : true),
+          msg.id !== assistantMsgId &&
+          (userMsgId ? msg.id !== userMsgId : true),
       ),
     );
   };

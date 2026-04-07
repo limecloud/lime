@@ -117,8 +117,7 @@ export async function getQwenCredentials(): Promise<QwenCredentialStatus> {
     has_refresh_token: credential.has_refresh_token ?? false,
     expiry_date: parsedExpiryDate,
     is_valid: credential.is_valid ?? false,
-    creds_path:
-      credential.creds_path ?? credential.credentials_path ?? "",
+    creds_path: credential.creds_path ?? credential.credentials_path ?? "",
     user_id:
       typeof extra.user_id === "string"
         ? extra.user_id
@@ -131,7 +130,8 @@ export async function getQwenCredentials(): Promise<QwenCredentialStatus> {
         : typeof extra.nickName === "string"
           ? extra.nickName
           : undefined,
-    token_path: credential.creds_path ?? credential.credentials_path ?? undefined,
+    token_path:
+      credential.creds_path ?? credential.credentials_path ?? undefined,
     status_message: credential.status_message ?? undefined,
   };
 }

@@ -41,11 +41,7 @@ export function createRuntimePoliciesFromAccessMode(
 function normalizeExecutionRuntimeAccessMode(
   value?: AsterSessionExecutionRuntimeAccessMode | string | null,
 ): AgentAccessMode | null {
-  if (
-    value === "read-only" ||
-    value === "current" ||
-    value === "full-access"
-  ) {
+  if (value === "read-only" || value === "current" || value === "full-access") {
     return value;
   }
   return null;

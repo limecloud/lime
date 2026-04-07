@@ -1,4 +1,10 @@
-import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import { getDefaultGuidePromptByTheme } from "../utils/defaultGuidePrompt";
 import type { GeneralWorkbenchEntryPromptState } from "../hooks/useGeneralWorkbenchEntryPrompt";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";

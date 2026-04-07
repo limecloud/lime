@@ -81,10 +81,13 @@ describe("useAppNavigation", () => {
     await renderProbe();
 
     await act(async () => {
-      latestNavigation?.handleNavigate("agent", buildClawAgentParams({
-        projectId: "project-2",
-        initialUserPrompt: "继续整理当前项目",
-      }));
+      latestNavigation?.handleNavigate(
+        "agent",
+        buildClawAgentParams({
+          projectId: "project-2",
+          initialUserPrompt: "继续整理当前项目",
+        }),
+      );
     });
 
     expect(latestNavigation?.currentPage).toBe("agent");

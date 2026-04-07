@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
 import type { ActiveStreamState } from "./agentStreamSubmissionLifecycle";
 
 interface UseAgentStreamControllerOptions {

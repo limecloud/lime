@@ -77,7 +77,8 @@ export function GeneralWorkbenchHarnessCard({
 }: GeneralWorkbenchHarnessCardProps) {
   const runStateMeta = resolveRunStateMeta(runState);
   const resolvedRunTitle = runTitle?.trim() || "暂无运行记录";
-  const artifactSummary = artifactCount > 0 ? `${artifactCount} 个产物` : "暂无产物";
+  const artifactSummary =
+    artifactCount > 0 ? `${artifactCount} 个产物` : "暂无产物";
   const updatedAtLabel = formatUpdatedAt(updatedAt);
   const iconLabel = [
     "工作台 Harness",
@@ -312,7 +313,9 @@ export function GeneralWorkbenchHarnessCard({
                 <span className="text-sm font-semibold text-foreground">
                   工作台 Harness
                 </span>
-                <Badge variant={runStateMeta.variant}>{runStateMeta.label}</Badge>
+                <Badge variant={runStateMeta.variant}>
+                  {runStateMeta.label}
+                </Badge>
                 {pendingCount > 0 ? (
                   <Badge variant="destructive">{`待处理 ${pendingCount}`}</Badge>
                 ) : null}

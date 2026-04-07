@@ -158,7 +158,9 @@ describe("TeamSelectorPanel", () => {
 
     await flushEffects();
 
-    const savedTeam = onSelectTeam.mock.calls[0]?.[0] as TeamDefinition | undefined;
+    const savedTeam = onSelectTeam.mock.calls[0]?.[0] as
+      | TeamDefinition
+      | undefined;
 
     expect(savedTeam).toBeTruthy();
     expect(savedTeam?.source).toBe("custom");

@@ -30,9 +30,7 @@ function createDialogProps(
   };
 }
 
-function renderDialog(
-  overrides: Partial<SkillScaffoldDialogProps> = {},
-) {
+function renderDialog(overrides: Partial<SkillScaffoldDialogProps> = {}) {
   return mountHarness(
     SkillScaffoldDialog,
     createDialogProps(overrides),
@@ -53,7 +51,9 @@ describe("SkillScaffoldDialog", () => {
     renderDialog();
 
     expect(document.body.textContent).toContain("新建 Skill");
-    expect(document.body.textContent).toContain("当前工作区的 `./.agents/skills`");
+    expect(document.body.textContent).toContain(
+      "当前工作区的 `./.agents/skills`",
+    );
 
     clickButtonByText(document.body, "用户级", { exact: true });
     expect(document.body.textContent).toContain("应用级 Skills 目录");

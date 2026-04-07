@@ -44,7 +44,8 @@ export function useGeneralWorkbenchExecLogState({
   );
 
   const visibleExecLogEntries = useMemo(
-    () => filterGeneralWorkbenchExecLogEntries(execLogEntries, execLogClearedAt),
+    () =>
+      filterGeneralWorkbenchExecLogEntries(execLogEntries, execLogClearedAt),
     [execLogClearedAt, execLogEntries],
   );
 

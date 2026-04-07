@@ -106,8 +106,7 @@ describe("ServiceSkillExecutionCard", () => {
             project_root_path: "/Users/coso/.proxycast/projects/project-1",
             markdown_relative_path:
               "exports/x-article-export/github-mcp/index.md",
-            images_relative_dir:
-              "exports/x-article-export/github-mcp/images",
+            images_relative_dir: "exports/x-article-export/github-mcp/images",
             image_count: 7,
           },
         },

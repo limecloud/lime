@@ -56,10 +56,9 @@ vi.mock("@/lib/api/agentRuntime", async () => {
 });
 
 vi.mock("@/lib/api/agentProtocol", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/agentProtocol")>(
-      "@/lib/api/agentProtocol",
-    );
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/agentProtocol")
+  >("@/lib/api/agentProtocol");
   return {
     ...actual,
     parseAgentEvent: mockParseAgentEvent,
@@ -67,9 +66,10 @@ vi.mock("@/lib/api/agentProtocol", async () => {
 });
 
 vi.mock("@/lib/dev-bridge", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/dev-bridge")>(
-    "@/lib/dev-bridge",
-  );
+  const actual =
+    await vi.importActual<typeof import("@/lib/dev-bridge")>(
+      "@/lib/dev-bridge",
+    );
 
   return {
     ...actual,
@@ -121,7 +121,9 @@ const mountedRoots: MountedHarness[] = [];
 
 interface MountOptions {
   onManageProviders?: () => void;
-  chatModelSelectorProps?: Partial<React.ComponentProps<typeof ChatModelSelector>>;
+  chatModelSelectorProps?: Partial<
+    React.ComponentProps<typeof ChatModelSelector>
+  >;
 }
 
 function createModel(id: string, providerId: string) {

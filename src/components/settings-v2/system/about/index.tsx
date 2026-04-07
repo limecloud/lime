@@ -351,7 +351,10 @@ export function AboutSection() {
                     </h3>
                     <WorkbenchInfoTip
                       ariaLabel="Lime 产品定位说明"
-                      content={t("创作类 AI Agent 平台", "创作类 AI Agent 平台")}
+                      content={t(
+                        "创作类 AI Agent 平台",
+                        "创作类 AI Agent 平台",
+                      )}
                       tone="slate"
                     />
                     <span

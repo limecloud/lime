@@ -104,7 +104,9 @@ export async function maybeHandleSlashSkillBeforeSend(
         assistantMsgId: id,
         eventName: skillEventName,
         sessionId:
-          env.activeStreamRef.current?.sessionId || env.sessionIdRef.current || "",
+          env.activeStreamRef.current?.sessionId ||
+          env.sessionIdRef.current ||
+          "",
       });
     },
     setStreamUnlisten: (unlistenFn) => {

@@ -126,6 +126,9 @@ describe("skillCatalog", () => {
     const codeEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "code_runtime",
     );
+    const voiceEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "voice_runtime",
+    );
     const publishEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "publish_runtime",
     );
@@ -151,6 +154,7 @@ describe("skillCatalog", () => {
         "url_parse",
         "typesetting",
         "form_generate",
+        "voice_runtime",
         "code_runtime",
         "publish_runtime",
       ]),
@@ -164,6 +168,12 @@ describe("skillCatalog", () => {
     expect(codeEntry?.renderContract).toMatchObject({
       resultKind: "tool_timeline",
       detailKind: "json",
+      supportsStreaming: true,
+      supportsTimeline: true,
+    });
+    expect(voiceEntry?.renderContract).toMatchObject({
+      resultKind: "tool_timeline",
+      detailKind: "scene_detail",
       supportsStreaming: true,
       supportsTimeline: true,
     });

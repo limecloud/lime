@@ -1,8 +1,7 @@
 import type { ServiceSkillRun } from "@/lib/api/serviceSkillRuns";
 import type { ServiceSkillCloudRunStatus, ServiceSkillTone } from "./types";
 
-const SERVICE_SKILL_CLOUD_RUNS_STORAGE_KEY =
-  "lime:service-skill-cloud-runs:v1";
+const SERVICE_SKILL_CLOUD_RUNS_STORAGE_KEY = "lime:service-skill-cloud-runs:v1";
 export const SERVICE_SKILL_CLOUD_RUNS_CHANGED_EVENT =
   "lime:service-skill-cloud-runs-changed";
 
@@ -100,7 +99,10 @@ function resolveCloudRunDetail(run: ServiceSkillRun): string | null {
     case "running":
       return startedAt ? `开始于 ${startedAt}` : "云端执行中";
     case "success":
-      return outputSummary ?? (finishedAt ? `完成于 ${finishedAt}` : "云端结果已生成");
+      return (
+        outputSummary ??
+        (finishedAt ? `完成于 ${finishedAt}` : "云端结果已生成")
+      );
     case "failed":
     case "canceled":
     case "timeout":
@@ -110,7 +112,9 @@ function resolveCloudRunDetail(run: ServiceSkillRun): string | null {
   }
 }
 
-function isValidCloudRunRecord(value: unknown): value is ServiceSkillCloudRunRecord {
+function isValidCloudRunRecord(
+  value: unknown,
+): value is ServiceSkillCloudRunRecord {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -171,7 +175,9 @@ export function listServiceSkillCloudRuns(): ServiceSkillCloudRunRecord[] {
   }
 
   try {
-    const raw = window.localStorage.getItem(SERVICE_SKILL_CLOUD_RUNS_STORAGE_KEY);
+    const raw = window.localStorage.getItem(
+      SERVICE_SKILL_CLOUD_RUNS_STORAGE_KEY,
+    );
     if (!raw) {
       return [];
     }

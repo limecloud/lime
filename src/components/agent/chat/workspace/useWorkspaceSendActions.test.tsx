@@ -37,9 +37,10 @@ vi.mock("@/lib/api/oemCloudRuntime", () => ({
 }));
 
 vi.mock("@/lib/api/project", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api/project")>(
-    "@/lib/api/project",
-  );
+  const actual =
+    await vi.importActual<typeof import("@/lib/api/project")>(
+      "@/lib/api/project",
+    );
 
   return {
     ...actual,
@@ -1088,36 +1089,40 @@ describe("useWorkspaceSendActions", () => {
   });
 
   it("预绑定 image_skill_launch metadata 时不应重新解析图片命令，并且仍会绑定真实 session_id", async () => {
-    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-image-bound");
+    mockEnsureSessionForCommandMetadata.mockResolvedValue(
+      "session-image-bound",
+    );
     const harness = mountHook({
       input: "@配图 生成 一张春日咖啡馆插画",
     });
 
     try {
       await act(async () => {
-        const started = await harness.getValue().handleSend(
-          [],
-          false,
-          false,
-          "@配图 生成 一张春日咖啡馆插画",
-          undefined,
-          undefined,
-          {
-            requestMetadata: {
-              harness: {
-                allow_model_skills: true,
-                image_skill_launch: {
-                  skill_name: "image_generate",
-                  kind: "image_task",
-                  image_task: {
-                    prompt: "一张春日咖啡馆插画",
-                    session_id: "__local_image_workbench__:draft",
+        const started = await harness
+          .getValue()
+          .handleSend(
+            [],
+            false,
+            false,
+            "@配图 生成 一张春日咖啡馆插画",
+            undefined,
+            undefined,
+            {
+              requestMetadata: {
+                harness: {
+                  allow_model_skills: true,
+                  image_skill_launch: {
+                    skill_name: "image_generate",
+                    kind: "image_task",
+                    image_task: {
+                      prompt: "一张春日咖啡馆插画",
+                      session_id: "__local_image_workbench__:draft",
+                    },
                   },
                 },
               },
             },
-          },
-        );
+          );
         expect(started).toBe(true);
       });
 
@@ -1252,7 +1257,9 @@ describe("useWorkspaceSendActions", () => {
   });
 
   it("@播报 首次发送时应先绑定真实 session_id 到 broadcast_task", async () => {
-    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-broadcast-1");
+    mockEnsureSessionForCommandMetadata.mockResolvedValue(
+      "session-broadcast-1",
+    );
     const harness = mountHook({
       input:
         "@播报 标题: 创始人周报 听众: AI 创业者 语气: 口语化 时长: 5分钟 把下面文章整理成播报文本",
@@ -1947,9 +1954,12 @@ describe("useWorkspaceSendActions", () => {
   });
 
   it("@链接解析 首次发送时应先绑定真实 session_id 到 url_parse_task", async () => {
-    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-url-parse-1");
+    mockEnsureSessionForCommandMetadata.mockResolvedValue(
+      "session-url-parse-1",
+    );
     const harness = mountHook({
-      input: "@链接解析 https://example.com/agent 提取要点 并整理成投资人可读摘要",
+      input:
+        "@链接解析 https://example.com/agent 提取要点 并整理成投资人可读摘要",
     });
 
     try {
@@ -2014,7 +2024,9 @@ describe("useWorkspaceSendActions", () => {
   });
 
   it("@排版 首次发送时应先绑定真实 session_id 到 typesetting_task", async () => {
-    mockEnsureSessionForCommandMetadata.mockResolvedValue("session-typesetting-1");
+    mockEnsureSessionForCommandMetadata.mockResolvedValue(
+      "session-typesetting-1",
+    );
     const harness = mountHook({
       input: "@排版 平台:公众号 帮我整理成更适合阅读的段落节奏",
     });
@@ -2195,8 +2207,7 @@ describe("useWorkspaceSendActions", () => {
             code_command: {
               kind: "bug_fix",
               prompt: "修复消息历史切换后图片卡片丢失的问题，并补一个回归测试",
-              content:
-                "修复消息历史切换后图片卡片丢失的问题，并补一个回归测试",
+              content: "修复消息历史切换后图片卡片丢失的问题，并补一个回归测试",
               entry_source: "at_code_command",
             },
           },
@@ -2239,7 +2250,8 @@ describe("useWorkspaceSendActions", () => {
             browser_launch_url: "https://mp.weixin.qq.com/",
             publish_command: {
               prompt: "帮我把这篇文章整理成可直接发布的版本",
-              content: "平台:微信公众号后台 帮我把这篇文章整理成可直接发布的版本",
+              content:
+                "平台:微信公众号后台 帮我把这篇文章整理成可直接发布的版本",
               platform_type: "wechat_official_account",
               platform_label: "微信公众号后台",
               entry_source: "at_publish_command",
@@ -2251,7 +2263,78 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           kind: "builtin_command",
           entryId: "publish_runtime",
-          replayText: "平台:微信公众号后台 帮我把这篇文章整理成可直接发布的版本",
+          replayText:
+            "平台:微信公众号后台 帮我把这篇文章整理成可直接发布的版本",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@配音 应保留原始消息，并通过 service_scene_launch 交给云端技能主链", async () => {
+    mockResolveOemCloudRuntimeContext.mockReturnValueOnce({
+      baseUrl: "https://user.150404.xyz",
+      controlPlaneBaseUrl: "https://user.150404.xyz/api",
+      sceneBaseUrl: "https://user.150404.xyz/scene-api",
+      gatewayBaseUrl: "https://user.150404.xyz/gateway-api",
+      tenantId: "tenant-demo",
+      sessionToken: "session-token-demo",
+      hubProviderName: null,
+      loginPath: "/login",
+      desktopClientId: "desktop-client",
+      desktopOauthRedirectUrl: "lime://oauth/callback",
+      desktopOauthNextPath: "/welcome",
+    });
+    const harness = mountHook({
+      input: "@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿",
+      serviceSkills: [createCloudSceneSkill()],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            service_scene_launch: {
+              kind: "cloud_scene",
+              service_scene_run: expect.objectContaining({
+                scene_key: "voice_runtime",
+                command_prefix: "@配音",
+                skill_id: "cloud-video-dubbing",
+                skill_title: "云端视频配音",
+                user_input: "给这个新品视频做一版发布配音稿",
+                entry_source: "at_voice_command",
+                project_id: "project-1",
+                target_language: "英文",
+                voice_style: "科技感",
+                oem_runtime: expect.objectContaining({
+                  scene_base_url: "https://user.150404.xyz/scene-api",
+                  tenant_id: "tenant-demo",
+                }),
+              }),
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          kind: "builtin_command",
+          entryId: "voice_runtime",
+          replayText: "目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿",
+        }),
+      ]);
+      expect(listServiceSkillUsage()).toEqual([
+        expect.objectContaining({
+          skillId: "cloud-video-dubbing",
         }),
       ]);
     } finally {

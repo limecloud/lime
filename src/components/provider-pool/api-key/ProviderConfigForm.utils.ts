@@ -65,8 +65,8 @@ export function isSupportedProviderType(
 
 export function getProviderTypeLabel(providerType: string): string {
   return (
-    PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)?.label ??
-    providerType
+    PROVIDER_TYPE_OPTIONS.find((option) => option.value === providerType)
+      ?.label ?? providerType
   );
 }
 
@@ -74,9 +74,7 @@ export function isSpecialProtocolProviderType(type: ProviderType): boolean {
   return getSpecialProtocolHint(type) !== null;
 }
 
-export function getSpecialProtocolHint(
-  type: ProviderType,
-): string | null {
+export function getSpecialProtocolHint(type: ProviderType): string | null {
   return SPECIAL_PROVIDER_PROTOCOL_HINTS[type] ?? null;
 }
 

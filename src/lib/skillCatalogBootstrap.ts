@@ -17,7 +17,9 @@ function hasWindow(): boolean {
   return typeof window !== "undefined";
 }
 
-function extractFromRecord(record: Record<string, unknown>): SkillCatalog | null {
+function extractFromRecord(
+  record: Record<string, unknown>,
+): SkillCatalog | null {
   const directCatalog = parseSkillCatalog(record.skillCatalog);
   if (directCatalog) {
     return directCatalog;

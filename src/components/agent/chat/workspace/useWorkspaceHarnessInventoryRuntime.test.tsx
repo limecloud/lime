@@ -182,7 +182,9 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
     });
 
     try {
-      expect(harness.getValue().generalWorkbenchHarnessSummary?.artifactCount).toBe(1);
+      expect(
+        harness.getValue().generalWorkbenchHarnessSummary?.artifactCount,
+      ).toBe(1);
     } finally {
       harness.unmount();
     }

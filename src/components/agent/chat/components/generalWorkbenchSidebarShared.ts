@@ -28,7 +28,9 @@ export function formatGeneralWorkbenchActionErrorMessage(
   return `${prefix}：${detail}`;
 }
 
-export async function writeGeneralWorkbenchClipboardText(text: string): Promise<void> {
+export async function writeGeneralWorkbenchClipboardText(
+  text: string,
+): Promise<void> {
   const value = text.trim();
   if (!value) {
     return;

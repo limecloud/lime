@@ -16,7 +16,9 @@ import { buildWaitingAgentRuntimeStatus } from "../utils/agentRuntimeStatus";
 
 function createStateSetter<T>(getValue: () => T, setValue: (value: T) => void) {
   return (next: T | ((prev: T) => T)) => {
-    setValue(typeof next === "function" ? (next as (prev: T) => T)(getValue()) : next);
+    setValue(
+      typeof next === "function" ? (next as (prev: T) => T)(getValue()) : next,
+    );
   };
 }
 
@@ -78,22 +80,37 @@ describe("agentStreamUserInputSubmission", () => {
         activeStreamRefState.current = next;
       },
       clearActiveStreamIfMatch: () => false,
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setThreadItems: createStateSetter(() => threadItems, (value) => {
-        threadItems = value;
-      }),
-      setThreadTurns: createStateSetter(() => threadTurns, (value) => {
-        threadTurns = value;
-      }),
-      setCurrentTurnId: createStateSetter(() => currentTurnId, (value) => {
-        currentTurnId = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setThreadItems: createStateSetter(
+        () => threadItems,
+        (value) => {
+          threadItems = value;
+        },
+      ),
+      setThreadTurns: createStateSetter(
+        () => threadTurns,
+        (value) => {
+          threadTurns = value;
+        },
+      ),
+      setCurrentTurnId: createStateSetter(
+        () => currentTurnId,
+        (value) => {
+          currentTurnId = value;
+        },
+      ),
       setExecutionRuntime: noopDispatch<AsterSessionExecutionRuntime | null>(),
-      setQueuedTurns: createStateSetter(() => queuedTurns, (value) => {
-        queuedTurns = value;
-      }),
+      setQueuedTurns: createStateSetter(
+        () => queuedTurns,
+        (value) => {
+          queuedTurns = value;
+        },
+      ),
       setPendingActions: noopDispatch<ActionRequired[]>(),
       setWorkspacePathMissing: noopDispatch<WorkspacePathMissingState | null>(),
       setIsSending: noopDispatch<boolean>(),

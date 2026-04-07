@@ -1258,9 +1258,8 @@ function WechatGatewayDebugPanel({
   const [accounts, setAccounts] = useState<WechatConfiguredAccount[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState("");
-  const [runtimeStatus, setRuntimeStatus] = useState<WechatGatewayStatus | null>(
-    null,
-  );
+  const [runtimeStatus, setRuntimeStatus] =
+    useState<WechatGatewayStatus | null>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [output, setOutput] = useState("");
   const [message, setMessage] = useState<{
@@ -1353,7 +1352,9 @@ function WechatGatewayDebugPanel({
         }
         setAccounts(nextAccounts);
         setAccountsLoaded(true);
-        setRuntimeStatus((nextStatus.status ?? null) as WechatGatewayStatus | null);
+        setRuntimeStatus(
+          (nextStatus.status ?? null) as WechatGatewayStatus | null,
+        );
         setRuntimeError(null);
       } catch (error) {
         if (cancelled) {
@@ -1635,12 +1636,7 @@ function WechatGatewayDebugPanel({
     return () => {
       cancelled = true;
     };
-  }, [
-    finalizeLoginSuccess,
-    loginSessionKey,
-    qrCodeUrl,
-    waitForLoginResult,
-  ]);
+  }, [finalizeLoginSuccess, loginSessionKey, qrCodeUrl, waitForLoginResult]);
 
   useEffect(() => {
     const sessionKey = loginSessionKey.trim();
@@ -1670,7 +1666,10 @@ function WechatGatewayDebugPanel({
           return false;
         }
         const startedAt = Date.parse(item.startedAt);
-        return Number.isFinite(startedAt) && startedAt >= loginAttemptStartedAt - 5_000;
+        return (
+          Number.isFinite(startedAt) &&
+          startedAt >= loginAttemptStartedAt - 5_000
+        );
       },
     );
 
@@ -1743,7 +1742,8 @@ function WechatGatewayDebugPanel({
       <div>
         <h3 className="text-sm font-medium">微信 Gateway 运行控制</h3>
         <p className="text-xs text-muted-foreground">
-          默认保留状态查询、启停与账号清理；扫码和连通性检测已并入上方 IM 配置弹窗。
+          默认保留状态查询、启停与账号清理；扫码和连通性检测已并入上方 IM
+          配置弹窗。
         </p>
       </div>
 
@@ -1913,9 +1913,7 @@ function WechatGatewayDebugPanel({
       <details className={`${SOFT_CARD_CLASS_NAME} group`}>
         <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
           <div>
-            <h4 className="text-sm font-medium text-slate-900">
-              兼容扫码排障
-            </h4>
+            <h4 className="text-sm font-medium text-slate-900">兼容扫码排障</h4>
             <p className="mt-1 text-xs leading-5 text-slate-500">
               只有当上方 IM 配置里的扫码流程异常时，再展开这里做兼容排查。
             </p>
@@ -2021,7 +2019,9 @@ function WechatGatewayDebugPanel({
             </div>
           ) : (
             <div className="rounded-[18px] border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-500">
-              <p className="font-medium text-slate-900">当前还没有可扫码二维码</p>
+              <p className="font-medium text-slate-900">
+                当前还没有可扫码二维码
+              </p>
               <p className="mt-2 leading-6">
                 请先点击“生成二维码”。如果接口没有返回二维码内容，下面的“最近结果”会直接显示错误原因。
               </p>
@@ -2072,88 +2072,88 @@ function WechatGatewayDebugPanel({
                   className="rounded-[18px] border border-slate-200 bg-white p-4"
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {item.name || item.accountId}
-                      </p>
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
-                        {item.accountId}
-                      </span>
-                      <span
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 text-[11px] font-medium",
-                          item.enabled
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border-slate-200 bg-slate-50 text-slate-500",
-                        )}
-                      >
-                        {item.enabled ? "已启用" : "已禁用"}
-                      </span>
-                      <span
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 text-[11px] font-medium",
-                          runtime?.running
-                            ? "border-sky-200 bg-sky-50 text-sky-700"
-                            : "border-slate-200 bg-slate-50 text-slate-500",
-                        )}
-                      >
-                        {runtime?.running ? "运行中" : "未运行"}
-                      </span>
-                    </div>
-                    <div className="grid gap-1 text-xs leading-5 text-slate-500">
-                      <p>Token：{item.hasToken ? "已保存" : "未保存"}</p>
-                      <p>
-                        Base URL：
-                        {item.baseUrl ||
-                          config.base_url ||
-                          DEFAULT_WECHAT_BASE_URL}
-                      </p>
-                      <p>
-                        CDN URL：
-                        {item.cdnBaseUrl ||
-                          config.cdn_base_url ||
-                          DEFAULT_WECHAT_CDN_BASE_URL}
-                      </p>
-                      <p>扫码用户 ID：{item.scannerUserId || "未记录"}</p>
-                      <p>
-                        最近轮询：
-                        {formatRuntimeTimestamp(runtime?.lastUpdateAt)}
-                      </p>
-                      <p>
-                        最近消息：
-                        {formatRuntimeTimestamp(runtime?.lastMessageAt)}
-                      </p>
-                      <p>
-                        Sync Buf：
-                        {runtime?.syncBufPresent ? "已存在" : "暂无"}
-                      </p>
-                      {runtime?.lastError ? (
-                        <p className="text-rose-600">
-                          最近错误：{runtime.lastError}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {item.name || item.accountId}
                         </p>
-                      ) : null}
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                          {item.accountId}
+                        </span>
+                        <span
+                          className={cn(
+                            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                            item.enabled
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-slate-200 bg-slate-50 text-slate-500",
+                          )}
+                        >
+                          {item.enabled ? "已启用" : "已禁用"}
+                        </span>
+                        <span
+                          className={cn(
+                            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                            runtime?.running
+                              ? "border-sky-200 bg-sky-50 text-sky-700"
+                              : "border-slate-200 bg-slate-50 text-slate-500",
+                          )}
+                        >
+                          {runtime?.running ? "运行中" : "未运行"}
+                        </span>
+                      </div>
+                      <div className="grid gap-1 text-xs leading-5 text-slate-500">
+                        <p>Token：{item.hasToken ? "已保存" : "未保存"}</p>
+                        <p>
+                          Base URL：
+                          {item.baseUrl ||
+                            config.base_url ||
+                            DEFAULT_WECHAT_BASE_URL}
+                        </p>
+                        <p>
+                          CDN URL：
+                          {item.cdnBaseUrl ||
+                            config.cdn_base_url ||
+                            DEFAULT_WECHAT_CDN_BASE_URL}
+                        </p>
+                        <p>扫码用户 ID：{item.scannerUserId || "未记录"}</p>
+                        <p>
+                          最近轮询：
+                          {formatRuntimeTimestamp(runtime?.lastUpdateAt)}
+                        </p>
+                        <p>
+                          最近消息：
+                          {formatRuntimeTimestamp(runtime?.lastMessageAt)}
+                        </p>
+                        <p>
+                          Sync Buf：
+                          {runtime?.syncBufPresent ? "已存在" : "暂无"}
+                        </p>
+                        {runtime?.lastError ? (
+                          <p className="text-rose-600">
+                            最近错误：{runtime.lastError}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAccountId(item.accountId)}
+                        className="rounded-md border px-3 py-1.5 text-xs transition-colors hover:bg-slate-50"
+                      >
+                        设为当前账号
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveAccount(item.accountId)}
+                        disabled={busy}
+                        className="rounded-md border border-rose-200 px-3 py-1.5 text-xs text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        删除账号
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setAccountId(item.accountId)}
-                      className="rounded-md border px-3 py-1.5 text-xs transition-colors hover:bg-slate-50"
-                    >
-                      设为当前账号
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleRemoveAccount(item.accountId)}
-                      disabled={busy}
-                      className="rounded-md border border-rose-200 px-3 py-1.5 text-xs text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      删除账号
-                    </button>
-                  </div>
-                </div>
                 </div>
               );
             })}
@@ -2210,10 +2210,12 @@ export function ChannelsDebugWorkbench({
     initialSubPage === "overview" || initialSubPage === "config"
       ? "logs"
       : initialSubPage;
-  const [activeSubPage, setActiveSubPage] =
-    useState<ChannelSubPage>(normalizedInitialSubPage);
-  const [activeDebugTab, setActiveDebugTab] =
-    useState<VisibleDebugTabKey>(normalizeVisibleDebugTab(initialDebugTab));
+  const [activeSubPage, setActiveSubPage] = useState<ChannelSubPage>(
+    normalizedInitialSubPage,
+  );
+  const [activeDebugTab, setActiveDebugTab] = useState<VisibleDebugTabKey>(
+    normalizeVisibleDebugTab(initialDebugTab),
+  );
   const [config, setConfig] = useState<Config | null>(null);
   const [channels, setChannels] = useState<ChannelsConfig>(DEFAULT_CHANNELS);
   const [gateway, setGateway] = useState<GatewayConfig>(DEFAULT_GATEWAY);

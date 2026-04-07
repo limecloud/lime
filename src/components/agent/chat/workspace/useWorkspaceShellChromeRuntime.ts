@@ -82,7 +82,8 @@ export function useWorkspaceShellChromeRuntime({
     () =>
       resolveWorkflowLayoutBottomSpacing({
         contextWorkspaceEnabled,
-        showFloatingInputOverlay: shouldShowGeneralWorkbenchFloatingInputOverlay,
+        showFloatingInputOverlay:
+          shouldShowGeneralWorkbenchFloatingInputOverlay,
         hasCanvasContent: layoutMode !== "chat",
         workflowRunState: themeWorkbenchRunState,
         gateStatus: currentGateStatus,

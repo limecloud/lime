@@ -48,6 +48,8 @@ describe("parseResourceSearchWorkbenchCommand", () => {
   });
 
   it("非素材命令应返回空", () => {
-    expect(parseResourceSearchWorkbenchCommand("@视频 做一条新品视频")).toBeNull();
+    expect(
+      parseResourceSearchWorkbenchCommand("@视频 做一条新品视频"),
+    ).toBeNull();
   });
 });

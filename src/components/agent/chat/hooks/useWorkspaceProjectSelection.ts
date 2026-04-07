@@ -88,7 +88,11 @@ export function useWorkspaceProjectSelection(
       rememberProjectId(normalizedProjectId);
       setInternalProjectId(normalizedProjectId);
     },
-    [clearProjectSelectionRuntime, normalizedExternalProjectId, rememberProjectId],
+    [
+      clearProjectSelectionRuntime,
+      normalizedExternalProjectId,
+      rememberProjectId,
+    ],
   );
 
   const startTopicProjectResolution = useCallback(() => {

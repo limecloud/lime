@@ -29,12 +29,18 @@ export async function listenAgentSubagentStatus(
   sessionId: string,
   handler: (event: { payload: AgentEvent | unknown }) => void,
 ): Promise<UnlistenFn> {
-  return listenAgentRuntimeEvent(getAgentSubagentStatusEventName(sessionId), handler);
+  return listenAgentRuntimeEvent(
+    getAgentSubagentStatusEventName(sessionId),
+    handler,
+  );
 }
 
 export async function listenAgentSubagentStream(
   sessionId: string,
   handler: (event: { payload: AgentEvent | unknown }) => void,
 ): Promise<UnlistenFn> {
-  return listenAgentRuntimeEvent(getAgentSubagentStreamEventName(sessionId), handler);
+  return listenAgentRuntimeEvent(
+    getAgentSubagentStreamEventName(sessionId),
+    handler,
+  );
 }

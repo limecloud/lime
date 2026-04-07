@@ -170,7 +170,8 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
     : "";
   const shouldRenderMetaBar =
     !shouldUseCompactFloatingComposer &&
-    (Boolean(leftExtra) || (toolMode === "default" && !shouldCollapseFloatingTools));
+    (Boolean(leftExtra) ||
+      (toolMode === "default" && !shouldCollapseFloatingTools));
   const dictationButtonTitle = isDictationProcessing
     ? dictationState === "polishing"
       ? "语音润色中"
@@ -189,11 +190,18 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   }, [isFloatingVariant, toolMode]);
 
   const handleCollapseComposer = useCallback(() => {
-    if (!isFloatingVariant || toolMode !== "attach-only" || pendingImages.length > 0) {
+    if (
+      !isFloatingVariant ||
+      toolMode !== "attach-only" ||
+      pendingImages.length > 0
+    ) {
       return;
     }
     const activeElement = document.activeElement;
-    if (activeElement && inputBarContainerRef.current?.contains(activeElement)) {
+    if (
+      activeElement &&
+      inputBarContainerRef.current?.contains(activeElement)
+    ) {
       return;
     }
     setIsComposerExpanded(false);
@@ -301,7 +309,9 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                         type="button"
                         aria-label={`移除图片 ${index + 1}`}
                         onMouseDown={handleRemoveImageMouseDown}
-                        onClick={(event) => handleRemoveImageClick(event, index)}
+                        onClick={(event) =>
+                          handleRemoveImageClick(event, index)
+                        }
                       >
                         <X size={12} />
                       </ImageRemoveButton>
@@ -339,7 +349,9 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                     onClick={handleToggleTextareaExpanded}
                     disabled={disabled}
                     className={isTextareaExpanded ? "is-active" : ""}
-                    aria-label={isTextareaExpanded ? "收起输入框" : "展开输入框"}
+                    aria-label={
+                      isTextareaExpanded ? "收起输入框" : "展开输入框"
+                    }
                     title={isTextareaExpanded ? "收起输入框" : "展开输入框"}
                   >
                     {isTextareaExpanded ? (

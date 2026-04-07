@@ -86,7 +86,8 @@ describe("agentStreamSubmitExecution", () => {
         playToolcallSound: () => {},
         playTypewriterSound: () => {},
       },
-      appendThinkingToParts: (parts: NonNullable<Message["contentParts"]>) => parts,
+      appendThinkingToParts: (parts: NonNullable<Message["contentParts"]>) =>
+        parts,
       setMessages: noopDispatch<Message[]>(),
       setIsSending: noopDispatch<boolean>(),
       setPendingActions: noopDispatch<ActionRequired[]>(),

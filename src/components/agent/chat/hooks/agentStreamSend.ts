@@ -1,4 +1,7 @@
-import type { AutoContinueRequestPayload, AsterExecutionStrategy } from "@/lib/api/agentRuntime";
+import type {
+  AutoContinueRequestPayload,
+  AsterExecutionStrategy,
+} from "@/lib/api/agentRuntime";
 import type { MessageImage } from "../types";
 import type { SendMessageOptions } from "./agentChatShared";
 import { dispatchPreparedAgentStreamSend } from "./agentStreamPreparedSendDispatch";

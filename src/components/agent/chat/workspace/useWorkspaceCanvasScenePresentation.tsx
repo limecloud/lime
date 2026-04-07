@@ -46,8 +46,9 @@ interface UseWorkspaceCanvasScenePresentationParams {
   };
 }
 
-interface WorkspaceCanvasScenePresentationResult
-  extends ReturnType<typeof useWorkspaceCanvasPreviewPresentation> {
+interface WorkspaceCanvasScenePresentationResult extends ReturnType<
+  typeof useWorkspaceCanvasPreviewPresentation
+> {
   canvasRenderTheme: ThemeType;
   shouldShowCanvasLoadingState: boolean;
 }

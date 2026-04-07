@@ -203,7 +203,8 @@ export function OpenClawDashboardPage({
         <section className={openClawPanelClassName}>
           <div className="text-sm font-medium text-slate-900">访问方式</div>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            这里保留两种稳定方式：桌面面板和系统浏览器。桌面面板适合日常使用，浏览器更适合诊断 token 与页面状态。
+            这里保留两种稳定方式：桌面面板和系统浏览器。桌面面板适合日常使用，浏览器更适合诊断
+            token 与页面状态。
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -242,7 +243,9 @@ export function OpenClawDashboardPage({
         <section className={openClawPanelClassName}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-slate-900">当前地址</h2>
+              <h2 className="text-base font-semibold text-slate-900">
+                当前地址
+              </h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
                 页面中只显示脱敏地址；复制按钮会复制完整带 token 的访问链接。
               </p>
@@ -281,7 +284,8 @@ export function OpenClawDashboardPage({
           </div>
 
           <p className="mt-3 text-xs leading-6 text-slate-500">
-            Gateway 重启后 token 可能变化；如遇 401 或空白页，先点“刷新状态”再重新打开。
+            Gateway 重启后 token 可能变化；如遇 401
+            或空白页，先点“刷新状态”再重新打开。
           </p>
         </section>
       </div>

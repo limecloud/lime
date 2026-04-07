@@ -145,24 +145,32 @@ function normalizeTaskPreviewText(value: string) {
 }
 
 function extractMessageTextContent(message: Message): string {
-  const sanitizedContent = sanitizeMessageTextForPreview(message.content || "", {
-    role: message.role,
-    hasImages: Array.isArray(message.images) && message.images.length > 0,
-  });
+  const sanitizedContent = sanitizeMessageTextForPreview(
+    message.content || "",
+    {
+      role: message.role,
+      hasImages: Array.isArray(message.images) && message.images.length > 0,
+    },
+  );
   if (sanitizedContent) {
     return normalizeTaskPreviewText(sanitizedContent);
   }
 
   const partText = message.contentParts
     ?.filter(
-      (part): part is Extract<(typeof message.contentParts)[number], { type: "text" | "thinking" }> =>
-        part.type === "text" || part.type === "thinking",
+      (
+        part,
+      ): part is Extract<
+        (typeof message.contentParts)[number],
+        { type: "text" | "thinking" }
+      > => part.type === "text" || part.type === "thinking",
     )
     .map((part) =>
       part.type === "text"
         ? sanitizeMessageTextForPreview(part.text, {
             role: message.role,
-            hasImages: Array.isArray(message.images) && message.images.length > 0,
+            hasImages:
+              Array.isArray(message.images) && message.images.length > 0,
           })
         : part.text,
     )
@@ -189,9 +197,9 @@ function extractToolCallPreview(message: Message): string {
 }
 
 function extractActionRequestPreview(message: Message): string {
-  const pendingAction = [...(message.actionRequests || [])].reverse().find(
-    (item) => item.status !== "submitted",
-  );
+  const pendingAction = [...(message.actionRequests || [])]
+    .reverse()
+    .find((item) => item.status !== "submitted");
   if (!pendingAction) {
     return "";
   }
@@ -201,9 +209,7 @@ function extractActionRequestPreview(message: Message): string {
     .join(" ");
 
   return normalizeTaskPreviewText(
-    pendingAction.prompt ||
-      questionText ||
-      "等待你确认或补充信息后继续执行。",
+    pendingAction.prompt || questionText || "等待你确认或补充信息后继续执行。",
   );
 }
 
@@ -351,8 +357,13 @@ export function buildLiveTaskSnapshot(params: {
   queuedTurnCount?: number;
   workspaceError: boolean;
 }): LiveTaskSnapshot {
-  const { messages, isSending, pendingActionCount, queuedTurnCount, workspaceError } =
-    params;
+  const {
+    messages,
+    isSending,
+    pendingActionCount,
+    queuedTurnCount,
+    workspaceError,
+  } = params;
   const lastMessage = messages[messages.length - 1];
   const preview = extractTaskPreviewFromMessages(messages);
   const taskState = deriveTaskLiveState({
@@ -368,8 +379,7 @@ export function buildLiveTaskSnapshot(params: {
     messagesCount: messages.length,
     status: taskState.status,
     statusReason: taskState.statusReason,
-    lastPreview:
-      preview || "等待你补充任务需求后开始执行。",
+    lastPreview: preview || "等待你补充任务需求后开始执行。",
     hasUnread: false,
   };
 }

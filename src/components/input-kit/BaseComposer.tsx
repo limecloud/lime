@@ -99,8 +99,8 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
       };
       return Boolean(
         nativeEvent.isComposing ||
-          nativeEvent.key === "Process" ||
-          nativeEvent.keyCode === 229,
+        nativeEvent.key === "Process" ||
+        nativeEvent.keyCode === 229,
       );
     },
     [],
@@ -142,7 +142,15 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
         onEscape?.();
       }
     },
-    [canSend, isFullscreen, isImeComposing, onEscape, onKeyDown, onSend, sendOnEnter],
+    [
+      canSend,
+      isFullscreen,
+      isImeComposing,
+      onEscape,
+      onKeyDown,
+      onSend,
+      sendOnEnter,
+    ],
   );
 
   const textareaProps: React.TextareaHTMLAttributes<HTMLTextAreaElement> = {

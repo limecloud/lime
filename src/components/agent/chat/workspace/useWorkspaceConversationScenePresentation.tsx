@@ -34,7 +34,9 @@ interface UseWorkspaceConversationScenePresentationParams {
     hasMessages: boolean;
     steps: ComponentProps<typeof StepProgress>["steps"];
     currentIndex: ComponentProps<typeof StepProgress>["currentIndex"];
-    onStepClick: NonNullable<ComponentProps<typeof StepProgress>["onStepClick"]>;
+    onStepClick: NonNullable<
+      ComponentProps<typeof StepProgress>["onStepClick"]
+    >;
   };
   messageList: ComponentProps<typeof MessageList>;
   teamWorkspaceDock: {
@@ -51,7 +53,10 @@ interface UseWorkspaceConversationScenePresentationParams {
     workspacePathMissing: boolean;
     workspaceHealthError: boolean;
   };
-  canvasWorkbenchLayout: Omit<CanvasWorkbenchLayoutProps, "workspaceUnavailable">;
+  canvasWorkbenchLayout: Omit<
+    CanvasWorkbenchLayoutProps,
+    "workspaceUnavailable"
+  >;
 }
 
 interface WorkspaceConversationScenePresentationResult {

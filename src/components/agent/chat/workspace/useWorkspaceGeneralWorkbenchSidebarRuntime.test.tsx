@@ -27,7 +27,9 @@ vi.mock("@/lib/api/skill-execution", () => ({
 interface HookProps {
   isThemeWorkbench: boolean;
   sessionId?: string | null;
-  messages: Parameters<typeof useWorkspaceGeneralWorkbenchSidebarRuntime>[0]["messages"];
+  messages: Parameters<
+    typeof useWorkspaceGeneralWorkbenchSidebarRuntime
+  >[0]["messages"];
   isSending: boolean;
   themeWorkbenchBackendRunState: Parameters<
     typeof useWorkspaceGeneralWorkbenchSidebarRuntime
@@ -49,9 +51,9 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
   document.body.appendChild(container);
   const root = createRoot(container);
 
-  let hookValue:
-    | ReturnType<typeof useWorkspaceGeneralWorkbenchSidebarRuntime>
-    | null = null;
+  let hookValue: ReturnType<
+    typeof useWorkspaceGeneralWorkbenchSidebarRuntime
+  > | null = null;
   let currentProps: HookProps = {
     isThemeWorkbench: true,
     sessionId: null,

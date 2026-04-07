@@ -136,8 +136,7 @@ export function useSubAgentScheduler(
                     result: null,
                     error: null,
                     summary:
-                      prev.summary ||
-                      `已启动 ${nextEvent.totalTasks} 个子任务`,
+                      prev.summary || `已启动 ${nextEvent.totalTasks} 个子任务`,
                   }
                 : {
                     ...prev,

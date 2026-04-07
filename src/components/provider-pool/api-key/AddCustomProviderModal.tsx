@@ -57,7 +57,9 @@ interface KnownProvider {
   keywords?: string[];
 }
 
-function dedupeKeywords(keywords: Array<string | undefined>): string[] | undefined {
+function dedupeKeywords(
+  keywords: Array<string | undefined>,
+): string[] | undefined {
   const seen = new Set<string>();
   const result: string[] = [];
 
@@ -238,9 +240,7 @@ function buildKnownProvidersFromCatalog(
   );
 }
 
-function mergeKnownProviders(
-  ...groups: KnownProvider[][]
-): KnownProvider[] {
+function mergeKnownProviders(...groups: KnownProvider[][]): KnownProvider[] {
   const providerMap = new Map<string, KnownProvider>();
 
   for (const group of groups) {

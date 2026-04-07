@@ -538,11 +538,9 @@ describe("buildCrashDiagnosticPayload", () => {
         legacy_lime_dir: "C:/Users/test/.lime",
         db_path: "C:/Users/test/.lime/lime.db",
         webview2_version: "123.0.0.0",
-        current_exe:
-          "C:/Users/test/AppData/Local/Programs/Lime/Lime.exe",
+        current_exe: "C:/Users/test/AppData/Local/Programs/Lime/Lime.exe",
         current_dir: "C:/Users/test/AppData/Local/Programs/Lime",
-        resource_dir:
-          "C:/Users/test/AppData/Local/Programs/Lime/resources",
+        resource_dir: "C:/Users/test/AppData/Local/Programs/Lime/resources",
         home_dir: "C:/Users/test",
         shell_env: "/bin/bash",
         comspec_env: "C:/Windows/System32/cmd.exe",

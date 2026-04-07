@@ -17,9 +17,15 @@ vi.mock("@/components/ui/badge", () => ({
 }));
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
-  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   DropdownMenuItem: ({
     children,
     onClick,
@@ -238,7 +244,9 @@ describe("ChatSidebar", () => {
 
     const taskHeading = container.querySelector(
       '[data-testid="task-section-heading"]',
-    ) as (HTMLDivElement & { scrollIntoView?: ReturnType<typeof vi.fn> }) | null;
+    ) as
+      | (HTMLDivElement & { scrollIntoView?: ReturnType<typeof vi.fn> })
+      | null;
     expect(taskHeading).toBeTruthy();
 
     const scrollIntoView = vi.fn();
@@ -268,9 +276,7 @@ describe("ChatSidebar", () => {
     const container = renderSidebar({ onSwitchTopic });
     const taskItem = Array.from(
       container.querySelectorAll('[role="button"]'),
-    ).find(
-      (element) => element.textContent?.includes("任务一"),
-    );
+    ).find((element) => element.textContent?.includes("任务一"));
     expect(taskItem).toBeTruthy();
     if (taskItem) {
       act(() => {
@@ -475,9 +481,7 @@ describe("ChatSidebar", () => {
     expect(resumeButton).toBeTruthy();
 
     act(() => {
-      resumeButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
+      resumeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     expect(onResumeTask).toHaveBeenCalledWith("topic-1", "user_action");
@@ -596,7 +600,9 @@ describe("ChatSidebar", () => {
       collapseButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).toContain("已收起 · 2 个子代理 · 1 个处理中 · 1 个已完成");
+    expect(container.textContent).toContain(
+      "已收起 · 2 个子代理 · 1 个处理中 · 1 个已完成",
+    );
     expect(container.textContent).not.toContain("代码审查代理");
     expect(container.textContent).not.toContain("文档校对代理");
 
@@ -684,9 +690,9 @@ describe("ChatSidebar", () => {
     expect(container.textContent).not.toContain("回归验证代理");
     expect(container.textContent).toContain("展开剩余 1 个子代理");
 
-    const expandMoreButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("展开剩余 1 个子代理"),
-    );
+    const expandMoreButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((element) => element.textContent?.includes("展开剩余 1 个子代理"));
     expect(expandMoreButton).toBeTruthy();
 
     act(() => {
@@ -698,9 +704,9 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("回归验证代理");
     expect(container.textContent).toContain("收起子代理列表");
 
-    const collapseListButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("收起子代理列表"),
-    );
+    const collapseListButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((element) => element.textContent?.includes("收起子代理列表"));
     expect(collapseListButton).toBeTruthy();
 
     act(() => {

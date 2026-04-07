@@ -197,11 +197,7 @@ export const getAccessModeStorageKey = (
 };
 
 export const normalizeAccessMode = (value: unknown): AgentAccessMode => {
-  if (
-    value === "read-only" ||
-    value === "current" ||
-    value === "full-access"
-  ) {
+  if (value === "read-only" || value === "current" || value === "full-access") {
     return value;
   }
   return DEFAULT_AGENT_ACCESS_MODE;

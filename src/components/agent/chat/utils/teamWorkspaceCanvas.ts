@@ -20,11 +20,12 @@ export interface TeamWorkspaceCanvasLayoutState {
 }
 
 export const TEAM_WORKSPACE_CANVAS_STORAGE_VERSION = 2;
-export const TEAM_WORKSPACE_CANVAS_DEFAULT_VIEWPORT: TeamWorkspaceCanvasViewport = {
-  x: 56,
-  y: 56,
-  zoom: 1,
-};
+export const TEAM_WORKSPACE_CANVAS_DEFAULT_VIEWPORT: TeamWorkspaceCanvasViewport =
+  {
+    x: 56,
+    y: 56,
+    zoom: 1,
+  };
 export const TEAM_WORKSPACE_CANVAS_MIN_ZOOM = 0.55;
 export const TEAM_WORKSPACE_CANVAS_MAX_ZOOM = 1.65;
 export const TEAM_WORKSPACE_CANVAS_DEFAULT_WIDTH = 360;

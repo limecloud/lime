@@ -1,6 +1,5 @@
 const OEM_CLOUD_SESSION_STORAGE_KEY = "lime:oem-cloud-session:v1";
-export const OEM_CLOUD_SESSION_CHANGED_EVENT =
-  "lime:oem-cloud-session-changed";
+export const OEM_CLOUD_SESSION_CHANGED_EVENT = "lime:oem-cloud-session-changed";
 export const OEM_CLOUD_BOOTSTRAP_CHANGED_EVENT =
   "lime:oem-cloud-bootstrap-changed";
 
@@ -302,7 +301,10 @@ export function setOemCloudBootstrapSnapshot(payload: unknown): void {
 }
 
 export function getOemCloudBootstrapSnapshot<T = unknown>(): T | null {
-  if (typeof window === "undefined" || window.__LIME_BOOTSTRAP__ === undefined) {
+  if (
+    typeof window === "undefined" ||
+    window.__LIME_BOOTSTRAP__ === undefined
+  ) {
     return null;
   }
 
@@ -358,10 +360,7 @@ export function subscribeOemCloudBootstrapChanged(
     listener(getOemCloudBootstrapSnapshot());
   };
 
-  window.addEventListener(
-    OEM_CLOUD_BOOTSTRAP_CHANGED_EVENT,
-    handleCustomEvent,
-  );
+  window.addEventListener(OEM_CLOUD_BOOTSTRAP_CHANGED_EVENT, handleCustomEvent);
 
   return () => {
     window.removeEventListener(

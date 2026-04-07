@@ -45,8 +45,9 @@ function renderHook(props?: Partial<HookProps>) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  let latestValue: ReturnType<typeof useWorkspaceArtifactPreviewActions> | null =
-    null;
+  let latestValue: ReturnType<
+    typeof useWorkspaceArtifactPreviewActions
+  > | null = null;
 
   const defaultProps: HookProps = {
     activeTheme: "general",

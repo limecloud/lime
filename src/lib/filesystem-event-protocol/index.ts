@@ -17,10 +17,7 @@ function normalizePath(value: string): string {
   return value.replace(/\\/g, "/").trim();
 }
 
-function appendFilesystemEventPath(
-  paths: Set<string>,
-  value: unknown,
-): void {
+function appendFilesystemEventPath(paths: Set<string>, value: unknown): void {
   const normalized = normalizeText(value);
   if (!normalized) {
     return;
@@ -32,10 +29,7 @@ function appendFilesystemEventPath(
   }
 }
 
-function appendFilesystemEventPaths(
-  paths: Set<string>,
-  value: unknown,
-): void {
+function appendFilesystemEventPaths(paths: Set<string>, value: unknown): void {
   if (!Array.isArray(value)) {
     appendFilesystemEventPath(paths, value);
     return;
@@ -130,7 +124,9 @@ export function extractFilesystemEventPaths(
   return Array.from(paths);
 }
 
-export function extractFilesystemEventPathsFromRecord(record?: unknown): string[] {
+export function extractFilesystemEventPathsFromRecord(
+  record?: unknown,
+): string[] {
   if (!isFilesystemEventRecord(record)) {
     return [];
   }
@@ -138,7 +134,9 @@ export function extractFilesystemEventPathsFromRecord(record?: unknown): string[
   return extractFilesystemEventPaths(record);
 }
 
-export function extractFilesystemEventPathsFromValue(value?: unknown): string[] {
+export function extractFilesystemEventPathsFromValue(
+  value?: unknown,
+): string[] {
   const paths = new Set<string>();
   collectFilesystemEventPathsFromValue(paths, value);
   return Array.from(paths);

@@ -48,7 +48,10 @@ describe("generalWorkbenchWorkflowData", () => {
           status: "completed",
           timeLabel: "10:31",
           runId: "run-1",
-          artifactPaths: ["content-posts/demo.md", "content-posts/demo-cover.png"],
+          artifactPaths: [
+            "content-posts/demo.md",
+            "content-posts/demo-cover.png",
+          ],
         },
       ])[0]?.artifactPaths,
     ).toEqual(["content-posts/demo.md", "content-posts/demo-cover.png"]);

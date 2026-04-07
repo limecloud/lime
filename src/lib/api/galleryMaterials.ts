@@ -19,19 +19,25 @@ export async function getGalleryMaterial(
 export async function createGalleryMetadata(
   request: CreateGalleryMetadataRequest,
 ): Promise<GalleryMaterialMetadata> {
-  return safeInvoke<GalleryMaterialMetadata>("create_gallery_material_metadata", {
-    req: request,
-  });
+  return safeInvoke<GalleryMaterialMetadata>(
+    "create_gallery_material_metadata",
+    {
+      req: request,
+    },
+  );
 }
 
 export async function updateGalleryMetadata(
   materialId: string,
   request: CreateGalleryMetadataRequest,
 ): Promise<GalleryMaterialMetadata> {
-  return safeInvoke<GalleryMaterialMetadata>("update_gallery_material_metadata", {
-    materialId,
-    req: request,
-  });
+  return safeInvoke<GalleryMaterialMetadata>(
+    "update_gallery_material_metadata",
+    {
+      materialId,
+      req: request,
+    },
+  );
 }
 
 export async function deleteGalleryMetadata(materialId: string): Promise<void> {
@@ -42,20 +48,26 @@ export async function listGalleryMaterialsByImageCategory(
   projectId: string,
   category?: ImageCategory | null,
 ): Promise<GalleryMaterial[]> {
-  return safeInvoke<GalleryMaterial[]>("list_gallery_materials_by_image_category", {
-    projectId,
-    category: category ?? null,
-  });
+  return safeInvoke<GalleryMaterial[]>(
+    "list_gallery_materials_by_image_category",
+    {
+      projectId,
+      category: category ?? null,
+    },
+  );
 }
 
 export async function listGalleryMaterialsByLayoutCategory(
   projectId: string,
   category?: LayoutCategory | null,
 ): Promise<GalleryMaterial[]> {
-  return safeInvoke<GalleryMaterial[]>("list_gallery_materials_by_layout_category", {
-    projectId,
-    category: category ?? null,
-  });
+  return safeInvoke<GalleryMaterial[]>(
+    "list_gallery_materials_by_layout_category",
+    {
+      projectId,
+      category: category ?? null,
+    },
+  );
 }
 
 export async function listGalleryMaterialsByMood(

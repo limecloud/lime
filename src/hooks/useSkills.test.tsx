@@ -11,17 +11,14 @@ import {
 } from "@/components/workspace/hooks/testUtils";
 import { useSkills } from "./useSkills";
 
-const {
-  mockGetLocal,
-  mockGetAll,
-  mockGetRepos,
-  mockRefreshCache,
-} = vi.hoisted(() => ({
-  mockGetLocal: vi.fn(),
-  mockGetAll: vi.fn(),
-  mockGetRepos: vi.fn(),
-  mockRefreshCache: vi.fn(),
-}));
+const { mockGetLocal, mockGetAll, mockGetRepos, mockRefreshCache } = vi.hoisted(
+  () => ({
+    mockGetLocal: vi.fn(),
+    mockGetAll: vi.fn(),
+    mockGetRepos: vi.fn(),
+    mockRefreshCache: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/api/skills", async () => {
   const actual =
@@ -49,11 +46,7 @@ interface HarnessProps {
   onReady: (value: HookValue) => void;
 }
 
-function HookHarness({
-  app = "lime",
-  includeRepos,
-  onReady,
-}: HarnessProps) {
+function HookHarness({ app = "lime", includeRepos, onReady }: HarnessProps) {
   const value = useSkills(app, { includeRepos });
 
   useEffect(() => {
@@ -95,13 +88,17 @@ describe("useSkills", () => {
   });
 
   async function renderHook(app: AppType, includeRepos?: boolean) {
-    mountHarness(HookHarness, {
-      app,
-      includeRepos,
-      onReady: (value) => {
-        latestValue = value;
+    mountHarness(
+      HookHarness,
+      {
+        app,
+        includeRepos,
+        onReady: (value) => {
+          latestValue = value;
+        },
       },
-    }, mountedRoots);
+      mountedRoots,
+    );
     await flushEffects(6);
   }
 

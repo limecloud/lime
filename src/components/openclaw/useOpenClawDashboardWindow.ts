@@ -63,11 +63,13 @@ export function useOpenClawDashboardWindow({
   }, []);
 
   const resolveDashboardUrl = useCallback(async () => {
-    return dashboardUrl ??
+    return (
+      dashboardUrl ??
       (await refreshDashboardUrl({
         silent: false,
         showLoading: true,
-      }));
+      }))
+    );
   }, [dashboardUrl, refreshDashboardUrl]);
 
   const handleOpenDashboardWindow = useCallback(async () => {
@@ -76,8 +78,7 @@ export function useOpenClawDashboardWindow({
       return false;
     }
 
-    const profileKey =
-      resolveOpenClawDashboardProfileKey(profileVersionKey);
+    const profileKey = resolveOpenClawDashboardProfileKey(profileVersionKey);
     const shouldRecreate =
       dashboardWindowOpen &&
       lastDashboardProfileKeyRef.current !== null &&
@@ -144,8 +145,7 @@ export function useOpenClawDashboardWindow({
 
     setDashboardWindowBusy(true);
     try {
-      const profileKey =
-        resolveOpenClawDashboardProfileKey(profileVersionKey);
+      const profileKey = resolveOpenClawDashboardProfileKey(profileVersionKey);
       const shouldRecreate =
         dashboardWindowOpen &&
         lastDashboardProfileKeyRef.current !== null &&

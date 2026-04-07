@@ -6,7 +6,11 @@
 
 import React, { memo, useEffect, useState } from "react";
 import styled from "styled-components";
-import { MessageSquareText, PanelRightClose, PanelRightOpen } from "lucide-react";
+import {
+  MessageSquareText,
+  PanelRightClose,
+  PanelRightOpen,
+} from "lucide-react";
 import { CompactRightDockButton } from "@/components/ui/compact-right-dock-button";
 import {
   CompactRightDrawerHeader,
@@ -54,7 +58,8 @@ const ChatPanel = styled.div<{
   $hidden: boolean;
   $chrome: "panel" | "plain";
 }>`
-  position: ${({ $compactOverlay }) => ($compactOverlay ? "absolute" : "relative")};
+  position: ${({ $compactOverlay }) =>
+    $compactOverlay ? "absolute" : "relative"};
   top: ${({ $compactOverlay }) => ($compactOverlay ? "12px" : "auto")};
   right: ${({ $compactOverlay }) => ($compactOverlay ? "12px" : "auto")};
   bottom: ${({ $compactOverlay }) => ($compactOverlay ? "12px" : "auto")};
@@ -70,7 +75,11 @@ const ChatPanel = styled.div<{
     width ${({ $duration }) => $duration}ms ease-out,
     height ${({ $duration }) => $duration}ms ease-out;
   width: ${({ $compactOverlay, $width, $hidden }) =>
-    $hidden ? "0" : $compactOverlay ? COMPACT_CHAT_CANVAS_DRAWER_WIDTH : $width};
+    $hidden
+      ? "0"
+      : $compactOverlay
+        ? COMPACT_CHAT_CANVAS_DRAWER_WIDTH
+        : $width};
   min-width: ${({ $compactOverlay, $minWidth }) =>
     $compactOverlay ? "min(320px, calc(100% - 24px))" : $minWidth};
   min-height: ${({ $compactOverlay, $hidden }) =>
@@ -210,8 +219,8 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
         chatCanvasPanelWidth: chatPanelWidth,
       },
     );
-    const [compactChatCanvasOverlay, setCompactChatCanvasOverlay] = useState(() =>
-      shouldUseCompactChatCanvasOverlay(effectiveMode),
+    const [compactChatCanvasOverlay, setCompactChatCanvasOverlay] = useState(
+      () => shouldUseCompactChatCanvasOverlay(effectiveMode),
     );
     const [compactChatPanelOpen, setCompactChatPanelOpen] = useState(false);
 
@@ -344,7 +353,9 @@ export const LayoutTransition: React.FC<LayoutTransitionProps> = memo(
               ? chatPanelMinWidth || "360px"
               : "0px"
           }
-          $compactOverlay={compactChatCanvasOverlay && effectiveMode === "chat-canvas"}
+          $compactOverlay={
+            compactChatCanvasOverlay && effectiveMode === "chat-canvas"
+          }
           $compactOverlayOpen={compactChatPanelOpen}
           $hidden={effectiveMode === "canvas"}
           $chrome={chatPanelChrome}

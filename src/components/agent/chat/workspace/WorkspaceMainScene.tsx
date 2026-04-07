@@ -5,7 +5,9 @@ import { WorkspaceCanvasContent } from "./WorkspaceCanvasContent";
 import { WorkspaceContentSyncNotice } from "./WorkspaceContentSyncNotice";
 import { WorkspaceMainArea } from "./WorkspaceMainArea";
 
-type WorkspaceCanvasContentProps = ComponentProps<typeof WorkspaceCanvasContent>;
+type WorkspaceCanvasContentProps = ComponentProps<
+  typeof WorkspaceCanvasContent
+>;
 type WorkspaceMainAreaProps = ComponentProps<typeof WorkspaceMainArea>;
 
 interface WorkspaceMainSceneProps {
@@ -55,7 +57,9 @@ export function WorkspaceMainScene({
   hasPendingA2UIForm,
   inputbarNode,
 }: WorkspaceMainSceneProps) {
-  const navbarNode = chatNavbarProps ? <ChatNavbar {...chatNavbarProps} /> : null;
+  const navbarNode = chatNavbarProps ? (
+    <ChatNavbar {...chatNavbarProps} />
+  ) : null;
   const contentSyncNoticeNode =
     !isThemeWorkbench && contentId && syncStatus !== "idle" ? (
       <WorkspaceContentSyncNotice status={syncStatus} />
@@ -79,7 +83,7 @@ export function WorkspaceMainScene({
       layoutMode={layoutMode}
       forceCanvasMode={Boolean(
         isThemeWorkbench &&
-          (hasLiveCanvasPreviewContent || Boolean(teamWorkbenchView)),
+        (hasLiveCanvasPreviewContent || Boolean(teamWorkbenchView)),
       )}
       chatContent={chatContent}
       canvasContent={canvasContent}

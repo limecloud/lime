@@ -70,8 +70,8 @@ export function hasMediaGenerationPreferenceOverride(
   const normalized = normalizeMediaGenerationPreference(preference);
   return Boolean(
     normalized.preferredProviderId ||
-      normalized.preferredModelId ||
-      normalized.allowFallback === false,
+    normalized.preferredModelId ||
+    normalized.allowFallback === false,
   );
 }
 

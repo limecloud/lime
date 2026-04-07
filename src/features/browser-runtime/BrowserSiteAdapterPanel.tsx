@@ -628,7 +628,9 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
       }
 
       if (
-        adapters.some((adapter) => adapter.name === pendingLaunch.adapterName) &&
+        adapters.some(
+          (adapter) => adapter.name === pendingLaunch.adapterName,
+        ) &&
         selectedAdapterName !== pendingLaunch.adapterName
       ) {
         setSelectedAdapterName(pendingLaunch.adapterName);

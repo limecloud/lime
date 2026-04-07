@@ -140,7 +140,9 @@ function getProjectMetaText(project: Project | null | undefined): string {
   return meta.join(" · ");
 }
 
-function getProjectSummaryText(project: Project | null | undefined): string | null {
+function getProjectSummaryText(
+  project: Project | null | undefined,
+): string | null {
   if (!project) {
     return null;
   }
@@ -194,9 +196,8 @@ export function ProjectSelector({
   const [isDeleting, setIsDeleting] = useState(false);
   const [summaryProject, setSummaryProject] = useState<Project | null>(null);
   const [projectListHydrating, setProjectListHydrating] = useState(false);
-  const [hasLoadedProjectList, setHasLoadedProjectList] = useState(
-    !deferProjectListLoad,
-  );
+  const [hasLoadedProjectList, setHasLoadedProjectList] =
+    useState(!deferProjectListLoad);
 
   const projectSource =
     workspaceType === "general" ? generalProjects : projects;
@@ -224,7 +225,8 @@ export function ProjectSelector({
   const renameTarget = useMemo(
     () =>
       renameTargetId
-        ? availableProjects.find((project) => project.id === renameTargetId) || null
+        ? availableProjects.find((project) => project.id === renameTargetId) ||
+          null
         : null,
     [availableProjects, renameTargetId],
   );
@@ -232,7 +234,8 @@ export function ProjectSelector({
   const deleteTarget = useMemo(
     () =>
       deleteTargetId
-        ? availableProjects.find((project) => project.id === deleteTargetId) || null
+        ? availableProjects.find((project) => project.id === deleteTargetId) ||
+          null
         : null,
     [availableProjects, deleteTargetId],
   );
@@ -275,7 +278,9 @@ export function ProjectSelector({
 
     const loadProjectSummary = async () => {
       try {
-        const selectedProjectSummaryRaw = value ? await getProject(value) : null;
+        const selectedProjectSummaryRaw = value
+          ? await getProject(value)
+          : null;
         const selectedProjectSummary = selectedProjectSummaryRaw
           ? toProjectView(selectedProjectSummaryRaw)
           : null;
@@ -293,7 +298,10 @@ export function ProjectSelector({
           : null;
         const resolvedProject = resolvedSelectedProject
           ? resolvedSelectedProject
-          : isProjectSelectableForWorkspace(fallbackDefaultProject, workspaceType)
+          : isProjectSelectableForWorkspace(
+                fallbackDefaultProject,
+                workspaceType,
+              )
             ? fallbackDefaultProject
             : null;
 
@@ -413,10 +421,7 @@ export function ProjectSelector({
 
   const handleOpenRename = () => {
     const currentSelectedProject = selectedProject;
-    if (
-      !currentSelectedProject ||
-      !canRenameProject(currentSelectedProject)
-    ) {
+    if (!currentSelectedProject || !canRenameProject(currentSelectedProject)) {
       return;
     }
 
@@ -454,10 +459,7 @@ export function ProjectSelector({
 
   const handleOpenDelete = () => {
     const currentSelectedProject = selectedProject;
-    if (
-      !currentSelectedProject ||
-      !canDeleteProject(currentSelectedProject)
-    ) {
+    if (!currentSelectedProject || !canDeleteProject(currentSelectedProject)) {
       return;
     }
 
@@ -544,7 +546,9 @@ export function ProjectSelector({
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[14px] border border-slate-200/80 bg-slate-50 text-slate-600">
                 {selectedProject?.icon ? (
-                  <span className={compact || embedded ? "text-sm" : "text-base"}>
+                  <span
+                    className={compact || embedded ? "text-sm" : "text-base"}
+                  >
                     {selectedProject.icon}
                   </span>
                 ) : (
@@ -591,10 +595,20 @@ export function ProjectSelector({
           )}
         >
           <div className="flex flex-col">
-            <div className={cn("relative border-b border-white/80", headerPaddingClass)}>
+            <div
+              className={cn(
+                "relative border-b border-white/80",
+                headerPaddingClass,
+              )}
+            >
               <div className="pointer-events-none absolute -left-10 top-[-24px] h-24 w-24 rounded-full bg-sky-200/20 blur-3xl" />
               <div className="pointer-events-none absolute right-[-20px] top-0 h-20 w-20 rounded-full bg-emerald-200/20 blur-3xl" />
-              <div className={cn("relative", compact ? "space-y-2.5" : "space-y-3")}>
+              <div
+                className={cn(
+                  "relative",
+                  compact ? "space-y-2.5" : "space-y-3",
+                )}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">
@@ -614,7 +628,9 @@ export function ProjectSelector({
 
                 {!compact && projectSummaryText ? (
                   <div className="rounded-[18px] border border-white/90 bg-white/85 px-3 py-2 text-[11px] leading-5 text-slate-600 shadow-sm">
-                    <span className="font-medium text-slate-800">当前项目：</span>
+                    <span className="font-medium text-slate-800">
+                      当前项目：
+                    </span>
                     <span>{projectSummaryText}</span>
                   </div>
                 ) : null}
@@ -635,8 +651,12 @@ export function ProjectSelector({
             </div>
 
             <div className={bodyPaddingClass}>
-              <ScrollArea className={cn(compact ? "max-h-[280px]" : "max-h-[320px]")}>
-                <div className={cn("pr-2", compact ? "space-y-2" : "space-y-3")}>
+              <ScrollArea
+                className={cn(compact ? "max-h-[280px]" : "max-h-[320px]")}
+              >
+                <div
+                  className={cn("pr-2", compact ? "space-y-2" : "space-y-3")}
+                >
                   {displayLoading ? (
                     <div className="rounded-[22px] border border-dashed border-slate-300/80 bg-white/80 px-4 py-8 text-center text-sm text-slate-500">
                       加载中...
@@ -671,7 +691,9 @@ export function ProjectSelector({
                             )}
                           >
                             {project.icon ? (
-                              <span className={compact ? "text-sm" : "text-base"}>
+                              <span
+                                className={compact ? "text-sm" : "text-base"}
+                              >
                                 {project.icon}
                               </span>
                             ) : (
@@ -683,7 +705,9 @@ export function ProjectSelector({
                               <span
                                 className={cn(
                                   "truncate text-slate-900",
-                                  compact ? "text-sm font-semibold" : "font-medium",
+                                  compact
+                                    ? "text-sm font-semibold"
+                                    : "font-medium",
                                 )}
                               >
                                 {project.name}
@@ -712,7 +736,12 @@ export function ProjectSelector({
                                 : project.rootPath}
                             </div>
                             {project.tags.length > 0 ? (
-                              <div className={cn("flex flex-wrap gap-1.5", compact ? "mt-1.5" : "mt-2")}>
+                              <div
+                                className={cn(
+                                  "flex flex-wrap gap-1.5",
+                                  compact ? "mt-1.5" : "mt-2",
+                                )}
+                              >
                                 {project.tags.slice(0, 2).map((tag) => (
                                   <Badge
                                     key={tag}
@@ -737,7 +766,12 @@ export function ProjectSelector({
             </div>
 
             {enableManagement ? (
-              <div className={cn("border-t border-white/80", managementPaddingClass)}>
+              <div
+                className={cn(
+                  "border-t border-white/80",
+                  managementPaddingClass,
+                )}
+              >
                 <div className={cn(compact ? "mb-2.5" : "mb-3")}>
                   <div className="text-sm font-semibold text-slate-900">
                     项目管理

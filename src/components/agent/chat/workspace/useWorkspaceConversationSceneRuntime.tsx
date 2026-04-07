@@ -127,9 +127,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
     context?: WriteArtifactContext,
   ) => void | Promise<void>;
   handleFileClick: ConversationScenePresentationParams["messageList"]["onFileClick"];
-  handleOpenArtifactFromTimeline: (
-    target: ArtifactTimelineOpenTarget,
-  ) => void;
+  handleOpenArtifactFromTimeline: (target: ArtifactTimelineOpenTarget) => void;
   handleOpenSavedSiteContent: ConversationScenePresentationParams["messageList"]["onOpenSavedSiteContent"];
   handleArtifactClick: ConversationScenePresentationParams["messageList"]["onArtifactClick"];
   handleOpenMessagePreview?: ConversationScenePresentationParams["messageList"]["onOpenMessagePreview"];
@@ -310,7 +308,8 @@ export function useWorkspaceConversationSceneRuntime({
       compactChrome: shellChromeRuntime.isWorkspaceCompactChrome,
       contextWorkspaceEnabled,
       generalWorkbenchMessageViewportBottomPadding:
-        shellChromeRuntime.workflowLayoutBottomSpacing.messageViewportBottomPadding,
+        shellChromeRuntime.workflowLayoutBottomSpacing
+          .messageViewportBottomPadding,
       onSelectWorkspaceDirectory:
         navigationActions.handleWorkspaceAlertSelectDirectory,
       onDismissWorkspaceAlert: navigationActions.handleDismissWorkspaceAlert,

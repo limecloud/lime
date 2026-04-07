@@ -93,7 +93,9 @@ export function LatestRunStatusBadge({
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>{label}</span>
         <Badge variant={statusVariant(latestRun.status)}>{statusText}</Badge>
-        <span className="truncate">时间: {formatTime(latestRun.started_at)}</span>
+        <span className="truncate">
+          时间: {formatTime(latestRun.started_at)}
+        </span>
       </div>
     </div>
   );

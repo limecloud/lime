@@ -7,9 +7,7 @@ import {
 } from "@/components/artifact";
 import { CanvasFactory } from "@/lib/workspace/workbenchCanvas";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
-import {
-  CanvasPanel as GeneralCanvasPanel,
-} from "@/components/general-chat/bridge";
+import { CanvasPanel as GeneralCanvasPanel } from "@/components/general-chat/bridge";
 import type { Artifact } from "@/lib/artifact/types";
 import { ImageTaskViewer } from "../components/ImageTaskViewer";
 import { ArtifactWorkbenchShell } from "./ArtifactWorkbenchShell";
@@ -49,7 +47,10 @@ interface ArtifactWorkbenchPreviewProps {
   ) => Promise<void> | void;
   onArtifactBlockRewriteRun?: (
     payload: ArtifactBlockRewriteRunPayload,
-  ) => Promise<ArtifactBlockRewriteCompletion> | ArtifactBlockRewriteCompletion | void;
+  ) =>
+    | Promise<ArtifactBlockRewriteCompletion>
+    | ArtifactBlockRewriteCompletion
+    | void;
   threadItems?: AgentThreadItem[];
   focusedBlockId?: string | null;
   blockFocusRequestKey?: number;
@@ -124,7 +125,9 @@ export function ArtifactWorkbenchPreview({
       return;
     }
 
-    onArtifactDocumentControllerChange(artifactDocument ? documentController : null);
+    onArtifactDocumentControllerChange(
+      artifactDocument ? documentController : null,
+    );
     return () => {
       onArtifactDocumentControllerChange(null);
     };

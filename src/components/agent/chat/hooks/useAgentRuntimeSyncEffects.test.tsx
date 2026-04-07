@@ -5,7 +5,9 @@ import type { AgentThreadTurn } from "../types";
 import { useAgentRuntimeSyncEffects } from "./useAgentRuntimeSyncEffects";
 
 const mockIsDevBridgeAvailable = vi.hoisted(() => vi.fn(() => false));
-const mockHasDevBridgeEventListenerCapability = vi.hoisted(() => vi.fn(() => false));
+const mockHasDevBridgeEventListenerCapability = vi.hoisted(() =>
+  vi.fn(() => false),
+);
 const mockHasTauriEventListenerCapability = vi.hoisted(() => vi.fn(() => true));
 
 vi.mock("@/lib/dev-bridge", () => ({
@@ -203,13 +205,13 @@ describe("useAgentRuntimeSyncEffects", () => {
 
   it("收到 subagent 状态事件后应刷新当前会话详情", async () => {
     const refreshSessionDetail = vi.fn(async () => true);
-    const listeners = new Map<
-      string,
-      (event: { payload: unknown }) => void
-    >();
+    const listeners = new Map<string, (event: { payload: unknown }) => void>();
     const runtime = {
       listenToTeamEvents: vi.fn(async (eventName, handler) => {
-        listeners.set(eventName, handler as (event: { payload: unknown }) => void);
+        listeners.set(
+          eventName,
+          handler as (event: { payload: unknown }) => void,
+        );
         return () => {
           listeners.delete(eventName);
         };

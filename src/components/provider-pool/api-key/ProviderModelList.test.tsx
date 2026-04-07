@@ -36,9 +36,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
-import {
-  ProviderModelList,
-} from "./ProviderModelList";
+import { ProviderModelList } from "./ProviderModelList";
 import { isProviderModelsCacheExpired } from "./providerModelListCache";
 
 interface MountedRoot {
@@ -282,11 +280,11 @@ describe("ProviderModelList", () => {
 
   it("Provider 模型缓存应在 TTL 后过期", () => {
     expect(isProviderModelsCacheExpired(1_000, 1_000)).toBe(false);
-    expect(
-      isProviderModelsCacheExpired(1_000, 1_000 + 5 * 60 * 1000 - 1),
-    ).toBe(false);
-    expect(
-      isProviderModelsCacheExpired(1_000, 1_000 + 5 * 60 * 1000),
-    ).toBe(true);
+    expect(isProviderModelsCacheExpired(1_000, 1_000 + 5 * 60 * 1000 - 1)).toBe(
+      false,
+    );
+    expect(isProviderModelsCacheExpired(1_000, 1_000 + 5 * 60 * 1000)).toBe(
+      true,
+    );
   });
 });

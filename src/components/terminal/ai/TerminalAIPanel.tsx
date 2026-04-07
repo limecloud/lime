@@ -91,12 +91,15 @@ export const TerminalAIPanel: React.FC<TerminalAIPanelProps> = ({
   /**
    * 处理发送
    */
-  const handleSend = useCallback(async (textOverride?: string) => {
-    const text = textOverride || input;
-    if (!text.trim()) return;
-    setInput("");
-    await sendMessage(text);
-  }, [input, sendMessage]);
+  const handleSend = useCallback(
+    async (textOverride?: string) => {
+      const text = textOverride || input;
+      if (!text.trim()) return;
+      setInput("");
+      await sendMessage(text);
+    },
+    [input, sendMessage],
+  );
 
   /**
    * 处理快捷输入

@@ -33,11 +33,7 @@ const DockContainer = styled.div<{
     $placement === "inline" ? "relative" : "absolute"};
   right: ${({ $placement }) => ($placement === "inline" ? "auto" : "14px")};
   bottom: ${({ $placement, $withBottomOverlay }) =>
-    $placement === "inline"
-      ? "auto"
-      : $withBottomOverlay
-        ? "108px"
-        : "16px"};
+    $placement === "inline" ? "auto" : $withBottomOverlay ? "108px" : "16px"};
   z-index: ${({ $placement }) => ($placement === "inline" ? 120 : 18)};
   display: flex;
   flex-direction: column;
@@ -98,8 +94,8 @@ const DockPanel = styled.div<{
         : "min(560px, calc(100vw - 40px))"};
     max-height: ${({ $compact }) =>
       $compact
-      ? "min(220px, calc(100vh - 200px))"
-      : "min(520px, calc(100vh - 148px))"};
+        ? "min(220px, calc(100vh - 200px))"
+        : "min(520px, calc(100vh - 148px))"};
   }
 
   @media (max-width: 720px) {
@@ -333,7 +329,9 @@ const EmptyStateBadge = styled.span<{ $tone?: "neutral" | "success" }>`
   border-radius: 999px;
   border: 1px solid
     ${({ $tone }) =>
-      $tone === "success" ? "rgba(167, 243, 208, 0.96)" : "rgba(226, 232, 240, 0.96)"};
+      $tone === "success"
+        ? "rgba(167, 243, 208, 0.96)"
+        : "rgba(226, 232, 240, 0.96)"};
   background: ${({ $tone }) => ($tone === "success" ? "#ecfdf5" : "#f8fafc")};
   color: ${({ $tone }) => ($tone === "success" ? "#047857" : "#64748b")};
   padding: 4px 10px;
@@ -458,9 +456,7 @@ interface TeamWorkspaceDockProps {
     sessionIds: string[],
     timeoutMs?: number,
   ) => void | Promise<void>;
-  onCloseCompletedTeamSessions?: (
-    sessionIds: string[],
-  ) => void | Promise<void>;
+  onCloseCompletedTeamSessions?: (sessionIds: string[]) => void | Promise<void>;
   onCloseSubagentSession?: (sessionId: string) => void | Promise<void>;
   onResumeSubagentSession?: (sessionId: string) => void | Promise<void>;
   onOpenSubagentSession?: (sessionId: string) => void | Promise<void>;
@@ -557,7 +553,8 @@ export function TeamWorkspaceDock({
     (selectedTeamRoles?.length ?? 0) > 0;
   const activeRuntimeSessionCount = childSubagentSessions.filter(
     (session) =>
-      session.runtime_status === "queued" || session.runtime_status === "running",
+      session.runtime_status === "queued" ||
+      session.runtime_status === "running",
   ).length;
   const runningRuntimeSessionCount = childSubagentSessions.filter(
     (session) => session.runtime_status === "running",
@@ -580,14 +577,15 @@ export function TeamWorkspaceDock({
         ? `${runningRuntimeSessionCount} 位处理中`
         : null;
   const teamQueueBadgeText =
-    (teamConcurrencySnapshot?.team_queued_count ?? queuedRuntimeSessionCount) > 0
+    (teamConcurrencySnapshot?.team_queued_count ?? queuedRuntimeSessionCount) >
+    0
       ? `${teamConcurrencySnapshot?.team_queued_count ?? queuedRuntimeSessionCount} 位等待中`
       : null;
-  const teamQueueReason =
-    teamConcurrencySnapshot?.queue_reason?.trim() || null;
-  const launcherStatusMeta = useMemo<
-    { label: string; tone: "idle" | "active" | "success" | "error" } | null
-  >(() => {
+  const teamQueueReason = teamConcurrencySnapshot?.queue_reason?.trim() || null;
+  const launcherStatusMeta = useMemo<{
+    label: string;
+    tone: "idle" | "active" | "success" | "error";
+  } | null>(() => {
     if (!launcherOnly) {
       return null;
     }
@@ -604,8 +602,7 @@ export function TeamWorkspaceDock({
       if (activeRuntimeSessionCount > 0) {
         return {
           label:
-            teamConcurrencyBadgeText ||
-            `${activeRuntimeSessionCount} 位处理中`,
+            teamConcurrencyBadgeText || `${activeRuntimeSessionCount} 位处理中`,
           tone: "active",
         };
       }
@@ -645,11 +642,7 @@ export function TeamWorkspaceDock({
     }
     if (hasRealTeamGraph) {
       if (teamConcurrencyBadgeText || teamQueueBadgeText) {
-        return [
-          "查看任务进展",
-          teamConcurrencyBadgeText,
-          teamQueueBadgeText,
-        ]
+        return ["查看任务进展", teamConcurrencyBadgeText, teamQueueBadgeText]
           .filter(Boolean)
           .join(" · ");
       }
@@ -693,10 +686,8 @@ export function TeamWorkspaceDock({
       return;
     }
 
-    const graphAppeared =
-      !previousHasRealGraphRef.current && hasRealTeamGraph;
-    const graphCleared =
-      previousHasRealGraphRef.current && !hasRealTeamGraph;
+    const graphAppeared = !previousHasRealGraphRef.current && hasRealTeamGraph;
+    const graphCleared = previousHasRealGraphRef.current && !hasRealTeamGraph;
 
     if (graphCleared) {
       setUserDismissedAutoExpand(false);
@@ -777,12 +768,12 @@ export function TeamWorkspaceDock({
       liveRuntimeBySessionId={liveRuntimeBySessionId}
       liveActivityBySessionId={liveActivityBySessionId}
       activityRefreshVersionBySessionId={activityRefreshVersionBySessionId}
-              onSendSubagentInput={onSendSubagentInput}
-              onWaitSubagentSession={onWaitSubagentSession}
-              onWaitActiveTeamSessions={onWaitActiveTeamSessions}
-              onCloseCompletedTeamSessions={onCloseCompletedTeamSessions}
-              onCloseSubagentSession={onCloseSubagentSession}
-              onResumeSubagentSession={onResumeSubagentSession}
+      onSendSubagentInput={onSendSubagentInput}
+      onWaitSubagentSession={onWaitSubagentSession}
+      onWaitActiveTeamSessions={onWaitActiveTeamSessions}
+      onCloseCompletedTeamSessions={onCloseCompletedTeamSessions}
+      onCloseSubagentSession={onCloseSubagentSession}
+      onResumeSubagentSession={onResumeSubagentSession}
       onOpenSubagentSession={onOpenSubagentSession}
       onReturnToParentSession={onReturnToParentSession}
       teamWaitSummary={teamWaitSummary}
@@ -811,18 +802,16 @@ export function TeamWorkspaceDock({
           {runtimeFormationMeta?.title || "等待协作成员加入"}
         </EmptyStateTitle>
         <EmptyStateDescription>
-          {dispatchPreviewState?.status === "forming"
-            ? "系统正在按当前任务准备协作分工，成员接入后会自动展开完整协作面板。"
-            : dispatchPreviewState?.status === "formed"
-              ? `已准备 ${dispatchPreviewState.members.length} 位协作成员，后续会自动接入并继续处理。`
-            : dispatchPreviewState?.status === "failed"
-                ? dispatchPreviewState.errorMessage?.trim() ||
-                  "这次协作准备失败，你仍然可以继续在当前对话中处理。"
-                : (
-                    <>
-                      需要时系统会自动邀请协作成员加入，这里会切换成完整协作面板。
-                    </>
-                  )}
+          {dispatchPreviewState?.status === "forming" ? (
+            "系统正在按当前任务准备协作分工，成员接入后会自动展开完整协作面板。"
+          ) : dispatchPreviewState?.status === "formed" ? (
+            `已准备 ${dispatchPreviewState.members.length} 位协作成员，后续会自动接入并继续处理。`
+          ) : dispatchPreviewState?.status === "failed" ? (
+            dispatchPreviewState.errorMessage?.trim() ||
+            "这次协作准备失败，你仍然可以继续在当前对话中处理。"
+          ) : (
+            <>需要时系统会自动邀请协作成员加入，这里会切换成完整协作面板。</>
+          )}
         </EmptyStateDescription>
         {teamQueueReason ? (
           <EmptyStateBadge>{teamQueueReason}</EmptyStateBadge>
@@ -836,7 +825,9 @@ export function TeamWorkspaceDock({
               data-testid="team-workspace-selected-team-toggle"
             >
               <div>
-                <EmptyStateDetailTitle>{runtimeTeamLabel}</EmptyStateDetailTitle>
+                <EmptyStateDetailTitle>
+                  {runtimeTeamLabel}
+                </EmptyStateDetailTitle>
                 <EmptyStateDetailHint>
                   {dispatchPreviewState
                     ? "查看当前协作分工与参考方案"
@@ -856,7 +847,9 @@ export function TeamWorkspaceDock({
                     <EmptyStateRoleName>
                       {dispatchPreviewState ? "当前摘要" : "方案摘要"}
                     </EmptyStateRoleName>
-                    <EmptyStateRoleSummary>{runtimeTeamSummary}</EmptyStateRoleSummary>
+                    <EmptyStateRoleSummary>
+                      {runtimeTeamSummary}
+                    </EmptyStateRoleSummary>
                   </EmptyStateRoleItem>
                 ) : null}
                 {dispatchPreviewState?.members.map((member) => {
@@ -883,7 +876,9 @@ export function TeamWorkspaceDock({
                           </span>
                         ) : null}
                       </div>
-                      <EmptyStateRoleSummary>{member.summary}</EmptyStateRoleSummary>
+                      <EmptyStateRoleSummary>
+                        {member.summary}
+                      </EmptyStateRoleSummary>
                       {member.skillIds.length > 0 ? (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {member.skillIds.map((skillId) => (
@@ -903,7 +898,9 @@ export function TeamWorkspaceDock({
                   ? selectedTeamRoles?.map((role) => (
                       <EmptyStateRoleItem key={`dock-role-${role.id}`}>
                         <EmptyStateRoleName>{role.label}</EmptyStateRoleName>
-                        <EmptyStateRoleSummary>{role.summary}</EmptyStateRoleSummary>
+                        <EmptyStateRoleSummary>
+                          {role.summary}
+                        </EmptyStateRoleSummary>
                       </EmptyStateRoleItem>
                     ))
                   : null}
@@ -932,7 +929,9 @@ export function TeamWorkspaceDock({
             <EmptyStateBadge>{runtimeTeamSummary}</EmptyStateBadge>
           ) : null}
           {dispatchPreviewState?.members.length ? (
-            <EmptyStateBadge>{dispatchPreviewState.members.length} 个成员</EmptyStateBadge>
+            <EmptyStateBadge>
+              {dispatchPreviewState.members.length} 个成员
+            </EmptyStateBadge>
           ) : null}
           <EmptyStateBadge>不遮挡画布</EmptyStateBadge>
         </EmptyStateFooter>

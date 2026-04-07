@@ -60,7 +60,8 @@ function buildMockMediaTaskOutput(
     typeof request.taskRef === "string" ? request.taskRef : undefined,
   );
   const projectRootPath =
-    typeof request.projectRootPath === "string" && request.projectRootPath.trim()
+    typeof request.projectRootPath === "string" &&
+    request.projectRootPath.trim()
       ? request.projectRootPath.trim()
       : "/mock/workspace";
   const prompt =
@@ -68,9 +69,7 @@ function buildMockMediaTaskOutput(
       ? request.prompt.trim()
       : "mock image task";
   const status =
-    typeof overrides?.status === "string"
-      ? overrides.status
-      : "pending_submit";
+    typeof overrides?.status === "string" ? overrides.status : "pending_submit";
   const normalizedStatus =
     typeof overrides?.normalized_status === "string"
       ? overrides.normalized_status
@@ -1534,8 +1533,7 @@ function buildMockAgentRuntimeToolInventory(request?: {
     workspace_default_allow: true,
     execution_warning_policy: "none",
     execution_warning_policy_source: "default",
-    execution_restriction_profile:
-      tool.execution_restriction_profile || "none",
+    execution_restriction_profile: tool.execution_restriction_profile || "none",
     execution_restriction_profile_source: "default",
     execution_sandbox_profile: "none",
     execution_sandbox_profile_source: "default",

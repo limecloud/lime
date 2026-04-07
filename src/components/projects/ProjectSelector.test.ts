@@ -184,8 +184,8 @@ describe("项目管理辅助逻辑", () => {
       )?.id,
     ).toBe("default");
 
-    expect(resolveSelectedProject([secondaryProject], "missing", null)?.id).toBe(
-      "general-2",
-    );
+    expect(
+      resolveSelectedProject([secondaryProject], "missing", null)?.id,
+    ).toBe("general-2");
   });
 });

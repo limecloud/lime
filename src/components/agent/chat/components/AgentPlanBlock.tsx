@@ -24,7 +24,10 @@ export const AgentPlanBlock: React.FC<AgentPlanBlockProps> = ({
           <ListChecks className="h-4 w-4" />
         </div>
         <div className="text-sm font-medium text-foreground">执行计划</div>
-        <Badge variant={isComplete ? "outline" : "secondary"} className="ml-auto">
+        <Badge
+          variant={isComplete ? "outline" : "secondary"}
+          className="ml-auto"
+        >
           {isComplete ? (
             "已生成"
           ) : (

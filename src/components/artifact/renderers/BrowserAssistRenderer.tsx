@@ -129,7 +129,8 @@ export const BrowserAssistRenderer: React.FC<ArtifactRendererProps> = memo(
             浏览器协助已迁移到浏览器工作台
           </div>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Claw 不再在当前工作区中渲染浏览器实时画面。请从首页、顶栏或技能入口打开浏览器工作台继续接管与调试。
+            Claw
+            不再在当前工作区中渲染浏览器实时画面。请从首页、顶栏或技能入口打开浏览器工作台继续接管与调试。
           </p>
           {launchUrl ? (
             <div className="mt-3 rounded-xl border border-border/70 bg-background/80 px-3 py-2 text-xs text-muted-foreground">

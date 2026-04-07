@@ -15,10 +15,7 @@ export interface HotkeyEventLike {
   type?: string;
 }
 
-const MODIFIER_LABEL_MAP: Record<
-  HotkeyPlatform,
-  Record<string, string>
-> = {
+const MODIFIER_LABEL_MAP: Record<HotkeyPlatform, Record<string, string>> = {
   mac: {
     CommandOrControl: "⌘",
     Command: "⌘",
@@ -96,7 +93,9 @@ export function formatShortcutTokens(
   return tokens.length > 0 ? tokens : ["未设置"];
 }
 
-export function isInputLikeTarget(target: EventTarget | null | undefined): boolean {
+export function isInputLikeTarget(
+  target: EventTarget | null | undefined,
+): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
   }

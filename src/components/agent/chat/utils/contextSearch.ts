@@ -51,7 +51,9 @@ function stripCodeFence(value: string): string {
     .trim();
 }
 
-function parseJsonObject(rawResponse: string): ParsedSearchResultPayload | null {
+function parseJsonObject(
+  rawResponse: string,
+): ParsedSearchResultPayload | null {
   const trimmed = rawResponse.trim();
   if (!trimmed) {
     return null;
@@ -224,7 +226,10 @@ function normalizeCommandResult(
     : null;
 
   return {
-    title: normalizeWhitespace(payload.title || "") || fallback?.title || buildFallbackTitle(query, mode),
+    title:
+      normalizeWhitespace(payload.title || "") ||
+      fallback?.title ||
+      buildFallbackTitle(query, mode),
     summary:
       normalizeWhitespace(payload.summary || "") ||
       fallback?.summary ||

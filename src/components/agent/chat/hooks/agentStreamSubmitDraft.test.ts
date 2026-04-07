@@ -5,7 +5,9 @@ import { prepareAgentStreamSubmitDraft } from "./agentStreamSubmitDraft";
 
 function createStateSetter<T>(getValue: () => T, setValue: (value: T) => void) {
   return (next: T | ((prev: T) => T)) => {
-    setValue(typeof next === "function" ? (next as (prev: T) => T)(getValue()) : next);
+    setValue(
+      typeof next === "function" ? (next as (prev: T) => T)(getValue()) : next,
+    );
   };
 }
 
@@ -24,12 +26,18 @@ describe("agentStreamSubmitDraft", () => {
       effectiveExecutionStrategy: "react",
       webSearch: true,
       thinking: true,
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setIsSending: createStateSetter(() => isSending, (value) => {
-        isSending = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
     });
 
     expect(messages).toHaveLength(2);
@@ -72,12 +80,18 @@ describe("agentStreamSubmitDraft", () => {
       effectiveExecutionStrategy: "code_orchestrated",
       webSearch: false,
       thinking: true,
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setIsSending: createStateSetter(() => isSending, (value) => {
-        isSending = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
     });
 
     expect(messages).toHaveLength(1);
@@ -106,12 +120,18 @@ describe("agentStreamSubmitDraft", () => {
       effectiveExecutionStrategy: "react",
       webSearch: false,
       thinking: false,
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setIsSending: createStateSetter(() => isSending, (value) => {
-        isSending = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
     });
 
     expect(messages[0]).toMatchObject({

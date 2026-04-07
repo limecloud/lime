@@ -79,7 +79,10 @@ export function listMentionEntryUsage(): MentionEntryUsageRecord[] {
   }
 }
 
-export function getMentionEntryUsageMap(): Map<string, MentionEntryUsageRecord> {
+export function getMentionEntryUsageMap(): Map<
+  string,
+  MentionEntryUsageRecord
+> {
   return new Map(
     listMentionEntryUsage().map((record) => [
       getMentionEntryUsageRecordKey(record.kind, record.entryId),
@@ -103,7 +106,8 @@ export function recordMentionEntryUsage(
     ...listMentionEntryUsage().filter(
       (record) =>
         !(
-          record.kind === nextRecord.kind && record.entryId === nextRecord.entryId
+          record.kind === nextRecord.kind &&
+          record.entryId === nextRecord.entryId
         ),
     ),
   ].slice(0, MAX_MENTION_ENTRY_USAGE_RECORDS);

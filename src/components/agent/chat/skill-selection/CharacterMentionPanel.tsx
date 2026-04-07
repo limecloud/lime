@@ -301,7 +301,13 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
     }
 
     return recentEntries.sort(compareRecentSlashEntries);
-  }, [allSupportedSlashCommands, installedSkills, isEmptyQuery, mode, sceneCommands]);
+  }, [
+    allSupportedSlashCommands,
+    installedSkills,
+    isEmptyQuery,
+    mode,
+    sceneCommands,
+  ]);
   const recentSlashCommandKeys = React.useMemo(
     () =>
       new Set(
@@ -401,12 +407,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
     }
 
     return recentEntries.sort(compareRecentMentionEntries);
-  }, [
-    builtinCommands,
-    isEmptyQuery,
-    mode,
-    visibleRecentServiceSkills,
-  ]);
+  }, [builtinCommands, isEmptyQuery, mode, visibleRecentServiceSkills]);
   const recentMentionCommandKeys = React.useMemo(
     () =>
       new Set(
@@ -426,7 +427,9 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
       return builtinCommands;
     }
 
-    return builtinCommands.filter((command) => !recentMentionCommandKeys.has(command.key));
+    return builtinCommands.filter(
+      (command) => !recentMentionCommandKeys.has(command.key),
+    );
   }, [builtinCommands, isEmptyQuery, mode, recentMentionCommandKeys]);
   const visibleFeaturedServiceSkills = React.useMemo(() => {
     if (mode !== "mention" || !isEmptyQuery) {

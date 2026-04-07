@@ -8,25 +8,25 @@
  * 活动事件类型
  */
 export type ActivityEventType =
-  | 'workflow_start'      // 工作流开始
-  | 'workflow_complete'   // 工作流完成
-  | 'step_start'          // 步骤开始
-  | 'step_complete'       // 步骤完成
-  | 'step_skip'           // 步骤跳过
-  | 'step_error'          // 步骤失败
-  | 'agent_call_start'    // Agent调用开始
-  | 'agent_call_complete' // Agent调用完成
-  | 'agent_call_error'    // Agent调用失败
-  | 'file_create'         // 文件创建
-  | 'file_update'         // 文件更新
-  | 'chat_request_start'  // 对话请求开始
-  | 'chat_request_complete' // 对话请求完成
-  | 'chat_request_error'  // 对话请求失败
-  | 'tool_start'          // 工具执行开始
-  | 'tool_complete'       // 工具执行完成
-  | 'tool_error'          // 工具执行失败
-  | 'action_required'     // 需要用户确认/输入
-  | 'user_action';        // 用户操作
+  | "workflow_start" // 工作流开始
+  | "workflow_complete" // 工作流完成
+  | "step_start" // 步骤开始
+  | "step_complete" // 步骤完成
+  | "step_skip" // 步骤跳过
+  | "step_error" // 步骤失败
+  | "agent_call_start" // Agent调用开始
+  | "agent_call_complete" // Agent调用完成
+  | "agent_call_error" // Agent调用失败
+  | "file_create" // 文件创建
+  | "file_update" // 文件更新
+  | "chat_request_start" // 对话请求开始
+  | "chat_request_complete" // 对话请求完成
+  | "chat_request_error" // 对话请求失败
+  | "tool_start" // 工具执行开始
+  | "tool_complete" // 工具执行完成
+  | "tool_error" // 工具执行失败
+  | "action_required" // 需要用户确认/输入
+  | "user_action"; // 用户操作
 
 /**
  * 日志作用域过滤器
@@ -43,16 +43,16 @@ export interface ActivityLog {
   id: string;
   timestamp: number;
   eventType: ActivityEventType;
-  status: 'pending' | 'success' | 'error';
-  title: string;           // 显示标题（如"执行需求分析Agent"）
-  description?: string;    // 详细描述
-  duration?: number;       // 耗时（毫秒）
+  status: "pending" | "success" | "error";
+  title: string; // 显示标题（如"执行需求分析Agent"）
+  description?: string; // 详细描述
+  duration?: number; // 耗时（毫秒）
   metadata?: Record<string, unknown>; // 额外数据
-  error?: string;          // 错误信息
-  workspaceId?: string;    // 项目工作区ID
-  sessionId?: string;      // 会话ID
+  error?: string; // 错误信息
+  workspaceId?: string; // 项目工作区ID
+  sessionId?: string; // 会话ID
   source?: "aster-chat"; // 日志来源
-  correlationId?: string;  // 关联ID（如 tool_id/request_id）
+  correlationId?: string; // 关联ID（如 tool_id/request_id）
 }
 
 /**
@@ -85,7 +85,10 @@ export class ActivityLogger {
       return true;
     }
 
-    if (scope.workspaceId !== undefined && log.workspaceId !== scope.workspaceId) {
+    if (
+      scope.workspaceId !== undefined &&
+      log.workspaceId !== scope.workspaceId
+    ) {
       return false;
     }
 
@@ -105,7 +108,7 @@ export class ActivityLogger {
    * @param event - 日志事件（不包含id和timestamp）
    * @returns 日志ID，可用于后续更新
    */
-  log(event: Omit<ActivityLog, 'id' | 'timestamp'>): string {
+  log(event: Omit<ActivityLog, "id" | "timestamp">): string {
     const log: ActivityLog = {
       id: this.generateId(),
       timestamp: Date.now(),
@@ -123,7 +126,7 @@ export class ActivityLogger {
    * @param updates - 要更新的字段
    */
   updateLog(id: string, updates: Partial<ActivityLog>): void {
-    const log = this.logs.find(l => l.id === id);
+    const log = this.logs.find((l) => l.id === id);
     if (log) {
       Object.assign(log, updates);
       this.notifyListeners();
@@ -172,7 +175,7 @@ export class ActivityLogger {
    */
   private notifyListeners(): void {
     const logs = this.getLogs();
-    this.listeners.forEach(listener => listener(logs));
+    this.listeners.forEach((listener) => listener(logs));
   }
 }
 

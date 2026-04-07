@@ -414,10 +414,7 @@ describe("SkillsPage", () => {
       button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(mockInspectLocalSkill).toHaveBeenCalledWith(
-      "local-skill",
-      "lime",
-    );
+    expect(mockInspectLocalSkill).toHaveBeenCalledWith("local-skill", "lime");
     expect(mockInspectRemoteSkill).not.toHaveBeenCalled();
   });
 

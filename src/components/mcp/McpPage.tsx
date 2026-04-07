@@ -369,9 +369,7 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
             MCP (Model Context Protocol) 是 AI 工具扩展协议，让 AI
             能访问文件系统、数据库等外部资源
           </li>
-          <li>
-            在此添加 MCP 服务器后，可同步到 Claude、Codex、Gemini CLI
-          </li>
+          <li>在此添加 MCP 服务器后，可同步到 Claude、Codex、Gemini CLI</li>
           <li>也可从这些工具导入已有的 MCP 配置，统一管理</li>
         </ul>
       </HelpTip>

@@ -129,18 +129,21 @@ vi.mock("@/hooks/useSkills", () => ({
   }),
 }));
 
-vi.mock("@/components/agent/chat/service-skills/ServiceSkillLaunchDialog", () => ({
-  ServiceSkillLaunchDialog: ({
-    skill,
-    open,
-  }: {
-    skill: ServiceSkillHomeItem | null;
-    open: boolean;
-  }) =>
-    open ? (
-      <div data-testid="service-skill-launch-dialog">{skill?.title}</div>
-    ) : null,
-}));
+vi.mock(
+  "@/components/agent/chat/service-skills/ServiceSkillLaunchDialog",
+  () => ({
+    ServiceSkillLaunchDialog: ({
+      skill,
+      open,
+    }: {
+      skill: ServiceSkillHomeItem | null;
+      open: boolean;
+    }) =>
+      open ? (
+        <div data-testid="service-skill-launch-dialog">{skill?.title}</div>
+      ) : null,
+  }),
+);
 
 vi.mock("./SkillsPage", () => ({
   SkillsPage: () => (
@@ -149,22 +152,15 @@ vi.mock("./SkillsPage", () => ({
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({
-    open,
-    children,
-  }: {
-    open: boolean;
-    children: ReactNode;
-  }) => (open ? <div>{children}</div> : null),
+  Dialog: ({ open, children }: { open: boolean; children: ReactNode }) =>
+    open ? <div>{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   ),
   DialogHeader: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   ),
-  DialogTitle: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
+  DialogTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogDescription: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   ),
@@ -254,7 +250,9 @@ describe("SkillsWorkspacePage", () => {
 
     expect(container.textContent).toContain("技能");
     expect(container.textContent).toContain("GitHub");
-    expect(container.textContent).not.toContain("GitHub 仓库检索围绕关键词采集");
+    expect(container.textContent).not.toContain(
+      "GitHub 仓库检索围绕关键词采集",
+    );
   });
 
   it("应把主入口说明和搜索说明收进 tips", async () => {

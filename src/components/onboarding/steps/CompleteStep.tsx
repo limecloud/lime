@@ -65,9 +65,7 @@ export function CompleteStep({ onFinish }: CompleteStepProps) {
       <Title>设置完成！</Title>
       <Subtitle>Lime 已准备就绪，您可以开始使用了。</Subtitle>
 
-      <TipsMessage>
-        提示：后续可在设置中继续调整语音输入和快捷键。
-      </TipsMessage>
+      <TipsMessage>提示：后续可在设置中继续调整语音输入和快捷键。</TipsMessage>
 
       <Button size="lg" onClick={onFinish}>
         开始使用

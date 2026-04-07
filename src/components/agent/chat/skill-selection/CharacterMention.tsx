@@ -186,9 +186,7 @@ function normalizeSceneToken(value?: string | null): string {
   return value.trim().replace(/^\/+/, "").toLowerCase();
 }
 
-function toServiceSkillHomeItem(
-  skill: ServiceSkillItem,
-): ServiceSkillHomeItem {
+function toServiceSkillHomeItem(skill: ServiceSkillItem): ServiceSkillHomeItem {
   return {
     ...skill,
     badge: skill.source === "cloud_catalog" ? "云目录" : "本地技能",
@@ -356,7 +354,8 @@ export function CharacterMention({
         if (cancelled) {
           return;
         }
-        const nextBuiltinCommands = listBuiltinCommandsFromSkillCatalog(catalog);
+        const nextBuiltinCommands =
+          listBuiltinCommandsFromSkillCatalog(catalog);
         const nextRuntimeScenes =
           listRuntimeSceneSlashCommandsFromSkillCatalog(catalog);
         setRuntimeBuiltinCommands(
@@ -607,7 +606,8 @@ export function CharacterMention({
         })
       : {
           value: `${leadingText}${command.commandPrefix} ${textAfterCursor}`,
-          cursorPos: activeTrigger.triggerIndex + command.commandPrefix.length + 1,
+          cursorPos:
+            activeTrigger.triggerIndex + command.commandPrefix.length + 1,
         };
 
     onChange(nextSelection.value);
@@ -718,7 +718,10 @@ export function CharacterMention({
           }
         })());
 
-      if (matchedSkill && matchedSkill.slotSchema.some((slot) => slot.required)) {
+      if (
+        matchedSkill &&
+        matchedSkill.slotSchema.some((slot) => slot.required)
+      ) {
         onSelectServiceSkill(matchedSkill);
         setShowMentions(false);
         recordSlashEntryUsage({
@@ -843,20 +846,20 @@ export function CharacterMention({
           <LazyCharacterMentionPanel
             mode={triggerMode}
             mentionQuery={mentionQuery}
-                  builtinCommands={filteredBuiltinCommands}
-                  slashCommands={filteredSlashCommands}
-                  sceneCommands={filteredRuntimeSceneCommands}
-                  mentionServiceSkills={filteredServiceSkills}
-                  filteredCharacters={filteredCharacters}
+            builtinCommands={filteredBuiltinCommands}
+            slashCommands={filteredSlashCommands}
+            sceneCommands={filteredRuntimeSceneCommands}
+            mentionServiceSkills={filteredServiceSkills}
+            filteredCharacters={filteredCharacters}
             installedSkills={installedSkills}
             availableSkills={availableSkills}
             commandRef={commandRef}
             onQueryChange={setMentionQuery}
-                  onSelectBuiltinCommand={handleSelectBuiltinCommand}
-                  onSelectServiceSkill={handleSelectServiceSkill}
-                  onSelectSlashCommand={handleSelectSlashCommand}
-                  onSelectSceneCommand={handleSelectRuntimeSceneCommand}
-                  onSelectCharacter={handleSelectCharacter}
+            onSelectBuiltinCommand={handleSelectBuiltinCommand}
+            onSelectServiceSkill={handleSelectServiceSkill}
+            onSelectSlashCommand={handleSelectSlashCommand}
+            onSelectSceneCommand={handleSelectRuntimeSceneCommand}
+            onSelectCharacter={handleSelectCharacter}
             onSelectInstalledSkill={handleSelectInstalledSkill}
             onSelectAvailableSkill={handleSelectAvailableSkill}
             onNavigateToSettings={

@@ -232,7 +232,11 @@ export const mcpApi = {
     args: Record<string, unknown>,
     caller?: string,
   ): Promise<McpToolResult> =>
-    safeInvoke("mcp_call_tool_with_caller", { toolName, arguments: args, caller }),
+    safeInvoke("mcp_call_tool_with_caller", {
+      toolName,
+      arguments: args,
+      caller,
+    }),
 
   // --------------------------------------------------------------------------
   // 提示词管理 API

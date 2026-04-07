@@ -254,10 +254,7 @@ export function StatsSettings() {
         )}`
       : "暂无活跃记录";
   const heatmapCells: Array<DailyUsage | null> = [
-    ...Array.from(
-      { length: Math.max(35 - heatmapDays.length, 0) },
-      () => null,
-    ),
+    ...Array.from({ length: Math.max(35 - heatmapDays.length, 0) }, () => null),
     ...heatmapDays,
   ];
   const isInitialLoading = loading && !stats && !error;
@@ -511,16 +508,16 @@ export function StatsSettings() {
               <article className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <Brain className="h-4 w-4 text-emerald-600" />
-                    模型使用排行
-                    <WorkbenchInfoTip
-                      ariaLabel="模型使用排行说明"
-                      content="查看当前区间内最常使用的模型与使用占比。"
-                      tone="slate"
-                    />
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                      <Brain className="h-4 w-4 text-emerald-600" />
+                      模型使用排行
+                      <WorkbenchInfoTip
+                        ariaLabel="模型使用排行说明"
+                        content="查看当前区间内最常使用的模型与使用占比。"
+                        tone="slate"
+                      />
+                    </div>
                   </div>
-                </div>
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
                     {modelUsage.length} 个模型
                   </span>
@@ -807,7 +804,8 @@ export function StatsSettings() {
                     >
                       {day ? (
                         <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-[calc(100%+6px)] rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-600 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 whitespace-nowrap">
-                          {formatShortDate(day.date)} · {formatNumber(day.tokens)}
+                          {formatShortDate(day.date)} ·{" "}
+                          {formatNumber(day.tokens)}
                         </div>
                       ) : null}
                     </div>

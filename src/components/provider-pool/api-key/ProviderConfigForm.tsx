@@ -240,7 +240,9 @@ export const ProviderConfigForm = forwardRef<
     const visibleSelectedModels = shouldHideSavedModels ? [] : selectedModels;
     const shouldLockModelEditor =
       requiresLiveModelTruth &&
-      (!canReadLiveModels || localModelsLoading || localCandidateModels.length === 0);
+      (!canReadLiveModels ||
+        localModelsLoading ||
+        localCandidateModels.length === 0);
 
     const latestLocalModel = useMemo(() => {
       const localModelsWithMetadata = localCandidateModels.filter(

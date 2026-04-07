@@ -210,8 +210,8 @@ function TeamCard({
                         {role.profileId ? (
                           <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500">
                             画像 ·{" "}
-                            {getBuiltinTeamProfileOption(role.profileId)?.label ||
-                              role.profileId}
+                            {getBuiltinTeamProfileOption(role.profileId)
+                              ?.label || role.profileId}
                           </span>
                         ) : null}
                         {role.roleKey ? (
@@ -225,7 +225,8 @@ function TeamCard({
                             className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500"
                           >
                             技能 ·{" "}
-                            {getBuiltinTeamSkillOption(skillId)?.label || skillId}
+                            {getBuiltinTeamSkillOption(skillId)?.label ||
+                              skillId}
                           </span>
                         ))}
                       </div>
@@ -332,7 +333,9 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
 
   const builtinTeams = useMemo(
     () =>
-      listBuiltinTeamDefinitions().filter((team) => matchTeamQuery(team, query)),
+      listBuiltinTeamDefinitions().filter((team) =>
+        matchTeamQuery(team, query),
+      ),
     [query],
   );
 
@@ -374,7 +377,11 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
   };
 
   const handleStartCreate = (base?: TeamDefinition | null) => {
-    setDraft(base ? buildDraftFromTeam(cloneTeamDefinitionAsCustom(base)) : createBlankDraft(activeTheme));
+    setDraft(
+      base
+        ? buildDraftFromTeam(cloneTeamDefinitionAsCustom(base))
+        : createBlankDraft(activeTheme),
+    );
   };
 
   const handleStartEdit = (team: TeamDefinition) => {
@@ -399,7 +406,8 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
       theme: draft?.theme,
       presetId:
         draft?.presetId ||
-        (draft?.id && customTeams.find((team) => team.id === draft.id)?.presetId),
+        (draft?.id &&
+          customTeams.find((team) => team.id === draft.id)?.presetId),
       roles: draft?.roles,
     });
 
@@ -417,9 +425,10 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
         Date.now(),
     };
 
-    const nextCustomTeams = [...customTeams.filter((team) => team.id !== nextTeam.id), nextTeam].sort(
-      (left, right) => (right.updatedAt || 0) - (left.updatedAt || 0),
-    );
+    const nextCustomTeams = [
+      ...customTeams.filter((team) => team.id !== nextTeam.id),
+      nextTeam,
+    ].sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0));
     try {
       await persistCustomTeams(nextCustomTeams);
       setCustomTeams(nextCustomTeams);
@@ -514,7 +523,8 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
     if (!inspectorTeam) {
       return (
         <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-5 py-6 text-sm text-slate-500">
-          还没有可预览的 Team。你可以从左侧模板中查看详情，或新建一个自定义 Team。
+          还没有可预览的 Team。你可以从左侧模板中查看详情，或新建一个自定义
+          Team。
         </div>
       );
     }
@@ -550,7 +560,8 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
               ) : null}
             </div>
             <div className="mt-2 text-sm leading-6 text-slate-600">
-              {inspectorTeam.description || "该 Team 将作为主代理拆分子任务时的协作参考。"}
+              {inspectorTeam.description ||
+                "该 Team 将作为主代理拆分子任务时的协作参考。"}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -939,7 +950,9 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                             onChange={(event) =>
                               updateDraftRole(index, (item) => ({
                                 ...item,
-                                skillIds: parseSkillIdsInput(event.target.value),
+                                skillIds: parseSkillIdsInput(
+                                  event.target.value,
+                                ),
                               }))
                             }
                             data-testid={`team-role-skill-ids-input-${index}`}
@@ -1054,10 +1067,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                 className="bg-slate-900 text-white hover:bg-slate-800"
                 onClick={() =>
                   handleStartCreate(
-                    selectedTeam ||
-                      recommendedTeam ||
-                      builtinTeams[0] ||
-                      null,
+                    selectedTeam || recommendedTeam || builtinTeams[0] || null,
                   )
                 }
               >

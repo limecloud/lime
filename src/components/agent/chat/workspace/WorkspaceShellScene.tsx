@@ -94,7 +94,9 @@ export function WorkspaceShellScene({
       showChatPanel={showChatPanel}
       showSidebar={showSidebar}
       chatSidebarProps={chatSidebarProps}
-      showGeneralWorkbenchLeftExpandButton={showGeneralWorkbenchLeftExpandButton}
+      showGeneralWorkbenchLeftExpandButton={
+        showGeneralWorkbenchLeftExpandButton
+      }
       onExpandGeneralWorkbenchSidebar={onExpandGeneralWorkbenchSidebar}
       mainAreaNode={mainAreaNode}
     />

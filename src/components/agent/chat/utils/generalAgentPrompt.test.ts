@@ -20,18 +20,15 @@ describe("generalAgentPrompt", () => {
   });
 
   it("通用主题 Prompt 应避免编程和落盘默认倾向", () => {
-    const prompt = buildGeneralAgentSystemPrompt(
-      "general",
-      {
-        now: new Date("2026-03-12T12:00:00+08:00"),
-        toolPreferences: {
-          webSearch: false,
-          thinking: false,
-          task: true,
-          subagent: true,
-        },
+    const prompt = buildGeneralAgentSystemPrompt("general", {
+      now: new Date("2026-03-12T12:00:00+08:00"),
+      toolPreferences: {
+        webSearch: false,
+        thinking: false,
+        task: true,
+        subagent: true,
       },
-    );
+    });
 
     expect(prompt).toContain("不要把自己限制为编程助手");
     expect(prompt).toContain("不主动落盘");

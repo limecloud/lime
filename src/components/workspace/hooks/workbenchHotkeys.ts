@@ -3,7 +3,11 @@
  * @description 工作区级快捷键定义与匹配
  */
 
-import { hasPrimaryModifier, normalizeHotkeyKey, type HotkeyEventLike } from "@/lib/hotkeys/platform";
+import {
+  hasPrimaryModifier,
+  normalizeHotkeyKey,
+  type HotkeyEventLike,
+} from "@/lib/hotkeys/platform";
 import type { AuditedHotkeyDefinition } from "@/lib/hotkeys/types";
 
 export const WORKBENCH_SIDEBAR_TOGGLE_HOTKEY: AuditedHotkeyDefinition = {

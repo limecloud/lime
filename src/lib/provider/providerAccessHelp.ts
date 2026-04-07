@@ -114,7 +114,8 @@ export function getProviderAccessHelp(input: {
   apiHost?: string | null;
 }): ProviderAccessHelp {
   const providerId = normalize(input.providerId);
-  const providerName = (input.providerName || "").trim() || providerId || "当前渠道";
+  const providerName =
+    (input.providerName || "").trim() || providerId || "当前渠道";
 
   if (
     LOCAL_KEYLESS_PROVIDER_IDS.has(providerId) ||

@@ -111,7 +111,9 @@ describe("BrowserEnvironmentPresetManager", () => {
       selectedPresetId: "",
     });
 
-    const select = container.querySelector("select") as HTMLSelectElement | null;
+    const select = container.querySelector(
+      "select",
+    ) as HTMLSelectElement | null;
     expect(select).not.toBeNull();
 
     await act(async () => {

@@ -10,8 +10,7 @@
 
 import type { SettingsTabs } from "./settings";
 
-export type WorkspaceTheme =
-  | "general";
+export type WorkspaceTheme = "general";
 
 export type Page =
   | "openclaw"
@@ -92,10 +91,7 @@ export interface AgentPageParams {
 /**
  * 设置页面参数
  */
-export type SettingsProviderView =
-  | "settings"
-  | "cloud"
-  | "companion";
+export type SettingsProviderView = "settings" | "cloud" | "companion";
 
 export interface SettingsPageParams {
   tab?: SettingsTabs;

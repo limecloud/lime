@@ -81,7 +81,11 @@ describe("buildTrayPayload", () => {
   });
 
   it("相同签名的 payload 会复用缓存，避免重复拉取数据", async () => {
-    const first = await buildTrayPayload("deepseek", "deepseek-chat", "general");
+    const first = await buildTrayPayload(
+      "deepseek",
+      "deepseek-chat",
+      "general",
+    );
     const second = await buildTrayPayload(
       "deepseek",
       "deepseek-chat",

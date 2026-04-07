@@ -35,7 +35,8 @@ vi.mock("@/lib/api/automation", () => ({
 }));
 
 vi.mock("@/lib/api/serviceSkillRuns", () => ({
-  createServiceSkillRun: (...args: unknown[]) => mockCreateServiceSkillRun(...args),
+  createServiceSkillRun: (...args: unknown[]) =>
+    mockCreateServiceSkillRun(...args),
   getServiceSkillRun: (...args: unknown[]) => mockGetServiceSkillRun(...args),
   isTerminalServiceSkillRunStatus: (status: unknown) =>
     mockIsTerminalServiceSkillRunStatus(status),
@@ -308,7 +309,8 @@ beforeEach(() => {
     domain: "github.com",
     profile_key: "attached-github",
     target_id: "tab-github",
-    message: "已检测到 github.com 的真实浏览器页面，Claw 可以直接复用当前会话执行。",
+    message:
+      "已检测到 github.com 的真实浏览器页面，Claw 可以直接复用当前会话执行。",
   });
   mockCreateAutomationJob.mockResolvedValue({
     id: "automation-job-1",
@@ -324,7 +326,9 @@ beforeEach(() => {
     id: "content-created-by-service-skill",
   });
   mockListProjects.mockResolvedValue([createProject()]);
-  mockGetOrCreateDefaultProject.mockResolvedValue(createProject("project-default"));
+  mockGetOrCreateDefaultProject.mockResolvedValue(
+    createProject("project-default"),
+  );
   mockRecordServiceSkillAutomationLink.mockReset();
   mockToastSuccess.mockReset();
   mockToastError.mockReset();
@@ -375,13 +379,13 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
         initialCreationMode: "guided",
         newChatAt: expect.any(Number),
         autoRunInitialPromptOnMount: true,
-        initialUserPrompt: "你帮我在 GitHub 找一下和“browser assist mcp”相关的项目。",
+        initialUserPrompt:
+          "你帮我在 GitHub 找一下和“browser assist mcp”相关的项目。",
         initialAutoSendRequestMetadata: {
           harness: {
             browser_requirement: "required",
-            browser_requirement_reason: expect.stringContaining(
-              "真实浏览器页面",
-            ),
+            browser_requirement_reason:
+              expect.stringContaining("真实浏览器页面"),
             browser_assist: {
               enabled: true,
               profile_key: "attached-github",
@@ -418,9 +422,9 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     expect(firstSiteSkillLaunchPayload?.initialUserPrompt).not.toContain(
       "adapter_name",
     );
-    expect(firstSiteSkillLaunchPayload?.initialAutoSendRequestMetadata).not.toHaveProperty(
-      "artifact",
-    );
+    expect(
+      firstSiteSkillLaunchPayload?.initialAutoSendRequestMetadata,
+    ).not.toHaveProperty("artifact");
     expect(recordServiceSkillUsage).toHaveBeenCalledWith({
       skillId: "github-repo-radar",
       runnerType: "instant",
@@ -574,10 +578,7 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
       });
     });
 
-    expect(onNavigate).not.toHaveBeenCalledWith(
-      "agent",
-      expect.anything(),
-    );
+    expect(onNavigate).not.toHaveBeenCalledWith("agent", expect.anything());
     expect(mockToastInfo).toHaveBeenCalledWith(
       expect.stringContaining("请先去浏览器工作台连接真实浏览器"),
     );
@@ -614,7 +615,9 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     );
     expect(mockCreateServiceSkillRun).toHaveBeenCalledWith(
       "cloud-video-dubbing",
-      expect.stringContaining("- 参考视频链接/素材: https://example.com/cloud-video"),
+      expect.stringContaining(
+        "- 参考视频链接/素材: https://example.com/cloud-video",
+      ),
     );
     expect(mockCreateContent).toHaveBeenCalledWith(
       expect.objectContaining({

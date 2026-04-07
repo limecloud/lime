@@ -169,7 +169,8 @@ describe("legacySurfaceCatalog", () => {
   it("应记录已删除的旧工作区主题工作台 helper 与 sidebar 壳文件路径", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) =>
-        entry.id === "workspace-theme-workbench-helper-and-sidebar-shell-entries",
+        entry.id ===
+        "workspace-theme-workbench-helper-and-sidebar-shell-entries",
     );
 
     expect(monitor).toBeTruthy();
@@ -706,9 +707,7 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor).toBeTruthy();
     expect(monitor?.classification).toBe("dead-candidate");
     expect(monitor?.allowedPaths).toEqual([]);
-    expect(monitor?.targets).toEqual([
-      "src/components/layout/PanelLayout.tsx",
-    ]);
+    expect(monitor?.targets).toEqual(["src/components/layout/PanelLayout.tsx"]);
   });
 
   it("应收窄旧 SubAgent scheduler Hook 的 compat 白名单", () => {
@@ -968,7 +967,8 @@ describe("legacySurfaceCatalog", () => {
 
   it("应禁止 general workbench entry prompt accessory 回流到旧 ThemeWorkbench 文件路径", () => {
     const monitor = legacySurfaceCatalogJson.frontendText.find(
-      (entry) => entry.id === "general-workbench-entry-prompt-accessory-imports",
+      (entry) =>
+        entry.id === "general-workbench-entry-prompt-accessory-imports",
     );
 
     expect(monitor).toBeTruthy();

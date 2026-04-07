@@ -199,12 +199,16 @@ describe("AddCustomProviderModal", () => {
 
     const nameInput = findByTestId<HTMLInputElement>("provider-name-input");
     const hostInput = findByTestId<HTMLInputElement>("api-host-input");
-    const providerTypeSelect = findByTestId<HTMLElement>("provider-type-select");
+    const providerTypeSelect = findByTestId<HTMLElement>(
+      "provider-type-select",
+    );
 
     expect(nameInput.value).toBe("Codex CLI");
     expect(hostInput.value).toBe("https://api.openai.com");
     expect(providerTypeSelect.textContent ?? "").toContain("Codex CLI");
-    expect(document.body.textContent ?? "").toContain("Codex 保留 Lime 的专属协议");
+    expect(document.body.textContent ?? "").toContain(
+      "Codex 保留 Lime 的专属协议",
+    );
   });
 
   it("legacy 别名只应参与搜索，不应重复渲染模板卡片", async () => {

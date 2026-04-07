@@ -77,8 +77,10 @@ export function useWorkspaceGeneralWorkbenchScaffoldRuntime({
   setCanvasState,
   setLayoutMode,
 }: UseWorkspaceGeneralWorkbenchScaffoldRuntimeParams) {
-  const [generalWorkbenchSidebarCollapsed, setGeneralWorkbenchSidebarCollapsed] =
-    useState(false);
+  const [
+    generalWorkbenchSidebarCollapsed,
+    setGeneralWorkbenchSidebarCollapsed,
+  ] = useState(false);
   const [
     generalWorkbenchCreationTaskEvents,
     setGeneralWorkbenchCreationTaskEvents,
@@ -175,7 +177,13 @@ export function useWorkspaceGeneralWorkbenchScaffoldRuntime({
 
     setCanvasState(initialGeneralWorkbenchCanvas);
     setLayoutMode((previous) => (previous === "chat" ? "canvas" : previous));
-  }, [canvasState, isGeneralWorkbench, mappedTheme, setCanvasState, setLayoutMode]);
+  }, [
+    canvasState,
+    isGeneralWorkbench,
+    mappedTheme,
+    setCanvasState,
+    setLayoutMode,
+  ]);
 
   useEffect(() => {
     if (enableGeneralWorkbenchPanelCollapse) {
@@ -185,7 +193,11 @@ export function useWorkspaceGeneralWorkbenchScaffoldRuntime({
   }, [enableGeneralWorkbenchPanelCollapse]);
 
   const versionTopics = useMemo(() => {
-    if (!isGeneralWorkbench || !canvasState || canvasState.type !== "document") {
+    if (
+      !isGeneralWorkbench ||
+      !canvasState ||
+      canvasState.type !== "document"
+    ) {
       return [];
     }
     return canvasState.versions.map((version, index) => ({

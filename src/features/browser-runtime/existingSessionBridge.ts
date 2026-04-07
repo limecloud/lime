@@ -12,7 +12,9 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-export function parseExistingSessionTabs(data: unknown): ExistingSessionTabRecord[] {
+export function parseExistingSessionTabs(
+  data: unknown,
+): ExistingSessionTabRecord[] {
   let rawTabs: unknown[] = [];
 
   if (isObjectRecord(data) && Array.isArray(data.tabs)) {
@@ -116,6 +118,8 @@ export function shouldReplaceExistingSessionPageInfo(
   );
 }
 
-export function getExistingSessionTabLabel(tab: ExistingSessionTabRecord): string {
+export function getExistingSessionTabLabel(
+  tab: ExistingSessionTabRecord,
+): string {
   return tab.title || tab.url || `标签页 ${tab.index + 1}`;
 }

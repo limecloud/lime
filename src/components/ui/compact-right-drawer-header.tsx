@@ -8,8 +8,7 @@ import { cn } from "@/lib/utils";
 const COMPACT_RIGHT_DRAWER_ICON_BUTTON_CLASSNAME =
   "inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200/90 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50";
 
-interface CompactRightDrawerHeaderProps
-  extends HTMLAttributes<HTMLDivElement> {
+interface CompactRightDrawerHeaderProps extends HTMLAttributes<HTMLDivElement> {
   eyebrow: string;
   heading: ReactNode;
   subtitle?: ReactNode;
@@ -70,8 +69,7 @@ export function CompactRightDrawerHeader({
   );
 }
 
-interface CompactRightDrawerIconButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface CompactRightDrawerIconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
 }
 

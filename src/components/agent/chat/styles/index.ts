@@ -6,20 +6,18 @@ export const Navbar = styled.div<{ $compact?: boolean }>`
   align-items: center;
   justify-content: space-between;
   gap: ${({ $compact }) => ($compact ? "8px" : "12px")};
-  padding: ${({ $compact }) =>
-    $compact ? "7px 10px 7px" : "12px 16px 10px"};
+  padding: ${({ $compact }) => ($compact ? "7px 10px 7px" : "12px 16px 10px")};
   min-height: ${({ $compact }) => ($compact ? "50px" : "64px")};
-  border-bottom: 1px solid rgba(226, 232, 240, 0.88);
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.96) 0%,
-      rgba(248, 250, 252, 0.94) 58%,
-      rgba(241, 245, 249, 0.88) 100%
-    );
+  border-bottom: 1px solid rgba(167, 243, 208, 0.5);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(246, 253, 248, 0.94) 58%,
+    rgba(240, 253, 244, 0.88) 100%
+  );
   box-shadow:
     inset 0 -1px 0 rgba(255, 255, 255, 0.74),
-    0 10px 28px rgba(15, 23, 42, 0.05);
+    0 10px 28px rgba(15, 23, 42, 0.04);
   backdrop-filter: blur(18px);
   flex-shrink: 0;
   position: relative;
@@ -29,13 +27,12 @@ export const Navbar = styled.div<{ $compact?: boolean }>`
 export const MessageListContainer = styled(ScrollArea)`
   flex: 1;
   padding: 6px 0 16px;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(248, 250, 252, 0.66) 0%,
-      rgba(248, 250, 252, 0.26) 22%,
-      rgba(255, 255, 255, 0) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    rgba(240, 253, 244, 0.66) 0%,
+    rgba(240, 253, 244, 0.26) 22%,
+    rgba(255, 255, 255, 0) 100%
+  );
 `;
 
 // Linear Layout Wrapper: Always Row, Left Aligned
@@ -84,19 +81,16 @@ export const MessageBubble = styled.div<{ $isUser: boolean }>`
   border-radius: 18px;
   border: 1px solid
     ${({ $isUser }) =>
-      $isUser ? "rgba(148, 163, 184, 0.34)" : "rgba(203, 213, 225, 0.72)"};
-  background:
-    ${({ $isUser }) =>
-      $isUser
-        ? "linear-gradient(180deg, rgba(248, 250, 252, 0.98) 0%, rgba(241, 245, 249, 0.96) 100%)"
-        : "linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.96) 100%)"};
-  box-shadow:
-    ${({ $isUser }) =>
-      $isUser
-        ? "0 16px 36px -30px rgba(15, 23, 42, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.74)"
-        : "0 14px 34px -30px rgba(15, 23, 42, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.78)"};
-  color: ${({ $isUser }) =>
-    $isUser ? "rgb(15, 23, 42)" : "var(--foreground)"};
+      $isUser ? "rgba(167, 243, 208, 0.5)" : "rgba(167, 243, 208, 0.35)"};
+  background: ${({ $isUser }) =>
+    $isUser
+      ? "linear-gradient(180deg, rgba(248, 254, 250, 0.98) 0%, rgba(240, 253, 244, 0.92) 100%)"
+      : "linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(252, 254, 252, 0.96) 100%)"};
+  box-shadow: ${({ $isUser }) =>
+    $isUser
+      ? "0 16px 36px -30px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.74)"
+      : "0 14px 34px -30px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.78)"};
+  color: ${({ $isUser }) => ($isUser ? "rgb(30, 41, 59)" : "var(--foreground)")};
   font-size: 15px;
   line-height: 1.7;
   position: relative;

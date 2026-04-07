@@ -2390,7 +2390,9 @@ describe("AgentChatPage 通用工作台", () => {
         ?.getAttribute("data-mode"),
     ).toBe("chat-canvas");
     expect(
-      mounted.container.querySelector('[data-testid="canvas-workbench-layout-mock"]'),
+      mounted.container.querySelector(
+        '[data-testid="canvas-workbench-layout-mock"]',
+      ),
     ).not.toBeNull();
 
     clickButton(mounted.container, "toggle-canvas");
@@ -2402,7 +2404,9 @@ describe("AgentChatPage 通用工作台", () => {
         ?.getAttribute("data-mode"),
     ).toBe("chat");
     expect(
-      mounted.container.querySelector('[data-testid="team-workspace-dock-activate"]'),
+      mounted.container.querySelector(
+        '[data-testid="team-workspace-dock-activate"]',
+      ),
     ).toBeNull();
   });
 
@@ -3076,14 +3080,7 @@ describe("AgentChatPage 通用工作台", () => {
 
     expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
     expect(sharedSendMessageMock.mock.calls[0]).toEqual(
-      expect.arrayContaining([
-        prompt,
-        [],
-        false,
-        false,
-        false,
-        "auto",
-      ]),
+      expect.arrayContaining([prompt, [], false, false, false, "auto"]),
     );
     expect(sharedSendMessageMock.mock.calls[0]?.[8]).toMatchObject({
       requestMetadata: {
@@ -4873,9 +4870,7 @@ describe("AgentChatPage 自动引导", () => {
           workflowSteps?: Array<{ title: string; status: string }>;
         }
       | undefined;
-    expect(latestInputbarProps?.workflowGate?.key).toBe(
-      "publish_confirm",
-    );
+    expect(latestInputbarProps?.workflowGate?.key).toBe("publish_confirm");
     const workflowSteps = latestInputbarProps?.workflowSteps || [];
     expect(workflowSteps.length).toBeGreaterThan(0);
     expect(workflowSteps.at(-1)?.status).toBe("active");

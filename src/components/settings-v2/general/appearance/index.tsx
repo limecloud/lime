@@ -686,16 +686,16 @@ export function AppearanceSettings() {
                   <LayoutPanelLeft className="h-5 w-5" />
                 </div>
                 <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-slate-900">
-                        左侧边栏导航
-                      </h3>
-                      <WorkbenchInfoTip
-                        ariaLabel="左侧边栏导航说明"
-                        content="控制工作区左侧常驻入口，保留高频内容即可，减少视觉干扰。"
-                        tone="slate"
-                      />
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      左侧边栏导航
+                    </h3>
+                    <WorkbenchInfoTip
+                      ariaLabel="左侧边栏导航说明"
+                      content="控制工作区左侧常驻入口，保留高频内容即可，减少视觉干扰。"
+                      tone="slate"
+                    />
+                  </div>
                 </div>
               </div>
               <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
@@ -749,9 +749,9 @@ export function AppearanceSettings() {
                 {FIXED_MAIN_SIDEBAR_NAV_ITEMS.length > 0 ? (
                   <div className="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs leading-5 text-slate-600">
                     核心入口固定显示：
-                    {FIXED_MAIN_SIDEBAR_NAV_ITEMS.map((item) => item.label).join(
-                      "、",
-                    )}
+                    {FIXED_MAIN_SIDEBAR_NAV_ITEMS.map(
+                      (item) => item.label,
+                    ).join("、")}
                   </div>
                 ) : null}
               </section>

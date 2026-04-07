@@ -116,7 +116,7 @@ export function useTeamWorkbenchPresentation({
   );
 
   const renderTeamWorkbenchPreview = useCallback(
-    (stackedWorkbenchTrigger?: ReactNode) => (
+    (stackedWorkbenchTrigger?: ReactNode) =>
       wrapPreviewWithWorkbenchTrigger(
         <div className="flex h-full min-h-0 flex-col overflow-hidden pt-4">
           <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -124,16 +124,18 @@ export function useTeamWorkbenchPresentation({
           </div>
         </div>,
         stackedWorkbenchTrigger,
-      )
-    ),
+      ),
     [boardProps],
   );
 
-  const summaryPanelProps = useMemo<ComponentProps<typeof TeamWorkbenchSummaryPanel>>(
+  const summaryPanelProps = useMemo<
+    ComponentProps<typeof TeamWorkbenchSummaryPanel>
+  >(
     () => ({
       currentSessionId: surfaceProps.currentSessionId,
       currentSessionRuntimeStatus: surfaceProps.currentSessionRuntimeStatus,
-      currentSessionLatestTurnStatus: surfaceProps.currentSessionLatestTurnStatus,
+      currentSessionLatestTurnStatus:
+        surfaceProps.currentSessionLatestTurnStatus,
       currentSessionQueuedTurnCount: surfaceProps.currentSessionQueuedTurnCount,
       childSubagentSessions: surfaceProps.childSubagentSessions,
       subagentParentContext: surfaceProps.subagentParentContext,
@@ -166,7 +168,8 @@ export function useTeamWorkbenchPresentation({
       summarizeTeamWorkspaceExecution({
         currentSessionId: surfaceProps.currentSessionId,
         currentSessionRuntimeStatus: surfaceProps.currentSessionRuntimeStatus,
-        currentSessionLatestTurnStatus: surfaceProps.currentSessionLatestTurnStatus,
+        currentSessionLatestTurnStatus:
+          surfaceProps.currentSessionLatestTurnStatus,
         currentSessionQueuedTurnCount:
           surfaceProps.currentSessionQueuedTurnCount,
         childSubagentSessions: surfaceProps.childSubagentSessions,

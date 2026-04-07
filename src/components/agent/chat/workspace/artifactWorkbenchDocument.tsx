@@ -274,7 +274,7 @@ function getDiffBadgeClassName(changeType: string): string {
     case "removed":
       return "border-rose-200 bg-rose-50 text-rose-700";
     case "updated":
-      return "border-sky-200 bg-sky-50 text-sky-700";
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
     case "moved":
       return "border-amber-200 bg-amber-50 text-amber-700";
     default:
@@ -331,7 +331,9 @@ function resolveArtifactRecoveryPresentation(
   return null;
 }
 
-function serializeEditableArtifactDraft(draft: EditableArtifactBlockDraft): string {
+function serializeEditableArtifactDraft(
+  draft: EditableArtifactBlockDraft,
+): string {
   switch (draft.editorKind) {
     case "rich_text":
       return JSON.stringify({
@@ -586,9 +588,7 @@ function resolveEditableArtifactBlocks(
         blockId: block.id,
         label: normalizeText(block.title) || `代码块 ${codeBlockIndex}`,
         detail:
-          currentSectionLabel ||
-          normalizeText(block.language) ||
-          "代码片段",
+          currentSectionLabel || normalizeText(block.language) || "代码片段",
         editorKind: "code_block",
         draft,
       });
@@ -619,7 +619,10 @@ function replaceEditableArtifactBlockContent(
         };
       }
 
-      if (block.type === "section_header" && draft.editorKind === "section_header") {
+      if (
+        block.type === "section_header" &&
+        draft.editorKind === "section_header"
+      ) {
         const title = draft.title.trim();
         const description = draft.description.trim();
         return {
@@ -629,7 +632,10 @@ function replaceEditableArtifactBlockContent(
         };
       }
 
-      if (block.type === "hero_summary" && draft.editorKind === "hero_summary") {
+      if (
+        block.type === "hero_summary" &&
+        draft.editorKind === "hero_summary"
+      ) {
         const eyebrow = draft.eyebrow.trim();
         const title = draft.title.trim();
         const summary = draft.summary.trim();
@@ -663,7 +669,8 @@ function replaceEditableArtifactBlockContent(
           content: nextBody,
           text: nextBody,
           tone: resolveEditableCalloutTone(tone),
-          variant: tone || normalizeText(block.variant) || normalizeText(block.tone),
+          variant:
+            tone || normalizeText(block.variant) || normalizeText(block.tone),
         };
       }
 
@@ -676,16 +683,15 @@ function replaceEditableArtifactBlockContent(
         return {
           ...block,
           title: title || undefined,
-          items:
-            items.length > 0
-              ? items
-              : normalizeStringArray(block.items),
+          items: items.length > 0 ? items : normalizeStringArray(block.items),
         };
       }
 
       if (block.type === "table" && draft.editorKind === "table") {
         const title = draft.title.trim();
-        const currentColumns = Array.isArray(block.columns) ? block.columns : [];
+        const currentColumns = Array.isArray(block.columns)
+          ? block.columns
+          : [];
         const currentRows = Array.isArray(block.rows) ? block.rows : [];
         const columns = parseTableDraftColumns(draft.columns);
         const effectiveColumns = columns.length > 0 ? columns : currentColumns;
@@ -701,7 +707,11 @@ function replaceEditableArtifactBlockContent(
       if (block.type === "checklist" && draft.editorKind === "checklist") {
         const title = draft.title.trim();
         const currentItems = Array.isArray(block.items) ? block.items : [];
-        const items = parseChecklistDraftItems(draft.items, block.id, currentItems);
+        const items = parseChecklistDraftItems(
+          draft.items,
+          block.id,
+          currentItems,
+        );
         return {
           ...block,
           title: title || undefined,
@@ -711,7 +721,9 @@ function replaceEditableArtifactBlockContent(
 
       if (block.type === "metric_grid" && draft.editorKind === "metric_grid") {
         const title = draft.title.trim();
-        const currentMetrics = Array.isArray(block.metrics) ? block.metrics : [];
+        const currentMetrics = Array.isArray(block.metrics)
+          ? block.metrics
+          : [];
         const metrics = parseMetricDraftItems(
           draft.metrics,
           block.id,
@@ -736,10 +748,8 @@ function replaceEditableArtifactBlockContent(
           text,
           quote: text,
           attribution: attribution || undefined,
-          author:
-            attribution || normalizeText(block.author) || undefined,
-          source:
-            attribution || normalizeText(block.source) || undefined,
+          author: attribution || normalizeText(block.author) || undefined,
+          source: attribution || normalizeText(block.source) || undefined,
         };
       }
 
@@ -799,17 +809,25 @@ function resolveEditableDraftPreviewText(
         .filter(Boolean)
         .join("\n");
     case "key_points":
-      return [draft.title.trim(), draft.items.trim()].filter(Boolean).join("\n");
+      return [draft.title.trim(), draft.items.trim()]
+        .filter(Boolean)
+        .join("\n");
     case "table":
       return [draft.title.trim(), draft.columns.trim(), draft.rows.trim()]
         .filter(Boolean)
         .join("\n");
     case "checklist":
-      return [draft.title.trim(), draft.items.trim()].filter(Boolean).join("\n");
+      return [draft.title.trim(), draft.items.trim()]
+        .filter(Boolean)
+        .join("\n");
     case "metric_grid":
-      return [draft.title.trim(), draft.metrics.trim()].filter(Boolean).join("\n");
+      return [draft.title.trim(), draft.metrics.trim()]
+        .filter(Boolean)
+        .join("\n");
     case "quote":
-      return [draft.text.trim(), draft.attribution.trim()].filter(Boolean).join("\n");
+      return [draft.text.trim(), draft.attribution.trim()]
+        .filter(Boolean)
+        .join("\n");
     case "code_block":
       return [draft.title.trim(), draft.language.trim(), draft.code.trim()]
         .filter(Boolean)
@@ -860,7 +878,7 @@ const OverviewPanel: React.FC<{
               className={cn(
                 recoveryPresentation.tone === "warning"
                   ? "border-amber-200 bg-amber-50 text-amber-700"
-                  : "border-sky-200 bg-sky-50 text-sky-700",
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700",
               )}
             >
               {recoveryPresentation.badgeLabel}
@@ -871,7 +889,9 @@ const OverviewPanel: React.FC<{
           ) : null}
         </div>
         {document.summary ? (
-          <p className="mt-3 text-sm leading-6 text-slate-600">{document.summary}</p>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            {document.summary}
+          </p>
         ) : null}
       </section>
 
@@ -882,7 +902,7 @@ const OverviewPanel: React.FC<{
             "rounded-2xl border px-4 py-3",
             recoveryPresentation.tone === "warning"
               ? "border-amber-200 bg-amber-50 text-amber-950"
-              : "border-sky-200 bg-sky-50 text-sky-950",
+              : "border-emerald-200 bg-emerald-50 text-emerald-950",
           )}
         >
           <div className="flex items-start gap-3">
@@ -891,7 +911,7 @@ const OverviewPanel: React.FC<{
                 "mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
                 recoveryPresentation.tone === "warning"
                   ? "border-amber-200 bg-white text-amber-700"
-                  : "border-sky-200 bg-white text-sky-700",
+                  : "border-emerald-200 bg-white text-emerald-700",
               )}
             >
               <Info className="h-4 w-4" />
@@ -911,7 +931,7 @@ const OverviewPanel: React.FC<{
                     <button
                       data-testid="artifact-recovery-continue-editing"
                       type="button"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-emerald-200 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                       onClick={onContinueEditing}
                       disabled={isUpdatingRecoveryState}
                     >
@@ -935,7 +955,9 @@ const OverviewPanel: React.FC<{
                 </div>
               ) : null}
               {recoveryActionError ? (
-                <p className="mt-3 text-sm text-rose-700">{recoveryActionError}</p>
+                <p className="mt-3 text-sm text-rose-700">
+                  {recoveryActionError}
+                </p>
               ) : null}
             </div>
           </div>
@@ -1025,7 +1047,9 @@ const SourcesPanel: React.FC<{
     return (
       <div className="space-y-3">
         {items.map((link, index) => {
-          const source = link.sourceId ? sourceLookup.get(link.sourceId) : undefined;
+          const source = link.sourceId
+            ? sourceLookup.get(link.sourceId)
+            : undefined;
           const timelineLink = resolveTimelineLink?.(link.blockId) || null;
           return (
             <article
@@ -1036,7 +1060,7 @@ const SourcesPanel: React.FC<{
                 <div className="min-w-0">
                   <button
                     type="button"
-                    className="truncate text-left text-sm font-medium text-slate-950 transition hover:text-sky-700"
+                    className="truncate text-left text-sm font-medium text-slate-950 transition hover:text-emerald-700"
                     onClick={() => onSelectBlock?.(link.blockId)}
                   >
                     {resolveSourceDisplayLabel(link, source)}
@@ -1060,7 +1084,7 @@ const SourcesPanel: React.FC<{
                 <div className="mt-3">
                   <button
                     type="button"
-                    className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                    className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
                     onClick={() => onSelectTimelineItem(timelineLink.itemId)}
                   >
                     跳到过程
@@ -1124,16 +1148,24 @@ const VersionsPanel: React.FC<{
               </div>
             </div>
             <Badge
-              variant={currentVersion?.id === version.id ? "secondary" : "outline"}
-              className={currentVersion?.id === version.id ? "text-slate-950" : undefined}
+              variant={
+                currentVersion?.id === version.id ? "secondary" : "outline"
+              }
+              className={
+                currentVersion?.id === version.id ? "text-slate-950" : undefined
+              }
             >
-              {currentVersion?.id === version.id ? "当前" : version.createdBy || "快照"}
+              {currentVersion?.id === version.id
+                ? "当前"
+                : version.createdBy || "快照"}
             </Badge>
           </div>
           <div
             className={cn(
               "mt-3 text-sm font-medium",
-              currentVersion?.id === version.id ? "text-white" : "text-slate-950",
+              currentVersion?.id === version.id
+                ? "text-white"
+                : "text-slate-950",
             )}
           >
             {version.title || "未命名交付物"}
@@ -1162,135 +1194,153 @@ const DiffPanel: React.FC<{
   onSelectBlock?: (blockId: string) => void;
   resolveTimelineLink?: (blockId: string) => ArtifactTimelineLink | null;
   onSelectTimelineItem?: (itemId: string) => void;
-}> = memo(({ diff, onSelectBlock, resolveTimelineLink, onSelectTimelineItem }) => {
-  if (!diff || diff.changedBlocks.length === 0) {
+}> = memo(
+  ({ diff, onSelectBlock, resolveTimelineLink, onSelectTimelineItem }) => {
+    if (!diff || diff.changedBlocks.length === 0) {
+      return (
+        <EmptyInspectorState
+          icon={<GitCompare className="h-4 w-4" />}
+          title="还没有版本差异"
+          detail="当前文档还没有可展示的 block diff。后续版本生成后，会在这里展示新增、更新、删除与位置变化。"
+        />
+      );
+    }
+
     return (
-      <EmptyInspectorState
-        icon={<GitCompare className="h-4 w-4" />}
-        title="还没有版本差异"
-        detail="当前文档还没有可展示的 block diff。后续版本生成后，会在这里展示新增、更新、删除与位置变化。"
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <section className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Updated</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-950">
-            {diff.updatedCount || 0}
+      <div className="space-y-4">
+        <section className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+              Updated
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-slate-950">
+              {diff.updatedCount || 0}
+            </div>
           </div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Added</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-950">
-            {diff.addedCount || 0}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+              Added
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-slate-950">
+              {diff.addedCount || 0}
+            </div>
           </div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Removed</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-950">
-            {diff.removedCount || 0}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+              Removed
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-slate-950">
+              {diff.removedCount || 0}
+            </div>
           </div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Moved</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-950">
-            {diff.movedCount || 0}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+              Moved
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-slate-950">
+              {diff.movedCount || 0}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <div className="space-y-3">
-        {diff.changedBlocks.map((changedBlock) => {
-          const diffLines = buildCanvasWorkbenchDiff(
-            changedBlock.beforeText || "",
-            changedBlock.afterText || "",
-          ).slice(0, 12);
-          const canJump = changedBlock.changeType !== "removed";
-          const timelineLink = resolveTimelineLink?.(changedBlock.blockId) || null;
+        <div className="space-y-3">
+          {diff.changedBlocks.map((changedBlock) => {
+            const diffLines = buildCanvasWorkbenchDiff(
+              changedBlock.beforeText || "",
+              changedBlock.afterText || "",
+            ).slice(0, 12);
+            const canJump = changedBlock.changeType !== "removed";
+            const timelineLink =
+              resolveTimelineLink?.(changedBlock.blockId) || null;
 
-          return (
-            <article
-              key={`${changedBlock.blockId}:${changedBlock.changeType}`}
-              className="rounded-2xl border border-slate-200 bg-white p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className={cn("shrink-0", getDiffBadgeClassName(changedBlock.changeType))}
-                    >
-                      {getDiffLabel(changedBlock.changeType)}
-                    </Badge>
-                    <span className="truncate text-sm font-medium text-slate-950">
-                      {changedBlock.blockId}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    {changedBlock.summary || "检测到 block 发生变化。"}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {timelineLink && onSelectTimelineItem ? (
-                    <button
-                      type="button"
-                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-                      onClick={() => onSelectTimelineItem(timelineLink.itemId)}
-                    >
-                      跳到过程
-                    </button>
-                  ) : null}
-                  {canJump ? (
-                    <button
-                      type="button"
-                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-                      onClick={() => onSelectBlock?.(changedBlock.blockId)}
-                    >
-                      跳到 block
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-
-              {diffLines.length > 0 ? (
-                <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
-                  <div className="max-h-56 overflow-auto px-3 py-2 font-mono text-[11px] leading-5 text-slate-700">
-                    {diffLines.map((line, index) => (
-                      <div
-                        key={`${changedBlock.blockId}:${index}:${line.type}`}
+            return (
+              <article
+                key={`${changedBlock.blockId}:${changedBlock.changeType}`}
+                className="rounded-2xl border border-slate-200 bg-white p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant="outline"
                         className={cn(
-                          "rounded px-2",
-                          line.type === "add" && "bg-emerald-50 text-emerald-800",
-                          line.type === "remove" && "bg-rose-50 text-rose-800",
+                          "shrink-0",
+                          getDiffBadgeClassName(changedBlock.changeType),
                         )}
                       >
-                        <span className="mr-2 inline-block w-3 text-center text-slate-400">
-                          {line.type === "add"
-                            ? "+"
-                            : line.type === "remove"
-                              ? "-"
-                              : " "}
-                        </span>
-                        <span>{line.value || " "}</span>
-                      </div>
-                    ))}
+                        {getDiffLabel(changedBlock.changeType)}
+                      </Badge>
+                      <span className="truncate text-sm font-medium text-slate-950">
+                        {changedBlock.blockId}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      {changedBlock.summary || "检测到 block 发生变化。"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {timelineLink && onSelectTimelineItem ? (
+                      <button
+                        type="button"
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                        onClick={() =>
+                          onSelectTimelineItem(timelineLink.itemId)
+                        }
+                      >
+                        跳到过程
+                      </button>
+                    ) : null}
+                    {canJump ? (
+                      <button
+                        type="button"
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                        onClick={() => onSelectBlock?.(changedBlock.blockId)}
+                      >
+                        跳到 block
+                      </button>
+                    ) : null}
                   </div>
                 </div>
-              ) : changedBlock.afterText || changedBlock.beforeText ? (
-                <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
-                  {changedBlock.afterText || changedBlock.beforeText}
-                </div>
-              ) : null}
-            </article>
-          );
-        })}
+
+                {diffLines.length > 0 ? (
+                  <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
+                    <div className="max-h-56 overflow-auto px-3 py-2 font-mono text-[11px] leading-5 text-slate-700">
+                      {diffLines.map((line, index) => (
+                        <div
+                          key={`${changedBlock.blockId}:${index}:${line.type}`}
+                          className={cn(
+                            "rounded px-2",
+                            line.type === "add" &&
+                              "bg-emerald-50 text-emerald-800",
+                            line.type === "remove" &&
+                              "bg-rose-50 text-rose-800",
+                          )}
+                        >
+                          <span className="mr-2 inline-block w-3 text-center text-slate-400">
+                            {line.type === "add"
+                              ? "+"
+                              : line.type === "remove"
+                                ? "-"
+                                : " "}
+                          </span>
+                          <span>{line.value || " "}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : changedBlock.afterText || changedBlock.beforeText ? (
+                  <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
+                    {changedBlock.afterText || changedBlock.beforeText}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+);
 DiffPanel.displayName = "DiffPanel";
 
 const EditInspectorPanel: React.FC<{
@@ -1324,7 +1374,9 @@ const EditInspectorPanel: React.FC<{
     return (
       <div className="space-y-4">
         <section className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-sm font-medium text-slate-900">Workbench 编辑</div>
+          <div className="text-sm font-medium text-slate-900">
+            Workbench 编辑
+          </div>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             当前支持章节头、摘要卡、正文块与提示块原位编辑，保存后会回写到同一份
             ArtifactDocument JSON，不再把正文打回聊天区。
@@ -1347,7 +1399,7 @@ const EditInspectorPanel: React.FC<{
                   "w-full rounded-2xl border px-4 py-3 text-left transition",
                   isActive
                     ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-900 hover:border-sky-200 hover:bg-sky-50",
+                    : "border-slate-200 bg-white text-slate-900 hover:border-emerald-200 hover:bg-emerald-50",
                 )}
                 onClick={() => onSelectBlock(block.blockId)}
               >
@@ -1462,7 +1514,10 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
         return;
       }
 
-      if (entry.editorKind === "rich_text" && draft.editorKind === "rich_text") {
+      if (
+        entry.editorKind === "rich_text" &&
+        draft.editorKind === "rich_text"
+      ) {
         const latestDraft: EditableArtifactBlockDraft = {
           ...draft,
           markdown: editorRef.current?.flushContent() ?? draft.markdown,
@@ -1486,7 +1541,10 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
       setRewriteSuggestion(null);
       setIsRewriting(true);
       try {
-        if (entry.editorKind === "rich_text" && draft.editorKind === "rich_text") {
+        if (
+          entry.editorKind === "rich_text" &&
+          draft.editorKind === "rich_text"
+        ) {
           const latestDraft: EditableArtifactBlockDraft = {
             ...draft,
             markdown: editorRef.current?.flushContent() ?? draft.markdown,
@@ -1624,7 +1682,7 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
               {timelineLink && onJumpToTimelineItem ? (
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => onJumpToTimelineItem(timelineLink.itemId)}
                   disabled={isSaving}
                 >
@@ -1636,7 +1694,7 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 <button
                   data-testid="artifact-edit-ai-rewrite"
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => {
                     void handleRewrite().catch(() => undefined);
                   }}
@@ -1674,13 +1732,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                     AI 改写说明
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    只作用于当前 block；发送时会带上当前未保存草稿、相邻结构和来源绑定。
+                    只作用于当前
+                    block；发送时会带上当前未保存草稿、相邻结构和来源绑定。
                   </p>
                 </div>
                 <textarea
                   data-testid="artifact-edit-rewrite-instruction"
                   value={rewriteInstruction}
-                  className="min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                  className="min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                   onChange={(event) => {
                     setRewriteInstruction(event.target.value);
                     setRewriteFeedback(null);
@@ -1690,7 +1749,9 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                   <span>不会自动覆盖当前草稿；改写结果会先回到对话流。</span>
                   <span>
-                    {isRewriting ? "正在发起改写请求..." : "可按当前 block 单独改写"}
+                    {isRewriting
+                      ? "正在发起改写请求..."
+                      : "可按当前 block 单独改写"}
                   </span>
                 </div>
                 {rewriteFeedback ? (
@@ -1701,8 +1762,8 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       rewriteFeedback.tone === "success"
                         ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                         : rewriteFeedback.tone === "info"
-                          ? "border-sky-200 bg-sky-50 text-sky-700"
-                        : "border-rose-200 bg-rose-50 text-rose-700",
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-rose-200 bg-rose-50 text-rose-700",
                     )}
                   >
                     {rewriteFeedback.message}
@@ -1770,7 +1831,8 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
 
         <div className="min-h-0 flex-1 overflow-auto px-6 py-6">
           <div className="mx-auto h-full max-w-4xl rounded-[28px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5">
-            {entry.editorKind === "rich_text" && draft.editorKind === "rich_text" ? (
+            {entry.editorKind === "rich_text" &&
+            draft.editorKind === "rich_text" ? (
               <NotionEditor
                 ref={editorRef}
                 content={draft.markdown}
@@ -1800,12 +1862,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 draft.editorKind === "section_header" ? (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">章节标题</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        章节标题
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-title"
                         type="text"
                         value={draft.title}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -1816,11 +1880,13 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">章节说明</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        章节说明
+                      </span>
                       <textarea
                         data-testid="artifact-structured-edit-description"
                         value={draft.description}
-                        className="min-h-32 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-32 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -1837,12 +1903,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 draft.editorKind === "hero_summary" ? (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">眉题</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        眉题
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-eyebrow"
                         type="text"
                         value={draft.eyebrow}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -1853,12 +1921,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">标题</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        标题
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-title"
                         type="text"
                         value={draft.title}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -1869,11 +1939,13 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">摘要正文</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        摘要正文
+                      </span>
                       <textarea
                         data-testid="artifact-structured-edit-summary"
                         value={draft.summary}
-                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -1890,7 +1962,7 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       <textarea
                         data-testid="artifact-structured-edit-highlights"
                         value={draft.highlights}
-                        className="min-h-32 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-32 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -1910,12 +1982,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 draft.editorKind === "callout" ? (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">提示标题</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        提示标题
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-title"
                         type="text"
                         value={draft.title}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -1926,12 +2000,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">提示语气</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        提示语气
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-tone"
                         type="text"
                         value={draft.tone}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -1942,11 +2018,13 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">提示正文</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        提示正文
+                      </span>
                       <textarea
                         data-testid="artifact-structured-edit-body"
                         value={draft.body}
-                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -1963,12 +2041,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 draft.editorKind === "key_points" ? (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">块标题</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        块标题
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-title"
                         type="text"
                         value={draft.title}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -1979,11 +2059,13 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">要点列表</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        要点列表
+                      </span>
                       <textarea
                         data-testid="artifact-structured-edit-items"
                         value={draft.items}
-                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2003,12 +2085,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 draft.editorKind === "table" ? (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">表格标题</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        表格标题
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-title"
                         type="text"
                         value={draft.title}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2019,11 +2103,13 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">表头</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        表头
+                      </span>
                       <textarea
                         data-testid="artifact-structured-edit-columns"
                         value={draft.columns}
-                        className="min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2037,11 +2123,13 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       </p>
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">表格行</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        表格行
+                      </span>
                       <textarea
                         data-testid="artifact-structured-edit-rows"
                         value={draft.rows}
-                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2061,12 +2149,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 draft.editorKind === "checklist" ? (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">清单标题</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        清单标题
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-title"
                         type="text"
                         value={draft.title}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2077,11 +2167,13 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">清单项</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        清单项
+                      </span>
                       <textarea
                         data-testid="artifact-structured-edit-checklist"
                         value={draft.items}
-                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2091,7 +2183,8 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                         disabled={isSaving || isStreaming}
                       />
                       <p className="text-xs text-slate-500">
-                        每行使用 `todo | 内容`、`doing | 内容` 或 `done | 内容`。
+                        每行使用 `todo | 内容`、`doing | 内容` 或 `done |
+                        内容`。
                       </p>
                     </label>
                   </>
@@ -2101,12 +2194,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 draft.editorKind === "metric_grid" ? (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">指标标题</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        指标标题
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-title"
                         type="text"
                         value={draft.title}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2117,11 +2212,13 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">指标项</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        指标项
+                      </span>
                       <textarea
                         data-testid="artifact-structured-edit-metrics"
                         value={draft.metrics}
-                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2141,11 +2238,13 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 draft.editorKind === "quote" ? (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">引述正文</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        引述正文
+                      </span>
                       <textarea
                         data-testid="artifact-structured-edit-quote"
                         value={draft.text}
-                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-40 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2156,12 +2255,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">署名 / 来源</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        署名 / 来源
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-attribution"
                         type="text"
                         value={draft.attribution}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2178,12 +2279,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                 draft.editorKind === "code_block" ? (
                   <>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">代码块标题</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        代码块标题
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-title"
                         type="text"
                         value={draft.title}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2194,12 +2297,14 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">语言</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        语言
+                      </span>
                       <input
                         data-testid="artifact-structured-edit-language"
                         type="text"
                         value={draft.language}
-                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2210,11 +2315,13 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                       />
                     </label>
                     <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">代码内容</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        代码内容
+                      </span>
                       <textarea
                         data-testid="artifact-structured-edit-code"
                         value={draft.code}
-                        className="min-h-56 w-full rounded-2xl border border-slate-200 px-4 py-3 font-mono text-sm leading-6 text-slate-900 outline-none transition focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                        className="min-h-56 w-full rounded-2xl border border-slate-200 px-4 py-3 font-mono text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
                         onChange={(event) =>
                           onChange({
                             ...draft,
@@ -2260,7 +2367,8 @@ export function useArtifactWorkbenchDocumentController({
     [document],
   );
   const currentVersionDiff = useMemo(
-    () => (document ? resolveArtifactDocumentCurrentVersionDiff(document) : null),
+    () =>
+      document ? resolveArtifactDocumentCurrentVersionDiff(document) : null,
     [document],
   );
   const versionHistory = useMemo(
@@ -2287,28 +2395,26 @@ export function useArtifactWorkbenchDocumentController({
   );
   const recoveryPresentation = useMemo(
     () =>
-      document
-        ? resolveArtifactRecoveryPresentation(artifact, document)
-        : null,
+      document ? resolveArtifactRecoveryPresentation(artifact, document) : null,
     [artifact, document],
   );
   const canEditDocument = Boolean(
     document &&
-      document.status !== "archived" &&
-      onSaveArtifactDocument &&
-      editableBlocks.length > 0,
+    document.status !== "archived" &&
+    onSaveArtifactDocument &&
+    editableBlocks.length > 0,
   );
   const canMarkAsReady = Boolean(
     onSaveArtifactDocument && recoveryPresentation?.kind === "recovered_draft",
   );
-  const defaultInspectorTab: ArtifactWorkbenchInspectorTab =
-    currentVersionDiff?.changedBlocks.length
-      ? "diff"
-      : sourceLinks.length > 0
-        ? "sources"
-        : versionHistory.length > 0 || currentVersion
-          ? "versions"
-          : "overview";
+  const defaultInspectorTab: ArtifactWorkbenchInspectorTab = currentVersionDiff
+    ?.changedBlocks.length
+    ? "diff"
+    : sourceLinks.length > 0
+      ? "sources"
+      : versionHistory.length > 0 || currentVersion
+        ? "versions"
+        : "overview";
   const [inspectorTab, setInspectorTab] =
     useState<ArtifactWorkbenchInspectorTab>(defaultInspectorTab);
   const [selectedEditBlockId, setSelectedEditBlockId] = useState<string | null>(
@@ -2358,32 +2464,35 @@ export function useArtifactWorkbenchDocumentController({
     setSelectedEditBlockId(editableBlocks[0]?.blockId ?? null);
   }, [editableBlocks, selectedEditBlockId]);
 
-  const focusBlock = useCallback((blockId: string) => {
-    const container = viewportRef.current;
-    if (!container) {
-      return;
-    }
-    const candidates = Array.from(
-      container.querySelectorAll<HTMLElement>("[data-artifact-block-id]"),
-    );
-    const matched = candidates.find(
-      (candidate) => candidate.dataset.artifactBlockId === blockId,
-    );
-    if (!matched) {
-      return;
-    }
-    candidates.forEach((candidate) => {
-      candidate.classList.remove("ring-2", "ring-sky-200", "rounded-[28px]");
-    });
-    matched.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-    matched.classList.add("ring-2", "ring-sky-200", "rounded-[28px]");
-    globalThis.setTimeout(() => {
-      matched.classList.remove("ring-2", "ring-sky-200", "rounded-[28px]");
-    }, 1800);
-  }, [viewportRef]);
+  const focusBlock = useCallback(
+    (blockId: string) => {
+      const container = viewportRef.current;
+      if (!container) {
+        return;
+      }
+      const candidates = Array.from(
+        container.querySelectorAll<HTMLElement>("[data-artifact-block-id]"),
+      );
+      const matched = candidates.find(
+        (candidate) => candidate.dataset.artifactBlockId === blockId,
+      );
+      if (!matched) {
+        return;
+      }
+      candidates.forEach((candidate) => {
+        candidate.classList.remove("ring-2", "ring-emerald-200", "rounded-[28px]");
+      });
+      matched.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      matched.classList.add("ring-2", "ring-emerald-200", "rounded-[28px]");
+      globalThis.setTimeout(() => {
+        matched.classList.remove("ring-2", "ring-emerald-200", "rounded-[28px]");
+      }, 1800);
+    },
+    [viewportRef],
+  );
 
   useEffect(() => {
     if (!focusedBlockId || blockFocusRequestKey <= 0) {
@@ -2404,11 +2513,10 @@ export function useArtifactWorkbenchDocumentController({
       null,
     [editableBlocks, selectedEditBlockId],
   );
-  const selectedEditableDraft =
-    selectedEditableBlock
-      ? draftByBlockId[selectedEditableBlock.blockId] ??
-        selectedEditableBlock.draft
-      : null;
+  const selectedEditableDraft = selectedEditableBlock
+    ? (draftByBlockId[selectedEditableBlock.blockId] ??
+      selectedEditableBlock.draft)
+    : null;
   const selectedTimelineLink = selectedEditableBlock
     ? timelineLinksByBlockId[selectedEditableBlock.blockId]?.[0] || null
     : null;
@@ -2494,7 +2602,9 @@ export function useArtifactWorkbenchDocumentController({
 
     setRecoveryActionError(null);
     setInspectorTab("edit");
-    setSelectedEditBlockId((current) => current ?? editableBlocks[0]?.blockId ?? null);
+    setSelectedEditBlockId(
+      (current) => current ?? editableBlocks[0]?.blockId ?? null,
+    );
   }, [canEditDocument, editableBlocks]);
 
   const handleMarkAsReady = useCallback(async () => {
@@ -2606,158 +2716,157 @@ interface ArtifactWorkbenchDocumentInspectorProps {
   testId?: string;
 }
 
-export const ArtifactWorkbenchDocumentInspector: React.FC<
-  ArtifactWorkbenchDocumentInspectorProps
-> = memo(
-  ({
-    controller,
-    containerClassName,
-    tabsClassName,
-    header = null,
-    testId,
-  }) => {
-    const {
-      canEditDocument,
-      canMarkAsReady,
-      currentVersion,
-      currentVersionDiff,
-      document,
-      draftByBlockId,
-      editSaveError,
-      editableBlocks,
-      handleContinueEditing,
-      handleMarkAsReady,
-      inspectorTab,
-      isSavingEdit,
-      isUpdatingRecoveryState,
-      lastSavedAt,
-      recoveryActionError,
-      recoveryPresentation,
-      selectEditableBlock,
-      selectedEditableBlock,
-      setInspectorTab,
-      sourceLinks,
-      timelineLinksByBlockId,
-      versionHistory,
-      onJumpToTimelineItem,
-    } = controller;
+export const ArtifactWorkbenchDocumentInspector: React.FC<ArtifactWorkbenchDocumentInspectorProps> =
+  memo(
+    ({
+      controller,
+      containerClassName,
+      tabsClassName,
+      header = null,
+      testId,
+    }) => {
+      const {
+        canEditDocument,
+        canMarkAsReady,
+        currentVersion,
+        currentVersionDiff,
+        document,
+        draftByBlockId,
+        editSaveError,
+        editableBlocks,
+        handleContinueEditing,
+        handleMarkAsReady,
+        inspectorTab,
+        isSavingEdit,
+        isUpdatingRecoveryState,
+        lastSavedAt,
+        recoveryActionError,
+        recoveryPresentation,
+        selectEditableBlock,
+        selectedEditableBlock,
+        setInspectorTab,
+        sourceLinks,
+        timelineLinksByBlockId,
+        versionHistory,
+        onJumpToTimelineItem,
+      } = controller;
 
-    return (
-      <div data-testid={testId} className={containerClassName}>
-        <Tabs
-          value={inspectorTab}
-          onValueChange={(value) =>
-            setInspectorTab(value as ArtifactWorkbenchInspectorTab)
-          }
-          className={cn("flex h-full min-h-0 flex-col p-4", tabsClassName)}
-        >
-          {header}
-          <TabsList
-            className={cn(
-              "grid h-auto w-full gap-1 bg-white p-1",
-              canEditDocument ? "grid-cols-5" : "grid-cols-4",
-            )}
+      return (
+        <div data-testid={testId} className={containerClassName}>
+          <Tabs
+            value={inspectorTab}
+            onValueChange={(value) =>
+              setInspectorTab(value as ArtifactWorkbenchInspectorTab)
+            }
+            className={cn("flex h-full min-h-0 flex-col p-4", tabsClassName)}
           >
-            <TabsTrigger value="overview" className="gap-2 px-2 text-xs">
-              <ScrollText className="h-4 w-4" />
-              概览
-            </TabsTrigger>
-            <TabsTrigger value="sources" className="gap-2 px-2 text-xs">
-              <Link2 className="h-4 w-4" />
-              来源
-            </TabsTrigger>
-            <TabsTrigger value="versions" className="gap-2 px-2 text-xs">
-              <FileStack className="h-4 w-4" />
-              版本
-            </TabsTrigger>
-            <TabsTrigger value="diff" className="gap-2 px-2 text-xs">
-              <GitCompare className="h-4 w-4" />
-              差异
-            </TabsTrigger>
-            {canEditDocument ? (
-              <TabsTrigger value="edit" className="gap-2 px-2 text-xs">
-                <FilePenLine className="h-4 w-4" />
-                编辑
-              </TabsTrigger>
-            ) : null}
-          </TabsList>
-          <div className="mt-4 min-h-0 flex-1 overflow-auto pr-1">
-            <TabsContent value="overview" className="mt-0">
-              {document ? (
-                <OverviewPanel
-                  document={document}
-                  currentVersion={currentVersion}
-                  versionHistory={versionHistory}
-                  sourceLinks={sourceLinks}
-                  recoveryPresentation={recoveryPresentation}
-                  canEditDocument={canEditDocument}
-                  canMarkAsReady={canMarkAsReady}
-                  isUpdatingRecoveryState={isUpdatingRecoveryState}
-                  recoveryActionError={recoveryActionError}
-                  onContinueEditing={handleContinueEditing}
-                  onMarkAsReady={() => {
-                    void handleMarkAsReady();
-                  }}
-                />
-              ) : (
-                <EmptyInspectorState
-                  icon={<ScrollText className="h-4 w-4" />}
-                  title="尚未解析出结构化文档"
-                  detail="当前预览还没有命中 ArtifactDocument 协议，因此暂时只展示通用画布。"
-                />
+            {header}
+            <TabsList
+              className={cn(
+                "grid h-auto w-full gap-1 bg-white p-1",
+                canEditDocument ? "grid-cols-5" : "grid-cols-4",
               )}
-            </TabsContent>
-            <TabsContent value="sources" className="mt-0">
-              <SourcesPanel
-                links={sourceLinks}
-                sources={document?.sources || []}
-                onSelectBlock={(blockId) => {
-                  setInspectorTab("sources");
-                  controller.focusBlock(blockId);
-                }}
-                resolveTimelineLink={(blockId) =>
-                  timelineLinksByBlockId[blockId]?.[0] || null
-                }
-                onSelectTimelineItem={onJumpToTimelineItem}
-              />
-            </TabsContent>
-            <TabsContent value="versions" className="mt-0">
-              <VersionsPanel
-                currentVersion={currentVersion}
-                versionHistory={versionHistory}
-              />
-            </TabsContent>
-            <TabsContent value="diff" className="mt-0">
-              <DiffPanel
-                diff={currentVersionDiff}
-                onSelectBlock={(blockId) => {
-                  setInspectorTab("diff");
-                  controller.focusBlock(blockId);
-                }}
-                resolveTimelineLink={(blockId) =>
-                  timelineLinksByBlockId[blockId]?.[0] || null
-                }
-                onSelectTimelineItem={onJumpToTimelineItem}
-              />
-            </TabsContent>
-            {canEditDocument ? (
-              <TabsContent value="edit" className="mt-0">
-                <EditInspectorPanel
-                  editableBlocks={editableBlocks}
-                  selectedBlockId={selectedEditableBlock?.blockId ?? null}
-                  draftByBlockId={draftByBlockId}
-                  saveError={editSaveError}
-                  lastSavedAt={lastSavedAt}
-                  isSaving={isSavingEdit}
-                  onSelectBlock={selectEditableBlock}
+            >
+              <TabsTrigger value="overview" className="gap-2 px-2 text-xs">
+                <ScrollText className="h-4 w-4" />
+                概览
+              </TabsTrigger>
+              <TabsTrigger value="sources" className="gap-2 px-2 text-xs">
+                <Link2 className="h-4 w-4" />
+                来源
+              </TabsTrigger>
+              <TabsTrigger value="versions" className="gap-2 px-2 text-xs">
+                <FileStack className="h-4 w-4" />
+                版本
+              </TabsTrigger>
+              <TabsTrigger value="diff" className="gap-2 px-2 text-xs">
+                <GitCompare className="h-4 w-4" />
+                差异
+              </TabsTrigger>
+              {canEditDocument ? (
+                <TabsTrigger value="edit" className="gap-2 px-2 text-xs">
+                  <FilePenLine className="h-4 w-4" />
+                  编辑
+                </TabsTrigger>
+              ) : null}
+            </TabsList>
+            <div className="mt-4 min-h-0 flex-1 overflow-auto pr-1">
+              <TabsContent value="overview" className="mt-0">
+                {document ? (
+                  <OverviewPanel
+                    document={document}
+                    currentVersion={currentVersion}
+                    versionHistory={versionHistory}
+                    sourceLinks={sourceLinks}
+                    recoveryPresentation={recoveryPresentation}
+                    canEditDocument={canEditDocument}
+                    canMarkAsReady={canMarkAsReady}
+                    isUpdatingRecoveryState={isUpdatingRecoveryState}
+                    recoveryActionError={recoveryActionError}
+                    onContinueEditing={handleContinueEditing}
+                    onMarkAsReady={() => {
+                      void handleMarkAsReady();
+                    }}
+                  />
+                ) : (
+                  <EmptyInspectorState
+                    icon={<ScrollText className="h-4 w-4" />}
+                    title="尚未解析出结构化文档"
+                    detail="当前预览还没有命中 ArtifactDocument 协议，因此暂时只展示通用画布。"
+                  />
+                )}
+              </TabsContent>
+              <TabsContent value="sources" className="mt-0">
+                <SourcesPanel
+                  links={sourceLinks}
+                  sources={document?.sources || []}
+                  onSelectBlock={(blockId) => {
+                    setInspectorTab("sources");
+                    controller.focusBlock(blockId);
+                  }}
+                  resolveTimelineLink={(blockId) =>
+                    timelineLinksByBlockId[blockId]?.[0] || null
+                  }
+                  onSelectTimelineItem={onJumpToTimelineItem}
                 />
               </TabsContent>
-            ) : null}
-          </div>
-        </Tabs>
-      </div>
-    );
-  },
-);
+              <TabsContent value="versions" className="mt-0">
+                <VersionsPanel
+                  currentVersion={currentVersion}
+                  versionHistory={versionHistory}
+                />
+              </TabsContent>
+              <TabsContent value="diff" className="mt-0">
+                <DiffPanel
+                  diff={currentVersionDiff}
+                  onSelectBlock={(blockId) => {
+                    setInspectorTab("diff");
+                    controller.focusBlock(blockId);
+                  }}
+                  resolveTimelineLink={(blockId) =>
+                    timelineLinksByBlockId[blockId]?.[0] || null
+                  }
+                  onSelectTimelineItem={onJumpToTimelineItem}
+                />
+              </TabsContent>
+              {canEditDocument ? (
+                <TabsContent value="edit" className="mt-0">
+                  <EditInspectorPanel
+                    editableBlocks={editableBlocks}
+                    selectedBlockId={selectedEditableBlock?.blockId ?? null}
+                    draftByBlockId={draftByBlockId}
+                    saveError={editSaveError}
+                    lastSavedAt={lastSavedAt}
+                    isSaving={isSavingEdit}
+                    onSelectBlock={selectEditableBlock}
+                  />
+                </TabsContent>
+              ) : null}
+            </div>
+          </Tabs>
+        </div>
+      );
+    },
+  );
 ArtifactWorkbenchDocumentInspector.displayName =
   "ArtifactWorkbenchDocumentInspector";

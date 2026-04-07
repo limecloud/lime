@@ -60,8 +60,7 @@ export const DEFAULT_CONTENT_REVIEW_EXPERTS: ContentReviewExpert[] = [
     id: "tone-polish-director",
     name: "沈既白·语气润色官",
     title: "语气统一 · 句式节奏",
-    description:
-      "关注行文气质是否稳定，擅长削掉口水话、重复话和生硬转折。",
+    description: "关注行文气质是否稳定，擅长削掉口水话、重复话和生硬转折。",
     tags: ["语气统一", "句式节奏"],
     badgeText: "+1",
     avatarLabel: "沈既",

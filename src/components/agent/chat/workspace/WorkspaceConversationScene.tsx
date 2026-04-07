@@ -29,11 +29,15 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
   serviceSkillExecutionCard?: ComponentProps<
     typeof WorkspaceChatContent
   >["serviceSkillExecutionCard"];
-  stepProgressProps?: ComponentProps<typeof WorkspaceChatContent>["stepProgressProps"];
+  stepProgressProps?: ComponentProps<
+    typeof WorkspaceChatContent
+  >["stepProgressProps"];
   showChatLayout: boolean;
   contextWorkspaceEnabled: boolean;
   generalWorkbenchMessageViewportBottomPadding?: string;
-  messageListProps: ComponentProps<typeof WorkspaceChatContent>["messageListProps"];
+  messageListProps: ComponentProps<
+    typeof WorkspaceChatContent
+  >["messageListProps"];
   teamWorkspaceDockProps?: ComponentProps<
     typeof WorkspaceChatContent
   >["teamWorkspaceDockProps"];
@@ -81,7 +85,9 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
     typeof EmptyState
   >["onCreationModeChange"];
   activeTheme: ComponentProps<typeof EmptyState>["activeTheme"];
-  onThemeChange?: NonNullable<ComponentProps<typeof EmptyState>["onThemeChange"]>;
+  onThemeChange?: NonNullable<
+    ComponentProps<typeof EmptyState>["onThemeChange"]
+  >;
   themeLocked: boolean;
   artifactsCount: number;
   generalCanvasContent?: string | null;
@@ -108,7 +114,9 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
   isRunning: boolean;
   navbarChrome: ComponentProps<typeof ChatNavbar>["chrome"];
   navbarContextVariant?: "default" | "task-center";
-  onToggleHistory: NonNullable<ComponentProps<typeof ChatNavbar>["onToggleHistory"]>;
+  onToggleHistory: NonNullable<
+    ComponentProps<typeof ChatNavbar>["onToggleHistory"]
+  >;
   showHistoryToggle: boolean;
   onBackToProjectManagement?: ComponentProps<
     typeof ChatNavbar
@@ -119,7 +127,9 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
   chatMode: string;
   showHarnessToggle: boolean;
   harnessPanelVisible: boolean;
-  onToggleHarnessPanel?: ComponentProps<typeof ChatNavbar>["onToggleHarnessPanel"];
+  onToggleHarnessPanel?: ComponentProps<
+    typeof ChatNavbar
+  >["onToggleHarnessPanel"];
   harnessPendingCount: number;
   harnessAttentionLevel: ComponentProps<
     typeof ChatNavbar
@@ -324,7 +334,7 @@ export function WorkspaceConversationScene({
     harnessPendingCount,
     harnessAttentionLevel,
     harnessToggleLabel:
-      chatMode === "general" && !isThemeWorkbench ? "工作台" : undefined,
+      chatMode === "general" && !isThemeWorkbench ? undefined : undefined,
     showContextCompactionAction,
     contextCompactionRunning,
     onCompactContext,

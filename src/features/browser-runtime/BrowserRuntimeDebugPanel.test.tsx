@@ -193,8 +193,10 @@ beforeEach(() => {
     profile_key: "general_browser_assist",
     session_id: "mock-cdp-session",
     target_id: "mock-target-1",
-    entry_url: "https://github.com/search?q=model%20context%20protocol&type=repositories",
-    source_url: "https://github.com/search?q=model%20context%20protocol&type=repositories",
+    entry_url:
+      "https://github.com/search?q=model%20context%20protocol&type=repositories",
+    source_url:
+      "https://github.com/search?q=model%20context%20protocol&type=repositories",
     data: {
       items: [{ title: "mock repo", url: "https://github.com/mock/repo" }],
     },
@@ -884,18 +886,18 @@ describe("BrowserRuntimeDebugPanel", () => {
       await Promise.resolve();
     });
 
-    const loadPageButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("读取当前页面"),
-    );
+    const loadPageButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("读取当前页面"));
 
     await act(async () => {
       loadPageButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 
-    const loadTabsButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("读取标签页"),
-    );
+    const loadTabsButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("读取标签页"));
 
     await act(async () => {
       loadTabsButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

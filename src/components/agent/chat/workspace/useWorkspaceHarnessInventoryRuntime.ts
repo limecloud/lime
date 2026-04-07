@@ -121,9 +121,8 @@ export function useWorkspaceHarnessInventoryRuntime({
     const activeArtifactPaths = extractArtifactProtocolPathsFromRecord(
       themeWorkbenchActiveQueueItem,
     );
-    const latestTerminalArtifactPaths = extractArtifactProtocolPathsFromRecord(
-      latestTerminal,
-    );
+    const latestTerminalArtifactPaths =
+      extractArtifactProtocolPathsFromRecord(latestTerminal);
     const artifactPaths =
       activeArtifactPaths.length > 0
         ? activeArtifactPaths

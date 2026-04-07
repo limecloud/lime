@@ -21,13 +21,9 @@ export {
 
 export { ContentReviewPanel } from "@/components/workspace/document/ContentReviewPanel";
 
-export {
-  DOCUMENT_CANVAS_HOTKEYS,
-} from "@/components/workspace/document/documentCanvasHotkeys";
+export { DOCUMENT_CANVAS_HOTKEYS } from "@/components/workspace/document/documentCanvasHotkeys";
 
-export {
-  DOCUMENT_EDITOR_HOTKEYS,
-} from "@/components/workspace/document/documentEditorHotkeys";
+export { DOCUMENT_EDITOR_HOTKEYS } from "@/components/workspace/document/documentEditorHotkeys";
 
 export {
   COVER_IMAGE_REPLACED_EVENT,
@@ -47,9 +43,7 @@ export type {
   TextStylizeRunPayload,
 } from "@/components/workspace/document/types";
 
-export {
-  VideoCanvas,
-} from "@/components/workspace/video/VideoCanvas";
+export { VideoCanvas } from "@/components/workspace/video/VideoCanvas";
 
 export {
   createInitialVideoState,

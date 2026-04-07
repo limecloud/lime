@@ -4,9 +4,7 @@ import type { A2UIFormData, A2UIResponse } from "@/lib/workspace/a2ui";
 import type { ConfirmResponse } from "../types";
 import type { SendMessageFn } from "../hooks/agentChatShared";
 import type { ActionRequired } from "../types";
-import {
-  buildActionRequestSubmissionPayload,
-} from "../utils/actionRequestA2UI";
+import { buildActionRequestSubmissionPayload } from "../utils/actionRequestA2UI";
 import { buildCompatQuestionnaireSubmissionPayload } from "../utils/compatQuestionnaireA2UI";
 
 interface UseWorkspaceA2UISubmitActionsParams {

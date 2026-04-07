@@ -54,7 +54,8 @@ const FORBIDDEN_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
   },
   {
     label: "filesystem event 目录位置 hint 旧 readString fallback",
-    pattern: /readString\(\s*(?:args|metadata)\s*,\s*\["directory",\s*"cwd"\]\s*\)/,
+    pattern:
+      /readString\(\s*(?:args|metadata)\s*,\s*\["directory",\s*"cwd"\]\s*\)/,
   },
   {
     label: "filesystem event 输出位置 hint 旧 readString fallback",
@@ -87,7 +88,7 @@ describe("agent chat protocol fact source guard", () => {
 
     for (const filePath of files) {
       const content = readFileSync(filePath, "utf8");
-      if (content.includes('@/lib/api/agentStream')) {
+      if (content.includes("@/lib/api/agentStream")) {
         offenders.push(relative(process.cwd(), filePath));
       }
     }
@@ -108,7 +109,7 @@ describe("agent chat protocol fact source guard", () => {
     for (const filePath of files) {
       const content = readFileSync(filePath, "utf8");
       if (
-        content.includes('./agentStream') ||
+        content.includes("./agentStream") ||
         content.includes("./agentStream")
       ) {
         offenders.push(relative(process.cwd(), filePath));

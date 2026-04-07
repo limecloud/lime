@@ -1,9 +1,5 @@
 import React from "react";
-import {
-  Lightbulb,
-  Globe,
-  Workflow,
-} from "lucide-react";
+import { Lightbulb, Globe, Workflow } from "lucide-react";
 import { ToolButton } from "../styles";
 import { isGeneralResearchTheme } from "../../../utils/generalAgentPrompt";
 

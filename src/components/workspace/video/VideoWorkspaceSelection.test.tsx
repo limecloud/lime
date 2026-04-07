@@ -35,10 +35,9 @@ vi.mock("@/lib/api/skills", async () => {
 });
 
 vi.mock("@/lib/api/videoGeneration", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/videoGeneration")>(
-      "@/lib/api/videoGeneration",
-    );
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/videoGeneration")
+  >("@/lib/api/videoGeneration");
 
   return {
     ...actual,
@@ -67,7 +66,9 @@ function ControlledVideoWorkspace({
 }: {
   onObservedStateChange?: (state: VideoCanvasState) => void;
 }) {
-  const [state, setState] = useState<VideoCanvasState>(() => buildInitialState());
+  const [state, setState] = useState<VideoCanvasState>(() =>
+    buildInitialState(),
+  );
 
   return (
     <VideoWorkspace
@@ -159,8 +160,9 @@ describe("VideoWorkspace 任务聚焦", () => {
     expect(latestPreviewButton?.textContent).toContain("切换预览");
     expect(observedStateChanges).toEqual([]);
     expect(
-      mounted.container.querySelector("[data-testid='video-focused-task-prompt']")
-        ?.textContent,
+      mounted.container.querySelector(
+        "[data-testid='video-focused-task-prompt']",
+      )?.textContent,
     ).toContain("旧任务视频");
     expect(
       mounted.container.querySelector("[data-testid='video-focused-task-spec']")
@@ -170,17 +172,18 @@ describe("VideoWorkspace 任务聚焦", () => {
     clickElement(latestPreviewButton);
     await flushEffects(2);
 
-    expect(
-      observedStateChanges[observedStateChanges.length - 1],
-    ).toMatchObject({
-      selectedTaskId: "task-latest",
-      status: "success",
-      videoUrl: "https://example.com/latest.mp4",
-    });
+    expect(observedStateChanges[observedStateChanges.length - 1]).toMatchObject(
+      {
+        selectedTaskId: "task-latest",
+        status: "success",
+        videoUrl: "https://example.com/latest.mp4",
+      },
+    );
     expect(latestPreviewButton?.textContent).toContain("当前预览");
     expect(
-      mounted.container.querySelector("[data-testid='video-focused-task-prompt']")
-        ?.textContent,
+      mounted.container.querySelector(
+        "[data-testid='video-focused-task-prompt']",
+      )?.textContent,
     ).toContain("最新任务视频");
     expect(
       mounted.container.querySelector("[data-testid='video-focused-task-spec']")

@@ -71,11 +71,10 @@ export interface AgentStreamPreparedSendEnv {
   appendThinkingToParts: AppendThinkingToPartsFn;
 }
 
-export interface CreateAgentStreamPreparedSendEnvOptions
-  extends Omit<
-    AgentStreamPreparedSendEnv,
-    "getQueuedTurnsCount" | "isThreadBusy"
-  > {
+export interface CreateAgentStreamPreparedSendEnvOptions extends Omit<
+  AgentStreamPreparedSendEnv,
+  "getQueuedTurnsCount" | "isThreadBusy"
+> {
   queuedTurnsCount: number;
   threadBusy: boolean;
 }

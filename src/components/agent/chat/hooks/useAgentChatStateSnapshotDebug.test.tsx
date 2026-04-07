@@ -142,7 +142,7 @@ describe("useAgentChatStateSnapshotDebug", () => {
           queuedTurnsCount: 2,
         }),
         expect.objectContaining({
-          dedupeKey: expect.stringContaining("\"queuedTurnsCount\":2"),
+          dedupeKey: expect.stringContaining('"queuedTurnsCount":2'),
         }),
       );
     } finally {

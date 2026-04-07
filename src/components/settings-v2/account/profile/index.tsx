@@ -229,7 +229,9 @@ function ProfileFieldCard({
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <span className="text-xs leading-5 text-slate-500">通过 Tips 查看说明</span>
+        <span className="text-xs leading-5 text-slate-500">
+          通过 Tips 查看说明
+        </span>
         {isEditing && (
           <div className="flex items-center gap-2">
             <button
@@ -260,8 +262,9 @@ export function ProfileSettings() {
   const [config, setConfig] = useState<Config | null>(null);
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_USER_PROFILE);
   const [loading, setLoading] = useState(true);
-  const [editingField, setEditingField] =
-    useState<EditableProfileField | null>(null);
+  const [editingField, setEditingField] = useState<EditableProfileField | null>(
+    null,
+  );
   const [editValue, setEditValue] = useState("");
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -439,10 +442,9 @@ export function ProfileSettings() {
       : completionPercent >= 40
         ? "border-sky-200 bg-sky-50 text-sky-700"
         : "border-amber-200 bg-amber-50 text-amber-700";
-  const suggestedTags = SUGGESTED_TAGS.filter((tag) => !tags.includes(tag)).slice(
-    0,
-    6,
-  );
+  const suggestedTags = SUGGESTED_TAGS.filter(
+    (tag) => !tags.includes(tag),
+  ).slice(0, 6);
   const quickTags = tags.slice(0, 3);
   const extraTagCount = Math.max(tags.length - quickTags.length, 0);
   const isInitialLoading = loading && !config;
@@ -531,10 +533,10 @@ export function ProfileSettings() {
                       {statusLabel}
                     </span>
                   </div>
-                <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                  {profile.bio ||
-                    "补充几句你的工作背景、关注方向或使用目标，AI 会更快进入正确语境。"}
-                </p>
+                  <p className="max-w-2xl text-sm leading-6 text-slate-600">
+                    {profile.bio ||
+                      "补充几句你的工作背景、关注方向或使用目标，AI 会更快进入正确语境。"}
+                  </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -773,9 +775,16 @@ export function ProfileSettings() {
                 ariaLabel="资料如何被使用说明"
                 content={
                   <div className="space-y-1">
-                    <p>昵称和简介会帮助 AI 在开场、建议和工作区提示中更自然地引用你的背景。</p>
-                    <p>标签只用于偏好判断，不会替代系统提示词，也不会自动暴露给外部服务。</p>
-                    <p>邮箱由账号体系维护，当前页面仅做展示，避免在多入口出现不一致状态。</p>
+                    <p>
+                      昵称和简介会帮助 AI
+                      在开场、建议和工作区提示中更自然地引用你的背景。
+                    </p>
+                    <p>
+                      标签只用于偏好判断，不会替代系统提示词，也不会自动暴露给外部服务。
+                    </p>
+                    <p>
+                      邮箱由账号体系维护，当前页面仅做展示，避免在多入口出现不一致状态。
+                    </p>
                   </div>
                 }
                 tone="slate"

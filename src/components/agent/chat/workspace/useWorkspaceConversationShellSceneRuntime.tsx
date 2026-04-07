@@ -16,7 +16,9 @@ type ShellChromeRuntime = ReturnType<typeof useWorkspaceShellChromeRuntime>;
 type GeneralWorkbenchShellRuntime = ReturnType<
   typeof useWorkspaceGeneralWorkbenchShellRuntime
 >;
-type ContextHarnessRuntime = ReturnType<typeof useWorkspaceContextHarnessRuntime>;
+type ContextHarnessRuntime = ReturnType<
+  typeof useWorkspaceContextHarnessRuntime
+>;
 type TeamSessionRuntime = ReturnType<typeof useWorkspaceTeamSessionRuntime>;
 type ConversationSendRuntimeParams = Parameters<
   typeof useWorkspaceConversationSendRuntime
@@ -24,7 +26,9 @@ type ConversationSendRuntimeParams = Parameters<
 type ConversationSceneRuntimeParams = Parameters<
   typeof useWorkspaceConversationSceneRuntime
 >[0];
-type ShellSceneRuntimeParams = Parameters<typeof useWorkspaceShellSceneRuntime>[0];
+type ShellSceneRuntimeParams = Parameters<
+  typeof useWorkspaceShellSceneRuntime
+>[0];
 type ConversationSceneBridgeParams = Omit<
   ConversationSceneRuntimeParams,
   | "navigationActions"
@@ -42,14 +46,16 @@ type ConversationSceneBridgeParams = Omit<
   | "projectRootPath"
 >;
 
-interface UseWorkspaceConversationShellSceneRuntimeParams
-  extends ConversationSceneBridgeParams {
+interface UseWorkspaceConversationShellSceneRuntimeParams extends ConversationSceneBridgeParams {
   navigationActions: NavigationActions;
   inputbarScene: InputbarScene;
   canvasScene: CanvasScene;
   shellChromeRuntime: ShellChromeRuntime;
   generalWorkbenchShellRuntime: GeneralWorkbenchShellRuntime;
-  contextHarnessRuntime: Pick<ContextHarnessRuntime, "handleToggleHarnessPanel">;
+  contextHarnessRuntime: Pick<
+    ContextHarnessRuntime,
+    "handleToggleHarnessPanel"
+  >;
   teamSessionRuntime: Pick<TeamSessionRuntime, "showTeamWorkspaceBoard">;
   currentImageWorkbenchState: { active: boolean };
   project: { rootPath?: string | null } | null;
@@ -113,8 +119,7 @@ export function useWorkspaceConversationShellSceneRuntime({
     generalCanvasContent: conversationScene.generalCanvasState.content,
     projectId: projectId ?? null,
     projectCharacters: projectMemory?.characters || [],
-    handleToggleHarnessPanel:
-      contextHarnessRuntime.handleToggleHarnessPanel,
+    handleToggleHarnessPanel: contextHarnessRuntime.handleToggleHarnessPanel,
     showTeamWorkspaceBoard: teamSessionRuntime.showTeamWorkspaceBoard,
     currentImageWorkbenchActive: currentImageWorkbenchState.active,
     projectRootPath: project?.rootPath || null,

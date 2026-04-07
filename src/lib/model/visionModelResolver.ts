@@ -50,12 +50,7 @@ const findModelMeta = (
 };
 
 const buildSearchText = (model: EnhancedModelMetadata): string =>
-  [
-    model.id,
-    model.display_name,
-    model.family || "",
-    model.description || "",
-  ]
+  [model.id, model.display_name, model.family || "", model.description || ""]
     .join(" ")
     .toLowerCase();
 
@@ -132,7 +127,8 @@ export function resolveVisionModel(
 
   const currentFamily = normalize(currentModel?.family);
   const candidates = models.filter(
-    (model) => model.capabilities.vision && !isLikelyImageGenerationModel(model),
+    (model) =>
+      model.capabilities.vision && !isLikelyImageGenerationModel(model),
   );
 
   if (candidates.length === 0) {
@@ -144,7 +140,8 @@ export function resolveVisionModel(
   }
 
   const sortedCandidates = [...candidates].sort((left, right) => {
-    const leftSameFamily = currentFamily.length > 0 && normalize(left.family) === currentFamily;
+    const leftSameFamily =
+      currentFamily.length > 0 && normalize(left.family) === currentFamily;
     const rightSameFamily =
       currentFamily.length > 0 && normalize(right.family) === currentFamily;
     if (leftSameFamily !== rightSameFamily) {

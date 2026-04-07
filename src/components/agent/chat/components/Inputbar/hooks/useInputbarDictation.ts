@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { toast } from "sonner";
 import {
   cancelRecording,
@@ -32,7 +38,9 @@ function insertTranscriptAtCursor(
   if (!textarea) {
     return {
       nextText: currentText ? `${currentText}\n${transcript}` : transcript,
-      cursor: currentText ? currentText.length + transcript.length + 1 : transcript.length,
+      cursor: currentText
+        ? currentText.length + transcript.length + 1
+        : transcript.length,
     };
   }
 
@@ -40,10 +48,8 @@ function insertTranscriptAtCursor(
   const selectionEnd = textarea.selectionEnd ?? currentText.length;
   const before = currentText.slice(0, selectionStart);
   const after = currentText.slice(selectionEnd);
-  const prefix =
-    before.length > 0 && !/[\s\n]$/.test(before) ? "\n" : "";
-  const suffix =
-    after.length > 0 && !/^[\s\n]/.test(after) ? "\n" : "";
+  const prefix = before.length > 0 && !/[\s\n]$/.test(before) ? "\n" : "";
+  const suffix = after.length > 0 && !/^[\s\n]/.test(after) ? "\n" : "";
   const inserted = `${prefix}${transcript}${suffix}`;
   const nextText = `${before}${inserted}${after}`;
   const cursor = before.length + inserted.length;
@@ -85,13 +91,16 @@ export function useInputbarDictation({
     };
   }, []);
 
-  const focusTextarea = useCallback((cursor: number) => {
-    window.requestAnimationFrame(() => {
-      const textarea = textareaRef.current;
-      textarea?.focus();
-      textarea?.setSelectionRange(cursor, cursor);
-    });
-  }, [textareaRef]);
+  const focusTextarea = useCallback(
+    (cursor: number) => {
+      window.requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+        textarea?.focus();
+        textarea?.setSelectionRange(cursor, cursor);
+      });
+    },
+    [textareaRef],
+  );
 
   const insertTranscript = useCallback(
     (transcript: string) => {

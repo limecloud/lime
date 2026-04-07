@@ -167,7 +167,9 @@ function isImageWorkbenchTaskSatisfiedByCache(params: {
     return false;
   }
 
-  const task = imageWorkbenchState.tasks.find((item) => item.id === params.taskId);
+  const task = imageWorkbenchState.tasks.find(
+    (item) => item.id === params.taskId,
+  );
   if (!task) {
     return false;
   }
@@ -1280,9 +1282,7 @@ function buildPendingImageTaskSnapshot(params: {
         payload: params.payload || {},
         progress: {
           phase: resolvePendingProgressPhase(params.status),
-          message:
-            params.progressMessage ||
-            "任务已提交，正在排队处理。",
+          message: params.progressMessage || "任务已提交，正在排队处理。",
         },
         created_at: new Date().toISOString(),
       },
@@ -1315,9 +1315,7 @@ function buildPendingImageTaskSnapshot(params: {
           projectId: params.projectId ?? null,
           contentId: params.contentId ?? null,
           phase: resolvePendingProgressPhase(params.status),
-          statusMessage:
-            params.progressMessage ||
-            "任务已提交，正在排队处理。",
+          statusMessage: params.progressMessage || "任务已提交，正在排队处理。",
         },
       },
       task: {
@@ -1517,7 +1515,9 @@ function patchMessagesWithImageWorkbenchState(params: {
       return message;
     }
 
-    const task = imageWorkbenchState.tasks.find((item) => item.id === preview.taskId);
+    const task = imageWorkbenchState.tasks.find(
+      (item) => item.id === preview.taskId,
+    );
     if (!task) {
       return message;
     }
@@ -1567,8 +1567,7 @@ function patchMessagesWithImageWorkbenchState(params: {
     changed = true;
     return {
       ...message,
-      isThinking:
-        nextPreview.status === "running" ? message.isThinking : false,
+      isThinking: nextPreview.status === "running" ? message.isThinking : false,
       imageWorkbenchPreview: nextPreview,
     };
   });
@@ -1780,7 +1779,8 @@ export function useWorkspaceImageTaskPreviewRuntime({
           loadedSnapshot.snapshot.outputs.length === 0;
 
         if (shouldProbeArtifactApi) {
-          const artifactSnapshot = await loadTaskSnapshotFromArtifactApi(taskId);
+          const artifactSnapshot =
+            await loadTaskSnapshotFromArtifactApi(taskId);
           if (
             shouldPreferLoadedImageTaskSnapshot(
               loadedSnapshot,
@@ -2025,7 +2025,8 @@ export function useWorkspaceImageTaskPreviewRuntime({
       const unresolvedTaskIds = taskIds.filter(
         (taskId) =>
           !isImageWorkbenchTaskSatisfiedByCache({
-            imageWorkbenchState: runtimeContextRef.current.currentImageWorkbenchState,
+            imageWorkbenchState:
+              runtimeContextRef.current.currentImageWorkbenchState,
             taskId,
           }),
       );

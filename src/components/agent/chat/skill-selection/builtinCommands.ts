@@ -30,7 +30,9 @@ function normalizeSearchText(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function collectBuiltinCommandHaystacks(command: BuiltinInputCommand): string[] {
+function collectBuiltinCommandHaystacks(
+  command: BuiltinInputCommand,
+): string[] {
   return [
     command.label,
     command.mentionLabel,
@@ -40,7 +42,9 @@ function collectBuiltinCommandHaystacks(command: BuiltinInputCommand): string[] 
   ];
 }
 
-function collectSceneCommandHaystacks(command: RuntimeSceneSlashCommand): string[] {
+function collectSceneCommandHaystacks(
+  command: RuntimeSceneSlashCommand,
+): string[] {
   return [
     command.label,
     command.commandPrefix,
@@ -52,7 +56,9 @@ function collectSceneCommandHaystacks(command: RuntimeSceneSlashCommand): string
 function resolveMentionTriggerPrefix(
   entry: SkillCatalogCommandEntry,
 ): string | null {
-  const mentionTrigger = entry.triggers.find((trigger) => trigger.mode === "mention");
+  const mentionTrigger = entry.triggers.find(
+    (trigger) => trigger.mode === "mention",
+  );
   return mentionTrigger?.prefix?.trim() || null;
 }
 

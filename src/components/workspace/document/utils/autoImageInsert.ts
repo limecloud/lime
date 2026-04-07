@@ -190,7 +190,11 @@ function extractContentBlocks(
   let blockStart: number | null = null;
   let blockLines: string[] = [];
 
-  for (let lineIndex = startLineIndex; lineIndex < endLineIndexExclusive; lineIndex += 1) {
+  for (
+    let lineIndex = startLineIndex;
+    lineIndex < endLineIndexExclusive;
+    lineIndex += 1
+  ) {
     const currentLine = lines[lineIndex] || "";
     if (currentLine.trim()) {
       if (blockStart === null) {
@@ -258,7 +262,9 @@ function resolveAnchorInsertLineIndex(
       lines,
       scope.startLineIndex,
       scope.endLineIndexExclusive,
-    ).find((block) => normalizeTitle(block.text).includes(normalizedAnchorText));
+    ).find((block) =>
+      normalizeTitle(block.text).includes(normalizedAnchorText),
+    );
     if (matchedBlock) {
       return matchedBlock.endLineIndexExclusive;
     }
@@ -281,7 +287,9 @@ export function insertMarkdownBlock(
 
   const lines = markdown.split("\n");
   const normalizedSectionTitle = options?.sectionTitle?.trim();
-  const normalizedAnchorText = normalizeSelectionAnchorText(options?.anchorText);
+  const normalizedAnchorText = normalizeSelectionAnchorText(
+    options?.anchorText,
+  );
   const sections =
     normalizedSectionTitle || normalizedAnchorText
       ? extractLevel2Sections(markdown)

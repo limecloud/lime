@@ -191,12 +191,15 @@ describe("Agent API 治理护栏", () => {
       recent_access_mode: "full-access",
     });
 
-    expect(mockSafeInvoke).toHaveBeenCalledWith("agent_runtime_update_session", {
-      request: {
-        session_id: "session-runtime-access",
-        recent_access_mode: "full-access",
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_update_session",
+      {
+        request: {
+          session_id: "session-runtime-access",
+          recent_access_mode: "full-access",
+        },
       },
-    });
+    );
   });
 
   it("respondAgentRuntimeAction 应走统一 action 响应命令", async () => {

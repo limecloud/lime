@@ -268,9 +268,7 @@ describe("MemorySettings", () => {
     );
     await leaveTip(heroTip);
 
-    const questionTip = await hoverTip(
-      "以下哪个选项最能形容你现在的状态?说明",
-    );
+    const questionTip = await hoverTip("以下哪个选项最能形容你现在的状态?说明");
     expect(getBodyText()).toContain(
       "单选，用于帮助代理判断你的知识密度和上下文称呼。",
     );

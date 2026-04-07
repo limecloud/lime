@@ -1,10 +1,7 @@
 import { Activity, AlertTriangle, Clock3, PauseCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  AutomationHealthResult,
-  AutomationStatus,
-} from "@/lib/api/automation";
+import { AutomationHealthResult, AutomationStatus } from "@/lib/api/automation";
 
 function formatTime(value?: string | null): string {
   if (!value) {
@@ -44,7 +41,11 @@ function statusVariant(status?: string | null) {
   if (status === "success") {
     return "default" as const;
   }
-  if (status === "queued" || status === "running" || status === "agent_resuming") {
+  if (
+    status === "queued" ||
+    status === "running" ||
+    status === "agent_resuming"
+  ) {
     return "secondary" as const;
   }
   if (status === "waiting_for_human" || status === "human_controlling") {
@@ -97,7 +98,9 @@ export function AutomationHealthPanel({
             <Badge variant={status?.running ? "default" : "outline"}>
               {status?.running ? "轮询运行中" : "轮询已停止"}
             </Badge>
-            <Badge variant="outline">累计执行 {status?.total_executions ?? 0}</Badge>
+            <Badge variant="outline">
+              累计执行 {status?.total_executions ?? 0}
+            </Badge>
           </div>
         </div>
       </CardHeader>
@@ -144,7 +147,8 @@ export function AutomationHealthPanel({
                       {job.name}
                     </div>
                     <div className="mt-1 text-xs text-slate-500">
-                      失败 {job.consecutive_failures} 次，重试 {job.retry_count} 次
+                      失败 {job.consecutive_failures} 次，重试 {job.retry_count}{" "}
+                      次
                     </div>
                   </div>
                   <Badge variant={statusVariant(job.status)}>

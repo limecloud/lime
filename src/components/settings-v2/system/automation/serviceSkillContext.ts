@@ -92,7 +92,9 @@ function parseSlotSummaryEntries(
           value: summaryValue,
         };
       })
-      .filter((item): item is AutomationServiceSkillSummaryItem => Boolean(item));
+      .filter((item): item is AutomationServiceSkillSummaryItem =>
+        Boolean(item),
+      );
 
     if (structured.length > 0) {
       return structured;
@@ -187,7 +189,9 @@ export function mergeAutomationServiceSkillContexts(
 
   return {
     id: primary.id || fallback.id,
-    title: shouldUseFallbackTitle(primary.title) ? fallback.title : primary.title,
+    title: shouldUseFallbackTitle(primary.title)
+      ? fallback.title
+      : primary.title,
     runnerLabel: shouldUseFallbackLabel(primary.runnerLabel)
       ? fallback.runnerLabel
       : primary.runnerLabel,

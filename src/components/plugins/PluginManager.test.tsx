@@ -227,8 +227,7 @@ describe("PluginManager 任务可观测", () => {
               current: "0.89.0",
               latest: "0.89.0",
               hasUpdate: false,
-              downloadUrl:
-                "https://github.com/aiclientproxy/lime/releases",
+              downloadUrl: "https://github.com/aiclientproxy/lime/releases",
               error: undefined,
             };
           default:

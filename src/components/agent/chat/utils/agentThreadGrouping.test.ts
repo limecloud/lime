@@ -66,7 +66,9 @@ describe("agentThreadGrouping", () => {
 
     expect(model.groups.map((group) => group.kind)).toEqual(["process"]);
     expect(model.groups[0]?.items).toHaveLength(4);
-    expect(model.groups[0]?.previewLines).toContain("打开了 https://example.com");
+    expect(model.groups[0]?.previewLines).toContain(
+      "打开了 https://example.com",
+    );
     expect(model.groups[0]?.previewLines).toContain("点了 #submit");
     expect(model.groups[0]?.previewLines).toContain("搜了 Lime CDP 并行渲染");
     expect(model.summaryChips).toEqual([
@@ -163,7 +165,10 @@ describe("agentThreadGrouping", () => {
     const model = buildAgentThreadDisplayModel(items);
 
     expect(model.groups.map((group) => group.kind)).toEqual(["process"]);
-    expect(model.groups[0]?.previewLines).toEqual(["看了 reports", "动了 run.log"]);
+    expect(model.groups[0]?.previewLines).toEqual([
+      "看了 reports",
+      "动了 run.log",
+    ]);
   });
 
   it("思考与工具步骤应保持原始时序并收进同一个过程块", () => {
@@ -216,7 +221,9 @@ describe("agentThreadGrouping", () => {
     const model = buildAgentThreadDisplayModel(items);
 
     expect(model.summaryText).toBe("请先确认以下选项：");
-    expect(model.orderedBlocks[0]?.previewLines).toEqual(["请先确认以下选项："]);
+    expect(model.orderedBlocks[0]?.previewLines).toEqual([
+      "请先确认以下选项：",
+    ]);
   });
 
   it("内部路由型 turn_summary 不应抢占整轮摘要", () => {

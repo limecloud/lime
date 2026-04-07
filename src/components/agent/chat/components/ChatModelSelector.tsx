@@ -1,8 +1,5 @@
 import React from "react";
-import {
-  ModelSelector,
-  type ModelSelectorProps,
-} from "@/components/input-kit";
+import { ModelSelector, type ModelSelectorProps } from "@/components/input-kit";
 
 export type ChatModelSelectorProps = ModelSelectorProps;
 

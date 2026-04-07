@@ -89,11 +89,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const shouldLoadModels = open || shouldBackgroundLoadModels;
 
   useEffect(() => {
-    if (
-      backgroundPreload !== "idle" ||
-      open ||
-      backgroundProviderLoadReady
-    ) {
+    if (backgroundPreload !== "idle" || open || backgroundProviderLoadReady) {
       return;
     }
 
@@ -143,7 +139,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         providerType: selectedProvider?.type,
         apiHost: selectedProvider?.apiHost,
       }),
-    [selectedProvider?.apiHost, selectedProvider?.providerId, selectedProvider?.type],
+    [
+      selectedProvider?.apiHost,
+      selectedProvider?.providerId,
+      selectedProvider?.type,
+    ],
   );
 
   const { models: providerModels, loading: modelsLoading } = useProviderModels(
@@ -268,8 +268,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       : getProviderLabel(compactProviderType);
   const selectedProviderLabel =
     selectedProvider?.label || fallbackProviderLabel;
-  const compactProviderLabel =
-    selectedProvider?.label || fallbackProviderLabel;
+  const compactProviderLabel = selectedProvider?.label || fallbackProviderLabel;
   const compactModelLabel = model || "切换模型";
   const normalizedTheme = (activeTheme || "").toLowerCase();
   const activeThemeLabel =
@@ -280,7 +279,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     !filteredResult.usedFallback &&
     filteredResult.filteredOutCount > 0;
   const showNoProviderGuide =
-    shouldLoadProviders && !providersLoading && configuredProviders.length === 0;
+    shouldLoadProviders &&
+    !providersLoading &&
+    configuredProviders.length === 0;
 
   if (showNoProviderGuide) {
     return (
@@ -363,7 +364,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             >
               <Bot size={16} className="text-slate-500" />
               <span className="min-w-0 flex-1 flex items-center gap-1.5">
-                <span className="font-medium truncate">{selectedProviderLabel}</span>
+                <span className="font-medium truncate">
+                  {selectedProviderLabel}
+                </span>
                 <span className="text-slate-300 shrink-0">/</span>
                 <span className="text-sm text-slate-500 truncate">
                   {model || "选择模型"}
@@ -447,9 +450,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               <div className="mb-1 px-2 py-1 text-[11px] font-semibold tracking-[0.08em] text-slate-500">
                 模型列表
               </div>
-              {showThemeFilterHint || (
-                normalizedTheme !== "general" && filteredResult.usedFallback
-              ) || incompatibleModelCount > 0 ? (
+              {showThemeFilterHint ||
+              (normalizedTheme !== "general" && filteredResult.usedFallback) ||
+              incompatibleModelCount > 0 ? (
                 <div className="mb-2 space-y-1 rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2">
                   {showThemeFilterHint ? (
                     <div className="text-[11px] leading-5 text-slate-500">
@@ -493,12 +496,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           currentModelItem.compatibilityIssue
                             ? "cursor-not-allowed border-transparent bg-transparent text-slate-400 opacity-70"
                             : model === currentModelItem.id
-                            ? "border-slate-200 bg-slate-50 text-slate-900"
-                            : "text-slate-500 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900",
+                              ? "border-slate-200 bg-slate-50 text-slate-900"
+                              : "text-slate-500 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900",
                         )}
                         title={currentModelItem.compatibilityIssue?.message}
                       >
-                          <span className="flex items-center gap-2 min-w-0">
+                        <span className="flex items-center gap-2 min-w-0">
                           {selectedProvider && (
                             <ProviderIcon
                               providerType={selectedProvider.key}
@@ -507,9 +510,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                             />
                           )}
                           <span className="min-w-0 flex flex-col gap-1">
-                            <span className="truncate">{currentModelItem.id}</span>
+                            <span className="truncate">
+                              {currentModelItem.id}
+                            </span>
                             <ModelCapabilityBadges
-                              capabilities={currentModelItem.metadata.capabilities}
+                              capabilities={
+                                currentModelItem.metadata.capabilities
+                              }
                               compact
                             />
                             {currentModelItem.compatibilityIssue ? (

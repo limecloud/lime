@@ -32,8 +32,9 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
   const onInputChange = vi.fn();
   const onRequirePrompt = vi.fn();
 
-  let hookValue: ReturnType<typeof useGeneralWorkbenchEntryPromptActions> | null =
-    null;
+  let hookValue: ReturnType<
+    typeof useGeneralWorkbenchEntryPromptActions
+  > | null = null;
   let currentProps: HookProps = {
     generalWorkbenchEntryPrompt: null,
     input: "",
@@ -117,9 +118,7 @@ describe("useGeneralWorkbenchEntryPromptActions", () => {
 
     try {
       await act(async () => {
-        await harness
-          .getValue()
-          .handleContinueGeneralWorkbenchEntryPrompt();
+        await harness.getValue().handleContinueGeneralWorkbenchEntryPrompt();
       });
       expect(harness.onContinuePrompt).toHaveBeenCalledWith("请先生成主稿");
 
@@ -128,9 +127,7 @@ describe("useGeneralWorkbenchEntryPromptActions", () => {
       });
 
       await act(async () => {
-        await harness
-          .getValue()
-          .handleContinueGeneralWorkbenchEntryPrompt();
+        await harness.getValue().handleContinueGeneralWorkbenchEntryPrompt();
       });
       expect(harness.onContinuePrompt).toHaveBeenLastCalledWith(
         "我已经补充了额外要求",
@@ -155,9 +152,7 @@ describe("useGeneralWorkbenchEntryPromptActions", () => {
 
     try {
       await act(async () => {
-        await harness
-          .getValue()
-          .handleContinueGeneralWorkbenchEntryPrompt();
+        await harness.getValue().handleContinueGeneralWorkbenchEntryPrompt();
       });
       expect(harness.onRequirePrompt).toHaveBeenCalledTimes(1);
       expect(harness.onContinuePrompt).not.toHaveBeenCalled();
@@ -185,7 +180,9 @@ describe("useGeneralWorkbenchEntryPromptActions", () => {
         harness.getValue().handleRestartGeneralWorkbenchEntryPrompt();
       });
 
-      expect(harness.dismissGeneralWorkbenchEntryPrompt).toHaveBeenCalledTimes(1);
+      expect(harness.dismissGeneralWorkbenchEntryPrompt).toHaveBeenCalledTimes(
+        1,
+      );
       const options =
         harness.dismissGeneralWorkbenchEntryPrompt.mock.calls[0]?.[0];
       expect(options?.consumeInitialPrompt).toBe(true);

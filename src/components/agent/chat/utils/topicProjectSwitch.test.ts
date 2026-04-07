@@ -137,7 +137,9 @@ describe("resolveTopicSwitchProject", () => {
       topicBoundProjectId: "topic-project",
       lastProjectId: null,
       loadProjectById: vi.fn(async () => makeProject("topic-project", true)),
-      loadDefaultProject: vi.fn(async () => makeProject("default-project", true)),
+      loadDefaultProject: vi.fn(async () =>
+        makeProject("default-project", true),
+      ),
       createDefaultProject: vi.fn(async () => makeProject("created-default")),
     });
 

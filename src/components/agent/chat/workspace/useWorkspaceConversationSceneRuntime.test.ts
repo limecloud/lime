@@ -172,9 +172,9 @@ describe("useWorkspaceConversationSceneRuntime", () => {
     useWorkspaceConversationSceneRuntime(params);
 
     const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
-    expect(
-      presentationParams?.canvasWorkbenchLayout?.onLayoutModeChange,
-    ).toBe(setCanvasWorkbenchLayoutMode);
+    expect(presentationParams?.canvasWorkbenchLayout?.onLayoutModeChange).toBe(
+      setCanvasWorkbenchLayoutMode,
+    );
   });
 
   it("主题工作台场景不应再向外回写 stacked/split 布局状态", () => {

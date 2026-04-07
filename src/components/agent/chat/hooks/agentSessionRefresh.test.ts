@@ -76,10 +76,7 @@ describe("agentSessionRefresh", () => {
         preserveExecutionStrategyOnMissingDetail: true,
       },
     );
-    expect(markSynced).toHaveBeenCalledWith(
-      "session-1",
-      "code_orchestrated",
-    );
+    expect(markSynced).toHaveBeenCalledWith("session-1", "code_orchestrated");
   });
 
   it("刷新 read model 时应在会话仍匹配时应用 snapshot", async () => {

@@ -170,9 +170,9 @@ describe("OpenClawInstallPage", () => {
     );
 
     expect(blockedButtons.length).toBeGreaterThan(0);
-    expect(blockedButtons.every((button) => button.hasAttribute("disabled"))).toBe(
-      true,
-    );
+    expect(
+      blockedButtons.every((button) => button.hasAttribute("disabled")),
+    ).toBe(true);
     expect(container.textContent).toContain(
       "Windows 下请先手动安装 Node.js / Git，完成后点击“重新检测”，再安装 OpenClaw。",
     );
@@ -266,14 +266,12 @@ describe("OpenClawInstallPage", () => {
 
     const blockedButtons = Array.from(
       container.querySelectorAll("button"),
-    ).filter((button) =>
-      button.textContent?.includes("请先重新检测 OpenClaw"),
-    );
+    ).filter((button) => button.textContent?.includes("请先重新检测 OpenClaw"));
 
     expect(blockedButtons.length).toBeGreaterThan(0);
-    expect(blockedButtons.every((button) => button.hasAttribute("disabled"))).toBe(
-      true,
-    );
+    expect(
+      blockedButtons.every((button) => button.hasAttribute("disabled")),
+    ).toBe(true);
     expect(container.textContent).toContain("待刷新");
     expect(container.textContent).toContain(
       "已检测到 OpenClaw 包，但命令尚未生效。请先点击“重新检测”；若仍失败，请重启 Lime 后再试。",

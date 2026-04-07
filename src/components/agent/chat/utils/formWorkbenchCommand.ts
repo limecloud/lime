@@ -30,8 +30,7 @@ const LEADING_FORM_TYPE_REGEX =
   /^(问卷表单|调查表单|线索表单|报名表单|反馈表单|申请表单|survey(?:\s+form)?|lead(?:\s+form)?|registration(?:\s+form)?|feedback(?:\s+form)?|application(?:\s+form)?)(?=$|[\s,，。；;:：])/i;
 const LEADING_EXPLICIT_FORM_TYPE_REGEX =
   /^(?:类型|表单类型|type)\s*[:：=]?\s*(问卷表单|调查表单|线索表单|报名表单|反馈表单|申请表单|survey(?:\s+form)?|lead(?:\s+form)?|registration(?:\s+form)?|feedback(?:\s+form)?|application(?:\s+form)?)(?=$|[\s,，。；;:：])/i;
-const FORM_PROMPT_BOUNDARY_PATTERN =
-  String.raw`(?:\s+(?:帮我|给我|请|生成|制作|设计|整理|输出|做一个|做个|create|generate|build|draft))`;
+const FORM_PROMPT_BOUNDARY_PATTERN = String.raw`(?:\s+(?:帮我|给我|请|生成|制作|设计|整理|输出|做一个|做个|create|generate|build|draft))`;
 const LEADING_EXPLICIT_STYLE_REGEX = new RegExp(
   String.raw`^(?:风格|style)\s*[:：=]?\s*(.+?)(?=$|[,，。；;\n]|(?:\s+(?:受众|对象|audience|字段数|题数|问题数|fields?|questions?|类型|表单类型|type)\s*[:：=]?)|${FORM_PROMPT_BOUNDARY_PATTERN})`,
   "i",
@@ -81,7 +80,11 @@ function normalizeFormType(value: string | undefined): FormType | undefined {
   ) {
     return "survey_form";
   }
-  if (normalized === "线索表单" || normalized === "lead" || normalized === "lead form") {
+  if (
+    normalized === "线索表单" ||
+    normalized === "lead" ||
+    normalized === "lead form"
+  ) {
     return "lead_form";
   }
   if (
@@ -120,13 +123,17 @@ function consumeLeadingFormFields(body: string): {
   promptBody: string;
 } {
   let remaining = body.trim();
-  let formType = normalizeFormType(remaining.match(LEADING_FORM_TYPE_REGEX)?.[1]?.trim());
+  let formType = normalizeFormType(
+    remaining.match(LEADING_FORM_TYPE_REGEX)?.[1]?.trim(),
+  );
   let style: string | undefined;
   let audience: string | undefined;
   let fieldCount: number | undefined;
 
   if (formType) {
-    remaining = trimLeadingDecorations(stripField(remaining, LEADING_FORM_TYPE_REGEX));
+    remaining = trimLeadingDecorations(
+      stripField(remaining, LEADING_FORM_TYPE_REGEX),
+    );
   }
 
   while (remaining) {
@@ -163,8 +170,9 @@ function consumeLeadingFormFields(body: string): {
       continue;
     }
 
-    const fieldCountRaw =
-      remaining.match(LEADING_EXPLICIT_FIELD_COUNT_REGEX)?.[1]?.trim();
+    const fieldCountRaw = remaining
+      .match(LEADING_EXPLICIT_FIELD_COUNT_REGEX)?.[1]
+      ?.trim();
     if (fieldCountRaw) {
       const parsedFieldCount = Number.parseInt(fieldCountRaw, 10);
       fieldCount =

@@ -56,10 +56,10 @@ export function A2UITaskCardShell({
       )}
       data-testid={testId}
       data-surface={surface}
-      >
-        {children}
-      </div>
-    );
+    >
+      {children}
+    </div>
+  );
 }
 
 export function A2UITaskCardStatusBadge({

@@ -3,7 +3,11 @@
  * @description 文档画布快捷键定义与匹配
  */
 
-import { hasPrimaryModifier, normalizeHotkeyKey, type HotkeyEventLike } from "@/lib/hotkeys/platform";
+import {
+  hasPrimaryModifier,
+  normalizeHotkeyKey,
+  type HotkeyEventLike,
+} from "@/lib/hotkeys/platform";
 import type { AuditedHotkeyDefinition } from "@/lib/hotkeys/types";
 
 export const DOCUMENT_CANVAS_HOTKEYS: AuditedHotkeyDefinition[] = [

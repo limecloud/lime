@@ -148,11 +148,10 @@ export function useWorkspaceInputbarPresentation({
   );
 
   const workspaceInputbarProps = buildWorkspaceInputbarProps(inputbar);
-  const floatingTeamWorkspaceDockProps =
-    buildFloatingTeamWorkspaceDockProps({
-      ...floatingTeamWorkspaceDock,
-      surfaceProps: teamWorkbenchSurfaceProps,
-    });
+  const floatingTeamWorkspaceDockProps = buildFloatingTeamWorkspaceDockProps({
+    ...floatingTeamWorkspaceDock,
+    surfaceProps: teamWorkbenchSurfaceProps,
+  });
 
   return {
     teamWorkbenchSurfaceProps,

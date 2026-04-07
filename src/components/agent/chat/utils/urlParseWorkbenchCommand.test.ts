@@ -29,7 +29,8 @@ describe("parseUrlParseWorkbenchCommand", () => {
   });
 
   it("缺少链接时也应保留解析意图，交给 Agent 继续追问", () => {
-    const result = parseUrlParseWorkbenchCommand("@链接 帮我提炼这篇网页的核心观点");
+    const result =
+      parseUrlParseWorkbenchCommand("@链接 帮我提炼这篇网页的核心观点");
 
     expect(result).toMatchObject({
       trigger: "@链接",

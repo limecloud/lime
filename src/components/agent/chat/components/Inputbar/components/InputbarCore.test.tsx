@@ -326,7 +326,9 @@ describe("InputbarCore", () => {
     expect(removeButton).toBeTruthy();
 
     act(() => {
-      removeButton?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      removeButton?.dispatchEvent(
+        new MouseEvent("mousedown", { bubbles: true }),
+      );
       removeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 

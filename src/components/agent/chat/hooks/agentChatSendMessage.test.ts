@@ -111,7 +111,9 @@ describe("createAgentChatSendMessage", () => {
     await sendMessage("/review src-tauri", [], false, false, false);
 
     expect(rawSendMessage).toHaveBeenCalledTimes(1);
-    expect(rawSendMessage.mock.calls[0]?.[0]).toContain("请对以下对象进行代码审查");
+    expect(rawSendMessage.mock.calls[0]?.[0]).toContain(
+      "请对以下对象进行代码审查",
+    );
     expect(rawSendMessage.mock.calls[0]?.[0]).toContain("src-tauri");
     expect(listSlashEntryUsage()).toEqual([
       expect.objectContaining({

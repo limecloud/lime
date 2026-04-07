@@ -41,11 +41,10 @@ describe("withI18nPatch", () => {
     setupReactActEnvironment();
     vi.clearAllMocks();
     vi.useFakeTimers();
-    vi.stubGlobal(
-      "requestAnimationFrame",
-      ((callback: (time: number) => void) =>
-        window.setTimeout(() => callback(0), 0)) as typeof requestAnimationFrame,
-    );
+    vi.stubGlobal("requestAnimationFrame", ((
+      callback: (time: number) => void,
+    ) =>
+      window.setTimeout(() => callback(0), 0)) as typeof requestAnimationFrame);
     mockHasTauriInvokeCapability.mockReturnValue(true);
   });
 
@@ -56,7 +55,9 @@ describe("withI18nPatch", () => {
   });
 
   it("配置读取超时后回退默认语言并继续渲染", async () => {
-    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
     mockGetConfig.mockImplementation(
       () => new Promise(() => undefined) as Promise<unknown>,
     );

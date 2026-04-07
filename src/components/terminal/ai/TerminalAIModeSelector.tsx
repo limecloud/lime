@@ -334,7 +334,8 @@ export const TerminalAIModeSelector: React.FC<TerminalAIModeSelectorProps> = ({
             </div>
             {compatibilityResult.incompatibleModels.length > 0 ? (
               <div className="px-2 pb-1 text-[11px] text-amber-400">
-                已隐藏 {compatibilityResult.incompatibleModels.length} 个当前登录态不兼容的模型
+                已隐藏 {compatibilityResult.incompatibleModels.length}{" "}
+                个当前登录态不兼容的模型
               </div>
             ) : null}
             <ScrollArea className="flex-1">

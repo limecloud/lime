@@ -13,7 +13,9 @@ const EN_DATE_RE =
   /\b(?:jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\b|\b\d{4}-\d{1,2}-\d{1,2}\b/i;
 const HEADLINE_RE = /头条|要闻|快讯|headlines?|roundup|briefing|digest|brief/i;
 
-export function classifySearchQuerySemantic(query?: string | null): SearchQuerySemantic {
+export function classifySearchQuerySemantic(
+  query?: string | null,
+): SearchQuerySemantic {
   const normalized = query?.trim() || "";
   const hasCjk = CJK_RE.test(normalized);
   const hasZhDate = ZH_DATE_RE.test(normalized);

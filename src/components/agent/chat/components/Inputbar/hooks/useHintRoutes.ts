@@ -18,10 +18,7 @@ interface UseHintRoutesParams {
   textareaRef: RefObject<HTMLTextAreaElement>;
 }
 
-export function useHintRoutes({
-  setInput,
-  textareaRef,
-}: UseHintRoutesParams) {
+export function useHintRoutes({ setInput, textareaRef }: UseHintRoutesParams) {
   const [showHintPopup, setShowHintPopup] = useState(false);
   const [hintRoutes, setHintRoutes] = useState<HintRouteItem[]>([]);
   const [hintIndex, setHintIndex] = useState(0);

@@ -1,8 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  type MutableRefObject,
-} from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 import {
   hasDevBridgeEventListenerCapability,
   isDevBridgeAvailable,
@@ -110,11 +106,7 @@ export function useAgentRuntimeSyncEffects(
     return () => {
       window.clearInterval(timer);
     };
-  }, [
-    refreshSessionDetail,
-    sessionId,
-    shouldUseDevBridgeRuntimePolling,
-  ]);
+  }, [refreshSessionDetail, sessionId, shouldUseDevBridgeRuntimePolling]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -133,16 +125,19 @@ export function useAgentRuntimeSyncEffects(
 
     const subscribe = async () => {
       for (const eventName of eventNames) {
-        const unlisten = await runtime.listenToTeamEvents(eventName, (event) => {
-          const data = parseAgentEvent(event.payload);
-          if (disposed || data?.type !== "subagent_status_changed") {
-            return;
-          }
-          if (sessionIdRef.current !== sessionId) {
-            return;
-          }
-          void refreshSessionDetail(sessionId);
-        });
+        const unlisten = await runtime.listenToTeamEvents(
+          eventName,
+          (event) => {
+            const data = parseAgentEvent(event.payload);
+            if (disposed || data?.type !== "subagent_status_changed") {
+              return;
+            }
+            if (sessionIdRef.current !== sessionId) {
+              return;
+            }
+            void refreshSessionDetail(sessionId);
+          },
+        );
 
         if (disposed) {
           unlisten();

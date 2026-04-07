@@ -25,7 +25,8 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/webview-api", () => ({
   browserExecuteAction: (...args: unknown[]) =>
     mockBrowserExecuteAction(...args),
-  launchBrowserSession: (...args: unknown[]) => mockLaunchBrowserSession(...args),
+  launchBrowserSession: (...args: unknown[]) =>
+    mockLaunchBrowserSession(...args),
   siteRunAdapter: (...args: unknown[]) => mockSiteRunAdapter(...args),
 }));
 
@@ -335,10 +336,13 @@ describe("useWorkspaceBrowserAssistRuntime", () => {
     );
 
     await act(async () => {
-      await getValue().ensureBrowserAssistCanvas("https://github.com/features", {
-        navigationMode: "explicit-url",
-        silent: true,
-      });
+      await getValue().ensureBrowserAssistCanvas(
+        "https://github.com/features",
+        {
+          navigationMode: "explicit-url",
+          silent: true,
+        },
+      );
       await Promise.resolve();
     });
 

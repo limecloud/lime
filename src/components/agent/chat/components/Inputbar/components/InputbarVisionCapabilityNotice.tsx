@@ -31,7 +31,11 @@ export const InputbarVisionCapabilityNotice: React.FC<
         providerType: selectedProvider?.type,
         apiHost: selectedProvider?.apiHost,
       }),
-    [selectedProvider?.apiHost, selectedProvider?.providerId, selectedProvider?.type],
+    [
+      selectedProvider?.apiHost,
+      selectedProvider?.providerId,
+      selectedProvider?.type,
+    ],
   );
 
   const { models, loading: modelsLoading } = useProviderModels(

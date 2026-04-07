@@ -22,7 +22,10 @@ function resolveMockToolText(toolCall: {
   let parsedArguments: Record<string, unknown> | null = null;
   if (toolCall.arguments) {
     try {
-      parsedArguments = JSON.parse(toolCall.arguments) as Record<string, unknown>;
+      parsedArguments = JSON.parse(toolCall.arguments) as Record<
+        string,
+        unknown
+      >;
     } catch {
       parsedArguments = null;
     }
@@ -167,9 +170,7 @@ function at(second: number): string {
   return `2026-03-15T09:10:${String(second).padStart(2, "0")}Z`;
 }
 
-function createTurn(
-  overrides?: Partial<AgentThreadTurn>,
-): AgentThreadTurn {
+function createTurn(overrides?: Partial<AgentThreadTurn>): AgentThreadTurn {
   return {
     id: "turn-1",
     thread_id: "thread-1",
@@ -384,7 +385,7 @@ describe("AgentThreadTimeline", () => {
       createFileArtifactItem({
         id: "artifact-hidden-task-json",
         path: ".lime/tasks/image_generate/task-image-1.json",
-        content: "{\"status\":\"running\"}",
+        content: '{"status":"running"}',
         metadata: {},
       }),
     ]);
@@ -515,9 +516,7 @@ describe("AgentThreadTimeline", () => {
       .map((node) => node.dataset.testid)
       .filter((value): value is string => Boolean(value))
       .filter(
-        (value) =>
-          !value.endsWith(":shell") &&
-          !value.endsWith(":details"),
+        (value) => !value.endsWith(":shell") && !value.endsWith(":details"),
       );
 
     expect(blockIds).toEqual(["agent-thread-block:1:process"]);
@@ -552,7 +551,9 @@ describe("AgentThreadTimeline", () => {
 
     expect(summary?.textContent).toContain("2 步");
     expect(summary?.textContent).toContain("2 个工具步骤");
-    expect(container.querySelectorAll('[data-testid="tool-call-item"]')).toHaveLength(0);
+    expect(
+      container.querySelectorAll('[data-testid="tool-call-item"]'),
+    ).toHaveLength(0);
 
     act(() => {
       summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -791,14 +792,19 @@ describe("AgentThreadTimeline", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="agent-thread-block:1:process:details"]'),
+      container.querySelector(
+        '[data-testid="agent-thread-block:1:process:details"]',
+      ),
     ).toBeNull();
     expect(container.textContent).not.toContain("思考摘要");
-    expect((container.textContent?.split(reasoningText).length ?? 1) - 1).toBe(1);
+    expect((container.textContent?.split(reasoningText).length ?? 1) - 1).toBe(
+      1,
+    );
   });
 
   it("已完成的思考应默认折叠，只保留摘要行", () => {
-    const reasoningText = "先核对执行链路，再立即恢复当前运行。\n随后补齐自动续提。";
+    const reasoningText =
+      "先核对执行链路，再立即恢复当前运行。\n随后补齐自动续提。";
     const items: AgentThreadItem[] = [
       {
         ...createBaseItem("reasoning-1", 1),
@@ -820,7 +826,9 @@ describe("AgentThreadTimeline", () => {
 
     expect(block?.open).toBe(false);
     expect(summary?.textContent).toContain("已完成思考");
-    expect(summary?.textContent).toContain("先核对执行链路，再立即恢复当前运行。");
+    expect(summary?.textContent).toContain(
+      "先核对执行链路，再立即恢复当前运行。",
+    );
     expect(container.textContent).not.toContain("随后补齐自动续提。");
 
     act(() => {
@@ -914,8 +922,12 @@ describe("AgentThreadTimeline", () => {
       summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect((container.textContent?.split("先判断任务类型").length ?? 1) - 1).toBe(1);
-    expect((container.textContent?.split("再决定是否联网").length ?? 1) - 1).toBe(1);
+    expect(
+      (container.textContent?.split("先判断任务类型").length ?? 1) - 1,
+    ).toBe(1);
+    expect(
+      (container.textContent?.split("再决定是否联网").length ?? 1) - 1,
+    ).toBe(1);
   });
 
   it("已完成的 request_user_input 应以只读 A2UI 卡片回显", () => {
@@ -945,7 +957,9 @@ describe("AgentThreadTimeline", () => {
     expect(
       container.querySelector('[data-testid="timeline-a2ui-card"]'),
     ).not.toBeNull();
-    expect(container.querySelector('[data-testid="decision-panel"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="decision-panel"]'),
+    ).toBeNull();
   });
 
   it("真实协作成员 item 应支持查看协作详情", () => {

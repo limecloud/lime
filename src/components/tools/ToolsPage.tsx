@@ -320,9 +320,7 @@ export function ToolsPage({ onNavigate }: ToolsPageProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">工具箱</h1>
-          <p className="text-muted-foreground mt-1">
-            Lime 提供的实用工具集合
-          </p>
+          <p className="text-muted-foreground mt-1">Lime 提供的实用工具集合</p>
         </div>
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -358,8 +356,7 @@ export function ToolsPage({ onNavigate }: ToolsPageProps) {
       <div className="mt-8 p-6 bg-muted/30 rounded-lg">
         <h3 className="text-lg font-semibold mb-2">关于工具箱</h3>
         <p className="text-sm text-muted-foreground">
-          工具箱是 Lime
-          的扩展功能模块，提供各种实用工具来增强您的使用体验。
+          工具箱是 Lime 的扩展功能模块，提供各种实用工具来增强您的使用体验。
           每个工具都经过精心设计，旨在解决特定的使用场景和需求。
           {pluginTools.length > 0 && (
             <span className="block mt-2">

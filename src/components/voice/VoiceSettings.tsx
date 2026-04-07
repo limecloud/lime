@@ -410,9 +410,8 @@ export function VoiceSettings({
                     e.stopPropagation();
                     try {
                       // 使用 Command.create 执行 open 命令打开系统偏好设置
-                      const { Command } = await import(
-                        "@tauri-apps/plugin-shell"
-                      );
+                      const { Command } =
+                        await import("@tauri-apps/plugin-shell");
                       const cmd = Command.create("open", [
                         "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
                       ]);

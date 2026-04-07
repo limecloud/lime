@@ -133,7 +133,9 @@ describe("useWorkspaceProjectSelection", () => {
       expect(
         harness.getValue().consumePendingTopicSwitch("project-other"),
       ).toBeNull();
-      expect(harness.getValue().consumePendingTopicSwitch("project-target")).toEqual({
+      expect(
+        harness.getValue().consumePendingTopicSwitch("project-target"),
+      ).toEqual({
         topicId: "topic-1",
         targetProjectId: "project-target",
       });

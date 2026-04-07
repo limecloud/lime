@@ -1,7 +1,10 @@
 import type { ComponentProps, ReactNode } from "react";
 import { PanelLeftOpen } from "lucide-react";
 import { ChatSidebar } from "../components/ChatSidebar";
-import { PageContainer, GeneralWorkbenchLeftExpandButton } from "./WorkspaceStyles";
+import {
+  PageContainer,
+  GeneralWorkbenchLeftExpandButton,
+} from "./WorkspaceStyles";
 
 interface WorkspacePageShellProps {
   compactChrome: boolean;

@@ -31,7 +31,9 @@ afterEach(() => {
   }
 });
 
-function renderCard(snapshot?: Parameters<typeof TeamMemoryShadowCard>[0]["snapshot"]) {
+function renderCard(
+  snapshot?: Parameters<typeof TeamMemoryShadowCard>[0]["snapshot"],
+) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -79,12 +81,16 @@ describe("TeamMemoryShadowCard", () => {
       container.querySelector('[data-testid="team-memory-shadow-card"]'),
     ).not.toBeNull();
     expect(container.textContent).toContain("协作记忆影子");
-    expect(container.textContent).toContain("当前仓库已缓存 3 条 Team 续接上下文");
+    expect(container.textContent).toContain(
+      "当前仓库已缓存 3 条 Team 续接上下文",
+    );
     expect(container.textContent).toContain("/workspace/lime");
     expect(container.textContent).toContain("当前 Team");
     expect(container.textContent).toContain("子代理概览");
     expect(container.textContent).toContain("父会话上下文");
-    expect(container.textContent).toContain("研究代理 [running] explorer · 梳理主线风险");
+    expect(container.textContent).toContain(
+      "研究代理 [running] explorer · 梳理主线风险",
+    );
     expect(container.textContent).toContain("当前任务：汇总结论");
   });
 });

@@ -2,12 +2,13 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockGetConfig, mockGetEnvironmentPreview, mockSaveConfig } =
-  vi.hoisted(() => ({
+const { mockGetConfig, mockGetEnvironmentPreview, mockSaveConfig } = vi.hoisted(
+  () => ({
     mockGetConfig: vi.fn(),
     mockGetEnvironmentPreview: vi.fn(),
     mockSaveConfig: vi.fn(),
-  }));
+  }),
+);
 
 vi.mock("@/lib/api/appConfig", () => ({
   getConfig: mockGetConfig,

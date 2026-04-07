@@ -83,7 +83,9 @@ export function settleLiveArtifactAfterStreamStops(
   };
 }
 
-function hasRenderableArtifactContent(artifact: Artifact | null | undefined): boolean {
+function hasRenderableArtifactContent(
+  artifact: Artifact | null | undefined,
+): boolean {
   return Boolean(artifact?.content.trim());
 }
 
@@ -178,7 +180,8 @@ function buildOverlayState(
         phase,
         phaseLabel: "已完成",
         title: "写入已结束",
-        detail: "文件已经完成，但当前还没有可直接渲染的内容，暂时保留上一版本。",
+        detail:
+          "文件已经完成，但当前还没有可直接渲染的内容，暂时保留上一版本。",
         displayName,
         filePath,
         showProgress: false,
@@ -339,7 +342,9 @@ export function useArtifactDisplayState(
       return;
     }
 
-    const writePhase = liveArtifact ? resolveArtifactWritePhase(liveArtifact) : null;
+    const writePhase = liveArtifact
+      ? resolveArtifactWritePhase(liveArtifact)
+      : null;
     const isPendingTransition =
       liveArtifact &&
       !hasRenderableArtifactContent(liveArtifact) &&

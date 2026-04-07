@@ -39,10 +39,10 @@ export const Container = styled.div`
 
 export const InputBarContainer = styled.div`
   position: relative;
-  border: 1px solid #dcfce7;
+  border: 1px solid rgba(110, 231, 183, 0.55);
   border-radius: 22px;
   padding: 10px 12px 10px 10px;
-  background: linear-gradient(180deg, #fdfffb 0%, #f4fbf5 100%);
+  background: linear-gradient(180deg, #fdfffb 0%, #f6fbf7 100%);
   box-shadow:
     0 10px 28px rgba(22, 101, 52, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -52,10 +52,10 @@ export const InputBarContainer = styled.div`
     background 0.2s ease;
 
   &:focus-within {
-    border-color: #bbf7d0;
-    background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+    border-color: rgba(74, 222, 128, 0.65);
+    background: linear-gradient(180deg, #ffffff 0%, #f4fbf5 100%);
     box-shadow:
-      0 0 0 3px rgba(134, 239, 172, 0.35),
+      0 0 0 3px rgba(74, 222, 128, 0.22),
       0 14px 32px rgba(22, 101, 52, 0.06),
       inset 0 1px 0 rgba(255, 255, 255, 0.92);
   }
@@ -68,8 +68,8 @@ export const InputBarContainer = styled.div`
   &.floating-composer {
     border-radius: 20px;
     padding: 16px 18px 14px 16px;
-    background: linear-gradient(180deg, #fcfffc 0%, #f4fcf5 100%);
-    border-color: #d1fae5;
+    background: linear-gradient(180deg, #fcfffc 0%, #f6fbf7 100%);
+    border-color: rgba(110, 231, 183, 0.6);
     box-shadow:
       0 16px 32px rgba(22, 101, 52, 0.05),
       inset 0 1px 0 rgba(255, 255, 255, 0.85);
@@ -81,13 +81,12 @@ export const InputBarContainer = styled.div`
   }
 
   &.floating-composer:focus-within {
-    background: linear-gradient(180deg, #ffffff 0%, #ecfdf5 100%);
-    border-color: #a7f3d0;
+    background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+    border-color: rgba(74, 222, 128, 0.7);
     box-shadow:
-      0 0 0 3px rgba(110, 231, 183, 0.38),
+      0 0 0 3px rgba(74, 222, 128, 0.25),
       0 18px 34px rgba(22, 101, 52, 0.08),
       inset 0 1px 0 rgba(255, 255, 255, 0.88);
-
   }
 `;
 
@@ -240,10 +239,10 @@ export const MetaSelectWrap = styled.label`
   }
 
   &:focus-within {
-    border-color: rgba(125, 167, 255, 0.42);
+    border-color: rgba(167, 243, 208, 0.42);
     background: rgba(255, 255, 255, 0.98);
     box-shadow:
-      0 0 0 3px rgba(191, 219, 254, 0.28),
+      0 0 0 3px rgba(167, 243, 208, 0.28),
       inset 0 1px 0 rgba(255, 255, 255, 0.92);
     color: hsl(var(--foreground));
   }
@@ -299,11 +298,9 @@ export const MetaToggleButton = styled.button<{
   border-radius: 999px;
   border: 1px solid
     ${({ $checked }) =>
-      $checked
-        ? "rgba(125, 167, 255, 0.4)"
-        : "rgba(148, 163, 184, 0.24)"};
+      $checked ? "rgba(167, 243, 208, 0.4)" : "rgba(148, 163, 184, 0.24)"};
   background: ${({ $checked }) =>
-    $checked ? "rgba(240, 246, 255, 0.98)" : "rgba(255, 255, 255, 0.9)"};
+    $checked ? "rgba(240, 253, 244, 0.98)" : "rgba(255, 255, 255, 0.9)"};
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   color: ${({ $checked }) =>
     $checked ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"};
@@ -317,20 +314,18 @@ export const MetaToggleButton = styled.button<{
 
   &:hover {
     border-color: ${({ $checked }) =>
-      $checked
-        ? "rgba(125, 167, 255, 0.5)"
-        : "rgba(148, 163, 184, 0.34)"};
+      $checked ? "rgba(167, 243, 208, 0.5)" : "rgba(148, 163, 184, 0.34)"};
     background: ${({ $checked }) =>
-      $checked ? "rgba(244, 248, 255, 1)" : "rgba(255, 255, 255, 0.98)"};
+      $checked ? "rgba(220, 252, 231, 1)" : "rgba(255, 255, 255, 0.98)"};
     color: hsl(var(--foreground));
     transform: translateY(-1px);
   }
 
   &:focus-visible {
     outline: none;
-    border-color: rgba(125, 167, 255, 0.44);
+    border-color: rgba(167, 243, 208, 0.44);
     box-shadow:
-      0 0 0 3px rgba(191, 219, 254, 0.28),
+      0 0 0 3px rgba(167, 243, 208, 0.28),
       inset 0 1px 0 rgba(255, 255, 255, 0.92);
   }
 
@@ -352,11 +347,9 @@ export const MetaToggleCheck = styled.span<{
   border-radius: 4px;
   border: 1px solid
     ${({ $checked }) =>
-      $checked
-        ? "rgba(59, 130, 246, 0.45)"
-        : "rgba(148, 163, 184, 0.42)"};
+      $checked ? "rgba(34, 197, 94, 0.45)" : "rgba(148, 163, 184, 0.42)"};
   background: ${({ $checked }) =>
-    $checked ? "rgba(219, 234, 254, 0.9)" : "rgba(255, 255, 255, 0.96)"};
+    $checked ? "rgba(220, 252, 231, 0.9)" : "rgba(255, 255, 255, 0.96)"};
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
   flex-shrink: 0;
 
@@ -429,9 +422,9 @@ export const ToolButton = styled.button`
   }
 
   &.active {
-    color: #0f172a;
-    border-color: rgba(125, 167, 255, 0.44);
-    background: rgba(224, 236, 255, 0.82);
+    color: #14532d;
+    border-color: rgba(167, 243, 208, 0.44);
+    background: rgba(220, 252, 231, 0.82);
   }
 
   span {
@@ -464,13 +457,13 @@ export const InputIconButton = styled.button<{
           : "rgba(148, 163, 184, 0.28)"};
   background: ${({ $primary, $destructive }) =>
     $primary
-      ? "#0f172a"
+      ? "#1aa34e"
       : $destructive
         ? "rgba(255, 226, 234, 0.92)"
         : "rgba(255, 255, 255, 0.9)"};
   color: ${({ $primary, $destructive }) =>
     $primary
-      ? "#f8fafc"
+      ? "#f0fdf4"
       : $destructive
         ? "#be123c"
         : "hsl(var(--muted-foreground))"};
@@ -485,7 +478,7 @@ export const InputIconButton = styled.button<{
     transform: translateY(-1px);
     background: ${({ $primary, $destructive }) =>
       $primary
-        ? "#111c31"
+        ? "#168840"
         : $destructive
           ? "rgba(255, 221, 229, 1)"
           : "rgba(255, 255, 255, 1)"};
@@ -498,21 +491,21 @@ export const InputIconButton = styled.button<{
   }
 
   &.is-active {
-    border-color: rgba(125, 167, 255, 0.44);
-    background: rgba(224, 236, 255, 0.82);
-    color: #0f172a;
+    border-color: rgba(167, 243, 208, 0.44);
+    background: rgba(220, 252, 231, 0.82);
+    color: #14532d;
   }
 
   &.is-recording {
     border-color: rgba(120, 235, 190, 0.6);
     background: rgba(120, 235, 190, 0.12);
-    color: #0f172a;
+    color: #14532d;
   }
 
   &.is-processing {
-    border-color: rgba(160, 200, 255, 0.6);
-    background: rgba(160, 200, 255, 0.12);
-    color: #0f172a;
+    border-color: rgba(167, 243, 208, 0.6);
+    background: rgba(167, 243, 208, 0.12);
+    color: #14532d;
   }
 
   &:disabled {

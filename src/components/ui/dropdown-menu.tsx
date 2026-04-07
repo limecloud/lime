@@ -40,7 +40,9 @@ const DropdownMenu: React.FC<DropdownMenuProps> = ({
 
   return (
     <DropdownMenuContext.Provider value={{ open, setOpen }}>
-      <div style={{ position: "relative", display: "contents" }}>{children}</div>
+      <div style={{ position: "relative", display: "contents" }}>
+        {children}
+      </div>
     </DropdownMenuContext.Provider>
   );
 };
@@ -77,11 +79,7 @@ const DropdownMenuTrigger: React.FC<DropdownMenuTriggerProps> = ({
     });
   }
 
-  return (
-    <button onClick={handleClick}>
-      {children}
-    </button>
-  );
+  return <button onClick={handleClick}>{children}</button>;
 };
 
 interface DropdownMenuContentProps {

@@ -21,11 +21,17 @@ export interface ImageProviderModelCandidate extends ImageProviderCandidate {
   apiHost?: string;
 }
 
-function normalizeProviderSignature(providerId: string, providerType: string): string {
+function normalizeProviderSignature(
+  providerId: string,
+  providerType: string,
+): string {
   return `${providerId}:${providerType}`.toLowerCase();
 }
 
-export function isImageProvider(providerId: string, providerType: string): boolean {
+export function isImageProvider(
+  providerId: string,
+  providerType: string,
+): boolean {
   const normalized = normalizeProviderSignature(providerId, providerType);
   return (
     normalized.includes("fal") ||
@@ -53,7 +59,9 @@ export function findImageProviderById<T extends ImageProviderCandidate>(
   }
 
   return (
-    providers.find((provider) => provider.id.trim().toLowerCase() === normalizedProviderId) ?? null
+    providers.find(
+      (provider) => provider.id.trim().toLowerCase() === normalizedProviderId,
+    ) ?? null
   );
 }
 
@@ -101,7 +109,9 @@ export function pickImageModelBySelection(
         : ["gpt-image", "flux", "sd", "image", "wanx", "seedream"];
 
   for (const keyword of priorities) {
-    const index = normalizedModels.findIndex((model) => model.includes(keyword));
+    const index = normalizedModels.findIndex((model) =>
+      model.includes(keyword),
+    );
     if (index >= 0) {
       return models[index] ?? models[0] ?? "gpt-image-1";
     }
@@ -115,7 +125,10 @@ function isFalLikeProvider(
   providerType: string,
   apiHost?: string,
 ): boolean {
-  const normalizedSignature = normalizeProviderSignature(providerId, providerType);
+  const normalizedSignature = normalizeProviderSignature(
+    providerId,
+    providerType,
+  );
   const normalizedHost = (apiHost || "").trim().toLowerCase();
   return (
     normalizedSignature.includes("fal") ||
@@ -149,7 +162,11 @@ export function getImageModelsForProvider(
     IMAGE_GEN_MODELS[providerId] ?? IMAGE_GEN_MODELS[providerType] ?? [];
 
   if (customModels && customModels.length > 0) {
-    const nextCustomModels = isFalLikeProvider(providerId, providerType, apiHost)
+    const nextCustomModels = isFalLikeProvider(
+      providerId,
+      providerType,
+      apiHost,
+    )
       ? customModels.filter((modelId) => isLikelyFalImageModel(modelId))
       : customModels;
 

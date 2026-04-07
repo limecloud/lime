@@ -1029,7 +1029,9 @@ function renderBlockContent(
       }
       return <ArtifactQuote {...props} />;
     case "citation_list":
-      if (resolveCitationEntries(props.block, props.sourceLookup).length === 0) {
+      if (
+        resolveCitationEntries(props.block, props.sourceLookup).length === 0
+      ) {
         return null;
       }
       return <ArtifactCitationList {...props} />;

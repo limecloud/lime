@@ -43,10 +43,7 @@ function SessionValueCard(props: {
   );
 }
 
-function NoticeBar(props: {
-  tone: "error" | "success";
-  message: string;
-}) {
+function NoticeBar(props: { tone: "error" | "success"; message: string }) {
   return (
     <div
       className={cn(
@@ -134,7 +131,9 @@ export function UserCenterSessionSettings() {
     session?.user.email?.trim() ||
     "未登录";
   const accountEmail =
-    session?.user.email?.trim() || session?.user.username?.trim() || "登录后显示";
+    session?.user.email?.trim() ||
+    session?.user.username?.trim() ||
+    "登录后显示";
   const accountIdentity =
     session?.user.username?.trim() || session?.user.id || "登录后显示";
   const identityLabel = session?.user.username?.trim() ? "账号" : "用户 ID";
@@ -352,8 +351,12 @@ export function UserCenterSessionSettings() {
                       ariaLabel="资料维护方式说明"
                       content={
                         <div className="space-y-1">
-                          <p>昵称、头像、邮箱等资料由账号中心统一维护。这里专注展示当前账户状态，不再提供单独的本地资料编辑入口。</p>
-                          <p>如需调整资料，请前往账号中心完成修改，然后回到这里点击“同步最新状态”。</p>
+                          <p>
+                            昵称、头像、邮箱等资料由账号中心统一维护。这里专注展示当前账户状态，不再提供单独的本地资料编辑入口。
+                          </p>
+                          <p>
+                            如需调整资料，请前往账号中心完成修改，然后回到这里点击“同步最新状态”。
+                          </p>
                         </div>
                       }
                       tone="slate"
@@ -450,7 +453,9 @@ export function UserCenterSessionSettings() {
                           <div className="space-y-1">
                             <p>同步当前账户资料与头像、昵称显示。</p>
                             <p>同步默认 AI 服务、模型目录与已开通能力。</p>
-                            <p>个人资料统一在账号中心维护，避免多入口重复编辑。</p>
+                            <p>
+                              个人资料统一在账号中心维护，避免多入口重复编辑。
+                            </p>
                           </div>
                         }
                         tone="slate"

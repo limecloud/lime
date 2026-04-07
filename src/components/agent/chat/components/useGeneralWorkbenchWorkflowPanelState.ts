@@ -21,7 +21,9 @@ interface UseGeneralWorkbenchWorkflowPanelStateParams {
 export interface GeneralWorkbenchWorkflowPanelState {
   completedSteps: number;
   progressPercent: number;
-  groupedActivityLogs: ReturnType<typeof buildGeneralWorkbenchActivityLogGroups>;
+  groupedActivityLogs: ReturnType<
+    typeof buildGeneralWorkbenchActivityLogGroups
+  >;
   groupedCreationTaskEvents: ReturnType<
     typeof buildGeneralWorkbenchCreationTaskGroups
   >;
@@ -49,7 +51,9 @@ export function useGeneralWorkbenchWorkflowPanelState({
   );
 
   const progressPercent =
-    workflowSteps.length > 0 ? (completedSteps / workflowSteps.length) * 100 : 0;
+    workflowSteps.length > 0
+      ? (completedSteps / workflowSteps.length) * 100
+      : 0;
 
   const groupedActivityLogs = useMemo(
     () => buildGeneralWorkbenchActivityLogGroups(activityLogs),

@@ -19,10 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  IMAGE_GENERATION_CANCELED_MESSAGE,
-  useImageGen,
-} from "../useImageGen";
+import { IMAGE_GENERATION_CANCELED_MESSAGE, useImageGen } from "../useImageGen";
 import type { GeneratedImage } from "../types";
 import { useProject } from "@/hooks/useProject";
 import { useProjects } from "@/hooks/useProjects";
@@ -1955,11 +1952,7 @@ export function AiImageGenTab({ projectId, onNavigate }: AiImageGenTabProps) {
               aria-label={generating ? "停止生成" : "生成图片"}
               title={generating ? "停止当前任务" : "开始生成"}
             >
-              {generating ? (
-                <X size={18} />
-              ) : (
-                <Send size={18} />
-              )}
+              {generating ? <X size={18} /> : <Send size={18} />}
             </GenerateButton>
           </PromptSurface>
         </PromptDock>

@@ -96,7 +96,10 @@ export function useWorkspaceVideoTaskPreviewRuntime({
                 return message;
               }
 
-              const nextPreview = buildVideoPreviewFromTask(task, currentPreview);
+              const nextPreview = buildVideoPreviewFromTask(
+                task,
+                currentPreview,
+              );
               if (areVideoPreviewsEqual(currentPreview, nextPreview)) {
                 return message;
               }

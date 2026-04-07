@@ -114,9 +114,7 @@ function renderSidebar(
         searchMode: "web",
         query: "品牌 2026",
         previewText: "品牌讨论聚焦产品定位、渠道节奏与转化质量。",
-        citations: [
-          { title: "官方博客", url: "https://example.com/blog" },
-        ],
+        citations: [{ title: "官方博客", url: "https://example.com/blog" }],
         active: true,
       },
     ],
@@ -198,9 +196,9 @@ describe("GeneralWorkbenchSidebar", () => {
   it("点击添加上下文应打开添加弹窗", () => {
     const { container } = renderSidebar();
 
-    const addContextButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("添加上下文"),
-    );
+    const addContextButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("添加上下文"));
     expect(addContextButton).toBeTruthy();
     if (addContextButton) {
       act(() => {
@@ -218,9 +216,9 @@ describe("GeneralWorkbenchSidebar", () => {
     const onAddTextContext = vi.fn().mockResolvedValue(undefined);
     const { container } = renderSidebar({ onAddTextContext });
 
-    const addContextButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("添加上下文"),
-    );
+    const addContextButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("添加上下文"));
     expect(addContextButton).toBeTruthy();
     if (addContextButton) {
       act(() => {
@@ -346,7 +344,9 @@ describe("GeneralWorkbenchSidebar", () => {
 
     expect(container.textContent).toContain("技能：社媒主稿与封面");
     expect(container.textContent).toContain("生成内容主稿，并补齐封面素材。");
-    expect(container.textContent).toContain("技能标识：content_post_with_cover");
+    expect(container.textContent).toContain(
+      "技能标识：content_post_with_cover",
+    );
   });
 
   it("执行日志应支持展开技能详情", () => {
@@ -379,7 +379,9 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(container.textContent).toContain("文件读取");
     expect(container.textContent).toContain("图片生成");
     expect(container.textContent).toContain("适用场景");
-    expect(container.textContent).toContain("适合需要主稿与封面同时产出的社媒场景。");
+    expect(container.textContent).toContain(
+      "适合需要主稿与封面同时产出的社媒场景。",
+    );
   });
 
   it("执行日志应支持展开工具详情", () => {
@@ -625,7 +627,9 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(container.textContent).toContain("品牌话题观察");
     expect(container.textContent).not.toContain("检索词：品牌 2026");
     expect(container.textContent).not.toContain("品牌讨论聚焦产品定位");
-    expect((container.textContent?.match(/品牌话题观察/g) || []).length).toBe(1);
+    expect((container.textContent?.match(/品牌话题观察/g) || []).length).toBe(
+      1,
+    );
 
     const openButton = container.querySelector(
       'button[aria-label="查看搜索结果 品牌话题观察"]',
@@ -771,7 +775,7 @@ describe("GeneralWorkbenchSidebar", () => {
           gateKey: "topic_select",
           source: "skill",
           artifactPaths: ["content-posts/research.md"],
-          inputSummary: "{\"topic\":\"AI\"}",
+          inputSummary: '{"topic":"AI"}',
           outputSummary: "已完成选题调研",
         },
         {
@@ -810,7 +814,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(container.textContent).toContain("write_file");
     expect(container.textContent).toContain("技能：research_topic");
     expect(container.textContent).toContain("修改：content-posts/research.md");
-    expect(container.textContent).toContain("输入：{\"topic\":\"AI\"}");
+    expect(container.textContent).toContain('输入：{"topic":"AI"}');
     expect(container.textContent).toContain("输出：已完成选题调研");
     const runButtons = Array.from(container.querySelectorAll("button")).filter(
       (button) => button.textContent === "运行：rungrp01",
@@ -1006,18 +1010,25 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.textContent).toContain("工作流：social_content_pipeline_v1");
+    expect(container.textContent).toContain(
+      "工作流：social_content_pipeline_v1",
+    );
     expect(container.textContent).toContain("执行ID：exec-artifact-1");
     expect(container.textContent).toContain("版本ID：ver-artifact-1");
-    expect(container.textContent).toContain("阶段：选题闸门 → 写作闸门 → 发布闸门");
+    expect(container.textContent).toContain(
+      "阶段：选题闸门 → 写作闸门 → 发布闸门",
+    );
     expect(container.textContent).toContain("content-posts/demo.md");
-    expect(container.textContent).toContain("content-posts/demo.publish-pack.json");
+    expect(container.textContent).toContain(
+      "content-posts/demo.publish-pack.json",
+    );
 
-    const copyArtifactButton = Array.from(container.querySelectorAll("button")).find(
-      (button) =>
-        button
-          .getAttribute("aria-label")
-          ?.startsWith("复制产物路径-content-posts/demo.md"),
+    const copyArtifactButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button
+        .getAttribute("aria-label")
+        ?.startsWith("复制产物路径-content-posts/demo.md"),
     );
     expect(copyArtifactButton).toBeTruthy();
     if (copyArtifactButton) {
@@ -1026,13 +1037,16 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(mockWriteClipboardText).toHaveBeenCalledWith("content-posts/demo.md");
+    expect(mockWriteClipboardText).toHaveBeenCalledWith(
+      "content-posts/demo.md",
+    );
 
-    const revealArtifactButton = Array.from(container.querySelectorAll("button")).find(
-      (button) =>
-        button
-          .getAttribute("aria-label")
-          ?.startsWith("定位产物路径-content-posts/demo.md"),
+    const revealArtifactButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button
+        .getAttribute("aria-label")
+        ?.startsWith("定位产物路径-content-posts/demo.md"),
     );
     expect(revealArtifactButton).toBeTruthy();
     if (revealArtifactButton) {
@@ -1045,11 +1059,12 @@ describe("GeneralWorkbenchSidebar", () => {
       "content-posts/demo.md",
     );
 
-    const openArtifactButton = Array.from(container.querySelectorAll("button")).find(
-      (button) =>
-        button
-          .getAttribute("aria-label")
-          ?.startsWith("打开产物路径-content-posts/demo.md"),
+    const openArtifactButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button
+        .getAttribute("aria-label")
+        ?.startsWith("打开产物路径-content-posts/demo.md"),
     );
     expect(openArtifactButton).toBeTruthy();
     if (openArtifactButton) {
@@ -1101,11 +1116,12 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    const revealArtifactButton = Array.from(container.querySelectorAll("button")).find(
-      (button) =>
-        button
-          .getAttribute("aria-label")
-          ?.startsWith("定位活动产物路径-content-posts/group.md"),
+    const revealArtifactButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button
+        .getAttribute("aria-label")
+        ?.startsWith("定位活动产物路径-content-posts/group.md"),
     );
     expect(revealArtifactButton).toBeTruthy();
     if (revealArtifactButton) {
@@ -1118,11 +1134,12 @@ describe("GeneralWorkbenchSidebar", () => {
       "content-posts/group.md",
     );
 
-    const openArtifactButton = Array.from(container.querySelectorAll("button")).find(
-      (button) =>
-        button
-          .getAttribute("aria-label")
-          ?.startsWith("打开活动产物路径-content-posts/group.md"),
+    const openArtifactButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button
+        .getAttribute("aria-label")
+        ?.startsWith("打开活动产物路径-content-posts/group.md"),
     );
     expect(openArtifactButton).toBeTruthy();
     if (openArtifactButton) {
@@ -1197,7 +1214,9 @@ describe("GeneralWorkbenchSidebar", () => {
     const consoleWarnSpy = vi
       .spyOn(console, "warn")
       .mockImplementation(() => {});
-    mockRevealSessionFileInFinder.mockRejectedValueOnce(new Error("文件不存在"));
+    mockRevealSessionFileInFinder.mockRejectedValueOnce(
+      new Error("文件不存在"),
+    );
     try {
       const { container } = renderSidebar({
         activeRunDetail: {

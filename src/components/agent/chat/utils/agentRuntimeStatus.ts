@@ -95,7 +95,11 @@ export function buildFailedAgentRuntimeStatus(
     phase: "failed",
     title: "当前处理失败",
     detail: normalizeRuntimeErrorDetail(errorMessage),
-    checkpoints: ["已保留当前阶段记录", "可修正问题后重试", "如需继续可补充更明确的输入"],
+    checkpoints: [
+      "已保留当前阶段记录",
+      "可修正问题后重试",
+      "如需继续可补充更明确的输入",
+    ],
   };
 }
 

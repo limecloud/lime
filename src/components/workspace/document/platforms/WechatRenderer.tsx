@@ -8,7 +8,10 @@ import React, { memo } from "react";
 import styled from "styled-components";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { CoverImagePlaceholder, preprocessCoverImageUrls } from "./CoverImagePlaceholder";
+import {
+  CoverImagePlaceholder,
+  preprocessCoverImageUrls,
+} from "./CoverImagePlaceholder";
 
 interface WechatRendererProps {
   content: string;

@@ -10,10 +10,7 @@ import {
   formatShortcutTokens,
   type HotkeyPlatform,
 } from "@/lib/hotkeys/platform";
-import type {
-  AuditedHotkeyDefinition,
-  HotkeyScene,
-} from "@/lib/hotkeys/types";
+import type { AuditedHotkeyDefinition, HotkeyScene } from "@/lib/hotkeys/types";
 import { DOCUMENT_CANVAS_HOTKEYS } from "@/lib/workspace/workbenchCanvas";
 import { DOCUMENT_EDITOR_HOTKEYS } from "@/lib/workspace/workbenchCanvas";
 import { getTerminalPageHotkeys } from "@/components/terminal/terminalPageHotkeys";
@@ -92,31 +89,29 @@ const GLOBAL_SHORTCUT_DEFINITIONS: AuditedHotkeyDefinition[] = [
   },
 ];
 
-const SCENE_META: Record<
-  HotkeyScene,
-  { title: string; description: string }
-> = {
-  global: {
-    title: "全局快捷键",
-    description: "离开当前页面也能触发，是否可用取决于运行时是否注册成功。",
-  },
-  workspace: {
-    title: "工作区",
-    description: "用于主工作区导航与侧栏控制。",
-  },
-  terminal: {
-    title: "终端页面",
-    description: "只在终端页面里生效，用于搜索和字体调整。",
-  },
-  "document-editor": {
-    title: "文档编辑器",
-    description: "针对源码/富文本编辑态的保存与退出操作。",
-  },
-  "document-canvas": {
-    title: "文档画布",
-    description: "用于文档画布层级的撤销与重做。",
-  },
-};
+const SCENE_META: Record<HotkeyScene, { title: string; description: string }> =
+  {
+    global: {
+      title: "全局快捷键",
+      description: "离开当前页面也能触发，是否可用取决于运行时是否注册成功。",
+    },
+    workspace: {
+      title: "工作区",
+      description: "用于主工作区导航与侧栏控制。",
+    },
+    terminal: {
+      title: "终端页面",
+      description: "只在终端页面里生效，用于搜索和字体调整。",
+    },
+    "document-editor": {
+      title: "文档编辑器",
+      description: "针对源码/富文本编辑态的保存与退出操作。",
+    },
+    "document-canvas": {
+      title: "文档画布",
+      description: "用于文档画布层级的撤销与重做。",
+    },
+  };
 
 function createStaticHotkeyItem(
   definition: AuditedHotkeyDefinition,
@@ -338,7 +333,9 @@ export function buildAuditedHotkeyCatalog({
     {
       scene: "workspace",
       ...SCENE_META.workspace,
-      hotkeys: [createStaticHotkeyItem(WORKBENCH_SIDEBAR_TOGGLE_HOTKEY, platform)],
+      hotkeys: [
+        createStaticHotkeyItem(WORKBENCH_SIDEBAR_TOGGLE_HOTKEY, platform),
+      ],
     },
     {
       scene: "terminal",
@@ -365,7 +362,8 @@ export function buildAuditedHotkeyCatalog({
 
   const hotkeys = sections.flatMap((section) => section.hotkeys);
   const ready = hotkeys.filter((item) => item.available).length;
-  const globalReady = sections[0]?.hotkeys.filter((item) => item.available).length ?? 0;
+  const globalReady =
+    sections[0]?.hotkeys.filter((item) => item.available).length ?? 0;
 
   return {
     sections,

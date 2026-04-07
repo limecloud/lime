@@ -1,10 +1,6 @@
 import React from "react";
 import { ShieldCheck } from "lucide-react";
-import {
-  MetaSelect,
-  MetaSelectIcon,
-  MetaSelectWrap,
-} from "../styles";
+import { MetaSelect, MetaSelectIcon, MetaSelectWrap } from "../styles";
 import type { AgentAccessMode } from "../../../hooks/agentChatStorage";
 
 interface InputbarAccessModeSelectProps {

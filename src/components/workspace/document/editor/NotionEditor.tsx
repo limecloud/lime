@@ -17,10 +17,7 @@ import {
   type SlashMenuKeyHandler,
 } from "./SlashCommand";
 import { markdownToHtml, htmlToMarkdown } from "./utils/markdown";
-import {
-  isInputLatencyDebugEnabled,
-  logRenderPerf,
-} from "@/lib/perfDebug";
+import { isInputLatencyDebugEnabled, logRenderPerf } from "@/lib/perfDebug";
 import { emitDocumentEditorFocus } from "@/lib/documentEditorFocusEvents";
 import { resolveDocumentEditorHotkeyAction } from "@/components/workspace/document/documentEditorHotkeys";
 import "./editor-styles.css";
@@ -269,7 +266,14 @@ const NotionEditorCore = forwardRef<NotionEditorHandle, NotionEditorProps>(
       return () => {
         element.removeEventListener("keydown", handleEditorKeyDown, true);
       };
-    }, [clearIdleCommitTimer, editor, flushContent, onCancel, onSave, slashState.isOpen]);
+    }, [
+      clearIdleCommitTimer,
+      editor,
+      flushContent,
+      onCancel,
+      onSave,
+      slashState.isOpen,
+    ]);
 
     useEffect(() => {
       if (!editor) {
@@ -349,9 +353,7 @@ const NotionEditorCore = forwardRef<NotionEditorHandle, NotionEditorProps>(
               stats.samples.shift();
             }
 
-            if (
-              stats.sampleCount % 20 === 0
-            ) {
+            if (stats.sampleCount % 20 === 0) {
               const avgLatencyMs = stats.totalLatencyMs / stats.sampleCount;
               const p50LatencyMs = calculatePercentile(stats.samples, 50);
               const p95LatencyMs = calculatePercentile(stats.samples, 95);
@@ -407,7 +409,9 @@ const NotionEditorCore = forwardRef<NotionEditorHandle, NotionEditorProps>(
         if (isInputLatencyDebugEnabled()) {
           const stats = inputLatencyStatsRef.current;
           const avgLatencyMs =
-            stats.sampleCount > 0 ? stats.totalLatencyMs / stats.sampleCount : 0;
+            stats.sampleCount > 0
+              ? stats.totalLatencyMs / stats.sampleCount
+              : 0;
           const p50LatencyMs = calculatePercentile(stats.samples, 50);
           const p95LatencyMs = calculatePercentile(stats.samples, 95);
           console.log(
@@ -441,7 +445,9 @@ const NotionEditorCore = forwardRef<NotionEditorHandle, NotionEditorProps>(
         }
 
         const cappedTo = Math.min(to, from + MAX_SELECTION_SYNC_CHARS);
-        const selectedText = editor.state.doc.textBetween(from, cappedTo, "\n").trim();
+        const selectedText = editor.state.doc
+          .textBetween(from, cappedTo, "\n")
+          .trim();
         if (selectedText !== lastSelectionTextRef.current) {
           lastSelectionTextRef.current = selectedText;
           onSelectionTextChange(selectedText);

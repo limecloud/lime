@@ -893,7 +893,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                           : "border-slate-200 bg-white text-slate-600",
                       )}
                     >
-                      {saving && <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                      {saving && (
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      )}
                       {saving ? "同步中" : "已就绪"}
                     </span>
                   </div>
@@ -1183,7 +1185,10 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                       disabled={!projectId || loading}
                     >
                       <RefreshCw
-                        className={cn("mr-2 h-4 w-4", loading && "animate-spin")}
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          loading && "animate-spin",
+                        )}
                       />
                       刷新
                     </Button>
@@ -1277,7 +1282,8 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                   </div>
                 ) : (
                   <div className="mt-4 rounded-2xl border border-sky-200/80 bg-sky-50/80 px-4 py-3 text-sm text-sky-900">
-                    当前为「{activeCategoryLabel}」分类视图，展示整个资料库内该分类内容。
+                    当前为「{activeCategoryLabel}
+                    」分类视图，展示整个资料库内该分类内容。
                   </div>
                 )}
 
@@ -1388,7 +1394,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                       <Table>
                         <TableHeader className="bg-slate-50/90">
                           <TableRow className="hover:bg-slate-50/90">
-                            <TableHead className="text-slate-500">名称</TableHead>
+                            <TableHead className="text-slate-500">
+                              名称
+                            </TableHead>
                             <TableHead className="w-[120px] text-slate-500">
                               类型
                             </TableHead>
@@ -1442,7 +1450,9 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                                 <TableCell>
                                   <Badge
                                     variant={
-                                      item.kind === "folder" ? "default" : "outline"
+                                      item.kind === "folder"
+                                        ? "default"
+                                        : "outline"
                                     }
                                     className={cn(
                                       "rounded-full",

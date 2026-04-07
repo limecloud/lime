@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { parseAIResponse } from "@/lib/workspace/a2ui";
-import type {
-  A2UIFormData,
-  A2UIResponse,
-} from "@/lib/workspace/a2ui";
+import type { A2UIFormData, A2UIResponse } from "@/lib/workspace/a2ui";
 import {
   buildActionRequestA2UI,
   isActionRequestA2UICompatible,
@@ -165,65 +162,67 @@ export function useWorkspaceA2UIRuntime({
   }, [messages]);
   const pendingMessageA2UIForm = pendingMessageA2UI?.form ?? null;
 
-  const pendingPromotedA2UIActionRequest = useMemo<ActionRequired | null>(() => {
-    if (pendingMessageA2UIForm) {
+  const pendingPromotedA2UIActionRequest =
+    useMemo<ActionRequired | null>(() => {
+      if (pendingMessageA2UIForm) {
+        return null;
+      }
+
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const message = messages[i];
+        const pendingRequest = [...(message.actionRequests || [])]
+          .reverse()
+          .find(
+            (request) =>
+              request.status === "pending" &&
+              isActionRequestA2UICompatible(request),
+          );
+
+        if (pendingRequest) {
+          return governActionRequest(pendingRequest);
+        }
+      }
+
       return null;
-    }
+    }, [messages, pendingMessageA2UIForm]);
 
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const message = messages[i];
-      const pendingRequest = [...(message.actionRequests || [])]
-        .reverse()
-        .find(
-          (request) =>
-            request.status === "pending" &&
-            isActionRequestA2UICompatible(request),
-        );
-
-      if (pendingRequest) {
-        return governActionRequest(pendingRequest);
+  const pendingLegacyQuestionnaireA2UI =
+    useMemo<PendingA2UIResolution | null>(() => {
+      if (pendingMessageA2UIForm || pendingActionRequest) {
+        return null;
       }
-    }
 
-    return null;
-  }, [messages, pendingMessageA2UIForm]);
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const message = messages[i];
 
-  const pendingLegacyQuestionnaireA2UI = useMemo<PendingA2UIResolution | null>(() => {
-    if (pendingMessageA2UIForm || pendingActionRequest) {
+        if (message.role === "user") {
+          return null;
+        }
+
+        if (message.role !== "assistant") {
+          continue;
+        }
+
+        if ((message.actionRequests || []).length > 0) {
+          return null;
+        }
+
+        const form = buildCompatQuestionnaireA2UI(message.content || "");
+        if (!form) {
+          return null;
+        }
+
+        return {
+          form,
+          source: {
+            kind: "legacy_message",
+            messageId: message.id,
+          },
+        };
+      }
+
       return null;
-    }
-
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const message = messages[i];
-
-      if (message.role === "user") {
-        return null;
-      }
-
-      if (message.role !== "assistant") {
-        continue;
-      }
-
-      if ((message.actionRequests || []).length > 0) {
-        return null;
-      }
-
-      const form = buildCompatQuestionnaireA2UI(message.content || "");
-      if (!form) {
-        return null;
-      }
-
-      return {
-        form,
-        source: {
-          kind: "legacy_message",
-          messageId: message.id,
-        },
-      };
-    }
-
-    return null;
-  }, [messages, pendingActionRequest, pendingMessageA2UIForm]);
+    }, [messages, pendingActionRequest, pendingMessageA2UIForm]);
   const pendingLegacyQuestionnaireA2UIForm =
     pendingLegacyQuestionnaireA2UI?.form ?? null;
 
@@ -332,8 +331,7 @@ export function useWorkspaceA2UIRuntime({
     });
   }, [hasRecentA2UISubmission, messages, resolvedPendingA2UI]);
 
-  const visiblePendingA2UI =
-    resolvedPendingA2UI ?? retainedPendingA2UI ?? null;
+  const visiblePendingA2UI = resolvedPendingA2UI ?? retainedPendingA2UI ?? null;
   const [pendingA2UIProgressState, setPendingA2UIProgressState] =
     useState<PendingA2UIProgressState | null>(null);
 
@@ -362,9 +360,7 @@ export function useWorkspaceA2UIRuntime({
       return null;
     }
 
-    if (
-      visiblePendingA2UI.source.kind !== "assistant_message"
-    ) {
+    if (visiblePendingA2UI.source.kind !== "assistant_message") {
       return null;
     }
 

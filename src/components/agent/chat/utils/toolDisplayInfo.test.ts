@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeToolNameKey, resolveToolDisplayLabel } from "./toolDisplayInfo";
+import {
+  normalizeToolNameKey,
+  resolveToolDisplayLabel,
+} from "./toolDisplayInfo";
 
 const REFERENCE_JS_TOOL_NAME_MAPPINGS = [
   ["AgentTool", "agent"],

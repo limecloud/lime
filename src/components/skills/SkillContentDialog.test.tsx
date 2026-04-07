@@ -4,11 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalSkillInspection } from "@/lib/api/skills";
 
 vi.mock("@/components/preview/MarkdownPreview", () => ({
-  MarkdownPreview: ({
-    content,
-  }: {
-    content: string;
-  }) => <div data-testid="markdown-preview">{content}</div>,
+  MarkdownPreview: ({ content }: { content: string }) => (
+    <div data-testid="markdown-preview">{content}</div>
+  ),
 }));
 
 import { SkillContentDialog } from "./SkillContentDialog";

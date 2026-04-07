@@ -113,7 +113,8 @@ describe("threadTimelineView", () => {
       updated_at: "2026-03-13T10:00:01Z",
       type: "warning",
       code: "artifact_document_repaired",
-      message: "ArtifactDocument 已落盘: 已根据正文整理出一份可继续编辑的草稿。",
+      message:
+        "ArtifactDocument 已落盘: 已根据正文整理出一份可继续编辑的草稿。",
     };
     const planItem: AgentThreadItem = {
       id: "plan-2",

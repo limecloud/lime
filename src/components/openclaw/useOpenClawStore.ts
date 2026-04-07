@@ -33,10 +33,12 @@ export const useOpenClawStore = create<OpenClawStoreState>()(
       preferredRuntimeId: null,
       lastSynced: null,
       recentOperation: null,
-      setSelectedProviderId: (selectedProviderId) => set({ selectedProviderId }),
+      setSelectedProviderId: (selectedProviderId) =>
+        set({ selectedProviderId }),
       setSelectedModelId: (selectedModelId) => set({ selectedModelId }),
       setGatewayPort: (gatewayPort) => set({ gatewayPort }),
-      setPreferredRuntimeId: (preferredRuntimeId) => set({ preferredRuntimeId }),
+      setPreferredRuntimeId: (preferredRuntimeId) =>
+        set({ preferredRuntimeId }),
       setLastSynced: (lastSynced) => set({ lastSynced }),
       setRecentOperation: (recentOperation) => set({ recentOperation }),
       clearLastSynced: () => set({ lastSynced: null }),

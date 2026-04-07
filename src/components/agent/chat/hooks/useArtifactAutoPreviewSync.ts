@@ -1,10 +1,7 @@
 import { useEffect } from "react";
 import type { Artifact } from "@/lib/artifact/types";
 import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
-import type {
-  ArtifactWriteMetadata,
-  WriteArtifactContext,
-} from "../types";
+import type { ArtifactWriteMetadata, WriteArtifactContext } from "../types";
 import {
   buildArtifactFromWrite,
   resolveArtifactWritePhase,
@@ -37,7 +34,9 @@ function normalizePreviewText(value: string, maxChars: number): string {
   return `${trimmed.slice(0, maxChars).trimEnd()}…`;
 }
 
-export function shouldAutoSyncArtifactPreview(artifact: Artifact | null): boolean {
+export function shouldAutoSyncArtifactPreview(
+  artifact: Artifact | null,
+): boolean {
   if (!artifact) {
     return false;
   }
@@ -77,7 +76,8 @@ export function mergePreviewContentIntoArtifact(
 
   const nextContent =
     typeof preview.content === "string" ? preview.content : artifact.content;
-  const nextPath = preview.path?.trim() || resolveArtifactProtocolFilePath(artifact);
+  const nextPath =
+    preview.path?.trim() || resolveArtifactProtocolFilePath(artifact);
   const currentContent = artifact.content;
 
   if (!nextContent.trim() && currentContent.trim()) {

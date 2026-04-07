@@ -18,7 +18,9 @@ function hasWindow(): boolean {
   return typeof window !== "undefined";
 }
 
-function extractFromRecord(record: Record<string, unknown>): ServiceSkillCatalog | null {
+function extractFromRecord(
+  record: Record<string, unknown>,
+): ServiceSkillCatalog | null {
   const directCatalog = parseServiceSkillCatalog(record.serviceSkillCatalog);
   if (directCatalog) {
     return directCatalog;

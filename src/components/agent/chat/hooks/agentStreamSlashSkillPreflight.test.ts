@@ -2,13 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PreparedAgentStreamUserInputSend } from "./agentStreamUserInputSendPreparation";
 import { maybeHandleSlashSkillBeforeSend } from "./agentStreamSlashSkillPreflight";
 
-const {
-  mockParseSkillSlashCommand,
-  mockTryExecuteSlashSkillCommand,
-} = vi.hoisted(() => ({
-  mockParseSkillSlashCommand: vi.fn(),
-  mockTryExecuteSlashSkillCommand: vi.fn(),
-}));
+const { mockParseSkillSlashCommand, mockTryExecuteSlashSkillCommand } =
+  vi.hoisted(() => ({
+    mockParseSkillSlashCommand: vi.fn(),
+    mockTryExecuteSlashSkillCommand: vi.fn(),
+  }));
 
 vi.mock("./skillCommand", () => ({
   parseSkillSlashCommand: (...args: unknown[]) =>

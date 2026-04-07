@@ -66,7 +66,11 @@ function buildApiKeyProviderSummary(
 ): CompanionProviderSummary | null {
   const keylessAccessConfigured = hasConfiguredKeylessAccess(provider);
   const totalCount =
-    provider.api_keys.length > 0 ? provider.api_keys.length : keylessAccessConfigured ? 1 : 0;
+    provider.api_keys.length > 0
+      ? provider.api_keys.length
+      : keylessAccessConfigured
+        ? 1
+        : 0;
 
   if (totalCount === 0) {
     return null;
@@ -156,7 +160,9 @@ export function buildCompanionProviderOverview(
 export async function loadCompanionProviderOverview(
   options: LoadCompanionProviderOverviewOptions = {},
 ): Promise<CompanionProviderOverviewPayload> {
-  const sourceOptions = options.forceRefresh ? { forceRefresh: true } : undefined;
+  const sourceOptions = options.forceRefresh
+    ? { forceRefresh: true }
+    : undefined;
   const [overview, apiKeyProviders] = await Promise.all([
     providerPoolApi.getOverview(sourceOptions),
     apiKeyProviderApi.getProviders(sourceOptions),

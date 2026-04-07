@@ -45,22 +45,30 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
   contextActivityLogs,
   historyPageSize,
 }: UseWorkspaceGeneralWorkbenchSidebarRuntimeParams) {
-  const [generalWorkbenchHistoryTerminals, setGeneralWorkbenchHistoryTerminals] =
-    useState<GeneralWorkbenchRunTerminalItem[]>([]);
+  const [
+    generalWorkbenchHistoryTerminals,
+    setGeneralWorkbenchHistoryTerminals,
+  ] = useState<GeneralWorkbenchRunTerminalItem[]>([]);
   const [generalWorkbenchHistoryHasMore, setGeneralWorkbenchHistoryHasMore] =
     useState(false);
-  const [generalWorkbenchHistoryNextOffset, setGeneralWorkbenchHistoryNextOffset] =
-    useState<number | null>(null);
+  const [
+    generalWorkbenchHistoryNextOffset,
+    setGeneralWorkbenchHistoryNextOffset,
+  ] = useState<number | null>(null);
   const [generalWorkbenchHistoryLoading, setGeneralWorkbenchHistoryLoading] =
     useState(false);
   const [generalWorkbenchSkillDetailMap, setGeneralWorkbenchSkillDetailMap] =
     useState<Record<string, SkillDetailInfo | null>>({});
   const [selectedGeneralWorkbenchRunId, setSelectedGeneralWorkbenchRunId] =
     useState<string | null>(null);
-  const [selectedGeneralWorkbenchRunDetail, setSelectedGeneralWorkbenchRunDetail] =
-    useState<AgentRun | null>(null);
-  const [generalWorkbenchRunDetailLoading, setGeneralWorkbenchRunDetailLoading] =
-    useState(false);
+  const [
+    selectedGeneralWorkbenchRunDetail,
+    setSelectedGeneralWorkbenchRunDetail,
+  ] = useState<AgentRun | null>(null);
+  const [
+    generalWorkbenchRunDetailLoading,
+    setGeneralWorkbenchRunDetailLoading,
+  ] = useState(false);
   const generalWorkbenchHistoryLoadingRef = useRef(false);
 
   const loadGeneralWorkbenchHistory = useCallback(
@@ -323,7 +331,8 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
 
   const handleLoadMoreGeneralWorkbenchHistory = useCallback(() => {
     const nextOffset =
-      generalWorkbenchHistoryNextOffset ?? generalWorkbenchHistoryTerminals.length;
+      generalWorkbenchHistoryNextOffset ??
+      generalWorkbenchHistoryTerminals.length;
     void loadGeneralWorkbenchHistory(nextOffset, false);
   }, [
     loadGeneralWorkbenchHistory,

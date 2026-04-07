@@ -101,7 +101,10 @@ interface UseAgentSessionOptions {
     sessionId: string,
     executionStrategy: AsterExecutionStrategy,
   ) => void;
-  persistSessionAccessMode: (sessionId: string, accessMode: AgentAccessMode) => void;
+  persistSessionAccessMode: (
+    sessionId: string,
+    accessMode: AgentAccessMode,
+  ) => void;
   loadSessionAccessMode: (sessionId: string) => AgentAccessMode | null;
   filterSessionsByWorkspace: <T extends { id: string }>(sessions: T[]) => T[];
   setExecutionStrategyState: (
@@ -208,8 +211,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   const messagesRef = useRef<Message[]>(messages);
   const threadTurnsRef = useRef<AgentThreadTurn[]>(threadTurns);
   const threadItemsRef = useRef<AgentThreadItem[]>(threadItems);
-  const executionRuntimeRef =
-    useRef<AsterSessionExecutionRuntime | null>(executionRuntime);
+  const executionRuntimeRef = useRef<AsterSessionExecutionRuntime | null>(
+    executionRuntime,
+  );
   const restoreCandidateSessionIdRef = useRef<string | null>(
     loadScopedSessionRestoreCandidate(),
   );
@@ -1104,24 +1108,26 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       topicsCount: topics.length,
       workspaceId: resolvedWorkspaceId,
     });
-    switchTopic(targetSessionId).catch((error) => {
-      console.warn("[AsterChat] 自动恢复会话失败:", error);
-      logAgentDebug(
-        "useAgentSession",
-        "autoRestore.error",
-        {
-          error,
-          targetSessionId,
-          workspaceId: resolvedWorkspaceId,
-        },
-        { level: "warn" },
-      );
-      persistSessionRestoreCandidate(null);
-    }).finally(() => {
-      if (!cancelled) {
-        setIsAutoRestoringSession(false);
-      }
-    });
+    switchTopic(targetSessionId)
+      .catch((error) => {
+        console.warn("[AsterChat] 自动恢复会话失败:", error);
+        logAgentDebug(
+          "useAgentSession",
+          "autoRestore.error",
+          {
+            error,
+            targetSessionId,
+            workspaceId: resolvedWorkspaceId,
+          },
+          { level: "warn" },
+        );
+        persistSessionRestoreCandidate(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsAutoRestoringSession(false);
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -1243,8 +1249,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
     hydratedSessionRef.current = sessionId;
     const hasLocalTimelineCache =
-      messages.length > 0 &&
-      (threadTurns.length > 0 || threadItems.length > 0);
+      messages.length > 0 && (threadTurns.length > 0 || threadItems.length > 0);
     const hasPreservedMessageCache =
       preserveRestoredMessages && messages.length > 0;
     logAgentDebug("useAgentSession", "hydrateSession.start", {

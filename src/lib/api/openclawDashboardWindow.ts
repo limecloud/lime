@@ -66,7 +66,9 @@ export async function openOpenClawDashboardWindow(
   url: string,
   options: OpenClawDashboardWindowOptions = {},
 ): Promise<OpenClawDashboardWindowOpenResult> {
-  const profileKey = resolveOpenClawDashboardProfileKey(options.profileVersionKey);
+  const profileKey = resolveOpenClawDashboardProfileKey(
+    options.profileVersionKey,
+  );
   if (options.forceRecreate) {
     await closeWebviewPanel(OPENCLAW_DASHBOARD_PANEL_ID);
   }

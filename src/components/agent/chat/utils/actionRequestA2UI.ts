@@ -547,7 +547,10 @@ export function buildActionRequestSubmissionContext(
     return null;
   }
 
-  const entries = resolveActionRequestSubmissionEntries(governedRequest, userData);
+  const entries = resolveActionRequestSubmissionEntries(
+    governedRequest,
+    userData,
+  );
   if (entries.length === 0) {
     return null;
   }

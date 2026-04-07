@@ -116,7 +116,9 @@ describe("buildArtifactBlockRewriteRequest", () => {
     });
     expect(result.prompt).toContain("Lime Artifact Workbench 的局部改写任务");
     expect(result.prompt).toContain('"id": "body-1"');
-    expect(result.prompt).toContain("当前编辑稿（这是最新输入，即使它还没保存）");
+    expect(result.prompt).toContain(
+      "当前编辑稿（这是最新输入，即使它还没保存）",
+    );
     expect(result.prompt).toContain("季度经营看板");
     expect(result.prompt).toContain("步骤 04");
     expect(result.prompt).toContain("请改得更适合董事会直接阅读。");
@@ -174,9 +176,7 @@ describe("buildArtifactBlockRewriteRequest", () => {
     expect(result.requestMetadata.artifact.artifact_rewrite_instruction).toBe(
       DEFAULT_ARTIFACT_BLOCK_REWRITE_INSTRUCTION,
     );
-    expect(result.prompt).toContain(
-      DEFAULT_ARTIFACT_BLOCK_REWRITE_INSTRUCTION,
-    );
+    expect(result.prompt).toContain(DEFAULT_ARTIFACT_BLOCK_REWRITE_INSTRUCTION);
   });
 
   it("应把 rewrite patch 解析成可直接回填的 draft 建议", () => {

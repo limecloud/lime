@@ -35,7 +35,9 @@ describe("parseImageWorkbenchCommand", () => {
   });
 
   it("应把 @修图 默认解析为编辑命令", () => {
-    const result = parseImageWorkbenchCommand("@修图 #img-2 去掉角标，保留主体");
+    const result = parseImageWorkbenchCommand(
+      "@修图 #img-2 去掉角标，保留主体",
+    );
 
     expect(result).toMatchObject({
       trigger: "@修图",
@@ -59,9 +61,7 @@ describe("parseImageWorkbenchCommand", () => {
   });
 
   it("未显式声明动作但带目标图时应默认为变体", () => {
-    const result = parseImageWorkbenchCommand(
-      "/image #img-7 更偏插画风，4:5",
-    );
+    const result = parseImageWorkbenchCommand("/image #img-7 更偏插画风，4:5");
 
     expect(result).toMatchObject({
       trigger: "/image",
@@ -107,7 +107,9 @@ describe("parseImageWorkbenchCommand", () => {
   });
 
   it("@修图 不应被路由到 image_generate skill", () => {
-    const parsed = parseImageWorkbenchCommand("@修图 #img-2 提亮肤色并保留主体");
+    const parsed = parseImageWorkbenchCommand(
+      "@修图 #img-2 提亮肤色并保留主体",
+    );
 
     expect(parsed).not.toBeNull();
     expect(
@@ -118,7 +120,9 @@ describe("parseImageWorkbenchCommand", () => {
   });
 
   it("@修图 转发到 slash skill 时应补齐编辑语义", () => {
-    const parsed = parseImageWorkbenchCommand("@修图 #img-2 提亮肤色并保留主体");
+    const parsed = parseImageWorkbenchCommand(
+      "@修图 #img-2 提亮肤色并保留主体",
+    );
 
     expect(parsed).not.toBeNull();
     expect(buildImageGenerateSkillSlashCommand(parsed!)).toBe(

@@ -16,7 +16,9 @@ function ensureSessionMutationAllowed(
     return true;
   }
 
-  notifyInfo(`当前仍有任务执行中，请先等待结束或停止生成后再执行 ${commandPrefix}`);
+  notifyInfo(
+    `当前仍有任务执行中，请先等待结束或停止生成后再执行 ${commandPrefix}`,
+  );
   return false;
 }
 
@@ -78,7 +80,9 @@ export async function executeCodexSlashCommand(
       return true;
     case "model":
       if (command.userInput.trim()) {
-        notifyInfo("当前暂不支持通过 /model 切换模型，请使用输入框右侧的模型选择器");
+        notifyInfo(
+          "当前暂不支持通过 /model 切换模型，请使用输入框右侧的模型选择器",
+        );
         return true;
       }
       appendAssistantMessage(buildCodexSlashModelMessage(statusSnapshot));

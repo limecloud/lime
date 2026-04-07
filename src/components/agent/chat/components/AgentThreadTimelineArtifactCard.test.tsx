@@ -135,7 +135,9 @@ describe("AgentThreadTimelineArtifactCard", () => {
     expect(container.textContent).toContain("2 个区块");
     expect(container.textContent).toContain("1 条来源");
     expect(container.textContent).toContain("V2");
-    expect(container.textContent).toContain("定位到 本轮重点是补齐来源线索与交付节奏。");
+    expect(container.textContent).toContain(
+      "定位到 本轮重点是补齐来源线索与交付节奏。",
+    );
     expect(container.textContent).not.toContain("artifact_document_service");
     expect(container.textContent).not.toContain("schemaVersion");
     expect(container.textContent).not.toContain('"artifactId"');
@@ -155,7 +157,9 @@ describe("AgentThreadTimelineArtifactCard", () => {
     );
 
     expect(container.textContent).toContain("已同步");
-    expect(container.textContent).toContain("包含结构化结果，点击在画布中查看完整内容。");
+    expect(container.textContent).toContain(
+      "包含结构化结果，点击在画布中查看完整内容。",
+    );
     expect(container.textContent).not.toContain('"queue"');
     expect(container.textContent).not.toContain('"retryable"');
   });

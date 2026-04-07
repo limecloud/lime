@@ -9,7 +9,9 @@ import type { ActiveStreamState } from "./agentStreamSubmissionLifecycle";
 
 function createStateSetter<T>(getValue: () => T, setValue: (value: T) => void) {
   return (next: T | ((prev: T) => T)) => {
-    setValue(typeof next === "function" ? (next as (prev: T) => T)(getValue()) : next);
+    setValue(
+      typeof next === "function" ? (next as (prev: T) => T)(getValue()) : next,
+    );
   };
 }
 
@@ -50,12 +52,18 @@ describe("agentStreamUserInputSendPreparation", () => {
         providerType: "openai",
         model: "gpt-5.4",
       }),
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setIsSending: createStateSetter(() => isSending, (value) => {
-        isSending = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
     };
   }
 
@@ -68,12 +76,18 @@ describe("agentStreamUserInputSendPreparation", () => {
     let isSending = false;
     const env = {
       ...createEnv(),
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setIsSending: createStateSetter(() => isSending, (value) => {
-        isSending = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
     };
 
     const result = prepareAgentStreamUserInputSend({
@@ -111,12 +125,18 @@ describe("agentStreamUserInputSendPreparation", () => {
     let isSending = false;
     const env = {
       ...createEnv(),
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setIsSending: createStateSetter(() => isSending, (value) => {
-        isSending = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
     };
 
     prepareAgentStreamUserInputSend({
@@ -138,8 +158,9 @@ describe("agentStreamUserInputSendPreparation", () => {
   });
 
   it("有 active stream 时应进入 queue 模式，并允许 model override", () => {
-    vi.spyOn(crypto, "randomUUID")
-      .mockReturnValueOnce("00000000-0000-0000-0000-000000000003");
+    vi.spyOn(crypto, "randomUUID").mockReturnValueOnce(
+      "00000000-0000-0000-0000-000000000003",
+    );
 
     let messages: Message[] = [];
     let isSending = false;
@@ -154,12 +175,18 @@ describe("agentStreamUserInputSendPreparation", () => {
         providerType: "claude",
         model: "sonnet",
       }),
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setIsSending: createStateSetter(() => isSending, (value) => {
-        isSending = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
       getSyncedSessionModelPreference: () => null,
     };
 
@@ -199,12 +226,18 @@ describe("agentStreamUserInputSendPreparation", () => {
       ...createEnv({
         threadBusy: true,
       }),
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setIsSending: createStateSetter(() => isSending, (value) => {
-        isSending = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
     };
 
     const result = prepareAgentStreamUserInputSend({
@@ -232,12 +265,18 @@ describe("agentStreamUserInputSendPreparation", () => {
         sessionId: null,
       }),
       hasPendingPreparedSubmit: () => true,
-      setMessages: createStateSetter(() => messages, (value) => {
-        messages = value;
-      }),
-      setIsSending: createStateSetter(() => isSending, (value) => {
-        isSending = value;
-      }),
+      setMessages: createStateSetter(
+        () => messages,
+        (value) => {
+          messages = value;
+        },
+      ),
+      setIsSending: createStateSetter(
+        () => isSending,
+        (value) => {
+          isSending = value;
+        },
+      ),
     };
 
     const result = prepareAgentStreamUserInputSend({

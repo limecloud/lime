@@ -125,7 +125,9 @@ describe("ProviderSetting", () => {
       container.querySelector('[data-testid="provider-models-info-button"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector('[data-testid="provider-connection-info-button"]'),
+      container.querySelector(
+        '[data-testid="provider-connection-info-button"]',
+      ),
     ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="delete-provider-button"]'),

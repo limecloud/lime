@@ -84,7 +84,9 @@ export const AgentThreadOutcomeSummary: React.FC<
 
       <div className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
         <RotateCcw className="h-3.5 w-3.5" />
-        <span>{outcome.retryable ? "建议可重试或恢复" : "当前无需人工恢复"}</span>
+        <span>
+          {outcome.retryable ? "建议可重试或恢复" : "当前无需人工恢复"}
+        </span>
       </div>
     </div>
   );

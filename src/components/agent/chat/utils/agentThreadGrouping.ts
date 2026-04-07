@@ -60,7 +60,10 @@ export interface AgentThreadDisplayModel {
 const STRUCTURED_CONTENT_HINT_RE = /<a2ui|```\s*a2ui/i;
 
 function normalizeToolName(value: string | undefined): string {
-  return (value || "").replace(/[\s_-]+/g, "").trim().toLowerCase();
+  return (value || "")
+    .replace(/[\s_-]+/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -70,7 +73,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-function readString(record: Record<string, unknown> | null, keys: string[]): string | null {
+function readString(
+  record: Record<string, unknown> | null,
+  keys: string[],
+): string | null {
   if (!record) {
     return null;
   }
@@ -100,7 +106,9 @@ function firstMeaningfulLine(text: string | undefined | null): string | null {
   return normalized || null;
 }
 
-function extractThinkingPreviewLine(text: string | undefined | null): string | null {
+function extractThinkingPreviewLine(
+  text: string | undefined | null,
+): string | null {
   const normalized = text?.trim();
   if (!normalized) {
     return null;
@@ -131,7 +139,10 @@ function extractThinkingPreviewLine(text: string | undefined | null): string | n
   return firstMeaningfulLine(normalized);
 }
 
-function shortenText(value: string | null | undefined, maxLength = 72): string | null {
+function shortenText(
+  value: string | null | undefined,
+  maxLength = 72,
+): string | null {
   const normalized = value?.trim();
   if (!normalized) {
     return null;
@@ -180,7 +191,9 @@ function compareItems(left: AgentThreadItem, right: AgentThreadItem): number {
   return left.id.localeCompare(right.id);
 }
 
-function mergeStatuses(statuses: AgentThreadItemStatus[]): AgentThreadItemStatus {
+function mergeStatuses(
+  statuses: AgentThreadItemStatus[],
+): AgentThreadItemStatus {
   if (statuses.some((status) => status === "in_progress")) {
     return "in_progress";
   }
@@ -280,8 +293,8 @@ function isSearchItem(item: AgentThreadItem): boolean {
   }
 
   const normalized = normalizeToolName(item.tool_name);
-  return ["search", "websearch", "query", "find", "grep", "fetch"].some((marker) =>
-    normalized.includes(marker),
+  return ["search", "websearch", "query", "find", "grep", "fetch"].some(
+    (marker) => normalized.includes(marker),
   );
 }
 
@@ -346,7 +359,9 @@ function classifyItemKind(item: AgentThreadItem): AgentThreadGroupKind {
   return "process";
 }
 
-function resolveGroupTitle(kind: Exclude<AgentThreadGroupKind, "other">): string {
+function resolveGroupTitle(
+  kind: Exclude<AgentThreadGroupKind, "other">,
+): string {
   switch (kind) {
     case "process":
       return "执行过程";
@@ -426,11 +441,12 @@ function summarizeBrowserItem(item: AgentThreadItem): string | null {
 
 function summarizeSearchItem(item: AgentThreadItem): string | null {
   if (item.type === "web_search") {
-    return prefixAction(
-      item.query || item.action || "联网搜索",
+    return prefixAction(item.query || item.action || "联网搜索", "搜了 ", [
       "搜了 ",
-      ["搜了 ", "查了 ", "搜索了 ", "检索了 "],
-    );
+      "查了 ",
+      "搜索了 ",
+      "检索了 ",
+    ]);
   }
 
   if (item.type !== "tool_call") {
@@ -451,11 +467,13 @@ function summarizeFileItem(item: AgentThreadItem): string | null {
   const fileLabel = path ? fileNameFromPath(path) : null;
 
   if (item.type === "file_artifact") {
-    return prefixAction(
-      fileLabel || item.path,
+    return prefixAction(fileLabel || item.path, "产出了 ", [
       "产出了 ",
-      ["产出了 ", "写了 ", "改了 ", "看了 ", "动了 "],
-    );
+      "写了 ",
+      "改了 ",
+      "看了 ",
+      "动了 ",
+    ]);
   }
 
   if (item.type === "tool_call") {
@@ -545,8 +563,13 @@ function summarizeCollaborationItem(item: AgentThreadItem): string | null {
 
   if (normalized === "agent") {
     return prefixAction(
-      readString(args, ["description", "task", "taskType", "role", "agent_type"]) ||
-        resolveToolDisplayLabel(item.tool_name),
+      readString(args, [
+        "description",
+        "task",
+        "taskType",
+        "role",
+        "agent_type",
+      ]) || resolveToolDisplayLabel(item.tool_name),
       "分给协作成员处理 ",
       ["分给协作成员", "协作中 ", "邀请 ", "已邀请 "],
     );
@@ -590,7 +613,8 @@ function summarizeCollaborationItem(item: AgentThreadItem): string | null {
     normalized === "closeagent"
   ) {
     return prefixAction(
-      readString(args, ["id", "ids", "session_id"]) || resolveToolDisplayLabel(item.tool_name),
+      readString(args, ["id", "ids", "session_id"]) ||
+        resolveToolDisplayLabel(item.tool_name),
       "处理了 ",
       ["处理了 ", "继续了 ", "暂停了 ", "查看了 "],
     );
@@ -615,18 +639,16 @@ function summarizeSubagentItem(item: AgentThreadItem): string | null {
 
 function summarizeAlertItem(item: AgentThreadItem): string | null {
   if (item.type === "warning") {
-    return prefixAction(
-      item.message,
+    return prefixAction(item.message, "收到提醒：", [
       "收到提醒：",
-      ["收到提醒：", "碰到错误："],
-    );
+      "碰到错误：",
+    ]);
   }
   if (item.type === "error") {
-    return prefixAction(
-      item.message,
+    return prefixAction(item.message, "碰到错误：", [
+      "收到提醒：",
       "碰到错误：",
-      ["收到提醒：", "碰到错误："],
-    );
+    ]);
   }
   return null;
 }
@@ -638,17 +660,18 @@ function summarizeOtherItem(item: AgentThreadItem): string | null {
 
     if (normalized === "sendusermessage" || normalized === "brief") {
       return prefixAction(
-        readString(args, ["message"]) || resolveToolDisplayLabel(item.tool_name),
+        readString(args, ["message"]) ||
+          resolveToolDisplayLabel(item.tool_name),
         "已发送 ",
         ["已发送 ", "发送了 "],
       );
     }
 
-    return prefixAction(
-      resolveToolDisplayLabel(item.tool_name),
+    return prefixAction(resolveToolDisplayLabel(item.tool_name), "执行了 ", [
       "执行了 ",
-      ["执行了 ", "跑了 ", "运行了 "],
-    );
+      "跑了 ",
+      "运行了 ",
+    ]);
   }
   return null;
 }
@@ -728,20 +751,25 @@ function summarizeGroupPreviewLine(
     case "alert":
       return summarizeAlertItem(item);
     case "approval":
-      if (item.type === "approval_request" || item.type === "request_user_input") {
+      if (
+        item.type === "approval_request" ||
+        item.type === "request_user_input"
+      ) {
         const fallback =
           item.action_type === "ask_user"
             ? "等你补充信息"
             : item.action_type === "elicitation"
               ? "等你进一步确认"
               : "等你确认这一步";
-        const promptPrefix = item.action_type === "ask_user" ? "等你补充：" : "等你确认：";
+        const promptPrefix =
+          item.action_type === "ask_user" ? "等你补充：" : "等你确认：";
 
-        return prefixAction(
-          item.prompt || fallback,
-          promptPrefix,
-          ["等你补充：", "等你确认：", "等你补充信息", "等你确认这一步"],
-        );
+        return prefixAction(item.prompt || fallback, promptPrefix, [
+          "等你补充：",
+          "等你确认：",
+          "等你补充信息",
+          "等你确认这一步",
+        ]);
       }
       return null;
     default:
@@ -760,7 +788,10 @@ function summarizeBlockPreviewLine(
   return summarizeGroupPreviewLine(kind, item);
 }
 
-function buildPreviewLines(kind: AgentThreadGroupKind, items: AgentThreadItem[]): string[] {
+function buildPreviewLines(
+  kind: AgentThreadGroupKind,
+  items: AgentThreadItem[],
+): string[] {
   const lines: string[] = [];
 
   for (const item of items) {
@@ -777,7 +808,10 @@ function buildPreviewLines(kind: AgentThreadGroupKind, items: AgentThreadItem[])
   return lines;
 }
 
-function shouldDefaultExpand(kind: AgentThreadGroupKind, status: AgentThreadItemStatus): boolean {
+function shouldDefaultExpand(
+  kind: AgentThreadGroupKind,
+  status: AgentThreadItemStatus,
+): boolean {
   if (kind === "approval" || kind === "alert") {
     return true;
   }
@@ -818,12 +852,10 @@ export function buildAgentThreadDisplayModel(
   );
   const orderedBlocks: AgentThreadOrderedBlock[] = [];
   const groups: AgentThreadSemanticGroup[] = [];
-  let current:
-    | {
-        kind: AgentThreadGroupKind;
-        items: AgentThreadItem[];
-      }
-    | null = null;
+  let current: {
+    kind: AgentThreadGroupKind;
+    items: AgentThreadItem[];
+  } | null = null;
 
   const pushCurrentBlock = () => {
     if (!current) {
@@ -831,7 +863,8 @@ export function buildAgentThreadDisplayModel(
     }
 
     const status = mergeStatuses(current.items.map((entry) => entry.status));
-    const startedAt = current.items[0]?.started_at || current.items[0]?.updated_at || "";
+    const startedAt =
+      current.items[0]?.started_at || current.items[0]?.updated_at || "";
     const completedAt = current.items[current.items.length - 1]?.completed_at;
     const block: AgentThreadOrderedBlock = {
       id: current.items.map((entry) => entry.id).join(":"),

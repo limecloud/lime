@@ -63,8 +63,9 @@ export function findExistingSessionObserver(
     return null;
   }
   return (
-    bridgeStatus.observers.find((observer) => observer.profile_key === profileKey) ??
-    null
+    bridgeStatus.observers.find(
+      (observer) => observer.profile_key === profileKey,
+    ) ?? null
   );
 }
 

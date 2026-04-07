@@ -46,10 +46,14 @@ describe("artifact-protocol", () => {
     });
 
     expect(document?.artifactId).toBe("artifact-doc-1");
-    expect(hasArtifactProtocolDocumentMetadata({
-      artifactSchema: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
-    })).toBe(true);
-    expect(resolveArtifactProtocolPreviewText(document!)).toBe("这是结构化摘要。");
+    expect(
+      hasArtifactProtocolDocumentMetadata({
+        artifactSchema: ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+      }),
+    ).toBe(true);
+    expect(resolveArtifactProtocolPreviewText(document!)).toBe(
+      "这是结构化摘要。",
+    );
   });
 
   it("应统一提取 snake_case 与 camelCase 的产物路径键", () => {
@@ -130,9 +134,9 @@ describe("artifact-protocol", () => {
   });
 
   it("应规范化协议路径并识别二进制图片文件", () => {
-    expect(normalizeArtifactProtocolPath(" .\\.lime\\tasks\\image\\cover.jpg ")).toBe(
-      "./.lime/tasks/image/cover.jpg",
-    );
+    expect(
+      normalizeArtifactProtocolPath(" .\\.lime\\tasks\\image\\cover.jpg "),
+    ).toBe("./.lime/tasks/image/cover.jpg");
     expect(isArtifactProtocolImagePath("output_image.jpg")).toBe(true);
     expect(isArtifactProtocolImagePath("diagram.svg")).toBe(false);
   });

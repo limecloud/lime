@@ -71,7 +71,8 @@ export interface GeneralWorkbenchSidebarExecLogContract {
 }
 
 export interface GeneralWorkbenchSidebarProps
-  extends GeneralWorkbenchSidebarShellContract,
+  extends
+    GeneralWorkbenchSidebarShellContract,
     GeneralWorkbenchSidebarWorkflowContract,
     GeneralWorkbenchSidebarContextContract,
     GeneralWorkbenchSidebarExecLogContract {}

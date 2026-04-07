@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  getConfig,
-  subscribeAppConfigChanged,
-} from "@/lib/api/appConfig";
+import { getConfig, subscribeAppConfigChanged } from "@/lib/api/appConfig";
 import { isWorkspaceHarnessEnabled } from "@/lib/developerFeatures";
 
 interface UseDeveloperFeatureFlagsResult {

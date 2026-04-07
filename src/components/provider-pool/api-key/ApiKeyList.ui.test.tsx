@@ -27,9 +27,7 @@ function createApiKey(overrides: Partial<ApiKeyDisplay> = {}): ApiKeyDisplay {
   };
 }
 
-function renderList(
-  props: Partial<ComponentProps<typeof ApiKeyList>> = {},
-) {
+function renderList(props: Partial<ComponentProps<typeof ApiKeyList>> = {}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);

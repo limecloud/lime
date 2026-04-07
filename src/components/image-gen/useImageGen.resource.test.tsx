@@ -54,10 +54,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: mockInvoke,
 }));
 
-import {
-  IMAGE_GENERATION_CANCELED_MESSAGE,
-  useImageGen,
-} from "./useImageGen";
+import { IMAGE_GENERATION_CANCELED_MESSAGE, useImageGen } from "./useImageGen";
 import type { GeneratedImage } from "./types";
 
 interface HookHarness {
@@ -70,11 +67,13 @@ function mountHook(): HookHarness {
   return mountHookWithOptions();
 }
 
-function mountHookWithOptions(options: {
-  preferredProviderId?: string;
-  preferredModelId?: string;
-  allowFallback?: boolean;
-} = {}): HookHarness {
+function mountHookWithOptions(
+  options: {
+    preferredProviderId?: string;
+    preferredModelId?: string;
+    allowFallback?: boolean;
+  } = {},
+): HookHarness {
   let hookValue: ReturnType<typeof useImageGen> | null = null;
 
   function TestComponent() {
@@ -94,10 +93,7 @@ function mountHookWithOptions(options: {
   };
 }
 
-async function waitForReady(
-  harness: HookHarness,
-  timeout = 40,
-): Promise<void> {
+async function waitForReady(harness: HookHarness, timeout = 40): Promise<void> {
   for (let i = 0; i < timeout; i += 1) {
     const value = harness.getValue();
     if (value.selectedProvider && value.selectedModelId) {
@@ -140,10 +136,7 @@ function createAbortableFetchDeferred() {
         const handleAbort = () => {
           reject(
             signal?.reason ??
-              new DOMException(
-                IMAGE_GENERATION_CANCELED_MESSAGE,
-                "AbortError",
-              ),
+              new DOMException(IMAGE_GENERATION_CANCELED_MESSAGE, "AbortError"),
           );
         };
 
@@ -183,7 +176,9 @@ beforeEach(() => {
 
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue(createSuccessResponse()) as unknown as typeof fetch,
+    vi
+      .fn()
+      .mockResolvedValue(createSuccessResponse()) as unknown as typeof fetch,
   );
 });
 
@@ -200,11 +195,14 @@ describe("useImageGen 资源入库", () => {
     const harness = mountHook();
     await waitForReady(harness);
 
-    let result: Awaited<ReturnType<ReturnType<typeof useImageGen>["generateImage"]>> =
-      [];
+    let result: Awaited<
+      ReturnType<ReturnType<typeof useImageGen>["generateImage"]>
+    > = [];
 
     await act(async () => {
-      result = await harness.getValue().generateImage("生成一张立即可用的测试图");
+      result = await harness
+        .getValue()
+        .generateImage("生成一张立即可用的测试图");
     });
 
     expect(result).toHaveLength(1);

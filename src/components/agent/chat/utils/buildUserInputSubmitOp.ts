@@ -87,7 +87,8 @@ export function buildUserInputSubmitOp(
     webSearch,
     thinking,
   });
-  const runtimePolicies = createRuntimePoliciesFromAccessMode(effectiveAccessMode);
+  const runtimePolicies =
+    createRuntimePoliciesFromAccessMode(effectiveAccessMode);
 
   return {
     type: "user_input",

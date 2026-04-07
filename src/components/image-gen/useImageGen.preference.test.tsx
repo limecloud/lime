@@ -97,13 +97,11 @@ function mountHookWithReactiveOptions(initialOptions: {
 } {
   let hookValue: ReturnType<typeof useImageGen> | null = null;
   let setOptions:
-    | ((
-        next: {
-          preferredProviderId?: string;
-          preferredModelId?: string;
-          allowFallback?: boolean;
-        },
-      ) => void)
+    | ((next: {
+        preferredProviderId?: string;
+        preferredModelId?: string;
+        allowFallback?: boolean;
+      }) => void)
     | null = null;
 
   function TestComponent() {

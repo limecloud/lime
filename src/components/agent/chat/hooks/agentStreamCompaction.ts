@@ -1,8 +1,15 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { parseAgentEvent, type AgentThreadItem, type AgentThreadTurn } from "@/lib/api/agentProtocol";
+import {
+  parseAgentEvent,
+  type AgentThreadItem,
+  type AgentThreadTurn,
+} from "@/lib/api/agentProtocol";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import type { ActiveStreamState } from "./agentStreamSubmissionLifecycle";
-import { upsertThreadItemState, upsertThreadTurnState } from "./agentThreadState";
+import {
+  upsertThreadItemState,
+  upsertThreadTurnState,
+} from "./agentThreadState";
 import { resolveRuntimeWarningToastPresentation } from "./runtimeWarningPresentation";
 
 interface AgentStreamCompactionNotifications {
@@ -148,7 +155,8 @@ export async function runAgentStreamCompaction(
           break;
         }
         case "error":
-          notifiedErrorMessage = String(data.message ?? "").trim() || "未知错误";
+          notifiedErrorMessage =
+            String(data.message ?? "").trim() || "未知错误";
           notify.error(`压缩上下文失败: ${notifiedErrorMessage}`);
           clearActiveStreamIfMatch(eventName);
           disposeListener();

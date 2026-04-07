@@ -71,7 +71,9 @@ export interface WorkbenchState {
   clearContentReviewRailState: () => void;
 
   /** 设置右侧工作区技能面板状态 */
-  setThemeSkillsRailState: (state: WorkbenchThemeSkillsRailState | null) => void;
+  setThemeSkillsRailState: (
+    state: WorkbenchThemeSkillsRailState | null,
+  ) => void;
 
   /** 清空右侧工作区技能面板状态 */
   clearThemeSkillsRailState: () => void;

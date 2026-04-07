@@ -2,7 +2,10 @@ import {
   getSupportedCodexSlashCommands,
   getUnsupportedCodexSlashCommands,
 } from "./parser";
-import type { CodexSlashStatusSnapshot, ParsedCodexSlashCommand } from "./types";
+import type {
+  CodexSlashStatusSnapshot,
+  ParsedCodexSlashCommand,
+} from "./types";
 
 function formatExecutionStrategyLabel(
   strategy: CodexSlashStatusSnapshot["executionStrategy"],

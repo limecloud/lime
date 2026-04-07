@@ -98,7 +98,13 @@ export function useGeneralWorkbenchSendBoundary({
   onClearEntryPrompt,
 }: UseGeneralWorkbenchSendBoundaryOptions) {
   const resolveSendBoundary = useCallback(
-    ({ sourceText, sendOptions }: { sourceText: string; sendOptions?: HandleSendOptions }) =>
+    ({
+      sourceText,
+      sendOptions,
+    }: {
+      sourceText: string;
+      sendOptions?: HandleSendOptions;
+    }) =>
       buildGeneralWorkbenchSendBoundaryState({
         isThemeWorkbench,
         contentId,

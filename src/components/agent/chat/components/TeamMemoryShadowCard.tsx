@@ -89,7 +89,8 @@ export function TeamMemoryShadowCard({
             当前仓库已缓存 {entries.length} 条 Team 续接上下文
           </div>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            仅保存在当前仓库本地作用域，用来续接 Team 选择、子代理概览和父会话上下文。
+            仅保存在当前仓库本地作用域，用来续接 Team
+            选择、子代理概览和父会话上下文。
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

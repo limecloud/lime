@@ -47,14 +47,18 @@ type UseExistingSessionProfileManagerResult = {
   tabPanelsOpen: Record<string, boolean>;
   loadingTabsByProfileKey: Record<string, boolean>;
   switchingTabKey: string | null;
-  syncBridgeStatus: (nextBridgeStatus: ChromeBridgeStatusSnapshot | null) => void;
+  syncBridgeStatus: (
+    nextBridgeStatus: ChromeBridgeStatusSnapshot | null,
+  ) => void;
   refreshBridgeStatusSnapshot: () => Promise<ChromeBridgeStatusSnapshot | null>;
   loadExistingSessionTabs: (
     profile: BrowserProfileRecord,
     options?: { quiet?: boolean; open?: boolean },
   ) => Promise<ExistingSessionTabRecord[]>;
   handleAttachExistingSession: (profile: BrowserProfileRecord) => Promise<void>;
-  handleToggleExistingSessionTabs: (profile: BrowserProfileRecord) => Promise<void>;
+  handleToggleExistingSessionTabs: (
+    profile: BrowserProfileRecord,
+  ) => Promise<void>;
   handleSwitchExistingSessionTab: (
     profile: BrowserProfileRecord,
     tab: ExistingSessionTabRecord,
@@ -117,11 +121,7 @@ export function useExistingSessionProfileManager(
   const updatePageInfo = useCallback(
     (profileKey: string, nextPageInfo: ChromeBridgePageInfo | null) => {
       setPageInfoByProfileKey((previous) =>
-        updateExistingSessionPageInfoRecord(
-          previous,
-          profileKey,
-          nextPageInfo,
-        ),
+        updateExistingSessionPageInfoRecord(previous, profileKey, nextPageInfo),
       );
     },
     [],

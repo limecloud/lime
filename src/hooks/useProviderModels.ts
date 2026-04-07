@@ -52,9 +52,7 @@ interface LoadProviderModelsOptions {
   hasApiKey?: boolean;
 }
 
-function getProviderAutoFetchCapability(
-  selectedProvider: ConfiguredProvider,
-) {
+function getProviderAutoFetchCapability(selectedProvider: ConfiguredProvider) {
   return getProviderModelAutoFetchCapability({
     providerId: selectedProvider.providerId ?? selectedProvider.key,
     providerType: selectedProvider.type,
@@ -233,16 +231,16 @@ export function useProviderModels(
   );
   const autoFetchCapability = useMemo(
     () =>
-      selectedProvider ? getProviderAutoFetchCapability(selectedProvider) : null,
+      selectedProvider
+        ? getProviderAutoFetchCapability(selectedProvider)
+        : null,
     [selectedProvider],
   );
   const useLiveFetchTruthOnly = Boolean(
     liveFetchOnly && autoFetchCapability?.supported,
   );
   const canReadLiveModels = Boolean(
-    !useLiveFetchTruthOnly ||
-      !autoFetchCapability?.requiresApiKey ||
-      hasApiKey,
+    !useLiveFetchTruthOnly || !autoFetchCapability?.requiresApiKey || hasApiKey,
   );
 
   // 当本地没有模型时，从 API 获取

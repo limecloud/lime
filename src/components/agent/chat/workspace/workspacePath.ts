@@ -15,7 +15,9 @@ function joinWorkspacePath(rootPath: string, filePath: string): string {
   return `${rootPath.replace(/[\\/]+$/, "")}/${filePath.replace(/^[\\/]+/, "")}`;
 }
 
-export function extractFileNameFromPath(path: string | null | undefined): string {
+export function extractFileNameFromPath(
+  path: string | null | undefined,
+): string {
   const normalized = normalizeWorkspacePath(path?.trim() || "");
   if (!normalized) {
     return "未命名文件";

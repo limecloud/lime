@@ -126,116 +126,115 @@ export function McpServerList({
 
             return (
               <div
-              key={server.id}
-              onClick={() => onSelectServer?.(server)}
-              className={cn(
-                "p-3 rounded-lg border transition-colors cursor-pointer",
-                selectedServerName === server.name
-                  ? "bg-primary/5 border-primary"
-                  : "hover:bg-muted border-transparent",
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    {/* 状态指示灯 */}
-                    <div
+                key={server.id}
+                onClick={() => onSelectServer?.(server)}
+                className={cn(
+                  "p-3 rounded-lg border transition-colors cursor-pointer",
+                  selectedServerName === server.name
+                    ? "bg-primary/5 border-primary"
+                    : "hover:bg-muted border-transparent",
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {/* 状态指示灯 */}
+                      <div
+                        className={cn(
+                          "w-2 h-2 rounded-full",
+                          server.is_running ? "bg-green-500" : "bg-gray-400",
+                        )}
+                      />
+                      <span className="font-medium text-sm truncate">
+                        {server.name}
+                      </span>
+                    </div>
+                    <p
                       className={cn(
-                        "w-2 h-2 rounded-full",
-                        server.is_running ? "bg-green-500" : "bg-gray-400",
+                        "text-xs mt-1 truncate",
+                        getStatusColor(server.is_running),
                       )}
-                    />
-                    <span className="font-medium text-sm truncate">
-                      {server.name}
-                    </span>
-                  </div>
-                  <p
-                    className={cn(
-                      "text-xs mt-1 truncate",
-                      getStatusColor(server.is_running),
-                    )}
-                  >
-                    {getStatusText(server)}
-                  </p>
-                  {server.description && (
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {server.description}
+                    >
+                      {getStatusText(server)}
                     </p>
-                  )}
-                </div>
+                    {server.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {server.description}
+                      </p>
+                    )}
+                  </div>
 
-                {/* 启动/停止按钮 */}
-                <div className="ml-2 flex flex-shrink-0 items-center gap-1">
-                  <button
-                    onClick={(e) => handleReconnect(server.name, e)}
-                    disabled={operatingServer === server.name}
-                    className="p-1.5 rounded hover:bg-blue-500/10 text-blue-600 disabled:opacity-50"
-                    title="重连服务器"
-                  >
-                    <RefreshCw
-                      className={cn(
-                        "h-4 w-4",
-                        operatingServer === server.name &&
-                          "animate-spin",
-                      )}
-                    />
-                  </button>
-                  {server.is_running ? (
+                  {/* 启动/停止按钮 */}
+                  <div className="ml-2 flex flex-shrink-0 items-center gap-1">
                     <button
-                      onClick={(e) => handleStop(server.name, e)}
+                      onClick={(e) => handleReconnect(server.name, e)}
                       disabled={operatingServer === server.name}
-                      className="p-1.5 rounded hover:bg-destructive/10 text-destructive disabled:opacity-50"
-                      title="停止服务器"
+                      className="p-1.5 rounded hover:bg-blue-500/10 text-blue-600 disabled:opacity-50"
+                      title="重连服务器"
                     >
-                      {operatingServer === server.name ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Square className="h-4 w-4" />
-                      )}
+                      <RefreshCw
+                        className={cn(
+                          "h-4 w-4",
+                          operatingServer === server.name && "animate-spin",
+                        )}
+                      />
                     </button>
-                  ) : (
-                    <button
-                      onClick={(e) => handleStart(server.name, e)}
-                      disabled={operatingServer === server.name}
-                      className="p-1.5 rounded hover:bg-green-500/10 text-green-600 disabled:opacity-50"
-                      title="启动服务器"
-                    >
-                      {operatingServer === server.name ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                    </button>
-                  )}
+                    {server.is_running ? (
+                      <button
+                        onClick={(e) => handleStop(server.name, e)}
+                        disabled={operatingServer === server.name}
+                        className="p-1.5 rounded hover:bg-destructive/10 text-destructive disabled:opacity-50"
+                        title="停止服务器"
+                      >
+                        {operatingServer === server.name ? (
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => handleStart(server.name, e)}
+                        disabled={operatingServer === server.name}
+                        className="p-1.5 rounded hover:bg-green-500/10 text-green-600 disabled:opacity-50"
+                        title="启动服务器"
+                      >
+                        {operatingServer === server.name ? (
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {connectionState?.error && (
-                <p className="mt-2 text-xs text-destructive">
-                  最近错误：{connectionState.error}
-                </p>
-              )}
+                {connectionState?.error && (
+                  <p className="mt-2 text-xs text-destructive">
+                    最近错误：{connectionState.error}
+                  </p>
+                )}
 
-              {/* 能力标签 */}
-              {server.is_running && server.server_info && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {server.server_info.supports_tools && (
-                    <span className="px-1.5 py-0.5 text-xs rounded bg-blue-500/10 text-blue-600">
-                      工具
-                    </span>
-                  )}
-                  {server.server_info.supports_prompts && (
-                    <span className="px-1.5 py-0.5 text-xs rounded bg-purple-500/10 text-purple-600">
-                      提示词
-                    </span>
-                  )}
-                  {server.server_info.supports_resources && (
-                    <span className="px-1.5 py-0.5 text-xs rounded bg-orange-500/10 text-orange-600">
-                      资源
-                    </span>
-                  )}
-                </div>
-              )}
+                {/* 能力标签 */}
+                {server.is_running && server.server_info && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {server.server_info.supports_tools && (
+                      <span className="px-1.5 py-0.5 text-xs rounded bg-blue-500/10 text-blue-600">
+                        工具
+                      </span>
+                    )}
+                    {server.server_info.supports_prompts && (
+                      <span className="px-1.5 py-0.5 text-xs rounded bg-purple-500/10 text-purple-600">
+                        提示词
+                      </span>
+                    )}
+                    {server.server_info.supports_resources && (
+                      <span className="px-1.5 py-0.5 text-xs rounded bg-orange-500/10 text-orange-600">
+                        资源
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })

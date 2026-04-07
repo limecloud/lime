@@ -1479,7 +1479,16 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
           ? "这里固定展示当前聚焦任务的上下文，切换任务后会一起更新。"
           : "你正在查看一条历史任务，下面的信息与主预览都跟随该任务同步。",
       };
-    }, [focusedTask, latestTask?.id, state.aspectRatio, state.duration, state.model, state.prompt, state.providerId, state.resolution]);
+    }, [
+      focusedTask,
+      latestTask?.id,
+      state.aspectRatio,
+      state.duration,
+      state.model,
+      state.prompt,
+      state.providerId,
+      state.resolution,
+    ]);
 
     return (
       <WorkspaceWrapper>
@@ -1663,7 +1672,9 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                             {focusedTaskSummary.description}
                           </FocusedTaskDescription>
                         </FocusedTaskCopy>
-                        <TaskCounter>{focusedTaskSummary.badgeLabel}</TaskCounter>
+                        <TaskCounter>
+                          {focusedTaskSummary.badgeLabel}
+                        </TaskCounter>
                       </FocusedTaskHeader>
 
                       <FocusedTaskPrompt data-testid="video-focused-task-prompt">

@@ -6,9 +6,7 @@ interface WorkspaceContentSyncNoticeProps {
   status: Exclude<SyncStatus, "idle">;
 }
 
-function resolveContentSyncNoticeMeta(
-  status: Exclude<SyncStatus, "idle">,
-): {
+function resolveContentSyncNoticeMeta(status: Exclude<SyncStatus, "idle">): {
   label: string;
   Icon: typeof Loader2;
   animated?: boolean;

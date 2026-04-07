@@ -8,19 +8,15 @@ import { TeamWorkspaceDock } from "./TeamWorkspaceDock";
 const { mockGetAgentRuntimeSession } = vi.hoisted(() => ({
   mockGetAgentRuntimeSession: vi.fn(),
 }));
-const {
-  mockSafeListen,
-  mockParseAgentEvent,
-} = vi.hoisted(() => ({
+const { mockSafeListen, mockParseAgentEvent } = vi.hoisted(() => ({
   mockSafeListen: vi.fn(),
   mockParseAgentEvent: vi.fn((payload: unknown) => payload),
 }));
 
 vi.mock("@/lib/api/agentRuntime", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/agentRuntime")>(
-      "@/lib/api/agentRuntime",
-    );
+  const actual = await vi.importActual<typeof import("@/lib/api/agentRuntime")>(
+    "@/lib/api/agentRuntime",
+  );
   return {
     ...actual,
     getAgentRuntimeSession: mockGetAgentRuntimeSession,
@@ -28,10 +24,9 @@ vi.mock("@/lib/api/agentRuntime", async () => {
 });
 
 vi.mock("@/lib/api/agentProtocol", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/agentProtocol")>(
-      "@/lib/api/agentProtocol",
-    );
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/agentProtocol")
+  >("@/lib/api/agentProtocol");
   return {
     ...actual,
     parseAgentEvent: mockParseAgentEvent,
@@ -138,7 +133,9 @@ async function renderDock(
     nextProps?: Partial<React.ComponentProps<typeof TeamWorkspaceDock>>,
   ) => {
     await act(async () => {
-      root.render(<TeamWorkspaceDock {...defaultProps} {...props} {...nextProps} />);
+      root.render(
+        <TeamWorkspaceDock {...defaultProps} {...props} {...nextProps} />,
+      );
       await Promise.resolve();
     });
     await flushDockEffects();
@@ -180,9 +177,13 @@ describe("TeamWorkspaceDock", () => {
     expect(document.body.textContent).toContain("当前协作方案：前端联调团队");
     expect(document.body.textContent).toContain("分析、实现、验证三段式推进。");
     expect(document.body.textContent).not.toContain("查看详情");
-    expect(document.body.querySelector('[data-testid="team-workspace-empty-card"]')).toBeTruthy();
     expect(
-      document.body.querySelector('[data-testid="team-workspace-selected-team"]'),
+      document.body.querySelector('[data-testid="team-workspace-empty-card"]'),
+    ).toBeTruthy();
+    expect(
+      document.body.querySelector(
+        '[data-testid="team-workspace-selected-team"]',
+      ),
     ).toBeTruthy();
   });
 

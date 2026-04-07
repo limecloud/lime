@@ -88,8 +88,7 @@ const MOCK_SKILL: ServiceSkillHomeItem = {
   ],
   triggerHints: ["已经有参考视频，希望快速得到一版同结构脚本时使用。"],
   examples: ["参考这个视频结构，帮我先写一版节奏接近的脚本。"],
-  outputDestination:
-    "结果会写回当前工作区中的脚本草稿，方便继续补镜头与口播。",
+  outputDestination: "结果会写回当前工作区中的脚本草稿，方便继续补镜头与口播。",
   source: "cloud_catalog",
   runnerType: "instant",
   defaultExecutorBinding: "agent_turn",
@@ -135,7 +134,8 @@ const METADATA_ONLY_SKILL: ServiceSkillHomeItem = {
     description: "只通过标准摘要回退展示技能类型与结果去向。",
     metadata: {
       Lime_skill_type: "site",
-      Lime_output_destination: "结果会回流到当前工作区顶部结果区，便于继续整理。",
+      Lime_output_destination:
+        "结果会回流到当前工作区顶部结果区，便于继续整理。",
     },
     resourceSummary: {
       hasScripts: false,
@@ -161,7 +161,8 @@ beforeEach(() => {
     domain: "github.com",
     profile_key: "attached-github",
     target_id: "tab-github",
-    message: "已检测到 github.com 的真实浏览器页面，Claw 可以直接复用当前会话执行。",
+    message:
+      "已检测到 github.com 的真实浏览器页面，Claw 可以直接复用当前会话执行。",
   });
 });
 
@@ -516,8 +517,12 @@ describe("ServiceSkillLaunchDialog", () => {
     await flushEffects();
 
     expect(document.body.textContent).toContain("需要先准备浏览器");
-    expect(document.body.textContent).toContain("Claw 不会在后台偷偷启动浏览器");
-    expect(document.body.textContent).toContain("请先进入浏览器工作台连接真实浏览器并打开目标站点页面");
+    expect(document.body.textContent).toContain(
+      "Claw 不会在后台偷偷启动浏览器",
+    );
+    expect(document.body.textContent).toContain(
+      "请先进入浏览器工作台连接真实浏览器并打开目标站点页面",
+    );
     expect(launchButton?.disabled).toBe(true);
     expect(launchButton?.textContent).toBe("先准备浏览器再执行");
   });
@@ -535,7 +540,8 @@ describe("ServiceSkillLaunchDialog", () => {
         defaultExecutorBinding: "cloud_scene",
         runnerLabel: "云端托管执行",
         runnerTone: "slate",
-        runnerDescription: "会提交到 OEM 云端执行，完成后再把结果回流到当前工作区。",
+        runnerDescription:
+          "会提交到 OEM 云端执行，完成后再把结果回流到当前工作区。",
         actionLabel: "提交云端",
         outputDestination: "运行结果会在云端完成后回流到当前工作区。",
       },

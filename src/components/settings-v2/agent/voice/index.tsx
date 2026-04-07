@@ -478,7 +478,9 @@ export function VoiceSettings() {
                       ariaLabel={`${service.label} TTS 说明`}
                       content={service.desc}
                       tone={
-                        voiceConfig.tts_service === service.value ? "mint" : "slate"
+                        voiceConfig.tts_service === service.value
+                          ? "mint"
+                          : "slate"
                       }
                     />
                   </div>
@@ -665,7 +667,9 @@ export function VoiceSettings() {
                       ariaLabel={`${service.label} STT 说明`}
                       content={service.desc}
                       tone={
-                        voiceConfig.stt_service === service.value ? "mint" : "slate"
+                        voiceConfig.stt_service === service.value
+                          ? "mint"
+                          : "slate"
                       }
                     />
                   </div>

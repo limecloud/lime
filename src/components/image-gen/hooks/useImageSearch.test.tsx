@@ -200,7 +200,9 @@ describe("useImageSearch", () => {
     expect(state.page).toBe(2);
     expect(state.results.map((item) => item.id)).toEqual(["1", "2"]);
 
-    const pageCalls = mockSearchPixabayImages.mock.calls.map(([req]) => req.page);
+    const pageCalls = mockSearchPixabayImages.mock.calls.map(
+      ([req]) => req.page,
+    );
     expect(pageCalls).toEqual([1, 2]);
   });
 

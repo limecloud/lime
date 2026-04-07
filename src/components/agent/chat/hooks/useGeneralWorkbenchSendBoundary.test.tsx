@@ -1,9 +1,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  useGeneralWorkbenchSendBoundary,
-} from "./useGeneralWorkbenchSendBoundary";
+import { useGeneralWorkbenchSendBoundary } from "./useGeneralWorkbenchSendBoundary";
 
 interface HookHarnessProps {
   isThemeWorkbench: boolean;
@@ -31,7 +29,8 @@ function mountHook(initialProps?: Partial<HookHarnessProps>): HookHarness {
   const onResetConsumedInitialPrompt = vi.fn();
   const onClearEntryPrompt = vi.fn();
 
-  let hookValue: ReturnType<typeof useGeneralWorkbenchSendBoundary> | null = null;
+  let hookValue: ReturnType<typeof useGeneralWorkbenchSendBoundary> | null =
+    null;
   let currentProps: HookHarnessProps = {
     isThemeWorkbench: true,
     contentId: "content-1",

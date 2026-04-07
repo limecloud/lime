@@ -10,9 +10,9 @@ describe("mcp", () => {
   });
 
   it("应保留 inner tool 名中的双下划线片段", () => {
-    expect(
-      getMcpInnerToolName("mcp__docs__admin__search_docs", "docs"),
-    ).toBe("admin__search_docs");
+    expect(getMcpInnerToolName("mcp__docs__admin__search_docs", "docs")).toBe(
+      "admin__search_docs",
+    );
   });
 
   it("对非 MCP 工具名保持原样", () => {

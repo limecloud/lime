@@ -2,32 +2,34 @@
 
 ### ✨ 主要更新
 
-- `aster-rust` 依赖已从 `v0.27.1` 升级到 `v0.27.2`
-- `src-tauri/Cargo.toml` 的远程 git tag 引用已同步到 `v0.27.2`
-- 应用与 CLI 发布版本同步提升到 `1.5.1`，用于标记这次依赖补丁发布
-
-### ⚠️ 发布与兼容性说明
-
-- 本次发布 tag 为 `v1.5.1`，应用内版本号保持为 `1.5.1`
-- `@limecloud/lime-cli@1.5.1` 要求 `Node >= 18`，支持 `darwin / linux / win32` 与 `x64 / arm64`
-- 本次为补丁发布，主要目的是对齐 `aster-rust v0.27.2`，不额外引入新的 Lime 功能面
-- 本地 `.cargo/config.toml` patch override 仍仅用于开发联调，不属于发布事实源
+- 本次 `v1.5.1` 已收口当前工作区全部改动，核心集中在 Agent 聊天工作台、General Workbench、Service Skill、Team Workspace、Artifact / Timeline 展示与输入发送主链
+- `src/components/agent/**`、`src/components/workspace/**`、`src/lib/api/**`、`src/features/browser-runtime/**`、`src/components/settings-v2/**` 一批界面、运行时与回归测试已一并进入本次发布
+- 浏览器运行时、现有会话桥接、工具展示、团队协作、项目选择、技能目录、工作台工具命令与内容同步相关边界已同步更新
+- 工程文档 `docs/aiprompts/commands.md`、`playwright-e2e.md`、`quality-workflow.md` 已随当前实现一起更新
 
 ### 🔗 依赖与版本同步
 
-- 应用版本已同步提升到 `1.5.1`，覆盖 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`src-tauri/tauri.conf.headless.json`
-- `packages/lime-cli-npm/package.json` 与 README 发布示例已同步更新到 `1.5.1`
-- 本地 `package-lock.json` 也已同步到 `1.5.1`，用于版本一致性校验
-- `src-tauri/Cargo.lock` 已刷新，`aster-core` / `aster-models` 已对齐到 `0.27.2`
+- `aster-rust` 依赖已从 `v0.27.1` 升级到 `v0.27.2`
+- `src-tauri/Cargo.toml` 的远程 git tag 引用已同步到 `v0.27.2`
+- 应用与 CLI 发布版本保持为 `1.5.1`
+- 应用版本入口已对齐到 `1.5.1`，覆盖 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`src-tauri/tauri.conf.headless.json`
+- `packages/lime-cli-npm/package.json`、README 发布示例与本地 `package-lock.json` 已同步到 `1.5.1`
+- `src-tauri/Cargo.lock` 中 `aster-core` / `aster-models` 已对齐到 `0.27.2`
 
-### 🧪 发布前校验
+### ⚠️ 发布说明
 
-- `cargo update --manifest-path src-tauri/Cargo.toml`
+- 本次发布 tag 仍为 `v1.5.1`
+- 因为要把当前工作区全部改动统一纳入同一补丁版本，本次会更新已经存在的 `v1.5.1` Git tag 与 GitHub Release 指向
+- 当前公开 release note 已按这次完整发布内容刷新
+
+### 🧪 当前校验
+
 - `npm run verify:app-version`
+- Git 提交前的仓库 AI 验证会随提交钩子执行
 
 ### 📝 文档同步
 
-- 发布说明已切换到当前这次 `v1.5.1` 补丁版内容，可直接作为 GitHub Release note 使用
+- 发布说明已更新为当前这次完整的 `v1.5.1` 内容，可直接作为 GitHub Release note 使用
 
 ---
 

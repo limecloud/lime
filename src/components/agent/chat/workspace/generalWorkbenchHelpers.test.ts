@@ -162,7 +162,9 @@ describe("generalWorkbenchHelpers", () => {
       },
     });
 
-    expect(persisted?.currentVersionId).toBe("artifact-document:auto-report:v1");
+    expect(persisted?.currentVersionId).toBe(
+      "artifact-document:auto-report:v1",
+    );
   });
 
   it("应把后端工作区编排状态与正文恢复为当前版本", () => {

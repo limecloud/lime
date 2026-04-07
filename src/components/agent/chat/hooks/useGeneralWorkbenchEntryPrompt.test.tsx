@@ -40,11 +40,13 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
     ): Promise<GeneralWorkbenchResumeWorkflowState | null> => null,
   );
   const loadRunState = vi.fn(
-    async (_sessionId: string): Promise<BackendGeneralWorkbenchRunState | null> =>
-      null,
+    async (
+      _sessionId: string,
+    ): Promise<BackendGeneralWorkbenchRunState | null> => null,
   );
 
-  let hookValue: ReturnType<typeof useGeneralWorkbenchEntryPrompt> | null = null;
+  let hookValue: ReturnType<typeof useGeneralWorkbenchEntryPrompt> | null =
+    null;
   let currentProps: HookProps = {
     activeTheme: "general",
     contentId: "content-1",
@@ -165,7 +167,9 @@ describe("useGeneralWorkbenchEntryPrompt", () => {
     const root = createRoot(container);
     const onHydrateInitialPrompt = vi.fn();
     const loadRunState = vi.fn(
-      async (_sessionId: string): Promise<BackendGeneralWorkbenchRunState | null> => ({
+      async (
+        _sessionId: string,
+      ): Promise<BackendGeneralWorkbenchRunState | null> => ({
         run_state: "auto_running",
         current_gate_key: "write_mode",
         queue_items: [
@@ -219,7 +223,9 @@ describe("useGeneralWorkbenchEntryPrompt", () => {
         title: "发现上次未完成任务",
         description: expect.stringContaining("撰写主稿"),
       });
-      expect(hookValueRef.current?.generalWorkbenchEntryCheckPending).toBe(false);
+      expect(hookValueRef.current?.generalWorkbenchEntryCheckPending).toBe(
+        false,
+      );
     } finally {
       act(() => {
         root.unmount();

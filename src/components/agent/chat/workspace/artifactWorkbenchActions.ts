@@ -231,17 +231,16 @@ function resolveChecklistPreview(block: ArtifactDocumentBlock): string {
 
 function resolveMetricPreview(block: ArtifactDocumentBlock): string {
   return resolveMetricItems(block)
-    .map((item) => [item.label, item.value, item.detail].filter(Boolean).join(": "))
+    .map((item) =>
+      [item.label, item.value, item.detail].filter(Boolean).join(": "),
+    )
     .join("\n");
 }
 
 function resolveTablePreview(block: ArtifactDocumentBlock): string {
   const columns = resolveTableColumns(block);
   const rows = resolveTableRows(block, columns);
-  return [
-    columns.join(" | "),
-    ...rows.map((row) => row.join(" | ")),
-  ]
+  return [columns.join(" | "), ...rows.map((row) => row.join(" | "))]
     .filter(Boolean)
     .join("\n");
 }
@@ -307,8 +306,12 @@ function buildArtifactDocumentVersionDiff(
 ): ArtifactDocumentVersionDiff {
   const previousBlocks = previousDocument.blocks || [];
   const nextBlocks = nextDocument.blocks || [];
-  const previousMap = new Map(previousBlocks.map((block, index) => [block.id, { block, index }]));
-  const nextMap = new Map(nextBlocks.map((block, index) => [block.id, { block, index }]));
+  const previousMap = new Map(
+    previousBlocks.map((block, index) => [block.id, { block, index }]),
+  );
+  const nextMap = new Map(
+    nextBlocks.map((block, index) => [block.id, { block, index }]),
+  );
   const changedBlocks: ArtifactDocumentBlockDiffEntry[] = [];
   let addedCount = 0;
   let removedCount = 0;
@@ -334,7 +337,8 @@ function buildArtifactDocumentVersionDiff(
     const previousIndex = previousEntry.index;
     const isMoved = previousIndex !== nextIndex;
     const isUpdated =
-      serializeBlockForComparison(previousBlock) !== serializeBlockForComparison(block);
+      serializeBlockForComparison(previousBlock) !==
+      serializeBlockForComparison(block);
 
     if (!isMoved && !isUpdated) {
       return;
@@ -431,7 +435,8 @@ export function createArtifactDocumentNextVersion(
     return nextDocument;
   }
 
-  const currentVersion = resolveArtifactDocumentCurrentVersion(previousDocument);
+  const currentVersion =
+    resolveArtifactDocumentCurrentVersion(previousDocument);
   const nextVersionNo = resolveNextVersionNo(previousDocument);
   const nextVersionId = `${nextDocument.artifactId}:v${nextVersionNo}`;
   const createdAt = new Date().toISOString();

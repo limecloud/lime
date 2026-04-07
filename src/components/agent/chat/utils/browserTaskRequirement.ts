@@ -1,6 +1,4 @@
-import {
-  extractExplicitUrlFromText,
-} from "./browserAssistIntent";
+import { extractExplicitUrlFromText } from "./browserAssistIntent";
 import type { BrowserTaskRequirement } from "../types";
 
 interface BrowserPlatformHint {
@@ -20,7 +18,9 @@ const PLATFORM_HINTS: BrowserPlatformHint[] = [
   {
     label: "微信公众号后台",
     launchUrl: "https://mp.weixin.qq.com/",
-    patterns: [/微信公众平台|微信公众号|公众号后台|公众号|mp\.weixin\.qq\.com/i],
+    patterns: [
+      /微信公众平台|微信公众号|公众号后台|公众号|mp\.weixin\.qq\.com/i,
+    ],
   },
   {
     label: "小红书创作服务平台",
@@ -98,8 +98,7 @@ export function detectBrowserTaskRequirement(
   return {
     requirement,
     reason,
-    launchUrl:
-      explicitUrl || platform?.launchUrl || "https://www.google.com",
+    launchUrl: explicitUrl || platform?.launchUrl || "https://www.google.com",
     platformLabel: platform?.label,
   };
 }

@@ -102,7 +102,10 @@ function collectFieldMatches(text: string): PdfFieldMatch[] {
 
   return baseMatches.map((match, index) => ({
     ...match,
-    end: index + 1 < baseMatches.length ? baseMatches[index + 1]!.start : text.length,
+    end:
+      index + 1 < baseMatches.length
+        ? baseMatches[index + 1]!.start
+        : text.length,
   }));
 }
 
@@ -176,12 +179,21 @@ function extractPdfFields(text: string): ExtractedPdfFields {
     extracted[match.key] = extracted[match.key] || rawValue;
   });
 
-  const strippedWithoutFields = trimDecorations(stripExplicitFields(text, matches));
-  const detectedUrl = extracted.sourceUrl || extractPdfUrl(strippedWithoutFields);
-  const strippedWithoutUrl = stripDetectedSource(strippedWithoutFields, detectedUrl);
+  const strippedWithoutFields = trimDecorations(
+    stripExplicitFields(text, matches),
+  );
+  const detectedUrl =
+    extracted.sourceUrl || extractPdfUrl(strippedWithoutFields);
+  const strippedWithoutUrl = stripDetectedSource(
+    strippedWithoutFields,
+    detectedUrl,
+  );
   const detectedPath =
     extracted.sourcePath || extractPdfPath(strippedWithoutUrl);
-  const strippedWithoutPath = stripDetectedSource(strippedWithoutUrl, detectedPath);
+  const strippedWithoutPath = stripDetectedSource(
+    strippedWithoutUrl,
+    detectedPath,
+  );
 
   return {
     sourcePath: detectedPath,

@@ -14,7 +14,8 @@ describe("parseSummaryWorkbenchCommand", () => {
       length: "short",
       style: "投资人简报",
       outputFormat: "三点要点",
-      prompt: "这是一篇关于 AI Agent 融资的长文 融资额与发布时间 short 投资人简报",
+      prompt:
+        "这是一篇关于 AI Agent 融资的长文 融资额与发布时间 short 投资人简报",
     });
   });
 

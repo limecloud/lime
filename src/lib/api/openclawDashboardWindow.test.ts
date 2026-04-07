@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  resolveOpenClawDashboardProfileKey,
-} from "./openclawDashboardWindow";
+import { resolveOpenClawDashboardProfileKey } from "./openclawDashboardWindow";
 
 describe("openclawDashboardWindow", () => {
   it("未提供版本键时使用默认 profile key", () => {

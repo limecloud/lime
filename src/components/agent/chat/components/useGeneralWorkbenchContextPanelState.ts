@@ -85,14 +85,18 @@ export function useGeneralWorkbenchContextPanelState({
   onAddLinkContext,
   onAddFileContext,
 }: UseGeneralWorkbenchContextPanelStateParams): GeneralWorkbenchContextPanelState {
-  const [selectedSearchResultId, setSelectedSearchResultId] = useState<string | null>(null);
+  const [selectedSearchResultId, setSelectedSearchResultId] = useState<
+    string | null
+  >(null);
   const [addContextDialogOpen, setAddContextDialogOpen] = useState(false);
   const [addTextDialogOpen, setAddTextDialogOpen] = useState(false);
   const [addLinkDialogOpen, setAddLinkDialogOpen] = useState(false);
   const [contextDraftText, setContextDraftText] = useState("");
   const [contextDraftLink, setContextDraftLink] = useState("");
   const [contextCreateLoading, setContextCreateLoading] = useState(false);
-  const [contextCreateError, setContextCreateError] = useState<string | null>(null);
+  const [contextCreateError, setContextCreateError] = useState<string | null>(
+    null,
+  );
   const [contextDropActive, setContextDropActive] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -212,15 +216,12 @@ export function useGeneralWorkbenchContextPanelState({
         return;
       }
 
-      await runContextAction(
-        async () => {
-          await onAddFileContext({
-            path: selected,
-            name: resolveGeneralWorkbenchFileNameFromPath(selected),
-          });
-        },
-        "已添加文件上下文",
-      );
+      await runContextAction(async () => {
+        await onAddFileContext({
+          path: selected,
+          name: resolveGeneralWorkbenchFileNameFromPath(selected),
+        });
+      }, "已添加文件上下文");
     } catch (error) {
       const nextError = formatGeneralWorkbenchActionErrorMessage(
         "读取文件失败",
@@ -242,36 +243,32 @@ export function useGeneralWorkbenchContextPanelState({
 
       const fileWithPath = file as File & { path?: string };
       if (fileWithPath.path && onAddFileContext) {
-        await runContextAction(
-          async () => {
-            await onAddFileContext({
-              path: fileWithPath.path || "",
-              name: file.name,
-            });
-          },
-          "已添加文件上下文",
-        );
+        await runContextAction(async () => {
+          await onAddFileContext({
+            path: fileWithPath.path || "",
+            name: file.name,
+          });
+        }, "已添加文件上下文");
         return;
       }
 
       if (!onAddTextContext) {
-        setContextCreateError("当前环境无法读取拖拽文件路径，请使用“上传文件”按钮");
+        setContextCreateError(
+          "当前环境无法读取拖拽文件路径，请使用“上传文件”按钮",
+        );
         return;
       }
 
-      await runContextAction(
-        async () => {
-          const content = await file.text();
-          if (!content.trim()) {
-            throw new Error("文件内容为空");
-          }
-          await onAddTextContext({
-            content,
-            name: file.name,
-          });
-        },
-        "已添加文本上下文",
-      );
+      await runContextAction(async () => {
+        const content = await file.text();
+        if (!content.trim()) {
+          throw new Error("文件内容为空");
+        }
+        await onAddTextContext({
+          content,
+          name: file.name,
+        });
+      }, "已添加文本上下文");
     },
     [onAddFileContext, onAddTextContext, runContextAction],
   );
@@ -286,14 +283,11 @@ export function useGeneralWorkbenchContextPanelState({
       setContextCreateError("请输入文本内容");
       return;
     }
-    await runContextAction(
-      async () => {
-        await onAddTextContext({
-          content: normalizedText,
-        });
-      },
-      "已添加文本上下文",
-    );
+    await runContextAction(async () => {
+      await onAddTextContext({
+        content: normalizedText,
+      });
+    }, "已添加文本上下文");
   }, [contextDraftText, onAddTextContext, runContextAction]);
 
   const handleSubmitLinkContext = useCallback(async () => {
@@ -306,14 +300,11 @@ export function useGeneralWorkbenchContextPanelState({
       setContextCreateError("请输入网站链接");
       return;
     }
-    await runContextAction(
-      async () => {
-        await onAddLinkContext({
-          url: normalizedLink,
-        });
-      },
-      "已添加网站链接上下文",
-    );
+    await runContextAction(async () => {
+      await onAddLinkContext({
+        url: normalizedLink,
+      });
+    }, "已添加网站链接上下文");
   }, [contextDraftLink, onAddLinkContext, runContextAction]);
 
   return {

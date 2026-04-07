@@ -164,7 +164,9 @@ describe("ToolCallDisplay", () => {
     expect(
       container.querySelector('[data-testid="tool-call-rendered-result"]'),
     ).not.toBeNull();
-    expect(container.textContent).toContain("本次检索未返回可解析链接，请稍后重试。");
+    expect(container.textContent).toContain(
+      "本次检索未返回可解析链接，请稍后重试。",
+    );
     expect(container.textContent).not.toContain("查看原始输出");
   });
 
@@ -189,7 +191,9 @@ describe("ToolCallDisplay", () => {
             {
               id: "tool-search-2",
               name: "WebSearch",
-              arguments: JSON.stringify({ query: "March 13 2026 world headlines" }),
+              arguments: JSON.stringify({
+                query: "March 13 2026 world headlines",
+              }),
               status: "completed",
               result: { success: true, output: "https://example.com/2" },
               startTime: new Date("2026-03-13T12:00:02.000Z"),
@@ -207,7 +211,9 @@ describe("ToolCallDisplay", () => {
     expect(container.textContent).toContain("3月13日国际新闻");
     expect(container.textContent).toContain("March 13 2026 world headlines");
     expect(container.textContent).toContain("搜索 3月13日国际新闻");
-    expect(container.textContent).toContain("搜索 March 13 2026 world headlines");
+    expect(container.textContent).toContain(
+      "搜索 March 13 2026 world headlines",
+    );
     expect(container.textContent).toContain("中文日期检索");
     expect(container.textContent).toContain("头条检索");
   });
@@ -246,7 +252,9 @@ describe("ToolCallDisplay", () => {
 
     mountedRoots.push({ container, root });
 
-    const groups = container.querySelectorAll('[data-testid="tool-call-work-group"]');
+    const groups = container.querySelectorAll(
+      '[data-testid="tool-call-work-group"]',
+    );
     expect(groups).toHaveLength(1);
     expect(container.textContent).toContain("已执行 2 条命令");
     expect(container.textContent).toContain("2");
@@ -254,7 +262,9 @@ describe("ToolCallDisplay", () => {
     expect(container.textContent).toContain("ls -la");
 
     act(() => {
-      const groupToggle = groups[0]?.querySelector("button") as HTMLButtonElement | null;
+      const groupToggle = groups[0]?.querySelector(
+        "button",
+      ) as HTMLButtonElement | null;
       groupToggle?.click();
     });
 
@@ -324,8 +334,7 @@ describe("ToolCallDisplay", () => {
             project_root_path: "/Users/coso/.proxycast/projects/project-1",
             markdown_relative_path:
               "exports/x-article-export/github-mcp/index.md",
-            images_relative_dir:
-              "exports/x-article-export/github-mcp/images",
+            images_relative_dir: "exports/x-article-export/github-mcp/images",
             image_count: 7,
           },
           saved_project_id: "project-1",
@@ -359,7 +368,9 @@ describe("ToolCallDisplay", () => {
     expect(container.textContent).toContain(
       "图片资源：7 张 · exports/x-article-export/github-mcp/images",
     );
-    expect(container.textContent).toContain("脚本来源：服务端脚本 · 2026-03-25");
+    expect(container.textContent).toContain(
+      "脚本来源：服务端脚本 · 2026-03-25",
+    );
   });
 
   it("站点能力工具结果应支持直接打开已保存内容", () => {
@@ -559,7 +570,10 @@ describe("ToolCallDisplay", () => {
             {
               id: "tool-remote-trigger-1",
               name: "RemoteTrigger",
-              arguments: JSON.stringify({ action: "run", trigger_id: "remote-1" }),
+              arguments: JSON.stringify({
+                action: "run",
+                trigger_id: "remote-1",
+              }),
               status: "completed",
               result: { success: true, output: "ok" },
               startTime: new Date("2026-03-20T12:20:14.000Z"),

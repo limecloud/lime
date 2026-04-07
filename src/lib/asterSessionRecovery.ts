@@ -32,7 +32,9 @@ export function resolveRestorableSessionId({
 }: ResolveRestorableSessionIdOptions): string | null {
   const normalizedCandidate = candidateSessionId?.trim();
   if (normalizedCandidate) {
-    const matched = sessions.some((session) => session.id === normalizedCandidate);
+    const matched = sessions.some(
+      (session) => session.id === normalizedCandidate,
+    );
     if (matched) {
       return normalizedCandidate;
     }

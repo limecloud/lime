@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  TEAM_SUGGESTION_THRESHOLD,
-  getTeamSuggestion,
-} from "./teamSuggestion";
+import { TEAM_SUGGESTION_THRESHOLD, getTeamSuggestion } from "./teamSuggestion";
 
 describe("teamSuggestion", () => {
   it("显式要求 team runtime 时应给出高分建议", () => {
@@ -14,11 +11,7 @@ describe("teamSuggestion", () => {
 
     expect(result.shouldSuggest).toBe(true);
     expect(result.score).toBeGreaterThan(0.75);
-    expect(result.suggestedRoles).toEqual([
-      "explorer",
-      "executor",
-      "verifier",
-    ]);
+    expect(result.suggestedRoles).toEqual(["explorer", "executor", "verifier"]);
     expect(result.suggestedPresetId).toBe("code-triage-team");
     expect(result.suggestedPresetLabel).toBe("代码排障团队");
   });

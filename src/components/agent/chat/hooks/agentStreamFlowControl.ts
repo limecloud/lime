@@ -5,7 +5,10 @@ import type { Message } from "../types";
 import type { ActiveStreamState } from "./agentStreamSubmissionLifecycle";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import { updateMessageArtifactsStatus } from "../utils/messageArtifacts";
-import { removeThreadItemState, removeThreadTurnState } from "./agentThreadState";
+import {
+  removeThreadItemState,
+  removeThreadTurnState,
+} from "./agentThreadState";
 
 interface AgentStreamFlowNotify {
   info: (message: string) => void;
@@ -47,7 +50,10 @@ interface PromoteQueuedTurnOptions extends QueueActionOptions {
   onError?: (error: unknown) => void;
 }
 
-interface ResumeThreadOptions extends Omit<QueueActionOptions, "setQueuedTurns"> {
+interface ResumeThreadOptions extends Omit<
+  QueueActionOptions,
+  "setQueuedTurns"
+> {
   runtime: Pick<AgentRuntimeAdapter, "resumeThread">;
   onError?: (error: unknown) => void;
 }
@@ -147,7 +153,10 @@ export async function removeQueuedAgentTurn(options: RemoveQueuedTurnOptions) {
   }
 
   try {
-    const removed = await runtime.removeQueuedTurn(activeSessionId, queuedTurnId);
+    const removed = await runtime.removeQueuedTurn(
+      activeSessionId,
+      queuedTurnId,
+    );
     if (removed) {
       setQueuedTurns((prev) => removeQueuedTurnFromState(prev, queuedTurnId));
     }
@@ -161,7 +170,9 @@ export async function removeQueuedAgentTurn(options: RemoveQueuedTurnOptions) {
   }
 }
 
-export async function promoteQueuedAgentTurn(options: PromoteQueuedTurnOptions) {
+export async function promoteQueuedAgentTurn(
+  options: PromoteQueuedTurnOptions,
+) {
   const {
     runtime,
     queuedTurnId,
@@ -179,7 +190,10 @@ export async function promoteQueuedAgentTurn(options: PromoteQueuedTurnOptions) 
   setQueuedTurns((prev) => removeQueuedTurnFromState(prev, queuedTurnId));
 
   try {
-    const promoted = await runtime.promoteQueuedTurn(activeSessionId, queuedTurnId);
+    const promoted = await runtime.promoteQueuedTurn(
+      activeSessionId,
+      queuedTurnId,
+    );
     await refreshSessionReadModel(activeSessionId);
     if (!promoted) {
       return false;

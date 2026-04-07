@@ -80,7 +80,8 @@ describe("mediaTasks API", () => {
         status: "pending_submit",
         normalized_status: "pending",
         path: ".lime/tasks/image_generate/task-image-2.json",
-        absolute_path: "/workspace/.lime/tasks/image_generate/task-image-2.json",
+        absolute_path:
+          "/workspace/.lime/tasks/image_generate/task-image-2.json",
         artifact_path: ".lime/tasks/image_generate/task-image-2.json",
         absolute_artifact_path:
           "/workspace/.lime/tasks/image_generate/task-image-2.json",
@@ -145,7 +146,8 @@ describe("mediaTasks API", () => {
         status: "cancelled",
         normalized_status: "cancelled",
         path: ".lime/tasks/image_generate/task-image-2.json",
-        absolute_path: "/workspace/.lime/tasks/image_generate/task-image-2.json",
+        absolute_path:
+          "/workspace/.lime/tasks/image_generate/task-image-2.json",
         artifact_path: ".lime/tasks/image_generate/task-image-2.json",
         absolute_artifact_path:
           "/workspace/.lime/tasks/image_generate/task-image-2.json",
