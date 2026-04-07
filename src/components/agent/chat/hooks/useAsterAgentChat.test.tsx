@@ -2045,6 +2045,69 @@ describe("useAsterAgentChat thread timeline", () => {
     }
   });
 
+  it("stream error 命中 Provider 登录态失效时应展示友好提示", async () => {
+    const workspaceId = "ws-thread-provider-session-expired";
+    const rawErrorMessage =
+      "Agent provider execution failed: Request failed: Bad request (400): Invalid schema for function 'SendMessage': In context=('properties', 'message', 'oneOf', '2'), array schema missing items";
+    const friendlyErrorMessage =
+      "当前 Provider 登录态已失效，常见原因是 Token 已过期。请前往设置重新登录或刷新凭证后重试。";
+    seedSession(workspaceId, "session-thread-provider-session-expired");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("请继续处理", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "turn_started",
+          turn: {
+            id: "turn-provider-session-expired-1",
+            thread_id: "session-thread-provider-session-expired",
+            prompt_text: "请继续处理",
+            status: "running",
+            started_at: "2026-04-07T10:00:00.000Z",
+            created_at: "2026-04-07T10:00:00.000Z",
+            updated_at: "2026-04-07T10:00:00.000Z",
+          },
+        });
+        stream.emit({
+          type: "error",
+          message: rawErrorMessage,
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      expect(assistantMessage?.content).toContain(
+        `执行失败：${friendlyErrorMessage}`,
+      );
+      expect(assistantMessage?.runtimeStatus).toMatchObject({
+        phase: "failed",
+        title: "当前处理失败",
+        detail: friendlyErrorMessage,
+      });
+      expect(harness.getValue().turns).toEqual([
+        expect.objectContaining({
+          id: "turn-provider-session-expired-1",
+          status: "failed",
+          error_message: rawErrorMessage,
+        }),
+      ]);
+      expect(mockToast.error).toHaveBeenCalledWith(friendlyErrorMessage);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("手动压缩上下文时即使没有 assistant 正文也应完成时间线更新", async () => {
     const workspaceId = "ws-context-compaction";
     seedSession(workspaceId, "session-context-compaction");
@@ -4494,6 +4557,45 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
     }
   });
 
+  it("空内容的图片 artifact_snapshot 不应进入通用 artifact 列表", async () => {
+    const workspaceId = "ws-image-artifact-snapshot-skip";
+    seedSession(workspaceId, "session-image-artifact-snapshot-skip");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("生成图片", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "artifact_snapshot",
+          artifact: {
+            artifactId: "artifact-image-output-1",
+            filePath: "/tmp/lime/output_image.jpg",
+            content: "",
+            metadata: {
+              complete: true,
+            },
+          },
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      expect(assistantMessage?.artifacts || []).toHaveLength(0);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("搜索工具来源应在后续 artifact_snapshot 中沉淀到同一文档", async () => {
     const workspaceId = "ws-artifact-sources-before-snapshot";
     seedSession(workspaceId, "session-artifact-sources-before-snapshot");
@@ -5667,6 +5769,88 @@ describe("useAsterAgentChat 偏好持久化", () => {
           "data:image/png;base64,aGVsbG8=",
         );
       }
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("切换话题时应从历史 tool_response 元数据恢复图片任务预览", async () => {
+    const workspaceId = "ws-history-tool-image-task-preview";
+    const now = Math.floor(Date.now() / 1000);
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: "topic-tool-image-task-preview",
+      execution_strategy: "react",
+      messages: [
+        {
+          role: "assistant",
+          timestamp: now,
+          content: [
+            { type: "text", text: "正在生成珠江夜景封面" },
+            {
+              type: "tool_request",
+              id: "tool-image-task-preview-1",
+              tool_name: "bash",
+              arguments: {
+                command:
+                  'lime media image generate --prompt "珠江夜景封面" --size 1024x1024 --count 1',
+              },
+            },
+          ],
+        },
+        {
+          role: "tool",
+          timestamp: now + 1,
+          content: [
+            {
+              type: "tool_response",
+              id: "tool-image-task-preview-1",
+              success: true,
+              output: "图片任务已提交",
+              metadata: {
+                task_id: "task-image-history-preview-1",
+                task_type: "image_generate",
+                status: "succeeded",
+                project_id: "project-history-preview-1",
+                content_id: "content-history-preview-1",
+                requested_count: 1,
+                received_count: 1,
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await act(async () => {
+        await harness.getValue().switchTopic("topic-tool-image-task-preview");
+      });
+
+      const value = harness.getValue();
+      expect(value.messages).toHaveLength(1);
+      expect(value.messages[0]).toMatchObject({
+        role: "assistant",
+        imageWorkbenchPreview: {
+          taskId: "task-image-history-preview-1",
+          prompt: "珠江夜景封面",
+          status: "complete",
+          size: "1024x1024",
+          imageCount: 1,
+          projectId: "project-history-preview-1",
+          contentId: "content-history-preview-1",
+        },
+      });
+      expect(
+        value.messages[0]?.contentParts?.some(
+          (part) =>
+            part.type === "tool_use" &&
+            part.toolCall.id === "tool-image-task-preview-1" &&
+            part.toolCall.status === "completed",
+        ),
+      ).toBe(true);
     } finally {
       harness.unmount();
     }

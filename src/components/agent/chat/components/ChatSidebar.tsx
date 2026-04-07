@@ -90,6 +90,8 @@ type TaskSectionKey =
   | "recent"
   | "older";
 
+type ChatSidebarContextVariant = "default" | "task-center";
+
 interface TaskCardViewModel {
   id: string;
   title: string;
@@ -111,6 +113,7 @@ interface TaskSection {
 }
 
 interface ChatSidebarProps {
+  contextVariant?: ChatSidebarContextVariant;
   onNewChat: () => void;
   topics: Topic[];
   currentTopicId: string | null;
@@ -267,7 +270,10 @@ function resolveTaskStatus(params: {
   };
 }
 
-function buildTaskSections(items: TaskCardViewModel[]) {
+function buildTaskSections(
+  items: TaskCardViewModel[],
+  contextVariant: ChatSidebarContextVariant,
+) {
   const now = Date.now();
   const running: TaskCardViewModel[] = [];
   const waiting: TaskCardViewModel[] = [];
@@ -297,11 +303,26 @@ function buildTaskSections(items: TaskCardViewModel[]) {
     older.push(item);
   }
 
+  const titleSet =
+    contextVariant === "task-center"
+      ? {
+          running: "正在推进",
+          waiting: "等你继续",
+          recent: "最近回访",
+          older: "更早记录",
+        }
+      : {
+          running: "进行中",
+          waiting: "待处理",
+          recent: "最近完成",
+          older: "更早任务",
+        };
+
   return [
-    { key: "running", title: "进行中", items: sortTaskItems(running) },
-    { key: "waiting", title: "待处理", items: sortTaskItems(waiting) },
-    { key: "recent", title: "最近完成", items: sortTaskItems(recent) },
-    { key: "older", title: "更早任务", items: sortTaskItems(older) },
+    { key: "running", title: titleSet.running, items: sortTaskItems(running) },
+    { key: "waiting", title: titleSet.waiting, items: sortTaskItems(waiting) },
+    { key: "recent", title: titleSet.recent, items: sortTaskItems(recent) },
+    { key: "older", title: titleSet.older, items: sortTaskItems(older) },
   ] satisfies TaskSection[];
 }
 
@@ -407,6 +428,7 @@ function buildCollapsedTeamSummary(
 }
 
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({
+  contextVariant = "default",
   onNewChat,
   topics,
   currentTopicId,
@@ -602,11 +624,25 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   }, [searchKeyword, statusFilter, taskItems]);
 
   const sections = useMemo(
-    () => buildTaskSections(filteredTaskItems),
-    [filteredTaskItems],
+    () => buildTaskSections(filteredTaskItems, contextVariant),
+    [contextVariant, filteredTaskItems],
   );
   const hasAnyTasks = topics.length > 0;
   const hasFilteredResults = filteredTaskItems.length > 0;
+  const taskHeadingLabel =
+    contextVariant === "task-center" ? "工作现场" : "任务";
+  const taskHeadingHint =
+    contextVariant === "task-center"
+      ? "回到进行中的任务、旧历史和最近工作现场。"
+      : null;
+  const emptyStateTitle =
+    contextVariant === "task-center" ? "还没有进行中的任务" : "还没有任务";
+  const emptyStateDescription =
+    contextVariant === "task-center"
+      ? "从“新建任务”开始也很自然，创建后会在这里继续回访。"
+      : "从“新建任务”开始输入需求，创建后会出现在这里。";
+  const olderSectionMoreLabel =
+    contextVariant === "task-center" ? "查看更多旧历史" : "查看更多历史任务";
 
   useEffect(() => {
     if (editingTopicId && editInputRef.current) {
@@ -1024,16 +1060,25 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
             <div
               ref={taskSectionAnchorRef}
-              className="flex items-center justify-between px-1"
+              className="px-1"
               data-testid="task-section-heading"
             >
-              <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500">
-                任务
-              </div>
-              <div className="text-xs text-slate-400">
-                {searchKeyword.trim()
-                  ? `${filteredTaskItems.length} 条结果`
-                  : `${topics.length} 条`}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500">
+                    {taskHeadingLabel}
+                  </div>
+                  {taskHeadingHint ? (
+                    <p className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                      {taskHeadingHint}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="shrink-0 pt-0.5 text-xs text-slate-400">
+                  {searchKeyword.trim()
+                    ? `${filteredTaskItems.length} 个结果`
+                    : `${topics.length} 个任务`}
+                </div>
               </div>
             </div>
 
@@ -1043,10 +1088,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   <Clock3 className="h-5 w-5" />
                 </div>
                 <div className="mt-4 text-sm font-semibold text-slate-800 dark:text-slate-100">
-                  还没有任务
+                  {emptyStateTitle}
                 </div>
                 <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-slate-400">
-                  从“新建任务”开始输入需求，创建后会出现在这里。
+                  {emptyStateDescription}
                 </p>
               </div>
             ) : !hasFilteredResults ? (
@@ -1309,7 +1354,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                             onClick={() => setShowAllOlder(true)}
                             className="w-full rounded-2xl border border-dashed border-slate-200 bg-white/75 px-3 py-2 text-sm font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
                           >
-                            查看更多历史任务
+                            {olderSectionMoreLabel}
                           </button>
                         ) : null}
                       </div>

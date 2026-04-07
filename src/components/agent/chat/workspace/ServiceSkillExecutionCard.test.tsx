@@ -103,12 +103,27 @@ describe("ServiceSkillExecutionCard", () => {
             content_id: "content-1",
             project_id: "project-1",
             title: "GitHub 仓库线索",
+            project_root_path: "/Users/coso/.proxycast/projects/project-1",
+            markdown_relative_path:
+              "exports/x-article-export/github-mcp/index.md",
+            images_relative_dir:
+              "exports/x-article-export/github-mcp/images",
+            image_count: 7,
           },
         },
       },
     });
 
     expect(container.textContent).toContain("已沉淀内容：GitHub 仓库线索");
+    expect(container.textContent).toContain(
+      "项目目录：/Users/coso/.proxycast/projects/project-1",
+    );
+    expect(container.textContent).toContain(
+      "Markdown 文件：exports/x-article-export/github-mcp/index.md",
+    );
+    expect(container.textContent).toContain(
+      "图片资源：7 张 · exports/x-article-export/github-mcp/images",
+    );
     expect(
       container.querySelector(
         '[data-testid="service-skill-execution-open-browser-runtime"]',

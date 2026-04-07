@@ -8,7 +8,11 @@ import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import type { ThemeType, LayoutMode } from "@/lib/workspace/workbenchContract";
-import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
+import {
+  areArtifactProtocolPathsEquivalent,
+  isArtifactProtocolImagePath,
+  resolveArtifactProtocolFilePath,
+} from "@/lib/artifact-protocol";
 import type { TaskFile } from "../components/TaskFiles";
 import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";
 import type { WriteArtifactContext } from "../types";
@@ -37,6 +41,25 @@ function shouldAutoOpenCanvasForActiveWrite(
     status === "streaming" ||
     writePhase === "preparing" ||
     writePhase === "streaming"
+  );
+}
+
+function shouldBackgroundGeneralArtifactWrite(
+  context?: WriteArtifactContext,
+): boolean {
+  return context?.source === "tool_result";
+}
+
+function shouldSkipGeneralArtifactWrite(params: {
+  fileName: string;
+  content: string;
+  context?: WriteArtifactContext;
+}): boolean {
+  return (
+    params.content.length === 0 &&
+    isArtifactProtocolImagePath(params.fileName) &&
+    (params.context?.source === "tool_result" ||
+      params.context?.source === "artifact_snapshot")
   );
 }
 
@@ -178,7 +201,10 @@ export function useWorkspaceWriteFileAction({
             return true;
           }
 
-          return resolveArtifactProtocolFilePath(artifact) === fileName;
+          return areArtifactProtocolPathsEquivalent(
+            resolveArtifactProtocolFilePath(artifact),
+            fileName,
+          );
         });
         const nextContent =
           content.length > 0
@@ -212,6 +238,17 @@ export function useWorkspaceWriteFileAction({
                   (nextContent.length > 0 ? "complete" : "pending"),
               },
             });
+        const shouldKeepInBackground = shouldBackgroundGeneralArtifactWrite(context);
+
+        if (
+          shouldSkipGeneralArtifactWrite({
+            fileName,
+            content: nextContent,
+            context,
+          })
+        ) {
+          return;
+        }
 
         const syncResource = () => {
           if (nextArtifact.status !== "complete") {
@@ -238,21 +275,23 @@ export function useWorkspaceWriteFileAction({
         }
 
         upsertGeneralArtifact(nextArtifact);
-        setSelectedArtifactId(nextArtifact.id);
-        setArtifactViewMode(
-          resolveDefaultArtifactViewMode(nextArtifact, {
-            preferSourceWhenStreaming: true,
-          }),
-          { artifactId: nextArtifact.id },
-        );
-        if (
-          !suppressCanvasAutoOpen &&
-          shouldAutoOpenCanvasForActiveWrite(
-            nextArtifact.status,
-            nextArtifact.meta.writePhase,
-          )
-        ) {
-          setLayoutMode("chat-canvas");
+        if (!shouldKeepInBackground) {
+          setSelectedArtifactId(nextArtifact.id);
+          setArtifactViewMode(
+            resolveDefaultArtifactViewMode(nextArtifact, {
+              preferSourceWhenStreaming: true,
+            }),
+            { artifactId: nextArtifact.id },
+          );
+          if (
+            !suppressCanvasAutoOpen &&
+            shouldAutoOpenCanvasForActiveWrite(
+              nextArtifact.status,
+              nextArtifact.meta.writePhase,
+            )
+          ) {
+            setLayoutMode("chat-canvas");
+          }
         }
         return;
       }

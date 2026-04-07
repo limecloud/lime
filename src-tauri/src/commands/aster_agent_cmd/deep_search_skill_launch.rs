@@ -1,6 +1,15 @@
 use super::*;
 
 const DEEP_SEARCH_SKILL_LAUNCH_PROMPT_MARKER: &str = "<<LIME_DEEP_SEARCH_SKILL_LAUNCH_HINT>>";
+const DEEP_SEARCH_SKILL_LAUNCH_DETOUR_DENY_PATTERNS: &[&str] = &[
+    TOOL_SEARCH_TOOL_NAME,
+    "Read",
+    "read",
+    "Glob",
+    "glob",
+    "Grep",
+    "grep",
+];
 
 fn extract_object_string(
     object: &serde_json::Map<String, serde_json::Value>,
@@ -90,6 +99,74 @@ pub(crate) fn merge_system_prompt_with_deep_search_skill_launch(
     }
 }
 
+pub(crate) fn should_lock_deep_search_skill_launch_to_prompt_search(
+    request_metadata: Option<&serde_json::Value>,
+) -> bool {
+    let Some(launch) = extract_harness_nested_object(
+        request_metadata,
+        &["deep_search_skill_launch", "deepSearchSkillLaunch"],
+    ) else {
+        return false;
+    };
+
+    extract_object_string(launch, &["kind"]).unwrap_or_else(|| "deep_search_request".to_string())
+        == "deep_search_request"
+}
+
+pub(crate) fn append_deep_search_skill_launch_session_permissions(
+    permissions: &mut Vec<ToolPermission>,
+    session_id: &str,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_deep_search_skill_launch_to_prompt_search(request_metadata) {
+        return;
+    }
+
+    let session_id = session_id.trim();
+    let conditions = if session_id.is_empty() {
+        Vec::new()
+    } else {
+        vec![PermissionCondition {
+            condition_type: ConditionType::Session,
+            field: Some("session_id".to_string()),
+            operator: ConditionOperator::Equals,
+            value: serde_json::json!(session_id),
+            validator: None,
+            description: Some("仅对当前深搜技能启动回合生效".to_string()),
+        }]
+    };
+
+    for pattern in DEEP_SEARCH_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        permissions.push(ToolPermission {
+            tool: (*pattern).to_string(),
+            allowed: false,
+            priority: 1233,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some(
+                "深搜技能启动回合已锁定为 Skill(research) 主链，禁止先走工具目录/本地文件链路偏航"
+                    .to_string(),
+            ),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+    }
+}
+
+pub(crate) fn prune_deep_search_skill_launch_detour_tools_from_registry(
+    registry: &mut aster::tools::ToolRegistry,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_deep_search_skill_launch_to_prompt_search(request_metadata) {
+        return;
+    }
+
+    for tool_name in DEEP_SEARCH_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        registry.unregister(tool_name);
+    }
+}
+
 fn build_deep_search_skill_launch_system_prompt(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<String> {
@@ -151,6 +228,14 @@ fn build_deep_search_skill_launch_system_prompt(
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),
         "- 调用 Skill 时，args 必须是一个严格 JSON 字符串，不要漏引号、不要写注释、不要只传半截字段。".to_string(),
         format!("- 推荐传给 Skill.args 的 JSON：{args_json}"),
+        format!(
+            "- 第一工具调用示例(Skill 参数 JSON)：{{\"skill\":\"{skill_name}\",\"args\":{}}}",
+            serde_json::to_string(&args_json).unwrap_or_else(|_| "\"{}\"".to_string())
+        ),
+        "- 当前回合已经显式知道要走深搜技能主链，不要为了确认技能名、工具名或命令名再去调用 ToolSearch。".to_string(),
+        "- 在 Skill(research) 真正执行前，不要先走 ToolSearch / Read / Glob / Grep 等工具目录发现或本地文件链路。".to_string(),
+        "- 不要先搜索 “research”、“search_query” 或 “WebSearch” 的目录信息；当前 deep_search_request 已经提供了足够上下文。".to_string(),
+        "- 如果某个工具目录/读文件工具因为 session policy 被拒绝，不要重复同类调用；应立即改为直调 Skill(research)。".to_string(),
         "- 这条命令属于 prompt skill 主链，不要创建 task file，也不要退回普通聊天、普通 @搜索 或一次浅搜。".to_string(),
         "- research skill 内部必须真正执行联网检索，不要只凭已有记忆直接回答。".to_string(),
         "- 深搜至少执行 2 轮以上扩搜，主动使用不同关键词组合、来源或时间切片；不能只搜一次就直接收尾。".to_string(),

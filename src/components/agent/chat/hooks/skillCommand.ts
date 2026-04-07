@@ -23,6 +23,7 @@ import {
   isToolResultSuccessful,
   normalizeIncomingToolResult,
 } from "./agentChatToolResult";
+import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import {
   CONTENT_POST_OUTPUT_DIR,
   CONTENT_POST_SKILL_KEY,
@@ -127,7 +128,7 @@ function buildSocialPostFallbackPath(
 export function parseSkillSlashCommand(
   content: string,
 ): ParsedSkillCommand | null {
-  const skillMatch = content.match(/^\/([a-zA-Z0-9_-]+)\s*([\s\S]*)$/);
+  const skillMatch = content.match(/^\/([a-zA-Z0-9_-]+)(?:\s+([\s\S]*))?$/);
   if (!skillMatch) {
     return null;
   }
@@ -911,6 +912,13 @@ ${failureText}`
       const seed = command.userInput || command.skillName;
       const fallbackPath = buildSocialPostFallbackPath(seed, assistantMsgId);
       onWriteFile(finalContent, fallbackPath);
+    }
+
+    if (!failure) {
+      recordSlashEntryUsage({
+        kind: "skill",
+        entryId: command.skillName,
+      });
     }
 
     cleanup();

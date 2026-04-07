@@ -600,6 +600,8 @@ mod tests {
                 tool_calls_json TEXT,
                 tool_call_id TEXT,
                 reasoning_content TEXT,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
                 FOREIGN KEY (session_id) REFERENCES agent_sessions(id) ON DELETE CASCADE
             )",
             [],

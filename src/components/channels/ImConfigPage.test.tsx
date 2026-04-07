@@ -272,7 +272,7 @@ describe("ImConfigPage", () => {
     await flushEffects();
 
     const text = document.body.textContent ?? "";
-    expect(text).toContain("IM 配置");
+    expect(text).toContain("消息渠道");
     expect(text).toContain("Telegram");
     expect(text).toContain("飞书");
     expect(text).toContain("微信");
@@ -292,7 +292,7 @@ describe("ImConfigPage", () => {
     );
     expect(getBodyText()).not.toContain("网关、日志和运行状态都收在这里。");
 
-    const introTip = await hoverTip("IM 配置说明");
+    const introTip = await hoverTip("消息渠道说明");
     expect(getBodyText()).toContain(
       "首页只放重点入口。Telegram、飞书、微信在这里直达；联调检查放进各自配置弹窗，网关和日志统一收到下方高级区。",
     );

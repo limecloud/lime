@@ -188,7 +188,7 @@ describe("ResourcesPage", () => {
     await flushEffects();
 
     expect(getBodyText()).not.toContain(
-      "在一个更宽的工作台里统一查看项目文档、素材与目录结构，把筛选、浏览和新增操作拆开，减少来回切换成本。",
+      "集中管理导入资源、项目资料和外部素材；先把内容放进资料库，再决定哪些值得继续沉淀。",
     );
     expect(getBodyText()).not.toContain(
       "在目录浏览和跨目录分类视图之间切换，快速定位不同类型内容。",
@@ -196,7 +196,7 @@ describe("ResourcesPage", () => {
 
     const heroTip = await hoverTip("资料库工作台说明");
     expect(getBodyText()).toContain(
-      "在一个更宽的工作台里统一查看项目文档、素材与目录结构，把筛选、浏览和新增操作拆开，减少来回切换成本。",
+      "集中管理导入资源、项目资料和外部素材；先把内容放进资料库，再决定哪些值得继续沉淀。",
     );
     await leaveTip(heroTip);
 

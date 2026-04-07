@@ -138,7 +138,9 @@ function buildLegacySiteCatalog(): SkillCatalog {
   };
 }
 
-function mountHook(): HookHarness {
+function mountHook(
+  options: Parameters<typeof useServiceSkills>[0] = true,
+): HookHarness {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -146,7 +148,7 @@ function mountHook(): HookHarness {
   let hookValue: ReturnType<typeof useServiceSkills> | null = null;
 
   function TestComponent() {
-    hookValue = useServiceSkills();
+    hookValue = useServiceSkills(options);
     return null;
   }
 
@@ -215,6 +217,7 @@ describe("useServiceSkills", () => {
     delete window.__LIME_SESSION_TOKEN__;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("目录更新事件后应刷新技能列表并保留分组元数据", async () => {

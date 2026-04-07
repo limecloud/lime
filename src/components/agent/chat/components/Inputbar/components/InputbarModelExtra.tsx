@@ -1,6 +1,7 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import type { AsterSessionExecutionRuntime } from "@/lib/api/agentRuntime";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 import { ChatModelSelector } from "../../ChatModelSelector";
 import { getOutputSchemaRuntimeLabel } from "../../../utils/sessionExecutionRuntime";
 
@@ -28,6 +29,9 @@ export const InputbarModelExtra: React.FC<InputbarModelExtraProps> = ({
   if (isFullscreen || !providerType || !model) {
     return null;
   }
+  const selectorBackgroundPreload = hasTauriInvokeCapability()
+    ? "immediate"
+    : "disabled";
 
   const outputSchemaLabel = getOutputSchemaRuntimeLabel(
     executionRuntime?.output_schema_runtime,
@@ -44,6 +48,7 @@ export const InputbarModelExtra: React.FC<InputbarModelExtraProps> = ({
         compactTrigger
         popoverSide="top"
         onManageProviders={onManageProviders}
+        backgroundPreload={selectorBackgroundPreload}
       />
       {outputSchemaLabel ? (
         <Badge

@@ -1179,7 +1179,7 @@ async function injectContentScript(tabId) {
   await ensureCapturableTab(tabId);
   await chrome.scripting.executeScript({
     target: { tabId },
-    files: ["content_script.js"],
+    files: ["site_adapter_runners.generated.js", "content_script.js"],
   });
 }
 

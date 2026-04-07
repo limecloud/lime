@@ -6,6 +6,7 @@ import { MessageList } from "./MessageList";
 import type { Message } from "../types";
 
 const IMAGE_WORKBENCH_FOCUS_EVENT = "lime:image-workbench-focus";
+const VIDEO_WORKBENCH_TASK_ACTION_EVENT = "lime:video-workbench-task-action";
 
 vi.mock("./MarkdownRenderer", () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
@@ -152,6 +153,20 @@ describe("MessageList", () => {
     expect(container.textContent).not.toContain("开始一段新的对话吧");
   });
 
+  it("任务中心空列表时应展示回访型空态而不是普通新对话文案", () => {
+    const container = render([], {
+      emptyStateVariant: "task-center",
+    });
+
+    expect(
+      container.querySelector('[data-testid="message-list-empty-task-center"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("任务中心");
+    expect(container.textContent).toContain("回到进行中的任务和最近工作现场");
+    expect(container.textContent).toContain("左侧会继续显示最近任务");
+    expect(container.textContent).not.toContain("开始一段新的对话吧");
+  });
+
   it("应过滤空白 user 消息，避免渲染空白气泡", () => {
     const now = new Date();
     const messages: Message[] = [
@@ -245,9 +260,11 @@ describe("MessageList", () => {
       '[data-testid="image-workbench-message-preview-task-1"]',
     ) as HTMLButtonElement | null;
 
-    expect(previewCard?.textContent).toContain("Image Generation");
-    expect(previewCard?.textContent).toContain("打开查看");
-    expect(previewCard?.textContent).toContain("1024x1024");
+    expect(previewCard?.textContent).toContain("一颗戴耳机的青柠");
+    expect(previewCard?.textContent).toContain("已生成");
+    expect(previewCard?.textContent).toContain("可在右侧继续查看与使用");
+    expect(previewCard?.className).not.toContain("max-w-[620px]");
+    expect(previewCard?.className).toContain("max-w-[360px]");
 
     act(() => {
       previewCard?.click();
@@ -311,6 +328,137 @@ describe("MessageList", () => {
         id: "msg-assistant-video-task",
       }),
     );
+  });
+
+  it("失败的视频任务卡应提供重新生成动作，并通过事件总线下发而不是误触发打开工作区", () => {
+    const now = new Date();
+    const onOpenMessagePreview = vi.fn();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-video-failed",
+        role: "assistant",
+        content: "视频任务失败。",
+        timestamp: now,
+        taskPreview: {
+          kind: "video_generate",
+          taskId: "task-video-failed-1",
+          taskType: "video_generate",
+          prompt: "新品发布会短视频，镜头缓慢推进主角产品",
+          status: "failed",
+          durationSeconds: 15,
+          aspectRatio: "16:9",
+          resolution: "720p",
+          projectId: "project-video-1",
+          contentId: "content-video-1",
+        },
+      },
+    ];
+
+    let actionDetail: Record<string, unknown> | null = null;
+    const handleAction = (event: Event) => {
+      if (!(event instanceof CustomEvent)) {
+        return;
+      }
+      actionDetail = event.detail as Record<string, unknown>;
+    };
+    window.addEventListener(VIDEO_WORKBENCH_TASK_ACTION_EVENT, handleAction);
+
+    const container = render(messages, { onOpenMessagePreview });
+    const actionButton = container.querySelector(
+      '[data-testid="task-message-preview-action-task-video-failed-1-retry"]',
+    ) as HTMLButtonElement | null;
+
+    expect(actionButton?.textContent).toContain("重新生成");
+
+    act(() => {
+      actionButton?.click();
+    });
+
+    expect(actionDetail).toEqual({
+      action: "retry",
+      taskId: "task-video-failed-1",
+      projectId: "project-video-1",
+      contentId: "content-video-1",
+    });
+    expect(onOpenMessagePreview).not.toHaveBeenCalled();
+
+    window.removeEventListener(VIDEO_WORKBENCH_TASK_ACTION_EVENT, handleAction);
+  });
+
+  it("进行中的视频任务卡应提供取消动作，并继续保留打开工作区能力", () => {
+    const now = new Date();
+    const onOpenMessagePreview = vi.fn();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-video-running-action",
+        role: "assistant",
+        content: "视频任务进行中。",
+        timestamp: now,
+        taskPreview: {
+          kind: "video_generate",
+          taskId: "task-video-running-action-1",
+          taskType: "video_generate",
+          prompt: "新品发布会短视频，镜头缓慢推进主角产品",
+          status: "running",
+          progress: 18,
+          durationSeconds: 15,
+          aspectRatio: "16:9",
+          resolution: "720p",
+          projectId: "project-video-1",
+          contentId: "content-video-1",
+        },
+      },
+    ];
+
+    let actionDetail: Record<string, unknown> | null = null;
+    const handleAction = (event: Event) => {
+      if (!(event instanceof CustomEvent)) {
+        return;
+      }
+      actionDetail = event.detail as Record<string, unknown>;
+    };
+    window.addEventListener(VIDEO_WORKBENCH_TASK_ACTION_EVENT, handleAction);
+
+    const container = render(messages, { onOpenMessagePreview });
+    const previewCard = container.querySelector(
+      '[data-testid="task-message-preview-task-video-running-action-1"]',
+    ) as HTMLButtonElement | null;
+    const actionButton = container.querySelector(
+      '[data-testid="task-message-preview-action-task-video-running-action-1-cancel"]',
+    ) as HTMLButtonElement | null;
+
+    expect(actionButton?.textContent).toContain("取消任务");
+
+    act(() => {
+      actionButton?.click();
+    });
+
+    expect(actionDetail).toEqual({
+      action: "cancel",
+      taskId: "task-video-running-action-1",
+      projectId: "project-video-1",
+      contentId: "content-video-1",
+    });
+    expect(onOpenMessagePreview).not.toHaveBeenCalled();
+
+    act(() => {
+      previewCard?.click();
+    });
+
+    expect(onOpenMessagePreview).toHaveBeenCalledWith(
+      {
+        kind: "task",
+        preview: expect.objectContaining({
+          kind: "video_generate",
+          taskId: "task-video-running-action-1",
+        }),
+      },
+      expect.objectContaining({
+        id: "msg-assistant-video-running-action",
+      }),
+    );
+
+    window.removeEventListener(VIDEO_WORKBENCH_TASK_ACTION_EVENT, handleAction);
   });
 
   it("通用任务消息卡应在聊天区渲染预览并支持打开对应产物", () => {
@@ -450,18 +598,11 @@ describe("MessageList", () => {
     const previewCard = container.querySelector(
       '[data-testid="image-workbench-message-preview-task-edit-1"]',
     );
-    const sourcePanel = container.querySelector(
-      '[data-testid="image-workbench-message-preview-source-task-edit-1"]',
-    );
 
-    expect(previewCard?.textContent).toContain("Image Editing");
     expect(previewCard?.textContent).toContain("已修图");
-    expect(sourcePanel?.textContent).toContain("来源图");
-    expect(sourcePanel?.textContent).toContain("原始街景海报");
-    expect(sourcePanel?.textContent).toContain("img-source-1");
-    expect(
-      sourcePanel?.querySelector('img[src="https://example.com/source.png"]'),
-    ).toBeTruthy();
+    expect(previewCard?.textContent).toContain("来源图");
+    expect(previewCard?.textContent).toContain("原始街景海报");
+    expect(previewCard?.textContent).not.toContain("Image Editing");
   });
 
   it("图片任务完成但图片仍在工作台时，不应继续显示生成中占位", () => {
@@ -489,8 +630,41 @@ describe("MessageList", () => {
     );
 
     expect(previewCard?.textContent).toContain("结果已同步");
-    expect(previewCard?.textContent).toContain("打开查看");
+    expect(previewCard?.textContent).toContain("已生成");
+    expect(previewCard?.textContent).toContain("可在右侧继续查看与使用");
     expect(previewCard?.textContent).not.toContain("图片任务卡");
+  });
+
+  it("图片任务已经完成时，不应继续向用户暴露同步中的过渡文案", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-image-workbench-complete-sync-copy",
+        role: "assistant",
+        content: "图片任务已完成。",
+        timestamp: now,
+        imageWorkbenchPreview: {
+          taskId: "task-complete-sync-copy",
+          prompt: "广州塔清晨薄雾氛围图",
+          status: "complete",
+          imageUrl: "https://example.com/guangzhou-tower-morning.png",
+          imageCount: 1,
+          statusMessage: "图片任务已提交，正在同步任务状态。",
+          projectId: "project-1",
+          contentId: "content-1",
+        },
+      },
+    ];
+
+    const container = render(messages);
+    const previewCard = container.querySelector(
+      '[data-testid="image-workbench-message-preview-task-complete-sync-copy"]',
+    );
+
+    expect(previewCard?.textContent).toContain("已生成");
+    expect(previewCard?.textContent).toContain("可在右侧继续查看与使用");
+    expect(previewCard?.textContent).not.toContain("正在同步任务状态");
+    expect(previewCard?.textContent).not.toContain("图片任务已提交");
   });
 
   it("失败的图片任务卡应收敛为静态状态卡，不再展示操作按钮", () => {
@@ -517,7 +691,7 @@ describe("MessageList", () => {
     );
 
     expect(previewCard?.textContent).toContain("生成失败");
-    expect(previewCard?.textContent).toContain("稍后重试");
+    expect(previewCard?.textContent).toContain("调整描述后重试");
     expect(
       container.querySelector(
         '[data-testid="image-workbench-message-preview-action-task-failed-1-retry"]',
@@ -551,7 +725,6 @@ describe("MessageList", () => {
     expect(container.textContent).toContain(
       "任务已进入队列，等待图片服务分配执行槽位。",
     );
-    expect(container.textContent).toContain("第 2 次");
     expect(
       container.querySelector(
         '[data-testid="image-workbench-message-preview-action-task-running-1-cancel"]',
@@ -616,7 +789,7 @@ describe("MessageList", () => {
 
     expect(previewCard?.textContent).toContain("已取消");
     expect(previewCard?.textContent).toContain("任务已取消");
-    expect(previewCard?.textContent).toContain("打开查看");
+    expect(previewCard?.textContent).not.toContain("打开查看");
     expect(
       container.querySelector(
         '[data-testid="image-workbench-message-preview-action-task-cancelled-1-retry"]',
@@ -1442,6 +1615,38 @@ describe("MessageList", () => {
         title: "demo.md",
       }),
     );
+  });
+
+  it("不应把 .lime/tasks 下的内部任务快照 JSON 渲染成用户可见产物卡片", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-hidden-task-json",
+        role: "assistant",
+        content: "图片任务进行中",
+        timestamp: now,
+        artifacts: [
+          {
+            id: "artifact-hidden-task-json",
+            type: "code",
+            title: "task-image-1.json",
+            content: "{\"status\":\"running\"}",
+            status: "complete",
+            meta: {
+              filePath: ".lime/tasks/image_generate/task-image-1.json",
+              filename: "task-image-1.json",
+            },
+            position: { start: 0, end: 0 },
+            createdAt: now.getTime(),
+            updatedAt: now.getTime(),
+          },
+        ],
+      },
+    ];
+
+    const container = render(messages);
+    expect(container.textContent).toContain("图片任务进行中");
+    expect(container.textContent).not.toContain("task-image-1.json");
   });
 
   it("应先渲染思考与过程，再渲染正文，最后再落产物", () => {

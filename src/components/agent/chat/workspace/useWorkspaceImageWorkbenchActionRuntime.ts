@@ -18,8 +18,6 @@ import { onImageWorkbenchTaskAction } from "@/lib/imageWorkbenchEvents";
 import type { MessageImage } from "../types";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
 import {
-  buildImageWorkbenchSessionTitle,
-  isLocalImageWorkbenchSessionKey,
   resolveImageWorkbenchSkillRequest,
 } from "./imageSkillLaunch";
 import {
@@ -44,7 +42,6 @@ export interface SubmitImageWorkbenchAgentCommandParams {
 
 interface UseWorkspaceImageWorkbenchActionRuntimeParams {
   contentId?: string | null;
-  createFreshSession: (sessionName?: string) => Promise<string | null>;
   createImageGenerationTask: (
     request: CreateImageGenerationTaskArtifactRequest,
   ) => Promise<MediaTaskArtifactOutput>;
@@ -69,16 +66,6 @@ interface UseWorkspaceImageWorkbenchActionRuntimeParams {
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
   setInput: Dispatch<SetStateAction<string>>;
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
-  updateImageWorkbenchStateForSession: (
-    sessionKey: string,
-    updater: (
-      current: SessionImageWorkbenchState,
-    ) => SessionImageWorkbenchState,
-    options?: {
-      fallbackState?: SessionImageWorkbenchState;
-      removeSessionKeys?: string[];
-    },
-  ) => void;
   updateCurrentImageWorkbenchState: (
     updater: (
       current: SessionImageWorkbenchState,
@@ -271,7 +258,6 @@ function matchesTaskActionContext(params: {
 export function useWorkspaceImageWorkbenchActionRuntime({
   cancelImageTask,
   contentId,
-  createFreshSession,
   createImageGenerationTask,
   getImageTask,
   currentImageWorkbenchState,
@@ -286,43 +272,19 @@ export function useWorkspaceImageWorkbenchActionRuntime({
   setCanvasState,
   setInput,
   setLayoutMode,
-  updateImageWorkbenchStateForSession,
   updateCurrentImageWorkbenchState,
 }: UseWorkspaceImageWorkbenchActionRuntimeParams) {
   const resolveImageWorkbenchSessionKey = useCallback(
-    async (params: {
-      preferredSessionKey?: string | null;
-      mode: NonNullable<ReturnType<typeof parseImageWorkbenchCommand>>["mode"];
-      prompt: string;
-    }) => {
+    async (params: { preferredSessionKey?: string | null }) => {
       const normalizedPreferredSessionKey =
         params.preferredSessionKey?.trim() || null;
-      if (
-        normalizedPreferredSessionKey &&
-        !isLocalImageWorkbenchSessionKey(normalizedPreferredSessionKey)
-      ) {
+      if (normalizedPreferredSessionKey) {
         return normalizedPreferredSessionKey;
       }
 
-      const normalizedCurrentSessionKey = imageWorkbenchSessionKey.trim();
-      if (
-        normalizedCurrentSessionKey &&
-        !isLocalImageWorkbenchSessionKey(normalizedCurrentSessionKey)
-      ) {
-        return normalizedCurrentSessionKey;
-      }
-
-      const createdSessionId = await createFreshSession(
-        buildImageWorkbenchSessionTitle(params.mode, params.prompt),
-      );
-      const normalizedCreatedSessionId = createdSessionId?.trim();
-      if (!normalizedCreatedSessionId) {
-        throw new Error("图片会话创建失败，请稍后重试");
-      }
-
-      return normalizedCreatedSessionId;
+      return imageWorkbenchSessionKey.trim() || null;
     },
-    [createFreshSession, imageWorkbenchSessionKey],
+    [imageWorkbenchSessionKey],
   );
 
   const handleImageWorkbenchViewportChange = useCallback(
@@ -724,10 +686,7 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         return false;
       }
 
-      const resolvedSessionKey = await resolveImageWorkbenchSessionKey({
-        mode: params.parsedCommand.mode,
-        prompt: effectivePrompt,
-      });
+      const resolvedSessionKey = await resolveImageWorkbenchSessionKey({});
 
       const skillRequest = resolveImageWorkbenchSkillRequest({
         rawText: params.rawText,
@@ -751,17 +710,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         return false;
       }
 
-      if (resolvedSessionKey !== imageWorkbenchSessionKey) {
-        updateImageWorkbenchStateForSession(
-          resolvedSessionKey,
-          (current) => current,
-          {
-            fallbackState: currentImageWorkbenchState,
-            removeSessionKeys: [imageWorkbenchSessionKey],
-          },
-        );
-      }
-
       return submitImageWorkbenchAgentCommand({
         rawText: params.rawText,
         displayContent: params.rawText,
@@ -780,7 +728,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
       projectRootPath,
       resolveImageWorkbenchSessionKey,
       submitImageWorkbenchAgentCommand,
-      updateImageWorkbenchStateForSession,
     ],
   );
 

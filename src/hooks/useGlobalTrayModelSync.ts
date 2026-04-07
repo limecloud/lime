@@ -23,6 +23,7 @@ import {
   type Page,
   type PageParams,
 } from "@/types/page";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 
 const LAST_PROJECT_ID_KEY = "agent_last_project_id";
 
@@ -119,6 +120,7 @@ export function useGlobalTrayModelSync({
   currentPage,
   pageParams,
 }: UseGlobalTrayModelSyncOptions) {
+  const traySyncEnabled = hasTauriInvokeCapability();
   const currentPageRef = useRef(currentPage);
   const pageParamsRef = useRef<PageParams | undefined>(pageParams);
 
@@ -126,6 +128,10 @@ export function useGlobalTrayModelSync({
   pageParamsRef.current = pageParams;
 
   useEffect(() => {
+    if (!traySyncEnabled) {
+      return;
+    }
+
     let cancelled = false;
     const retryTimerIds: number[] = [];
     const idleCallbackIds: number[] = [];
@@ -269,5 +275,5 @@ export function useGlobalTrayModelSync({
         dispose();
       }
     };
-  }, [currentPage]);
+  }, [currentPage, traySyncEnabled]);
 }

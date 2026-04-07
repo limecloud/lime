@@ -207,7 +207,7 @@ const SEEDED_SKILL_GROUP_PRESETS = [
   },
 ] as const;
 const SEEDED_SKILL_CATALOG_VERSION =
-  "client-seed-skill-catalog-2026-04-06-report";
+  "client-seed-skill-catalog-2026-04-07-z-code-runtime";
 const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
   {
     id: "command:image_generate",
@@ -295,6 +295,140 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     renderContract: {
       resultKind: "tool_timeline" as const,
       detailKind: "media_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:presentation_generate",
+    title: "PPT",
+    summary: "根据目标说明生成一份可直接讲述和继续导出的演示稿草稿。",
+    commandKey: "presentation_generate",
+    aliases: [
+      "ppt",
+      "presentation",
+      "slides",
+      "deck",
+      "yanjiang",
+      "演示",
+      "演示稿",
+      "路演",
+    ],
+    triggers: [{ mode: "mention", prefix: "@PPT" }],
+    binding: {
+      skillId: "presentation_generate",
+      executionKind: "agent_turn" as const,
+    },
+    renderContract: {
+      resultKind: "artifact" as const,
+      detailKind: "artifact_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:form_generate",
+    title: "表单",
+    summary: "根据目标说明生成可直接在聊天区渲染的 A2UI 表单。",
+    commandKey: "form_generate",
+    aliases: [
+      "form",
+      "survey",
+      "biaodan",
+      "wenjuan",
+      "表单",
+      "问卷",
+      "报名表",
+    ],
+    triggers: [{ mode: "mention", prefix: "@表单" }],
+    binding: {
+      skillId: "form_generate",
+      executionKind: "agent_turn" as const,
+    },
+    renderContract: {
+      resultKind: "form" as const,
+      detailKind: "json" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:webpage_generate",
+    title: "网页",
+    summary: "根据目标说明生成可直接预览的单文件网页。",
+    commandKey: "webpage_generate",
+    aliases: [
+      "webpage",
+      "web",
+      "wangye",
+      "网页",
+      "落地页",
+      "landing",
+      "官网",
+      "活动页",
+    ],
+    triggers: [{ mode: "mention", prefix: "@网页" }],
+    binding: {
+      skillId: "webpage_generate",
+      executionKind: "agent_turn" as const,
+    },
+    renderContract: {
+      resultKind: "artifact" as const,
+      detailKind: "artifact_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:code_runtime",
+    title: "代码",
+    summary: "把本次输入切到代码编排主链，优先调度工具、子代理与代码团队协作。",
+    commandKey: "code_runtime",
+    aliases: [
+      "code",
+      "coding",
+      "kaifa",
+      "daima",
+      "代码",
+      "开发",
+      "代码评审",
+      "修复",
+      "重构",
+    ],
+    triggers: [{ mode: "mention", prefix: "@代码" }],
+    binding: {
+      executionKind: "agent_turn" as const,
+    },
+    renderContract: {
+      resultKind: "tool_timeline" as const,
+      detailKind: "json" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:publish_runtime",
+    title: "发布",
+    summary: "把当前内容导入发布工作流，继续整理发布稿、发布包与平台检查。",
+    commandKey: "publish_runtime",
+    aliases: [
+      "publish",
+      "fabu",
+      "fawen",
+      "投稿",
+      "发文",
+      "发布",
+      "发布稿",
+      "发布前检查",
+    ],
+    triggers: [{ mode: "mention", prefix: "@发布" }],
+    binding: {
+      skillId: "content_post_with_cover",
+      executionKind: "native_skill" as const,
+    },
+    renderContract: {
+      resultKind: "artifact" as const,
+      detailKind: "artifact_detail" as const,
       supportsStreaming: true,
       supportsTimeline: true,
     },
@@ -813,11 +947,15 @@ function buildSkillEntryFromCatalogItem(item: SkillCatalogItem): SkillCatalogSki
 function buildSceneEntryFromCatalogItem(
   item: SkillCatalogItem,
 ): SkillCatalogSceneEntry | null {
-  if (item.execution.kind !== "cloud_scene") {
+  const explicitSceneBinding = item.sceneBinding;
+  if (!explicitSceneBinding && item.execution.kind !== "cloud_scene") {
     return null;
   }
 
-  const sceneKey = normalizeText(item.skillKey) ?? normalizeText(item.id);
+  const sceneKey =
+    normalizeText(explicitSceneBinding?.sceneKey) ??
+    normalizeText(item.skillKey) ??
+    normalizeText(item.id);
   if (!sceneKey) {
     return null;
   }
@@ -825,11 +963,15 @@ function buildSceneEntryFromCatalogItem(
   return {
     id: `scene:${sceneKey}`,
     kind: "scene",
-    title: item.title,
-    summary: item.summary,
+    title: normalizeText(explicitSceneBinding?.title) ?? item.title,
+    summary: normalizeText(explicitSceneBinding?.summary) ?? item.summary,
     sceneKey,
-    commandPrefix: `/${sceneKey}`,
-    aliases: item.aliases,
+    commandPrefix:
+      normalizeText(explicitSceneBinding?.commandPrefix) ?? `/${sceneKey}`,
+    aliases:
+      explicitSceneBinding?.aliases && explicitSceneBinding.aliases.length > 0
+        ? explicitSceneBinding.aliases
+        : item.aliases,
     surfaceScopes: item.surfaceScopes,
     linkedSkillId: item.id,
     executionKind: item.execution.kind,
@@ -859,7 +1001,40 @@ function buildSeededCommandEntries(): SkillCatalogCommandEntry[] {
   }));
 }
 
-function buildLegacyCatalogEntries(items: SkillCatalogItem[]): SkillCatalogEntry[] {
+function buildSceneEntriesFromCatalogItems(
+  items: SkillCatalogItem[],
+): SkillCatalogSceneEntry[] {
+  return items
+    .map((item) => buildSceneEntryFromCatalogItem(item))
+    .filter((entry): entry is SkillCatalogSceneEntry => Boolean(entry));
+}
+
+function mergeSeededCatalogEntries(
+  entries: SkillCatalogEntry[],
+  sceneSourceItems: SkillCatalogItem[],
+): SkillCatalogEntry[] {
+  const merged: SkillCatalogEntry[] = [];
+  const seenIds = new Set<string>();
+
+  [
+    ...buildSeededCommandEntries(),
+    ...buildSceneEntriesFromCatalogItems(sceneSourceItems),
+    ...entries,
+  ].forEach((entry) => {
+    if (seenIds.has(entry.id)) {
+      return;
+    }
+    seenIds.add(entry.id);
+    merged.push(entry);
+  });
+
+  return merged;
+}
+
+function buildLegacyCatalogEntries(
+  items: SkillCatalogItem[],
+  sceneSourceItems: SkillCatalogItem[] = items,
+): SkillCatalogEntry[] {
   const entries: SkillCatalogEntry[] = [];
   const seenIds = new Set<string>();
 
@@ -877,12 +1052,14 @@ function buildLegacyCatalogEntries(items: SkillCatalogItem[]): SkillCatalogEntry
       seenIds.add(skillEntry.id);
       entries.push(skillEntry);
     }
+  });
 
-    const sceneEntry = buildSceneEntryFromCatalogItem(item);
-    if (sceneEntry && !seenIds.has(sceneEntry.id)) {
-      seenIds.add(sceneEntry.id);
-      entries.push(sceneEntry);
+  buildSceneEntriesFromCatalogItems(sceneSourceItems).forEach((entry) => {
+    if (seenIds.has(entry.id)) {
+      return;
     }
+    seenIds.add(entry.id);
+    entries.push(entry);
   });
 
   return entries;
@@ -892,7 +1069,7 @@ function resolveSeededSkillGroupKey(item: ServiceSkillItem): string {
   return resolveAdapterGroupKey(item.siteCapabilityBinding?.adapterName);
 }
 
-function buildSeededSkillCatalog(): SkillCatalog {
+function buildRawSeededSkillCatalog(): SkillCatalog {
   const seeded = getSeededServiceSkillCatalog();
   const items: SkillCatalogItem[] = seeded.items.map((item) => {
     const clonedItem = cloneJsonValue(item);
@@ -936,7 +1113,8 @@ function buildSeededSkillCatalog(): SkillCatalog {
   };
 }
 
-const SEEDED_SKILL_CATALOG = buildSeededSkillCatalog();
+const RAW_SEEDED_SKILL_CATALOG = buildRawSeededSkillCatalog();
+const SEEDED_SKILL_CATALOG = normalizeSkillCatalog(RAW_SEEDED_SKILL_CATALOG);
 
 function resolveAdapterGroupKey(adapterName?: string | null): string {
   const normalized = normalizeText(adapterName)?.toLowerCase();
@@ -1035,21 +1213,30 @@ function shouldExposeSkillCatalogItem(item: SkillCatalogItem): boolean {
 function normalizeSkillCatalog(catalog: SkillCatalog): SkillCatalog {
   const filteredItems = catalog.items.filter(shouldExposeSkillCatalogItem);
   const normalizedGroups = mergeCatalogGroups(catalog.groups, filteredItems);
-  const normalizedEntries =
+  const normalizedEntries = mergeSeededCatalogEntries(
     catalog.entries.length > 0
       ? catalog.entries.filter((entry) => {
           if (entry.kind === "skill") {
             return filteredItems.some((item) => entry.skillId === item.id);
           }
           if (entry.kind === "scene") {
+            const linkedSkillId = entry.linkedSkillId?.trim();
+            if (!linkedSkillId) {
+              return true;
+            }
+            if (catalog.items.some((item) => item.id === linkedSkillId)) {
+              return true;
+            }
             return (
-              !entry.linkedSkillId ||
-              filteredItems.some((item) => item.id === entry.linkedSkillId)
+              entry.executionKind === "site_adapter" ||
+              entry.executionKind === "scene"
             );
           }
           return true;
         })
-      : buildLegacyCatalogEntries(filteredItems);
+      : buildLegacyCatalogEntries(filteredItems, catalog.items),
+    catalog.items,
+  );
 
   return cloneSkillCatalog({
     ...catalog,
@@ -1286,6 +1473,26 @@ function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
   return null;
 }
 
+function mergeSeededLocalCustomSkillCatalogItems(
+  catalog: SkillCatalog,
+): SkillCatalog {
+  const localCustomItems = RAW_SEEDED_SKILL_CATALOG.items.filter(
+    (item) => item.source === "local_custom",
+  );
+  if (localCustomItems.length === 0) {
+    return catalog;
+  }
+
+  const localCustomIds = new Set(localCustomItems.map((item) => item.id));
+  return {
+    ...catalog,
+    items: [
+      ...catalog.items.filter((item) => !localCustomIds.has(item.id)),
+      ...localCustomItems.map((item) => cloneJsonValue(item)),
+    ],
+  };
+}
+
 export function parseSkillCatalog(value: unknown): SkillCatalog | null {
   if (!isPlainRecord(value)) {
     return null;
@@ -1329,14 +1536,16 @@ export function parseSkillCatalog(value: unknown): SkillCatalog | null {
     entries.push(parsed);
   }
 
-  return normalizeSkillCatalog({
-    version,
-    tenantId,
-    syncedAt,
-    groups,
-    items,
-    entries,
-  });
+  return normalizeSkillCatalog(
+    mergeSeededLocalCustomSkillCatalogItems({
+      version,
+      tenantId,
+      syncedAt,
+      groups,
+      items,
+      entries,
+    }),
+  );
 }
 
 function persistSkillCatalog(catalog: SkillCatalog): void {

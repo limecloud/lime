@@ -65,13 +65,6 @@ describe("serviceSkills API", () => {
     expect(catalog.tenantId).toBe("local-seeded");
     expect(catalog.items.length).toBeGreaterThan(0);
     expect(
-      catalog.items.some(
-        (item) =>
-          item.defaultExecutorBinding === "browser_assist" ||
-          Boolean(item.siteCapabilityBinding),
-      ),
-    ).toBe(false);
-    expect(
       catalog.items.find((item) => item.id === "carousel-post-replication"),
     ).toEqual(
       expect.objectContaining({
@@ -95,6 +88,22 @@ describe("serviceSkills API", () => {
         }),
       }),
     );
+    expect(
+      catalog.items.find((item) => item.id === "x-article-export"),
+    ).toEqual(
+      expect.objectContaining({
+        source: "local_custom",
+        defaultExecutorBinding: "browser_assist",
+        sceneBinding: expect.objectContaining({
+          sceneKey: "x-article-export",
+          commandPrefix: "/x文章转存",
+        }),
+        siteCapabilityBinding: expect.objectContaining({
+          adapterName: "x/article-export",
+          saveMode: "project_resource",
+        }),
+      }),
+    );
 
     const cached = window.localStorage.getItem("lime:service-skill-catalog:v1");
     expect(cached).toContain('"tenantId":"local-seeded"');
@@ -110,8 +119,9 @@ describe("serviceSkills API", () => {
 
     expect(catalog.tenantId).toBe("tenant-demo");
     expect(catalog.version).toBe("tenant-2026-03-24");
-    expect(skills).toHaveLength(1);
-    expect(skills[0]?.id).toBe("tenant-remote-skill");
+    expect(skills.map((item) => item.id)).toEqual(
+      expect.arrayContaining(["tenant-remote-skill", "x-article-export"]),
+    );
   });
 
   it("旧格式远端目录缺少 skillBundle 时应自动补齐标准摘要", async () => {
@@ -146,7 +156,7 @@ describe("serviceSkills API", () => {
     const catalog = await getServiceSkillCatalog();
 
     expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-04-04");
+    expect(catalog.version).toBe("client-seed-2026-04-07");
   });
 
   it("当前 OEM 租户不匹配时不应读取其他租户的缓存目录", async () => {
@@ -159,7 +169,7 @@ describe("serviceSkills API", () => {
     const catalog = await getServiceSkillCatalog();
 
     expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-04-04");
+    expect(catalog.version).toBe("client-seed-2026-04-07");
   });
 
   it("旧的 seeded 本地缓存应自动升级到当前 seeded 目录", async () => {

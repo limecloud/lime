@@ -69,6 +69,10 @@ export function useAppStartupEffects({
   }, []);
 
   useEffect(() => {
+    if (!isTauriDesktopEnvironment()) {
+      return;
+    }
+
     void ensureDefaultWorkspaceReady()
       .then((result) => {
         if (result?.repaired) {

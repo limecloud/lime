@@ -9,11 +9,13 @@ use lime_core::models::parse_skill_manifest_from_content;
 use lime_core::models::{
     ANALYSIS_SKILL_DIRECTORY, BROADCAST_GENERATE_SKILL_DIRECTORY,
     CONTENT_POST_WITH_COVER_SKILL_DIRECTORY, COVER_GENERATE_SKILL_DIRECTORY,
-    IMAGE_GENERATE_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY, MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY,
-    PDF_READ_SKILL_DIRECTORY, REPORT_GENERATE_SKILL_DIRECTORY, RESEARCH_SKILL_DIRECTORY,
-    SITE_SEARCH_SKILL_DIRECTORY, SUMMARY_SKILL_DIRECTORY, TRANSCRIPTION_GENERATE_SKILL_DIRECTORY,
-    TRANSLATION_SKILL_DIRECTORY, TYPESETTING_SKILL_DIRECTORY, URL_PARSE_SKILL_DIRECTORY,
-    VIDEO_GENERATE_SKILL_DIRECTORY,
+    FORM_GENERATE_SKILL_DIRECTORY, IMAGE_GENERATE_SKILL_DIRECTORY, LIBRARY_SKILL_DIRECTORY,
+    MODAL_RESOURCE_SEARCH_SKILL_DIRECTORY, PDF_READ_SKILL_DIRECTORY,
+    PRESENTATION_GENERATE_SKILL_DIRECTORY, REPORT_GENERATE_SKILL_DIRECTORY,
+    RESEARCH_SKILL_DIRECTORY, SITE_SEARCH_SKILL_DIRECTORY, SUMMARY_SKILL_DIRECTORY,
+    TRANSCRIPTION_GENERATE_SKILL_DIRECTORY, TRANSLATION_SKILL_DIRECTORY,
+    TYPESETTING_SKILL_DIRECTORY, URL_PARSE_SKILL_DIRECTORY, VIDEO_GENERATE_SKILL_DIRECTORY,
+    WEBPAGE_GENERATE_SKILL_DIRECTORY,
 };
 
 const VIDEO_GENERATE_SKILL_CONTENT: &str =
@@ -51,6 +53,12 @@ const SITE_SEARCH_SKILL_CONTENT: &str =
 const PDF_READ_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/pdf_read/SKILL.md");
 
+const PRESENTATION_GENERATE_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/presentation_generate/SKILL.md");
+
+const FORM_GENERATE_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/form_generate/SKILL.md");
+
 const SUMMARY_SKILL_CONTENT: &str = include_str!("../../resources/default-skills/summary/SKILL.md");
 
 const TRANSLATION_SKILL_CONTENT: &str =
@@ -68,6 +76,9 @@ const BUNDLED_SITE_ADAPTER_INDEX_CONTENT: &str =
 
 const TYPESETTING_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/typesetting/SKILL.md");
+
+const WEBPAGE_GENERATE_SKILL_CONTENT: &str =
+    include_str!("../../resources/default-skills/webpage_generate/SKILL.md");
 
 const CONTENT_POST_WITH_COVER_SKILL_CONTENT: &str =
     include_str!("../../resources/default-skills/content_post_with_cover/SKILL.md");
@@ -98,7 +109,7 @@ const SITE_SEARCH_EXTRA_FILES: &[BundledSkillFile] = &[BundledSkillFile {
     content: SITE_SEARCH_ADAPTER_CATALOG_CONTENT,
 }];
 
-fn default_skills() -> [BundledSkillDefinition; 17] {
+fn default_skills() -> [BundledSkillDefinition; 20] {
     [
         BundledSkillDefinition {
             directory: VIDEO_GENERATE_SKILL_DIRECTORY,
@@ -161,6 +172,16 @@ fn default_skills() -> [BundledSkillDefinition; 17] {
             extra_files: &[],
         },
         BundledSkillDefinition {
+            directory: PRESENTATION_GENERATE_SKILL_DIRECTORY,
+            skill_content: PRESENTATION_GENERATE_SKILL_CONTENT,
+            extra_files: &[],
+        },
+        BundledSkillDefinition {
+            directory: FORM_GENERATE_SKILL_DIRECTORY,
+            skill_content: FORM_GENERATE_SKILL_CONTENT,
+            extra_files: &[],
+        },
+        BundledSkillDefinition {
             directory: SUMMARY_SKILL_DIRECTORY,
             skill_content: SUMMARY_SKILL_CONTENT,
             extra_files: &[],
@@ -178,6 +199,11 @@ fn default_skills() -> [BundledSkillDefinition; 17] {
         BundledSkillDefinition {
             directory: TYPESETTING_SKILL_DIRECTORY,
             skill_content: TYPESETTING_SKILL_CONTENT,
+            extra_files: &[],
+        },
+        BundledSkillDefinition {
+            directory: WEBPAGE_GENERATE_SKILL_DIRECTORY,
+            skill_content: WEBPAGE_GENERATE_SKILL_CONTENT,
             extra_files: &[],
         },
         BundledSkillDefinition {
@@ -378,8 +404,9 @@ mod tests {
         assert!(IMAGE_GENERATE_SKILL_CONTENT
             .contains("allowed-tools: Bash, lime_create_image_generation_task"));
         assert!(IMAGE_GENERATE_SKILL_CONTENT
-            .contains("优先调用 `Bash` 执行 `lime media image generate --json` 创建任务"));
-        assert!(IMAGE_GENERATE_SKILL_CONTENT.contains("也可使用 `lime task create image --json`"));
+            .contains("优先调用 `Bash` 执行 `lime media image generate --json` 提交任务"));
+        assert!(IMAGE_GENERATE_SKILL_CONTENT
+            .contains("如果当前环境实际走到 `lime task create image --json` 兼容入口"));
         assert!(LIBRARY_SKILL_CONTENT.contains("name: library"));
         assert!(URL_PARSE_SKILL_CONTENT.contains("name: url_parse"));
         assert!(RESEARCH_SKILL_CONTENT.contains("name: research"));
@@ -388,11 +415,15 @@ mod tests {
         assert!(SITE_SEARCH_SKILL_CONTENT.contains("name: site_search"));
         assert!(PDF_READ_SKILL_CONTENT.contains("name: pdf_read"));
         assert!(PDF_READ_SKILL_CONTENT.contains("allowed-tools: list_directory, read_file"));
+        assert!(FORM_GENERATE_SKILL_CONTENT.contains("name: form_generate"));
+        assert!(FORM_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(FORM_GENERATE_SKILL_CONTENT.contains("```a2ui"));
         assert!(SUMMARY_SKILL_CONTENT.contains("name: summary"));
         assert!(SUMMARY_SKILL_CONTENT.contains("allowed-tools: list_directory, read_file"));
         assert!(SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains("`github/search`"));
         assert!(SITE_SEARCH_ADAPTER_CATALOG_CONTENT.contains("`zhihu/hot`"));
         assert!(TYPESETTING_SKILL_CONTENT.contains("name: typesetting"));
+        assert!(WEBPAGE_GENERATE_SKILL_CONTENT.contains("name: webpage_generate"));
         assert!(VIDEO_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(TRANSCRIPTION_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(BROADCAST_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
@@ -400,6 +431,7 @@ mod tests {
         assert!(MODAL_RESOURCE_SEARCH_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(IMAGE_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(TYPESETTING_SKILL_CONTENT.contains("lime_surface: workbench"));
+        assert!(WEBPAGE_GENERATE_SKILL_CONTENT.contains("lime_surface: workbench"));
         assert!(LIBRARY_SKILL_CONTENT.contains("lime_surface: chat"));
         assert!(URL_PARSE_SKILL_CONTENT.contains("lime_surface: chat"));
         assert!(RESEARCH_SKILL_CONTENT.contains("lime_surface: chat"));

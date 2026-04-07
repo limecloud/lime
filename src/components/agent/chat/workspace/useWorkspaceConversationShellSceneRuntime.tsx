@@ -54,6 +54,7 @@ interface UseWorkspaceConversationShellSceneRuntimeParams
   currentImageWorkbenchState: { active: boolean };
   project: { rootPath?: string | null } | null;
   projectId: string | null | undefined;
+  sidebarContextVariant?: "default" | "task-center";
   generalCanvasState: { content: string };
   projectMemory: {
     characters?: ConversationSceneRuntimeParams["projectCharacters"];
@@ -81,6 +82,7 @@ export function useWorkspaceConversationShellSceneRuntime({
   currentImageWorkbenchState,
   project,
   projectId,
+  sidebarContextVariant = "default",
   projectMemory,
   handleSend,
   showSidebar,
@@ -131,6 +133,7 @@ export function useWorkspaceConversationShellSceneRuntime({
     isThemeWorkbench: conversationScene.isThemeWorkbench,
     showChatPanel: conversationScene.showChatPanel,
     showSidebar,
+    sidebarContextVariant,
     generalWorkbenchShellRuntime,
     conversationSceneRuntime,
     sessionId: conversationScene.sessionId,

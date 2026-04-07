@@ -1,8 +1,21 @@
-import type { AgentContextTraceStep as ContextTraceStep } from "@/lib/api/agentProtocol";
-import type { Message, MessageImage, ContentPart } from "../types";
+import type {
+  AgentContextTraceStep as ContextTraceStep,
+  AgentTokenUsage,
+} from "@/lib/api/agentProtocol";
+import type {
+  ContentPart,
+  Message,
+  MessageImage,
+  MessageImageWorkbenchPreview,
+  MessageTaskPreview,
+} from "../types";
 import type { AsterSessionDetail } from "@/lib/api/agentRuntime";
 import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import { mergeArtifacts } from "../utils/messageArtifacts";
+import {
+  buildImageTaskPreviewFromToolResult,
+  buildTaskPreviewFromToolResult,
+} from "../utils/taskPreviewFromToolResult";
 import {
   extractLimeToolMetadataBlock,
   isToolResultSuccessful,
@@ -53,6 +66,30 @@ export const normalizeHistoryMessages = (messages: Message[]): Message[] =>
   messages
     .map((msg) => normalizeHistoryMessage(msg))
     .filter((msg): msg is Message => msg !== null);
+
+const normalizeHistoryUsage = (usage: unknown): AgentTokenUsage | undefined => {
+  if (!usage || typeof usage !== "object") {
+    return undefined;
+  }
+
+  const inputTokens = (usage as { input_tokens?: unknown }).input_tokens;
+  const outputTokens = (usage as { output_tokens?: unknown }).output_tokens;
+  if (
+    typeof inputTokens !== "number" ||
+    typeof outputTokens !== "number" ||
+    !Number.isFinite(inputTokens) ||
+    !Number.isFinite(outputTokens) ||
+    inputTokens < 0 ||
+    outputTokens < 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+  };
+};
 
 export const hasLegacyFallbackToolNames = (messages: Message[]): boolean =>
   messages.some((message) =>
@@ -134,6 +171,147 @@ export const extractThinkingContentFromParts = (
 
   return thinkingText || undefined;
 };
+
+function mergeImageWorkbenchPreview(
+  previous?: MessageImageWorkbenchPreview,
+  next?: MessageImageWorkbenchPreview,
+): MessageImageWorkbenchPreview | undefined {
+  if (!previous) {
+    return next;
+  }
+  if (!next) {
+    return previous;
+  }
+  if (previous.taskId !== next.taskId) {
+    return next;
+  }
+  return {
+    ...previous,
+    ...next,
+  };
+}
+
+function mergeTaskPreview(
+  previous?: MessageTaskPreview,
+  next?: MessageTaskPreview,
+): MessageTaskPreview | undefined {
+  if (!previous) {
+    return next;
+  }
+  if (!next) {
+    return previous;
+  }
+  if (previous.taskId !== next.taskId) {
+    return next;
+  }
+  return {
+    ...previous,
+    ...next,
+  };
+}
+
+function normalizePreviewSignatureValue(value: unknown): string {
+  if (typeof value === "string") {
+    return normalizeSignatureText(value);
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return "";
+}
+
+function imageWorkbenchPreviewSignature(
+  preview?: MessageImageWorkbenchPreview,
+): string {
+  if (!preview) {
+    return "";
+  }
+
+  return [
+    preview.taskId,
+    preview.prompt,
+    preview.mode,
+    preview.status,
+    preview.projectId,
+    preview.contentId,
+    preview.imageUrl,
+    preview.imageCount,
+    preview.sourceImageUrl,
+    preview.sourceImagePrompt,
+    preview.sourceImageRef,
+    preview.sourceImageCount,
+    preview.size,
+    preview.phase,
+    preview.statusMessage,
+    preview.retryable,
+    preview.attemptCount,
+    preview.placeholderText,
+  ]
+    .map(normalizePreviewSignatureValue)
+    .join(":");
+}
+
+function taskPreviewSignature(preview?: MessageTaskPreview): string {
+  if (!preview) {
+    return "";
+  }
+
+  const videoFields =
+    preview.kind === "video_generate"
+      ? [
+          preview.videoUrl,
+          preview.thumbnailUrl,
+          preview.durationSeconds,
+          preview.aspectRatio,
+          preview.resolution,
+          preview.progress,
+          preview.retryable,
+        ]
+      : [];
+  const metaItems =
+    "metaItems" in preview && Array.isArray(preview.metaItems)
+      ? preview.metaItems.map((item) => normalizeSignatureText(item)).join("|")
+      : "";
+  const imageCandidates =
+    "imageCandidates" in preview && Array.isArray(preview.imageCandidates)
+      ? preview.imageCandidates
+          .map((candidate) =>
+            [
+              candidate.id,
+              candidate.thumbnailUrl,
+              candidate.contentUrl,
+              candidate.hostPageUrl,
+              candidate.width,
+              candidate.height,
+              candidate.name,
+            ]
+              .map(normalizePreviewSignatureValue)
+              .join(":"),
+          )
+          .join("|")
+      : "";
+
+  return [
+    preview.kind,
+    preview.taskId,
+    preview.taskType,
+    preview.prompt,
+    "title" in preview ? preview.title : "",
+    preview.status,
+    preview.projectId,
+    preview.contentId,
+    "artifactPath" in preview ? preview.artifactPath : "",
+    "providerId" in preview ? preview.providerId : "",
+    "model" in preview ? preview.model : "",
+    preview.phase,
+    preview.statusMessage,
+    ...videoFields,
+    metaItems,
+    imageCandidates,
+  ]
+    .map(normalizePreviewSignatureValue)
+    .join(":");
+}
 
 export const mergeAdjacentAssistantMessages = (
   messages: Message[],
@@ -223,6 +401,14 @@ export const mergeAdjacentAssistantMessages = (
       ...(previous.artifacts || []),
       ...(current.artifacts || []),
     ]);
+    const imageWorkbenchPreview = mergeImageWorkbenchPreview(
+      previous.imageWorkbenchPreview,
+      current.imageWorkbenchPreview,
+    );
+    const taskPreview = mergeTaskPreview(
+      previous.taskPreview,
+      current.taskPreview,
+    );
 
     merged[merged.length - 1] = {
       ...previous,
@@ -231,6 +417,8 @@ export const mergeAdjacentAssistantMessages = (
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       contextTrace: contextTrace.length > 0 ? contextTrace : undefined,
       artifacts: artifacts.length > 0 ? artifacts : undefined,
+      imageWorkbenchPreview,
+      taskPreview,
       timestamp: current.timestamp,
       isThinking: false,
       thinkingContent: extractThinkingContentFromParts(contentParts),
@@ -268,6 +456,38 @@ const findMatchingLocalUserMessageIndex = (
   return -1;
 };
 
+const findMatchingLocalAssistantMessageIndex = (
+  localAssistantMessages: Message[],
+  targetMessage: Message,
+  startIndex: number,
+): number => {
+  const targetSignature = buildHistoryMessageSignature({
+    ...targetMessage,
+    usage: undefined,
+  });
+
+  for (
+    let index = startIndex;
+    index < localAssistantMessages.length;
+    index += 1
+  ) {
+    const candidate = localAssistantMessages[index];
+    if (!candidate) {
+      continue;
+    }
+
+    const candidateSignature = buildHistoryMessageSignature({
+      ...candidate,
+      usage: undefined,
+    });
+    if (candidateSignature === targetSignature) {
+      return index;
+    }
+  }
+
+  return -1;
+};
+
 export const mergeHydratedMessagesWithLocalState = (
   localMessages: Message[],
   hydratedMessages: Message[],
@@ -279,14 +499,90 @@ export const mergeHydratedMessagesWithLocalState = (
   const localUserMessages = localMessages.filter(
     (message) => message.role === "user",
   );
+  const localAssistantMessages = localMessages.filter(
+    (message) => message.role === "assistant",
+  );
+  const localImagePreviewByTaskId = new Map<
+    string,
+    MessageImageWorkbenchPreview
+  >();
+  const localTaskPreviewByTaskId = new Map<string, MessageTaskPreview>();
 
-  if (localUserMessages.length === 0) {
+  localMessages.forEach((message) => {
+    if (message.role !== "assistant") {
+      return;
+    }
+
+    const imageTaskId = message.imageWorkbenchPreview?.taskId;
+    if (imageTaskId) {
+      localImagePreviewByTaskId.set(
+        imageTaskId,
+        message.imageWorkbenchPreview as MessageImageWorkbenchPreview,
+      );
+    }
+
+    const taskPreviewId = message.taskPreview?.taskId;
+    if (taskPreviewId) {
+      localTaskPreviewByTaskId.set(
+        taskPreviewId,
+        message.taskPreview as MessageTaskPreview,
+      );
+    }
+  });
+
+  if (
+    localUserMessages.length === 0 &&
+    localAssistantMessages.length === 0 &&
+    localImagePreviewByTaskId.size === 0 &&
+    localTaskPreviewByTaskId.size === 0
+  ) {
     return hydratedMessages;
   }
 
   let localUserCursor = 0;
+  let localAssistantCursor = 0;
 
   return hydratedMessages.map((message) => {
+    if (message.role === "assistant") {
+      const matchedAssistantIndex = findMatchingLocalAssistantMessageIndex(
+        localAssistantMessages,
+        message,
+        localAssistantCursor,
+      );
+      const localAssistantMessage =
+        matchedAssistantIndex >= 0
+          ? localAssistantMessages[matchedAssistantIndex]
+          : undefined;
+      if (matchedAssistantIndex >= 0) {
+        localAssistantCursor = matchedAssistantIndex + 1;
+      }
+
+      const localImagePreview = message.imageWorkbenchPreview?.taskId
+        ? localImagePreviewByTaskId.get(message.imageWorkbenchPreview.taskId)
+        : undefined;
+      const localTaskPreview = message.taskPreview?.taskId
+        ? localTaskPreviewByTaskId.get(message.taskPreview.taskId)
+        : undefined;
+
+      if (
+        !localImagePreview &&
+        !localTaskPreview &&
+        !localAssistantMessage?.usage
+      ) {
+        return message;
+      }
+
+      return {
+        ...message,
+        usage: message.usage ?? localAssistantMessage?.usage,
+        imageWorkbenchPreview: mergeImageWorkbenchPreview(
+          localImagePreview,
+          message.imageWorkbenchPreview,
+        ),
+        taskPreview: mergeTaskPreview(localTaskPreview, message.taskPreview),
+      };
+    }
+
     if (message.role !== "user") {
       return message;
     }
@@ -385,6 +681,9 @@ const messageArtifactsSignature = (
 };
 
 const buildHistoryMessageSignature = (message: Message): string => {
+  const usageSignature = message.usage
+    ? `${message.usage.input_tokens}:${message.usage.output_tokens}`
+    : "";
   return [
     message.role,
     normalizeSignatureText(message.content),
@@ -392,6 +691,9 @@ const buildHistoryMessageSignature = (message: Message): string => {
     messageToolCallsSignature(message.toolCalls),
     messageContentPartsSignature(message.contentParts),
     messageArtifactsSignature(message.artifacts),
+    imageWorkbenchPreviewSignature(message.imageWorkbenchPreview),
+    taskPreviewSignature(message.taskPreview),
+    usageSignature,
   ].join("::");
 };
 
@@ -425,6 +727,7 @@ export const hydrateSessionDetailMessages = (
   topicId: string,
 ): Message[] => {
   const historyToolNameById = new Map<string, string>();
+  const historyToolArgumentsById = new Map<string, string | undefined>();
 
   const loadedMessages: Message[] = detail.messages
     .filter(
@@ -438,6 +741,8 @@ export const hydrateSessionDetailMessages = (
       const images: MessageImage[] = [];
       const messageTimestamp = new Date(msg.timestamp * 1000);
       const rawParts = Array.isArray(msg.content) ? msg.content : [];
+      let imageWorkbenchPreview: MessageImageWorkbenchPreview | undefined;
+      let taskPreview: MessageTaskPreview | undefined;
 
       const appendText = (value: unknown) => {
         if (typeof value !== "string") return;
@@ -526,6 +831,7 @@ export const hydrateSessionDetailMessages = (
             startTime: messageTimestamp,
           };
           historyToolNameById.set(part.id, toolName);
+          historyToolArgumentsById.set(part.id, toolCall.arguments);
           toolCalls.push(toolCall);
           contentParts.push({ type: "tool_use", toolCall });
           continue;
@@ -554,6 +860,13 @@ export const hydrateSessionDetailMessages = (
             ),
           };
           const success = isToolResultSuccessful(normalizedResult);
+          const normalizedResultRecord =
+            normalizedResult &&
+            typeof normalizedResult === "object" &&
+            !Array.isArray(normalizedResult)
+              ? (normalizedResult as Record<string, unknown>)
+              : undefined;
+          const toolArguments = historyToolArgumentsById.get(part.id);
           const toolCall = {
             id: part.id,
             name: toolName,
@@ -567,6 +880,26 @@ export const hydrateSessionDetailMessages = (
           };
           toolCalls.push(toolCall);
           contentParts.push({ type: "tool_use", toolCall });
+          imageWorkbenchPreview = mergeImageWorkbenchPreview(
+            imageWorkbenchPreview,
+            buildImageTaskPreviewFromToolResult({
+              toolId: part.id,
+              toolName,
+              toolArguments,
+              toolResult: normalizedResultRecord,
+              fallbackPrompt: textParts.join("\n").trim(),
+            }) || undefined,
+          );
+          taskPreview = mergeTaskPreview(
+            taskPreview,
+            buildTaskPreviewFromToolResult({
+              toolId: part.id,
+              toolName,
+              toolArguments,
+              toolResult: normalizedResultRecord,
+              fallbackPrompt: textParts.join("\n").trim(),
+            }) || undefined,
+          );
           continue;
         }
 
@@ -592,6 +925,7 @@ export const hydrateSessionDetailMessages = (
       const rawContent = textParts.join("\n").trim();
       let normalizedRole =
         msg.role === "tool" ? "assistant" : (msg.role as "user" | "assistant");
+      const usage = normalizeHistoryUsage(msg.usage);
       const content = sanitizeMessageTextForDisplay(rawContent, {
         role: normalizedRole,
         hasImages: images.length > 0,
@@ -635,9 +969,12 @@ export const hydrateSessionDetailMessages = (
           toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
           timestamp: messageTimestamp,
           isThinking: false,
+          usage: normalizedRole === "assistant" ? usage : undefined,
           thinkingContent: extractThinkingContentFromParts(
             sanitizedContentParts,
           ),
+          imageWorkbenchPreview,
+          taskPreview,
         },
       ];
     });

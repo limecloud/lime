@@ -924,9 +924,11 @@ impl AgentDao {
                 timestamp,
                 tool_calls_json,
                 tool_call_id,
-                reasoning_content
+                reasoning_content,
+                input_tokens,
+                output_tokens
             )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 session_id,
                 message.role,
@@ -935,6 +937,8 @@ impl AgentDao {
                 tool_calls_json,
                 message.tool_call_id,
                 message.reasoning_content.as_deref(),
+                message.usage.as_ref().map(|usage| usage.input_tokens),
+                message.usage.as_ref().map(|usage| usage.output_tokens),
             ],
         )?;
 
@@ -953,7 +957,8 @@ impl AgentDao {
         session_id: &str,
     ) -> Result<Vec<AgentMessage>, rusqlite::Error> {
         let mut stmt = conn.prepare(
-            "SELECT role, content_json, timestamp, tool_calls_json, tool_call_id, reasoning_content
+            "SELECT role, content_json, timestamp, tool_calls_json, tool_call_id, reasoning_content,
+                    input_tokens, output_tokens
              FROM agent_messages WHERE session_id = ? ORDER BY id ASC",
         )?;
 
@@ -964,6 +969,8 @@ impl AgentDao {
             let tool_calls_json: Option<String> = row.get(3)?;
             let tool_call_id: Option<String> = row.get(4)?;
             let reasoning_content: Option<String> = row.get(5)?;
+            let input_tokens: Option<u32> = row.get(6)?;
+            let output_tokens: Option<u32> = row.get(7)?;
 
             // 解析 JSON - 支持多种格式
             // 1. Aster 格式: [{"Text":"..."}, {"Text":"..."}]
@@ -980,10 +987,40 @@ impl AgentDao {
                 tool_calls,
                 tool_call_id,
                 reasoning_content,
+                usage: match (input_tokens, output_tokens) {
+                    (Some(input_tokens), Some(output_tokens)) => {
+                        Some(crate::agent::types::TokenUsage {
+                            input_tokens,
+                            output_tokens,
+                        })
+                    }
+                    _ => None,
+                },
             })
         })?;
 
         messages.collect()
+    }
+
+    pub fn update_latest_assistant_message_usage(
+        conn: &Connection,
+        session_id: &str,
+        input_tokens: u32,
+        output_tokens: u32,
+    ) -> Result<bool, rusqlite::Error> {
+        let rows = conn.execute(
+            "UPDATE agent_messages
+             SET input_tokens = ?1, output_tokens = ?2
+             WHERE id = (
+                 SELECT id FROM agent_messages
+                 WHERE session_id = ?3 AND role = 'assistant'
+                 ORDER BY id DESC
+                 LIMIT 1
+             )",
+            params![input_tokens, output_tokens, session_id],
+        )?;
+
+        Ok(rows > 0)
     }
 
     /// 删除会话的所有消息
@@ -1132,7 +1169,9 @@ mod tests {
                 timestamp TEXT NOT NULL,
                 tool_calls_json TEXT,
                 tool_call_id TEXT,
-                reasoning_content TEXT
+                reasoning_content TEXT,
+                input_tokens INTEGER,
+                output_tokens INTEGER
             );
             ",
         )
@@ -1474,6 +1513,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: None,
                 reasoning_content: Some("先分析参数，再继续请求".to_string()),
+                usage: Some(crate::agent::types::TokenUsage::new(1200, 300)),
             },
         )
         .unwrap();
@@ -1483,6 +1523,58 @@ mod tests {
         assert_eq!(
             messages[0].reasoning_content.as_deref(),
             Some("先分析参数，再继续请求")
+        );
+        assert_eq!(
+            messages[0].usage,
+            Some(crate::agent::types::TokenUsage::new(1200, 300))
+        );
+    }
+
+    #[test]
+    fn update_latest_assistant_message_usage_should_only_touch_latest_assistant() {
+        let conn = setup_pattern_test_db();
+
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, working_dir, execution_strategy)
+             VALUES (?1, ?2, NULL, ?3, ?4, ?5, NULL, ?6)",
+            params![
+                "session-usage",
+                "gpt-4.1",
+                "usage 会话",
+                "2026-03-19T10:00:00+08:00",
+                "2026-03-19T10:00:00+08:00",
+                "react"
+            ],
+        )
+        .unwrap();
+
+        conn.execute(
+            "INSERT INTO agent_messages (session_id, role, content_json, timestamp) VALUES (?1, ?2, ?3, ?4)",
+            params!["session-usage", "assistant", r#"[{"type":"text","text":"旧助手消息"}]"#, "2026-03-19T10:00:01+08:00"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agent_messages (session_id, role, content_json, timestamp) VALUES (?1, ?2, ?3, ?4)",
+            params!["session-usage", "user", r#"[{"type":"text","text":"用户消息"}]"#, "2026-03-19T10:00:02+08:00"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agent_messages (session_id, role, content_json, timestamp) VALUES (?1, ?2, ?3, ?4)",
+            params!["session-usage", "assistant", r#"[{"type":"text","text":"最新助手消息"}]"#, "2026-03-19T10:00:03+08:00"],
+        )
+        .unwrap();
+
+        let updated =
+            AgentDao::update_latest_assistant_message_usage(&conn, "session-usage", 2048, 512)
+                .unwrap();
+        assert!(updated);
+
+        let messages = AgentDao::get_messages(&conn, "session-usage").unwrap();
+        assert_eq!(messages[0].usage, None);
+        assert_eq!(messages[1].usage, None);
+        assert_eq!(
+            messages[2].usage,
+            Some(crate::agent::types::TokenUsage::new(2048, 512))
         );
     }
 }

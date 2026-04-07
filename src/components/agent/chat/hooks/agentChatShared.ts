@@ -47,6 +47,8 @@ export interface UseAsterAgentChatOptions {
   ) => void;
   workspaceId: string;
   disableSessionRestore?: boolean;
+  initialTopicsLoadMode?: "immediate" | "deferred";
+  initialTopicsDeferredDelayMs?: number;
   getSyncedSessionRecentPreferences?: (
     sessionId: string,
   ) => ChatToolPreferences | null;

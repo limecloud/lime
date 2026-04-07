@@ -1,6 +1,17 @@
 use super::*;
 
 const SITE_SEARCH_SKILL_LAUNCH_PROMPT_MARKER: &str = "<<LIME_SITE_SEARCH_SKILL_LAUNCH_HINT>>";
+const SITE_SEARCH_SKILL_LAUNCH_DETOUR_DENY_PATTERNS: &[&str] = &[
+    TOOL_SEARCH_TOOL_NAME,
+    "WebSearch",
+    "web_search",
+    "Read",
+    "read",
+    "Glob",
+    "glob",
+    "Grep",
+    "grep",
+];
 
 fn extract_object_string(
     object: &serde_json::Map<String, serde_json::Value>,
@@ -90,6 +101,91 @@ pub(crate) fn merge_system_prompt_with_site_search_skill_launch(
     }
 }
 
+pub(crate) fn should_lock_site_search_skill_launch_to_site_tools(
+    request_metadata: Option<&serde_json::Value>,
+) -> bool {
+    let Some(launch) = extract_harness_nested_object(
+        request_metadata,
+        &["site_search_skill_launch", "siteSearchSkillLaunch"],
+    ) else {
+        return false;
+    };
+
+    extract_object_string(launch, &["kind"]).unwrap_or_else(|| "site_search_request".to_string())
+        == "site_search_request"
+}
+
+pub(crate) fn append_site_search_skill_launch_session_permissions(
+    permissions: &mut Vec<ToolPermission>,
+    session_id: &str,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_site_search_skill_launch_to_site_tools(request_metadata) {
+        return;
+    }
+
+    let session_id = session_id.trim();
+    let conditions = if session_id.is_empty() {
+        Vec::new()
+    } else {
+        vec![PermissionCondition {
+            condition_type: ConditionType::Session,
+            field: Some("session_id".to_string()),
+            operator: ConditionOperator::Equals,
+            value: serde_json::json!(session_id),
+            validator: None,
+            description: Some("仅对当前站点搜索技能启动回合生效".to_string()),
+        }]
+    };
+
+    for pattern in SITE_SEARCH_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        permissions.push(ToolPermission {
+            tool: (*pattern).to_string(),
+            allowed: false,
+            priority: 1231,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some(
+                "站点搜索技能启动回合已锁定为 Skill(site_search) 主链，禁止先走通用搜索/本地文件链路偏航"
+                    .to_string(),
+            ),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+    }
+
+    for pattern in super::service_skill_launch::service_skill_launch_browser_deny_patterns() {
+        permissions.push(ToolPermission {
+            tool: (*pattern).to_string(),
+            allowed: false,
+            priority: 1231,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some(
+                "站点搜索技能启动回合应优先沿 lime_site_* 主链执行，禁止直接回退到底层浏览器兼容工具"
+                    .to_string(),
+            ),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+    }
+}
+
+pub(crate) fn prune_site_search_skill_launch_detour_tools_from_registry(
+    registry: &mut aster::tools::ToolRegistry,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_site_search_skill_launch_to_site_tools(request_metadata) {
+        return;
+    }
+
+    for tool_name in SITE_SEARCH_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        registry.unregister(tool_name);
+    }
+}
+
 fn build_site_search_skill_launch_system_prompt(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<String> {
@@ -153,6 +249,14 @@ fn build_site_search_skill_launch_system_prompt(
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),
         "- 调用 Skill 时，args 必须是一个严格 JSON 字符串，不要漏引号、不要写注释、不要只传半截字段。".to_string(),
         format!("- 推荐传给 Skill.args 的 JSON：{args_json}"),
+        format!(
+            "- 第一工具调用示例(Skill 参数 JSON)：{{\"skill\":\"{skill_name}\",\"args\":{}}}",
+            serde_json::to_string(&args_json).unwrap_or_else(|_| "\"{}\"".to_string())
+        ),
+        "- 当前回合已经显式知道要走站点搜索技能主链，不要为了确认技能名、工具名或命令名再去调用 ToolSearch。".to_string(),
+        "- 在 Skill(site_search) 真正执行前，不要先走 ToolSearch / WebSearch / Read / Glob / Grep 等通用搜索、工具目录发现或本地文件链路。".to_string(),
+        "- 不要先搜索 “site_search”、“lime_site_run” 或 “lime_site_search” 的目录信息；当前 site_search_request 已经提供了足够上下文。".to_string(),
+        "- 如果某个通用搜索/读文件工具因为 session policy 被拒绝，不要重复同类调用；应立即改为直调 Skill(site_search)。".to_string(),
         "- 这条命令属于 prompt skill 主链，不要创建 task file，也不要退回普通 research / WebSearch。".to_string(),
         "- site_search skill 内部应优先沿 lime_site_info / lime_site_run / lime_site_search 主链执行，不要先改用 WebSearch、research、webReader 或底层浏览器工具替代。".to_string(),
         "- 若用户已明确指定站点，应优先在该站点的 adapter 范围内求解；只有 adapter 名不明确时，才允许先用 lime_site_search 缩小范围。".to_string(),

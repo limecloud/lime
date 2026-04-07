@@ -4,10 +4,13 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
+use lime_core::config::load_config;
 use lime_media_runtime::{
-    list_task_outputs, load_task_output, retry_task_artifact, update_task_status,
-    write_task_artifact, MediaRuntimeError, MediaTaskErrorOutput, TaskRelationships, TaskType,
-    TaskWriteOptions, DEFAULT_ARTIFACT_ROOT,
+    build_image_generation_endpoint, execute_image_generation_task as execute_image_task_runtime,
+    list_task_outputs, load_task_output, patch_task_artifact, retry_task_artifact,
+    update_task_status, write_task_artifact, ImageGenerationRunnerConfig, MediaRuntimeError,
+    MediaTaskErrorOutput, TaskArtifactPatch, TaskErrorRecord, TaskProgress, TaskRelationships,
+    TaskType, TaskWriteOptions, DEFAULT_ARTIFACT_ROOT, IMAGE_TASK_RUNNER_WORKER_ID,
 };
 use serde_json::{json, Value};
 
@@ -619,7 +622,7 @@ fn run_task_create_command(command: TaskCreateCommand) -> Result<Value, MediaRun
 fn run_media_command(command: MediaCommand) -> Result<Value, MediaRuntimeError> {
     match command.command {
         MediaSubcommand::Image(image) => match image.command {
-            ImageSubcommand::Generate(args) => create_image_task(args),
+            ImageSubcommand::Generate(args) => generate_image_task(args),
         },
         MediaSubcommand::Cover(cover) => match cover.command {
             CoverSubcommand::Generate(args) => create_cover_task(args),
@@ -715,38 +718,183 @@ fn run_doctor_command(args: DoctorArgs) -> Result<Value, MediaRuntimeError> {
     }))
 }
 
-fn create_image_task(args: ImageGenerateArgs) -> Result<Value, MediaRuntimeError> {
-    let workspace_root = resolve_workspace_root(args.output.workspace.clone())?;
-    let output = write_task_artifact(
-        &workspace_root,
+fn create_image_task_artifact(
+    workspace_root: &Path,
+    args: &ImageGenerateArgs,
+) -> Result<lime_media_runtime::MediaTaskOutput, MediaRuntimeError> {
+    write_task_artifact(
+        workspace_root,
         TaskType::ImageGenerate,
-        args.title,
-        json!({
-            "prompt": args.prompt,
-            "mode": args.mode,
-            "raw_text": args.raw_text,
-            "model": args.model,
-            "style": args.style,
-            "size": args.size,
-            "aspect_ratio": args.aspect_ratio,
-            "count": args.count,
-            "usage": args.usage,
-            "provider_id": args.provider_id,
-            "session_id": args.session_id,
-            "project_id": args.project_id,
-            "content_id": args.content_id,
-            "entry_source": args.entry_source,
-            "requested_target": args.requested_target,
-            "slot_id": args.slot_id,
-            "anchor_hint": args.anchor_hint,
-            "anchor_section_title": args.anchor_section_title,
-            "anchor_text": args.anchor_text,
-            "target_output_id": args.target_output_id,
-            "target_output_ref_id": args.target_output_ref_id,
-            "reference_images": args.reference_images,
-        }),
+        args.title.clone(),
+        build_image_task_payload(args),
         task_write_options(&args.output),
+    )
+}
+
+fn create_image_task(args: ImageGenerateArgs) -> Result<Value, MediaRuntimeError> {
+    generate_image_task(args)
+}
+
+fn build_image_task_payload(args: &ImageGenerateArgs) -> Value {
+    json!({
+        "prompt": args.prompt,
+        "mode": args.mode,
+        "raw_text": args.raw_text,
+        "model": args.model,
+        "style": args.style,
+        "size": args.size,
+        "aspect_ratio": args.aspect_ratio,
+        "count": args.count,
+        "usage": args.usage,
+        "provider_id": args.provider_id,
+        "session_id": args.session_id,
+        "project_id": args.project_id,
+        "content_id": args.content_id,
+        "entry_source": args.entry_source,
+        "requested_target": args.requested_target,
+        "slot_id": args.slot_id,
+        "anchor_hint": args.anchor_hint,
+        "anchor_section_title": args.anchor_section_title,
+        "anchor_text": args.anchor_text,
+        "target_output_id": args.target_output_id,
+        "target_output_ref_id": args.target_output_ref_id,
+        "reference_images": args.reference_images,
+    })
+}
+
+fn read_non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name).ok().and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
+fn read_env_port(name: &str) -> Result<Option<u16>, String> {
+    let Some(raw) = read_non_empty_env(name) else {
+        return Ok(None);
+    };
+    raw.parse::<u16>()
+        .map(Some)
+        .map_err(|error| format!("{name} 不是合法端口: {error}"))
+}
+
+fn resolve_cli_image_generation_runner_config() -> Result<ImageGenerationRunnerConfig, String> {
+    let endpoint_override = read_non_empty_env("LIME_MEDIA_IMAGE_ENDPOINT");
+    let api_key_override = read_non_empty_env("LIME_MEDIA_IMAGE_API_KEY")
+        .or_else(|| read_non_empty_env("LIME_SERVER_API_KEY"));
+    let host_override = read_non_empty_env("LIME_SERVER_HOST");
+    let port_override = read_env_port("LIME_SERVER_PORT")?;
+
+    let (loaded_config, config_load_error) = match load_config() {
+        Ok(config) => (Some(config), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+
+    let host = host_override
+        .or_else(|| {
+            loaded_config
+                .as_ref()
+                .map(|config| config.server.host.clone())
+        })
+        .unwrap_or_else(|| "127.0.0.1".to_string());
+    let port = port_override
+        .or_else(|| loaded_config.as_ref().map(|config| config.server.port))
+        .unwrap_or(9000);
+    let api_key = api_key_override
+        .or_else(|| {
+            loaded_config
+                .as_ref()
+                .map(|config| config.server.api_key.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .ok_or_else(|| match config_load_error {
+            Some(error) => format!("Lime 本地图片服务未配置 API Key，且加载本地配置失败: {error}"),
+            None => "Lime 本地图片服务未配置 API Key".to_string(),
+        })?;
+
+    Ok(ImageGenerationRunnerConfig {
+        endpoint: endpoint_override.unwrap_or_else(|| build_image_generation_endpoint(&host, port)),
+        api_key,
+    })
+}
+
+fn build_image_task_progress(
+    phase: &str,
+    message: impl Into<String>,
+    percent: Option<u32>,
+) -> TaskProgress {
+    TaskProgress {
+        phase: Some(phase.to_string()),
+        percent,
+        message: Some(message.into()),
+        preview_slots: Vec::new(),
+    }
+}
+
+fn build_image_task_error(
+    code: &str,
+    message: impl Into<String>,
+    retryable: bool,
+    stage: &str,
+) -> TaskErrorRecord {
+    TaskErrorRecord {
+        code: code.to_string(),
+        message: message.into(),
+        retryable,
+        stage: Some(stage.to_string()),
+        provider_code: None,
+        occurred_at: None,
+    }
+}
+
+fn mark_cli_image_task_failed(
+    workspace_root: &Path,
+    task_id: &str,
+    message: impl Into<String>,
+) -> Result<Value, MediaRuntimeError> {
+    let task_error =
+        build_image_task_error("image_worker_unavailable", message, false, "bootstrap");
+    let output = patch_task_artifact(
+        workspace_root,
+        task_id,
+        None,
+        TaskArtifactPatch {
+            status: Some("failed".to_string()),
+            last_error: Some(Some(task_error.clone())),
+            progress: Some(build_image_task_progress(
+                "failed",
+                task_error.message.clone(),
+                None,
+            )),
+            current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
+            ..TaskArtifactPatch::default()
+        },
     )?;
+    Ok(json!(output))
+}
+
+fn generate_image_task(args: ImageGenerateArgs) -> Result<Value, MediaRuntimeError> {
+    let workspace_root = resolve_workspace_root(args.output.workspace.clone())?;
+    let created = create_image_task_artifact(&workspace_root, &args)?;
+    let runner_config = match resolve_cli_image_generation_runner_config() {
+        Ok(config) => config,
+        Err(error_message) => {
+            return mark_cli_image_task_failed(&workspace_root, &created.task_id, error_message);
+        }
+    };
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| MediaRuntimeError::Io(format!("初始化图片任务运行时失败: {error}")))?;
+    let output = runtime.block_on(execute_image_task_runtime(
+        &workspace_root,
+        &created.task_id,
+        &runner_config,
+    ))?;
     Ok(json!(output))
 }
 
@@ -1071,44 +1219,118 @@ mod tests {
     }
 
     #[test]
+    fn skill_show_image_generate_prefers_media_command() {
+        let output = run(Cli {
+            command: Command::Skill(SkillCommand {
+                command: SkillSubcommand::Show(SkillShowArgs {
+                    name: "image_generate".to_string(),
+                }),
+            }),
+        })
+        .expect("show image skill");
+
+        assert_eq!(
+            output["skill"]["recommended_command"],
+            "lime media image generate --prompt \"...\""
+        );
+    }
+
+    #[test]
+    fn skill_show_webpage_generate_returns_builtin_skill() {
+        let output = run(Cli {
+            command: Command::Skill(SkillCommand {
+                command: SkillSubcommand::Show(SkillShowArgs {
+                    name: "webpage_generate".to_string(),
+                }),
+            }),
+        })
+        .expect("show webpage skill");
+
+        assert_eq!(output["skill"]["name"], "webpage_generate");
+        assert_eq!(
+            output["skill"]["skill_path"],
+            "src-tauri/resources/default-skills/webpage_generate/SKILL.md"
+        );
+    }
+
+    #[test]
+    fn skill_show_presentation_generate_returns_builtin_skill() {
+        let output = run(Cli {
+            command: Command::Skill(SkillCommand {
+                command: SkillSubcommand::Show(SkillShowArgs {
+                    name: "presentation_generate".to_string(),
+                }),
+            }),
+        })
+        .expect("show presentation skill");
+
+        assert_eq!(output["skill"]["name"], "presentation_generate");
+        assert_eq!(
+            output["skill"]["skill_path"],
+            "src-tauri/resources/default-skills/presentation_generate/SKILL.md"
+        );
+    }
+
+    #[test]
+    fn skill_show_form_generate_returns_builtin_skill() {
+        let output = run(Cli {
+            command: Command::Skill(SkillCommand {
+                command: SkillSubcommand::Show(SkillShowArgs {
+                    name: "form_generate".to_string(),
+                }),
+            }),
+        })
+        .expect("show form skill");
+
+        assert_eq!(output["skill"]["name"], "form_generate");
+        assert_eq!(
+            output["skill"]["skill_path"],
+            "src-tauri/resources/default-skills/form_generate/SKILL.md"
+        );
+    }
+
+    #[test]
     fn create_image_task_preserves_extended_context_fields() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
-        let output = create_image_task(ImageGenerateArgs {
-            prompt: "城市夜景".to_string(),
-            title: Some("夜景修图".to_string()),
-            mode: Some("edit".to_string()),
-            raw_text: Some("@配图 编辑 #img-2 去掉角标".to_string()),
-            model: Some("fal-ai/nano-banana-pro".to_string()),
-            style: Some("写实".to_string()),
-            size: Some("1024x1024".to_string()),
-            aspect_ratio: Some("1:1".to_string()),
-            count: Some(1),
-            usage: Some("claw-image-workbench".to_string()),
-            provider_id: Some("fal".to_string()),
-            session_id: Some("session-1".to_string()),
-            project_id: Some("project-1".to_string()),
-            content_id: Some("content-1".to_string()),
-            entry_source: Some("at_image_command".to_string()),
-            requested_target: Some("generate".to_string()),
-            slot_id: Some("slot-1".to_string()),
-            anchor_hint: Some("section_end".to_string()),
-            anchor_section_title: Some("核心观点".to_string()),
-            anchor_text: Some("这里是核心观点段落。".to_string()),
-            target_output_id: Some("task-image-1:output:1".to_string()),
-            target_output_ref_id: Some("img-2".to_string()),
-            reference_images: vec![
-                "https://example.com/image-2.png".to_string(),
-                "/tmp/input-1.png".to_string(),
-            ],
-            output: SharedTaskWriteArgs {
-                workspace: Some(temp_dir.path().to_path_buf()),
-                output: None,
-                artifact_dir: None,
-                idempotency_key: None,
-                json: true,
+        let output = json!(create_image_task_artifact(
+            temp_dir.path(),
+            &ImageGenerateArgs {
+                prompt: "城市夜景".to_string(),
+                title: Some("夜景修图".to_string()),
+                mode: Some("edit".to_string()),
+                raw_text: Some("@配图 编辑 #img-2 去掉角标".to_string()),
+                model: Some("fal-ai/nano-banana-pro".to_string()),
+                style: Some("写实".to_string()),
+                size: Some("1024x1024".to_string()),
+                aspect_ratio: Some("1:1".to_string()),
+                count: Some(1),
+                usage: Some("claw-image-workbench".to_string()),
+                provider_id: Some("fal".to_string()),
+                session_id: Some("session-1".to_string()),
+                project_id: Some("project-1".to_string()),
+                content_id: Some("content-1".to_string()),
+                entry_source: Some("at_image_command".to_string()),
+                requested_target: Some("generate".to_string()),
+                slot_id: Some("slot-1".to_string()),
+                anchor_hint: Some("section_end".to_string()),
+                anchor_section_title: Some("核心观点".to_string()),
+                anchor_text: Some("这里是核心观点段落。".to_string()),
+                target_output_id: Some("task-image-1:output:1".to_string()),
+                target_output_ref_id: Some("img-2".to_string()),
+                reference_images: vec![
+                    "https://example.com/image-2.png".to_string(),
+                    "/tmp/input-1.png".to_string(),
+                ],
+                output: SharedTaskWriteArgs {
+                    workspace: Some(temp_dir.path().to_path_buf()),
+                    output: None,
+                    artifact_dir: None,
+                    idempotency_key: None,
+                    json: true,
+                },
             },
-        })
-        .expect("create image");
+        )
+        .expect("create image"));
 
         assert_eq!(output["record"]["payload"]["mode"], "edit");
         assert_eq!(output["record"]["payload"]["target_output_ref_id"], "img-2");
@@ -1159,38 +1381,41 @@ mod tests {
     #[test]
     fn task_list_returns_created_items() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
-        let _ = create_image_task(ImageGenerateArgs {
-            prompt: "城市".to_string(),
-            title: None,
-            mode: None,
-            raw_text: None,
-            model: None,
-            style: None,
-            size: None,
-            aspect_ratio: None,
-            count: None,
-            usage: None,
-            provider_id: None,
-            session_id: None,
-            project_id: None,
-            content_id: None,
-            entry_source: None,
-            requested_target: None,
-            slot_id: None,
-            anchor_hint: None,
-            anchor_section_title: None,
-            anchor_text: None,
-            target_output_id: None,
-            target_output_ref_id: None,
-            reference_images: Vec::new(),
-            output: SharedTaskWriteArgs {
-                workspace: Some(temp_dir.path().to_path_buf()),
-                output: None,
-                artifact_dir: None,
-                idempotency_key: None,
-                json: true,
+        let _ = create_image_task_artifact(
+            temp_dir.path(),
+            &ImageGenerateArgs {
+                prompt: "城市".to_string(),
+                title: None,
+                mode: None,
+                raw_text: None,
+                model: None,
+                style: None,
+                size: None,
+                aspect_ratio: None,
+                count: None,
+                usage: None,
+                provider_id: None,
+                session_id: None,
+                project_id: None,
+                content_id: None,
+                entry_source: None,
+                requested_target: None,
+                slot_id: None,
+                anchor_hint: None,
+                anchor_section_title: None,
+                anchor_text: None,
+                target_output_id: None,
+                target_output_ref_id: None,
+                reference_images: Vec::new(),
+                output: SharedTaskWriteArgs {
+                    workspace: Some(temp_dir.path().to_path_buf()),
+                    output: None,
+                    artifact_dir: None,
+                    idempotency_key: None,
+                    json: true,
+                },
             },
-        })
+        )
         .expect("create image");
 
         let output = run(Cli {
@@ -1217,38 +1442,41 @@ mod tests {
     #[test]
     fn task_list_supports_family_filter() {
         let temp_dir = tempfile::tempdir().expect("create temp dir");
-        let _ = create_image_task(ImageGenerateArgs {
-            prompt: "城市".to_string(),
-            title: None,
-            mode: None,
-            raw_text: None,
-            model: None,
-            style: None,
-            size: None,
-            aspect_ratio: None,
-            count: None,
-            usage: None,
-            provider_id: None,
-            session_id: None,
-            project_id: None,
-            content_id: None,
-            entry_source: None,
-            requested_target: None,
-            slot_id: None,
-            anchor_hint: None,
-            anchor_section_title: None,
-            anchor_text: None,
-            target_output_id: None,
-            target_output_ref_id: None,
-            reference_images: Vec::new(),
-            output: SharedTaskWriteArgs {
-                workspace: Some(temp_dir.path().to_path_buf()),
-                output: None,
-                artifact_dir: None,
-                idempotency_key: None,
-                json: true,
+        let _ = create_image_task_artifact(
+            temp_dir.path(),
+            &ImageGenerateArgs {
+                prompt: "城市".to_string(),
+                title: None,
+                mode: None,
+                raw_text: None,
+                model: None,
+                style: None,
+                size: None,
+                aspect_ratio: None,
+                count: None,
+                usage: None,
+                provider_id: None,
+                session_id: None,
+                project_id: None,
+                content_id: None,
+                entry_source: None,
+                requested_target: None,
+                slot_id: None,
+                anchor_hint: None,
+                anchor_section_title: None,
+                anchor_text: None,
+                target_output_id: None,
+                target_output_ref_id: None,
+                reference_images: Vec::new(),
+                output: SharedTaskWriteArgs {
+                    workspace: Some(temp_dir.path().to_path_buf()),
+                    output: None,
+                    artifact_dir: None,
+                    idempotency_key: None,
+                    json: true,
+                },
             },
-        })
+        )
         .expect("create image");
         let _ = create_url_parse_task(UrlParseArgs {
             url: "https://example.com".to_string(),
@@ -1328,6 +1556,32 @@ mod tests {
         assert_eq!(
             output["record"]["payload"]["entry_source"],
             "at_url_parse_command"
+        );
+    }
+
+    #[test]
+    fn create_typesetting_task_preserves_platform_and_rules() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let output = create_typesetting_task(TypesettingArgs {
+            content: "这是一段待排版正文".to_string(),
+            target_platform: "小红书".to_string(),
+            title: Some("小红书排版".to_string()),
+            rules: vec!["语气:轻快".to_string(), "段落:短句".to_string()],
+            output: SharedTaskWriteArgs {
+                workspace: Some(temp_dir.path().to_path_buf()),
+                output: None,
+                artifact_dir: None,
+                idempotency_key: None,
+                json: true,
+            },
+        })
+        .expect("create typesetting task");
+
+        assert_eq!(output["record"]["payload"]["targetPlatform"], "小红书");
+        assert_eq!(output["record"]["payload"]["content"], "这是一段待排版正文");
+        assert_eq!(
+            output["record"]["payload"]["rules"],
+            json!(["语气:轻快", "段落:短句"])
         );
     }
 

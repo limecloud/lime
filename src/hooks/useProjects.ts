@@ -5,7 +5,7 @@
  * @requirements 12.1, 12.2, 12.3, 12.4
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type {
   Project,
   CreateProjectRequest,
@@ -67,6 +67,18 @@ interface UseProjectsOptions {
   autoLoad?: boolean;
 }
 
+const DEV_BRIDGE_RETRY_BASE_DELAY_MS = 1200;
+const DEV_BRIDGE_RETRY_MAX_DELAY_MS = 5000;
+const DEV_BRIDGE_RETRY_MAX_ATTEMPTS = 4;
+
+function isDevBridgeUnavailableErrorMessage(message: string): boolean {
+  return (
+    message.includes("[DevBridge] 浏览器模式无法连接后端桥接") ||
+    message.includes("Failed to fetch") ||
+    message.includes("ERR_CONNECTION_REFUSED")
+  );
+}
+
 /**
  * 项目管理 Hook
  */
@@ -79,6 +91,17 @@ export function useProjects(
   const [loading, setLoading] = useState(autoLoad);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<ProjectFilter>({});
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryAttemptRef = useRef(0);
+
+  const clearRetryTimer = useCallback(() => {
+    if (!retryTimerRef.current) {
+      return;
+    }
+
+    clearTimeout(retryTimerRef.current);
+    retryTimerRef.current = null;
+  }, []);
 
   /** 刷新项目列表 */
   const refresh = useCallback(async () => {
@@ -91,29 +114,41 @@ export function useProjects(
         getDefaultApiProject(),
       ]);
 
-      if (!skipDefaultWorkspaceReadyCheck && defaultProj?.id) {
-        const ensureResult = await ensureWorkspaceReady(defaultProj.id);
-        if (ensureResult.repaired) {
-          recordWorkspaceRepair({
-            workspaceId: ensureResult.workspaceId,
-            rootPath: ensureResult.rootPath,
-            source: "projects_refresh",
-          });
-          console.info(
-            "[Projects] 默认项目目录缺失，已自动修复:",
-            ensureResult.rootPath,
-          );
-        }
-      }
-
       setProjects(list.map(toProjectView));
       setDefaultProject(defaultProj ? toProjectView(defaultProj) : null);
+      clearRetryTimer();
+      retryAttemptRef.current = 0;
+
+      if (!skipDefaultWorkspaceReadyCheck && defaultProj?.id) {
+        void ensureWorkspaceReady(defaultProj.id)
+          .then((ensureResult) => {
+            if (!ensureResult.repaired) {
+              return;
+            }
+
+            recordWorkspaceRepair({
+              workspaceId: ensureResult.workspaceId,
+              rootPath: ensureResult.rootPath,
+              source: "projects_refresh",
+            });
+            console.info(
+              "[Projects] 默认项目目录缺失，已自动修复:",
+              ensureResult.rootPath,
+            );
+          })
+          .catch((ensureError) => {
+            console.warn(
+              "[Projects] 默认项目目录健康检查失败:",
+              ensureError,
+            );
+          });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [skipDefaultWorkspaceReadyCheck]);
+  }, [clearRetryTimer, skipDefaultWorkspaceReadyCheck]);
 
   /** 筛选后的项目列表 */
   const filteredProjects = useMemo(() => {
@@ -217,6 +252,38 @@ export function useProjects(
     }
     refresh();
   }, [autoLoad, refresh]);
+
+  useEffect(() => {
+    if (
+      !autoLoad ||
+      !error ||
+      !isDevBridgeUnavailableErrorMessage(error) ||
+      retryAttemptRef.current >= DEV_BRIDGE_RETRY_MAX_ATTEMPTS ||
+      retryTimerRef.current
+    ) {
+      return;
+    }
+
+    const delay = Math.min(
+      DEV_BRIDGE_RETRY_MAX_DELAY_MS,
+      DEV_BRIDGE_RETRY_BASE_DELAY_MS * 2 ** retryAttemptRef.current,
+    );
+    retryAttemptRef.current += 1;
+    retryTimerRef.current = setTimeout(() => {
+      retryTimerRef.current = null;
+      void refresh();
+    }, delay);
+
+    return () => {
+      clearRetryTimer();
+    };
+  }, [autoLoad, clearRetryTimer, error, refresh]);
+
+  useEffect(() => {
+    return () => {
+      clearRetryTimer();
+    };
+  }, [clearRetryTimer]);
 
   return {
     projects,

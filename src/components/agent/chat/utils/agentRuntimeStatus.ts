@@ -1,6 +1,7 @@
 import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
 import type { AgentContextTraceStep as ContextTraceStep } from "@/lib/api/agentProtocol";
 import type { AgentRuntimeStatus } from "../types";
+import { resolveAgentRuntimeErrorPresentation } from "./agentRuntimeErrorPresentation";
 
 function buildExecutionLabel(strategy: AsterExecutionStrategy): string {
   switch (strategy) {
@@ -16,8 +17,7 @@ function buildExecutionLabel(strategy: AsterExecutionStrategy): string {
 }
 
 function normalizeRuntimeErrorDetail(errorMessage: string): string {
-  const detail = errorMessage.trim();
-  return detail || "执行链路返回失败，请查看详情后重试。";
+  return resolveAgentRuntimeErrorPresentation(errorMessage).displayMessage;
 }
 
 export function buildInitialAgentRuntimeStatus(options: {

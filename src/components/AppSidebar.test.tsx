@@ -125,13 +125,16 @@ describe("AppSidebar", () => {
     await flushEffects();
 
     expect(container.textContent).toContain("能力");
-    expect(container.textContent).toContain("视频");
     expect(container.textContent).toContain("技能");
-    expect(container.textContent).toContain("自动化");
-    expect(container.textContent).toContain("IM 配置");
+    expect(container.textContent).toContain("消息渠道");
+    expect(container.textContent).toContain("资料");
+    expect(container.textContent).toContain("资料库");
+    expect(container.textContent).toContain("灵感库");
+    expect(container.textContent).not.toContain("视频");
+    expect(container.textContent).not.toContain("自动化");
   });
 
-  it("进入 IM 配置页时应高亮对应能力入口并保留能力分组标题", async () => {
+  it("进入消息渠道页时应高亮对应能力入口并保留能力分组标题", async () => {
     const container = mountSidebar({
       currentPage: "channels",
     });
@@ -139,7 +142,7 @@ describe("AppSidebar", () => {
 
     expect(container.textContent).toContain("能力");
     expect(
-      container.querySelector('button[aria-label="IM 配置"][aria-current="page"]'),
+      container.querySelector('button[aria-label="消息渠道"][aria-current="page"]'),
     ).not.toBeNull();
   });
 

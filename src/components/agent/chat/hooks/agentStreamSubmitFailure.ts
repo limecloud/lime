@@ -7,6 +7,7 @@ import {
   buildFailedAgentMessageContent,
   buildFailedAgentRuntimeStatus,
 } from "../utils/agentRuntimeStatus";
+import { resolveAgentRuntimeErrorPresentation } from "../utils/agentRuntimeErrorPresentation";
 import { isWorkspacePathErrorMessage } from "./agentChatCoreUtils";
 import type { ActiveStreamState, StreamRequestState } from "./agentStreamSubmissionLifecycle";
 import type { WorkspacePathMissingState } from "./agentChatShared";
@@ -78,7 +79,12 @@ export function handleAgentStreamSubmitFailure(
   } else if (isWorkspacePathErrorMessage(errMsg)) {
     setWorkspacePathMissing({ content, images });
   } else {
-    toast.error(`发送失败: ${error}`);
+    const presentation = resolveAgentRuntimeErrorPresentation(errMsg);
+    toast.error(
+      presentation.toastMessage.startsWith("响应错误:")
+        ? presentation.toastMessage.replace(/^响应错误:/, "发送失败:")
+        : presentation.toastMessage,
+    );
   }
 
   markOptimisticFailure(errMsg);

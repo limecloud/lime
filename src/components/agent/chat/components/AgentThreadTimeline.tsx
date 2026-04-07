@@ -27,6 +27,7 @@ import {
 import type { AgentRuntimeThreadReadModel } from "@/lib/api/agentRuntime";
 import { isActionRequestA2UICompatible } from "../utils/actionRequestA2UI";
 import { resolveInternalImageTaskDisplayName } from "../utils/internalImagePlaceholder";
+import { isHiddenInternalArtifactPath } from "../utils/internalArtifactVisibility";
 import { parseAIResponse } from "@/lib/workspace/a2ui";
 import type { A2UIResponse } from "@/lib/workspace/a2ui";
 import { TIMELINE_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
@@ -801,6 +802,10 @@ function renderGroupItemDetails(
   }
 
   if (item.type === "file_artifact") {
+    if (isHiddenInternalArtifactPath(item.path)) {
+      return null;
+    }
+
     return (
       <AgentThreadTimelineArtifactCard
         item={item}
@@ -1508,7 +1513,10 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
   const visibleItems = useMemo(
     () =>
       items.filter(
-        (item) => item.type !== "user_message" && item.type !== "agent_message",
+        (item) =>
+          item.type !== "user_message" &&
+          item.type !== "agent_message" &&
+          !(item.type === "file_artifact" && isHiddenInternalArtifactPath(item.path)),
       ),
     [items],
   );

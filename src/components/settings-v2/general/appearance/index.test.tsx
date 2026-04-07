@@ -168,11 +168,11 @@ describe("AppearanceSettings", () => {
     expect(text).toContain("左侧边栏导航");
     expect(text).toContain("主导航入口");
     expect(text).toContain("系统入口");
-    expect(text).toContain("核心入口固定显示：新建任务、任务中心、技能、自动化、IM 配置");
+    expect(text).toContain("核心入口固定显示：新建任务、任务中心、技能、消息渠道、资料库、灵感库");
     expect(text).toContain("推荐行为");
     expect(text).toContain("OpenClaw");
     expect(text).toContain("资料库");
-    expect(text).toContain("记忆");
+    expect(text).toContain("灵感库");
     expect(text).toContain("推荐自动附带选中内容");
     expect(text).toContain("重新运行引导");
     expect(text).not.toContain("已合并旧入口");
@@ -182,7 +182,7 @@ describe("AppearanceSettings", () => {
   it("切换底部入口时应保留 workspace_preferences 的其他配置", async () => {
     const { container } = await renderPage();
     const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("资料库"),
+      (item) => item.textContent?.includes("工具箱"),
     );
 
     await act(async () => {
@@ -192,11 +192,7 @@ describe("AppearanceSettings", () => {
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual([
-      "video",
-      "image-gen",
-      "terminal",
-    ]);
+    expect(savedConfig.navigation.enabled_items).toEqual(["terminal", "tools"]);
     expect(
       savedConfig.workspace_preferences.media_defaults.voice.preferredProviderId,
     ).toBe("openai");
@@ -205,7 +201,7 @@ describe("AppearanceSettings", () => {
   it("切换底部入口时应保存完整的侧栏导航配置", async () => {
     const { container } = await renderPage();
     const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("资料库"),
+      (item) => item.textContent?.includes("工具箱"),
     );
 
     await act(async () => {
@@ -215,11 +211,7 @@ describe("AppearanceSettings", () => {
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual([
-      "video",
-      "image-gen",
-      "terminal",
-    ]);
+    expect(savedConfig.navigation.enabled_items).toEqual(["terminal", "tools"]);
   });
 
   it("缺少导航配置时应回退到底部默认入口", async () => {
@@ -242,13 +234,7 @@ describe("AppearanceSettings", () => {
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual([
-      "video",
-      "image-gen",
-      "resources",
-      "terminal",
-      "tools",
-    ]);
+    expect(savedConfig.navigation.enabled_items).toEqual(["terminal", "tools"]);
   });
 
   it("应把首屏和基础外观说明收进 tips", async () => {

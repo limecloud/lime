@@ -379,6 +379,22 @@ describe("AgentThreadTimeline", () => {
     );
   });
 
+  it("不应把 .lime/tasks 下的内部任务快照 JSON 渲染到时间线里", () => {
+    const container = renderTimeline([
+      createFileArtifactItem({
+        id: "artifact-hidden-task-json",
+        path: ".lime/tasks/image_generate/task-image-1.json",
+        content: "{\"status\":\"running\"}",
+        metadata: {},
+      }),
+    ]);
+
+    expect(
+      container.querySelector('[data-testid="timeline-file-artifact-card"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("task-image-1.json");
+  });
+
   it("收到 timeline 聚焦请求时应自动展开并高亮目标项", () => {
     const container = renderTimeline(
       [

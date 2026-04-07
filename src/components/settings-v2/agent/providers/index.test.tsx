@@ -684,10 +684,16 @@ describe("CloudProviderSettings", () => {
       container.querySelector('[data-testid="companion-provider-card"]'),
     ).not.toBeNull();
     expect(text).toContain("Lime Pet Companion");
-    expect(text).toContain(
+
+    const introTip = await hoverTip("桌宠 Companion 说明");
+    expect(getBodyText()).toContain(
       "桌宠通过本地 Companion 通道复用 Lime 的 AI 服务商状态",
     );
-    expect(text).toContain("不会直接读取 API Key、OAuth 凭证或本地凭证文件");
+    expect(getBodyText()).toContain(
+      "不会直接读取 API Key、OAuth 凭证或本地凭证文件",
+    );
+    await leaveTip(introTip);
+
     expect(text).toContain("桌宠已连接");
     expect(text).toContain("Provider 概览");
     expect(text).toContain("桌宠视角预览");
@@ -878,6 +884,9 @@ describe("CloudProviderSettings", () => {
     expect(syncButton?.disabled).toBe(true);
     expect(text).toContain("能力未声明");
     expect(text).toContain("当前桌宠已连接，但尚未声明 Provider 概览能力");
-    expect(text).toContain("平台：Windows");
+
+    const identityTip = await hoverTip("桌宠身份说明");
+    expect(getBodyText()).toContain("平台：Windows");
+    await leaveTip(identityTip);
   });
 });

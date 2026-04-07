@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { wechatChannelSetRuntimeModel } from "@/lib/api/channelsRuntime";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 
 let lastSyncedWechatRuntimeModelKey: string | null = null;
 
@@ -14,7 +15,13 @@ export function useWechatRuntimeModelSync({
   modelId,
   source,
 }: UseWechatRuntimeModelSyncOptions) {
+  const syncEnabled = hasTauriInvokeCapability();
+
   useEffect(() => {
+    if (!syncEnabled) {
+      return;
+    }
+
     const normalizedProviderId = providerId?.trim() || "";
     const normalizedModelId = modelId?.trim() || "";
     const selectionKey =
@@ -54,5 +61,5 @@ export function useWechatRuntimeModelSync({
     return () => {
       cancelled = true;
     };
-  }, [modelId, providerId, source]);
+  }, [modelId, providerId, source, syncEnabled]);
 }

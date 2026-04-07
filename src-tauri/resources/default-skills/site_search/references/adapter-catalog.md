@@ -19,6 +19,7 @@
 | `linux-do/categories` | linux.do | 读取 linux.do 分类列表。 | 无 | limit | 请先在浏览器中登录 linux.do，再重试该命令。 |
 | `linux-do/hot` | linux.do | 读取 linux.do 热门话题。 | 无 | limit, period | 请先在浏览器中登录 linux.do，再重试该命令。 |
 | `smzdm/search` | search.smzdm.com | 按关键词采集什么值得买搜索结果。 | query | limit | 无 |
+| `x/article-export` | x.com | 把 X 长文导出为 Markdown 正文和图片资源包。 | url | 无 | 如果页面内容未完整加载，请先在浏览器中登录 X 并打开目标文章页面。 |
 | `yahoo-finance/quote` | finance.yahoo.com | 读取 Yahoo Finance 股票行情摘要。 | symbol | 无 | 无 |
 | `zhihu/hot` | www.zhihu.com | 采集知乎热榜问题列表。 | 无 | limit | 请先在浏览器中登录知乎，再重试该命令。 |
 | `zhihu/search` | www.zhihu.com | 按关键词采集知乎搜索结果。 | query | limit | 请先在浏览器中登录知乎，再重试该命令。 |
@@ -33,6 +34,7 @@
 - 社区目录：`linux-do/categories`
 - 快讯流：`36kr/newsflash`
 - 商品搜索：`smzdm/search`
+- X 长文导出：`x/article-export`
 - 行情摘要：`yahoo-finance/quote`
 
 ## 使用提醒

@@ -44,6 +44,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 
 interface AppSidebarProps {
   currentPage: Page;
@@ -56,28 +58,17 @@ type SidebarNavSection = SidebarNavSectionDefinition;
 
 const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
 const SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS = 1200;
-const SIDEBAR_PLUGIN_FALLBACK_DELAY_MS = 180;
+const SIDEBAR_PLUGIN_BROWSER_IDLE_TIMEOUT_MS = 6000;
 
 function scheduleSidebarPluginLoad(task: () => void): () => void {
-  if (typeof window === "undefined") {
-    return () => undefined;
-  }
+  const minimumDelayMs = hasTauriInvokeCapability()
+    ? SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS
+    : SIDEBAR_PLUGIN_BROWSER_IDLE_TIMEOUT_MS;
 
-  if (typeof window.requestIdleCallback === "function") {
-    const idleId = window.requestIdleCallback(() => task(), {
-      timeout: SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS,
-    });
-    return () => {
-      if (typeof window.cancelIdleCallback === "function") {
-        window.cancelIdleCallback(idleId);
-      }
-    };
-  }
-
-  const timeoutId = window.setTimeout(task, SIDEBAR_PLUGIN_FALLBACK_DELAY_MS);
-  return () => {
-    window.clearTimeout(timeoutId);
-  };
+  return scheduleMinimumDelayIdleTask(task, {
+    minimumDelayMs,
+    idleTimeoutMs: SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS,
+  });
 }
 
 const Container = styled.aside<{
@@ -85,31 +76,31 @@ const Container = styled.aside<{
   $themeMode: "light" | "dark";
 }>`
   --sidebar-surface-top: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#15202b" : "#eef6f0"};
+    $themeMode === "dark" ? "#15202b" : "#f6fbf4"};
   --sidebar-surface-middle: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#17232d" : "#f5f5ef"};
+    $themeMode === "dark" ? "#17232d" : "#f9fcf6"};
   --sidebar-surface-bottom: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#1a2530" : "#f4f8f8"};
+    $themeMode === "dark" ? "#1a2530" : "#fbfff5"};
   --sidebar-foreground: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#eef4f7" : "#1f2937"};
+    $themeMode === "dark" ? "#eef4f7" : "#1a3b2b"};
   --sidebar-muted: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#a1afbd" : "#60707d"};
+    $themeMode === "dark" ? "#a1afbd" : "#6b826b"};
   --sidebar-border: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#2d3a46" : "#d8e4dc"};
+    $themeMode === "dark" ? "#2d3a46" : "#e2f0e2"};
   --sidebar-divider: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "rgba(148, 163, 184, 0.14)" : "rgba(148, 163, 184, 0.18)"};
+    $themeMode === "dark" ? "rgba(148, 163, 184, 0.14)" : "rgba(132, 204, 22, 0.15)"};
   --sidebar-hover: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#22303c" : "#e4ede6"};
+    $themeMode === "dark" ? "#22303c" : "#eef7ee"};
   --sidebar-active: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#2a3e3b" : "#d9e9df"};
+    $themeMode === "dark" ? "#2a3e3b" : "#e6f8ea"};
   --sidebar-active-foreground: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#dff4ea" : "#1b4332"};
+    $themeMode === "dark" ? "#dff4ea" : "#166534"};
   --sidebar-search-bg: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#1f2b36" : "#fbfcf9"};
+    $themeMode === "dark" ? "#1f2b36" : "#fcfff9"};
   --sidebar-search-hover: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#24313d" : "#f2f6f2"};
+    $themeMode === "dark" ? "#24313d" : "#f4fdf4"};
   --sidebar-search-border-hover: ${({ $themeMode }) =>
-    $themeMode === "dark" ? "#3a4a57" : "#cfded4"};
+    $themeMode === "dark" ? "#3a4a57" : "#bbf7d0"};
   display: flex;
   flex-direction: column;
   width: ${({ $collapsed }) => ($collapsed ? "72px" : "248px")};
@@ -139,13 +130,13 @@ const Container = styled.aside<{
     background:
       radial-gradient(
         circle at top left,
-        rgba(88, 160, 123, 0.14) 0%,
-        rgba(88, 160, 123, 0) 44%
+        rgba(132, 204, 22, 0.12) 0%,
+        rgba(132, 204, 22, 0) 44%
       ),
       radial-gradient(
         circle at bottom left,
-        rgba(109, 153, 219, 0.12) 0%,
-        rgba(109, 153, 219, 0) 36%
+        rgba(16, 185, 129, 0.1) 0%,
+        rgba(16, 185, 129, 0) 36%
       );
     pointer-events: none;
     z-index: 0;

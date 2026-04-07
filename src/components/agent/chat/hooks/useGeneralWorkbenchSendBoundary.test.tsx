@@ -121,7 +121,7 @@ describe("useGeneralWorkbenchSendBoundary", () => {
     }
   });
 
-  it("需要真实浏览器时应仅保留 requirement 检测，不再启动前置引导", () => {
+  it("需要真实浏览器时应仅保留 requirement 检测，不再恢复旧状态机", () => {
     const harness = mountHook();
 
     try {

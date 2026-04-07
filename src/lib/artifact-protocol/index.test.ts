@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { ARTIFACT_DOCUMENT_SCHEMA_VERSION } from "@/lib/artifact-document";
 import {
+  areArtifactProtocolPathsEquivalent,
   extractArtifactProtocolPaths,
   extractArtifactProtocolPathsFromRecord,
   extractArtifactProtocolPathsFromValue,
   hasArtifactProtocolDocumentMetadata,
   hasArtifactProtocolMetadata,
+  isArtifactProtocolImagePath,
+  normalizeArtifactProtocolPath,
   resolveArtifactProtocolDocumentPayload,
   resolveArtifactProtocolFilePath,
   resolveArtifactProtocolPreviewText,
@@ -103,6 +106,35 @@ describe("artifact-protocol", () => {
       }),
     ).toBe(true);
     expect(hasArtifactProtocolMetadata(undefined)).toBe(false);
+  });
+
+  it("应把文件名、相对路径与绝对路径识别为同一路径", () => {
+    expect(
+      areArtifactProtocolPathsEquivalent(
+        "output_image.jpg",
+        "/Users/coso/.lime/tasks/image/output_image.jpg",
+      ),
+    ).toBe(true);
+    expect(
+      areArtifactProtocolPathsEquivalent(
+        "./.lime/tasks/image/output_image.jpg",
+        ".lime/tasks/image/output_image.jpg",
+      ),
+    ).toBe(true);
+    expect(
+      areArtifactProtocolPathsEquivalent(
+        "content-posts/cover.png",
+        "assets/cover.png",
+      ),
+    ).toBe(false);
+  });
+
+  it("应规范化协议路径并识别二进制图片文件", () => {
+    expect(normalizeArtifactProtocolPath(" .\\.lime\\tasks\\image\\cover.jpg ")).toBe(
+      "./.lime/tasks/image/cover.jpg",
+    );
+    expect(isArtifactProtocolImagePath("output_image.jpg")).toBe(true);
+    expect(isArtifactProtocolImagePath("diagram.svg")).toBe(false);
   });
 
   it("应统一处理 artifact 的文件路径回退顺序", () => {

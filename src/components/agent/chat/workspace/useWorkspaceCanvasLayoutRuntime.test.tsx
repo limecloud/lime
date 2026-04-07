@@ -41,11 +41,13 @@ function renderHook(props?: Partial<HookProps>) {
     showTeamWorkspaceBoard: false,
     hasCurrentCanvasArtifact: false,
     currentCanvasArtifactType: null,
+    hasBrowserAssistArtifact: false,
     currentImageWorkbenchActive: false,
     onHasMessagesChange: vi.fn(),
     dismissActiveTeamWorkbenchAutoOpen: vi.fn(),
     suppressGeneralCanvasArtifactAutoOpen: vi.fn(),
     suppressBrowserAssistCanvasAutoOpen: vi.fn(),
+    clearBrowserAssistCanvasArtifact: vi.fn(),
     setShowSidebar: vi.fn(),
     setLayoutMode: vi.fn(),
     setGeneralCanvasState: vi.fn(),
@@ -252,5 +254,54 @@ describe("useWorkspaceCanvasLayoutRuntime", () => {
     ).toBe(false);
     expect(setGeneralCanvasState).not.toHaveBeenCalled();
     expect(setCanvasState).not.toHaveBeenCalled();
+  });
+
+  it("关闭通用画布时应一并移除残留的浏览器协助 artifact", async () => {
+    const dismissActiveTeamWorkbenchAutoOpen = vi.fn();
+    const suppressGeneralCanvasArtifactAutoOpen = vi.fn();
+    const suppressBrowserAssistCanvasAutoOpen = vi.fn();
+    const clearBrowserAssistCanvasArtifact = vi.fn();
+    const setLayoutMode = vi.fn();
+    const setGeneralCanvasState = vi.fn();
+    const { render, getValue } = renderHook({
+      activeTheme: "general",
+      hasBrowserAssistArtifact: true,
+      dismissActiveTeamWorkbenchAutoOpen,
+      suppressGeneralCanvasArtifactAutoOpen,
+      suppressBrowserAssistCanvasAutoOpen,
+      clearBrowserAssistCanvasArtifact,
+      setLayoutMode,
+      setGeneralCanvasState,
+    });
+
+    await render();
+
+    act(() => {
+      getValue().handleCloseCanvas();
+    });
+
+    expect(dismissActiveTeamWorkbenchAutoOpen).toHaveBeenCalledTimes(1);
+    expect(suppressGeneralCanvasArtifactAutoOpen).toHaveBeenCalledTimes(1);
+    expect(suppressBrowserAssistCanvasAutoOpen).toHaveBeenCalledTimes(1);
+    expect(clearBrowserAssistCanvasArtifact).toHaveBeenCalledTimes(1);
+    expect(setLayoutMode).toHaveBeenCalledWith("chat");
+
+    const updater = setGeneralCanvasState.mock.calls.at(-1)?.[0] as
+      | ((previous: GeneralCanvasState) => GeneralCanvasState)
+      | undefined;
+    expect(typeof updater).toBe("function");
+    expect(
+      updater?.({
+        isOpen: true,
+        contentType: "markdown",
+        content: "浏览器残留",
+        isEditing: false,
+      }),
+    ).toEqual({
+      isOpen: false,
+      contentType: "markdown",
+      content: "浏览器残留",
+      isEditing: false,
+    });
   });
 });

@@ -23,6 +23,7 @@ import {
 import { buildProviderModelsFromRegistry } from "@/lib/model/providerModelsCatalog";
 import { filterModelsByTheme } from "../utils/modelThemePolicy";
 import { getProviderModelCompatibilityIssue } from "../utils/providerModelCompatibility";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 
 interface UseTrayModelShortcutsOptions {
   providerType: string;
@@ -342,6 +343,7 @@ export function useTrayModelShortcuts({
   activeTheme,
   deferInitialSync = false,
 }: UseTrayModelShortcutsOptions) {
+  const traySyncEnabled = hasTauriInvokeCapability();
   const lastSyncedSignatureRef = useRef<string>("");
   const initialSyncHandledRef = useRef(false);
   const latestSelectionRef = useRef({
@@ -365,6 +367,10 @@ export function useTrayModelShortcuts({
   }, [model, providerType, setModel, setProviderType]);
 
   useEffect(() => {
+    if (!traySyncEnabled) {
+      return;
+    }
+
     const normalizedProviderType = providerType.trim();
     const normalizedModel = model.trim();
     const normalizedTheme = activeTheme?.trim() || "";
@@ -413,9 +419,13 @@ export function useTrayModelShortcuts({
       cancelled = true;
       cleanupScheduledTask?.();
     };
-  }, [activeTheme, deferInitialSync, model, providerType]);
+  }, [activeTheme, deferInitialSync, model, providerType, traySyncEnabled]);
 
   useEffect(() => {
+    if (!traySyncEnabled) {
+      return;
+    }
+
     let cancelled = false;
     let dispose: (() => void) | null = null;
 
@@ -461,5 +471,5 @@ export function useTrayModelShortcuts({
         dispose();
       }
     };
-  }, []);
+  }, [traySyncEnabled]);
 }

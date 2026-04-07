@@ -471,10 +471,14 @@ async fn execute_aster_chat_request(
     request.metadata = prepare_deep_search_skill_launch_request_metadata(request.metadata.as_ref());
     request.metadata = prepare_site_search_skill_launch_request_metadata(request.metadata.as_ref());
     request.metadata = prepare_pdf_read_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata =
+        prepare_presentation_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_form_skill_launch_request_metadata(request.metadata.as_ref());
     request.metadata = prepare_summary_skill_launch_request_metadata(request.metadata.as_ref());
     request.metadata = prepare_translation_skill_launch_request_metadata(request.metadata.as_ref());
     request.metadata = prepare_analysis_skill_launch_request_metadata(request.metadata.as_ref());
     request.metadata = prepare_typesetting_skill_launch_request_metadata(request.metadata.as_ref());
+    request.metadata = prepare_webpage_skill_launch_request_metadata(request.metadata.as_ref());
     request.metadata = prepare_service_scene_launch_request_metadata(request.metadata.as_ref());
     let runtime_config = config_manager.config();
     apply_web_search_runtime_env(&runtime_config);
@@ -803,8 +807,26 @@ async fn execute_aster_chat_request(
         prompt_with_pdf_read_skill_launch.clone(),
     );
 
-    let prompt_with_summary_skill_launch = merge_system_prompt_with_summary_skill_launch(
+    let prompt_with_presentation_skill_launch = merge_system_prompt_with_presentation_skill_launch(
         prompt_with_pdf_read_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::PresentationSkillLaunch,
+        prompt_with_presentation_skill_launch.clone(),
+    );
+
+    let prompt_with_form_skill_launch = merge_system_prompt_with_form_skill_launch(
+        prompt_with_presentation_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::FormSkillLaunch,
+        prompt_with_form_skill_launch.clone(),
+    );
+
+    let prompt_with_summary_skill_launch = merge_system_prompt_with_summary_skill_launch(
+        prompt_with_form_skill_launch,
         request.metadata.as_ref(),
     );
     turn_input_builder.apply_prompt_stage(
@@ -858,8 +880,17 @@ async fn execute_aster_chat_request(
         prompt_with_typesetting_skill_launch.clone(),
     );
 
-    let prompt_with_service_skill_launch = merge_system_prompt_with_service_skill_launch(
+    let prompt_with_webpage_skill_launch = merge_system_prompt_with_webpage_skill_launch(
         prompt_with_typesetting_skill_launch,
+        request.metadata.as_ref(),
+    );
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::WebpageSkillLaunch,
+        prompt_with_webpage_skill_launch.clone(),
+    );
+
+    let prompt_with_service_skill_launch = merge_system_prompt_with_service_skill_launch(
+        prompt_with_webpage_skill_launch,
         request.metadata.as_ref(),
     );
     turn_input_builder.apply_prompt_stage(
@@ -1541,7 +1572,16 @@ async fn execute_aster_chat_request(
                     tracing::warn!("[AsterAgent] 完成 turn 时间线失败（已降级继续）: {}", error);
                 }
             }
-            let done_event = RuntimeAgentEvent::FinalDone { usage: None };
+            let usage = resolve_runtime_message_usage(session_id).await;
+            if let Some(ref usage) = usage {
+                if let Err(error) = persist_latest_assistant_message_usage(db, session_id, usage) {
+                    tracing::warn!(
+                        "[AsterAgent] 持久化消息 usage 失败（已降级继续）: {}",
+                        error
+                    );
+                }
+            }
+            let done_event = RuntimeAgentEvent::FinalDone { usage };
             if let Err(e) = app.emit(&request.event_name, &done_event) {
                 tracing::error!("[AsterAgent] 发送完成事件失败: {}", e);
             }
@@ -1607,6 +1647,44 @@ async fn update_compaction_session_metrics(
 
     let update = build_compaction_session_metrics_update(&session, session_config, usage);
     persist_compaction_session_metrics_update(&session_config.id, &update).await
+}
+
+fn resolve_runtime_message_usage_from_session(
+    session: &aster::session::Session,
+) -> Option<lime_agent::AgentTokenUsage> {
+    match (session.input_tokens, session.output_tokens) {
+        (Some(input_tokens), Some(output_tokens)) if input_tokens >= 0 && output_tokens >= 0 => {
+            Some(lime_agent::AgentTokenUsage {
+                input_tokens: input_tokens as u32,
+                output_tokens: output_tokens as u32,
+            })
+        }
+        _ => None,
+    }
+}
+
+async fn resolve_runtime_message_usage(session_id: &str) -> Option<lime_agent::AgentTokenUsage> {
+    let session = read_session(session_id, false, "读取会话 token 统计失败")
+        .await
+        .ok()?;
+    resolve_runtime_message_usage_from_session(&session)
+}
+
+fn persist_latest_assistant_message_usage(
+    db: &DbConnection,
+    session_id: &str,
+    usage: &lime_agent::AgentTokenUsage,
+) -> Result<(), String> {
+    let conn = db
+        .lock()
+        .map_err(|error| format!("更新消息 usage 时数据库锁定失败: {error}"))?;
+    lime_core::database::agent_session_repository::update_latest_assistant_message_usage(
+        &conn,
+        session_id,
+        usage.input_tokens,
+        usage.output_tokens,
+    )?;
+    Ok(())
 }
 
 fn build_compaction_session_metrics_update(

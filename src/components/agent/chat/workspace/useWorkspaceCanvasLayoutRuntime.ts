@@ -40,11 +40,13 @@ interface UseWorkspaceCanvasLayoutRuntimeParams {
   showTeamWorkspaceBoard: boolean;
   hasCurrentCanvasArtifact: boolean;
   currentCanvasArtifactType?: string | null;
+  hasBrowserAssistArtifact: boolean;
   currentImageWorkbenchActive: boolean;
   onHasMessagesChange?: (hasMessages: boolean) => void;
   dismissActiveTeamWorkbenchAutoOpen: () => void;
   suppressGeneralCanvasArtifactAutoOpen: () => void;
   suppressBrowserAssistCanvasAutoOpen: () => void;
+  clearBrowserAssistCanvasArtifact: () => void;
   setShowSidebar: Dispatch<SetStateAction<boolean>>;
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
   setGeneralCanvasState: Dispatch<SetStateAction<GeneralCanvasState>>;
@@ -74,11 +76,13 @@ export function useWorkspaceCanvasLayoutRuntime({
   showTeamWorkspaceBoard,
   hasCurrentCanvasArtifact,
   currentCanvasArtifactType,
+  hasBrowserAssistArtifact,
   currentImageWorkbenchActive,
   onHasMessagesChange,
   dismissActiveTeamWorkbenchAutoOpen,
   suppressGeneralCanvasArtifactAutoOpen,
   suppressBrowserAssistCanvasAutoOpen,
+  clearBrowserAssistCanvasArtifact,
   setShowSidebar,
   setLayoutMode,
   setGeneralCanvasState,
@@ -404,8 +408,12 @@ export function useWorkspaceCanvasLayoutRuntime({
     if (activeTheme === "general") {
       dismissActiveTeamWorkbenchAutoOpen();
       suppressGeneralCanvasArtifactAutoOpen();
-      if (currentCanvasArtifactType === "browser_assist") {
+      if (
+        hasBrowserAssistArtifact ||
+        currentCanvasArtifactType === "browser_assist"
+      ) {
         suppressBrowserAssistCanvasAutoOpen();
+        clearBrowserAssistCanvasArtifact();
       }
     }
     setLayoutMode("chat");
@@ -414,8 +422,10 @@ export function useWorkspaceCanvasLayoutRuntime({
     }
   }, [
     activeTheme,
+    clearBrowserAssistCanvasArtifact,
     currentCanvasArtifactType,
     dismissActiveTeamWorkbenchAutoOpen,
+    hasBrowserAssistArtifact,
     setGeneralCanvasState,
     setLayoutMode,
     suppressBrowserAssistCanvasAutoOpen,

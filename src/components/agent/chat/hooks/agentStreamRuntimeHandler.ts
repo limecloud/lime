@@ -34,6 +34,7 @@ import {
   buildFailedAgentRuntimeStatus,
   formatAgentRuntimeStatusSummary,
 } from "../utils/agentRuntimeStatus";
+import { resolveAgentRuntimeErrorPresentation } from "../utils/agentRuntimeErrorPresentation";
 import { normalizeLegacyRuntimeStatusTitle } from "@/lib/api/agentTextNormalization";
 import { resolveRuntimeWarningToastPresentation } from "./runtimeWarningPresentation";
 import { buildQueuedRuntimeStatus } from "./agentStreamSubmitDraft";
@@ -349,7 +350,8 @@ export function handleTurnStreamEvent({
           ...data.status,
           title: normalizeLegacyRuntimeStatusTitle(data.status.title),
         };
-        const nextSummaryText = formatAgentRuntimeStatusSummary(normalizedStatus);
+        const nextSummaryText =
+          formatAgentRuntimeStatusSummary(normalizedStatus);
         const updatedAt = new Date().toISOString();
         setThreadItems((prev) => {
           const runtimeSummaryItem =
@@ -362,7 +364,10 @@ export function handleTurnStreamEvent({
                   item.type === "turn_summary" &&
                   item.status === "in_progress",
               );
-          if (!runtimeSummaryItem || runtimeSummaryItem.type !== "turn_summary") {
+          if (
+            !runtimeSummaryItem ||
+            runtimeSummaryItem.type !== "turn_summary"
+          ) {
             return prev;
           }
 
@@ -431,7 +436,10 @@ export function handleTurnStreamEvent({
                 ...msg,
                 content: requestState.accumulatedContent,
                 thinkingContent: undefined,
-                contentParts: appendTextToParts(msg.contentParts || [], data.text),
+                contentParts: appendTextToParts(
+                  msg.contentParts || [],
+                  data.text,
+                ),
               }
             : msg,
         ),
@@ -516,7 +524,9 @@ export function handleTurnStreamEvent({
     case "final_done": {
       clearOptimisticItem();
       clearOptimisticTurn();
-      removeQueuedTurnState(requestState.queuedTurnId ? [requestState.queuedTurnId] : []);
+      removeQueuedTurnState(
+        requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
+      );
       finishRequestLog(requestState, {
         eventType: "chat_request_complete",
         status: "success",
@@ -537,6 +547,7 @@ export function handleTurnStreamEvent({
                 isThinking: false,
                 content: finalContent,
                 runtimeStatus: undefined,
+                usage: data.usage ?? msg.usage,
               }
             : msg,
         ),
@@ -548,7 +559,9 @@ export function handleTurnStreamEvent({
 
     case "error": {
       markFailedTimelineState(data.message);
-      removeQueuedTurnState(requestState.queuedTurnId ? [requestState.queuedTurnId] : []);
+      removeQueuedTurnState(
+        requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
+      );
       finishRequestLog(requestState, {
         eventType: "chat_request_error",
         status: "error",
@@ -562,7 +575,9 @@ export function handleTurnStreamEvent({
       ) {
         toast.warning("请求过于频繁，请稍后重试");
       } else {
-        toast.error(`响应错误: ${data.message}`);
+        toast.error(
+          resolveAgentRuntimeErrorPresentation(data.message).toastMessage,
+        );
       }
       setMessages((prev) =>
         prev.map((msg) =>

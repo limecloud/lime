@@ -203,6 +203,73 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
     }
 
     append_browser_assist_session_permissions(&mut permissions, session_id, request_metadata);
+    append_image_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
+    append_cover_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
+    append_video_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
+    append_broadcast_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_resource_search_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_research_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_deep_search_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_report_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
+    append_site_search_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_pdf_read_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_presentation_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_form_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
+    append_summary_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
+    append_translation_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_analysis_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_transcription_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_url_parse_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_typesetting_skill_launch_session_permissions(
+        &mut permissions,
+        session_id,
+        request_metadata,
+    );
+    append_webpage_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
     append_service_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
 
     let (registry_arc, _) = resolve_agent_registry(state).await?;
@@ -243,6 +310,25 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
         config_manager.0.clone(),
     );
     workspace_tools::wrap_registry_native_tools_for_workspace_runtime(&mut registry);
+    prune_image_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_cover_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_video_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_broadcast_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_resource_search_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_research_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_deep_search_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_report_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_site_search_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_pdf_read_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_presentation_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_form_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_summary_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_translation_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_analysis_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_transcription_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_url_parse_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_typesetting_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
+    prune_webpage_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
 
     Ok(apply_outcome)
 }

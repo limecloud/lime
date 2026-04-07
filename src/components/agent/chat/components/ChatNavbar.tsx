@@ -17,6 +17,8 @@ import { Navbar } from "../styles";
 interface ChatNavbarProps {
   isRunning: boolean;
   chrome?: "full" | "workspace-compact";
+  entryContextLabel?: string;
+  entryContextHint?: string;
   onToggleHistory: () => void;
   showHistoryToggle?: boolean;
   onToggleFullscreen: () => void;
@@ -59,6 +61,8 @@ const toolbarTextButtonClassName =
 export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   isRunning: _isRunning,
   chrome = "full",
+  entryContextLabel,
+  entryContextHint,
   onToggleHistory,
   showHistoryToggle = true,
   onToggleFullscreen: _onToggleFullscreen,
@@ -111,6 +115,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   const compactProjectSelectorClassName = isWorkspaceCompact
     ? "min-w-[184px] max-w-[248px]"
     : "min-w-[196px] max-w-[280px]";
+  const showEntryContext = Boolean(entryContextLabel);
 
   return (
     <Navbar $compact={isWorkspaceCompact}>
@@ -192,6 +197,26 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 )}
               </Button>
             ) : null}
+          </div>
+        ) : null}
+
+        {showEntryContext ? (
+          <div
+            className={cn(
+              "ml-1 min-w-0",
+              isWorkspaceCompact ? "max-w-[180px]" : "max-w-[320px]",
+            )}
+          >
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="inline-flex w-fit items-center rounded-full border border-slate-200/80 bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm shadow-slate-950/5">
+                {entryContextLabel}
+              </span>
+              {!isWorkspaceCompact && entryContextHint ? (
+                <p className="truncate text-xs text-slate-500">
+                  {entryContextHint}
+                </p>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </div>

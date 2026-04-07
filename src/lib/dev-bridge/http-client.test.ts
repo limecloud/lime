@@ -1,92 +1,111 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-type MockMessageEvent = {
-  data: string;
-};
+vi.mock("@/lib/tauri-runtime", () => ({
+  hasTauriInvokeCapability: vi.fn(() => false),
+  hasTauriRuntimeMarkers: vi.fn(() => false),
+}));
 
-class MockEventSource {
-  static instances: MockEventSource[] = [];
+import {
+  __resetDevBridgeHttpStateForTests,
+  healthCheck,
+  invokeViaHttp,
+  listenViaHttpEvent,
+} from "./http-client";
 
-  readonly url: string;
-  readonly withCredentials = false;
-  readyState = 0;
-  onopen: ((event: Event) => void) | null = null;
-  onmessage: ((event: MockMessageEvent) => void) | null = null;
-  onerror: ((event: Event | unknown) => void) | null = null;
-  closed = false;
+type FetchInput = Parameters<typeof fetch>[0];
+type FetchOptions = Parameters<typeof fetch>[1];
 
-  constructor(url: string) {
-    this.url = url;
-    MockEventSource.instances.push(this);
-  }
-
-  close() {
-    this.closed = true;
-    this.readyState = 2;
-  }
-
-  emitOpen() {
-    this.readyState = 1;
-    this.onopen?.(new Event("open"));
-  }
-
-  emitMessage(data: string) {
-    this.onmessage?.({ data });
-  }
+function createAbortablePendingFetch() {
+  return vi.fn((_input: FetchInput, init?: FetchOptions) => {
+    return new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      signal?.addEventListener("abort", () => {
+        reject(new DOMException("The operation was aborted.", "AbortError"));
+      });
+    });
+  });
 }
 
-describe("http-client listenViaHttpEvent", () => {
+describe("http-client", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
-    MockEventSource.instances = [];
-    vi.stubEnv("MODE", "development");
-    vi.stubEnv("DEV", true);
-    vi.stubEnv("VITEST", "");
-    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
+    __resetDevBridgeHttpStateForTests();
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", vi.fn());
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.unstubAllEnvs();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    __resetDevBridgeHttpStateForTests();
   });
 
-  it("会等待事件流真正连上后再返回订阅", async () => {
-    const { listenViaHttpEvent } = await import("./http-client");
-    const handler = vi.fn();
-    let resolved = false;
+  it("桥健康探测失败后，后续检查会在短退避窗口内快速失败", async () => {
+    const fetchMock = createAbortablePendingFetch();
+    vi.stubGlobal("fetch", fetchMock);
 
-    const promise = listenViaHttpEvent("agent_stream", handler).then((unlisten) => {
-      resolved = true;
-      return unlisten;
-    });
+    const firstCheck = healthCheck();
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(firstCheck).resolves.toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    await Promise.resolve();
-    expect(resolved).toBe(false);
-    expect(MockEventSource.instances).toHaveLength(1);
-
-    const source = MockEventSource.instances[0];
-    source.emitOpen();
-
-    const unlisten = await promise;
-    expect(resolved).toBe(true);
-
-    source.emitMessage(JSON.stringify({ payload: { delta: "hello" } }));
-    expect(handler).toHaveBeenCalledWith({ payload: { delta: "hello" } });
-
-    unlisten();
-    expect(source.closed).toBe(true);
+    await expect(invokeViaHttp("workspace_list")).rejects.toThrow(
+      "Failed to fetch",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("连接超时会拒绝订阅并关闭事件流", async () => {
-    const { listenViaHttpEvent } = await import("./http-client");
+  it("桥健康时会复用短期健康缓存，避免每次调用都重复探测", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: ["project-a"] }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: { id: "default-project" } }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
 
-    const promise = listenViaHttpEvent("agent_stream", vi.fn());
-    const rejection = expect(promise).rejects.toThrow("事件流连接超时");
-    await vi.advanceTimersByTimeAsync(1500);
+    await expect(invokeViaHttp<string[]>("workspace_list")).resolves.toEqual([
+      "project-a",
+    ]);
+    await expect(
+      invokeViaHttp<{ id: string }>("workspace_get_default"),
+    ).resolves.toEqual({ id: "default-project" });
 
-    await rejection;
-    expect(MockEventSource.instances[0]?.closed).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://127.0.0.1:3030/health");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://127.0.0.1:3030/invoke");
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("http://127.0.0.1:3030/invoke");
+  });
+
+  it("桥失败短退避期间，事件监听不应继续创建 EventSource 连接", async () => {
+    const fetchMock = createAbortablePendingFetch();
+    const eventSourceMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("EventSource", eventSourceMock as unknown as typeof EventSource);
+
+    const firstCheck = healthCheck();
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(firstCheck).resolves.toBe(false);
+
+    await expect(
+      listenViaHttpEvent("config-changed", vi.fn()),
+    ).rejects.toThrow("Failed to fetch");
+
+    expect(eventSourceMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

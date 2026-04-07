@@ -980,9 +980,8 @@ mod tests {
 
     #[test]
     fn test_build_tool_inventory_workbench_with_browser_surface_keeps_small_default_allowlist() {
-        let expected_catalog = tool_catalog_entries_for_surface(
-            WorkspaceToolSurface::workbench_with_browser_assist(),
-        );
+        let expected_catalog =
+            tool_catalog_entries_for_surface(WorkspaceToolSurface::workbench_with_browser_assist());
         let inventory = build_tool_inventory(AgentToolInventoryBuildInput {
             surface: WorkspaceToolSurface::workbench_with_browser_assist(),
             caller: "assistant".to_string(),

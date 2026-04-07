@@ -3,6 +3,7 @@ import {
   executeCodexSlashCommand,
   parseCodexSlashCommand,
 } from "../commands";
+import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import type {
   ClearMessagesOptions,
   SendMessageFn,
@@ -77,6 +78,16 @@ export function createAgentChatSendMessage(
           appendAssistantMessage,
           notifyInfo,
           notifySuccess,
+          onExecutedCommand: (command) => {
+            if (command.definition.support !== "supported") {
+              return;
+            }
+
+            recordSlashEntryUsage({
+              kind: "command",
+              entryId: command.definition.key,
+            });
+          },
         });
         if (handled) {
           return;

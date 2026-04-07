@@ -237,7 +237,7 @@ function createGithubSearchServiceSkill(): ServiceSkillHomeItem {
 }
 
 describe("EmptyState", () => {
-  it("新建任务首页应恢复 slogan，而不是任务引导标题", async () => {
+  it("首页应以 slogan 作为主视觉并保留创作语义", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
     });
@@ -246,10 +246,11 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("新建任务");
+    expect(container.textContent).toContain("创作");
     expect(container.textContent).toContain("青柠一下，灵感即来");
-    expect(container.textContent).toContain("从一句想法，到成稿、成图、成片、成事。");
-    expect(container.textContent).not.toContain("开始一个新任务");
+    expect(container.textContent).toContain("说一句目标，剩下的交给 Lime。");
+    expect(container.textContent).toContain("成功做法会沉淀成技能");
+    expect(container.textContent).not.toContain("新建任务");
   });
 
   it("通用首页应展示推荐方案并替换旧快速启动内容", async () => {
@@ -263,17 +264,17 @@ describe("EmptyState", () => {
     });
 
     expect(container.textContent).toContain("推荐方案");
-    expect(container.textContent).toContain("浏览器协助办事");
     expect(container.textContent).toContain("网页研究简报");
     expect(container.textContent).toContain("内容主稿生成");
     expect(container.textContent).toContain("前端概念方案");
     expect(container.textContent).toContain("演示提纲草案");
+    expect(container.textContent).toContain("浏览器协助办事");
     expect(container.textContent).toContain("多代理拆任务");
     expect(container.textContent).not.toContain("生成配图");
     expect(container.textContent).not.toContain("Team 冒烟测试");
   });
 
-  it("通用首页能力卡应继续渲染 4 张能力占位图", async () => {
+  it("通用首页应继续渲染 4 个带视觉预览的支撑能力入口", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       onLaunchBrowserAssist: vi.fn(),
@@ -283,18 +284,53 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
+    const expectedLabels = [
+      "技能",
+      "自动化",
+      "多代理",
+      "浏览器接入",
+    ];
     const expectedAlts = [
       "技能能力卡占位图",
       "自动化能力卡占位图",
       "多代理协作能力卡占位图",
-      "浏览器工作台能力卡占位图",
+      "浏览器接入能力卡占位图",
     ];
+
+    for (const label of expectedLabels) {
+      expect(container.textContent).toContain(label);
+    }
 
     for (const alt of expectedAlts) {
       const image = container.querySelector(`img[alt="${alt}"]`);
       expect(image).toBeTruthy();
       expect(image?.getAttribute("src")).toBeTruthy();
     }
+
+    expect(container.textContent).not.toContain("连接浏览器");
+  });
+
+  it("点击浏览器能力卡图片应触发浏览器接入", async () => {
+    const onLaunchBrowserAssist = vi.fn();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      onLaunchBrowserAssist,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const mediaButton = container.querySelector(
+      'button[aria-label="连接浏览器"]',
+    ) as HTMLButtonElement | null;
+    expect(mediaButton).toBeTruthy();
+
+    act(() => {
+      mediaButton?.click();
+    });
+
+    expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
   });
 
   it("点击网页研究简报应开启联网搜索并记录最近使用", async () => {
@@ -354,7 +390,7 @@ describe("EmptyState", () => {
     );
   });
 
-  it("点击浏览器协助办事应打开浏览器工作台并写入起始动作", async () => {
+  it("点击浏览器协助办事应触发浏览器接入并写入起始动作", async () => {
     const setInput = vi.fn<(value: string) => void>();
     const onLaunchBrowserAssist = vi.fn();
     const container = renderEmptyState({
@@ -849,9 +885,9 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    const launchButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("打开浏览器工作台"),
-    );
+    const launchButton = container.querySelector(
+      'button[aria-label="连接浏览器"]',
+    ) as HTMLButtonElement | null;
     expect(launchButton).toBeTruthy();
 
     act(() => {

@@ -91,11 +91,10 @@ const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     icon: CalendarRange,
     page: "automation",
     isActive: (currentPage) => currentPage === "automation",
-    configurable: false,
   },
   {
     id: "channels",
-    label: "IM 配置",
+    label: "消息渠道",
     icon: Send,
     page: "channels",
     isActive: (currentPage) => currentPage === "channels",
@@ -110,6 +109,15 @@ const LIBRARY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     icon: Library,
     page: "resources",
     isActive: (currentPage) => currentPage === "resources",
+    configurable: false,
+  },
+  {
+    id: "memory",
+    label: "灵感库",
+    icon: BrainCircuit,
+    page: "memory",
+    isActive: (currentPage) => currentPage === "memory",
+    configurable: false,
   },
 ];
 
@@ -117,13 +125,6 @@ const SYSTEM_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   { id: "terminal", label: "终端", icon: Terminal, page: "terminal" },
   { id: "tools", label: "工具箱", icon: Wrench, page: "tools" },
   { id: "plugins", label: "插件中心", icon: Compass, page: "plugins" },
-  {
-    id: "memory",
-    label: "记忆",
-    icon: BrainCircuit,
-    page: "memory",
-    isActive: (currentPage) => currentPage === "memory",
-  },
   {
     id: "openclaw",
     label: "OpenClaw",
@@ -167,7 +168,7 @@ export const MAIN_SIDEBAR_NAV_SECTIONS: SidebarNavSectionDefinition[] = [
   { id: "tasks", title: "任务", items: TASK_SIDEBAR_NAV_ITEMS },
   { id: "workspace", title: "工作台", items: WORKSPACE_SIDEBAR_NAV_ITEMS },
   { id: "capability", title: "能力", items: CAPABILITY_SIDEBAR_NAV_ITEMS },
-  { id: "library", title: "资料库", items: LIBRARY_SIDEBAR_NAV_ITEMS },
+  { id: "library", title: "资料", items: LIBRARY_SIDEBAR_NAV_ITEMS },
 ];
 
 export const FOOTER_SIDEBAR_NAV_SECTIONS: SidebarNavSectionDefinition[] = [
@@ -198,9 +199,6 @@ const CONFIGURABLE_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
 ];
 
 export const DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS = [
-  "video",
-  "image-gen",
-  "resources",
   "terminal",
 ];
 

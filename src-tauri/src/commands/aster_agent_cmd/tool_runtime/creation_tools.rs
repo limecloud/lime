@@ -1,7 +1,15 @@
 use super::*;
+use crate::commands::media_task_cmd::{
+    create_image_generation_task_artifact_inner, finalize_image_generation_task_creation,
+    CreateImageGenerationTaskArtifactRequest,
+};
 use lime_media_runtime::{
     write_task_artifact, MediaTaskType, TaskRelationships, TaskType, TaskWriteOptions,
 };
+
+const PROJECT_ID_ENV_KEYS: &[&str] = &["LIME_PROJECT_ID", "PROXYCAST_PROJECT_ID"];
+const CONTENT_ID_ENV_KEYS: &[&str] = &["LIME_CONTENT_ID", "PROXYCAST_CONTENT_ID"];
+const IMAGE_TASK_DEFAULT_ENTRY_SOURCE: &str = "at_image_command";
 
 fn submit_creation_task_record(
     app_handle: &AppHandle,
@@ -384,6 +392,8 @@ struct ImageTaskInput {
     #[serde(default)]
     provider_id: Option<String>,
     #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
     session_id: Option<String>,
     #[serde(default)]
     project_id: Option<String>,
@@ -459,6 +469,159 @@ impl LimeCreateImageTaskTool {
     }
 }
 
+fn image_task_input_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "prompt": { "type": "string", "description": "图像提示词。" },
+            "title": { "type": "string", "description": "任务标题（可选）。" },
+            "mode": { "type": "string", "description": "任务模式 generate/edit/variation（可选）。" },
+            "rawText": { "type": "string", "description": "原始用户输入（可选）。" },
+            "style": { "type": "string", "description": "风格（可选）。" },
+            "size": { "type": "string", "description": "尺寸（可选）。" },
+            "aspectRatio": { "type": "string", "description": "宽高比（可选）。" },
+            "count": { "type": "integer", "minimum": 1, "maximum": 20, "description": "生成数量（可选）。" },
+            "usage": { "type": "string", "description": "用途（可选）。" },
+            "providerId": { "type": "string", "description": "Provider 标识（可选）。" },
+            "model": { "type": "string", "description": "首选模型（可选）。" },
+            "sessionId": { "type": "string", "description": "会话 ID（可选）。" },
+            "projectId": { "type": "string", "description": "项目 ID（可选）。" },
+            "contentId": { "type": "string", "description": "内容 ID（可选）。" },
+            "entrySource": { "type": "string", "description": "入口来源（可选）。" },
+            "requestedTarget": { "type": "string", "description": "目标类型 generate/cover（可选）。" },
+            "slotId": { "type": "string", "description": "正文插图 slot 绑定（可选）。" },
+            "anchorHint": { "type": "string", "description": "正文插图锚点提示（可选）。" },
+            "anchorSectionTitle": { "type": "string", "description": "正文插图小节标题（可选）。" },
+            "anchorText": { "type": "string", "description": "正文插图锚点文本（可选）。" },
+            "targetOutputId": { "type": "string", "description": "目标图片输出 ID（可选）。" },
+            "targetOutputRefId": { "type": "string", "description": "目标图片引用 ID（可选）。" },
+            "referenceImages": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "参考图 URL、文件路径或已物化的输入图片路径（可选）。"
+            }
+        },
+        "required": ["prompt"],
+        "additionalProperties": false,
+        "x-lime": {
+            "always_visible": true,
+            "tags": ["image", "task", "generation"],
+            "allowed_callers": ["assistant", "skill"]
+        }
+    })
+}
+
+fn build_image_generation_task_request(
+    context: &ToolContext,
+    input: ImageTaskInput,
+) -> CreateImageGenerationTaskArtifactRequest {
+    let ImageTaskInput {
+        prompt,
+        title,
+        mode,
+        raw_text,
+        style,
+        size,
+        aspect_ratio,
+        count,
+        usage,
+        provider_id,
+        model,
+        session_id,
+        project_id,
+        content_id,
+        entry_source,
+        requested_target,
+        slot_id,
+        anchor_hint,
+        anchor_section_title,
+        anchor_text,
+        target_output_id,
+        target_output_ref_id,
+        reference_images,
+        output_path,
+    } = input;
+    let _compat_ignored_output_path = output_path;
+    let session_id = session_id.or_else(|| {
+        let value = context.session_id.trim();
+        if value.is_empty() {
+            None
+        } else {
+            Some(value.to_string())
+        }
+    });
+    let project_id = project_id.or_else(|| {
+        PROJECT_ID_ENV_KEYS.iter().find_map(|key| {
+            context
+                .environment
+                .get(*key)
+                .map(String::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+        })
+    });
+    let content_id = content_id.or_else(|| {
+        CONTENT_ID_ENV_KEYS.iter().find_map(|key| {
+            context
+                .environment
+                .get(*key)
+                .map(String::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+        })
+    });
+    let entry_source = entry_source.or_else(|| Some(IMAGE_TASK_DEFAULT_ENTRY_SOURCE.to_string()));
+
+    CreateImageGenerationTaskArtifactRequest {
+        project_root_path: context.working_directory.to_string_lossy().to_string(),
+        prompt,
+        title,
+        mode,
+        raw_text,
+        size,
+        aspect_ratio,
+        count,
+        usage,
+        style,
+        provider_id,
+        model,
+        session_id,
+        project_id,
+        content_id,
+        entry_source,
+        requested_target,
+        slot_id,
+        anchor_hint,
+        anchor_section_title,
+        anchor_text,
+        target_output_id,
+        target_output_ref_id,
+        reference_images,
+    }
+}
+
+fn submit_image_generation_task_record(
+    app_handle: &AppHandle,
+    context: &ToolContext,
+    input: ImageTaskInput,
+) -> Result<ToolResult, ToolError> {
+    let request = build_image_generation_task_request(context, input);
+    let project_root_path = request.project_root_path.trim().to_string();
+    let output = create_image_generation_task_artifact_inner(request)
+        .map_err(|error| ToolError::execution_failed(format!("创建图片任务失败: {error}")))?;
+
+    finalize_image_generation_task_creation(Some(app_handle), project_root_path.as_str(), &output);
+
+    let serialized = serde_json::to_string_pretty(&output)
+        .unwrap_or_else(|_| serde_json::json!(&output).to_string());
+    Ok(media_cli_bridge::attach_media_task_metadata(
+        ToolResult::success(serialized),
+        &output,
+    ))
+}
+
 #[async_trait]
 impl Tool for LimeCreateImageTaskTool {
     fn name(&self) -> &str {
@@ -470,45 +633,7 @@ impl Tool for LimeCreateImageTaskTool {
     }
 
     fn input_schema(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "prompt": { "type": "string", "description": "图像提示词。" },
-                "title": { "type": "string", "description": "任务标题（可选）。" },
-                "mode": { "type": "string", "description": "任务模式 generate/edit/variation（可选）。" },
-                "rawText": { "type": "string", "description": "原始用户输入（可选）。" },
-                "style": { "type": "string", "description": "风格（可选）。" },
-                "size": { "type": "string", "description": "尺寸（可选）。" },
-                "aspectRatio": { "type": "string", "description": "宽高比（可选）。" },
-                "count": { "type": "integer", "minimum": 1, "maximum": 20, "description": "生成数量（可选）。" },
-                "usage": { "type": "string", "description": "用途（可选）。" },
-                "providerId": { "type": "string", "description": "Provider 标识（可选）。" },
-                "sessionId": { "type": "string", "description": "会话 ID（可选）。" },
-                "projectId": { "type": "string", "description": "项目 ID（可选）。" },
-                "contentId": { "type": "string", "description": "内容 ID（可选）。" },
-                "entrySource": { "type": "string", "description": "入口来源（可选）。" },
-                "requestedTarget": { "type": "string", "description": "目标类型 generate/cover（可选）。" },
-                "slotId": { "type": "string", "description": "正文插图 slot 绑定（可选）。" },
-                "anchorHint": { "type": "string", "description": "正文插图锚点提示（可选）。" },
-                "anchorSectionTitle": { "type": "string", "description": "正文插图小节标题（可选）。" },
-                "anchorText": { "type": "string", "description": "正文插图锚点文本（可选）。" },
-                "targetOutputId": { "type": "string", "description": "目标图片输出 ID（可选）。" },
-                "targetOutputRefId": { "type": "string", "description": "目标图片引用 ID（可选）。" },
-                "referenceImages": {
-                    "type": "array",
-                    "items": { "type": "string" },
-                    "description": "参考图 URL、文件路径或已物化的输入图片路径（可选）。"
-                },
-                "outputPath": { "type": "string", "description": "可选输出路径（相对工作目录）。" }
-            },
-            "required": ["prompt"],
-            "additionalProperties": false,
-            "x-lime": {
-                "always_visible": true,
-                "tags": ["image", "task", "generation"],
-                "allowed_callers": ["assistant", "skill"]
-            }
-        })
+        image_task_input_schema()
     }
 
     async fn execute(
@@ -523,39 +648,7 @@ impl Tool for LimeCreateImageTaskTool {
                 "prompt 不能为空字符串".to_string(),
             ));
         }
-        let payload = serde_json::json!({
-            "prompt": input.prompt,
-            "mode": input.mode,
-            "raw_text": input.raw_text,
-            "model": "lime-image-cli",
-            "style": input.style,
-            "size": input.size,
-            "aspect_ratio": input.aspect_ratio,
-            "count": input.count,
-            "usage": input.usage,
-            "provider_id": input.provider_id,
-            "session_id": input.session_id,
-            "project_id": input.project_id,
-            "content_id": input.content_id,
-            "entry_source": input.entry_source,
-            "requested_target": input.requested_target,
-            "slot_id": input.slot_id,
-            "anchor_hint": input.anchor_hint,
-            "anchor_section_title": input.anchor_section_title,
-            "anchor_text": input.anchor_text,
-            "target_output_id": input.target_output_id,
-            "target_output_ref_id": input.target_output_ref_id,
-            "reference_images": input.reference_images
-        });
-        submit_media_generation_task_record(
-            &self.app_handle,
-            context,
-            MediaTaskType::ImageGenerate,
-            input.title,
-            payload,
-            Some("pending_submit".to_string()),
-            input.output_path.as_deref(),
-        )
+        submit_image_generation_task_record(&self.app_handle, context, input)
     }
 }
 
@@ -1065,4 +1158,132 @@ pub(crate) async fn ensure_creation_task_tools_registered(
         app_handle.clone(),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+    use tempfile::tempdir;
+
+    #[test]
+    fn image_task_input_schema_should_expose_model_and_hide_output_path() {
+        let schema = image_task_input_schema();
+        let properties = schema
+            .get("properties")
+            .and_then(Value::as_object)
+            .expect("schema properties");
+
+        assert!(properties.contains_key("model"));
+        assert!(!properties.contains_key("outputPath"));
+    }
+
+    #[test]
+    fn build_image_generation_task_request_should_ignore_output_path_and_keep_standard_artifact() {
+        let temp_dir = tempdir().expect("create temp dir");
+        let context = ToolContext::new(temp_dir.path().to_path_buf())
+            .with_session_id("session-image-compat-1")
+            .with_environment(std::collections::HashMap::from([
+                (
+                    "LIME_PROJECT_ID".to_string(),
+                    "project-image-compat-1".to_string(),
+                ),
+                (
+                    "LIME_CONTENT_ID".to_string(),
+                    "content-image-compat-1".to_string(),
+                ),
+            ]));
+        let request = build_image_generation_task_request(
+            &context,
+            ImageTaskInput {
+                prompt: "未来感青柠实验室".to_string(),
+                title: Some("青柠主视觉".to_string()),
+                mode: Some("generate".to_string()),
+                raw_text: Some("@配图 未来感青柠实验室".to_string()),
+                style: Some("cinematic".to_string()),
+                size: Some("1024x1024".to_string()),
+                aspect_ratio: Some("1:1".to_string()),
+                count: Some(2),
+                usage: Some("document-inline".to_string()),
+                provider_id: Some("fal".to_string()),
+                model: Some("fal-ai/nano-banana-pro".to_string()),
+                session_id: None,
+                project_id: None,
+                content_id: None,
+                entry_source: None,
+                requested_target: Some("generate".to_string()),
+                slot_id: Some("slot-1".to_string()),
+                anchor_hint: Some("section_end".to_string()),
+                anchor_section_title: Some("技术亮点".to_string()),
+                anchor_text: Some("这里需要一张未来实验室配图".to_string()),
+                target_output_id: Some("task-a:output:1".to_string()),
+                target_output_ref_id: Some("img-1".to_string()),
+                reference_images: vec!["https://example.com/reference.png".to_string()],
+                output_path: Some("output/image_generation_task.md".to_string()),
+            },
+        );
+
+        assert_eq!(
+            request.project_root_path,
+            temp_dir.path().to_string_lossy().to_string()
+        );
+        assert_eq!(request.model.as_deref(), Some("fal-ai/nano-banana-pro"));
+        assert_eq!(
+            request.session_id.as_deref(),
+            Some("session-image-compat-1")
+        );
+        assert_eq!(
+            request.project_id.as_deref(),
+            Some("project-image-compat-1")
+        );
+        assert_eq!(
+            request.content_id.as_deref(),
+            Some("content-image-compat-1")
+        );
+        assert_eq!(request.entry_source.as_deref(), Some("at_image_command"));
+
+        let output =
+            create_image_generation_task_artifact_inner(request).expect("create image artifact");
+
+        assert!(output.path.contains("image_generate"));
+        assert!(output.path.ends_with(".json"));
+        assert!(!output.path.ends_with(".md"));
+        assert!(output.absolute_path.ends_with(".json"));
+        assert_eq!(
+            output
+                .record
+                .payload
+                .get("session_id")
+                .and_then(Value::as_str),
+            Some("session-image-compat-1")
+        );
+        assert_eq!(
+            output
+                .record
+                .payload
+                .get("project_id")
+                .and_then(Value::as_str),
+            Some("project-image-compat-1")
+        );
+        assert_eq!(
+            output
+                .record
+                .payload
+                .get("content_id")
+                .and_then(Value::as_str),
+            Some("content-image-compat-1")
+        );
+        assert_eq!(
+            output
+                .record
+                .payload
+                .get("entry_source")
+                .and_then(Value::as_str),
+            Some("at_image_command")
+        );
+        assert_eq!(
+            output.record.payload.get("model").and_then(Value::as_str),
+            Some("fal-ai/nano-banana-pro")
+        );
+    }
 }

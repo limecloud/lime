@@ -29,7 +29,6 @@ import { EmptyStateQuickActions } from "./EmptyStateQuickActions";
 import {
   EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME,
   EMPTY_STATE_PAGE_CONTAINER_CLASSNAME,
-  EMPTY_STATE_SECONDARY_ACTION_BUTTON_CLASSNAME,
 } from "./emptyStateSurfaceTokens";
 import { useActiveSkill } from "../skill-selection/useActiveSkill";
 import type { SkillSelectionSourceProps } from "../skill-selection/skillSelectionBindings";
@@ -51,10 +50,10 @@ import {
   getSiteSkillAutoLaunchExample,
   hasAutoLaunchableSiteSkill,
 } from "../service-skills/siteSkillExamplePrompts";
-import capabilitySkillsPlaceholder from "@/assets/entry-surface/capability-skills-placeholder.svg?url";
-import capabilityAutomationsPlaceholder from "@/assets/entry-surface/capability-automations-placeholder.svg?url";
-import capabilityAgentTeamsPlaceholder from "@/assets/entry-surface/capability-agent-teams-placeholder.svg?url";
-import capabilityBrowserAssistPlaceholder from "@/assets/entry-surface/capability-browser-assist-placeholder.svg?url";
+import capabilitySkillsPlaceholder from "@/assets/entry-surface/capability-skills-lime.png";
+import capabilityAutomationsPlaceholder from "@/assets/entry-surface/capability-automations-lime.png";
+import capabilityAgentTeamsPlaceholder from "@/assets/entry-surface/capability-agent-teams-lime.png";
+import capabilityBrowserAssistPlaceholder from "@/assets/entry-surface/capability-browser-assist-lime.png";
 
 const contentReveal = keyframes`
   from {
@@ -76,11 +75,100 @@ const PageContainer = styled.div.attrs({
 const ContentWrapper = styled.div.attrs({
   className: EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME,
 })`
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 100%;
   animation: ${contentReveal} 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
+`;
+
+const RecommendationShelf = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0 0.3rem 0.1rem;
+`;
+
+const RecommendationShelfHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+`;
+
+const RecommendationShelfList = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`;
+
+const RecommendationShelfRow = styled.div`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+
+  & + & {
+    margin-left: 0.55rem;
+    padding-left: 0.55rem;
+  }
+
+  & + &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 1px;
+    height: 0.72rem;
+    transform: translateY(-50%);
+    background: rgba(203, 213, 225, 0.9);
+  }
+`;
+
+const RecommendationShelfButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: rgb(100 116 139);
+  transition: color 180ms ease;
+
+  &:hover {
+    color: rgb(15 23 42);
+  }
+`;
+
+const RecommendationShelfTitle = styled.span`
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.55;
+  color: currentColor;
+`;
+
+const RecommendationShelfMeta = styled.span`
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: rgb(5 150 105 / 0.88);
 `;
 
 interface EmptyStateProps extends SkillSelectionSourceProps {
@@ -160,11 +248,10 @@ const THEME_WORKBENCH_COPY: Record<
   }
 > = {
   general: {
-    title: "青柠一下，灵感即来",
-    description:
-      "从一句想法，到成稿、成图、成片、成事。",
+    title: "",
+    description: "说一句目标，剩下的交给 Lime。",
     supportingDescription:
-      "Claw 工作台会围绕一个目标持续对话、检索网页、补充素材，并把结果沉淀到右侧画布，而不是只停留在一次性提问。",
+      "文案、图片、视频、搜索、整理与网页执行可以围绕同一目标持续推进；成功做法会沉淀成技能，偏好、参考与成果会逐渐沉淀成个人资产。",
   },
 };
 
@@ -411,7 +498,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   };
 
   const planEnabled = executionStrategy === "code_orchestrated";
-  const executionModeLabel = planEnabled ? "Plan 已开启" : "直接执行";
+  const executionModeLabel = planEnabled ? "编排模式已开启" : "直接开工";
 
   const workbenchCopy =
     THEME_WORKBENCH_COPY[activeTheme] || THEME_WORKBENCH_COPY.general;
@@ -480,17 +567,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     const badges: Array<{
       key: string;
       label: string;
-      tone?: "slate" | "sky" | "emerald" | "amber";
+      tone?: "slate" | "sky" | "emerald" | "amber" | "lime";
     }> = [
       {
         key: "theme",
         label: GENERAL_CATEGORY_LABEL,
-        tone: "slate",
+        tone: "lime",
       },
       {
         key: "execution",
         label: executionModeLabel,
-        tone: "sky",
+        tone: "lime",
       },
     ];
 
@@ -498,7 +585,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       badges.push({
         key: "creation-mode",
         label: CREATION_MODE_CONFIG[creationMode].name,
-        tone: "emerald",
+        tone: "lime",
       });
     }
 
@@ -506,7 +593,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       badges.push({
         key: "web-search",
         label: "联网搜索已开启",
-        tone: "sky",
+        tone: "lime",
       });
     }
 
@@ -514,7 +601,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       badges.push({
         key: "skill",
         label: activeSkillDisplayLabel,
-        tone: "emerald",
+        tone: "lime",
       });
     }
 
@@ -537,72 +624,70 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       icon: React.ReactNode;
       imageSrc?: string;
       imageAlt?: string;
-      tone?: "slate" | "sky" | "emerald" | "amber";
+      tone?: "slate" | "sky" | "emerald" | "amber" | "lime";
       action?: React.ReactNode;
+      onMediaAction?: () => void;
+      mediaActionLabel?: string;
+      mediaActionDisabled?: boolean;
     }> = [
       {
         key: "skills",
-        eyebrow: "能力层",
+        eyebrow: "支撑能力",
         title: "技能",
         value: skillSummaryLabel,
         description:
-          "把技能当作任务能力层来用，可把固定工作流、提示链和工具调用打包进一次对话。",
+          "把跑通过的提示、步骤和工具组合沉淀下来，下次遇到同类任务可以直接复用。",
         icon: <Lightbulb className="h-5 w-5" />,
         imageSrc: capabilitySkillsPlaceholder,
         imageAlt: "技能能力卡占位图",
-        tone: "emerald",
+        tone: "lime",
       },
       {
         key: "automation",
-        eyebrow: "能力层",
+        eyebrow: "支撑能力",
         title: "自动化",
-        value: planEnabled ? "Plan 编排已开启" : "按当前对话直接执行",
+        value: planEnabled ? "当前会按步骤推进" : "重复流程可持续跑起来",
         description:
-          "支持把复杂任务按步骤推进，适合长链路处理、批量执行和需要持续产出的工作流。",
+          "适合长链路处理、批量任务和持续产出，让重复动作不再每次都从头手动重做。",
         icon: <ListChecks className="h-5 w-5" />,
         imageSrc: capabilityAutomationsPlaceholder,
         imageAlt: "自动化能力卡占位图",
-        tone: "sky",
+        tone: "lime",
       },
       {
         key: "agent-teams",
-        eyebrow: "能力层",
+        eyebrow: "支撑能力",
         title: "多代理",
-        value: subagentEnabled ? "协作模式已开启" : "支持分工协作",
+        value: subagentEnabled ? "当前任务支持并行协作" : "复杂任务可拆成并行分工",
         description:
-          "需要并行研究、拆解方案或多角色协同时，可让任务由多个代理分工处理并回收结论。",
+          "当研究、方案和执行需要同时推进时，可把任务拆给多个代理并行处理，再统一回收结论。",
         icon: <Workflow className="h-5 w-5" />,
         imageSrc: capabilityAgentTeamsPlaceholder,
         imageAlt: "多代理协作能力卡占位图",
-        tone: "amber",
+        tone: "lime",
       },
     ];
 
     cards.push({
       key: "browser",
-      eyebrow: "能力层",
-      title: "浏览器工作台",
+      eyebrow: "支撑能力",
+      title: "浏览器接入",
       value: browserAssistLoading
-        ? "正在准备浏览器会话"
-        : "网页登录 / 人工接管",
+        ? "正在检查连接状态"
+        : "CDP / 浏览器插件复用",
       description:
-        "需要处理登录、验证码或复杂网页操作时，可切到浏览器工作台接管真实浏览器。",
+        "登录、验证和网页动作可直接复用 CDP 或浏览器插件连接，不必再切到单独工作台。",
       icon: <Globe className="h-5 w-5" />,
       imageSrc: capabilityBrowserAssistPlaceholder,
-      imageAlt: "浏览器工作台能力卡占位图",
-      tone: "slate",
-      action: onLaunchBrowserAssist ? (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => void onLaunchBrowserAssist()}
-          disabled={browserAssistLoading}
-          className={EMPTY_STATE_SECONDARY_ACTION_BUTTON_CLASSNAME}
-        >
-          <Globe className="mr-2 h-4 w-4" />
-          {browserAssistLoading ? "启动中..." : "打开浏览器工作台"}
-        </Button>
-      ) : null,
+      imageAlt: "浏览器接入能力卡占位图",
+      tone: "lime",
+      onMediaAction: onLaunchBrowserAssist
+        ? () => {
+            void onLaunchBrowserAssist();
+          }
+        : undefined,
+      mediaActionLabel: browserAssistLoading ? "浏览器连接准备中" : "连接浏览器",
+      mediaActionDisabled: browserAssistLoading,
     });
 
     return cards;
@@ -612,48 +697,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     onLaunchBrowserAssist,
     skillSummaryLabel,
     subagentEnabled,
-  ]);
-
-  const workspaceFeatures = useMemo(() => {
-    const features = [
-      {
-        key: "context",
-        title: "持续上下文",
-        description:
-          "一个任务可以连续推进，补充背景、改写结果和追问细节都留在同一会话里。",
-      },
-      {
-        key: "canvas",
-        title: "画布承接结果",
-        description:
-          hasCanvasContent || hasContentId
-            ? "当前会话已经接入画布，生成内容可继续整理、扩写和汇总。"
-            : "生成结果不会只停留在消息气泡里，而是继续进入工作台承接后续整理与交付。",
-      },
-    ];
-
-    if (isGeneralTheme && onLaunchBrowserAssist) {
-      features.push({
-        key: "browser",
-        title: "网页任务可接管",
-        description:
-          "遇到登录、验证码或复杂网页操作时，可切换到浏览器工作台继续完成任务。",
-      });
-    } else {
-      features.push({
-        key: "quick-start",
-        title: "任务模板起步",
-        description:
-          "先点快速启动卡生成第一轮任务，再在输入框里继续细化，是更顺手的使用路径。",
-      });
-    }
-
-    return features;
-  }, [
-    hasCanvasContent,
-    hasContentId,
-    isGeneralTheme,
-    onLaunchBrowserAssist,
   ]);
 
   const quickActionItems = useMemo(
@@ -782,31 +825,37 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   );
 
   const generalRecommendedSolutionsPanel = (
-    <EmptyStateQuickActions
-      title="推荐方案"
-      description="先选一个方案，Claw 会自动进入对应工作模式并带好起始动作。"
-      items={entryRecommendedSolutions.map((solution) => ({
-        key: solution.id,
-        title: solution.title,
-        description: solution.summary,
-        badge: solution.badge,
-        prompt: solution.prompt,
-        actionLabel: solution.actionLabel,
-        outputHint: solution.outputHint,
-        statusLabel: solution.statusLabel,
-        statusTone: solution.statusTone,
-        testId: `entry-recommended-${solution.id}`,
-      }))}
-      embedded
-      onAction={(item) => {
-        const solution = entryRecommendedSolutions.find(
-          (candidate) => candidate.id === item.key,
-        );
-        if (solution) {
-          handleApplyEntryRecommendedSolution(solution);
-        }
-      }}
-    />
+    <RecommendationShelf>
+      <RecommendationShelfHeader>
+        <div className="text-[11px] font-semibold tracking-[0.02em] text-slate-500">
+          推荐方案
+        </div>
+        {selectedTextPreview ? (
+          <span className="truncate text-[10px] text-slate-400">
+            当前会带上选中内容
+          </span>
+        ) : null}
+      </RecommendationShelfHeader>
+
+      <RecommendationShelfList>
+        {entryRecommendedSolutions.map((solution) => (
+          <RecommendationShelfRow key={solution.id}>
+            <RecommendationShelfButton
+              type="button"
+              data-testid={`entry-recommended-${solution.id}`}
+              onClick={() => {
+                handleApplyEntryRecommendedSolution(solution);
+              }}
+            >
+              <RecommendationShelfTitle>{solution.title}</RecommendationShelfTitle>
+              {solution.isRecent ? (
+                <RecommendationShelfMeta>{solution.badge}</RecommendationShelfMeta>
+              ) : null}
+            </RecommendationShelfButton>
+          </RecommendationShelfRow>
+        ))}
+      </RecommendationShelfList>
+    </RecommendationShelf>
   );
 
   const headerControls = onProjectChange ? (
@@ -851,13 +900,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     <PageContainer>
       <ContentWrapper>
         <EmptyStateHero
-          eyebrow="新建任务"
+          eyebrow="创作"
           title={workbenchCopy.title}
+          slogan="青柠一下，灵感即来"
           description={workbenchCopy.description}
           supportingDescription={workbenchCopy.supportingDescription}
           badges={workspaceBadges}
           cards={workspaceCards}
-          features={workspaceFeatures}
           prioritySlot={composerPanel}
           supportingSlot={
             isGeneralTheme

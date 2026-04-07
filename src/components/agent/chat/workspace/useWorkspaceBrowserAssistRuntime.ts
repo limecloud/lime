@@ -570,11 +570,18 @@ export function useWorkspaceBrowserAssistRuntime({
           return;
         }
 
+        const hasMarkdownBundleOutput = Boolean(
+          result.saved_content?.markdown_relative_path?.trim(),
+        );
         const successMessage = result.saved_content
           ? result.saved_by === "explicit_content" ||
             result.saved_by === "context_content"
-            ? `站点技能已完成，结果已写回当前主稿`
-            : `站点技能已完成，结果已保存到项目资源`
+            ? hasMarkdownBundleOutput
+              ? "站点技能已完成，Markdown 已写回当前主稿并同步保存图片资源"
+              : "站点技能已完成，结果已写回当前主稿"
+            : hasMarkdownBundleOutput
+              ? "站点技能已完成，Markdown 与图片已保存到项目资源"
+              : "站点技能已完成，结果已保存到项目资源"
           : `站点技能已完成`;
 
         setSiteSkillExecutionState({

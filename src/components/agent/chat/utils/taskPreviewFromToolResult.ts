@@ -149,6 +149,18 @@ function resolveTaskPreviewStatus(
 
 function resolveTaskPreviewPhase(status: string | undefined): string {
   switch ((status || "").trim().toLowerCase()) {
+    case "completed":
+    case "success":
+    case "succeeded":
+      return "succeeded";
+    case "partial":
+      return "partial";
+    case "failed":
+    case "error":
+      return "failed";
+    case "cancelled":
+    case "canceled":
+      return "cancelled";
     case "queued":
     case "pending_submit":
     case "pending":
@@ -414,9 +426,7 @@ function readWebImageSearchResult(params: ToolResultPreviewParams): {
           `图片候选 ${index + 1}`,
       };
     })
-    .filter(
-      (item): item is MessageTaskPreviewImageCandidate => item !== null,
-    );
+    .filter((item): item is MessageTaskPreviewImageCandidate => item !== null);
 
   if (hits.length === 0) {
     return null;
@@ -642,18 +652,60 @@ export function buildImageTaskPreviewFromToolResult(
     params.toolArguments,
   );
   const status = readMetadataString([metadata], ["status"]);
+  const previewStatus = resolveTaskPreviewStatus(status);
+  const requestedCount =
+    parsedArguments.imageCount ||
+    readMetadataPositiveNumber(
+      [metadata],
+      [
+        "requested_count",
+        "requestedCount",
+        "count",
+        "image_count",
+        "imageCount",
+      ],
+    );
+  const receivedCount = readMetadataPositiveNumber(
+    [metadata],
+    ["received_count", "receivedCount"],
+  );
+  const resolvedImageCount =
+    previewStatus === "running"
+      ? requestedCount
+      : receivedCount || requestedCount;
+  const statusMessage =
+    previewStatus === "complete"
+      ? receivedCount && receivedCount > 0
+        ? `图片已生成完成，共 ${receivedCount} 张。`
+        : "图片结果已生成完成，可在右侧查看与使用。"
+      : previewStatus === "partial"
+        ? receivedCount && receivedCount > 0
+          ? `图片已返回部分结果，共 ${receivedCount} 张。`
+          : "图片已返回部分结果，可在右侧继续查看。"
+        : previewStatus === "failed"
+          ? "图片任务执行失败，请查看工具结果或任务详情。"
+          : previewStatus === "cancelled"
+            ? "图片任务已取消。"
+            : "图片任务已提交，正在排队处理。";
 
   return {
     taskId,
     prompt:
       parsedArguments.prompt ||
+      readMetadataString([metadata], ["prompt"]) ||
       params.fallbackPrompt.trim() ||
       "图片任务进行中",
-    status: resolveTaskPreviewStatus(status),
-    imageCount: parsedArguments.imageCount,
-    size: parsedArguments.size,
+    status: previewStatus,
+    projectId:
+      readMetadataString([metadata], ["project_id", "projectId"]) || null,
+    contentId:
+      readMetadataString([metadata], ["content_id", "contentId"]) || null,
+    imageCount: resolvedImageCount,
+    size:
+      parsedArguments.size ||
+      readMetadataString([metadata], ["size", "resolution"]),
     phase: resolveTaskPreviewPhase(status),
-    statusMessage: "任务已提交到异步队列，正在同步任务状态。",
+    statusMessage,
   };
 }
 
@@ -662,9 +714,10 @@ function buildVideoTaskPreviewFromToolResult(
 ): MessageVideoTaskPreview | null {
   const resultRecord = asRecord(params.toolResult);
   const metadata = asRecord(resultRecord?.metadata);
-  const taskResult = asRecord(resultRecord?.result);
+  const taskResult =
+    asRecord(resultRecord?.result) || asRecord(metadata?.result);
   const firstVideo = readFirstArrayRecord(
-    [taskResult, resultRecord],
+    [taskResult, metadata, resultRecord],
     ["videos", "results"],
   );
   const taskId = readMetadataString(
@@ -693,11 +746,11 @@ function buildVideoTaskPreviewFromToolResult(
     ["status"],
   );
   const videoUrl = readMetadataString(
-    [firstVideo, taskResult, resultRecord],
+    [firstVideo, taskResult, metadata, resultRecord],
     ["url", "result_url", "resultUrl"],
   );
   const thumbnailUrl = readMetadataString(
-    [firstVideo, taskResult, resultRecord],
+    [firstVideo, taskResult, metadata, resultRecord],
     ["thumbnail_url", "thumbnailUrl", "poster_url", "posterUrl"],
   );
   const durationMs = readMetadataPositiveNumber(
@@ -707,6 +760,27 @@ function buildVideoTaskPreviewFromToolResult(
   const durationSeconds =
     parsedArguments.durationSeconds ||
     (durationMs ? Math.max(1, Math.round(durationMs / 1000)) : undefined);
+  const previewStatus = resolveTaskPreviewStatus(status);
+  const phase = resolveTaskPreviewPhase(status);
+  const statusMessage =
+    previewStatus === "complete"
+      ? videoUrl
+        ? "视频结果已同步，打开查看即可继续预览。"
+        : "视频已经生成完成，正在同步最终结果。"
+      : previewStatus === "partial"
+        ? videoUrl
+          ? "视频已返回部分结果，打开查看可继续确认当前片段。"
+          : "视频已返回部分结果，工作区正在补齐剩余结果。"
+        : previewStatus === "failed"
+          ? readMetadataString(
+              [metadata, resultRecord, taskResult],
+              ["error", "error_message", "errorMessage"],
+            ) || "视频生成失败，请稍后重试。"
+          : previewStatus === "cancelled"
+            ? "视频任务已取消，当前不会继续生成新的结果。"
+            : phase === "queued"
+              ? "视频任务已进入排队队列，稍后会自动开始生成。"
+              : "视频任务正在生成中，工作区会继续同步最新状态。";
 
   return {
     kind: "video_generate",
@@ -751,10 +825,8 @@ function buildVideoTaskPreviewFromToolResult(
       parsedArguments.model ||
       readMetadataString([metadata, resultRecord, taskResult], ["model"]) ||
       null,
-    phase: resolveTaskPreviewPhase(status),
-    statusMessage: videoUrl
-      ? "视频结果已同步，打开查看即可继续预览。"
-      : "视频任务已提交到异步队列，正在同步任务状态。",
+    phase,
+    statusMessage,
   };
 }
 

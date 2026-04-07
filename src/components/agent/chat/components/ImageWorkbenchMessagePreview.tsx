@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowUpRight, LoaderCircle, Sparkles } from "lucide-react";
+import { LoaderCircle, Sparkles } from "lucide-react";
 import { emitImageWorkbenchFocus } from "@/lib/imageWorkbenchEvents";
 import { cn } from "@/lib/utils";
 import type { MessageImageWorkbenchPreview } from "../types";
@@ -8,20 +8,6 @@ import { RenderableTaskImage } from "./RenderableTaskImage";
 interface ImageWorkbenchMessagePreviewProps {
   preview: MessageImageWorkbenchPreview;
   onOpen?: (preview: MessageImageWorkbenchPreview) => void;
-}
-
-function resolveModeEyebrow(
-  mode?: MessageImageWorkbenchPreview["mode"],
-): string {
-  switch (mode) {
-    case "edit":
-      return "Image Editing";
-    case "variation":
-      return "Image Redraw";
-    case "generate":
-    default:
-      return "Image Generation";
-  }
 }
 
 function resolveResultLabel(
@@ -34,7 +20,7 @@ function resolveResultLabel(
       return "重绘结果";
     case "generate":
     default:
-      return "图片";
+      return "图片结果";
   }
 }
 
@@ -44,7 +30,7 @@ function resolveSourceLabel(
   return mode === "variation" ? "参考图" : "来源图";
 }
 
-function resolveStatusLabel(preview: MessageImageWorkbenchPreview): string {
+function resolveStatusPrefix(preview: MessageImageWorkbenchPreview): string {
   switch (preview.status) {
     case "complete":
       switch (preview.mode) {
@@ -91,25 +77,42 @@ function resolveStatusLabel(preview: MessageImageWorkbenchPreview): string {
   }
 }
 
-function resolveStatusTone(preview: MessageImageWorkbenchPreview): string {
+function resolveStatusAccentClass(
+  preview: MessageImageWorkbenchPreview,
+): string {
   switch (preview.status) {
     case "complete":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      return "bg-emerald-500";
     case "partial":
-      return "border-amber-200 bg-amber-50 text-amber-700";
+      return "bg-amber-500";
     case "cancelled":
-      return "border-slate-200 bg-slate-100 text-slate-600";
+      return "bg-slate-400";
     case "failed":
-      return "border-rose-200 bg-rose-50 text-rose-700";
+      return "bg-rose-500";
     case "running":
     default:
-      return "border-sky-200 bg-sky-50 text-sky-700";
+      return "bg-sky-500";
   }
+}
+
+function isTransitionStatusMessage(statusMessage: string): boolean {
+  return (
+    statusMessage.includes("正在同步") ||
+    statusMessage.includes("同步任务状态") ||
+    statusMessage.includes("同步到对话") ||
+    statusMessage.includes("异步队列")
+  );
 }
 
 function resolveDescription(preview: MessageImageWorkbenchPreview): string {
   const statusMessage = preview.statusMessage?.trim();
-  if (statusMessage) {
+  if (
+    statusMessage &&
+    !(
+      preview.status !== "running" &&
+      isTransitionStatusMessage(statusMessage)
+    )
+  ) {
     return statusMessage;
   }
 
@@ -118,35 +121,33 @@ function resolveDescription(preview: MessageImageWorkbenchPreview): string {
   switch (preview.status) {
     case "complete":
       return preview.imageCount && preview.imageCount > 1
-        ? `已返回 ${preview.imageCount} 张${resultLabel}，打开查看即可。`
-        : `${resultLabel}已经完成，打开查看即可。`;
+        ? `已返回 ${preview.imageCount} 张${resultLabel}，可在右侧继续查看与使用。`
+        : `${resultLabel}已经完成，可在右侧继续查看与使用。`;
     case "partial":
       return preview.imageCount && preview.imageCount > 0
         ? `已返回 ${preview.imageCount} 张${resultLabel}，剩余结果未完成。`
-        : `${resultLabel}任务返回了部分结果。`;
+        : `${resultLabel}已同步一部分，可在右侧继续查看。`;
     case "cancelled":
       return "任务已经取消，当前不会继续生成新的图片结果。";
     case "failed":
       return preview.retryable === false
         ? "当前错误需要先调整配置或参数。"
-        : "这次没有拿到可用结果，请稍后重试。";
+        : "这次没有拿到可用结果，请调整描述后重试。";
     case "running":
     default:
       switch (preview.mode) {
         case "edit":
-          return "图片编辑中，完成后会直接替换成真实结果。";
+          return "正在处理修图，完成后会自动替换成真实结果。";
         case "variation":
-          return "图片重绘中，完成后会直接替换成真实结果。";
+          return "正在处理重绘，完成后会自动替换成真实结果。";
         case "generate":
         default:
-          return "图片生成中，完成后会直接替换成真实结果。";
+          return "正在生成图片，完成后会自动替换成真实结果。";
       }
   }
 }
 
-function resolvePlaceholderLabel(
-  preview: MessageImageWorkbenchPreview,
-): string {
+function resolvePlaceholderLabel(preview: MessageImageWorkbenchPreview): string {
   if (preview.status === "failed") {
     return "暂未生成成功";
   }
@@ -156,7 +157,7 @@ function resolvePlaceholderLabel(
   if (preview.status === "complete" || preview.status === "partial") {
     return "结果已同步";
   }
-  return resolveStatusLabel(preview);
+  return resolveStatusPrefix(preview);
 }
 
 function resolveImageUnavailableLabel(
@@ -168,14 +169,16 @@ function resolveImageUnavailableLabel(
   return resolvePlaceholderLabel(preview);
 }
 
-function shouldShowSourcePanel(preview: MessageImageWorkbenchPreview): boolean {
+function shouldShowSourceFootnote(
+  preview: MessageImageWorkbenchPreview,
+): boolean {
   return Boolean(
     preview.mode === "edit" ||
-    preview.mode === "variation" ||
-    preview.sourceImageUrl?.trim() ||
-    preview.sourceImagePrompt?.trim() ||
-    preview.sourceImageRef?.trim() ||
-    preview.sourceImageCount,
+      preview.mode === "variation" ||
+      preview.sourceImageUrl?.trim() ||
+      preview.sourceImagePrompt?.trim() ||
+      preview.sourceImageRef?.trim() ||
+      preview.sourceImageCount,
   );
 }
 
@@ -201,16 +204,41 @@ function resolveSourceSummary(preview: MessageImageWorkbenchPreview): string {
     : "当前任务会基于已有图片结果继续完成修图。";
 }
 
-function resolveSourcePlaceholderLabel(
+function resolveSourceFootnote(
   preview: MessageImageWorkbenchPreview,
-): string {
-  return preview.mode === "variation" ? "参考图待同步" : "来源图待同步";
+): string | null {
+  if (!shouldShowSourceFootnote(preview)) {
+    return null;
+  }
+
+  return `${resolveSourceLabel(preview.mode)}：${resolveSourceSummary(preview)}`;
+}
+
+function renderPlaceholder(preview: MessageImageWorkbenchPreview, reason: string) {
+  return (
+    <div className="flex aspect-[16/10] items-center justify-center bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] px-6 text-center">
+      <div className="space-y-2">
+        {reason === "empty" && preview.status === "running" ? (
+          <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-sky-500" />
+        ) : (
+          <Sparkles className="mx-auto h-7 w-7 text-slate-400" />
+        )}
+        <div className="text-sm font-medium text-slate-700">
+          {reason === "error"
+            ? resolveImageUnavailableLabel(preview)
+            : resolvePlaceholderLabel(preview)}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export const ImageWorkbenchMessagePreview: React.FC<
   ImageWorkbenchMessagePreviewProps
 > = ({ preview, onOpen }) => {
-  const showSourcePanel = shouldShowSourcePanel(preview);
+  const sourceFootnote = resolveSourceFootnote(preview);
+  const statusPrefix = resolveStatusPrefix(preview);
+  const statusDescription = resolveDescription(preview);
 
   return (
     <button
@@ -226,134 +254,47 @@ export const ImageWorkbenchMessagePreview: React.FC<
         });
       }}
       data-testid={`image-workbench-message-preview-${preview.taskId}`}
-      className="mt-3 block w-full max-w-[560px] text-left"
+      className="group block w-full max-w-[360px] text-left sm:max-w-[400px] lg:max-w-[440px]"
     >
-      <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5 transition hover:border-slate-300 hover:shadow-slate-950/10">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium",
-                resolveStatusTone(preview),
-              )}
-            >
-              {preview.status === "running" ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Sparkles className="h-3.5 w-3.5" />
-              )}
-              {resolveStatusLabel(preview)}
-            </span>
-            <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-              {resolveModeEyebrow(preview.mode)}
-            </span>
-          </div>
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
-            <span>打开查看</span>
-            <ArrowUpRight className="h-3.5 w-3.5" />
+      <div
+        className={cn(
+          "overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50 transition group-hover:border-slate-300",
+          preview.imageUrl
+            ? "shadow-[0_18px_42px_-34px_rgba(15,23,42,0.45)]"
+            : "shadow-[0_16px_38px_-34px_rgba(15,23,42,0.28)]",
+        )}
+      >
+        <RenderableTaskImage
+          src={preview.imageUrl}
+          alt={preview.prompt || "图片任务结果"}
+          className="aspect-[16/10] h-full w-full object-cover"
+          renderFallback={(reason) => renderPlaceholder(preview, reason)}
+        />
+      </div>
+
+      <div className="space-y-1.5 px-0.5 pt-3">
+        <div className="line-clamp-2 text-[15px] font-medium leading-6 text-slate-900">
+          {preview.prompt || "当前任务未提供提示词。"}
+        </div>
+
+        <div className="flex items-start gap-2 text-[13px] leading-5 text-slate-500">
+          <span
+            className={cn(
+              "mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full",
+              resolveStatusAccentClass(preview),
+            )}
+          />
+          <span>
+            <span className="font-medium text-slate-700">{statusPrefix}</span>
+            <span>{` · ${statusDescription}`}</span>
           </span>
         </div>
 
-        <div className="px-4 pb-4">
-          <div className="grid gap-3 sm:grid-cols-[220px_minmax(0,1fr)]">
-            <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50">
-              <RenderableTaskImage
-                src={preview.imageUrl}
-                alt={preview.prompt || "图片任务结果"}
-                className="aspect-[16/10] h-full w-full object-cover"
-                renderFallback={(reason) => (
-                  <div className="flex aspect-[16/10] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.14),transparent_46%),linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] px-6 text-center">
-                    <div className="space-y-2">
-                      {reason === "empty" && preview.status === "running" ? (
-                        <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-sky-500" />
-                      ) : (
-                        <Sparkles className="mx-auto h-7 w-7 text-slate-400" />
-                      )}
-                      <div className="text-sm font-medium text-slate-700">
-                        {reason === "error"
-                          ? resolveImageUnavailableLabel(preview)
-                          : resolvePlaceholderLabel(preview)}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              />
-            </div>
-            <div className="min-w-0">
-              <div className="line-clamp-2 text-sm font-medium leading-6 text-slate-900">
-                {preview.prompt || "当前任务未提供提示词。"}
-              </div>
-              <div className="mt-1 text-xs leading-5 text-slate-500">
-                {resolveDescription(preview)}
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                {preview.size ? (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
-                    {preview.size}
-                  </span>
-                ) : null}
-                {preview.imageCount && preview.imageCount > 0 ? (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
-                    {preview.imageCount} 张
-                  </span>
-                ) : null}
-                {preview.attemptCount && preview.attemptCount > 1 ? (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
-                    第 {preview.attemptCount} 次
-                  </span>
-                ) : null}
-              </div>
-
-              {showSourcePanel ? (
-                <div
-                  data-testid={`image-workbench-message-preview-source-${preview.taskId}`}
-                  className="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 p-3"
-                >
-                  <div className="text-[11px] font-medium text-slate-500">
-                    {resolveSourceLabel(preview.mode)}
-                  </div>
-                  <div className="mt-2 flex items-center gap-3">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                      <RenderableTaskImage
-                        src={preview.sourceImageUrl}
-                        alt={
-                          preview.sourceImagePrompt ||
-                          resolveSourceLabel(preview.mode)
-                        }
-                        className="h-full w-full object-cover"
-                        renderFallback={(reason) => (
-                          <span className="px-2 text-center text-[11px] font-medium text-slate-400">
-                            {reason === "error"
-                              ? `${resolveSourceLabel(preview.mode)}暂时无法显示`
-                              : resolveSourcePlaceholderLabel(preview)}
-                          </span>
-                        )}
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="line-clamp-2 text-xs font-medium leading-5 text-slate-700">
-                        {resolveSourceSummary(preview)}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                        {preview.sourceImageRef ? (
-                          <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">
-                            {preview.sourceImageRef}
-                          </span>
-                        ) : null}
-                        {preview.sourceImageCount &&
-                        preview.sourceImageCount > 0 ? (
-                          <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">
-                            {preview.sourceImageCount} 张
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
+        {sourceFootnote ? (
+          <div className="line-clamp-2 text-[12px] leading-5 text-slate-400">
+            {sourceFootnote}
           </div>
-        </div>
+        ) : null}
       </div>
     </button>
   );

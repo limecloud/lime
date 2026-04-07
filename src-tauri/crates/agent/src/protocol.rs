@@ -68,6 +68,8 @@ pub struct AgentMessage {
     pub role: String,
     pub content: Vec<AgentMessageContent>,
     pub timestamp: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<AgentTokenUsage>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

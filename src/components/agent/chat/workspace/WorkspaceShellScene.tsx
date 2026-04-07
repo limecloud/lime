@@ -9,6 +9,7 @@ type WorkspacePageShellProps = Omit<
 >;
 
 interface WorkspaceShellSceneProps extends WorkspacePageShellProps {
+  sidebarContextVariant?: ComponentProps<typeof ChatSidebar>["contextVariant"];
   currentTopicId: ComponentProps<typeof ChatSidebar>["currentTopicId"];
   topics: ComponentProps<typeof ChatSidebar>["topics"];
   onNewChat: ComponentProps<typeof ChatSidebar>["onNewChat"];
@@ -44,6 +45,7 @@ export function WorkspaceShellScene({
   showGeneralWorkbenchLeftExpandButton,
   onExpandGeneralWorkbenchSidebar,
   mainAreaNode,
+  sidebarContextVariant = "default",
   currentTopicId,
   topics,
   onNewChat,
@@ -64,6 +66,7 @@ export function WorkspaceShellScene({
   const chatSidebarProps =
     !isThemeWorkbench && showChatPanel && showSidebar
       ? buildWorkspaceChatSidebarProps({
+          contextVariant: sidebarContextVariant,
           onNewChat,
           topics,
           currentTopicId,

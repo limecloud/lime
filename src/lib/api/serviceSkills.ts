@@ -82,6 +82,14 @@ export interface ServiceSkillSiteCapabilityBinding {
   suggestedTitleTemplate?: string;
 }
 
+export interface ServiceSkillSceneBinding {
+  sceneKey: string;
+  commandPrefix: string;
+  title?: string;
+  summary?: string;
+  aliases?: string[];
+}
+
 export interface ServiceSkillBundleResourceSummary {
   hasScripts: boolean;
   hasReferences: boolean;
@@ -127,6 +135,7 @@ export interface ServiceSkillItem {
   examples?: string[];
   outputDestination?: string;
   siteCapabilityBinding?: ServiceSkillSiteCapabilityBinding;
+  sceneBinding?: ServiceSkillSceneBinding;
   slotSchema: ServiceSkillSlotDefinition[];
   surfaceScopes?: ServiceSkillSurfaceScope[];
   promptTemplateKey?: ServiceSkillPromptTemplateKey;
@@ -157,7 +166,7 @@ interface ServiceSkillCatalogResponseEnvelope {
 const SERVICE_SKILL_CATALOG_STORAGE_KEY = "lime:service-skill-catalog:v1";
 const SERVICE_SKILL_CATALOG_CHANGED_EVENT =
   "lime:service-skill-catalog-changed";
-const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-04-04";
+const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-04-07";
 
 const PLATFORM_OPTIONS: ServiceSkillSlotOption[] = [
   { value: "xiaohongshu", label: "小红书" },
@@ -826,6 +835,85 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         },
       ],
     },
+    {
+      id: "x-article-export",
+      skillKey: "x-article-export",
+      skillType: "site",
+      title: "X 文章转存",
+      summary:
+        "复用已连接的 X / Twitter 浏览器登录态，导出长文为 Markdown，并把文内图片一并落到项目目录。",
+      entryHint:
+        "给我 X 文章链接，我会复用现有浏览器上下文抓正文、代码块和图片，并沉淀到项目导出目录。",
+      aliases: [
+        "x文章转存",
+        "x 长文转存",
+        "twitter article export",
+        "twitter-article-export",
+      ],
+      category: "站点采集",
+      outputHint: "Markdown 正文 + 图片目录 + 元信息",
+      triggerHints: [
+        "需要把 X 长文沉淀到本地项目目录，方便继续改写或引用时使用。",
+        "需要保留文内图片、代码块和标题结构，转换成 Markdown 时使用。",
+      ],
+      source: "local_custom",
+      runnerType: "instant",
+      defaultExecutorBinding: "browser_assist",
+      executionLocation: "client_default",
+      readinessRequirements: {
+        requiresBrowser: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "优先在已连接浏览器上下文中执行，避免丢失 X 的登录态和长文阅读权限。",
+        "结果会落到当前项目目录，适合后续继续整理、引用和版本管理。",
+      ],
+      setupRequirements: [
+        "需要先在浏览器工作台连接目标浏览器。",
+        "需要当前会话已经选择项目，方便把 Markdown 和图片写入项目目录。",
+      ],
+      examples: [
+        "把这篇 X 长文导出成 Markdown，并把图片一起保存到项目里。",
+        "请转存这条 Twitter Article，我后面还要继续改写和引用里面的代码示例。",
+      ],
+      outputDestination:
+        "结果会写入当前项目目录下的导出文件夹，并在工作区生成一个结果入口文档。",
+      siteCapabilityBinding: {
+        adapterName: "x/article-export",
+        autoRun: true,
+        requireAttachedSession: true,
+        saveMode: "project_resource",
+        slotArgMap: {
+          article_url: "url",
+        },
+      },
+      sceneBinding: {
+        sceneKey: "x-article-export",
+        commandPrefix: "/x文章转存",
+        title: "X文章转存",
+        summary:
+          "复用 X / Twitter 登录态，把长文导出成 Markdown，并把文内图片一起写入项目目录。",
+        aliases: [
+          "x文章转存",
+          "x转存",
+          "twitter-article-export",
+          "twitter文章转存",
+        ],
+      },
+      surfaceScopes: ["workspace"],
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+      slotSchema: [
+        {
+          key: "article_url",
+          label: "X 文章链接",
+          type: "url",
+          required: true,
+          placeholder: "https://x.com/<账号>/article/<文章ID>",
+          helpText: "支持 x.com 和 twitter.com 的 Article 链接。",
+        },
+      ],
+    },
   ],
 };
 
@@ -971,6 +1059,25 @@ function isServiceSkillSiteCapabilityBinding(
   );
 }
 
+function isServiceSkillSceneBinding(
+  value: unknown,
+): value is ServiceSkillSceneBinding {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const binding = value as Partial<ServiceSkillSceneBinding>;
+  return (
+    typeof binding.sceneKey === "string" &&
+    binding.sceneKey.trim().length > 0 &&
+    typeof binding.commandPrefix === "string" &&
+    binding.commandPrefix.trim().length > 0 &&
+    (binding.title === undefined || typeof binding.title === "string") &&
+    (binding.summary === undefined || typeof binding.summary === "string") &&
+    (binding.aliases === undefined || isStringArray(binding.aliases))
+  );
+}
+
 function isServiceSkillItem(value: unknown): value is ServiceSkillItem {
   if (!value || typeof value !== "object") {
     return false;
@@ -1020,6 +1127,8 @@ function isServiceSkillItem(value: unknown): value is ServiceSkillItem {
       typeof item.outputDestination === "string") &&
     (item.siteCapabilityBinding === undefined ||
       isServiceSkillSiteCapabilityBinding(item.siteCapabilityBinding)) &&
+    (item.sceneBinding === undefined ||
+      isServiceSkillSceneBinding(item.sceneBinding)) &&
     Array.isArray(item.slotSchema) &&
     item.slotSchema.every(isServiceSkillSlotDefinition) &&
     (item.surfaceScopes === undefined ||
@@ -1077,6 +1186,14 @@ function cloneServiceSkillCatalog(
               : undefined,
             fixedArgs: item.siteCapabilityBinding.fixedArgs
               ? JSON.parse(JSON.stringify(item.siteCapabilityBinding.fixedArgs))
+              : undefined,
+          }
+        : undefined,
+      sceneBinding: item.sceneBinding
+        ? {
+            ...item.sceneBinding,
+            aliases: item.sceneBinding.aliases
+              ? [...item.sceneBinding.aliases]
               : undefined,
           }
         : undefined,
@@ -1218,6 +1335,28 @@ function shouldIgnoreServerSyncedCatalog(
   return compareCatalogVersion(incoming.version, current.version) < 0;
 }
 
+function mergeSeededLocalCustomServiceSkillItems(
+  catalog: ServiceSkillCatalog,
+): ServiceSkillCatalog {
+  const localCustomItems = SEEDED_SERVICE_SKILL_CATALOG.items.filter(
+    (item) => item.source === "local_custom",
+  );
+  if (localCustomItems.length === 0) {
+    return catalog;
+  }
+
+  const localCustomIds = new Set(localCustomItems.map((item) => item.id));
+  return {
+    ...catalog,
+    items: [
+      ...catalog.items.filter((item) => !localCustomIds.has(item.id)),
+      ...localCustomItems.map(
+        (item) => JSON.parse(JSON.stringify(item)) as ServiceSkillItem,
+      ),
+    ],
+  };
+}
+
 export function parseServiceSkillCatalog(
   value: unknown,
 ): ServiceSkillCatalog | null {
@@ -1225,7 +1364,7 @@ export function parseServiceSkillCatalog(
     return null;
   }
 
-  return cloneServiceSkillCatalog(value);
+  return cloneServiceSkillCatalog(mergeSeededLocalCustomServiceSkillItems(value));
 }
 
 function persistServiceSkillCatalog(catalog: ServiceSkillCatalog): void {
@@ -1421,5 +1560,5 @@ export async function refreshServiceSkillCatalogFromRemote(): Promise<ServiceSki
 
 export async function listServiceSkills(): Promise<ServiceSkillItem[]> {
   const catalog = await getServiceSkillCatalog();
-  return catalog.items.filter((item) => item.source === "cloud_catalog");
+  return catalog.items;
 }

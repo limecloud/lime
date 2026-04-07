@@ -56,6 +56,7 @@ import {
   getContent,
   getGeneralWorkbenchDocumentState,
   ensureWorkspaceReady,
+  getOrCreateDefaultProject,
   type Project,
 } from "@/lib/api/project";
 import {
@@ -74,6 +75,7 @@ import { setActiveContentTarget } from "@/lib/activeContentTarget";
 import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
 import { useImageGen } from "@/components/image-gen/useImageGen";
 import { resolveMediaGenerationPreference } from "@/lib/mediaGeneration";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import {
   buildTeamMemoryShadowRequestMetadata,
   readTeamMemorySnapshot,
@@ -90,7 +92,11 @@ import {
   type LayoutMode,
   type ThemeType,
 } from "@/lib/workspace/workbenchContract";
-import { normalizeProjectId } from "./utils/topicProjectResolution";
+import {
+  isDefaultProjectIdAlias,
+  normalizeProjectId,
+} from "./utils/topicProjectResolution";
+import { isHiddenInternalArtifactPath } from "./utils/internalArtifactVisibility";
 import { buildHarnessRequestMetadata } from "./utils/harnessRequestMetadata";
 import { deriveHarnessSessionState } from "./utils/harnessState";
 import {
@@ -128,6 +134,7 @@ import { mergeThreadItems } from "./utils/threadTimelineView";
 import { useWorkbenchStore } from "@/stores/useWorkbenchStore";
 import {
   asRecord,
+  GENERAL_BROWSER_ASSIST_ARTIFACT_ID,
   mergeMessageArtifactsIntoStore,
   readFirstString,
 } from "./workspace/browserAssistArtifact";
@@ -159,6 +166,7 @@ import { useWorkspaceImageWorkbenchEventRuntime } from "./workspace/useWorkspace
 import { buildImageSkillLaunchRequestMetadata } from "./workspace/imageSkillLaunch";
 import { useWorkspaceImageTaskPreviewRuntime } from "./workspace/useWorkspaceImageTaskPreviewRuntime";
 import { useWorkspaceVideoTaskPreviewRuntime } from "./workspace/useWorkspaceVideoTaskPreviewRuntime";
+import { useWorkspaceVideoTaskActionRuntime } from "./workspace/useWorkspaceVideoTaskActionRuntime";
 import { useWorkspaceRuntimeTeamDispatchPreviewRuntime } from "./workspace/useWorkspaceRuntimeTeamDispatchPreviewRuntime";
 import { useWorkspaceSessionRestore } from "./workspace/useWorkspaceSessionRestore";
 import { useWorkspaceResetRuntime } from "./workspace/useWorkspaceResetRuntime";
@@ -178,7 +186,11 @@ import { useWorkspaceTeamSessionRuntime } from "./workspace/useWorkspaceTeamSess
 import { useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime } from "./workspace/useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime";
 import { useWorkspaceServiceSkillEntryActions } from "./workspace/useWorkspaceServiceSkillEntryActions";
 import { useWorkspaceArtifactViewModeControl } from "./workspace/useWorkspaceArtifactViewModeControl";
-import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
+import {
+  areArtifactProtocolPathsEquivalent,
+  normalizeArtifactProtocolPath,
+  resolveArtifactProtocolFilePath,
+} from "@/lib/artifact-protocol";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { ArtifactTimelineOpenTarget } from "./utils/artifactTimelineNavigation";
 import {
@@ -203,6 +215,7 @@ import { ServiceSkillLaunchDialog } from "./service-skills/ServiceSkillLaunchDia
 import { AutomationJobDialog } from "@/components/settings-v2/system/automation/AutomationJobDialog";
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
+const BLANK_HOME_DEFERRED_LOAD_MS = 6_000;
 
 function resolveDefaultSelectedArtifact(
   activeTheme: string,
@@ -245,18 +258,11 @@ function resolveVideoCanvasStatusFromPreview(
   return "generating";
 }
 
-function normalizeTaskPreviewArtifactPath(value?: string | null): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-  return value.trim().replace(/\\/g, "/");
-}
-
 function resolveTaskPreviewArtifact(
   message: Message,
   target: Extract<MessagePreviewTarget, { kind: "task" }>,
 ): Artifact | null {
-  const normalizedArtifactPath = normalizeTaskPreviewArtifactPath(
+  const normalizedArtifactPath = normalizeArtifactProtocolPath(
     target.preview.kind === "video_generate"
       ? null
       : target.preview.artifactPath || null,
@@ -265,16 +271,26 @@ function resolveTaskPreviewArtifact(
   if (normalizedArtifactPath) {
     const matchedArtifact = messageArtifacts.find(
       (artifact) =>
-        normalizeTaskPreviewArtifactPath(resolveArtifactProtocolFilePath(artifact)) ===
-        normalizedArtifactPath,
+        !isHiddenInternalArtifactPath(resolveArtifactProtocolFilePath(artifact)) &&
+        (areArtifactProtocolPathsEquivalent(
+          resolveArtifactProtocolFilePath(artifact),
+          normalizedArtifactPath,
+        ) ||
+          normalizeArtifactProtocolPath(
+            resolveArtifactProtocolFilePath(artifact),
+          ) === normalizedArtifactPath),
     );
     if (matchedArtifact) {
       return matchedArtifact;
     }
   }
 
-  return messageArtifacts.length > 0
-    ? (messageArtifacts[messageArtifacts.length - 1] ?? null)
+  const visibleArtifacts = messageArtifacts.filter(
+    (artifact) =>
+      !isHiddenInternalArtifactPath(resolveArtifactProtocolFilePath(artifact)),
+  );
+  return visibleArtifacts.length > 0
+    ? (visibleArtifacts[visibleArtifacts.length - 1] ?? null)
     : null;
 }
 
@@ -438,6 +454,7 @@ export function AgentChatWorkspace({
     agentEntry === "new-task" && !contentId;
   const shouldPreserveBlankHomeSurface =
     shouldPreserveEntryThemeOnHome && normalizedEntryTheme === "general";
+  const shouldDeferBlankHomeAuxiliaryLoads = shouldPreserveBlankHomeSurface;
   const [isInitialContentLoading, setIsInitialContentLoading] = useState(
     shouldBootstrapCanvasOnEntry,
   );
@@ -492,6 +509,80 @@ export function AgentChatWorkspace({
     initialTheme,
     lockTheme,
   ]);
+
+  useEffect(() => {
+    if (!isDefaultProjectIdAlias(externalProjectId) || projectId) {
+      return;
+    }
+
+    let cancelled = false;
+    const startedAt = Date.now();
+    logAgentDebug("AgentChatPage", "resolveDefaultProjectAlias.start", {
+      externalProjectId: externalProjectId ?? null,
+    });
+
+    void (async () => {
+      try {
+        const defaultProject = await getOrCreateDefaultProject();
+        let resolvedRootPath = defaultProject.rootPath;
+
+        try {
+          const ensuredWorkspace = await ensureWorkspaceReady(defaultProject.id);
+          resolvedRootPath = ensuredWorkspace.rootPath || resolvedRootPath;
+        } catch (error) {
+          logAgentDebug(
+            "AgentChatPage",
+            "resolveDefaultProjectAlias.ensureWorkspaceReadyError",
+            {
+              error,
+              projectId: defaultProject.id,
+            },
+            { level: "warn" },
+          );
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        applyProjectSelection(defaultProject.id);
+        setProject((current) =>
+          current?.id === defaultProject.id &&
+          current.rootPath === resolvedRootPath
+            ? current
+            : {
+                ...defaultProject,
+                rootPath: resolvedRootPath,
+              },
+        );
+        logAgentDebug("AgentChatPage", "resolveDefaultProjectAlias.success", {
+          durationMs: Date.now() - startedAt,
+          projectId: defaultProject.id,
+          rootPath: resolvedRootPath,
+        });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.warn("[AgentChatPage] 默认工作区别名解析失败:", error);
+        logAgentDebug(
+          "AgentChatPage",
+          "resolveDefaultProjectAlias.error",
+          {
+            durationMs: Date.now() - startedAt,
+            error,
+            externalProjectId: externalProjectId ?? null,
+          },
+          { level: "warn" },
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyProjectSelection, externalProjectId, projectId]);
 
   // 画布状态（支持多种画布类型）
   const [canvasState, setCanvasState] = useState<CanvasStateUnion | null>(
@@ -563,6 +654,10 @@ export function AgentChatWorkspace({
     preferredProviderId: effectiveImageWorkbenchPreference.preferredProviderId,
     preferredModelId: effectiveImageWorkbenchPreference.preferredModelId,
     allowFallback: effectiveImageWorkbenchPreference.allowFallback,
+    providerLoadMode: shouldPreserveBlankHomeSurface ? "deferred" : "immediate",
+    providerDeferredDelayMs: shouldPreserveBlankHomeSurface
+      ? BLANK_HOME_DEFERRED_LOAD_MS
+      : undefined,
   });
   const {
     availableProviders: imageWorkbenchProviders,
@@ -637,7 +732,10 @@ export function AgentChatWorkspace({
     skillsLoading,
     refreshSkills: loadSkills,
   } = useLimeSkills({
-    autoLoad: "immediate",
+    autoLoad: shouldPreserveBlankHomeSurface ? "deferred" : "immediate",
+    deferredDelayMs: shouldPreserveBlankHomeSurface
+      ? BLANK_HOME_DEFERRED_LOAD_MS
+      : undefined,
     logScope: "AgentChatPage",
     onError: (error) => {
       console.warn("[AgentChatPage] 加载 skills 失败:", error);
@@ -648,7 +746,13 @@ export function AgentChatWorkspace({
     isLoading: serviceSkillsLoading,
     error: serviceSkillsError,
     recordUsage: recordServiceSkillUsage,
-  } = useServiceSkills(activeTheme === "general");
+  } = useServiceSkills({
+    enabled: activeTheme === "general",
+    loadMode: shouldPreserveBlankHomeSurface ? "deferred" : "immediate",
+    deferredDelayMs: shouldPreserveBlankHomeSurface
+      ? BLANK_HOME_DEFERRED_LOAD_MS
+      : undefined,
+  });
 
   useEffect(() => {
     if (activeTheme !== "general" || !serviceSkillsError) {
@@ -711,6 +815,33 @@ export function AgentChatWorkspace({
     },
     [setArtifacts],
   );
+  const hasBrowserAssistArtifact = useMemo(
+    () =>
+      artifacts.some(
+        (artifact) =>
+          artifact.id === GENERAL_BROWSER_ASSIST_ARTIFACT_ID &&
+          artifact.type === "browser_assist",
+      ),
+    [artifacts],
+  );
+  const clearBrowserAssistCanvasArtifact = useCallback(() => {
+    setArtifacts((currentArtifacts) => {
+      const nextArtifacts = currentArtifacts.filter(
+        (artifact) =>
+          !(
+            artifact.id === GENERAL_BROWSER_ASSIST_ARTIFACT_ID &&
+            artifact.type === "browser_assist"
+          ),
+      );
+      return nextArtifacts.length === currentArtifacts.length
+        ? currentArtifacts
+        : nextArtifacts;
+    });
+
+    if (selectedArtifactId === GENERAL_BROWSER_ASSIST_ARTIFACT_ID) {
+      setSelectedArtifactId(null);
+    }
+  }, [selectedArtifactId, setArtifacts, setSelectedArtifactId]);
   const defaultSelectedArtifact = useMemo(
     () => resolveDefaultSelectedArtifact(activeTheme, artifacts),
     [activeTheme, artifacts],
@@ -831,17 +962,25 @@ export function AgentChatWorkspace({
           setActiveTheme(theme);
         }
 
-        const memory = await getProjectMemory(projectId);
-        if (cancelled) {
-          return;
+        if (!shouldDeferBlankHomeAuxiliaryLoads) {
+          const memory = await getProjectMemory(projectId);
+          if (cancelled) {
+            return;
+          }
+          setProjectMemory(memory);
+          logAgentDebug("AgentChatPage", "loadData.memoryLoaded", {
+            charactersCount: memory?.characters?.length ?? 0,
+            durationMs: Date.now() - startedAt,
+            hasOutline: Boolean(memory?.outline?.length),
+            projectId,
+          });
+        } else {
+          setProjectMemory(null);
+          logAgentDebug("AgentChatPage", "loadData.memoryDeferred", {
+            durationMs: Date.now() - startedAt,
+            projectId,
+          });
         }
-        setProjectMemory(memory);
-        logAgentDebug("AgentChatPage", "loadData.memoryLoaded", {
-          charactersCount: memory?.characters?.length ?? 0,
-          durationMs: Date.now() - startedAt,
-          hasOutline: Boolean(memory?.outline?.length),
-          projectId,
-        });
 
         if (!contentId) {
           logAgentDebug("AgentChatPage", "loadData.projectOnlyComplete", {
@@ -1011,8 +1150,69 @@ export function AgentChatWorkspace({
     contentId,
     lockTheme,
     initialTheme,
+    shouldDeferBlankHomeAuxiliaryLoads,
     shouldPreserveEntryThemeOnHome,
   ]);
+
+  useEffect(() => {
+    if (!shouldDeferBlankHomeAuxiliaryLoads) {
+      return;
+    }
+
+    const normalizedProjectId = normalizeProjectId(projectId);
+    if (!normalizedProjectId) {
+      setProjectMemory(null);
+      return;
+    }
+
+    let cancelled = false;
+    const cancelDeferredLoad = scheduleMinimumDelayIdleTask(
+      () => {
+        const startedAt = Date.now();
+        logAgentDebug("AgentChatPage", "loadDeferredMemory.start", {
+          projectId: normalizedProjectId,
+        });
+        void getProjectMemory(normalizedProjectId)
+          .then((memory) => {
+            if (cancelled) {
+              return;
+            }
+            setProjectMemory(memory);
+            logAgentDebug("AgentChatPage", "loadDeferredMemory.success", {
+              charactersCount: memory?.characters?.length ?? 0,
+              durationMs: Date.now() - startedAt,
+              hasOutline: Boolean(memory?.outline?.length),
+              projectId: normalizedProjectId,
+            });
+          })
+          .catch((error) => {
+            if (cancelled) {
+              return;
+            }
+            console.warn("[AgentChatPage] 延后加载项目 Memory 失败:", error);
+            logAgentDebug(
+              "AgentChatPage",
+              "loadDeferredMemory.error",
+              {
+                durationMs: Date.now() - startedAt,
+                error,
+                projectId: normalizedProjectId,
+              },
+              { level: "warn" },
+            );
+          });
+      },
+      {
+        minimumDelayMs: BLANK_HOME_DEFERRED_LOAD_MS,
+        idleTimeoutMs: 1_500,
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      cancelDeferredLoad();
+    };
+  }, [projectId, shouldDeferBlankHomeAuxiliaryLoads]);
 
   useEffect(() => {
     if (!shouldBootstrapCanvasOnEntry) {
@@ -1039,43 +1239,68 @@ export function AgentChatWorkspace({
     const normalizedId = normalizeProjectId(projectId);
     if (!normalizedId) return;
 
-    const startedAt = Date.now();
-    logAgentDebug("AgentChatPage", "workspaceCheck.start", {
-      projectId: normalizedId,
-    });
-    ensureWorkspaceReady(normalizedId)
-      .then(({ repaired, rootPath }) => {
-        if (repaired) {
-          recordWorkspaceRepair({
-            workspaceId: normalizedId,
-            rootPath,
-            source: "agent_chat_page",
-          });
-          console.info("[AgentChatPage] workspace 目录已自动修复:", rootPath);
-        }
-        logAgentDebug("AgentChatPage", "workspaceCheck.success", {
-          durationMs: Date.now() - startedAt,
-          projectId: normalizedId,
-          repaired,
-          rootPath,
-        });
-      })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn("[AgentChatPage] workspace 目录检查失败:", message);
-        logAgentDebug(
-          "AgentChatPage",
-          "workspaceCheck.error",
-          {
-            durationMs: Date.now() - startedAt,
-            error: err,
-            projectId: normalizedId,
-          },
-          { level: "warn" },
-        );
-        setWorkspaceHealthError(true);
+    let cancelled = false;
+    const runWorkspaceCheck = () => {
+      const startedAt = Date.now();
+      logAgentDebug("AgentChatPage", "workspaceCheck.start", {
+        projectId: normalizedId,
       });
-  }, [projectId]);
+      void ensureWorkspaceReady(normalizedId)
+        .then(({ repaired, rootPath }) => {
+          if (cancelled) {
+            return;
+          }
+          if (repaired) {
+            recordWorkspaceRepair({
+              workspaceId: normalizedId,
+              rootPath,
+              source: "agent_chat_page",
+            });
+            console.info("[AgentChatPage] workspace 目录已自动修复:", rootPath);
+          }
+          logAgentDebug("AgentChatPage", "workspaceCheck.success", {
+            durationMs: Date.now() - startedAt,
+            projectId: normalizedId,
+            repaired,
+            rootPath,
+          });
+        })
+        .catch((err: unknown) => {
+          if (cancelled) {
+            return;
+          }
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn("[AgentChatPage] workspace 目录检查失败:", message);
+          logAgentDebug(
+            "AgentChatPage",
+            "workspaceCheck.error",
+            {
+              durationMs: Date.now() - startedAt,
+              error: err,
+              projectId: normalizedId,
+            },
+            { level: "warn" },
+          );
+          setWorkspaceHealthError(true);
+        });
+    };
+
+    const cancelDeferredCheck = shouldDeferBlankHomeAuxiliaryLoads
+      ? scheduleMinimumDelayIdleTask(runWorkspaceCheck, {
+          minimumDelayMs: BLANK_HOME_DEFERRED_LOAD_MS,
+          idleTimeoutMs: 1_500,
+        })
+      : null;
+
+    if (!cancelDeferredCheck) {
+      runWorkspaceCheck();
+    }
+
+    return () => {
+      cancelled = true;
+      cancelDeferredCheck?.();
+    };
+  }, [projectId, shouldDeferBlankHomeAuxiliaryLoads]);
 
   useEffect(() => {
     const normalizedProjectId = normalizeProjectId(projectId);
@@ -1083,21 +1308,10 @@ export function AgentChatWorkspace({
       return;
     }
 
-    if (project && project.id === normalizedProjectId && !project.isArchived) {
-      rememberProjectId(normalizedProjectId);
+    if (project?.id === normalizedProjectId && project.isArchived) {
       return;
     }
-
-    getProject(normalizedProjectId)
-      .then((resolvedProject) => {
-        if (!resolvedProject || resolvedProject.isArchived) {
-          return;
-        }
-        rememberProjectId(resolvedProject.id);
-      })
-      .catch((error) => {
-        console.warn("[AgentChatPage] 记录最近项目失败:", error);
-      });
+    rememberProjectId(normalizedProjectId);
   }, [project, projectId, rememberProjectId]);
 
   const chatMode = useMemo(
@@ -1198,6 +1412,12 @@ export function AgentChatWorkspace({
     },
     workspaceId: projectId ?? "",
     disableSessionRestore: shouldDisableSessionRestore,
+    initialTopicsLoadMode: shouldPreserveBlankHomeSurface
+      ? "deferred"
+      : "immediate",
+    initialTopicsDeferredDelayMs: shouldPreserveBlankHomeSurface
+      ? BLANK_HOME_DEFERRED_LOAD_MS
+      : undefined,
     getSyncedSessionRecentPreferences,
   });
   activeSessionIdRef.current = sessionId;
@@ -1439,6 +1659,31 @@ export function AgentChatWorkspace({
     },
     [],
   );
+  useEffect(() => {
+    const normalizedSessionId = sessionId?.trim();
+    const localSessionKey = localImageWorkbenchSessionKeyRef.current;
+    if (!normalizedSessionId || normalizedSessionId === localSessionKey) {
+      return;
+    }
+
+    const localState = imageWorkbenchBySessionId[localSessionKey];
+    if (!localState) {
+      return;
+    }
+
+    updateImageWorkbenchStateForSession(
+      normalizedSessionId,
+      (current) => current,
+      {
+        fallbackState: localState,
+        removeSessionKeys: [localSessionKey],
+      },
+    );
+  }, [
+    imageWorkbenchBySessionId,
+    sessionId,
+    updateImageWorkbenchStateForSession,
+  ]);
   const teamSessionRuntime = useWorkspaceTeamSessionRuntime({
     sessionId,
     topics,
@@ -2224,7 +2469,6 @@ export function AgentChatWorkspace({
   const imageWorkbenchActionRuntime = useWorkspaceImageWorkbenchActionRuntime({
     cancelImageTask: cancelMediaTaskArtifact,
     contentId,
-    createFreshSession,
     createImageGenerationTask: createImageGenerationTaskArtifact,
     getImageTask: getMediaTaskArtifact,
     currentImageWorkbenchState,
@@ -2240,7 +2484,6 @@ export function AgentChatWorkspace({
     setCanvasState,
     setInput,
     setLayoutMode,
-    updateImageWorkbenchStateForSession,
     updateCurrentImageWorkbenchState,
   });
   const { handleImageWorkbenchCommand, resolveImageWorkbenchSkillRequest } =
@@ -2436,7 +2679,7 @@ export function AgentChatWorkspace({
     [displayMessages],
   );
 
-  // 布局层按实际展示内容判断，避免 browser preflight / bootstrap 预览仍被视为空白态。
+  // 布局层按实际展示内容判断，避免 bootstrap 预览等临时消息仍被视为空白态。
   const hasDisplayMessages = displayMessages.length > 0;
   const hasMessages = hasDisplayMessages;
   const effectiveShowChatPanel =
@@ -2496,11 +2739,13 @@ export function AgentChatWorkspace({
     showTeamWorkspaceBoard: teamSessionRuntime.showTeamWorkspaceBoard,
     hasCurrentCanvasArtifact: Boolean(currentCanvasArtifact),
     currentCanvasArtifactType: currentCanvasArtifact?.type,
+    hasBrowserAssistArtifact,
     currentImageWorkbenchActive: currentImageWorkbenchState.active,
     onHasMessagesChange,
     dismissActiveTeamWorkbenchAutoOpen,
     suppressGeneralCanvasArtifactAutoOpen,
     suppressBrowserAssistCanvasAutoOpen,
+    clearBrowserAssistCanvasArtifact,
     setShowSidebar,
     setLayoutMode,
     setGeneralCanvasState,
@@ -2693,6 +2938,7 @@ export function AgentChatWorkspace({
           aspectRatio: normalizeVideoAspectRatio(preview.aspectRatio),
           resolution: normalizeVideoResolution(preview.resolution),
           status: resolveVideoCanvasStatusFromPreview(target),
+          selectedTaskId: preview.taskId,
           videoUrl: preview.videoUrl || undefined,
           errorMessage:
             preview.status === "failed" || preview.status === "cancelled"
@@ -2709,14 +2955,14 @@ export function AgentChatWorkspace({
         return;
       }
 
-      const normalizedArtifactPath = normalizeTaskPreviewArtifactPath(
+      const normalizedArtifactPath = normalizeArtifactProtocolPath(
         target.preview.artifactPath || null,
       );
       if (normalizedArtifactPath) {
         const matchedTaskFile = taskFiles.find(
           (file) =>
-            normalizeTaskPreviewArtifactPath(file.name) ===
-            normalizedArtifactPath,
+            areArtifactProtocolPathsEquivalent(file.name, normalizedArtifactPath) ||
+            normalizeArtifactProtocolPath(file.name) === normalizedArtifactPath,
         );
         if (matchedTaskFile?.content?.trim()) {
           handleWorkspaceFileClick(matchedTaskFile.name, matchedTaskFile.content);
@@ -2811,6 +3057,8 @@ export function AgentChatWorkspace({
     contentId,
     projectRootPath: project?.rootPath || null,
     restoreFromWorkspace: shouldRestoreImageTasksFromWorkspace,
+    messages,
+    currentImageWorkbenchState,
     canvasState,
     setCanvasState,
     setChatMessages,
@@ -2818,6 +3066,11 @@ export function AgentChatWorkspace({
   });
   useWorkspaceVideoTaskPreviewRuntime({
     messages,
+    setChatMessages,
+  });
+  useWorkspaceVideoTaskActionRuntime({
+    projectId,
+    contentId,
     setChatMessages,
   });
 
@@ -3028,6 +3281,12 @@ export function AgentChatWorkspace({
   });
 
   const workspaceShellSceneRuntime = useWorkspaceConversationShellSceneRuntime({
+    messageListEmptyStateVariant:
+      agentEntry === "claw" ? "task-center" : "default",
+    navbarContextVariant:
+      agentEntry === "claw" ? "task-center" : "default",
+    sidebarContextVariant:
+      agentEntry === "claw" ? "task-center" : "default",
     navigationActions,
     inputbarScene,
     canvasScene,

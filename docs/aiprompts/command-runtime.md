@@ -69,7 +69,16 @@ Lime 的命令体系固定按以下关系理解：
 
 对图片任务再补一条固定约束：
 
-`@配图/@修图/@重绘` 原始文本必须先进入 Agent turn，再由 `harness.image_skill_launch` 辅助首刀 `Skill(image_generate)`；文稿 inline 配图、封面位、图片工作台编辑/变体这类显式图片动作也一样，必须先组装 `image_task` 上下文后再复用统一发送主线。不要把 current 主链重新改回前端预翻 slash skill、前端直建任务或“按钮直调 task API”。
+`@配图/@修图/@重绘` 原始文本必须先进入 Agent turn，再由 `harness.image_skill_launch` 辅助首刀 `Skill(image_generate)`；文稿 inline 配图、封面位、图片工作台编辑/变体这类显式图片动作也一样，必须先组装 `image_task` 上下文后再复用统一发送主线。不要把 current 主链重新改回前端预翻 slash skill、前端直建任务或“按钮直调 task API”。图片 launch 还必须显式压制 `ToolSearch / WebSearch / Read / Glob / Grep` 这类通用偏航工具，并在必要时直接从当前 session tool surface 移除这些 detour tools，避免模型在“搜技能目录”里空转或把权限错误暴露给用户。默认 `Bash -> lime media image generate --json` 入口也必须把 task file 真正推进到完成态；兼容入口 `lime task create image --json` 现在也必须复用同一条图片执行链，不能再只停在“任务已创建 / pending_submit”。即使退回 compat 的 `lime_create_image_generation_task`，也必须委托同一条 task artifact + worker 执行链，并禁止把任务改写到 `outputPath` / markdown 文稿。
+- 显式图片动作允许先在前端补 `image_skill_launch` metadata，但发送前的 `session_id` 绑定仍必须走统一发送边界；如果 metadata 里暂时还是本地 draft key，必须在真正发起 send 时替换成真实会话 ID，而不是在图片动作入口提前额外建一个图片专用会话。
+- `.lime/tasks/**/*.json` 继续作为图片主链的唯一恢复事实源，但它们属于内部任务快照，默认不应直接渲染成用户可见 artifact 卡片或时间线文件卡；用户面看到的应该是轻结果卡、工具过程和右侧查看。
+
+图片结果进入 UI 时还必须遵守以下 viewer 收口规则：
+
+- 图片任务的主结果事实源是 `image task preview + 图片工作台 outputs`，不是通用文本 artifact
+- 空内容的二进制图片文件（如 `output_image.jpg`）不能再镜像成通用 artifact 卡片，否则会出现“重复文件卡 + 点不开”的假结果
+- `tool_result` 产物在 general workspace 中默认后台入库，不自动选中、不自动展开右侧工作台；抢焦点只允许发生在用户显式点击或仍在流式写入的文档类产物上
+- 同一产物路径的 `basename / 相对路径 / 绝对路径` 必须在前端视为同一文件，避免一张图被重复挂成多份结果
 
 不要再把命令能力直接叙述成：
 
@@ -108,6 +117,11 @@ Lime 的命令体系固定按以下关系理解：
 - `lime_run_service_skill` 再根据当前 turn 绑定的 `serviceSkillId + OEM runtime` 发起服务端 run / 短轮询，保证 slash scene 也走 `Agent -> tool -> timeline` 主链
 - 未命中统一目录的 slash 文本必须继续回到普通 slash 流程，不能被错误吞成“未找到本地 Skill”
 
+如果 `scene` 绑定的是 `site_adapter / browser_assist` 型技能，还要额外遵守两条边界：
+
+- 用户可见入口继续以 `entries.kind=scene` 为准，不要求把底层 site skill 强行暴露成首页技能卡；但运行时解析 `scene -> linkedSkillId` 时，不能只依赖首页可见 skill 列表，必须能回退完整 `ServiceSkill` 目录做绑定解析，否则会出现“slash 菜单里能选、发送时却找不到 skill”的假入口
+- 参数补齐协议继续只落在 `slotSchema`；如果未来要在 slash 场景或技能入口里弹参数表单，可以在渲染层把 `slotSchema` 映射成 `a2ui`，但不要把 `a2ui` 结构写进 `SkillCatalog`、`request_metadata` 或 runtime 协议
+
 一句话：
 
 > 目录发现要服务端优先，但体验稳定性必须由客户端 seeded/fallback 托底。
@@ -142,6 +156,7 @@ Lime 的命令体系固定按以下关系理解：
 - 文稿 inline 配图、封面位、图片工作台编辑/变体等显式动作也必须补成同构的 `harness.image_skill_launch`，而不是绕过 Agent 直建任务
 - 前端只负责补 `harness.image_skill_launch` 这类结构化上下文，不负责预翻成 slash skill 或偷偷发起 task
 - Agent 首刀优先调用 `Skill(image_generate)`，再由 skill / CLI / task file 链路继续执行
+- 不要为了“找技能”再先走 `ToolSearch`；如果运行时发现 `@配图` 在 `ToolSearch / WebSearch / Read / Glob / Grep` 上空转，应视为图片主链断裂
 - 聊天区轻卡与 viewer 只消费后端真实运行态，不伪造“已完成”
 
 `@素材` 在这个分型里是一个混合分流特例：

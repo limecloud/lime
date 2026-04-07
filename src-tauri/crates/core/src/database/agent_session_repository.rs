@@ -213,3 +213,13 @@ pub fn update_session_provider_config(
     )
     .map_err(|error| format!("更新会话 provider/model 失败: {error}"))
 }
+
+pub fn update_latest_assistant_message_usage(
+    conn: &Connection,
+    session_id: &str,
+    input_tokens: u32,
+    output_tokens: u32,
+) -> Result<bool, String> {
+    AgentDao::update_latest_assistant_message_usage(conn, session_id, input_tokens, output_tokens)
+        .map_err(|error| format!("更新最新 assistant 消息 usage 失败: {error}"))
+}

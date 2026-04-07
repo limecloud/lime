@@ -1,6 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SendMessageFn } from "./agentChatShared";
 import { createAgentChatSendMessage } from "./agentChatSendMessage";
+import { listSlashEntryUsage } from "../skill-selection/slashEntryUsage";
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 describe("createAgentChatSendMessage", () => {
   it("普通消息应直接透传到 rawSendMessage", async () => {
@@ -74,6 +79,12 @@ describe("createAgentChatSendMessage", () => {
     expect(appendAssistantMessage).toHaveBeenCalledWith(
       expect.stringContaining("自动路由"),
     );
+    expect(listSlashEntryUsage()).toEqual([
+      expect.objectContaining({
+        kind: "command",
+        entryId: "status",
+      }),
+    ]);
   });
 
   it("命中 prompt slash 命令时应转换 prompt 后透传", async () => {
@@ -102,6 +113,12 @@ describe("createAgentChatSendMessage", () => {
     expect(rawSendMessage).toHaveBeenCalledTimes(1);
     expect(rawSendMessage.mock.calls[0]?.[0]).toContain("请对以下对象进行代码审查");
     expect(rawSendMessage.mock.calls[0]?.[0]).toContain("src-tauri");
+    expect(listSlashEntryUsage()).toEqual([
+      expect.objectContaining({
+        kind: "command",
+        entryId: "review",
+      }),
+    ]);
   });
 
   it("skipUserMessage 为 true 时应绕过 slash 分流", async () => {

@@ -26,6 +26,7 @@ export interface AgentChatWorkspaceBootstrap {
 export interface WorkspaceEntryPayload {
   prompt?: string;
   images?: MessageImage[];
+  projectId?: string;
   contentId?: string;
   initialRequestMetadata?: Record<string, unknown>;
   initialAutoSendRequestMetadata?: Record<string, unknown>;
@@ -107,6 +108,7 @@ export function resolveWorkspaceEntry(
 
   const hasPrompt = Boolean(payload.prompt?.trim());
   const hasImages = Boolean(payload.images?.length);
+  const resolvedProjectId = payload.projectId?.trim() || projectId || undefined;
   const hasContentId = Boolean(payload.contentId?.trim());
   const hasSiteSkillLaunch = Boolean(
     payload.initialSiteSkillLaunch?.adapterName?.trim(),
@@ -122,7 +124,7 @@ export function resolveWorkspaceEntry(
   const openBrowserAssistOnMount = payload.openBrowserAssistOnMount;
   const autoRunInitialPromptOnMount = payload.autoRunInitialPromptOnMount;
 
-  if (!openBrowserAssistOnMount && !hasSiteSkillLaunch && !projectId) {
+  if (!openBrowserAssistOnMount && !hasSiteSkillLaunch && !resolvedProjectId) {
     return {
       ok: false,
       reason: "missing_project",
@@ -144,7 +146,7 @@ export function resolveWorkspaceEntry(
 
   const nextNewChatAt = now();
   const shared = {
-    projectId: projectId ?? undefined,
+    projectId: resolvedProjectId,
     contentId: payload.contentId,
     theme: targetTheme,
     lockTheme,
@@ -175,7 +177,7 @@ export function resolveWorkspaceEntry(
     nextNewChatAt,
     navigationParams: buildClawAgentParams(shared),
     workspaceBootstrap: {
-      projectId: projectId ?? undefined,
+      projectId: resolvedProjectId,
       contentId: payload.contentId,
       initialUserPrompt: payload.prompt,
       initialUserImages: payload.images,

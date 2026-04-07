@@ -267,7 +267,14 @@
     },
   };
 
-  const siteAdapterRunners = {
+  const generatedSiteAdapterRunners =
+    window.__LIME_SITE_ADAPTER_RUNNERS__ &&
+    typeof window.__LIME_SITE_ADAPTER_RUNNERS__ === "object" &&
+    !Array.isArray(window.__LIME_SITE_ADAPTER_RUNNERS__)
+      ? window.__LIME_SITE_ADAPTER_RUNNERS__
+      : {};
+
+  const legacySiteAdapterRunners = {
     "github/search": async (args, helpers) => {
       const query = String(args.query || "").trim();
       const limit = helpers.number(args.limit, 10);
@@ -927,6 +934,11 @@
         source_url: location.href,
       };
     },
+  };
+
+  const siteAdapterRunners = {
+    ...legacySiteAdapterRunners,
+    ...generatedSiteAdapterRunners,
   };
 
   async function executeCommand(commandData) {

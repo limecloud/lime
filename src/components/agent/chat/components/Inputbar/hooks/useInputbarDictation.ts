@@ -61,6 +61,7 @@ export function useInputbarDictation({
     useState<InputbarDictationState>("idle");
   const [dictationEnabled, setDictationEnabled] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
+  const [voiceConfigLoaded, setVoiceConfigLoaded] = useState(false);
   const textRef = useRef(text);
   const dictationStateRef = useRef<InputbarDictationState>("idle");
   const voiceConfigRef = useRef<VoiceInputConfig | null>(null);
@@ -75,23 +76,7 @@ export function useInputbarDictation({
   }, [dictationState]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    getVoiceInputConfig()
-      .then((config) => {
-        if (cancelled) {
-          return;
-        }
-        voiceConfigRef.current = config;
-        setDictationEnabled(config.enabled);
-        setSoundEnabled(config.sound_enabled);
-      })
-      .catch((error) => {
-        console.error("[输入栏] 加载语音输入配置失败:", error);
-      });
-
     return () => {
-      cancelled = true;
       if (dictationStateRef.current === "listening") {
         void cancelRecording().catch((error) => {
           console.error("[输入栏] 卸载时取消录音失败:", error);
@@ -126,6 +111,7 @@ export function useInputbarDictation({
     voiceConfigRef.current = config;
     setDictationEnabled(config.enabled);
     setSoundEnabled(config.sound_enabled);
+    setVoiceConfigLoaded(true);
     return config;
   }, []);
 
@@ -230,6 +216,7 @@ export function useInputbarDictation({
 
   return {
     dictationEnabled,
+    voiceConfigLoaded,
     dictationState,
     isDictating: dictationState === "listening",
     isDictationBusy: dictationState !== "idle",

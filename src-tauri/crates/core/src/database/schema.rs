@@ -624,6 +624,8 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             tool_calls_json TEXT,
             tool_call_id TEXT,
             reasoning_content TEXT,
+            input_tokens INTEGER,
+            output_tokens INTEGER,
             FOREIGN KEY (session_id) REFERENCES agent_sessions(id) ON DELETE CASCADE
         )",
         [],
@@ -631,6 +633,14 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
 
     let _ = conn.execute(
         "ALTER TABLE agent_messages ADD COLUMN reasoning_content TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE agent_messages ADD COLUMN input_tokens INTEGER",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE agent_messages ADD COLUMN output_tokens INTEGER",
         [],
     );
 

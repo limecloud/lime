@@ -5,7 +5,7 @@ import {
 } from "../utils/harnessRequestMetadata";
 import type { HandleSendOptions } from "../hooks/handleSendTypes";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
-import type { MessageImage } from "../types";
+import type { BrowserTaskRequirement, MessageImage } from "../types";
 import type { Character } from "@/lib/api/memory";
 import {
   buildTeamMemoryShadowRequestMetadata,
@@ -62,6 +62,20 @@ function readMetadataText(
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
     : undefined;
+}
+
+function readExistingBrowserRequirement(
+  metadata: Record<string, unknown> | undefined,
+): BrowserTaskRequirement | undefined {
+  const requirement = readMetadataText(metadata, "browser_requirement");
+  if (
+    requirement === "optional" ||
+    requirement === "required" ||
+    requirement === "required_with_user_step"
+  ) {
+    return requirement;
+  }
+  return undefined;
 }
 
 function readExistingTeamSource(
@@ -231,7 +245,7 @@ function applyActiveContextPrompt(
     return text;
   }
 
-  const slashCommandMatch = text.match(/^\/([a-zA-Z0-9_-]+)\s*([\s\S]*)$/);
+  const slashCommandMatch = text.match(/^\/([a-zA-Z0-9_-]+)(?:\s+([\s\S]*))?$/);
   if (slashCommandMatch) {
     const [, skillName, skillArgs] = slashCommandMatch;
     const mergedArgs = [activeContextPrompt, skillArgs.trim()]
@@ -362,6 +376,12 @@ export function hasModelSkillLaunchRequestMetadata(
     "urlParseSkillLaunch",
     "typesetting_skill_launch",
     "typesettingSkillLaunch",
+    "presentation_skill_launch",
+    "presentationSkillLaunch",
+    "form_skill_launch",
+    "formSkillLaunch",
+    "webpage_skill_launch",
+    "webpageSkillLaunch",
     "service_scene_launch",
     "serviceSceneLaunch",
   ] as const;
@@ -467,6 +487,15 @@ export function buildWorkspaceRequestMetadata(
   const resolvedTeamMemoryShadow =
     buildTeamMemoryShadowRequestMetadata(teamMemoryShadowSnapshot) ||
     readExistingTeamMemoryShadow(existingHarnessMetadata);
+  const resolvedBrowserRequirement =
+    browserRequirementMatch?.requirement ||
+    readExistingBrowserRequirement(existingHarnessMetadata);
+  const resolvedBrowserRequirementReason =
+    browserRequirementMatch?.reason ||
+    readMetadataText(existingHarnessMetadata, "browser_requirement_reason");
+  const resolvedBrowserLaunchUrl =
+    browserRequirementMatch?.launchUrl ||
+    readMetadataText(existingHarnessMetadata, "browser_launch_url");
 
   return {
     ...(workspaceRequestMetadataBase || {}),
@@ -486,9 +515,9 @@ export function buildWorkspaceRequestMetadata(
       gateKey: isThemeWorkbench ? currentGateKey : undefined,
       runTitle: themeWorkbenchActiveQueueTitle?.trim() || undefined,
       contentId: contentId || undefined,
-      browserRequirement: browserRequirementMatch?.requirement,
-      browserRequirementReason: browserRequirementMatch?.reason,
-      browserLaunchUrl: browserRequirementMatch?.launchUrl,
+      browserRequirement: resolvedBrowserRequirement,
+      browserRequirementReason: resolvedBrowserRequirementReason,
+      browserLaunchUrl: resolvedBrowserLaunchUrl,
       browserAssistProfileKey:
         mappedTheme === "general"
           ? browserAssistProfileKey || GENERAL_BROWSER_ASSIST_PROFILE_KEY

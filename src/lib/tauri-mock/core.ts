@@ -2537,6 +2537,10 @@ const defaultMocks: Record<string, any> = {
         : targetContentId
           ? "当前主稿"
           : `站点采集 ${adapterName || "github/search"} 2026-03-25 12:00:00`;
+    const bundleRootDir =
+      adapterName === "x/article-export"
+        ? "exports/x-article-export/mock-article"
+        : undefined;
     return {
       ok: true,
       adapter: adapterName || "github/search",
@@ -2565,6 +2569,18 @@ const defaultMocks: Record<string, any> = {
               content_id: targetContentId || "mock-site-content-1",
               project_id: targetProjectId || "mock-current-project",
               title,
+              project_root_path: "/mock/projects/current",
+              bundle_relative_dir: bundleRootDir,
+              markdown_relative_path: bundleRootDir
+                ? `${bundleRootDir}/index.md`
+                : undefined,
+              images_relative_dir: bundleRootDir
+                ? `${bundleRootDir}/images`
+                : undefined,
+              meta_relative_path: bundleRootDir
+                ? `${bundleRootDir}/meta.json`
+                : undefined,
+              image_count: bundleRootDir ? 3 : undefined,
             }
           : undefined,
       saved_project_id:

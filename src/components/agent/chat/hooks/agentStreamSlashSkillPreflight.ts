@@ -2,6 +2,7 @@ import {
   parseSkillSlashCommand,
   tryExecuteSlashSkillCommand,
 } from "./skillCommand";
+import { extractExistingHarnessMetadata } from "../utils/harnessRequestMetadata";
 import type { PreparedAgentStreamUserInputSend } from "./agentStreamUserInputSendPreparation";
 import type { AgentStreamPreparedSendEnv } from "./agentStreamPreparedSendEnv";
 
@@ -25,6 +26,31 @@ interface MaybeHandleSlashSkillBeforeSendOptions {
   env: SlashSkillPreflightEnv;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function hasStructuredSlashLaunchMetadata(
+  requestMetadata?: Record<string, unknown>,
+): boolean {
+  const harness = extractExistingHarnessMetadata(requestMetadata);
+  if (!harness) {
+    return false;
+  }
+
+  const launch =
+    asRecord(harness.service_scene_launch) ??
+    asRecord(harness.serviceSceneLaunch) ??
+    asRecord(harness.service_skill_launch) ??
+    asRecord(harness.serviceSkillLaunch);
+
+  return Boolean(launch && Object.keys(launch).length > 0);
+}
+
 export async function maybeHandleSlashSkillBeforeSend(
   options: MaybeHandleSlashSkillBeforeSendOptions,
 ): Promise<boolean> {
@@ -39,6 +65,10 @@ export async function maybeHandleSlashSkillBeforeSend(
   } = preparedSend;
 
   if (skipUserMessage || expectingQueue) {
+    return false;
+  }
+
+  if (hasStructuredSlashLaunchMetadata(preparedSend.requestMetadata)) {
     return false;
   }
 

@@ -264,7 +264,7 @@ describe("SkillsWorkspacePage", () => {
       "技能中心现在先展示技能组，再进入具体技能项。",
     );
     expect(getBodyText()).not.toContain(
-      "先定位技能组，再进入具体技能；本地和项目级补充能力仍收纳在高级管理中。",
+      "先从能直接开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。",
     );
 
     const entryTip = await hoverTip("技能主入口说明");
@@ -275,7 +275,7 @@ describe("SkillsWorkspacePage", () => {
 
     const searchTip = await hoverTip("技能搜索说明");
     expect(getBodyText()).toContain(
-      "先定位技能组，再进入具体技能；本地和项目级补充能力仍收纳在高级管理中。",
+      "先从能直接开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。",
     );
     await leaveTip(searchTip);
   });
@@ -326,7 +326,7 @@ describe("SkillsWorkspacePage", () => {
     expect(mockRefreshLocalSkills).toHaveBeenCalledTimes(1);
   });
 
-  it("切到我的技能后应展示本地已安装技能，并可打开高级管理", () => {
+  it("切到我的技能后应展示本地已安装技能，并可打开导入与维护", () => {
     const { container } = renderPage();
 
     const installedTab = Array.from(container.querySelectorAll("button")).find(
@@ -341,7 +341,7 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("写作助手");
 
     const manageButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("高级技能管理"),
+      (button) => button.textContent?.includes("导入与维护"),
     );
     expect(manageButton).toBeTruthy();
 

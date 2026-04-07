@@ -295,7 +295,8 @@ skill 输出的语义是：
 
 标准 CLI 主链：
 
-- `lime task create image --json`
+- `lime media image generate --json`
+- `lime task create image --json`（兼容入口，但必须复用同一条执行链）
 - `lime task status <task-ref>`
 - `lime task result <task-ref>`
 - `lime task retry <task-ref>`
@@ -522,7 +523,7 @@ skill 输出的语义是：
 ### 11.2 协议验收
 
 1. `image_generate` skill 输出稳定任务字段。
-2. `lime task create image --json` 返回稳定 JSON。
+2. `lime media image generate --json` 与 `lime task create image --json` 都返回稳定 JSON，且共享同一条图片执行链。
 3. `lime task status` 能读到标准状态。
 4. `lime task result` 能读到标准结果结构。
 5. `retry / cancel / list` 行为符合任务协议。

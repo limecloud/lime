@@ -204,6 +204,9 @@ pub struct AgentMessage {
     /// DeepSeek Reasoner 在 Tool Calls 场景下要求此字段
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_content: Option<String>,
+    /// 当前消息的 token 使用量
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<TokenUsage>,
 }
 
 /// 消息内容类型

@@ -393,13 +393,16 @@ export function ImageGenSettings() {
               )}
             >
               <div className="font-medium">{service.label}</div>
-              <div className="mt-1">
-                <WorkbenchInfoTip
-                  ariaLabel={`${service.label}说明`}
-                  content={service.desc}
-                  tone={imageConfig.default_service === service.value ? "mint" : "slate"}
-                />
-              </div>
+              <p
+                className={cn(
+                  "mt-1 text-xs leading-5",
+                  imageConfig.default_service === service.value
+                    ? "text-white/80"
+                    : "text-slate-500",
+                )}
+              >
+                {service.desc}
+              </p>
             </button>
           ))}
         </div>
@@ -471,13 +474,16 @@ export function ImageGenSettings() {
               )}
             >
               <div className="font-medium">{size.label}</div>
-              <div className="mt-1">
-                <WorkbenchInfoTip
-                  ariaLabel={`${size.label}说明`}
-                  content={size.desc}
-                  tone={imageConfig.default_size === size.value ? "mint" : "slate"}
-                />
-              </div>
+              <p
+                className={cn(
+                  "mt-1 text-xs leading-5",
+                  imageConfig.default_size === size.value
+                    ? "text-white/80"
+                    : "text-slate-500",
+                )}
+              >
+                {size.desc}
+              </p>
             </button>
           ))}
         </div>
@@ -512,15 +518,16 @@ export function ImageGenSettings() {
               )}
             >
               <div className="font-medium">{quality.label}</div>
-              <div className="mt-1">
-                <WorkbenchInfoTip
-                  ariaLabel={`${quality.label}说明`}
-                  content={quality.desc}
-                  tone={
-                    imageConfig.default_quality === quality.value ? "mint" : "slate"
-                  }
-                />
-              </div>
+              <p
+                className={cn(
+                  "mt-1 text-xs leading-5",
+                  imageConfig.default_quality === quality.value
+                    ? "text-white/80"
+                    : "text-slate-500",
+                )}
+              >
+                {quality.desc}
+              </p>
             </button>
           ))}
         </div>
@@ -555,13 +562,16 @@ export function ImageGenSettings() {
               )}
             >
               <div className="font-medium">{style.label}</div>
-              <div className="mt-1">
-                <WorkbenchInfoTip
-                  ariaLabel={`${style.label}说明`}
-                  content={style.desc}
-                  tone={imageConfig.default_style === style.value ? "mint" : "slate"}
-                />
-              </div>
+              <p
+                className={cn(
+                  "mt-1 text-xs leading-5",
+                  imageConfig.default_style === style.value
+                    ? "text-white/80"
+                    : "text-slate-500",
+                )}
+              >
+                {style.desc}
+              </p>
             </button>
           ))}
         </div>

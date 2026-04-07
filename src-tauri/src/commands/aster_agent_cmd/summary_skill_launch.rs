@@ -1,6 +1,13 @@
 use super::*;
 
 const SUMMARY_SKILL_LAUNCH_PROMPT_MARKER: &str = "<<LIME_SUMMARY_SKILL_LAUNCH_HINT>>";
+const SUMMARY_SKILL_LAUNCH_DETOUR_DENY_PATTERNS: &[&str] = &[
+    TOOL_SEARCH_TOOL_NAME,
+    "WebSearch",
+    "web_search",
+    "Grep",
+    "grep",
+];
 
 fn extract_object_string(
     object: &serde_json::Map<String, serde_json::Value>,
@@ -90,6 +97,74 @@ pub(crate) fn merge_system_prompt_with_summary_skill_launch(
     }
 }
 
+pub(crate) fn should_lock_summary_skill_launch_to_summary(
+    request_metadata: Option<&serde_json::Value>,
+) -> bool {
+    let Some(launch) = extract_harness_nested_object(
+        request_metadata,
+        &["summary_skill_launch", "summarySkillLaunch"],
+    ) else {
+        return false;
+    };
+
+    extract_object_string(launch, &["kind"]).unwrap_or_else(|| "summary_request".to_string())
+        == "summary_request"
+}
+
+pub(crate) fn append_summary_skill_launch_session_permissions(
+    permissions: &mut Vec<ToolPermission>,
+    session_id: &str,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_summary_skill_launch_to_summary(request_metadata) {
+        return;
+    }
+
+    let session_id = session_id.trim();
+    let conditions = if session_id.is_empty() {
+        Vec::new()
+    } else {
+        vec![PermissionCondition {
+            condition_type: ConditionType::Session,
+            field: Some("session_id".to_string()),
+            operator: ConditionOperator::Equals,
+            value: serde_json::json!(session_id),
+            validator: None,
+            description: Some("仅对当前总结技能启动回合生效".to_string()),
+        }]
+    };
+
+    for pattern in SUMMARY_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        permissions.push(ToolPermission {
+            tool: (*pattern).to_string(),
+            allowed: false,
+            priority: 1229,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some(
+                "总结技能启动回合已锁定为 Skill(summary) 主链，禁止先走工具目录/联网检索偏航"
+                    .to_string(),
+            ),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+    }
+}
+
+pub(crate) fn prune_summary_skill_launch_detour_tools_from_registry(
+    registry: &mut aster::tools::ToolRegistry,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_summary_skill_launch_to_summary(request_metadata) {
+        return;
+    }
+
+    for tool_name in SUMMARY_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        registry.unregister(tool_name);
+    }
+}
+
 fn build_summary_skill_launch_system_prompt(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<String> {
@@ -151,8 +226,17 @@ fn build_summary_skill_launch_system_prompt(
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),
         "- 调用 Skill 时，args 必须是一个严格 JSON 字符串，不要漏引号、不要写注释、不要只传半截字段。".to_string(),
         format!("- 推荐传给 Skill.args 的 JSON：{args_json}"),
+        format!(
+            "- 第一工具调用示例(Skill 参数 JSON)：{{\"skill\":\"{skill_name}\",\"args\":{}}}",
+            serde_json::to_string(&args_json).unwrap_or_else(|_| "\"{}\"".to_string())
+        ),
+        "- 当前回合已经显式知道要走总结技能主链，不要为了确认技能名、工具名或命令名再去调用 ToolSearch。".to_string(),
+        "- 在 Skill(summary) 真正执行前，不要先走 ToolSearch / WebSearch / Grep 等工具目录发现、联网检索或内容检索偏航。".to_string(),
+        "- 不要先搜索 “summary”、“read_file” 或 “list_directory” 的目录信息；当前 summary_request 已经提供了足够上下文。".to_string(),
+        "- 如果某个通用搜索工具因为 session policy 被拒绝，不要重复同类调用；应立即改为直调 Skill(summary)。".to_string(),
         "- 这条命令属于 prompt skill 主链，不要创建 task file，也不要回退成普通聊天总结。".to_string(),
         "- 若用户明确给了正文、文件路径或范围，优先总结这些材料；若未明确给材料，则总结当前对话中与请求最相关的内容。".to_string(),
+        "- 如需处理本地路径或目录，只允许在 Skill(summary) 内最小化使用 Read / Glob 确认必要内容；不要在进入 Skill 前先探测大量文件。".to_string(),
         "- 结果必须忠于原文，不要补写原文没有的新事实；遇到信息缺失或歧义时，要单独标注待确认项。".to_string(),
         format!("- 当前总结请求上下文(JSON)：{request_json}"),
         format!("- 当前入口来源：{entry_source}。"),

@@ -1,6 +1,17 @@
 use super::*;
 
 const COVER_SKILL_LAUNCH_PROMPT_MARKER: &str = "<<LIME_COVER_SKILL_LAUNCH_HINT>>";
+const COVER_SKILL_LAUNCH_DETOUR_DENY_PATTERNS: &[&str] = &[
+    TOOL_SEARCH_TOOL_NAME,
+    "WebSearch",
+    "web_search",
+    "Read",
+    "read",
+    "Glob",
+    "glob",
+    "Grep",
+    "grep",
+];
 
 fn extract_object_string(
     object: &serde_json::Map<String, serde_json::Value>,
@@ -43,6 +54,74 @@ pub(crate) fn merge_system_prompt_with_cover_skill_launch(
             }
         }
         None => Some(launch_prompt),
+    }
+}
+
+pub(crate) fn should_lock_cover_skill_launch_to_cover_generation(
+    request_metadata: Option<&serde_json::Value>,
+) -> bool {
+    let Some(launch) = extract_harness_nested_object(
+        request_metadata,
+        &["cover_skill_launch", "coverSkillLaunch"],
+    ) else {
+        return false;
+    };
+
+    extract_object_string(launch, &["kind"]).unwrap_or_else(|| "cover_task".to_string())
+        == "cover_task"
+}
+
+pub(crate) fn append_cover_skill_launch_session_permissions(
+    permissions: &mut Vec<ToolPermission>,
+    session_id: &str,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_cover_skill_launch_to_cover_generation(request_metadata) {
+        return;
+    }
+
+    let session_id = session_id.trim();
+    let conditions = if session_id.is_empty() {
+        Vec::new()
+    } else {
+        vec![PermissionCondition {
+            condition_type: ConditionType::Session,
+            field: Some("session_id".to_string()),
+            operator: ConditionOperator::Equals,
+            value: serde_json::json!(session_id),
+            validator: None,
+            description: Some("仅对当前封面技能启动回合生效".to_string()),
+        }]
+    };
+
+    for pattern in COVER_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        permissions.push(ToolPermission {
+            tool: (*pattern).to_string(),
+            allowed: false,
+            priority: 1238,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some(
+                "封面技能启动回合已锁定为 Skill(cover_generate) 主链，禁止先走通用工具搜索/读文件链路偏航"
+                    .to_string(),
+            ),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+    }
+}
+
+pub(crate) fn prune_cover_skill_launch_detour_tools_from_registry(
+    registry: &mut aster::tools::ToolRegistry,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_cover_skill_launch_to_cover_generation(request_metadata) {
+        return;
+    }
+
+    for tool_name in COVER_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        registry.unregister(tool_name);
     }
 }
 
@@ -98,6 +177,14 @@ fn build_cover_skill_launch_system_prompt(
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),
         "- 调用 Skill 时，args 必须是一个严格 JSON 字符串，不要漏引号、不要写注释、不要只传半截字段。".to_string(),
         format!("- 推荐传给 Skill.args 的 JSON：{args_json}"),
+        format!(
+            "- 第一工具调用示例(Skill 参数 JSON)：{{\"skill\":\"{skill_name}\",\"args\":{}}}",
+            serde_json::to_string(&args_json).unwrap_or_else(|_| "\"{}\"".to_string())
+        ),
+        "- 当前回合已经显式知道要走封面技能主链，不要为了确认技能名、工具名或命令名再去调用 ToolSearch。".to_string(),
+        "- 在 Skill(cover_generate) 真正执行前，不要先走 ToolSearch / WebSearch / Read / Glob / Grep 等通用工具发现、检索或读文件链路。".to_string(),
+        "- 不要搜索 “cover_generate”、“social_generate_cover_image” 或 “lime task create cover --json” 之类目录信息；当前 cover_task 已经提供了足够上下文。".to_string(),
+        "- 如果某个通用搜索/读文件工具因为 session policy 被拒绝，不要重复同类调用；应立即改为直调 Skill(cover_generate)。".to_string(),
         "- Skill 执行后，优先沿 cover_generate skill 的 social_generate_cover_image + Bash / task file 主链提交异步任务；只有 Skill 明确不可用时，才允许直接回退到 lime_create_cover_generation_task。".to_string(),
         "- 不要把封面任务退化成普通配图，也不要伪造“封面已生成完成”；在 task file 真正返回结果前，只能汇报任务已提交、排队或执行中。".to_string(),
         format!("- 当前封面任务上下文(JSON)：{cover_task_json}"),

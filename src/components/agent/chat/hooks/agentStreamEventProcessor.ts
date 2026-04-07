@@ -12,6 +12,7 @@ import type { Artifact } from "@/lib/artifact/types";
 import {
   extractArtifactProtocolPaths,
   extractArtifactProtocolPathsFromValue,
+  isArtifactProtocolImagePath,
   resolveArtifactProtocolDocumentPayload,
   resolveArtifactProtocolFilePath,
   resolveArtifactProtocolPreviewText,
@@ -116,6 +117,18 @@ function extractPatchPath(rawText?: string): string | undefined {
   }
 
   return undefined;
+}
+
+function shouldSkipBinaryArtifactWrite(params: {
+  filePath: string;
+  content: string;
+  source: WriteArtifactContext["source"];
+}): boolean {
+  return (
+    params.content.length === 0 &&
+    isArtifactProtocolImagePath(params.filePath) &&
+    (params.source === "tool_result" || params.source === "artifact_snapshot")
+  );
 }
 
 function extractPatchText(
@@ -765,6 +778,16 @@ export function handleToolEndEvent({
   }
 
   for (const artifactPath of artifactPaths) {
+    if (
+      shouldSkipBinaryArtifactWrite({
+        filePath: artifactPath,
+        content: "",
+        source: "tool_result",
+      })
+    ) {
+      continue;
+    }
+
     const writeContext: WriteArtifactContext = {
       artifactId: `artifact:${assistantMsgId}:${artifactPath}`,
       source: "tool_result",
@@ -822,6 +845,15 @@ export function handleArtifactSnapshotEvent({
   const metadata = data.artifact.metadata;
   const snapshotContent =
     typeof data.artifact.content === "string" ? data.artifact.content : "";
+  if (
+    shouldSkipBinaryArtifactWrite({
+      filePath: artifactPath,
+      content: snapshotContent,
+      source: "artifact_snapshot",
+    })
+  ) {
+    return;
+  }
   const writeContext: WriteArtifactContext = {
     artifactId:
       data.artifact.artifactId || `artifact:${assistantMsgId}:${artifactPath}`,

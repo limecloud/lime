@@ -120,28 +120,28 @@ const CATEGORY_META: Record<
   { label: string; description: string; icon: LucideIcon }
 > = {
   identity: {
-    label: "身份",
-    description: "关于你是谁的稳定信息",
+    label: "风格",
+    description: "常用语气、风格方向与稳定审美",
     icon: Signature,
   },
   context: {
-    label: "情境",
-    description: "对话背景与当前约束",
+    label: "参考",
+    description: "值得反复参考的背景、约束与素材线索",
     icon: MessagesSquare,
   },
   preference: {
     label: "偏好",
-    description: "你的习惯、口味与偏爱",
+    description: "常用习惯、口味与输出偏好",
     icon: HeartPulse,
   },
   experience: {
-    label: "经验",
-    description: "过往经历与可复用知识",
+    label: "成果",
+    description: "已验证可复用的结果与经验",
     icon: Lightbulb,
   },
   activity: {
-    label: "活动",
-    description: "近期计划与进行中的事项",
+    label: "收藏",
+    description: "先留住准备回头再用的内容",
     icon: CalendarClock,
   },
 };
@@ -162,19 +162,19 @@ const MEMORY_NAV_ITEMS: Array<{
 }> = [
   {
     key: "home",
-    label: "首页",
+    label: "总览",
     icon: Home,
-    description: "全部记忆",
+    description: "全部灵感",
   },
   {
     key: "identity",
-    label: "身份",
+    label: CATEGORY_META.identity.label,
     icon: CATEGORY_META.identity.icon,
     description: CATEGORY_META.identity.description,
   },
   {
     key: "context",
-    label: "情境",
+    label: CATEGORY_META.context.label,
     icon: CATEGORY_META.context.icon,
     description: CATEGORY_META.context.description,
   },
@@ -186,13 +186,13 @@ const MEMORY_NAV_ITEMS: Array<{
   },
   {
     key: "experience",
-    label: "经验",
+    label: CATEGORY_META.experience.label,
     icon: CATEGORY_META.experience.icon,
     description: CATEGORY_META.experience.description,
   },
   {
     key: "activity",
-    label: "活动",
+    label: CATEGORY_META.activity.label,
     icon: CATEGORY_META.activity.icon,
     description: CATEGORY_META.activity.description,
   },
@@ -481,9 +481,9 @@ function EmptyMemoryState({
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50">
         <BrainCircuit className="h-6 w-6 text-emerald-600" />
       </div>
-      <h3 className="mb-2 text-lg font-semibold text-slate-900">暂无记忆</h3>
+      <h3 className="mb-2 text-lg font-semibold text-slate-900">暂无灵感沉淀</h3>
       <p className="mx-auto mb-6 max-w-xl text-sm leading-7 text-slate-500">
-        记忆提取是渐进式能力。积累更多真实对话后，系统会抽取并沉淀更稳定的可用信息。
+        沉淀是渐进式能力。积累更多真实对话、参考和成果后，系统会逐步整理出更稳定、可复用的内容。
       </p>
       <button
         type="button"
@@ -499,7 +499,7 @@ function EmptyMemoryState({
         ) : (
           <>
             <CalendarClock className="h-4 w-4" />
-            {disabled ? "记忆功能已关闭" : "请求记忆分析"}
+            {disabled ? "沉淀功能已关闭" : "开始整理灵感"}
           </>
         )}
       </button>
@@ -521,7 +521,7 @@ function MemoryEntryCollection({
   if (entries.length === 0) {
     return (
       <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50/70 p-6 text-sm leading-6 text-slate-500">
-        当前筛选条件下暂无记忆条目
+        当前筛选条件下暂无沉淀条目
       </div>
     );
   }
@@ -661,7 +661,7 @@ function MemoryDetailPanel({
   if (!entry) {
     return (
       <div className="rounded-[26px] border border-dashed border-slate-200 bg-white/80 p-6 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5 xl:sticky xl:top-4">
-        请选择一条记忆查看详情
+        请选择一条沉淀查看详情
       </div>
     );
   }
@@ -684,7 +684,7 @@ function MemoryDetailPanel({
             </span>
           </div>
           <div>
-            <div className="mb-1 text-xs text-slate-400">记忆标题</div>
+            <div className="mb-1 text-xs text-slate-400">条目标题</div>
             <div className="text-lg font-semibold leading-8 text-slate-900">
               {entry.title}
             </div>
@@ -760,7 +760,7 @@ function MemoryDetailPanel({
           ) : (
             <>
               <Trash2 className="h-4 w-4" />
-              删除记忆（不可恢复）
+              删除条目（不可恢复）
             </>
           )}
         </button>
@@ -974,7 +974,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       await Promise.all([loadConfig(), loadOverview()]);
     } catch (error) {
       console.error("加载记忆数据失败:", error);
-      showMessage("error", "加载记忆失败，请稍后重试");
+      showMessage("error", "加载灵感库失败，请稍后重试");
     } finally {
       setLoading(false);
     }
@@ -1062,7 +1062,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     const hasOutline = (projectMemory?.outline.length ?? 0) > 0;
 
     if (hasCharacters && hasWorldBuilding && hasOutline) {
-      showMessage("success", "第三层项目记忆已完善");
+      showMessage("success", "第三层项目沉淀已完善");
       return;
     }
 
@@ -1104,10 +1104,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       }
 
       await loadOverview();
-      showMessage("success", "已初始化第三层项目记忆，请按需继续完善");
+      showMessage("success", "已初始化第三层项目沉淀，请按需继续完善");
     } catch (error) {
       console.error("初始化项目记忆失败:", error);
-      showMessage("error", "初始化项目记忆失败，请稍后重试");
+      showMessage("error", "初始化项目沉淀失败，请稍后重试");
     } finally {
       setInitializingProjectMemory(false);
     }
@@ -1132,7 +1132,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     }
 
     if (!memoryConfig.enabled) {
-      showMessage("error", "记忆功能已关闭，请先开启");
+      showMessage("error", "沉淀功能已关闭，请先开启");
       return;
     }
 
@@ -1148,14 +1148,14 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       if (result.generated_entries > 0) {
         showMessage(
           "success",
-          `分析完成：新增 ${result.generated_entries} 条记忆（去重 ${result.deduplicated_entries} 条）`,
+          `整理完成：新增 ${result.generated_entries} 条沉淀（去重 ${result.deduplicated_entries} 条）`,
         );
       } else {
-        showMessage("success", "分析完成：暂无新的可提取记忆");
+        showMessage("success", "整理完成：暂无新的可提取沉淀");
       }
     } catch (error) {
       console.error("记忆分析失败:", error);
-      showMessage("error", "记忆分析失败，请稍后重试");
+      showMessage("error", "灵感整理失败，请稍后重试");
     } finally {
       setAnalyzing(false);
     }
@@ -1170,7 +1170,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
   const handleDeleteEntry = useCallback(
     async (entry: MemoryEntryPreview) => {
       const confirmed = window.confirm(
-        `确定永久删除这条记忆吗？\n\n标题：${entry.title}\n\n该操作不可恢复。`,
+        `确定永久删除这条沉淀吗？\n\n标题：${entry.title}\n\n该操作不可恢复。`,
       );
       if (!confirmed) {
         return;
@@ -1180,12 +1180,12 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       try {
         const deleted = await deleteUnifiedMemory(entry.id);
         if (!deleted) {
-          showMessage("error", "删除失败，记忆可能不存在");
+          showMessage("error", "删除失败，条目可能不存在");
           return;
         }
 
         await loadOverview();
-        showMessage("success", "记忆已删除");
+        showMessage("success", "条目已删除");
       } catch (error) {
         console.error("删除记忆失败:", error);
         showMessage("error", "删除失败，请稍后重试");
@@ -1218,10 +1218,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         await saveConfig(nextConfig);
         setConfig(nextConfig);
         setMemoryConfig(nextMemoryConfig);
-        showMessage("success", "记忆设置已保存");
+        showMessage("success", "灵感设置已保存");
       } catch (error) {
         console.error("保存记忆设置失败:", error);
-        showMessage("error", "记忆设置保存失败");
+        showMessage("error", "灵感设置保存失败");
       } finally {
         setSaving(false);
       }
@@ -1231,12 +1231,12 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
   const sectionTitle =
     activeSection === "home"
-      ? "记忆首页"
-      : `${CATEGORY_META[activeSection].label}记忆`;
+      ? "灵感总览"
+      : CATEGORY_META[activeSection].label;
 
   const sectionDescription =
     activeSection === "home"
-      ? "查看全部记忆并触发分析任务"
+      ? "查看已沉淀的风格、参考、成果与偏好"
       : CATEGORY_META[activeSection].description;
 
   const activeSectionCount =
@@ -1253,7 +1253,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-50/70">
       <div className="flex items-center border-b border-slate-200/80 bg-white/90 px-6 py-3">
-        <CanvasBreadcrumbHeader label="记忆" onBackHome={handleBackHome} />
+        <CanvasBreadcrumbHeader label="灵感库" onBackHome={handleBackHome} />
       </div>
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -1261,9 +1261,9 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           <div className="rounded-[24px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
             <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
               <BrainCircuit className="h-4 w-4 text-sky-600" />
-              记忆
+              灵感库
               <WorkbenchInfoTip
-                ariaLabel="记忆导航说明"
+                ariaLabel="灵感库导航说明"
                 content="按 / 搜索，按 1-6 切换视图。"
                 tone="slate"
               />
@@ -1317,10 +1317,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           </div>
 
           <div className="mt-auto flex items-center justify-between gap-3 rounded-[22px] border border-slate-200/80 bg-white/90 p-4 text-xs leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-            <span>统一记忆数据库</span>
+            <span>当前沉淀数据库</span>
             <WorkbenchInfoTip
-              ariaLabel="统一记忆数据库说明"
-              content="记忆页面已接入统一记忆数据库：浏览、分析、删除都直接操作真实数据，不使用 Mock 数据。"
+              ariaLabel="沉淀数据库说明"
+              content="灵感库当前直接读取真实沉淀数据：浏览、整理和删除都直接操作真实内容，不使用 Mock 数据。"
               tone="slate"
               variant="pill"
               label="说明"
@@ -1361,7 +1361,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(380px,0.88fr)] xl:items-stretch">
                         <div className="max-w-3xl space-y-5">
                           <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                            MEMORY HUB
+                            灵感沉淀
                           </span>
 
                           <div className="space-y-2">
@@ -1373,8 +1373,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                 ariaLabel={`${sectionTitle}说明`}
                                 content={`${sectionDescription}${
                                   activeSection === "home"
-                                    ? " 统一记忆、上下文记忆和项目记忆会在这里汇总展示。"
-                                    : " 这里会聚焦当前分类下的真实记忆条目与分析结果。"
+                                    ? " 风格、收藏、参考、成果与偏好会在这里汇总展示。"
+                                    : " 这里会聚焦当前分类下可反复参考的沉淀条目与整理结果。"
                                 }`}
                                 tone="mint"
                               />
@@ -1385,7 +1385,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                             <StatusPill
                               tone={memoryConfig.enabled ? "success" : "warning"}
                             >
-                              {memoryConfig.enabled ? "记忆已启用" : "记忆已关闭"}
+                              {memoryConfig.enabled ? "沉淀已启用" : "沉淀已暂停"}
                             </StatusPill>
                             <StatusPill tone="neutral">
                               当前范围 {analysisScopeLabel}
@@ -1401,24 +1401,24 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
                         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2 xl:content-start">
                           <SummaryStat
-                            label="记忆条数"
+                            label="灵感条数"
                             value={stats.total_entries.toString()}
-                            description="当前统一记忆数据库中的全部可用条目。"
+                            description="当前沉淀库中的全部可用条目。"
                           />
                           <SummaryStat
                             label="存储空间"
                             value={formatStorageSize(stats.storage_used)}
-                            description="记忆数据库当前已占用的存储体积。"
+                            description="沉淀数据库当前已占用的存储体积。"
                           />
                           <SummaryStat
-                            label="记忆库数"
+                            label="沉淀库数"
                             value={stats.memory_count.toString()}
-                            description="后端返回的记忆库数量，用于观察整体规模。"
+                            description="后端返回的沉淀库数量，用于观察整体规模。"
                           />
                           <SummaryStat
                             label="当前结果"
                             value={activeSectionCount.toString()}
-                            description="当前分类和搜索条件下可浏览的记忆条目数。"
+                            description="当前分类和搜索条件下可浏览的沉淀条目数。"
                           />
                         </div>
                       </div>
@@ -1440,8 +1440,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
                         <div className="flex flex-wrap items-center gap-2">
                           <WorkbenchInfoTip
-                            ariaLabel="记忆刷新与分析说明"
-                            content="刷新会重取总览、分类和项目记忆状态。请求记忆分析会按当前日期范围扫描真实历史对话。"
+                            ariaLabel="灵感刷新与整理说明"
+                            content="刷新会重取总览、分类和项目沉淀状态。整理灵感会按当前日期范围扫描真实历史对话。"
                             tone="slate"
                             variant="pill"
                             label="操作说明"
@@ -1456,7 +1456,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                             className={SECONDARY_BUTTON_CLASS_NAME}
                           >
                             <Settings2 className="h-4 w-4" />
-                            记忆设置
+                            灵感设置
                           </button>
                           <button
                             type="button"
@@ -1486,7 +1486,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                             ) : (
                               <>
                                 <CalendarClock className="h-4 w-4" />
-                                请求记忆分析
+                                整理灵感
                               </>
                             )}
                           </button>
@@ -1498,8 +1498,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                   <div className="grid gap-6 xl:grid-cols-[minmax(0,1.16fr)_minmax(340px,0.84fr)]">
                     <SurfacePanel
                       icon={BrainCircuit}
-                      title="三层记忆可用性"
-                      description="持续检查统一记忆、上下文记忆和项目记忆是否已经参与当前工作流。"
+                      title="沉淀可用性"
+                      description="持续检查统一沉淀、上下文与项目沉淀是否已经参与当前工作流。"
                       aside={
                         <div className="flex items-center gap-2">
                           <StatusPill
@@ -1607,8 +1607,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
                     <SurfacePanel
                       icon={Database}
-                      title="分析工作台"
-                      description="先确定时间范围，再触发记忆分析。最近一次分析结果也会在这里汇总。"
+                      title="整理工作台"
+                      description="先确定时间范围，再整理灵感。最近一次整理结果也会在这里汇总。"
                     >
                       <div className="space-y-4">
                         <div className="grid gap-4 sm:grid-cols-2">
@@ -1648,8 +1648,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                             tone={memoryConfig.enabled ? "success" : "warning"}
                           >
                             {memoryConfig.enabled
-                              ? "当前允许分析"
-                              : "请先开启记忆"}
+                              ? "当前允许整理"
+                              : "请先开启沉淀"}
                           </StatusPill>
                           <StatusPill tone="neutral">
                             分析范围 {analysisScopeLabel}
@@ -1671,7 +1671,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                             ) : (
                               <>
                                 <CalendarClock className="h-4 w-4" />
-                                立即分析
+                                立即整理
                               </>
                             )}
                           </button>
@@ -1693,7 +1693,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         {analysisResult ? (
                           <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
                             <div className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                              最近一次分析结果
+                              最近一次整理结果
                             </div>
                             <div className="mt-3 grid gap-3 sm:grid-cols-2">
                               <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3">
@@ -1709,7 +1709,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                 </p>
                               </div>
                               <div className="rounded-[18px] border border-slate-200/80 bg-white/90 p-3">
-                                <p className="text-xs text-slate-500">新增记忆</p>
+                                <p className="text-xs text-slate-500">新增沉淀</p>
                                 <p className="mt-2 text-2xl font-semibold text-slate-900">
                                   {analysisResult.generated_entries}
                                 </p>
@@ -1724,7 +1724,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                           </div>
                         ) : (
                           <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm leading-6 text-slate-500">
-                            还没有最近一次分析结果。未选择日期时，会分析全部可用历史对话。
+                            还没有最近一次整理结果。未选择日期时，会整理全部可用历史对话。
                           </div>
                         )}
                       </div>
@@ -1776,8 +1776,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
                       <SurfacePanel
                         icon={viewMode === "list" ? List : LayoutGrid}
-                        title="记忆条目"
-                        description="列表和详情保持同屏，方便批量浏览与单条校验。"
+                        title="沉淀条目"
+                        description="列表和详情保持同屏，方便批量浏览与逐条校验。"
                         aside={
                           <div className="inline-flex overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
                             <button
@@ -1848,7 +1848,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                     <SurfacePanel
                       icon={Settings2}
                       title="运行策略"
-                      description="这里的开关会立即保存并作用到当前记忆运行时。"
+                      description="这里的开关会立即保存并作用到当前沉淀运行时。"
                       aside={
                         <StatusPill tone={saving ? "warning" : "neutral"}>
                           {saving ? "保存中..." : "即时生效"}
@@ -1859,14 +1859,14 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         <div className="flex items-start justify-between gap-4 rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
                           <div className="space-y-1">
                             <p className="text-sm font-semibold text-slate-900">
-                              启用记忆功能
+                              启用沉淀功能
                             </p>
                             <p className="text-sm leading-6 text-slate-500">
-                              控制是否允许系统继续提取并使用新的记忆。
+                              控制是否允许系统继续提取并使用新的沉淀内容。
                             </p>
                           </div>
                           <Switch
-                            aria-label="启用记忆功能"
+                            aria-label="启用沉淀功能"
                             checked={memoryConfig.enabled}
                             onCheckedChange={(checked) =>
                               void saveMemoryConfig("enabled", checked)
@@ -1878,14 +1878,14 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         <div className="flex items-start justify-between gap-4 rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
                           <div className="space-y-1">
                             <p className="text-sm font-semibold text-slate-900">
-                              自动清理过期记忆
+                              自动清理过期沉淀
                             </p>
                             <p className="text-sm leading-6 text-slate-500">
-                              定期移除超出保留时长的历史记忆，保持长期库干净。
+                              定期移除超出保留时长的历史沉淀，保持长期库干净。
                             </p>
                           </div>
                           <Switch
-                            aria-label="自动清理过期记忆"
+                            aria-label="自动清理过期沉淀"
                             checked={memoryConfig.auto_cleanup ?? true}
                             onCheckedChange={(checked) =>
                               void saveMemoryConfig("auto_cleanup", checked)
@@ -1895,7 +1895,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         </div>
 
                         <div className="rounded-[22px] border border-slate-200/80 bg-white/90 p-4 text-sm leading-6 text-slate-500">
-                          记忆关闭后会停止新增条目，但历史条目仍可浏览。删除操作是物理删除，不可恢复。
+                          沉淀关闭后会停止新增条目，但历史条目仍可浏览。删除操作是物理删除，不可恢复。
                         </div>
                       </div>
                     </SurfacePanel>
@@ -1903,7 +1903,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                     <SurfacePanel
                       icon={Database}
                       title="容量与保留策略"
-                      description="控制长期记忆的规模和历史保留窗口，避免无限增长。"
+                      description="控制长期沉淀的规模和历史保留窗口，避免无限增长。"
                       aside={
                         <button
                           type="button"
@@ -1922,7 +1922,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
                               <p className="text-sm font-semibold text-slate-900">
-                                最大记忆条数
+                                最大沉淀条数
                               </p>
                               <p className="text-sm leading-6 text-slate-500">
                                 超出上限后，系统会按策略处理旧条目。
@@ -1958,10 +1958,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
                               <p className="text-sm font-semibold text-slate-900">
-                                记忆保留天数
+                                沉淀保留天数
                               </p>
                               <p className="text-sm leading-6 text-slate-500">
-                                只保留最近一段时间内仍有价值的历史记忆。
+                                只保留最近一段时间内仍有价值的历史沉淀。
                               </p>
                             </div>
                             <span className="text-sm font-semibold text-slate-900">
@@ -1998,8 +1998,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                     <div className="flex flex-wrap items-center gap-2">
                       <span>工作台说明</span>
                       <WorkbenchInfoTip
-                        ariaLabel="记忆工作台说明"
-                        content={`当前页面是记忆工作台，适合浏览、分析和做快速策略调整；更细的来源、画像和自动记忆配置仍然在“记忆设置”页维护。第三层项目记忆当前状态：${
+                        ariaLabel="灵感库工作台说明"
+                        content={`当前页面是灵感库工作台，适合浏览、整理和做快速策略调整；更细的来源、画像和自动沉淀配置仍然在“灵感设置”页维护。第三层项目沉淀当前状态：${
                           projectLayerCard
                             ? ` ${projectLayerCard.value}${projectLayerCard.unit}，${projectLayerCard.description}`
                             : " 暂未加载。"

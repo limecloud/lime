@@ -61,11 +61,16 @@ import {
 } from "./agentSessionRefresh";
 import type { AgentAccessMode } from "./agentChatStorage";
 import { normalizeLegacyThreadItems } from "@/lib/api/agentTextNormalization";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
+
+const INITIAL_TOPICS_IDLE_TIMEOUT_MS = 1_500;
 
 interface UseAgentSessionOptions {
   runtime: AgentRuntimeAdapter;
   workspaceId: string;
   disableSessionRestore: boolean;
+  initialTopicsLoadMode: "immediate" | "deferred";
+  initialTopicsDeferredDelayMs?: number;
   preserveRestoredMessages: boolean;
   executionStrategy: AsterExecutionStrategy;
   accessMode: AgentAccessMode;
@@ -110,6 +115,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     runtime,
     workspaceId,
     disableSessionRestore,
+    initialTopicsLoadMode,
+    initialTopicsDeferredDelayMs,
     preserveRestoredMessages,
     executionStrategy,
     accessMode,
@@ -412,53 +419,75 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       return;
     }
 
-    setTopicsReady(false);
-    const startedAt = Date.now();
-    logAgentDebug("useAgentSession", "listSessions.start", {
-      workspaceId,
-    });
-    runtime
-      .listSessions()
-      .then((sessions) => {
-        if (cancelled) {
-          return;
-        }
-        const topicList =
-          filterSessionsByWorkspace(sessions).map(mapSessionToTopic);
-        logAgentDebug("useAgentSession", "listSessions.success", {
-          durationMs: Date.now() - startedAt,
-          sessionsCount: sessions.length,
-          topicsCount: topicList.length,
-          workspaceId,
-        });
-        setTopics(topicList);
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-        console.error("[AsterChat] 加载话题失败:", error);
-        logAgentDebug(
-          "useAgentSession",
-          "listSessions.error",
-          {
-            durationMs: Date.now() - startedAt,
-            error,
-            workspaceId,
-          },
-          { level: "error" },
-        );
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setTopicsReady(true);
-        }
+    const runListSessions = () => {
+      setTopicsReady(false);
+      const startedAt = Date.now();
+      logAgentDebug("useAgentSession", "listSessions.start", {
+        workspaceId,
       });
+      runtime
+        .listSessions()
+        .then((sessions) => {
+          if (cancelled) {
+            return;
+          }
+          const topicList =
+            filterSessionsByWorkspace(sessions).map(mapSessionToTopic);
+          logAgentDebug("useAgentSession", "listSessions.success", {
+            durationMs: Date.now() - startedAt,
+            sessionsCount: sessions.length,
+            topicsCount: topicList.length,
+            workspaceId,
+          });
+          setTopics(topicList);
+        })
+        .catch((error) => {
+          if (cancelled) {
+            return;
+          }
+          console.error("[AsterChat] 加载话题失败:", error);
+          logAgentDebug(
+            "useAgentSession",
+            "listSessions.error",
+            {
+              durationMs: Date.now() - startedAt,
+              error,
+              workspaceId,
+            },
+            { level: "error" },
+          );
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setTopicsReady(true);
+          }
+        });
+    };
+
+    if (initialTopicsLoadMode === "deferred") {
+      setTopicsReady(true);
+      const cancelDeferredLoad = scheduleMinimumDelayIdleTask(runListSessions, {
+        minimumDelayMs: initialTopicsDeferredDelayMs,
+        idleTimeoutMs: INITIAL_TOPICS_IDLE_TIMEOUT_MS,
+      });
+      return () => {
+        cancelled = true;
+        cancelDeferredLoad();
+      };
+    }
+
+    runListSessions();
 
     return () => {
       cancelled = true;
     };
-  }, [filterSessionsByWorkspace, runtime, workspaceId]);
+  }, [
+    filterSessionsByWorkspace,
+    initialTopicsDeferredDelayMs,
+    initialTopicsLoadMode,
+    runtime,
+    workspaceId,
+  ]);
 
   const loadTopics = useCallback(async () => {
     if (!workspaceId?.trim()) {

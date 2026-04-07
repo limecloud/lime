@@ -120,6 +120,15 @@ describe("skillCatalog", () => {
 
   it("应从统一目录中暴露 command 与 scene 扩展入口", async () => {
     const seeded = await getSkillCatalog();
+    const formEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "form_generate",
+    );
+    const codeEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "code_runtime",
+    );
+    const publishEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "publish_runtime",
+    );
 
     expect(
       listSkillCatalogCommandEntries(seeded).map((entry) => entry.commandKey),
@@ -141,8 +150,29 @@ describe("skillCatalog", () => {
         "transcription_generate",
         "url_parse",
         "typesetting",
+        "form_generate",
+        "code_runtime",
+        "publish_runtime",
       ]),
     );
+    expect(formEntry?.renderContract).toMatchObject({
+      resultKind: "form",
+      detailKind: "json",
+      supportsStreaming: true,
+      supportsTimeline: true,
+    });
+    expect(codeEntry?.renderContract).toMatchObject({
+      resultKind: "tool_timeline",
+      detailKind: "json",
+      supportsStreaming: true,
+      supportsTimeline: true,
+    });
+    expect(publishEntry?.renderContract).toMatchObject({
+      resultKind: "artifact",
+      detailKind: "artifact_detail",
+      supportsStreaming: true,
+      supportsTimeline: true,
+    });
 
     const remoteCatalog: SkillCatalog = {
       ...buildLegacyCatalogWithSiteEntries(),
@@ -163,6 +193,22 @@ describe("skillCatalog", () => {
             supportsTimeline: true,
           },
         },
+        {
+          id: "scene:legacy-site-export",
+          kind: "scene",
+          title: "旧版站点导出",
+          summary: "把站点技能包装成 slash scene。",
+          sceneKey: "legacy-site-export",
+          commandPrefix: "/legacy-site-export",
+          linkedSkillId: "legacy-site-skill",
+          executionKind: "site_adapter",
+          renderContract: {
+            resultKind: "tool_timeline",
+            detailKind: "scene_detail",
+            supportsStreaming: true,
+            supportsTimeline: true,
+          },
+        },
       ],
     };
 
@@ -171,6 +217,12 @@ describe("skillCatalog", () => {
 
     expect(
       listSkillCatalogSceneEntries(catalog).map((entry) => entry.sceneKey),
-    ).toContain("campaign-launch");
+    ).toEqual(
+      expect.arrayContaining([
+        "campaign-launch",
+        "legacy-site-export",
+        "x-article-export",
+      ]),
+    );
   });
 });

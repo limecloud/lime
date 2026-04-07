@@ -563,7 +563,7 @@ function CompanionProviderBridgeCard() {
       detail: supportsProviderOverview
         ? "桌宠已声明可接收 provider-overview 摘要。"
         : connected
-          ? "当前桌宠已连接，但尚未声明 provider-overview 能力。"
+          ? "当前桌宠已连接，但尚未声明 Provider 概览能力。"
           : "桌宠连接建立后，Lime 会等待能力声明。",
     },
     {
@@ -590,7 +590,7 @@ function CompanionProviderBridgeCard() {
       return "点击“开启桌宠”，或检查桌宠是否已连接到本地 Companion 地址。";
     }
     if (!supportsProviderOverview) {
-      return "先让桌宠在 ready 事件里声明 provider-overview 能力，再尝试同步摘要。";
+      return "先让桌宠在 ready 事件里声明 Provider 概览能力，再尝试同步摘要。";
     }
     if (previewLoading) {
       return "等待 Lime 整理完当前 Provider 脱敏摘要。";

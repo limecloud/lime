@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/serviceSkillRuns";
 import {
   createContent,
+  getOrCreateDefaultProject,
   listProjects,
   type Project,
 } from "@/lib/api/project";
@@ -87,6 +88,18 @@ function normalizeOptionalText(value?: string | null): string | undefined {
 
   const normalized = value.trim();
   return normalized ? normalized : undefined;
+}
+
+function siteSkillRequiresProject(skill: ServiceSkillHomeItem): boolean {
+  if (!isServiceSkillExecutableAsSiteAdapter(skill)) {
+    return false;
+  }
+
+  return (
+    skill.readinessRequirements?.requiresProject ||
+    (skill.siteCapabilityBinding.saveMode ?? "project_resource") ===
+      "project_resource"
+  );
 }
 
 interface ServiceSkillLaunchOptions {
@@ -277,7 +290,7 @@ export function useWorkspaceServiceSkillEntryActions({
         ),
       };
       const resolved = resolveWorkspaceEntry({
-        projectId: currentProjectId,
+        projectId: payload.projectId ?? currentProjectId,
         activeTheme,
         creationMode,
         defaultToolPreferences: chatToolPreferences,
@@ -350,6 +363,27 @@ export function useWorkspaceServiceSkillEntryActions({
       });
     },
     [activeTheme, currentProjectId],
+  );
+
+  const resolveSiteSkillProjectId = useCallback(
+    async (skill: ServiceSkillHomeItem): Promise<string | undefined> => {
+      if (!siteSkillRequiresProject(skill)) {
+        return undefined;
+      }
+
+      if (currentProjectId) {
+        return currentProjectId;
+      }
+
+      const defaultProject = await getOrCreateDefaultProject();
+      const defaultProjectId = normalizeProjectId(defaultProject?.id);
+      if (!defaultProjectId) {
+        throw new Error("当前技能需要项目工作区，但默认项目准备失败。");
+      }
+
+      return defaultProjectId;
+    },
+    [currentProjectId],
   );
 
   const prepareServiceSkillWorkspacePayload = useCallback(
@@ -432,13 +466,7 @@ export function useWorkspaceServiceSkillEntryActions({
         throw new Error(buildSiteLaunchBlockedMessage(launchReadiness));
       }
 
-      if (
-        skill.readinessRequirements?.requiresProject &&
-        !currentProjectId
-      ) {
-        throw new Error("缺少项目工作区，请先选择项目后再启动站点技能。");
-      }
-
+      const resolvedProjectId = await resolveSiteSkillProjectId(skill);
       const binding = skill.siteCapabilityBinding;
       const saveMode = binding.saveMode ?? "project_resource";
       const initialSaveTitle = buildServiceSkillSiteCapabilitySaveTitle(
@@ -450,11 +478,11 @@ export function useWorkspaceServiceSkillEntryActions({
       if (
         saveMode === "current_content" &&
         !nextContentId &&
-        currentProjectId
+        resolvedProjectId
       ) {
         const created = await createServiceSkillSeededContent(
           skill,
-          currentProjectId,
+          resolvedProjectId,
         );
         nextContentId = created?.id ?? undefined;
       }
@@ -462,7 +490,7 @@ export function useWorkspaceServiceSkillEntryActions({
       const clawLaunchContext = {
         ...buildServiceSkillClawLaunchContext(skill, slotValues, {
           contentId: nextContentId,
-          projectId: currentProjectId,
+          projectId: resolvedProjectId,
           launchReadiness,
         }),
         saveTitle: nextContentId ? undefined : initialSaveTitle,
@@ -476,6 +504,7 @@ export function useWorkspaceServiceSkillEntryActions({
 
       return {
         prompt,
+        projectId: resolvedProjectId,
         contentId: nextContentId,
         themeOverride: "general",
         initialAutoSendRequestMetadata:
@@ -483,7 +512,12 @@ export function useWorkspaceServiceSkillEntryActions({
         autoRunInitialPromptOnMount: true,
       };
     },
-    [createServiceSkillSeededContent, currentContentId, currentProjectId, input],
+    [
+      createServiceSkillSeededContent,
+      currentContentId,
+      input,
+      resolveSiteSkillProjectId,
+    ],
   );
 
   const prepareServiceSkillCloudResultWorkspacePayload = useCallback(
@@ -548,11 +582,11 @@ export function useWorkspaceServiceSkillEntryActions({
         return;
       }
 
-      if (
-        skill.readinessRequirements?.requiresProject &&
-        !currentProjectId
-      ) {
-        toast.error("缺少项目工作区，请先选择项目后再启动浏览器采集。");
+      let resolvedProjectId: string | undefined;
+      try {
+        resolvedProjectId = await resolveSiteSkillProjectId(skill);
+      } catch (error) {
+        toast.error(getErrorMessage(error));
         return;
       }
 
@@ -581,12 +615,12 @@ export function useWorkspaceServiceSkillEntryActions({
       if (
         saveMode === "current_content" &&
         !nextContentId &&
-        currentProjectId
+        resolvedProjectId
       ) {
         try {
           const created = await createServiceSkillSeededContent(
             skill,
-            currentProjectId,
+            resolvedProjectId,
           );
           nextContentId = created?.id ?? undefined;
         } catch (error) {
@@ -596,7 +630,7 @@ export function useWorkspaceServiceSkillEntryActions({
       }
 
       const navigationParams: BrowserRuntimePageParams = {
-        projectId: currentProjectId ?? undefined,
+        projectId: resolvedProjectId,
         contentId: nextContentId,
         initialProfileKey:
           launchReadiness?.status === "ready"
@@ -624,9 +658,9 @@ export function useWorkspaceServiceSkillEntryActions({
     [
       createServiceSkillSeededContent,
       currentContentId,
-      currentProjectId,
       onNavigate,
       recordServiceSkillUsage,
+      resolveSiteSkillProjectId,
     ],
   );
 

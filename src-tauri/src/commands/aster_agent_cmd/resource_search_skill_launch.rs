@@ -2,6 +2,17 @@ use super::*;
 
 const RESOURCE_SEARCH_SKILL_LAUNCH_PROMPT_MARKER: &str =
     "<<LIME_RESOURCE_SEARCH_SKILL_LAUNCH_HINT>>";
+const RESOURCE_SEARCH_SKILL_LAUNCH_DETOUR_DENY_PATTERNS: &[&str] = &[
+    TOOL_SEARCH_TOOL_NAME,
+    "WebSearch",
+    "web_search",
+    "Read",
+    "read",
+    "Glob",
+    "glob",
+    "Grep",
+    "grep",
+];
 
 fn extract_object_string(
     object: &serde_json::Map<String, serde_json::Value>,
@@ -92,6 +103,74 @@ pub(crate) fn merge_system_prompt_with_resource_search_skill_launch(
     }
 }
 
+pub(crate) fn should_lock_resource_search_skill_launch_to_modal_resource_search(
+    request_metadata: Option<&serde_json::Value>,
+) -> bool {
+    let Some(launch) = extract_harness_nested_object(
+        request_metadata,
+        &["resource_search_skill_launch", "resourceSearchSkillLaunch"],
+    ) else {
+        return false;
+    };
+
+    extract_object_string(launch, &["kind"]).unwrap_or_else(|| "resource_search_task".to_string())
+        == "resource_search_task"
+}
+
+pub(crate) fn append_resource_search_skill_launch_session_permissions(
+    permissions: &mut Vec<ToolPermission>,
+    session_id: &str,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_resource_search_skill_launch_to_modal_resource_search(request_metadata) {
+        return;
+    }
+
+    let session_id = session_id.trim();
+    let conditions = if session_id.is_empty() {
+        Vec::new()
+    } else {
+        vec![PermissionCondition {
+            condition_type: ConditionType::Session,
+            field: Some("session_id".to_string()),
+            operator: ConditionOperator::Equals,
+            value: serde_json::json!(session_id),
+            validator: None,
+            description: Some("仅对当前素材技能启动回合生效".to_string()),
+        }]
+    };
+
+    for pattern in RESOURCE_SEARCH_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        permissions.push(ToolPermission {
+            tool: (*pattern).to_string(),
+            allowed: false,
+            priority: 1235,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some(
+                "素材技能启动回合已锁定为 Skill(modal_resource_search) 主链，禁止先走通用工具搜索/读文件链路偏航"
+                    .to_string(),
+            ),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+    }
+}
+
+pub(crate) fn prune_resource_search_skill_launch_detour_tools_from_registry(
+    registry: &mut aster::tools::ToolRegistry,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_resource_search_skill_launch_to_modal_resource_search(request_metadata) {
+        return;
+    }
+
+    for tool_name in RESOURCE_SEARCH_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        registry.unregister(tool_name);
+    }
+}
+
 fn build_resource_search_skill_launch_system_prompt(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<String> {
@@ -164,6 +243,14 @@ fn build_resource_search_skill_launch_system_prompt(
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),
         "- 调用 Skill 时，args 必须是一个严格 JSON 字符串，不要漏引号、不要写注释、不要只传半截字段。".to_string(),
         format!("- 推荐传给 Skill.args 的 JSON：{args_json}"),
+        format!(
+            "- 第一工具调用示例(Skill 参数 JSON)：{{\"skill\":\"{skill_name}\",\"args\":{}}}",
+            serde_json::to_string(&args_json).unwrap_or_else(|_| "\"{}\"".to_string())
+        ),
+        "- 当前回合已经显式知道要走素材技能主链，不要为了确认技能名、工具名或命令名再去调用 ToolSearch。".to_string(),
+        "- 在 Skill(modal_resource_search) 真正执行前，不要先走 ToolSearch / WebSearch / Read / Glob / Grep 等通用工具发现、检索或读文件链路。".to_string(),
+        "- 不要搜索 “modal_resource_search”、“lime_search_web_images” 或 “lime task create resource-search --json” 之类目录信息；当前 resource_search_task 已经提供了足够上下文。".to_string(),
+        "- 如果某个通用搜索/读文件工具因为 session policy 被拒绝，不要重复同类调用；应立即改为直调 Skill(modal_resource_search)。".to_string(),
         format!("- 当前素材检索任务上下文(JSON)：{task_json}"),
         format!("- 当前入口来源：{entry_source}。"),
     ];

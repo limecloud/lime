@@ -39,24 +39,24 @@ export const Container = styled.div`
 
 export const InputBarContainer = styled.div`
   position: relative;
-  border: 1px solid #d7e0ea;
+  border: 1px solid #dcfce7;
   border-radius: 22px;
   padding: 10px 12px 10px 10px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f5f8fb 100%);
+  background: linear-gradient(180deg, #fdfffb 0%, #f4fbf5 100%);
   box-shadow:
-    0 10px 28px rgba(15, 23, 42, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    0 10px 28px rgba(22, 101, 52, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
     background 0.2s ease;
 
   &:focus-within {
-    border-color: #c5d3e2;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    border-color: #bbf7d0;
+    background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
     box-shadow:
-      0 0 0 3px rgba(191, 219, 254, 0.32),
-      0 14px 32px rgba(15, 23, 42, 0.08),
+      0 0 0 3px rgba(134, 239, 172, 0.35),
+      0 14px 32px rgba(22, 101, 52, 0.06),
       inset 0 1px 0 rgba(255, 255, 255, 0.92);
   }
 
@@ -67,12 +67,12 @@ export const InputBarContainer = styled.div`
 
   &.floating-composer {
     border-radius: 20px;
-    padding: 8px 10px;
-    background: linear-gradient(180deg, #fcfdff 0%, #f7f9fc 100%);
-    border-color: #d7e0ea;
+    padding: 16px 18px 14px 16px;
+    background: linear-gradient(180deg, #fcfffc 0%, #f4fcf5 100%);
+    border-color: #d1fae5;
     box-shadow:
-      0 10px 26px rgba(15, 23, 42, 0.08),
-      inset 0 1px 0 rgba(255, 255, 255, 0.78);
+      0 16px 32px rgba(22, 101, 52, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
   }
 
   &.floating-composer.floating-collapsed {
@@ -81,12 +81,12 @@ export const InputBarContainer = styled.div`
   }
 
   &.floating-composer:focus-within {
-    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-    border-color: #c5d3e2;
+    background: linear-gradient(180deg, #ffffff 0%, #ecfdf5 100%);
+    border-color: #a7f3d0;
     box-shadow:
-      0 0 0 3px rgba(191, 219, 254, 0.38),
-      0 12px 28px rgba(15, 23, 42, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.86);
+      0 0 0 3px rgba(110, 231, 183, 0.38),
+      0 18px 34px rgba(22, 101, 52, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88);
 
   }
 `;
@@ -127,9 +127,9 @@ export const StyledTextarea = styled.textarea`
   min-height: 34px;
 
   &.floating-composer {
-    font-size: 13px;
-    line-height: 1.4;
-    min-height: 28px;
+    font-size: 16px;
+    line-height: 1.65;
+    min-height: 98px;
   }
 
   &.floating-composer.floating-collapsed {
@@ -141,7 +141,7 @@ export const StyledTextarea = styled.textarea`
   }
 
   &.composer-expanded {
-    min-height: 168px;
+    min-height: 188px;
   }
 
   &::placeholder {
@@ -171,8 +171,8 @@ export const BottomBar = styled.div`
   border-top: 1px solid rgba(148, 163, 184, 0.22);
 
   &.floating-composer {
-    padding-top: 8px;
-    margin-top: 8px;
+    padding-top: 10px;
+    margin-top: 10px;
     gap: 10px;
   }
 

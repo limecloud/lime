@@ -19,7 +19,17 @@ import {
   getSkillCatalog,
   subscribeSkillCatalogChanged,
 } from "@/lib/api/skillCatalog";
+import {
+  listServiceSkills,
+  type ServiceSkillItem,
+} from "@/lib/api/serviceSkills";
 import { filterMentionableServiceSkills } from "@/components/agent/chat/service-skills/entryAdapter";
+import {
+  getServiceSkillActionLabel,
+  getServiceSkillRunnerDescription,
+  getServiceSkillRunnerLabel,
+  getServiceSkillRunnerTone,
+} from "@/components/agent/chat/service-skills/skillPresentation";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import { toast } from "sonner";
 import {
@@ -39,6 +49,7 @@ import {
   LazyCharacterMentionPanel,
   preloadCharacterMentionPanel,
 } from "./characterMentionPanelLoader";
+import { recordSlashEntryUsage } from "./slashEntryUsage";
 import { partitionMentionableSkills } from "./skillQuery";
 import { useIdleModulePreload } from "./useIdleModulePreload";
 
@@ -62,7 +73,10 @@ interface CharacterMentionProps {
   /** 选择技能目录项回调 */
   onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
   /** 选择内建命令回调 */
-  onSelectBuiltinCommand?: (command: BuiltinInputCommand) => void;
+  onSelectBuiltinCommand?: (
+    command: BuiltinInputCommand,
+    options?: BuiltinCommandSelectionOptions,
+  ) => void;
   /** 跳转到设置页安装技能 */
   onNavigateToSettings?: () => void;
 }
@@ -73,6 +87,10 @@ interface ActiveTrigger {
   mode: TriggerMode;
   triggerIndex: number;
   query: string;
+}
+
+interface BuiltinCommandSelectionOptions {
+  replayText?: string;
 }
 
 function resolveMentionTrigger(textBeforeCursor: string): ActiveTrigger | null {
@@ -126,6 +144,94 @@ function resolveActiveTrigger(
   return mentionTrigger.triggerIndex > slashTrigger.triggerIndex
     ? mentionTrigger
     : slashTrigger;
+}
+
+function normalizeReplayText(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function mergeTriggerSelectionText(params: {
+  leadingText: string;
+  insertedText: string;
+  trailingText: string;
+}): { value: string; cursorPos: number } {
+  const normalizedInsertedText = params.insertedText.trim();
+  if (!normalizedInsertedText) {
+    return {
+      value: `${params.leadingText}${params.trailingText}`,
+      cursorPos: params.leadingText.length,
+    };
+  }
+
+  const needsLeadingSpace =
+    params.leadingText.length > 0 && !/[\s\n]$/.test(params.leadingText);
+  const needsTrailingSpace =
+    params.trailingText.length > 0 && !/^[\s\n]/.test(params.trailingText);
+  const mergedInsertedText = `${needsLeadingSpace ? " " : ""}${normalizedInsertedText}${
+    needsTrailingSpace ? " " : ""
+  }`;
+
+  return {
+    value: `${params.leadingText}${mergedInsertedText}${params.trailingText}`,
+    cursorPos: params.leadingText.length + mergedInsertedText.length,
+  };
+}
+
+function normalizeSceneToken(value?: string | null): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().replace(/^\/+/, "").toLowerCase();
+}
+
+function toServiceSkillHomeItem(
+  skill: ServiceSkillItem,
+): ServiceSkillHomeItem {
+  return {
+    ...skill,
+    badge: skill.source === "cloud_catalog" ? "云目录" : "本地技能",
+    recentUsedAt: null,
+    isRecent: false,
+    runnerLabel: getServiceSkillRunnerLabel(skill),
+    runnerTone: getServiceSkillRunnerTone(skill),
+    runnerDescription: getServiceSkillRunnerDescription(skill),
+    actionLabel: getServiceSkillActionLabel(skill),
+    automationStatus: null,
+    cloudStatus:
+      skill.executionLocation === "cloud_required" ? null : undefined,
+  };
+}
+
+function matchesSceneBoundServiceSkill(
+  skill: ServiceSkillItem,
+  command: RuntimeSceneSlashCommand,
+): boolean {
+  const binding = skill.sceneBinding;
+  if (!binding) {
+    return false;
+  }
+
+  const commandTokens = new Set(
+    [command.key, command.commandPrefix, ...(command.aliases ?? [])]
+      .map((value) => normalizeSceneToken(value))
+      .filter(Boolean),
+  );
+  if (commandTokens.size === 0) {
+    return false;
+  }
+
+  if (commandTokens.has(normalizeSceneToken(binding.sceneKey))) {
+    return true;
+  }
+  if (commandTokens.has(normalizeSceneToken(binding.commandPrefix))) {
+    return true;
+  }
+
+  return (binding.aliases ?? []).some((alias) =>
+    commandTokens.has(normalizeSceneToken(alias)),
+  );
 }
 
 export function CharacterMention({
@@ -387,6 +493,10 @@ export function CharacterMention({
         textAfterCursor;
       onChange(newValue);
       setShowMentions(false);
+      recordSlashEntryUsage({
+        kind: "skill",
+        entryId: skill.key,
+      });
 
       setTimeout(() => {
         textarea.focus();
@@ -438,7 +548,10 @@ export function CharacterMention({
     });
   };
 
-  const handleSelectBuiltinCommand = (command: BuiltinInputCommand) => {
+  const handleSelectBuiltinCommand = (
+    command: BuiltinInputCommand,
+    options?: BuiltinCommandSelectionOptions,
+  ) => {
     const textarea = inputRef.current;
     if (!textarea) return;
 
@@ -450,32 +563,59 @@ export function CharacterMention({
       return;
     }
 
+    const leadingText = currentValue.slice(0, activeTrigger.triggerIndex);
+    const replayText = normalizeReplayText(options?.replayText);
+
     if (onSelectBuiltinCommand) {
-      const newValue =
-        currentValue.slice(0, activeTrigger.triggerIndex) + textAfterCursor;
-      onChange(newValue.trimEnd() === "" ? "" : newValue);
+      const nextSelection = replayText
+        ? mergeTriggerSelectionText({
+            leadingText,
+            insertedText: replayText,
+            trailingText: textAfterCursor,
+          })
+        : {
+            value: `${leadingText}${textAfterCursor}`,
+            cursorPos: Math.max(0, activeTrigger.triggerIndex),
+          };
+      const normalizedValue =
+        nextSelection.value.trimEnd() === "" ? "" : nextSelection.value;
+
+      onChange(normalizedValue);
       setShowMentions(false);
-      onSelectBuiltinCommand(command);
+      if (options?.replayText) {
+        onSelectBuiltinCommand(command, options);
+      } else {
+        onSelectBuiltinCommand(command);
+      }
 
       setTimeout(() => {
         textarea.focus();
-        const newCursorPos = Math.max(0, activeTrigger.triggerIndex);
+        const newCursorPos = Math.min(
+          nextSelection.cursorPos,
+          normalizedValue.length,
+        );
         textarea.setSelectionRange(newCursorPos, newCursorPos);
       }, 0);
       return;
     }
 
-    const newValue =
-      currentValue.slice(0, activeTrigger.triggerIndex) +
-      `${command.commandPrefix} ` +
-      textAfterCursor;
-    onChange(newValue);
+    const nextSelection = replayText
+      ? mergeTriggerSelectionText({
+          leadingText,
+          insertedText: `${command.commandPrefix} ${replayText}`,
+          trailingText: textAfterCursor,
+        })
+      : {
+          value: `${leadingText}${command.commandPrefix} ${textAfterCursor}`,
+          cursorPos: activeTrigger.triggerIndex + command.commandPrefix.length + 1,
+        };
+
+    onChange(nextSelection.value);
     setShowMentions(false);
 
     setTimeout(() => {
       textarea.focus();
-      const newCursorPos =
-        activeTrigger.triggerIndex + command.commandPrefix.length + 1;
+      const newCursorPos = nextSelection.cursorPos;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
   };
@@ -540,6 +680,12 @@ export function CharacterMention({
 
     onChange(newValue);
     setShowMentions(false);
+    if (command.support === "supported") {
+      recordSlashEntryUsage({
+        kind: "command",
+        entryId: command.key,
+      });
+    }
 
     setTimeout(() => {
       textarea.focus();
@@ -549,9 +695,40 @@ export function CharacterMention({
     }, 0);
   };
 
-  const handleSelectRuntimeSceneCommand = (
+  const handleSelectRuntimeSceneCommand = async (
     command: RuntimeSceneSlashCommand,
   ) => {
+    if (onSelectServiceSkill) {
+      const matchedVisibleSkill = serviceSkills.find((skill) =>
+        matchesSceneBoundServiceSkill(skill, command),
+      );
+      const matchedSkill =
+        matchedVisibleSkill ||
+        (await (async () => {
+          try {
+            const runtimeSkills = await listServiceSkills();
+            const runtimeMatchedSkill = runtimeSkills.find((skill) =>
+              matchesSceneBoundServiceSkill(skill, command),
+            );
+            return runtimeMatchedSkill
+              ? toServiceSkillHomeItem(runtimeMatchedSkill)
+              : null;
+          } catch {
+            return null;
+          }
+        })());
+
+      if (matchedSkill && matchedSkill.slotSchema.some((slot) => slot.required)) {
+        onSelectServiceSkill(matchedSkill);
+        setShowMentions(false);
+        recordSlashEntryUsage({
+          kind: "scene",
+          entryId: command.key,
+        });
+        return;
+      }
+    }
+
     const textarea = inputRef.current;
     if (!textarea) return;
 
@@ -570,6 +747,10 @@ export function CharacterMention({
 
     onChange(newValue);
     setShowMentions(false);
+    recordSlashEntryUsage({
+      kind: "scene",
+      entryId: command.key,
+    });
 
     setTimeout(() => {
       textarea.focus();

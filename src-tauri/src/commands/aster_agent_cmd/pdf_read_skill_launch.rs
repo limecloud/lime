@@ -1,6 +1,13 @@
 use super::*;
 
 const PDF_READ_SKILL_LAUNCH_PROMPT_MARKER: &str = "<<LIME_PDF_READ_SKILL_LAUNCH_HINT>>";
+const PDF_READ_SKILL_LAUNCH_DETOUR_DENY_PATTERNS: &[&str] = &[
+    TOOL_SEARCH_TOOL_NAME,
+    "WebSearch",
+    "web_search",
+    "Grep",
+    "grep",
+];
 
 fn extract_object_string(
     object: &serde_json::Map<String, serde_json::Value>,
@@ -90,6 +97,74 @@ pub(crate) fn merge_system_prompt_with_pdf_read_skill_launch(
     }
 }
 
+pub(crate) fn should_lock_pdf_read_skill_launch_to_pdf_read(
+    request_metadata: Option<&serde_json::Value>,
+) -> bool {
+    let Some(launch) = extract_harness_nested_object(
+        request_metadata,
+        &["pdf_read_skill_launch", "pdfReadSkillLaunch"],
+    ) else {
+        return false;
+    };
+
+    extract_object_string(launch, &["kind"]).unwrap_or_else(|| "pdf_read_request".to_string())
+        == "pdf_read_request"
+}
+
+pub(crate) fn append_pdf_read_skill_launch_session_permissions(
+    permissions: &mut Vec<ToolPermission>,
+    session_id: &str,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_pdf_read_skill_launch_to_pdf_read(request_metadata) {
+        return;
+    }
+
+    let session_id = session_id.trim();
+    let conditions = if session_id.is_empty() {
+        Vec::new()
+    } else {
+        vec![PermissionCondition {
+            condition_type: ConditionType::Session,
+            field: Some("session_id".to_string()),
+            operator: ConditionOperator::Equals,
+            value: serde_json::json!(session_id),
+            validator: None,
+            description: Some("仅对当前读PDF技能启动回合生效".to_string()),
+        }]
+    };
+
+    for pattern in PDF_READ_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        permissions.push(ToolPermission {
+            tool: (*pattern).to_string(),
+            allowed: false,
+            priority: 1230,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some(
+                "读PDF技能启动回合已锁定为 Skill(pdf_read) 主链，禁止先走工具目录/联网搜索偏航"
+                    .to_string(),
+            ),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+    }
+}
+
+pub(crate) fn prune_pdf_read_skill_launch_detour_tools_from_registry(
+    registry: &mut aster::tools::ToolRegistry,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    if !should_lock_pdf_read_skill_launch_to_pdf_read(request_metadata) {
+        return;
+    }
+
+    for tool_name in PDF_READ_SKILL_LAUNCH_DETOUR_DENY_PATTERNS {
+        registry.unregister(tool_name);
+    }
+}
+
 fn build_pdf_read_skill_launch_system_prompt(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<String> {
@@ -150,6 +225,14 @@ fn build_pdf_read_skill_launch_system_prompt(
         format!("- 第一优先工具调用必须是 Skill，且 skill=\"{skill_name}\"。"),
         "- 调用 Skill 时，args 必须是一个严格 JSON 字符串，不要漏引号、不要写注释、不要只传半截字段。".to_string(),
         format!("- 推荐传给 Skill.args 的 JSON：{args_json}"),
+        format!(
+            "- 第一工具调用示例(Skill 参数 JSON)：{{\"skill\":\"{skill_name}\",\"args\":{}}}",
+            serde_json::to_string(&args_json).unwrap_or_else(|_| "\"{}\"".to_string())
+        ),
+        "- 当前回合已经显式知道要走读PDF技能主链，不要为了确认技能名、工具名或命令名再去调用 ToolSearch。".to_string(),
+        "- 在 Skill(pdf_read) 真正执行前，不要先走 ToolSearch / WebSearch / Grep 等工具目录发现、联网搜索或内容检索偏航。".to_string(),
+        "- 不要先搜索 “pdf_read”、“read_file” 或 “list_directory” 的目录信息；当前 pdf_read_request 已经提供了足够上下文。".to_string(),
+        "- 如果某个通用搜索工具因为 session policy 被拒绝，不要重复同类调用；应立即改为直调 Skill(pdf_read)。".to_string(),
         "- 这条命令属于 prompt skill 主链，不要创建 task file，也不要退回普通聊天凭空回答。".to_string(),
         "- 若拿到本地或工作区 PDF 路径，优先最小化使用 `list_directory / read_file` 读取目标 PDF，并保留真实 tool timeline。".to_string(),
         "- 若路径是相对路径，可先用 `list_directory` 确认位置，再调用 `read_file`；不要假装文件已经读取成功。".to_string(),

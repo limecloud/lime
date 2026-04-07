@@ -453,6 +453,102 @@ const StageFooterTips = styled.div`
   flex-wrap: wrap;
 `;
 
+const FocusedTaskPanel = styled.div`
+  position: relative;
+  z-index: 1;
+  margin-top: 14px;
+  border-radius: 24px;
+  border: 1px solid hsl(var(--border) / 0.84);
+  background: hsl(var(--background) / 0.94);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`;
+
+const FocusedTaskHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
+const FocusedTaskCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const FocusedTaskTitle = styled.h4`
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+`;
+
+const FocusedTaskDescription = styled.p`
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: hsl(var(--muted-foreground));
+`;
+
+const FocusedTaskPrompt = styled.div`
+  border-radius: 18px;
+  border: 1px solid hsl(var(--border) / 0.82);
+  background: hsl(var(--muted) / 0.12);
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: hsl(var(--foreground));
+  white-space: pre-wrap;
+  word-break: break-word;
+`;
+
+const FocusedTaskMetaGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const FocusedTaskMetaCard = styled.div`
+  border-radius: 18px;
+  border: 1px solid hsl(var(--border) / 0.84);
+  background: hsl(var(--background));
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const FocusedTaskMetaLabel = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+`;
+
+const FocusedTaskMetaValue = styled.span`
+  font-size: 14px;
+  line-height: 1.6;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  word-break: break-word;
+`;
+
+const FocusedTaskMetaHint = styled.span`
+  font-size: 12px;
+  line-height: 1.6;
+  color: hsl(var(--muted-foreground));
+  word-break: break-word;
+`;
+
 const TaskCounter = styled.span`
   display: inline-flex;
   align-items: center;
@@ -659,6 +755,22 @@ function mergeTaskList(
   return merged;
 }
 
+function resolveFocusedTask(
+  taskList: WorkspaceTask[],
+  selectedTaskId?: string,
+): WorkspaceTask | null {
+  const normalizedSelectedTaskId = selectedTaskId?.trim();
+  if (normalizedSelectedTaskId) {
+    const matchedTask = taskList.find(
+      (task) => task.id === normalizedSelectedTaskId,
+    );
+    if (matchedTask) {
+      return matchedTask;
+    }
+  }
+  return taskList[0] ?? null;
+}
+
 function getStatusTone(
   status: string,
 ): "neutral" | "processing" | "success" | "error" | "cancelled" {
@@ -704,6 +816,126 @@ function clampProgress(value?: number | null): number | null {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
+function parseTaskRequestPayload(
+  task: WorkspaceTask,
+): Record<string, unknown> | null {
+  const normalizedPayload = task.requestPayload?.trim();
+  if (!normalizedPayload) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(normalizedPayload) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function readTaskPayloadString(
+  payload: Record<string, unknown> | null,
+  keys: string[],
+): string | null {
+  if (!payload) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function readTaskPayloadPositiveNumber(
+  payload: Record<string, unknown> | null,
+  keys: string[],
+): number | null {
+  if (!payload) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return value;
+    }
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
+function resolveTaskSyncCopy(task: WorkspaceTask): {
+  label: string;
+  hint: string;
+} {
+  const progress = clampProgress(task.progress);
+
+  if (task.status === "success") {
+    if (task.resourceMaterialId) {
+      return {
+        label: "已同步到项目素材",
+        hint: "当前结果已经沉淀到项目素材库，可继续复用或组合后续命令。",
+      };
+    }
+    if (task.resourceSaveError) {
+      return {
+        label: "素材同步失败",
+        hint: task.resourceSaveError,
+      };
+    }
+    return {
+      label: "结果已生成",
+      hint: "视频已经可预览，素材入库会继续在后台自动完成。",
+    };
+  }
+
+  if (task.status === "error") {
+    return {
+      label: "生成失败",
+      hint: task.errorMessage?.trim() || "请检查提示词、模型配置或参考图。",
+    };
+  }
+
+  if (task.status === "cancelled") {
+    return {
+      label: "任务已取消",
+      hint: "当前任务不会继续生成新的结果，可直接重新发起下一轮。",
+    };
+  }
+
+  if (typeof progress === "number") {
+    return {
+      label: `当前进度 ${progress}%`,
+      hint: "工作台会继续刷新状态，完成后自动切换为可预览结果。",
+    };
+  }
+
+  if (task.status === "pending") {
+    return {
+      label: "排队中",
+      hint: "任务已提交到生成队列，等待服务端返回正式进度。",
+    };
+  }
+
+  return {
+    label: "生成中",
+    hint: "视频任务正在执行，当前会优先展示你选中的任务状态。",
+  };
+}
+
 export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
   ({ state, projectId, onStateChange }) => {
     const [tasks, setTasks] = useState<WorkspaceTask[]>([]);
@@ -711,6 +943,19 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
     const pollingGuard = useRef(false);
     const savingTaskIdsRef = useRef<Set<string>>(new Set());
     const materialRefCache = useRef<Map<string, string>>(new Map());
+    const stateRef = useRef(state);
+
+    useEffect(() => {
+      stateRef.current = state;
+    }, [state]);
+
+    const pushState = useCallback(
+      (nextState: VideoCanvasState) => {
+        stateRef.current = nextState;
+        onStateChange(nextState);
+      },
+      [onStateChange],
+    );
 
     useEffect(() => {
       skillsApi
@@ -725,49 +970,81 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
 
     const syncPrimaryState = useCallback(
       (taskList: WorkspaceTask[]) => {
-        if (taskList.length === 0) {
+        const currentState = stateRef.current;
+        const focusedTask = resolveFocusedTask(
+          taskList,
+          currentState.selectedTaskId,
+        );
+        if (!focusedTask) {
           return;
         }
-        const latestTask = taskList[0];
-        if (latestTask.status === "success" && latestTask.resultUrl) {
+        const baseState =
+          currentState.selectedTaskId === focusedTask.id
+            ? currentState
+            : {
+                ...currentState,
+                selectedTaskId: focusedTask.id,
+              };
+
+        if (focusedTask.status === "success" && focusedTask.resultUrl) {
           if (
-            state.status !== "success" ||
-            state.videoUrl !== latestTask.resultUrl
+            baseState.status !== "success" ||
+            baseState.videoUrl !== focusedTask.resultUrl ||
+            baseState.errorMessage !== undefined
           ) {
-            onStateChange({
-              ...state,
+            pushState({
+              ...baseState,
               status: "success",
-              videoUrl: latestTask.resultUrl,
+              videoUrl: focusedTask.resultUrl,
               errorMessage: undefined,
             });
-          }
-          return;
-        }
-        if (latestTask.status === "error") {
-          const message = latestTask.errorMessage ?? "视频生成失败";
-          if (state.status !== "error" || state.errorMessage !== message) {
-            onStateChange({
-              ...state,
-              status: "error",
-              errorMessage: message,
-            });
+          } else if (baseState !== currentState) {
+            pushState(baseState);
           }
           return;
         }
         if (
-          latestTask.status === "pending" ||
-          latestTask.status === "processing"
+          focusedTask.status === "error" ||
+          focusedTask.status === "cancelled"
         ) {
-          if (state.status !== "generating") {
-            onStateChange({
-              ...state,
+          const message =
+            focusedTask.errorMessage ??
+            (focusedTask.status === "cancelled"
+              ? "视频任务已取消"
+              : "视频生成失败");
+          if (
+            baseState.status !== "error" ||
+            baseState.errorMessage !== message
+          ) {
+            pushState({
+              ...baseState,
+              status: "error",
+              errorMessage: message,
+            });
+          } else if (baseState !== currentState) {
+            pushState(baseState);
+          }
+          return;
+        }
+        if (
+          focusedTask.status === "pending" ||
+          focusedTask.status === "processing"
+        ) {
+          if (
+            baseState.status !== "generating" ||
+            baseState.errorMessage !== undefined
+          ) {
+            pushState({
+              ...baseState,
               status: "generating",
               errorMessage: undefined,
             });
+          } else if (baseState !== currentState) {
+            pushState(baseState);
           }
         }
       },
-      [onStateChange, state],
+      [pushState],
     );
 
     const saveVideoToResource = useCallback(
@@ -835,7 +1112,10 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
           if (!active) {
             return;
           }
-          const mapped = list.map((task) => ({ ...task }));
+          const mapped = mergeTaskList(
+            [],
+            list.map((task) => ({ ...task })),
+          );
           setTasks(mapped);
           syncPrimaryState(mapped);
         } catch (error) {
@@ -994,8 +1274,8 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
           return;
         }
 
-        onStateChange({
-          ...state,
+        pushState({
+          ...stateRef.current,
           status: "generating",
           errorMessage: undefined,
         });
@@ -1021,23 +1301,30 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
             cameraFixed: state.cameraFixed,
           });
 
+          pushState({
+            ...stateRef.current,
+            status: "generating",
+            selectedTaskId: created.id,
+            errorMessage: undefined,
+          });
           setTasks((previous) => {
             const merged = mergeTaskList(previous, [created]);
+            syncPrimaryState(merged);
             return merged;
           });
           toast.success("视频任务已提交，正在生成");
         } catch (error) {
           const message =
             error instanceof Error ? error.message : String(error);
-          onStateChange({
-            ...state,
+          pushState({
+            ...stateRef.current,
             status: "error",
             errorMessage: message,
           });
           toast.error(message);
         }
       },
-      [ensureReferenceImageUrl, onStateChange, projectId, state],
+      [ensureReferenceImageUrl, projectId, pushState, state, syncPrimaryState],
     );
 
     const handlePreviewTask = useCallback(
@@ -1045,18 +1332,24 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
         if (!task.resultUrl) {
           return;
         }
-        onStateChange({
-          ...state,
+        pushState({
+          ...stateRef.current,
+          selectedTaskId: task.id,
           status: "success",
           videoUrl: task.resultUrl,
           errorMessage: undefined,
         });
       },
-      [onStateChange, state],
+      [pushState],
     );
 
     const isGenerated = tasks.length > 0 || state.status !== "idle";
     const latestTask = tasks[0] ?? null;
+    const focusedTask = useMemo(
+      () => resolveFocusedTask(tasks, state.selectedTaskId),
+      [state.selectedTaskId, tasks],
+    );
+    const activeTaskId = focusedTask?.id ?? state.selectedTaskId ?? null;
     const referenceCount = [state.startImage, state.endImage].filter(
       Boolean,
     ).length;
@@ -1105,16 +1398,19 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
           label: "生成中",
           tone: "processing" as const,
           detail:
-            latestTask?.progress != null
-              ? `当前进度 ${Math.round(latestTask.progress)}%`
-              : "已提交任务，正在持续轮询状态。",
+            focusedTask?.progress != null
+              ? `当前进度 ${Math.round(focusedTask.progress)}%`
+              : "任务已提交，正在持续刷新当前进度。",
         };
       }
       if (state.status === "success" && state.videoUrl) {
         return {
           label: "已生成",
           tone: "success" as const,
-          detail: "可在右侧切换历史结果，最新成功结果会自动成为主预览。",
+          detail:
+            focusedTask && latestTask && focusedTask.id !== latestTask.id
+              ? "当前正在查看一条历史结果，可在右侧继续切换不同任务做比较。"
+              : "当前结果已就绪，可继续调整提示词并发起下一轮生成。",
         };
       }
       if (state.status === "error") {
@@ -1130,11 +1426,60 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
         detail: "先在提示框描述画面，再提交一次生成任务。",
       };
     }, [
-      latestTask?.progress,
+      focusedTask,
+      latestTask,
       state.errorMessage,
       state.status,
       state.videoUrl,
     ]);
+
+    const focusedTaskSummary = useMemo(() => {
+      if (!focusedTask) {
+        return null;
+      }
+
+      const payload = parseTaskRequestPayload(focusedTask);
+      const providerLabel =
+        focusedTask.providerId?.trim() ||
+        readTaskPayloadString(payload, ["providerId", "provider_id"]) ||
+        state.providerId ||
+        "待选择服务";
+      const modelLabel =
+        focusedTask.model?.trim() ||
+        readTaskPayloadString(payload, ["model"]) ||
+        state.model ||
+        "待选择模型";
+      const aspectRatioLabel =
+        readTaskPayloadString(payload, ["aspectRatio", "aspect_ratio"]) ||
+        state.aspectRatio;
+      const resolutionLabel =
+        readTaskPayloadString(payload, ["resolution"]) || state.resolution;
+      const durationLabel =
+        readTaskPayloadPositiveNumber(payload, ["duration"]) || state.duration;
+      const promptLabel = focusedTask.prompt?.trim() || state.prompt.trim();
+      const syncCopy = resolveTaskSyncCopy(focusedTask);
+      const isLatestFocused = latestTask?.id === focusedTask.id;
+
+      return {
+        prompt: promptLabel || "当前任务没有返回明确提示词。",
+        sourceValue: `${providerLabel} · ${modelLabel}`,
+        sourceHint: isLatestFocused
+          ? "当前查看的是最近一次任务。"
+          : "当前查看的是一条历史任务结果。",
+        specValue: `${aspectRatioLabel} · ${resolutionLabel} · ${durationLabel} 秒`,
+        specHint: "规格优先从任务请求恢复，缺失时回退到当前工作台状态。",
+        syncValue: syncCopy.label,
+        syncHint: syncCopy.hint,
+        timelineValue: `创建 ${formatTaskTime(focusedTask.createdAt)}`,
+        timelineHint: `最近更新 ${formatTaskTime(
+          focusedTask.updatedAt ?? focusedTask.createdAt,
+        )} · 任务 ID ${focusedTask.id}`,
+        badgeLabel: isLatestFocused ? "最新结果" : "历史结果",
+        description: isLatestFocused
+          ? "这里固定展示当前聚焦任务的上下文，切换任务后会一起更新。"
+          : "你正在查看一条历史任务，下面的信息与主预览都跟随该任务同步。",
+      };
+    }, [focusedTask, latestTask?.id, state.aspectRatio, state.duration, state.model, state.prompt, state.providerId, state.resolution]);
 
     return (
       <WorkspaceWrapper>
@@ -1282,7 +1627,7 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                         <StagePlaceholderDescription>
                           {state.status === "generating"
                             ? "任务已提交，右侧卡片会持续刷新进度。你可以继续优化提示词，准备下一轮迭代。"
-                            : "提交任务后，最新成功结果会自动显示在这里。"}
+                            : "任务完成后，结果会自动显示在这里。"}
                         </StagePlaceholderDescription>
                       </StagePlaceholder>
                     )}
@@ -1299,12 +1644,75 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                         content="成功结果会自动同步到项目素材；切换历史任务预览不会覆盖你当前输入的提示词。"
                       />
                     </StageFooterTips>
-                    {latestTask ? (
+                    {focusedTask ? (
                       <TaskCounter>
-                        最近更新于 {formatTaskTime(latestTask.createdAt)}
+                        当前任务更新于{" "}
+                        {formatTaskTime(
+                          focusedTask.updatedAt ?? focusedTask.createdAt,
+                        )}
                       </TaskCounter>
                     ) : null}
                   </StageFooter>
+
+                  {focusedTaskSummary ? (
+                    <FocusedTaskPanel data-testid="video-focused-task-panel">
+                      <FocusedTaskHeader>
+                        <FocusedTaskCopy>
+                          <FocusedTaskTitle>当前查看任务</FocusedTaskTitle>
+                          <FocusedTaskDescription>
+                            {focusedTaskSummary.description}
+                          </FocusedTaskDescription>
+                        </FocusedTaskCopy>
+                        <TaskCounter>{focusedTaskSummary.badgeLabel}</TaskCounter>
+                      </FocusedTaskHeader>
+
+                      <FocusedTaskPrompt data-testid="video-focused-task-prompt">
+                        {focusedTaskSummary.prompt}
+                      </FocusedTaskPrompt>
+
+                      <FocusedTaskMetaGrid>
+                        <FocusedTaskMetaCard data-testid="video-focused-task-source">
+                          <FocusedTaskMetaLabel>模型链路</FocusedTaskMetaLabel>
+                          <FocusedTaskMetaValue>
+                            {focusedTaskSummary.sourceValue}
+                          </FocusedTaskMetaValue>
+                          <FocusedTaskMetaHint>
+                            {focusedTaskSummary.sourceHint}
+                          </FocusedTaskMetaHint>
+                        </FocusedTaskMetaCard>
+
+                        <FocusedTaskMetaCard data-testid="video-focused-task-spec">
+                          <FocusedTaskMetaLabel>生成规格</FocusedTaskMetaLabel>
+                          <FocusedTaskMetaValue>
+                            {focusedTaskSummary.specValue}
+                          </FocusedTaskMetaValue>
+                          <FocusedTaskMetaHint>
+                            {focusedTaskSummary.specHint}
+                          </FocusedTaskMetaHint>
+                        </FocusedTaskMetaCard>
+
+                        <FocusedTaskMetaCard data-testid="video-focused-task-sync">
+                          <FocusedTaskMetaLabel>结果同步</FocusedTaskMetaLabel>
+                          <FocusedTaskMetaValue>
+                            {focusedTaskSummary.syncValue}
+                          </FocusedTaskMetaValue>
+                          <FocusedTaskMetaHint>
+                            {focusedTaskSummary.syncHint}
+                          </FocusedTaskMetaHint>
+                        </FocusedTaskMetaCard>
+
+                        <FocusedTaskMetaCard data-testid="video-focused-task-timeline">
+                          <FocusedTaskMetaLabel>任务时间</FocusedTaskMetaLabel>
+                          <FocusedTaskMetaValue>
+                            {focusedTaskSummary.timelineValue}
+                          </FocusedTaskMetaValue>
+                          <FocusedTaskMetaHint>
+                            {focusedTaskSummary.timelineHint}
+                          </FocusedTaskMetaHint>
+                        </FocusedTaskMetaCard>
+                      </FocusedTaskMetaGrid>
+                    </FocusedTaskPanel>
+                  ) : null}
                 </ResultPanel>
 
                 <ResultPanel>
@@ -1349,10 +1757,8 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                         return (
                           <TaskCard
                             key={task.id}
-                            $active={Boolean(
-                              task.resultUrl &&
-                              task.resultUrl === state.videoUrl,
-                            )}
+                            data-testid={`video-task-card-${task.id}`}
+                            $active={task.id === activeTaskId}
                           >
                             <TaskTopRow>
                               <TaskMetaRow>
@@ -1395,10 +1801,11 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                               </TaskMetaRow>
                               {task.resultUrl ? (
                                 <TaskActionButton
+                                  data-testid={`video-task-preview-${task.id}`}
                                   type="button"
                                   onClick={() => handlePreviewTask(task)}
                                 >
-                                  {task.resultUrl === state.videoUrl
+                                  {task.id === activeTaskId
                                     ? "当前预览"
                                     : "切换预览"}
                                   <ArrowUpRight size={14} />

@@ -157,12 +157,19 @@ describe("useLimeSkills", () => {
     vi.clearAllMocks();
   });
 
-  it("deferred 模式应在 idle/fallback 阶段加载本地 skills", async () => {
+  it("deferred 模式应在最小延迟后才加载本地 skills", async () => {
     const harness = mountHook({ autoLoad: "deferred", logScope: "TestScope" });
 
     try {
       act(() => {
-        vi.advanceTimersByTime(200);
+        vi.advanceTimersByTime(1499);
+      });
+      await flushEffects();
+
+      expect(mockGetLocal).not.toHaveBeenCalled();
+
+      act(() => {
+        vi.advanceTimersByTime(1);
       });
       await flushEffects();
 

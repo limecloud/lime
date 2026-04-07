@@ -824,19 +824,22 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
               <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
                 <div className="max-w-3xl space-y-4">
                   <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                    FILE LIBRARY
+                    项目资料
                   </span>
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                        文件与资料
+                        资料库
                       </h1>
                       <WorkbenchInfoTip
                         ariaLabel="资料库工作台说明"
-                        content="在一个更宽的工作台里统一查看项目文档、素材与目录结构，把筛选、浏览和新增操作拆开，减少来回切换成本。"
+                        content="集中管理导入资源、项目资料和外部素材；先把内容放进资料库，再决定哪些值得继续沉淀。"
                         tone="mint"
                       />
                     </div>
+                    <p className="max-w-3xl text-sm leading-7 text-slate-600">
+                      集中管理导入资源、项目资料和外部素材。
+                    </p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">

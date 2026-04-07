@@ -521,6 +521,12 @@ export interface SavedSiteAdapterContent {
   content_id: string;
   project_id: string;
   title: string;
+  project_root_path?: string;
+  bundle_relative_dir?: string;
+  markdown_relative_path?: string;
+  images_relative_dir?: string;
+  meta_relative_path?: string;
+  image_count?: number;
 }
 
 export type BrowserRuntimeAuditKind = "action" | "launch";

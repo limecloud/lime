@@ -1,35 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { logAgentDebug } from "@/lib/agentDebug";
 import { skillsApi, type Skill } from "@/lib/api/skills";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 
 const SKILLS_IDLE_TIMEOUT_MS = 1_500;
-const SKILLS_FALLBACK_DELAY_MS = 180;
-
-function scheduleDeferredSkillsLoad(task: () => void): () => void {
-  if (typeof window === "undefined") {
-    task();
-    return () => undefined;
-  }
-
-  if (typeof window.requestIdleCallback === "function") {
-    const idleId = window.requestIdleCallback(() => task(), {
-      timeout: SKILLS_IDLE_TIMEOUT_MS,
-    });
-    return () => {
-      if (typeof window.cancelIdleCallback === "function") {
-        window.cancelIdleCallback(idleId);
-      }
-    };
-  }
-
-  const timeoutId = window.setTimeout(task, SKILLS_FALLBACK_DELAY_MS);
-  return () => {
-    window.clearTimeout(timeoutId);
-  };
-}
 
 interface UseLimeSkillsOptions {
   autoLoad?: "immediate" | "deferred" | false;
+  deferredDelayMs?: number;
   logScope?: string;
   onError?: (error: unknown) => void;
 }
@@ -37,6 +15,7 @@ interface UseLimeSkillsOptions {
 export function useLimeSkills(options: UseLimeSkillsOptions = {}) {
   const {
     autoLoad = "immediate",
+    deferredDelayMs = SKILLS_IDLE_TIMEOUT_MS,
     logScope = "useLimeSkills",
     onError,
   } = options;
@@ -114,14 +93,20 @@ export function useLimeSkills(options: UseLimeSkillsOptions = {}) {
     }
 
     if (autoLoad === "deferred") {
-      return scheduleDeferredSkillsLoad(() => {
-        void refreshSkills(false);
-      });
+      return scheduleMinimumDelayIdleTask(
+        () => {
+          void refreshSkills(false);
+        },
+        {
+          minimumDelayMs: deferredDelayMs,
+          idleTimeoutMs: SKILLS_IDLE_TIMEOUT_MS,
+        },
+      );
     }
 
     void refreshSkills(false);
     return;
-  }, [autoLoad, refreshSkills]);
+  }, [autoLoad, deferredDelayMs, refreshSkills]);
 
   useEffect(() => {
     return () => {

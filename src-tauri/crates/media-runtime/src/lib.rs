@@ -1,14 +1,54 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
+use std::time::Duration;
 
 use chrono::Utc;
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use thiserror::Error;
 use uuid::Uuid;
 
 pub const DEFAULT_ARTIFACT_ROOT: &str = ".lime/tasks";
+pub const IMAGE_TASK_RUNNER_WORKER_ID: &str = "lime-image-api-worker";
+pub const IMAGE_TASK_RUNNER_TIMEOUT_SECS: u64 = 300;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImageGenerationRunnerConfig {
+    pub endpoint: String,
+    pub api_key: String,
+}
+
+#[derive(Debug, Clone)]
+struct PreparedImageTaskInput {
+    prompt: String,
+    model: String,
+    size: Option<String>,
+    count: u32,
+    style: Option<String>,
+    provider_id: Option<String>,
+}
+
+pub fn normalize_image_generation_service_host(host: &str) -> String {
+    let trimmed = host.trim();
+    if trimmed.is_empty() || trimmed == "0.0.0.0" || trimmed == "::" {
+        return "127.0.0.1".to_string();
+    }
+    if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        return trimmed.to_string();
+    }
+    if trimmed.contains(':') {
+        return format!("[{trimmed}]");
+    }
+    trimmed.to_string()
+}
+
+pub fn build_image_generation_endpoint(host: &str, port: u16) -> String {
+    format!(
+        "http://{}:{port}/v1/images/generations",
+        normalize_image_generation_service_host(host)
+    )
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -950,6 +990,394 @@ fn normalize_status(status: &str) -> String {
     }
 }
 
+fn read_payload_string(payload: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| {
+        payload
+            .get(*key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+    })
+}
+
+fn read_payload_positive_u32(payload: &Value, keys: &[&str]) -> Option<u32> {
+    keys.iter().find_map(|key| {
+        let value = payload.get(*key)?;
+        if let Some(number) = value.as_u64() {
+            return u32::try_from(number).ok().filter(|item| *item > 0);
+        }
+        value
+            .as_str()
+            .and_then(|item| item.trim().parse::<u32>().ok().filter(|parsed| *parsed > 0))
+    })
+}
+
+fn prepare_image_task_input(task: &MediaTaskOutput) -> Result<PreparedImageTaskInput, String> {
+    let payload = &task.record.payload;
+    let prompt = read_payload_string(payload, &["prompt"])
+        .ok_or_else(|| "图片任务缺少 prompt，无法继续执行".to_string())?;
+    let count = read_payload_positive_u32(payload, &["count", "image_count"]).unwrap_or(1);
+
+    Ok(PreparedImageTaskInput {
+        prompt,
+        model: read_payload_string(payload, &["model"]).unwrap_or_default(),
+        size: read_payload_string(payload, &["size"]),
+        count,
+        style: read_payload_string(payload, &["style"]),
+        provider_id: read_payload_string(payload, &["provider_id", "providerId"]),
+    })
+}
+
+fn collect_generated_images(response_body: &Value) -> Vec<Value> {
+    response_body
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    let record = item.as_object()?;
+                    let url = record
+                        .get("url")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(ToOwned::to_owned)
+                        .or_else(|| {
+                            record
+                                .get("b64_json")
+                                .and_then(Value::as_str)
+                                .map(str::trim)
+                                .filter(|value| !value.is_empty())
+                                .map(|value| format!("data:image/png;base64,{value}"))
+                        })?;
+                    Some(json!({
+                        "url": url,
+                        "revised_prompt": record
+                            .get("revised_prompt")
+                            .and_then(Value::as_str)
+                            .map(str::trim)
+                            .filter(|value| !value.is_empty()),
+                    }))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn summarize_response_body(body: &str) -> String {
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        return "响应体为空".to_string();
+    }
+
+    let preview: String = trimmed.chars().take(240).collect();
+    if trimmed.chars().count() > preview.chars().count() {
+        format!("{preview}...")
+    } else {
+        preview
+    }
+}
+
+fn build_image_task_progress(phase: &str, message: String, percent: Option<u32>) -> TaskProgress {
+    TaskProgress {
+        phase: Some(phase.to_string()),
+        percent,
+        message: Some(message),
+        preview_slots: Vec::new(),
+    }
+}
+
+fn build_image_task_error(
+    code: &str,
+    message: impl Into<String>,
+    retryable: bool,
+    stage: &str,
+) -> TaskErrorRecord {
+    TaskErrorRecord {
+        code: code.to_string(),
+        message: message.into(),
+        retryable,
+        stage: Some(stage.to_string()),
+        provider_code: None,
+        occurred_at: Some(Utc::now().to_rfc3339()),
+    }
+}
+
+fn load_current_image_task(
+    workspace_root: &Path,
+    task_id: &str,
+) -> Result<MediaTaskOutput, MediaRuntimeError> {
+    load_task_output(workspace_root, task_id, None)
+}
+
+fn patch_image_task(
+    workspace_root: &Path,
+    task_id: &str,
+    patch: TaskArtifactPatch,
+) -> Result<MediaTaskOutput, MediaRuntimeError> {
+    patch_task_artifact(workspace_root, task_id, None, patch)
+}
+
+fn mark_image_task_failed<F>(
+    workspace_root: &Path,
+    task_id: &str,
+    error: TaskErrorRecord,
+    on_update: &mut F,
+) -> Result<MediaTaskOutput, MediaRuntimeError>
+where
+    F: FnMut(&MediaTaskOutput),
+{
+    let current = load_current_image_task(workspace_root, task_id)?;
+    if current.normalized_status == "cancelled" {
+        return Ok(current);
+    }
+
+    let output = patch_image_task(
+        workspace_root,
+        task_id,
+        TaskArtifactPatch {
+            status: Some("failed".to_string()),
+            last_error: Some(Some(error.clone())),
+            progress: Some(build_image_task_progress(
+                "failed",
+                error.message.clone(),
+                None,
+            )),
+            current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
+            ..TaskArtifactPatch::default()
+        },
+    )?;
+    on_update(&output);
+    Ok(output)
+}
+
+pub async fn execute_image_generation_task(
+    workspace_root: &Path,
+    task_id: &str,
+    runner_config: &ImageGenerationRunnerConfig,
+) -> Result<MediaTaskOutput, MediaRuntimeError> {
+    execute_image_generation_task_with_hook(workspace_root, task_id, runner_config, |_| {}).await
+}
+
+pub async fn execute_image_generation_task_with_hook<F>(
+    workspace_root: &Path,
+    task_id: &str,
+    runner_config: &ImageGenerationRunnerConfig,
+    mut on_update: F,
+) -> Result<MediaTaskOutput, MediaRuntimeError>
+where
+    F: FnMut(&MediaTaskOutput) + Send,
+{
+    let current = load_current_image_task(workspace_root, task_id)?;
+    if matches!(
+        current.normalized_status.as_str(),
+        "cancelled" | "failed" | "succeeded" | "partial"
+    ) {
+        return Ok(current);
+    }
+
+    let queued_output = if current.normalized_status == "pending" {
+        let output = patch_image_task(
+            workspace_root,
+            task_id,
+            TaskArtifactPatch {
+                status: Some("queued".to_string()),
+                progress: Some(build_image_task_progress(
+                    "queued",
+                    "图片任务已进入队列，等待图片服务响应。".to_string(),
+                    Some(0),
+                )),
+                current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
+                ..TaskArtifactPatch::default()
+            },
+        )?;
+        on_update(&output);
+        output
+    } else {
+        current
+    };
+
+    if queued_output.normalized_status == "cancelled" {
+        return Ok(queued_output);
+    }
+
+    let prepared_input = match prepare_image_task_input(&queued_output) {
+        Ok(prepared_input) => prepared_input,
+        Err(message) => {
+            let task_error =
+                build_image_task_error("invalid_image_task_payload", message, false, "payload");
+            return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
+        }
+    };
+
+    let running_output = patch_image_task(
+        workspace_root,
+        task_id,
+        TaskArtifactPatch {
+            status: Some("running".to_string()),
+            progress: Some(build_image_task_progress(
+                "running",
+                "图片生成中，结果会自动回填到对话与画布。".to_string(),
+                None,
+            )),
+            current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
+            ..TaskArtifactPatch::default()
+        },
+    )?;
+    on_update(&running_output);
+
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(IMAGE_TASK_RUNNER_TIMEOUT_SECS))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    let request_body = json!({
+        "prompt": prepared_input.prompt.clone(),
+        "model": prepared_input.model.clone(),
+        "n": prepared_input.count.max(1),
+        "size": prepared_input.size.clone(),
+        "response_format": "b64_json",
+        "quality": Value::Null,
+        "style": prepared_input.style.clone(),
+        "user": task_id,
+    });
+
+    let mut request_builder = client
+        .post(&runner_config.endpoint)
+        .header("Authorization", format!("Bearer {}", runner_config.api_key));
+    if let Some(provider_id) = prepared_input
+        .provider_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        request_builder = request_builder.header("X-Provider-Id", provider_id);
+    }
+
+    let response = match request_builder.json(&request_body).send().await {
+        Ok(response) => response,
+        Err(error) => {
+            let task_error = build_image_task_error(
+                "image_request_failed",
+                format!("调用图片服务失败: {error}"),
+                true,
+                "request",
+            );
+            return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
+        }
+    };
+
+    let status = response.status();
+    let response_body_raw = match response.text().await {
+        Ok(body) => body,
+        Err(error) => {
+            let task_error = build_image_task_error(
+                "image_response_read_failed",
+                format!("读取图片服务响应失败: {error}"),
+                false,
+                "response",
+            );
+            return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
+        }
+    };
+    let response_body: Value = match serde_json::from_str(&response_body_raw) {
+        Ok(body) => body,
+        Err(error) => {
+            let detail = summarize_response_body(&response_body_raw);
+            let task_error = build_image_task_error(
+                "image_response_parse_failed",
+                format!("解析图片服务响应失败: {error}；{detail}"),
+                false,
+                "response",
+            );
+            return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
+        }
+    };
+
+    if !status.is_success() {
+        let error_code = response_body
+            .get("error")
+            .and_then(|value| value.get("code"))
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("image_generation_failed");
+        let error_message = response_body
+            .get("error")
+            .and_then(|value| value.get("message"))
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("图片服务未返回可用结果");
+        let task_error = build_image_task_error(
+            error_code,
+            error_message,
+            status.is_server_error() || status.as_u16() == 429,
+            "request",
+        );
+        return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
+    }
+
+    let images = collect_generated_images(&response_body);
+    if images.is_empty() {
+        let task_error = build_image_task_error(
+            "image_result_empty",
+            "图片服务已返回成功，但没有可用的图片地址",
+            false,
+            "result",
+        );
+        return mark_image_task_failed(workspace_root, task_id, task_error, &mut on_update);
+    }
+
+    let latest = load_current_image_task(workspace_root, task_id)?;
+    if latest.normalized_status == "cancelled" {
+        return Ok(latest);
+    }
+
+    let final_status = if images.len() < prepared_input.count as usize {
+        "partial"
+    } else {
+        "succeeded"
+    };
+    let result_value = json!({
+        "provider_id": prepared_input.provider_id,
+        "model": if prepared_input.model.trim().is_empty() {
+            None::<String>
+        } else {
+            Some(prepared_input.model)
+        },
+        "size": prepared_input.size,
+        "requested_count": prepared_input.count,
+        "received_count": images.len(),
+        "images": images,
+        "response": response_body,
+    });
+    let success_message = if final_status == "partial" {
+        format!("图片任务已返回部分结果，共生成 {} 张。", images.len())
+    } else {
+        format!("图片任务已完成，共生成 {} 张。", images.len())
+    };
+    let completed = patch_image_task(
+        workspace_root,
+        task_id,
+        TaskArtifactPatch {
+            status: Some(final_status.to_string()),
+            result: Some(Some(result_value)),
+            last_error: Some(None),
+            progress: Some(build_image_task_progress(
+                final_status,
+                success_message,
+                Some(100),
+            )),
+            current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
+            ..TaskArtifactPatch::default()
+        },
+    )?;
+    on_update(&completed);
+    Ok(completed)
+}
+
 fn supports_idempotent_reuse(normalized_status: &str) -> bool {
     matches!(normalized_status, "pending" | "queued" | "running")
 }
@@ -1730,6 +2158,15 @@ pub fn parse_media_task_output(raw: &str) -> Option<MediaTaskOutput> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
+
+    use axum::{
+        extract::Json,
+        http::{HeaderMap, StatusCode},
+        routing::post,
+        Router,
+    };
+    use tokio::net::TcpListener;
 
     #[test]
     fn write_media_task_artifact_uses_default_task_root() {
@@ -2067,5 +2504,193 @@ mod tests {
             parsed.artifact_paths(),
             vec![".lime/tasks/image_generate/demo.json".to_string()]
         );
+    }
+
+    #[tokio::test]
+    async fn execute_image_generation_task_should_advance_task_file_to_succeeded() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let captured_provider_id = Arc::new(Mutex::new(None::<String>));
+        let captured_response_format = Arc::new(Mutex::new(None::<String>));
+        let created = write_task_artifact(
+            temp_dir.path(),
+            TaskType::ImageGenerate,
+            Some("青柠主视觉".to_string()),
+            json!({
+                "prompt": "未来感青柠实验室",
+                "size": "1024x1024",
+                "count": 1,
+                "style": "cinematic",
+                "provider_id": "fal",
+                "model": "fal-ai/nano-banana-pro",
+            }),
+            TaskWriteOptions::default(),
+        )
+        .expect("create task");
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind image api");
+        let address = listener.local_addr().expect("resolve address");
+        let captured_provider_id_for_server = Arc::clone(&captured_provider_id);
+        let captured_response_format_for_server = Arc::clone(&captured_response_format);
+        let server = tokio::spawn(async move {
+            let app = Router::new().route(
+                "/v1/images/generations",
+                post(move |headers: HeaderMap, Json(body): Json<Value>| {
+                    let captured_provider_id = Arc::clone(&captured_provider_id_for_server);
+                    let captured_response_format = Arc::clone(&captured_response_format_for_server);
+                    async move {
+                        let provider_id = headers
+                            .get("x-provider-id")
+                            .and_then(|value| value.to_str().ok())
+                            .map(|value| value.to_string());
+                        *captured_provider_id.lock().expect("lock provider id") = provider_id;
+                        let response_format = body
+                            .get("response_format")
+                            .and_then(Value::as_str)
+                            .map(|value| value.to_string());
+                        *captured_response_format
+                            .lock()
+                            .expect("lock response format") = response_format;
+                        (
+                            StatusCode::OK,
+                            Json(json!({
+                                "created": 1_717_200_000i64,
+                                "data": [
+                                    {
+                                        "b64_json": "ZmFrZS1saW1lLWltYWdl",
+                                        "revised_prompt": "未来感青柠实验室主视觉"
+                                    }
+                                ]
+                            })),
+                        )
+                    }
+                }),
+            );
+            axum::serve(listener, app).await.expect("serve image api");
+        });
+
+        let result = execute_image_generation_task(
+            temp_dir.path(),
+            &created.task_id,
+            &ImageGenerationRunnerConfig {
+                endpoint: format!("http://{address}/v1/images/generations"),
+                api_key: "test-key".to_string(),
+            },
+        )
+        .await
+        .expect("execute image task");
+
+        assert_eq!(result.normalized_status, "succeeded");
+        assert_eq!(
+            result
+                .record
+                .result
+                .as_ref()
+                .and_then(|value| value.get("images"))
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(
+            result
+                .record
+                .result
+                .as_ref()
+                .and_then(|value| value.get("images"))
+                .and_then(Value::as_array)
+                .and_then(|images| images.first())
+                .and_then(|value| value.get("url"))
+                .and_then(Value::as_str),
+            Some("data:image/png;base64,ZmFrZS1saW1lLWltYWdl")
+        );
+        assert_eq!(
+            result
+                .record
+                .attempts
+                .last()
+                .and_then(|attempt| attempt.worker_id.as_deref()),
+            Some(IMAGE_TASK_RUNNER_WORKER_ID)
+        );
+        assert_eq!(
+            captured_provider_id
+                .lock()
+                .expect("lock provider id")
+                .clone(),
+            Some("fal".to_string())
+        );
+        assert_eq!(
+            captured_response_format
+                .lock()
+                .expect("lock response format")
+                .clone(),
+            Some("b64_json".to_string())
+        );
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn execute_image_generation_task_should_mark_task_failed_when_service_rejects() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created = write_task_artifact(
+            temp_dir.path(),
+            TaskType::ImageGenerate,
+            Some("青柠主视觉".to_string()),
+            json!({
+                "prompt": "未来感青柠实验室",
+                "size": "1024x1024",
+                "count": 1,
+                "provider_id": "fal",
+                "model": "fal-ai/nano-banana-pro",
+            }),
+            TaskWriteOptions::default(),
+        )
+        .expect("create task");
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind image api");
+        let address = listener.local_addr().expect("resolve address");
+        let server = tokio::spawn(async move {
+            let app = Router::new().route(
+                "/v1/images/generations",
+                post(|| async move {
+                    (
+                        StatusCode::TOO_MANY_REQUESTS,
+                        Json(json!({
+                            "error": {
+                                "code": "rate_limited",
+                                "message": "图片服务限流，请稍后重试"
+                            }
+                        })),
+                    )
+                }),
+            );
+            axum::serve(listener, app).await.expect("serve image api");
+        });
+
+        let result = execute_image_generation_task(
+            temp_dir.path(),
+            &created.task_id,
+            &ImageGenerationRunnerConfig {
+                endpoint: format!("http://{address}/v1/images/generations"),
+                api_key: "test-key".to_string(),
+            },
+        )
+        .await
+        .expect("image task should settle to failed output");
+
+        assert_eq!(result.normalized_status, "failed");
+        assert_eq!(
+            result.last_error.as_ref().map(|value| value.code.as_str()),
+            Some("rate_limited")
+        );
+        assert_eq!(
+            result.last_error.as_ref().map(|value| value.retryable),
+            Some(true)
+        );
+
+        server.abort();
     }
 }

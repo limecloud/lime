@@ -5,6 +5,7 @@ use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use url::Url;
 
 const BUNDLED_ADAPTER_RELATIVE_DIR: &str = "resources/site-adapters/bundled";
 const IMPORTED_ADAPTER_RELATIVE_DIR: &str = "site-adapters/imported";
@@ -742,6 +743,9 @@ fn load_embedded_bundled_script(script_file: &str) -> Result<&'static str, Strin
         "scripts/yahoo-finance-quote.js" => Ok(include_str!(
             "../../resources/site-adapters/bundled/scripts/yahoo-finance-quote.js"
         )),
+        "scripts/x-article-export.js" => Ok(include_str!(
+            "../../resources/site-adapters/bundled/scripts/x-article-export.js"
+        )),
         "scripts/zhihu-hot.js" => Ok(include_str!(
             "../../resources/site-adapters/bundled/scripts/zhihu-hot.js"
         )),
@@ -885,6 +889,7 @@ fn render_entry_template(template: &str, args: &Map<String, Value>) -> Result<St
 fn build_entry_url_with_builder(id: &str, args: &Map<String, Value>) -> Result<String, String> {
     match id {
         "github_issues" => build_github_issues_url(args),
+        "x_article_export" => build_x_article_export_url(args),
         _ => Err(format!("不支持的入口构造器: {id}")),
     }
 }
@@ -914,6 +919,24 @@ fn build_github_issues_url(args: &Map<String, Value>) -> Result<String, String> 
             urlencoding::encode(&query_parts.join(" "))
         ))
     }
+}
+
+fn build_x_article_export_url(args: &Map<String, Value>) -> Result<String, String> {
+    let raw_url = get_required_string_arg(args, "url")?;
+    let parsed =
+        Url::parse(&raw_url).map_err(|error| format!("url 不是合法的站点链接: {error}"))?;
+    let hostname = parsed
+        .host_str()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .ok_or_else(|| "url 缺少域名".to_string())?;
+    if hostname != "x.com" && hostname != "www.x.com" && hostname != "twitter.com" {
+        return Err("url 必须指向 x.com 或 twitter.com".to_string());
+    }
+    if !parsed.path().contains("/article/") {
+        return Err("url 必须是 X 长文 article 链接".to_string());
+    }
+
+    Ok(parsed.to_string())
 }
 
 fn get_required_string_arg(args: &Map<String, Value>, key: &str) -> Result<String, String> {
@@ -1037,6 +1060,18 @@ mod tests {
                 if template == "https://search.smzdm.com/?c=home&s={{query|urlencode}}&v=b"
         ));
         assert!(smzdm.script.contains("li.feed-row-wide"));
+
+        let x_article = adapters
+            .iter()
+            .find(|adapter| adapter.name == "x/article-export")
+            .expect("x/article-export should exist");
+        assert_eq!(x_article.source_kind, SiteAdapterSourceKind::Bundled);
+        assert_eq!(x_article.source_version.as_deref(), Some("2026-04-07"));
+        assert!(matches!(
+            x_article.entry,
+            SiteAdapterEntrySpec::Builder { ref id } if id == "x_article_export"
+        ));
+        assert!(x_article.script.contains("markdown_bundle"));
     }
 
     #[test]
@@ -1112,6 +1147,35 @@ mod tests {
         assert_eq!(adapters[0].name, "github/search");
         assert_eq!(adapters[0].source_kind, SiteAdapterSourceKind::ServerSynced);
         assert_eq!(adapters[0].source_version.as_deref(), Some("sync-1"));
+    }
+
+    #[test]
+    fn should_build_x_article_export_url_with_builder() {
+        let mut args = Map::new();
+        args.insert(
+            "url".to_string(),
+            Value::String("https://x.com/GoogleCloudTech/article/2033953579824758855".to_string()),
+        );
+
+        let url = build_entry_url_with_builder("x_article_export", &args)
+            .expect("x article builder should accept article url");
+        assert_eq!(
+            url,
+            "https://x.com/GoogleCloudTech/article/2033953579824758855"
+        );
+    }
+
+    #[test]
+    fn should_reject_non_article_url_for_x_article_export_builder() {
+        let mut args = Map::new();
+        args.insert(
+            "url".to_string(),
+            Value::String("https://x.com/GoogleCloudTech/status/123".to_string()),
+        );
+
+        let error = build_entry_url_with_builder("x_article_export", &args)
+            .expect_err("non-article url should be rejected");
+        assert!(error.contains("article"));
     }
 
     #[test]

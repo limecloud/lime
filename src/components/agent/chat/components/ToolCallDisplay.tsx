@@ -260,11 +260,39 @@ function readFirstNonEmptyString(
   return undefined;
 }
 
+function readFirstFiniteNumber(
+  candidates: Array<Record<string, unknown> | null | undefined>,
+  keys: string[],
+): number | undefined {
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    for (const key of keys) {
+      const value = candidate[key];
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+      }
+      if (typeof value === "string" && value.trim()) {
+        const parsed = Number(value.trim());
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
 interface SiteToolResultSummary {
   savedContent?: {
     contentId?: string;
     projectId?: string;
     title?: string;
+    projectRootPath?: string;
+    bundleRelativeDir?: string;
+    markdownRelativePath?: string;
+    imagesRelativeDir?: string;
+    metaRelativePath?: string;
+    imageCount?: number;
   };
   savedProjectId?: string;
   savedBy?: string;
@@ -361,19 +389,43 @@ function normalizeSiteToolResultSummary(
   }
 
   return {
-    savedContent: hasSavedContent
-      ? {
-          contentId: readFirstNonEmptyString([savedContentRecord], [
-            "content_id",
-            "contentId",
+      savedContent: hasSavedContent
+        ? {
+            contentId: readFirstNonEmptyString([savedContentRecord], [
+              "content_id",
+              "contentId",
           ]),
           projectId: readFirstNonEmptyString([savedContentRecord], [
             "project_id",
             "projectId",
           ]),
-          title: readFirstNonEmptyString([savedContentRecord], ["title"]),
-        }
-      : undefined,
+            title: readFirstNonEmptyString([savedContentRecord], ["title"]),
+            projectRootPath: readFirstNonEmptyString([savedContentRecord], [
+              "project_root_path",
+              "projectRootPath",
+            ]),
+            bundleRelativeDir: readFirstNonEmptyString([savedContentRecord], [
+              "bundle_relative_dir",
+              "bundleRelativeDir",
+            ]),
+            markdownRelativePath: readFirstNonEmptyString([savedContentRecord], [
+              "markdown_relative_path",
+              "markdownRelativePath",
+            ]),
+            imagesRelativeDir: readFirstNonEmptyString([savedContentRecord], [
+              "images_relative_dir",
+              "imagesRelativeDir",
+            ]),
+            metaRelativePath: readFirstNonEmptyString([savedContentRecord], [
+              "meta_relative_path",
+              "metaRelativePath",
+            ]),
+            imageCount: readFirstFiniteNumber([savedContentRecord], [
+              "image_count",
+              "imageCount",
+            ]),
+          }
+        : undefined,
     savedProjectId,
     savedBy: readFirstNonEmptyString(candidates, ["saved_by", "savedBy"]),
     saveSkippedProjectId,
@@ -787,6 +839,33 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
         key: "site-save-success",
         text,
         tone: "success",
+      });
+    }
+
+    if (siteResultSummary.savedContent?.projectRootPath) {
+      notices.push({
+        key: "site-save-project-root",
+        text: `项目目录：${siteResultSummary.savedContent.projectRootPath}`,
+        tone: "neutral",
+      });
+    }
+
+    if (siteResultSummary.savedContent?.markdownRelativePath) {
+      notices.push({
+        key: "site-save-markdown-path",
+        text: `Markdown 文件：${siteResultSummary.savedContent.markdownRelativePath}`,
+        tone: "neutral",
+      });
+    }
+
+    if (typeof siteResultSummary.savedContent?.imageCount === "number") {
+      const imageDir = siteResultSummary.savedContent.imagesRelativeDir;
+      notices.push({
+        key: "site-save-images",
+        text: `图片资源：${siteResultSummary.savedContent.imageCount} 张${
+          imageDir ? ` · ${imageDir}` : ""
+        }`,
+        tone: "neutral",
       });
     }
 

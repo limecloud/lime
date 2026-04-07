@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
@@ -12,16 +12,18 @@
   },
   "homepage": "https://github.com/aiclientproxy/lime",
   "scripts": {
+    "generate:extension-site-adapters": "node scripts/generate-extension-site-adapter-runners.mjs",
+    "check:extension-site-adapters": "node scripts/generate-extension-site-adapter-runners.mjs --check",
     "heatmap:project": "node scripts/project-heatmap.mjs",
     "governance:graph": "node scripts/governance-graph.mjs",
-    "predev": "npm run verify:app-version && node scripts/ensure-dev-port.mjs",
+    "predev": "npm run generate:extension-site-adapters && npm run verify:app-version && node scripts/ensure-dev-port.mjs",
     "dev": "vite",
-    "build": "npm run verify:app-version && tsc && vite build",
+    "build": "npm run generate:extension-site-adapters && npm run verify:app-version && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "CARGO_TARGET_DIR=target tauri dev",
-    "tauri:dev:headless": "CARGO_TARGET_DIR=target tauri dev --config src-tauri/tauri.conf.headless.json",
-    "tauri:dev:nowatch": "CARGO_TARGET_DIR=target tauri dev --no-watch",
+    "tauri:dev": "npm run generate:extension-site-adapters && CARGO_TARGET_DIR=target tauri dev",
+    "tauri:dev:headless": "npm run generate:extension-site-adapters && CARGO_TARGET_DIR=target tauri dev --config src-tauri/tauri.conf.headless.json",
+    "tauri:dev:nowatch": "npm run generate:extension-site-adapters && CARGO_TARGET_DIR=target tauri dev --no-watch",
     "tauri:dev:profile:trace": "node scripts/run-tauri-profile.mjs trace",
     "tauri:dev:profile:trace:devtools": "node scripts/run-tauri-profile.mjs trace --open-devtools",
     "tauri:dev:profile:trace:headless": "node scripts/run-tauri-profile.mjs trace --headless",

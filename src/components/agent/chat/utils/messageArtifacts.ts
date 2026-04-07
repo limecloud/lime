@@ -5,7 +5,9 @@ import type {
   ArtifactType,
 } from "@/lib/artifact/types";
 import {
+  areArtifactProtocolPathsEquivalent,
   hasArtifactProtocolDocumentMetadata,
+  normalizeArtifactProtocolPath,
   resolveArtifactProtocolDocumentPayload,
   resolveArtifactProtocolFilePath,
   resolveArtifactProtocolPreviewText,
@@ -71,7 +73,7 @@ const ARTIFACT_TYPE_ALIASES: Record<string, ArtifactType> = {
 const ARTIFACT_PREVIEW_MAX_CHARS = 240;
 
 function normalizePath(path: string): string {
-  return path.replace(/\\/g, "/").trim();
+  return normalizeArtifactProtocolPath(path);
 }
 
 function fileNameFromPath(path: string): string {
@@ -193,7 +195,7 @@ export function findMessageArtifact(
     const artifactPath = normalizePath(
       resolveArtifactProtocolFilePath(artifact),
     );
-    return artifactPath === normalizedPath;
+    return areArtifactProtocolPathsEquivalent(artifactPath, normalizedPath);
   });
 }
 
@@ -422,9 +424,17 @@ export function upsertMessageArtifact(
   artifact: Artifact,
 ): Message {
   const currentArtifacts = message.artifacts || [];
-  const existingIndex = currentArtifacts.findIndex(
-    (item) => item.id === artifact.id,
-  );
+  const artifactPath = resolveArtifactProtocolFilePath(artifact);
+  const existingIndex = currentArtifacts.findIndex((item) => {
+    if (item.id === artifact.id) {
+      return true;
+    }
+
+    return areArtifactProtocolPathsEquivalent(
+      resolveArtifactProtocolFilePath(item),
+      artifactPath,
+    );
+  });
 
   if (existingIndex < 0) {
     return {
@@ -434,12 +444,20 @@ export function upsertMessageArtifact(
   }
 
   const nextArtifacts = [...currentArtifacts];
+  const existing = nextArtifacts[existingIndex];
+  const existingPath = resolveArtifactProtocolFilePath(existing);
+  const preferredPath =
+    normalizePath(artifactPath).length >= normalizePath(existingPath).length
+      ? artifactPath
+      : existingPath;
   nextArtifacts[existingIndex] = {
-    ...nextArtifacts[existingIndex],
+    ...existing,
     ...artifact,
     meta: {
-      ...nextArtifacts[existingIndex].meta,
+      ...existing.meta,
       ...artifact.meta,
+      filePath: preferredPath,
+      filename: fileNameFromPath(preferredPath),
     },
     updatedAt: artifact.updatedAt,
   };
@@ -484,27 +502,46 @@ export function updateMessageArtifactsStatus(
 }
 
 export function mergeArtifacts(artifacts: Artifact[]): Artifact[] {
-  const merged = new Map<string, Artifact>();
+  const merged: Artifact[] = [];
 
   for (const artifact of artifacts) {
-    const existing = merged.get(artifact.id);
-    if (!existing) {
-      merged.set(artifact.id, artifact);
+    const artifactPath = resolveArtifactProtocolFilePath(artifact);
+    const existingIndex = merged.findIndex((existingArtifact) => {
+      if (existingArtifact.id === artifact.id) {
+        return true;
+      }
+
+      return areArtifactProtocolPathsEquivalent(
+        resolveArtifactProtocolFilePath(existingArtifact),
+        artifactPath,
+      );
+    });
+
+    if (existingIndex < 0) {
+      merged.push(artifact);
       continue;
     }
 
-    merged.set(artifact.id, {
+    const existing = merged[existingIndex];
+    const existingPath = resolveArtifactProtocolFilePath(existing);
+    const preferredPath =
+      normalizePath(artifactPath).length >= normalizePath(existingPath).length
+        ? artifactPath
+        : existingPath;
+    merged[existingIndex] = {
       ...existing,
       ...artifact,
       meta: {
         ...existing.meta,
         ...artifact.meta,
+        filePath: preferredPath,
+        filename: fileNameFromPath(preferredPath),
       },
       updatedAt: Math.max(existing.updatedAt, artifact.updatedAt),
-    });
+    };
   }
 
-  return Array.from(merged.values()).sort((left, right) => {
+  return merged.sort((left, right) => {
     if (left.updatedAt !== right.updatedAt) {
       return left.updatedAt - right.updatedAt;
     }

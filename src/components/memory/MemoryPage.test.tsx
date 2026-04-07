@@ -168,19 +168,19 @@ describe("MemoryPage", () => {
     cleanupMountedRoots(mountedRoots);
   });
 
-  it("应把导航说明和首页说明收进 tips", async () => {
+  it("应把灵感库导航说明和总览说明收进 tips", async () => {
     renderPage();
     await flushPageEffects();
 
     expect(getBodyText()).not.toContain("按 / 搜索，按 1-6 切换视图。");
-    expect(getBodyText()).not.toContain("查看全部记忆并触发分析任务");
+    expect(getBodyText()).not.toContain("查看已沉淀的风格、参考、成果与偏好");
 
-    const navTip = await hoverTip("记忆导航说明");
+    const navTip = await hoverTip("灵感库导航说明");
     expect(getBodyText()).toContain("按 / 搜索，按 1-6 切换视图。");
     await leaveTip(navTip);
 
-    const heroTip = await hoverTip("记忆首页说明");
-    expect(getBodyText()).toContain("查看全部记忆并触发分析任务");
+    const heroTip = await hoverTip("灵感总览说明");
+    expect(getBodyText()).toContain("查看已沉淀的风格、参考、成果与偏好");
     await leaveTip(heroTip);
   });
 });

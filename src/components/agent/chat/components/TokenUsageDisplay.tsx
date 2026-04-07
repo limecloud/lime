@@ -10,11 +10,17 @@ import styled from "styled-components";
 import { Coins } from "lucide-react";
 import type { AgentTokenUsage as TokenUsage } from "@/lib/api/agentProtocol";
 
+const COMPACT_UNITS = [
+  { threshold: 1_000_000_000, suffix: "B" },
+  { threshold: 1_000_000, suffix: "M" },
+  { threshold: 1_000, suffix: "K" },
+] as const;
+
 const UsageContainer = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 5px;
+  padding: 3px 8px;
   border-radius: 6px;
   background-color: hsl(var(--muted) / 0.5);
   font-size: 11px;
@@ -25,7 +31,7 @@ const UsageContainer = styled.div`
 const UsageIcon = styled(Coins)`
   width: 12px;
   height: 12px;
-  opacity: 0.7;
+  opacity: 0.55;
 `;
 
 const UsageText = styled.span`
@@ -34,13 +40,24 @@ const UsageText = styled.span`
     "Courier New", monospace;
 `;
 
-const Separator = styled.span`
-  opacity: 0.5;
-`;
-
 interface TokenUsageDisplayProps {
   usage: TokenUsage;
   className?: string;
+}
+
+function formatCompactTokenCount(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+
+  const normalized = Math.max(0, value);
+  for (const unit of COMPACT_UNITS) {
+    if (normalized >= unit.threshold) {
+      return `${(normalized / unit.threshold).toFixed(1)}${unit.suffix}`;
+    }
+  }
+
+  return normalized.toLocaleString();
 }
 
 /**
@@ -57,11 +74,7 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   return (
     <UsageContainer className={className}>
       <UsageIcon />
-      <UsageText>{usage.input_tokens.toLocaleString()} in</UsageText>
-      <Separator>/</Separator>
-      <UsageText>{usage.output_tokens.toLocaleString()} out</UsageText>
-      <Separator>·</Separator>
-      <UsageText>{total.toLocaleString()} total</UsageText>
+      <UsageText>{formatCompactTokenCount(total)} tokens</UsageText>
     </UsageContainer>
   );
 };

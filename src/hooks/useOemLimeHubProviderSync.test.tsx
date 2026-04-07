@@ -28,6 +28,10 @@ vi.mock("@/lib/api/oemCloudControlPlane", () => ({
   listClientProviderOfferModels: controlPlaneMocks.listClientProviderOfferModels,
 }));
 
+vi.mock("@/lib/tauri-runtime", () => ({
+  hasTauriInvokeCapability: () => true,
+}));
+
 import { useOemLimeHubProviderSync } from "./useOemLimeHubProviderSync";
 
 interface MountedHarness {

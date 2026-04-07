@@ -14,6 +14,7 @@ import {
 import { getImageModelsForProvider } from "@/lib/imageGeneration";
 import { isDebugFlagEnabled } from "@/lib/perfDebug";
 import { setStoredResourceProjectId } from "@/lib/resourceProjectSelection";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import type {
   GeneratedImage,
   ImageGenRequest,
@@ -60,6 +61,8 @@ interface UseImageGenOptions {
   preferredProviderId?: string;
   preferredModelId?: string;
   allowFallback?: boolean;
+  providerLoadMode?: "immediate" | "deferred";
+  providerDeferredDelayMs?: number;
 }
 
 const IMAGE_REQUEST_TIMEOUT_MS = 180_000;
@@ -70,6 +73,7 @@ const FAL_QUEUE_TIMEOUT_MS = 180_000;
 const IMAGE_GEN_MATERIAL_TAG = "image-gen";
 const IMAGE_MATERIAL_NAME_MAX_LENGTH = 48;
 export const IMAGE_GENERATION_CANCELED_MESSAGE = "已停止当前图片任务";
+const IMAGE_GEN_PROVIDER_IDLE_TIMEOUT_MS = 1_500;
 
 function imageGenDebugLog(...args: unknown[]): void {
   if (!isDebugFlagEnabled(PROVIDER_DEBUG_KEY)) {
@@ -2030,7 +2034,15 @@ function isFalProviderLike(provider: {
 }
 
 export function useImageGen(options: UseImageGenOptions = {}) {
-  const { providers, loading: providersLoading } = useApiKeyProvider();
+  const providerLoadMode = options.providerLoadMode ?? "immediate";
+  const providerDeferredDelayMs =
+    options.providerDeferredDelayMs ?? IMAGE_GEN_PROVIDER_IDLE_TIMEOUT_MS;
+  const [providerLoadReady, setProviderLoadReady] = useState(
+    providerLoadMode !== "deferred",
+  );
+  const { providers, loading: providersLoading } = useApiKeyProvider({
+    autoLoad: providerLoadReady,
+  });
   const preferredProviderId = options.preferredProviderId?.trim() || "";
   const preferredModelId = options.preferredModelId?.trim() || "";
   const allowFallback = options.allowFallback ?? true;
@@ -2048,6 +2060,27 @@ export function useImageGen(options: UseImageGenOptions = {}) {
   const syncedPreferredProviderIdRef = useRef("");
   const syncedPreferredModelIdRef = useRef("");
   const hasManualProviderSelectionRef = useRef(false);
+
+  useEffect(() => {
+    if (providerLoadMode !== "deferred") {
+      setProviderLoadReady(true);
+      return;
+    }
+
+    if (providerLoadReady) {
+      return;
+    }
+
+    return scheduleMinimumDelayIdleTask(
+      () => {
+        setProviderLoadReady(true);
+      },
+      {
+        minimumDelayMs: providerDeferredDelayMs,
+        idleTimeoutMs: IMAGE_GEN_PROVIDER_IDLE_TIMEOUT_MS,
+      },
+    );
+  }, [providerDeferredDelayMs, providerLoadMode, providerLoadReady]);
 
   // 过滤出支持图片生成、启用且有 API Key 的 Provider
   const availableProviders = useMemo(() => {

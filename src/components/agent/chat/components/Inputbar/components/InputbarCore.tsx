@@ -112,6 +112,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   const isFloatingVariant = visualVariant === "floating";
   const {
     dictationEnabled,
+    voiceConfigLoaded,
     dictationState,
     isDictating,
     isDictationBusy,
@@ -176,7 +177,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       : "语音识别中"
     : isDictating
       ? "停止语音输入"
-      : dictationEnabled
+      : dictationEnabled || !voiceConfigLoaded
         ? "开始语音输入"
         : "语音输入未启用";
 
@@ -247,11 +248,11 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       isFullscreen={isFullscreen}
       fillHeightWhenFullscreen
       hasAdditionalContent={pendingImages.length > 0}
-      maxAutoHeight={isTextareaExpanded ? 320 : isFloatingVariant ? 160 : 120}
+      maxAutoHeight={isTextareaExpanded ? 360 : isFloatingVariant ? 240 : 120}
       textareaRef={resolvedTextareaRef}
       onEscape={() => onToolClick("fullscreen")}
       allowSendWhileLoading
-      rows={isTextareaExpanded ? 6 : 1}
+      rows={isTextareaExpanded ? 7 : isFloatingVariant ? 3 : 1}
       placeholder={
         placeholder ||
         (isFullscreen

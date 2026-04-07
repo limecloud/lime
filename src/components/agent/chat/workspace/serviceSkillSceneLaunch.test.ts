@@ -9,7 +9,10 @@ import {
 
 const mockGetSkillCatalog = vi.hoisted(() => vi.fn());
 const mockListSkillCatalogSceneEntries = vi.hoisted(() => vi.fn());
+const mockListServiceSkills = vi.hoisted(() => vi.fn());
+const mockGetOrCreateDefaultProject = vi.hoisted(() => vi.fn());
 const mockResolveOemCloudRuntimeContext = vi.hoisted(() => vi.fn());
+const mockSiteGetAdapterLaunchReadiness = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/skillCatalog", () => ({
   getSkillCatalog: () => mockGetSkillCatalog(),
@@ -17,8 +20,21 @@ vi.mock("@/lib/api/skillCatalog", () => ({
     mockListSkillCatalogSceneEntries(catalog),
 }));
 
+vi.mock("@/lib/api/serviceSkills", () => ({
+  listServiceSkills: () => mockListServiceSkills(),
+}));
+
+vi.mock("@/lib/api/project", () => ({
+  getOrCreateDefaultProject: () => mockGetOrCreateDefaultProject(),
+}));
+
 vi.mock("@/lib/api/oemCloudRuntime", () => ({
   resolveOemCloudRuntimeContext: () => mockResolveOemCloudRuntimeContext(),
+}));
+
+vi.mock("@/lib/webview-api", () => ({
+  siteGetAdapterLaunchReadiness: (...args: unknown[]) =>
+    mockSiteGetAdapterLaunchReadiness(...args),
 }));
 
 function createCloudSceneSkill(): ServiceSkillHomeItem {
@@ -46,20 +62,85 @@ function createCloudSceneSkill(): ServiceSkillHomeItem {
   };
 }
 
+function createXArticleExportSkill(): ServiceSkillHomeItem {
+  return {
+    id: "x-article-export",
+    skillKey: "x-article-export",
+    title: "X 文章转存",
+    summary: "复用 X 登录态把长文导出成 Markdown 和图片目录。",
+    category: "站点采集",
+    outputHint: "Markdown 正文 + 图片目录",
+    source: "local_custom",
+    runnerType: "instant",
+    defaultExecutorBinding: "browser_assist",
+    executionLocation: "client_default",
+    version: "seed-v1",
+    badge: "本地技能",
+    recentUsedAt: null,
+    isRecent: false,
+    runnerLabel: "浏览器站点执行",
+    runnerTone: "emerald",
+    runnerDescription: "直接复用浏览器登录态执行。",
+    actionLabel: "启动采集",
+    automationStatus: null,
+    slotSchema: [
+      {
+        key: "article_url",
+        label: "X 文章链接",
+        type: "url",
+        required: true,
+        placeholder: "https://x.com/<账号>/article/<文章ID>",
+      },
+    ],
+    readinessRequirements: {
+      requiresBrowser: true,
+      requiresProject: true,
+    },
+    siteCapabilityBinding: {
+      adapterName: "x/article-export",
+      autoRun: true,
+      requireAttachedSession: true,
+      saveMode: "project_resource",
+      slotArgMap: {
+        article_url: "url",
+      },
+    },
+    sceneBinding: {
+      sceneKey: "x-article-export",
+      commandPrefix: "/x文章转存",
+      title: "X文章转存",
+      summary: "把 X 长文导出成 Markdown。",
+      aliases: ["x文章转存", "x转存"],
+    },
+  };
+}
+
 describe("serviceSkillSceneLaunch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSkillCatalog.mockResolvedValue({ entries: [] });
     mockListSkillCatalogSceneEntries.mockReturnValue([]);
+    mockListServiceSkills.mockResolvedValue([]);
+    mockGetOrCreateDefaultProject.mockResolvedValue({
+      id: "project-default",
+    });
     mockResolveOemCloudRuntimeContext.mockReturnValue(null);
+    mockSiteGetAdapterLaunchReadiness.mockResolvedValue(null);
   });
 
   it("应解析 slash scene 命令", () => {
-    expect(parseRuntimeSceneCommand("/campaign-launch 帮我做一版新品活动方案"))
-      .toEqual({
-        sceneKey: "campaign-launch",
-        userInput: "帮我做一版新品活动方案",
-      });
+    expect(
+      parseRuntimeSceneCommand("/campaign-launch 帮我做一版新品活动方案"),
+    ).toEqual({
+      sceneKey: "campaign-launch",
+      userInput: "帮我做一版新品活动方案",
+    });
+    expect(
+      parseRuntimeSceneCommand("/x文章转存 https://x.com/a/article/1"),
+    ).toEqual({
+      sceneKey: "x文章转存",
+      userInput: "https://x.com/a/article/1",
+    });
     expect(parseRuntimeSceneCommand("campaign-launch")).toBeNull();
   });
 
@@ -70,8 +151,12 @@ describe("serviceSkillSceneLaunch", () => {
       aliases: ["campaign", "launch"],
     };
 
-    expect(matchesRuntimeSceneEntry(entry as never, "campaign-launch")).toBe(true);
-    expect(matchesRuntimeSceneEntry(entry as never, "/campaign-launch")).toBe(true);
+    expect(matchesRuntimeSceneEntry(entry as never, "campaign-launch")).toBe(
+      true,
+    );
+    expect(matchesRuntimeSceneEntry(entry as never, "/campaign-launch")).toBe(
+      true,
+    );
     expect(matchesRuntimeSceneEntry(entry as never, "campaign")).toBe(true);
     expect(matchesRuntimeSceneEntry(entry as never, "other")).toBe(false);
   });
@@ -135,6 +220,154 @@ describe("serviceSkillSceneLaunch", () => {
           },
         },
       },
+    });
+  });
+
+  it("site skill scene 应根据 skill 声明注入 service_skill_launch metadata", async () => {
+    mockGetSkillCatalog.mockResolvedValueOnce({ entries: [] });
+    mockListSkillCatalogSceneEntries.mockReturnValueOnce([
+      {
+        id: "scene:x-article-export",
+        kind: "scene",
+        title: "X文章转存",
+        summary: "把 X 长文导出成 Markdown。",
+        sceneKey: "x-article-export",
+        commandPrefix: "/x文章转存",
+        aliases: ["x文章转存", "x转存"],
+        linkedSkillId: "x-article-export",
+        executionKind: "site_adapter",
+      },
+    ]);
+    mockSiteGetAdapterLaunchReadiness.mockResolvedValueOnce({
+      status: "ready",
+      domain: "x.com",
+      profile_key: "existing-session-x",
+      target_id: "target-x-article",
+      message: "已复用当前附着的 X 会话",
+      report_hint: "将自动打开目标文章页。",
+    });
+
+    const request = await resolveRuntimeSceneLaunchRequest({
+      rawText:
+        "/x文章转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
+      serviceSkills: [createXArticleExportSkill()],
+      projectId: "project-1",
+      contentId: "content-1",
+    });
+
+    expect(request).not.toBeNull();
+    const requestMetadata = buildServiceSceneLaunchRequestMetadata(
+      {
+        harness: {
+          chat_mode: "general",
+        },
+      },
+      request!.requestContext,
+    );
+
+    expect(requestMetadata).toMatchObject({
+      harness: {
+        chat_mode: "general",
+        browser_requirement: "required",
+        browser_assist: {
+          enabled: true,
+          profile_key: "existing-session-x",
+          preferred_backend: "lime_extension_bridge",
+          auto_launch: false,
+          stream_mode: "both",
+        },
+        service_skill_launch: {
+          kind: "site_adapter",
+          skill_id: "x-article-export",
+          adapter_name: "x/article-export",
+          save_mode: "project_resource",
+          project_id: "project-1",
+          content_id: undefined,
+          args: {
+            url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
+          },
+          launch_readiness: {
+            status: "ready",
+            profile_key: "existing-session-x",
+            target_id: "target-x-article",
+            domain: "x.com",
+            message: "已复用当前附着的 X 会话",
+            report_hint: "将自动打开目标文章页。",
+          },
+        },
+      },
+    });
+  });
+
+  it("site skill scene 缺少当前项目时应回退默认项目", async () => {
+    mockGetSkillCatalog.mockResolvedValueOnce({ entries: [] });
+    mockListSkillCatalogSceneEntries.mockReturnValueOnce([
+      {
+        id: "scene:x-article-export",
+        kind: "scene",
+        title: "X文章转存",
+        summary: "把 X 长文导出成 Markdown。",
+        sceneKey: "x-article-export",
+        commandPrefix: "/x文章转存",
+        aliases: ["x文章转存", "x转存"],
+        linkedSkillId: "x-article-export",
+        executionKind: "site_adapter",
+      },
+    ]);
+
+    const request = await resolveRuntimeSceneLaunchRequest({
+      rawText:
+        "/x文章转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
+      serviceSkills: [createXArticleExportSkill()],
+      projectId: null,
+      contentId: null,
+    });
+
+    expect(mockGetOrCreateDefaultProject).toHaveBeenCalledTimes(1);
+    expect(request).not.toBeNull();
+    const requestMetadata = buildServiceSceneLaunchRequestMetadata(
+      undefined,
+      request!.requestContext,
+    );
+
+    expect(requestMetadata).toMatchObject({
+      harness: {
+        service_skill_launch: {
+          project_id: "project-default",
+          adapter_name: "x/article-export",
+        },
+      },
+    });
+  });
+
+  it("当前首页列表未暴露 scene 绑定 skill 时，应回退完整技能目录解析", async () => {
+    mockGetSkillCatalog.mockResolvedValueOnce({ entries: [] });
+    mockListSkillCatalogSceneEntries.mockReturnValueOnce([
+      {
+        id: "scene:x-article-export",
+        kind: "scene",
+        title: "X文章转存",
+        summary: "把 X 长文导出成 Markdown。",
+        sceneKey: "x-article-export",
+        commandPrefix: "/x文章转存",
+        linkedSkillId: "x-article-export",
+        executionKind: "site_adapter",
+      },
+    ]);
+    mockListServiceSkills.mockResolvedValueOnce([createXArticleExportSkill()]);
+
+    const request = await resolveRuntimeSceneLaunchRequest({
+      rawText:
+        "/x文章转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
+      serviceSkills: [],
+      projectId: "project-1",
+    });
+
+    expect(request?.skill.id).toBe("x-article-export");
+    expect(request?.requestContext).toMatchObject({
+      kind: "site_adapter",
+      adapterName: "x/article-export",
+      projectId: "project-1",
     });
   });
 });

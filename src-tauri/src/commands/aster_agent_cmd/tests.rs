@@ -762,6 +762,1891 @@ mod tests {
     }
 
     #[test]
+    fn test_append_image_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "image_skill_launch": {
+                    "kind": "image_task",
+                    "skill_name": "image_generate",
+                    "image_task": {
+                        "prompt": "生成一张夏日青柠汽水插图"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_image_skill_launch_session_permissions(
+            &mut permissions,
+            "session-image-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1240);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-image-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_image_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "image_skill_launch": {
+                    "kind": "image_task",
+                    "skill_name": "image_generate",
+                    "image_task": {
+                        "prompt": "生成一张夏日青柠汽水插图"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_image_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_cover_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "cover_skill_launch": {
+                    "kind": "cover_task",
+                    "skill_name": "cover_generate",
+                    "cover_task": {
+                        "prompt": "生成一张夏日青柠新品封面"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_cover_skill_launch_session_permissions(
+            &mut permissions,
+            "session-cover-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1238);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-cover-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_cover_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "cover_skill_launch": {
+                    "kind": "cover_task",
+                    "skill_name": "cover_generate",
+                    "cover_task": {
+                        "prompt": "生成一张夏日青柠新品封面"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_cover_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_video_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "video_skill_launch": {
+                    "kind": "video_task",
+                    "skill_name": "video_generate",
+                    "video_task": {
+                        "prompt": "生成一条夏日青柠新品短视频"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_video_skill_launch_session_permissions(
+            &mut permissions,
+            "session-video-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1237);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-video-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_video_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "video_skill_launch": {
+                    "kind": "video_task",
+                    "skill_name": "video_generate",
+                    "video_task": {
+                        "prompt": "生成一条夏日青柠新品短视频"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_video_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_broadcast_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "broadcast_skill_launch": {
+                    "kind": "broadcast_task",
+                    "skill_name": "broadcast_generate",
+                    "broadcast_task": {
+                        "prompt": "把新品发布稿整理成适合口播的文案"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_broadcast_skill_launch_session_permissions(
+            &mut permissions,
+            "session-broadcast-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1236);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-broadcast-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_broadcast_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools()
+    {
+        let metadata = serde_json::json!({
+            "harness": {
+                "broadcast_skill_launch": {
+                    "kind": "broadcast_task",
+                    "skill_name": "broadcast_generate",
+                    "broadcast_task": {
+                        "prompt": "把新品发布稿整理成适合口播的文案"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_broadcast_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_resource_search_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "resource_search_skill_launch": {
+                    "kind": "resource_search_task",
+                    "skill_name": "modal_resource_search",
+                    "resource_search_task": {
+                        "resource_type": "image",
+                        "query": "咖啡馆木桌背景"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_resource_search_skill_launch_session_permissions(
+            &mut permissions,
+            "session-resource-search-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1235);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-resource-search-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_resource_search_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools(
+    ) {
+        let metadata = serde_json::json!({
+            "harness": {
+                "resource_search_skill_launch": {
+                    "kind": "resource_search_task",
+                    "skill_name": "modal_resource_search",
+                    "resource_search_task": {
+                        "resource_type": "image",
+                        "query": "咖啡馆木桌背景"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_resource_search_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_research_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "research_skill_launch": {
+                    "kind": "research_request",
+                    "skill_name": "research",
+                    "research_request": {
+                        "query": "AI Agent 融资"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_research_skill_launch_session_permissions(
+            &mut permissions,
+            "session-research-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1234);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-research-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_research_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools()
+    {
+        let metadata = serde_json::json!({
+            "harness": {
+                "research_skill_launch": {
+                    "kind": "research_request",
+                    "skill_name": "research",
+                    "research_request": {
+                        "query": "AI Agent 融资"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_research_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(registry.contains("WebSearch"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_deep_search_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "deep_search_skill_launch": {
+                    "kind": "deep_search_request",
+                    "skill_name": "research",
+                    "deep_search_request": {
+                        "query": "AI Agent 融资"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_deep_search_skill_launch_session_permissions(
+            &mut permissions,
+            "session-deep-search-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1233);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-deep-search-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_deep_search_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools(
+    ) {
+        let metadata = serde_json::json!({
+            "harness": {
+                "deep_search_skill_launch": {
+                    "kind": "deep_search_request",
+                    "skill_name": "research",
+                    "deep_search_request": {
+                        "query": "AI Agent 融资"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_deep_search_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(registry.contains("WebSearch"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_report_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "report_skill_launch": {
+                    "kind": "report_request",
+                    "skill_name": "report_generate",
+                    "report_request": {
+                        "query": "AI Agent 融资"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_report_skill_launch_session_permissions(
+            &mut permissions,
+            "session-report-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1232);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-report-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_report_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "report_skill_launch": {
+                    "kind": "report_request",
+                    "skill_name": "report_generate",
+                    "report_request": {
+                        "query": "AI Agent 融资"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_report_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(registry.contains("WebSearch"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_site_search_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "site_search_skill_launch": {
+                    "kind": "site_search_request",
+                    "skill_name": "site_search",
+                    "site_search_request": {
+                        "site": "GitHub",
+                        "query": "openai agents sdk issue"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_site_search_skill_launch_session_permissions(
+            &mut permissions,
+            "session-site-search-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1231);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-site-search-skill-1")
+        );
+
+        let browser_deny_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == "mcp__lime-browser__*")
+            .expect("should add browser compat deny rule");
+        assert!(!browser_deny_rule.allowed);
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_site_search_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools(
+    ) {
+        let metadata = serde_json::json!({
+            "harness": {
+                "site_search_skill_launch": {
+                    "kind": "site_search_request",
+                    "skill_name": "site_search",
+                    "site_search_request": {
+                        "site": "GitHub",
+                        "query": "openai agents sdk issue"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "lime_site_run",
+            "Run site adapter",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_site_search_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(registry.contains("lime_site_run"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_pdf_read_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "pdf_read_skill_launch": {
+                    "kind": "pdf_read_request",
+                    "skill_name": "pdf_read",
+                    "pdf_read_request": {
+                        "source_path": "/tmp/agent-report.pdf"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_pdf_read_skill_launch_session_permissions(
+            &mut permissions,
+            "session-pdf-read-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1230);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-pdf-read-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+        assert!(!permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(!permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_pdf_read_skill_launch_detour_tools_from_registry_keeps_read_and_glob_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "pdf_read_skill_launch": {
+                    "kind": "pdf_read_request",
+                    "skill_name": "pdf_read",
+                    "pdf_read_request": {
+                        "source_path": "/tmp/agent-report.pdf"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Grep",
+            "Grep file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_pdf_read_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Grep"));
+        assert!(registry.contains("Read"));
+        assert!(registry.contains("Glob"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_summary_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "summary_skill_launch": {
+                    "kind": "summary_request",
+                    "skill_name": "summary",
+                    "summary_request": {
+                        "prompt": "请总结这篇长文的三点要点",
+                        "content": "这是一篇关于 AI Agent 融资的长文"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_summary_skill_launch_session_permissions(
+            &mut permissions,
+            "session-summary-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1229);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-summary-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+        assert!(!permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(!permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_summary_skill_launch_detour_tools_from_registry_keeps_read_and_glob_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "summary_skill_launch": {
+                    "kind": "summary_request",
+                    "skill_name": "summary",
+                    "summary_request": {
+                        "prompt": "请总结这篇长文的三点要点",
+                        "content": "这是一篇关于 AI Agent 融资的长文"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Grep",
+            "Grep file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_summary_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Grep"));
+        assert!(registry.contains("Read"));
+        assert!(registry.contains("Glob"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_translation_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "translation_skill_launch": {
+                    "kind": "translation_request",
+                    "skill_name": "translation",
+                    "translation_request": {
+                        "prompt": "将 hello world 翻译成中文",
+                        "content": "hello world"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_translation_skill_launch_session_permissions(
+            &mut permissions,
+            "session-translation-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1228);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-translation-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+        assert!(!permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(!permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_translation_skill_launch_detour_tools_from_registry_keeps_read_and_glob_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "translation_skill_launch": {
+                    "kind": "translation_request",
+                    "skill_name": "translation",
+                    "translation_request": {
+                        "prompt": "将 hello world 翻译成中文",
+                        "content": "hello world"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Grep",
+            "Grep file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_translation_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Grep"));
+        assert!(registry.contains("Read"));
+        assert!(registry.contains("Glob"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_analysis_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "analysis_skill_launch": {
+                    "kind": "analysis_request",
+                    "skill_name": "analysis",
+                    "analysis_request": {
+                        "prompt": "判断 OpenAI 新模型发布的商业影响",
+                        "content": "OpenAI 发布新模型"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_analysis_skill_launch_session_permissions(
+            &mut permissions,
+            "session-analysis-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1227);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-analysis-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+        assert!(!permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(!permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_analysis_skill_launch_detour_tools_from_registry_keeps_read_and_glob_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "analysis_skill_launch": {
+                    "kind": "analysis_request",
+                    "skill_name": "analysis",
+                    "analysis_request": {
+                        "prompt": "判断 OpenAI 新模型发布的商业影响",
+                        "content": "OpenAI 发布新模型"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Grep",
+            "Grep file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_analysis_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Grep"));
+        assert!(registry.contains("Read"));
+        assert!(registry.contains("Glob"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_transcription_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "transcription_skill_launch": {
+                    "kind": "transcription_task",
+                    "skill_name": "transcription_generate",
+                    "transcription_task": {
+                        "prompt": "生成逐字稿",
+                        "source_url": "https://example.com/interview.mp4"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_transcription_skill_launch_session_permissions(
+            &mut permissions,
+            "session-transcription-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1226);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-transcription-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_transcription_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools(
+    ) {
+        let metadata = serde_json::json!({
+            "harness": {
+                "transcription_skill_launch": {
+                    "kind": "transcription_task",
+                    "skill_name": "transcription_generate",
+                    "transcription_task": {
+                        "prompt": "生成逐字稿",
+                        "source_url": "https://example.com/interview.mp4"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Grep",
+            "Grep file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_transcription_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(!registry.contains("Grep"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_url_parse_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "url_parse_skill_launch": {
+                    "kind": "url_parse_task",
+                    "skill_name": "url_parse",
+                    "url_parse_task": {
+                        "prompt": "提取要点并整理成投资人可读摘要",
+                        "url": "https://example.com/agent"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_url_parse_skill_launch_session_permissions(
+            &mut permissions,
+            "session-url-parse-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1225);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-url-parse-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_url_parse_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools(
+    ) {
+        let metadata = serde_json::json!({
+            "harness": {
+                "url_parse_skill_launch": {
+                    "kind": "url_parse_task",
+                    "skill_name": "url_parse",
+                    "url_parse_task": {
+                        "prompt": "提取要点并整理成投资人可读摘要",
+                        "url": "https://example.com/agent"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Grep",
+            "Grep file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_url_parse_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(!registry.contains("Grep"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_typesetting_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "typesetting_skill_launch": {
+                    "kind": "typesetting_task",
+                    "skill_name": "typesetting",
+                    "typesetting_task": {
+                        "prompt": "整理成更适合小红书阅读的短句节奏",
+                        "content": "这是一段待排版正文",
+                        "target_platform": "小红书"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_typesetting_skill_launch_session_permissions(
+            &mut permissions,
+            "session-typesetting-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1224);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-typesetting-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_typesetting_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools(
+    ) {
+        let metadata = serde_json::json!({
+            "harness": {
+                "typesetting_skill_launch": {
+                    "kind": "typesetting_task",
+                    "skill_name": "typesetting",
+                    "typesetting_task": {
+                        "prompt": "整理成更适合小红书阅读的短句节奏",
+                        "content": "这是一段待排版正文",
+                        "target_platform": "小红书"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Grep",
+            "Grep file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_typesetting_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(!registry.contains("Grep"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_presentation_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "presentation_skill_launch": {
+                    "kind": "presentation_request",
+                    "skill_name": "presentation_generate",
+                    "presentation_request": {
+                        "prompt": "帮我做一个 AI 助手创业项目融资演示稿",
+                        "content": "类型:路演PPT 风格:极简科技 受众:投资人 页数:10",
+                        "deck_type": "pitch_deck",
+                        "style": "极简科技",
+                        "audience": "投资人",
+                        "slide_count": 10
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_presentation_skill_launch_session_permissions(
+            &mut permissions,
+            "session-presentation-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1224);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-presentation-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_presentation_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools(
+    ) {
+        let metadata = serde_json::json!({
+            "harness": {
+                "presentation_skill_launch": {
+                    "kind": "presentation_request",
+                    "skill_name": "presentation_generate",
+                    "presentation_request": {
+                        "prompt": "帮我做一个 AI 助手创业项目融资演示稿",
+                        "deck_type": "pitch_deck"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Grep",
+            "Grep file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_presentation_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(!registry.contains("Grep"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_form_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "form_skill_launch": {
+                    "kind": "form_request",
+                    "skill_name": "form_generate",
+                    "form_request": {
+                        "prompt": "帮我做一个 AI Workshop 报名表",
+                        "content": "类型:报名表单 风格:简洁专业 受众:活动嘉宾 字段数:8",
+                        "form_type": "registration_form",
+                        "style": "简洁专业",
+                        "audience": "活动嘉宾",
+                        "field_count": 8
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_form_skill_launch_session_permissions(
+            &mut permissions,
+            "session-form-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1225);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-form-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_form_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "form_skill_launch": {
+                    "kind": "form_request",
+                    "skill_name": "form_generate",
+                    "form_request": {
+                        "prompt": "帮我做一个用户调研问卷"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Grep",
+            "Grep file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_form_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(!registry.contains("Grep"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
+    fn test_append_webpage_skill_launch_session_permissions_blocks_detour_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "webpage_skill_launch": {
+                    "kind": "webpage_request",
+                    "skill_name": "webpage_generate",
+                    "webpage_request": {
+                        "prompt": "帮我做一个 AI 代码助手官网",
+                        "content": "类型:落地页 风格:未来感",
+                        "page_type": "landing_page",
+                        "style": "未来感",
+                        "tech_stack": "原生 HTML"
+                    }
+                }
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_webpage_skill_launch_session_permissions(
+            &mut permissions,
+            "session-webpage-skill-1",
+            Some(&metadata),
+        );
+
+        let tool_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == TOOL_SEARCH_TOOL_NAME)
+            .expect("should add ToolSearch deny rule");
+        assert!(!tool_search_rule.allowed);
+        assert_eq!(tool_search_rule.priority, 1223);
+        assert_eq!(tool_search_rule.conditions.len(), 1);
+        assert_eq!(
+            tool_search_rule.conditions[0].value,
+            serde_json::json!("session-webpage-skill-1")
+        );
+
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebSearch" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Read" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Glob" && !permission.allowed));
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "Grep" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_prune_webpage_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "webpage_skill_launch": {
+                    "kind": "webpage_request",
+                    "skill_name": "webpage_generate",
+                    "webpage_request": {
+                        "prompt": "帮我做一个 AI 代码助手官网",
+                        "page_type": "landing_page"
+                    }
+                }
+            }
+        });
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            TOOL_SEARCH_TOOL_NAME,
+            "Search tools",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Glob",
+            "Glob file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Grep",
+            "Grep file",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Skill",
+            "Run skill",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_webpage_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+
+        assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("Read"));
+        assert!(!registry.contains("Glob"));
+        assert!(!registry.contains("Grep"));
+        assert!(registry.contains("Skill"));
+    }
+
+    #[test]
     fn test_agent_runtime_submit_turn_request_maps_to_aster_chat_request() {
         let json = r#"{
             "message": "Hello runtime",
@@ -1745,6 +3630,7 @@ mod tests {
                         text: "hello".to_string(),
                     }],
                     timestamp: 0,
+                    usage: None,
                 },
             },
             "/tmp/workspace",
@@ -1770,6 +3656,7 @@ mod tests {
                         text: "hello".to_string(),
                     }],
                     timestamp: 0,
+                    usage: None,
                 },
             },
             "/tmp/workspace",
@@ -2138,11 +4025,18 @@ mod tests {
         )
         .expect("should contain merged prompt");
 
-        assert!(merged.contains(IMAGE_SKILL_LAUNCH_PROMPT_MARKER));
+        assert!(merged.contains(
+            super::image_skill_launch::IMAGE_SKILL_LAUNCH_PROMPT_MARKER
+        ));
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"image_generate\""));
         assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"image_task\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(image_generate)"));
+        assert!(merged.contains("lime media image generate --json"));
         assert!(merged.contains("不要伪造“图片已生成完成”"));
         assert!(merged.contains("当前任务已经显式进入图片技能主链"));
     }
@@ -2179,7 +4073,12 @@ mod tests {
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"cover_generate\""));
         assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"cover_task\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(cover_generate)"));
+        assert!(merged.contains("lime task create cover --json"));
         assert!(merged.contains("不要把封面任务退化成普通配图"));
         assert!(merged.contains("当前任务已经显式进入封面技能主链"));
     }
@@ -2213,7 +4112,12 @@ mod tests {
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"video_generate\""));
         assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"video_task\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(video_generate)"));
+        assert!(merged.contains("lime media video generate --json"));
         assert!(merged.contains("不要伪造“视频已生成完成”"));
         assert!(merged.contains("当前任务已经显式进入视频技能主链"));
     }
@@ -2248,7 +4152,11 @@ mod tests {
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"transcription_generate\""));
         assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"transcription_task\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(transcription_generate)"));
         assert!(merged.contains("不要伪造“转写已完成”"));
         assert!(merged.contains("当前任务已经显式进入转写技能主链"));
     }
@@ -2284,7 +4192,12 @@ mod tests {
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"broadcast_generate\""));
         assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"broadcast_task\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(broadcast_generate)"));
+        assert!(merged.contains("lime task create broadcast --json"));
         assert!(merged.contains("不要伪造“播报已完成”"));
         assert!(merged.contains("当前任务已经显式进入播报技能主链"));
     }
@@ -2319,9 +4232,12 @@ mod tests {
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"modal_resource_search\""));
         assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"resource_search_task\":"));
         assert!(merged.contains("lime_search_web_images"));
-        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Grep"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(modal_resource_search)"));
         assert!(merged.contains("当前任务已经显式进入素材检索技能主链"));
     }
 
@@ -2357,7 +4273,11 @@ mod tests {
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"research\""));
         assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"research_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(research)"));
         assert!(merged.contains("research skill 内部必须真正执行联网检索"));
         assert!(merged.contains("当前任务已经显式进入搜索技能主链"));
     }
@@ -2391,8 +4311,14 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_DEEP_SEARCH_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"research\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"deep_search_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(research)"));
         assert!(merged.contains("深搜至少执行 2 轮以上扩搜"));
         assert!(merged.contains("已确认事实"));
         assert!(merged.contains("当前任务已经显式进入深搜技能主链"));
@@ -2427,8 +4353,14 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_REPORT_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"report_generate\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"report_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(report_generate)"));
         assert!(merged.contains("report_generate skill 内部必须先执行真实联网检索"));
         assert!(merged.contains("核心结论、关键证据、风险/待确认项与建议动作"));
         assert!(merged.contains("当前任务已经显式进入研报技能主链"));
@@ -2463,7 +4395,11 @@ mod tests {
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"site_search\""));
         assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"site_search_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(site_search)"));
         assert!(merged.contains("不要先改用 WebSearch、research"));
         assert!(merged.contains("当前任务已经显式进入站点搜索技能主链"));
     }
@@ -2494,8 +4430,14 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_PDF_READ_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"pdf_read\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"pdf_read_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(pdf_read)"));
         assert!(merged.contains("list_directory / read_file"));
         assert!(merged.contains("当前任务已经显式提供 PDF 路径"));
     }
@@ -2528,8 +4470,15 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_SUMMARY_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("skill=\"summary\""));
         assert!(merged.contains("\"summary_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(summary)"));
+        assert!(merged.contains("Read / Glob"));
         assert!(merged.contains("结果必须忠于原文"));
         assert!(merged.contains("当前任务已经显式进入总结技能主链"));
     }
@@ -2562,8 +4511,15 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_TRANSLATION_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("skill=\"translation\""));
         assert!(merged.contains("\"translation_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(translation)"));
+        assert!(merged.contains("Read / Glob"));
         assert!(merged.contains("译文必须忠于原文"));
         assert!(merged.contains("当前任务已经显式进入翻译技能主链"));
     }
@@ -2595,8 +4551,15 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains("<<LIME_ANALYSIS_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("skill=\"analysis\""));
         assert!(merged.contains("\"analysis_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(analysis)"));
+        assert!(merged.contains("Read / Glob"));
         assert!(merged.contains("分析结果必须区分原文事实、你的判断与待确认项"));
         assert!(merged.contains("当前任务已经显式进入分析技能主链"));
     }
@@ -2901,7 +4864,11 @@ mod tests {
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"url_parse\""));
         assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"url_parse_task\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(url_parse)"));
         assert!(merged.contains("extractStatus 设为 pending_extract"));
         assert!(merged.contains("当前任务已经显式进入链接解析技能主链"));
     }
@@ -2934,7 +4901,11 @@ mod tests {
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"typesetting\""));
         assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
         assert!(merged.contains("\"typesetting_task\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(typesetting)"));
         assert!(merged.contains("不要伪造“排版已完成”"));
         assert!(merged.contains("当前任务已经显式进入排版技能主链"));
     }
@@ -2954,6 +4925,206 @@ mod tests {
         });
 
         let prepared = prepare_typesetting_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_presentation_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "presentation_skill_launch": {
+                    "skill_name": "presentation_generate",
+                    "kind": "presentation_request",
+                    "presentation_request": {
+                        "prompt": "帮我做一个 AI 助手创业项目融资演示稿",
+                        "raw_text": "@PPT 类型:路演PPT 风格:极简科技 受众:投资人 页数:10 帮我做一个 AI 助手创业项目融资演示稿",
+                        "content": "类型:路演PPT 风格:极简科技 受众:投资人 页数:10 帮我做一个 AI 助手创业项目融资演示稿",
+                        "deck_type": "pitch_deck",
+                        "style": "极简科技",
+                        "audience": "投资人",
+                        "slide_count": 10
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_presentation_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_PRESENTATION_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"presentation_generate\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
+        assert!(merged.contains("\"presentation_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(presentation_generate)"));
+        assert!(merged.contains("必须产出一个可预览、可继续导出的单文件演示稿"));
+        assert!(merged.contains("当前任务已经显式进入演示稿生成技能主链"));
+    }
+
+    #[test]
+    fn test_prepare_presentation_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "presentation_skill_launch": {
+                    "skill_name": "presentation_generate",
+                    "kind": "presentation_request",
+                    "presentation_request": {
+                        "prompt": "帮我做一版融资路演演示稿"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_presentation_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_webpage_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "webpage_skill_launch": {
+                    "skill_name": "webpage_generate",
+                    "kind": "webpage_request",
+                    "webpage_request": {
+                        "prompt": "帮我做一个 AI 代码助手官网",
+                        "raw_text": "@网页 类型:落地页 风格:未来感 帮我做一个 AI 代码助手官网",
+                        "content": "类型:落地页 风格:未来感 帮我做一个 AI 代码助手官网",
+                        "page_type": "landing_page",
+                        "style": "未来感",
+                        "tech_stack": "原生 HTML"
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_webpage_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_WEBPAGE_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"webpage_generate\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
+        assert!(merged.contains("\"webpage_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("应立即改为直调 Skill(webpage_generate)"));
+        assert!(merged.contains("必须产出一个可预览的单文件 HTML"));
+        assert!(merged.contains("当前任务已经显式进入网页生成技能主链"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_form_skill_launch_appends_prompt() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "allow_model_skills": true,
+                "form_skill_launch": {
+                    "skill_name": "form_generate",
+                    "kind": "form_request",
+                    "form_request": {
+                        "prompt": "帮我做一个 AI Workshop 报名表",
+                        "raw_text": "@表单 类型:报名表单 风格:简洁专业 受众:活动嘉宾 字段数:8 帮我做一个 AI Workshop 报名表",
+                        "content": "类型:报名表单 风格:简洁专业 受众:活动嘉宾 字段数:8 帮我做一个 AI Workshop 报名表",
+                        "form_type": "registration_form",
+                        "style": "简洁专业",
+                        "audience": "活动嘉宾",
+                        "field_count": 8
+                    }
+                }
+            }
+        });
+
+        let merged = merge_system_prompt_with_form_skill_launch(
+            Some("你是助手".to_string()),
+            Some(&metadata),
+        )
+        .expect("should contain merged prompt");
+
+        assert!(merged.contains("<<LIME_FORM_SKILL_LAUNCH_HINT>>"));
+        assert!(merged.contains("第一优先工具调用必须是 Skill"));
+        assert!(merged.contains("skill=\"form_generate\""));
+        assert!(merged.contains("Skill.args 的 JSON"));
+        assert!(merged.contains("第一工具调用示例(Skill 参数 JSON)"));
+        assert!(merged.contains("\"form_request\":"));
+        assert!(merged.contains("不要为了确认技能名、工具名或命令名再去调用 ToolSearch"));
+        assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
+        assert!(merged.contains("目标是复用 Lime 现有 A2UI 协议输出一份真实可渲染的表单"));
+        assert!(merged.contains("最终结果必须输出一个 ```a2ui 代码块"));
+        assert!(merged.contains("字段类型只允许使用 simple form 已支持的 choice / text / slider / checkbox"));
+    }
+
+    #[test]
+    fn test_prepare_form_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "form_skill_launch": {
+                    "skill_name": "form_generate",
+                    "kind": "form_request",
+                    "form_request": {
+                        "prompt": "帮我做一个活动报名表"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_form_skill_launch_request_metadata(Some(&metadata))
+            .expect("prepared metadata");
+
+        let harness = prepared
+            .get("harness")
+            .and_then(serde_json::Value::as_object)
+            .expect("harness");
+        assert_eq!(
+            harness.get("chat_mode").and_then(serde_json::Value::as_str),
+            Some("workbench")
+        );
+    }
+
+    #[test]
+    fn test_prepare_webpage_skill_launch_request_metadata_sets_workbench_chat_mode() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "webpage_skill_launch": {
+                    "skill_name": "webpage_generate",
+                    "kind": "webpage_request",
+                    "webpage_request": {
+                        "prompt": "帮我做一个产品落地页"
+                    }
+                }
+            }
+        });
+
+        let prepared = prepare_webpage_skill_launch_request_metadata(Some(&metadata))
             .expect("prepared metadata");
 
         let harness = prepared
@@ -4025,6 +6196,7 @@ mod tests {
                     text: "子代理最终结论".to_string(),
                 }],
                 timestamp: 0,
+                usage: None,
             }],
             execution_strategy: None,
             execution_runtime: None,

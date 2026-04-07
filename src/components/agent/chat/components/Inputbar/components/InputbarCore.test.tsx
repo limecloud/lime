@@ -116,6 +116,15 @@ const renderInputbarCore = async (
 };
 
 describe("InputbarCore", () => {
+  it("挂载时不应主动预取语音配置", async () => {
+    await renderInputbarCore({
+      visualVariant: "default",
+      toolMode: "default",
+    });
+
+    expect(mockGetVoiceInputConfig).not.toHaveBeenCalled();
+  });
+
   it("主题工作台未聚焦时应使用单行紧凑态，点击展开，移出后收起", async () => {
     const container = await renderInputbarCore();
     const textarea = container.querySelector(
@@ -222,6 +231,7 @@ describe("InputbarCore", () => {
       await Promise.resolve();
     });
 
+    expect(mockGetVoiceInputConfig).toHaveBeenCalledTimes(1);
     expect(mockStartRecording).toHaveBeenCalledTimes(1);
 
     const stopDictationButton = container.querySelector(

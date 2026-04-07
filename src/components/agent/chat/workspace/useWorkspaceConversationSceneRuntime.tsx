@@ -28,6 +28,8 @@ type ConversationScenePresentationParams = Parameters<
 >[0];
 
 interface UseWorkspaceConversationSceneRuntimeParams {
+  messageListEmptyStateVariant?: "default" | "task-center";
+  navbarContextVariant?: "default" | "task-center";
   navigationActions: NavigationActions;
   inputbarScene: InputbarScene;
   canvasScene: CanvasScene;
@@ -154,6 +156,8 @@ interface UseWorkspaceConversationSceneRuntimeParams {
 }
 
 export function useWorkspaceConversationSceneRuntime({
+  messageListEmptyStateVariant = "default",
+  navbarContextVariant = "default",
   navigationActions,
   inputbarScene,
   canvasScene,
@@ -360,6 +364,7 @@ export function useWorkspaceConversationSceneRuntime({
       navbarVisible: shellChromeRuntime.shouldRenderTopBar,
       isRunning: Boolean(isSending),
       navbarChrome: topBarChrome,
+      navbarContextVariant,
       onToggleHistory: handleToggleSidebar,
       showHistoryToggle: !hideHistoryToggle && showChatPanel,
       onBackToProjectManagement,
@@ -408,6 +413,7 @@ export function useWorkspaceConversationSceneRuntime({
     },
     messageList: {
       messages: displayMessages,
+      emptyStateVariant: messageListEmptyStateVariant,
       turns,
       threadItems: effectiveThreadItems,
       currentTurnId,

@@ -989,6 +989,38 @@ pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDe
     })
 }
 
+fn resolve_runtime_usage_from_aster_session(
+    session: &AsterSession,
+) -> Option<crate::protocol::AgentTokenUsage> {
+    match (session.input_tokens, session.output_tokens) {
+        (Some(input_tokens), Some(output_tokens)) if input_tokens >= 0 && output_tokens >= 0 => {
+            Some(crate::protocol::AgentTokenUsage {
+                input_tokens: input_tokens as u32,
+                output_tokens: output_tokens as u32,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn apply_runtime_usage_fallback_to_latest_assistant_message(
+    messages: &mut [RuntimeAgentMessage],
+    session: &AsterSession,
+) -> Option<crate::protocol::AgentTokenUsage> {
+    let usage = resolve_runtime_usage_from_aster_session(session)?;
+    let latest_assistant_message = messages
+        .iter_mut()
+        .rev()
+        .find(|message| message.role.eq_ignore_ascii_case("assistant"))?;
+
+    if latest_assistant_message.usage.is_some() {
+        return None;
+    }
+
+    latest_assistant_message.usage = Some(usage.clone());
+    Some(usage)
+}
+
 pub async fn get_runtime_session_detail(
     db: &DbConnection,
     session_id: &str,
@@ -1016,6 +1048,38 @@ pub async fn get_runtime_session_detail(
             None
         }
     };
+
+    if let Some(session) = session.as_ref() {
+        if let Some(usage) =
+            apply_runtime_usage_fallback_to_latest_assistant_message(&mut detail.messages, session)
+        {
+            match db.lock() {
+                Ok(conn) => {
+                    if let Err(error) =
+                        agent_session_repository::update_latest_assistant_message_usage(
+                            &conn,
+                            session_id,
+                            usage.input_tokens,
+                            usage.output_tokens,
+                        )
+                    {
+                        tracing::warn!(
+                            "[SessionStore] 运行态 usage 回填消息失败，已降级继续: session_id={}, error={}",
+                            session_id,
+                            error
+                        );
+                    }
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        "[SessionStore] 运行态 usage 回填消息时数据库锁定失败，已降级继续: session_id={}, error={}",
+                        session_id,
+                        error
+                    );
+                }
+            }
+        }
+    }
 
     detail.execution_runtime = build_session_execution_runtime(
         session_id,
@@ -1303,6 +1367,13 @@ fn convert_agent_message(
         role: message.role.clone(),
         content,
         timestamp,
+        usage: message
+            .usage
+            .as_ref()
+            .map(|usage| crate::protocol::AgentTokenUsage {
+                input_tokens: usage.input_tokens,
+                output_tokens: usage.output_tokens,
+            }),
     };
 
     // 调试日志
@@ -1406,6 +1477,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: None,
                 reasoning_content: None,
+                usage: None,
             },
         )
         .expect("add message");
@@ -1805,6 +1877,7 @@ mod tests {
             }]),
             tool_call_id: None,
             reasoning_content: None,
+            usage: Some(lime_core::agent::types::TokenUsage::new(20_480, 10_240)),
         };
 
         let assistant_converted = convert_agent_message(
@@ -1818,6 +1891,13 @@ mod tests {
                     if id == "call-1" && tool_name == "Write"
             )
         }));
+        assert_eq!(
+            assistant_converted
+                .usage
+                .as_ref()
+                .map(|usage| (usage.input_tokens, usage.output_tokens)),
+            Some((20_480, 10_240))
+        );
 
         let tool = AgentMessage {
             role: "tool".to_string(),
@@ -1826,6 +1906,7 @@ mod tests {
             tool_calls: None,
             tool_call_id: Some("call-1".to_string()),
             reasoning_content: None,
+            usage: None,
         };
 
         let tool_converted = convert_agent_message(
@@ -1843,6 +1924,85 @@ mod tests {
                     if id == "call-1" && output == "写入成功"
             )
         }));
+    }
+
+    #[test]
+    fn apply_runtime_usage_fallback_should_fill_latest_assistant_message() {
+        let mut messages = vec![
+            RuntimeAgentMessage {
+                id: None,
+                role: "user".to_string(),
+                content: vec![RuntimeAgentMessageContent::Text {
+                    text: "请先起草内容首稿".to_string(),
+                }],
+                timestamp: 1,
+                usage: None,
+            },
+            RuntimeAgentMessage {
+                id: None,
+                role: "assistant".to_string(),
+                content: vec![RuntimeAgentMessageContent::Text {
+                    text: "# 内容首稿框架".to_string(),
+                }],
+                timestamp: 2,
+                usage: None,
+            },
+        ];
+        let session = AsterSession {
+            id: "session-usage-fallback".to_string(),
+            input_tokens: Some(3_833),
+            output_tokens: Some(615),
+            ..AsterSession::default()
+        };
+
+        let applied =
+            apply_runtime_usage_fallback_to_latest_assistant_message(&mut messages, &session);
+
+        assert_eq!(
+            applied.map(|usage| (usage.input_tokens, usage.output_tokens)),
+            Some((3_833, 615))
+        );
+        assert_eq!(
+            messages[1]
+                .usage
+                .as_ref()
+                .map(|usage| (usage.input_tokens, usage.output_tokens)),
+            Some((3_833, 615))
+        );
+    }
+
+    #[test]
+    fn apply_runtime_usage_fallback_should_not_override_existing_usage() {
+        let mut messages = vec![RuntimeAgentMessage {
+            id: None,
+            role: "assistant".to_string(),
+            content: vec![RuntimeAgentMessageContent::Text {
+                text: "已存在 usage".to_string(),
+            }],
+            timestamp: 2,
+            usage: Some(crate::protocol::AgentTokenUsage {
+                input_tokens: 20_480,
+                output_tokens: 10_240,
+            }),
+        }];
+        let session = AsterSession {
+            id: "session-usage-existing".to_string(),
+            input_tokens: Some(3_833),
+            output_tokens: Some(615),
+            ..AsterSession::default()
+        };
+
+        let applied =
+            apply_runtime_usage_fallback_to_latest_assistant_message(&mut messages, &session);
+
+        assert!(applied.is_none());
+        assert_eq!(
+            messages[0]
+                .usage
+                .as_ref()
+                .map(|usage| (usage.input_tokens, usage.output_tokens)),
+            Some((20_480, 10_240))
+        );
     }
 
     #[test]
@@ -1864,6 +2024,7 @@ mod tests {
             tool_calls: None,
             tool_call_id: None,
             reasoning_content: None,
+            usage: None,
         };
 
         let converted = convert_agent_message(
@@ -1891,6 +2052,7 @@ mod tests {
             tool_calls: None,
             tool_call_id: Some("call-2".to_string()),
             reasoning_content: None,
+            usage: None,
         };
 
         let converted = convert_agent_message(
@@ -1951,6 +2113,7 @@ mod tests {
                 }]),
                 tool_call_id: None,
                 reasoning_content: None,
+                usage: None,
             },
             AgentMessage {
                 role: "user".to_string(),
@@ -1959,6 +2122,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: None,
                 reasoning_content: None,
+                usage: None,
             },
             AgentMessage {
                 role: "assistant".to_string(),
@@ -1967,6 +2131,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: None,
                 reasoning_content: None,
+                usage: None,
             },
         ];
 
@@ -2115,6 +2280,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: None,
                 reasoning_content: None,
+                usage: None,
             },
         )
         .expect("add system message");
@@ -2128,6 +2294,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: None,
                 reasoning_content: None,
+                usage: None,
             },
         )
         .expect("add user message");
@@ -2141,6 +2308,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: None,
                 reasoning_content: None,
+                usage: None,
             },
         )
         .expect("add assistant message");
@@ -2154,6 +2322,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: Some("tool-1".to_string()),
                 reasoning_content: None,
+                usage: None,
             },
         )
         .expect("add tool message");

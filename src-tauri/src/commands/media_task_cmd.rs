@@ -9,19 +9,17 @@ use lime_media_runtime::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
 use crate::commands::aster_agent_cmd::tool_runtime::media_cli_bridge;
 use crate::config::GlobalConfigManagerState;
 
 const IMAGE_TASK_RUNNER_WORKER_ID: &str = "lime-image-api-worker";
-const IMAGE_TASK_RUNNER_TIMEOUT_SECS: u64 = 300;
 
 static ACTIVE_IMAGE_TASK_EXECUTIONS: Lazy<Mutex<HashSet<String>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
@@ -215,16 +213,6 @@ struct ImageGenerationRunnerConfig {
     api_key: String,
 }
 
-#[derive(Debug, Clone)]
-struct PreparedImageTaskInput {
-    prompt: String,
-    model: String,
-    size: Option<String>,
-    count: u32,
-    style: Option<String>,
-    provider_id: Option<String>,
-}
-
 fn normalize_server_host(host: &str) -> String {
     let trimmed = host.trim();
     if trimmed.is_empty() || trimmed == "0.0.0.0" || trimmed == "::" {
@@ -302,96 +290,6 @@ fn build_task_error(
     }
 }
 
-fn read_payload_string(payload: &Value, keys: &[&str]) -> Option<String> {
-    keys.iter().find_map(|key| {
-        payload
-            .get(*key)
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned)
-    })
-}
-
-fn read_payload_positive_u32(payload: &Value, keys: &[&str]) -> Option<u32> {
-    keys.iter().find_map(|key| {
-        let value = payload.get(*key)?;
-        if let Some(number) = value.as_u64() {
-            return u32::try_from(number).ok().filter(|item| *item > 0);
-        }
-        value
-            .as_str()
-            .and_then(|item| item.trim().parse::<u32>().ok().filter(|parsed| *parsed > 0))
-    })
-}
-
-fn prepare_image_task_input(task: &MediaTaskOutput) -> Result<PreparedImageTaskInput, String> {
-    let payload = &task.record.payload;
-    let prompt = read_payload_string(payload, &["prompt"])
-        .ok_or_else(|| "图片任务缺少 prompt，无法继续执行".to_string())?;
-    let count = read_payload_positive_u32(payload, &["count", "image_count"]).unwrap_or(1);
-
-    Ok(PreparedImageTaskInput {
-        prompt,
-        model: read_payload_string(payload, &["model"]).unwrap_or_default(),
-        size: read_payload_string(payload, &["size"]),
-        count,
-        style: read_payload_string(payload, &["style"]),
-        provider_id: read_payload_string(payload, &["provider_id", "providerId"]),
-    })
-}
-
-fn collect_generated_images(response_body: &Value) -> Vec<Value> {
-    response_body
-        .get("data")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| {
-                    let record = item.as_object()?;
-                    let url = record
-                        .get("url")
-                        .and_then(Value::as_str)
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                        .map(ToOwned::to_owned)
-                        .or_else(|| {
-                            record
-                                .get("b64_json")
-                                .and_then(Value::as_str)
-                                .map(str::trim)
-                                .filter(|value| !value.is_empty())
-                                .map(|value| format!("data:image/png;base64,{value}"))
-                        })?;
-                    Some(json!({
-                        "url": url,
-                        "revised_prompt": record
-                            .get("revised_prompt")
-                            .and_then(Value::as_str)
-                            .map(str::trim)
-                            .filter(|value| !value.is_empty()),
-                    }))
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn summarize_response_body(body: &str) -> String {
-    let trimmed = body.trim();
-    if trimmed.is_empty() {
-        return "响应体为空".to_string();
-    }
-
-    let preview: String = trimmed.chars().take(240).collect();
-    if trimmed.chars().count() > preview.chars().count() {
-        format!("{preview}...")
-    } else {
-        preview
-    }
-}
-
 fn load_current_image_task(
     workspace_root: &Path,
     task_id: &str,
@@ -447,207 +345,18 @@ async fn execute_image_generation_task(
     task_id: String,
     runner_config: ImageGenerationRunnerConfig,
 ) -> Result<MediaTaskOutput, String> {
-    let current = load_current_image_task(&workspace_root, &task_id)?;
-    if matches!(
-        current.normalized_status.as_str(),
-        "cancelled" | "failed" | "succeeded" | "partial"
-    ) {
-        return Ok(current);
-    }
-
-    let queued_output = if current.normalized_status == "pending" {
-        let output = patch_image_task(
-            &workspace_root,
-            &task_id,
-            TaskArtifactPatch {
-                status: Some("queued".to_string()),
-                progress: Some(build_task_progress(
-                    "queued",
-                    "图片任务已进入队列，等待图片服务响应。".to_string(),
-                    Some(0),
-                )),
-                current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
-                ..TaskArtifactPatch::default()
-            },
-        )?;
-        emit_image_task_event(app.as_ref(), &output);
-        output
-    } else {
-        current
-    };
-
-    if queued_output.normalized_status == "cancelled" {
-        return Ok(queued_output);
-    }
-
-    let prepared_input = prepare_image_task_input(&queued_output).map_err(|message| {
-        let task_error = build_task_error("invalid_image_task_payload", message, false, "payload");
-        let _ = mark_image_task_failed(app.as_ref(), &workspace_root, &task_id, task_error);
-        "图片任务 payload 无法执行".to_string()
-    })?;
-
-    let running_output = patch_image_task(
+    let emit_app = app.clone();
+    lime_media_runtime::execute_image_generation_task_with_hook(
         &workspace_root,
         &task_id,
-        TaskArtifactPatch {
-            status: Some("running".to_string()),
-            progress: Some(build_task_progress(
-                "running",
-                "图片生成中，结果会自动回填到对话与画布。".to_string(),
-                None,
-            )),
-            current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
-            ..TaskArtifactPatch::default()
+        &lime_media_runtime::ImageGenerationRunnerConfig {
+            endpoint: runner_config.endpoint,
+            api_key: runner_config.api_key,
         },
-    )?;
-    emit_image_task_event(app.as_ref(), &running_output);
-
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_secs(IMAGE_TASK_RUNNER_TIMEOUT_SECS))
-        .build()
-        .unwrap_or_else(|_| reqwest::Client::new());
-
-    let request_body = lime_core::models::openai::ImageGenerationRequest {
-        prompt: prepared_input.prompt.clone(),
-        model: prepared_input.model.clone(),
-        n: prepared_input.count.max(1),
-        size: prepared_input.size.clone(),
-        response_format: "b64_json".to_string(),
-        quality: None,
-        style: prepared_input.style.clone(),
-        user: Some(task_id.clone()),
-    };
-
-    let mut request_builder = client
-        .post(&runner_config.endpoint)
-        .header("Authorization", format!("Bearer {}", runner_config.api_key));
-    if let Some(provider_id) = prepared_input
-        .provider_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        request_builder = request_builder.header("X-Provider-Id", provider_id);
-    }
-
-    let response = request_builder
-        .json(&request_body)
-        .send()
-        .await
-        .map_err(|error| {
-            let task_error = build_task_error(
-                "image_request_failed",
-                format!("调用图片服务失败: {error}"),
-                true,
-                "request",
-            );
-            let _ = mark_image_task_failed(app.as_ref(), &workspace_root, &task_id, task_error);
-            format!("调用图片服务失败: {error}")
-        })?;
-
-    let status = response.status();
-    let response_body_raw = response.text().await.map_err(|error| {
-        let task_error = build_task_error(
-            "image_response_read_failed",
-            format!("读取图片服务响应失败: {error}"),
-            false,
-            "response",
-        );
-        let _ = mark_image_task_failed(app.as_ref(), &workspace_root, &task_id, task_error);
-        format!("读取图片服务响应失败: {error}")
-    })?;
-    let response_body: Value = serde_json::from_str(&response_body_raw).map_err(|error| {
-        let detail = summarize_response_body(&response_body_raw);
-        let task_error = build_task_error(
-            "image_response_parse_failed",
-            format!("解析图片服务响应失败: {error}；{detail}"),
-            false,
-            "response",
-        );
-        let _ = mark_image_task_failed(app.as_ref(), &workspace_root, &task_id, task_error);
-        format!("解析图片服务响应失败: {error}；{detail}")
-    })?;
-
-    if !status.is_success() {
-        let error_code = response_body
-            .get("error")
-            .and_then(|value| value.get("code"))
-            .and_then(Value::as_str)
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or("image_generation_failed");
-        let error_message = response_body
-            .get("error")
-            .and_then(|value| value.get("message"))
-            .and_then(Value::as_str)
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or("图片服务未返回可用结果");
-        let task_error = build_task_error(
-            error_code,
-            error_message,
-            status.is_server_error() || status.as_u16() == 429,
-            "request",
-        );
-        return mark_image_task_failed(app.as_ref(), &workspace_root, &task_id, task_error);
-    }
-
-    let images = collect_generated_images(&response_body);
-    if images.is_empty() {
-        let task_error = build_task_error(
-            "image_result_empty",
-            "图片服务已返回成功，但没有可用的图片地址",
-            false,
-            "result",
-        );
-        return mark_image_task_failed(app.as_ref(), &workspace_root, &task_id, task_error);
-    }
-
-    let latest = load_current_image_task(&workspace_root, &task_id)?;
-    if latest.normalized_status == "cancelled" {
-        return Ok(latest);
-    }
-
-    let final_status = if images.len() < prepared_input.count as usize {
-        "partial"
-    } else {
-        "succeeded"
-    };
-    let result_value = json!({
-        "provider_id": prepared_input.provider_id,
-        "model": if prepared_input.model.trim().is_empty() {
-            None::<String>
-        } else {
-            Some(prepared_input.model.clone())
-        },
-        "size": prepared_input.size,
-        "requested_count": prepared_input.count,
-        "received_count": images.len(),
-        "images": images,
-        "response": response_body,
-    });
-    let success_message = if final_status == "partial" {
-        format!("图片任务已返回部分结果，共生成 {} 张。", images.len())
-    } else {
-        format!("图片任务已完成，共生成 {} 张。", images.len())
-    };
-    let completed = patch_image_task(
-        &workspace_root,
-        &task_id,
-        TaskArtifactPatch {
-            status: Some(final_status.to_string()),
-            result: Some(Some(result_value)),
-            last_error: Some(None),
-            progress: Some(build_task_progress(
-                final_status,
-                success_message,
-                Some(100),
-            )),
-            current_attempt_worker_id: Some(Some(IMAGE_TASK_RUNNER_WORKER_ID.to_string())),
-            ..TaskArtifactPatch::default()
-        },
-    )?;
-    emit_image_task_event(app.as_ref(), &completed);
-    Ok(completed)
+        move |output| emit_image_task_event(emit_app.as_ref(), output),
+    )
+    .await
+    .map_err(|error| format!("执行图片任务失败: {error}"))
 }
 
 pub(crate) fn start_image_generation_task_worker_if_needed(
@@ -705,6 +414,17 @@ pub(crate) fn start_image_generation_task_worker_if_needed(
 fn emit_creation_task_event_if_needed(app: Option<&AppHandle>, output: &MediaTaskOutput) {
     if let Some(app_handle) = app {
         media_cli_bridge::emit_media_creation_task_event(app_handle, output);
+    }
+}
+
+pub(crate) fn finalize_image_generation_task_creation(
+    app: Option<&AppHandle>,
+    workspace_root: &str,
+    output: &MediaTaskOutput,
+) {
+    emit_creation_task_event_if_needed(app, output);
+    if let Some(app_handle) = app {
+        start_image_generation_task_worker_if_needed(app_handle, workspace_root, output);
     }
 }
 
@@ -870,8 +590,7 @@ pub fn create_image_generation_task_artifact(
 ) -> Result<MediaTaskOutput, String> {
     let project_root_path = request.project_root_path.trim().to_string();
     let output = create_image_generation_task_artifact_inner(request)?;
-    emit_creation_task_event_if_needed(Some(&app), &output);
-    start_image_generation_task_worker_if_needed(&app, &project_root_path, &output);
+    finalize_image_generation_task_creation(Some(&app), &project_root_path, &output);
     Ok(output)
 }
 
@@ -905,6 +624,7 @@ mod tests {
         routing::post,
         Json, Router,
     };
+    use serde_json::Value;
     use std::sync::{Arc, Mutex};
     use tokio::net::TcpListener;
 

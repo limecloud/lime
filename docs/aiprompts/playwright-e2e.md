@@ -184,7 +184,7 @@ npm run test:contracts
 
 1. 在 `Claw` 对话框输入 `@配图 生成 ...`
 2. 确认聊天区先进入 skill 执行态，并能看到 `image_generate` 相关工具轨迹，而不是前端静默直接创建任务
-3. 如当前环境走 `Bash -> lime media image generate --json`，确认工具标题与结果摘要对应这条 CLI 主链；CLI 不可用时，才允许回退 `lime_create_image_generation_task`
+3. 如当前环境走 `Bash -> lime media image generate --json`，确认工具标题与结果摘要对应这条 CLI 主链；若实际走到兼容入口 `lime task create image --json`，也要确认它继续推进到真实完成态，而不是只创建任务文件；CLI 不可用时，才允许回退 `lime_create_image_generation_task`
 4. 等待 task file 回流后，确认同一条卡片被替换为成功或失败状态，而不是额外再插一条前端本地伪造结果
 5. 刷新页面或切换会话再返回原话题，确认最近图片任务会从 `.lime/tasks` 恢复
 6. 如手动打开右侧查看器，确认任务卡状态与聊天区一致，且不会自动展开独立图片画布
@@ -223,6 +223,42 @@ npm run test:contracts
 4. 等待结果完成后，确认最终输出包含结论、来源、风险/待确认项与建议动作，而不是一段无来源的纯主观总结
 5. 如果输入里没有明确主题，确认 Agent 最多只追问 1 个关键问题，而不是直接伪造研报完成态
 
+### Claw `@PPT` Prompt Skill 验证
+
+1. 在 `Claw` 对话框输入 `@PPT 类型:路演PPT 风格:极简科技 受众:投资人 页数:10 帮我做一个 AI 助手创业项目融资演示稿`
+2. 确认聊天区先进入 skill 执行态，并能看到 `presentation_generate` 相关工具轨迹，而不是前端本地直接伪造演示提纲
+3. 确认首刀不会卡在 `ToolSearch / WebSearch / Read / Glob / Grep`，而是直接进入 `Skill(presentation_generate)`
+4. 等待产物回流后，确认当前话题下出现一份真实演示稿 artifact，而不是只有文本解释
+5. 打开右侧查看区，确认演示稿能够作为 Markdown artifact 正常预览，并保留封面、目录、核心论点、案例和结论结构
+6. 刷新页面或切换会话后再返回原话题，确认演示稿 artifact 仍能恢复，不依赖前端内存态
+
+### Claw `@表单` Prompt Skill 验证
+
+1. 在 `Claw` 对话框输入 `@表单 类型:报名表单 风格:简洁专业 受众:活动嘉宾 字段数:8 帮我做一个 AI Workshop 报名表`
+2. 确认聊天区先进入 skill 执行态，并能看到 `form_generate` 相关工具轨迹，而不是前端本地直接伪造字段列表
+3. 确认首刀不会卡在 `ToolSearch / WebSearch / Read / Glob / Grep`，而是直接进入 `Skill(form_generate)`
+4. 等待结果回流后，确认同一条对话消息里出现可渲染的 A2UI 表单，而不是单文件 HTML artifact 或一段纯文本建议
+5. 打开右侧查看区或表单详情时，确认结果仍然是 simple form JSON / A2UI 预览，不会切到另一套自定义表单 DSL
+6. 刷新页面或切换会话后再返回原话题，确认表单结果仍能恢复，不依赖前端内存态
+
+### Claw `@代码` 编排主链验证
+
+1. 在 `Claw` 对话框输入 `@代码 修复消息历史切换后图片卡片丢失的问题，并补一个回归测试`
+2. 确认聊天区先进入代码编排执行态，而不是普通聊天回答
+3. 确认真正出现代码工具或协作步骤时间线，且不会先卡在无意义的 `ToolSearch`
+4. 确认执行策略切到 `code_orchestrated`，同时 `task/subagent` 偏好已被打开
+5. 如当前页面可查看运行时摘要或请求详情，确认 `preferred_team_preset_id=code-triage-team` 与 `code_command.kind` 已注入
+6. 刷新页面或切换会话后再返回原话题，确认代码任务对话仍保留在同一条消息主链，不会裂成另一套旁路会话
+
+### Claw `@发布` 工作流验证
+
+1. 在 `Claw` 对话框输入 `@发布 平台:微信公众号后台 帮我把这篇文章整理成可直接发布的版本`
+2. 确认聊天区显示的仍是原始 `@发布 ...` 文本，而不是直接把 slash skill 暴露给用户
+3. 如页面可查看发送详情或运行时摘要，确认实际 dispatch 已导向 `content_post_with_cover`，且 `publish_command` 元数据存在
+4. 确认当前回合如果命中平台后台，会出现真实浏览器门禁提示，而不是直接退化成联网搜索或普通聊天
+5. 等待工作流继续推进后，确认产物仍落在现有 `content-posts/*.md` / `*.publish-pack.json` 主链，而不是另一套发布任务协议
+6. 刷新页面或切换会话后再返回原话题，确认发布稿与发布包仍可恢复
+
 ### Claw `@读PDF` Prompt Skill 验证
 
 1. 在 `Claw` 对话框输入 `@读PDF /tmp/agent-report.pdf 提炼三点结论并标注关键证据`
@@ -256,6 +292,9 @@ npm run test:contracts
 4. 打开时间线，确认首个执行器是 `lime_run_service_skill`，而不是前端本地直接产出结果卡
 5. 如当前 OEM 会话可用，确认工具结果会回流 run 状态或摘要；若当前会话缺失，确认聊天区明确提示需要登录或注入会话，而不是伪造成功
 6. 未命中 scene 目录时，确认 `/unknown-scene ...` 仍回到普通 slash / Codex 流程，不会被误报为本地技能异常
+7. 如果当前 scene 绑定的是站点型 skill，例如 `/x文章转存 https://x.com/.../article/...`，确认 slash 菜单可见后仍能成功解析到底层 site skill，而不是因为首页未暴露 site skill 就在发送时失配
+8. 对 `markdown_bundle` 型站点场景，确认成功后项目目录里同时出现 `index.md`、`images/` 和 `meta.json`，且正文中的图片链接已经被改写为项目内相对路径，而不是继续指向远程图片 URL
+9. 同时确认聊天轻卡或 tool timeline 会明确展示项目目录、Markdown 相对路径和图片数量，避免用户只能看到“已保存”却不知道文件实际落点
 
 ### 开发者页站点来源导入验证
 

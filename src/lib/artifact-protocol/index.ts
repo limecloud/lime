@@ -38,6 +38,39 @@ function normalizePath(value: string): string {
   return value.replace(/\\/g, "/").trim();
 }
 
+function splitArtifactProtocolPath(value: string): {
+  normalized: string;
+  isAbsolute: boolean;
+  segments: string[];
+} {
+  const normalized = normalizePath(value);
+  const isAbsolute =
+    normalized.startsWith("/") ||
+    normalized.startsWith("~/") ||
+    /^[A-Za-z]:\//.test(normalized) ||
+    normalized.startsWith("//");
+  const segments = normalized
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0 && segment !== ".");
+
+  return {
+    normalized,
+    isAbsolute,
+    segments,
+  };
+}
+
+function hasSameTrailingSegments(left: string[], right: string[]): boolean {
+  const minLength = Math.min(left.length, right.length);
+  for (let index = 1; index <= minLength; index += 1) {
+    if (left[left.length - index] !== right[right.length - index]) {
+      return false;
+    }
+  }
+  return minLength > 0;
+}
+
 function appendArtifactProtocolPath(
   paths: Set<string>,
   value: unknown,
@@ -161,20 +194,82 @@ export function extractArtifactProtocolPathsFromValue(
   return Array.from(paths);
 }
 
+export function normalizeArtifactProtocolPath(
+  value?: string | null,
+): string {
+  return typeof value === "string" ? splitArtifactProtocolPath(value).normalized : "";
+}
+
+export function areArtifactProtocolPathsEquivalent(
+  left?: string | null,
+  right?: string | null,
+): boolean {
+  const leftPath = typeof left === "string" ? splitArtifactProtocolPath(left) : null;
+  const rightPath =
+    typeof right === "string" ? splitArtifactProtocolPath(right) : null;
+
+  if (
+    !leftPath ||
+    !rightPath ||
+    leftPath.segments.length === 0 ||
+    rightPath.segments.length === 0
+  ) {
+    return false;
+  }
+
+  if (leftPath.normalized === rightPath.normalized) {
+    return true;
+  }
+
+  if (
+    leftPath.segments.length === rightPath.segments.length &&
+    leftPath.segments.every((segment, index) => segment === rightPath.segments[index])
+  ) {
+    return true;
+  }
+
+  const leftFileName = leftPath.segments[leftPath.segments.length - 1];
+  const rightFileName = rightPath.segments[rightPath.segments.length - 1];
+  if (leftFileName !== rightFileName) {
+    return false;
+  }
+
+  if (leftPath.segments.length === 1 || rightPath.segments.length === 1) {
+    return true;
+  }
+
+  if (leftPath.isAbsolute !== rightPath.isAbsolute) {
+    return hasSameTrailingSegments(leftPath.segments, rightPath.segments);
+  }
+
+  return false;
+}
+
+export function isArtifactProtocolImagePath(
+  value?: string | null,
+): boolean {
+  const normalized = normalizeArtifactProtocolPath(value);
+  if (!normalized) {
+    return false;
+  }
+
+  return /\.(avif|bmp|gif|heic|heif|jpe?g|png|tiff?|webp)$/i.test(normalized);
+}
+
 export function resolveArtifactProtocolFilePath(
   artifact: ArtifactProtocolFileTarget,
 ): string {
   const filePath = normalizeText(artifact.meta.filePath);
   if (filePath) {
-    return filePath;
+    return normalizeArtifactProtocolPath(filePath);
   }
 
   const filename = normalizeText(artifact.meta.filename);
   if (filename) {
-    return filename;
+    return normalizeArtifactProtocolPath(filename);
   }
 
-  return artifact.title;
+  return normalizeArtifactProtocolPath(artifact.title);
 }
 
 export function hasArtifactProtocolMetadata(

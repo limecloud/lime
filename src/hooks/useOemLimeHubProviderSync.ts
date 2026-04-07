@@ -15,6 +15,7 @@ import {
   OEM_LIME_HUB_PROVIDER_ID,
   resolveOemLimeHubProviderName,
 } from "@/lib/oemLimeHubProvider";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 
 function buildSyncSignature(
   runtime: ReturnType<typeof resolveOemCloudRuntimeContext>,
@@ -69,23 +70,28 @@ async function resolveSyncedCustomModels(
 }
 
 export function useOemLimeHubProviderSync() {
-  const runtime = resolveOemCloudRuntimeContext();
+  const syncEnabled = hasTauriInvokeCapability();
   const lastAppliedSignatureRef = useRef<string>("");
 
   useEffect(() => {
+    if (!syncEnabled) {
+      return;
+    }
+
     let disposed = false;
 
     async function syncProviders() {
       try {
+        const runtime = resolveOemCloudRuntimeContext();
+        if (!runtime) {
+          lastAppliedSignatureRef.current = buildSyncSignature(null, []);
+          return;
+        }
+
         const providers = await apiKeyProviderApi.getProviders({
           forceRefresh: true,
         });
         if (disposed) {
-          return;
-        }
-
-        if (!runtime) {
-          lastAppliedSignatureRef.current = buildSyncSignature(null, []);
           return;
         }
 
@@ -170,5 +176,5 @@ export function useOemLimeHubProviderSync() {
       unsubscribeSession();
       unsubscribeBootstrap();
     };
-  }, [runtime]);
+  }, [syncEnabled]);
 }

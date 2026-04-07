@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isDefaultProjectIdAlias,
   isLockedProjectConflict,
   normalizeProjectId,
   resolveTopicProjectId,
@@ -12,10 +13,20 @@ describe("normalizeProjectId", () => {
     expect(normalizeProjectId("   ")).toBeNull();
     expect(normalizeProjectId("__invalid__")).toBeNull();
     expect(normalizeProjectId("[object Promise]")).toBeNull();
+    expect(normalizeProjectId("default")).toBeNull();
+    expect(normalizeProjectId(" Default ")).toBeNull();
   });
 
   it("应返回合法项目 ID", () => {
     expect(normalizeProjectId(" project-1 ")).toBe("project-1");
+  });
+});
+
+describe("isDefaultProjectIdAlias", () => {
+  it("应识别默认工作区别名", () => {
+    expect(isDefaultProjectIdAlias("default")).toBe(true);
+    expect(isDefaultProjectIdAlias(" Default ")).toBe(true);
+    expect(isDefaultProjectIdAlias("project-1")).toBe(false);
   });
 });
 

@@ -48,6 +48,16 @@ fn read_output_slot_id(output: &MediaTaskOutput) -> Option<String> {
         .or_else(|| read_payload_string(&output.record.payload, &["slot_id", "slotId"]))
 }
 
+fn read_output_result_string(output: &MediaTaskOutput, keys: &[&str]) -> Option<String> {
+    let result = output.record.result.as_ref()?;
+    read_payload_string(result, keys)
+}
+
+fn read_output_result_u64(output: &MediaTaskOutput, keys: &[&str]) -> Option<u64> {
+    let result = output.record.result.as_ref()?;
+    read_payload_u64(result, keys)
+}
+
 pub(crate) fn tool_error_from_media_runtime(error: MediaRuntimeError) -> ToolError {
     match error {
         MediaRuntimeError::InvalidParams(message) => ToolError::invalid_params(message),
@@ -86,6 +96,8 @@ pub(crate) fn emit_media_creation_task_event(app_handle: &AppHandle, output: &Me
         "anchor_hint": read_payload_string(payload_record, &["anchor_hint", "anchorHint"]),
         "anchor_section_title": read_payload_string(payload_record, &["anchor_section_title", "anchorSectionTitle"]),
         "anchor_text": read_payload_string(payload_record, &["anchor_text", "anchorText"]),
+        "requested_count": read_output_result_u64(output, &["requested_count", "requestedCount"]),
+        "received_count": read_output_result_u64(output, &["received_count", "receivedCount"]),
     });
 
     if let Err(error) = app_handle.emit(CREATION_TASK_EVENT_NAME, &payload) {
@@ -114,6 +126,56 @@ pub(crate) fn attach_media_task_metadata(
         .with_metadata(
             "current_attempt_id",
             serde_json::json!(output.current_attempt_id),
+        )
+        .with_metadata(
+            "prompt",
+            serde_json::json!(read_payload_string(&output.record.payload, &["prompt"])),
+        )
+        .with_metadata(
+            "size",
+            serde_json::json!(read_payload_string(
+                &output.record.payload,
+                &["size", "resolution"]
+            )),
+        )
+        .with_metadata(
+            "project_id",
+            serde_json::json!(read_payload_string(
+                &output.record.payload,
+                &["project_id", "projectId"]
+            )),
+        )
+        .with_metadata(
+            "content_id",
+            serde_json::json!(read_payload_string(
+                &output.record.payload,
+                &["content_id", "contentId"]
+            )),
+        )
+        .with_metadata(
+            "provider_id",
+            serde_json::json!(read_output_result_string(
+                output,
+                &["provider_id", "providerId"]
+            )),
+        )
+        .with_metadata(
+            "model",
+            serde_json::json!(read_output_result_string(output, &["model"])),
+        )
+        .with_metadata(
+            "requested_count",
+            serde_json::json!(read_output_result_u64(
+                output,
+                &["requested_count", "requestedCount"]
+            )),
+        )
+        .with_metadata(
+            "received_count",
+            serde_json::json!(read_output_result_u64(
+                output,
+                &["received_count", "receivedCount"]
+            )),
         )
         .with_metadata("artifact_paths", serde_json::json!(output.artifact_paths()))
 }

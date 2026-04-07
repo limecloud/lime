@@ -149,7 +149,6 @@ const SOCIAL_IMAGE_DEFAULT_SIZE: &str = "1024x1024";
 const SOCIAL_IMAGE_DEFAULT_RESPONSE_FORMAT: &str = "url";
 const AUTO_CONTINUE_PROMPT_MARKER: &str = "【自动续写策略】";
 const ELICITATION_CONTEXT_PROMPT_MARKER: &str = "【已收集的补充信息】";
-const IMAGE_SKILL_LAUNCH_PROMPT_MARKER: &str = "【图片技能启动】";
 const SERVICE_SKILL_LAUNCH_PROMPT_MARKER: &str = "【站点技能启动】";
 const SERVICE_SKILL_LAUNCH_PRELOAD_PROMPT_MARKER: &str = "【站点技能预执行结果】";
 const TEAM_PREFERENCE_PROMPT_MARKER: &str = "【Team 协作偏好】";
@@ -265,9 +264,11 @@ pub(crate) mod command_api;
 mod cover_skill_launch;
 mod deep_search_skill_launch;
 mod dto;
+mod form_skill_launch;
 mod image_skill_launch;
 mod mcp_bridge;
 mod pdf_read_skill_launch;
+mod presentation_skill_launch;
 mod prompt_context;
 mod reply_runtime;
 mod report_skill_launch;
@@ -287,6 +288,7 @@ mod translation_skill_launch;
 mod typesetting_skill_launch;
 mod url_parse_skill_launch;
 mod video_skill_launch;
+mod webpage_skill_launch;
 #[cfg(test)]
 use self::subagent_runtime::{
     build_subagent_customization_state, build_subagent_customization_system_prompt,
@@ -306,11 +308,15 @@ pub(crate) use action_runtime::{
     validate_elicitation_submission,
 };
 pub(crate) use analysis_skill_launch::{
+    append_analysis_skill_launch_session_permissions,
     merge_system_prompt_with_analysis_skill_launch, prepare_analysis_skill_launch_request_metadata,
+    prune_analysis_skill_launch_detour_tools_from_registry,
 };
 pub(crate) use broadcast_skill_launch::{
+    append_broadcast_skill_launch_session_permissions,
     merge_system_prompt_with_broadcast_skill_launch,
     prepare_broadcast_skill_launch_request_metadata,
+    prune_broadcast_skill_launch_detour_tools_from_registry,
 };
 pub(crate) use browser_assist::{
     append_browser_assist_session_permissions, apply_browser_requirement_to_request_tool_policy,
@@ -337,10 +343,15 @@ pub(crate) use command_api::{
     agent_runtime_update_session, agent_runtime_wait_subagents, aster_agent_configure_from_pool,
     aster_agent_configure_provider, aster_agent_init, aster_agent_reset, aster_agent_status,
 };
-pub(crate) use cover_skill_launch::merge_system_prompt_with_cover_skill_launch;
+pub(crate) use cover_skill_launch::{
+    append_cover_skill_launch_session_permissions, merge_system_prompt_with_cover_skill_launch,
+    prune_cover_skill_launch_detour_tools_from_registry,
+};
 pub(crate) use deep_search_skill_launch::{
+    append_deep_search_skill_launch_session_permissions,
     merge_system_prompt_with_deep_search_skill_launch,
     prepare_deep_search_skill_launch_request_metadata,
+    prune_deep_search_skill_launch_detour_tools_from_registry,
 };
 #[allow(unused_imports)]
 pub(crate) use dto::{
@@ -361,12 +372,26 @@ pub(crate) use dto::{
     AgentRuntimeWaitSubagentsRequest, AgentRuntimeWaitSubagentsResponse, AsterAgentStatus,
     AsterChatRequest, AutoContinuePayload, ConfigureFromPoolRequest, ConfigureProviderRequest,
 };
+pub(crate) use form_skill_launch::{
+    append_form_skill_launch_session_permissions, merge_system_prompt_with_form_skill_launch,
+    prepare_form_skill_launch_request_metadata, prune_form_skill_launch_detour_tools_from_registry,
+};
 pub(crate) use image_skill_launch::{
-    merge_system_prompt_with_image_skill_launch, prepare_image_skill_launch_request_metadata,
+    append_image_skill_launch_session_permissions, merge_system_prompt_with_image_skill_launch,
+    prepare_image_skill_launch_request_metadata,
+    prune_image_skill_launch_detour_tools_from_registry,
 };
 pub(crate) use mcp_bridge::{ensure_lime_mcp_servers_running, inject_mcp_extensions};
 pub(crate) use pdf_read_skill_launch::{
+    append_pdf_read_skill_launch_session_permissions,
     merge_system_prompt_with_pdf_read_skill_launch, prepare_pdf_read_skill_launch_request_metadata,
+    prune_pdf_read_skill_launch_detour_tools_from_registry,
+};
+pub(crate) use presentation_skill_launch::{
+    append_presentation_skill_launch_session_permissions,
+    merge_system_prompt_with_presentation_skill_launch,
+    prepare_presentation_skill_launch_request_metadata,
+    prune_presentation_skill_launch_detour_tools_from_registry,
 };
 #[cfg(test)]
 pub(crate) use prompt_context::build_team_preference_system_prompt;
@@ -384,15 +409,21 @@ use reply_runtime::{
     should_fallback_to_react_from_code_orchestrated, stream_reply_once,
 };
 pub(crate) use report_skill_launch::{
-    merge_system_prompt_with_report_skill_launch, prepare_report_skill_launch_request_metadata,
+    append_report_skill_launch_session_permissions, merge_system_prompt_with_report_skill_launch,
+    prepare_report_skill_launch_request_metadata,
+    prune_report_skill_launch_detour_tools_from_registry,
 };
 use request_model_resolution::resolve_runtime_request_provider_config;
 pub(crate) use research_skill_launch::{
+    append_research_skill_launch_session_permissions,
     merge_system_prompt_with_research_skill_launch, prepare_research_skill_launch_request_metadata,
+    prune_research_skill_launch_detour_tools_from_registry,
 };
 pub(crate) use resource_search_skill_launch::{
+    append_resource_search_skill_launch_session_permissions,
     merge_system_prompt_with_resource_search_skill_launch,
     prepare_resource_search_skill_launch_request_metadata,
+    prune_resource_search_skill_launch_detour_tools_from_registry,
 };
 use run_metadata::{
     build_chat_run_finish_metadata, build_chat_run_metadata_base, extract_harness_array,
@@ -424,8 +455,10 @@ pub(crate) use session_runtime::{
     SessionRecentRuntimeContext,
 };
 pub(crate) use site_search_skill_launch::{
+    append_site_search_skill_launch_session_permissions,
     merge_system_prompt_with_site_search_skill_launch,
     prepare_site_search_skill_launch_request_metadata,
+    prune_site_search_skill_launch_detour_tools_from_registry,
 };
 #[allow(unused_imports)]
 pub(crate) use subagent_runtime::{
@@ -435,7 +468,9 @@ pub(crate) use subagent_runtime::{
     maybe_emit_subagent_status_for_runtime_event, SubagentControlRuntime,
 };
 pub(crate) use summary_skill_launch::{
-    merge_system_prompt_with_summary_skill_launch, prepare_summary_skill_launch_request_metadata,
+    append_summary_skill_launch_session_permissions, merge_system_prompt_with_summary_skill_launch,
+    prepare_summary_skill_launch_request_metadata,
+    prune_summary_skill_launch_detour_tools_from_registry,
 };
 #[allow(unused_imports)]
 pub(crate) use tool_runtime::social_generate_cover_image_cmd;
@@ -452,17 +487,38 @@ pub(crate) use tool_runtime::{
     ensure_browser_mcp_tools_registered, ensure_creation_task_tools_registered,
     ensure_runtime_support_tools_registered, ensure_social_image_tool_registered,
 };
-pub(crate) use transcription_skill_launch::merge_system_prompt_with_transcription_skill_launch;
+pub(crate) use transcription_skill_launch::{
+    append_transcription_skill_launch_session_permissions,
+    merge_system_prompt_with_transcription_skill_launch,
+    prune_transcription_skill_launch_detour_tools_from_registry,
+};
 pub(crate) use translation_skill_launch::{
+    append_translation_skill_launch_session_permissions,
     merge_system_prompt_with_translation_skill_launch,
     prepare_translation_skill_launch_request_metadata,
+    prune_translation_skill_launch_detour_tools_from_registry,
 };
 pub(crate) use typesetting_skill_launch::{
+    append_typesetting_skill_launch_session_permissions,
     merge_system_prompt_with_typesetting_skill_launch,
     prepare_typesetting_skill_launch_request_metadata,
+    prune_typesetting_skill_launch_detour_tools_from_registry,
 };
-pub(crate) use url_parse_skill_launch::merge_system_prompt_with_url_parse_skill_launch;
+pub(crate) use url_parse_skill_launch::{
+    append_url_parse_skill_launch_session_permissions,
+    merge_system_prompt_with_url_parse_skill_launch,
+    prune_url_parse_skill_launch_detour_tools_from_registry,
+};
 pub(crate) use video_skill_launch::merge_system_prompt_with_video_skill_launch;
+pub(crate) use video_skill_launch::{
+    append_video_skill_launch_session_permissions,
+    prune_video_skill_launch_detour_tools_from_registry,
+};
+pub(crate) use webpage_skill_launch::{
+    append_webpage_skill_launch_session_permissions, merge_system_prompt_with_webpage_skill_launch,
+    prepare_webpage_skill_launch_request_metadata,
+    prune_webpage_skill_launch_detour_tools_from_registry,
+};
 
 pub async fn resume_persisted_runtime_queues_on_startup(
     app: AppHandle,

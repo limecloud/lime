@@ -557,7 +557,9 @@ mod tests {
                 timestamp TEXT NOT NULL,
                 tool_calls_json TEXT,
                 tool_call_id TEXT,
-                reasoning_content TEXT
+                reasoning_content TEXT,
+                input_tokens INTEGER,
+                output_tokens INTEGER
             );
             CREATE TABLE general_chat_sessions (
                 id TEXT PRIMARY KEY,

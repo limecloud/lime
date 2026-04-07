@@ -15,6 +15,12 @@ use tauri::{AppHandle, Manager};
 const SETTINGS_SUBDIR: &str = "connectors";
 const SETTINGS_FILE_NAME: &str = "browser-connector-settings.json";
 const EXTENSION_INSTALL_DIR_NAME: &str = "Lime Browser Connector";
+const EXTENSION_SYNC_REQUIRED_FILES: [&str; 4] = [
+    "manifest.json",
+    "background.js",
+    "content_script.js",
+    "site_adapter_runners.generated.js",
+];
 
 const SYSTEM_CONNECTOR_DEFINITIONS: [(&str, &str, &str); 5] = [
     (
@@ -551,6 +557,34 @@ pub fn resolve_browser_connector_extension_source(app: &AppHandle) -> Result<Pat
     Ok(path)
 }
 
+fn detect_extension_sync_drift(
+    bundled_extension_dir: &Path,
+    install_dir: &Path,
+) -> Result<Option<String>, String> {
+    for relative_path in EXTENSION_SYNC_REQUIRED_FILES {
+        let bundled_path = bundled_extension_dir.join(relative_path);
+        let bundled_content = fs::read(&bundled_path)
+            .map_err(|error| format!("读取内置连接器文件失败 {:?}: {error}", bundled_path))?;
+
+        let installed_path = install_dir.join(relative_path);
+        let installed_content = match fs::read(&installed_path) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Some(format!("缺少关键文件 {relative_path}")));
+            }
+            Err(error) => {
+                return Ok(Some(format!("关键文件 {relative_path} 无法读取: {error}")));
+            }
+        };
+
+        if installed_content != bundled_content {
+            return Ok(Some(format!("关键文件 {relative_path} 已变化")));
+        }
+    }
+
+    Ok(None)
+}
+
 fn build_install_status_from_paths(
     bundled_extension_dir: &Path,
     install_root_dir: Option<&Path>,
@@ -586,15 +620,22 @@ fn build_install_status_from_paths(
 
     match read_manifest_info(&install_dir) {
         Ok(installed_manifest) => {
-            let status = if installed_manifest.version == bundled_manifest.version {
-                "installed"
+            let (status, message) = if installed_manifest.version != bundled_manifest.version {
+                (
+                    "update_available",
+                    Some("检测到用户目录中的连接器版本落后于当前应用".to_string()),
+                )
+            } else if let Some(drift_reason) =
+                detect_extension_sync_drift(bundled_extension_dir, &install_dir)?
+            {
+                (
+                    "update_available",
+                    Some(format!(
+                        "检测到已安装连接器与当前应用内置扩展不一致（{drift_reason}），请重新同步扩展"
+                    )),
+                )
             } else {
-                "update_available"
-            };
-            let message = if status == "installed" {
-                Some("已安装最新版本浏览器连接器".to_string())
-            } else {
-                Some("检测到用户目录中的连接器版本落后于当前应用".to_string())
+                ("installed", Some("已安装最新版本浏览器连接器".to_string()))
             };
 
             Ok(BrowserConnectorInstallStatus {
@@ -838,19 +879,38 @@ pub fn update_browser_action_capability_enabled(
 mod tests {
     use super::*;
 
-    fn create_extension_dir(base_dir: &Path, version: &str) -> PathBuf {
-        let extension_dir = base_dir.join(format!("extension-{version}"));
+    fn write_extension_fixture(extension_dir: &Path, version: &str, tag: &str) {
         fs::create_dir_all(&extension_dir).expect("创建扩展目录失败");
         fs::write(
             extension_dir.join("manifest.json"),
             format!(
                 r#"{{
-  "name": "Lime Browser Connector",
+  "name": "Lime Browser Bridge",
   "version": "{version}"
 }}"#
             ),
         )
         .expect("写入 manifest 失败");
+        fs::write(
+            extension_dir.join("background.js"),
+            format!("globalThis.__lime_background = \"{tag}\";\n"),
+        )
+        .expect("写入 background.js 失败");
+        fs::write(
+            extension_dir.join("content_script.js"),
+            format!("globalThis.__lime_content = \"{tag}\";\n"),
+        )
+        .expect("写入 content_script.js 失败");
+        fs::write(
+            extension_dir.join("site_adapter_runners.generated.js"),
+            format!("globalThis.__lime_generated = \"{tag}\";\n"),
+        )
+        .expect("写入 site_adapter_runners.generated.js 失败");
+    }
+
+    fn create_extension_dir(base_dir: &Path, version: &str, tag: &str) -> PathBuf {
+        let extension_dir = base_dir.join(format!("extension-{version}-{tag}"));
+        write_extension_fixture(&extension_dir, version, tag);
         extension_dir
     }
 
@@ -864,7 +924,7 @@ mod tests {
     #[test]
     fn status_should_report_not_installed_without_root_dir() {
         let temp_dir = tempfile::tempdir().expect("创建临时目录失败");
-        let bundled_dir = create_extension_dir(temp_dir.path(), "1.0.0");
+        let bundled_dir = create_extension_dir(temp_dir.path(), "1.0.0", "bundled");
         let status = build_install_status_from_paths(&bundled_dir, None).expect("读取状态失败");
 
         assert_eq!(status.status, "not_installed");
@@ -875,24 +935,54 @@ mod tests {
     #[test]
     fn status_should_report_update_available_when_versions_differ() {
         let temp_dir = tempfile::tempdir().expect("创建临时目录失败");
-        let bundled_dir = create_extension_dir(temp_dir.path(), "1.1.0");
+        let bundled_dir = create_extension_dir(temp_dir.path(), "1.1.0", "bundled");
         let install_root = temp_dir.path().join("user-selected");
         let installed_dir = resolve_browser_connector_install_dir(&install_root);
-        fs::create_dir_all(&installed_dir).expect("创建安装目录失败");
-        fs::write(
-            installed_dir.join("manifest.json"),
-            r#"{
-  "name": "Lime Browser Connector",
-  "version": "1.0.0"
-}"#,
-        )
-        .expect("写入已安装 manifest 失败");
+        write_extension_fixture(&installed_dir, "1.0.0", "installed");
 
         let status = build_install_status_from_paths(&bundled_dir, Some(&install_root))
             .expect("读取状态失败");
         assert_eq!(status.status, "update_available");
         assert_eq!(status.installed_version.as_deref(), Some("1.0.0"));
         assert_eq!(status.bundled_version, "1.1.0");
+    }
+
+    #[test]
+    fn status_should_report_installed_when_versions_and_files_match() {
+        let temp_dir = tempfile::tempdir().expect("创建临时目录失败");
+        let bundled_dir = create_extension_dir(temp_dir.path(), "1.1.0", "bundled");
+        let install_root = temp_dir.path().join("user-selected");
+        let installed_dir = resolve_browser_connector_install_dir(&install_root);
+        copy_dir_recursive(&bundled_dir, &installed_dir).expect("复制安装目录失败");
+
+        let status = build_install_status_from_paths(&bundled_dir, Some(&install_root))
+            .expect("读取状态失败");
+
+        assert_eq!(status.status, "installed");
+        assert_eq!(
+            status.message.as_deref(),
+            Some("已安装最新版本浏览器连接器")
+        );
+    }
+
+    #[test]
+    fn status_should_report_update_available_when_required_file_missing() {
+        let temp_dir = tempfile::tempdir().expect("创建临时目录失败");
+        let bundled_dir = create_extension_dir(temp_dir.path(), "1.1.0", "bundled");
+        let install_root = temp_dir.path().join("user-selected");
+        let installed_dir = resolve_browser_connector_install_dir(&install_root);
+        copy_dir_recursive(&bundled_dir, &installed_dir).expect("复制安装目录失败");
+        fs::remove_file(installed_dir.join("site_adapter_runners.generated.js"))
+            .expect("删除 generated runner 失败");
+
+        let status = build_install_status_from_paths(&bundled_dir, Some(&install_root))
+            .expect("读取状态失败");
+
+        assert_eq!(status.status, "update_available");
+        assert!(status
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("site_adapter_runners.generated.js")));
     }
 
     #[cfg(target_os = "macos")]

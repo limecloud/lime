@@ -151,6 +151,58 @@ describe("useWorkspaceWriteFileAction", () => {
     expect(setLayoutMode).not.toHaveBeenCalled();
   });
 
+  it("tool_result 来源的通用产物不应自动选中或展开工作台", async () => {
+    const setSelectedArtifactId = vi.fn();
+    const setArtifactViewMode = vi.fn();
+    const setLayoutMode = vi.fn();
+    const { render, getValue } = renderHook({
+      setSelectedArtifactId,
+      setArtifactViewMode,
+      setLayoutMode,
+      suppressCanvasAutoOpen: false,
+    });
+
+    await render();
+
+    act(() => {
+      getValue()("## 结果摘要", "summary.md", {
+        source: "tool_result",
+        status: "complete",
+        metadata: {
+          writePhase: "completed",
+        },
+      });
+    });
+
+    expect(setSelectedArtifactId).not.toHaveBeenCalled();
+    expect(setArtifactViewMode).not.toHaveBeenCalled();
+    expect(setLayoutMode).not.toHaveBeenCalled();
+  });
+
+  it("空内容的图片 tool_result 不应进入通用 artifact 工作台", async () => {
+    const upsertGeneralArtifact = vi.fn();
+    const setSelectedArtifactId = vi.fn();
+    const { render, getValue } = renderHook({
+      upsertGeneralArtifact,
+      setSelectedArtifactId,
+    });
+
+    await render();
+
+    act(() => {
+      getValue()("", "output_image.jpg", {
+        source: "tool_result",
+        status: "complete",
+        metadata: {
+          writePhase: "completed",
+        },
+      });
+    });
+
+    expect(upsertGeneralArtifact).not.toHaveBeenCalled();
+    expect(setSelectedArtifactId).not.toHaveBeenCalled();
+  });
+
   it("进行中的流式写入仍应自动展开画布，便于实时查看输出", async () => {
     const setArtifactViewMode = vi.fn();
     const setLayoutMode = vi.fn();

@@ -807,6 +807,7 @@ mod tests {
                 }]),
                 tool_call_id: None,
                 reasoning_content: None,
+                usage: None,
             },
             AgentMessage {
                 role: "user".to_string(),
@@ -815,6 +816,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: None,
                 reasoning_content: None,
+                usage: None,
             },
             AgentMessage {
                 role: "assistant".to_string(),
@@ -823,6 +825,7 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: None,
                 reasoning_content: None,
+                usage: None,
             },
         ];
 

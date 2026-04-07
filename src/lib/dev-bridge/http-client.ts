@@ -14,6 +14,10 @@ const BRIDGE_URL = "http://127.0.0.1:3030/invoke";
 const BRIDGE_HEALTH_URL = "http://127.0.0.1:3030/health";
 const BRIDGE_EVENTS_URL = "http://127.0.0.1:3030/events";
 const DEV_BRIDGE_EVENT_CONNECT_TIMEOUT_MS = 1500;
+const DEV_BRIDGE_REQUEST_TIMEOUT_MS = 1800;
+const DEV_BRIDGE_HEALTH_TIMEOUT_MS = 800;
+const DEV_BRIDGE_HEALTH_CACHE_MS = 2500;
+const DEV_BRIDGE_FAILURE_COOLDOWN_MS = 3000;
 
 export interface InvokeRequest {
   cmd: string;
@@ -33,7 +37,13 @@ interface DevBridgeEventHub {
   openPromise: Promise<void>;
 }
 
+type FetchInput = Parameters<typeof fetch>[0];
+type FetchOptions = NonNullable<Parameters<typeof fetch>[1]>;
+
 const bridgeEventHubs = new Map<string, DevBridgeEventHub>();
+let bridgeLastHealthyAt = 0;
+let bridgeConnectionBackoffUntil = 0;
+let bridgeHealthProbePromise: Promise<boolean> | null = null;
 
 function resolveEventSourceConstructor(): typeof EventSource | null {
   if (typeof window !== "undefined" && typeof window.EventSource === "function") {
@@ -63,14 +73,107 @@ function isBridgeCommandError(message: string): boolean {
 }
 
 function isBridgeConnectionError(message: string): boolean {
+  const normalizedMessage = message.toLowerCase();
   return (
     message.includes("Failed to fetch") ||
     message.includes("fetch failed") ||
     message.includes("NetworkError") ||
     message.includes("ERR_CONNECTION_REFUSED") ||
     message.includes("Load failed") ||
-    message.includes("ECONNREFUSED")
+    message.includes("ECONNREFUSED") ||
+    normalizedMessage.includes("timeout") ||
+    normalizedMessage.includes("aborterror")
   );
+}
+
+function markBridgeHealthy(now = Date.now()): void {
+  bridgeLastHealthyAt = now;
+  bridgeConnectionBackoffUntil = 0;
+}
+
+function markBridgeUnavailable(now = Date.now()): void {
+  bridgeLastHealthyAt = 0;
+  bridgeConnectionBackoffUntil = Math.max(
+    bridgeConnectionBackoffUntil,
+    now + DEV_BRIDGE_FAILURE_COOLDOWN_MS,
+  );
+}
+
+function isBridgeCooldownActive(now = Date.now()): boolean {
+  return bridgeConnectionBackoffUntil > now;
+}
+
+function createBridgeConnectionFailureError(reason: string): Error {
+  return new Error(`Failed to fetch (${reason})`);
+}
+
+async function fetchWithTimeout(
+  input: FetchInput,
+  init: FetchOptions,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw createBridgeConnectionFailureError(`timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}
+
+async function ensureBridgeReachable(): Promise<void> {
+  const now = Date.now();
+  if (bridgeLastHealthyAt > 0 && now - bridgeLastHealthyAt < DEV_BRIDGE_HEALTH_CACHE_MS) {
+    return;
+  }
+
+  if (isBridgeCooldownActive(now)) {
+    throw createBridgeConnectionFailureError("bridge cooldown active");
+  }
+
+  if (!bridgeHealthProbePromise) {
+    bridgeHealthProbePromise = (async () => {
+      try {
+        const response = await fetchWithTimeout(
+          BRIDGE_HEALTH_URL,
+          {
+            method: "GET",
+          },
+          DEV_BRIDGE_HEALTH_TIMEOUT_MS,
+        );
+        if (!response.ok) {
+          markBridgeUnavailable();
+          return false;
+        }
+        markBridgeHealthy();
+        return true;
+      } catch (error) {
+        if (isBridgeConnectionError(toErrorMessage(error))) {
+          markBridgeUnavailable();
+          return false;
+        }
+        throw error;
+      } finally {
+        bridgeHealthProbePromise = null;
+      }
+    })();
+  }
+
+  const reachable = await bridgeHealthProbePromise;
+  if (!reachable) {
+    throw createBridgeConnectionFailureError("bridge health check failed");
+  }
 }
 
 function isTestEnvironment(): boolean {
@@ -177,6 +280,8 @@ export async function listenViaHttpEvent<T = unknown>(
 
   let hub = bridgeEventHubs.get(normalizedEvent);
   if (!hub) {
+    await ensureBridgeReachable();
+
     const EventSourceConstructor = resolveEventSourceConstructor();
     if (!EventSourceConstructor) {
       throw new Error(`[DevBridge] 浏览器模式事件桥不可用: ${event}`);
@@ -199,6 +304,7 @@ export async function listenViaHttpEvent<T = unknown>(
       if (hasOpened) {
         return;
       }
+      markBridgeUnavailable();
       bridgeEventHubs.delete(normalizedEvent);
       source.close();
       settleOpenError?.(
@@ -237,6 +343,7 @@ export async function listenViaHttpEvent<T = unknown>(
         return;
       }
       window.clearTimeout(connectTimeout);
+      markBridgeUnavailable();
       bridgeEventHubs.delete(normalizedEvent);
       source.close();
       settleOpenError?.(
@@ -287,13 +394,19 @@ export async function invokeViaHttp<T = unknown>(
   console.log(`[DevBridge] HTTP 调用: ${cmd}`, args);
 
   try {
-    const response = await fetch(BRIDGE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    await ensureBridgeReachable();
+
+    const response = await fetchWithTimeout(
+      BRIDGE_URL,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ cmd, args } satisfies InvokeRequest),
       },
-      body: JSON.stringify({ cmd, args } satisfies InvokeRequest),
-    });
+      DEV_BRIDGE_REQUEST_TIMEOUT_MS,
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -305,8 +418,12 @@ export async function invokeViaHttp<T = unknown>(
       throw new Error(data.error);
     }
 
+    markBridgeHealthy();
     return data.result as T;
   } catch (e) {
+    if (isBridgeConnectionError(toErrorMessage(e))) {
+      markBridgeUnavailable();
+    }
     console.error(`[DevBridge] HTTP 调用失败: ${cmd}`, e);
     throw e;
   }
@@ -319,13 +436,18 @@ export async function invokeViaHttp<T = unknown>(
  */
 export async function healthCheck(): Promise<boolean> {
   try {
-    const response = await fetch(BRIDGE_HEALTH_URL, {
-      method: "GET",
-    });
-    return response.ok;
+    await ensureBridgeReachable();
+    return true;
   } catch {
     return false;
   }
+}
+
+/** @internal 仅供测试重置 DevBridge HTTP 状态 */
+export function __resetDevBridgeHttpStateForTests(): void {
+  bridgeLastHealthyAt = 0;
+  bridgeConnectionBackoffUntil = 0;
+  bridgeHealthProbePromise = null;
 }
 
 /**

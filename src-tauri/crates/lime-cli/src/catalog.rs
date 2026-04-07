@@ -10,7 +10,7 @@ AI Agent 技能:
   draft -> pending_submit -> queued -> running -> partial -> succeeded|failed|cancelled
 
 示例:
-  lime task create image --prompt \"未来城市插图\" --size \"1024x1024\"
+  lime media image generate --prompt \"未来城市插图\" --size \"1024x1024\"
   lime task create transcription --source-path \"/tmp/interview.wav\" --output-format srt
   lime task create broadcast --title \"播客摘要\" --content \"原文内容\"
   lime task list --family image --status running
@@ -21,7 +21,7 @@ AI Agent 技能:
 
 pub const TASK_AFTER_HELP: &str = "\
 常用命令:
-  lime task create image --prompt \"未来城市插图\"
+  lime media image generate --prompt \"未来城市插图\"
   lime task create transcription --source-url \"https://example.com/demo.mp4\"
   lime task create url-parse --url \"https://example.com\" --summary \"摘要\"
   lime task list --family image
@@ -49,10 +49,10 @@ pub const TASK_ENTRIES: &[TaskCatalogEntry] = &[
     TaskCatalogEntry {
         command_name: "image",
         task_type: TaskType::ImageGenerate,
-        description: "根据提示词创建普通配图任务。",
+        description: "根据提示词提交普通配图任务，并推进真实图片执行链。",
         skill_name: "image_generate",
         docs_dir: "src-tauri/resources/default-skills/image_generate",
-        example: "lime task create image --prompt \"未来城市插图\" --size \"1024x1024\"",
+        example: "lime media image generate --prompt \"未来城市插图\" --size \"1024x1024\"",
     },
     TaskCatalogEntry {
         command_name: "cover",
@@ -147,7 +147,7 @@ pub const SKILL_ENTRIES: &[SkillCatalogEntry] = &[
     SkillCatalogEntry {
         name: "image_generate",
         description: "普通配图任务技能。",
-        recommended_command: "lime task create image --prompt \"...\"",
+        recommended_command: "lime media image generate --prompt \"...\"",
         skill_path: "src-tauri/resources/default-skills/image_generate/SKILL.md",
         references: &[],
     },
@@ -195,6 +195,27 @@ pub const SKILL_ENTRIES: &[SkillCatalogEntry] = &[
             "lime task create typesetting --target-platform xiaohongshu --content \"...\"",
         skill_path: "tools/lime-cli/domains/typesetting/SKILL.md",
         references: &["tools/lime-cli/domains/typesetting/references/create.md"],
+    },
+    SkillCatalogEntry {
+        name: "webpage_generate",
+        description: "单文件 HTML 网页生成技能。",
+        recommended_command: "lime skill show webpage_generate",
+        skill_path: "src-tauri/resources/default-skills/webpage_generate/SKILL.md",
+        references: &[],
+    },
+    SkillCatalogEntry {
+        name: "presentation_generate",
+        description: "单文件 Markdown 演示稿生成技能。",
+        recommended_command: "lime skill show presentation_generate",
+        skill_path: "src-tauri/resources/default-skills/presentation_generate/SKILL.md",
+        references: &[],
+    },
+    SkillCatalogEntry {
+        name: "form_generate",
+        description: "A2UI 表单生成技能。",
+        recommended_command: "lime skill show form_generate",
+        skill_path: "src-tauri/resources/default-skills/form_generate/SKILL.md",
+        references: &[],
     },
     SkillCatalogEntry {
         name: "modal_resource_search",

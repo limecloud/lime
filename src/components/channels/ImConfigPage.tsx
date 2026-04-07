@@ -2370,7 +2370,7 @@ export function ImConfigPage() {
             <div className="max-w-2xl space-y-3">
               <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
                 <Sparkles className="h-3.5 w-3.5" />
-                能力 / IM 配置
+                能力 / 消息渠道
               </span>
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
@@ -2378,11 +2378,14 @@ export function ImConfigPage() {
                     把常用 IM 接到 Lime
                   </h1>
                   <WorkbenchInfoTip
-                    ariaLabel="IM 配置说明"
+                    ariaLabel="消息渠道说明"
                     content="首页只放重点入口。Telegram、飞书、微信在这里直达；联调检查放进各自配置弹窗，网关和日志统一收到下方高级区。"
                     tone="mint"
                   />
                 </div>
+                <p className="max-w-3xl text-sm leading-7 text-slate-600">
+                  让 Telegram、飞书、微信等外部客户端也能连到 Lime。
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">

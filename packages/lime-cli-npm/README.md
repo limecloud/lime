@@ -14,6 +14,7 @@ Lime 的官方命令行入口，面向统一任务编排。
 
 当前主线提供：
 
+- `lime media image generate`
 - `lime task create image`
 - `lime task create cover`
 - `lime task create video`
@@ -45,7 +46,7 @@ npm install -g @limecloud/lime-cli
 示例：
 
 ```bash
-lime task create image \
+lime media image generate \
   --prompt "未来城市插图，蓝色电影感" \
   --size "1024x1024" \
   --workspace "." \
@@ -83,8 +84,9 @@ lime doctor
 
 说明：
 
-- `lime media image|cover|video generate` 仍保留为兼容别名。
-- 新主线统一收敛到 `lime task create ...`。
+- 图片主线推荐使用 `lime media image generate`，它会在创建 task artifact 后继续推进真实图片执行链。
+- `lime task create image` 作为兼容入口仍可使用，但现在也会复用同一条图片执行链，不会只停在 `pending_submit`。
+- `lime media cover|video generate` 仍保留为兼容别名。
 - 如果你现在只发布 npm、不发布 GitHub Release，请至少准备一种运行方式：
   - 设置 `LIME_CLI_BINARY_PATH`
   - 或在 Lime 源码仓库内使用该 wrapper，让它自动回退到 `cargo run`
@@ -110,7 +112,7 @@ npm run build:release -- \
 ```bash
 npm run build:release -- \
   --target-triple "aarch64-apple-darwin" \
-  --version "1.4.0" \
+  --version "1.5.0" \
   --out-dir "./dist"
 ```
 

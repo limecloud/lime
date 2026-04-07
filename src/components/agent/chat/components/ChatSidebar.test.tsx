@@ -125,6 +125,71 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("任务一");
   });
 
+  it("任务中心侧栏空态应展示回访型文案", () => {
+    const container = renderSidebar({
+      contextVariant: "task-center",
+      topics: [],
+      currentTopicId: null,
+    });
+
+    expect(container.textContent).toContain("工作现场");
+    expect(container.textContent).toContain(
+      "回到进行中的任务、旧历史和最近工作现场。",
+    );
+    expect(container.textContent).toContain("还没有进行中的任务");
+    expect(container.textContent).toContain(
+      "从“新建任务”开始也很自然，创建后会在这里继续回访。",
+    );
+  });
+
+  it("任务中心侧栏应使用回访型任务分组标题", () => {
+    const now = Date.now();
+    const container = renderSidebar({
+      contextVariant: "task-center",
+      currentTopicId: null,
+      topics: [
+        {
+          ...defaultTopics[0],
+          id: "topic-running",
+          title: "进行中任务",
+          updatedAt: new Date(now),
+          status: "running",
+          sourceSessionId: "topic-running",
+        },
+        {
+          ...defaultTopics[0],
+          id: "topic-waiting",
+          title: "待继续任务",
+          updatedAt: new Date(now - 1_000),
+          status: "waiting",
+          statusReason: "user_action",
+          sourceSessionId: "topic-waiting",
+        },
+        {
+          ...defaultTopics[0],
+          id: "topic-recent",
+          title: "最近回访任务",
+          updatedAt: new Date(now - 2_000),
+          status: "done",
+          sourceSessionId: "topic-recent",
+        },
+        {
+          ...defaultTopics[0],
+          id: "topic-older",
+          title: "更早任务",
+          updatedAt: new Date(now - 1000 * 60 * 60 * 24 * 5),
+          status: "done",
+          sourceSessionId: "topic-older",
+        },
+      ],
+    });
+
+    expect(container.textContent).toContain("正在推进");
+    expect(container.textContent).toContain("等你继续");
+    expect(container.textContent).toContain("最近回访");
+    expect(container.textContent).toContain("更早记录");
+  });
+
   it("Team Runtime 和任务列表应处于同一滚动区域", () => {
     const container = renderSidebar({
       childSubagentSessions: [

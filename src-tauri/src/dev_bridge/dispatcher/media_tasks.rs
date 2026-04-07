@@ -2,8 +2,8 @@ use super::{args_or_default, parse_nested_arg};
 use crate::commands::aster_agent_cmd::tool_runtime::media_cli_bridge;
 use crate::commands::media_task_cmd::{
     cancel_media_task_artifact_inner, create_image_generation_task_artifact_inner,
-    get_media_task_artifact_inner, list_media_task_artifacts_inner,
-    start_image_generation_task_worker_if_needed, CreateImageGenerationTaskArtifactRequest,
+    finalize_image_generation_task_creation, get_media_task_artifact_inner,
+    list_media_task_artifacts_inner, CreateImageGenerationTaskArtifactRequest,
     ListMediaTaskArtifactsRequest, MediaTaskLookupRequest,
 };
 use crate::dev_bridge::DevBridgeState;
@@ -29,14 +29,11 @@ pub(super) async fn try_handle(
             let project_root_path = request.project_root_path.trim().to_string();
             let output =
                 create_image_generation_task_artifact_inner(request).map_err(to_dyn_error)?;
-            if let Some(app_handle) = state.app_handle.as_ref() {
-                media_cli_bridge::emit_media_creation_task_event(app_handle, &output);
-                start_image_generation_task_worker_if_needed(
-                    app_handle,
-                    project_root_path.as_str(),
-                    &output,
-                );
-            }
+            finalize_image_generation_task_creation(
+                state.app_handle.as_ref(),
+                project_root_path.as_str(),
+                &output,
+            );
             serde_json::to_value(output)?
         }
         "get_media_task_artifact" => {

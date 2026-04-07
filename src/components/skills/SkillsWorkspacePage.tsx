@@ -499,7 +499,7 @@ export function SkillsWorkspacePage({
           <header className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
               <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-emerald-700">
-                CLAW SKILLS · 主入口
+                技能 · 直接开工
               </span>
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
@@ -512,24 +512,21 @@ export function SkillsWorkspacePage({
                     tone="mint"
                   />
                 </div>
+                <p className="max-w-3xl text-sm leading-7 text-slate-600">
+                  先找能直接开工的做法，再进入具体技能。
+                </p>
               </div>
               <div className="flex flex-wrap gap-2 text-[11px] leading-5 text-slate-500">
                 {catalogMeta ? (
                   <>
                     <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                      {catalogMeta.sourceLabel}
+                      技能 {serviceSkills.length}
                     </span>
                     {catalogMeta.groupCount ? (
                       <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
                         分组 {catalogMeta.groupCount}
                       </span>
                     ) : null}
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                      Tenant · {catalogMeta.tenantId}
-                    </span>
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                      Version · {catalogMeta.version}
-                    </span>
                     {syncedAtLabel ? (
                       <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
                         同步于 {syncedAtLabel}
@@ -549,7 +546,7 @@ export function SkillsWorkspacePage({
                 <span>查找技能组 / 技能项</span>
                 <WorkbenchInfoTip
                   ariaLabel="技能搜索说明"
-                  content="先定位技能组，再进入具体技能；本地和项目级补充能力仍收纳在高级管理中。"
+                  content="先从能直接开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。"
                   tone="slate"
                 />
               </div>
@@ -581,7 +578,7 @@ export function SkillsWorkspacePage({
                   onClick={() => setAdvancedManagerOpen(true)}
                 >
                   <FolderOpen className="mr-2 h-4 w-4" />
-                  高级技能管理
+                  导入与维护
                 </Button>
               </div>
             </div>
@@ -592,12 +589,12 @@ export function SkillsWorkspacePage({
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="space-y-3">
                   <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-medium text-sky-700">
-                    Claw 下的技能主入口
+                    从现成做法开始
                   </span>
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-                        先选技能组，再进入真正可执行的技能
+                        先找能直接开工的做法
                       </h2>
                       <WorkbenchInfoTip
                         ariaLabel="技能组说明"
@@ -613,7 +610,7 @@ export function SkillsWorkspacePage({
                   className="rounded-2xl border-slate-200"
                   onClick={() => onNavigate("agent", { agentEntry: "claw" })}
                 >
-                  打开 Claw 对话
+                  回到任务中心
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
@@ -650,7 +647,7 @@ export function SkillsWorkspacePage({
                     <span>本地已安装</span>
                     <WorkbenchInfoTip
                       ariaLabel="本地已安装技能说明"
-                      content="本地和项目级补充技能仍保留在高级管理中。"
+                      content="本地和项目级补充技能仍保留在导入与维护里。"
                       tone="slate"
                     />
                   </div>
@@ -683,7 +680,7 @@ export function SkillsWorkspacePage({
                 },
                 {
                   icon: Boxes,
-                  title: "本地补充",
+                  title: "我的补充",
                   description:
                     "本地和项目级技能仍然可用，但不再作为默认主入口承载。",
                 },
@@ -747,7 +744,7 @@ export function SkillsWorkspacePage({
                   ? "正在同步当前目录..."
                   : selectedGroup
                     ? `当前正在浏览 ${selectedGroup.title} 技能组。`
-                    : "技能广场面向最终用户，本地仓库与导入能力收纳在高级管理中。"}
+                    : "首页先展示能直接启动的技能；本地仓库与导入能力收纳在导入与维护。"}
               </div>
             </div>
 
@@ -1004,7 +1001,7 @@ export function SkillsWorkspacePage({
                   </div>
                 ) : (
                   <div className="mt-4 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
-                    当前没有本地已安装技能。你仍然可以在高级管理里导入本地技能或查看远程仓库目录。
+                    当前没有本地已安装技能。你仍然可以在导入与维护里导入本地技能或查看远程仓库目录。
                   </div>
                 )}
               </section>
@@ -1030,10 +1027,10 @@ export function SkillsWorkspacePage({
           <div className="flex h-[calc(100vh-88px)] min-h-[680px] flex-col bg-white">
             <DialogHeader className="border-b border-slate-200 px-6 py-5">
               <div className="flex flex-wrap items-center gap-2">
-                <DialogTitle>高级技能管理</DialogTitle>
+                <DialogTitle>导入与维护</DialogTitle>
                 <WorkbenchInfoTip
-                  ariaLabel="高级技能管理弹窗说明"
-                  content="主入口已经迁到 Claw 左侧导航；这里保留本地导入、仓库管理、标准检查和远程技能安装能力。"
+                  ariaLabel="导入与维护弹窗说明"
+                  content="首页先服务直接开工；这里保留本地导入、仓库管理、标准检查和远程技能安装能力。"
                   tone="mint"
                 />
               </div>

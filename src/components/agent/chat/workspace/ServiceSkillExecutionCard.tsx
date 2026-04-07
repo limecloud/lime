@@ -30,6 +30,13 @@ export function ServiceSkillExecutionCard({
   }
 
   const resultTitle = state.result?.saved_content?.title?.trim();
+  const projectRootPath =
+    state.result?.saved_content?.project_root_path?.trim() || "";
+  const markdownRelativePath =
+    state.result?.saved_content?.markdown_relative_path?.trim() || "";
+  const imagesRelativeDir =
+    state.result?.saved_content?.images_relative_dir?.trim() || "";
+  const imageCount = state.result?.saved_content?.image_count;
 
   return (
     <section
@@ -58,6 +65,22 @@ export function ServiceSkillExecutionCard({
       {resultTitle ? (
         <p className="mt-2 text-xs leading-5 opacity-80">
           已沉淀内容：{resultTitle}
+        </p>
+      ) : null}
+      {projectRootPath ? (
+        <p className="mt-2 break-all text-xs leading-5 opacity-80">
+          项目目录：{projectRootPath}
+        </p>
+      ) : null}
+      {markdownRelativePath ? (
+        <p className="mt-2 break-all text-xs leading-5 opacity-80">
+          Markdown 文件：{markdownRelativePath}
+        </p>
+      ) : null}
+      {typeof imageCount === "number" ? (
+        <p className="mt-2 break-all text-xs leading-5 opacity-80">
+          图片资源：{imageCount} 张
+          {imagesRelativeDir ? ` · ${imagesRelativeDir}` : ""}
         </p>
       ) : null}
       {state.sourceUrl ? (

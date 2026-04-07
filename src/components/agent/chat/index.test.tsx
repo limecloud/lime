@@ -1423,6 +1423,34 @@ describe("AgentChatPage 话题切换项目恢复", () => {
     expect(workspaceHookOrder).toBeLessThan(switchTopicOrder);
   });
 
+  it("默认工作区别名应在进入页面时归一为真实项目 ID", async () => {
+    mockGetOrCreateDefaultProject.mockResolvedValue(
+      createProject("project-default-real"),
+    );
+    mockEnsureWorkspaceReady.mockResolvedValue({
+      workspaceId: "project-default-real",
+      rootPath: "/tmp/project-default-real",
+      existed: true,
+      created: false,
+      repaired: false,
+      relocated: false,
+      previousRootPath: null,
+      warning: null,
+    });
+
+    renderPage({ projectId: "default" });
+    await flushEffects();
+
+    expect(mockGetOrCreateDefaultProject).toHaveBeenCalledTimes(1);
+    expect(mockEnsureWorkspaceReady).toHaveBeenCalledWith(
+      "project-default-real",
+    );
+    expect(observedWorkspaceIds).not.toContain("default");
+    expect(observedWorkspaceIds[observedWorkspaceIds.length - 1]).toBe(
+      "project-default-real",
+    );
+  });
+
   it("存在 newChatAt 时手动选项目不应被重置", async () => {
     const container = renderPage({ newChatAt: 1234567890 });
     await flushEffects();

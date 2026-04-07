@@ -136,6 +136,24 @@ describe("ImageTaskViewer", () => {
     expect(onOpenImage).toHaveBeenCalledWith("https://example.com/image-1.png");
   });
 
+  it("大图舞台应保留稳定内边距，避免图片贴近上下边线", () => {
+    const { container } = renderComponent();
+
+    const stage = container.querySelector(
+      '[data-testid="image-task-viewer-stage"]',
+    ) as HTMLDivElement | null;
+    const openButton = container.querySelector(
+      '[data-testid="image-task-viewer-open-image"]',
+    ) as HTMLButtonElement | null;
+
+    expect(stage?.className).toContain("rounded-[20px]");
+    expect(openButton?.className).toContain("rounded-[18px]");
+    expect(openButton?.className).toContain("p-4");
+    expect(openButton?.className).toContain("border-slate-200/80");
+    expect(stage?.firstElementChild?.className).toContain("p-4");
+    expect(stage?.firstElementChild?.className).toContain("pt-5");
+  });
+
   it("结果图加载失败时应展示兜底文案并隐藏打开原图入口", () => {
     const { container } = renderComponent();
 

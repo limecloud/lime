@@ -141,6 +141,31 @@ describe("ChatNavbar", () => {
     expect(container.querySelector('[data-testid="project-selector"]')).toBeNull();
   });
 
+  it("任务中心顶栏应展示轻量上下文提示", () => {
+    const container = renderChatNavbar({
+      entryContextLabel: "任务中心",
+      entryContextHint: "回到进行中的任务、旧历史和最近工作现场。",
+    });
+
+    expect(container.textContent).toContain("任务中心");
+    expect(container.textContent).toContain(
+      "回到进行中的任务、旧历史和最近工作现场。",
+    );
+  });
+
+  it("紧凑顶栏应只保留任务中心标签，不额外展开说明", () => {
+    const container = renderChatNavbar({
+      chrome: "workspace-compact",
+      entryContextLabel: "任务中心",
+      entryContextHint: "回到进行中的任务、旧历史和最近工作现场。",
+    });
+
+    expect(container.textContent).toContain("任务中心");
+    expect(container.textContent).not.toContain(
+      "回到进行中的任务、旧历史和最近工作现场。",
+    );
+  });
+
   it("点击顶栏按钮后应切换 Harness 面板显隐", () => {
     function HarnessToggleHarness() {
       const [visible, setVisible] = useState(false);

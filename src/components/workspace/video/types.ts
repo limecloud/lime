@@ -23,6 +23,7 @@ export interface VideoCanvasState {
   aspectRatio: VideoAspectRatio;
   resolution: VideoResolution;
   status: VideoStatus;
+  selectedTaskId?: string;
   videoUrl?: string;
   errorMessage?: string;
 }
@@ -50,4 +51,5 @@ export const createInitialVideoState = (
   aspectRatio: "adaptive",
   resolution: "720p",
   status: "idle",
+  selectedTaskId: undefined,
 });

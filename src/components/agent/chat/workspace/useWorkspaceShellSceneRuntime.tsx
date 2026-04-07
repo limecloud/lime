@@ -16,6 +16,7 @@ interface UseWorkspaceShellSceneRuntimeParams {
   isThemeWorkbench: boolean;
   showChatPanel: boolean;
   showSidebar: boolean;
+  sidebarContextVariant?: WorkspaceShellSceneProps["sidebarContextVariant"];
   generalWorkbenchShellRuntime: GeneralWorkbenchShellRuntime;
   conversationSceneRuntime: ConversationSceneRuntime;
   sessionId?: WorkspaceShellSceneProps["currentTopicId"];
@@ -40,6 +41,7 @@ export function useWorkspaceShellSceneRuntime({
   isThemeWorkbench,
   showChatPanel,
   showSidebar,
+  sidebarContextVariant = "default",
   generalWorkbenchShellRuntime,
   conversationSceneRuntime,
   sessionId,
@@ -68,6 +70,7 @@ export function useWorkspaceShellSceneRuntime({
         }
         showChatPanel={showChatPanel}
         showSidebar={showSidebar}
+        sidebarContextVariant={sidebarContextVariant}
         showGeneralWorkbenchLeftExpandButton={
           generalWorkbenchShellRuntime.showGeneralWorkbenchLeftExpandButton
         }

@@ -19,6 +19,8 @@ interface UseAgentChatUnifiedOptions {
   ) => void;
   workspaceId: string;
   disableSessionRestore?: boolean;
+  initialTopicsLoadMode?: "immediate" | "deferred";
+  initialTopicsDeferredDelayMs?: number;
   getSyncedSessionRecentPreferences?: (
     sessionId: string,
   ) => import("../utils/chatToolPreferences").ChatToolPreferences | null;

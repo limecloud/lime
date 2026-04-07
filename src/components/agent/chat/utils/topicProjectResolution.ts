@@ -5,6 +5,14 @@ export interface ResolveTopicProjectIdOptions {
 }
 
 const INVALID_PROJECT_IDS = new Set(["__invalid__", "[object Promise]"]);
+const DEFAULT_PROJECT_ID_ALIAS = "default";
+
+export function isDefaultProjectIdAlias(projectId: unknown): boolean {
+  return (
+    typeof projectId === "string" &&
+    projectId.trim().toLowerCase() === DEFAULT_PROJECT_ID_ALIAS
+  );
+}
 
 export function normalizeProjectId(projectId: unknown): string | null {
   if (typeof projectId !== "string") {
@@ -12,7 +20,11 @@ export function normalizeProjectId(projectId: unknown): string | null {
   }
 
   const normalized = projectId.trim();
-  if (!normalized || INVALID_PROJECT_IDS.has(normalized)) {
+  if (
+    !normalized ||
+    INVALID_PROJECT_IDS.has(normalized) ||
+    isDefaultProjectIdAlias(normalized)
+  ) {
     return null;
   }
 

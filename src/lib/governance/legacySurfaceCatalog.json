@@ -1688,6 +1688,31 @@
       ]
     },
     {
+      "id": "frontend-browser-preflight-legacy-tokens",
+      "classification": "dead-candidate",
+      "description": "前端不允许恢复旧浏览器 preflight 状态机、状态原因与顶栏兼容 props，当前统一收口到 browser requirement metadata + browser-runtime handoff",
+      "allowedPaths": [],
+      "patterns": [
+        "BrowserTaskPreflight",
+        "browserTaskPreflight",
+        "useWorkspaceBrowserPreflightRuntime",
+        "browser_preflight",
+        "browserPrepState",
+        "allowCapabilityFallback",
+        "browser_launching",
+        "browser_awaiting_user",
+        "browser_failed",
+        "showBrowserAssistEntry",
+        "onOpenBrowserAssist",
+        "browserAssistAttentionLevel",
+        "browserAssistEntryLabel",
+        "isBrowserAssistCanvasVisible",
+        "onPrepareBrowserTaskPreflight",
+        "maybeStartBrowserTaskPreflight",
+        "handlePermissionResponseWithBrowserPreflight"
+      ]
+    },
+    {
       "id": "aster-session-helper-direct-usage",
       "classification": "dead-candidate",
       "description": "已零引用的前端 direct Aster session helper 回流",

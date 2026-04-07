@@ -321,6 +321,12 @@ describe("ToolCallDisplay", () => {
             content_id: "content-1",
             project_id: "project-1",
             title: "GitHub MCP 搜索结果",
+            project_root_path: "/Users/coso/.proxycast/projects/project-1",
+            markdown_relative_path:
+              "exports/x-article-export/github-mcp/index.md",
+            images_relative_dir:
+              "exports/x-article-export/github-mcp/images",
+            image_count: 7,
           },
           saved_project_id: "project-1",
           saved_by: "context_project",
@@ -343,6 +349,15 @@ describe("ToolCallDisplay", () => {
 
     expect(container.textContent).toContain(
       "结果已自动保存到项目 project-1：GitHub MCP 搜索结果 · 来自当前项目上下文",
+    );
+    expect(container.textContent).toContain(
+      "项目目录：/Users/coso/.proxycast/projects/project-1",
+    );
+    expect(container.textContent).toContain(
+      "Markdown 文件：exports/x-article-export/github-mcp/index.md",
+    );
+    expect(container.textContent).toContain(
+      "图片资源：7 张 · exports/x-article-export/github-mcp/images",
     );
     expect(container.textContent).toContain("脚本来源：服务端脚本 · 2026-03-25");
   });

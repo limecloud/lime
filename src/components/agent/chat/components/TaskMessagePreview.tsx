@@ -9,6 +9,7 @@ import {
   PlayCircle,
   Search,
 } from "lucide-react";
+import { emitVideoWorkbenchTaskAction } from "@/lib/videoWorkbenchEvents";
 import { cn } from "@/lib/utils";
 import type { MessageTaskPreview } from "../types";
 
@@ -218,97 +219,141 @@ function renderVideoTaskPreview(
   onOpen?: (preview: MessageTaskPreview) => void,
   metaItems: string[] = [],
 ) {
+  const actionButtons =
+    preview.status === "running"
+      ? [
+          {
+            key: "cancel" as const,
+            label: "取消任务",
+          },
+        ]
+      : (preview.status === "failed" || preview.status === "cancelled") &&
+          preview.retryable !== false
+        ? [
+            {
+              key: "retry" as const,
+              label: "重新生成",
+            },
+          ]
+        : [];
+
   return (
-    <button
-      type="button"
-      onClick={() => onOpen?.(preview)}
-      data-testid={`task-message-preview-${preview.taskId}`}
-      className="mt-3 block w-full max-w-[560px] text-left"
-    >
-      <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5 transition hover:border-slate-300 hover:shadow-slate-950/10">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium",
-                resolveStatusTone(preview),
-              )}
-            >
-              {preview.status === "running" ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+    <div className="mt-3 w-full max-w-[560px]">
+      <button
+        type="button"
+        onClick={() => onOpen?.(preview)}
+        data-testid={`task-message-preview-${preview.taskId}`}
+        className="block w-full text-left"
+      >
+        <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5 transition hover:border-slate-300 hover:shadow-slate-950/10">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium",
+                  resolveStatusTone(preview),
+                )}
+              >
+                {preview.status === "running" ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Clapperboard className="h-3.5 w-3.5" />
+                )}
+                {resolveStatusLabel(preview)}
+              </span>
+              <span className="truncate text-[11px] font-semibold text-slate-500">
+                {resolveTaskLabel(preview)}
+              </span>
+            </div>
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
+              <span>打开查看</span>
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </span>
+          </div>
+
+          <div className="grid gap-3 px-4 pb-4 sm:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50">
+              {preview.thumbnailUrl ? (
+                <img
+                  src={preview.thumbnailUrl}
+                  alt={preview.prompt || "视频任务封面"}
+                  className="aspect-[16/10] h-full w-full object-cover"
+                />
               ) : (
-                <Clapperboard className="h-3.5 w-3.5" />
-              )}
-              {resolveStatusLabel(preview)}
-            </span>
-            <span className="truncate text-[11px] font-semibold text-slate-500">
-              {resolveTaskLabel(preview)}
-            </span>
-          </div>
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
-            <span>打开查看</span>
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </span>
-        </div>
-
-        <div className="grid gap-3 px-4 pb-4 sm:grid-cols-[220px_minmax(0,1fr)]">
-          <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50">
-            {preview.thumbnailUrl ? (
-              <img
-                src={preview.thumbnailUrl}
-                alt={preview.prompt || "视频任务封面"}
-                className="aspect-[16/10] h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex aspect-[16/10] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.14),transparent_46%),linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] px-6 text-center">
-                <div className="flex flex-col items-center gap-2 text-slate-500">
-                  {preview.videoUrl ? (
-                    <PlayCircle className="h-9 w-9 text-sky-500" />
-                  ) : (
-                    <Clapperboard className="h-9 w-9 text-sky-500" />
-                  )}
-                  <span className="text-sm font-medium">
-                    {preview.videoUrl
-                      ? "已同步视频结果"
-                      : resolveStatusLabel(preview)}
-                  </span>
+                <div className="flex aspect-[16/10] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.14),transparent_46%),linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] px-6 text-center">
+                  <div className="flex flex-col items-center gap-2 text-slate-500">
+                    {preview.videoUrl ? (
+                      <PlayCircle className="h-9 w-9 text-sky-500" />
+                    ) : (
+                      <Clapperboard className="h-9 w-9 text-sky-500" />
+                    )}
+                    <span className="text-sm font-medium">
+                      {preview.videoUrl
+                        ? "已同步视频结果"
+                        : resolveStatusLabel(preview)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-3 py-1">
-            <div className="space-y-1.5">
-              <div className="line-clamp-2 text-sm font-semibold leading-6 text-slate-900">
-                {preview.prompt || "视频任务"}
-              </div>
-              <p className="text-sm leading-6 text-slate-600">
-                {resolveDescription(preview)}
-              </p>
+              )}
             </div>
 
-            {metaItems.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {metaItems.map((item) => (
-                  <span
-                    key={item}
-                    className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600"
-                  >
-                    {item}
-                  </span>
-                ))}
+            <div className="flex min-w-0 flex-col gap-3 py-1">
+              <div className="space-y-1.5">
+                <div className="line-clamp-2 text-sm font-semibold leading-6 text-slate-900">
+                  {preview.prompt || "视频任务"}
+                </div>
+                <p className="text-sm leading-6 text-slate-600">
+                  {resolveDescription(preview)}
+                </p>
               </div>
-            ) : null}
 
-            {preview.providerId?.trim() ? (
-              <div className="text-xs text-slate-500">
-                服务商: {preview.providerId.trim()}
-              </div>
-            ) : null}
+              {metaItems.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {metaItems.map((item) => (
+                    <span
+                      key={item}
+                      className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              {preview.providerId?.trim() ? (
+                <div className="text-xs text-slate-500">
+                  服务商: {preview.providerId.trim()}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
-      </div>
-    </button>
+      </button>
+
+      {actionButtons.length > 0 ? (
+        <div className="mt-2 flex flex-wrap justify-end gap-2 px-1">
+          {actionButtons.map((action) => (
+            <button
+              key={action.key}
+              type="button"
+              data-testid={`task-message-preview-action-${preview.taskId}-${action.key}`}
+              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+              onClick={(event) => {
+                event.stopPropagation();
+                emitVideoWorkbenchTaskAction({
+                  action: action.key,
+                  taskId: preview.taskId,
+                  projectId: preview.projectId ?? null,
+                  contentId: preview.contentId ?? null,
+                });
+              }}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

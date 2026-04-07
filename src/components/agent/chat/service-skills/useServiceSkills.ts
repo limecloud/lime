@@ -25,6 +25,7 @@ import {
   getServiceSkillRunnerLabel,
   getServiceSkillRunnerTone,
 } from "./skillPresentation";
+import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import { supportsServiceSkillLocalAutomation } from "./automationDraft";
 import { getServiceSkillUsageMap, recordServiceSkillUsage } from "./storage";
 import type {
@@ -34,6 +35,8 @@ import type {
   ServiceSkillCloudRunStatus,
   ServiceSkillHomeItem,
 } from "./types";
+
+const SERVICE_SKILLS_IDLE_TIMEOUT_MS = 1_500;
 
 function shouldExposeServiceSkillHomeItem(item: SkillCatalogItem): boolean {
   if (item.execution.kind === "site_adapter") {
@@ -136,7 +139,21 @@ interface UseServiceSkillsResult {
   recordUsage: (input: RecordServiceSkillUsageInput) => void;
 }
 
-export function useServiceSkills(enabled = true): UseServiceSkillsResult {
+interface UseServiceSkillsOptions {
+  enabled?: boolean;
+  loadMode?: "immediate" | "deferred";
+  deferredDelayMs?: number;
+}
+
+export function useServiceSkills(
+  options: UseServiceSkillsOptions | boolean = true,
+): UseServiceSkillsResult {
+  const normalizedOptions =
+    typeof options === "boolean" ? { enabled: options } : options;
+  const enabled = normalizedOptions.enabled ?? true;
+  const loadMode = normalizedOptions.loadMode ?? "immediate";
+  const deferredDelayMs =
+    normalizedOptions.deferredDelayMs ?? SERVICE_SKILLS_IDLE_TIMEOUT_MS;
   const [items, setItems] = useState<SkillCatalogItem[]>([]);
   const [groups, setGroups] = useState<SkillCatalogGroup[]>([]);
   const [automationStatusMap, setAutomationStatusMap] = useState<
@@ -243,8 +260,21 @@ export function useServiceSkills(enabled = true): UseServiceSkillsResult {
   }, [applyCatalogSnapshot, enabled, loadCurrentCatalog]);
 
   useEffect(() => {
+    if (loadMode === "deferred") {
+      return scheduleMinimumDelayIdleTask(
+        () => {
+          void refresh();
+        },
+        {
+          minimumDelayMs: deferredDelayMs,
+          idleTimeoutMs: SERVICE_SKILLS_IDLE_TIMEOUT_MS,
+        },
+      );
+    }
+
     void refresh();
-  }, [refresh]);
+    return;
+  }, [deferredDelayMs, loadMode, refresh]);
 
   useEffect(() => {
     if (!enabled) {

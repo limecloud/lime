@@ -192,4 +192,15 @@ describe("useWorkspaceConversationSceneRuntime", () => {
       presentationParams?.canvasWorkbenchLayout?.onLayoutModeChange,
     ).toBeUndefined();
   });
+
+  it("任务中心场景应继续向页面层透传顶栏上下文变体", () => {
+    const params = createBaseParams({
+      navbarContextVariant: "task-center",
+    });
+
+    useWorkspaceConversationSceneRuntime(params);
+
+    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
+    expect(presentationParams?.scene.navbarContextVariant).toBe("task-center");
+  });
 });

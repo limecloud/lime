@@ -1074,6 +1074,7 @@ pub fn convert_to_tauri_message(message: &Message) -> TauriMessage {
         role: format!("{:?}", message.role).to_lowercase(),
         content,
         timestamp: message.created,
+        usage: None,
     }
 }
 

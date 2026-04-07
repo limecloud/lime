@@ -1,4 +1,4 @@
-import { ArrowUpRight, LoaderCircle, Sparkles, X } from "lucide-react";
+import { LoaderCircle, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RenderableTaskImage } from "./RenderableTaskImage";
 import type { ImageTaskViewerProps } from "./imageWorkbenchTypes";
@@ -302,78 +302,85 @@ export function ImageTaskViewer({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col px-5 py-5">
-        <div className="flex-1 overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50">
-          {selectedOutput ? (
-            <RenderableTaskImage
-              src={selectedOutput.url}
-              alt={selectedOutput.prompt || "图片任务结果"}
-              className="h-full w-full object-contain bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.12),transparent_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98))]"
-              renderImage={(imageProps) => (
-                <button
-                  type="button"
-                  className="group relative block h-full w-full overflow-hidden"
-                  onClick={() => onOpenImage?.(selectedOutput.url)}
-                  data-testid="image-task-viewer-open-image"
-                >
-                  <img {...imageProps} />
-                  <div className="pointer-events-none absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-white/80 bg-white/92 px-2.5 py-1 text-xs font-medium text-slate-600 shadow-sm shadow-slate-950/5">
-                    <span>打开原图</span>
-                    <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                  </div>
-                </button>
-              )}
-              renderFallback={(reason) => (
-                <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center">
-                  <div className="max-w-sm space-y-3">
-                    {reason === "empty" &&
-                    (selectedTask?.status === "running" ||
-                      selectedTask?.status === "routing" ||
-                      selectedTask?.status === "queued") ? (
-                      <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-sky-500" />
-                    ) : (
-                      <Sparkles className="mx-auto h-8 w-8 text-slate-400" />
-                    )}
-                    <div className="text-sm font-semibold text-slate-900">
-                      {reason === "error"
-                        ? resolveImageUnavailableTitle(selectedTask?.status)
-                        : statusLabel}
-                    </div>
-                    <div className="text-sm leading-6 text-slate-500">
-                      {reason === "error"
-                        ? resolveImageUnavailableDescription(selectedTask?.mode)
-                        : resolveEmptyStateDescription(
-                            selectedTask?.status,
-                            selectedTask?.failureMessage,
-                            selectedTask?.mode,
-                          )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            />
-          ) : (
-            <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center">
-              <div className="max-w-sm space-y-3">
-                {selectedTask?.status === "running" ||
-                selectedTask?.status === "routing" ||
-                selectedTask?.status === "queued" ? (
-                  <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-sky-500" />
-                ) : (
-                  <Sparkles className="mx-auto h-8 w-8 text-slate-400" />
+        <div
+          data-testid="image-task-viewer-stage"
+          className="flex-1 overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50"
+        >
+          <div className="h-full w-full p-4 pt-5">
+            {selectedOutput ? (
+              <RenderableTaskImage
+                src={selectedOutput.url}
+                alt={selectedOutput.prompt || "图片任务结果"}
+                className="h-full w-full object-contain"
+                renderImage={(imageProps) => (
+                  <button
+                    type="button"
+                    className="group relative flex h-full w-full items-center justify-center overflow-hidden rounded-[18px] border border-slate-200/80 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.12),transparent_42%),linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98))] p-4"
+                    onClick={() => onOpenImage?.(selectedOutput.url)}
+                    data-testid="image-task-viewer-open-image"
+                  >
+                    <img
+                      {...imageProps}
+                      className={cn(
+                        "h-full w-full rounded-[14px] object-contain",
+                        imageProps.className,
+                      )}
+                    />
+                  </button>
                 )}
-                <div className="text-sm font-semibold text-slate-900">
-                  {statusLabel}
-                </div>
-                <div className="text-sm leading-6 text-slate-500">
-                  {resolveEmptyStateDescription(
-                    selectedTask?.status,
-                    selectedTask?.failureMessage,
-                    selectedTask?.mode,
+                renderFallback={(reason) => (
+                  <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center">
+                    <div className="max-w-sm space-y-3">
+                      {reason === "empty" &&
+                      (selectedTask?.status === "running" ||
+                        selectedTask?.status === "routing" ||
+                        selectedTask?.status === "queued") ? (
+                        <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-sky-500" />
+                      ) : (
+                        <Sparkles className="mx-auto h-8 w-8 text-slate-400" />
+                      )}
+                      <div className="text-sm font-semibold text-slate-900">
+                        {reason === "error"
+                          ? resolveImageUnavailableTitle(selectedTask?.status)
+                          : statusLabel}
+                      </div>
+                      <div className="text-sm leading-6 text-slate-500">
+                        {reason === "error"
+                          ? resolveImageUnavailableDescription(selectedTask?.mode)
+                          : resolveEmptyStateDescription(
+                              selectedTask?.status,
+                              selectedTask?.failureMessage,
+                              selectedTask?.mode,
+                            )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              />
+            ) : (
+              <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center">
+                <div className="max-w-sm space-y-3">
+                  {selectedTask?.status === "running" ||
+                  selectedTask?.status === "routing" ||
+                  selectedTask?.status === "queued" ? (
+                    <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-sky-500" />
+                  ) : (
+                    <Sparkles className="mx-auto h-8 w-8 text-slate-400" />
                   )}
+                  <div className="text-sm font-semibold text-slate-900">
+                    {statusLabel}
+                  </div>
+                  <div className="text-sm leading-6 text-slate-500">
+                    {resolveEmptyStateDescription(
+                      selectedTask?.status,
+                      selectedTask?.failureMessage,
+                      selectedTask?.mode,
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {showSourcePanel ? (

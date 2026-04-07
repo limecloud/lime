@@ -13,6 +13,7 @@ const mockGetServiceSkillRun = vi.fn();
 const mockIsTerminalServiceSkillRunStatus = vi.fn();
 const mockCreateContent = vi.fn();
 const mockListProjects = vi.fn();
+const mockGetOrCreateDefaultProject = vi.fn();
 const mockRecordServiceSkillAutomationLink = vi.fn();
 const mockSiteGetAdapterLaunchReadiness = vi.fn();
 const mockToastSuccess = vi.fn();
@@ -42,6 +43,7 @@ vi.mock("@/lib/api/serviceSkillRuns", () => ({
 
 vi.mock("@/lib/api/project", () => ({
   createContent: (request: unknown) => mockCreateContent(request),
+  getOrCreateDefaultProject: () => mockGetOrCreateDefaultProject(),
   listProjects: () => mockListProjects(),
   getDefaultContentTypeForProject: (projectType: string) => {
     switch (projectType) {
@@ -322,6 +324,7 @@ beforeEach(() => {
     id: "content-created-by-service-skill",
   });
   mockListProjects.mockResolvedValue([createProject()]);
+  mockGetOrCreateDefaultProject.mockResolvedValue(createProject("project-default"));
   mockRecordServiceSkillAutomationLink.mockReset();
   mockToastSuccess.mockReset();
   mockToastError.mockReset();
@@ -467,6 +470,45 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
                 role_key: "analyst",
               }),
             ],
+          }),
+        },
+      }),
+    );
+  });
+
+  it("站点型技能缺少当前项目时应回退默认项目后再进入工作区", async () => {
+    const onNavigate = vi.fn();
+    const { render, getValue } = renderHook({
+      onNavigate,
+      projectId: null,
+      contentId: null,
+      recordServiceSkillUsage: vi.fn(),
+    });
+    await render();
+
+    await act(async () => {
+      await getValue().handleServiceSkillLaunch(createBrowserServiceSkill(), {
+        repository_query: "browser assist mcp",
+      });
+    });
+
+    expect(mockGetOrCreateDefaultProject).toHaveBeenCalledTimes(1);
+    expect(mockCreateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: "project-default",
+      }),
+    );
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        projectId: "project-default",
+        contentId: "content-created-by-service-skill",
+        initialAutoSendRequestMetadata: {
+          harness: expect.objectContaining({
+            service_skill_launch: expect.objectContaining({
+              project_id: "project-default",
+              content_id: "content-created-by-service-skill",
+            }),
           }),
         },
       }),

@@ -140,6 +140,7 @@ describe("useWorkspaceVideoTaskPreviewRuntime", () => {
           taskPreview: {
             ...buildVideoMessage().taskPreview!,
             status: "complete",
+            videoUrl: "https://example.com/already-synced.mp4",
           },
         },
       ],
@@ -154,5 +155,55 @@ describe("useWorkspaceVideoTaskPreviewRuntime", () => {
     });
 
     expect(mockGetTask).not.toHaveBeenCalled();
+  });
+
+  it("历史里的视频任务已完成但尚未带回 videoUrl 时，也应继续回填最终结果", async () => {
+    let messages: Message[] = [
+      {
+        ...buildVideoMessage(),
+        taskPreview: {
+          ...buildVideoMessage().taskPreview!,
+          status: "complete",
+          statusMessage: "视频已经生成完成，正在同步最终结果。",
+        },
+      },
+    ];
+    const setChatMessages: HookProps["setChatMessages"] = (value) => {
+      messages = typeof value === "function" ? value(messages) : value;
+    };
+
+    mockGetTask.mockResolvedValue({
+      id: "task-video-1",
+      projectId: "project-video-1",
+      providerId: "doubao",
+      model: "seedance-1-5-pro-251215",
+      prompt: "新品发布会短视频",
+      status: "success",
+      progress: 100,
+      resultUrl: "https://example.com/history-video.mp4",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    const harness = renderHook({
+      messages,
+      setChatMessages,
+    });
+
+    await harness.render();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockGetTask).toHaveBeenCalledWith("task-video-1", {
+      refreshStatus: true,
+    });
+    expect(messages[0]?.taskPreview).toMatchObject({
+      kind: "video_generate",
+      taskId: "task-video-1",
+      status: "complete",
+      videoUrl: "https://example.com/history-video.mp4",
+      statusMessage: "视频结果已同步，打开查看即可继续预览。",
+    });
   });
 });

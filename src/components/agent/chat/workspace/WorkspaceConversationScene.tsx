@@ -107,6 +107,7 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
   navbarVisible: boolean;
   isRunning: boolean;
   navbarChrome: ComponentProps<typeof ChatNavbar>["chrome"];
+  navbarContextVariant?: "default" | "task-center";
   onToggleHistory: NonNullable<ComponentProps<typeof ChatNavbar>["onToggleHistory"]>;
   showHistoryToggle: boolean;
   onBackToProjectManagement?: ComponentProps<
@@ -195,6 +196,7 @@ export function WorkspaceConversationScene({
   navbarVisible,
   isRunning,
   navbarChrome,
+  navbarContextVariant = "default",
   onToggleHistory,
   showHistoryToggle,
   onBackToProjectManagement,
@@ -304,6 +306,7 @@ export function WorkspaceConversationScene({
     visible: navbarVisible,
     isRunning,
     chrome: navbarChrome,
+    navbarContextVariant,
     onToggleHistory,
     showHistoryToggle,
     onBackToProjectManagement,

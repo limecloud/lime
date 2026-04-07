@@ -228,6 +228,7 @@ interface BuildWorkspaceNavbarPropsParams {
   visible: boolean;
   isRunning: boolean;
   chrome: ComponentProps<typeof ChatNavbar>["chrome"];
+  navbarContextVariant?: "default" | "task-center";
   onToggleHistory: NonNullable<ComponentProps<typeof ChatNavbar>["onToggleHistory"]>;
   showHistoryToggle: boolean;
   onBackToProjectManagement?: ComponentProps<
@@ -263,6 +264,7 @@ export function buildWorkspaceNavbarProps({
   visible,
   isRunning,
   chrome,
+  navbarContextVariant = "default",
   onToggleHistory,
   showHistoryToggle,
   onBackToProjectManagement,
@@ -289,9 +291,18 @@ export function buildWorkspaceNavbarProps({
     return null;
   }
 
+  const entryContextCopy =
+    navbarContextVariant === "task-center"
+      ? {
+          entryContextLabel: "任务中心",
+          entryContextHint: "回到进行中的任务、旧历史和最近工作现场。",
+        }
+      : {};
+
   return {
     isRunning,
     chrome,
+    ...entryContextCopy,
     onToggleHistory,
     showHistoryToggle,
     onToggleFullscreen: () => undefined,

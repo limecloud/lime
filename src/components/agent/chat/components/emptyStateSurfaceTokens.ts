@@ -1,4 +1,4 @@
-export type EmptyStateTone = "slate" | "sky" | "emerald" | "amber";
+export type EmptyStateTone = "slate" | "sky" | "emerald" | "amber" | "lime";
 
 export const EMPTY_STATE_PANEL_CLASSNAME =
   "rounded-[26px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5 md:p-5";
@@ -18,6 +18,7 @@ export const EMPTY_STATE_BADGE_TONE_CLASSNAMES: Record<EmptyStateTone, string> =
     sky: "border-sky-200 bg-sky-50/90 text-sky-700",
     emerald: "border-emerald-200 bg-emerald-50/90 text-emerald-700",
     amber: "border-amber-200 bg-amber-50/90 text-amber-700",
+    lime: "border-lime-200 bg-lime-50/90 text-lime-700",
   };
 
 export const EMPTY_STATE_ICON_TONE_CLASSNAMES: Record<EmptyStateTone, string> =
@@ -26,6 +27,7 @@ export const EMPTY_STATE_ICON_TONE_CLASSNAMES: Record<EmptyStateTone, string> =
     sky: "border-sky-200 bg-sky-100/90 text-sky-700",
     emerald: "border-emerald-200 bg-emerald-100/90 text-emerald-700",
     amber: "border-amber-200 bg-amber-100/90 text-amber-700",
+    lime: "border-lime-200 bg-lime-100/90 text-lime-700",
   };
 
 export const EMPTY_STATE_META_PILL_CLASSNAME =
@@ -44,10 +46,10 @@ export const EMPTY_STATE_RECOMMENDATION_CARD_CLASSNAME =
   "group flex min-w-0 flex-col items-start gap-2 rounded-[20px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.97)_0%,rgba(248,250,252,0.9)_100%)] px-3.5 py-3.5 text-left shadow-sm shadow-slate-950/5 transition-colors hover:border-slate-300 hover:bg-white";
 
 export const EMPTY_STATE_PAGE_CONTAINER_CLASSNAME =
-  "relative flex flex-1 flex-col items-stretch justify-start overflow-y-auto bg-[linear-gradient(135deg,rgba(244,250,255,0.94)_0%,rgba(248,250,252,0.98)_44%,rgba(244,250,247,0.96)_100%)] px-3 pb-5 pt-[clamp(8px,1.1vw,12px)] md:px-4";
+  "relative flex min-h-full flex-1 flex-col items-stretch justify-start overflow-y-auto bg-transparent px-2 pb-5 pt-[clamp(2px,0.6vw,6px)] md:px-3";
 
 export const EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME =
-  "relative z-[1] mx-auto flex w-full max-w-[1240px] flex-col items-stretch gap-2.5";
+  "relative z-[1] mx-auto flex min-h-full w-full max-w-[1360px] flex-1 flex-col items-stretch gap-3";
 
 export const EMPTY_STATE_THEME_TABS_CONTAINER_CLASSNAME =
   "flex w-full max-w-full flex-nowrap justify-start gap-1.5 overflow-x-auto overflow-y-hidden rounded-[20px] border border-slate-200/80 bg-slate-50 p-[5px] shadow-[0_10px_24px_-22px_rgba(15,23,42,0.18)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
@@ -70,6 +72,8 @@ const EMPTY_STATE_TOOL_TOGGLE_TONE_CLASSNAMES: Record<EmptyStateTone, string> = 
     "border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700",
   amber:
     "border-amber-300 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700",
+  lime:
+    "border-lime-300 bg-lime-50 text-lime-700 hover:border-lime-300 hover:bg-lime-50 hover:text-lime-700",
 };
 
 export function getEmptyStateIconToolButtonClassName(

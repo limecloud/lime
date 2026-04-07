@@ -14,6 +14,10 @@ import {
   showRegistryNoCacheError,
 } from "@/lib/utils/connectError";
 
+interface UseRelayRegistryOptions {
+  autoLoad?: boolean;
+}
+
 /**
  * Registry 错误
  */
@@ -66,7 +70,10 @@ export interface UseRelayRegistryReturn {
  *
  * @returns Hook 返回值
  */
-export function useRelayRegistry(): UseRelayRegistryReturn {
+export function useRelayRegistry(
+  options: UseRelayRegistryOptions = {},
+): UseRelayRegistryReturn {
+  const { autoLoad = true } = options;
   const [providers, setProviders] = useState<RelayInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<RegistryError | null>(null);
@@ -138,13 +145,18 @@ export function useRelayRegistry(): UseRelayRegistryReturn {
   // 初始加载
   // _Requirements: 2.1_
   useEffect(() => {
+    if (!autoLoad) {
+      setIsLoading(false);
+      return;
+    }
+
     // 延迟加载，等待 Connect 模块初始化
     const timer = setTimeout(() => {
       loadProviders();
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [loadProviders]);
+  }, [autoLoad, loadProviders]);
 
   return {
     providers,

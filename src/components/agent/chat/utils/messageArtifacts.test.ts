@@ -4,6 +4,8 @@ import type { Artifact } from "@/lib/artifact/types";
 import { ARTIFACT_DOCUMENT_SCHEMA_VERSION } from "@/lib/artifact-document";
 import {
   buildArtifactFromWrite,
+  findMessageArtifact,
+  mergeArtifacts,
   resolveDefaultArtifactViewMode,
 } from "./messageArtifacts";
 
@@ -245,5 +247,62 @@ describe("messageArtifacts.resolveDefaultArtifactViewMode", () => {
         preferSourceWhenStreaming: true,
       }),
     ).toBe("preview");
+  });
+});
+
+describe("messageArtifacts 路径归一", () => {
+  it("应把文件名、相对路径与绝对路径视作同一个 artifact", () => {
+    const message = {
+      artifacts: [
+        createArtifact({
+          id: "artifact-output-image",
+          title: "output_image.jpg",
+          meta: {
+            filePath:
+              "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/tasks/image/output_image.jpg",
+            filename: "output_image.jpg",
+          },
+        }),
+      ],
+    };
+
+    expect(
+      findMessageArtifact(message, {
+        filePath: "output_image.jpg",
+      })?.id,
+    ).toBe("artifact-output-image");
+    expect(
+      findMessageArtifact(message, {
+        filePath: ".lime/tasks/image/output_image.jpg",
+      })?.id,
+    ).toBe("artifact-output-image");
+  });
+
+  it("应在 mergeArtifacts 时收敛同一路径的重复 artifact 并保留更完整路径", () => {
+    const merged = mergeArtifacts([
+      createArtifact({
+        id: "artifact-image-short",
+        title: "output_image.jpg",
+        meta: {
+          filePath: "output_image.jpg",
+          filename: "output_image.jpg",
+        },
+      }),
+      createArtifact({
+        id: "artifact-image-absolute",
+        title: "output_image.jpg",
+        updatedAt: 3,
+        meta: {
+          filePath:
+            "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/tasks/image/output_image.jpg",
+          filename: "output_image.jpg",
+        },
+      }),
+    ]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.meta.filePath).toBe(
+      "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/tasks/image/output_image.jpg",
+    );
   });
 });

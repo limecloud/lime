@@ -32,11 +32,13 @@ export async function executeCodexSlashCommand(
     createFreshSession,
     appendAssistantMessage,
     notifyInfo,
+    onExecutedCommand,
   } = params;
 
   switch (command.definition.key) {
     case "compact":
       await compactSession();
+      onExecutedCommand?.(command);
       return true;
     case "clear":
       if (
@@ -49,6 +51,7 @@ export async function executeCodexSlashCommand(
         return true;
       }
       clearMessages({ toastMessage: "已清空当前任务" });
+      onExecutedCommand?.(command);
       return true;
     case "new": {
       if (
@@ -62,13 +65,16 @@ export async function executeCodexSlashCommand(
       }
       const sessionName = command.userInput.trim() || undefined;
       await createFreshSession(sessionName);
+      onExecutedCommand?.(command);
       return true;
     }
     case "help":
       appendAssistantMessage(buildCodexSlashHelpMessage());
+      onExecutedCommand?.(command);
       return true;
     case "status":
       appendAssistantMessage(buildCodexSlashStatusMessage(statusSnapshot));
+      onExecutedCommand?.(command);
       return true;
     case "model":
       if (command.userInput.trim()) {
@@ -76,6 +82,7 @@ export async function executeCodexSlashCommand(
         return true;
       }
       appendAssistantMessage(buildCodexSlashModelMessage(statusSnapshot));
+      onExecutedCommand?.(command);
       return true;
     case "review":
     case "diff":
@@ -83,6 +90,7 @@ export async function executeCodexSlashCommand(
       const prompt = buildCodexSlashPrompt(command);
       if (prompt) {
         await sendPrompt(prompt);
+        onExecutedCommand?.(command);
         return true;
       }
       return false;

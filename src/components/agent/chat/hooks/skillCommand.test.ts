@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Dispatch, SetStateAction } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import type { Message } from "../types";
+import { listSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 
 const {
   mockSafeListen,
@@ -68,6 +69,7 @@ function buildBaseMessage(id = "assistant-1"): Message {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   mockParseAgentEvent.mockImplementation((payload: unknown) => payload);
   mockListExecutableSkills.mockResolvedValue([
     {
@@ -82,6 +84,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.localStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -93,6 +96,14 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
       skillName: "legacy_content_post",
       userInput: "写一版主稿",
     });
+  });
+
+  it("中文 scene slash 不应被旧 slash skill 解析器误判", () => {
+    expect(
+      parseSkillSlashCommand(
+        "/x文章转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
+      ),
+    ).toBeNull();
   });
 
   it("当后端连续发出 write_file 工具事件时应写入主稿与辅助产物", async () => {
@@ -231,6 +242,44 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
       { type: "text", text: writeFileOutput },
     ]);
     expect(onWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("slash skill 真正执行成功后应写入最近使用", async () => {
+    const store = createMessageStore([buildBaseMessage()]);
+
+    mockExecuteSkill.mockResolvedValue({
+      success: true,
+      output: "Skill 执行完成",
+      steps_completed: [],
+    });
+
+    const handled = await tryExecuteSlashSkillCommand({
+      command: {
+        skillName: "content_post_with_cover",
+        userInput: "写一版主稿",
+      },
+      rawContent: "/content_post_with_cover 写一版主稿",
+      assistantMsgId: "assistant-1",
+      providerType: "anthropic",
+      model: "claude-sonnet-4-20250514",
+      ensureSession: async () => "session-1",
+      setMessages: store.setMessages,
+      setIsSending: vi.fn(),
+      setCurrentAssistantMsgId: vi.fn(),
+      setStreamUnlisten: vi.fn(),
+      setActiveSessionIdForStop: vi.fn(),
+      isExecutionCancelled: () => false,
+      playTypewriterSound: vi.fn(),
+      playToolcallSound: vi.fn(),
+    });
+
+    expect(handled).toBe(true);
+    expect(listSlashEntryUsage()).toEqual([
+      expect.objectContaining({
+        kind: "skill",
+        entryId: "content_post_with_cover",
+      }),
+    ]);
   });
 
   it("收到 artifact_snapshot 时应立刻透传给 onWriteFile", async () => {

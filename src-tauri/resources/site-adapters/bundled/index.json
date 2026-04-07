@@ -239,6 +239,30 @@
       "source_version": "2026-03-28"
     },
     {
+      "name": "x/article-export",
+      "domain": "x.com",
+      "description": "把 X 长文导出为 Markdown 正文和图片资源包。",
+      "read_only": true,
+      "capabilities": ["article_export", "markdown_bundle", "research"],
+      "args": [
+        {
+          "name": "url",
+          "description": "X 长文链接，格式 https://x.com/<账号>/article/<文章ID>",
+          "required": true,
+          "arg_type": "string",
+          "example": "https://x.com/GoogleCloudTech/article/2033953579824758855"
+        }
+      ],
+      "example": "x/article-export {\"url\":\"https://x.com/GoogleCloudTech/article/2033953579824758855\"}",
+      "auth_hint": "如果页面内容未完整加载，请先在浏览器中登录 X 并打开目标文章页面。",
+      "entry": {
+        "kind": "builder",
+        "id": "x_article_export"
+      },
+      "script_file": "scripts/x-article-export.js",
+      "source_version": "2026-04-07"
+    },
+    {
       "name": "zhihu/hot",
       "domain": "www.zhihu.com",
       "description": "采集知乎热榜问题列表。",

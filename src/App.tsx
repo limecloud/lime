@@ -43,6 +43,7 @@ import { ComponentDebugOverlay } from "./components/dev";
 import { buildClawAgentParams } from "./lib/workspace/navigation";
 import { toast } from "sonner";
 import { SettingsTabs } from "./types/settings";
+import { hasTauriInvokeCapability } from "./lib/tauri-runtime";
 
 const AppContainer = styled.div`
   display: flex;
@@ -98,6 +99,7 @@ const pageLoadingFallback = (
 );
 
 function AppContent() {
+  const hasTauriDesktopRuntime = hasTauriInvokeCapability();
   const [showSplash, setShowSplash] = useState(true);
   const { currentPage, pageParams, handleNavigate } = useAppNavigation();
   const [agentHasMessages, setAgentHasMessages] = useState(false);
@@ -210,7 +212,9 @@ function AppContent() {
   });
 
   const { error: registryError, refresh: _refreshRegistry } =
-    useRelayRegistry();
+    useRelayRegistry({
+      autoLoad: hasTauriDesktopRuntime,
+    });
   useAppStartupEffects({
     currentPage,
     registryError,

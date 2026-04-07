@@ -52,7 +52,6 @@ function renderHook(props?: Partial<HookProps>) {
       status: "cancelled",
     }),
     contentId: null,
-    createFreshSession: vi.fn().mockResolvedValue("session-1"),
     createImageGenerationTask: vi.fn().mockResolvedValue({
       task_id: "task-image-1",
       task_type: "image_generate",
@@ -116,7 +115,6 @@ function renderHook(props?: Partial<HookProps>) {
     setCanvasState: vi.fn(),
     setInput: vi.fn(),
     setLayoutMode: vi.fn(),
-    updateImageWorkbenchStateForSession: vi.fn(),
     updateCurrentImageWorkbenchState: vi.fn(),
   };
 
@@ -215,17 +213,13 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it("本地图片工作台 key 首次提交时应先创建真实会话，并把 Agent 请求绑定到该会话", async () => {
-    const createFreshSession = vi.fn().mockResolvedValue("session-image-1");
+  it("本地图片工作台 key 首次提交时应保留统一发送主线，延后由发送边界绑定真实会话", async () => {
     const submitImageWorkbenchAgentCommand = vi.fn().mockResolvedValue(true);
-    const updateImageWorkbenchStateForSession = vi.fn();
     const localImageWorkbenchSessionKey =
       "__local_image_workbench__:draft:image";
     const { render, getValue } = renderHook({
-      createFreshSession,
       submitImageWorkbenchAgentCommand,
       imageWorkbenchSessionKey: localImageWorkbenchSessionKey,
-      updateImageWorkbenchStateForSession,
     });
 
     await render();
@@ -238,25 +232,13 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
       });
     });
 
-    expect(createFreshSession).toHaveBeenCalledWith("配图：城市夜景主视觉");
     expect(submitImageWorkbenchAgentCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         requestContext: expect.objectContaining({
           image_task: expect.objectContaining({
-            session_id: "session-image-1",
+            session_id: localImageWorkbenchSessionKey,
           }),
         }),
-      }),
-    );
-    expect(updateImageWorkbenchStateForSession).toHaveBeenCalledWith(
-      "session-image-1",
-      expect.any(Function),
-      expect.objectContaining({
-        fallbackState: expect.objectContaining({
-          tasks: [],
-          outputs: [],
-        }),
-        removeSessionKeys: [localImageWorkbenchSessionKey],
       }),
     );
   });

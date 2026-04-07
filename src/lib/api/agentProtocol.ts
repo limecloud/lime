@@ -91,6 +91,7 @@ export interface AgentMessage {
   role: string;
   content: AgentMessageContent[];
   timestamp: number;
+  usage?: AgentTokenUsage;
 }
 
 export interface AgentArtifactSignal {

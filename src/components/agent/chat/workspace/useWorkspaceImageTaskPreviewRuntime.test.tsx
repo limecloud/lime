@@ -118,7 +118,10 @@ function createArtifactOutput(
 
 function renderHook(
   props?: Partial<RuntimeHarnessProps>,
-  options?: { initialMessages?: Message[] },
+  options?: {
+    initialMessages?: Message[];
+    initialImageWorkbenchState?: SessionImageWorkbenchState;
+  },
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -134,24 +137,24 @@ function renderHook(
     projectId: DEFAULT_PROJECT_ID,
     contentId: DEFAULT_CONTENT_ID,
     projectRootPath: DEFAULT_PROJECT_ROOT_PATH,
+    currentImageWorkbenchState: createInitialSessionImageWorkbenchState(),
     canvasState: null,
   };
 
   function Probe(currentProps: RuntimeHarnessProps) {
-    const [messages, setMessages] = useState<Message[]>([]);
+    const [messages, setMessages] = useState<Message[]>(
+      () => options?.initialMessages || [],
+    );
     const [canvasState, setCanvasState] = useState(currentProps.canvasState);
     const [imageWorkbenchState, setImageWorkbenchState] =
       useState<SessionImageWorkbenchState>(
-        createInitialSessionImageWorkbenchState(),
+        options?.initialImageWorkbenchState ||
+          createInitialSessionImageWorkbenchState(),
       );
 
     useEffect(() => {
       setCanvasState(currentProps.canvasState);
     }, [currentProps.canvasState]);
-
-    useEffect(() => {
-      setMessages(options?.initialMessages || []);
-    }, []);
 
     latestValue = {
       messages,
@@ -161,6 +164,8 @@ function renderHook(
 
     useWorkspaceImageTaskPreviewRuntime({
       ...currentProps,
+      messages,
+      currentImageWorkbenchState: imageWorkbenchState,
       canvasState,
       setCanvasState,
       setChatMessages: setMessages,
@@ -330,6 +335,7 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
           status: "running",
           projectId: "project-image-1",
           contentId: "content-image-1",
+          statusMessage: "任务已提交，正在排队处理。",
         }),
       }),
     ]);
@@ -403,7 +409,7 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     ]);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(1500);
       await Promise.resolve();
     });
 
@@ -535,6 +541,107 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
       expect.objectContaining({
         taskId,
         url: dataUrl,
+      }),
+    ]);
+  });
+
+  it("task file 仍是等待队列时，应立即优先采用媒体任务接口返回的完整结果", async () => {
+    let listener: CreationTaskListener | null = null;
+    vi.mocked(safeListen).mockImplementationOnce(async (_event, handler) => {
+      listener = handler;
+      return vi.fn();
+    });
+
+    const taskId = "task-image-prefer-artifact-api-1";
+    const taskPath = `/workspace/project-image-1/.lime/tasks/image_generate/${taskId}.json`;
+    vi.mocked(readFilePreview).mockResolvedValueOnce(
+      createFilePreviewResult(
+        taskPath,
+        withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "queued",
+          normalized_status: "queued",
+          created_at: "2026-04-04T10:30:00Z",
+          payload: {
+            prompt: "[img:珠江夜景主视觉]",
+            count: 1,
+            size: "1024x1024",
+          },
+          progress: {
+            phase: "queued",
+            message: "任务已进入队列",
+          },
+        }),
+      ),
+    );
+    vi.mocked(getMediaTaskArtifact).mockResolvedValueOnce(
+      createArtifactOutput({
+        task_id: taskId,
+        task_type: "image_generate",
+        current_attempt_id: "attempt-prefer-artifact-api-1",
+        record: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "completed",
+          normalized_status: "succeeded",
+          created_at: "2026-04-04T10:30:01Z",
+          current_attempt_id: "attempt-prefer-artifact-api-1",
+          payload: {
+            prompt: "[img:珠江夜景主视觉]",
+            count: 1,
+            size: "1024x1024",
+          },
+          result: {
+            images: [{ url: "https://example.com/prefer-artifact-api.png" }],
+          },
+          attempts: [
+            {
+              attempt_id: "attempt-prefer-artifact-api-1",
+              provider: "fal",
+              model: "flux-pro",
+              result_snapshot: {
+                images: [{ url: "https://example.com/prefer-artifact-api.png" }],
+              },
+            },
+          ],
+        }),
+      }),
+    );
+
+    const { render, getValue } = renderHook();
+    await render();
+
+    await act(async () => {
+      listener?.({
+        payload: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "queued",
+          path: `.lime/tasks/image_generate/${taskId}.json`,
+        }),
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(readFilePreview).toHaveBeenCalledWith(taskPath, 256 * 1024);
+    expect(getMediaTaskArtifact).toHaveBeenCalledWith({
+      projectRootPath: DEFAULT_PROJECT_ROOT_PATH,
+      taskRef: taskId,
+    });
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        id: `image-workbench:${taskId}:assistant`,
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "complete",
+          imageUrl: "https://example.com/prefer-artifact-api.png",
+          prompt: "珠江夜景主视觉",
+        }),
       }),
     ]);
   });
@@ -891,6 +998,155 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     });
     expect(listDirectory).not.toHaveBeenCalled();
     expect(readFilePreview).not.toHaveBeenCalled();
+  });
+
+  it("历史消息已带 taskId 时，应直接按 taskId 走媒体任务接口恢复图片结果", async () => {
+    const taskId = "task-image-history-direct-1";
+    vi.mocked(getMediaTaskArtifact).mockResolvedValueOnce(
+      createArtifactOutput({
+        task_id: taskId,
+        task_type: "image_generate",
+        record: withDefaultTaskContext({
+          task_id: taskId,
+          task_type: "image_generate",
+          task_family: "image",
+          status: "completed",
+          normalized_status: "succeeded",
+          created_at: "2026-04-04T12:00:00Z",
+          payload: {
+            prompt: "[img:历史直恢广州春日主视觉]",
+            count: 1,
+            size: "1024x1024",
+          },
+          result: {
+            images: [{ url: "https://example.com/history-direct-restore.png" }],
+          },
+        }),
+      }),
+    );
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: [
+          {
+            id: `image-workbench:${taskId}:assistant`,
+            role: "assistant",
+            content: "图片任务已提交，正在同步任务状态。",
+            timestamp: new Date("2026-04-04T12:00:00Z"),
+            imageWorkbenchPreview: {
+              taskId,
+              prompt: "历史直恢广州春日主视觉",
+              status: "running",
+              phase: "queued",
+            },
+          },
+        ],
+      },
+    );
+    await render();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getMediaTaskArtifact).toHaveBeenCalledWith({
+      projectRootPath: DEFAULT_PROJECT_ROOT_PATH,
+      taskRef: taskId,
+    });
+    expect(listMediaTaskArtifacts).not.toHaveBeenCalled();
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        id: `image-workbench:${taskId}:assistant`,
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "complete",
+          imageUrl: "https://example.com/history-direct-restore.png",
+          prompt: "历史直恢广州春日主视觉",
+        }),
+      }),
+    ]);
+  });
+
+  it("同一历史会话已缓存图片工作台结果时，应直接回填聊天卡而不是继续显示等待队列", async () => {
+    const taskId = "task-image-history-cached-1";
+    const cachedState = {
+      ...createInitialSessionImageWorkbenchState(),
+      tasks: [
+        {
+          sessionId: taskId,
+          id: taskId,
+          mode: "generate" as const,
+          status: "complete" as const,
+          prompt: "已缓存的广州主视觉",
+          rawText: "已缓存的广州主视觉",
+          expectedCount: 1,
+          outputIds: [`${taskId}:output:1`],
+          createdAt: Date.now(),
+          hookImageIds: [`${taskId}:hook:1`],
+          applyTarget: null,
+        },
+      ],
+      outputs: [
+        {
+          id: `${taskId}:output:1`,
+          taskId,
+          hookImageId: `${taskId}:hook:1`,
+          refId: `img-${taskId}`,
+          url: "https://example.com/history-cached.png",
+          prompt: "已缓存的广州主视觉",
+          createdAt: Date.now(),
+          size: "1024x1024",
+          parentOutputId: null,
+          resourceSaved: false,
+          applyTarget: null,
+        },
+      ],
+      selectedOutputId: `${taskId}:output:1`,
+    };
+
+    const { render, getValue } = renderHook(
+      {},
+      {
+        initialMessages: [
+          {
+            id: `image-workbench:${taskId}:assistant`,
+            role: "assistant",
+            content: "图片任务已提交，正在同步任务状态。",
+            timestamp: new Date("2026-04-04T12:10:00Z"),
+            isThinking: true,
+            imageWorkbenchPreview: {
+              taskId,
+              prompt: "已缓存的广州主视觉",
+              status: "running",
+              phase: "queued",
+            },
+          },
+        ],
+        initialImageWorkbenchState: cachedState,
+      },
+    );
+    await render();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getMediaTaskArtifact).not.toHaveBeenCalled();
+    expect(getValue().messages).toEqual([
+      expect.objectContaining({
+        id: `image-workbench:${taskId}:assistant`,
+        isThinking: false,
+        imageWorkbenchPreview: expect.objectContaining({
+          taskId,
+          status: "complete",
+          imageUrl: "https://example.com/history-cached.png",
+          size: "1024x1024",
+        }),
+      }),
+    ]);
   });
 
   it("应在进入会话时从 task file 恢复最近的图片任务", async () => {

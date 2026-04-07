@@ -1,6 +1,6 @@
 ---
 name: site_search
-description: 通过站点适配器检索指定站点内容（GitHub、知乎、B站、36Kr、linux.do、什么值得买、Yahoo Finance）。
+description: 通过站点适配器检索指定站点内容（GitHub、知乎、B站、36Kr、linux.do、什么值得买、Yahoo Finance、X 长文）。
 allowed-tools: lime_site_run, lime_site_list, lime_site_search, lime_site_info
 metadata:
   lime_argument_hint: 输入目标站点、查询关键词或标的、返回数量，以及是否要保存到当前内容/项目。
@@ -44,6 +44,7 @@ metadata:
 - 36Kr：`36kr/newsflash`
 - linux.do：`linux-do/categories`、`linux-do/hot`
 - 什么值得买：`smzdm/search`
+- X：`x/article-export`
 - Yahoo Finance：`yahoo-finance/quote`
 
 全量参数、登录提示和域名清单见 `references/adapter-catalog.md`。
@@ -58,6 +59,7 @@ metadata:
    - 仓库搜索优先 `github/search`
    - 仓库 issue 列表优先 `github/issues`
    - 热榜/热门优先 `zhihu/hot`、`linux-do/hot`、`36kr/newsflash`
+   - X 长文导出优先 `x/article-export`
    - 股票报价优先 `yahoo-finance/quote`
 3. 用 `lime_site_info` 校验参数
 4. 用 `lime_site_run` 执行
