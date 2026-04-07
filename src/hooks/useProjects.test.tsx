@@ -1,6 +1,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WorkspaceEnsureResult } from "@/lib/api/project";
 
 const projectApiMocks = vi.hoisted(() => ({
   createProject: vi.fn(),
@@ -137,23 +138,21 @@ describe("useProjects", () => {
 
   it("不应等待默认项目目录健康检查完成才暴露项目列表", async () => {
     const defaultProject = createProject();
-    let resolveEnsure:
-      | ((value: {
-          workspaceId: string;
-          rootPath: string;
-          existed: boolean;
-          created: boolean;
-          repaired: boolean;
-        }) => void)
-      | null = null;
+    const deferredEnsure: {
+      resolve: ((value: WorkspaceEnsureResult) => void) | null;
+    } = {
+      resolve: null,
+    };
+    const ensureReadyPromise = new Promise<WorkspaceEnsureResult>(
+      (resolve) => {
+        deferredEnsure.resolve = resolve;
+      },
+    );
 
     projectApiMocks.listProjects.mockResolvedValueOnce([defaultProject]);
     projectApiMocks.getDefaultProject.mockResolvedValueOnce(defaultProject);
     projectApiMocks.ensureWorkspaceReady.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveEnsure = resolve;
-        }),
+      () => ensureReadyPromise,
     );
 
     const harness = mountHook();
@@ -168,7 +167,7 @@ describe("useProjects", () => {
       expect(harness.getValue().projects).toHaveLength(1);
       expect(harness.getValue().defaultProject?.id).toBe(defaultProject.id);
 
-      resolveEnsure?.({
+      deferredEnsure.resolve?.({
         workspaceId: defaultProject.id,
         rootPath: defaultProject.rootPath,
         existed: true,

@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { emitVideoWorkbenchTaskAction } from "@/lib/videoWorkbenchEvents";
-import type { Message } from "../types";
+import type { Message, MessageVideoTaskPreview } from "../types";
 import { useWorkspaceVideoTaskActionRuntime } from "./useWorkspaceVideoTaskActionRuntime";
 
 const { mockCancelTask, mockCreateTask, mockGetTask, toast } = vi.hoisted(
@@ -34,41 +34,50 @@ type HookProps = Parameters<typeof useWorkspaceVideoTaskActionRuntime>[0];
 
 const mountedRoots: Array<{ container: HTMLDivElement; root: Root }> = [];
 
+function buildFailedVideoPreview(): MessageVideoTaskPreview {
+  return {
+    kind: "video_generate",
+    taskId: "task-video-old",
+    taskType: "video_generate",
+    prompt: "新品发布会短视频",
+    status: "failed",
+    durationSeconds: 15,
+    aspectRatio: "16:9",
+    resolution: "720p",
+    projectId: "project-video-1",
+    contentId: "content-video-1",
+    providerId: "doubao",
+    model: "seedance-1-5-pro-251215",
+  };
+}
+
 function buildFailedVideoMessage(): Message {
   return {
     id: "msg-video-failed-1",
     role: "assistant",
     content: "视频任务失败。",
     timestamp: new Date(),
-    taskPreview: {
-      kind: "video_generate",
-      taskId: "task-video-old",
-      taskType: "video_generate",
-      prompt: "新品发布会短视频",
-      status: "failed",
-      durationSeconds: 15,
-      aspectRatio: "16:9",
-      resolution: "720p",
-      projectId: "project-video-1",
-      contentId: "content-video-1",
-      providerId: "doubao",
-      model: "seedance-1-5-pro-251215",
-    },
+    taskPreview: buildFailedVideoPreview(),
+  };
+}
+
+function buildRunningVideoPreview(): MessageVideoTaskPreview {
+  return {
+    ...buildFailedVideoPreview(),
+    taskId: "task-video-running",
+    status: "running",
+    progress: 32,
+    statusMessage: "视频任务正在生成中，工作区会继续同步最新状态。",
   };
 }
 
 function buildRunningVideoMessage(): Message {
   return {
-    ...buildFailedVideoMessage(),
     id: "msg-video-running-1",
+    role: "assistant",
     content: "视频任务进行中。",
-    taskPreview: {
-      ...buildFailedVideoMessage().taskPreview!,
-      taskId: "task-video-running",
-      status: "running",
-      progress: 32,
-      statusMessage: "视频任务正在生成中，工作区会继续同步最新状态。",
-    },
+    timestamp: new Date(),
+    taskPreview: buildRunningVideoPreview(),
   };
 }
 

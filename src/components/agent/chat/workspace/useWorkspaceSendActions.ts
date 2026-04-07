@@ -1306,6 +1306,10 @@ async function resolveVoiceSkillLaunchRequestContext(params: {
   }
 
   const runtime = resolveOemCloudRuntimeContext();
+  if (!runtime) {
+    toast.error("当前未连接云端运行时，请稍后再试");
+    return null;
+  }
 
   return {
     kind: "cloud_scene",

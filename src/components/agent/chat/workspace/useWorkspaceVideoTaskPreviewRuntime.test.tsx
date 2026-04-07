@@ -2,7 +2,7 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Message } from "../types";
+import type { Message, MessageVideoTaskPreview } from "../types";
 import { useWorkspaceVideoTaskPreviewRuntime } from "./useWorkspaceVideoTaskPreviewRuntime";
 
 const { mockGetTask } = vi.hoisted(() => ({
@@ -19,24 +19,30 @@ type HookProps = Parameters<typeof useWorkspaceVideoTaskPreviewRuntime>[0];
 
 const mountedRoots: Array<{ container: HTMLDivElement; root: Root }> = [];
 
-function buildVideoMessage(): Message {
+function buildRunningVideoPreview(): MessageVideoTaskPreview {
+  return {
+    kind: "video_generate",
+    taskId: "task-video-1",
+    taskType: "video_generate",
+    prompt: "新品发布会短视频",
+    status: "running",
+    durationSeconds: 15,
+    aspectRatio: "16:9",
+    resolution: "720p",
+    projectId: "project-video-1",
+    contentId: "content-video-1",
+  };
+}
+
+function buildVideoMessage(
+  taskPreview: MessageVideoTaskPreview = buildRunningVideoPreview(),
+): Message {
   return {
     id: "msg-video-1",
     role: "assistant",
     content: "视频任务已提交",
     timestamp: new Date(),
-    taskPreview: {
-      kind: "video_generate",
-      taskId: "task-video-1",
-      taskType: "video_generate",
-      prompt: "新品发布会短视频",
-      status: "running",
-      durationSeconds: 15,
-      aspectRatio: "16:9",
-      resolution: "720p",
-      projectId: "project-video-1",
-      contentId: "content-video-1",
-    },
+    taskPreview,
   };
 }
 
@@ -135,14 +141,11 @@ describe("useWorkspaceVideoTaskPreviewRuntime", () => {
     const setChatMessages: HookProps["setChatMessages"] = vi.fn();
     const harness = renderHook({
       messages: [
-        {
-          ...buildVideoMessage(),
-          taskPreview: {
-            ...buildVideoMessage().taskPreview!,
-            status: "complete",
-            videoUrl: "https://example.com/already-synced.mp4",
-          },
-        },
+        buildVideoMessage({
+          ...buildRunningVideoPreview(),
+          status: "complete",
+          videoUrl: "https://example.com/already-synced.mp4",
+        }),
       ],
       setChatMessages,
     });
@@ -159,14 +162,11 @@ describe("useWorkspaceVideoTaskPreviewRuntime", () => {
 
   it("历史里的视频任务已完成但尚未带回 videoUrl 时，也应继续回填最终结果", async () => {
     let messages: Message[] = [
-      {
-        ...buildVideoMessage(),
-        taskPreview: {
-          ...buildVideoMessage().taskPreview!,
-          status: "complete",
-          statusMessage: "视频已经生成完成，正在同步最终结果。",
-        },
-      },
+      buildVideoMessage({
+        ...buildRunningVideoPreview(),
+        status: "complete",
+        statusMessage: "视频已经生成完成，正在同步最终结果。",
+      }),
     ];
     const setChatMessages: HookProps["setChatMessages"] = (value) => {
       messages = typeof value === "function" ? value(messages) : value;

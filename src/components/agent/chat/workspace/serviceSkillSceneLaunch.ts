@@ -40,10 +40,14 @@ interface ParsedRuntimeSceneCommand {
   userInput: string;
 }
 
+type ServiceSceneLaunchRequestContext =
+  | Record<string, unknown>
+  | ServiceSkillClawLaunchContext;
+
 interface ServiceSceneLaunchRequest {
   skill: ServiceSkillItem;
   sceneEntry: SkillCatalogSceneEntry;
-  requestContext: Record<string, unknown>;
+  requestContext: ServiceSceneLaunchRequestContext;
 }
 
 export class RuntimeSceneLaunchValidationError extends Error {
@@ -51,6 +55,20 @@ export class RuntimeSceneLaunchValidationError extends Error {
     super(message);
     this.name = "RuntimeSceneLaunchValidationError";
   }
+}
+
+function isServiceSkillClawLaunchContext(
+  value: ServiceSceneLaunchRequestContext,
+): value is ServiceSkillClawLaunchContext {
+  return (
+    value.kind === "site_adapter" &&
+    typeof value.skillId === "string" &&
+    typeof value.skillTitle === "string" &&
+    typeof value.adapterName === "string" &&
+    value.args !== null &&
+    typeof value.args === "object" &&
+    !Array.isArray(value.args)
+  );
 }
 
 function normalizeCommandToken(value?: string | null): string {
@@ -252,7 +270,7 @@ function buildServiceSceneLaunchRequestContext(params: {
       skill_title: skill.title,
       skill_summary: skill.summary,
       runner_type: skill.runnerType,
-      execution_kind: sceneEntry.executionKind ?? skill.executionKind,
+      execution_kind: sceneEntry.executionKind ?? skill.defaultExecutorBinding,
       execution_location: skill.executionLocation,
       project_id: projectId ?? undefined,
       content_id: contentId ?? undefined,
@@ -327,12 +345,12 @@ async function resolveSiteSceneLaunchReadiness(
 
 export function buildServiceSceneLaunchRequestMetadata(
   existingMetadata: Record<string, unknown> | undefined,
-  requestContext: Record<string, unknown>,
+  requestContext: ServiceSceneLaunchRequestContext,
 ): Record<string, unknown> {
-  if (requestContext.kind === "site_adapter") {
+  if (isServiceSkillClawLaunchContext(requestContext)) {
     const existingHarness = asRecord(existingMetadata?.harness);
     const siteMetadata = buildServiceSkillClawLaunchRequestMetadata(
-      requestContext as ServiceSkillClawLaunchContext,
+      requestContext,
     );
     const siteHarness = asRecord(siteMetadata.harness);
 

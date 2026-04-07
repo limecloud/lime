@@ -109,6 +109,16 @@ interface RestoredImageTaskSnapshot extends LoadedImageTaskSnapshot {
   taskFamily: string;
 }
 
+interface ImageTaskPreviewRuntimeContext {
+  sessionId?: string | null;
+  projectId?: string | null;
+  contentId?: string | null;
+  projectRootPath?: string | null;
+  messages?: Message[];
+  currentImageWorkbenchState?: SessionImageWorkbenchState;
+  canvasState: CanvasStateUnion | null;
+}
+
 function shouldPreferLoadedImageTaskSnapshot(
   current: LoadedImageTaskSnapshot | null,
   candidate: LoadedImageTaskSnapshot | null,
@@ -1592,12 +1602,13 @@ export function useWorkspaceImageTaskPreviewRuntime({
   const restoreSeedMessagesRef = useRef<
     ((seedMessages?: Message[]) => void) | null
   >(null);
-  const runtimeContextRef = useRef({
+  const runtimeContextRef = useRef<ImageTaskPreviewRuntimeContext>({
     sessionId,
     projectId,
     contentId,
     projectRootPath,
     messages,
+    currentImageWorkbenchState,
     canvasState,
   });
 
@@ -1701,7 +1712,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
       artifactPath?: string;
     }) => {
       const existing = trackedTasks.get(params.taskId);
-      if (existing?.timerId !== null) {
+      if (existing && existing.timerId !== null) {
         window.clearTimeout(existing.timerId);
       }
       trackedTasks.set(params.taskId, {

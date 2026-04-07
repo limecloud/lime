@@ -6,6 +6,7 @@ import {
   EMPTY_STATE_BADGE_TONE_CLASSNAMES,
   EMPTY_STATE_CARD_SURFACE_CLASSNAME,
   EMPTY_STATE_ICON_TONE_CLASSNAMES,
+  type EmptyStateTone,
 } from "./emptyStateSurfaceTokens";
 
 const heroReveal = keyframes`
@@ -314,7 +315,7 @@ const CardEyebrow = styled.span`
 export interface EmptyStateHeroBadge {
   key: string;
   label: string;
-  tone?: "slate" | "sky" | "emerald" | "amber";
+  tone?: EmptyStateTone;
 }
 
 export interface EmptyStateHeroCard {
@@ -326,7 +327,7 @@ export interface EmptyStateHeroCard {
   icon: ReactNode;
   imageSrc?: string;
   imageAlt?: string;
-  tone?: "slate" | "sky" | "emerald" | "amber";
+  tone?: EmptyStateTone;
   action?: ReactNode;
   onMediaAction?: () => void;
   mediaActionLabel?: string;

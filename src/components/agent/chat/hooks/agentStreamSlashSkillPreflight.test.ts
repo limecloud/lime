@@ -40,7 +40,10 @@ function createPreparedSend(
   };
 }
 
-function createEnv() {
+type SlashSkillPreflightTestEnv =
+  Parameters<typeof maybeHandleSlashSkillBeforeSend>[0]["env"];
+
+function createEnv(): SlashSkillPreflightTestEnv {
   return {
     ensureSession: async () => "session-1",
     sessionIdRef: { current: null },
@@ -53,7 +56,7 @@ function createEnv() {
     playTypewriterSound: vi.fn(),
     playToolcallSound: vi.fn(),
     onWriteFile: vi.fn(),
-  } as never;
+  };
 }
 
 describe("agentStreamSlashSkillPreflight", () => {
