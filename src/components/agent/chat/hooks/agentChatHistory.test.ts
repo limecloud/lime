@@ -428,4 +428,101 @@ describe("agentChatHistory", () => {
       output_tokens: 10240,
     });
   });
+
+  it("同会话 hydrate 时远端缺失过程字段也应保留本地 assistant 执行轨迹", () => {
+    const now = new Date("2026-04-08T10:00:00.000Z");
+    const localMessages = [
+      {
+        id: "local-user-1",
+        role: "user" as const,
+        content: "把文章保存到项目里",
+        timestamp: new Date("2026-04-08T09:59:59.000Z"),
+      },
+      {
+        id: "local-assistant-1",
+        role: "assistant" as const,
+        content: "内容已保存到项目目录。",
+        timestamp: now,
+        thinkingContent: "先打开页面，再抓取正文和图片。",
+        contentParts: [
+          {
+            type: "thinking" as const,
+            text: "先打开页面，再抓取正文和图片。",
+          },
+          {
+            type: "tool_use" as const,
+            toolCall: {
+              id: "tool-site-1",
+              name: "site_run_adapter",
+              arguments: "{\"url\":\"https://x.com/example/article/1\"}",
+              status: "completed" as const,
+              startTime: now,
+              endTime: now,
+              result: {
+                success: true,
+                output: "saved: articles/google-cloud-tech.md",
+              },
+            },
+          },
+          {
+            type: "text" as const,
+            text: "内容已保存到项目目录。",
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-site-1",
+            name: "site_run_adapter",
+            arguments: "{\"url\":\"https://x.com/example/article/1\"}",
+            status: "completed" as const,
+            startTime: now,
+            endTime: now,
+            result: {
+              success: true,
+              output: "saved: articles/google-cloud-tech.md",
+            },
+          },
+        ],
+      },
+    ];
+    const hydratedMessages = [
+      {
+        id: "history-user-1",
+        role: "user" as const,
+        content: "把文章保存到项目里",
+        timestamp: new Date("2026-04-08T10:00:01.000Z"),
+      },
+      {
+        id: "history-assistant-1",
+        role: "assistant" as const,
+        content: "内容已保存到项目目录。",
+        timestamp: new Date("2026-04-08T10:00:02.000Z"),
+        contentParts: [
+          {
+            type: "text" as const,
+            text: "内容已保存到项目目录。",
+          },
+        ],
+      },
+    ];
+
+    const mergedMessages = mergeHydratedMessagesWithLocalState(
+      localMessages,
+      hydratedMessages,
+    );
+
+    expect(mergedMessages[1]?.thinkingContent).toBe(
+      "先打开页面，再抓取正文和图片。",
+    );
+    expect(
+      mergedMessages[1]?.contentParts?.some(
+        (part) =>
+          part.type === "tool_use" && part.toolCall.id === "tool-site-1",
+      ),
+    ).toBe(true);
+    expect(mergedMessages[1]?.toolCalls?.[0]).toMatchObject({
+      id: "tool-site-1",
+      status: "completed",
+    });
+  });
 });

@@ -62,10 +62,10 @@
 
 来自以下文件：
 
-- `/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/blueprint/README.md`
-- `/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/blueprint/types.rs`
-- `/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/blueprint/task_tree_manager.rs`
-- `/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/blueprint/worker_executor.rs`
+- `src-tauri/crates/aster-rust/crates/aster/src/blueprint/README.md`
+- `src-tauri/crates/aster-rust/crates/aster/src/blueprint/types.rs`
+- `src-tauri/crates/aster-rust/crates/aster/src/blueprint/task_tree_manager.rs`
+- `src-tauri/crates/aster-rust/crates/aster/src/blueprint/worker_executor.rs`
 
 可确认：
 

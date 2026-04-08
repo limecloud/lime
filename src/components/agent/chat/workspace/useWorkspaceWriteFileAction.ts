@@ -104,6 +104,18 @@ function resolveThemeWorkbenchVersionLabel(params: {
   return params.fallbackLabel;
 }
 
+function mergePersistedTaskFileMetadata(
+  baseMetadata?: Record<string, unknown>,
+  runtimeMetadata?: WriteArtifactContext["metadata"],
+): Record<string, unknown> | undefined {
+  const nextMetadata = {
+    ...(baseMetadata || {}),
+    ...(runtimeMetadata || {}),
+  };
+
+  return Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined;
+}
+
 function logWorkspaceWriteInfo(...args: Parameters<typeof console.log>) {
   if (!shouldLogWorkspaceWriteInfo) {
     return;
@@ -134,7 +146,11 @@ interface UseWorkspaceWriteFileActionParams {
   setDocumentVersionStatusMap: Dispatch<
     SetStateAction<Record<string, TopicBranchStatus>>
   >;
-  saveSessionFile: (fileName: string, content: string) => Promise<unknown>;
+  saveSessionFile: (
+    fileName: string,
+    content: string,
+    metadata?: Record<string, unknown>,
+  ) => Promise<unknown>;
   syncGeneralArtifactToResource: (input: {
     rawFilePath: string;
     preferredName?: string;
@@ -266,7 +282,7 @@ export function useWorkspaceWriteFileAction({
         };
 
         if (nextContent.length > 0) {
-          void saveSessionFile(fileName, nextContent)
+          void saveSessionFile(fileName, nextContent, nextArtifact.meta)
             .then(() => {
               syncResource();
             })
@@ -347,6 +363,10 @@ export function useWorkspaceWriteFileAction({
             versionLabel: effectiveVersionDescription,
           }
         : undefined;
+      const persistedTaskFileMetadata = mergePersistedTaskFileMetadata(
+        baseVersionMetadata,
+        context?.metadata,
+      );
       const existingTaskFile = taskFilesRef.current.find(
         (file) => file.name === fileName,
       );
@@ -366,9 +386,11 @@ export function useWorkspaceWriteFileAction({
         });
       }
 
-      void saveSessionFile(fileName, content).catch((error) => {
-        console.error("[AgentChatPage] 持久化文件失败:", error);
-      });
+      void saveSessionFile(fileName, content, persistedTaskFileMetadata).catch(
+        (error) => {
+          console.error("[AgentChatPage] 持久化文件失败:", error);
+        },
+      );
 
       if (contentId && shouldApplyToMainDocument) {
         void getContent(contentId)
@@ -477,10 +499,10 @@ export function useWorkspaceWriteFileAction({
             type: nextFileType,
             content,
             updatedAt: now,
-            metadata: baseVersionMetadata
+            metadata: persistedTaskFileMetadata
               ? {
                   ...(existing.metadata || {}),
-                  ...baseVersionMetadata,
+                  ...persistedTaskFileMetadata,
                 }
               : existing.metadata,
           };
@@ -497,7 +519,7 @@ export function useWorkspaceWriteFileAction({
           version: 1,
           createdAt: now,
           updatedAt: now,
-          metadata: baseVersionMetadata,
+          metadata: persistedTaskFileMetadata,
         };
         setSelectedFileId(newFile.id);
         return [...previous, newFile];

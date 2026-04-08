@@ -3,6 +3,8 @@ use crate::services::site_capability_service::{
     get_site_adapter, run_site_adapter_with_optional_save, RunSiteAdapterRequest,
     SiteAdapterDefinition, SiteAdapterRunResult,
 };
+use lime_agent::AgentToolResult;
+use std::collections::HashMap;
 
 const SERVICE_SKILL_LAUNCH_BROWSER_DENY_PATTERNS: &[&str] = &[
     "mcp__lime-browser__*",
@@ -28,6 +30,14 @@ pub(crate) struct ServiceSkillLaunchPreloadExecution {
     pub(crate) request: RunSiteAdapterRequest,
     pub(crate) adapter: Option<SiteAdapterDefinition>,
     pub(crate) result: SiteAdapterRunResult,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ServiceSkillPreloadToolProjection {
+    pub(crate) tool_name: String,
+    pub(crate) tool_id: String,
+    pub(crate) arguments: String,
+    pub(crate) result: AgentToolResult,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -69,6 +79,150 @@ fn normalized_optional_object(
     value: Option<&serde_json::Value>,
 ) -> Option<&serde_json::Map<String, serde_json::Value>> {
     value.and_then(serde_json::Value::as_object)
+}
+
+fn sanitize_service_skill_preload_id_segment(value: &str) -> String {
+    let sanitized = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    sanitized
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn build_service_skill_preload_tool_id(execution: &ServiceSkillLaunchPreloadExecution) -> String {
+    let adapter = sanitize_service_skill_preload_id_segment(&execution.request.adapter_name);
+    let target = execution
+        .result
+        .target_id
+        .as_deref()
+        .map(sanitize_service_skill_preload_id_segment)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "default".to_string());
+    format!("service-skill-preload:{adapter}:{target}")
+}
+
+fn build_service_skill_preload_output(execution: &ServiceSkillLaunchPreloadExecution) -> String {
+    let skill_title = execution
+        .request
+        .skill_title
+        .as_deref()
+        .unwrap_or(execution.request.adapter_name.as_str());
+    let mut lines = Vec::new();
+
+    if execution.result.ok {
+        lines.push(format!("已完成站点技能预执行：{skill_title}。"));
+    } else {
+        lines.push(format!("站点技能预执行失败：{skill_title}。"));
+    }
+
+    lines.push(format!("- 适配器：{}", execution.request.adapter_name));
+    lines.push(format!("- 入口页面：{}", execution.result.entry_url));
+
+    if let Some(source_url) = execution.result.source_url.as_deref() {
+        lines.push(format!("- 当前页面：{source_url}"));
+    }
+
+    if let Some(saved_content) = execution.result.saved_content.as_ref() {
+        lines.push(format!("- 已保存内容：{}", saved_content.title));
+        if let Some(path) = saved_content.markdown_relative_path.as_deref() {
+            lines.push(format!("- Markdown 文件：{path}"));
+        }
+        if let Some(image_count) = saved_content.image_count {
+            let image_dir = saved_content
+                .images_relative_dir
+                .as_deref()
+                .map(|value| format!(" · {value}"))
+                .unwrap_or_default();
+            lines.push(format!("- 图片资源：{image_count} 张{image_dir}"));
+        }
+    }
+
+    if let Some(project_id) = execution.result.saved_project_id.as_deref() {
+        lines.push(format!("- 保存项目：{project_id}"));
+    }
+
+    if let Some(error_code) = execution.result.error_code.as_deref() {
+        lines.push(format!("- 错误码：{error_code}"));
+    }
+    if let Some(error_message) = execution.result.error_message.as_deref() {
+        lines.push(format!("- 错误说明：{error_message}"));
+    }
+    if let Some(report_hint) = execution.result.report_hint.as_deref() {
+        lines.push(format!("- 处理建议：{report_hint}"));
+    }
+    if let Some(auth_hint) = execution.result.auth_hint.as_deref() {
+        lines.push(format!("- 登录提示：{auth_hint}"));
+    }
+
+    lines.join("\n")
+}
+
+pub(crate) fn build_service_skill_preload_tool_projection(
+    execution: &ServiceSkillLaunchPreloadExecution,
+) -> Result<ServiceSkillPreloadToolProjection, String> {
+    let arguments = serde_json::json!({
+        "adapter_name": execution.request.adapter_name.clone(),
+        "args": execution.request.args.clone(),
+        "profile_key": execution.request.profile_key.clone(),
+        "target_id": execution.request.target_id.clone(),
+        "content_id": execution.request.content_id.clone(),
+        "project_id": execution.request.project_id.clone(),
+        "save_title": execution.request.save_title.clone(),
+        "require_attached_session": execution.request.require_attached_session,
+        "skill_title": execution.request.skill_title.clone(),
+        "execution_origin": "preload",
+    });
+    let mut metadata = HashMap::from([
+        ("tool_family".to_string(), serde_json::json!("site")),
+        ("execution_origin".to_string(), serde_json::json!("preload")),
+        ("preload".to_string(), serde_json::json!(true)),
+        (
+            "adapter_name".to_string(),
+            serde_json::json!(execution.request.adapter_name.clone()),
+        ),
+        (
+            "skill_title".to_string(),
+            serde_json::json!(execution.request.skill_title.clone()),
+        ),
+        (
+            "result".to_string(),
+            serde_json::to_value(&execution.result).unwrap_or_default(),
+        ),
+    ]);
+    if let Some(adapter) = execution.adapter.as_ref() {
+        metadata.insert(
+            "adapter_source_kind".to_string(),
+            serde_json::json!(adapter.source_kind),
+        );
+        metadata.insert(
+            "adapter_source_version".to_string(),
+            serde_json::json!(adapter.source_version),
+        );
+    }
+
+    Ok(ServiceSkillPreloadToolProjection {
+        tool_name: "lime_site_run".to_string(),
+        tool_id: build_service_skill_preload_tool_id(execution),
+        arguments: serde_json::to_string(&arguments)
+            .map_err(|error| format!("序列化站点技能预执行参数失败: {error}"))?,
+        result: AgentToolResult {
+            success: execution.result.ok,
+            output: build_service_skill_preload_output(execution),
+            error: execution.result.error_message.clone(),
+            images: None,
+            metadata: Some(metadata),
+        },
+    })
 }
 
 fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys: &[&str]) {

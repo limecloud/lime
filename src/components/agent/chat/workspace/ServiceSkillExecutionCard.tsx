@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { SiteSavedContentTarget } from "../types";
 import type { SiteSkillExecutionState } from "./useWorkspaceBrowserAssistRuntime";
 
 interface ServiceSkillExecutionCardProps {
   state: SiteSkillExecutionState | null;
   onOpenBrowserRuntime?: () => void;
+  onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
 }
 
 const PHASE_LABELS: Record<SiteSkillExecutionState["phase"], string> = {
@@ -24,6 +26,7 @@ const PHASE_TONE_CLASSES: Record<SiteSkillExecutionState["phase"], string> = {
 export function ServiceSkillExecutionCard({
   state,
   onOpenBrowserRuntime,
+  onOpenSavedSiteContent,
 }: ServiceSkillExecutionCardProps) {
   if (!state) {
     return null;
@@ -37,6 +40,27 @@ export function ServiceSkillExecutionCard({
   const imagesRelativeDir =
     state.result?.saved_content?.images_relative_dir?.trim() || "";
   const imageCount = state.result?.saved_content?.image_count;
+  const savedSiteContentTarget: SiteSavedContentTarget | null =
+    state.result?.saved_content?.content_id?.trim() &&
+    state.result?.saved_content?.project_id?.trim()
+      ? {
+          projectId: state.result.saved_content.project_id.trim(),
+          contentId: state.result.saved_content.content_id.trim(),
+          title: resultTitle || undefined,
+          ...(markdownRelativePath
+            ? {
+                preferredTarget: "project_file" as const,
+                projectFile: {
+                  relativePath: markdownRelativePath,
+                },
+              }
+            : {}),
+        }
+      : null;
+  const savedContentActionLabel =
+    savedSiteContentTarget?.preferredTarget === "project_file"
+      ? "在下方预览导出 Markdown"
+      : "打开已保存内容";
 
   return (
     <section
@@ -90,6 +114,19 @@ export function ServiceSkillExecutionCard({
       ) : null}
       {state.reportHint ? (
         <p className="mt-2 text-xs leading-5 opacity-80">{state.reportHint}</p>
+      ) : null}
+
+      {savedSiteContentTarget && onOpenSavedSiteContent ? (
+        <div className="mt-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenSavedSiteContent(savedSiteContentTarget)}
+            data-testid="service-skill-execution-open-saved-content"
+          >
+            {savedContentActionLabel}
+          </Button>
+        </div>
       ) : null}
 
       {onOpenBrowserRuntime && state.phase === "blocked" ? (

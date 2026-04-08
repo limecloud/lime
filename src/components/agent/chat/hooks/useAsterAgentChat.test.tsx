@@ -26,6 +26,8 @@ const {
   mockParseSkillSlashCommand,
   mockTryExecuteSlashSkillCommand,
   mockWechatChannelSetRuntimeModel,
+  mockGetDefaultProvider,
+  mockResolveClawWorkspaceProviderSelection,
 } = vi.hoisted(() => ({
   mockInitAsterAgent: vi.fn(),
   mockSubmitAgentRuntimeTurn: vi.fn(),
@@ -55,6 +57,8 @@ const {
   ),
   mockTryExecuteSlashSkillCommand: vi.fn(async () => false),
   mockWechatChannelSetRuntimeModel: vi.fn(async () => undefined),
+  mockGetDefaultProvider: vi.fn(),
+  mockResolveClawWorkspaceProviderSelection: vi.fn(),
 }));
 
 vi.mock("@/lib/api/agentRuntime", () => ({
@@ -102,6 +106,15 @@ vi.mock("./skillCommand", () => ({
 
 vi.mock("@/lib/api/channelsRuntime", () => ({
   wechatChannelSetRuntimeModel: mockWechatChannelSetRuntimeModel,
+}));
+
+vi.mock("@/lib/api/appConfig", () => ({
+  getDefaultProvider: mockGetDefaultProvider,
+}));
+
+vi.mock("../utils/clawWorkspaceProviderSelection", () => ({
+  resolveClawWorkspaceProviderSelection:
+    mockResolveClawWorkspaceProviderSelection,
 }));
 
 import { useAsterAgentChat } from "./useAsterAgentChat";
@@ -272,6 +285,8 @@ beforeEach(() => {
   mockParseSkillSlashCommand.mockReset();
   mockTryExecuteSlashSkillCommand.mockReset();
   mockWechatChannelSetRuntimeModel.mockReset();
+  mockGetDefaultProvider.mockReset();
+  mockResolveClawWorkspaceProviderSelection.mockReset();
   mockToast.success.mockReset();
   mockToast.error.mockReset();
   mockToast.info.mockReset();
@@ -300,6 +315,8 @@ beforeEach(() => {
   mockSafeListen.mockResolvedValue(() => {});
   mockParseSkillSlashCommand.mockReturnValue(null);
   mockTryExecuteSlashSkillCommand.mockResolvedValue(false);
+  mockGetDefaultProvider.mockResolvedValue("openai");
+  mockResolveClawWorkspaceProviderSelection.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -388,6 +405,111 @@ describe("useAsterAgentChat 首页新会话", () => {
         sessionId,
       ]);
       expect(harness.getValue().processStatus.running).toBe(true);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("Agent 初始化返回真实 provider/model 时应回填当前工作区选择", async () => {
+    const workspaceId = "ws-init-runtime-model";
+    mockInitAsterAgent.mockResolvedValue({
+      initialized: true,
+      provider_configured: true,
+      provider_name: "openai",
+      model_name: "gpt-5.4-mini",
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      expect(harness.getValue().providerType).toBe("openai");
+      expect(harness.getValue().model).toBe("gpt-5.4-mini");
+      expect(
+        JSON.parse(
+          localStorage.getItem(`agent_pref_provider_${workspaceId}`) || "null",
+        ),
+      ).toBe("openai");
+      expect(
+        JSON.parse(
+          localStorage.getItem(`agent_pref_model_${workspaceId}`) || "null",
+        ),
+      ).toBe("gpt-5.4-mini");
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("Agent 初始化返回 provider_selector 时应优先回填真实 provider 标识", async () => {
+    const workspaceId = "ws-init-runtime-provider-selector";
+    mockInitAsterAgent.mockResolvedValue({
+      initialized: true,
+      provider_configured: true,
+      provider_name: "anthropic",
+      provider_selector: "custom-a32774c6-6fd0-433b-8b81-e95340e08793",
+      model_name: "glm-5.1",
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      expect(harness.getValue().providerType).toBe(
+        "custom-a32774c6-6fd0-433b-8b81-e95340e08793",
+      );
+      expect(harness.getValue().model).toBe("glm-5.1");
+      expect(
+        JSON.parse(
+          localStorage.getItem(`agent_pref_provider_${workspaceId}`) || "null",
+        ),
+      ).toBe("custom-a32774c6-6fd0-433b-8b81-e95340e08793");
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("Agent 初始化未返回模型时应回退到后端默认 provider 解析真实工作区模型", async () => {
+    const workspaceId = "ws-init-fallback-runtime-model";
+    mockInitAsterAgent.mockResolvedValue({
+      initialized: true,
+      provider_configured: false,
+    });
+    mockGetDefaultProvider.mockResolvedValue("deepseek");
+    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+      providerType: "openai",
+      model: "gpt-5.4",
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      expect(mockGetDefaultProvider).toHaveBeenCalledTimes(1);
+      expect(
+        mockResolveClawWorkspaceProviderSelection,
+      ).toHaveBeenCalledWith({
+        currentProviderType: "deepseek",
+        currentModel: null,
+        theme: "general",
+      });
+      expect(harness.getValue().providerType).toBe("openai");
+      expect(harness.getValue().model).toBe("gpt-5.4");
+      expect(
+        JSON.parse(
+          localStorage.getItem(`agent_pref_provider_${workspaceId}`) || "null",
+        ),
+      ).toBe("openai");
+      expect(
+        JSON.parse(
+          localStorage.getItem(`agent_pref_model_${workspaceId}`) || "null",
+        ),
+      ).toBe("gpt-5.4");
     } finally {
       harness.unmount();
     }
@@ -6195,6 +6317,48 @@ describe("useAsterAgentChat 兼容接口", () => {
         mockSubmitAgentRuntimeTurn.mock.calls[0]?.[0]?.turn_config
           ?.model_preference,
       ).toBe(selectedModel);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("Agent 初始化未恢复 provider 配置时应自愈已缓存的失效 provider 选择", async () => {
+    const workspaceId = "ws-init-heal-stale-provider";
+    localStorage.setItem(
+      `agent_pref_provider_${workspaceId}`,
+      JSON.stringify("anthropic"),
+    );
+    localStorage.setItem(
+      `agent_pref_model_${workspaceId}`,
+      JSON.stringify("glm-5.1"),
+    );
+    mockInitAsterAgent.mockResolvedValue({
+      initialized: true,
+      provider_configured: false,
+    });
+    mockResolveClawWorkspaceProviderSelection.mockResolvedValue({
+      providerType: "custom-a32774c6-6fd0-433b-8b81-e95340e08793",
+      model: "glm-5.1",
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      expect(mockGetDefaultProvider).not.toHaveBeenCalled();
+      expect(
+        mockResolveClawWorkspaceProviderSelection,
+      ).toHaveBeenCalledWith({
+        currentProviderType: "anthropic",
+        currentModel: "glm-5.1",
+        theme: "general",
+      });
+      expect(harness.getValue().providerType).toBe(
+        "custom-a32774c6-6fd0-433b-8b81-e95340e08793",
+      );
+      expect(harness.getValue().model).toBe("glm-5.1");
     } finally {
       harness.unmount();
     }

@@ -1285,7 +1285,7 @@ export function MemorySettings() {
               额外目录
             </span>
             <span className="text-xs leading-5 text-slate-500">
-              每行一个绝对路径，可添加 `aster-rust` 等外部仓库参与记忆解析。
+              每行一个绝对路径，可添加当前仓库之外的参考目录参与记忆解析。
             </span>
             <textarea
               value={(resolveConfig.additional_dirs || []).join("\n")}
@@ -1299,7 +1299,7 @@ export function MemorySettings() {
                 }))
               }
               className={TEXTAREA_CLASS_NAME}
-              placeholder="例如 /Users/coso/Documents/dev/ai/astercloud/aster-rust"
+              placeholder="例如 /absolute/path/to/extra-repo"
             />
           </label>
         </div>

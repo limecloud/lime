@@ -43,6 +43,7 @@ type GeneralWorkbenchSidebarRuntime = ReturnType<
 >;
 
 interface UseWorkspaceInputbarSceneRuntimeParams {
+  contextVariant?: "default" | "task-center";
   setMentionedCharacters: InputbarScenePresentationParams["setMentionedCharacters"];
   taskFiles: InputbarScenePresentationParams["taskFiles"];
   taskFilesExpanded: InputbarScenePresentationParams["taskFilesExpanded"];
@@ -129,6 +130,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
 }
 
 export function useWorkspaceInputbarSceneRuntime({
+  contextVariant = "default",
   setMentionedCharacters,
   taskFiles,
   taskFilesExpanded,
@@ -275,6 +277,7 @@ export function useWorkspaceInputbarSceneRuntime({
       inputbar: {
         input,
         setInput,
+        contextVariant,
         variant: isThemeWorkbench ? "workspace" : "default",
         workflowGate: isThemeWorkbench ? currentGate : null,
         workflowSteps: isThemeWorkbench

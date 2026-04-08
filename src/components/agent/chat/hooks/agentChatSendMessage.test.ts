@@ -119,6 +119,7 @@ describe("createAgentChatSendMessage", () => {
       expect.objectContaining({
         kind: "command",
         entryId: "review",
+        replayText: "src-tauri",
       }),
     ]);
   });

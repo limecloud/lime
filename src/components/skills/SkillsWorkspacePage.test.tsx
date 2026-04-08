@@ -3,11 +3,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Skill } from "@/lib/api/skills";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
+import type { SkillsPageParams } from "@/types/page";
 import { SkillsWorkspacePage } from "./SkillsWorkspacePage";
 
 const mockRefreshServiceSkills = vi.fn();
 const mockRecordUsage = vi.fn();
 const mockRefreshLocalSkills = vi.fn();
+const mockAdvancedSkillsPage = vi.fn();
+const mockServiceSkillLaunchDialog = vi.fn();
 
 vi.mock("sonner", () => ({
   toast: {
@@ -31,12 +34,28 @@ vi.mock("@/components/agent/chat/service-skills/useServiceSkills", () => ({
         runnerType: "instant",
         defaultExecutorBinding: "agent_turn",
         executionLocation: "client_default",
-        slotSchema: [],
+        slotSchema: [
+          {
+            key: "article_source",
+            label: "文章链接/正文",
+            type: "textarea",
+            required: false,
+            placeholder: "输入文章链接、正文，或文章摘要",
+          },
+          {
+            key: "target_duration",
+            label: "目标时长",
+            type: "text",
+            required: false,
+            defaultValue: "60-90 秒",
+            placeholder: "例如 60-90 秒",
+          },
+        ],
         version: "2026-03-29",
         badge: "云目录",
         recentUsedAt: Date.now(),
         isRecent: true,
-        runnerLabel: "本地即时执行",
+        runnerLabel: "立即开始",
         runnerTone: "emerald",
         runnerDescription: "会直接在当前工作区生成首版结果。",
         actionLabel: "填写参数",
@@ -59,7 +78,7 @@ vi.mock("@/components/agent/chat/service-skills/useServiceSkills", () => ({
         badge: "云目录",
         recentUsedAt: null,
         isRecent: false,
-        runnerLabel: "站点登录态采集",
+        runnerLabel: "浏览器采集",
         runnerTone: "emerald",
         runnerDescription: "会复用当前浏览器里的真实登录态执行站点任务。",
         actionLabel: "开始执行",
@@ -83,7 +102,7 @@ vi.mock("@/components/agent/chat/service-skills/useServiceSkills", () => ({
       {
         key: "general",
         title: "通用技能",
-        summary: "不依赖站点登录态的业务技能。",
+        summary: "不依赖站点登录态的创作技能。",
         sort: 90,
         itemCount: 1,
       },
@@ -132,23 +151,27 @@ vi.mock("@/hooks/useSkills", () => ({
 vi.mock(
   "@/components/agent/chat/service-skills/ServiceSkillLaunchDialog",
   () => ({
-    ServiceSkillLaunchDialog: ({
-      skill,
-      open,
-    }: {
-      skill: ServiceSkillHomeItem | null;
-      open: boolean;
-    }) =>
-      open ? (
-        <div data-testid="service-skill-launch-dialog">{skill?.title}</div>
-      ) : null,
+    ServiceSkillLaunchDialog: (
+      props: {
+        skill: ServiceSkillHomeItem | null;
+        open: boolean;
+        initialSlotValues?: Record<string, string>;
+        prefillHint?: string;
+      },
+    ) => {
+      mockServiceSkillLaunchDialog(props);
+      return props.open ? (
+        <div data-testid="service-skill-launch-dialog">{props.skill?.title}</div>
+      ) : null;
+    },
   }),
 );
 
 vi.mock("./SkillsPage", () => ({
-  SkillsPage: () => (
-    <div data-testid="advanced-skills-page">advanced skills page</div>
-  ),
+  SkillsPage: (props: Record<string, unknown>) => {
+    mockAdvancedSkillsPage(props);
+    return <div data-testid="advanced-skills-page">advanced skills page</div>;
+  },
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -173,14 +196,16 @@ interface RenderResult {
 
 const mountedRoots: RenderResult[] = [];
 
-function renderPage() {
+function renderPage(pageParams?: SkillsPageParams) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   const onNavigate = vi.fn<(page: string, params?: unknown) => void>();
 
   act(() => {
-    root.render(<SkillsWorkspacePage onNavigate={onNavigate} />);
+    root.render(
+      <SkillsWorkspacePage onNavigate={onNavigate} pageParams={pageParams} />,
+    );
   });
 
   const rendered = { container, root };
@@ -229,6 +254,8 @@ describe("SkillsWorkspacePage", () => {
     mockRecordUsage.mockReset();
     mockRefreshLocalSkills.mockReset();
     mockRefreshLocalSkills.mockResolvedValue(undefined);
+    mockAdvancedSkillsPage.mockReset();
+    mockServiceSkillLaunchDialog.mockReset();
   });
 
   afterEach(() => {
@@ -245,11 +272,18 @@ describe("SkillsWorkspacePage", () => {
     vi.clearAllMocks();
   });
 
-  it("应默认渲染技能组而不是平铺技能卡", () => {
+  it("应默认渲染推荐技能组并同时展示最近使用和我的技能入口", () => {
     const { container } = renderPage();
 
     expect(container.textContent).toContain("技能");
+    expect(container.textContent).toContain("推荐技能组");
+    expect(container.textContent).toContain("最近使用");
+    expect(container.textContent).toContain("我的技能");
+    expect(container.textContent).toContain(
+      "先从一个现成技能开始，不必先理解目录结构。",
+    );
     expect(container.textContent).toContain("GitHub");
+    expect(container.textContent).toContain("写作助手");
     expect(container.textContent).not.toContain(
       "GitHub 仓库检索围绕关键词采集",
     );
@@ -307,6 +341,42 @@ describe("SkillsWorkspacePage", () => {
     expect(dialog?.textContent).toContain("GitHub 仓库检索");
   });
 
+  it("技能页带着技能草稿时，启动弹窗应复用草稿里的预填参数", () => {
+    const { container } = renderPage({
+      initialScaffoldDraft: {
+        name: "AI Agent 行业拆解",
+        description: "参考原文做一版 90 秒总结，结论更聚焦团队协作。",
+        sourceExcerpt: "参考 https://example.com/report 并保留关键结论。",
+      },
+      initialScaffoldRequestKey: 20260412,
+    });
+
+    const launchButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("填写参数"),
+    );
+    expect(launchButton).toBeTruthy();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    const latestProps = mockServiceSkillLaunchDialog.mock.lastCall?.[0] as
+      | {
+          initialSlotValues?: Record<string, string>;
+          prefillHint?: string;
+        }
+      | undefined;
+
+    expect(latestProps?.initialSlotValues).toEqual({
+      article_source:
+        "参考线索：参考 https://example.com/report 并保留关键结论。\n改写目标：参考原文做一版 90 秒总结，结论更聚焦团队协作。\n来源标题：AI Agent 行业拆解",
+      target_duration: "90 秒",
+    });
+    expect(latestProps?.prefillHint).toBe(
+      "已根据当前技能草稿自动预填 文章链接/正文、目标时长，可继续修改后执行。",
+    );
+  });
+
   it("点击刷新目录应同时刷新技能目录与本地技能", async () => {
     const { container } = renderPage();
 
@@ -324,17 +394,8 @@ describe("SkillsWorkspacePage", () => {
     expect(mockRefreshLocalSkills).toHaveBeenCalledTimes(1);
   });
 
-  it("切到我的技能后应展示本地已安装技能，并可打开导入与维护", () => {
+  it("应默认展示本地已安装技能，并可打开导入与维护", () => {
     const { container } = renderPage();
-
-    const installedTab = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("我的技能"),
-    );
-    expect(installedTab).toBeTruthy();
-
-    act(() => {
-      installedTab?.click();
-    });
 
     expect(container.textContent).toContain("写作助手");
 
@@ -348,5 +409,101 @@ describe("SkillsWorkspacePage", () => {
     });
 
     expect(container.textContent).toContain("advanced skills page");
+  });
+
+  it("带着技能草稿进入时应自动打开导入与维护，并透传预填参数", () => {
+    renderPage({
+      initialScaffoldDraft: {
+        target: "project",
+        directory: "saved-skill-demo",
+        name: "结果沉淀技能",
+        description: "沉淀自一次成功结果",
+        sourceExcerpt: "一段结果摘要",
+      },
+      initialScaffoldRequestKey: 20260408,
+    });
+
+    expect(document.body.textContent).toContain("advanced skills page");
+    expect(mockAdvancedSkillsPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hideHeader: true,
+        initialScaffoldDraft: expect.objectContaining({
+          directory: "saved-skill-demo",
+          name: "结果沉淀技能",
+        }),
+        initialScaffoldRequestKey: 20260408,
+        onBringScaffoldToCreation: expect.any(Function),
+      }),
+    );
+  });
+
+  it("技能草稿应支持从导入与维护弹窗带回创作输入", () => {
+    const { onNavigate } = renderPage({
+      creationProjectId: "project-demo",
+      initialScaffoldDraft: {
+        target: "project",
+        directory: "saved-skill-demo",
+        name: "结果沉淀技能",
+        description: "沉淀自一次成功结果",
+        whenToUse: ["当你需要继续复用这类结果时使用。"],
+        inputs: ["目标与主题：一段结果摘要"],
+        outputs: ["交付一份可直接复用的完整结果。"],
+        steps: ["先确认目标，再沿用结构。"],
+        fallbackStrategy: ["信息不足时先补问。"],
+        sourceExcerpt: "一段结果摘要",
+        sourceMessageId: "msg-1",
+      },
+      initialScaffoldRequestKey: 20260409,
+    });
+
+    const latestProps = mockAdvancedSkillsPage.mock.lastCall?.[0] as
+      | {
+          onBringScaffoldToCreation?: (draft: Record<string, unknown>) => void;
+        }
+      | undefined;
+
+    act(() => {
+      latestProps?.onBringScaffoldToCreation?.({
+        name: "结果沉淀技能",
+        description: "沉淀自一次成功结果",
+        whenToUse: ["当你需要继续复用这类结果时使用。"],
+        inputs: ["目标与主题：一段结果摘要"],
+        outputs: ["交付一份可直接复用的完整结果。"],
+        steps: ["先确认目标，再沿用结构。"],
+        fallbackStrategy: ["信息不足时先补问。"],
+        sourceExcerpt: "一段结果摘要",
+      });
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        projectId: "project-demo",
+        agentEntry: "new-task",
+        initialUserPrompt: expect.stringContaining("技能名称：结果沉淀技能"),
+        entryBannerMessage:
+          "已从技能草稿“结果沉淀技能”带回创作输入，可继续改写后发送。",
+        initialRequestMetadata: {
+          harness: {
+            creation_replay: expect.objectContaining({
+              kind: "skill_scaffold",
+              source: expect.objectContaining({
+                page: "skills",
+                project_id: "project-demo",
+              }),
+              data: expect.objectContaining({
+                name: "结果沉淀技能",
+                inputs: ["目标与主题：一段结果摘要"],
+                steps: ["先确认目标，再沿用结构。"],
+              }),
+            }),
+          },
+        },
+      }),
+    );
+    expect(
+      (onNavigate.mock.calls[0]?.[1] as { initialUserPrompt?: string } | undefined)
+        ?.initialUserPrompt,
+    ).toContain("执行步骤：");
   });
 });

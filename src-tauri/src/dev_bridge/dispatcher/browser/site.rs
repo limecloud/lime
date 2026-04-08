@@ -9,9 +9,9 @@ use crate::services::site_adapter_registry::{
     get_site_adapter_catalog_status,
 };
 use crate::services::site_capability_service::{
-    get_site_adapter, list_site_adapters, recommend_site_adapters, run_site_adapter,
-    run_site_adapter_with_optional_save, save_existing_site_result_to_project,
-    search_site_adapters,
+    get_site_adapter, get_site_adapter_launch_readiness, list_site_adapters,
+    recommend_site_adapters, run_site_adapter, run_site_adapter_with_optional_save,
+    save_existing_site_result_to_project, search_site_adapters,
 };
 use serde_json::Value as JsonValue;
 
@@ -39,6 +39,12 @@ pub(super) async fn try_handle(
             let adapter = get_site_adapter(&request.name)
                 .ok_or_else(|| "未找到对应的站点适配器".to_string())?;
             serde_json::to_value(adapter)?
+        }
+        "site_get_adapter_launch_readiness" => {
+            let request: crate::services::site_capability_service::SiteAdapterLaunchReadinessRequest =
+                parse_request(args)?;
+            let db = get_db(state)?.clone();
+            serde_json::to_value(get_site_adapter_launch_readiness(&db, request).await?)?
         }
         "site_get_adapter_catalog_status" => {
             serde_json::to_value(get_site_adapter_catalog_status()?)?

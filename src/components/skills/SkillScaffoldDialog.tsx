@@ -11,6 +11,7 @@ import type {
   CreateSkillScaffoldRequest,
   SkillScaffoldTarget,
 } from "@/lib/api/skills";
+import type { SkillScaffoldDraft } from "@/types/page";
 
 export interface SkillScaffoldDialogProps {
   open: boolean;
@@ -18,10 +19,49 @@ export interface SkillScaffoldDialogProps {
   onCreate: (request: CreateSkillScaffoldRequest) => Promise<void>;
   creating: boolean;
   allowProjectTarget: boolean;
+  initialValues?: SkillScaffoldDraft | null;
+  sourceHint?: string | null;
+  onBringBackToCreation?: (draft: SkillScaffoldDraft) => void;
 }
 
 function getDefaultTarget(allowProjectTarget: boolean): SkillScaffoldTarget {
   return allowProjectTarget ? "project" : "user";
+}
+
+function resolveInitialTarget(
+  allowProjectTarget: boolean,
+  target?: SkillScaffoldTarget,
+): SkillScaffoldTarget {
+  if (target === "project" && allowProjectTarget) {
+    return target;
+  }
+  if (target === "user") {
+    return target;
+  }
+  return getDefaultTarget(allowProjectTarget);
+}
+
+function normalizeStructuredItems(
+  value?: string[],
+): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value.map((item) => item.trim()).filter(Boolean);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function pickStructuredScaffoldFields(
+  initialValues?: SkillScaffoldDraft | null,
+): SkillScaffoldDraft {
+  return {
+    whenToUse: normalizeStructuredItems(initialValues?.whenToUse),
+    inputs: normalizeStructuredItems(initialValues?.inputs),
+    outputs: normalizeStructuredItems(initialValues?.outputs),
+    steps: normalizeStructuredItems(initialValues?.steps),
+    fallbackStrategy: normalizeStructuredItems(initialValues?.fallbackStrategy),
+  };
 }
 
 export function SkillScaffoldDialog({
@@ -30,6 +70,9 @@ export function SkillScaffoldDialog({
   onCreate,
   creating,
   allowProjectTarget,
+  initialValues,
+  sourceHint,
+  onBringBackToCreation,
 }: SkillScaffoldDialogProps) {
   const [target, setTarget] = useState<SkillScaffoldTarget>(
     getDefaultTarget(allowProjectTarget),
@@ -45,17 +88,28 @@ export function SkillScaffoldDialog({
       return;
     }
 
-    setTarget(getDefaultTarget(allowProjectTarget));
-    setDirectory("");
-    setName("");
-    setDescription("");
+    setTarget(resolveInitialTarget(allowProjectTarget, initialValues?.target));
+    setDirectory(initialValues?.directory?.trim() ?? "");
+    setName(initialValues?.name?.trim() ?? "");
+    setDescription(initialValues?.description?.trim() ?? "");
     setError(null);
-  }, [open, allowProjectTarget]);
+  }, [allowProjectTarget, initialValues, open]);
+
+  const buildDraftSnapshot = (): SkillScaffoldDraft => ({
+    ...pickStructuredScaffoldFields(initialValues),
+    target,
+    directory: directory.trim() || undefined,
+    name: name.trim() || undefined,
+    description: description.trim() || undefined,
+    sourceMessageId: initialValues?.sourceMessageId?.trim() || undefined,
+    sourceExcerpt: initialValues?.sourceExcerpt?.trim() || undefined,
+  });
 
   const handleSubmit = async () => {
-    const trimmedDirectory = directory.trim();
-    const trimmedName = name.trim();
-    const trimmedDescription = description.trim();
+    const draft = buildDraftSnapshot();
+    const trimmedDirectory = draft.directory?.trim() || "";
+    const trimmedName = draft.name?.trim() || "";
+    const trimmedDescription = draft.description?.trim() || "";
 
     if (!trimmedDirectory) {
       setError("请输入目录名");
@@ -73,7 +127,8 @@ export function SkillScaffoldDialog({
     setError(null);
     try {
       await onCreate({
-        target,
+        ...pickStructuredScaffoldFields(initialValues),
+        target: draft.target || getDefaultTarget(allowProjectTarget),
         directory: trimmedDirectory,
         name: trimmedName,
         description: trimmedDescription,
@@ -82,6 +137,19 @@ export function SkillScaffoldDialog({
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
+  };
+  const canBringBackToCreation = Boolean(
+    onBringBackToCreation &&
+      (sourceHint || initialValues?.sourceExcerpt || initialValues?.sourceMessageId),
+  );
+
+  const handleBringBackToCreation = () => {
+    if (!onBringBackToCreation) {
+      return;
+    }
+
+    onBringBackToCreation(buildDraftSnapshot());
+    onOpenChange(false);
   };
 
   const targetDescription =
@@ -95,11 +163,19 @@ export function SkillScaffoldDialog({
         <DialogHeader>
           <DialogTitle>新建 Skill</DialogTitle>
           <DialogDescription>
-            创建一个最小可用的标准 Agent Skills 包骨架。
+            {sourceHint
+              ? "已根据刚才的结果预填一版技能草稿，并补好适用场景、输入输出与执行步骤。"
+              : "创建一个最小可用的标准 Agent Skills 包骨架。"}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {sourceHint ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              来源结果：{sourceHint}
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <div className="text-sm font-medium text-foreground">创建位置</div>
             <div className="flex gap-2">
@@ -203,6 +279,16 @@ export function SkillScaffoldDialog({
           >
             取消
           </button>
+          {canBringBackToCreation ? (
+            <button
+              type="button"
+              onClick={handleBringBackToCreation}
+              disabled={creating}
+              className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+            >
+              带回创作输入
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={handleSubmit}

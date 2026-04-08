@@ -8,6 +8,9 @@ fn build_agent_status(
         initialized,
         provider_configured: provider_config.is_some(),
         provider_name: provider_config.as_ref().map(|c| c.provider_name.clone()),
+        provider_selector: provider_config
+            .as_ref()
+            .and_then(|c| c.provider_selector.clone()),
         model_name: provider_config.as_ref().map(|c| c.model_name.clone()),
         credential_uuid: provider_config.and_then(|c| c.credential_uuid),
     }
@@ -76,6 +79,7 @@ pub async fn aster_agent_configure_provider(
         initialized: true,
         provider_configured: true,
         provider_name: Some(config.provider_name),
+        provider_selector: config.provider_selector,
         model_name: Some(config.model_name),
         credential_uuid: None,
     })
@@ -111,6 +115,7 @@ pub async fn aster_agent_configure_from_pool(
         initialized: true,
         provider_configured: true,
         provider_name: Some(aster_config.provider_name),
+        provider_selector: aster_config.provider_selector,
         model_name: Some(aster_config.model_name),
         credential_uuid: Some(aster_config.credential_uuid),
     })
@@ -144,6 +149,7 @@ pub async fn aster_agent_reset(
         initialized: state.is_initialized().await,
         provider_configured: false,
         provider_name: None,
+        provider_selector: None,
         model_name: None,
         credential_uuid: None,
     })

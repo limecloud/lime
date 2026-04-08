@@ -1,4 +1,5 @@
 import {
+  findConfiguredProviderBySelection,
   loadConfiguredProviders,
   type ConfiguredProvider,
 } from "@/hooks/useConfiguredProviders";
@@ -94,8 +95,9 @@ export async function resolveClawWorkspaceProviderSelection(
     return null;
   }
 
-  const currentProvider = configuredProviders.find(
-    (provider) => provider.key === currentProviderType,
+  const currentProvider = findConfiguredProviderBySelection(
+    configuredProviders,
+    currentProviderType,
   );
   const orderedProviders = currentProvider
     ? [
@@ -127,7 +129,7 @@ export async function resolveClawWorkspaceProviderSelection(
     }
 
     return {
-      providerType: provider.key,
+      providerType: provider.providerId ?? provider.key,
       model: preferredModel,
     };
   }

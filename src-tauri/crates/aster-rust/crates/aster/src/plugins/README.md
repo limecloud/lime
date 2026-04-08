@@ -1,0 +1,45 @@
+# Plugins 模块 🟢
+
+> 成熟度: 🟢 稳定 | 测试覆盖: 35 个测试用例
+
+插件系统模块，提供插件加载、管理、生命周期控制等功能。
+
+## 功能概述
+
+- **插件发现**: 自动发现插件目录中的插件
+- **生命周期管理**: 初始化、激活、停用、重载
+- **上下文隔离**: 为每个插件提供独立的上下文
+- **依赖管理**: 拓扑排序加载，循环依赖检测
+- **版本检查**: semver 兼容性检查（^, ~, >=, > 等）
+- **注册表**: 工具/命令/技能/钩子统一注册
+
+## 文件索引
+
+| 文件 | 说明 |
+|------|------|
+| `mod.rs` | 模块入口和导出 |
+| `types.rs` | 插件类型定义（PluginMetadata, PluginState 等） |
+| `context.rs` | 插件上下文（PluginContext, PluginLogger） |
+| `manager.rs` | 插件管理器（发现、加载、卸载、依赖解析） |
+| `registry.rs` | 注册表（工具、命令、技能、钩子 API） |
+| `version.rs` | 版本检查器（semver 兼容性） |
+
+## 使用示例
+
+```rust
+use aster::plugins::PluginManager;
+
+// 创建管理器
+let manager = PluginManager::new("0.2.0");
+
+// 发现插件
+let plugins = manager.discover().await;
+
+// 加载所有插件（拓扑排序）
+manager.load_all().await?;
+
+// 获取注册的工具
+let tools = manager.registry().get_all_tools();
+```
+
+

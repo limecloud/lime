@@ -10,6 +10,7 @@ import {
   createAgentRuntimeSession,
   deleteAgentRuntimeSession,
   type AgentRuntimeReplayedActionRequiredView,
+  type AsterAgentStatus,
   getAgentRuntimeSession,
   getAgentRuntimeThreadRead,
   initAsterAgent,
@@ -42,7 +43,7 @@ export interface AgentRuntimeActionResponse {
 }
 
 export interface AgentRuntimeAdapter {
-  init(): Promise<void>;
+  init(): Promise<AsterAgentStatus>;
   createSession(
     workspaceId: string,
     name?: string,
@@ -91,7 +92,7 @@ export interface AgentRuntimeAdapter {
 
 export const defaultAgentRuntimeAdapter: AgentRuntimeAdapter = {
   async init() {
-    await initAsterAgent();
+    return initAsterAgent();
   },
   async createSession(workspaceId, name, executionStrategy) {
     return createAgentRuntimeSession(workspaceId, name, executionStrategy);

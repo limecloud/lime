@@ -355,6 +355,18 @@ export function useAgentContext(options: UseAgentContextOptions) {
     [markSessionModelPreferenceSynced, persistSessionModelPreference],
   );
 
+  const applyWorkspaceModelPreference = useCallback(
+    (preference: SessionModelPreference) => {
+      providerTypeRef.current = preference.providerType;
+      modelRef.current = preference.model;
+      setProviderTypeState(preference.providerType);
+      setModelState(preference.model);
+      savePersisted(scopedProviderPrefKeyRef.current, preference.providerType);
+      savePersisted(scopedModelPrefKeyRef.current, preference.model);
+    },
+    [],
+  );
+
   const setProviderType = useCallback(
     (nextProviderType: string) => {
       providerTypeRef.current = nextProviderType;
@@ -620,6 +632,7 @@ export function useAgentContext(options: UseAgentContextOptions) {
     loadSessionAccessMode,
     persistSessionModelPreference,
     loadSessionModelPreference,
+    applyWorkspaceModelPreference,
     applySessionModelPreference,
     markSessionModelPreferenceSynced,
     getSyncedSessionModelPreference,

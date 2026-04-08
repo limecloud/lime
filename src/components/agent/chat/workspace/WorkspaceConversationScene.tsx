@@ -124,7 +124,6 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
   onBackToResources?: ComponentProps<typeof ChatNavbar>["onBackToResources"];
   onToggleCanvas?: ComponentProps<typeof ChatNavbar>["onToggleCanvas"];
   onBackHome?: ComponentProps<typeof ChatNavbar>["onBackHome"];
-  chatMode: string;
   showHarnessToggle: boolean;
   harnessPanelVisible: boolean;
   onToggleHarnessPanel?: ComponentProps<
@@ -134,6 +133,7 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
   harnessAttentionLevel: ComponentProps<
     typeof ChatNavbar
   >["harnessAttentionLevel"];
+  harnessToggleLabel?: ComponentProps<typeof ChatNavbar>["harnessToggleLabel"];
   showContextCompactionAction?: ComponentProps<
     typeof ChatNavbar
   >["showContextCompactionAction"];
@@ -215,12 +215,12 @@ export function WorkspaceConversationScene({
   layoutMode,
   onToggleCanvas,
   onBackHome,
-  chatMode,
   showHarnessToggle,
   harnessPanelVisible,
   onToggleHarnessPanel,
   harnessPendingCount,
   harnessAttentionLevel,
+  harnessToggleLabel,
   showContextCompactionAction,
   contextCompactionRunning,
   onCompactContext,
@@ -333,8 +333,7 @@ export function WorkspaceConversationScene({
     onToggleHarnessPanel,
     harnessPendingCount,
     harnessAttentionLevel,
-    harnessToggleLabel:
-      chatMode === "general" && !isThemeWorkbench ? undefined : undefined,
+    harnessToggleLabel,
     showContextCompactionAction,
     contextCompactionRunning,
     onCompactContext,

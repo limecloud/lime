@@ -43,6 +43,8 @@ export interface SessionFile {
   name: string;
   /** 文件类型 */
   fileType: string;
+  /** 文件元数据 */
+  metadata?: Record<string, unknown>;
   /** 文件大小（字节） */
   size: number;
   /** 创建时间 */
@@ -153,11 +155,13 @@ export async function saveFile(
   sessionId: string,
   fileName: string,
   content: string,
+  metadata?: Record<string, unknown>,
 ): Promise<SessionFile> {
   return safeInvoke<SessionFile>("session_files_save_file", {
     sessionId,
     fileName,
     content,
+    metadata,
   });
 }
 

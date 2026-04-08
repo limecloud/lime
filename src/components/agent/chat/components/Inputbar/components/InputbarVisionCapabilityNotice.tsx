@@ -1,6 +1,9 @@
 import React, { useMemo } from "react";
 import { AlertCircle } from "lucide-react";
-import { useConfiguredProviders } from "@/hooks/useConfiguredProviders";
+import {
+  findConfiguredProviderBySelection,
+  useConfiguredProviders,
+} from "@/hooks/useConfiguredProviders";
 import { useProviderModels } from "@/hooks/useProviderModels";
 import { resolveVisionModel } from "@/lib/model/visionModelResolver";
 import { resolveProviderModelLoadOptions } from "@/lib/model/providerModelLoadOptions";
@@ -21,7 +24,7 @@ export const InputbarVisionCapabilityNotice: React.FC<
   });
 
   const selectedProvider = useMemo(
-    () => providers.find((item) => item.key === providerType),
+    () => findConfiguredProviderBySelection(providers, providerType),
     [providerType, providers],
   );
   const providerModelLoadOptions = useMemo(

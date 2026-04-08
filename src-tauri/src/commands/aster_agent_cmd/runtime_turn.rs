@@ -1,3 +1,4 @@
+use super::service_skill_launch::build_service_skill_preload_tool_projection;
 use super::*;
 use aster::session::TurnContextOverride;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
@@ -35,6 +36,47 @@ fn emit_runtime_side_event(
     if let Err(error) = app.emit(event_name, &event) {
         tracing::warn!("[AsterAgent] 发送 Artifact 运行时事件失败: {}", error);
     }
+}
+
+fn emit_service_skill_preload_runtime_events(
+    app: &AppHandle,
+    event_name: &str,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    workspace_root: &str,
+    execution: &ServiceSkillLaunchPreloadExecution,
+) {
+    let projection = match build_service_skill_preload_tool_projection(execution) {
+        Ok(projection) => projection,
+        Err(error) => {
+            tracing::warn!(
+                "[AsterAgent] 构造站点技能预执行投影事件失败，已降级跳过可视过程: {}",
+                error
+            );
+            return;
+        }
+    };
+
+    emit_runtime_side_event(
+        app,
+        event_name,
+        timeline_recorder,
+        workspace_root,
+        RuntimeAgentEvent::ToolStart {
+            tool_name: projection.tool_name.clone(),
+            tool_id: projection.tool_id.clone(),
+            arguments: Some(projection.arguments),
+        },
+    );
+    emit_runtime_side_event(
+        app,
+        event_name,
+        timeline_recorder,
+        workspace_root,
+        RuntimeAgentEvent::ToolEnd {
+            tool_id: projection.tool_id,
+            result: projection.result,
+        },
+    );
 }
 
 fn build_artifact_document_warning_message(
@@ -1303,6 +1345,15 @@ async fn execute_aster_chat_request(
             status,
         )
         .await;
+    }
+    if let Some(preload) = service_skill_preload.as_ref() {
+        emit_service_skill_preload_runtime_events(
+            app,
+            &request.event_name,
+            &timeline_recorder,
+            workspace_root.as_str(),
+            preload,
+        );
     }
     let resolved_thread_id_for_session = turn_state.thread_id.clone();
     let resolved_turn_id_for_session = turn_state.turn_id.clone();

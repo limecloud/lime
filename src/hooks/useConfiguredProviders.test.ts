@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
 import type { ProviderPoolOverview } from "@/lib/api/providerPool";
-import { buildConfiguredProviders } from "./useConfiguredProviders";
+import {
+  buildConfiguredProviders,
+  findConfiguredProviderBySelection,
+} from "./useConfiguredProviders";
 
 function createProviderPoolOverview(
   overrides: Partial<ProviderPoolOverview> = {},
@@ -114,5 +117,52 @@ describe("buildConfiguredProviders", () => {
 
     expect(missingHostProviders).toEqual([]);
     expect(disabledProviders).toEqual([]);
+  });
+
+  it("后端返回原始 providerId 时，应优先命中真实受管 Provider", () => {
+    const providers = buildConfiguredProviders(
+      [
+        createProviderPoolOverview({
+          provider_type: "openai",
+          credentials: [
+            {
+              uuid: "oauth-openai",
+              provider_type: "openai",
+              credential_type: "openai",
+              name: "OpenAI OAuth",
+              display_credential: "OpenAI OAuth",
+              is_healthy: true,
+              is_disabled: false,
+              check_health: true,
+              not_supported_models: [],
+              usage_count: 0,
+              error_count: 0,
+              created_at: "2026-04-01T00:00:00Z",
+              updated_at: "2026-04-01T00:00:00Z",
+              source: "manual",
+            },
+          ],
+        }),
+      ],
+      [
+        createApiKeyProvider({
+          id: "openai",
+          name: "OpenAI API Key",
+          api_key_count: 1,
+        }),
+      ],
+    );
+
+    const resolvedProvider = findConfiguredProviderBySelection(
+      providers,
+      "openai",
+    );
+
+    expect(resolvedProvider).toEqual(
+      expect.objectContaining({
+        key: "openai_api_key",
+        providerId: "openai",
+      }),
+    );
   });
 });

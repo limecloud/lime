@@ -8,11 +8,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { AsterExecutionStrategy } from "@/lib/api/agentRuntime";
+import { getDefaultProvider } from "@/lib/api/appConfig";
 import {
   defaultAgentRuntimeAdapter,
   type AgentRuntimeAdapter,
 } from "./agentRuntimeAdapter";
 import { createAgentChatSendMessage } from "./agentChatSendMessage";
+import {
+  DEFAULT_AGENT_MODEL,
+  DEFAULT_AGENT_PROVIDER,
+} from "./agentChatStorage";
 import { useAgentChatStateSnapshotDebug } from "./useAgentChatStateSnapshotDebug";
 import { useAgentContext } from "./useAgentContext";
 import { useAgentRuntimeSyncEffects } from "./useAgentRuntimeSyncEffects";
@@ -25,6 +30,7 @@ import {
 } from "./agentChatShared";
 import type { AsterSessionExecutionRuntime } from "@/lib/api/agentRuntime";
 import { useAgentTopicSnapshot } from "./useAgentTopicSnapshot";
+import { resolveClawWorkspaceProviderSelection } from "../utils/clawWorkspaceProviderSelection";
 
 export type { Topic } from "./agentChatShared";
 
@@ -99,6 +105,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     setExecutionStrategyState: context.setExecutionStrategyState,
     setAccessModeState: context.setAccessModeState,
   });
+  const applyWorkspaceModelPreference = context.applyWorkspaceModelPreference;
 
   const tools = useAgentTools({
     runtime,
@@ -272,6 +279,69 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     tools.warnedKeysRef.current.clear();
   }, [tools.warnedKeysRef, workspaceId]);
 
+  const resolveWarmupWorkspaceModelPreference = useCallback(
+    async (status?: {
+      provider_configured?: boolean;
+      provider_name?: string;
+      provider_selector?: string;
+      model_name?: string;
+    }) => {
+      if (sessionIdRef.current) {
+        return;
+      }
+
+      if (
+        status?.provider_configured &&
+        (status.provider_selector?.trim() || status.provider_name?.trim()) &&
+        status.model_name?.trim()
+      ) {
+        applyWorkspaceModelPreference({
+          providerType:
+            status.provider_selector?.trim() || status.provider_name!.trim(),
+          model: status.model_name.trim(),
+        });
+        return;
+      }
+
+      try {
+        const currentProviderType = context.providerTypeRef.current.trim();
+        const currentModel = context.modelRef.current.trim();
+        const isUsingFrontendDefaultModel =
+          currentProviderType === DEFAULT_AGENT_PROVIDER &&
+          currentModel === DEFAULT_AGENT_MODEL;
+        const defaultProvider = isUsingFrontendDefaultModel
+          ? (await getDefaultProvider()).trim()
+          : "";
+        const fallbackProviderType = isUsingFrontendDefaultModel
+          ? defaultProvider
+          : currentProviderType;
+        const resolvedSelection =
+          await resolveClawWorkspaceProviderSelection({
+            currentProviderType:
+              fallbackProviderType || defaultProvider || undefined,
+            currentModel: isUsingFrontendDefaultModel ? null : currentModel,
+            theme: "general",
+          });
+
+        if (!resolvedSelection) {
+          return;
+        }
+
+        applyWorkspaceModelPreference({
+          providerType: resolvedSelection.providerType,
+          model: resolvedSelection.model,
+        });
+      } catch (error) {
+        console.warn("[AsterChat] 预热阶段解析工作区模型失败:", error);
+      }
+    },
+    [
+      applyWorkspaceModelPreference,
+      context.modelRef,
+      context.providerTypeRef,
+    ],
+  );
+
   const warmupRuntime = useCallback(async () => {
     if (runtimeWarmupPromiseRef.current) {
       await runtimeWarmupPromiseRef.current;
@@ -280,7 +350,8 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
 
     const warmupPromise = runtime
       .init()
-      .then(() => {
+      .then(async (status) => {
+        await resolveWarmupWorkspaceModelPreference(status);
         setIsInitialized(true);
         console.log("[AsterChat] Agent 初始化成功");
       })
@@ -295,7 +366,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
 
     runtimeWarmupPromiseRef.current = warmupPromise;
     await warmupPromise;
-  }, [runtime]);
+  }, [resolveWarmupWorkspaceModelPreference, runtime]);
 
   useEffect(() => {
     if (!workspaceId.trim()) {

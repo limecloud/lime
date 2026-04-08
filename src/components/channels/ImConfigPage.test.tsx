@@ -35,6 +35,30 @@ vi.mock("@/lib/api/appConfig", () => ({
 
 vi.mock("@/hooks/useConfiguredProviders", () => ({
   useConfiguredProviders: mockUseConfiguredProviders,
+  findConfiguredProviderBySelection: (
+    providers: Array<{ key: string; providerId?: string }>,
+    selection?: string | null,
+  ) => {
+    const normalizedSelection = (selection || "").trim().toLowerCase();
+    const keyMatch =
+      providers.find(
+        (provider) => provider.key.trim().toLowerCase() === normalizedSelection,
+      ) ?? null;
+    const providerIdMatch =
+      providers.find(
+        (provider) =>
+          (provider.providerId || "").trim().toLowerCase() ===
+          normalizedSelection,
+      ) ?? null;
+
+    if (keyMatch && providerIdMatch && keyMatch !== providerIdMatch) {
+      if (!keyMatch.providerId && providerIdMatch.providerId) {
+        return providerIdMatch;
+      }
+    }
+
+    return keyMatch ?? providerIdMatch ?? null;
+  },
 }));
 
 vi.mock("@/lib/api/channelsRuntime", () => ({

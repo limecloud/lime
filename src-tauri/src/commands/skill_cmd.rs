@@ -8,7 +8,7 @@ use crate::models::skill_model::{
 use chrono::Utc;
 use lime_core::app_paths;
 use lime_services::skill_service::SkillService;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -170,6 +170,102 @@ struct SkillScaffoldFrontmatter<'a> {
     description: &'a str,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSkillScaffoldRequest {
+    pub target: String,
+    pub directory: String,
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub when_to_use: Vec<String>,
+    #[serde(default)]
+    pub inputs: Vec<String>,
+    #[serde(default)]
+    pub outputs: Vec<String>,
+    #[serde(default)]
+    pub steps: Vec<String>,
+    #[serde(default)]
+    pub fallback_strategy: Vec<String>,
+}
+
+struct SkillScaffoldSections {
+    when_to_use: Vec<String>,
+    inputs: Vec<String>,
+    outputs: Vec<String>,
+    steps: Vec<String>,
+    fallback_strategy: Vec<String>,
+}
+
+fn normalize_scaffold_items(items: &[String], fallback: &[&str]) -> Vec<String> {
+    let normalized: Vec<String> = items
+        .iter()
+        .map(|item| item.trim())
+        .filter(|item| !item.is_empty())
+        .map(ToOwned::to_owned)
+        .collect();
+
+    if normalized.is_empty() {
+        return fallback.iter().map(|item| (*item).to_string()).collect();
+    }
+
+    normalized
+}
+
+fn build_skill_scaffold_sections(request: &CreateSkillScaffoldRequest) -> SkillScaffoldSections {
+    SkillScaffoldSections {
+        when_to_use: normalize_scaffold_items(
+            &request.when_to_use,
+            &[
+                "当你需要重复完成这类任务时使用。",
+                "适合把一次成功结果沉淀成稳定可复用的工作流。",
+            ],
+        ),
+        inputs: normalize_scaffold_items(
+            &request.inputs,
+            &[
+                "用户目标、主题与成功标准。",
+                "受众、风格、篇幅、平台或交付格式等约束。",
+                "如有参考资料、示例或素材，请一并提供。",
+            ],
+        ),
+        outputs: normalize_scaffold_items(
+            &request.outputs,
+            &[
+                "交付一份可直接使用的完整结果。",
+                "保留清晰的结构层级、重点信息与必要说明。",
+            ],
+        ),
+        steps: normalize_scaffold_items(
+            &request.steps,
+            &[
+                "先确认目标、边界与交付格式。",
+                "提炼可复用的结构骨架，再补齐关键信息。",
+                "输出可直接交付的首版结果，并为后续迭代留好锚点。",
+            ],
+        ),
+        fallback_strategy: normalize_scaffold_items(
+            &request.fallback_strategy,
+            &[
+                "信息不足时，先补问最关键的约束，不要自行假设事实。",
+                "原结果不可直接复用时，先提炼最小骨架，再继续展开。",
+            ],
+        ),
+    }
+}
+
+fn render_bullet_list(items: &[String]) -> String {
+    items.iter().map(|item| format!("- {item}\n")).collect()
+}
+
+fn render_ordered_list(items: &[String]) -> String {
+    items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| format!("{}. {item}\n", index + 1))
+        .collect()
+}
+
 fn resolve_skill_scaffold_root(
     app_type: &AppType,
     target: SkillScaffoldTarget,
@@ -184,30 +280,37 @@ fn resolve_skill_scaffold_root(
     }
 }
 
-fn build_skill_scaffold_content(name: &str, description: &str) -> Result<String, String> {
+fn build_skill_scaffold_content(request: &CreateSkillScaffoldRequest) -> Result<String, String> {
+    let name = request.name.trim();
+    let description = request.description.trim();
+    let sections = build_skill_scaffold_sections(request);
     let frontmatter = serde_yaml::to_string(&SkillScaffoldFrontmatter { name, description })
         .map_err(|e| format!("Failed to build skill frontmatter: {e}"))?;
     let frontmatter = frontmatter.strip_prefix("---\n").unwrap_or(&frontmatter);
 
     Ok(format!(
-        "---\n{frontmatter}---\n\n# {name}\n\n## 何时使用\n- 描述该 Skill 的适用场景。\n\n## 输入\n- 说明用户需要提供的上下文、约束和素材。\n\n## 执行要求\n1. 先明确目标、边界和输出格式。\n2. 如需引用资料，请将文件放到 `references/` 目录。\n3. 如需脚本或素材，请分别放到 `scripts/` 与 `assets/` 目录。\n\n## 输出\n- 说明最终交付物及验收标准。\n"
+        "---\n{frontmatter}---\n\n# {name}\n\n## 何时使用\n{when_to_use}\n## 输入\n{inputs}\n## 执行步骤\n{steps}\n## 输出\n{outputs}\n## 失败回退\n{fallback_strategy}\n## 维护提示\n- 如需引用资料，请将文件放到 `references/` 目录。\n- 如需脚本或素材，请分别放到 `scripts/` 与 `assets/` 目录。\n- 如需长期沉淀模板或示例，优先放到相邻目录，不要把所有细节都塞进主文件。\n",
+        when_to_use = render_bullet_list(&sections.when_to_use),
+        inputs = render_bullet_list(&sections.inputs),
+        steps = render_ordered_list(&sections.steps),
+        outputs = render_bullet_list(&sections.outputs),
+        fallback_strategy = render_bullet_list(&sections.fallback_strategy),
     ))
 }
 
 fn create_skill_scaffold_in_root(
     skills_root: &Path,
-    directory: &str,
-    name: &str,
-    description: &str,
+    request: &CreateSkillScaffoldRequest,
 ) -> Result<SkillPackageInspection, String> {
+    let directory = request.directory.trim();
     validate_skill_directory(directory)?;
 
-    let name = name.trim();
+    let name = request.name.trim();
     if name.is_empty() {
         return Err("Skill name is required".to_string());
     }
 
-    let description = description.trim();
+    let description = request.description.trim();
     if description.is_empty() {
         return Err("Skill description is required".to_string());
     }
@@ -231,7 +334,7 @@ fn create_skill_scaffold_in_root(
         )
     })?;
 
-    let skill_md_content = build_skill_scaffold_content(name, description)?;
+    let skill_md_content = build_skill_scaffold_content(request)?;
     let skill_md_path = skill_dir.join("SKILL.md");
     if let Err(error) = fs::write(&skill_md_path, skill_md_content) {
         let _ = fs::remove_dir_all(&skill_dir);
@@ -431,15 +534,12 @@ pub fn inspect_local_skill_for_app(
 #[tauri::command]
 pub fn create_skill_scaffold_for_app(
     app: String,
-    target: String,
-    directory: String,
-    name: String,
-    description: String,
+    request: CreateSkillScaffoldRequest,
 ) -> Result<SkillPackageInspection, String> {
     let app_type: AppType = app.parse().map_err(|e: String| e)?;
-    let target = SkillScaffoldTarget::parse(&target)?;
+    let target = SkillScaffoldTarget::parse(&request.target)?;
     let skills_root = resolve_skill_scaffold_root(&app_type, target)?;
-    let inspection = create_skill_scaffold_in_root(&skills_root, &directory, &name, &description)?;
+    let inspection = create_skill_scaffold_in_root(&skills_root, &request)?;
 
     if matches!(app_type, AppType::Lime) {
         AsterAgentState::reload_lime_skills();
@@ -968,9 +1068,17 @@ content"#,
 
         let inspection = create_skill_scaffold_in_root(
             &skills_dir,
-            "draft-skill",
-            "Draft Skill",
-            "Create a new draft",
+            &CreateSkillScaffoldRequest {
+                target: "project".to_string(),
+                directory: "draft-skill".to_string(),
+                name: "Draft Skill".to_string(),
+                description: "Create a new draft".to_string(),
+                when_to_use: vec!["当你需要复用草稿输出时使用。".to_string()],
+                inputs: vec!["目标与主题：草稿输出".to_string()],
+                outputs: vec!["交付一份可直接复用的草稿。".to_string()],
+                steps: vec!["先确认目标，再复用结构。".to_string()],
+                fallback_strategy: vec!["信息不足时先补问。".to_string()],
+            },
         )
         .unwrap();
 
@@ -979,6 +1087,9 @@ content"#,
         assert!(inspection.standard_compliance.is_standard);
         assert!(inspection.content.contains("name: Draft Skill"));
         assert!(inspection.content.contains("# Draft Skill"));
+        assert!(inspection.content.contains("## 失败回退"));
+        assert!(inspection.content.contains("当你需要复用草稿输出时使用。"));
+        assert!(inspection.content.contains("1. 先确认目标，再复用结构。"));
     }
 
     #[test]
@@ -989,9 +1100,17 @@ content"#,
 
         let err = create_skill_scaffold_in_root(
             &skills_dir,
-            "draft-skill",
-            "Draft Skill",
-            "Create a new draft",
+            &CreateSkillScaffoldRequest {
+                target: "project".to_string(),
+                directory: "draft-skill".to_string(),
+                name: "Draft Skill".to_string(),
+                description: "Create a new draft".to_string(),
+                when_to_use: Vec::new(),
+                inputs: Vec::new(),
+                outputs: Vec::new(),
+                steps: Vec::new(),
+                fallback_strategy: Vec::new(),
+            },
         )
         .unwrap_err();
 

@@ -71,6 +71,33 @@ impl ToolSearchBridgeTool {
         lime_core::tool_calling::score_tool_match(name, description, tags, query)
     }
 
+    pub(crate) fn parse_select_query(query: &str) -> Option<Vec<String>> {
+        let prefix = "select:";
+        let actual_prefix = query.get(..prefix.len())?;
+        if !actual_prefix.eq_ignore_ascii_case(prefix) {
+            return None;
+        }
+
+        Some(
+            query[prefix.len()..]
+                .split(',')
+                .map(str::trim)
+                .filter(|item| !item.is_empty())
+                .map(str::to_string)
+                .collect(),
+        )
+    }
+
+    pub(crate) fn select_match_rank(requested: &[String], tool_name: &str) -> Option<i32> {
+        requested
+            .iter()
+            .enumerate()
+            .find_map(|(index, requested_name)| {
+                lime_core::tool_calling::tool_search_exact_match(tool_name, requested_name)
+                    .then_some(100_000 - index as i32)
+            })
+    }
+
     pub(crate) fn extension_tool_status(
         extension_configs: &[ExtensionConfig],
         visible_extension_tools: &HashSet<String>,
@@ -96,14 +123,17 @@ impl Tool for ToolSearchBridgeTool {
     }
 
     fn description(&self) -> &str {
-        "统一搜索当前会话工具面：包含原生 registry 工具与 extension/MCP 工具。对 deferred 工具会返回加载提示。"
+        "统一搜索当前会话工具面：包含原生 registry 工具与 extension/MCP 工具。支持 select:<tool_name>[,<tool_name>] 直接选择，对 deferred 工具会返回加载提示。"
     }
 
     fn input_schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "query": { "type": "string", "description": "工具名称/描述关键词" },
+                "query": {
+                    "type": "string",
+                    "description": "用于搜索工具的关键词；如已知精确工具名，可使用 select:<tool_name>[,<tool_name>] 直接选择。"
+                },
                 "caller": { "type": "string", "description": "调用方，例如 assistant/code_execution" },
                 "limit": { "type": "integer", "minimum": 1, "maximum": 100 },
                 "include_deferred": { "type": "boolean", "description": "是否包含延迟加载工具" },
@@ -125,12 +155,13 @@ impl Tool for ToolSearchBridgeTool {
         params: serde_json::Value,
         _context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
-        let query = params
+        let raw_query = params
             .get("query")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .trim()
-            .to_ascii_lowercase();
+            .to_string();
+        let query = raw_query.to_ascii_lowercase();
         let caller = params
             .get("caller")
             .and_then(|v| v.as_str())
@@ -150,6 +181,7 @@ impl Tool for ToolSearchBridgeTool {
             .and_then(|v| v.as_u64())
             .map(|v| v.clamp(1, 100) as usize)
             .unwrap_or(10);
+        let select_requested = Self::parse_select_query(&raw_query);
 
         let registry = self.registry.read().await;
         let definitions = registry.get_definitions();
@@ -174,8 +206,11 @@ impl Tool for ToolSearchBridgeTool {
                 let allowed_callers = metadata.allowed_callers.unwrap_or_default();
                 let tags = metadata.tags.unwrap_or_default();
                 let input_examples = metadata.input_examples;
-                let score =
-                    Self::score_match(&definition.name, &definition.description, &tags, &query);
+                let score = if let Some(requested) = select_requested.as_ref() {
+                    Self::select_match_rank(requested, &definition.name).unwrap_or(0)
+                } else {
+                    Self::score_match(&definition.name, &definition.description, &tags, &query)
+                };
                 if score <= 0 {
                     return None;
                 }
@@ -235,7 +270,11 @@ impl Tool for ToolSearchBridgeTool {
 
                 let tool_name = tool.name.to_string();
                 let description = tool.description.as_deref().unwrap_or("").to_string();
-                let score = Self::score_match(&tool_name, &description, &[], &query);
+                let score = if let Some(requested) = select_requested.as_ref() {
+                    Self::select_match_rank(requested, &tool_name).unwrap_or(0)
+                } else {
+                    Self::score_match(&tool_name, &description, &[], &query)
+                };
                 if score <= 0 {
                     continue;
                 }
@@ -298,7 +337,7 @@ impl Tool for ToolSearchBridgeTool {
             .map(|(_, item)| item)
             .collect::<Vec<_>>();
         let text = serde_json::to_string_pretty(&serde_json::json!({
-            "query": query,
+            "query": raw_query,
             "caller": caller,
             "count": result.len(),
             "tools": result

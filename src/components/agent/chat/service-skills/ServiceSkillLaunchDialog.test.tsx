@@ -116,7 +116,7 @@ const MOCK_SKILL: ServiceSkillHomeItem = {
   badge: "云目录",
   recentUsedAt: null,
   isRecent: false,
-  runnerLabel: "本地即时执行",
+  runnerLabel: "立即开始",
   runnerTone: "emerald",
   runnerDescription: "会直接在当前工作区生成首版结果，方便继续补充与改写。",
   actionLabel: "填写参数",
@@ -241,10 +241,10 @@ describe("ServiceSkillLaunchDialog", () => {
 
     await flushEffects();
 
-    expect(document.body.textContent).toContain("业务技能");
-    expect(document.body.textContent).toContain("执行方式");
-    expect(document.body.textContent).toContain("依赖条件");
-    expect(document.body.textContent).toContain("结果去向");
+    expect(document.body.textContent).toContain("创作技能");
+    expect(document.body.textContent).toContain("怎么开始");
+    expect(document.body.textContent).toContain("开始前");
+    expect(document.body.textContent).toContain("结果位置");
     expect(document.body.textContent).toContain(
       "结果会写回当前工作区中的脚本草稿，方便继续补镜头与口播。",
     );
@@ -281,6 +281,31 @@ describe("ServiceSkillLaunchDialog", () => {
     expect(document.body.textContent).toContain(
       "结果会回流到当前工作区顶部结果区，便于继续整理。",
     );
+  });
+
+  it("应合并默认值与初始预填参数，并展示轻提示", async () => {
+    renderDialog({
+      initialSlotValues: {
+        reference_video: "https://example.com/prefilled-video",
+      },
+      prefillHint: "已根据当前灵感条目自动预填 发布平台、重点调整点，可继续修改后执行。",
+    });
+
+    await flushEffects();
+
+    const referenceInput = document.body.querySelector(
+      '[data-testid="service-skill-slot-reference_video"]',
+    ) as HTMLInputElement | null;
+    const platformOption = document.body.querySelector(
+      '[data-testid="service-skill-slot-platform-option-douyin"]',
+    ) as HTMLButtonElement | null;
+    const prefillHint = document.body.querySelector(
+      '[data-testid="service-skill-prefill-hint"]',
+    );
+
+    expect(referenceInput?.value).toBe("https://example.com/prefilled-video");
+    expect(platformOption?.getAttribute("aria-pressed")).toBe("true");
+    expect(prefillHint?.textContent).toContain("已根据当前灵感条目自动预填");
   });
 
   it("应在必填参数补齐后允许进入工作区并透传槽位值", async () => {
@@ -389,7 +414,7 @@ describe("ServiceSkillLaunchDialog", () => {
         defaultExecutorBinding: "browser_assist",
         summary:
           "复用你当前浏览器里的 GitHub 登录态，直接检索主题仓库并沉淀成结构化线索。",
-        runnerLabel: "站点登录态采集",
+        runnerLabel: "浏览器采集",
         runnerDescription:
           "会复用当前浏览器里的真实登录态执行站点任务，并优先把结果沉淀到当前工作区。",
         actionLabel: "开始执行",
@@ -419,7 +444,7 @@ describe("ServiceSkillLaunchDialog", () => {
     await flushEffects();
 
     expect(document.body.textContent).toContain("站点技能");
-    expect(document.body.textContent).toContain("站点登录态采集");
+    expect(document.body.textContent).toContain("浏览器采集");
     expect(document.body.textContent).toContain(
       "需要浏览器里已有 GitHub 登录态。",
     );
@@ -429,16 +454,16 @@ describe("ServiceSkillLaunchDialog", () => {
     expect(document.body.textContent).toContain(
       "帮我查一批和 MCP browser automation 相关的 GitHub 仓库。",
     );
-    expect(document.body.textContent).toContain("Claw 直跑检测");
-    expect(document.body.textContent).toContain("可直接执行");
+    expect(document.body.textContent).toContain("浏览器状态");
+    expect(document.body.textContent).toContain("可直接开始");
     const launchButton = document.body.querySelector(
       '[data-testid="service-skill-launch"]',
     ) as HTMLButtonElement | null;
     const browserRuntimeButton = document.body.querySelector(
       '[data-testid="service-skill-open-browser-runtime"]',
     ) as HTMLButtonElement | null;
-    expect(launchButton?.textContent).toBe("在 Claw 中执行");
-    expect(browserRuntimeButton?.textContent).toBe("去浏览器工作台");
+    expect(launchButton?.textContent).toBe("直接开始");
+    expect(browserRuntimeButton?.textContent).toBe("打开浏览器工作台");
 
     const referenceInput = document.body.querySelector(
       '[data-testid="service-skill-slot-reference_video"]',
@@ -516,7 +541,7 @@ describe("ServiceSkillLaunchDialog", () => {
 
     await flushEffects();
 
-    expect(document.body.textContent).toContain("需要先准备浏览器");
+    expect(document.body.textContent).toContain("先连接浏览器");
     expect(document.body.textContent).toContain(
       "Claw 不会在后台偷偷启动浏览器",
     );
@@ -524,10 +549,10 @@ describe("ServiceSkillLaunchDialog", () => {
       "请先进入浏览器工作台连接真实浏览器并打开目标站点页面",
     );
     expect(launchButton?.disabled).toBe(true);
-    expect(launchButton?.textContent).toBe("先准备浏览器再执行");
+    expect(launchButton?.textContent).toBe("先连接浏览器");
   });
 
-  it("云端托管技能应显示云端运行文案且不暴露本地自动化入口", async () => {
+  it("云端技能应显示云端运行文案且不暴露本地自动化入口", async () => {
     const onLaunch = vi.fn();
     const onCreateAutomation = vi.fn();
 
@@ -538,11 +563,10 @@ describe("ServiceSkillLaunchDialog", () => {
         title: "云端视频配音",
         executionLocation: "cloud_required",
         defaultExecutorBinding: "cloud_scene",
-        runnerLabel: "云端托管执行",
+        runnerLabel: "云端执行",
         runnerTone: "slate",
-        runnerDescription:
-          "会提交到 OEM 云端执行，完成后再把结果回流到当前工作区。",
-        actionLabel: "提交云端",
+        runnerDescription: "会交给云端处理，完成后再把结果回流到当前工作区。",
+        actionLabel: "云端执行",
         outputDestination: "运行结果会在云端完成后回流到当前工作区。",
       },
       onLaunch,
@@ -551,7 +575,7 @@ describe("ServiceSkillLaunchDialog", () => {
 
     await flushEffects();
 
-    expect(document.body.textContent).toContain("提交云端运行");
+    expect(document.body.textContent).toContain("云端执行");
     expect(document.body.textContent).toContain(
       "运行结果会在云端完成后回流到当前工作区。",
     );

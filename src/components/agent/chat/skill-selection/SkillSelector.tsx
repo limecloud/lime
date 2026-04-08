@@ -128,12 +128,14 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
           availableSkills={availableSkills}
           commandRef={commandRef}
           onQueryChange={onQueryChange}
-          onSelectBuiltinCommand={() => undefined}
+          onSelectBuiltinCommand={(_command, _options) => undefined}
           onSelectServiceSkill={(skill) => onSelectServiceSkill?.(skill)}
-          onSelectSceneCommand={() => undefined}
-          onSelectSlashCommand={() => undefined}
+          onSelectSceneCommand={(_command, _options) => undefined}
+          onSelectSlashCommand={(_command, _options) => undefined}
           onSelectCharacter={() => undefined}
-          onSelectInstalledSkill={onSelectInstalledSkill}
+          onSelectInstalledSkill={(skill, _options) =>
+            onSelectInstalledSkill(skill)
+          }
           onSelectAvailableSkill={onSelectAvailableSkill}
           onNavigateToSettings={onNavigateToSettings}
         />

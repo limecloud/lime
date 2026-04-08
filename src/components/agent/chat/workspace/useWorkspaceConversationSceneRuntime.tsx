@@ -81,12 +81,12 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   fromResources: boolean;
   handleBackHome: ConversationScenePresentationParams["scene"]["onBackHome"];
   handleToggleSidebar: ConversationScenePresentationParams["scene"]["onToggleHistory"];
-  chatMode: ConversationScenePresentationParams["scene"]["chatMode"];
   showHarnessToggle: ConversationScenePresentationParams["scene"]["showHarnessToggle"];
   navbarHarnessPanelVisible: ConversationScenePresentationParams["scene"]["harnessPanelVisible"];
   handleToggleHarnessPanel: ConversationScenePresentationParams["scene"]["onToggleHarnessPanel"];
   harnessPendingCount: ConversationScenePresentationParams["scene"]["harnessPendingCount"];
   harnessAttentionLevel: ConversationScenePresentationParams["scene"]["harnessAttentionLevel"];
+  harnessToggleLabel: ConversationScenePresentationParams["scene"]["harnessToggleLabel"];
   isAutoRestoringSession: boolean;
   sessionId: string | null | undefined;
   syncStatus: ConversationScenePresentationParams["scene"]["syncStatus"];
@@ -131,6 +131,8 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   handleOpenSavedSiteContent: ConversationScenePresentationParams["messageList"]["onOpenSavedSiteContent"];
   handleArtifactClick: ConversationScenePresentationParams["messageList"]["onArtifactClick"];
   handleOpenMessagePreview?: ConversationScenePresentationParams["messageList"]["onOpenMessagePreview"];
+  handleSaveMessageAsSkill?: ConversationScenePresentationParams["messageList"]["onSaveMessageAsSkill"];
+  handleSaveMessageAsInspiration?: ConversationScenePresentationParams["messageList"]["onSaveMessageAsInspiration"];
   handleOpenSubagentSession: ConversationScenePresentationParams["messageList"]["onOpenSubagentSession"];
   handlePermissionResponse: ConversationScenePresentationParams["messageList"]["onPermissionResponse"];
   pendingPromotedA2UIActionRequest: unknown;
@@ -207,12 +209,12 @@ export function useWorkspaceConversationSceneRuntime({
   fromResources,
   handleBackHome,
   handleToggleSidebar,
-  chatMode,
   showHarnessToggle,
   navbarHarnessPanelVisible,
   handleToggleHarnessPanel,
   harnessPendingCount,
   harnessAttentionLevel,
+  harnessToggleLabel,
   isAutoRestoringSession,
   sessionId,
   syncStatus,
@@ -251,6 +253,8 @@ export function useWorkspaceConversationSceneRuntime({
   handleOpenSavedSiteContent,
   handleArtifactClick,
   handleOpenMessagePreview,
+  handleSaveMessageAsSkill,
+  handleSaveMessageAsInspiration,
   handleOpenSubagentSession,
   handlePermissionResponse,
   pendingPromotedA2UIActionRequest,
@@ -374,12 +378,12 @@ export function useWorkspaceConversationSceneRuntime({
       layoutMode,
       onToggleCanvas: handleToggleCanvas,
       onBackHome: handleBackHome,
-      chatMode,
       showHarnessToggle,
       harnessPanelVisible: navbarHarnessPanelVisible,
       onToggleHarnessPanel: handleToggleHarnessPanel,
       harnessPendingCount,
       harnessAttentionLevel,
+      harnessToggleLabel,
       showContextCompactionAction: Boolean(sessionId),
       contextCompactionRunning: isSending,
       onCompactContext: navigationActions.handleCompactContext,
@@ -436,6 +440,8 @@ export function useWorkspaceConversationSceneRuntime({
       onOpenSavedSiteContent: handleOpenSavedSiteContent,
       onArtifactClick: handleArtifactClick,
       onOpenMessagePreview: handleOpenMessagePreview,
+      onSaveMessageAsSkill: handleSaveMessageAsSkill,
+      onSaveMessageAsInspiration: handleSaveMessageAsInspiration,
       onOpenSubagentSession: handleOpenSubagentSession,
       onPermissionResponse: handlePermissionResponse,
       promoteActionRequestsToA2UI: Boolean(pendingPromotedA2UIActionRequest),

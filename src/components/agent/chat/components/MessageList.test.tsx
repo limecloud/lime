@@ -161,9 +161,16 @@ describe("MessageList", () => {
     expect(
       container.querySelector('[data-testid="message-list-empty-task-center"]'),
     ).not.toBeNull();
+    expect(container.textContent).toContain("创作");
     expect(container.textContent).toContain("任务中心");
-    expect(container.textContent).toContain("回到进行中的任务和最近工作现场");
+    expect(container.textContent).toContain(
+      "回到进行中的任务、旧历史和最近工作现场。",
+    );
+    expect(container.textContent).toContain(
+      "还没有进行中的任务时，从新建任务开始也很自然。",
+    );
     expect(container.textContent).toContain("左侧会继续显示最近任务");
+    expect(container.textContent).toContain("旧历史会继续在这里回访");
     expect(container.textContent).not.toContain("开始一段新的对话吧");
   });
 
@@ -1460,6 +1467,68 @@ describe("MessageList", () => {
     );
   });
 
+  it("助手结果应支持保存为技能草稿", () => {
+    const onSaveMessageAsSkill = vi.fn();
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-save-skill",
+        role: "assistant",
+        content:
+          "这是一段足够长的结果说明，用来验证助手消息上会出现保存为技能的入口。",
+        timestamp: now,
+      },
+    ];
+
+    const container = render(messages, { onSaveMessageAsSkill });
+    const saveButton = container.querySelector(
+      'button[aria-label="保存为技能"]',
+    );
+
+    expect(saveButton).not.toBeNull();
+
+    act(() => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onSaveMessageAsSkill).toHaveBeenCalledWith({
+      messageId: "msg-assistant-save-skill",
+      content:
+        "这是一段足够长的结果说明，用来验证助手消息上会出现保存为技能的入口。",
+    });
+  });
+
+  it("助手结果应支持保存到灵感库", () => {
+    const onSaveMessageAsInspiration = vi.fn();
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-save-memory",
+        role: "assistant",
+        content:
+          "这是一段足够长的结果说明，用来验证助手消息上会出现保存到灵感库的入口。",
+        timestamp: now,
+      },
+    ];
+
+    const container = render(messages, { onSaveMessageAsInspiration });
+    const saveButton = container.querySelector(
+      'button[aria-label="保存到灵感库"]',
+    );
+
+    expect(saveButton).not.toBeNull();
+
+    act(() => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onSaveMessageAsInspiration).toHaveBeenCalledWith({
+      messageId: "msg-assistant-save-memory",
+      content:
+        "这是一段足够长的结果说明，用来验证助手消息上会出现保存到灵感库的入口。",
+    });
+  });
+
   it("聊天主列与助手消息气泡应保持更宽的桌面阅读宽度", () => {
     const now = new Date();
     const messages: Message[] = [
@@ -1615,6 +1684,48 @@ describe("MessageList", () => {
         title: "demo.md",
       }),
     );
+  });
+
+  it("内容发布主链产物卡片应优先显示预览/上传/发布语义标题", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-content-post-artifact",
+        role: "assistant",
+        content: "已整理渠道预览稿",
+        timestamp: now,
+        artifacts: [
+          {
+            id: "artifact-content-post-preview",
+            type: "document",
+            title: "20260408-preview.md",
+            content: "# 春日咖啡活动",
+            status: "complete",
+            meta: {
+              filePath: "content-posts/20260408-preview.md",
+              filename: "20260408-preview.md",
+              contentPostIntent: "preview",
+              contentPostLabel: "渠道预览稿",
+              contentPostPlatformLabel: "小红书",
+            },
+            position: { start: 0, end: 0 },
+            createdAt: now.getTime(),
+            updatedAt: now.getTime(),
+          },
+        ],
+      },
+    ];
+
+    const container = render(messages);
+
+    expect(container.textContent).toContain("渠道预览稿");
+    expect(container.textContent).toContain(
+      "content-posts/20260408-preview.md",
+    );
+    const titleNode = container.querySelector(
+      "div.truncate.text-sm.font-medium.text-foreground",
+    );
+    expect(titleNode?.textContent).toBe("渠道预览稿");
   });
 
   it("不应把 .lime/tasks 下的内部任务快照 JSON 渲染成用户可见产物卡片", () => {

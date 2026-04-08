@@ -15,8 +15,8 @@ interface WorkspacePendingA2UIDialogProps {
   a2uiSubmissionNotice?: A2UISubmissionNoticeData | null;
 }
 
-const STALE_STATUS_LABEL = "同步中";
-const STALE_FOOTER_TEXT = "正在同步最新上下文，表单暂时不可提交。";
+const STALE_STATUS_LABEL = "继续处理中";
+const STALE_FOOTER_TEXT = "刚刚补充的信息已收到，暂时不用重复提交。";
 
 export function WorkspacePendingA2UIDialog({
   pendingA2UIForm = null,
@@ -46,7 +46,7 @@ export function WorkspacePendingA2UIDialog({
   const footerText = isStale
     ? STALE_FOOTER_TEXT
     : progressMeta && !progressMeta.isFinalStep
-      ? "问题会分步出现，先完成这一步。"
+      ? "先完成这一步，后面会继续补齐。"
       : undefined;
 
   if (!shouldRender) {

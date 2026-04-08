@@ -102,6 +102,20 @@ describe("skillCatalog", () => {
           Boolean(item.siteCapabilityBinding),
       ),
     ).toBe(false);
+    expect(catalog.groups.find((group) => group.key === "general")).toEqual(
+      expect.objectContaining({
+        title: "通用技能",
+        summary:
+          "保留现有写作、调研、趋势选题与增长跟踪能力，作为站点组之外的创作技能入口。",
+      }),
+    );
+    expect(
+      catalog.items.find((item) => item.id === "account-performance-tracking"),
+    ).toEqual(
+      expect.objectContaining({
+        title: "账号增长跟踪",
+      }),
+    );
   });
 
   it("读取旧版远端目录时应过滤 site_adapter 和 browser assist 项", async () => {
@@ -123,11 +137,35 @@ describe("skillCatalog", () => {
     const formEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "form_generate",
     );
+    const posterEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "poster_generate",
+    );
+    const browserEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "browser_runtime",
+    );
+    const webScrapeEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "web_scrape",
+    );
+    const webpageReadEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "webpage_read",
+    );
+    const competitorEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "competitor_research",
+    );
     const codeEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "code_runtime",
     );
     const voiceEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "voice_runtime",
+    );
+    const channelPreviewEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "channel_preview_runtime",
+    );
+    const uploadEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "upload_runtime",
+    );
+    const complianceEntry = listSkillCatalogCommandEntries(seeded).find(
+      (entry) => entry.commandKey === "publish_compliance",
     );
     const publishEntry = listSkillCatalogCommandEntries(seeded).find(
       (entry) => entry.commandKey === "publish_runtime",
@@ -139,24 +177,32 @@ describe("skillCatalog", () => {
       expect.arrayContaining([
         "image_generate",
         "cover_generate",
+        "poster_generate",
         "video_generate",
         "broadcast_generate",
         "modal_resource_search",
         "research",
         "deep_search",
         "research_report",
+        "competitor_research",
         "site_search",
         "read_pdf",
         "summary",
         "translation",
         "analysis",
         "transcription_generate",
+        "web_scrape",
+        "webpage_read",
         "url_parse",
         "typesetting",
         "form_generate",
+        "browser_runtime",
         "voice_runtime",
+        "channel_preview_runtime",
+        "upload_runtime",
         "code_runtime",
         "publish_runtime",
+        "publish_compliance",
       ]),
     );
     expect(formEntry?.renderContract).toMatchObject({
@@ -164,6 +210,28 @@ describe("skillCatalog", () => {
       detailKind: "json",
       supportsStreaming: true,
       supportsTimeline: true,
+    });
+    expect(posterEntry?.binding).toMatchObject({
+      skillId: "image_generate",
+      executionKind: "task_queue",
+    });
+    expect(browserEntry?.renderContract).toMatchObject({
+      resultKind: "tool_timeline",
+      detailKind: "json",
+      supportsStreaming: true,
+      supportsTimeline: true,
+    });
+    expect(webScrapeEntry?.binding).toMatchObject({
+      skillId: "url_parse",
+      executionKind: "task_queue",
+    });
+    expect(webpageReadEntry?.binding).toMatchObject({
+      skillId: "url_parse",
+      executionKind: "task_queue",
+    });
+    expect(competitorEntry?.binding).toMatchObject({
+      skillId: "report_generate",
+      executionKind: "agent_turn",
     });
     expect(codeEntry?.renderContract).toMatchObject({
       resultKind: "tool_timeline",
@@ -176,6 +244,18 @@ describe("skillCatalog", () => {
       detailKind: "scene_detail",
       supportsStreaming: true,
       supportsTimeline: true,
+    });
+    expect(channelPreviewEntry?.binding).toMatchObject({
+      skillId: "content_post_with_cover",
+      executionKind: "native_skill",
+    });
+    expect(uploadEntry?.binding).toMatchObject({
+      skillId: "content_post_with_cover",
+      executionKind: "native_skill",
+    });
+    expect(complianceEntry?.binding).toMatchObject({
+      skillId: "analysis",
+      executionKind: "agent_turn",
     });
     expect(publishEntry?.renderContract).toMatchObject({
       resultKind: "artifact",

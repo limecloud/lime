@@ -3670,6 +3670,10 @@ const defaultMocks: Record<string, any> = {
   session_files_save_file: (args: any) => ({
     name: args?.fileName ?? "mock.txt",
     fileType: "text/plain",
+    metadata:
+      args?.metadata && typeof args.metadata === "object"
+        ? args.metadata
+        : undefined,
     size: typeof args?.content === "string" ? args.content.length : 0,
     createdAt: Date.now(),
     updatedAt: Date.now(),

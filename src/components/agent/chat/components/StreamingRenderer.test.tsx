@@ -3,7 +3,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StreamingRenderer } from "./StreamingRenderer";
-import type { AgentToolCallState } from "@/lib/api/agentProtocol";
+import type {
+  AgentToolCallState,
+  AgentToolResultMetadata,
+} from "@/lib/api/agentProtocol";
 import type {
   AgentRuntimeStatus,
   ActionRequired,
@@ -31,41 +34,6 @@ const mockMarkdownRenderer = vi.fn(
     </div>
   ),
 );
-const mockToolCallList = vi.fn(
-  ({
-    onOpenSavedSiteContent,
-  }: {
-    onOpenSavedSiteContent?: (target: {
-      projectId: string;
-      contentId: string;
-      title?: string;
-    }) => void;
-  }) => (
-    <div
-      data-testid="tool-call-list"
-      data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
-    />
-  ),
-);
-const mockToolCallItem = vi.fn(
-  ({
-    onOpenSavedSiteContent,
-    grouped,
-  }: {
-    onOpenSavedSiteContent?: (target: {
-      projectId: string;
-      contentId: string;
-      title?: string;
-    }) => void;
-    grouped?: boolean;
-  }) => (
-    <div
-      data-testid="tool-call-item"
-      data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
-      data-grouped={grouped ? "yes" : "no"}
-    />
-  ),
-);
 
 vi.mock("@/lib/workspace/a2ui", () => ({
   parseAIResponse: (...args: unknown[]) => parseAIResponseMock(...args),
@@ -88,23 +56,6 @@ vi.mock("./MarkdownRenderer", () => ({
 vi.mock("./A2UITaskCard", () => ({
   A2UITaskCard: () => <div data-testid="a2ui-card" />,
   A2UITaskLoadingCard: () => <div data-testid="a2ui-loading-card" />,
-}));
-
-vi.mock("./ToolCallDisplay", () => ({
-  ToolCallList: (props: {
-    onOpenSavedSiteContent?: (target: {
-      projectId: string;
-      contentId: string;
-      title?: string;
-    }) => void;
-  }) => mockToolCallList(props),
-  ToolCallItem: (props: {
-    onOpenSavedSiteContent?: (target: {
-      projectId: string;
-      contentId: string;
-      title?: string;
-    }) => void;
-  }) => mockToolCallItem(props),
 }));
 
 vi.mock("./DecisionPanel", () => ({
@@ -201,6 +152,21 @@ function renderHarness(props: {
   return { container, rerender };
 }
 
+function createSavedSiteMetadata(): AgentToolResultMetadata {
+  return {
+    tool_family: "site",
+    saved_project_id: "project-1",
+    saved_content: {
+      content_id: "content-1",
+      project_id: "project-1",
+      title: "Google Cloud Tech 文章导出",
+      markdown_relative_path: "saved/x-article-export/article.md",
+      images_relative_dir: "saved/x-article-export/images",
+      image_count: 2,
+    },
+  };
+}
+
 describe("StreamingRenderer", () => {
   it("纯文本内容应短路跳过结构化解析", () => {
     renderHarness({
@@ -280,16 +246,22 @@ describe("StreamingRenderer", () => {
 
   it("普通工具列表应透传已保存站点内容打开回调", () => {
     const onOpenSavedSiteContent = vi.fn();
-
-    renderHarness({
+    const { container } = renderHarness({
       content: "工具执行完成",
       toolCalls: [
         {
           id: "tool-site-run-streaming-list",
           name: "lime_site_run",
-          arguments: JSON.stringify({ adapter_name: "github/search" }),
+          arguments: JSON.stringify({
+            adapter_name: "x/article-export",
+            skill_title: "X 文章转存",
+          }),
           status: "completed",
-          result: { success: true, output: "ok" },
+          result: {
+            success: true,
+            output: "ok",
+            metadata: createSavedSiteMetadata(),
+          },
           startTime: new Date("2026-03-25T10:00:00.000Z"),
           endTime: new Date("2026-03-25T10:00:01.000Z"),
         },
@@ -297,16 +269,32 @@ describe("StreamingRenderer", () => {
       onOpenSavedSiteContent,
     });
 
-    expect(mockToolCallItem).toHaveBeenCalledWith(
-      expect.objectContaining({ onOpenSavedSiteContent }),
+    const markdownButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button.textContent?.includes("在下方预览导出 Markdown"),
     );
-    expect(mockToolCallList).not.toHaveBeenCalled();
+    expect(
+      container.querySelector('[data-testid="inline-tool-process-step"]'),
+    ).toBeTruthy();
+    expect(markdownButton).toBeTruthy();
+
+    act(() => {
+      markdownButton?.click();
+    });
+
+    expect(onOpenSavedSiteContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "project-1",
+        contentId: "content-1",
+        preferredTarget: "project_file",
+      }),
+    );
   });
 
   it("交错工具片段应透传已保存站点内容打开回调", () => {
     const onOpenSavedSiteContent = vi.fn();
-
-    renderHarness({
+    const { container } = renderHarness({
       content: "",
       contentParts: [
         {
@@ -314,9 +302,16 @@ describe("StreamingRenderer", () => {
           toolCall: {
             id: "tool-site-run-streaming-item",
             name: "lime_site_run",
-            arguments: JSON.stringify({ adapter_name: "github/search" }),
+            arguments: JSON.stringify({
+              adapter_name: "x/article-export",
+              skill_title: "X 文章转存",
+            }),
             status: "completed",
-            result: { success: true, output: "ok" },
+            result: {
+              success: true,
+              output: "ok",
+              metadata: createSavedSiteMetadata(),
+            },
             startTime: new Date("2026-03-25T10:01:00.000Z"),
             endTime: new Date("2026-03-25T10:01:01.000Z"),
           },
@@ -325,8 +320,22 @@ describe("StreamingRenderer", () => {
       onOpenSavedSiteContent,
     });
 
-    expect(mockToolCallItem).toHaveBeenCalledWith(
-      expect.objectContaining({ onOpenSavedSiteContent }),
+    const markdownButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) =>
+      button.textContent?.includes("在下方预览导出 Markdown"),
+    );
+    expect(markdownButton).toBeTruthy();
+
+    act(() => {
+      markdownButton?.click();
+    });
+
+    expect(onOpenSavedSiteContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "project-1",
+        contentId: "content-1",
+      }),
     );
   });
 
@@ -353,7 +362,7 @@ describe("StreamingRenderer", () => {
     ).toBeTruthy();
     expect(
       container
-        .querySelector('[data-testid="tool-call-item"]')
+        .querySelector('[data-testid="inline-tool-process-step"]')
         ?.getAttribute("data-grouped"),
     ).toBe("yes");
     expect(container.textContent).toContain("最终结论");
@@ -399,7 +408,7 @@ describe("StreamingRenderer", () => {
     ).toBeTruthy();
     expect(
       container
-        .querySelector('[data-testid="tool-call-item"]')
+        .querySelector('[data-testid="inline-tool-process-step"]')
         ?.getAttribute("data-grouped"),
     ).toBe("yes");
     expect(container.textContent).toContain("已经定位到滚动没有跟随增量输出。");
@@ -436,7 +445,7 @@ describe("StreamingRenderer", () => {
       container.querySelector('[data-testid="streaming-process-group"]'),
     ).toBeNull();
     expect(
-      container.querySelector('[data-testid="tool-call-item"]'),
+      container.querySelector('[data-testid="inline-tool-process-step"]'),
     ).toBeNull();
     expect(container.querySelector("details")).toBeNull();
     expect(
@@ -487,7 +496,7 @@ describe("StreamingRenderer", () => {
       container.querySelector('[data-testid="streaming-process-group"]'),
     ).toBeNull();
     expect(
-      container.querySelector('[data-testid="tool-call-item"]'),
+      container.querySelector('[data-testid="inline-tool-process-step"]'),
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="decision-panel"]'),

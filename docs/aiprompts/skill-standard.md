@@ -183,6 +183,12 @@ Lime 的技能标准必须分成四层：
 
 新增技能时，优先补结构化输入字段，不要继续把参数要求散落在 prompt 和按钮文案里。
 
+固定边界：
+
+- `slotSchema` / `readinessRequirements` 是技能补参真相
+- `a2ui` 只允许作为 GUI 渲染层，把缺失信息映射成表单
+- 不要把 `a2ui` 结构直接写进 skill catalog、runtime metadata 或协议字段
+
 ### 3. 运行时层
 
 作用：
@@ -237,6 +243,29 @@ Lime 技能能力必须明确区分三个对象：
 
 - 把 skill 绑定到具体执行面
 - 解决“最终交给谁执行”
+
+### 4. Scene Skill
+
+作用：
+
+- 把产品型 slash scene 组织成可复用的技能流程
+- 解决“为了达成一个目标，需要按什么步骤驱动 skill / adapter / runtime”
+
+固定规则：
+
+- `/scene` 的长期真相是 `Scene Skill`，不是前端 if/else，不是单站点特判
+- `site-adapter` 只能作为 `Scene Skill` 某一步的执行提供者，不能反客为主变成 scene runtime 本体
+- 缺失信息时，优先由 `Scene Skill` 产出结构化 gate request，再由 GUI 层映射成 `a2ui`
+- gate request 负责“缺什么、补什么、补完后怎么恢复”；`a2ui` 只负责“怎么收集”
+- `Scene Skill` 产生的过程默认应回到当前 assistant 对话流里；如果 runtime 为了稳定性做了 preload、预检查或首刀绑定，这些步骤也要回放成对话内联过程，而不是只写隐藏 prompt 或额外工具卡
+
+推荐模式组合：
+
+- 主模式优先用 `Pipeline`
+- 缺参或门禁用 `Inversion`
+- 产物结构化输出用 `Generator`
+- 封装站点 / CDP / 浏览器能力用 `Tool Wrapper`
+- 只有在确实需要产物复核时再叠加 `Reviewer`
 
 必须遵守：
 

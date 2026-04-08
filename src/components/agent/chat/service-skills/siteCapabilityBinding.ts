@@ -193,6 +193,7 @@ function buildSiteSkillPrimarySentence(
   const repo = readStringArg(args, "repo");
   const symbol = readStringArg(args, "symbol");
   const period = readStringArg(args, "period");
+  const targetLanguage = readStringArg(args, "target_language");
 
   switch (adapterName) {
     case "github/search":
@@ -246,6 +247,11 @@ function buildSiteSkillPrimarySentence(
       return symbol
         ? `你帮我看一下 ${symbol} 的最新行情摘要`
         : "你帮我看一下最新行情摘要";
+    case "x/article-export":
+      if (targetLanguage) {
+        return `你帮我把这篇 X 长文导出为 Markdown，并将正文翻译成${quoteNaturalValue(targetLanguage)}，保留代码块原文、图片链接和 Markdown 结构`;
+      }
+      return "你帮我把这篇 X 长文导出为 Markdown，并把文内图片和代码块一起保存到项目里";
     default: {
       const siteLabel = resolveSiteLabel(adapterName);
       if (query) {

@@ -2,7 +2,10 @@ import type { CreationMode } from "./components/types";
 import type { MessageImage } from "./types";
 import type { StepStatus } from "@/lib/workspace/workbenchContract";
 import type { Page, PageParams } from "@/types/page";
-import type { AgentSiteSkillLaunchParams } from "@/types/page";
+import type {
+  AgentProjectFileOpenTarget,
+  AgentSiteSkillLaunchParams,
+} from "@/types/page";
 
 export interface WorkflowProgressSnapshot {
   steps: Array<{
@@ -47,4 +50,5 @@ export interface AgentChatWorkspaceProps {
   preferContentReviewInRightRail?: boolean;
   openBrowserAssistOnMount?: boolean;
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
+  initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
 }

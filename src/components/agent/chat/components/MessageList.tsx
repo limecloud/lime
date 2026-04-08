@@ -12,6 +12,8 @@ import {
   FileText,
   Loader2,
   ExternalLink,
+  Sparkles,
+  BookmarkPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -35,6 +37,7 @@ import {
   resolveArtifactPreviewText,
   resolveArtifactWritePhase,
 } from "../utils/messageArtifacts";
+import { resolveContentPostArtifactDisplayTitle } from "../utils/contentPostSkill";
 import {
   sanitizeContentPartsForDisplay,
   sanitizeMessageTextForDisplay,
@@ -104,6 +107,16 @@ interface MessageListProps {
     target: MessagePreviewTarget,
     message: Message,
   ) => void;
+  /** 将助手结果沉淀为技能草稿 */
+  onSaveMessageAsSkill?: (source: {
+    messageId: string;
+    content: string;
+  }) => void;
+  /** 将助手结果沉淀到灵感库 */
+  onSaveMessageAsInspiration?: (source: {
+    messageId: string;
+    content: string;
+  }) => void;
   /** 打开子代理会话 */
   onOpenSubagentSession?: (sessionId: string) => void;
   /** 权限确认响应回调 */
@@ -251,6 +264,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
   onOpenSavedSiteContent,
   onArtifactClick,
   onOpenMessagePreview,
+  onSaveMessageAsSkill,
+  onSaveMessageAsInspiration,
   onOpenSubagentSession,
   onPermissionResponse,
   collapseCodeBlocks,
@@ -466,8 +481,24 @@ const MessageListInner: React.FC<MessageListProps> = ({
     const actionContent = displayContent.trim();
     const canQuoteMessage = Boolean(onQuoteMessage && actionContent);
     const canCopyMessage = Boolean(actionContent);
+    const canSaveMessageAsSkill = Boolean(
+      onSaveMessageAsSkill &&
+      msg.role === "assistant" &&
+      !msg.isThinking &&
+      actionContent &&
+      actionContent.length >= 24,
+    );
+    const canSaveMessageAsInspiration = Boolean(
+      onSaveMessageAsInspiration &&
+      msg.role === "assistant" &&
+      !msg.isThinking &&
+      actionContent &&
+      actionContent.length >= 24,
+    );
     const showMessageActions =
-      msg.role === "user" && (canQuoteMessage || canCopyMessage);
+      (msg.role === "user" && (canQuoteMessage || canCopyMessage)) ||
+      canSaveMessageAsSkill ||
+      canSaveMessageAsInspiration;
 
     return (
       <MessageWrapper
@@ -688,6 +719,40 @@ const MessageListInner: React.FC<MessageListProps> = ({
                     )}
                   </Button>
                 ) : null}
+                {canSaveMessageAsSkill ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-full border border-emerald-200/90 bg-emerald-50/92 text-emerald-600 shadow-sm shadow-emerald-950/5 hover:bg-emerald-100 hover:text-emerald-700"
+                    onClick={() =>
+                      onSaveMessageAsSkill?.({
+                        messageId: msg.id,
+                        content: actionContent,
+                      })
+                    }
+                    aria-label="保存为技能"
+                    title="保存为技能"
+                  >
+                    <Sparkles size={12} />
+                  </Button>
+                ) : null}
+                {canSaveMessageAsInspiration ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-full border border-amber-200/90 bg-amber-50/92 text-amber-600 shadow-sm shadow-amber-950/5 hover:bg-amber-100 hover:text-amber-700"
+                    onClick={() =>
+                      onSaveMessageAsInspiration?.({
+                        messageId: msg.id,
+                        content: actionContent,
+                      })
+                    }
+                    aria-label="保存到灵感库"
+                    title="保存到灵感库"
+                  >
+                    <BookmarkPlus size={12} />
+                  </Button>
+                ) : null}
               </MessageActions>
             ) : null}
           </MessageBubble>
@@ -712,6 +777,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
       <div className="flex flex-col gap-2">
         {visibleArtifacts.map((artifact) => {
           const filePath = resolveArtifactProtocolFilePath(artifact);
+          const displayTitle = resolveContentPostArtifactDisplayTitle({
+            title: artifact.title,
+            filePath,
+            metadata: artifact.meta,
+          });
           const writePhase = resolveArtifactWritePhase(artifact);
           const statusLabel = formatArtifactWritePhaseLabel(writePhase);
           const previewText = resolveArtifactPreviewText(artifact, 180);
@@ -732,7 +802,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-foreground">
-                  {artifact.title}
+                  {displayTitle}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
                   {filePath}
@@ -793,36 +863,44 @@ const MessageListInner: React.FC<MessageListProps> = ({
               </div>
             </div>
           ) : isTaskCenterEmptyState ? (
-            <div className="flex min-h-[22rem] items-center justify-center py-6">
+            <div className="flex min-h-[24rem] items-center justify-center py-8">
               <section
                 data-testid="message-list-empty-task-center"
-                className="w-full max-w-[640px] rounded-[28px] border border-slate-200/80 bg-white px-6 py-6 text-left shadow-sm shadow-slate-950/5 md:px-7 md:py-7"
+                className="w-full max-w-[760px] rounded-[30px] border border-slate-200/80 bg-white px-6 py-7 text-left shadow-sm shadow-slate-950/5 md:px-8 md:py-8"
               >
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-slate-200/80 bg-slate-50/80">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-slate-200/80 bg-slate-50/80">
                     <img
                       src={logoImg}
                       alt="Lime"
                       className="h-7 w-7 opacity-80"
                     />
                   </div>
-                  <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-                    任务中心
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                      创作
+                    </span>
+
+                    <div className="mt-4 space-y-2">
+                      <h2 className="text-[32px] font-semibold tracking-tight text-slate-900 md:text-[36px]">
+                        任务中心
+                      </h2>
+                      <p className="max-w-[48rem] text-[15px] leading-7 text-slate-600">
+                        回到进行中的任务、旧历史和最近工作现场。
+                      </p>
+                      <p className="text-sm leading-7 text-slate-500">
+                        还没有进行中的任务时，从新建任务开始也很自然。
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-[26px] font-semibold tracking-tight text-slate-900">
-                    回到进行中的任务和最近工作现场
-                  </p>
-                  <p className="max-w-[46rem] text-sm leading-7 text-slate-600">
-                    这里会承接最近会话、进行中的任务和刚恢复的工作内容。要开始一个全新目标，随时回到“新建任务”。
-                  </p>
-                </div>
-
-                <div className="mt-5 flex flex-wrap gap-2">
+                <div className="mt-6 flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
                     左侧会继续显示最近任务
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
+                    旧历史会继续在这里回访
                   </span>
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
                     恢复中的会话会自动回到这里

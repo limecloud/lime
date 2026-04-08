@@ -8,6 +8,7 @@ export interface HandleSendObserver {
 
 export interface HandleSendOptions {
   skipThemeSkillPrefix?: boolean;
+  skipSceneCommandRouting?: boolean;
   purpose?: "content_review" | "text_stylize" | "style_rewrite" | "style_audit";
   observer?: HandleSendObserver;
   requestMetadata?: Record<string, unknown>;

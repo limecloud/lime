@@ -103,6 +103,18 @@ export interface CreateUnifiedMemoryRequest {
 
   /** 记忆摘要 */
   summary: string;
+
+  /** 记忆分类（可选，不传则由后端推断） */
+  category?: MemoryCategory;
+
+  /** 标签列表（可选） */
+  tags?: string[];
+
+  /** 置信度（可选） */
+  confidence?: number;
+
+  /** 重要性（可选） */
+  importance?: number;
 }
 
 /** 更新统一记忆请求 */

@@ -3,8 +3,9 @@
 //! 提供会话文件的 CRUD 操作和生命周期管理。
 
 use crate::app_paths;
+use serde_json::Value;
 use std::fs;
-use std::path::{Component, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use chrono::Utc;
 
@@ -50,6 +51,11 @@ impl SessionFileStorage {
     /// 获取会话文件目录路径
     fn get_files_dir(&self, session_id: &str) -> PathBuf {
         self.get_session_dir(session_id).join("files")
+    }
+
+    /// 获取会话文件 metadata 目录路径
+    fn get_file_metadata_dir(&self, session_id: &str) -> PathBuf {
+        self.get_session_dir(session_id).join(".filemeta")
     }
 
     // ========================================================================
@@ -187,6 +193,17 @@ impl SessionFileStorage {
         file_name: &str,
         content: &str,
     ) -> Result<SessionFile, String> {
+        self.save_file_with_metadata(session_id, file_name, content, None)
+    }
+
+    /// 保存文件到会话目录，并按需持久化文件 metadata
+    pub fn save_file_with_metadata(
+        &self,
+        session_id: &str,
+        file_name: &str,
+        content: &str,
+        metadata: Option<Value>,
+    ) -> Result<SessionFile, String> {
         // 确保会话存在
         self.get_or_create_session(session_id)?;
 
@@ -201,6 +218,23 @@ impl SessionFileStorage {
 
         let now = Utc::now().timestamp_millis();
         let size = content.len() as u64;
+        let persisted_metadata = match metadata {
+            Some(value)
+                if value.is_null()
+                    || value
+                        .as_object()
+                        .map(|object| object.is_empty())
+                        .unwrap_or(false) =>
+            {
+                self.delete_file_metadata(session_id, file_name)?;
+                None
+            }
+            Some(value) => {
+                self.save_file_metadata(session_id, file_name, &value)?;
+                Some(value)
+            }
+            None => self.read_file_metadata(session_id, file_name)?,
+        };
 
         // 更新元数据
         self.refresh_meta_stats(session_id)?;
@@ -214,6 +248,7 @@ impl SessionFileStorage {
         Ok(SessionFile {
             name: file_name.to_string(),
             file_type: Self::detect_file_type(file_name),
+            metadata: persisted_metadata,
             size,
             created_at: now,
             updated_at: now,
@@ -254,8 +289,9 @@ impl SessionFileStorage {
         let file_path = self.resolve_session_file_path(session_id, file_name)?;
         if file_path.exists() {
             fs::remove_file(&file_path).map_err(|e| format!("删除文件失败: {e}"))?;
-            self.refresh_meta_stats(session_id)?;
         }
+        self.delete_file_metadata(session_id, file_name)?;
+        self.refresh_meta_stats(session_id)?;
         Ok(())
     }
 
@@ -268,44 +304,7 @@ impl SessionFileStorage {
             return Ok(files);
         }
 
-        let entries = fs::read_dir(&files_dir).map_err(|e| format!("读取文件目录失败: {e}"))?;
-
-        for entry in entries.flatten() {
-            if entry.path().is_file() {
-                if let Some(name) = entry.file_name().to_str() {
-                    // 跳过隐藏文件
-                    if name.starts_with('.') {
-                        continue;
-                    }
-                    if let Ok(metadata) = entry.metadata() {
-                        let created_at = metadata
-                            .created()
-                            .map(|t| {
-                                t.duration_since(std::time::UNIX_EPOCH)
-                                    .map(|d| d.as_millis() as i64)
-                                    .unwrap_or(0)
-                            })
-                            .unwrap_or(0);
-                        let updated_at = metadata
-                            .modified()
-                            .map(|t| {
-                                t.duration_since(std::time::UNIX_EPOCH)
-                                    .map(|d| d.as_millis() as i64)
-                                    .unwrap_or(0)
-                            })
-                            .unwrap_or(0);
-
-                        files.push(SessionFile {
-                            name: name.to_string(),
-                            file_type: Self::detect_file_type(name),
-                            size: metadata.len(),
-                            created_at,
-                            updated_at,
-                        });
-                    }
-                }
-            }
-        }
+        self.collect_files_recursive(session_id, &files_dir, &files_dir, &mut files)?;
 
         // 按更新时间倒序排列
         files.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
@@ -405,6 +404,159 @@ impl SessionFileStorage {
         Ok(relative_path)
     }
 
+    fn resolve_session_file_metadata_path(
+        &self,
+        session_id: &str,
+        file_name: &str,
+    ) -> Result<PathBuf, String> {
+        let relative_path = Self::validate_relative_file_path(file_name)?;
+        let mut metadata_path = self.get_file_metadata_dir(session_id).join(relative_path);
+        let file_name = metadata_path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| "非法文件路径".to_string())?
+            .to_string();
+        metadata_path.set_file_name(format!("{file_name}.json"));
+        Ok(metadata_path)
+    }
+
+    fn save_file_metadata(
+        &self,
+        session_id: &str,
+        file_name: &str,
+        metadata: &Value,
+    ) -> Result<(), String> {
+        let metadata_path = self.resolve_session_file_metadata_path(session_id, file_name)?;
+        if let Some(parent_dir) = metadata_path.parent() {
+            fs::create_dir_all(parent_dir).map_err(|e| format!("创建 metadata 目录失败: {e}"))?;
+        }
+        let content = serde_json::to_string_pretty(metadata)
+            .map_err(|e| format!("序列化文件 metadata 失败: {e}"))?;
+        fs::write(&metadata_path, content).map_err(|e| format!("写入文件 metadata 失败: {e}"))
+    }
+
+    fn read_file_metadata(
+        &self,
+        session_id: &str,
+        file_name: &str,
+    ) -> Result<Option<Value>, String> {
+        let metadata_path = self.resolve_session_file_metadata_path(session_id, file_name)?;
+        if !metadata_path.exists() {
+            return Ok(None);
+        }
+        let content = fs::read_to_string(&metadata_path)
+            .map_err(|e| format!("读取文件 metadata 失败: {e}"))?;
+        let parsed =
+            serde_json::from_str(&content).map_err(|e| format!("解析文件 metadata 失败: {e}"))?;
+        Ok(Some(parsed))
+    }
+
+    fn delete_file_metadata(&self, session_id: &str, file_name: &str) -> Result<(), String> {
+        let metadata_path = self.resolve_session_file_metadata_path(session_id, file_name)?;
+        if metadata_path.exists() {
+            fs::remove_file(&metadata_path).map_err(|e| format!("删除文件 metadata 失败: {e}"))?;
+        }
+        Ok(())
+    }
+
+    fn collect_files_recursive(
+        &self,
+        session_id: &str,
+        base_dir: &Path,
+        current_dir: &Path,
+        files: &mut Vec<SessionFile>,
+    ) -> Result<(), String> {
+        let entries = fs::read_dir(current_dir).map_err(|e| format!("读取文件目录失败: {e}"))?;
+
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            let entry_name = entry.file_name();
+            let entry_name = entry_name.to_string_lossy();
+
+            if entry_name.starts_with('.') {
+                continue;
+            }
+
+            if entry_path.is_dir() {
+                self.collect_files_recursive(session_id, base_dir, &entry_path, files)?;
+                continue;
+            }
+
+            if !entry_path.is_file() {
+                continue;
+            }
+
+            let relative_path = entry_path
+                .strip_prefix(base_dir)
+                .map_err(|e| format!("解析相对文件路径失败: {e}"))?;
+
+            if Self::path_has_hidden_component(relative_path) {
+                continue;
+            }
+
+            let Ok(file_metadata) = entry.metadata() else {
+                continue;
+            };
+
+            let normalized_name = Self::normalize_relative_path(relative_path);
+            let metadata = match self.read_file_metadata(session_id, &normalized_name) {
+                Ok(value) => value,
+                Err(error) => {
+                    tracing::warn!(
+                        "[SessionFileStorage] 读取文件 metadata 失败: {} ({})",
+                        normalized_name,
+                        error
+                    );
+                    None
+                }
+            };
+            let created_at = file_metadata
+                .created()
+                .map(|time| {
+                    time.duration_since(std::time::UNIX_EPOCH)
+                        .map(|duration| duration.as_millis() as i64)
+                        .unwrap_or(0)
+                })
+                .unwrap_or(0);
+            let updated_at = file_metadata
+                .modified()
+                .map(|time| {
+                    time.duration_since(std::time::UNIX_EPOCH)
+                        .map(|duration| duration.as_millis() as i64)
+                        .unwrap_or(0)
+                })
+                .unwrap_or(0);
+
+            files.push(SessionFile {
+                name: normalized_name.clone(),
+                file_type: Self::detect_file_type(&normalized_name),
+                metadata,
+                size: file_metadata.len(),
+                created_at,
+                updated_at,
+            });
+        }
+
+        Ok(())
+    }
+
+    fn path_has_hidden_component(path: &Path) -> bool {
+        path.components().any(|component| match component {
+            Component::Normal(value) => value.to_string_lossy().starts_with('.'),
+            _ => false,
+        })
+    }
+
+    fn normalize_relative_path(path: &Path) -> String {
+        path.components()
+            .filter_map(|component| match component {
+                Component::Normal(value) => Some(value.to_string_lossy().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("/")
+    }
+
     /// 根据文件扩展名检测文件类型
     fn detect_file_type(file_name: &str) -> String {
         let ext = file_name.rsplit('.').next().unwrap_or("").to_lowercase();
@@ -473,6 +625,58 @@ mod tests {
 
         let files = storage.list_files("test-session-3").unwrap();
         assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn test_list_files_recursively_preserves_nested_relative_paths_and_metadata() {
+        let (storage, _temp) = create_test_storage();
+        storage.create_session("test-session-nested").unwrap();
+
+        storage
+            .save_file_with_metadata(
+                "test-session-nested",
+                "content-posts/demo-post.md",
+                "# 渠道预览稿",
+                Some(serde_json::json!({
+                    "contentPostIntent": "preview",
+                    "contentPostLabel": "渠道预览稿"
+                })),
+            )
+            .unwrap();
+
+        let files = storage.list_files("test-session-nested").unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "content-posts/demo-post.md");
+        assert_eq!(files[0].file_type, "document");
+        assert_eq!(
+            files[0]
+                .metadata
+                .as_ref()
+                .and_then(|value| value.get("contentPostLabel"))
+                .and_then(|value| value.as_str()),
+            Some("渠道预览稿")
+        );
+    }
+
+    #[test]
+    fn test_list_files_skips_hidden_nested_paths() {
+        let (storage, _temp) = create_test_storage();
+        storage.create_session("test-session-hidden").unwrap();
+
+        storage
+            .save_file(
+                "test-session-hidden",
+                ".lime/tasks/demo.json",
+                "{\"ok\":true}",
+            )
+            .unwrap();
+        storage
+            .save_file("test-session-hidden", "content-posts/demo.md", "# Demo")
+            .unwrap();
+
+        let files = storage.list_files("test-session-hidden").unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "content-posts/demo.md");
     }
 
     #[test]

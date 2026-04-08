@@ -136,7 +136,7 @@ describe("WorkspacePendingA2UIDialog", () => {
         compact: true,
         surface: "embedded",
         submitDisabled: true,
-        statusLabel: "同步中",
+        statusLabel: "继续处理中",
       }),
     );
   });

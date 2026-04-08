@@ -1,6 +1,7 @@
 //! 会话文件存储类型定义
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// 会话元数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +50,9 @@ pub struct SessionFile {
     pub name: String,
     /// 文件类型（document, image 等）
     pub file_type: String,
+    /// 文件元数据
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<Value>,
     /// 文件大小（字节）
     pub size: u64,
     /// 创建时间

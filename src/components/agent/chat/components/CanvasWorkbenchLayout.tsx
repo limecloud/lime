@@ -49,6 +49,7 @@ import {
   resolveArtifactPreviewText,
   resolveArtifactWritePhase,
 } from "../utils/messageArtifacts";
+import { resolveContentPostArtifactDisplayTitle } from "../utils/contentPostSkill";
 import {
   buildCanvasWorkbenchDiff,
   type CanvasWorkbenchDiffLine,
@@ -390,7 +391,11 @@ function buildEntries(
         key: `artifact:${artifact.id}`,
         source: "artifact",
         artifact,
-        title: artifact.title,
+        title: resolveContentPostArtifactDisplayTitle({
+          title: artifact.title,
+          filePath,
+          metadata: artifact.meta,
+        }),
         subtitle: filePath,
         filePath,
         absolutePath: resolveAbsoluteWorkspacePath(workspaceRoot, filePath),
@@ -439,7 +444,11 @@ function buildEntries(
         key: `task:${taskFile.id}`,
         source: "task-file" as const,
         taskFile,
-        title: extractFileNameFromPath(taskFile.name),
+        title: resolveContentPostArtifactDisplayTitle({
+          title: extractFileNameFromPath(taskFile.name),
+          filePath: taskFile.name,
+          metadata: taskFile.metadata,
+        }),
         subtitle: taskFile.name,
         filePath: taskFile.name,
         absolutePath: resolveAbsoluteWorkspacePath(

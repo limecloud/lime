@@ -1,5 +1,9 @@
 import { buildClawAgentParams } from "@/lib/workspace/navigation";
-import type { AgentPageParams, AgentSiteSkillLaunchParams } from "@/types/page";
+import type {
+  AgentPageParams,
+  AgentProjectFileOpenTarget,
+  AgentSiteSkillLaunchParams,
+} from "@/types/page";
 import type { CreationMode } from "./components/types";
 import type { MessageImage } from "./types";
 import type { ChatToolPreferences } from "./utils/chatToolPreferences";
@@ -17,6 +21,7 @@ export interface AgentChatWorkspaceBootstrap {
   lockTheme?: boolean;
   openBrowserAssistOnMount?: boolean;
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
+  initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   newChatAt?: number;
 }
 
@@ -30,6 +35,7 @@ export interface WorkspaceEntryPayload {
   autoRunInitialPromptOnMount?: boolean;
   openBrowserAssistOnMount?: boolean;
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
+  initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   toolPreferences?: ChatToolPreferences;
   themeOverride?: string;
   lockTheme?: boolean;
@@ -160,6 +166,11 @@ export function resolveWorkspaceEntry(
     ...(payload.initialSiteSkillLaunch
       ? { initialSiteSkillLaunch: payload.initialSiteSkillLaunch }
       : {}),
+    ...(payload.initialProjectFileOpenTarget
+      ? {
+          initialProjectFileOpenTarget: payload.initialProjectFileOpenTarget,
+        }
+      : {}),
     newChatAt: nextNewChatAt,
   } satisfies AgentPageParams;
 
@@ -188,6 +199,11 @@ export function resolveWorkspaceEntry(
       openBrowserAssistOnMount,
       ...(payload.initialSiteSkillLaunch
         ? { initialSiteSkillLaunch: payload.initialSiteSkillLaunch }
+        : {}),
+      ...(payload.initialProjectFileOpenTarget
+        ? {
+            initialProjectFileOpenTarget: payload.initialProjectFileOpenTarget,
+          }
         : {}),
       newChatAt: nextNewChatAt,
     },

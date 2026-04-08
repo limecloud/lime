@@ -158,6 +158,16 @@ Lime 内部适配器标准至少包含以下字段语义：
 - 不能为了保留来源格式的完整性，引入第二套 runtime、协议或错误语义
 - 不能因为“某来源支持某能力”就直接判定 Lime 也应该支持
 
+## Scene 边界
+
+站点适配器与 slash scene 的固定关系如下：
+
+- `site-adapter` 是步骤执行器，不是产品场景本体
+- 用户可见的 `/scene` 真相应落在 `Scene Skill` / `ServiceSkill`
+- `slotSchema`、`readinessRequirements` 负责声明缺失输入；是否弹 GUI 表单属于渲染层
+- 如果需要补参，scene runtime 应先产出结构化 gate request，再由前端把 gate request 映射成 `a2ui`
+- 不要为了单个站点把“缺 URL / 缺项目 / 缺浏览器会话”的逻辑散落在页面组件里
+
 ## 命名标准
 
 适配器唯一标识统一使用：

@@ -12,6 +12,7 @@ import { parseA2UIJson } from "@/lib/workspace/a2ui";
 import type { A2UIFormData } from "@/lib/workspace/a2ui";
 import { CHAT_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
 import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
+import { convertLocalFileSrc } from "@/lib/api/fileSystem";
 import { ArtifactPlaceholder } from "./ArtifactPlaceholder";
 import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
 
@@ -469,6 +470,8 @@ const CODE_LANGUAGE_ALIASES: Record<string, string> = {
 
 interface MarkdownRendererProps {
   content: string;
+  /** 当前 Markdown 文件路径，用于解析相对图片资源 */
+  baseFilePath?: string;
   /** A2UI 表单提交回调 */
   onA2UISubmit?: (formData: A2UIFormData) => void;
   /** 是否渲染消息内联 A2UI */
@@ -499,6 +502,132 @@ function normalizeCodeLanguage(language: string): string {
 function extractCodeLanguageToken(className: string): string {
   const match = LANGUAGE_CLASS_PATTERN.exec(className);
   return (match?.[1] ?? "text").trim().toLowerCase() || "text";
+}
+
+function normalizeFilePath(value: string): string {
+  return value.replace(/\\/g, "/");
+}
+
+function isAbsoluteLikePath(value: string): boolean {
+  return (
+    value.startsWith("/") ||
+    /^[A-Za-z]:[\\/]/.test(value) ||
+    value.startsWith("\\\\")
+  );
+}
+
+function dirnameFromFilePath(value: string): string {
+  const normalized = normalizeFilePath(value).replace(/\/+$/, "");
+  const lastSlashIndex = normalized.lastIndexOf("/");
+  if (lastSlashIndex <= 0) {
+    return lastSlashIndex === 0 ? "/" : "";
+  }
+  return normalized.slice(0, lastSlashIndex);
+}
+
+function joinFilePath(parentDir: string, childPath: string): string {
+  if (!parentDir) {
+    return childPath;
+  }
+  return `${parentDir.replace(/\/+$/, "")}/${childPath.replace(/^[\\/]+/, "")}`;
+}
+
+function splitFilePathSuffix(value: string): {
+  pathPart: string;
+  suffix: string;
+} {
+  const suffixStart = value.search(/[?#]/);
+  if (suffixStart < 0) {
+    return { pathPart: value, suffix: "" };
+  }
+  return {
+    pathPart: value.slice(0, suffixStart),
+    suffix: value.slice(suffixStart),
+  };
+}
+
+function normalizeResolvedFilePath(value: string): string {
+  const normalized = normalizeFilePath(value);
+  if (!normalized) {
+    return "";
+  }
+
+  let prefix = "";
+  let remainder = normalized;
+  if (remainder.startsWith("//")) {
+    prefix = "//";
+    remainder = remainder.slice(2);
+  } else if (/^[A-Za-z]:\//.test(remainder)) {
+    prefix = remainder.slice(0, 2);
+    remainder = remainder.slice(3);
+  } else if (remainder.startsWith("/")) {
+    prefix = "/";
+    remainder = remainder.slice(1);
+  }
+
+  const segments = remainder.split("/");
+  const stack: string[] = [];
+  for (const segment of segments) {
+    if (!segment || segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      if (stack.length > 0 && stack[stack.length - 1] !== "..") {
+        stack.pop();
+      } else if (!prefix) {
+        stack.push("..");
+      }
+      continue;
+    }
+    stack.push(segment);
+  }
+
+  const joined = stack.join("/");
+  if (prefix === "//") {
+    return joined ? `//${joined}` : "//";
+  }
+  if (prefix === "/") {
+    return joined ? `/${joined}` : "/";
+  }
+  if (prefix) {
+    return joined ? `${prefix}/${joined}` : `${prefix}/`;
+  }
+  return joined;
+}
+
+function resolveMarkdownImageSrc(
+  rawSrc: string,
+  baseFilePath?: string,
+): string {
+  const normalizedSrc = rawSrc.trim();
+  if (!normalizedSrc) {
+    return rawSrc;
+  }
+
+  if (
+    normalizedSrc.startsWith("data:") ||
+    normalizedSrc.startsWith("http://") ||
+    normalizedSrc.startsWith("https://") ||
+    normalizedSrc.startsWith("blob:") ||
+    normalizedSrc.startsWith("asset://") ||
+    normalizedSrc.startsWith("tauri://")
+  ) {
+    return normalizedSrc;
+  }
+
+  const { pathPart, suffix } = splitFilePathSuffix(normalizedSrc);
+  const absolutePath = isAbsoluteLikePath(pathPart)
+    ? normalizeResolvedFilePath(pathPart)
+    : baseFilePath
+      ? normalizeResolvedFilePath(
+          joinFilePath(dirnameFromFilePath(baseFilePath), pathPart),
+        )
+      : "";
+  if (!absolutePath) {
+    return normalizedSrc;
+  }
+
+  return `${convertLocalFileSrc(absolutePath)}${suffix}`;
 }
 
 function resolveCodePresentationMode(
@@ -541,6 +670,7 @@ function resolveCodePresentationMode(
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
   ({
     content,
+    baseFilePath,
     onA2UISubmit,
     renderA2UIInline = true,
     collapseCodeBlocks = false,
@@ -578,6 +708,15 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
     const rehypePlugins = React.useMemo(
       () => (useLightweightStreamingRender ? [] : [rehypeRaw, rehypeKatex]),
       [useLightweightStreamingRender],
+    );
+    const resolveImageSrc = React.useCallback(
+      (src?: string | null) => {
+        if (typeof src !== "string") {
+          return "";
+        }
+        return resolveMarkdownImageSrc(src, baseFilePath);
+      },
+      [baseFilePath],
     );
 
     React.useEffect(() => {
@@ -1092,16 +1231,17 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                   if (src?.startsWith("data:")) {
                     return null; // 跳过 base64 图片，已在上面处理
                   }
+                  const resolvedSrc = resolveImageSrc(src);
 
                   const handleImageClick = () => {
-                    if (src) {
-                      window.open(src, "_blank");
+                    if (resolvedSrc) {
+                      window.open(resolvedSrc, "_blank");
                     }
                   };
 
                   return (
                     <GeneratedImage
-                      src={src}
+                      src={resolvedSrc}
                       alt={alt || "Image"}
                       onClick={handleImageClick}
                       title="点击查看大图"

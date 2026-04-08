@@ -1,4 +1,4 @@
-use super::{args_or_default, get_string_arg, require_app_handle};
+use super::{args_or_default, get_string_arg, parse_nested_arg, require_app_handle};
 use crate::dev_bridge::DevBridgeState;
 use serde_json::Value as JsonValue;
 use tauri::Manager;
@@ -106,18 +106,12 @@ pub(super) async fn try_handle(
                 .and_then(|value| value.as_str())
                 .unwrap_or("lime")
                 .to_string();
-            let target = get_string_arg(&args, "target", "target")?;
-            let directory = get_string_arg(&args, "directory", "directory")?;
-            let name = get_string_arg(&args, "name", "name")?;
-            let description = get_string_arg(&args, "description", "description")?;
-            let inspection = crate::commands::skill_cmd::create_skill_scaffold_for_app(
-                app,
-                target,
-                directory,
-                name,
-                description,
-            )
-            .map_err(|e| format!("创建 Skill 脚手架失败: {e}"))?;
+            let request = parse_nested_arg::<crate::commands::skill_cmd::CreateSkillScaffoldRequest>(
+                &args, "request",
+            )?;
+            let inspection =
+                crate::commands::skill_cmd::create_skill_scaffold_for_app(app, request)
+                    .map_err(|e| format!("创建 Skill 脚手架失败: {e}"))?;
             serde_json::to_value(inspection)?
         }
         "import_local_skill_for_app" => {

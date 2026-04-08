@@ -99,6 +99,10 @@ export const DocumentRenderer: React.FC<ArtifactRendererProps> = memo(
       }),
       [artifact, artifactDocument],
     );
+    const baseFilePath =
+      typeof artifact.meta.filePath === "string" && artifact.meta.filePath.trim()
+        ? artifact.meta.filePath.trim()
+        : undefined;
 
     return (
       <div
@@ -170,6 +174,7 @@ export const DocumentRenderer: React.FC<ArtifactRendererProps> = memo(
                 >
                   <MarkdownRenderer
                     content={artifact.content}
+                    baseFilePath={baseFilePath}
                     isStreaming={isStreaming}
                   />
                 </div>

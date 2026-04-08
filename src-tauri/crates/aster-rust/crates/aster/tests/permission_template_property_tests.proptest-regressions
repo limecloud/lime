@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc c95dde4a7014cb432a56d0dff55d335926d3a992e61ae0480e3c8dab1103d843 # shrinks to name = "__a", template = [ToolPermission { tool: "file_read", allowed: false, priority: 0, conditions: [], parameter_restrictions: [], scope: Global, reason: None, expires_at: None, metadata: {} }, ToolPermission { tool: "file_read", allowed: false, priority: 0, conditions: [], parameter_restrictions: [], scope: Global, reason: None, expires_at: None, metadata: {} }]
+cc bb6e34ea28e97b4aa8a904ef0716f589f1647ef1edb05d078506166baf532fd7 # shrinks to name = "aaa", template = [ToolPermission { tool: "bash", allowed: false, priority: 0, conditions: [], parameter_restrictions: [], scope: Global, reason: None, expires_at: None, metadata: {} }, ToolPermission { tool: "bash", allowed: false, priority: 0, conditions: [], parameter_restrictions: [], scope: Global, reason: None, expires_at: None, metadata: {} }], target_scope = Global

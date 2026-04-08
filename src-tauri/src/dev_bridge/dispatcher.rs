@@ -532,6 +532,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn site_adapter_launch_readiness_command_is_bridged() {
+        let state = make_test_state();
+
+        let value = handle_command(
+            &state,
+            "site_get_adapter_launch_readiness",
+            Some(serde_json::json!({
+                "request": {
+                    "adapter_name": "x/article-export"
+                }
+            })),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(value["adapter"], "x/article-export");
+        assert_eq!(value["domain"], "x.com");
+        assert_eq!(value["status"], "requires_browser_runtime");
+    }
+
+    #[tokio::test]
     async fn skill_execution_catalog_commands_are_bridged() {
         let state = make_test_state();
 

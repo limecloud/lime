@@ -14,6 +14,7 @@ import {
   useEffect,
   useRef,
 } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { toast } from "sonner";
 import { useAgentChatUnified } from "./hooks";
 import { type TaskStatusReason } from "./hooks/agentChatShared";
@@ -177,6 +178,7 @@ import { useWorkspaceGeneralWorkbenchScaffoldRuntime } from "./workspace/useWork
 import { useWorkspaceGeneralWorkbenchVersionStatusRuntime } from "./workspace/useWorkspaceGeneralWorkbenchVersionStatusRuntime";
 import { useWorkspaceTopicSwitch } from "./workspace/useWorkspaceTopicSwitch";
 import { useWorkspaceA2UIRuntime } from "./workspace/useWorkspaceA2UIRuntime";
+import { useWorkspaceSceneGateRuntime } from "./workspace/useWorkspaceSceneGateRuntime";
 import { useWorkspaceAutoGuideRuntime } from "./workspace/useWorkspaceAutoGuideRuntime";
 import { useWorkspaceGeneralWorkbenchSidebarRuntime } from "./workspace/useWorkspaceGeneralWorkbenchSidebarRuntime";
 import { useWorkspaceGeneralWorkbenchRuntime } from "./workspace/useWorkspaceGeneralWorkbenchRuntime";
@@ -186,6 +188,7 @@ import { useWorkspaceTeamSessionRuntime } from "./workspace/useWorkspaceTeamSess
 import { useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime } from "./workspace/useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime";
 import { useWorkspaceServiceSkillEntryActions } from "./workspace/useWorkspaceServiceSkillEntryActions";
 import { useWorkspaceArtifactViewModeControl } from "./workspace/useWorkspaceArtifactViewModeControl";
+import { resolveAbsoluteWorkspacePath } from "./workspace/workspacePath";
 import {
   areArtifactProtocolPathsEquivalent,
   normalizeArtifactProtocolPath,
@@ -193,6 +196,7 @@ import {
 } from "@/lib/artifact-protocol";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { ArtifactTimelineOpenTarget } from "./utils/artifactTimelineNavigation";
+import { createUnifiedMemory } from "@/lib/api/unifiedMemory";
 import {
   createInitialSessionImageWorkbenchState,
   type SessionImageWorkbenchState,
@@ -211,11 +215,17 @@ import {
   projectTypeToTheme,
 } from "./agentChatWorkspaceShared";
 import type { AgentChatWorkspaceProps } from "./agentChatWorkspaceContract";
+import { extractCreationReplayMetadata } from "./utils/creationReplayMetadata";
+import { buildMessageInspirationDraft } from "./utils/messageInspirationDraft";
+import { buildSkillsPageParamsFromMessage } from "./utils/skillScaffoldDraft";
+import { buildCreationReplaySlotPrefill } from "./service-skills/creationReplaySlotPrefill";
 import { ServiceSkillLaunchDialog } from "./service-skills/ServiceSkillLaunchDialog";
 import { AutomationJobDialog } from "@/components/settings-v2/system/automation/AutomationJobDialog";
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
 const BLANK_HOME_DEFERRED_LOAD_MS = 6_000;
+const NOOP_SET_CHAT_MESSAGES: Dispatch<SetStateAction<Message[]>> = () =>
+  undefined;
 
 function resolveDefaultSelectedArtifact(
   activeTheme: string,
@@ -351,6 +361,7 @@ export function AgentChatWorkspace({
   initialUserImages,
   initialSessionName,
   entryBannerMessage,
+  initialProjectFileOpenTarget,
   onInitialUserPromptConsumed,
   newChatAt,
   onRecommendationClick: _onRecommendationClick,
@@ -608,6 +619,11 @@ export function AgentChatWorkspace({
     contentId: string;
     body: string;
   } | null>(null);
+  const handledInitialProjectFileOpenSignatureRef = useRef("");
+  const initialCreationReplay = useMemo(
+    () => extractCreationReplayMetadata(initialRequestMetadata),
+    [initialRequestMetadata],
+  );
 
   useEffect(() => {
     setActiveContentTarget(projectId, contentId, canvasState?.type ?? null);
@@ -785,6 +801,13 @@ export function AgentChatWorkspace({
         context?: WriteArtifactContext,
       ) => void
     >();
+  const sceneGateResumeHandlerRef =
+    useRef<
+      (input: {
+        rawText: string;
+        requestMetadata: Record<string, unknown>;
+      }) => Promise<boolean>
+    >(async () => false);
 
   // 工作流状态（仅在内容创作模式下使用）
   const mappedTheme = activeTheme as ThemeType;
@@ -874,18 +897,6 @@ export function AgentChatWorkspace({
   const handleNavigateToSkillSettings = useCallback(() => {
     _onNavigate?.("skills");
   }, [_onNavigate]);
-  const handleOpenSavedSiteContent = useCallback(
-    ({ projectId, contentId }: SiteSavedContentTarget) => {
-      _onNavigate?.("agent", {
-        projectId,
-        contentId,
-        lockTheme: true,
-        fromResources: true,
-      });
-    },
-    [_onNavigate],
-  );
-
   const handleRefreshSkills = useCallback(async () => {
     await loadSkills(true);
   }, [loadSkills]);
@@ -1370,7 +1381,7 @@ export function AgentChatWorkspace({
     accessMode,
     setAccessMode,
     messages = [],
-    setMessages: setChatMessages,
+    setMessages: setChatMessages = NOOP_SET_CHAT_MESSAGES,
     currentTurnId,
     turns = [],
     threadItems = [],
@@ -1978,20 +1989,6 @@ export function AgentChatWorkspace({
     siteSkillExecutionState?.profileKey,
     siteSkillExecutionState?.targetId,
   ]);
-  const serviceSkillExecutionCard = useMemo(
-    () => (
-      <ServiceSkillExecutionCard
-        state={siteSkillExecutionState}
-        onOpenBrowserRuntime={
-          siteSkillExecutionState?.phase === "blocked"
-            ? handleOpenBrowserRuntimeForSiteSkillExecution
-            : undefined
-        }
-      />
-    ),
-    [handleOpenBrowserRuntimeForSiteSkillExecution, siteSkillExecutionState],
-  );
-
   const compatSubagentRuntime = useCompatSubagentRuntime(sessionId);
   const realSubagentTimelineItems = useMemo(
     () =>
@@ -2121,6 +2118,7 @@ export function AgentChatWorkspace({
     showHarnessToggle,
     harnessAttentionLevel,
     navbarHarnessPanelVisible,
+    harnessToggleLabel,
   } = contextHarnessRuntime;
   const generalWorkbenchScaffoldRuntime =
     useWorkspaceGeneralWorkbenchScaffoldRuntime({
@@ -2161,7 +2159,23 @@ export function AgentChatWorkspace({
   } = useWorkspaceA2UIRuntime({
     messages,
   });
-  const hasPendingA2UIForm = Boolean(pendingA2UIForm);
+  const {
+    pendingSceneGateForm,
+    pendingSceneGateSource,
+    openRuntimeSceneGate,
+    handleSceneGateSubmit,
+  } = useWorkspaceSceneGateRuntime({
+    serviceSkills: activeTheme === "general" ? serviceSkills : [],
+    projectId,
+    contentId,
+    creationReplay: initialCreationReplay,
+    applyProjectSelection,
+    resumeSceneGate: async (input) => await sceneGateResumeHandlerRef.current(input),
+  });
+  const effectivePendingA2UIForm = pendingSceneGateForm ?? pendingA2UIForm;
+  const effectivePendingA2UISource =
+    pendingSceneGateSource ?? pendingA2UISource;
+  const hasPendingA2UIForm = Boolean(effectivePendingA2UIForm);
   const suppressCanvasAutoOpenForPendingA2UI = hasPendingA2UIForm;
 
   const {
@@ -2504,6 +2518,21 @@ export function AgentChatWorkspace({
       onNavigate: _onNavigate,
       recordServiceSkillUsage,
     });
+  const serviceSkillCreationReplayPrefill = useMemo(() => {
+    const selectedServiceSkill =
+      workspaceServiceSkillEntryActions.selectedServiceSkill;
+    if (!selectedServiceSkill || !initialCreationReplay) {
+      return null;
+    }
+
+    return buildCreationReplaySlotPrefill(
+      selectedServiceSkill,
+      initialCreationReplay,
+    );
+  }, [
+    initialCreationReplay,
+    workspaceServiceSkillEntryActions.selectedServiceSkill,
+  ]);
 
   const {
     handleSend,
@@ -2553,9 +2582,25 @@ export function AgentChatWorkspace({
     ensureBrowserAssistCanvas,
     handleAutoLaunchMatchedSiteSkill:
       workspaceServiceSkillEntryActions.handleAutoLaunchMatchedSiteSkill,
+    openRuntimeSceneGate,
     ensureSessionForCommandMetadata: ensureSession,
     resolveImageWorkbenchSkillRequest,
   });
+  useEffect(() => {
+    sceneGateResumeHandlerRef.current = async ({ rawText, requestMetadata }) =>
+      await handleSendRef.current(
+        [],
+        webSearchPreferenceRef.current,
+        effectiveChatToolPreferences.thinking,
+        rawText,
+        undefined,
+        undefined,
+        {
+          requestMetadata,
+          skipSceneCommandRouting: true,
+        },
+      );
+  }, [effectiveChatToolPreferences.thinking, handleSendRef, webSearchPreferenceRef]);
   const submitImageWorkbenchAgentCommand = useCallback(
     async (params: SubmitImageWorkbenchAgentCommandParams) =>
       await handleSendRef.current(
@@ -2639,6 +2684,17 @@ export function AgentChatWorkspace({
     resolvePendingA2UISubmit,
     sendMessage,
   });
+  const handlePendingA2UISubmit = useCallback(
+    (formData: Parameters<typeof handleInputbarA2UISubmit>[0]) => {
+      if (pendingSceneGateForm) {
+        void handleSceneGateSubmit(formData);
+        return;
+      }
+
+      handleInputbarA2UISubmit(formData);
+    },
+    [handleInputbarA2UISubmit, handleSceneGateSubmit, pendingSceneGateForm],
+  );
   const handleMessageA2UISubmit = useCallback(
     (
       formData: Parameters<typeof handleInputbarA2UISubmit>[0],
@@ -2804,8 +2860,8 @@ export function AgentChatWorkspace({
     taskFilesRef,
     socialStageLogRef,
     setDocumentVersionStatusMap,
-    saveSessionFile: async (fileName, content) => {
-      await saveSessionFile(fileName, content);
+    saveSessionFile: async (fileName, content, metadata) => {
+      await saveSessionFile(fileName, content, metadata);
     },
     syncGeneralArtifactToResource,
     upsertGeneralArtifact,
@@ -2909,6 +2965,70 @@ export function AgentChatWorkspace({
     },
     [handleFileClick],
   );
+  const handleOpenSavedSiteContent = useCallback(
+    async ({
+      projectId: targetProjectId,
+      contentId: targetContentId,
+      preferredTarget,
+      projectFile,
+    }: SiteSavedContentTarget) => {
+      const relativePath = projectFile?.relativePath?.trim() || "";
+      const canOpenInlineInCurrentWorkspace =
+        preferredTarget === "project_file" &&
+        Boolean(relativePath) &&
+        Boolean(project?.rootPath) &&
+        Boolean(projectId) &&
+        targetProjectId === projectId;
+
+      if (canOpenInlineInCurrentWorkspace) {
+        const absolutePath = resolveAbsoluteWorkspacePath(
+          project?.rootPath,
+          relativePath,
+        );
+        if (absolutePath) {
+          const preview = await handleHarnessLoadFilePreview(absolutePath);
+          if (preview.error) {
+            toast.error(`打开导出文件失败: ${preview.error}`);
+            return;
+          }
+
+          if (preview.isBinary) {
+            toast.info("导出文件是二进制格式，暂不支持在工作台预览");
+            return;
+          }
+
+          const nextContent =
+            typeof preview.content === "string" ? preview.content : "";
+          startTransition(() => {
+            handleWorkspaceFileClick(preview.path || absolutePath, nextContent);
+          });
+          return;
+        }
+      }
+
+      _onNavigate?.("agent", {
+        projectId: targetProjectId,
+        contentId: targetContentId,
+        lockTheme: true,
+        fromResources: true,
+        ...(preferredTarget === "project_file" && relativePath
+          ? {
+              initialProjectFileOpenTarget: {
+                relativePath,
+                requestKey: Date.now(),
+              },
+            }
+          : {}),
+      });
+    },
+    [
+      _onNavigate,
+      handleHarnessLoadFilePreview,
+      handleWorkspaceFileClick,
+      project?.rootPath,
+      projectId,
+    ],
+  );
   const handleWorkspaceArtifactClick = useCallback(
     (artifact: Artifact) => {
       setFocusedArtifactBlockId(null);
@@ -3005,6 +3125,86 @@ export function AgentChatWorkspace({
       setArtifactBlockFocusRequestKey((current) => current + 1);
     },
     [handleWorkspaceFileClick],
+  );
+  useEffect(() => {
+    const relativePath = initialProjectFileOpenTarget?.relativePath?.trim();
+    if (!relativePath) {
+      handledInitialProjectFileOpenSignatureRef.current = "";
+      return;
+    }
+
+    if (contentId && isInitialContentLoading) {
+      return;
+    }
+
+    const absolutePath = resolveAbsoluteWorkspacePath(project?.rootPath, relativePath);
+    if (!absolutePath) {
+      return;
+    }
+
+    const signature = JSON.stringify({
+      projectId: projectId ?? "",
+      contentId: contentId ?? "",
+      relativePath,
+      requestKey: initialProjectFileOpenTarget?.requestKey ?? 0,
+    });
+    if (handledInitialProjectFileOpenSignatureRef.current === signature) {
+      return;
+    }
+    handledInitialProjectFileOpenSignatureRef.current = signature;
+
+    let cancelled = false;
+    void (async () => {
+      const preview = await handleHarnessLoadFilePreview(absolutePath);
+      if (cancelled) {
+        return;
+      }
+
+      if (preview.error) {
+        toast.error(`打开导出文件失败: ${preview.error}`);
+        return;
+      }
+
+      if (preview.isBinary) {
+        toast.info("导出文件是二进制格式，暂不支持在工作台预览");
+        return;
+      }
+
+      const nextContent = typeof preview.content === "string" ? preview.content : "";
+      startTransition(() => {
+        handleWorkspaceFileClick(preview.path || absolutePath, nextContent);
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    contentId,
+    handleHarnessLoadFilePreview,
+    handleWorkspaceFileClick,
+    initialProjectFileOpenTarget,
+    isInitialContentLoading,
+    project?.rootPath,
+    projectId,
+  ]);
+  const serviceSkillExecutionCard = useMemo(
+    () => (
+      <ServiceSkillExecutionCard
+        state={siteSkillExecutionState}
+        onOpenBrowserRuntime={
+          siteSkillExecutionState?.phase === "blocked"
+            ? handleOpenBrowserRuntimeForSiteSkillExecution
+            : undefined
+        }
+        onOpenSavedSiteContent={handleOpenSavedSiteContent}
+      />
+    ),
+    [
+      handleOpenBrowserRuntimeForSiteSkillExecution,
+      handleOpenSavedSiteContent,
+      siteSkillExecutionState,
+    ],
   );
   const handleJumpToTimelineItem = useCallback((itemId: string) => {
     const normalizedItemId = itemId.trim();
@@ -3150,8 +3350,57 @@ export function AgentChatWorkspace({
     setWorkspaceHealthError,
     workspacePathMissing,
   });
+  const handleSaveMessageAsSkill = useCallback(
+    (source: { messageId: string; content: string }) => {
+      if (!_onNavigate) {
+        toast.error("当前入口暂不支持直接跳转到 Skill 页面");
+        return;
+      }
+
+      const nextPageParams = buildSkillsPageParamsFromMessage(source, {
+        creationProjectId: projectId,
+        creationReplay: initialCreationReplay,
+      });
+      if (!nextPageParams?.initialScaffoldDraft) {
+        toast.error("这条结果暂时还不足以生成技能草稿");
+        return;
+      }
+
+      _onNavigate("skills", nextPageParams);
+      toast.success("已带着这条结果去新建 Skill");
+    },
+    [_onNavigate, initialCreationReplay, projectId],
+  );
+  const handleSaveMessageAsInspiration = useCallback(
+    (source: { messageId: string; content: string }) => {
+      const draft = buildMessageInspirationDraft({
+        ...source,
+        sessionId,
+      }, {
+        creationReplay: initialCreationReplay,
+      });
+
+      if (!draft) {
+        toast.error("这条结果暂时还不足以沉淀为灵感");
+        return;
+      }
+
+      void createUnifiedMemory(draft.request)
+        .then(() => {
+          toast.success("已保存到灵感库", {
+            description: `${draft.categoryLabel} · ${draft.title}`,
+          });
+        })
+        .catch((error) => {
+          console.error("保存到灵感库失败:", error);
+          toast.error("保存到灵感库失败，请稍后重试");
+        });
+    },
+    [initialCreationReplay, sessionId],
+  );
 
   const inputbarScene = useWorkspaceInputbarSceneRuntime({
+    contextVariant: agentEntry === "claw" ? "task-center" : "default",
     setMentionedCharacters,
     taskFiles,
     taskFilesExpanded,
@@ -3362,18 +3611,18 @@ export function AgentChatWorkspace({
     fromResources,
     handleBackHome,
     handleToggleSidebar,
-    chatMode,
     showHarnessToggle,
     navbarHarnessPanelVisible,
     harnessPendingCount,
     harnessAttentionLevel,
+    harnessToggleLabel,
     isAutoRestoringSession,
     sessionId,
     syncStatus,
-    pendingA2UIForm,
-    pendingA2UISource,
+    pendingA2UIForm: effectivePendingA2UIForm,
+    pendingA2UISource: effectivePendingA2UISource,
     a2uiSubmissionNotice,
-    handlePendingA2UISubmit: handleInputbarA2UISubmit,
+    handlePendingA2UISubmit,
     handleToggleCanvas,
     hideInlineStepProgress,
     isSpecializedThemeMode,
@@ -3404,6 +3653,8 @@ export function AgentChatWorkspace({
     handleOpenSavedSiteContent,
     handleArtifactClick: handleWorkspaceArtifactClick,
     handleOpenMessagePreview,
+    handleSaveMessageAsSkill,
+    handleSaveMessageAsInspiration,
     handleOpenSubagentSession,
     handlePermissionResponse,
     pendingPromotedA2UIActionRequest,
@@ -3433,6 +3684,8 @@ export function AgentChatWorkspace({
         onOpenChange={
           workspaceServiceSkillEntryActions.handleServiceSkillDialogOpenChange
         }
+        initialSlotValues={serviceSkillCreationReplayPrefill?.slotValues}
+        prefillHint={serviceSkillCreationReplayPrefill?.hint}
         onLaunch={workspaceServiceSkillEntryActions.handleServiceSkillLaunch}
         onCreateAutomation={
           workspaceServiceSkillEntryActions.handleServiceSkillAutomationSetup

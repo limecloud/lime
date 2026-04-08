@@ -434,6 +434,73 @@ describe("ToolCallDisplay", () => {
     });
   });
 
+  it("站点能力工具存在导出 Markdown 时应优先打开项目文件目标", () => {
+    const onOpenSavedSiteContent = vi.fn();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <ToolCallDisplay
+          toolCall={{
+            id: "tool-site-run-open-markdown-1",
+            name: "lime_site_run",
+            arguments: JSON.stringify({
+              adapter_name: "x/article",
+              args: { url: "https://x.com/google/article/1" },
+            }),
+            status: "completed",
+            result: {
+              success: true,
+              output: "ok",
+              metadata: {
+                tool_family: "site",
+                saved_content: {
+                  content_id: "content-open-markdown-1",
+                  project_id: "project-open-markdown-1",
+                  title: "Google Cloud 周报",
+                  markdown_relative_path:
+                    "exports/social-article/google-cloud/index.md",
+                },
+                saved_by: "context_project",
+              },
+            },
+            startTime: new Date("2026-03-25T12:22:00.000Z"),
+            endTime: new Date("2026-03-25T12:22:01.000Z"),
+          }}
+          onOpenSavedSiteContent={onOpenSavedSiteContent}
+        />,
+      );
+    });
+
+    mountedRoots.push({ container, root });
+
+    act(() => {
+      const toggle = container.querySelector(
+        'button[title="查看结果"]',
+      ) as HTMLButtonElement | null;
+      toggle?.click();
+    });
+
+    act(() => {
+      const openButton = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent?.includes("在下方预览导出 Markdown"),
+      ) as HTMLButtonElement | undefined;
+      openButton?.click();
+    });
+
+    expect(onOpenSavedSiteContent).toHaveBeenCalledWith({
+      projectId: "project-open-markdown-1",
+      contentId: "content-open-markdown-1",
+      title: "Google Cloud 周报",
+      preferredTarget: "project_file",
+      projectFile: {
+        relativePath: "exports/social-article/google-cloud/index.md",
+      },
+    });
+  });
+
   it("站点能力工具失败时应展示未保存原因", () => {
     const { container } = renderTool({
       id: "tool-site-run-2",

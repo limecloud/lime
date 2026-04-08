@@ -94,6 +94,7 @@ export interface AsterAgentStatus {
   initialized: boolean;
   provider_configured: boolean;
   provider_name?: string;
+  provider_selector?: string;
   model_name?: string;
 }
 

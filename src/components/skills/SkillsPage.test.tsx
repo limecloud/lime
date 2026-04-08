@@ -523,6 +523,128 @@ describe("SkillsPage", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("带着结果草稿进入时应自动打开预填的脚手架对话框", async () => {
+    renderSkillsPage({
+      initialScaffoldDraft: {
+        target: "project",
+        directory: "saved-skill-draft",
+        name: "沉淀后的技能",
+        description: "沉淀自一次成功结果",
+        whenToUse: ["当你需要继续复用这类结果时使用。"],
+        inputs: ["目标与主题：一段来自聊天结果的摘要"],
+        outputs: ["交付一份可直接复用的完整结果。"],
+        steps: ["先确认目标，再沿用结构。"],
+        fallbackStrategy: ["信息不足时先补问。"],
+        sourceExcerpt: "一段来自聊天结果的摘要",
+      },
+      initialScaffoldRequestKey: 20260408,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      (
+        document.body.querySelector(
+          "#skill-scaffold-directory",
+        ) as HTMLInputElement | null
+      )?.value,
+    ).toBe("saved-skill-draft");
+    expect(
+      (
+        document.body.querySelector(
+          "#skill-scaffold-name",
+        ) as HTMLInputElement | null
+      )?.value,
+    ).toBe("沉淀后的技能");
+    expect(document.body.textContent).toContain("来源结果：一段来自聊天结果的摘要");
+  });
+
+  it("带着结果草稿进入时应支持带回创作输入", async () => {
+    const onBringScaffoldToCreation = vi.fn();
+    renderSkillsPage({
+      initialScaffoldDraft: {
+        target: "project",
+        directory: "saved-skill-draft",
+        name: "沉淀后的技能",
+        description: "沉淀自一次成功结果",
+        whenToUse: ["当你需要继续复用这类结果时使用。"],
+        inputs: ["目标与主题：一段来自聊天结果的摘要"],
+        outputs: ["交付一份可直接复用的完整结果。"],
+        steps: ["先确认目标，再沿用结构。"],
+        fallbackStrategy: ["信息不足时先补问。"],
+        sourceExcerpt: "一段来自聊天结果的摘要",
+        sourceMessageId: "msg-1",
+      },
+      initialScaffoldRequestKey: 20260410,
+      onBringScaffoldToCreation,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const backButton = Array.from(document.body.querySelectorAll("button")).find(
+      (item) => item.textContent?.trim() === "带回创作输入",
+    );
+
+    await act(async () => {
+      backButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onBringScaffoldToCreation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "沉淀后的技能",
+        sourceExcerpt: "一段来自聊天结果的摘要",
+      }),
+    );
+  });
+
+  it("带着结构化草稿进入后创建时应把隐藏骨架一并传给创建 API", async () => {
+    renderSkillsPage({
+      initialScaffoldDraft: {
+        target: "project",
+        directory: "saved-skill-draft",
+        name: "沉淀后的技能",
+        description: "沉淀自一次成功结果",
+        whenToUse: ["当你需要继续复用这类结果时使用。"],
+        inputs: ["目标与主题：一段来自聊天结果的摘要"],
+        outputs: ["交付一份可直接复用的完整结果。"],
+        steps: ["先确认目标，再沿用结构。"],
+        fallbackStrategy: ["信息不足时先补问。"],
+      },
+      initialScaffoldRequestKey: 20260409,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const createButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((item) => item.textContent?.trim() === "创建 Skill");
+
+    await act(async () => {
+      createButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(mockCreateSkillScaffold).toHaveBeenCalledWith(
+      {
+        target: "project",
+        directory: "saved-skill-draft",
+        name: "沉淀后的技能",
+        description: "沉淀自一次成功结果",
+        whenToUse: ["当你需要继续复用这类结果时使用。"],
+        inputs: ["目标与主题：一段来自聊天结果的摘要"],
+        outputs: ["交付一份可直接复用的完整结果。"],
+        steps: ["先确认目标，再沿用结构。"],
+        fallbackStrategy: ["信息不足时先补问。"],
+      },
+      "lime",
+    );
+  });
+
   it("点击导入 Skill 应调用导入 API 并刷新列表", async () => {
     const refresh = vi.fn().mockResolvedValue(undefined);
     mockUseSkills.mockReturnValue({

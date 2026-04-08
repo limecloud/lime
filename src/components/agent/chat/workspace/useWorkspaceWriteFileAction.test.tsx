@@ -231,4 +231,69 @@ describe("useWorkspaceWriteFileAction", () => {
     );
     expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
   });
+
+  it("内容发布主稿写入时应把创作语义 metadata 一起持久化并挂到任务文件", async () => {
+    const taskFilesRef: HookProps["taskFilesRef"] = { current: [] };
+    const saveSessionFile = vi.fn(async () => undefined);
+    const setTaskFiles = vi.fn((next) => {
+      taskFilesRef.current =
+        typeof next === "function" ? next(taskFilesRef.current) : next;
+      return taskFilesRef.current;
+    });
+    const { render, getValue } = renderHook({
+      isThemeWorkbench: true,
+      activeTheme: "general",
+      mappedTheme: "general",
+      currentGateKey: "write_mode",
+      themeWorkbenchActiveQueueItem: {
+        run_id: "run-content-preview",
+        title: "生成渠道预览稿",
+        status: "running",
+      },
+      taskFilesRef,
+      saveSessionFile,
+      setTaskFiles,
+    });
+
+    await render();
+
+    act(() => {
+      getValue()("# 春日咖啡活动\n\n首屏预览", "content-posts/demo-preview.md", {
+        status: "complete",
+        metadata: {
+          writePhase: "completed",
+          contentPostIntent: "preview",
+          contentPostLabel: "渠道预览稿",
+          contentPostPlatformLabel: "小红书",
+        },
+      });
+    });
+
+    expect(saveSessionFile).toHaveBeenCalledWith(
+      "content-posts/demo-preview.md",
+      "# 春日咖啡活动\n\n首屏预览",
+      expect.objectContaining({
+        artifactType: "draft",
+        stage: "drafting",
+        versionLabel: "社媒初稿",
+        contentPostIntent: "preview",
+        contentPostLabel: "渠道预览稿",
+        contentPostPlatformLabel: "小红书",
+      }),
+    );
+    expect(taskFilesRef.current).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "content-posts/demo-preview.md",
+          metadata: expect.objectContaining({
+            artifactType: "draft",
+            stage: "drafting",
+            versionLabel: "社媒初稿",
+            contentPostIntent: "preview",
+            contentPostLabel: "渠道预览稿",
+          }),
+        }),
+      ]),
+    );
+  });
 });

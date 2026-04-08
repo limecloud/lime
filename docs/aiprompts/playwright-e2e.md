@@ -205,6 +205,17 @@ npm run test:contracts
 6. 刷新页面或切换会话再返回原话题，确认最近封面任务仍可从 `.lime/tasks` 恢复
 7. 如当前上下文带 `contentId`，确认封面任务写回或查看入口仍绑定当前主稿，而不是漂移成普通图片任务
 
+### Claw `@海报` 异步任务验证
+
+1. 在 `Claw` 对话框输入 `@海报 小红书 风格: 清新拼贴 春日咖啡市集活动海报`
+2. 确认聊天区先进入 skill 执行态，并能看到 `image_generate` 相关工具轨迹，而不是前端静默直接创建任务
+3. 如当前环境走 `Bash -> lime media image generate --json`，确认工具标题与结果摘要对应这条图片任务主链；CLI 不可用时，才允许回退 `lime_create_image_generation_task`
+4. 确认请求 metadata 中写入了 `entry_source = at_poster_command`，而不是被当成普通 `@配图` 或另一套海报协议
+5. 确认默认海报尺寸会收敛到 `4:5 / 864x1152`，且 prompt 会补齐“海报设计”语义，而不是裸主题词直传
+6. 等待任务回流后，确认同一条结果只展示真实 task file 状态，不会额外再插一条前端本地伪造“海报已生成”
+7. 刷新页面或切换会话再返回原话题，确认最近海报任务仍可从 `.lime/tasks` 恢复
+8. 如当前界面已暴露右侧查看区或任务卡，确认其状态与聊天轻卡一致，且点击后继续复用现有图片 viewer，而不是打开独立海报工作台
+
 ### Claw `@转写` 异步任务验证
 
 1. 在 `Claw` 对话框输入 `@转写 https://example.com/interview.mp4 生成逐字稿`
@@ -250,6 +261,35 @@ npm run test:contracts
 5. 如当前页面可查看运行时摘要或请求详情，确认 `preferred_team_preset_id=code-triage-team` 与 `code_command.kind` 已注入
 6. 刷新页面或切换会话后再返回原话题，确认代码任务对话仍保留在同一条消息主链，不会裂成另一套旁路会话
 
+### Claw `@渠道预览` 工作流验证
+
+1. 在 `Claw` 对话框输入 `@渠道预览 平台:小红书 帮我预览这篇春日咖啡活动文案的首屏效果`
+2. 确认聊天区显示的仍是原始 `@渠道预览 ...` 文本，而不是直接把 slash workflow 暴露给用户
+3. 如页面可查看发送详情或运行时摘要，确认实际 dispatch 已导向 `content_post_with_cover`，且 `publish_command.intent=preview` 与 `entry_source=at_channel_preview_command` 存在
+4. 确认当前回合不会像 `@发布` 一样直接触发浏览器后台门禁，而是优先产出预览稿 artifact
+5. 等待工作流完成后，确认当前话题下出现一份真实预览稿 artifact，而不是只有普通聊天建议
+6. 打开右侧查看区，确认预览稿仍复用现有 artifact viewer，不会切到另一套渠道预览工作台
+7. 刷新页面或切换会话后再返回原话题，确认渠道预览结果仍可恢复
+
+### Claw `@上传` 工作流验证
+
+1. 在 `Claw` 对话框输入 `@上传 平台:微信公众号后台 帮我把这篇春日咖啡活动文案整理成可直接上传的版本`
+2. 确认聊天区显示的仍是原始 `@上传 ...` 文本，而不是直接把 slash workflow 暴露给用户
+3. 如页面可查看发送详情或运行时摘要，确认实际 dispatch 已导向 `content_post_with_cover`，且 `publish_command.intent=upload` 与 `entry_source=at_upload_command` 存在
+4. 确认命中后台平台时会继续出现真实浏览器门禁，而不是静默退化成普通 artifact 生成
+5. 等待工作流完成后，确认当前话题下出现一份真实上传稿 artifact，而不是只有普通聊天建议
+6. 打开右侧查看区，确认上传稿仍复用现有 artifact viewer，不会切到另一套上传工作台
+7. 刷新页面或切换会话后再返回原话题，确认上传结果仍可恢复
+
+### Claw `@发布合规` 风控验证
+
+1. 在 `Claw` 对话框输入 `@发布合规 内容:这是一篇小红书种草文案 重点:夸大宣传 输出:风险清单`
+2. 确认聊天区显示的仍是原始 `@发布合规 ...` 文本，而不是退回普通聊天口头判断
+3. 如页面可查看发送详情或运行时摘要，确认实际 dispatch 已导向 `analysis_skill_launch`，且 `entry_source=at_publish_compliance_command` 存在
+4. 确认默认会补齐创作风控的 `focus / style / output_format`，而不是沿用普通 `@分析` 的空白默认值
+5. 等待结果完成后，确认输出包含风险等级、风险点、修改建议与待确认项，而不是一段笼统提醒
+6. 刷新页面或切换会话后再返回原话题，确认风控结果仍可恢复
+
 ### Claw `@发布` 工作流验证
 
 1. 在 `Claw` 对话框输入 `@发布 平台:微信公众号后台 帮我把这篇文章整理成可直接发布的版本`
@@ -268,6 +308,15 @@ npm run test:contracts
 5. 如果当前 OEM 云端会话缺失，确认界面明确提示需要登录 / 注入会话，而不是伪造“配音已完成”
 6. 刷新页面或切换会话后再返回原话题，确认该配音任务的时间线与最近使用状态仍可恢复
 
+### Claw `@浏览器` 真实浏览器任务验证
+
+1. 在 `Claw` 对话框输入 `@浏览器 打开 https://news.baidu.com 并提炼页面主要内容`
+2. 确认聊天区保留原始 `@浏览器 ...` 文本，而不是被改写成其它内部 slash 或 skill 协议
+3. 如页面可查看发送详情或运行时摘要，确认 `request_metadata.harness.browser_requirement=required` 且 `browser_launch_url=https://news.baidu.com`
+4. 确认该回合优先进入 Browser Assist / `mcp__lime-browser__*` 时间线，而不是 WebSearch 或普通聊天解释
+5. 如果输入改成后台发布、登录、扫码这类任务，确认 requirement 升级为 `required_with_user_step`
+6. 刷新页面或切换会话后再返回原话题，确认浏览器任务时间线与关联浏览器 artifact 仍可恢复
+
 ### Claw `@读PDF` Prompt Skill 验证
 
 1. 在 `Claw` 对话框输入 `@读PDF /tmp/agent-report.pdf 提炼三点结论并标注关键证据`
@@ -276,7 +325,7 @@ npm run test:contracts
 4. 如果输入的是本地路径，确认 Agent 不会再追问“请上传 PDF”，而是直接读取并输出文档信息、核心要点、关键证据
 5. 如果输入里只有 PDF URL，确认 Agent 最多只追问 1 个关键问题请求本地路径或导入工作区，而不是伪造“已读 PDF”
 
-### Claw `@链接解析` 异步任务验证
+### Claw `@链接解析 / @抓取` 异步任务验证
 
 1. 在 `Claw` 对话框输入 `@链接解析 https://example.com/agent 提取要点 并整理成投资人可读摘要`
 2. 确认聊天区先进入 skill 执行态，并能看到 `url_parse` 相关工具轨迹，而不是前端静默退回普通总结
@@ -284,6 +333,17 @@ npm run test:contracts
 4. 如果当前回合无法即时抓取正文，也必须看到真实 `url_parse` task file 被创建，且 `extractStatus` 为 `pending_extract`，而不是停留在口头解释
 5. 如果输入里没有 URL，确认 Agent 最多只追问 1 个关键问题请求补充链接，而不是直接创建空任务或伪造完成态
 6. 刷新页面或切换会话再返回原话题，确认最近链接解析任务仍可从 `.lime/tasks` 恢复
+7. 再输入 `@抓取 https://example.com/post 帮我抓正文并整理成素材库摘要`，确认仍走同一条 `url_parse` task 主链，但 `entry_source = at_web_scrape_command`，并默认携带 `extract_goal = full_text`
+8. 再输入 `@网页读取 https://example.com/post 帮我读这篇文章并告诉我核心结论`，确认仍走同一条 `url_parse` task 主链，但 `entry_source = at_webpage_read_command`，并默认携带 `extract_goal = summary`
+
+### Claw `@竞品` 研究报告验证
+
+1. 在 `Claw` 对话框输入 `@竞品 Claude 与 Gemini 在中国开发者市场的差异`
+2. 确认聊天区先进入 skill 执行态，并能看到 `report_generate` 相关工具轨迹，而不是前端静默退回普通聊天对比
+3. 确认运行时仍沿 `report_generate -> search_query / WebSearch` 主链，而不是退回一次性普通搜索
+4. 确认 `report_request.entry_source = at_competitor_command`
+5. 确认默认会补齐竞品分析的 `focus` 与 `output_format`，而不是沿用普通 `@研报` 的默认值
+6. 刷新页面或切换会话再返回原话题，确认竞品分析结果仍按原会话恢复
 
 ### Slash Skill / Skill 执行验证
 
@@ -292,6 +352,20 @@ npm run test:contracts
 3. 确认前端不会回退普通 `chat_stream`，而是进入 skill 执行态
 4. 打开控制台，确认浏览器模式接通 DevBridge 时不再出现 `execute_skill`、`list_executable_skills` 或 `get_skill_detail` 的 unknown command 报错
 5. 如当前 skill 设计为走 `Bash -> lime ...`，继续确认最终反馈的是任务提交摘要或任务状态，而不是前端本地伪造成功态
+
+### 聊天结果保存为技能验证
+
+1. 在 `Claw / 创作` 中完成一段足够长的助手结果
+2. 确认助手消息操作区出现 `保存为技能`
+3. 点击后确认页面跳到 `技能`，并自动打开脚手架对话框
+4. 确认对话框仍只暴露轻量基础字段，但已经带着来源摘要
+5. 直接创建后，确认生成的 `SKILL.md` 预览里已经包含：
+   - `何时使用`
+   - `输入`
+   - `执行步骤`
+   - `输出`
+   - `失败回退`
+6. 如当前链路来自聊天结果沉淀，确认这些 section 不是通用空壳，而是带有本次结果提炼出的上下文
 
 ### Slash Scene / ServiceSkill 验证
 

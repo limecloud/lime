@@ -1066,12 +1066,13 @@ mod tests {
             .find(|adapter| adapter.name == "x/article-export")
             .expect("x/article-export should exist");
         assert_eq!(x_article.source_kind, SiteAdapterSourceKind::Bundled);
-        assert_eq!(x_article.source_version.as_deref(), Some("2026-04-07"));
+        assert_eq!(x_article.source_version.as_deref(), Some("2026-04-08"));
         assert!(matches!(
             x_article.entry,
             SiteAdapterEntrySpec::Builder { ref id } if id == "x_article_export"
         ));
         assert!(x_article.script.contains("markdown_bundle"));
+        assert!(x_article.script.contains("currentSrc"));
     }
 
     #[test]

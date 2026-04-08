@@ -7,7 +7,6 @@ import {
   listServiceSkills,
   type ServiceSkillItem,
 } from "@/lib/api/serviceSkills";
-import { getOrCreateDefaultProject } from "@/lib/api/project";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { siteGetAdapterLaunchReadiness } from "@/lib/webview-api";
 import {
@@ -17,6 +16,11 @@ import {
   type ServiceSkillClawLaunchContext,
 } from "../service-skills/siteCapabilityBinding";
 import type { ServiceSkillSlotValues } from "../service-skills/types";
+import {
+  buildRuntimeSceneGateRequest,
+  formatRuntimeSceneGateValidationMessage,
+  type RuntimeSceneGateRequest,
+} from "./sceneSkillGate";
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -51,9 +55,15 @@ interface ServiceSceneLaunchRequest {
 }
 
 export class RuntimeSceneLaunchValidationError extends Error {
-  constructor(message: string) {
+  gateRequest?: RuntimeSceneGateRequest;
+
+  constructor(
+    message: string,
+    options?: { gateRequest?: RuntimeSceneGateRequest },
+  ) {
     super(message);
     this.name = "RuntimeSceneLaunchValidationError";
+    this.gateRequest = options?.gateRequest;
   }
 }
 
@@ -158,20 +168,25 @@ function extractFirstUrl(value: string): string | undefined {
   return normalizeOptionalText(match?.[0]);
 }
 
-function resolveSiteSceneSlotValues(params: {
-  sceneEntry: SkillCatalogSceneEntry;
+export function resolveSiteSceneSlotValues(params: {
   skill: ServiceSkillItem;
   userInput: string;
-}): ServiceSkillSlotValues {
-  const { sceneEntry, skill, userInput } = params;
+  slotValueOverrides?: ServiceSkillSlotValues;
+}): {
+  resolvedSlotValues: ServiceSkillSlotValues;
+  missingRequiredSlots: ServiceSkillItem["slotSchema"];
+} {
+  const { skill, userInput } = params;
   const normalizedUserInput = userInput.trim();
 
-  const resolvedSlotValues: ServiceSkillSlotValues = {};
+  const resolvedSlotValues: ServiceSkillSlotValues = {
+    ...(params.slotValueOverrides || {}),
+  };
   const singleUrlSlot =
     skill.slotSchema.filter((slot) => slot.type === "url").length === 1
       ? skill.slotSchema.find((slot) => slot.type === "url")
       : undefined;
-  if (singleUrlSlot) {
+  if (singleUrlSlot && !resolvedSlotValues[singleUrlSlot.key]) {
     const matchedUrl = extractFirstUrl(normalizedUserInput);
     if (matchedUrl) {
       resolvedSlotValues[singleUrlSlot.key] = matchedUrl;
@@ -183,7 +198,7 @@ function resolveSiteSceneSlotValues(params: {
   );
   if (unresolvedRequiredSlots.length === 1 && normalizedUserInput) {
     const [slot] = unresolvedRequiredSlots;
-    if (slot && slot.type !== "url") {
+    if (slot && slot.type !== "url" && !resolvedSlotValues[slot.key]) {
       resolvedSlotValues[slot.key] = normalizedUserInput;
     }
   }
@@ -191,31 +206,26 @@ function resolveSiteSceneSlotValues(params: {
   const missingRequiredSlots = skill.slotSchema.filter(
     (slot) => slot.required && !resolvedSlotValues[slot.key],
   );
-  if (missingRequiredSlots.length > 0) {
-    const slotLabels = missingRequiredSlots
-      .map((slot) => slot.label.trim())
-      .filter(Boolean)
-      .join("、");
-    if (slotLabels) {
-      throw new RuntimeSceneLaunchValidationError(
-        `请在 ${sceneEntry.commandPrefix} 后补${slotLabels}。`,
-      );
-    }
-    throw new RuntimeSceneLaunchValidationError(
-      `请在 ${sceneEntry.commandPrefix} 后补完整参数。`,
-    );
-  }
 
-  return resolvedSlotValues;
+  return {
+    resolvedSlotValues,
+    missingRequiredSlots,
+  };
 }
 
-async function resolveSiteSceneProjectId(
+function resolveSiteSceneProjectId(
   skill: ServiceSkillItem,
   projectId?: string | null,
-): Promise<string | undefined> {
+): {
+  projectId?: string;
+  missingProject: boolean;
+} {
   const normalizedProjectId = normalizeOptionalText(projectId);
   if (normalizedProjectId) {
-    return normalizedProjectId;
+    return {
+      projectId: normalizedProjectId,
+      missingProject: false,
+    };
   }
 
   const requiresProject =
@@ -223,22 +233,16 @@ async function resolveSiteSceneProjectId(
     (skill.siteCapabilityBinding?.saveMode ?? "project_resource") ===
       "project_resource";
   if (!requiresProject) {
-    return undefined;
+    return {
+      projectId: undefined,
+      missingProject: false,
+    };
   }
 
-  try {
-    const defaultProject = await getOrCreateDefaultProject();
-    const defaultProjectId = normalizeOptionalText(defaultProject?.id);
-    if (defaultProjectId) {
-      return defaultProjectId;
-    }
-  } catch {
-    // 统一在下方抛出稳定提示。
-  }
-
-  throw new RuntimeSceneLaunchValidationError(
-    "当前场景需要项目工作区，但默认项目准备失败，请先选择项目后再重试。",
-  );
+  return {
+    projectId: undefined,
+    missingProject: true,
+  };
 }
 
 function buildServiceSceneLaunchRequestContext(params: {
@@ -289,23 +293,15 @@ function buildServiceSceneLaunchRequestContext(params: {
 }
 
 function buildSiteSceneLaunchRequestContext(params: {
-  parsedCommand: ParsedRuntimeSceneCommand;
-  sceneEntry: SkillCatalogSceneEntry;
   skill: ServiceSkillItem;
+  slotValues: ServiceSkillSlotValues;
   projectId?: string;
   contentId?: string | null;
   launchReadiness?: Awaited<
     ReturnType<typeof siteGetAdapterLaunchReadiness>
   > | null;
 }): ServiceSkillClawLaunchContext {
-  const {
-    parsedCommand,
-    sceneEntry,
-    skill,
-    projectId,
-    contentId,
-    launchReadiness,
-  } = params;
+  const { skill, slotValues, projectId, contentId, launchReadiness } = params;
 
   if (!isServiceSkillSiteCapabilityBound(skill)) {
     throw new RuntimeSceneLaunchValidationError(
@@ -313,11 +309,6 @@ function buildSiteSceneLaunchRequestContext(params: {
     );
   }
 
-  const slotValues = resolveSiteSceneSlotValues({
-    sceneEntry,
-    skill,
-    userInput: parsedCommand.userInput,
-  });
   const saveMode = skill.siteCapabilityBinding.saveMode ?? "project_resource";
 
   return buildServiceSkillClawLaunchContext(skill, slotValues, {
@@ -392,7 +383,9 @@ export async function resolveRuntimeSceneLaunchRequest(params: {
   rawText: string;
   serviceSkills: ServiceSkillItem[];
   projectId?: string | null;
+  projectIdOverride?: string | null;
   contentId?: string | null;
+  slotValueOverrides?: ServiceSkillSlotValues;
 }): Promise<ServiceSceneLaunchRequest | null> {
   const parsedSceneCommand = parseRuntimeSceneCommand(params.rawText);
   if (!parsedSceneCommand) {
@@ -415,27 +408,48 @@ export async function resolveRuntimeSceneLaunchRequest(params: {
     return null;
   }
 
-  const requestContext =
-    matchedSkill.defaultExecutorBinding === "browser_assist"
-      ? buildSiteSceneLaunchRequestContext({
-          parsedCommand: parsedSceneCommand,
-          sceneEntry,
-          skill: matchedSkill,
-          projectId: await resolveSiteSceneProjectId(
-            matchedSkill,
-            params.projectId,
-          ),
-          contentId: params.contentId,
-          launchReadiness: await resolveSiteSceneLaunchReadiness(matchedSkill),
-        })
-      : buildServiceSceneLaunchRequestContext({
-          rawText: params.rawText,
-          parsedCommand: parsedSceneCommand,
-          sceneEntry,
-          skill: matchedSkill,
-          projectId: params.projectId,
-          contentId: params.contentId,
-        });
+  let requestContext: ServiceSceneLaunchRequestContext;
+  if (matchedSkill.defaultExecutorBinding === "browser_assist") {
+    const slotResolution = resolveSiteSceneSlotValues({
+      skill: matchedSkill,
+      userInput: parsedSceneCommand.userInput,
+      slotValueOverrides: params.slotValueOverrides,
+    });
+    const projectResolution = resolveSiteSceneProjectId(
+      matchedSkill,
+      params.projectIdOverride ?? params.projectId,
+    );
+    const gateRequest = buildRuntimeSceneGateRequest({
+      rawText: params.rawText,
+      sceneEntry,
+      skill: matchedSkill,
+      missingSlots: slotResolution.missingRequiredSlots,
+      requireProject: projectResolution.missingProject,
+    });
+    if (gateRequest) {
+      throw new RuntimeSceneLaunchValidationError(
+        formatRuntimeSceneGateValidationMessage(gateRequest),
+        { gateRequest },
+      );
+    }
+
+    requestContext = buildSiteSceneLaunchRequestContext({
+      skill: matchedSkill,
+      slotValues: slotResolution.resolvedSlotValues,
+      projectId: projectResolution.projectId,
+      contentId: params.contentId,
+      launchReadiness: await resolveSiteSceneLaunchReadiness(matchedSkill),
+    });
+  } else {
+    requestContext = buildServiceSceneLaunchRequestContext({
+      rawText: params.rawText,
+      parsedCommand: parsedSceneCommand,
+      sceneEntry,
+      skill: matchedSkill,
+      projectId: params.projectId,
+      contentId: params.contentId,
+    });
+  }
 
   return {
     skill: matchedSkill,

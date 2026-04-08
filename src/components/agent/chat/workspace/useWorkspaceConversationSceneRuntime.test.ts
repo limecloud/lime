@@ -94,12 +94,12 @@ function createBaseParams(overrides: Record<string, unknown> = {}) {
     fromResources: false,
     handleBackHome: noop,
     handleToggleSidebar: noop,
-    chatMode: "chat",
     showHarnessToggle: false,
     navbarHarnessPanelVisible: false,
     handleToggleHarnessPanel: noop,
     harnessPendingCount: 0,
     harnessAttentionLevel: "idle",
+    harnessToggleLabel: undefined,
     sessionId: null,
     syncStatus: "idle",
     pendingA2UIForm: undefined,
@@ -202,5 +202,17 @@ describe("useWorkspaceConversationSceneRuntime", () => {
 
     const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
     expect(presentationParams?.scene.navbarContextVariant).toBe("task-center");
+  });
+
+  it("存在处理工作台入口时应透传顶栏按钮文案", () => {
+    const params = createBaseParams({
+      showHarnessToggle: true,
+      harnessToggleLabel: "工作台",
+    });
+
+    useWorkspaceConversationSceneRuntime(params);
+
+    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
+    expect(presentationParams?.scene.harnessToggleLabel).toBe("工作台");
   });
 });

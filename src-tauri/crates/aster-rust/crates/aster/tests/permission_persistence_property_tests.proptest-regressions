@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b10ceeddffca52d3eac849396870520a7b93c0935c2ac713d11468600521d8f5 # shrinks to perm = ToolPermission { tool: "bash", allowed: false, priority: 0, conditions: [], parameter_restrictions: [ParameterRestriction { parameter: "_aa", restriction_type: Whitelist, values: None, pattern: None, validator: None, min: Some(-90.07986282295697), max: None, required: false, description: None }], scope: Global, reason: None, expires_at: None, metadata: {} }, inheritance = PermissionInheritance { inherit_global: false, inherit_project: false, override_global: false, merge_strategy: Override }
+cc 84b1c179a57e22b3d8d9a0e7c0af0144c19e34f15934912794794a54fd3d5f5d # shrinks to perm = ToolPermission { tool: "bash", allowed: false, priority: 0, conditions: [], parameter_restrictions: [ParameterRestriction { parameter: "aa_", restriction_type: Whitelist, values: None, pattern: None, validator: None, min: Some(-99.21492539152669), max: None, required: false, description: None }], scope: Project, reason: None, expires_at: None, metadata: {} }

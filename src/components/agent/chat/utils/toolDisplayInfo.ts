@@ -1704,6 +1704,8 @@ export const resolveToolPrimarySubject = (
   if (normalizedName === "limesiterun" || normalizedName === "limesiteinfo") {
     return (
       resolveToolArgumentPreview(args, [
+        "skill_title",
+        "skillTitle",
         "adapter_name",
         "name",
         "query",

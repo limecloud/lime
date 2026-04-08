@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "private": true,
-  "version": "1.5.1",
+  "version": "1.6.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
@@ -73,8 +73,7 @@
     "smoke:site-adapters": "node scripts/site-adapter-catalog-smoke.mjs",
     "smoke:social-workbench": "node scripts/social-workbench-e2e-smoke.mjs",
     "dev:web-bridge": "node scripts/start-web-bridge-dev.mjs",
-    "governance:legacy-report": "node scripts/report-legacy-surfaces.mjs",
-    "setup:local-aster": "node scripts/setup-local-aster-override.mjs"
+    "governance:legacy-report": "node scripts/report-legacy-surfaces.mjs"
   },
   "dependencies": {
     "@babel/standalone": "^7.29.0",

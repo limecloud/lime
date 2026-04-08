@@ -78,6 +78,7 @@ pub async fn upload_image_to_session(
         session_id.clone(),
         file_name.to_string(),
         base64_content,
+        None,
     )?;
 
     // 返回文件访问路径

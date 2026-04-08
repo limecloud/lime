@@ -16,7 +16,10 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { ProviderIcon } from "@/icons/providers";
-import { useConfiguredProviders } from "@/hooks/useConfiguredProviders";
+import {
+  findConfiguredProviderBySelection,
+  useConfiguredProviders,
+} from "@/hooks/useConfiguredProviders";
 import { useProviderModels } from "@/hooks/useProviderModels";
 import { filterModelsByTheme } from "@/components/agent/chat/utils/modelThemePolicy";
 import { getProviderModelCompatibilityIssue } from "@/components/agent/chat/utils/providerModelCompatibility";
@@ -128,9 +131,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     useConfiguredProviders({ autoLoad: shouldLoadProviders });
 
   const selectedProvider = useMemo(() => {
-    return configuredProviders.find(
-      (provider) => provider.key === providerType,
-    );
+    return findConfiguredProviderBySelection(configuredProviders, providerType);
   }, [configuredProviders, providerType]);
   const providerModelLoadOptions = useMemo(
     () =>
@@ -198,7 +199,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     hasInitialized.current = true;
 
     if (!providerType.trim()) {
-      setProviderType(configuredProviders[0].key);
+      setProviderType(
+        configuredProviders[0].providerId ?? configuredProviders[0].key,
+      );
     }
   }, [
     configuredProviders,
@@ -416,12 +419,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 </div>
               ) : (
                 configuredProviders.map((provider) => {
-                  const isSelected = providerType === provider.key;
+                  const isSelected = selectedProvider?.key === provider.key;
 
                   return (
                     <button
                       key={provider.key}
-                      onClick={() => setProviderType(provider.key)}
+                      onClick={() =>
+                        setProviderType(provider.providerId ?? provider.key)
+                      }
                       className={cn(
                         itemClassName,
                         isSelected

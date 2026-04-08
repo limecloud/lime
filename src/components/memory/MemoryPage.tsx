@@ -72,8 +72,10 @@ import {
   buildClawAgentParams,
   buildHomeAgentParams,
 } from "@/lib/workspace/navigation";
+import { buildMemoryEntryCreationReplayRequestMetadata } from "@/components/agent/chat/utils/creationReplayMetadata";
 import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
 import { buildLayerMetrics } from "./memoryLayerMetrics";
+import { buildMemoryEntryCreationSeed } from "./memoryEntryCreationSeed";
 
 type CategoryType = MemoryCategory;
 type CategoryFilter = "all" | CategoryType;
@@ -653,10 +655,12 @@ function MemoryDetailPanel({
   entry,
   deleting,
   onDelete,
+  onBringToCreation,
 }: {
   entry: MemoryEntryPreview | null;
   deleting: boolean;
   onDelete: (entry: MemoryEntryPreview) => void;
+  onBringToCreation: (entry: MemoryEntryPreview) => void;
 }) {
   if (!entry) {
     return (
@@ -744,6 +748,20 @@ function MemoryDetailPanel({
               ))}
             </div>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => onBringToCreation(entry)}
+            className={`${PRIMARY_BUTTON_CLASS_NAME} w-full justify-center`}
+          >
+            <Lightbulb className="h-4 w-4" />
+            带回创作输入
+          </button>
+          <p className="text-xs leading-6 text-slate-500">
+            会先把这条灵感带到输入栏，方便继续改写，不会自动执行。
+          </p>
         </div>
 
         <button
@@ -1194,6 +1212,26 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       }
     },
     [loadOverview, showMessage],
+  );
+
+  const handleBringEntryToCreation = useCallback(
+    (entry: MemoryEntryPreview) => {
+      const seed = buildMemoryEntryCreationSeed(entry);
+      onNavigate?.(
+        "agent",
+        buildHomeAgentParams({
+          projectId: projectId || undefined,
+          initialUserPrompt: seed.initialUserPrompt,
+          entryBannerMessage: seed.entryBannerMessage,
+          initialRequestMetadata:
+            buildMemoryEntryCreationReplayRequestMetadata({
+              ...entry,
+              projectId: projectId || undefined,
+            }),
+        }),
+      );
+    },
+    [onNavigate, projectId],
   );
 
   const saveMemoryConfig = useCallback(
@@ -1856,6 +1894,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                               deletingEntryId === selectedEntry.id
                             }
                             onDelete={handleDeleteEntry}
+                            onBringToCreation={handleBringEntryToCreation}
                           />
                         </div>
                       </SurfacePanel>

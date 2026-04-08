@@ -32,7 +32,11 @@ export interface UseSessionFilesReturn {
   /** 错误信息 */
   error: string | null;
   /** 保存文件 */
-  saveFile: (fileName: string, content: string) => Promise<SessionFile | null>;
+  saveFile: (
+    fileName: string,
+    content: string,
+    metadata?: Record<string, unknown>,
+  ) => Promise<SessionFile | null>;
   /** 读取文件 */
   readFile: (fileName: string) => Promise<string | null>;
   /** 删除文件 */
@@ -121,7 +125,11 @@ export function useSessionFiles(
 
   // 保存文件
   const saveFile = useCallback(
-    async (fileName: string, content: string): Promise<SessionFile | null> => {
+    async (
+      fileName: string,
+      content: string,
+      metadata?: Record<string, unknown>,
+    ): Promise<SessionFile | null> => {
       if (!sessionId) {
         console.warn("[useSessionFiles] 无法保存文件：没有活动会话");
         return null;
@@ -132,6 +140,7 @@ export function useSessionFiles(
           sessionId,
           fileName,
           content,
+          metadata,
         );
 
         // 更新本地文件列表

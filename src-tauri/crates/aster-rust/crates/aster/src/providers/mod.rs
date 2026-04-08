@@ -1,0 +1,48 @@
+pub mod anthropic;
+pub mod api_client;
+pub mod auto_detect;
+pub mod azure;
+pub mod azureauth;
+pub mod base;
+#[cfg(feature = "provider-aws")]
+pub mod bedrock;
+pub mod canonical;
+pub mod claude_code;
+pub mod codex;
+pub mod codex_app_server;
+pub mod codex_stateful;
+pub mod cursor_agent;
+pub mod databricks;
+pub mod embedding;
+pub mod errors;
+mod factory;
+pub mod formats;
+mod gcpauth;
+pub mod gcpvertexai;
+pub mod gemini_cli;
+pub mod githubcopilot;
+pub mod google;
+pub mod lead_worker;
+pub mod litellm;
+pub mod oauth;
+pub mod ollama;
+pub mod openai;
+pub mod openrouter;
+pub mod provider_registry;
+pub mod provider_test;
+mod retry;
+#[cfg(feature = "provider-aws")]
+pub mod sagemaker_tgi;
+pub mod snowflake;
+pub mod testprovider;
+pub mod tetrate;
+pub mod toolshim;
+pub mod usage_estimator;
+pub mod utils;
+pub mod venice;
+pub mod xai;
+
+pub use factory::{
+    create, create_with_default_model, create_with_named_model, providers, refresh_custom_providers,
+};
+pub use retry::{retry_operation, RetryConfig};

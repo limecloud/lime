@@ -2280,7 +2280,7 @@ export function HarnessStatusPanel({
         sectionKey: "inventory",
         title: "工具库存",
         value: toolInventoryLoading
-          ? "同步中"
+          ? "读取中"
           : toolInventory
             ? `${toolInventory.counts.registry_visible_total}`
             : "异常",
@@ -4555,7 +4555,7 @@ export function HarnessStatusPanel({
                   title="工具与权限"
                   badge={
                     toolInventoryLoading
-                      ? "同步中"
+                      ? "读取中"
                       : toolInventory
                         ? `catalog ${toolInventory.counts.catalog_total} / registry ${toolInventory.counts.registry_visible_total}`
                         : toolInventoryError
@@ -4615,7 +4615,7 @@ export function HarnessStatusPanel({
                     {toolInventoryLoading ? (
                       <div className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-3 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        正在同步当前工具库存与权限策略...
+                        正在读取当前工具库存与权限策略...
                       </div>
                     ) : null}
 

@@ -1070,7 +1070,7 @@ export function useWorkspaceBrowserAssistRuntime({
 
           if (!options?.silent) {
             toast.success(
-              `浏览器协助已启动：${
+              `浏览器工作台已启动：${
                 result.session.target_title ||
                 result.session.target_url ||
                 targetUrl
@@ -1102,7 +1102,7 @@ export function useWorkspaceBrowserAssistRuntime({
           autoLaunchingBrowserAssistKeyRef.current = "";
           if (!options?.silent) {
             toast.error(
-              `启动浏览器协助失败: ${
+              `启动浏览器工作台失败: ${
                 error instanceof Error ? error.message : String(error)
               }`,
             );

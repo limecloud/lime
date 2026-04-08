@@ -32,6 +32,8 @@ const DEFAULT_PROFILE_KEY: &str = "default";
 const DEFAULT_TIMEOUT_MS: u64 = 20_000;
 const MIN_ADAPTER_EVALUATE_TIMEOUT_MS: u64 = 30_000;
 const MAX_TIMEOUT_MS: u64 = 120_000;
+const EXISTING_SESSION_TRANSIENT_RETRY_LIMIT: usize = 2;
+const EXISTING_SESSION_TRANSIENT_RETRY_DELAY_MS: u64 = 400;
 const EXPLICIT_PROJECT_SAVE_SOURCE: &str = "explicit_project";
 const EXPLICIT_CONTENT_SAVE_SOURCE: &str = "explicit_content";
 const SITE_EXPORTS_ROOT_DIR: &str = "exports";
@@ -2173,6 +2175,25 @@ fn select_existing_session_navigation_seed(
         .cloned()
 }
 
+fn select_existing_session_retry_target(
+    tabs: &[ExistingSessionTabRecord],
+    domain: &str,
+    current_target_id: Option<&str>,
+) -> Option<ExistingSessionTabRecord> {
+    current_target_id
+        .and_then(|target_id| {
+            tabs.iter()
+                .find(|tab| tab.id == target_id && tab_matches_domain(tab, domain))
+                .cloned()
+        })
+        .or_else(|| select_existing_session_target(tabs, domain))
+        .or_else(|| {
+            current_target_id
+                .and_then(|target_id| tabs.iter().find(|tab| tab.id == target_id).cloned())
+        })
+        .or_else(|| select_existing_session_navigation_seed(tabs))
+}
+
 fn build_recommendation_entry_url(spec: &SiteAdapterSpec) -> String {
     let example_args = match build_example_args(&spec.args) {
         Value::Object(map) => map,
@@ -2525,7 +2546,7 @@ async fn run_existing_session_adapter(
         .map(|current_url| url_matches_expected_entry(current_url, &entry_url))
         .unwrap_or(false);
     let mut bridged_target_id = selected_target.as_ref().map(|target| target.id.clone());
-    let latest_source_url = if should_skip_navigation {
+    let mut latest_source_url = if should_skip_navigation {
         selected_target
             .as_ref()
             .and_then(|target| target.url.clone())
@@ -2583,7 +2604,8 @@ async fn run_existing_session_adapter(
             })
     };
 
-    let adapter_output = match execute_bridge_adapter_command(ChromeBridgeCommandRequest {
+    let adapter_timeout_ms = normalize_adapter_evaluate_timeout_ms(timeout_ms);
+    let adapter_request = ChromeBridgeCommandRequest {
         profile_key: Some(profile_key.clone()),
         command: "run_adapter".to_string(),
         target: bridged_target_id.clone(),
@@ -2591,14 +2613,47 @@ async fn run_existing_session_adapter(
         url: None,
         payload: Some(json!({
             "adapter_name": spec.name,
-            "args": Value::Object(args),
+            "args": Value::Object(args.clone()),
         })),
         wait_for_page_info: false,
-        timeout_ms: Some(normalize_adapter_evaluate_timeout_ms(timeout_ms)),
-    })
-    .await
-    {
+        timeout_ms: Some(adapter_timeout_ms),
+    };
+
+    let adapter_output = match execute_bridge_adapter_command(adapter_request).await {
         Ok(result) => result.data.unwrap_or(Value::Null),
+        Err(error)
+            if looks_like_existing_session_transient_runtime_error(&error)
+                && bridged_target_id.is_some() =>
+        {
+            match retry_existing_session_adapter_after_transient_error(
+                spec,
+                &profile_key,
+                adapter_timeout_ms,
+                &args,
+                bridged_target_id.clone(),
+                latest_source_url.clone(),
+                &error,
+            )
+            .await
+            {
+                Ok((output, retry_target_id, retry_source_url)) => {
+                    bridged_target_id = retry_target_id;
+                    latest_source_url = retry_source_url;
+                    output
+                }
+                Err(retry_error) => {
+                    return build_error_result(
+                        spec,
+                        profile_key,
+                        None,
+                        bridged_target_id,
+                        entry_url,
+                        "adapter_runtime_error",
+                        &retry_error,
+                    );
+                }
+            }
+        }
         Err(error) => {
             return build_error_result(
                 spec,
@@ -2623,6 +2678,69 @@ async fn run_existing_session_adapter(
         },
         adapter_output,
     )
+}
+
+async fn retry_existing_session_adapter_after_transient_error(
+    spec: &SiteAdapterSpec,
+    profile_key: &str,
+    adapter_timeout_ms: u64,
+    args: &Map<String, Value>,
+    mut target_id: Option<String>,
+    mut source_url: Option<String>,
+    initial_error: &str,
+) -> Result<(Value, Option<String>, Option<String>), String> {
+    let mut last_error = initial_error.to_string();
+
+    for attempt in 0..EXISTING_SESSION_TRANSIENT_RETRY_LIMIT {
+        let delay_ms = EXISTING_SESSION_TRANSIENT_RETRY_DELAY_MS * (attempt as u64 + 1);
+        tracing::warn!(
+            "[site_capability] existing_session 运行适配器命中瞬态错误，准备重试: adapter={}, profile_key={}, target_id={:?}, attempt={}, delay_ms={}, error={}",
+            spec.name,
+            profile_key,
+            target_id,
+            attempt + 1,
+            delay_ms,
+            last_error
+        );
+        tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+
+        if let Ok(tabs) = load_existing_session_tabs(profile_key).await {
+            if let Some(refreshed_target) =
+                select_existing_session_retry_target(&tabs, &spec.domain, target_id.as_deref())
+            {
+                source_url = refreshed_target.url.clone().or(source_url);
+                target_id = Some(refreshed_target.id);
+            }
+        }
+
+        let retry_request = ChromeBridgeCommandRequest {
+            profile_key: Some(profile_key.to_string()),
+            command: "run_adapter".to_string(),
+            target: target_id.clone(),
+            text: None,
+            url: None,
+            payload: Some(json!({
+                "adapter_name": spec.name,
+                "args": Value::Object(args.clone()),
+            })),
+            wait_for_page_info: false,
+            timeout_ms: Some(adapter_timeout_ms),
+        };
+
+        match execute_bridge_adapter_command(retry_request).await {
+            Ok(result) => {
+                return Ok((result.data.unwrap_or(Value::Null), target_id, source_url));
+            }
+            Err(error) => {
+                last_error = error;
+                if !looks_like_existing_session_transient_runtime_error(&last_error) {
+                    break;
+                }
+            }
+        }
+    }
+
+    Err(last_error)
 }
 
 async fn run_managed_cdp_adapter(
@@ -3367,6 +3485,16 @@ fn looks_like_navigation_timeout_error(error: &str) -> bool {
         && (normalized.contains("timeout") || error.contains("超时"))
 }
 
+fn looks_like_existing_session_transient_runtime_error(error: &str) -> bool {
+    let normalized = error.to_ascii_lowercase();
+    normalized.contains("frame with id")
+        || normalized.contains("frame was removed")
+        || normalized.contains("receiving end does not exist")
+        || normalized.contains("could not establish connection")
+        || normalized.contains("message port closed")
+        || normalized.contains("extension context invalidated")
+}
+
 fn build_site_adapter_report_hint(error_code: &str) -> Option<String> {
     match error_code {
         "attached_session_required" => Some(
@@ -4038,6 +4166,42 @@ mod tests {
     }
 
     #[test]
+    fn should_detect_existing_session_transient_runtime_error() {
+        assert!(looks_like_existing_session_transient_runtime_error(
+            "Frame with ID 0 was removed."
+        ));
+        assert!(looks_like_existing_session_transient_runtime_error(
+            "Could not establish connection. Receiving end does not exist."
+        ));
+        assert!(!looks_like_existing_session_transient_runtime_error(
+            "当前扩展内未注册站点适配器: x/article-export"
+        ));
+    }
+
+    #[test]
+    fn should_prefer_matching_domain_when_retrying_existing_session_target() {
+        let tabs = vec![
+            ExistingSessionTabRecord {
+                id: "tab-old".to_string(),
+                index: 3,
+                url: Some("https://example.com/dashboard".to_string()),
+                active: false,
+            },
+            ExistingSessionTabRecord {
+                id: "tab-x".to_string(),
+                index: 1,
+                url: Some("https://x.com/GoogleCloudTech/article/2033953579824758855".to_string()),
+                active: true,
+            },
+        ];
+
+        let selected = select_existing_session_retry_target(&tabs, "x.com", Some("tab-old"))
+            .expect("应优先改选到匹配目标域名的标签页");
+
+        assert_eq!(selected.id, "tab-x");
+    }
+
+    #[test]
     fn should_build_site_unreachable_report_hint() {
         let hint = build_site_adapter_report_hint("site_unreachable")
             .expect("site_unreachable 应返回提示");
@@ -4320,10 +4484,7 @@ mod tests {
             .get("siteAdapterBundleMetaPath")
             .and_then(Value::as_str)
             .expect("应记录 meta 相对路径");
-        assert_eq!(
-            saved_content.meta_relative_path.as_deref(),
-            Some(meta_path)
-        );
+        assert_eq!(saved_content.meta_relative_path.as_deref(), Some(meta_path));
         assert_eq!(
             saved_content.bundle_relative_dir.as_deref(),
             Some(bundle_dir)

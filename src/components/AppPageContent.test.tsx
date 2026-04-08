@@ -11,6 +11,12 @@ const latestAgentChatProps = vi.hoisted(
       value: null as Record<string, unknown> | null,
     }) as { value: Record<string, unknown> | null },
 );
+const latestSkillsWorkspaceProps = vi.hoisted(
+  () =>
+    ({
+      value: null as Record<string, unknown> | null,
+    }) as { value: Record<string, unknown> | null },
+);
 
 vi.mock("./agent/chat", () => ({
   AgentChatPage: (props: Record<string, unknown>) => {
@@ -29,6 +35,13 @@ vi.mock("./workspace/video/VideoPage", () => ({
 
 vi.mock("./settings-v2", () => ({
   SettingsPageV2: () => <div data-testid="settings-page" />,
+}));
+
+vi.mock("./skills", () => ({
+  SkillsWorkspacePage: (props: Record<string, unknown>) => {
+    latestSkillsWorkspaceProps.value = props;
+    return <div data-testid="skills-workspace-page" />;
+  },
 }));
 
 interface MountedContent {
@@ -72,6 +85,7 @@ describe("AppPageContent", () => {
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     latestAgentChatProps.value = null;
+    latestSkillsWorkspaceProps.value = null;
   });
 
   afterEach(() => {
@@ -136,6 +150,31 @@ describe("AppPageContent", () => {
     });
   });
 
+  it("agent 页面应把 initialProjectFileOpenTarget 透传给 AgentChatPage", async () => {
+    const pageParams: AgentPageParams = {
+      agentEntry: "claw",
+      projectId: "project-2",
+      contentId: "content-2",
+      theme: "general",
+      initialProjectFileOpenTarget: {
+        relativePath: "exports/x-article/google-cloud/index.md",
+        requestKey: 20260408,
+      },
+    };
+
+    renderContent("agent", pageParams);
+    await flushEffects();
+
+    expect(latestAgentChatProps.value).toMatchObject({
+      projectId: "project-2",
+      contentId: "content-2",
+      initialProjectFileOpenTarget: {
+        relativePath: "exports/x-article/google-cloud/index.md",
+        requestKey: 20260408,
+      },
+    });
+  });
+
   it("channels 页面应渲染 IM 配置页", async () => {
     const container = renderContent("channels");
     await flushEffects();
@@ -161,5 +200,30 @@ describe("AppPageContent", () => {
     expect(
       container.querySelector('[data-testid="settings-page"]'),
     ).not.toBeNull();
+  });
+
+  it("skills 页面应把技能草稿参数透传给 SkillsWorkspacePage", async () => {
+    renderContent("skills", {
+      initialScaffoldDraft: {
+        target: "project",
+        directory: "saved-skill-demo",
+        name: "结果沉淀技能",
+        description: "沉淀自一次成功结果",
+      },
+      initialScaffoldRequestKey: 20260408,
+    });
+    await flushEffects();
+
+    expect(latestSkillsWorkspaceProps.value).toMatchObject({
+      pageParams: {
+        initialScaffoldDraft: {
+          target: "project",
+          directory: "saved-skill-demo",
+          name: "结果沉淀技能",
+          description: "沉淀自一次成功结果",
+        },
+        initialScaffoldRequestKey: 20260408,
+      },
+    });
   });
 });

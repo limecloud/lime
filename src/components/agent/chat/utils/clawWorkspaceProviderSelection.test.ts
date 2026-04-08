@@ -19,6 +19,30 @@ const {
 
 vi.mock("@/hooks/useConfiguredProviders", () => ({
   loadConfiguredProviders: mockLoadConfiguredProviders,
+  findConfiguredProviderBySelection: (
+    providers: Array<{ key: string; providerId?: string }>,
+    selection?: string | null,
+  ) => {
+    const normalizedSelection = (selection || "").trim().toLowerCase();
+    const keyMatch =
+      providers.find(
+        (provider) => provider.key.trim().toLowerCase() === normalizedSelection,
+      ) ?? null;
+    const providerIdMatch =
+      providers.find(
+        (provider) =>
+          (provider.providerId || "").trim().toLowerCase() ===
+          normalizedSelection,
+      ) ?? null;
+
+    if (keyMatch && providerIdMatch && keyMatch !== providerIdMatch) {
+      if (!keyMatch.providerId && providerIdMatch.providerId) {
+        return providerIdMatch;
+      }
+    }
+
+    return keyMatch ?? providerIdMatch ?? null;
+  },
 }));
 
 vi.mock("@/lib/api/modelRegistry", () => ({
@@ -156,11 +180,53 @@ describe("resolveClawWorkspaceProviderSelection", () => {
     });
 
     expect(result).toEqual({
-      providerType: "custom-social-provider",
+      providerType: "managed-social-provider",
       model: "social-model-api",
     });
     expect(mockFetchProviderModelsAuto).toHaveBeenCalledWith(
       "managed-social-provider",
     );
+  });
+
+  it("当前 provider 只回填原始 providerId 时，应优先解析到真实受管 Provider", async () => {
+    mockLoadConfiguredProviders.mockResolvedValueOnce([
+      createProvider({
+        key: "openai",
+        label: "OpenAI OAuth",
+        registryId: "openai",
+        fallbackRegistryId: undefined,
+      }),
+      createProvider({
+        key: "openai_api_key",
+        label: "OpenAI API Key",
+        registryId: "openai",
+        providerId: "openai",
+        apiHost: "https://api.openai.com/v1",
+      }),
+    ]);
+    mockFetchProviderModelsAuto.mockResolvedValueOnce({
+      models: [
+        createModel("gpt-5.4-mini", {
+          provider_id: "openai",
+          provider_name: "OpenAI",
+          source: "custom",
+          is_latest: true,
+        }),
+      ],
+      source: "Api",
+      error: null,
+    });
+
+    const result = await resolveClawWorkspaceProviderSelection({
+      currentProviderType: "openai",
+      currentModel: null,
+      theme: "general",
+    });
+
+    expect(result).toEqual({
+      providerType: "openai",
+      model: "gpt-5.4-mini",
+    });
+    expect(mockFetchProviderModelsAuto).toHaveBeenCalledWith("openai");
   });
 });

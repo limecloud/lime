@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 7c12576957afe0d1178818522f235668cc4f5c38a05795acd46a3df538e2dd7b # shrinks to contexts = [AgentContext { context_id: "fa97319e-619b-47da-8129-a0272cafb536", agent_id: None, parent_context_id: None, conversation_history: [], conversation_summary: None, file_context: [], tool_results: [], system_prompt: None, working_directory: ".", environment: {}, metadata: ContextMetadata { created_at: 2026-02-06T17:21:01.324472Z, updated_at: 2026-02-06T17:21:01.324472Z, token_count: 0, is_compressed: false, compression_ratio: None, tags: [], custom: {} } }, AgentContext { context_id: "e94bfdae-7dfb-4f10-906b-d78468ddefd1", agent_id: None, parent_context_id: None, conversation_history: [], conversation_summary: None, file_context: [], tool_results: [ToolExecutionResult { tool_name: "_", call_id: "9022cb2f-13d0-4e77-9a81-80ab53bdb5aa", success: false, content: "", error: Some("error"), duration_ms: 100, executed_at: 2026-02-06T17:21:01.324476Z, input: None, is_truncated: false }], system_prompt: None, working_directory: ".", environment: {}, metadata: ContextMetadata { created_at: 2026-02-06T17:21:01.324478Z, updated_at: 2026-02-06T17:21:01.324479Z, token_count: 0, is_compressed: false, compression_ratio: None, tags: [], custom: {} } }]

@@ -77,9 +77,9 @@ const ENTRY_RECOMMENDED_SOLUTIONS: EntryRecommendedSolutionDefinition[] = [
   },
   {
     id: "browser-assist-task",
-    title: "浏览器协助办事",
+    title: "浏览器工作台执行",
     summary:
-      "适合登录、表单、网页操作和信息采集任务，进入工作区后直接接管浏览器协助链路。",
+      "适合登录、表单、网页操作和信息采集任务，进入后可直接在浏览器工作台继续执行。",
     outputHint: "浏览器任务执行",
     prompt:
       "请协助我完成一个浏览器任务：先明确目标网页、目标动作、约束条件和预期结果，再进入执行。",
@@ -165,7 +165,7 @@ function resolveEntryRecommendedSolutionBadge(
   }
 
   if (solutionId === "browser-assist-task") {
-    return "浏览器协助";
+    return "浏览器工作台";
   }
 
   if (solutionId === "team-breakdown") {

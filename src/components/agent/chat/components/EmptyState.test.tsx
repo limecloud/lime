@@ -268,7 +268,7 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain("内容主稿生成");
     expect(container.textContent).toContain("前端概念方案");
     expect(container.textContent).toContain("演示提纲草案");
-    expect(container.textContent).toContain("浏览器协助办事");
+    expect(container.textContent).toContain("浏览器工作台执行");
     expect(container.textContent).toContain("多代理拆任务");
     expect(container.textContent).not.toContain("生成配图");
     expect(container.textContent).not.toContain("Team 冒烟测试");
@@ -385,7 +385,7 @@ describe("EmptyState", () => {
     );
   });
 
-  it("点击浏览器协助办事应触发浏览器接入并写入起始动作", async () => {
+  it("点击浏览器工作台执行应触发浏览器接入并写入起始动作", async () => {
     const setInput = vi.fn<(value: string) => void>();
     const onLaunchBrowserAssist = vi.fn();
     const container = renderEmptyState({

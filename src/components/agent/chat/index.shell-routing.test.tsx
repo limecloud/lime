@@ -147,4 +147,34 @@ describe("AgentChatPage 工作区路由", () => {
       showChatPanel: true,
     });
   });
+
+  it("new-task 携带初始项目文件目标时也应直接进入工作区", async () => {
+    const container = renderPage({
+      agentEntry: "new-task",
+      projectId: "project-standard",
+      showChatPanel: false,
+      initialProjectFileOpenTarget: {
+        relativePath: "exports/social-article/google-cloud/index.md",
+        requestKey: 20260408,
+      },
+    });
+
+    await flushEffects();
+
+    const workspace = container.querySelector(
+      '[data-testid="workspace"]',
+    ) as HTMLDivElement | null;
+
+    expect(workspace).not.toBeNull();
+    expect(workspace?.dataset.agentEntry).toBe("claw");
+    expect(workspace?.dataset.showChatPanel).toBe("true");
+    expect(latestWorkspaceProps.value).toMatchObject({
+      initialProjectFileOpenTarget: {
+        relativePath: "exports/social-article/google-cloud/index.md",
+        requestKey: 20260408,
+      },
+      agentEntry: "claw",
+      showChatPanel: true,
+    });
+  });
 });

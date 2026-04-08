@@ -473,7 +473,10 @@ export function CharacterMention({
     }, 0);
   };
 
-  const handleSelectInstalledSkill = (skill: Skill) => {
+  const handleSelectInstalledSkill = (
+    skill: Skill,
+    options?: { replayText?: string },
+  ) => {
     const textarea = inputRef.current;
     if (!textarea) return;
 
@@ -486,20 +489,31 @@ export function CharacterMention({
     }
 
     if (activeTrigger.mode === "slash") {
-      const newValue =
-        currentValue.slice(0, activeTrigger.triggerIndex) +
-        `/${skill.key} ` +
-        textAfterCursor;
-      onChange(newValue);
+      const replayText = normalizeReplayText(options?.replayText);
+      const nextSelection = replayText
+        ? mergeTriggerSelectionText({
+            leadingText: currentValue.slice(0, activeTrigger.triggerIndex),
+            insertedText: `/${skill.key} ${replayText}`,
+            trailingText: textAfterCursor,
+          })
+        : {
+            value:
+              currentValue.slice(0, activeTrigger.triggerIndex) +
+              `/${skill.key} ` +
+              textAfterCursor,
+            cursorPos: activeTrigger.triggerIndex + skill.key.length + 2,
+          };
+      onChange(nextSelection.value);
       setShowMentions(false);
       recordSlashEntryUsage({
         kind: "skill",
         entryId: skill.key,
+        replayText: replayText || undefined,
       });
 
       setTimeout(() => {
         textarea.focus();
-        const newCursorPos = activeTrigger.triggerIndex + skill.key.length + 2;
+        const newCursorPos = nextSelection.cursorPos;
         textarea.setSelectionRange(newCursorPos, newCursorPos);
       }, 0);
       return;
@@ -661,7 +675,10 @@ export function CharacterMention({
     }, 0);
   };
 
-  const handleSelectSlashCommand = (command: CodexSlashCommandDefinition) => {
+  const handleSelectSlashCommand = (
+    command: CodexSlashCommandDefinition,
+    options?: { replayText?: string },
+  ) => {
     const textarea = inputRef.current;
     if (!textarea) return;
 
@@ -673,32 +690,46 @@ export function CharacterMention({
       return;
     }
 
-    const newValue =
-      currentValue.slice(0, activeTrigger.triggerIndex) +
-      `${command.commandPrefix} ` +
-      textAfterCursor;
+    const replayText = normalizeReplayText(options?.replayText);
+    const nextSelection = replayText
+      ? mergeTriggerSelectionText({
+          leadingText: currentValue.slice(0, activeTrigger.triggerIndex),
+          insertedText: `${command.commandPrefix} ${replayText}`,
+          trailingText: textAfterCursor,
+        })
+      : {
+          value:
+            currentValue.slice(0, activeTrigger.triggerIndex) +
+            `${command.commandPrefix} ` +
+            textAfterCursor,
+          cursorPos:
+            activeTrigger.triggerIndex + command.commandPrefix.length + 1,
+        };
 
-    onChange(newValue);
+    onChange(nextSelection.value);
     setShowMentions(false);
     if (command.support === "supported") {
       recordSlashEntryUsage({
         kind: "command",
         entryId: command.key,
+        replayText: replayText || undefined,
       });
     }
 
     setTimeout(() => {
       textarea.focus();
-      const newCursorPos =
-        activeTrigger.triggerIndex + command.commandPrefix.length + 1;
+      const newCursorPos = nextSelection.cursorPos;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
   };
 
   const handleSelectRuntimeSceneCommand = async (
     command: RuntimeSceneSlashCommand,
+    options?: { replayText?: string },
   ) => {
-    if (onSelectServiceSkill) {
+    const replayText = normalizeReplayText(options?.replayText);
+
+    if (!replayText && onSelectServiceSkill) {
       const matchedVisibleSkill = serviceSkills.find((skill) =>
         matchesSceneBoundServiceSkill(skill, command),
       );
@@ -743,22 +774,32 @@ export function CharacterMention({
       return;
     }
 
-    const newValue =
-      currentValue.slice(0, activeTrigger.triggerIndex) +
-      `${command.commandPrefix} ` +
-      textAfterCursor;
+    const nextSelection = replayText
+      ? mergeTriggerSelectionText({
+          leadingText: currentValue.slice(0, activeTrigger.triggerIndex),
+          insertedText: `${command.commandPrefix} ${replayText}`,
+          trailingText: textAfterCursor,
+        })
+      : {
+          value:
+            currentValue.slice(0, activeTrigger.triggerIndex) +
+            `${command.commandPrefix} ` +
+            textAfterCursor,
+          cursorPos:
+            activeTrigger.triggerIndex + command.commandPrefix.length + 1,
+        };
 
-    onChange(newValue);
+    onChange(nextSelection.value);
     setShowMentions(false);
     recordSlashEntryUsage({
       kind: "scene",
       entryId: command.key,
+      replayText: replayText || undefined,
     });
 
     setTimeout(() => {
       textarea.focus();
-      const newCursorPos =
-        activeTrigger.triggerIndex + command.commandPrefix.length + 1;
+      const newCursorPos = nextSelection.cursorPos;
       textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
   };

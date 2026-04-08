@@ -90,6 +90,7 @@ pub async fn import_document_to_session(
         session_id,
         file_name.to_string(),
         content.clone(),
+        None,
     )?;
 
     Ok((content, file_name.to_string()))

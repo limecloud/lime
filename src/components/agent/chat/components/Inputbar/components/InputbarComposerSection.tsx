@@ -67,6 +67,7 @@ interface InputbarComposerSectionProps {
   queuedTurns: QueuedTurnSnapshot[];
   onPromoteQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   onRemoveQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
+  contextVariant?: "default" | "task-center";
 }
 
 export const InputbarComposerSection: React.FC<
@@ -106,6 +107,7 @@ export const InputbarComposerSection: React.FC<
   queuedTurns,
   onPromoteQueuedTurn,
   onRemoveQueuedTurn,
+  contextVariant = "default",
 }) => {
   const [teamSelectorAutoOpenToken, setTeamSelectorAutoOpenToken] = useState<
     number | null
@@ -200,7 +202,9 @@ export const InputbarComposerSection: React.FC<
           isWorkspaceVariant
             ? workflowGate?.status === "waiting"
               ? "说说你的选择，剩下的交给我"
-              : "试着输入任何指令，剩下的交给我"
+              : contextVariant === "task-center"
+                ? "继续补充当前任务，或回到左侧继续旧历史"
+                : "试着输入任何指令，剩下的交给我"
             : undefined
         }
         toolMode={isWorkspaceVariant ? "attach-only" : "default"}

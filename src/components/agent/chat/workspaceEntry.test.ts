@@ -343,4 +343,60 @@ describe("workspaceEntry", () => {
       },
     });
   });
+
+  it("应透传初始项目文件打开目标，供导出结果自动落到真实文件预览", () => {
+    expect(
+      resolveWorkspaceEntry({
+        projectId: "project-3",
+        activeTheme: "general",
+        creationMode: "guided",
+        defaultToolPreferences,
+        payload: {
+          contentId: "content-3",
+          initialProjectFileOpenTarget: {
+            relativePath: "exports/social-article/google-cloud/index.md",
+            requestKey: 20260408,
+          },
+        },
+        now: () => 654,
+      }),
+    ).toEqual({
+      ok: true,
+      toolPreferences: defaultToolPreferences,
+      targetTheme: "general",
+      nextNewChatAt: 654,
+      navigationParams: {
+        agentEntry: "claw",
+        immersiveHome: false,
+        projectId: "project-3",
+        contentId: "content-3",
+        theme: "general",
+        initialCreationMode: "guided",
+        initialUserPrompt: undefined,
+        initialUserImages: undefined,
+        openBrowserAssistOnMount: undefined,
+        initialProjectFileOpenTarget: {
+          relativePath: "exports/social-article/google-cloud/index.md",
+          requestKey: 20260408,
+        },
+        newChatAt: 654,
+        lockTheme: false,
+      },
+      workspaceBootstrap: {
+        projectId: "project-3",
+        contentId: "content-3",
+        initialUserPrompt: undefined,
+        initialUserImages: undefined,
+        theme: "general",
+        lockTheme: false,
+        initialCreationMode: "guided",
+        openBrowserAssistOnMount: undefined,
+        initialProjectFileOpenTarget: {
+          relativePath: "exports/social-article/google-cloud/index.md",
+          requestKey: 20260408,
+        },
+        newChatAt: 654,
+      },
+    });
+  });
 });

@@ -1,4 +1,10 @@
-import { useState, forwardRef, useImperativeHandle, useRef } from "react";
+import {
+  useEffect,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+  useRef,
+} from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   CheckCircle2,
@@ -25,13 +31,18 @@ import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
   skillsApi,
   type AppType,
+  type CreateSkillScaffoldRequest,
   type LocalSkillInspection,
   type Skill,
 } from "@/lib/api/skills";
+import type { SkillScaffoldDraft } from "@/types/page";
 
 interface SkillsPageProps {
   initialApp?: AppType;
   hideHeader?: boolean;
+  initialScaffoldDraft?: SkillScaffoldDraft | null;
+  initialScaffoldRequestKey?: number | null;
+  onBringScaffoldToCreation?: (draft: SkillScaffoldDraft) => void;
 }
 
 export interface SkillsPageRef {
@@ -76,7 +87,16 @@ const sectionStyleMap = {
 } as const;
 
 export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
-  ({ initialApp = "lime", hideHeader = false }, ref) => {
+  (
+    {
+      initialApp = "lime",
+      hideHeader = false,
+      initialScaffoldDraft = null,
+      initialScaffoldRequestKey = null,
+      onBringScaffoldToCreation,
+    },
+    ref,
+  ) => {
     const [app] = useState<AppType>(initialApp);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState<
@@ -100,8 +120,11 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
     const [contentError, setContentError] = useState<string | null>(null);
     const contentRequestIdRef = useRef(0);
     const [scaffoldDialogOpen, setScaffoldDialogOpen] = useState(false);
+    const [scaffoldDialogDraft, setScaffoldDialogDraft] =
+      useState<SkillScaffoldDraft | null>(null);
     const [scaffoldCreating, setScaffoldCreating] = useState(false);
     const [importingLocalSkill, setImportingLocalSkill] = useState(false);
+    const lastHandledScaffoldRequestKeyRef = useRef<number | null>(null);
 
     const {
       skills,
@@ -120,6 +143,20 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
       refresh,
       openRepoManager: () => setRepoManagerOpen(true),
     }));
+
+    useEffect(() => {
+      if (
+        !initialScaffoldDraft ||
+        initialScaffoldRequestKey === null ||
+        lastHandledScaffoldRequestKeyRef.current === initialScaffoldRequestKey
+      ) {
+        return;
+      }
+
+      lastHandledScaffoldRequestKeyRef.current = initialScaffoldRequestKey;
+      setScaffoldDialogDraft(initialScaffoldDraft);
+      setScaffoldDialogOpen(true);
+    }, [initialScaffoldDraft, initialScaffoldRequestKey]);
 
     const handleInstall = async (directory: string) => {
       setInstallingSkills((prev) => new Set(prev).add(directory));
@@ -151,28 +188,12 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
       }
     };
 
-    const handleCreateScaffold = async ({
-      target,
-      directory,
-      name,
-      description,
-    }: {
-      target: "project" | "user";
-      directory: string;
-      name: string;
-      description: string;
-    }) => {
+    const handleCreateScaffold = async (
+      request: CreateSkillScaffoldRequest,
+    ) => {
       setScaffoldCreating(true);
       try {
-        const inspection = await skillsApi.createSkillScaffold(
-          {
-            target,
-            directory,
-            name,
-            description,
-          },
-          app,
-        );
+        const inspection = await skillsApi.createSkillScaffold(request, app);
         try {
           await refresh();
         } catch (refreshError) {
@@ -181,13 +202,13 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
 
         contentRequestIdRef.current += 1;
         setSelectedSkillForContent({
-          key: `local:${directory}`,
-          name,
-          description,
-          directory,
+          key: `local:${request.directory}`,
+          name: request.name,
+          description: request.description,
+          directory: request.directory,
           installed: true,
           sourceKind: "other",
-          catalogSource: target,
+          catalogSource: request.target,
           license: inspection.license,
           metadata: inspection.metadata,
           allowedTools: inspection.allowedTools,
@@ -435,7 +456,10 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                   {importingLocalSkill ? "导入中..." : "导入 Skill"}
                 </button>
                 <button
-                  onClick={() => setScaffoldDialogOpen(true)}
+                  onClick={() => {
+                    setScaffoldDialogDraft(null);
+                    setScaffoldDialogOpen(true);
+                  }}
                   className={primaryActionButtonClassName}
                 >
                   <Plus className="h-4 w-4" />
@@ -697,10 +721,18 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
 
         <SkillScaffoldDialog
           open={scaffoldDialogOpen}
-          onOpenChange={setScaffoldDialogOpen}
+          onOpenChange={(open) => {
+            setScaffoldDialogOpen(open);
+            if (!open) {
+              setScaffoldDialogDraft(null);
+            }
+          }}
           onCreate={handleCreateScaffold}
           creating={scaffoldCreating}
           allowProjectTarget={app === "lime"}
+          initialValues={scaffoldDialogDraft}
+          sourceHint={scaffoldDialogDraft?.sourceExcerpt ?? null}
+          onBringBackToCreation={onBringScaffoldToCreation}
         />
 
         {/* Skill 执行对话框 */}

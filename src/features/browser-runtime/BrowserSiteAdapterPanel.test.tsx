@@ -984,4 +984,69 @@ describe("BrowserSiteAdapterPanel", () => {
       fromResources: false,
     });
   });
+
+  it("存在 markdown_relative_path 时应优先导航到导出结果文件", async () => {
+    mockSiteRunAdapter.mockImplementationOnce(async () => ({
+      ok: true,
+      adapter: "github/search",
+      domain: "github.com",
+      profile_key: "general_browser_assist",
+      session_id: "mock-cdp-session",
+      target_id: "mock-target-1",
+      entry_url:
+        "https://github.com/search?q=model%20context%20protocol&type=repositories",
+      source_url:
+        "https://github.com/search?q=model%20context%20protocol&type=repositories",
+      data: {
+        items: [{ title: "mock repo", url: "https://github.com/mock/repo" }],
+      },
+      saved_content: {
+        content_id: "content-markdown-1",
+        project_id: "project-2",
+        title: "Google Cloud 周报",
+        markdown_relative_path:
+          "exports/social-article/google-cloud/index.md",
+      },
+      saved_project_id: "project-2",
+      saved_by: "explicit_project",
+    }));
+
+    const onNavigate = vi.fn();
+    const container = await renderPanel({ onNavigate });
+
+    const runButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("执行站点命令"),
+    );
+    expect(runButton).toBeTruthy();
+
+    await act(async () => {
+      runButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const openExportButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("打开导出结果"));
+    expect(openExportButton).toBeTruthy();
+
+    await act(async () => {
+      openExportButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        projectId: "project-2",
+        contentId: "content-markdown-1",
+        lockTheme: true,
+        fromResources: true,
+        initialProjectFileOpenTarget: expect.objectContaining({
+          relativePath: "exports/social-article/google-cloud/index.md",
+        }),
+      }),
+    );
+  });
 });

@@ -53,6 +53,18 @@ Lime 的命令体系固定按以下关系理解：
 6. UI 的正式消费对象是统一 `CommandRunSnapshot`  
    聊天区轻卡和右侧 viewer 不应直接绑定底层 task、run 或原始响应结构。
 
+## 创作主线护栏
+
+当前 Lime 的命令运行时默认服务“创作生产与交付”主线。
+
+这意味着：
+
+1. 一级优先命令应优先覆盖创作生成、素材获取、研究拆解、发布交付。
+2. 搜索、浏览器、网页读取、代码等能力只有在能明确支撑创作主链时，才应进入当前命令建设优先级。
+3. `@发布合规` 的定位是创作交付前的风险检查，只回答“这份内容能不能发、风险在哪里、怎么改”，不是泛法务协议。
+4. 如果一个新命令主要服务泛办公、泛法务或泛开发场景，而不能回挂到创作主线，应先暂停并重新论证优先级。
+5. `scene` 的命名、推荐文案和补参文案也应优先使用创作语义，例如选题、脚本、配图、转写、发布预览、发布合规；不要默认长出“建立”“法务”这类脱离创作目标或过泛的场景表达。
+
 ## 固定主链
 
 所有命令能力统一按这条主链设计：
@@ -70,6 +82,7 @@ Lime 的命令体系固定按以下关系理解：
 对图片任务再补一条固定约束：
 
 `@配图/@修图/@重绘` 原始文本必须先进入 Agent turn，再由 `harness.image_skill_launch` 辅助首刀 `Skill(image_generate)`；文稿 inline 配图、封面位、图片工作台编辑/变体这类显式图片动作也一样，必须先组装 `image_task` 上下文后再复用统一发送主线。不要把 current 主链重新改回前端预翻 slash skill、前端直建任务或“按钮直调 task API”。图片 launch 还必须显式压制 `ToolSearch / WebSearch / Read / Glob / Grep` 这类通用偏航工具，并在必要时直接从当前 session tool surface 移除这些 detour tools，避免模型在“搜技能目录”里空转或把权限错误暴露给用户。默认 `Bash -> lime media image generate --json` 入口也必须把 task file 真正推进到完成态；兼容入口 `lime task create image --json` 现在也必须复用同一条图片执行链，不能再只停在“任务已创建 / pending_submit”。即使退回 compat 的 `lime_create_image_generation_task`，也必须委托同一条 task artifact + worker 执行链，并禁止把任务改写到 `outputPath` / markdown 文稿。
+
 - 显式图片动作允许先在前端补 `image_skill_launch` metadata，但发送前的 `session_id` 绑定仍必须走统一发送边界；如果 metadata 里暂时还是本地 draft key，必须在真正发起 send 时替换成真实会话 ID，而不是在图片动作入口提前额外建一个图片专用会话。
 - `.lime/tasks/**/*.json` 继续作为图片主链的唯一恢复事实源，但它们属于内部任务快照，默认不应直接渲染成用户可见 artifact 卡片或时间线文件卡；用户面看到的应该是轻结果卡、工具过程和右侧查看。
 
@@ -117,10 +130,20 @@ Lime 的命令体系固定按以下关系理解：
 - `lime_run_service_skill` 再根据当前 turn 绑定的 `serviceSkillId + OEM runtime` 发起服务端 run / 短轮询，保证 slash scene 也走 `Agent -> tool -> timeline` 主链
 - 未命中统一目录的 slash 文本必须继续回到普通 slash 流程，不能被错误吞成“未找到本地 Skill”
 
-如果 `scene` 绑定的是 `site_adapter / browser_assist` 型技能，还要额外遵守两条边界：
+当前 `scene` slash 还必须遵守下面三条长期规则：
+
+- `Scene Skill` 是产品场景真相；slash 只是触发入口，不能在前端把流程写死成某个站点分支
+- 推荐用 `Pipeline` 作为主模式，再按需要叠加 `Inversion`、`Generator`、`Tool Wrapper`
+- 聊天区“saved content / viewer 预览 / 运行摘要”都只是消费层投影，不能反过来定义 scene runtime 真相
+
+如果 `scene` 绑定的是 `site_adapter / browser_assist` 型技能，还要额外遵守以下边界：
 
 - 用户可见入口继续以 `entries.kind=scene` 为准，不要求把底层 site skill 强行暴露成首页技能卡；但运行时解析 `scene -> linkedSkillId` 时，不能只依赖首页可见 skill 列表，必须能回退完整 `ServiceSkill` 目录做绑定解析，否则会出现“slash 菜单里能选、发送时却找不到 skill”的假入口
-- 参数补齐协议继续只落在 `slotSchema`；如果未来要在 slash 场景或技能入口里弹参数表单，可以在渲染层把 `slotSchema` 映射成 `a2ui`，但不要把 `a2ui` 结构写进 `SkillCatalog`、`request_metadata` 或 runtime 协议
+- 参数补齐协议继续只落在 `slotSchema`；如果 slash scene 或技能入口需要补参，运行时应先产出结构化 `scene gate request`，再由渲染层把它映射成 `a2ui`，但不要把 `a2ui` 结构写进 `SkillCatalog`、`request_metadata` 或 runtime 协议
+- 如果 skill 声明了 `readinessRequirements.requiresProject=true`，或 `saveMode=project_resource` 需要真实项目目录落盘，则输入框里的 slash scene 必须复用当前选中的项目；当前没有项目时，前端要显式打开 `scene gate` 收集项目，而不是 toast 一下后结束，更不能静默创建或回退到 default 项目，以免结果写进错误目录
+- 系统侧如果为了稳定性对 `site_adapter / browser_assist` 做了 preload，这一步仍必须回放成当前 assistant 消息里的真实过程步骤；不要把 preload 只塞进系统提示，也不要把它额外渲染成脱离对话的工具卡
+- preload 成功或失败后，本回合都不应再回退到 `webReader / WebFetch / WebSearch / research` 这类通用网页阅读或检索工具；要么直接消费 preload 结果继续答复，要么直接把失败原因告诉用户
+- 如果 preload 成功返回的是 `markdown_bundle`，且请求参数里带了 `target_language`，则后续步骤必须被视为通用的“已保存 Markdown 后处理”协议：Agent 只允许使用 `Read / Write / Edit` 读取并覆写项目里的真实 Markdown 文件，翻译时保留代码块、链接目标、相对图片路径与 Markdown 结构，不要再重新抓站点，也不要生成第二份摘要 artifact
 
 一句话：
 
@@ -188,6 +211,7 @@ Lime 的命令体系固定按以下关系理解：
 - 把 `service_scene_launch` 作为当前 turn 的 binding 上下文，而不是前端直接调用云端 run
 - 由 Agent 首刀调用 `lime_run_service_skill` 执行服务型技能 run
 - 服务端目录失联或 scene 未命中时，客户端 seeded/fallback 仍要保证 slash 输入能回到普通工作区主链
+- 如果 `ServiceSkill` 底层绑定的是 `site_adapter / browser_assist`，允许 Rust runtime 先做一次预执行收口浏览器上下文与保存逻辑；但这次预执行必须继续走标准 `tool_start / tool_end` 事件，并以内联过程步骤显示在当前对话中
 
 ### 3. `Agent + Workflow`
 

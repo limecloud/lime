@@ -5,8 +5,9 @@ mod tests {
         build_runtime_action_scope, build_runtime_action_session_config,
     };
     use crate::commands::aster_agent_cmd::dto::AgentRuntimeActionScope;
+    use crate::commands::aster_agent_cmd::service_skill_launch::build_service_skill_preload_tool_projection;
     use crate::services::site_capability_service::{
-        RunSiteAdapterRequest, SiteAdapterDefinition, SiteAdapterRunResult,
+        RunSiteAdapterRequest, SavedSiteAdapterContent, SiteAdapterDefinition, SiteAdapterRunResult,
     };
     use async_trait::async_trait;
     use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -1192,7 +1193,10 @@ mod tests {
             serde_json::json!({"type": "object"}),
         )));
 
-        prune_resource_search_skill_launch_detour_tools_from_registry(&mut registry, Some(&metadata));
+        prune_resource_search_skill_launch_detour_tools_from_registry(
+            &mut registry,
+            Some(&metadata),
+        );
 
         assert!(!registry.contains(TOOL_SEARCH_TOOL_NAME));
         assert!(!registry.contains("Read"));
@@ -2160,8 +2164,8 @@ mod tests {
     }
 
     #[test]
-    fn test_prune_url_parse_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools(
-    ) {
+    fn test_prune_url_parse_skill_launch_detour_tools_from_registry_hides_tool_search_and_fs_tools()
+    {
         let metadata = serde_json::json!({
             "harness": {
                 "url_parse_skill_launch": {
@@ -4025,9 +4029,7 @@ mod tests {
         )
         .expect("should contain merged prompt");
 
-        assert!(merged.contains(
-            super::image_skill_launch::IMAGE_SKILL_LAUNCH_PROMPT_MARKER
-        ));
+        assert!(merged.contains(super::image_skill_launch::IMAGE_SKILL_LAUNCH_PROMPT_MARKER));
         assert!(merged.contains("第一优先工具调用必须是 Skill"));
         assert!(merged.contains("skill=\"image_generate\""));
         assert!(merged.contains("Skill.args 的 JSON"));
@@ -5080,7 +5082,8 @@ mod tests {
         assert!(merged.contains("不要先走 ToolSearch / WebSearch / Read / Glob / Grep"));
         assert!(merged.contains("目标是复用 Lime 现有 A2UI 协议输出一份真实可渲染的表单"));
         assert!(merged.contains("最终结果必须输出一个 ```a2ui 代码块"));
-        assert!(merged.contains("字段类型只允许使用 simple form 已支持的 choice / text / slider / checkbox"));
+        assert!(merged
+            .contains("字段类型只允许使用 simple form 已支持的 choice / text / slider / checkbox"));
     }
 
     #[test]
@@ -5097,8 +5100,8 @@ mod tests {
             }
         });
 
-        let prepared = prepare_form_skill_launch_request_metadata(Some(&metadata))
-            .expect("prepared metadata");
+        let prepared =
+            prepare_form_skill_launch_request_metadata(Some(&metadata)).expect("prepared metadata");
 
         let harness = prepared
             .get("harness")
@@ -5395,8 +5398,99 @@ mod tests {
         assert!(merged.contains(SERVICE_SKILL_LAUNCH_PRELOAD_PROMPT_MARKER));
         assert!(merged.contains("系统侧预执行成功"));
         assert!(merged.contains("不要再次调用 lime_site_run"));
+        assert!(merged.contains("不要回退到"));
+        assert!(merged.contains("WebSearch"));
         assert!(merged.contains("microsoft/autogen"));
         assert!(merged.contains("\"require_attached_session\":true"));
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_service_skill_launch_preload_adds_markdown_bundle_translation_contract(
+    ) {
+        let execution = ServiceSkillLaunchPreloadExecution {
+            request: RunSiteAdapterRequest {
+                adapter_name: "x/article-export".to_string(),
+                args: serde_json::json!({
+                    "url": "https://x.com/GoogleCloudTech/article/2033953579824758855",
+                    "target_language": "中文"
+                }),
+                profile_key: Some("attached-x".to_string()),
+                target_id: Some("tab-x".to_string()),
+                timeout_ms: None,
+                content_id: Some("content-1".to_string()),
+                project_id: Some("project-1".to_string()),
+                save_title: Some("Google Cloud Tech 文章转存".to_string()),
+                require_attached_session: Some(true),
+                skill_title: Some("X 文章转存".to_string()),
+            },
+            adapter: Some(SiteAdapterDefinition {
+                name: "x/article-export".to_string(),
+                domain: "x.com".to_string(),
+                description: "导出 X 文章为 Markdown。".to_string(),
+                read_only: true,
+                capabilities: vec!["export".to_string()],
+                input_schema: serde_json::json!({}),
+                example_args: serde_json::json!({
+                    "url": "https://x.com/example/article/1"
+                }),
+                example: "x/article-export {\"url\":\"https://x.com/example/article/1\"}"
+                    .to_string(),
+                auth_hint: None,
+                source_kind: Some("server_synced".to_string()),
+                source_version: Some("2026-04-07".to_string()),
+            }),
+            result: SiteAdapterRunResult {
+                ok: true,
+                adapter: "x/article-export".to_string(),
+                domain: "x.com".to_string(),
+                profile_key: "attached-x".to_string(),
+                session_id: Some("session-1".to_string()),
+                target_id: Some("tab-x".to_string()),
+                entry_url: "https://x.com/GoogleCloudTech/article/2033953579824758855".to_string(),
+                source_url: Some(
+                    "https://x.com/GoogleCloudTech/article/2033953579824758855".to_string(),
+                ),
+                data: Some(serde_json::json!({
+                    "export_kind": "markdown_bundle",
+                    "title": "Google Cloud Tech",
+                    "markdown": "# Example\n\n![封面图](images/cover.png)\n\nHello world"
+                })),
+                error_code: None,
+                error_message: None,
+                auth_hint: None,
+                report_hint: None,
+                saved_content: Some(SavedSiteAdapterContent {
+                    content_id: "content-1".to_string(),
+                    project_id: "project-1".to_string(),
+                    title: "Google Cloud Tech 文章转存".to_string(),
+                    project_root_path: Some("/tmp/project".to_string()),
+                    bundle_relative_dir: Some("saved/x-article-export".to_string()),
+                    markdown_relative_path: Some("saved/x-article-export/index.md".to_string()),
+                    images_relative_dir: Some("saved/x-article-export/images".to_string()),
+                    meta_relative_path: Some("saved/x-article-export/meta.json".to_string()),
+                    image_count: Some(1),
+                }),
+                saved_project_id: Some("project-1".to_string()),
+                saved_by: Some("context_project".to_string()),
+                save_skipped_project_id: None,
+                save_skipped_by: None,
+                save_error_message: None,
+            },
+        };
+
+        let merged = merge_system_prompt_with_service_skill_launch_preload(
+            Some("你是助手".to_string()),
+            Some(&execution),
+        )
+        .expect("should contain preload prompt");
+
+        assert!(merged.contains("Markdown 正文翻译成中文"));
+        assert!(merged.contains("/tmp/project/saved/x-article-export/index.md"));
+        assert!(merged.contains("只允许新增 Read / Write / Edit"));
+        assert!(merged.contains("必须先用 Read 读取"));
+        assert!(merged.contains("必须用 Write 覆写同一路径"));
+        assert!(merged.contains("代码块、内联代码、URL、图片路径"));
+        assert!(merged.contains("不要破坏这些相对图片引用"));
     }
 
     #[test]
@@ -5450,7 +5544,124 @@ mod tests {
         assert!(merged.contains("attached_session_required"));
         assert!(merged.contains("先连接并附着到目标站点页面"));
         assert!(merged.contains("不要再次尝试调用 lime_site_run"));
+        assert!(merged.contains("webReader"));
         assert!(merged.contains("请先连接并停留在 github.com。"));
+    }
+
+    #[test]
+    fn test_build_service_skill_preload_tool_projection_emits_site_metadata() {
+        let execution = ServiceSkillLaunchPreloadExecution {
+            request: RunSiteAdapterRequest {
+                adapter_name: "x/article-export".to_string(),
+                args: serde_json::json!({
+                    "url": "https://x.com/GoogleCloudTech/article/2033953579824758855"
+                }),
+                profile_key: Some("attached-x".to_string()),
+                target_id: Some("tab-x".to_string()),
+                timeout_ms: None,
+                content_id: Some("content-1".to_string()),
+                project_id: Some("project-1".to_string()),
+                save_title: Some("Google Cloud Tech 文章转存".to_string()),
+                require_attached_session: Some(true),
+                skill_title: Some("X 文章转存".to_string()),
+            },
+            adapter: Some(SiteAdapterDefinition {
+                name: "x/article-export".to_string(),
+                domain: "x.com".to_string(),
+                description: "导出 X 文章为 Markdown。".to_string(),
+                read_only: true,
+                capabilities: vec!["export".to_string()],
+                input_schema: serde_json::json!({}),
+                example_args: serde_json::json!({
+                    "url": "https://x.com/example/article/1"
+                }),
+                example: "x/article-export {\"url\":\"https://x.com/example/article/1\"}"
+                    .to_string(),
+                auth_hint: None,
+                source_kind: Some("server_synced".to_string()),
+                source_version: Some("2026-04-07".to_string()),
+            }),
+            result: SiteAdapterRunResult {
+                ok: true,
+                adapter: "x/article-export".to_string(),
+                domain: "x.com".to_string(),
+                profile_key: "attached-x".to_string(),
+                session_id: Some("session-1".to_string()),
+                target_id: Some("tab-x".to_string()),
+                entry_url: "https://x.com/GoogleCloudTech/article/2033953579824758855".to_string(),
+                source_url: Some(
+                    "https://x.com/GoogleCloudTech/article/2033953579824758855".to_string(),
+                ),
+                data: Some(serde_json::json!({
+                    "title": "Google Cloud Tech"
+                })),
+                error_code: None,
+                error_message: None,
+                auth_hint: None,
+                report_hint: None,
+                saved_content: Some(SavedSiteAdapterContent {
+                    content_id: "content-1".to_string(),
+                    project_id: "project-1".to_string(),
+                    title: "Google Cloud Tech 文章转存".to_string(),
+                    project_root_path: Some("/tmp/project".to_string()),
+                    bundle_relative_dir: Some("saved/x-article-export".to_string()),
+                    markdown_relative_path: Some("saved/x-article-export/article.md".to_string()),
+                    images_relative_dir: Some("saved/x-article-export/images".to_string()),
+                    meta_relative_path: Some("saved/x-article-export/meta.json".to_string()),
+                    image_count: Some(2),
+                }),
+                saved_project_id: Some("project-1".to_string()),
+                saved_by: Some("context_project".to_string()),
+                save_skipped_project_id: None,
+                save_skipped_by: None,
+                save_error_message: None,
+            },
+        };
+
+        let projection = build_service_skill_preload_tool_projection(&execution)
+            .expect("should build preload projection");
+
+        assert_eq!(projection.tool_name, "lime_site_run");
+        assert!(projection.tool_id.starts_with("service-skill-preload:"));
+        assert!(projection
+            .arguments
+            .contains("\"execution_origin\":\"preload\""));
+        assert!(projection
+            .arguments
+            .contains("\"skill_title\":\"X 文章转存\""));
+        assert!(projection.result.success);
+        assert!(projection.result.output.contains("已完成站点技能预执行"));
+        assert!(projection.result.output.contains("图片资源：2 张"));
+
+        let metadata = projection.result.metadata.expect("metadata should exist");
+        assert_eq!(
+            metadata.get("tool_family"),
+            Some(&serde_json::json!("site"))
+        );
+        assert_eq!(
+            metadata.get("execution_origin"),
+            Some(&serde_json::json!("preload"))
+        );
+        assert_eq!(
+            metadata.get("adapter_source_kind"),
+            Some(&serde_json::json!("server_synced"))
+        );
+        assert_eq!(
+            metadata.get("adapter_source_version"),
+            Some(&serde_json::json!("2026-04-07"))
+        );
+        let result = metadata
+            .get("result")
+            .and_then(serde_json::Value::as_object)
+            .expect("result metadata should exist");
+        let saved_content = result
+            .get("saved_content")
+            .and_then(serde_json::Value::as_object)
+            .expect("saved content should exist");
+        assert_eq!(
+            saved_content.get("markdown_relative_path"),
+            Some(&serde_json::json!("saved/x-article-export/article.md"))
+        );
     }
 
     #[test]
@@ -6303,6 +6514,24 @@ mod tests {
             "web_fetch",
         );
         assert!(exact > partial);
+    }
+
+    #[test]
+    fn test_tool_search_parse_select_query_supports_multiple_names() {
+        let parsed = ToolSearchBridgeTool::parse_select_query("select:Read, mcp__docs__search");
+        assert_eq!(
+            parsed,
+            Some(vec!["Read".to_string(), "mcp__docs__search".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_tool_search_select_match_rank_supports_native_aliases() {
+        let requested = vec!["read_file".to_string(), "Write".to_string()];
+        let read_rank = ToolSearchBridgeTool::select_match_rank(&requested, "Read");
+        let write_rank = ToolSearchBridgeTool::select_match_rank(&requested, "Write");
+        assert_eq!(read_rank, Some(100_000));
+        assert_eq!(write_rank, Some(99_999));
     }
 
     #[test]

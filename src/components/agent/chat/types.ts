@@ -133,6 +133,10 @@ export interface SiteSavedContentTarget {
   projectId: string;
   contentId: string;
   title?: string;
+  preferredTarget?: "saved_content" | "project_file";
+  projectFile?: {
+    relativePath: string;
+  };
 }
 
 export type PendingA2UISource =
@@ -143,6 +147,12 @@ export type PendingA2UISource =
   | {
       kind: "action_request";
       requestId: string;
+    }
+  | {
+      kind: "scene_gate";
+      gateKey: string;
+      sceneKey: string;
+      messageId?: undefined;
     };
 
 // ============ 权限确认相关类型 ============

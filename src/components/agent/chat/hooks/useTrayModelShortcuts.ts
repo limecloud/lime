@@ -17,6 +17,7 @@ import type {
   ProviderAliasConfig,
 } from "@/lib/types/modelRegistry";
 import {
+  findConfiguredProviderBySelection,
   loadConfiguredProviders,
   type ConfiguredProvider,
 } from "@/hooks/useConfiguredProviders";
@@ -264,8 +265,10 @@ export async function buildTrayPayload(
         "别名模型配置",
       ),
     ]);
-    const currentProvider =
-      providers.find((item) => item.key === providerType) || null;
+    const currentProvider = findConfiguredProviderBySelection(
+      providers,
+      providerType,
+    );
 
     return {
       current_model_provider_type: providerType,

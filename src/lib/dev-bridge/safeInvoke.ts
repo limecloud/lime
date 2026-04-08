@@ -18,7 +18,10 @@ import {
   normalizeDevBridgeError,
 } from "./http-client";
 import { invokeExplicitMock, listenExplicitMock } from "./explicitMockFallback";
-import { shouldPreferMockInBrowser } from "./mockPriorityCommands";
+import {
+  shouldDisallowMockFallbackInBrowser,
+  shouldPreferMockInBrowser,
+} from "./mockPriorityCommands";
 import {
   getTauriGlobal,
   hasTauriEventCapability,
@@ -374,7 +377,8 @@ export function clearInvokeTraceBuffer(): void {
 /**
  * 安全的 Tauri invoke 封装
  * 支持三种模式：Tauri IPC → HTTP Bridge → Mock。
- * 在浏览器开发模式下，HTTP Bridge 失败会直接报错，不再静默回退到 mock。
+ * 在浏览器开发模式下，模型 / Provider / Agent 运行时等真相命令
+ * 若 HTTP Bridge 失败，会直接报错；其余非真相命令才允许回退到 mock。
  */
 export async function safeInvoke<T = any>(
   cmd: string,
@@ -475,6 +479,11 @@ export async function safeInvoke<T = any>(
         startedAt,
         normalizedError,
       );
+
+      if (shouldDisallowMockFallbackInBrowser(cmd)) {
+        finishInvokeTiming(timingId, cmd, "http-bridge", "error");
+        throw normalizedError;
+      }
 
       try {
         const result = await invokeFallbackTransport<T>(cmd, args);

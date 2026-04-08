@@ -4,6 +4,7 @@ import {
   buildServiceSceneLaunchRequestMetadata,
   matchesRuntimeSceneEntry,
   parseRuntimeSceneCommand,
+  RuntimeSceneLaunchValidationError,
   resolveRuntimeSceneLaunchRequest,
 } from "./serviceSkillSceneLaunch";
 
@@ -90,6 +91,16 @@ function createXArticleExportSkill(): ServiceSkillHomeItem {
         type: "url",
         required: true,
         placeholder: "https://x.com/<账号>/article/<文章ID>",
+        helpText: "支持 x.com 和 twitter.com 的 Article 链接。",
+      },
+      {
+        key: "target_language",
+        label: "目标语言",
+        type: "text",
+        required: false,
+        defaultValue: "中文",
+        placeholder: "例如 中文、英文、日文",
+        helpText: "仅翻译正文，代码块、链接和图片路径保持原样。",
       },
     ],
     readinessRequirements: {
@@ -103,6 +114,7 @@ function createXArticleExportSkill(): ServiceSkillHomeItem {
       saveMode: "project_resource",
       slotArgMap: {
         article_url: "url",
+        target_language: "target_language",
       },
     },
     sceneBinding: {
@@ -285,6 +297,7 @@ describe("serviceSkillSceneLaunch", () => {
           content_id: undefined,
           args: {
             url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
+            target_language: "中文",
           },
           launch_readiness: {
             status: "ready",
@@ -299,7 +312,7 @@ describe("serviceSkillSceneLaunch", () => {
     });
   });
 
-  it("site skill scene 缺少当前项目时应回退默认项目", async () => {
+  it("site skill scene 缺少当前项目时应显式报错", async () => {
     mockGetSkillCatalog.mockResolvedValueOnce({ entries: [] });
     mockListSkillCatalogSceneEntries.mockReturnValueOnce([
       {
@@ -315,28 +328,79 @@ describe("serviceSkillSceneLaunch", () => {
       },
     ]);
 
-    const request = await resolveRuntimeSceneLaunchRequest({
-      rawText:
-        "/x文章转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
-      serviceSkills: [createXArticleExportSkill()],
-      projectId: null,
-      contentId: null,
+    let capturedError: RuntimeSceneLaunchValidationError | null = null;
+    try {
+      await resolveRuntimeSceneLaunchRequest({
+        rawText:
+          "/x文章转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
+        serviceSkills: [createXArticleExportSkill()],
+        projectId: null,
+        contentId: null,
+      });
+    } catch (error) {
+      capturedError = error as RuntimeSceneLaunchValidationError;
+    }
+
+    expect(capturedError).toBeInstanceOf(RuntimeSceneLaunchValidationError);
+    expect(capturedError?.message).toBe(
+      "还需要选择项目工作区，补齐后再继续。",
+    );
+    expect(capturedError?.gateRequest).toMatchObject({
+      sceneKey: "x-article-export",
+      commandPrefix: "/x文章转存",
+      skillId: "x-article-export",
+      fields: [
+        {
+          kind: "project",
+          key: "project_id",
+          label: "项目工作区",
+        },
+      ],
     });
 
-    expect(mockGetOrCreateDefaultProject).toHaveBeenCalledTimes(1);
-    expect(request).not.toBeNull();
-    const requestMetadata = buildServiceSceneLaunchRequestMetadata(
-      undefined,
-      request!.requestContext,
-    );
+    expect(mockGetOrCreateDefaultProject).not.toHaveBeenCalled();
+  });
 
-    expect(requestMetadata).toMatchObject({
-      harness: {
-        service_skill_launch: {
-          project_id: "project-default",
-          adapter_name: "x/article-export",
-        },
+  it("site skill scene 缺少必填 slot 时应返回可恢复的 gate request", async () => {
+    mockGetSkillCatalog.mockResolvedValueOnce({ entries: [] });
+    mockListSkillCatalogSceneEntries.mockReturnValueOnce([
+      {
+        id: "scene:x-article-export",
+        kind: "scene",
+        title: "X文章转存",
+        summary: "把 X 长文导出成 Markdown。",
+        sceneKey: "x-article-export",
+        commandPrefix: "/x文章转存",
+        aliases: ["x文章转存", "x转存"],
+        linkedSkillId: "x-article-export",
+        executionKind: "site_adapter",
       },
+    ]);
+
+    let capturedError: RuntimeSceneLaunchValidationError | null = null;
+    try {
+      await resolveRuntimeSceneLaunchRequest({
+        rawText: "/x文章转存",
+        serviceSkills: [createXArticleExportSkill()],
+        projectId: "project-1",
+        contentId: null,
+      });
+    } catch (error) {
+      capturedError = error as RuntimeSceneLaunchValidationError;
+    }
+
+    expect(capturedError).toBeInstanceOf(RuntimeSceneLaunchValidationError);
+    expect(capturedError?.message).toBe("还差X 文章链接，补齐后再继续。");
+    expect(capturedError?.gateRequest).toMatchObject({
+      sceneKey: "x-article-export",
+      fields: [
+        {
+          kind: "slot",
+          key: "article_url",
+          label: "X 文章链接",
+          slotType: "url",
+        },
+      ],
     });
   });
 

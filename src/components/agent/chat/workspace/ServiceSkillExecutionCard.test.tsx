@@ -129,4 +129,52 @@ describe("ServiceSkillExecutionCard", () => {
       ),
     ).toBeNull();
   });
+
+  it("成功态存在导出 Markdown 时应展示当前工作区预览入口", () => {
+    const onOpenSavedSiteContent = vi.fn();
+    const container = renderCard({
+      onOpenSavedSiteContent,
+      state: {
+        phase: "success",
+        adapterName: "x/article-export",
+        skillTitle: "X 文章转存",
+        message: "站点技能已完成，Markdown 与图片已保存到项目资源",
+        result: {
+          ok: true,
+          adapter: "x/article-export",
+          domain: "x.com",
+          profile_key: "attached-x",
+          entry_url:
+            "https://x.com/GoogleCloudTech/article/2033953579824758855",
+          saved_content: {
+            content_id: "content-article-1",
+            project_id: "project-article-1",
+            title: "Google Cloud Tech 文章导出",
+            markdown_relative_path:
+              "exports/x-article-export/google-cloud/index.md",
+          },
+        },
+      },
+    });
+
+    const button = container.querySelector(
+      '[data-testid="service-skill-execution-open-saved-content"]',
+    ) as HTMLButtonElement | null;
+
+    expect(button?.textContent).toContain("在下方预览导出 Markdown");
+
+    act(() => {
+      button?.click();
+    });
+
+    expect(onOpenSavedSiteContent).toHaveBeenCalledWith({
+      projectId: "project-article-1",
+      contentId: "content-article-1",
+      title: "Google Cloud Tech 文章导出",
+      preferredTarget: "project_file",
+      projectFile: {
+        relativePath: "exports/x-article-export/google-cloud/index.md",
+      },
+    });
+  });
 });

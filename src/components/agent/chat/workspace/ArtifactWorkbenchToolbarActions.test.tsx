@@ -135,7 +135,14 @@ describe("ArtifactWorkbenchToolbarActions", () => {
       archiveLabel: "取消归档",
     });
 
-    expect(container.textContent).toContain("保存中");
-    expect(container.textContent).toContain("处理中");
+    const saveButton = container.querySelector(
+      '[data-testid="artifact-workbench-save-to-project"]',
+    ) as HTMLButtonElement | null;
+    const archiveButton = container.querySelector(
+      '[data-testid="artifact-workbench-archive-toggle"]',
+    ) as HTMLButtonElement | null;
+
+    expect(saveButton?.title).toBe("保存中");
+    expect(archiveButton?.title).toBe("处理中");
   });
 });

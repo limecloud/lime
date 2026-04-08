@@ -278,6 +278,7 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
       expect.objectContaining({
         kind: "skill",
         entryId: "content_post_with_cover",
+        replayText: "写一版主稿",
       }),
     ]);
   });
@@ -329,6 +330,15 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
       assistantMsgId: "assistant-1",
       providerType: "anthropic",
       model: "claude-sonnet-4-20250514",
+      requestMetadata: {
+        harness: {
+          publish_command: {
+            intent: "preview",
+            platform_label: "小红书",
+            entry_source: "at_channel_preview_command",
+          },
+        },
+      },
       ensureSession: async () => "session-1",
       setMessages: store.setMessages,
       setIsSending: vi.fn(),
@@ -350,6 +360,11 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
         artifactId: "artifact-1",
         source: "artifact_snapshot",
         status: "streaming",
+        metadata: expect.objectContaining({
+          contentPostIntent: "preview",
+          contentPostLabel: "渠道预览稿",
+          contentPostPlatformLabel: "小红书",
+        }),
       }),
     );
   });
@@ -373,6 +388,15 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
       assistantMsgId: "assistant-1",
       providerType: "anthropic",
       model: "claude-sonnet-4-20250514",
+      requestMetadata: {
+        harness: {
+          publish_command: {
+            intent: "upload",
+            platform_label: "微信公众号后台",
+            entry_source: "at_upload_command",
+          },
+        },
+      },
       ensureSession: async () => "session-1",
       setMessages: store.setMessages,
       setIsSending: vi.fn(),
@@ -393,6 +417,13 @@ describe("tryExecuteSlashSkillCommand 社媒主链路", () => {
     expect(filePathArg).toMatch(
       /^content-posts\/\d{8}-\d{6}-[a-z0-9-]+-[a-z0-9]{3,6}\.md$/,
     );
+    expect(onWriteFile.mock.calls[0]?.[2]).toMatchObject({
+      metadata: expect.objectContaining({
+        contentPostIntent: "upload",
+        contentPostLabel: "上传稿",
+        contentPostPlatformLabel: "微信公众号后台",
+      }),
+    });
   });
 
   it("非社媒技能在无 write_file 时不应触发兜底写入", async () => {

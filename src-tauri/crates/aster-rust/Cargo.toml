@@ -1,0 +1,40 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.27.2"
+authors = ["AsterCloud"]
+license = "Apache-2.0"
+repository = "https://github.com/astercloud/aster-rust"
+description = "Aster - An AI agent framework"
+
+[workspace.lints.clippy]
+uninlined_format_args = "allow"
+string_slice = "warn"
+
+[workspace.dependencies]
+rmcp = { version = "0.12.0", features = ["schemars", "auth"] }
+sacp = "10.0.0"
+webbrowser = "1.0"
+which = "8.0.0"
+etcetera = "0.11.0"
+ignore = "0.4.25"
+tokio = { version = "1.43", features = [
+    "macros",
+    "rt-multi-thread",
+    "sync",
+    "time",
+    "fs",
+    "io-util",
+    "io-std",
+    "net",
+    "process",
+    "signal",
+] }
+reqwest = { version = "0.12.9", default-features = false }
+
+# Patch for Windows cross-compilation issue with crunchy
+[patch.crates-io]
+crunchy = { git = "https://github.com/nmathewson/crunchy", branch = "cross-compilation-fix" }

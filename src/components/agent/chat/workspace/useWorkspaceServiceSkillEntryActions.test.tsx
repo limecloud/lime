@@ -662,7 +662,7 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
       runnerType: "instant",
     });
     expect(mockToastLoading).toHaveBeenCalledWith(
-      "正在提交 云端视频配音 到云端...",
+      "正在开始 云端视频配音 的云端执行...",
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "云端视频配音 云端运行完成：云端结果已生成，正在回流本地工作区。",

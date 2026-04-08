@@ -90,6 +90,7 @@ export function useWorkspaceContextHarnessRuntime({
         ? "active"
         : "idle";
   const navbarHarnessPanelVisible = workbenchEnabled && harnessPanelVisible;
+  const harnessToggleLabel = workbenchEnabled ? "工作台" : undefined;
   const visibleContextItems = useMemo(() => {
     if (!workbenchEnabled) {
       return [];
@@ -175,6 +176,7 @@ export function useWorkspaceContextHarnessRuntime({
     showHarnessToggle,
     harnessAttentionLevel,
     navbarHarnessPanelVisible,
+    harnessToggleLabel,
     harnessEnvironment,
     handleToggleHarnessPanel,
     activeRuntimeStatusTitle,

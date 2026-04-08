@@ -27,6 +27,7 @@ import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import {
   CONTENT_POST_OUTPUT_DIR,
   CONTENT_POST_SKILL_KEY,
+  mergeContentPostArtifactMetadata,
 } from "../utils/contentPostSkill";
 import {
   buildImageTaskPreviewFromToolResult,
@@ -54,6 +55,7 @@ export interface SlashSkillExecutionContext {
   model?: string;
   images?: MessageImage[];
   requestContext?: Record<string, unknown>;
+  requestMetadata?: Record<string, unknown>;
   ensureSession: () => Promise<string | null>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setIsSending: (value: boolean) => void;
@@ -231,6 +233,9 @@ function tryHandleToolWriteFile(
     context?: WriteArtifactContext,
   ) => void,
   assistantMsgId?: string,
+  resolveAdditionalMetadata?: (
+    filePath: string,
+  ) => Record<string, unknown> | undefined,
 ) {
   if (!onWriteFile || !toolArguments) {
     return;
@@ -262,6 +267,7 @@ function tryHandleToolWriteFile(
         source: "tool_start",
         sourceMessageId: assistantMsgId,
         status: "streaming",
+        metadata: resolveAdditionalMetadata?.(filePath),
       });
     }
   } catch (error) {
@@ -376,6 +382,7 @@ export async function tryExecuteSlashSkillCommand(
     model,
     images,
     requestContext,
+    requestMetadata,
     ensureSession,
     setMessages,
     setIsSending,
@@ -474,6 +481,20 @@ export async function tryExecuteSlashSkillCommand(
   let accumulatedContent = "";
   let skillUnlisten: UnlistenFn | null = null;
   let stepUnlisteners: UnlistenFn[] = [];
+  const resolveArtifactMetadata = (
+    filePath: string,
+    metadata?: Record<string, unknown>,
+  ) => {
+    if (command.skillName !== CONTENT_POST_SKILL_KEY) {
+      return metadata;
+    }
+
+    return mergeContentPostArtifactMetadata({
+      filePath,
+      metadata,
+      requestMetadata,
+    });
+  };
 
   const cleanup = () => {
     if (skillUnlisten) {
@@ -544,6 +565,7 @@ export async function tryExecuteSlashSkillCommand(
             streamEvent.arguments,
             onWriteFile,
             assistantMsgId,
+            (filePath) => resolveArtifactMetadata(filePath),
           );
 
           const newToolCall = {
@@ -681,10 +703,13 @@ export async function tryExecuteSlashSkillCommand(
                     source: "tool_result",
                     sourceMessageId: assistantMsgId,
                     status: success ? "complete" : "error",
-                    metadata: {
-                      ...toolResultArtifact.metadata,
-                      writePhase: success ? "completed" : "failed",
-                    },
+                    metadata: resolveArtifactMetadata(
+                      toolResultArtifact.filePath,
+                      {
+                        ...toolResultArtifact.metadata,
+                        writePhase: success ? "completed" : "failed",
+                      },
+                    ),
                   },
                 });
 
@@ -724,7 +749,10 @@ export async function tryExecuteSlashSkillCommand(
               source: "tool_result",
               sourceMessageId: assistantMsgId,
               status: finalizedArtifact.status,
-              metadata: finalizedArtifact.meta,
+              metadata: resolveArtifactMetadata(
+                finalizedArtifactPath,
+                finalizedArtifact.meta,
+              ),
             });
           }
           break;
@@ -746,7 +774,10 @@ export async function tryExecuteSlashSkillCommand(
               source: "artifact_snapshot",
               sourceMessageId: assistantMsgId,
               status: resolveSnapshotStatus(streamEvent.artifact.metadata),
-              metadata: streamEvent.artifact.metadata,
+              metadata: resolveArtifactMetadata(
+                filePath,
+                streamEvent.artifact.metadata,
+              ),
             },
           );
           break;
@@ -912,13 +943,22 @@ ${failureText}`
     ) {
       const seed = command.userInput || command.skillName;
       const fallbackPath = buildSocialPostFallbackPath(seed, assistantMsgId);
-      onWriteFile(finalContent, fallbackPath);
+      onWriteFile(finalContent, fallbackPath, {
+        artifactId: `artifact:${assistantMsgId}:${fallbackPath}`,
+        source: "message_content",
+        sourceMessageId: assistantMsgId,
+        status: "complete",
+        metadata: resolveArtifactMetadata(fallbackPath, {
+          writePhase: "completed",
+        }),
+      });
     }
 
     if (!failure) {
       recordSlashEntryUsage({
         kind: "skill",
         entryId: command.skillName,
+        replayText: command.userInput,
       });
     }
 

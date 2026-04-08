@@ -4,8 +4,10 @@
 
 use crate::config::{Config, ToolCallingConfig};
 use crate::env_compat;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 const ENV_TOOLCALL_V2_ENABLED: &[&str] =
@@ -154,34 +156,297 @@ pub fn tool_matches_caller(metadata: &ToolSurfaceMetadata, caller: Option<&str>)
     allowed_callers.iter().any(|item| item == &caller)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedToolSearchName {
+    parts: Vec<String>,
+    full: String,
+    is_prefixed: bool,
+    inner_name: Option<String>,
+}
+
+fn tool_search_lookup_key(value: &str) -> String {
+    value
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .map(|character| character.to_ascii_lowercase())
+        .collect()
+}
+
+fn native_tool_search_aliases(name: &str) -> &'static [&'static str] {
+    match tool_search_lookup_key(name).as_str() {
+        "read" | "readtool" => &[
+            "read_file",
+            "read file",
+            "open file",
+            "workspace file",
+            "project file",
+        ],
+        "write" | "writetool" => &[
+            "write_file",
+            "write file",
+            "create_file",
+            "create file",
+            "save file",
+            "workspace file",
+            "project file",
+        ],
+        "edit" | "edittool" => &[
+            "edit_file",
+            "edit file",
+            "modify file",
+            "patch file",
+            "workspace file",
+            "project file",
+        ],
+        "glob" | "globtool" => &[
+            "find_files",
+            "find files",
+            "file_search",
+            "list files",
+            "path search",
+        ],
+        "grep" | "greptool" => &[
+            "search_files",
+            "search files",
+            "search in files",
+            "content search",
+            "text search",
+        ],
+        "askuserquestion" | "askuserquestiontool" => {
+            &["request_user_input", "ask user", "user input"]
+        }
+        "toolsearch" | "toolsearchtool" => &["tool lookup", "search tools", "find tool"],
+        _ => &[],
+    }
+}
+
+fn split_tool_search_identifier(value: &str) -> Vec<String> {
+    let characters = value.chars().collect::<Vec<_>>();
+    let mut normalized = String::with_capacity(value.len() + 8);
+
+    for (index, character) in characters.iter().enumerate() {
+        let previous = index
+            .checked_sub(1)
+            .and_then(|position| characters.get(position))
+            .copied();
+        let next = characters.get(index + 1).copied();
+
+        if character.is_ascii_uppercase() {
+            let split_before = previous.is_some_and(|previous| {
+                previous.is_ascii_lowercase()
+                    || previous.is_ascii_digit()
+                    || (previous.is_ascii_uppercase()
+                        && next.is_some_and(|next| next.is_ascii_lowercase()))
+            });
+            if split_before && !normalized.ends_with(' ') {
+                normalized.push(' ');
+            }
+            normalized.push(character.to_ascii_lowercase());
+            continue;
+        }
+
+        if character.is_ascii_alphanumeric() {
+            normalized.push(character.to_ascii_lowercase());
+            continue;
+        }
+
+        if !normalized.ends_with(' ') {
+            normalized.push(' ');
+        }
+    }
+
+    normalized
+        .split_whitespace()
+        .filter(|part| !part.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn parse_tool_search_name(name: &str) -> ParsedToolSearchName {
+    let trimmed = name.trim();
+    let without_mcp_prefix = trimmed.strip_prefix("mcp__").unwrap_or(trimmed);
+    let is_prefixed = without_mcp_prefix.contains("__");
+    let segments = if is_prefixed {
+        without_mcp_prefix.split("__").collect::<Vec<_>>()
+    } else {
+        vec![without_mcp_prefix]
+    };
+    let parts = segments
+        .iter()
+        .flat_map(|segment| split_tool_search_identifier(segment))
+        .collect::<Vec<_>>();
+
+    ParsedToolSearchName {
+        full: parts.join(" "),
+        parts,
+        is_prefixed,
+        inner_name: (segments.len() > 1)
+            .then(|| segments.last().unwrap_or(&"").to_ascii_lowercase()),
+    }
+}
+
+fn compile_tool_search_term_patterns(terms: &[&str]) -> HashMap<String, Regex> {
+    let mut patterns = HashMap::new();
+    for term in terms {
+        patterns.entry((*term).to_string()).or_insert_with(|| {
+            Regex::new(&format!(r"\b{}\b", regex::escape(term)))
+                .expect("tool search term regex should compile")
+        });
+    }
+    patterns
+}
+
+pub fn tool_search_exact_match(name: &str, query: &str) -> bool {
+    let query_lower = query.trim().to_ascii_lowercase();
+    if query_lower.is_empty() {
+        return false;
+    }
+
+    if name.eq_ignore_ascii_case(&query_lower) {
+        return true;
+    }
+
+    let query_key = tool_search_lookup_key(&query_lower);
+    if !query_key.is_empty() && tool_search_lookup_key(name) == query_key {
+        return true;
+    }
+
+    let parsed = parse_tool_search_name(name);
+    if parsed.inner_name.as_deref().is_some_and(|inner_name| {
+        inner_name == query_lower || tool_search_lookup_key(inner_name) == query_key
+    }) {
+        return true;
+    }
+
+    native_tool_search_aliases(name).iter().any(|alias| {
+        alias.eq_ignore_ascii_case(&query_lower)
+            || (!query_key.is_empty() && tool_search_lookup_key(alias) == query_key)
+    })
+}
+
 pub fn score_tool_match(name: &str, description: &str, tags: &[String], query: &str) -> i32 {
     let query = query.trim().to_ascii_lowercase();
     if query.is_empty() {
         return 1;
     }
 
+    if tool_search_exact_match(name, &query) {
+        return 200;
+    }
+
     let name_lc = name.to_ascii_lowercase();
-    let description_lc = description.to_ascii_lowercase();
-    let mut score = 0;
-
-    if name_lc == query {
-        score += 120;
-    } else if name_lc.starts_with(&query) {
-        score += 90;
-    } else if name_lc.contains(&query) {
-        score += 70;
+    if query.contains("__") && name_lc.starts_with(&query) {
+        return 160;
     }
 
-    if description_lc.contains(&query) {
-        score += 40;
+    let query_terms = query
+        .split_whitespace()
+        .filter(|term| !term.is_empty())
+        .collect::<Vec<_>>();
+    if query_terms.is_empty() {
+        return 0;
     }
 
-    for tag in tags {
-        if tag == &query {
-            score += 35;
-        } else if tag.contains(&query) {
-            score += 20;
+    let mut required_terms = Vec::new();
+    let mut optional_terms = Vec::new();
+    for term in &query_terms {
+        if let Some(required_term) = term.strip_prefix('+') {
+            if !required_term.is_empty() {
+                required_terms.push(required_term);
+                continue;
+            }
         }
+        optional_terms.push(*term);
+    }
+
+    let scoring_terms = if required_terms.is_empty() {
+        query_terms.clone()
+    } else {
+        required_terms
+            .iter()
+            .copied()
+            .chain(optional_terms.iter().copied())
+            .collect::<Vec<_>>()
+    };
+    let term_patterns = compile_tool_search_term_patterns(&scoring_terms);
+    let parsed = parse_tool_search_name(name);
+    let description_lc = description.to_ascii_lowercase();
+    let aliases = native_tool_search_aliases(name)
+        .iter()
+        .map(|alias| alias.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    let alias_parts = aliases
+        .iter()
+        .map(|alias| split_tool_search_identifier(alias))
+        .collect::<Vec<_>>();
+    let normalized_tags = tags
+        .iter()
+        .map(|tag| tag.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+
+    let required_matches = required_terms.iter().all(|term| {
+        let Some(pattern) = term_patterns.get(*term) else {
+            return false;
+        };
+        parsed
+            .parts
+            .iter()
+            .any(|part| part == term || part.contains(term))
+            || parsed.full.contains(term)
+            || alias_parts
+                .iter()
+                .flatten()
+                .any(|part| part == term || part.contains(term))
+            || normalized_tags
+                .iter()
+                .any(|tag| tag == term || tag.contains(term))
+            || pattern.is_match(&description_lc)
+    });
+    if !required_matches {
+        return 0;
+    }
+
+    let mut score = 0;
+    for term in scoring_terms {
+        let Some(pattern) = term_patterns.get(term) else {
+            continue;
+        };
+
+        let mut term_score = 0;
+
+        if parsed.parts.iter().any(|part| part == term) {
+            term_score += if parsed.is_prefixed { 12 } else { 10 };
+        } else if parsed.parts.iter().any(|part| part.contains(term)) {
+            term_score += if parsed.is_prefixed { 6 } else { 5 };
+        }
+
+        if alias_parts
+            .iter()
+            .any(|parts| parts.iter().any(|part| part == term))
+        {
+            term_score += 9;
+        } else if alias_parts
+            .iter()
+            .any(|parts| parts.iter().any(|part| part.contains(term)))
+        {
+            term_score += 4;
+        }
+
+        if term_score == 0 && parsed.full.contains(term) {
+            term_score += 3;
+        }
+
+        if normalized_tags.iter().any(|tag| tag == term) {
+            term_score += 4;
+        } else if normalized_tags.iter().any(|tag| tag.contains(term)) {
+            term_score += 2;
+        }
+
+        if pattern.is_match(&description_lc) {
+            term_score += 2;
+        }
+
+        score += term_score;
     }
 
     score
@@ -487,5 +752,56 @@ mod tests {
             "tool_search",
         );
         assert!(exact > partial);
+    }
+
+    #[test]
+    fn test_score_tool_match_supports_native_aliases() {
+        let exact = score_tool_match("Read", "Read file contents", &[], "read_file");
+        let partial = score_tool_match("WebSearch", "Search the web", &[], "read_file");
+        assert!(exact > partial);
+    }
+
+    #[test]
+    fn test_score_tool_match_supports_required_terms() {
+        let matched = score_tool_match(
+            "mcp__slack__send_message",
+            "Send a Slack message",
+            &["slack".to_string()],
+            "+slack send",
+        );
+        let filtered = score_tool_match(
+            "mcp__github__send_issue",
+            "Send a GitHub issue",
+            &["github".to_string()],
+            "+slack send",
+        );
+        assert!(matched > 0);
+        assert_eq!(filtered, 0);
+    }
+
+    #[test]
+    fn test_tool_search_exact_match_supports_native_alias() {
+        assert!(tool_search_exact_match("Read", "read_file"));
+        assert!(tool_search_exact_match(
+            "mcp__playwright__browser_click",
+            "browser_click"
+        ));
+    }
+
+    #[test]
+    fn test_score_tool_match_boosts_workspace_file_queries_for_file_tools() {
+        let file_tool = score_tool_match(
+            "Read",
+            "Enhanced multimodal file reader with intelligent analysis capabilities.",
+            &[],
+            "workspace project file",
+        );
+        let unrelated = score_tool_match(
+            "WebSearch",
+            "Search the public web for information.",
+            &[],
+            "workspace project file",
+        );
+        assert!(file_tool > unrelated);
     }
 }

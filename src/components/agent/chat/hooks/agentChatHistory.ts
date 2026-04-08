@@ -210,6 +210,58 @@ function mergeTaskPreview(
   };
 }
 
+function contentPartContainsProcess(part: ContentPart): boolean {
+  return part.type !== "text";
+}
+
+function mergeByKey<T>(
+  localItems: T[] | undefined,
+  remoteItems: T[] | undefined,
+  getKey: (item: T) => string,
+): T[] | undefined {
+  const local = Array.isArray(localItems) ? localItems : [];
+  const remote = Array.isArray(remoteItems) ? remoteItems : [];
+
+  if (local.length === 0) {
+    return remote.length > 0 ? remote : undefined;
+  }
+  if (remote.length === 0) {
+    return local;
+  }
+
+  const merged = new Map<string, T>();
+  for (const item of local) {
+    merged.set(getKey(item), item);
+  }
+  for (const item of remote) {
+    merged.set(getKey(item), item);
+  }
+  return Array.from(merged.values());
+}
+
+function mergeHydratedContentParts(
+  localParts?: ContentPart[],
+  remoteParts?: ContentPart[],
+): ContentPart[] | undefined {
+  const local = Array.isArray(localParts) ? localParts : [];
+  const remote = Array.isArray(remoteParts) ? remoteParts : [];
+
+  if (local.length === 0) {
+    return remote.length > 0 ? remote : undefined;
+  }
+  if (remote.length === 0) {
+    return local;
+  }
+
+  const localHasProcess = local.some(contentPartContainsProcess);
+  const remoteHasProcess = remote.some(contentPartContainsProcess);
+  if (localHasProcess && !remoteHasProcess) {
+    return local;
+  }
+
+  return remote;
+}
+
 function normalizePreviewSignatureValue(value: unknown): string {
   if (typeof value === "string") {
     return normalizeSignatureText(value);
@@ -485,6 +537,27 @@ const findMatchingLocalAssistantMessageIndex = (
     }
   }
 
+  const fallbackSignature = buildAssistantHydrationSignature(targetMessage);
+  if (!fallbackSignature) {
+    return -1;
+  }
+
+  for (
+    let index = startIndex;
+    index < localAssistantMessages.length;
+    index += 1
+  ) {
+    const candidate = localAssistantMessages[index];
+    if (!candidate) {
+      continue;
+    }
+
+    const candidateSignature = buildAssistantHydrationSignature(candidate);
+    if (candidateSignature === fallbackSignature) {
+      return index;
+    }
+  }
+
   return -1;
 };
 
@@ -564,17 +637,55 @@ export const mergeHydratedMessagesWithLocalState = (
         ? localTaskPreviewByTaskId.get(message.taskPreview.taskId)
         : undefined;
 
-      if (
-        !localImagePreview &&
-        !localTaskPreview &&
-        !localAssistantMessage?.usage
-      ) {
+      if (!localImagePreview && !localTaskPreview && !localAssistantMessage) {
         return message;
       }
+
+      const contentParts = mergeHydratedContentParts(
+        localAssistantMessage?.contentParts,
+        message.contentParts,
+      );
+      const toolCalls = mergeByKey(
+        localAssistantMessage?.toolCalls,
+        message.toolCalls,
+        (toolCall) => toolCall.id,
+      );
+      const actionRequests = mergeByKey(
+        localAssistantMessage?.actionRequests,
+        message.actionRequests,
+        (request) => request.requestId,
+      );
+      const contextTrace = mergeByKey(
+        localAssistantMessage?.contextTrace,
+        message.contextTrace,
+        (step) => `${step.stage}::${step.detail}`,
+      );
+      const artifacts = (() => {
+        const localArtifacts = localAssistantMessage?.artifacts || [];
+        const remoteArtifacts = message.artifacts || [];
+        if (localArtifacts.length === 0) {
+          return remoteArtifacts.length > 0 ? remoteArtifacts : undefined;
+        }
+        if (remoteArtifacts.length === 0) {
+          return localArtifacts;
+        }
+        const merged = mergeArtifacts([...localArtifacts, ...remoteArtifacts]);
+        return merged.length > 0 ? merged : undefined;
+      })();
+      const thinkingContent =
+        message.thinkingContent ??
+        localAssistantMessage?.thinkingContent ??
+        extractThinkingContentFromParts(contentParts);
 
       return {
         ...message,
         usage: message.usage ?? localAssistantMessage?.usage,
+        contentParts,
+        toolCalls,
+        actionRequests,
+        contextTrace,
+        artifacts,
+        thinkingContent,
         imageWorkbenchPreview: mergeImageWorkbenchPreview(
           localImagePreview,
           message.imageWorkbenchPreview,
@@ -678,6 +789,32 @@ const messageArtifactsSignature = (
       ].join(":");
     })
     .join("|");
+};
+
+const buildAssistantHydrationSignature = (message: Message): string => {
+  const contentSignature = normalizeSignatureText(message.content);
+  const imageSignature = messageImageSignature(message.images);
+  const imagePreviewSignature = imageWorkbenchPreviewSignature(
+    message.imageWorkbenchPreview,
+  );
+  const nextTaskPreviewSignature = taskPreviewSignature(message.taskPreview);
+
+  if (
+    !contentSignature &&
+    !imageSignature &&
+    !imagePreviewSignature &&
+    !nextTaskPreviewSignature
+  ) {
+    return "";
+  }
+
+  return [
+    message.role,
+    contentSignature,
+    imageSignature,
+    imagePreviewSignature,
+    nextTaskPreviewSignature,
+  ].join("::");
 };
 
 const buildHistoryMessageSignature = (message: Message): string => {

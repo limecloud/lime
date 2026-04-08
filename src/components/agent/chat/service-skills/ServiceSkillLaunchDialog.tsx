@@ -8,9 +8,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  A2UIRenderer,
+  type A2UIFormData,
+  type A2UIResponse,
+} from "@/lib/workspace/a2ui";
 import { cn } from "@/lib/utils";
 import {
   siteGetAdapterLaunchReadiness,
@@ -21,6 +23,12 @@ import {
   formatServiceSkillPromptPreview,
   validateServiceSkillSlotValues,
 } from "./promptComposer";
+import {
+  buildServiceSkillSlotFieldA2UI,
+  buildServiceSkillSlotFormData,
+  readServiceSkillSlotValueFromA2UIFormData,
+  toServiceSkillSlotA2UIField,
+} from "./slotFormA2UI";
 import {
   getServiceSkillOutputDestination,
   getServiceSkillPrimaryActionLabel,
@@ -36,7 +44,6 @@ import {
 } from "./siteCapabilityBinding";
 import type {
   ServiceSkillHomeItem,
-  ServiceSkillSlotDefinition,
   ServiceSkillSlotValues,
 } from "./types";
 
@@ -49,6 +56,8 @@ interface ServiceSkillLaunchDialogProps {
   skill: ServiceSkillHomeItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialSlotValues?: ServiceSkillSlotValues;
+  prefillHint?: string;
   onLaunch: (
     skill: ServiceSkillHomeItem,
     slotValues: ServiceSkillSlotValues,
@@ -63,59 +72,80 @@ interface ServiceSkillLaunchDialogProps {
   ) => void | Promise<void>;
 }
 
-function renderFieldControl(params: {
-  slot: ServiceSkillSlotDefinition;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const { slot, value, onChange } = params;
-  const sharedProps = {
-    id: `service-skill-slot-${slot.key}`,
-    "data-testid": `service-skill-slot-${slot.key}`,
+function getServiceSkillSlotFieldId(slotKey: string): string {
+  return `service-skill-slot-${slotKey}`;
+}
+
+function buildServiceSkillSlotA2UIResponse(
+  skill: ServiceSkillHomeItem,
+): A2UIResponse {
+  const components: A2UIResponse["components"] = [];
+  const childIds: string[] = [];
+
+  for (const slot of skill.slotSchema) {
+    const fieldId = getServiceSkillSlotFieldId(slot.key);
+    components.push(
+      buildServiceSkillSlotFieldA2UI(toServiceSkillSlotA2UIField(slot), {
+        fieldId,
+        includeRequiredLabelSuffix: true,
+      }),
+    );
+    childIds.push(fieldId);
+  }
+
+  const rootId = `${skill.id}:service-skill-slot-form`;
+  components.push({
+    id: rootId,
+    component: "Column",
+    children: childIds,
+    gap: 16,
+    align: "stretch",
+  });
+
+  return {
+    id: `service-skill-slot-form:${skill.id}`,
+    root: rootId,
+    components,
+    data: {},
   };
+}
 
-  if (slot.type === "textarea" || slot.type === "account_list") {
-    return (
-      <Textarea
-        {...sharedProps}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={slot.placeholder}
-        className="min-h-[96px]"
-      />
-    );
-  }
-
-  if (slot.type === "enum" || slot.type === "platform") {
-    return (
-      <select
-        {...sharedProps}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={cn(
-          "flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm",
-          "ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
-        )}
-      >
-        <option value="">{slot.placeholder}</option>
-        {(slot.options ?? []).map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
-  return (
-    <Input
-      {...sharedProps}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={slot.placeholder}
-      type={slot.type === "url" ? "url" : "text"}
-    />
+function buildInitialServiceSkillA2UIFormData(
+  skill: ServiceSkillHomeItem,
+  initialSlotValues?: ServiceSkillSlotValues,
+): A2UIFormData {
+  const mergedValues = {
+    ...createDefaultServiceSkillSlotValues(skill),
+    ...(initialSlotValues || {}),
+  };
+  return buildServiceSkillSlotFormData(
+    skill.slotSchema.map(toServiceSkillSlotA2UIField),
+    mergedValues,
+    {
+      fieldIdForKey: getServiceSkillSlotFieldId,
+    },
   );
+}
+
+function readServiceSkillSlotValuesFromA2UIFormData(
+  skill: ServiceSkillHomeItem,
+  formData: A2UIFormData,
+): ServiceSkillSlotValues {
+  const slotValues: ServiceSkillSlotValues = {};
+
+  for (const slot of skill.slotSchema) {
+    const normalizedValue = readServiceSkillSlotValueFromA2UIFormData(
+      formData,
+      getServiceSkillSlotFieldId(slot.key),
+    );
+    if (!normalizedValue) {
+      continue;
+    }
+
+    slotValues[slot.key] = normalizedValue;
+  }
+
+  return slotValues;
 }
 
 function renderInfoList(title: string, items?: string[]) {
@@ -142,11 +172,13 @@ export function ServiceSkillLaunchDialog({
   skill,
   open,
   onOpenChange,
+  initialSlotValues,
+  prefillHint,
   onLaunch,
   onCreateAutomation,
   onOpenBrowserRuntime,
 }: ServiceSkillLaunchDialogProps) {
-  const [slotValues, setSlotValues] = useState<ServiceSkillSlotValues>({});
+  const [formData, setFormData] = useState<A2UIFormData>({});
   const [siteLaunchReadiness, setSiteLaunchReadiness] =
     useState<SiteLaunchReadinessState>({
       phase: "idle",
@@ -156,8 +188,21 @@ export function ServiceSkillLaunchDialog({
     if (!skill || !open) {
       return;
     }
-    setSlotValues(createDefaultServiceSkillSlotValues(skill));
-  }, [open, skill]);
+    setFormData(buildInitialServiceSkillA2UIFormData(skill, initialSlotValues));
+  }, [initialSlotValues, open, skill]);
+
+  const slotValues = useMemo(
+    () =>
+      skill
+        ? readServiceSkillSlotValuesFromA2UIFormData(skill, formData)
+        : {},
+    [formData, skill],
+  );
+
+  const slotFormResponse = useMemo(
+    () => (skill ? buildServiceSkillSlotA2UIResponse(skill) : null),
+    [skill],
+  );
 
   const validation = useMemo(() => {
     if (!skill) {
@@ -203,8 +248,8 @@ export function ServiceSkillLaunchDialog({
   const primaryActionLabel = skill
     ? isSiteSkill
       ? siteLaunchReadiness.phase === "blocked"
-        ? "先准备浏览器再执行"
-        : "在 Claw 中执行"
+        ? "先连接浏览器"
+        : "直接开始"
       : getServiceSkillPrimaryActionLabel(skill, canCreateAutomation)
     : "进入工作区";
   const canLaunchInClaw =
@@ -282,19 +327,19 @@ export function ServiceSkillLaunchDialog({
           : "border-slate-200 bg-slate-50 text-slate-600";
   const readinessLabel =
     siteLaunchReadiness.phase === "ready"
-      ? "可直接执行"
+      ? "可直接开始"
       : siteLaunchReadiness.phase === "blocked"
-        ? "需要先准备浏览器"
+        ? "先连接浏览器"
         : siteLaunchReadiness.phase === "error"
-          ? "检测失败"
-          : "检测中";
+          ? "读取失败"
+          : "读取中";
   const readinessMessage =
     siteLaunchReadiness.phase === "ready" ||
     siteLaunchReadiness.phase === "blocked"
       ? siteLaunchReadiness.result.message
       : siteLaunchReadiness.phase === "error"
         ? siteLaunchReadiness.message
-        : "正在检查是否存在可复用的真实浏览器会话。";
+        : "正在检查当前能不能直接复用浏览器。";
   const readinessHint =
     siteLaunchReadiness.phase === "ready" ||
     siteLaunchReadiness.phase === "blocked"
@@ -328,7 +373,7 @@ export function ServiceSkillLaunchDialog({
           <div className="grid gap-0 md:grid-cols-3">
             <div className="border-b border-slate-200 px-4 py-3 md:border-b-0 md:border-r">
               <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">
-                执行方式
+                怎么开始
               </div>
               <div className="mt-1 text-sm font-medium text-slate-900">
                 {skill.runnerLabel}
@@ -339,7 +384,7 @@ export function ServiceSkillLaunchDialog({
             </div>
             <div className="border-b border-slate-200 px-4 py-3 md:border-b-0 md:border-r">
               <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">
-                依赖条件
+                开始前
               </div>
               {dependencyItems.length > 0 ? (
                 <div className="mt-2 space-y-1 text-xs leading-5 text-slate-600">
@@ -349,7 +394,7 @@ export function ServiceSkillLaunchDialog({
                 </div>
               ) : (
                 <p className="mt-2 text-xs leading-5 text-slate-500">
-                  当前没有额外依赖，补完参数后即可开始。
+                  参数补齐后就可以开始。
                 </p>
               )}
               {isSiteSkill ? (
@@ -361,7 +406,7 @@ export function ServiceSkillLaunchDialog({
                   data-testid="service-skill-site-readiness"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-medium">Claw 直跑检测</div>
+                    <div className="font-medium">浏览器状态</div>
                     <span className="text-[11px] font-medium">
                       {readinessLabel}
                     </span>
@@ -388,14 +433,14 @@ export function ServiceSkillLaunchDialog({
                       void refreshSiteLaunchReadiness();
                     }}
                   >
-                    重新检测会话
+                    重新检查
                   </button>
                 </div>
               ) : null}
             </div>
             <div className="px-4 py-3">
               <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-400">
-                结果去向
+                结果位置
               </div>
               <p className="mt-2 text-xs leading-5 text-slate-600">
                 {outputDestination}
@@ -416,34 +461,22 @@ export function ServiceSkillLaunchDialog({
         </div>
 
         <div className="grid gap-4">
-          {skill.slotSchema.map((slot) => (
-            <div key={slot.key} className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor={`service-skill-slot-${slot.key}`}>
-                  {slot.label}
-                </Label>
-                {slot.required ? (
-                  <span className="text-[11px] font-medium text-rose-500">
-                    必填
-                  </span>
-                ) : null}
-              </div>
-              {renderFieldControl({
-                slot,
-                value: slotValues[slot.key] ?? "",
-                onChange: (nextValue) =>
-                  setSlotValues((previous) => ({
-                    ...previous,
-                    [slot.key]: nextValue,
-                  })),
-              })}
-              {slot.helpText ? (
-                <p className="text-[11px] leading-5 text-slate-500">
-                  {slot.helpText}
-                </p>
-              ) : null}
+          {prefillHint ? (
+            <div
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600"
+              data-testid="service-skill-prefill-hint"
+            >
+              {prefillHint}
             </div>
-          ))}
+          ) : null}
+          {slotFormResponse ? (
+            <A2UIRenderer
+              response={slotFormResponse}
+              initialFormData={formData}
+              onFormStateChange={setFormData}
+              className="space-y-4 [&_.a2ui-field-stack]:space-y-2 [&_.a2ui-field-label]:text-sm [&_.a2ui-field-label]:font-medium [&_.a2ui-field-label]:text-slate-900 [&_.a2ui-helper-text]:text-[11px] [&_.a2ui-helper-text]:leading-5 [&_.a2ui-helper-text]:text-slate-500 [&_.a2ui-option-list]:gap-2.5 [&_.a2ui-choice-option]:rounded-2xl [&_.a2ui-choice-option]:px-4 [&_.a2ui-choice-option]:py-3 [&_.a2ui-text-input]:h-11 [&_.a2ui-text-input]:rounded-2xl [&_.a2ui-text-input]:border-slate-200 [&_.a2ui-textarea]:min-h-[96px] [&_.a2ui-textarea]:rounded-2xl [&_.a2ui-textarea]:border-slate-200"
+            />
+          ) : null}
         </div>
 
         {!validation.valid ? (
@@ -484,7 +517,7 @@ export function ServiceSkillLaunchDialog({
                 void onOpenBrowserRuntime?.(skill, slotValues);
               }}
             >
-              去浏览器工作台
+              打开浏览器工作台
             </Button>
           ) : null}
           <Button

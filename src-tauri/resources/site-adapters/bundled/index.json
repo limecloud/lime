@@ -260,7 +260,7 @@
         "id": "x_article_export"
       },
       "script_file": "scripts/x-article-export.js",
-      "source_version": "2026-04-07"
+      "source_version": "2026-04-08"
     },
     {
       "name": "zhihu/hot",

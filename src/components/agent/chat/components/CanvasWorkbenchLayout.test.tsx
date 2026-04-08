@@ -665,6 +665,103 @@ describe("CanvasWorkbenchLayout", () => {
     ).not.toBeNull();
   });
 
+  it("内容发布主链产物应在右侧工作台列表显示语义标题", async () => {
+    const artifact = createArtifact(
+      "artifact-content-preview",
+      "content-posts/demo-preview.md",
+      "# 春日咖啡活动\n\n首屏预览",
+      60,
+    );
+    artifact.meta = {
+      ...artifact.meta,
+      contentPostIntent: "preview",
+      contentPostLabel: "渠道预览稿",
+      contentPostPlatformLabel: "小红书",
+    };
+
+    const container = mount({
+      artifacts: [artifact],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: null,
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: null,
+        isBinary: true,
+        size: 0,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target, options) => (
+        <div data-testid="preview-panel">
+          {options?.stackedWorkbenchTrigger}
+          {target.kind}:{target.title}
+        </div>
+      ),
+    });
+
+    await flushEffects();
+
+    expect(container.textContent).toContain("渠道预览稿");
+    expect(container.textContent).toContain("content-posts/demo-preview.md");
+
+    clickButtonByLabel(container, "选择画布产物-渠道预览稿");
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="preview-panel"]')?.textContent,
+    ).toContain("artifact:渠道预览稿");
+  });
+
+  it("恢复后的内容发布任务文件也应在右侧工作台列表显示语义标题", async () => {
+    const taskFile = createTaskFile(
+      "task-content-preview",
+      "content-posts/restored-preview.md",
+      "# 春日咖啡活动\n\n首屏预览",
+      60,
+    );
+    taskFile.metadata = {
+      contentPostIntent: "preview",
+      contentPostLabel: "渠道预览稿",
+      contentPostPlatformLabel: "小红书",
+    };
+
+    const container = mount({
+      artifacts: [],
+      canvasState: null,
+      taskFiles: [taskFile],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: null,
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: "# 春日咖啡活动\n\n首屏预览",
+        isBinary: false,
+        size: 0,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target, options) => (
+        <div data-testid="preview-panel">
+          {options?.stackedWorkbenchTrigger}
+          {target.kind}:{target.title}
+        </div>
+      ),
+    });
+
+    await flushEffects();
+
+    clickButtonByLabel(container, "切换画布标签-全部文件");
+    await flushEffects();
+
+    expect(container.textContent).toContain("渠道预览稿");
+    expect(container.textContent).toContain("content-posts/restored-preview.md");
+  });
+
   it("工作区文件为二进制时应展示不支持预览提示", async () => {
     const previewTargets: CanvasWorkbenchPreviewTarget[] = [];
 

@@ -48,6 +48,7 @@ export type ServiceSkillPromptTemplateKey =
 export interface ServiceSkillSlotOption {
   value: string;
   label: string;
+  description?: string;
 }
 
 export interface ServiceSkillSlotDefinition {
@@ -166,7 +167,8 @@ interface ServiceSkillCatalogResponseEnvelope {
 const SERVICE_SKILL_CATALOG_STORAGE_KEY = "lime:service-skill-catalog:v1";
 const SERVICE_SKILL_CATALOG_CHANGED_EVENT =
   "lime:service-skill-catalog-changed";
-const SEEDED_SERVICE_SKILL_CATALOG_VERSION = "client-seed-2026-04-08";
+const SEEDED_SERVICE_SKILL_CATALOG_VERSION =
+  "client-seed-2026-04-08-creation-copy";
 
 const PLATFORM_OPTIONS: ServiceSkillSlotOption[] = [
   { value: "xiaohongshu", label: "小红书" },
@@ -835,17 +837,17 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       id: "account-performance-tracking",
       skillKey: "account-performance-tracking",
       skillType: "service",
-      title: "账号自动增长",
+      title: "账号增长跟踪",
       summary:
-        "围绕参考账号和目标平台先做一版增长策略，再整理后续持续跟踪需要的指标和告警条件。",
+        "围绕参考账号和目标平台先整理一版增长打法，再持续跟踪内容节奏、关键指标和提醒条件。",
       entryHint:
-        "给我参考账号、目标平台和增长目标，我先出复制策略、发布节奏和后续跟踪指标。",
-      aliases: ["账号增长", "自动增长", "涨粉", "账号表现"],
+        "给我参考账号、目标平台和增长目标，我先出内容打法、发布节奏和后续跟踪指标。",
+      aliases: ["账号增长", "增长跟踪", "自动增长", "涨粉", "账号表现"],
       category: "内容运营",
       outputHint: "增长策略 + 发布节奏 + 跟踪指标",
       triggerHints: [
-        "想先产出增长策略，再持续观察账号表现时使用。",
-        "需要围绕目标账号建立长期跟踪和告警规则时使用。",
+        "想先产出增长打法，再持续观察账号表现时使用。",
+        "需要围绕目标账号持续跟踪内容节奏和提醒条件时使用。",
       ],
       source: "cloud_catalog",
       runnerType: "managed",
@@ -857,16 +859,16 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         requiresProject: true,
       },
       usageGuidelines: [
-        "适合先产出首版增长打法，再逐步收紧指标和告警条件。",
-        "账号列表越明确，后续持续跟踪和告警命中会越准确。",
+        "适合先产出首版增长打法，再逐步收紧跟踪指标和提醒条件。",
+        "账号列表越明确，后续持续跟踪和提醒命中会越准确。",
       ],
       setupRequirements: [
         "需要已选择可用模型。",
         "建议在目标项目内启动，方便首轮策略和持续跟踪结果沉淀到同一工作区。",
       ],
       examples: [
-        "围绕这几个小红书账号做一版自动增长策略，并设置日更追踪。",
-        "帮我针对 X 上的目标账号生成增长计划和后续告警阈值。",
+        "围绕这几个小红书账号做一版增长跟踪策略，并设置日更追踪。",
+        "帮我针对 X 上的目标账号生成增长计划和后续提醒阈值。",
       ],
       outputDestination:
         "首轮策略会写回当前工作区；后续跟踪结果会持续回流到任务中心与项目内容。",
@@ -914,9 +916,9 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       skillType: "site",
       title: "X 文章转存",
       summary:
-        "复用已连接的 X / Twitter 浏览器登录态，导出长文为 Markdown，并把文内图片一并落到项目目录。",
+        "复用已连接的 X / Twitter 浏览器登录态，导出长文为 Markdown，并可按目标语言翻译正文后把文内图片一并落到项目目录。",
       entryHint:
-        "给我 X 文章链接，我会复用现有浏览器上下文抓正文、代码块和图片，并沉淀到项目导出目录。",
+        "给我 X 文章链接，我会复用现有浏览器上下文抓正文、代码块和图片，并按需要翻译成中文后沉淀到项目导出目录。",
       aliases: [
         "x文章转存",
         "x 长文转存",
@@ -947,7 +949,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       ],
       examples: [
         "把这篇 X 长文导出成 Markdown，并把图片一起保存到项目里。",
-        "请转存这条 Twitter Article，我后面还要继续改写和引用里面的代码示例。",
+        "请转存这条 Twitter Article，并翻译成中文，我后面还要继续改写和引用里面的代码示例。",
       ],
       outputDestination:
         "结果会写入当前项目目录下的导出文件夹，并在工作区生成一个结果入口文档。",
@@ -958,6 +960,7 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
         saveMode: "project_resource",
         slotArgMap: {
           article_url: "url",
+          target_language: "target_language",
         },
       },
       sceneBinding: {
@@ -984,6 +987,15 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
           required: true,
           placeholder: "https://x.com/<账号>/article/<文章ID>",
           helpText: "支持 x.com 和 twitter.com 的 Article 链接。",
+        },
+        {
+          key: "target_language",
+          label: "目标语言",
+          type: "text",
+          required: false,
+          defaultValue: "中文",
+          placeholder: "例如 中文、英文、日文",
+          helpText: "仅翻译正文，代码块、链接和图片路径保持原样。",
         },
       ],
     },

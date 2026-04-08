@@ -4,16 +4,19 @@ export interface SlashEntryUsageRecord {
   kind: SlashEntryUsageKind;
   entryId: string;
   usedAt: number;
+  replayText?: string;
 }
 
 export interface RecordSlashEntryUsageInput {
   kind: SlashEntryUsageKind;
   entryId: string;
   usedAt?: number;
+  replayText?: string;
 }
 
 const SLASH_ENTRY_USAGE_STORAGE_KEY = "lime:slash-entry-usage:v1";
 const MAX_SLASH_ENTRY_USAGE_RECORDS = 12;
+const MAX_SLASH_ENTRY_REPLAY_TEXT_LENGTH = 400;
 
 export function getSlashEntryUsageRecordKey(
   kind: SlashEntryUsageKind,
@@ -37,8 +40,20 @@ function isValidSlashEntryUsageRecord(
     typeof record.entryId === "string" &&
     record.entryId.length > 0 &&
     typeof record.usedAt === "number" &&
-    Number.isFinite(record.usedAt)
+    Number.isFinite(record.usedAt) &&
+    (record.replayText === undefined || typeof record.replayText === "string")
   );
+}
+
+function normalizeSlashEntryReplayText(
+  value: string | undefined,
+): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return trimmed.slice(0, MAX_SLASH_ENTRY_REPLAY_TEXT_LENGTH).trim();
 }
 
 export function listSlashEntryUsage(): SlashEntryUsageRecord[] {
@@ -82,6 +97,7 @@ export function recordSlashEntryUsage(
     kind: input.kind,
     entryId: input.entryId,
     usedAt: input.usedAt ?? Date.now(),
+    replayText: normalizeSlashEntryReplayText(input.replayText),
   };
 
   const nextRecords = [

@@ -4,6 +4,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
+const mockConvertLocalFileSrc = vi.fn((path: string) => `asset://${path}`);
+
 vi.mock("react-syntax-highlighter", () => ({
   Prism: ({
     children,
@@ -59,12 +61,17 @@ vi.mock("./A2UITaskCard", () => ({
   A2UITaskLoadingCard: () => <div data-testid="a2ui-task-loading-card" />,
 }));
 
+vi.mock("@/lib/api/fileSystem", () => ({
+  convertLocalFileSrc: (path: string) => mockConvertLocalFileSrc(path),
+}));
+
 interface MountedHarness {
   container: HTMLDivElement;
   root: Root;
 }
 
 interface RenderOptions {
+  baseFilePath?: string;
   isStreaming?: boolean;
   collapseCodeBlocks?: boolean;
   shouldCollapseCodeBlock?: (language: string, code: string) => boolean;
@@ -93,11 +100,13 @@ afterEach(() => {
   }
   vi.useRealTimers();
   vi.clearAllMocks();
+  mockConvertLocalFileSrc.mockClear();
 });
 
 function render(
   content: string,
   {
+    baseFilePath,
     isStreaming = false,
     collapseCodeBlocks = false,
     shouldCollapseCodeBlock,
@@ -113,6 +122,7 @@ function render(
     root.render(
       <MarkdownRenderer
         content={content}
+        baseFilePath={baseFilePath}
         isStreaming={isStreaming}
         collapseCodeBlocks={collapseCodeBlocks}
         shouldCollapseCodeBlock={shouldCollapseCodeBlock}
@@ -129,6 +139,7 @@ function render(
 function renderHarness(
   content: string,
   {
+    baseFilePath,
     isStreaming = false,
     collapseCodeBlocks = false,
     shouldCollapseCodeBlock,
@@ -143,6 +154,7 @@ function renderHarness(
   const rerender = (
     nextContent: string,
     {
+      baseFilePath: nextBaseFilePath = baseFilePath,
       isStreaming: nextIsStreaming = isStreaming,
       collapseCodeBlocks: nextCollapseCodeBlocks = collapseCodeBlocks,
       shouldCollapseCodeBlock:
@@ -155,6 +167,7 @@ function renderHarness(
       root.render(
         <MarkdownRenderer
           content={nextContent}
+          baseFilePath={nextBaseFilePath}
           isStreaming={nextIsStreaming}
           collapseCodeBlocks={nextCollapseCodeBlocks}
           shouldCollapseCodeBlock={nextShouldCollapseCodeBlock}
@@ -251,6 +264,51 @@ describe("MarkdownRenderer", () => {
     const container = render(content);
 
     expect(container.textContent).toContain("图片 · 点击查看大图");
+  });
+
+  it("带 baseFilePath 时应把相对图片路径解析为本地文件资源", () => {
+    const container = render("![配图](images/hero.png)", {
+      baseFilePath:
+        "/Users/coso/.proxycast/projects/default/exports/x-article/google/index.md",
+    });
+
+    const image = container.querySelector("img");
+    expect(image).not.toBeNull();
+    expect(mockConvertLocalFileSrc).toHaveBeenCalledWith(
+      "/Users/coso/.proxycast/projects/default/exports/x-article/google/images/hero.png",
+    );
+    expect(image?.getAttribute("src")).toBe(
+      "asset:///Users/coso/.proxycast/projects/default/exports/x-article/google/images/hero.png",
+    );
+  });
+
+  it("应归一化 ./ 和 ../ 相对图片路径并保留查询串", () => {
+    const container = render("![配图](./images/../images/hero.png?raw=1#preview)", {
+      baseFilePath:
+        "/Users/coso/.proxycast/projects/default/exports/x-article/google/nested/index.md",
+    });
+
+    const image = container.querySelector("img");
+    expect(image).not.toBeNull();
+    expect(mockConvertLocalFileSrc).toHaveBeenCalledWith(
+      "/Users/coso/.proxycast/projects/default/exports/x-article/google/nested/images/hero.png",
+    );
+    expect(image?.getAttribute("src")).toBe(
+      "asset:///Users/coso/.proxycast/projects/default/exports/x-article/google/nested/images/hero.png?raw=1#preview",
+    );
+  });
+
+  it("绝对路径图片应复用本地资源转换并保留 hash", () => {
+    const container = render("![配图](/Users/coso/demo/assets/cover.png#hero)");
+
+    const image = container.querySelector("img");
+    expect(image).not.toBeNull();
+    expect(mockConvertLocalFileSrc).toHaveBeenCalledWith(
+      "/Users/coso/demo/assets/cover.png",
+    );
+    expect(image?.getAttribute("src")).toBe(
+      "asset:///Users/coso/demo/assets/cover.png#hero",
+    );
   });
 
   it("Markdown 表格应包裹在横向滚动容器中，避免窄列压缩", () => {

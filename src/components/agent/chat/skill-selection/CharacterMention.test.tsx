@@ -505,6 +505,7 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("内建命令");
     expect(document.body.textContent).toContain("@配图");
     expect(document.body.textContent).toContain("@封面");
+    expect(document.body.textContent).toContain("@海报");
     expect(document.body.textContent).toContain("@修图");
     expect(document.body.textContent).toContain("@重绘");
     expect(document.body.textContent).toContain("@视频");
@@ -512,9 +513,11 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("@播报");
     expect(document.body.textContent).toContain("@素材");
     expect(document.body.textContent).toContain("@研报");
+    expect(document.body.textContent).toContain("@竞品");
     expect(document.body.textContent).toContain("@读PDF");
     expect(document.body.textContent).toContain("@转写");
     expect(document.body.textContent).toContain("@链接解析");
+    expect(document.body.textContent).toContain("@浏览器");
   });
 
   it("提供 onSelectBuiltinCommand 时，选择配图命令应交给父组件接管", async () => {
@@ -540,6 +543,114 @@ describe("CharacterMention", () => {
       expect.objectContaining({
         key: "image_generate",
         commandPrefix: "@配图",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择海报命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@海报"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "poster_generate",
+        commandPrefix: "@海报",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择渠道预览命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@渠道预览"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "channel_preview_runtime",
+        commandPrefix: "@渠道预览",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择上传命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@上传"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "upload_runtime",
+        commandPrefix: "@上传",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择发布合规命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@发布合规"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "publish_compliance",
+        commandPrefix: "@发布合规",
       }),
     );
   });
@@ -787,6 +898,33 @@ describe("CharacterMention", () => {
     );
   });
 
+  it("提供 onSelectBuiltinCommand 时，选择竞品命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@竞品"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "competitor_research",
+        commandPrefix: "@竞品",
+      }),
+    );
+  });
+
   it("提供 onSelectBuiltinCommand 时，选择站点搜索命令应交给父组件接管", async () => {
     const onSelectBuiltinCommand =
       vi.fn<(command: BuiltinInputCommand) => void>();
@@ -972,6 +1110,60 @@ describe("CharacterMention", () => {
       expect.objectContaining({
         key: "url_parse",
         commandPrefix: "@链接解析",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择抓取命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@抓取"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "web_scrape",
+        commandPrefix: "@抓取",
+      }),
+    );
+  });
+
+  it("提供 onSelectBuiltinCommand 时，选择网页读取命令应交给父组件接管", async () => {
+    const onSelectBuiltinCommand =
+      vi.fn<(command: BuiltinInputCommand) => void>();
+    const container = renderHarness({
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@网页读取"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "webpage_read",
+        commandPrefix: "@网页读取",
       }),
     );
   });
@@ -1342,6 +1534,190 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("@配音");
   });
 
+  it("输入 @海 时应展示新的海报命令", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await act(async () => {
+      await import("./CharacterMentionPanel");
+    });
+
+    act(() => {
+      textarea.focus();
+      textarea.value = "@海";
+      textarea.setSelectionRange(2, 2);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("@海报");
+  });
+
+  it("输入 @渠 时应展示新的渠道预览命令", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await act(async () => {
+      await import("./CharacterMentionPanel");
+    });
+
+    act(() => {
+      textarea.focus();
+      textarea.value = "@渠";
+      textarea.setSelectionRange(2, 2);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("@渠道预览");
+  });
+
+  it("输入 @上 时应展示新的上传命令", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await act(async () => {
+      await import("./CharacterMentionPanel");
+    });
+
+    act(() => {
+      textarea.focus();
+      textarea.value = "@上";
+      textarea.setSelectionRange(2, 2);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("@上传");
+  });
+
+  it("输入 @合 时应展示新的发布合规命令", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await act(async () => {
+      await import("./CharacterMentionPanel");
+    });
+
+    act(() => {
+      textarea.focus();
+      textarea.value = "@合";
+      textarea.setSelectionRange(2, 2);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("@发布合规");
+  });
+
+  it("输入 @浏 时应展示新的内建浏览器命令", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await act(async () => {
+      await import("./CharacterMentionPanel");
+    });
+
+    act(() => {
+      textarea.focus();
+      textarea.value = "@浏";
+      textarea.setSelectionRange(2, 2);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("@浏览器");
+  });
+
+  it("输入 @竞 时应展示新的竞品命令", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await act(async () => {
+      await import("./CharacterMentionPanel");
+    });
+
+    act(() => {
+      textarea.focus();
+      textarea.value = "@竞";
+      textarea.setSelectionRange(2, 2);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("@竞品");
+  });
+
+  it("输入 @抓 时应展示新的网页抓取命令", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await act(async () => {
+      await import("./CharacterMentionPanel");
+    });
+
+    act(() => {
+      textarea.focus();
+      textarea.value = "@抓";
+      textarea.setSelectionRange(2, 2);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("@抓取");
+  });
+
+  it("输入 @网页读 时应展示新的网页读取命令", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await act(async () => {
+      await import("./CharacterMentionPanel");
+    });
+
+    act(() => {
+      textarea.focus();
+      textarea.value = "@网页读";
+      textarea.setSelectionRange(4, 4);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("内建命令");
+    expect(document.body.textContent).toContain("@网页读取");
+  });
+
   it("服务技能过滤应支持命中别名", () => {
     const filtered = filterMentionableServiceSkills(
       [
@@ -1497,6 +1873,79 @@ describe("CharacterMention", () => {
       document.body.querySelectorAll("button"),
     ).filter((button) => button.textContent?.includes("技能A"));
     expect(skillButtons).toHaveLength(1);
+  });
+
+  it("选择最近使用的 slash 命令时应回填上次成功参数", async () => {
+    const replayText = "src-tauri packages";
+    act(() => {
+      recordSlashEntryUsage({
+        kind: "command",
+        entryId: "review",
+        usedAt: 1_712_345_678_900,
+        replayText,
+      });
+    });
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const container = renderHarness({
+      onChangeSpy,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    expect(document.body.textContent).toContain(`上次输入：${replayText}`);
+
+    const recentCommandButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("/review"));
+    expect(recentCommandButton).toBeTruthy();
+
+    act(() => {
+      recentCommandButton?.click();
+    });
+
+    expect(onChangeSpy).toHaveBeenLastCalledWith("/review src-tauri packages");
+  });
+
+  it("选择最近使用的 scene 时应优先回填上次成功参数，而不是再次打开补参弹窗", async () => {
+    act(() => {
+      saveSkillCatalog(buildCatalogWithXSceneEntry(), "bootstrap_sync");
+      recordSlashEntryUsage({
+        kind: "scene",
+        entryId: "x-article-export",
+        usedAt: 1_712_345_678_900,
+        replayText:
+          "https://x.com/GoogleCloudTech/article/2033953579824758855",
+      });
+    });
+    mockListServiceSkills.mockResolvedValueOnce([
+      createXArticleSceneServiceSkill(),
+    ]);
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+    const container = renderHarness({
+      onChangeSpy,
+      onSelectServiceSkill,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    const recentSceneButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("/x文章转存"));
+    expect(recentSceneButton).toBeTruthy();
+
+    act(() => {
+      recentSceneButton?.click();
+    });
+
+    expect(onChangeSpy).toHaveBeenLastCalledWith(
+      "/x文章转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
+    );
+    expect(onSelectServiceSkill).not.toHaveBeenCalled();
   });
 
   it("slash 搜索时不应显示最近使用，而应回到搜索结果分组", async () => {

@@ -9,6 +9,7 @@
  */
 
 import type { SettingsTabs } from "./settings";
+import type { SkillScaffoldTarget } from "@/lib/api/skills";
 
 export type WorkspaceTheme = "general";
 
@@ -84,6 +85,8 @@ export interface AgentPageParams {
   openBrowserAssistOnMount?: boolean;
   /** 进入 Agent 后执行一次站点技能启动 */
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
+  /** 进入 Agent 后自动打开项目内某个文件 */
+  initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   /** 首页点击触发的新会话标记（时间戳） */
   newChatAt?: number;
 }
@@ -108,6 +111,26 @@ export type MemoryPageSection =
 
 export interface MemoryPageParams {
   section?: MemoryPageSection;
+}
+
+export interface SkillScaffoldDraft extends Record<string, unknown> {
+  target?: SkillScaffoldTarget;
+  directory?: string;
+  name?: string;
+  description?: string;
+  whenToUse?: string[];
+  inputs?: string[];
+  outputs?: string[];
+  steps?: string[];
+  fallbackStrategy?: string[];
+  sourceMessageId?: string;
+  sourceExcerpt?: string;
+}
+
+export interface SkillsPageParams {
+  initialScaffoldDraft?: SkillScaffoldDraft;
+  initialScaffoldRequestKey?: number;
+  creationProjectId?: string;
 }
 
 export type AutomationWorkspaceTab = "tasks" | "overview";
@@ -143,6 +166,11 @@ export interface AgentSiteSkillLaunchParams {
   skillTitle?: string;
 }
 
+export interface AgentProjectFileOpenTarget {
+  relativePath: string;
+  requestKey?: number;
+}
+
 /**
  * 页面参数联合类型
  */
@@ -152,5 +180,6 @@ export type PageParams =
   | BrowserRuntimePageParams
   | SettingsPageParams
   | OpenClawPageParams
+  | SkillsPageParams
   | MemoryPageParams
   | Record<string, unknown>;

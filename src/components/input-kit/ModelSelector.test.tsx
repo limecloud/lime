@@ -16,6 +16,30 @@ const {
 vi.mock("@/hooks/useConfiguredProviders", () => ({
   useConfiguredProviders: (...args: unknown[]) =>
     mockUseConfiguredProviders(...args),
+  findConfiguredProviderBySelection: (
+    providers: Array<{ key: string; providerId?: string }>,
+    selection?: string | null,
+  ) => {
+    const normalizedSelection = (selection || "").trim().toLowerCase();
+    const keyMatch =
+      providers.find(
+        (provider) => provider.key.trim().toLowerCase() === normalizedSelection,
+      ) ?? null;
+    const providerIdMatch =
+      providers.find(
+        (provider) =>
+          (provider.providerId || "").trim().toLowerCase() ===
+          normalizedSelection,
+      ) ?? null;
+
+    if (keyMatch && providerIdMatch && keyMatch !== providerIdMatch) {
+      if (!keyMatch.providerId && providerIdMatch.providerId) {
+        return providerIdMatch;
+      }
+    }
+
+    return keyMatch ?? providerIdMatch ?? null;
+  },
 }));
 
 vi.mock("@/hooks/useProviderModels", () => ({
@@ -133,6 +157,46 @@ afterEach(() => {
 });
 
 describe("ModelSelector", () => {
+  it("后端回填原始 providerId 时，应解析到真实受管 Provider 读取模型", () => {
+    mockUseConfiguredProviders.mockReturnValue({
+      providers: [
+        {
+          key: "openai",
+          label: "OpenAI OAuth",
+          registryId: "openai",
+          type: "openai",
+        },
+        {
+          key: "openai_api_key",
+          label: "OpenAI API Key",
+          registryId: "openai",
+          fallbackRegistryId: "openai",
+          type: "openai",
+          providerId: "openai",
+          apiHost: "https://api.openai.com/v1",
+        },
+      ],
+      loading: false,
+    });
+
+    renderModelSelector({
+      providerType: "openai",
+    });
+
+    expect(mockUseProviderModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "openai_api_key",
+        providerId: "openai",
+      }),
+      expect.objectContaining({
+        returnFullMetadata: true,
+        autoLoad: true,
+        liveFetchOnly: true,
+        hasApiKey: true,
+      }),
+    );
+  });
+
   it("禁用后台预加载时，关闭状态下应延后加载模型选择数据", () => {
     renderModelSelector({
       backgroundPreload: "disabled",

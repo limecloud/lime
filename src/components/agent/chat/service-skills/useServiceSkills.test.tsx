@@ -451,7 +451,7 @@ describe("useServiceSkills", () => {
           .getValue()
           .skills.find((skill) => skill.id === "cloud-video-dubbing")
           ?.runnerLabel,
-      ).toBe("云端托管执行");
+      ).toBe("云端执行");
     } finally {
       harness.unmount();
     }

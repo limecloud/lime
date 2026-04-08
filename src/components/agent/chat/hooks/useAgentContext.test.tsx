@@ -100,6 +100,15 @@ describe("useAgentContext", () => {
         IS_REACT_ACT_ENVIRONMENT?: boolean;
       }
     ).IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      window as Window & {
+        __TAURI_INTERNALS__?: {
+          invoke?: () => Promise<void>;
+        };
+      }
+    ).__TAURI_INTERNALS__ = {
+      invoke: async () => undefined,
+    };
     mockNotifyProjectRuntimeAgentsGuide.mockReset();
     mockSetSessionExecutionStrategy.mockClear();
     mockSetSessionProviderSelection.mockClear();
@@ -112,6 +121,11 @@ describe("useAgentContext", () => {
   });
 
   afterEach(() => {
+    delete (
+      window as Window & {
+        __TAURI_INTERNALS__?: unknown;
+      }
+    ).__TAURI_INTERNALS__;
     document.body.innerHTML = "";
   });
 

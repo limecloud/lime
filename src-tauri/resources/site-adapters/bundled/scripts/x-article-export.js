@@ -4,7 +4,8 @@ async (args, helpers) => {
   const ARTICLE_CONTENT_SELECTOR =
     '[data-testid="longformRichTextComponent"] [data-contents="true"], [data-testid="longformRichTextComponent"]';
   const IMAGE_SELECTOR = '[data-testid="tweetPhoto"] img';
-  const CODE_BLOCK_SELECTOR = '[data-testid="markdown-code-block"]';
+  const CODE_BLOCK_SELECTOR =
+    '[data-testid="markdown-code-block"], [data-testid="prism-code-block"], pre';
 
   function normalizeText(value) {
     return String(value || "")
@@ -70,6 +71,39 @@ async (args, helpers) => {
     }
   }
 
+  function resolveSrcsetUrl(rawSrcset) {
+    const entries = String(rawSrcset || "")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    if (entries.length === 0) {
+      return "";
+    }
+
+    const lastEntry = entries[entries.length - 1] || "";
+    const [url] = lastEntry.split(/\s+/, 1);
+    return String(url || "").trim();
+  }
+
+  function resolveImageSource(imageElement) {
+    const picture = imageElement.closest("picture");
+    const pictureSources = picture
+      ? Array.from(picture.querySelectorAll("source"))
+      : [];
+    const candidate = [
+      imageElement.currentSrc,
+      imageElement.getAttribute("src"),
+      imageElement.getAttribute("data-src"),
+      imageElement.getAttribute("data-image-url"),
+      resolveSrcsetUrl(imageElement.getAttribute("srcset")),
+      ...pictureSources.map((source) =>
+        resolveSrcsetUrl(source.getAttribute("srcset")),
+      ),
+    ].find((value) => normalizeText(value));
+
+    return String(candidate || "");
+  }
+
   function resolveSuggestedImageName(rawUrl, fallbackIndex) {
     try {
       const url = new URL(rawUrl, location.href);
@@ -115,10 +149,7 @@ async (args, helpers) => {
   }
 
   function registerImage(state, imageElement) {
-    const rawUrl =
-      imageElement.getAttribute("src") ||
-      imageElement.getAttribute("data-src") ||
-      "";
+    const rawUrl = resolveImageSource(imageElement);
     const normalizedUrl = normalizeImageUrl(rawUrl);
     if (!normalizedUrl) {
       return "";

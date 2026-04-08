@@ -136,7 +136,7 @@
 ## 参考资料
 
 - 研究报告：Lime AI Agent 改进研究报告
-- aster-rust GitHub: https://github.com/astercloud/aster-rust
+- 当前内置路径：`src-tauri/crates/aster-rust/`
 - 相关文件：
   - src-tauri/crates/services/src/session_context_service.rs
   - src-tauri/crates/agent/src/aster_state_support.rs

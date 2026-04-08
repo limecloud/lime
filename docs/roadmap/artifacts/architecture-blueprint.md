@@ -563,12 +563,12 @@ Stage 2 的职责是生成正式结构化交付物。
 
 如果同步建设 `aster-rust`，则建议把运行时通用能力下沉为独立 runtime 模块：
 
-- `/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/runtime/thread.rs`
-- `/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/runtime/turn.rs`
-- `/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/runtime/item.rs`
-- `/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/runtime/event.rs`
-- `/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/runtime/prompt.rs`
-- `/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/runtime/schema.rs`
+- `src-tauri/crates/aster-rust/crates/aster/src/runtime/thread.rs`
+- `src-tauri/crates/aster-rust/crates/aster/src/runtime/turn.rs`
+- `src-tauri/crates/aster-rust/crates/aster/src/runtime/item.rs`
+- `src-tauri/crates/aster-rust/crates/aster/src/runtime/event.rs`
+- `src-tauri/crates/aster-rust/crates/aster/src/runtime/prompt.rs`
+- `src-tauri/crates/aster-rust/crates/aster/src/runtime/schema.rs`
 
 这部分是框架层远期形态参考，不构成 Lime 当前仓库的直接实施清单。
 

@@ -45,6 +45,7 @@ vi.mock("./http-client", () => ({
 
 vi.mock("./mockPriorityCommands", () => ({
   shouldPreferMockInBrowser: vi.fn(() => false),
+  shouldDisallowMockFallbackInBrowser: vi.fn(() => false),
 }));
 
 import {
@@ -55,7 +56,10 @@ import {
   safeListen,
   safeInvoke,
 } from "./safeInvoke";
-import { shouldPreferMockInBrowser } from "./mockPriorityCommands";
+import {
+  shouldDisallowMockFallbackInBrowser,
+  shouldPreferMockInBrowser,
+} from "./mockPriorityCommands";
 
 describe("safeInvoke", () => {
   beforeEach(() => {
@@ -119,6 +123,25 @@ describe("safeInvoke", () => {
     ]);
   });
 
+  it("模型与运行时真相命令在 bridge 失败时不应静默退回 mock", async () => {
+    vi.mocked(shouldDisallowMockFallbackInBrowser).mockReturnValueOnce(true);
+    mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    await expect(safeInvoke("aster_agent_init")).rejects.toThrow(
+      "[aster_agent_init] Failed to fetch",
+    );
+
+    expect(mocks.baseInvoke).not.toHaveBeenCalled();
+    expect(mocks.explicitMockInvoke).not.toHaveBeenCalled();
+    expect(getInvokeTraceBuffer()).toEqual([
+      expect.objectContaining({
+        command: "aster_agent_init",
+        transport: "http-bridge",
+        status: "error",
+      }),
+    ]);
+  });
+
   it("mock 优先命令会直接走 fallback invoke", async () => {
     vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
     mocks.baseInvoke.mockResolvedValueOnce(["mock-first"]);
@@ -172,14 +195,11 @@ describe("safeInvoke", () => {
     );
     mocks.explicitMockInvoke.mockResolvedValueOnce([]);
 
-    await expect(safeInvoke("get_provider_pool_overview")).resolves.toEqual([]);
+    await expect(safeInvoke("workspace_list")).resolves.toEqual([]);
 
-    expect(mocks.invokeViaHttp).toHaveBeenCalledWith(
-      "get_provider_pool_overview",
-      undefined,
-    );
+    expect(mocks.invokeViaHttp).toHaveBeenCalledWith("workspace_list", undefined);
     expect(mocks.explicitMockInvoke).toHaveBeenCalledWith(
-      "get_provider_pool_overview",
+      "workspace_list",
       undefined,
     );
   });

@@ -65,6 +65,10 @@ function normalizeProviderType(value?: string | null): string {
   return (value || "").trim().toLowerCase();
 }
 
+function normalizeConfiguredProviderSelector(value?: string | null): string {
+  return (value || "").trim().toLowerCase();
+}
+
 function hasConfiguredKeylessAccess(
   provider: ProviderWithKeysDisplay,
 ): boolean {
@@ -139,6 +143,36 @@ export function buildConfiguredProviders(
   });
 
   return Array.from(providerMap.values());
+}
+
+export function findConfiguredProviderBySelection(
+  providers: ConfiguredProvider[],
+  selection?: string | null,
+): ConfiguredProvider | null {
+  const normalizedSelection = normalizeConfiguredProviderSelector(selection);
+  if (!normalizedSelection) {
+    return null;
+  }
+
+  const keyMatch =
+    providers.find(
+      (provider) =>
+        normalizeConfiguredProviderSelector(provider.key) === normalizedSelection,
+    ) ?? null;
+  const providerIdMatch =
+    providers.find(
+      (provider) =>
+        normalizeConfiguredProviderSelector(provider.providerId) ===
+        normalizedSelection,
+    ) ?? null;
+
+  if (keyMatch && providerIdMatch && keyMatch !== providerIdMatch) {
+    if (!keyMatch.providerId && providerIdMatch.providerId) {
+      return providerIdMatch;
+    }
+  }
+
+  return keyMatch ?? providerIdMatch ?? null;
 }
 
 export async function loadConfiguredProviders(

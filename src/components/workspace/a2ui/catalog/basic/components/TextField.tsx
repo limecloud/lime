@@ -58,6 +58,7 @@ export function TextFieldRenderer({
       {label && <label className={A2UI_FORM_TOKENS.fieldLabel}>{label}</label>}
       {isLongText ? (
         <textarea
+          data-testid={component.id}
           value={localValue}
           onChange={(event) => handleInputChange(event.target.value)}
           onBlur={handleBlur}
@@ -66,6 +67,7 @@ export function TextFieldRenderer({
         />
       ) : (
         <input
+          data-testid={component.id}
           type={
             component.variant === "number"
               ? "number"

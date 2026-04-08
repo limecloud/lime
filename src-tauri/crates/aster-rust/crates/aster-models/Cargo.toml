@@ -1,0 +1,15 @@
+[package]
+name = "aster-models"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared API data models for OpenAI and Anthropic formats"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+serde_json = "1.0"

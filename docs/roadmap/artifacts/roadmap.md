@@ -821,7 +821,7 @@ src-tauri/src/services/artifact_document_service.rs
 如果后续同步推进 `aster-rust`，则建议新增独立 runtime 模块，而不是继续堆进 `blueprint/`：
 
 ```text
-/Users/coso/Documents/dev/ai/astercloud/aster-rust/crates/aster/src/runtime/
+src-tauri/crates/aster-rust/crates/aster/src/runtime/
 ```
 
 这部分是框架层远期方向，不覆盖 Lime 当前仓库已确定的运行时收口主计划。

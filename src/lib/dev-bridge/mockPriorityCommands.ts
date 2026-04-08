@@ -6,7 +6,6 @@
  */
 
 const mockPriorityCommands = new Set<string>([
-  "aster_agent_init",
   "agent_runtime_export_analysis_handoff",
   "agent_runtime_export_handoff_bundle",
   "agent_runtime_export_evidence_pack",
@@ -74,6 +73,32 @@ const mockPriorityCommands = new Set<string>([
   "get_browser_action_audit_logs",
 ]);
 
+/**
+ * 浏览器模式下必须以桥接后端为真相源的命令集合。
+ *
+ * 这些命令一旦桥接失败，就必须直接暴露错误；
+ * 不能再静默回退到 mock，把“后端未连上 / 命令失败”伪装成“只是没有数据”。
+ */
+const bridgeTruthCommands = new Set<string>([
+  "aster_agent_init",
+  "aster_agent_status",
+  "get_default_provider",
+  "get_provider_pool_overview",
+  "get_api_key_providers",
+  "get_model_registry",
+  "get_model_registry_provider_ids",
+  "get_models_for_provider",
+  "get_models_by_tier",
+  "get_provider_alias_config",
+  "get_all_alias_configs",
+  "refresh_model_registry",
+  "fetch_provider_models_auto",
+]);
+
 export function shouldPreferMockInBrowser(cmd: string): boolean {
   return mockPriorityCommands.has(cmd);
+}
+
+export function shouldDisallowMockFallbackInBrowser(cmd: string): boolean {
+  return bridgeTruthCommands.has(cmd);
 }

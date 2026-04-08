@@ -208,15 +208,15 @@ const SEEDED_SKILL_GROUP_PRESETS = [
     key: "general",
     title: "通用技能",
     summary:
-      "保留现有写作、调研、趋势与持续跟踪能力，作为站点组之外的业务技能入口。",
+      "保留现有写作、调研、趋势选题与增长跟踪能力，作为站点组之外的创作技能入口。",
     entryHint:
-      "如果任务不依赖站点登录态，直接从这里选一个通用技能进入工作模式。",
+      "如果任务不依赖站点登录态，直接从这里选一个创作技能进入工作模式。",
     themeTarget: "general",
     sort: 90,
   },
 ] as const;
 const SEEDED_SKILL_CATALOG_VERSION =
-  "client-seed-skill-catalog-2026-04-08-a-voice-runtime";
+  "client-seed-skill-catalog-2026-04-08-creation-copy";
 const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
   {
     id: "command:image_generate",
@@ -245,6 +245,24 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     triggers: [{ mode: "mention", prefix: "@封面" }],
     binding: {
       skillId: "cover_generate",
+      executionKind: "task_queue" as const,
+    },
+    renderContract: {
+      resultKind: "image_gallery" as const,
+      detailKind: "media_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:poster_generate",
+    title: "海报",
+    summary: "围绕活动、产品或主题生成可直接使用的海报视觉。",
+    commandKey: "poster_generate",
+    aliases: ["poster", "haibao", "海报", "活动海报", "宣传海报"],
+    triggers: [{ mode: "mention", prefix: "@海报" }],
+    binding: {
+      skillId: "image_generate",
       executionKind: "task_queue" as const,
     },
     renderContract: {
@@ -331,6 +349,31 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     renderContract: {
       resultKind: "tool_timeline" as const,
       detailKind: "scene_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:browser_runtime",
+    title: "浏览器",
+    summary: "把本次输入显式切到真实浏览器执行主链，而不是退回 WebSearch 或普通聊天。",
+    commandKey: "browser_runtime",
+    aliases: [
+      "browser",
+      "browse",
+      "liulanqi",
+      "浏览器",
+      "网页操作",
+      "打开网页",
+      "网页任务",
+    ],
+    triggers: [{ mode: "mention", prefix: "@浏览器" }],
+    binding: {
+      executionKind: "agent_turn" as const,
+    },
+    renderContract: {
+      resultKind: "tool_timeline" as const,
+      detailKind: "json" as const,
       supportsStreaming: true,
       supportsTimeline: true,
     },
@@ -430,6 +473,56 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     renderContract: {
       resultKind: "tool_timeline" as const,
       detailKind: "json" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:channel_preview_runtime",
+    title: "渠道预览",
+    summary: "把当前内容整理成适合指定平台预览的预览稿与封面建议。",
+    commandKey: "channel_preview_runtime",
+    aliases: [
+      "preview",
+      "qudaoyulan",
+      "预览",
+      "渠道预览",
+      "平台预览",
+      "首屏预览",
+    ],
+    triggers: [{ mode: "mention", prefix: "@渠道预览" }],
+    binding: {
+      skillId: "content_post_with_cover",
+      executionKind: "native_skill" as const,
+    },
+    renderContract: {
+      resultKind: "artifact" as const,
+      detailKind: "artifact_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:upload_runtime",
+    title: "上传",
+    summary: "把当前内容整理成适合目标平台直接上传的上传稿与素材清单。",
+    commandKey: "upload_runtime",
+    aliases: [
+      "upload",
+      "shangchuan",
+      "上传",
+      "上架",
+      "内容上传",
+      "平台上传",
+    ],
+    triggers: [{ mode: "mention", prefix: "@上传" }],
+    binding: {
+      skillId: "content_post_with_cover",
+      executionKind: "native_skill" as const,
+    },
+    renderContract: {
+      resultKind: "artifact" as const,
+      detailKind: "artifact_detail" as const,
       supportsStreaming: true,
       supportsTimeline: true,
     },
@@ -577,6 +670,33 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     },
   },
   {
+    id: "command:competitor_research",
+    title: "竞品",
+    summary: "围绕竞品对象执行多轮调研，并输出结构化竞品分析与对比结论。",
+    commandKey: "competitor_research",
+    aliases: [
+      "competitor",
+      "competitive",
+      "jingpin",
+      "竞品",
+      "竞品分析",
+      "竞品研究",
+      "产品对比",
+      "竞对",
+    ],
+    triggers: [{ mode: "mention", prefix: "@竞品" }],
+    binding: {
+      skillId: "report_generate",
+      executionKind: "agent_turn" as const,
+    },
+    renderContract: {
+      resultKind: "tool_timeline" as const,
+      detailKind: "artifact_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
     id: "command:site_search",
     title: "站点搜索",
     summary: "在指定站点内检索内容，优先复用 site adapter 与真实浏览器上下文。",
@@ -693,6 +813,31 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     },
   },
   {
+    id: "command:publish_compliance",
+    title: "发布合规",
+    summary: "围绕广告法、版权与平台发布风险检查当前内容是否适合发布。",
+    commandKey: "publish_compliance",
+    aliases: [
+      "compliance",
+      "hegui",
+      "发布合规",
+      "内容合规",
+      "广告法",
+      "版权风险",
+    ],
+    triggers: [{ mode: "mention", prefix: "@发布合规" }],
+    binding: {
+      skillId: "analysis",
+      executionKind: "agent_turn" as const,
+    },
+    renderContract: {
+      resultKind: "tool_timeline" as const,
+      detailKind: "json" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
     id: "command:transcription_generate",
     title: "转写",
     summary: "把音频或视频来源提交为转写任务。",
@@ -711,11 +856,63 @@ const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
     },
   },
   {
+    id: "command:web_scrape",
+    title: "抓取",
+    summary: "抓取网页正文并提交为可追踪的网页内容任务。",
+    commandKey: "web_scrape",
+    aliases: [
+      "scrape",
+      "web_scrape",
+      "zhuaqu",
+      "抓取",
+      "网页抓取",
+      "网页正文",
+      "Web Scrape",
+    ],
+    triggers: [{ mode: "mention", prefix: "@抓取" }],
+    binding: {
+      skillId: "url_parse",
+      executionKind: "task_queue" as const,
+    },
+    renderContract: {
+      resultKind: "artifact" as const,
+      detailKind: "artifact_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
+    id: "command:webpage_read",
+    title: "网页读取",
+    summary: "读取页面或链接内容，并提交为可追踪的网页阅读任务。",
+    commandKey: "webpage_read",
+    aliases: [
+      "web_read",
+      "page_read",
+      "wangyeduqu",
+      "网页读取",
+      "读取网页",
+      "页面读取",
+      "网页总结",
+    ],
+    triggers: [{ mode: "mention", prefix: "@网页读取" }],
+    binding: {
+      skillId: "url_parse",
+      executionKind: "task_queue" as const,
+    },
+    renderContract: {
+      resultKind: "artifact" as const,
+      detailKind: "artifact_detail" as const,
+      supportsStreaming: true,
+      supportsTimeline: true,
+    },
+  },
+  {
     id: "command:url_parse",
     title: "链接解析",
     summary: "解析网页链接并提交为可追踪的文本任务。",
     commandKey: "url_parse",
-    aliases: ["url", "url_parse", "链接", "链接解析", "网页读取", "网页解析"],
+    aliases: ["url", "url_parse", "链接", "链接解析", "网页解析"],
     triggers: [{ mode: "mention", prefix: "@链接解析" }],
     binding: {
       skillId: "url_parse",

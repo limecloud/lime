@@ -9,13 +9,18 @@ import {
   listSkillCatalogCommandEntries,
 } from "@/lib/api/skillCatalog";
 import { parseAnalysisWorkbenchCommand } from "../utils/analysisWorkbenchCommand";
+import { parseBrowserWorkbenchCommand } from "../utils/browserWorkbenchCommand";
 import { parseBroadcastWorkbenchCommand } from "../utils/broadcastWorkbenchCommand";
+import { parseChannelPreviewWorkbenchCommand } from "../utils/channelPreviewWorkbenchCommand";
 import { parseCodeWorkbenchCommand } from "../utils/codeWorkbenchCommand";
+import { parseComplianceWorkbenchCommand } from "../utils/complianceWorkbenchCommand";
+import { parseCompetitorWorkbenchCommand } from "../utils/competitorWorkbenchCommand";
 import { parseCoverWorkbenchCommand } from "../utils/coverWorkbenchCommand";
 import { parseDeepSearchWorkbenchCommand } from "../utils/deepSearchWorkbenchCommand";
 import { parseFormWorkbenchCommand } from "../utils/formWorkbenchCommand";
 import { parseImageWorkbenchCommand } from "../utils/imageWorkbenchCommand";
 import { parsePdfWorkbenchCommand } from "../utils/pdfWorkbenchCommand";
+import { parsePosterWorkbenchCommand } from "../utils/posterWorkbenchCommand";
 import { parsePresentationWorkbenchCommand } from "../utils/presentationWorkbenchCommand";
 import { parsePublishWorkbenchCommand } from "../utils/publishWorkbenchCommand";
 import { parseReportWorkbenchCommand } from "../utils/reportWorkbenchCommand";
@@ -24,9 +29,15 @@ import { parseSearchWorkbenchCommand } from "../utils/searchWorkbenchCommand";
 import { parseSiteSearchWorkbenchCommand } from "../utils/siteSearchWorkbenchCommand";
 import { parseSummaryWorkbenchCommand } from "../utils/summaryWorkbenchCommand";
 import { parseTranslationWorkbenchCommand } from "../utils/translationWorkbenchCommand";
+import { buildMentionCommandReplayText } from "../utils/mentionCommandReplayText";
 import { parseTranscriptionWorkbenchCommand } from "../utils/transcriptionWorkbenchCommand";
 import { parseTypesettingWorkbenchCommand } from "../utils/typesettingWorkbenchCommand";
-import { parseUrlParseWorkbenchCommand } from "../utils/urlParseWorkbenchCommand";
+import { parseUploadWorkbenchCommand } from "../utils/uploadWorkbenchCommand";
+import {
+  isUrlParseReadTrigger,
+  isUrlParseScrapeTrigger,
+  parseUrlParseWorkbenchCommand,
+} from "../utils/urlParseWorkbenchCommand";
 import { parseVideoWorkbenchCommand } from "../utils/videoWorkbenchCommand";
 import { parseVoiceWorkbenchCommand } from "../utils/voiceWorkbenchCommand";
 import { parseWebpageWorkbenchCommand } from "../utils/webpageWorkbenchCommand";
@@ -72,9 +83,11 @@ import {
 } from "./imageSkillLaunch";
 import {
   buildServiceSceneLaunchRequestMetadata,
+  parseRuntimeSceneCommand,
   RuntimeSceneLaunchValidationError,
   resolveRuntimeSceneLaunchRequest,
 } from "./serviceSkillSceneLaunch";
+import type { RuntimeSceneGateRequest } from "./sceneSkillGate";
 import { recordMentionEntryUsage } from "../skill-selection/mentionEntryUsage";
 import { recordServiceSkillUsage } from "../service-skills/storage";
 import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
@@ -87,6 +100,9 @@ type ParsedImageWorkbenchCommand = NonNullable<
 >;
 type ParsedCoverWorkbenchCommand = NonNullable<
   ReturnType<typeof parseCoverWorkbenchCommand>
+>;
+type ParsedCompetitorWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseCompetitorWorkbenchCommand>
 >;
 type ParsedBroadcastWorkbenchCommand = NonNullable<
   ReturnType<typeof parseBroadcastWorkbenchCommand>
@@ -196,6 +212,7 @@ function resolveImageMentionCommandKey(
 }
 
 const MAX_MENTION_COMMAND_REPLAY_TEXT_LENGTH = 400;
+const MAX_SLASH_COMMAND_REPLAY_TEXT_LENGTH = 400;
 
 function normalizeMentionCommandReplayText(
   value: string | null | undefined,
@@ -208,10 +225,32 @@ function normalizeMentionCommandReplayText(
   return trimmed.slice(0, MAX_MENTION_COMMAND_REPLAY_TEXT_LENGTH).trim();
 }
 
+function normalizeSlashCommandReplayText(
+  value: string | null | undefined,
+): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return trimmed.slice(0, MAX_SLASH_COMMAND_REPLAY_TEXT_LENGTH).trim();
+}
+
+function resolveRuntimeSceneReplayText(rawText: string): string | undefined {
+  return normalizeSlashCommandReplayText(
+    parseRuntimeSceneCommand(rawText)?.userInput,
+  );
+}
+
 function resolveMentionCommandReplayText(parsedCommand: {
   body: string;
-}): string | undefined {
-  return normalizeMentionCommandReplayText(parsedCommand.body);
+}, commandKey?: string): string | undefined {
+  return normalizeMentionCommandReplayText(
+    buildMentionCommandReplayText({
+      commandKey,
+      parsedCommand,
+    }),
+  );
 }
 
 function resolveMentionCommandUsage(params: {
@@ -979,6 +1018,37 @@ function buildReportSkillLaunchRequestContext(params: {
   };
 }
 
+function buildCompetitorSkillLaunchRequestContext(params: {
+  rawText: string;
+  parsedCommand: ParsedCompetitorWorkbenchCommand;
+  projectId?: string | null;
+  contentId?: string | null;
+}): Record<string, unknown> | null {
+  const prompt = params.parsedCommand.prompt.trim();
+  const query = params.parsedCommand.query?.trim() || prompt;
+  if (!query) {
+    toast.error("请补充明确的竞品分析主题后再提交");
+    return null;
+  }
+
+  return {
+    kind: "report_request",
+    report_request: {
+      raw_text: params.rawText,
+      prompt: prompt || query,
+      query,
+      site: params.parsedCommand.site,
+      time_range: params.parsedCommand.timeRange,
+      depth: "deep",
+      focus: params.parsedCommand.focus,
+      output_format: params.parsedCommand.outputFormat,
+      project_id: params.projectId || undefined,
+      content_id: params.contentId || undefined,
+      entry_source: "at_competitor_command",
+    },
+  };
+}
+
 function buildSiteSearchSkillLaunchRequestContext(params: {
   rawText: string;
   parsedCommand: ParsedSiteSearchWorkbenchCommand;
@@ -1095,9 +1165,13 @@ function buildTranslationSkillLaunchRequestContext(params: {
 
 function buildAnalysisSkillLaunchRequestContext(params: {
   rawText: string;
-  parsedCommand: ParsedAnalysisWorkbenchCommand;
+  parsedCommand: Pick<
+    ParsedAnalysisWorkbenchCommand,
+    "prompt" | "content" | "focus" | "style" | "outputFormat"
+  >;
   projectId?: string | null;
   contentId?: string | null;
+  entrySource?: string;
 }): Record<string, unknown> {
   const prompt =
     params.parsedCommand.prompt.trim() || "请分析当前对话中最相关的内容";
@@ -1113,7 +1187,7 @@ function buildAnalysisSkillLaunchRequestContext(params: {
       output_format: params.parsedCommand.outputFormat,
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
-      entry_source: "at_analysis_command",
+      entry_source: params.entrySource || "at_analysis_command",
     },
   };
 }
@@ -1125,6 +1199,9 @@ function buildUrlParseSkillLaunchRequestContext(params: {
   contentId?: string | null;
   sessionId?: string | null;
 }): Record<string, unknown> {
+  const isScrapeEntry = isUrlParseScrapeTrigger(params.parsedCommand.trigger);
+  const isReadEntry = isUrlParseReadTrigger(params.parsedCommand.trigger);
+
   return {
     kind: "url_parse_task",
     url_parse_task: {
@@ -1135,7 +1212,11 @@ function buildUrlParseSkillLaunchRequestContext(params: {
       project_id: params.projectId || undefined,
       content_id: params.contentId || undefined,
       session_id: params.sessionId || undefined,
-      entry_source: "at_url_parse_command",
+      entry_source: isScrapeEntry
+        ? "at_web_scrape_command"
+        : isReadEntry
+          ? "at_webpage_read_command"
+          : "at_url_parse_command",
     },
   };
 }
@@ -1397,12 +1478,16 @@ interface UseWorkspaceSendActionsParams {
   handleAutoLaunchMatchedSiteSkill: (
     match: AutoMatchedSiteSkill<ServiceSkillHomeItem>,
   ) => Promise<void>;
+  openRuntimeSceneGate?: (
+    request: RuntimeSceneGateRequest,
+  ) => Promise<void> | void;
   ensureSessionForCommandMetadata?: () => Promise<string | null>;
   resolveImageWorkbenchSkillRequest: (input: {
     rawText: string;
     parsedCommand: ParsedImageWorkbenchCommand;
     images: MessageImage[];
     sessionIdOverride?: string | null;
+    entrySource?: string;
   }) => ImageWorkbenchSkillRequest | null;
 }
 
@@ -1427,6 +1512,7 @@ interface WorkspaceSendPlan extends WorkspaceResolvedSendState {
   completedSlashUsage?: {
     kind: "scene";
     entryId: string;
+    replayText?: string;
   } | null;
 }
 
@@ -1486,6 +1572,7 @@ export function useWorkspaceSendActions({
   setRuntimeTeamDispatchPreview,
   ensureBrowserAssistCanvas,
   handleAutoLaunchMatchedSiteSkill,
+  openRuntimeSceneGate,
   ensureSessionForCommandMetadata,
   resolveImageWorkbenchSkillRequest,
 }: UseWorkspaceSendActionsParams) {
@@ -1528,7 +1615,7 @@ export function useWorkspaceSendActions({
         hasModelSkillLaunchRequestMetadata(mergedLaunchRequestMetadata);
       const requestedWebSearch =
         webSearch ?? effectiveToolPreferences.webSearch;
-      const effectiveWebSearch =
+      let effectiveWebSearch =
         browserRequirementMatch &&
         browserRequirementMatch.requirement !== "optional"
           ? false
@@ -1656,16 +1743,76 @@ export function useWorkspaceSendActions({
         if (mentionCommandKey) {
           markCompletedMentionCommand(
             mentionCommandKey,
-            resolveMentionCommandReplayText(parsedImageWorkbenchCommand),
+            resolveMentionCommandReplayText(
+              parsedImageWorkbenchCommand,
+              mentionCommandKey,
+            ),
           );
         }
+        hasBoundSkillLaunch = true;
+      }
+
+      const parsedPosterWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand
+          ? parsePosterWorkbenchCommand(sourceText)
+          : null;
+      if (parsedPosterWorkbenchCommand) {
+        const skillRequest = resolveImageWorkbenchSkillRequest({
+          rawText: sourceText,
+          parsedCommand: {
+            rawText: parsedPosterWorkbenchCommand.rawText,
+            trigger: "@配图",
+            body: parsedPosterWorkbenchCommand.body,
+            mode: "generate",
+            prompt: parsedPosterWorkbenchCommand.prompt,
+            count: 1,
+            size: parsedPosterWorkbenchCommand.size,
+            aspectRatio: parsedPosterWorkbenchCommand.aspectRatio,
+            targetRef: undefined,
+          },
+          images: effectiveImages,
+          sessionIdOverride: commandSessionId,
+          entrySource: "at_poster_command",
+        });
+        if (!skillRequest) {
+          clearSubmissionPreview();
+          return { kind: "done", result: false };
+        }
+        effectiveImages =
+          skillRequest.images.length > 0
+            ? skillRequest.images
+            : effectiveImages;
+        pendingCommandSessionBinding = {
+          kind: "request_context",
+          requestContext: skillRequest.requestContext,
+          requestContextKey: "image_task",
+        };
+        ensureSubmissionPreview(effectiveImages);
+        void primeCommandSessionId().catch(() => undefined);
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildImageSkillLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            skillRequest.requestContext,
+          ),
+        };
+        markCompletedMentionCommand(
+          "poster_generate",
+          resolveMentionCommandReplayText(
+            parsedPosterWorkbenchCommand,
+            "poster_generate",
+          ),
+        );
         hasBoundSkillLaunch = true;
       }
 
       const parsedCoverWorkbenchCommand =
         !sendOptions?.purpose &&
         sourceText.trim() &&
-        !parsedImageWorkbenchCommand
+        !parsedImageWorkbenchCommand &&
+        !parsedPosterWorkbenchCommand
           ? parseCoverWorkbenchCommand(sourceText)
           : null;
       if (parsedCoverWorkbenchCommand) {
@@ -1695,7 +1842,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "cover_generate",
-          resolveMentionCommandReplayText(parsedCoverWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedCoverWorkbenchCommand,
+            "cover_generate",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -1734,7 +1884,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "video_generate",
-          resolveMentionCommandReplayText(parsedVideoWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedVideoWorkbenchCommand,
+            "video_generate",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -1770,7 +1923,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "broadcast_generate",
-          resolveMentionCommandReplayText(parsedBroadcastWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedBroadcastWorkbenchCommand,
+            "broadcast_generate",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -1807,7 +1963,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "modal_resource_search",
-          resolveMentionCommandReplayText(parsedResourceSearchWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedResourceSearchWorkbenchCommand,
+            "modal_resource_search",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -1845,7 +2004,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "transcription_generate",
-          resolveMentionCommandReplayText(parsedTranscriptionWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedTranscriptionWorkbenchCommand,
+            "transcription_generate",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -1880,7 +2042,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "research",
-          resolveMentionCommandReplayText(parsedSearchWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedSearchWorkbenchCommand,
+            "research",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -1916,7 +2081,50 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "research_report",
-          resolveMentionCommandReplayText(parsedReportWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedReportWorkbenchCommand,
+            "research_report",
+          ),
+        );
+        hasBoundSkillLaunch = true;
+      }
+
+      const parsedCompetitorWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand &&
+        !parsedCoverWorkbenchCommand &&
+        !parsedVideoWorkbenchCommand &&
+        !parsedBroadcastWorkbenchCommand &&
+        !parsedResourceSearchWorkbenchCommand &&
+        !parsedTranscriptionWorkbenchCommand &&
+        !parsedSearchWorkbenchCommand &&
+        !parsedReportWorkbenchCommand
+          ? parseCompetitorWorkbenchCommand(sourceText)
+          : null;
+      if (parsedCompetitorWorkbenchCommand) {
+        const requestContext = buildCompetitorSkillLaunchRequestContext({
+          rawText: sourceText,
+          parsedCommand: parsedCompetitorWorkbenchCommand,
+          projectId,
+          contentId,
+        });
+        if (!requestContext) {
+          return { kind: "done", result: false };
+        }
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildReportSkillLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            requestContext,
+          ),
+        };
+        markCompletedMentionCommand(
+          "competitor_research",
+          resolveMentionCommandReplayText(
+            parsedCompetitorWorkbenchCommand,
+            "competitor_research",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -1931,7 +2139,8 @@ export function useWorkspaceSendActions({
         !parsedResourceSearchWorkbenchCommand &&
         !parsedTranscriptionWorkbenchCommand &&
         !parsedSearchWorkbenchCommand &&
-        !parsedReportWorkbenchCommand
+        !parsedReportWorkbenchCommand &&
+        !parsedCompetitorWorkbenchCommand
           ? parseDeepSearchWorkbenchCommand(sourceText)
           : null;
       if (parsedDeepSearchWorkbenchCommand) {
@@ -1953,7 +2162,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "deep_search",
-          resolveMentionCommandReplayText(parsedDeepSearchWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedDeepSearchWorkbenchCommand,
+            "deep_search",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -1991,7 +2203,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "site_search",
-          resolveMentionCommandReplayText(parsedSiteSearchWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedSiteSearchWorkbenchCommand,
+            "site_search",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -2030,7 +2245,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "read_pdf",
-          resolveMentionCommandReplayText(parsedPdfWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedPdfWorkbenchCommand,
+            "read_pdf",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -2067,7 +2285,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "summary",
-          resolveMentionCommandReplayText(parsedSummaryWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedSummaryWorkbenchCommand,
+            "summary",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -2105,7 +2326,53 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "translation",
-          resolveMentionCommandReplayText(parsedTranslationWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedTranslationWorkbenchCommand,
+            "translation",
+          ),
+        );
+        hasBoundSkillLaunch = true;
+      }
+
+      const parsedComplianceWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand &&
+        !parsedCoverWorkbenchCommand &&
+        !parsedVideoWorkbenchCommand &&
+        !parsedBroadcastWorkbenchCommand &&
+        !parsedResourceSearchWorkbenchCommand &&
+        !parsedTranscriptionWorkbenchCommand &&
+        !parsedSearchWorkbenchCommand &&
+        !parsedReportWorkbenchCommand &&
+        !parsedDeepSearchWorkbenchCommand &&
+        !parsedSiteSearchWorkbenchCommand &&
+        !parsedPdfWorkbenchCommand &&
+        !parsedSummaryWorkbenchCommand &&
+        !parsedTranslationWorkbenchCommand
+          ? parseComplianceWorkbenchCommand(sourceText)
+          : null;
+      if (parsedComplianceWorkbenchCommand) {
+        const requestContext = buildAnalysisSkillLaunchRequestContext({
+          rawText: sourceText,
+          parsedCommand: parsedComplianceWorkbenchCommand,
+          projectId,
+          contentId,
+          entrySource: "at_publish_compliance_command",
+        });
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: buildAnalysisSkillLaunchRequestMetadata(
+            sendOptions?.requestMetadata,
+            requestContext,
+          ),
+        };
+        markCompletedMentionCommand(
+          "publish_compliance",
+          resolveMentionCommandReplayText(
+            parsedComplianceWorkbenchCommand,
+            "publish_compliance",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -2125,7 +2392,8 @@ export function useWorkspaceSendActions({
         !parsedSiteSearchWorkbenchCommand &&
         !parsedPdfWorkbenchCommand &&
         !parsedSummaryWorkbenchCommand &&
-        !parsedTranslationWorkbenchCommand
+        !parsedTranslationWorkbenchCommand &&
+        !parsedComplianceWorkbenchCommand
           ? parseAnalysisWorkbenchCommand(sourceText)
           : null;
       if (parsedAnalysisWorkbenchCommand) {
@@ -2144,7 +2412,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "analysis",
-          resolveMentionCommandReplayText(parsedAnalysisWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedAnalysisWorkbenchCommand,
+            "analysis",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -2164,7 +2435,8 @@ export function useWorkspaceSendActions({
         !parsedSiteSearchWorkbenchCommand &&
         !parsedPdfWorkbenchCommand &&
         !parsedSummaryWorkbenchCommand &&
-        !parsedTranslationWorkbenchCommand
+        !parsedTranslationWorkbenchCommand &&
+        !parsedComplianceWorkbenchCommand
           ? parseUrlParseWorkbenchCommand(sourceText)
           : null;
       if (parsedUrlParseWorkbenchCommand) {
@@ -2189,8 +2461,19 @@ export function useWorkspaceSendActions({
           ),
         };
         markCompletedMentionCommand(
-          "url_parse",
-          resolveMentionCommandReplayText(parsedUrlParseWorkbenchCommand),
+          isUrlParseScrapeTrigger(parsedUrlParseWorkbenchCommand.trigger)
+            ? "web_scrape"
+            : isUrlParseReadTrigger(parsedUrlParseWorkbenchCommand.trigger)
+              ? "webpage_read"
+            : "url_parse",
+          resolveMentionCommandReplayText(
+            parsedUrlParseWorkbenchCommand,
+            isUrlParseScrapeTrigger(parsedUrlParseWorkbenchCommand.trigger)
+              ? "web_scrape"
+              : isUrlParseReadTrigger(parsedUrlParseWorkbenchCommand.trigger)
+                ? "webpage_read"
+                : "url_parse",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -2237,7 +2520,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "typesetting",
-          resolveMentionCommandReplayText(parsedTypesettingWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedTypesettingWorkbenchCommand,
+            "typesetting",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -2279,7 +2565,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "presentation_generate",
-          resolveMentionCommandReplayText(parsedPresentationWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedPresentationWorkbenchCommand,
+            "presentation_generate",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -2322,7 +2611,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "form_generate",
-          resolveMentionCommandReplayText(parsedFormWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedFormWorkbenchCommand,
+            "form_generate",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -2366,7 +2658,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "webpage_generate",
-          resolveMentionCommandReplayText(parsedWebpageWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedWebpageWorkbenchCommand,
+            "webpage_generate",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
@@ -2425,7 +2720,154 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "code_runtime",
-          resolveMentionCommandReplayText(parsedCodeWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedCodeWorkbenchCommand,
+            "code_runtime",
+          ),
+        );
+      }
+
+      const parsedChannelPreviewWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand &&
+        !parsedCoverWorkbenchCommand &&
+        !parsedVideoWorkbenchCommand &&
+        !parsedBroadcastWorkbenchCommand &&
+        !parsedResourceSearchWorkbenchCommand &&
+        !parsedTranscriptionWorkbenchCommand &&
+        !parsedSearchWorkbenchCommand &&
+        !parsedReportWorkbenchCommand &&
+        !parsedDeepSearchWorkbenchCommand &&
+        !parsedSiteSearchWorkbenchCommand &&
+        !parsedPdfWorkbenchCommand &&
+        !parsedSummaryWorkbenchCommand &&
+        !parsedTranslationWorkbenchCommand &&
+        !parsedUrlParseWorkbenchCommand &&
+        !parsedTypesettingWorkbenchCommand &&
+        !parsedPresentationWorkbenchCommand &&
+        !parsedFormWorkbenchCommand &&
+        !parsedWebpageWorkbenchCommand &&
+        !parsedCodeWorkbenchCommand
+          ? parseChannelPreviewWorkbenchCommand(sourceText)
+          : null;
+      if (parsedChannelPreviewWorkbenchCommand) {
+        const existingHarnessMetadata =
+          asRecord(sendOptions?.requestMetadata?.harness) || {};
+        dispatchText = `/${CONTENT_POST_SKILL_KEY}${
+          parsedChannelPreviewWorkbenchCommand.dispatchBody
+            ? ` ${parsedChannelPreviewWorkbenchCommand.dispatchBody}`
+            : ""
+        }`;
+        ensureSubmissionPreview();
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: {
+            ...(sendOptions?.requestMetadata || {}),
+            harness: {
+              ...existingHarnessMetadata,
+              publish_command: {
+                prompt:
+                  parsedChannelPreviewWorkbenchCommand.prompt ||
+                  parsedChannelPreviewWorkbenchCommand.body,
+                content: parsedChannelPreviewWorkbenchCommand.body,
+                platform_type:
+                  parsedChannelPreviewWorkbenchCommand.platformType ||
+                  undefined,
+                platform_label:
+                  parsedChannelPreviewWorkbenchCommand.platformLabel ||
+                  undefined,
+                intent: "preview",
+                entry_source: "at_channel_preview_command",
+              },
+            },
+          },
+        };
+        markCompletedMentionCommand(
+          "channel_preview_runtime",
+          resolveMentionCommandReplayText(
+            parsedChannelPreviewWorkbenchCommand,
+            "channel_preview_runtime",
+          ),
+        );
+      }
+
+      const parsedUploadWorkbenchCommand =
+        !sendOptions?.purpose &&
+        sourceText.trim() &&
+        !parsedImageWorkbenchCommand &&
+        !parsedCoverWorkbenchCommand &&
+        !parsedVideoWorkbenchCommand &&
+        !parsedBroadcastWorkbenchCommand &&
+        !parsedResourceSearchWorkbenchCommand &&
+        !parsedTranscriptionWorkbenchCommand &&
+        !parsedSearchWorkbenchCommand &&
+        !parsedReportWorkbenchCommand &&
+        !parsedDeepSearchWorkbenchCommand &&
+        !parsedSiteSearchWorkbenchCommand &&
+        !parsedPdfWorkbenchCommand &&
+        !parsedSummaryWorkbenchCommand &&
+        !parsedTranslationWorkbenchCommand &&
+        !parsedUrlParseWorkbenchCommand &&
+        !parsedTypesettingWorkbenchCommand &&
+        !parsedPresentationWorkbenchCommand &&
+        !parsedFormWorkbenchCommand &&
+        !parsedWebpageWorkbenchCommand &&
+        !parsedCodeWorkbenchCommand &&
+        !parsedChannelPreviewWorkbenchCommand
+          ? parseUploadWorkbenchCommand(sourceText)
+          : null;
+      if (parsedUploadWorkbenchCommand) {
+        const existingHarnessMetadata =
+          asRecord(sendOptions?.requestMetadata?.harness) || {};
+        const uploadBrowserRequirementMatch = detectBrowserTaskRequirement(
+          parsedUploadWorkbenchCommand.body ||
+            parsedUploadWorkbenchCommand.prompt ||
+            sourceText,
+        );
+        dispatchText = `/${CONTENT_POST_SKILL_KEY}${
+          parsedUploadWorkbenchCommand.dispatchBody
+            ? ` ${parsedUploadWorkbenchCommand.dispatchBody}`
+            : ""
+        }`;
+        ensureSubmissionPreview();
+        sendOptions = {
+          ...(sendOptions || {}),
+          requestMetadata: {
+            ...(sendOptions?.requestMetadata || {}),
+            harness: {
+              ...existingHarnessMetadata,
+              ...(uploadBrowserRequirementMatch
+                ? {
+                    browser_requirement:
+                      uploadBrowserRequirementMatch.requirement,
+                    browser_requirement_reason:
+                      uploadBrowserRequirementMatch.reason,
+                    browser_launch_url:
+                      uploadBrowserRequirementMatch.launchUrl,
+                  }
+                : {}),
+              publish_command: {
+                prompt:
+                  parsedUploadWorkbenchCommand.prompt ||
+                  parsedUploadWorkbenchCommand.body,
+                content: parsedUploadWorkbenchCommand.body,
+                platform_type:
+                  parsedUploadWorkbenchCommand.platformType || undefined,
+                platform_label:
+                  parsedUploadWorkbenchCommand.platformLabel || undefined,
+                intent: "upload",
+                entry_source: "at_upload_command",
+              },
+            },
+          },
+        };
+        markCompletedMentionCommand(
+          "upload_runtime",
+          resolveMentionCommandReplayText(
+            parsedUploadWorkbenchCommand,
+            "upload_runtime",
+          ),
         );
       }
 
@@ -2450,7 +2892,9 @@ export function useWorkspaceSendActions({
         !parsedPresentationWorkbenchCommand &&
         !parsedFormWorkbenchCommand &&
         !parsedWebpageWorkbenchCommand &&
-        !parsedCodeWorkbenchCommand
+        !parsedCodeWorkbenchCommand &&
+        !parsedChannelPreviewWorkbenchCommand &&
+        !parsedUploadWorkbenchCommand
           ? parsePublishWorkbenchCommand(sourceText)
           : null;
       if (parsedPublishWorkbenchCommand) {
@@ -2498,7 +2942,10 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "publish_runtime",
-          resolveMentionCommandReplayText(parsedPublishWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedPublishWorkbenchCommand,
+            "publish_runtime",
+          ),
         );
       }
 
@@ -2529,12 +2976,59 @@ export function useWorkspaceSendActions({
         };
         markCompletedMentionCommand(
           "voice_runtime",
-          resolveMentionCommandReplayText(parsedVoiceWorkbenchCommand),
+          resolveMentionCommandReplayText(
+            parsedVoiceWorkbenchCommand,
+            "voice_runtime",
+          ),
         );
         hasBoundSkillLaunch = true;
       }
 
-      if (!sendOptions?.purpose && sourceText.trim().startsWith("/")) {
+      const parsedBrowserWorkbenchCommand =
+        !sendOptions?.purpose && sourceText.trim()
+          ? parseBrowserWorkbenchCommand(sourceText)
+          : null;
+      if (parsedBrowserWorkbenchCommand) {
+        const existingHarnessMetadata =
+          asRecord(sendOptions?.requestMetadata?.harness) || {};
+        effectiveToolPreferences = {
+          ...effectiveToolPreferences,
+          webSearch: false,
+        };
+        effectiveWebSearch = false;
+        ensureSubmissionPreview();
+        sendOptions = {
+          ...(sendOptions || {}),
+          toolPreferencesOverride: effectiveToolPreferences,
+          requestMetadata: {
+            ...(sendOptions?.requestMetadata || {}),
+            harness: {
+              ...existingHarnessMetadata,
+              browser_requirement:
+                parsedBrowserWorkbenchCommand.browserRequirement,
+              browser_requirement_reason:
+                parsedBrowserWorkbenchCommand.browserRequirementReason,
+              browser_launch_url: parsedBrowserWorkbenchCommand.launchUrl,
+              browser_user_step_required:
+                parsedBrowserWorkbenchCommand.browserRequirement ===
+                "required_with_user_step",
+            },
+          },
+        };
+        markCompletedMentionCommand(
+          "browser_runtime",
+          resolveMentionCommandReplayText(
+            parsedBrowserWorkbenchCommand,
+            "browser_runtime",
+          ),
+        );
+      }
+
+      if (
+        !sendOptions?.purpose &&
+        !sendOptions?.skipSceneCommandRouting &&
+        sourceText.trim().startsWith("/")
+      ) {
         ensureSubmissionPreview();
         let sceneLaunchRequest = null;
         try {
@@ -2546,6 +3040,11 @@ export function useWorkspaceSendActions({
           });
         } catch (error) {
           if (error instanceof RuntimeSceneLaunchValidationError) {
+            if (error.gateRequest && openRuntimeSceneGate) {
+              await openRuntimeSceneGate(error.gateRequest);
+              clearSubmissionPreview();
+              return { kind: "done", result: false };
+            }
             toast.error(error.message);
             clearSubmissionPreview();
             return { kind: "done", result: false };
@@ -2564,6 +3063,7 @@ export function useWorkspaceSendActions({
           completedSlashUsage = {
             kind: "scene",
             entryId: sceneLaunchRequest.sceneEntry.sceneKey,
+            replayText: resolveRuntimeSceneReplayText(sourceText),
           };
         }
       }
@@ -2686,6 +3186,7 @@ export function useWorkspaceSendActions({
       input,
       messagesCount,
       mentionedCharacters,
+      openRuntimeSceneGate,
       projectId,
       resolveSendBoundary,
       serviceSkills,

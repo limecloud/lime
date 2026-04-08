@@ -11,6 +11,7 @@ import { normalizeSessionTaskFileType } from "./generalWorkbenchHelpers";
 interface SessionFileSummary {
   name: string;
   fileType?: string | null;
+  metadata?: Record<string, unknown>;
   createdAt?: number;
   updatedAt?: number;
 }
@@ -140,6 +141,7 @@ export function useWorkspaceSessionRestore({
               version: 1,
               createdAt: file.createdAt ?? Date.now(),
               updatedAt: file.updatedAt ?? file.createdAt ?? Date.now(),
+              metadata: file.metadata,
             });
           }
         } catch (err) {

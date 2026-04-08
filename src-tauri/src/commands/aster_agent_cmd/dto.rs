@@ -7,6 +7,8 @@ pub struct AsterAgentStatus {
     pub initialized: bool,
     pub provider_configured: bool,
     pub provider_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_selector: Option<String>,
     pub model_name: Option<String>,
     /// 凭证 UUID（来自凭证池）
     #[serde(skip_serializing_if = "Option::is_none")]

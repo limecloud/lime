@@ -80,6 +80,7 @@ export function createAgentChatSendMessage(
             recordSlashEntryUsage({
               kind: "command",
               entryId: command.definition.key,
+              replayText: command.userInput,
             });
           },
         });

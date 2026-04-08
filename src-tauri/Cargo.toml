@@ -1,9 +1,10 @@
 [workspace]
 members = ["crates/*"]
+exclude = ["crates/aster", "crates/aster-models", "crates/aster-rust"]
 resolver = "2"
 
 [workspace.package]
-version = "1.5.1"
+version = "1.6.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -32,6 +33,8 @@ lime-gateway = { path = "crates/gateway" }
 lime-browser-runtime = { path = "crates/browser-runtime" }
 lime-media-runtime = { path = "crates/media-runtime" }
 voice-core = { path = "crates/voice-core" }
+aster = { package = "aster-core", path = "crates/aster-rust/crates/aster" }
+aster-models = { path = "crates/aster-rust/crates/aster-models" }
 
 # 序列化
 serde = { version = "1", features = ["derive"] }
@@ -124,14 +127,6 @@ window-vibrancy = "0.7.1"
 if-addrs = "0.13"
 enigo = "0.3"
 
-# Aster Agent Framework
-# 默认固定到远程 Git tag，避免 CI/CD 与其他开发环境依赖本地绝对路径。
-# 如需联调本地 aster-rust，请运行：
-#   npm run setup:local-aster -- /path/to/aster-rust
-# 脚本会在仓库根 .cargo/config.toml 写入本地 patch 覆盖；该文件已被 .gitignore 忽略。
-aster = { package = "aster-core", git = "https://github.com/astercloud/aster-rust", tag = "v0.27.2" }
-aster-models = { git = "https://github.com/astercloud/aster-rust", tag = "v0.27.2" }
-
 # MCP (Model Context Protocol)
 rmcp = { version = "0.12.0", features = ["client", "transport-io", "transport-child-process"] }
 
@@ -194,7 +189,7 @@ version = "2.4"
 
 [package]
 name = "lime"
-version = "1.5.1"
+version = "1.6.0"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"

@@ -98,6 +98,7 @@ interface InputbarProps extends SkillSelectionSourceProps {
   onEnableSuggestedTeam?: (suggestedPresetId?: string) => void;
   teamWorkspaceSettings?: WorkspaceSettings | null;
   onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
+  contextVariant?: "default" | "task-center";
 }
 
 export const Inputbar: React.FC<InputbarProps> = ({
@@ -147,6 +148,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
   onEnableSuggestedTeam,
   teamWorkspaceSettings,
   onPersistCustomTeams,
+  contextVariant = "default",
 }) => {
   const {
     textareaRef,
@@ -272,6 +274,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         queuedTurns={queuedTurns}
         onPromoteQueuedTurn={onPromoteQueuedTurn}
         onRemoveQueuedTurn={onRemoveQueuedTurn}
+        contextVariant={contextVariant}
       />
     </InputbarSurface>
   );

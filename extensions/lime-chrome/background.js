@@ -2,6 +2,8 @@ const HEARTBEAT_INTERVAL_MS = 30000;
 const RECONNECT_MIN_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
 const PAGE_CAPTURE_RETRY_LIMIT = 3;
+const TAB_COMMAND_RETRY_LIMIT = 3;
+const TAB_COMMAND_RETRY_DELAY_MS = 250;
 const KEEPALIVE_ALARM_NAME = "limeBridgeKeepAlive";
 const KEEPALIVE_PERIOD_MINUTES = 1;
 const DEBUGGER_PROTOCOL_VERSION = "1.3";
@@ -82,6 +84,10 @@ function logWarn(message, payload) {
   } else {
     console.warn(`[LimeBridge] ${message}`, payload);
   }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function readSettings() {
@@ -1167,12 +1173,41 @@ async function resolveTargetTabId() {
 }
 
 async function sendCommandToTab(tabId, payload) {
-  try {
-    return await chrome.tabs.sendMessage(tabId, payload);
-  } catch (_) {
-    await injectContentScript(tabId);
-    return await chrome.tabs.sendMessage(tabId, payload);
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= TAB_COMMAND_RETRY_LIMIT; attempt += 1) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, payload);
+    } catch (sendError) {
+      lastError = sendError;
+      try {
+        await injectContentScript(tabId);
+        return await chrome.tabs.sendMessage(tabId, payload);
+      } catch (injectError) {
+        lastError = injectError;
+      }
+    }
+
+    if (
+      attempt >= TAB_COMMAND_RETRY_LIMIT ||
+      !looksLikeTransientTabCommandError(lastError)
+    ) {
+      throw lastError;
+    }
+
+    const delayMs = TAB_COMMAND_RETRY_DELAY_MS * (attempt + 1);
+    logWarn("标签页命令执行命中瞬态错误，准备重试", {
+      tabId,
+      attempt: attempt + 1,
+      delayMs,
+      payloadType: payload?.type || null,
+      command: payload?.data?.command || null,
+      error: lastError?.message || String(lastError),
+    });
+    await delay(delayMs);
   }
+
+  throw lastError || new Error("标签页命令执行失败");
 }
 
 async function injectContentScript(tabId) {
@@ -1181,6 +1216,18 @@ async function injectContentScript(tabId) {
     target: { tabId },
     files: ["site_adapter_runners.generated.js", "content_script.js"],
   });
+}
+
+function looksLikeTransientTabCommandError(error) {
+  const normalized = String(error?.message || error || "").toLowerCase();
+  return (
+    normalized.includes("frame with id") ||
+    normalized.includes("frame was removed") ||
+    normalized.includes("receiving end does not exist") ||
+    normalized.includes("could not establish connection") ||
+    normalized.includes("message port closed") ||
+    normalized.includes("extension context invalidated")
+  );
 }
 
 async function triggerPageCapture(reason, retry = 0) {

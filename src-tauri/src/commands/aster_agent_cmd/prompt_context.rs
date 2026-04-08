@@ -486,6 +486,99 @@ fn truncate_prompt_text(value: String, max_chars: usize) -> String {
     format!("{truncated}...(已截断，原始长度 {total_chars} 字)")
 }
 
+fn build_prompt_file_path(root: Option<&str>, path: &str) -> String {
+    let normalized_path = path.trim().trim_start_matches(|ch| ch == '/' || ch == '\\');
+    if normalized_path.is_empty() {
+        return path.trim().to_string();
+    }
+
+    let Some(root) = root
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.trim_end_matches(|ch| ch == '/' || ch == '\\'))
+    else {
+        return normalized_path.to_string();
+    };
+
+    if root.is_empty() {
+        normalized_path.to_string()
+    } else {
+        format!("{root}/{normalized_path}")
+    }
+}
+
+fn build_markdown_bundle_translation_followup(
+    execution: &ServiceSkillLaunchPreloadExecution,
+) -> Vec<String> {
+    if !execution.result.ok {
+        return Vec::new();
+    }
+
+    let request_args = match execution.request.args.as_object() {
+        Some(args) => args,
+        None => return Vec::new(),
+    };
+    let Some(target_language) =
+        extract_object_string(request_args, &["target_language", "targetLanguage"])
+    else {
+        return Vec::new();
+    };
+
+    let Some(saved_content) = execution.result.saved_content.as_ref() else {
+        return Vec::new();
+    };
+    let Some(markdown_relative_path) = saved_content
+        .markdown_relative_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Vec::new();
+    };
+
+    let export_kind = execution
+        .result
+        .data
+        .as_ref()
+        .and_then(serde_json::Value::as_object)
+        .and_then(|data| extract_object_string(data, &["export_kind", "exportKind"]));
+    if export_kind.as_deref() != Some("markdown_bundle") {
+        return Vec::new();
+    }
+
+    let markdown_path = build_prompt_file_path(
+        saved_content.project_root_path.as_deref(),
+        markdown_relative_path,
+    );
+    let mut lines = vec![
+        format!("- 当前请求要求把已导出的 Markdown 正文翻译成{target_language}。"),
+        format!("- 已保存的 Markdown 文件路径：{markdown_path}。"),
+        "- 从这一刻起，本回合只允许新增 Read / Write / Edit 这类本地文件工具来处理已保存的 Markdown；不要再调用 lime_site_run，也不要转去 WebSearch、research、webReader、WebFetch 或其他通用网页工具。".to_string(),
+        format!("- 必须先用 Read 读取 {markdown_path}，再把正文翻译成{target_language}。"),
+        "- 翻译时必须保留 Markdown 结构、标题层级、列表、表格、引用、frontmatter（如果存在）、链接目标和相对图片路径。".to_string(),
+        "- 代码块、内联代码、URL、图片路径、文件路径、命令行、API 名称默认保持原文，不要翻译。".to_string(),
+        format!(
+            "- 完成翻译后必须用 Write 覆写同一路径 {markdown_path}，不要另存为第二份摘要、HTML 或新的 artifact。"
+        ),
+        format!(
+            "- 最终答复必须明确说明：已将导出的 Markdown 正文翻译成{target_language}并回写到 {markdown_path}。"
+        ),
+    ];
+
+    if let Some(image_dir) = saved_content
+        .images_relative_dir
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        lines.push(format!(
+            "- 已保存的图片目录：{image_dir}。回写正文时不要破坏这些相对图片引用。"
+        ));
+    }
+
+    lines
+}
+
 fn build_service_skill_launch_preload_prompt(
     execution: &ServiceSkillLaunchPreloadExecution,
 ) -> String {
@@ -537,9 +630,9 @@ fn build_service_skill_launch_preload_prompt(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "未提供".to_string());
     let execution_requirement = if execution.result.ok {
-        "- 站点技能已经在系统侧预执行成功。请直接基于下面的结构化结果完成答复，不要再次调用 lime_site_run，也不要回退到底层浏览器兼容工具。".to_string()
+        "- 站点技能已经在系统侧预执行成功。请直接基于下面的结构化结果完成答复，不要再次调用 lime_site_run，也不要回退到 mcp 浏览器工具、webReader、WebFetch、WebSearch、research 或其他通用网页阅读/检索工具。".to_string()
     } else {
-        "- 站点技能已经在系统侧预执行，但执行失败。请直接根据失败结果向用户说明缺少的浏览器上下文、登录态或权限，不要伪造采集成功，也不要再次尝试调用 lime_site_run / mcp__lime-browser__* / browser_*。".to_string()
+        "- 站点技能已经在系统侧预执行，但执行失败。请直接根据失败结果向用户说明缺少的浏览器上下文、登录态或权限，不要伪造采集成功，也不要再次尝试调用 lime_site_run、mcp__lime-browser__*、browser_*、webReader、WebFetch、WebSearch、research 或其他通用网页阅读/检索工具。".to_string()
     };
     let failure_contract = match execution.result.error_code.as_deref() {
         Some("attached_session_required") => {
@@ -550,8 +643,7 @@ fn build_service_skill_launch_preload_prompt(
         }
         _ => "- 如果用户追问失败原因，优先引用 error_code / error_message / report_hint / auth_hint，而不是自行编造执行细节。".to_string(),
     };
-
-    [
+    let mut lines = vec![
         SERVICE_SKILL_LAUNCH_PRELOAD_PROMPT_MARKER.to_string(),
         execution_requirement,
         failure_contract,
@@ -559,9 +651,13 @@ fn build_service_skill_launch_preload_prompt(
         format!("- 当前适配器说明：{adapter_description}"),
         format!("- 已预执行请求(JSON)：{request_json}。"),
         format!("- 已预执行结果(JSON)：{result_json}。"),
-        "- 除非用户明确要求“重跑一次 / 换关键词 / 换筛选条件 / 重新抓取”，否则本回合不要再次调用任何站点执行工具。".to_string(),
-    ]
-    .join("\n")
+    ];
+    lines.extend(build_markdown_bundle_translation_followup(execution));
+    lines.push(
+        "- 除非用户明确要求“重跑一次 / 换关键词 / 换筛选条件 / 重新抓取”，否则本回合不要再次调用任何站点执行工具。"
+            .to_string(),
+    );
+    lines.join("\n")
 }
 
 pub(crate) fn merge_system_prompt_with_service_skill_launch_preload(

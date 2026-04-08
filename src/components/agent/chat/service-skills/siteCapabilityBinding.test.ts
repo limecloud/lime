@@ -80,4 +80,49 @@ describe("site capability binding natural launch message", () => {
       "你帮我在 GitHub 找一下和“AI Agent”相关的项目。只看最近一个月内更新过的项目。",
     );
   });
+
+  it("X 文章转存在指定目标语言时应明确要求翻译正文并保留代码块与图片结构", () => {
+    const message = buildServiceSkillNaturalLaunchMessage({
+      skill: createBrowserSkill({
+        id: "x-article-export",
+        title: "X 文章转存",
+        summary: "导出 X 长文并按目标语言翻译正文。",
+        slotSchema: [
+          {
+            key: "article_url",
+            label: "X 文章链接",
+            type: "url",
+            required: true,
+            placeholder: "https://x.com/<账号>/article/<文章ID>",
+          },
+          {
+            key: "target_language",
+            label: "目标语言",
+            type: "text",
+            required: false,
+            defaultValue: "中文",
+            placeholder: "例如 中文、英文、日文",
+          },
+        ],
+        siteCapabilityBinding: {
+          adapterName: "x/article-export",
+          autoRun: true,
+          requireAttachedSession: true,
+          saveMode: "project_resource",
+          slotArgMap: {
+            article_url: "url",
+            target_language: "target_language",
+          },
+        },
+      }),
+      slotValues: {
+        article_url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
+        target_language: "中文",
+      },
+    });
+
+    expect(message).toBe(
+      "你帮我把这篇 X 长文导出为 Markdown，并将正文翻译成“中文”，保留代码块原文、图片链接和 Markdown 结构。",
+    );
+  });
 });

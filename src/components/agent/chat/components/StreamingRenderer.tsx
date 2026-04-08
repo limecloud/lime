@@ -19,7 +19,7 @@ import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
 import { ActionRequestA2UIPreviewCard } from "./ActionRequestA2UIPreviewCard";
-import { ToolCallItem } from "./ToolCallDisplay";
+import { InlineToolProcessStep } from "./InlineToolProcessStep";
 import { DecisionPanel } from "./DecisionPanel";
 import { AgentPlanBlock } from "./AgentPlanBlock";
 import { parseAIResponse } from "@/lib/workspace/a2ui";
@@ -1248,7 +1248,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
 
         if (entry.kind === "tool") {
           return (
-            <ToolCallItem
+            <InlineToolProcessStep
               key={entry.id}
               toolCall={entry.toolCall}
               isMessageStreaming={isStreaming}

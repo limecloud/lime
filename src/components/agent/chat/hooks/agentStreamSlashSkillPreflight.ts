@@ -92,6 +92,7 @@ export async function maybeHandleSlashSkillBeforeSend(
     model: effectiveModel || undefined,
     images: preparedSend.skillRequest?.images ?? preparedSend.images,
     requestContext: preparedSend.skillRequest?.requestContext,
+    requestMetadata: preparedSend.requestMetadata,
     ensureSession: env.ensureSession,
     setMessages: env.setMessages,
     setIsSending: env.setIsSending,

@@ -47,6 +47,7 @@ interface RecentSlashEntry {
   title: string;
   description: string;
   usedAt: number;
+  replayText?: string;
 }
 
 interface RecentMentionEntry {
@@ -125,6 +126,30 @@ function resolveRecentSlashSkillDescription(skill: Skill): string {
   return skill.name;
 }
 
+function resolveRecentSlashEntryDescription(params: {
+  replayText?: string;
+  fallbackDescription?: string;
+  fallbackTitle: string;
+}): string {
+  const normalizedReplayText = params.replayText?.replace(/\s+/g, " ").trim();
+  if (normalizedReplayText) {
+    const preview =
+      normalizedReplayText.length <= RECENT_REPLAY_TEXT_PREVIEW_LIMIT
+        ? normalizedReplayText
+        : `${normalizedReplayText
+            .slice(0, RECENT_REPLAY_TEXT_PREVIEW_LIMIT)
+            .trimEnd()}...`;
+    return `上次输入：${preview}`;
+  }
+
+  const fallbackDescription = params.fallbackDescription?.trim();
+  if (fallbackDescription) {
+    return fallbackDescription;
+  }
+
+  return params.fallbackTitle;
+}
+
 const SERVICE_SKILL_GROUP_META: Record<
   string,
   { title: string; sort: number }
@@ -198,10 +223,19 @@ interface CharacterMentionPanelProps {
     options?: { replayText?: string },
   ) => void;
   onSelectServiceSkill: (skill: ServiceSkillHomeItem) => void;
-  onSelectSlashCommand: (command: CodexSlashCommandDefinition) => void;
-  onSelectSceneCommand: (command: RuntimeSceneSlashCommand) => void;
+  onSelectSlashCommand: (
+    command: CodexSlashCommandDefinition,
+    options?: { replayText?: string },
+  ) => void;
+  onSelectSceneCommand: (
+    command: RuntimeSceneSlashCommand,
+    options?: { replayText?: string },
+  ) => void;
   onSelectCharacter: (character: Character) => void;
-  onSelectInstalledSkill: (skill: Skill) => void;
+  onSelectInstalledSkill: (
+    skill: Skill,
+    options?: { replayText?: string },
+  ) => void;
   onSelectAvailableSkill: (skill: Skill) => void;
   onNavigateToSettings?: () => void;
 }
@@ -257,8 +291,13 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
         kindLabel: "快捷操作",
         commandPrefix: command.commandPrefix,
         title: command.label,
-        description: command.description,
+        description: resolveRecentSlashEntryDescription({
+          replayText: recentRecord.replayText,
+          fallbackDescription: command.description,
+          fallbackTitle: command.label,
+        }),
         usedAt: recentRecord.usedAt,
+        replayText: recentRecord.replayText,
       });
     }
 
@@ -276,8 +315,13 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
         kindLabel: "场景",
         commandPrefix: command.commandPrefix,
         title: command.label,
-        description: command.description,
+        description: resolveRecentSlashEntryDescription({
+          replayText: recentRecord.replayText,
+          fallbackDescription: command.description,
+          fallbackTitle: command.label,
+        }),
         usedAt: recentRecord.usedAt,
+        replayText: recentRecord.replayText,
       });
     }
 
@@ -295,8 +339,13 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
         kindLabel: "技能",
         commandPrefix: `/${skill.key}`,
         title: skill.name,
-        description: resolveRecentSlashSkillDescription(skill),
+        description: resolveRecentSlashEntryDescription({
+          replayText: recentRecord.replayText,
+          fallbackDescription: resolveRecentSlashSkillDescription(skill),
+          fallbackTitle: skill.name,
+        }),
         usedAt: recentRecord.usedAt,
+        replayText: recentRecord.replayText,
       });
     }
 
@@ -612,7 +661,9 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
                         (item) => item.commandPrefix === entry.commandPrefix,
                       );
                       if (command) {
-                        onSelectSlashCommand(command);
+                        onSelectSlashCommand(command, {
+                          replayText: entry.replayText,
+                        });
                       }
                       return;
                     }
@@ -622,7 +673,9 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
                         (item) => item.commandPrefix === entry.commandPrefix,
                       );
                       if (sceneCommand) {
-                        onSelectSceneCommand(sceneCommand);
+                        onSelectSceneCommand(sceneCommand, {
+                          replayText: entry.replayText,
+                        });
                       }
                       return;
                     }
@@ -631,7 +684,9 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
                       (item) => `/${item.key}` === entry.commandPrefix,
                     );
                     if (skill) {
-                      onSelectInstalledSkill(skill);
+                      onSelectInstalledSkill(skill, {
+                        replayText: entry.replayText,
+                      });
                     }
                   }}
                   className="cursor-pointer"

@@ -5,6 +5,7 @@
 use crate::session_files::{
     SessionDetail, SessionFile, SessionFileStorage, SessionMeta, SessionSummary,
 };
+use serde_json::Value;
 use std::sync::Mutex;
 use tauri::State;
 
@@ -96,9 +97,10 @@ pub fn session_files_save_file(
     session_id: String,
     file_name: String,
     content: String,
+    metadata: Option<Value>,
 ) -> Result<SessionFile, String> {
     let storage = state.0.lock().map_err(|e| format!("锁定失败: {e}"))?;
-    storage.save_file(&session_id, &file_name, &content)
+    storage.save_file_with_metadata(&session_id, &file_name, &content, metadata)
 }
 
 /// 读取会话文件

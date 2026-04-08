@@ -66,6 +66,8 @@ export function ChoicePickerRenderer({
               key={option.value}
               type="button"
               onClick={() => handleSelect(option.value)}
+              data-testid={`${component.id}-option-${option.value}`}
+              aria-pressed={isSelected}
               className={getA2UIChoiceOptionClasses(isWrap, isSelected)}
             >
               <div className="flex items-start justify-between gap-3">

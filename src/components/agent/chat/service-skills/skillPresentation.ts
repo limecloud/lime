@@ -8,9 +8,9 @@ import type {
 } from "./types";
 
 const RUNNER_LABELS: Record<ServiceSkillRunnerType, string> = {
-  instant: "本地即时执行",
-  scheduled: "本地计划任务",
-  managed: "本地持续跟踪",
+  instant: "立即开始",
+  scheduled: "定时执行",
+  managed: "持续跟踪",
 };
 
 const RUNNER_TONES: Record<ServiceSkillRunnerType, ServiceSkillTone> = {
@@ -21,8 +21,8 @@ const RUNNER_TONES: Record<ServiceSkillRunnerType, ServiceSkillTone> = {
 
 const RUNNER_DESCRIPTIONS: Record<ServiceSkillRunnerType, string> = {
   instant: "会直接在当前工作区生成首版结果，方便继续补充与改写。",
-  scheduled: "会先生成首轮结果，再创建本地定时任务持续回流到任务中心。",
-  managed: "会先生成首轮策略，再持续跟踪并回流后续结果与告警。",
+  scheduled: "会先生成首轮结果，再按设定时间持续回流到任务中心。",
+  managed: "会先生成首轮策略，再持续跟踪并回流后续结果与提醒。",
 };
 
 const LOCAL_ACTION_LABELS: Record<ServiceSkillRunnerType, string> = {
@@ -32,7 +32,7 @@ const LOCAL_ACTION_LABELS: Record<ServiceSkillRunnerType, string> = {
 };
 
 const SERVICE_SKILL_TYPE_LABELS: Record<ServiceSkillType, string> = {
-  service: "业务技能",
+  service: "创作技能",
   site: "站点技能",
   prompt: "提示技能",
 };
@@ -105,10 +105,10 @@ export function getServiceSkillTypeLabel(item: ServiceSkillItem): string {
 
 export function getServiceSkillRunnerLabel(item: ServiceSkillItem): string {
   if (item.executionLocation === "cloud_required") {
-    return "云端托管执行";
+    return "云端执行";
   }
   if (resolveServiceSkillType(item) === "site") {
-    return "站点登录态采集";
+    return "浏览器采集";
   }
   return RUNNER_LABELS[item.runnerType];
 }
@@ -126,7 +126,7 @@ export function getServiceSkillRunnerDescription(
   item: ServiceSkillItem,
 ): string {
   if (item.executionLocation === "cloud_required") {
-    return "会提交到 OEM 云端执行，完成后再把结果回流到当前工作区。";
+    return "会交给云端处理，完成后再把结果回流到当前工作区。";
   }
   if (resolveServiceSkillType(item) === "site") {
     return "会复用当前浏览器里的真实登录态执行站点任务，并优先把结果沉淀到当前工作区。";
@@ -136,7 +136,7 @@ export function getServiceSkillRunnerDescription(
 
 export function getServiceSkillActionLabel(item: ServiceSkillItem): string {
   if (item.executionLocation === "cloud_required") {
-    return "提交云端";
+    return "云端执行";
   }
   if (resolveServiceSkillType(item) === "site") {
     return "开始执行";
@@ -209,7 +209,7 @@ export function getServiceSkillPrimaryActionLabel(
     return "创建任务并进入工作区";
   }
   if (skill.executionLocation === "cloud_required") {
-    return "提交云端运行";
+    return "云端执行";
   }
   if (resolveServiceSkillType(skill) === "site") {
     return "开始执行";

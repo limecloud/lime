@@ -218,6 +218,8 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
   );
   const appliedInitialLaunchSignatureRef = useRef("");
   const completedAutoRunSignatureRef = useRef("");
+  const savedDocumentMarkdownRelativePath =
+    savedDocument?.markdown_relative_path?.trim() || "";
   const [pendingAutoRunSignature, setPendingAutoRunSignature] = useState<
     string | null
   >(null);
@@ -951,6 +953,14 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
       contentId: savedDocument.content_id,
       lockTheme: true,
       fromResources: savedDocument.content_id !== normalizedCurrentContentId,
+      ...(savedDocumentMarkdownRelativePath
+        ? {
+            initialProjectFileOpenTarget: {
+              relativePath: savedDocumentMarkdownRelativePath,
+              requestKey: Date.now(),
+            },
+          }
+        : {}),
     });
   };
 
@@ -1424,7 +1434,9 @@ export function BrowserSiteAdapterPanel(props: BrowserSiteAdapterPanelProps) {
                     className="inline-flex items-center justify-center rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50"
                     onClick={handleOpenSavedDocument}
                   >
-                    {shouldWriteToCurrentContent
+                    {savedDocumentMarkdownRelativePath
+                      ? "打开导出结果"
+                      : shouldWriteToCurrentContent
                       ? "打开当前主稿"
                       : "打开已保存内容"}
                   </button>

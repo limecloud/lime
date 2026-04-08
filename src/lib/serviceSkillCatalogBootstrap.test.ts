@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getSeededServiceSkillCatalog,
   getServiceSkillCatalog,
+  parseServiceSkillCatalog,
   type ServiceSkillCatalog,
 } from "@/lib/api/serviceSkills";
 import {
@@ -70,7 +71,7 @@ describe("serviceSkillCatalogBootstrap", () => {
           serviceSkillCatalog: catalog,
         },
       }),
-    ).toEqual(catalog);
+    ).toEqual(parseServiceSkillCatalog(catalog));
   });
 
   it("启动时应在专用全局快照无效时回退读取 bootstrap payload", async () => {

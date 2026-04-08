@@ -39,6 +39,11 @@ export interface CreateSkillScaffoldRequest extends Record<string, unknown> {
   directory: string;
   name: string;
   description: string;
+  whenToUse?: string[];
+  inputs?: string[];
+  outputs?: string[];
+  steps?: string[];
+  fallbackStrategy?: string[];
 }
 
 export interface Skill {
@@ -192,7 +197,7 @@ export const skillsApi = {
       "create_skill_scaffold_for_app",
       {
         app,
-        ...request,
+        request,
       },
     );
     return normalizeInspection(inspection);

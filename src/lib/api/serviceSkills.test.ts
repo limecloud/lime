@@ -101,7 +101,27 @@ describe("serviceSkills API", () => {
         siteCapabilityBinding: expect.objectContaining({
           adapterName: "x/article-export",
           saveMode: "project_resource",
+          slotArgMap: expect.objectContaining({
+            target_language: "target_language",
+          }),
         }),
+        slotSchema: expect.arrayContaining([
+          expect.objectContaining({
+            key: "target_language",
+            defaultValue: "中文",
+          }),
+        ]),
+      }),
+    );
+    expect(
+      catalog.items.find((item) => item.id === "account-performance-tracking"),
+    ).toEqual(
+      expect.objectContaining({
+        title: "账号增长跟踪",
+        aliases: expect.arrayContaining(["增长跟踪", "自动增长"]),
+        triggerHints: expect.arrayContaining([
+          "需要围绕目标账号持续跟踪内容节奏和提醒条件时使用。",
+        ]),
       }),
     );
 
@@ -156,7 +176,7 @@ describe("serviceSkills API", () => {
     const catalog = await getServiceSkillCatalog();
 
     expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-04-08");
+    expect(catalog.version).toBe("client-seed-2026-04-08-creation-copy");
   });
 
   it("当前 OEM 租户不匹配时不应读取其他租户的缓存目录", async () => {
@@ -169,7 +189,7 @@ describe("serviceSkills API", () => {
     const catalog = await getServiceSkillCatalog();
 
     expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-04-08");
+    expect(catalog.version).toBe("client-seed-2026-04-08-creation-copy");
   });
 
   it("旧的 seeded 本地缓存应自动升级到当前 seeded 目录", async () => {

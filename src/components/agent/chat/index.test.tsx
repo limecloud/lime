@@ -3403,6 +3403,66 @@ describe("AgentChatPage 自动引导", () => {
     expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
   });
 
+  it("存在 initialRequestMetadata 时应把结构化回放透传到首发 requestMetadata", async () => {
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
+    mockUseThemeContextWorkspace.mockReturnValue(
+      createMockThemeContextWorkspaceState({
+        enabled: true,
+      }),
+    );
+
+    const initialUserPrompt = "请继续扩写这条已验证结果";
+    const initialRequestMetadata = {
+      harness: {
+        creation_replay: {
+          version: 1,
+          kind: "memory_entry",
+          source: {
+            page: "memory",
+            project_id: "project-creation-replay",
+            entry_id: "memory-creation-replay",
+          },
+          data: {
+            category: "experience",
+            title: "高转化开头结构",
+            summary: "先给反差，再给结论。",
+            tags: ["短视频", "开头"],
+          },
+        },
+      },
+    };
+
+    const container = renderPage({
+      projectId: "project-creation-replay",
+      contentId: "content-creation-replay",
+      theme: "general",
+      lockTheme: true,
+      initialUserPrompt,
+      initialRequestMetadata,
+      onInitialUserPromptConsumed: vi.fn(),
+    });
+    await flushEffects(12);
+
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
+
+    clickButton(container, "theme-workbench-entry-continue");
+    await flushEffects(12);
+
+    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
+    const sendCall = getSendMessageCall();
+    expect(sendCall.options).toEqual(
+      expect.objectContaining({
+        requestMetadata: expect.objectContaining({
+          harness: expect.objectContaining({
+            theme: "general",
+            session_mode: "general_workbench",
+            creation_replay: initialRequestMetadata.harness.creation_replay,
+          }),
+        }),
+      }),
+    );
+  });
+
   it("启用自动执行首条意图时应直接发送而不是等待确认", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(

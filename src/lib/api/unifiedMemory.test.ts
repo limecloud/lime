@@ -61,6 +61,10 @@ describe("unifiedMemory API", () => {
         title: "标题",
         content: "内容",
         summary: "摘要",
+        category: "experience",
+        tags: ["复盘"],
+        confidence: 0.9,
+        importance: 8,
       }),
     ).resolves.toEqual(expect.objectContaining({ id: "m3" }));
     await expect(
@@ -73,6 +77,19 @@ describe("unifiedMemory API", () => {
     await expect(analyzeUnifiedMemories()).resolves.toEqual(
       expect.objectContaining({ analyzed_sessions: 1 }),
     );
+
+    expect(safeInvoke).toHaveBeenNthCalledWith(4, "unified_memory_create", {
+      request: {
+        session_id: "session-1",
+        title: "标题",
+        content: "内容",
+        summary: "摘要",
+        category: "experience",
+        tags: ["复盘"],
+        confidence: 0.9,
+        importance: 8,
+      },
+    });
   });
 
   it("应代理语义搜索与混合搜索命令", async () => {

@@ -1,0 +1,126 @@
+[
+  {
+    "content": [
+      {
+        "type": "resource",
+        "resource": {
+          "uri": "file:///tmp/aster_test/aster.txt",
+          "mimeType": "text",
+          "text": "# aster\n"
+        },
+        "annotations": {
+          "audience": [
+            "assistant"
+          ]
+        }
+      },
+      {
+        "type": "text",
+        "text": "### /tmp/aster_test/aster.txt\n```\n1: # aster\n```\n",
+        "annotations": {
+          "audience": [
+            "user"
+          ],
+          "priority": 0.0
+        }
+      }
+    ],
+    "isError": false
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "The file /tmp/aster_test/aster.txt has been edited, and the section now reads:\n```\n# aster (modified by test)\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
+        "annotations": {
+          "audience": [
+            "assistant"
+          ]
+        }
+      },
+      {
+        "type": "text",
+        "text": "```\n# aster (modified by test)\n```\n",
+        "annotations": {
+          "audience": [
+            "user"
+          ],
+          "priority": 0.2
+        }
+      }
+    ],
+    "isError": false
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "# aster (modified by test)\n",
+        "annotations": {
+          "audience": [
+            "assistant"
+          ]
+        }
+      },
+      {
+        "type": "text",
+        "text": "# aster (modified by test)\n",
+        "annotations": {
+          "audience": [
+            "user"
+          ],
+          "priority": 0.0
+        }
+      }
+    ],
+    "isError": false
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "The file /tmp/aster_test/aster.txt has been edited, and the section now reads:\n```\n# aster\n```\n\nReview the changes above for errors. Undo and edit the file again if necessary!\n",
+        "annotations": {
+          "audience": [
+            "assistant"
+          ]
+        }
+      },
+      {
+        "type": "text",
+        "text": "```\n# aster\n```\n",
+        "annotations": {
+          "audience": [
+            "user"
+          ],
+          "priority": 0.2
+        }
+      }
+    ],
+    "isError": false
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Available windows:\nMenubar",
+        "annotations": {
+          "audience": [
+            "assistant"
+          ]
+        }
+      },
+      {
+        "type": "text",
+        "text": "Available windows:\nMenubar",
+        "annotations": {
+          "audience": [
+            "user"
+          ],
+          "priority": 0.0
+        }
+      }
+    ],
+    "isError": false
+  }
+]

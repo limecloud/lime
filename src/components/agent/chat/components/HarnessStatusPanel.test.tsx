@@ -2095,7 +2095,7 @@ describe("HarnessStatusPanel", () => {
     });
 
     expect(document.body.textContent).toContain(
-      "正在同步当前工具库存与权限策略",
+      "正在读取当前工具库存与权限策略",
     );
     expect(document.body.textContent).toContain("读取失败");
 

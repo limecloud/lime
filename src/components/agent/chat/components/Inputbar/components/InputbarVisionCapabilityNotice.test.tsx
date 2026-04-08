@@ -11,6 +11,30 @@ const mockResolveVisionModel = vi.fn();
 vi.mock("@/hooks/useConfiguredProviders", () => ({
   useConfiguredProviders: (options: unknown) =>
     mockUseConfiguredProviders(options),
+  findConfiguredProviderBySelection: (
+    providers: Array<{ key: string; providerId?: string }>,
+    selection?: string | null,
+  ) => {
+    const normalizedSelection = (selection || "").trim().toLowerCase();
+    const keyMatch =
+      providers.find(
+        (provider) => provider.key.trim().toLowerCase() === normalizedSelection,
+      ) ?? null;
+    const providerIdMatch =
+      providers.find(
+        (provider) =>
+          (provider.providerId || "").trim().toLowerCase() ===
+          normalizedSelection,
+      ) ?? null;
+
+    if (keyMatch && providerIdMatch && keyMatch !== providerIdMatch) {
+      if (!keyMatch.providerId && providerIdMatch.providerId) {
+        return providerIdMatch;
+      }
+    }
+
+    return keyMatch ?? providerIdMatch ?? null;
+  },
 }));
 
 vi.mock("@/hooks/useProviderModels", () => ({
@@ -90,6 +114,45 @@ function renderNotice(
 }
 
 describe("InputbarVisionCapabilityNotice", () => {
+  it("后端回填原始 providerId 时，应使用真实受管 Provider 检查多模态能力", () => {
+    mockUseConfiguredProviders.mockReturnValue({
+      providers: [
+        {
+          key: "openai",
+          label: "OpenAI OAuth",
+          registryId: "openai",
+          type: "openai",
+        },
+        {
+          key: "openai_api_key",
+          label: "OpenAI API Key",
+          registryId: "openai",
+          type: "openai",
+          providerId: "openai",
+          apiHost: "https://api.openai.com/v1",
+        },
+      ],
+      loading: false,
+    });
+
+    renderNotice({
+      providerType: "openai",
+    });
+
+    expect(mockUseProviderModels).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "openai_api_key",
+        providerId: "openai",
+      }),
+      expect.objectContaining({
+        returnFullMetadata: true,
+        autoLoad: true,
+        liveFetchOnly: true,
+        hasApiKey: true,
+      }),
+    );
+  });
+
   it("受管 API Key Provider 应按真实模型目录检查多模态能力", () => {
     renderNotice();
 

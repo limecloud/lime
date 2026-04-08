@@ -727,7 +727,7 @@ export function useWorkspaceServiceSkillEntryActions({
       });
 
       if (skill.executionLocation === "cloud_required") {
-        const toastId = toast.loading(`正在提交 ${skill.title} 到云端...`);
+        const toastId = toast.loading(`正在开始 ${skill.title} 的云端执行...`);
         let runCreated = false;
 
         try {
@@ -801,7 +801,7 @@ export function useWorkspaceServiceSkillEntryActions({
           }
 
           toast.info(
-            `${skill.title} 已提交云端，当前仍在 ${getServiceSkillRunStatusLabel(run.status)}。`,
+            `${skill.title} 已开始云端执行，当前仍在 ${getServiceSkillRunStatusLabel(run.status)}。`,
             {
               id: toastId,
             },
@@ -816,7 +816,7 @@ export function useWorkspaceServiceSkillEntryActions({
               );
             } catch (workspaceError) {
               toast.error(
-                `提交云端运行失败：${getErrorMessage(error)}；本地回退失败：${getErrorMessage(workspaceError)}`,
+                `云端执行失败：${getErrorMessage(error)}；本地回退失败：${getErrorMessage(workspaceError)}`,
                 {
                   id: toastId,
                 },
@@ -827,7 +827,7 @@ export function useWorkspaceServiceSkillEntryActions({
             const entered = navigateToServiceSkillWorkspace(workspacePayload);
             if (!entered) {
               toast.error(
-                `提交云端运行失败：${getErrorMessage(error)}；进入本地工作区失败，请稍后重试。`,
+                `云端执行失败：${getErrorMessage(error)}；进入本地工作区失败，请稍后重试。`,
                 {
                   id: toastId,
                 },
@@ -848,7 +848,7 @@ export function useWorkspaceServiceSkillEntryActions({
             return;
           }
 
-          toast.error(`提交云端运行失败：${getErrorMessage(error)}`, {
+          toast.error(`云端执行失败：${getErrorMessage(error)}`, {
             id: toastId,
           });
         }

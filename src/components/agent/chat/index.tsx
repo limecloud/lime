@@ -44,6 +44,7 @@ export type {
 export function AgentChatPage(props: AgentChatWorkspaceProps) {
   const {
     agentEntry = "claw",
+    initialProjectFileOpenTarget,
     initialSiteSkillLaunch,
     initialUserImages,
     initialUserPrompt,
@@ -57,6 +58,7 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
     Boolean(initialUserPrompt?.trim()) ||
     Boolean(initialUserImages?.length) ||
     Boolean(initialSiteSkillLaunch) ||
+    Boolean(initialProjectFileOpenTarget?.relativePath?.trim()) ||
     openBrowserAssistOnMount;
   const shouldForceClawWorkspace =
     agentEntry === "new-task" && hasDirectWorkspaceIntent;
