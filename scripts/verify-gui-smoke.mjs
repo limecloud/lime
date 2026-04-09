@@ -132,15 +132,23 @@ function formatCommand(command, args) {
   return [command, ...args].join(" ");
 }
 
-function runCommand(command, args, label) {
+function runCommand(command, args, label, timeoutMs) {
   console.log(`\n[verify:gui-smoke] > ${formatCommand(command, args)}`);
   const result = spawnSync(command, args, {
     cwd: rootDir,
     stdio: "inherit",
     env: process.env,
+    timeout: timeoutMs,
   });
 
   if (result.error) {
+    if (result.error.code === "ETIMEDOUT") {
+      const error = new Error(
+        `[verify:gui-smoke] ${label} 超时（>${timeoutMs}ms）`,
+      );
+      error.exitCode = 124;
+      throw error;
+    }
     throw result.error;
   }
 
@@ -341,6 +349,7 @@ async function main() {
         String(options.intervalMs),
       ],
       "bridge:health",
+      options.timeoutMs + 5_000,
     );
 
     await waitForAppShell(options);
@@ -359,6 +368,7 @@ async function main() {
         options.sampleProjectName,
       ],
       "smoke:workspace-ready",
+      options.timeoutMs + 5_000,
     );
 
     runCommand(
@@ -374,6 +384,7 @@ async function main() {
         "--headless",
       ],
       "smoke:browser-runtime",
+      options.timeoutMs + 5_000,
     );
 
     runCommand(
@@ -388,6 +399,14 @@ async function main() {
         String(options.intervalMs),
       ],
       "smoke:site-adapters",
+      options.timeoutMs + 5_000,
+    );
+
+    runCommand(
+      npmCommand,
+      ["run", "smoke:agent-service-skill-entry"],
+      "smoke:agent-service-skill-entry",
+      options.timeoutMs + 30_000,
     );
 
     console.log("\n[verify:gui-smoke] 通过");

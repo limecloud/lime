@@ -12,7 +12,7 @@ describe("oemCloudControlPlane desktop auth", () => {
     delete window.__LIME_SESSION_TOKEN__;
     window.__LIME_OEM_CLOUD__ = {
       enabled: true,
-      baseUrl: "https://user.150404.xyz",
+      baseUrl: "https://user.limeai.run",
       tenantId: "tenant-0001",
     };
   });
@@ -44,7 +44,7 @@ describe("oemCloudControlPlane desktop auth", () => {
           expiresInSeconds: 600,
           pollIntervalSeconds: 2,
           authorizeUrl:
-            "https://user.150404.xyz/oauth/desktop/device-code-001/authorize?provider=google",
+            "https://user.limeai.run/oauth/desktop/device-code-001/authorize?provider=google",
         },
       }),
     }));
@@ -57,7 +57,7 @@ describe("oemCloudControlPlane desktop auth", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://user.150404.xyz/api/v1/public/tenants/tenant-0001/desktop/auth-sessions",
+      "https://user.limeai.run/api/v1/public/tenants/tenant-0001/desktop/auth-sessions",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -83,7 +83,7 @@ describe("oemCloudControlPlane desktop auth", () => {
       expiresInSeconds: 600,
       pollIntervalSeconds: 2,
       authorizeUrl:
-        "https://user.150404.xyz/oauth/desktop/device-code-001/authorize?provider=google",
+        "https://user.limeai.run/oauth/desktop/device-code-001/authorize?provider=google",
     });
   });
 
@@ -113,7 +113,7 @@ describe("oemCloudControlPlane desktop auth", () => {
     const result = await pollClientDesktopAuthSession("device-code-001");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://user.150404.xyz/api/v1/public/desktop/auth-sessions/device-code-001/poll",
+      "https://user.limeai.run/api/v1/public/desktop/auth-sessions/device-code-001/poll",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({

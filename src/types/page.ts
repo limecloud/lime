@@ -48,6 +48,13 @@ export interface OpenClawPageParams {
   subpage?: OpenClawSubpage;
 }
 
+export interface AgentPendingServiceSkillLaunchParams {
+  skillId: string;
+  requestKey?: number;
+  initialSlotValues?: Record<string, string>;
+  prefillHint?: string;
+}
+
 /**
  * Agent 页面参数
  * 用于从项目入口跳转到创作界面时传递项目上下文
@@ -85,6 +92,8 @@ export interface AgentPageParams {
   openBrowserAssistOnMount?: boolean;
   /** 进入 Agent 后执行一次站点技能启动 */
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
+  /** 进入 Agent 后在当前对话挂起或继续一次服务技能启动 */
+  initialPendingServiceSkillLaunch?: AgentPendingServiceSkillLaunchParams;
   /** 进入 Agent 后自动打开项目内某个文件 */
   initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   /** 首页点击触发的新会话标记（时间戳） */

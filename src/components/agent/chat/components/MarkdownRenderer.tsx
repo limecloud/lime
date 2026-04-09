@@ -5,7 +5,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import styled from "styled-components";
 import { Copy, Check, Quote } from "lucide-react";
 import { parseA2UIJson } from "@/lib/workspace/a2ui";
@@ -19,6 +19,17 @@ import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
 const STREAMING_LIGHT_RENDER_THRESHOLD = 2_000;
 const STREAMING_LIGHT_RENDER_DEBOUNCE_MS = 48;
 const STREAMING_STANDARD_RENDER_DEBOUNCE_MS = 24;
+const CODE_BLOCK_SURFACE = "#f8fafc";
+const CODE_BLOCK_SURFACE_ACCENT =
+  "linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.98) 100%)";
+const CODE_BLOCK_HEADER_SURFACE =
+  "linear-gradient(180deg, rgba(248, 250, 252, 0.98) 0%, rgba(241, 245, 249, 0.98) 100%)";
+const CODE_BLOCK_BORDER = "rgba(203, 213, 225, 0.88)";
+const CODE_BLOCK_HEADER_BORDER = "rgba(148, 163, 184, 0.22)";
+const CODE_BLOCK_TEXT = "#0f172a";
+const CODE_BLOCK_MUTED_TEXT = "#64748b";
+const CODE_BLOCK_BUTTON_SURFACE = "rgba(255, 255, 255, 0.88)";
+const CODE_BLOCK_BUTTON_HOVER_SURFACE = "rgba(248, 250, 252, 0.98)";
 
 // 收紧正文与代码块表面，让消息正文更接近单列执行流的阅读节奏。
 const MarkdownContainer = styled.div`
@@ -325,8 +336,12 @@ const CodeBlockContainer = styled.div`
   margin: 10px 0;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid hsl(var(--border));
-  background-color: #0f172a;
+  border: 1px solid ${CODE_BLOCK_BORDER};
+  background-color: ${CODE_BLOCK_SURFACE};
+  background-image: ${CODE_BLOCK_SURFACE_ACCENT};
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 18px 34px -30px rgba(15, 23, 42, 0.28);
 `;
 
 const CodeHeader = styled.div`
@@ -335,12 +350,12 @@ const CodeHeader = styled.div`
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  background-color: rgba(15, 23, 42, 0.98);
-  color: #94a3b8;
+  background: ${CODE_BLOCK_HEADER_SURFACE};
+  color: ${CODE_BLOCK_MUTED_TEXT};
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+  border-bottom: 1px solid ${CODE_BLOCK_HEADER_BORDER};
 `;
 
 const CopyButton = styled.button`
@@ -349,9 +364,9 @@ const CopyButton = styled.button`
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: transparent;
-  color: #e2e8f0;
+  border: 1px solid ${CODE_BLOCK_HEADER_BORDER};
+  background: ${CODE_BLOCK_BUTTON_SURFACE};
+  color: ${CODE_BLOCK_TEXT};
   font-size: inherit;
   letter-spacing: inherit;
   text-transform: inherit;
@@ -362,12 +377,12 @@ const CopyButton = styled.button`
     color 0.18s ease;
 
   &:hover {
-    background: rgba(148, 163, 184, 0.12);
-    border-color: rgba(148, 163, 184, 0.45);
+    background: ${CODE_BLOCK_BUTTON_HOVER_SURFACE};
+    border-color: rgba(148, 163, 184, 0.34);
   }
 
   &:focus-visible {
-    outline: 2px solid rgba(148, 163, 184, 0.6);
+    outline: 2px solid rgba(148, 163, 184, 0.26);
     outline-offset: 1px;
   }
 `;
@@ -927,7 +942,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
             <div className="overflow-auto px-3 py-3">
               <div
                 data-testid="markdown-plain-code-content"
-                className="whitespace-pre-wrap break-words text-[12px] leading-6 text-slate-100"
+                className="whitespace-pre-wrap break-words text-[12px] leading-6 text-slate-700"
                 style={{
                   margin: 0,
                   padding: 0,
@@ -977,7 +992,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                 FLOW_ARROW_ONLY_PATTERN.test(line) ? (
                   <div
                     key={`${line}:${index}`}
-                    className="pl-3 text-sm leading-5 text-slate-400"
+                    className="pl-3 text-sm leading-5 text-slate-500"
                     style={{
                       fontFamily: CODE_FONT_FAMILY,
                       textShadow: "none",
@@ -989,7 +1004,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                 ) : (
                   <div
                     key={`${line}:${index}`}
-                    className="inline-flex max-w-full items-center rounded-xl border border-slate-700/80 bg-slate-50/95 px-3 py-1.5 text-[12px] leading-5 text-slate-900 shadow-sm"
+                    className="inline-flex max-w-full items-center rounded-xl border border-slate-200 bg-white/90 px-3 py-1.5 text-[12px] leading-5 text-slate-700 shadow-sm"
                     style={{
                       fontFamily: CODE_FONT_FAMILY,
                       textShadow: "none",
@@ -1149,7 +1164,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                   const isCopied = copied === copyKey;
 
                   return (
-                    <CodeBlockContainer>
+                    <CodeBlockContainer data-testid="markdown-syntax-code-block">
                       <CodeHeader>
                         <span>{language}</span>
                         <CopyButton
@@ -1163,7 +1178,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
                         </CopyButton>
                       </CodeHeader>
                       <SyntaxHighlighter
-                        style={oneDark}
+                        style={oneLight}
                         language={language}
                         PreTag="div"
                         codeTagProps={{

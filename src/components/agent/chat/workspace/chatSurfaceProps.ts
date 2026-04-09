@@ -119,7 +119,14 @@ interface BuildWorkspaceEmptyStatePropsParams {
   >["onRecommendationClick"];
   characters: NonNullable<ComponentProps<typeof EmptyState>["characters"]>;
   skills: NonNullable<ComponentProps<typeof EmptyState>["skills"]>;
+  serviceSkills: NonNullable<ComponentProps<typeof EmptyState>["serviceSkills"]>;
+  serviceSkillGroups: NonNullable<
+    ComponentProps<typeof EmptyState>["serviceSkillGroups"]
+  >;
   isSkillsLoading: boolean;
+  onSelectServiceSkill?: ComponentProps<
+    typeof EmptyState
+  >["onSelectServiceSkill"];
   onNavigateToSettings?: ComponentProps<
     typeof EmptyState
   >["onNavigateToSettings"];
@@ -164,7 +171,10 @@ export function buildWorkspaceEmptyStateProps({
   onRecommendationClick,
   characters,
   skills,
+  serviceSkills,
+  serviceSkillGroups,
   isSkillsLoading,
+  onSelectServiceSkill,
   onNavigateToSettings,
   onRefreshSkills,
   onLaunchBrowserAssist,
@@ -214,7 +224,10 @@ export function buildWorkspaceEmptyStateProps({
     onRecommendationClick,
     characters,
     skills,
+    serviceSkills,
+    serviceSkillGroups,
     isSkillsLoading,
+    onSelectServiceSkill,
     onNavigateToSettings,
     onRefreshSkills,
     onLaunchBrowserAssist,

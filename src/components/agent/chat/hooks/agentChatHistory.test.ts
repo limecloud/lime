@@ -126,6 +126,39 @@ describe("agentChatHistory", () => {
     expect(messages[0]?.thinkingContent).toBe("先列提纲，再展开正文");
   });
 
+  it("应在历史恢复时清理 assistant 正文中的工具协议残留", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-protocol-cleanup",
+      created_at: 1,
+      updated_at: 2,
+      messages: [
+        {
+          role: "assistant",
+          timestamp: 1710000150,
+          content: [
+            {
+              type: "output_text",
+              text: '<tool_result>{"output":"saved"}</tool_result>\n\n文章已保存为 Markdown。',
+            } as never,
+          ],
+        },
+      ],
+    };
+
+    const messages = hydrateSessionDetailMessages(
+      detail,
+      "session-protocol-cleanup",
+    );
+
+    expect(messages[0]?.content).toBe("文章已保存为 Markdown。");
+    expect(messages[0]?.contentParts).toEqual([
+      {
+        type: "text",
+        text: "文章已保存为 Markdown。",
+      },
+    ]);
+  });
+
   it("应从历史 assistant 消息恢复 token usage", () => {
     const detail: AsterSessionDetail = {
       id: "session-usage",
@@ -524,5 +557,144 @@ describe("agentChatHistory", () => {
       id: "tool-site-1",
       status: "completed",
     });
+  });
+
+  it("同会话 hydrate 时远端暂未返回最新 assistant 消息也应保留本地尾部过程", () => {
+    const localMessages = [
+      {
+        id: "local-user-1",
+        role: "user" as const,
+        content: "把文章保存到项目里",
+        timestamp: new Date("2026-04-08T10:00:00.000Z"),
+      },
+      {
+        id: "local-assistant-1",
+        role: "assistant" as const,
+        content: "内容已保存到项目目录。",
+        timestamp: new Date("2026-04-08T10:00:02.000Z"),
+        contentParts: [
+          {
+            type: "tool_use" as const,
+            toolCall: {
+              id: "tool-site-2",
+              name: "site_run_adapter",
+              arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+              status: "completed" as const,
+              startTime: new Date("2026-04-08T10:00:01.000Z"),
+              endTime: new Date("2026-04-08T10:00:02.000Z"),
+              result: {
+                success: true,
+                output: "saved: articles/google-cloud-tech-2.md",
+              },
+            },
+          },
+          {
+            type: "text" as const,
+            text: "内容已保存到项目目录。",
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-site-2",
+            name: "site_run_adapter",
+            arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+            status: "completed" as const,
+            startTime: new Date("2026-04-08T10:00:01.000Z"),
+            endTime: new Date("2026-04-08T10:00:02.000Z"),
+            result: {
+              success: true,
+              output: "saved: articles/google-cloud-tech-2.md",
+            },
+          },
+        ],
+      },
+    ];
+    const hydratedMessages = [
+      {
+        id: "history-user-1",
+        role: "user" as const,
+        content: "把文章保存到项目里",
+        timestamp: new Date("2026-04-08T10:00:01.000Z"),
+      },
+    ];
+
+    const mergedMessages = mergeHydratedMessagesWithLocalState(
+      localMessages,
+      hydratedMessages,
+    );
+
+    expect(mergedMessages).toHaveLength(2);
+    expect(mergedMessages[1]?.role).toBe("assistant");
+    expect(
+      mergedMessages[1]?.contentParts?.some(
+        (part) =>
+          part.type === "tool_use" && part.toolCall.id === "tool-site-2",
+      ),
+    ).toBe(true);
+  });
+
+  it("远端最后停在 user 且时间戳略晚时，也应保留本地 assistant 尾部", () => {
+    const localMessages = [
+      {
+        id: "local-user-early",
+        role: "user" as const,
+        content: "导出这篇文章",
+        timestamp: new Date("2026-04-08T10:00:00.000Z"),
+      },
+      {
+        id: "local-assistant-early",
+        role: "assistant" as const,
+        content: "",
+        timestamp: new Date("2026-04-08T10:00:00.500Z"),
+        contentParts: [
+          {
+            type: "tool_use" as const,
+            toolCall: {
+              id: "tool-site-early",
+              name: "site_run_adapter",
+              arguments: "{\"url\":\"https://x.com/example/article/early\"}",
+              status: "completed" as const,
+              startTime: new Date("2026-04-08T10:00:00.100Z"),
+              endTime: new Date("2026-04-08T10:00:00.500Z"),
+              result: {
+                success: true,
+                output: "saved: articles/example-early.md",
+              },
+            },
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-site-early",
+            name: "site_run_adapter",
+            arguments: "{\"url\":\"https://x.com/example/article/early\"}",
+            status: "completed" as const,
+            startTime: new Date("2026-04-08T10:00:00.100Z"),
+            endTime: new Date("2026-04-08T10:00:00.500Z"),
+            result: {
+              success: true,
+              output: "saved: articles/example-early.md",
+            },
+          },
+        ],
+      },
+    ];
+    const hydratedMessages = [
+      {
+        id: "history-user-early",
+        role: "user" as const,
+        content: "导出这篇文章",
+        timestamp: new Date("2026-04-08T10:00:01.000Z"),
+      },
+    ];
+
+    const mergedMessages = mergeHydratedMessagesWithLocalState(
+      localMessages,
+      hydratedMessages,
+    );
+
+    expect(mergedMessages).toHaveLength(2);
+    expect(mergedMessages[1]?.role).toBe("assistant");
+    expect(mergedMessages[1]?.toolCalls?.[0]?.id).toBe("tool-site-early");
   });
 });

@@ -3,7 +3,10 @@ import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
-import { listMentionEntryUsage } from "../skill-selection/mentionEntryUsage";
+import {
+  listMentionEntryUsage,
+  recordMentionEntryUsage,
+} from "../skill-selection/mentionEntryUsage";
 import { listServiceSkillUsage } from "../service-skills/storage";
 import { useWorkspaceSendActions } from "./useWorkspaceSendActions";
 import type { TeamWorkspaceRuntimeFormationState } from "../teamWorkspaceRuntime";
@@ -1528,6 +1531,139 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("裸 @搜索 发送时也应自动带入最近成功参数", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "research",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        query: "AI Agent 融资",
+        site: "36Kr",
+        time_range: "近30天",
+        depth: "deep",
+        focus: "融资额与产品发布",
+        output_format: "要点",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@搜索",
+      serviceSkills: [
+        createGeneralServiceSkill({
+          id: "research",
+          title: "搜索",
+        }),
+      ],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@搜索 关键词:AI Agent 融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            research_skill_launch: {
+              kind: "research_request",
+              research_request: {
+                query: "AI Agent 融资",
+                site: "36Kr",
+                time_range: "近30天",
+                depth: "deep",
+                focus: "融资额与产品发布",
+                output_format: "要点",
+                entry_source: "at_search_command",
+              },
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          kind: "builtin_command",
+          entryId: "research",
+          replayText:
+            "关键词:AI Agent 融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("部分 @搜索 输入也应补齐最近成功默认字段", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "research",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        query: "AI Agent 融资",
+        site: "36Kr",
+        time_range: "近30天",
+        depth: "deep",
+        focus: "融资额与产品发布",
+        output_format: "要点",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@搜索 OpenAI 最新融资",
+      serviceSkills: [
+        createGeneralServiceSkill({
+          id: "research",
+          title: "搜索",
+        }),
+      ],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@搜索 关键词:OpenAI 最新融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            research_skill_launch: {
+              kind: "research_request",
+              research_request: {
+                prompt: "OpenAI 最新融资 36Kr 近30天 融资额与产品发布",
+                query: "OpenAI 最新融资",
+                site: "36Kr",
+                time_range: "近30天",
+                depth: "deep",
+                focus: "融资额与产品发布",
+                output_format: "要点",
+                entry_source: "at_search_command",
+              },
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          kind: "builtin_command",
+          entryId: "research",
+          replayText:
+            "关键词:OpenAI 最新融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("@搜索 直接输入成功后应回写对应 service skill 最近使用", async () => {
     const harness = mountHook({
       input:
@@ -1550,6 +1686,15 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           skillId: "research",
           runnerType: "instant",
+          slotValues: {
+            prompt: "AI Agent 融资 36Kr 近30天 融资额与产品发布",
+            query: "AI Agent 融资",
+            site: "36Kr",
+            time_range: "近30天",
+            depth: "deep",
+            focus: "融资额与产品发布",
+            output_format: "要点",
+          },
         }),
       ]);
       expect(listMentionEntryUsage()).toEqual([
@@ -1558,6 +1703,15 @@ describe("useWorkspaceSendActions", () => {
           entryId: "research",
           replayText:
             "关键词:AI Agent 融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点",
+          slotValues: {
+            prompt: "AI Agent 融资 36Kr 近30天 融资额与产品发布",
+            query: "AI Agent 融资",
+            site: "36Kr",
+            time_range: "近30天",
+            depth: "deep",
+            focus: "融资额与产品发布",
+            output_format: "要点",
+          },
         }),
       ]);
     } finally {
@@ -1930,6 +2084,59 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("部分 @总结 输入应补齐最近成功偏好，但不复用旧内容", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "summary",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        content: "旧内容不应复用",
+        focus: "融资额与发布时间",
+        length: "short",
+        style: "投资人简报",
+        output_format: "三点要点",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@总结 内容:OpenAI 发布会纪要",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe("@总结 内容:OpenAI 发布会纪要");
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            summary_skill_launch: {
+              summary_request: {
+                prompt: "OpenAI 发布会纪要",
+                content: "OpenAI 发布会纪要",
+                focus: "融资额与发布时间",
+                length: "short",
+                style: "投资人简报",
+                output_format: "三点要点",
+              },
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          entryId: "summary",
+          replayText:
+            "内容:OpenAI 发布会纪要 重点:融资额与发布时间 长度:简短 风格:投资人简报 输出:三点要点",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("@翻译 应保留原始消息，并通过 translation_skill_launch metadata 交给 Agent 调度技能", async () => {
     const harness = mountHook({
       input:
@@ -1998,6 +2205,59 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("部分 @翻译 输入应补齐最近成功语言与风格偏好", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "translation",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        content: "旧内容不应复用",
+        source_language: "英语",
+        target_language: "中文",
+        style: "产品文案",
+        output_format: "只输出译文",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@翻译 内容:hello world",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe("@翻译 内容:hello world");
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            translation_skill_launch: {
+              translation_request: {
+                prompt: "hello world",
+                content: "hello world",
+                source_language: "英语",
+                target_language: "中文",
+                style: "产品文案",
+                output_format: "只输出译文",
+              },
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          entryId: "translation",
+          replayText:
+            "内容:hello world 原语言:英语 目标语言:中文 风格:产品文案 输出:只输出译文",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("@分析 应保留原始消息，并通过 analysis_skill_launch metadata 交给 Agent 调度技能", async () => {
     const harness = mountHook({
       input:
@@ -2038,6 +2298,59 @@ describe("useWorkspaceSendActions", () => {
       expect(listMentionEntryUsage()).toEqual([
         expect.objectContaining({
           kind: "builtin_command",
+          entryId: "analysis",
+          replayText:
+            "内容:OpenAI 发布新模型 重点:商业影响 风格:投资备忘 输出:三点判断",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("部分 @分析 输入应补齐最近成功的分析偏好", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "analysis",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        content: "旧内容不应复用",
+        focus: "商业影响",
+        style: "投资备忘",
+        output_format: "三点判断",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@分析 内容:OpenAI 发布新模型",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@分析 内容:OpenAI 发布新模型",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            analysis_skill_launch: {
+              analysis_request: {
+                prompt: "OpenAI 发布新模型",
+                content: "OpenAI 发布新模型",
+                focus: "商业影响",
+                style: "投资备忘",
+                output_format: "三点判断",
+              },
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
           entryId: "analysis",
           replayText:
             "内容:OpenAI 发布新模型 重点:商业影响 风格:投资备忘 输出:三点判断",
@@ -2090,6 +2403,59 @@ describe("useWorkspaceSendActions", () => {
           entryId: "publish_compliance",
           replayText:
             "内容:这是一篇小红书种草文案 重点:夸大宣传 风格:合规审校 输出:风险清单",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("部分 @发布合规 输入应补齐最近成功的合规偏好", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "publish_compliance",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        content: "旧内容不应复用",
+        focus: "夸大宣传",
+        style: "法务审校",
+        output_format: "风险清单",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@发布合规 内容:这是一篇小红书种草文案",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@发布合规 内容:这是一篇小红书种草文案",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            analysis_skill_launch: {
+              analysis_request: {
+                prompt: "这是一篇小红书种草文案",
+                content: "这是一篇小红书种草文案",
+                focus: "夸大宣传",
+                style: "法务审校",
+                output_format: "风险清单",
+              },
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          entryId: "publish_compliance",
+          replayText:
+            "内容:这是一篇小红书种草文案 重点:夸大宣传 风格:法务审校 输出:风险清单",
         }),
       ]);
     } finally {
@@ -2211,6 +2577,11 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           skillId: "image_generate",
           runnerType: "instant",
+          slotValues: {
+            mode: "edit",
+            prompt: "去掉角标，保留主体",
+            target_output_ref_id: "img-2",
+          },
         }),
       ]);
       expect(listMentionEntryUsage()).toEqual([
@@ -2496,6 +2867,55 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("部分 @排版 输入应补齐最近成功的平台偏好", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "typesetting",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        target_platform: "公众号",
+        prompt: "旧要求不应复用",
+        content: "旧内容不应复用",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@排版 帮我把下面文案整理成短句节奏",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@排版 帮我把下面文案整理成短句节奏",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            typesetting_skill_launch: {
+              typesetting_task: {
+                prompt: "帮我把下面文案整理成短句节奏",
+                content: "帮我把下面文案整理成短句节奏",
+                target_platform: "公众号",
+              },
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          entryId: "typesetting",
+          replayText: "平台:公众号 要求:帮我把下面文案整理成短句节奏",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("@网页 应保留原始消息，并通过 webpage_skill_launch metadata 交给 Agent 调度技能", async () => {
     const harness = mountHook({
       input:
@@ -2536,6 +2956,60 @@ describe("useWorkspaceSendActions", () => {
       expect(listMentionEntryUsage()).toEqual([
         expect.objectContaining({
           kind: "builtin_command",
+          entryId: "webpage_generate",
+          replayText:
+            "类型:落地页 风格:未来感 技术:原生 HTML 要求:帮我做一个 AI 代码助手官网",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("部分 @网页 输入应补齐最近成功的页面偏好", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "webpage_generate",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        page_type: "landing_page",
+        style: "未来感",
+        tech_stack: "原生 HTML",
+        prompt: "旧要求不应复用",
+        content: "旧内容不应复用",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@网页 帮我做一个 AI 代码助手官网",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@网页 帮我做一个 AI 代码助手官网",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            webpage_skill_launch: {
+              webpage_request: {
+                prompt: "帮我做一个 AI 代码助手官网",
+                content: "帮我做一个 AI 代码助手官网",
+                page_type: "landing_page",
+                style: "未来感",
+                tech_stack: "原生 HTML",
+              },
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
           entryId: "webpage_generate",
           replayText:
             "类型:落地页 风格:未来感 技术:原生 HTML 要求:帮我做一个 AI 代码助手官网",
@@ -2596,6 +3070,62 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("部分 @PPT 输入应补齐最近成功的演示偏好", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "presentation_generate",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        deck_type: "pitch_deck",
+        style: "极简科技",
+        audience: "投资人",
+        slide_count: "10",
+        prompt: "旧要求不应复用",
+        content: "旧内容不应复用",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@PPT 帮我做一个 AI 助手创业项目融资演示稿",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@PPT 帮我做一个 AI 助手创业项目融资演示稿",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            presentation_skill_launch: {
+              presentation_request: {
+                prompt: "帮我做一个 AI 助手创业项目融资演示稿",
+                content: "帮我做一个 AI 助手创业项目融资演示稿",
+                deck_type: "pitch_deck",
+                style: "极简科技",
+                audience: "投资人",
+                slide_count: 10,
+              },
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          entryId: "presentation_generate",
+          replayText:
+            "类型:路演PPT 风格:极简科技 受众:投资人 页数:10 要求:帮我做一个 AI 助手创业项目融资演示稿",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("@表单 应保留原始消息，并通过 form_skill_launch metadata 交给 Agent 调度技能", async () => {
     const harness = mountHook({
       input:
@@ -2636,6 +3166,62 @@ describe("useWorkspaceSendActions", () => {
       expect(listMentionEntryUsage()).toEqual([
         expect.objectContaining({
           kind: "builtin_command",
+          entryId: "form_generate",
+          replayText:
+            "类型:报名表单 风格:简洁专业 受众:活动嘉宾 字段数:8 要求:帮我做一个 AI Workshop 报名表",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("部分 @表单 输入应补齐最近成功的表单偏好", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "form_generate",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        form_type: "registration_form",
+        style: "简洁专业",
+        audience: "活动嘉宾",
+        field_count: "8",
+        prompt: "旧要求不应复用",
+        content: "旧内容不应复用",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@表单 帮我做一个 AI Workshop 报名表",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@表单 帮我做一个 AI Workshop 报名表",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        requestMetadata: {
+          harness: {
+            form_skill_launch: {
+              form_request: {
+                prompt: "帮我做一个 AI Workshop 报名表",
+                content: "帮我做一个 AI Workshop 报名表",
+                form_type: "registration_form",
+                style: "简洁专业",
+                audience: "活动嘉宾",
+                field_count: 8,
+              },
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
           entryId: "form_generate",
           replayText:
             "类型:报名表单 风格:简洁专业 受众:活动嘉宾 字段数:8 要求:帮我做一个 AI Workshop 报名表",
@@ -2738,6 +3324,60 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("部分 @发布 输入应补齐最近成功的平台偏好，并同步触发对应发布前置要求", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "publish_runtime",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        prompt: "旧要求不应复用",
+        content: "旧内容不应复用",
+        platform_type: "wechat_official_account",
+        platform_label: "微信公众号后台",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@发布 帮我把这篇文章整理成可直接发布的版本",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "/content_post_with_cover 平台:微信公众号后台 帮我把这篇文章整理成可直接发布的版本",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        displayContent: "@发布 帮我把这篇文章整理成可直接发布的版本",
+        requestMetadata: {
+          harness: {
+            browser_requirement: "required_with_user_step",
+            browser_launch_url: "https://mp.weixin.qq.com/",
+            publish_command: {
+              prompt: "帮我把这篇文章整理成可直接发布的版本",
+              content: "帮我把这篇文章整理成可直接发布的版本",
+              platform_type: "wechat_official_account",
+              platform_label: "微信公众号后台",
+              entry_source: "at_publish_command",
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          entryId: "publish_runtime",
+          replayText: "平台:微信公众号后台 要求:帮我把这篇文章整理成可直接发布的版本",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("@渠道预览 应保留原始消息，并复用现有发布工作流生成预览稿", async () => {
     const harness = mountHook({
       input: "@渠道预览 平台:小红书 帮我预览这篇春日咖啡活动文案的首屏效果",
@@ -2782,10 +3422,71 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("部分 @渠道预览 输入应补齐最近成功的平台偏好", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "channel_preview_runtime",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        prompt: "旧要求不应复用",
+        content: "旧内容不应复用",
+        platform_type: "xiaohongshu",
+        platform_label: "小红书",
+        intent: "preview",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@渠道预览 帮我预览这篇春日咖啡活动文案的首屏效果",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
+        "/content_post_with_cover 平台:小红书",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain("渠道预览稿");
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        displayContent: "@渠道预览 帮我预览这篇春日咖啡活动文案的首屏效果",
+        requestMetadata: {
+          harness: {
+            publish_command: {
+              prompt: "帮我预览这篇春日咖啡活动文案的首屏效果",
+              content: "帮我预览这篇春日咖啡活动文案的首屏效果",
+              platform_type: "xiaohongshu",
+              platform_label: "小红书",
+              intent: "preview",
+              entry_source: "at_channel_preview_command",
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          entryId: "channel_preview_runtime",
+          replayText: "平台:小红书 要求:帮我预览这篇春日咖啡活动文案的首屏效果",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("@上传 应保留原始消息，并复用现有发布工作流生成上传稿", async () => {
     const harness = mountHook({
       input:
         "@上传 平台:微信公众号后台 帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+      serviceSkills: [
+        createGeneralServiceSkill({
+          id: "content_post_with_cover",
+          title: "发布工作流",
+        }),
+      ],
     });
 
     try {
@@ -2826,6 +3527,97 @@ describe("useWorkspaceSendActions", () => {
             "平台:微信公众号后台 要求:帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
         }),
       ]);
+      expect(listServiceSkillUsage()).toEqual([
+        expect.objectContaining({
+          skillId: "content_post_with_cover",
+          runnerType: "instant",
+          slotValues: {
+            prompt: "帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+            content:
+              "平台:微信公众号后台 帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+            platform_type: "wechat_official_account",
+            platform_label: "微信公众号后台",
+            intent: "upload",
+          },
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("部分 @上传 输入应补齐最近成功的平台偏好，并保留上传主链语义", async () => {
+    recordMentionEntryUsage({
+      kind: "builtin_command",
+      entryId: "upload_runtime",
+      usedAt: 1_712_345_678_900,
+      slotValues: {
+        prompt: "旧要求不应复用",
+        content: "旧内容不应复用",
+        platform_type: "wechat_official_account",
+        platform_label: "微信公众号后台",
+        intent: "upload",
+      },
+    });
+
+    const harness = mountHook({
+      input: "@上传 帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+      serviceSkills: [
+        createGeneralServiceSkill({
+          id: "content_post_with_cover",
+          title: "发布工作流",
+        }),
+      ],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
+        "/content_post_with_cover 平台:微信公众号后台",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain("上传稿");
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        displayContent: "@上传 帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+        requestMetadata: {
+          harness: {
+            browser_requirement: "required_with_user_step",
+            browser_launch_url: "https://mp.weixin.qq.com/",
+            publish_command: {
+              prompt: "帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+              content: "帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+              platform_type: "wechat_official_account",
+              platform_label: "微信公众号后台",
+              intent: "upload",
+              entry_source: "at_upload_command",
+            },
+          },
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          entryId: "upload_runtime",
+          replayText:
+            "平台:微信公众号后台 要求:帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+        }),
+      ]);
+      expect(listServiceSkillUsage()).toEqual([
+        expect.objectContaining({
+          skillId: "content_post_with_cover",
+          runnerType: "instant",
+          slotValues: {
+            prompt: "帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+            content: "帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
+            platform_type: "wechat_official_account",
+            platform_label: "微信公众号后台",
+            intent: "upload",
+          },
+        }),
+      ]);
     } finally {
       harness.unmount();
     }
@@ -2833,10 +3625,10 @@ describe("useWorkspaceSendActions", () => {
 
   it("@配音 应保留原始消息，并通过 service_scene_launch 交给云端技能主链", async () => {
     mockResolveOemCloudRuntimeContext.mockReturnValueOnce({
-      baseUrl: "https://user.150404.xyz",
-      controlPlaneBaseUrl: "https://user.150404.xyz/api",
-      sceneBaseUrl: "https://user.150404.xyz/scene-api",
-      gatewayBaseUrl: "https://user.150404.xyz/gateway-api",
+      baseUrl: "https://user.limeai.run",
+      controlPlaneBaseUrl: "https://user.limeai.run/api",
+      sceneBaseUrl: "https://user.limeai.run/scene-api",
+      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
       tenantId: "tenant-demo",
       sessionToken: "session-token-demo",
       hubProviderName: null,
@@ -2876,7 +3668,7 @@ describe("useWorkspaceSendActions", () => {
                 target_language: "英文",
                 voice_style: "科技感",
                 oem_runtime: expect.objectContaining({
-                  scene_base_url: "https://user.150404.xyz/scene-api",
+                  scene_base_url: "https://user.limeai.run/scene-api",
                   tenant_id: "tenant-demo",
                 }),
               }),
@@ -2894,6 +3686,12 @@ describe("useWorkspaceSendActions", () => {
       expect(listServiceSkillUsage()).toEqual([
         expect.objectContaining({
           skillId: "cloud-video-dubbing",
+          runnerType: "instant",
+          slotValues: {
+            user_input: "给这个新品视频做一版发布配音稿",
+            target_language: "英文",
+            voice_style: "科技感",
+          },
         }),
       ]);
     } finally {
@@ -2969,10 +3767,10 @@ describe("useWorkspaceSendActions", () => {
       },
     ]);
     mockResolveOemCloudRuntimeContext.mockReturnValueOnce({
-      baseUrl: "https://user.150404.xyz",
-      controlPlaneBaseUrl: "https://user.150404.xyz/api",
-      sceneBaseUrl: "https://user.150404.xyz/scene-api",
-      gatewayBaseUrl: "https://user.150404.xyz/gateway-api",
+      baseUrl: "https://user.limeai.run",
+      controlPlaneBaseUrl: "https://user.limeai.run/api",
+      sceneBaseUrl: "https://user.limeai.run/scene-api",
+      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
       tenantId: "tenant-demo",
       sessionToken: "session-token-demo",
       hubProviderName: null,
@@ -3008,7 +3806,7 @@ describe("useWorkspaceSendActions", () => {
                 user_input: "帮我做一版新品活动启动方案",
                 project_id: "project-1",
                 oem_runtime: expect.objectContaining({
-                  scene_base_url: "https://user.150404.xyz/scene-api",
+                  scene_base_url: "https://user.limeai.run/scene-api",
                   tenant_id: "tenant-demo",
                 }),
               }),

@@ -145,7 +145,7 @@ export default defineConfig(({ mode }) => {
       "**/node_modules/**",
       "**/dist/**",
       "**/scripts/playwright-login/**",
-      "**/src-tauri/**",
+      "**/src-tauri/target/**",
     ],
   },
 };

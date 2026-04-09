@@ -101,10 +101,12 @@ export interface ServiceSkillUsageRecord {
   skillId: string;
   usedAt: number;
   runnerType: ServiceSkillRunnerType;
+  slotValues?: ServiceSkillSlotValues;
 }
 
 export interface RecordServiceSkillUsageInput {
   skillId: string;
   usedAt?: number;
   runnerType: ServiceSkillRunnerType;
+  slotValues?: ServiceSkillSlotValues;
 }

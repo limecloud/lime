@@ -100,3 +100,5 @@ governance/
 !src/lib/governance/*.json
 !src/lib/governance/*.mjs
 !src/lib/governance/*.test.ts
+
+src-tauri/crates/aster-rust/target/

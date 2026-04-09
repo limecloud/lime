@@ -77,12 +77,12 @@ const ENTRY_RECOMMENDED_SOLUTIONS: EntryRecommendedSolutionDefinition[] = [
   },
   {
     id: "browser-assist-task",
-    title: "浏览器工作台执行",
+    title: "网页登录与采集",
     summary:
-      "适合登录、表单、网页操作和信息采集任务，进入后可直接在浏览器工作台继续执行。",
-    outputHint: "浏览器任务执行",
+      "适合登录、表单、网页操作和信息采集，起始动作会先写进当前对话，再按需准备浏览器连接。",
+    outputHint: "浏览器任务起步",
     prompt:
-      "请协助我完成一个浏览器任务：先明确目标网页、目标动作、约束条件和预期结果，再进入执行。",
+      "请协助我完成一个浏览器任务：先明确目标网页、目标动作、约束条件和预期结果，并在当前对话里继续执行。",
     shouldLaunchBrowserAssist: true,
   },
   {
@@ -165,7 +165,7 @@ function resolveEntryRecommendedSolutionBadge(
   }
 
   if (solutionId === "browser-assist-task") {
-    return "浏览器工作台";
+    return "浏览器接入";
   }
 
   if (solutionId === "team-breakdown") {

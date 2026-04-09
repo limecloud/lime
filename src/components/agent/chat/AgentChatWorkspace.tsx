@@ -218,9 +218,8 @@ import type { AgentChatWorkspaceProps } from "./agentChatWorkspaceContract";
 import { extractCreationReplayMetadata } from "./utils/creationReplayMetadata";
 import { buildMessageInspirationDraft } from "./utils/messageInspirationDraft";
 import { buildSkillsPageParamsFromMessage } from "./utils/skillScaffoldDraft";
-import { buildCreationReplaySlotPrefill } from "./service-skills/creationReplaySlotPrefill";
-import { ServiceSkillLaunchDialog } from "./service-skills/ServiceSkillLaunchDialog";
 import { AutomationJobDialog } from "@/components/settings-v2/system/automation/AutomationJobDialog";
+import { shouldAutoSelectGeneralArtifact } from "./workspace/generalArtifactAutoSelection";
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
 const BLANK_HOME_DEFERRED_LOAD_MS = 6_000;
@@ -241,7 +240,10 @@ function resolveDefaultSelectedArtifact(
 
   for (let index = artifacts.length - 1; index >= 0; index -= 1) {
     const candidate = artifacts[index];
-    if (candidate.type !== "browser_assist") {
+    if (
+      candidate.type !== "browser_assist" &&
+      shouldAutoSelectGeneralArtifact(candidate)
+    ) {
       return candidate;
     }
   }
@@ -361,6 +363,7 @@ export function AgentChatWorkspace({
   initialUserImages,
   initialSessionName,
   entryBannerMessage,
+  initialPendingServiceSkillLaunch,
   initialProjectFileOpenTarget,
   onInitialUserPromptConsumed,
   newChatAt,
@@ -619,7 +622,9 @@ export function AgentChatWorkspace({
     contentId: string;
     body: string;
   } | null>(null);
+  const handledInitialPendingServiceSkillLaunchSignatureRef = useRef("");
   const handledInitialProjectFileOpenSignatureRef = useRef("");
+  const autoOpenedSiteSkillSavedContentSignatureRef = useRef("");
   const initialCreationReplay = useMemo(
     () => extractCreationReplayMetadata(initialRequestMetadata),
     [initialRequestMetadata],
@@ -761,6 +766,7 @@ export function AgentChatWorkspace({
   });
   const {
     skills: serviceSkills,
+    groups: serviceSkillGroups,
     isLoading: serviceSkillsLoading,
     error: serviceSkillsError,
     recordUsage: recordServiceSkillUsage,
@@ -779,6 +785,20 @@ export function AgentChatWorkspace({
 
     toast.error(`加载技能目录失败：${serviceSkillsError}`);
   }, [activeTheme, serviceSkillsError]);
+  const initialPendingServiceSkillLaunchSignature = useMemo(() => {
+    const skillId = initialPendingServiceSkillLaunch?.skillId?.trim();
+    if (!skillId) {
+      return "";
+    }
+
+    return JSON.stringify({
+      skillId,
+      requestKey: initialPendingServiceSkillLaunch?.requestKey ?? 0,
+      initialSlotValues:
+        initialPendingServiceSkillLaunch?.initialSlotValues ?? null,
+      prefillHint: initialPendingServiceSkillLaunch?.prefillHint ?? null,
+    });
+  }, [initialPendingServiceSkillLaunch]);
   const combinedSkillsLoading = skillsLoading || serviceSkillsLoading;
 
   // Workbench Store（用于工作区右侧技能面板状态同步）
@@ -1827,6 +1847,7 @@ export function AgentChatWorkspace({
     browserAssistLaunching,
     browserAssistSessionState,
     siteSkillExecutionState,
+    siteSkillSavedContentTarget,
     currentBrowserAssistScopeKey,
     ensureBrowserAssistCanvas,
     suppressBrowserAssistCanvasAutoOpen,
@@ -2148,6 +2169,72 @@ export function AgentChatWorkspace({
     persistedWorkbenchSnapshotRef,
   });
 
+  const workspaceServiceSkillEntryActions =
+    useWorkspaceServiceSkillEntryActions({
+      activeTheme,
+      creationMode,
+      projectId,
+      contentId,
+      input,
+      chatToolPreferences: effectiveChatToolPreferences,
+      creationReplay: initialCreationReplay,
+      preferredTeamPresetId,
+      selectedTeam,
+      selectedTeamLabel,
+      selectedTeamSummary,
+      onNavigate: _onNavigate,
+      recordServiceSkillUsage,
+    });
+  const handlePendingServiceSkillLaunchSubmit =
+    workspaceServiceSkillEntryActions.handlePendingServiceSkillLaunchSubmit;
+  useEffect(() => {
+    if (!initialPendingServiceSkillLaunchSignature) {
+      handledInitialPendingServiceSkillLaunchSignatureRef.current = "";
+      return;
+    }
+
+    if (activeTheme !== "general" || serviceSkillsLoading || serviceSkillsError) {
+      return;
+    }
+
+    if (
+      handledInitialPendingServiceSkillLaunchSignatureRef.current ===
+      initialPendingServiceSkillLaunchSignature
+    ) {
+      return;
+    }
+
+    const skillId = initialPendingServiceSkillLaunch?.skillId?.trim();
+    if (!skillId) {
+      return;
+    }
+
+    const matchedSkill = serviceSkills.find((skill) => skill.id === skillId);
+    if (!matchedSkill) {
+      handledInitialPendingServiceSkillLaunchSignatureRef.current =
+        initialPendingServiceSkillLaunchSignature;
+      toast.error(`未找到技能：${skillId}`);
+      return;
+    }
+
+    handledInitialPendingServiceSkillLaunchSignatureRef.current =
+      initialPendingServiceSkillLaunchSignature;
+    workspaceServiceSkillEntryActions.handleServiceSkillSelect(matchedSkill, {
+      requestKey: initialPendingServiceSkillLaunch?.requestKey,
+      initialSlotValues:
+        initialPendingServiceSkillLaunch?.initialSlotValues,
+      prefillHint: initialPendingServiceSkillLaunch?.prefillHint,
+    });
+  }, [
+    activeTheme,
+    initialPendingServiceSkillLaunch,
+    initialPendingServiceSkillLaunchSignature,
+    serviceSkills,
+    serviceSkillsError,
+    serviceSkillsLoading,
+    workspaceServiceSkillEntryActions,
+  ]);
+
   const {
     a2uiSubmissionNotice,
     pendingA2UIForm,
@@ -2159,6 +2246,10 @@ export function AgentChatWorkspace({
   } = useWorkspaceA2UIRuntime({
     messages,
   });
+  const pendingServiceSkillLaunchForm =
+    workspaceServiceSkillEntryActions.pendingServiceSkillLaunchForm;
+  const pendingServiceSkillLaunchSource =
+    workspaceServiceSkillEntryActions.pendingServiceSkillLaunchSource;
   const {
     pendingSceneGateForm,
     pendingSceneGateSource,
@@ -2172,9 +2263,12 @@ export function AgentChatWorkspace({
     applyProjectSelection,
     resumeSceneGate: async (input) => await sceneGateResumeHandlerRef.current(input),
   });
-  const effectivePendingA2UIForm = pendingSceneGateForm ?? pendingA2UIForm;
+  const effectivePendingA2UIForm =
+    pendingServiceSkillLaunchForm ?? pendingSceneGateForm ?? pendingA2UIForm;
   const effectivePendingA2UISource =
-    pendingSceneGateSource ?? pendingA2UISource;
+    pendingServiceSkillLaunchSource ??
+    pendingSceneGateSource ??
+    pendingA2UISource;
   const hasPendingA2UIForm = Boolean(effectivePendingA2UIForm);
   const suppressCanvasAutoOpenForPendingA2UI = hasPendingA2UIForm;
 
@@ -2503,36 +2597,6 @@ export function AgentChatWorkspace({
   });
   const { handleImageWorkbenchCommand, resolveImageWorkbenchSkillRequest } =
     imageWorkbenchActionRuntime;
-  const workspaceServiceSkillEntryActions =
-    useWorkspaceServiceSkillEntryActions({
-      activeTheme,
-      creationMode,
-      projectId,
-      contentId,
-      input,
-      chatToolPreferences: effectiveChatToolPreferences,
-      preferredTeamPresetId,
-      selectedTeam,
-      selectedTeamLabel,
-      selectedTeamSummary,
-      onNavigate: _onNavigate,
-      recordServiceSkillUsage,
-    });
-  const serviceSkillCreationReplayPrefill = useMemo(() => {
-    const selectedServiceSkill =
-      workspaceServiceSkillEntryActions.selectedServiceSkill;
-    if (!selectedServiceSkill || !initialCreationReplay) {
-      return null;
-    }
-
-    return buildCreationReplaySlotPrefill(
-      selectedServiceSkill,
-      initialCreationReplay,
-    );
-  }, [
-    initialCreationReplay,
-    workspaceServiceSkillEntryActions.selectedServiceSkill,
-  ]);
 
   const {
     handleSend,
@@ -2686,6 +2750,11 @@ export function AgentChatWorkspace({
   });
   const handlePendingA2UISubmit = useCallback(
     (formData: Parameters<typeof handleInputbarA2UISubmit>[0]) => {
+      if (pendingServiceSkillLaunchForm) {
+        void handlePendingServiceSkillLaunchSubmit(formData);
+        return;
+      }
+
       if (pendingSceneGateForm) {
         void handleSceneGateSubmit(formData);
         return;
@@ -2693,7 +2762,13 @@ export function AgentChatWorkspace({
 
       handleInputbarA2UISubmit(formData);
     },
-    [handleInputbarA2UISubmit, handleSceneGateSubmit, pendingSceneGateForm],
+    [
+      handleInputbarA2UISubmit,
+      handleSceneGateSubmit,
+      handlePendingServiceSkillLaunchSubmit,
+      pendingSceneGateForm,
+      pendingServiceSkillLaunchForm,
+    ],
   );
   const handleMessageA2UISubmit = useCallback(
     (
@@ -2840,7 +2915,7 @@ export function AgentChatWorkspace({
 
   const handleResumeSidebarTask = useCallback(
     async (topicId: string, _statusReason?: TaskStatusReason) => {
-      await switchTopic(topicId);
+      await switchTopic(topicId, { forceRefresh: true });
     },
     [switchTopic],
   );
@@ -3029,6 +3104,52 @@ export function AgentChatWorkspace({
       projectId,
     ],
   );
+  useEffect(() => {
+    if (siteSkillExecutionState?.phase === "success") {
+      return;
+    }
+    autoOpenedSiteSkillSavedContentSignatureRef.current = "";
+  }, [siteSkillExecutionState?.phase]);
+  useEffect(() => {
+    if (siteSkillExecutionState?.phase !== "success") {
+      return;
+    }
+
+    if (siteSkillSavedContentTarget?.preferredTarget !== "project_file") {
+      return;
+    }
+
+    if (!projectId || siteSkillSavedContentTarget.projectId !== projectId) {
+      return;
+    }
+
+    const relativePath =
+      siteSkillSavedContentTarget.projectFile?.relativePath?.trim() || "";
+    if (!relativePath) {
+      return;
+    }
+
+    const signature = JSON.stringify({
+      adapterName: siteSkillExecutionState.adapterName,
+      sourceUrl: siteSkillExecutionState.sourceUrl?.trim() || "",
+      projectId: siteSkillSavedContentTarget.projectId,
+      contentId: siteSkillSavedContentTarget.contentId,
+      relativePath,
+    });
+    if (autoOpenedSiteSkillSavedContentSignatureRef.current === signature) {
+      return;
+    }
+    autoOpenedSiteSkillSavedContentSignatureRef.current = signature;
+
+    void handleOpenSavedSiteContent(siteSkillSavedContentTarget);
+  }, [
+    handleOpenSavedSiteContent,
+    projectId,
+    siteSkillExecutionState?.adapterName,
+    siteSkillExecutionState?.phase,
+    siteSkillExecutionState?.sourceUrl,
+    siteSkillSavedContentTarget,
+  ]);
   const handleWorkspaceArtifactClick = useCallback(
     (artifact: Artifact) => {
       setFocusedArtifactBlockId(null);
@@ -3289,6 +3410,7 @@ export function AgentChatWorkspace({
     agentEntry,
     contextWorkspaceEnabled: contextWorkspace.generalWorkbenchEnabled,
     hasDisplayMessages,
+    hasPendingA2UIForm,
     hideTopBar,
     isBootstrapDispatchPending,
     isSpecializedThemeMode,
@@ -3447,6 +3569,7 @@ export function AgentChatWorkspace({
     characters: projectMemory?.characters || [],
     skills,
     serviceSkills: activeTheme === "general" ? serviceSkills : [],
+    serviceSkillGroups: activeTheme === "general" ? serviceSkillGroups : [],
     skillsLoading: combinedSkillsLoading,
     onSelectServiceSkill:
       workspaceServiceSkillEntryActions.handleServiceSkillSelect,
@@ -3599,7 +3722,11 @@ export function AgentChatWorkspace({
     selectedText,
     handleRecommendationClick,
     skills,
+    serviceSkills: activeTheme === "general" ? serviceSkills : [],
+    serviceSkillGroups: activeTheme === "general" ? serviceSkillGroups : [],
     skillsLoading: combinedSkillsLoading,
+    onSelectServiceSkill:
+      workspaceServiceSkillEntryActions.handleServiceSkillSelect,
     handleNavigateToSkillSettings,
     handleRefreshSkills,
     handleOpenBrowserAssistInCanvas: handleOpenBrowserRuntimeForBrowserAssist,
@@ -3678,22 +3805,6 @@ export function AgentChatWorkspace({
   return (
     <>
       {workspaceShellSceneRuntime.shellSceneNode}
-      <ServiceSkillLaunchDialog
-        skill={workspaceServiceSkillEntryActions.selectedServiceSkill}
-        open={workspaceServiceSkillEntryActions.serviceSkillDialogOpen}
-        onOpenChange={
-          workspaceServiceSkillEntryActions.handleServiceSkillDialogOpenChange
-        }
-        initialSlotValues={serviceSkillCreationReplayPrefill?.slotValues}
-        prefillHint={serviceSkillCreationReplayPrefill?.hint}
-        onLaunch={workspaceServiceSkillEntryActions.handleServiceSkillLaunch}
-        onCreateAutomation={
-          workspaceServiceSkillEntryActions.handleServiceSkillAutomationSetup
-        }
-        onOpenBrowserRuntime={
-          workspaceServiceSkillEntryActions.handleServiceSkillBrowserRuntimeLaunch
-        }
-      />
       <AutomationJobDialog
         open={workspaceServiceSkillEntryActions.automationDialogOpen}
         mode="create"

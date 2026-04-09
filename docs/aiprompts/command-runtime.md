@@ -26,6 +26,7 @@
 - 想为某个能力补“完整方案包”
 
 如果当前需求已经涉及“命令触发 -> Agent 分析 -> binding -> 轻卡 -> viewer”其中两步以上，就默认属于命令运行时改动。
+如果命令还涉及网页登录态访问、网页导出、Markdown 保存、图片下载，再补读 [web-browser-scene-skill.md](web-browser-scene-skill.md)。
 
 ## 固定产品判断
 

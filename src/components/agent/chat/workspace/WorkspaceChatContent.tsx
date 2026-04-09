@@ -4,7 +4,7 @@ import { StepProgress } from "@/lib/workspace/workbenchUi";
 import { EmptyState } from "../components/EmptyState";
 import { MessageList } from "../components/MessageList";
 import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
-import { WorkspacePendingA2UIDialog } from "./WorkspacePendingA2UIDialog";
+import { WorkspacePendingA2UIPanel } from "./WorkspacePendingA2UIPanel";
 import {
   ChatContainer,
   ChatContainerInner,
@@ -134,7 +134,7 @@ export function WorkspaceChatContent({
                 </button>
               </div>
             ) : null}
-            <WorkspacePendingA2UIDialog
+            <WorkspacePendingA2UIPanel
               pendingA2UIForm={pendingA2UIForm}
               onA2UISubmit={onPendingA2UISubmit}
               a2uiSubmissionNotice={a2uiSubmissionNotice}

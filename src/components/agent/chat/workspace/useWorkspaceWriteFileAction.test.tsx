@@ -179,6 +179,34 @@ describe("useWorkspaceWriteFileAction", () => {
     expect(setLayoutMode).not.toHaveBeenCalled();
   });
 
+  it("document 型 tool_start 产物不应在通用对话里自动抢占当前画布", async () => {
+    const setSelectedArtifactId = vi.fn();
+    const setArtifactViewMode = vi.fn();
+    const setLayoutMode = vi.fn();
+    const { render, getValue } = renderHook({
+      setSelectedArtifactId,
+      setArtifactViewMode,
+      setLayoutMode,
+      suppressCanvasAutoOpen: false,
+    });
+
+    await render();
+
+    act(() => {
+      getValue()("# 导出中", "exports/x-article-export/result.md", {
+        source: "tool_start",
+        status: "streaming",
+        metadata: {
+          writePhase: "streaming",
+        },
+      });
+    });
+
+    expect(setSelectedArtifactId).not.toHaveBeenCalled();
+    expect(setArtifactViewMode).not.toHaveBeenCalled();
+    expect(setLayoutMode).not.toHaveBeenCalled();
+  });
+
   it("空内容的图片 tool_result 不应进入通用 artifact 工作台", async () => {
     const upsertGeneralArtifact = vi.fn();
     const setSelectedArtifactId = vi.fn();

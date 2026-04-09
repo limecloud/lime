@@ -177,4 +177,34 @@ describe("AgentChatPage 工作区路由", () => {
       showChatPanel: true,
     });
   });
+
+  it("new-task 携带待启动服务技能时也应直接进入工作区", async () => {
+    const container = renderPage({
+      agentEntry: "new-task",
+      projectId: "project-standard",
+      showChatPanel: false,
+      initialPendingServiceSkillLaunch: {
+        skillId: "service-skill-1",
+        requestKey: 20260409,
+      },
+    });
+
+    await flushEffects();
+
+    const workspace = container.querySelector(
+      '[data-testid="workspace"]',
+    ) as HTMLDivElement | null;
+
+    expect(workspace).not.toBeNull();
+    expect(workspace?.dataset.agentEntry).toBe("claw");
+    expect(workspace?.dataset.showChatPanel).toBe("true");
+    expect(latestWorkspaceProps.value).toMatchObject({
+      initialPendingServiceSkillLaunch: {
+        skillId: "service-skill-1",
+        requestKey: 20260409,
+      },
+      agentEntry: "claw",
+      showChatPanel: true,
+    });
+  });
 });

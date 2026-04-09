@@ -13,7 +13,13 @@ import { parseBrowserWorkbenchCommand } from "../utils/browserWorkbenchCommand";
 import { parseBroadcastWorkbenchCommand } from "../utils/broadcastWorkbenchCommand";
 import { parseChannelPreviewWorkbenchCommand } from "../utils/channelPreviewWorkbenchCommand";
 import { parseCodeWorkbenchCommand } from "../utils/codeWorkbenchCommand";
-import { parseComplianceWorkbenchCommand } from "../utils/complianceWorkbenchCommand";
+import { normalizeContentPostPlatform } from "../utils/contentPostPlatform";
+import {
+  DEFAULT_COMPLIANCE_FOCUS,
+  DEFAULT_COMPLIANCE_OUTPUT_FORMAT,
+  DEFAULT_COMPLIANCE_STYLE,
+  parseComplianceWorkbenchCommand,
+} from "../utils/complianceWorkbenchCommand";
 import { parseCompetitorWorkbenchCommand } from "../utils/competitorWorkbenchCommand";
 import { parseCoverWorkbenchCommand } from "../utils/coverWorkbenchCommand";
 import { parseDeepSearchWorkbenchCommand } from "../utils/deepSearchWorkbenchCommand";
@@ -29,7 +35,11 @@ import { parseSearchWorkbenchCommand } from "../utils/searchWorkbenchCommand";
 import { parseSiteSearchWorkbenchCommand } from "../utils/siteSearchWorkbenchCommand";
 import { parseSummaryWorkbenchCommand } from "../utils/summaryWorkbenchCommand";
 import { parseTranslationWorkbenchCommand } from "../utils/translationWorkbenchCommand";
-import { buildMentionCommandReplayText } from "../utils/mentionCommandReplayText";
+import {
+  buildMentionCommandReplayText,
+  resolveMentionCommandMergedPrefillReplayText,
+  resolveMentionCommandPrefillReplayText,
+} from "../utils/mentionCommandReplayText";
 import { parseTranscriptionWorkbenchCommand } from "../utils/transcriptionWorkbenchCommand";
 import { parseTypesettingWorkbenchCommand } from "../utils/typesettingWorkbenchCommand";
 import { parseUploadWorkbenchCommand } from "../utils/uploadWorkbenchCommand";
@@ -76,7 +86,10 @@ import {
 import type { Character } from "@/lib/api/memory";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
-import type { ServiceSkillHomeItem } from "../service-skills/types";
+import type {
+  ServiceSkillHomeItem,
+  ServiceSkillSlotValues,
+} from "../service-skills/types";
 import {
   buildImageSkillLaunchRequestMetadata,
   type ImageWorkbenchSkillRequest,
@@ -88,7 +101,11 @@ import {
   resolveRuntimeSceneLaunchRequest,
 } from "./serviceSkillSceneLaunch";
 import type { RuntimeSceneGateRequest } from "./sceneSkillGate";
-import { recordMentionEntryUsage } from "../skill-selection/mentionEntryUsage";
+import {
+  getMentionEntryUsageMap,
+  getMentionEntryUsageRecordKey,
+  recordMentionEntryUsage,
+} from "../skill-selection/mentionEntryUsage";
 import { recordServiceSkillUsage } from "../service-skills/storage";
 import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import { CONTENT_POST_SKILL_KEY } from "../utils/contentPostSkill";
@@ -107,6 +124,9 @@ type ParsedCompetitorWorkbenchCommand = NonNullable<
 type ParsedBroadcastWorkbenchCommand = NonNullable<
   ReturnType<typeof parseBroadcastWorkbenchCommand>
 >;
+type ParsedComplianceWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseComplianceWorkbenchCommand>
+>;
 type ParsedAnalysisWorkbenchCommand = NonNullable<
   ReturnType<typeof parseAnalysisWorkbenchCommand>
 >;
@@ -122,8 +142,14 @@ type ParsedPdfWorkbenchCommand = NonNullable<
 type ParsedPresentationWorkbenchCommand = NonNullable<
   ReturnType<typeof parsePresentationWorkbenchCommand>
 >;
+type ParsedChannelPreviewWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseChannelPreviewWorkbenchCommand>
+>;
 type ParsedFormWorkbenchCommand = NonNullable<
   ReturnType<typeof parseFormWorkbenchCommand>
+>;
+type ParsedPublishWorkbenchCommand = NonNullable<
+  ReturnType<typeof parsePublishWorkbenchCommand>
 >;
 type ParsedSearchWorkbenchCommand = NonNullable<
   ReturnType<typeof parseSearchWorkbenchCommand>
@@ -152,6 +178,9 @@ type ParsedUrlParseWorkbenchCommand = NonNullable<
 type ParsedTypesettingWorkbenchCommand = NonNullable<
   ReturnType<typeof parseTypesettingWorkbenchCommand>
 >;
+type ParsedUploadWorkbenchCommand = NonNullable<
+  ReturnType<typeof parseUploadWorkbenchCommand>
+>;
 type ParsedVoiceWorkbenchCommand = NonNullable<
   ReturnType<typeof parseVoiceWorkbenchCommand>
 >;
@@ -161,10 +190,12 @@ type ParsedWebpageWorkbenchCommand = NonNullable<
 type CompletedMentionUsage = {
   skillId: string;
   runnerType: ServiceSkillHomeItem["runnerType"];
+  slotValues?: ServiceSkillSlotValues;
 };
 type CompletedMentionCommandUsage = {
   entryId: string;
   replayText?: string;
+  slotValues?: ServiceSkillSlotValues;
 };
 
 const MENTION_COMMAND_SKILL_ID_MAP = new Map(
@@ -179,6 +210,29 @@ const MENTION_COMMAND_SKILL_ID_MAP = new Map(
       return commandKey && skillId ? [[commandKey, skillId] as const] : [];
     }),
 );
+const MENTION_COMMAND_PREFIX_KEY_MAP = new Map(
+  listSkillCatalogCommandEntries(getSeededSkillCatalog()).flatMap((entry) => {
+    const commandKey = entry.commandKey.trim();
+    if (!commandKey) {
+      return [];
+    }
+
+    return entry.triggers
+      .filter((trigger) => trigger.mode === "mention")
+      .flatMap((trigger) => {
+        const prefix = normalizeMentionCommandPrefix(trigger.prefix);
+        return prefix ? [[prefix, commandKey] as const] : [];
+      });
+  }),
+);
+
+function normalizeMentionCommandPrefix(value?: string | null): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().toLowerCase();
+}
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -194,6 +248,305 @@ function normalizeOptionalText(value?: string | null): string | undefined {
 
   const normalized = value.trim();
   return normalized ? normalized : undefined;
+}
+
+function normalizeServiceSkillUsageSlotValue(
+  value: unknown,
+): string | undefined {
+  if (typeof value === "string") {
+    return normalizeOptionalText(value);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return undefined;
+}
+
+const MENTION_USAGE_REQUEST_FIELDS: Readonly<Record<string, readonly string[]>> =
+  {
+    image_task: [
+      "mode",
+      "prompt",
+      "count",
+      "size",
+      "aspect_ratio",
+      "target_output_ref_id",
+    ],
+    cover_task: ["prompt", "title", "platform", "size", "style"],
+    video_task: ["prompt", "duration", "aspect_ratio", "resolution"],
+    broadcast_task: [
+      "prompt",
+      "content",
+      "title",
+      "audience",
+      "tone",
+      "duration_hint_minutes",
+    ],
+    resource_search_task: [
+      "prompt",
+      "title",
+      "resource_type",
+      "query",
+      "usage",
+      "count",
+    ],
+    transcription_task: [
+      "prompt",
+      "source_url",
+      "source_path",
+      "language",
+      "output_format",
+      "speaker_labels",
+      "timestamps",
+    ],
+    research_request: [
+      "prompt",
+      "query",
+      "site",
+      "time_range",
+      "depth",
+      "focus",
+      "output_format",
+    ],
+    deep_search_request: [
+      "prompt",
+      "query",
+      "site",
+      "time_range",
+      "depth",
+      "focus",
+      "output_format",
+    ],
+    report_request: [
+      "prompt",
+      "query",
+      "site",
+      "time_range",
+      "depth",
+      "focus",
+      "output_format",
+    ],
+    site_search_request: ["prompt", "site", "query", "limit"],
+    pdf_read_request: [
+      "prompt",
+      "source_path",
+      "source_url",
+      "focus",
+      "output_format",
+    ],
+    summary_request: [
+      "prompt",
+      "content",
+      "focus",
+      "length",
+      "style",
+      "output_format",
+    ],
+    translation_request: [
+      "prompt",
+      "content",
+      "source_language",
+      "target_language",
+      "style",
+      "output_format",
+    ],
+    analysis_request: [
+      "prompt",
+      "content",
+      "focus",
+      "style",
+      "output_format",
+    ],
+    url_parse_task: ["prompt", "url", "extract_goal"],
+    typesetting_task: ["prompt", "content", "target_platform"],
+    presentation_request: [
+      "prompt",
+      "content",
+      "deck_type",
+      "style",
+      "audience",
+      "slide_count",
+    ],
+    form_request: [
+      "prompt",
+      "content",
+      "form_type",
+      "style",
+      "audience",
+      "field_count",
+    ],
+    webpage_request: [
+      "prompt",
+      "content",
+      "page_type",
+      "style",
+      "tech_stack",
+    ],
+    cloud_scene: ["user_input", "target_language", "voice_style"],
+    publish_command: [
+      "prompt",
+      "content",
+      "platform_type",
+      "platform_label",
+      "intent",
+    ],
+  };
+
+const MENTION_USAGE_MODEL_SKILL_LAUNCHES = [
+  {
+    launchKey: "image_skill_launch",
+    requestContextKey: "image_task",
+  },
+  {
+    launchKey: "cover_skill_launch",
+    requestContextKey: "cover_task",
+  },
+  {
+    launchKey: "video_skill_launch",
+    requestContextKey: "video_task",
+  },
+  {
+    launchKey: "broadcast_skill_launch",
+    requestContextKey: "broadcast_task",
+  },
+  {
+    launchKey: "resource_search_skill_launch",
+    requestContextKey: "resource_search_task",
+  },
+  {
+    launchKey: "research_skill_launch",
+    requestContextKey: "research_request",
+  },
+  {
+    launchKey: "report_skill_launch",
+    requestContextKey: "report_request",
+  },
+  {
+    launchKey: "deep_search_skill_launch",
+    requestContextKey: "deep_search_request",
+  },
+  {
+    launchKey: "site_search_skill_launch",
+    requestContextKey: "site_search_request",
+  },
+  {
+    launchKey: "pdf_read_skill_launch",
+    requestContextKey: "pdf_read_request",
+  },
+  {
+    launchKey: "summary_skill_launch",
+    requestContextKey: "summary_request",
+  },
+  {
+    launchKey: "translation_skill_launch",
+    requestContextKey: "translation_request",
+  },
+  {
+    launchKey: "analysis_skill_launch",
+    requestContextKey: "analysis_request",
+  },
+  {
+    launchKey: "transcription_skill_launch",
+    requestContextKey: "transcription_task",
+  },
+  {
+    launchKey: "url_parse_skill_launch",
+    requestContextKey: "url_parse_task",
+  },
+  {
+    launchKey: "typesetting_skill_launch",
+    requestContextKey: "typesetting_task",
+  },
+  {
+    launchKey: "presentation_skill_launch",
+    requestContextKey: "presentation_request",
+  },
+  {
+    launchKey: "form_skill_launch",
+    requestContextKey: "form_request",
+  },
+  {
+    launchKey: "webpage_skill_launch",
+    requestContextKey: "webpage_request",
+  },
+] as const;
+
+function pickUsageSlotValues(
+  record: Record<string, unknown>,
+  fieldKeys: readonly string[],
+): ServiceSkillSlotValues | undefined {
+  const nextValues = Object.fromEntries(
+    fieldKeys
+      .map((fieldKey) => [
+        fieldKey,
+        normalizeServiceSkillUsageSlotValue(record[fieldKey]),
+      ])
+      .filter((entry): entry is [string, string] => Boolean(entry[1])),
+  );
+
+  return Object.keys(nextValues).length > 0 ? nextValues : undefined;
+}
+
+function resolveLaunchScopedRequestContext(
+  launchMetadata: Record<string, unknown>,
+  requestContextKey: string,
+): Record<string, unknown> | undefined {
+  return (
+    asRecord(launchMetadata[requestContextKey]) ||
+    asRecord(asRecord(launchMetadata.request_context)?.[requestContextKey])
+  );
+}
+
+function resolveMentionCommandUsageSlotValues(
+  requestMetadata: Record<string, unknown> | undefined,
+): ServiceSkillSlotValues | undefined {
+  const harness = asRecord(requestMetadata?.harness);
+  if (!harness) {
+    return undefined;
+  }
+
+  const publishCommand = asRecord(harness.publish_command);
+  if (publishCommand) {
+    return pickUsageSlotValues(
+      publishCommand,
+      MENTION_USAGE_REQUEST_FIELDS.publish_command,
+    );
+  }
+
+  const serviceSceneRun = asRecord(
+    asRecord(harness.service_scene_launch)?.service_scene_run,
+  );
+  if (serviceSceneRun) {
+    return pickUsageSlotValues(
+      serviceSceneRun,
+      MENTION_USAGE_REQUEST_FIELDS.cloud_scene,
+    );
+  }
+
+  for (const launch of MENTION_USAGE_MODEL_SKILL_LAUNCHES) {
+    const launchMetadata = asRecord(harness[launch.launchKey]);
+    if (!launchMetadata) {
+      continue;
+    }
+
+    const scopedRequestContext = resolveLaunchScopedRequestContext(
+      launchMetadata,
+      launch.requestContextKey,
+    );
+    if (!scopedRequestContext) {
+      continue;
+    }
+
+    return pickUsageSlotValues(
+      scopedRequestContext,
+      MENTION_USAGE_REQUEST_FIELDS[launch.requestContextKey],
+    );
+  }
+
+  return undefined;
 }
 
 function resolveImageMentionCommandKey(
@@ -253,9 +606,516 @@ function resolveMentionCommandReplayText(parsedCommand: {
   );
 }
 
+function resolveBareMentionCommandPrefillSourceText(
+  rawText: string,
+): string | undefined {
+  const matched = rawText.match(/^\s*(@[^\s]+)\s*$/u);
+  if (!matched) {
+    return undefined;
+  }
+
+  const commandPrefix = matched[1];
+  const commandKey = MENTION_COMMAND_PREFIX_KEY_MAP.get(
+    normalizeMentionCommandPrefix(commandPrefix),
+  );
+  if (!commandKey) {
+    return undefined;
+  }
+
+  const recentRecord = getMentionEntryUsageMap().get(
+    getMentionEntryUsageRecordKey("builtin_command", commandKey),
+  );
+  if (!recentRecord) {
+    return undefined;
+  }
+
+  const replayText = resolveMentionCommandPrefillReplayText({
+    commandKey,
+    replayText: recentRecord.replayText,
+    slotValues: recentRecord.slotValues,
+  });
+  if (!replayText) {
+    return undefined;
+  }
+
+  return `${commandPrefix} ${replayText}`;
+}
+
+function resolvePreferredRecentCommandText(
+  current?: string | null,
+  fallback?: string | null,
+): string | undefined {
+  return normalizeOptionalText(current) || normalizeOptionalText(fallback);
+}
+
+function normalizeRecentSummaryLength(
+  value?: string | null,
+): ParsedSummaryWorkbenchCommand["length"] | undefined {
+  if (value === "short" || value === "medium" || value === "long") {
+    return value;
+  }
+  return undefined;
+}
+
+function mergeSummaryCommandRecentDefaults(params: {
+  parsedCommand: ParsedSummaryWorkbenchCommand;
+  slotValues?: ServiceSkillSlotValues;
+}): ParsedSummaryWorkbenchCommand {
+  const slotValues = params.slotValues;
+  if (!slotValues) {
+    return params.parsedCommand;
+  }
+
+  return {
+    ...params.parsedCommand,
+    focus: resolvePreferredRecentCommandText(
+      params.parsedCommand.focus,
+      slotValues.focus,
+    ),
+    length:
+      params.parsedCommand.length ??
+      normalizeRecentSummaryLength(slotValues.length),
+    style: resolvePreferredRecentCommandText(
+      params.parsedCommand.style,
+      slotValues.style,
+    ),
+    outputFormat: resolvePreferredRecentCommandText(
+      params.parsedCommand.outputFormat,
+      slotValues.output_format,
+    ),
+  };
+}
+
+function mergeTranslationCommandRecentDefaults(params: {
+  parsedCommand: ParsedTranslationWorkbenchCommand;
+  slotValues?: ServiceSkillSlotValues;
+}): ParsedTranslationWorkbenchCommand {
+  const slotValues = params.slotValues;
+  if (!slotValues) {
+    return params.parsedCommand;
+  }
+
+  return {
+    ...params.parsedCommand,
+    sourceLanguage: resolvePreferredRecentCommandText(
+      params.parsedCommand.sourceLanguage,
+      slotValues.source_language,
+    ),
+    targetLanguage: resolvePreferredRecentCommandText(
+      params.parsedCommand.targetLanguage,
+      slotValues.target_language,
+    ),
+    style: resolvePreferredRecentCommandText(
+      params.parsedCommand.style,
+      slotValues.style,
+    ),
+    outputFormat: resolvePreferredRecentCommandText(
+      params.parsedCommand.outputFormat,
+      slotValues.output_format,
+    ),
+  };
+}
+
+function mergeAnalysisCommandRecentDefaults(params: {
+  parsedCommand: ParsedAnalysisWorkbenchCommand;
+  slotValues?: ServiceSkillSlotValues;
+}): ParsedAnalysisWorkbenchCommand {
+  const slotValues = params.slotValues;
+  if (!slotValues) {
+    return params.parsedCommand;
+  }
+
+  return {
+    ...params.parsedCommand,
+    focus: resolvePreferredRecentCommandText(
+      params.parsedCommand.focus,
+      slotValues.focus,
+    ),
+    style: resolvePreferredRecentCommandText(
+      params.parsedCommand.style,
+      slotValues.style,
+    ),
+    outputFormat: resolvePreferredRecentCommandText(
+      params.parsedCommand.outputFormat,
+      slotValues.output_format,
+    ),
+  };
+}
+
+function resolvePreferredComplianceCommandText(params: {
+  current?: string | null;
+  fallback?: string | null;
+  defaultValue: string;
+}): string | undefined {
+  const fallback = normalizeOptionalText(params.fallback);
+  const current = normalizeOptionalText(params.current);
+  if (!fallback) {
+    return current;
+  }
+  if (!current || current === params.defaultValue) {
+    return fallback;
+  }
+  return current;
+}
+
+function mergeComplianceCommandRecentDefaults(params: {
+  parsedCommand: ParsedComplianceWorkbenchCommand;
+  slotValues?: ServiceSkillSlotValues;
+}): ParsedComplianceWorkbenchCommand {
+  const slotValues = params.slotValues;
+  if (!slotValues) {
+    return params.parsedCommand;
+  }
+
+  return {
+    ...params.parsedCommand,
+    focus: resolvePreferredComplianceCommandText({
+      current: params.parsedCommand.focus,
+      fallback: slotValues.focus,
+      defaultValue: DEFAULT_COMPLIANCE_FOCUS,
+    }),
+    style: resolvePreferredComplianceCommandText({
+      current: params.parsedCommand.style,
+      fallback: slotValues.style,
+      defaultValue: DEFAULT_COMPLIANCE_STYLE,
+    }),
+    outputFormat: resolvePreferredComplianceCommandText({
+      current: params.parsedCommand.outputFormat,
+      fallback: slotValues.output_format,
+      defaultValue: DEFAULT_COMPLIANCE_OUTPUT_FORMAT,
+    }),
+  };
+}
+
+function normalizeRecentPositiveInteger(
+  value?: string | null,
+): number | undefined {
+  const normalized = normalizeOptionalText(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function normalizeRecentPresentationDeckType(
+  value?: string | null,
+): ParsedPresentationWorkbenchCommand["deckType"] | undefined {
+  switch (value?.trim().toLowerCase()) {
+    case "pitch_deck":
+      return "pitch_deck";
+    case "sales_deck":
+      return "sales_deck";
+    case "training_deck":
+      return "training_deck";
+    case "report_deck":
+      return "report_deck";
+    case "proposal_deck":
+      return "proposal_deck";
+    default:
+      return undefined;
+  }
+}
+
+function normalizeRecentFormType(
+  value?: string | null,
+): ParsedFormWorkbenchCommand["formType"] | undefined {
+  switch (value?.trim().toLowerCase()) {
+    case "survey_form":
+      return "survey_form";
+    case "lead_form":
+      return "lead_form";
+    case "registration_form":
+      return "registration_form";
+    case "feedback_form":
+      return "feedback_form";
+    case "application_form":
+      return "application_form";
+    default:
+      return undefined;
+  }
+}
+
+function normalizeRecentWebpageType(
+  value?: string | null,
+): ParsedWebpageWorkbenchCommand["pageType"] | undefined {
+  switch (value?.trim().toLowerCase()) {
+    case "landing_page":
+      return "landing_page";
+    case "homepage":
+      return "homepage";
+    case "campaign_page":
+      return "campaign_page";
+    case "product_page":
+      return "product_page";
+    case "docs_page":
+      return "docs_page";
+    case "portfolio":
+      return "portfolio";
+    case "resume_page":
+      return "resume_page";
+    default:
+      return undefined;
+  }
+}
+
+function mergeTypesettingCommandRecentDefaults(params: {
+  parsedCommand: ParsedTypesettingWorkbenchCommand;
+  slotValues?: ServiceSkillSlotValues;
+}): ParsedTypesettingWorkbenchCommand {
+  const slotValues = params.slotValues;
+  if (!slotValues) {
+    return params.parsedCommand;
+  }
+
+  return {
+    ...params.parsedCommand,
+    targetPlatform: resolvePreferredRecentCommandText(
+      params.parsedCommand.targetPlatform,
+      slotValues.target_platform,
+    ),
+  };
+}
+
+function mergePresentationCommandRecentDefaults(params: {
+  parsedCommand: ParsedPresentationWorkbenchCommand;
+  slotValues?: ServiceSkillSlotValues;
+}): ParsedPresentationWorkbenchCommand {
+  const slotValues = params.slotValues;
+  if (!slotValues) {
+    return params.parsedCommand;
+  }
+
+  return {
+    ...params.parsedCommand,
+    deckType:
+      params.parsedCommand.deckType ??
+      normalizeRecentPresentationDeckType(slotValues.deck_type),
+    style: resolvePreferredRecentCommandText(
+      params.parsedCommand.style,
+      slotValues.style,
+    ),
+    audience: resolvePreferredRecentCommandText(
+      params.parsedCommand.audience,
+      slotValues.audience,
+    ),
+    slideCount:
+      params.parsedCommand.slideCount ??
+      normalizeRecentPositiveInteger(slotValues.slide_count),
+  };
+}
+
+function mergeFormCommandRecentDefaults(params: {
+  parsedCommand: ParsedFormWorkbenchCommand;
+  slotValues?: ServiceSkillSlotValues;
+}): ParsedFormWorkbenchCommand {
+  const slotValues = params.slotValues;
+  if (!slotValues) {
+    return params.parsedCommand;
+  }
+
+  return {
+    ...params.parsedCommand,
+    formType:
+      params.parsedCommand.formType ??
+      normalizeRecentFormType(slotValues.form_type),
+    style: resolvePreferredRecentCommandText(
+      params.parsedCommand.style,
+      slotValues.style,
+    ),
+    audience: resolvePreferredRecentCommandText(
+      params.parsedCommand.audience,
+      slotValues.audience,
+    ),
+    fieldCount:
+      params.parsedCommand.fieldCount ??
+      normalizeRecentPositiveInteger(slotValues.field_count),
+  };
+}
+
+function mergeWebpageCommandRecentDefaults(params: {
+  parsedCommand: ParsedWebpageWorkbenchCommand;
+  slotValues?: ServiceSkillSlotValues;
+}): ParsedWebpageWorkbenchCommand {
+  const slotValues = params.slotValues;
+  if (!slotValues) {
+    return params.parsedCommand;
+  }
+
+  return {
+    ...params.parsedCommand,
+    pageType:
+      params.parsedCommand.pageType ??
+      normalizeRecentWebpageType(slotValues.page_type),
+    style: resolvePreferredRecentCommandText(
+      params.parsedCommand.style,
+      slotValues.style,
+    ),
+    techStack: resolvePreferredRecentCommandText(
+      params.parsedCommand.techStack,
+      slotValues.tech_stack,
+    ),
+  };
+}
+
+type ParsedPublishLikeWorkbenchCommand =
+  | ParsedChannelPreviewWorkbenchCommand
+  | ParsedUploadWorkbenchCommand
+  | ParsedPublishWorkbenchCommand;
+
+function normalizeRecentPublishPlatform(params: {
+  platformType?: string | null;
+  platformLabel?: string | null;
+}): {
+  platformType?: ParsedPublishWorkbenchCommand["platformType"];
+  platformLabel?: string;
+} {
+  const normalizedLabel = normalizeOptionalText(params.platformLabel);
+  if (normalizedLabel) {
+    const normalizedPlatform = normalizeContentPostPlatform(normalizedLabel);
+    if (normalizedPlatform.platformType || normalizedPlatform.platformLabel) {
+      return normalizedPlatform;
+    }
+  }
+
+  switch (params.platformType?.trim().toLowerCase()) {
+    case "wechat_official_account":
+      return {
+        platformType: "wechat_official_account",
+        platformLabel: "微信公众号后台",
+      };
+    case "xiaohongshu":
+      return {
+        platformType: "xiaohongshu",
+        platformLabel: "小红书",
+      };
+    case "zhihu":
+      return {
+        platformType: "zhihu",
+        platformLabel: "知乎",
+      };
+    case "douyin":
+      return {
+        platformType: "douyin",
+        platformLabel: "抖音",
+      };
+    case "bilibili":
+      return {
+        platformType: "bilibili",
+        platformLabel: "B站",
+      };
+    case "instagram":
+      return {
+        platformType: "instagram",
+        platformLabel: "Instagram",
+      };
+    case "youtube":
+      return {
+        platformType: "youtube",
+        platformLabel: "YouTube",
+      };
+    case "tiktok":
+      return {
+        platformType: "tiktok",
+        platformLabel: "TikTok",
+      };
+    default:
+      return {};
+  }
+}
+
+function mergePublishLikeCommandRecentDefaults<
+  T extends ParsedPublishLikeWorkbenchCommand,
+>(params: {
+  parsedCommand: T;
+  slotValues?: ServiceSkillSlotValues;
+}): T {
+  const slotValues = params.slotValues;
+  if (!slotValues) {
+    return params.parsedCommand;
+  }
+
+  const currentPlatform = normalizeRecentPublishPlatform({
+    platformType: params.parsedCommand.platformType,
+    platformLabel: params.parsedCommand.platformLabel,
+  });
+  const fallbackPlatform = normalizeRecentPublishPlatform({
+    platformType: slotValues.platform_type,
+    platformLabel: slotValues.platform_label,
+  });
+
+  return {
+    ...params.parsedCommand,
+    platformType: currentPlatform.platformType ?? fallbackPlatform.platformType,
+    platformLabel:
+      currentPlatform.platformLabel ?? fallbackPlatform.platformLabel,
+  };
+}
+
+function buildPublishDispatchBody(params: {
+  prompt?: string | null;
+  platformLabel?: string | null;
+}): string {
+  return [
+    normalizeOptionalText(params.platformLabel)
+      ? `平台:${normalizeOptionalText(params.platformLabel)}`
+      : undefined,
+    normalizeOptionalText(params.prompt),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+function buildChannelPreviewDispatchBody(params: {
+  prompt?: string | null;
+  platformLabel?: string | null;
+}): string {
+  const normalizedPlatformLabel = normalizeOptionalText(params.platformLabel);
+  const normalizedPrompt = normalizeOptionalText(params.prompt);
+  const previewInstruction = normalizedPlatformLabel
+    ? `请基于当前内容生成一份适用于${normalizedPlatformLabel}的渠道预览稿，突出标题、首屏摘要、排版层级和封面建议`
+    : "请基于当前内容生成一份渠道预览稿，突出标题、首屏摘要、排版层级和封面建议";
+
+  return [
+    normalizedPlatformLabel ? `平台:${normalizedPlatformLabel}` : undefined,
+    previewInstruction,
+    normalizedPrompt,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
+function buildUploadDispatchBody(params: {
+  prompt?: string | null;
+  platformLabel?: string | null;
+}): string {
+  const normalizedPlatformLabel = normalizeOptionalText(params.platformLabel);
+  const normalizedPrompt = normalizeOptionalText(params.prompt);
+  const uploadInstruction = normalizedPlatformLabel
+    ? `请基于当前内容整理一份适用于${normalizedPlatformLabel}直接上传的上传稿与素材清单，优先输出标题、正文、封面说明、标签建议和上传前检查`
+    : "请基于当前内容整理一份可直接上传的上传稿与素材清单，优先输出标题、正文、封面说明、标签建议和上传前检查";
+
+  return [
+    normalizedPlatformLabel ? `平台:${normalizedPlatformLabel}` : undefined,
+    uploadInstruction,
+    normalizedPrompt,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
 function resolveMentionCommandUsage(params: {
   commandKey: string;
   serviceSkills: ServiceSkillHomeItem[];
+  requestMetadata?: Record<string, unknown>;
 }): CompletedMentionUsage | null {
   const normalizedCommandKey = params.commandKey.trim();
   if (!normalizedCommandKey) {
@@ -279,9 +1139,14 @@ function resolveMentionCommandUsage(params: {
     return null;
   }
 
+  const slotValues = resolveMentionCommandUsageSlotValues(
+    params.requestMetadata,
+  );
+
   return {
     skillId: matchedSkill.id,
     runnerType: matchedSkill.runnerType,
+    ...(slotValues ? { slotValues } : {}),
   };
 }
 
@@ -1601,6 +2466,70 @@ export function useWorkspaceSendActions({
         sendOptions,
       });
       sourceText = sendBoundary.sourceText;
+      sourceText =
+        resolveBareMentionCommandPrefillSourceText(sourceText) || sourceText;
+      const mentionUsageMap = getMentionEntryUsageMap();
+      type MergeableMentionParsedCommand = Parameters<
+        typeof resolveMentionCommandMergedPrefillReplayText
+      >[0]["parsedCommand"];
+      const maybeApplyMentionCommandRecentDefaults = <
+        T extends MergeableMentionParsedCommand & {
+          rawText: string;
+        },
+      >(params: {
+        rawText: string;
+        commandKey: string;
+        parsedCommand: T;
+        reparse: (rawText: string) => T | null;
+      }): { rawText: string; parsedCommand: T } => {
+        const recentRecord = mentionUsageMap.get(
+          getMentionEntryUsageRecordKey("builtin_command", params.commandKey),
+        );
+        if (!recentRecord?.slotValues) {
+          return {
+            rawText: params.rawText,
+            parsedCommand: params.parsedCommand,
+          };
+        }
+
+        const nextReplayText = resolveMentionCommandMergedPrefillReplayText({
+          commandKey: params.commandKey,
+          parsedCommand: params.parsedCommand,
+          slotValues: recentRecord.slotValues,
+        });
+        const currentReplayText = resolveMentionCommandReplayText(
+          params.parsedCommand,
+          params.commandKey,
+        );
+        if (!nextReplayText || nextReplayText === currentReplayText) {
+          return {
+            rawText: params.rawText,
+            parsedCommand: params.parsedCommand,
+          };
+        }
+
+        const commandPrefix = params.rawText.match(/^\s*(@[^\s]+)(?:\s+|$)/u)?.[1];
+        if (!commandPrefix) {
+          return {
+            rawText: params.rawText,
+            parsedCommand: params.parsedCommand,
+          };
+        }
+
+        const nextRawText = `${commandPrefix} ${nextReplayText}`;
+        const reparsed = params.reparse(nextRawText);
+        if (!reparsed) {
+          return {
+            rawText: params.rawText,
+            parsedCommand: params.parsedCommand,
+          };
+        }
+
+        return {
+          rawText: nextRawText,
+          parsedCommand: reparsed,
+        };
+      };
       let dispatchText = sourceText;
 
       let effectiveToolPreferences =
@@ -1697,10 +2626,14 @@ export function useWorkspaceSendActions({
         completedMentionCommandUsage = {
           entryId: commandKey,
           replayText: normalizeMentionCommandReplayText(replayText),
+          slotValues: resolveMentionCommandUsageSlotValues(
+            sendOptions?.requestMetadata,
+          ),
         };
         completedMentionUsage = resolveMentionCommandUsage({
           commandKey,
           serviceSkills,
+          requestMetadata: sendOptions?.requestMetadata,
         });
       };
 
@@ -2024,9 +2957,17 @@ export function useWorkspaceSendActions({
           ? parseSearchWorkbenchCommand(sourceText)
           : null;
       if (parsedSearchWorkbenchCommand) {
+        const prefilledSearchCommand = maybeApplyMentionCommandRecentDefaults({
+          rawText: sourceText,
+          commandKey: "research",
+          parsedCommand: parsedSearchWorkbenchCommand,
+          reparse: parseSearchWorkbenchCommand,
+        });
+        sourceText = prefilledSearchCommand.rawText;
+        dispatchText = sourceText;
         const requestContext = buildResearchSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedSearchWorkbenchCommand,
+          parsedCommand: prefilledSearchCommand.parsedCommand,
           projectId,
           contentId,
         });
@@ -2043,7 +2984,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "research",
           resolveMentionCommandReplayText(
-            parsedSearchWorkbenchCommand,
+            prefilledSearchCommand.parsedCommand,
             "research",
           ),
         );
@@ -2063,9 +3004,17 @@ export function useWorkspaceSendActions({
           ? parseReportWorkbenchCommand(sourceText)
           : null;
       if (parsedReportWorkbenchCommand) {
+        const prefilledReportCommand = maybeApplyMentionCommandRecentDefaults({
+          rawText: sourceText,
+          commandKey: "research_report",
+          parsedCommand: parsedReportWorkbenchCommand,
+          reparse: parseReportWorkbenchCommand,
+        });
+        sourceText = prefilledReportCommand.rawText;
+        dispatchText = sourceText;
         const requestContext = buildReportSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedReportWorkbenchCommand,
+          parsedCommand: prefilledReportCommand.parsedCommand,
           projectId,
           contentId,
         });
@@ -2082,7 +3031,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "research_report",
           resolveMentionCommandReplayText(
-            parsedReportWorkbenchCommand,
+            prefilledReportCommand.parsedCommand,
             "research_report",
           ),
         );
@@ -2103,9 +3052,18 @@ export function useWorkspaceSendActions({
           ? parseCompetitorWorkbenchCommand(sourceText)
           : null;
       if (parsedCompetitorWorkbenchCommand) {
+        const prefilledCompetitorCommand =
+          maybeApplyMentionCommandRecentDefaults({
+            rawText: sourceText,
+            commandKey: "competitor_research",
+            parsedCommand: parsedCompetitorWorkbenchCommand,
+            reparse: parseCompetitorWorkbenchCommand,
+          });
+        sourceText = prefilledCompetitorCommand.rawText;
+        dispatchText = sourceText;
         const requestContext = buildCompetitorSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedCompetitorWorkbenchCommand,
+          parsedCommand: prefilledCompetitorCommand.parsedCommand,
           projectId,
           contentId,
         });
@@ -2122,7 +3080,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "competitor_research",
           resolveMentionCommandReplayText(
-            parsedCompetitorWorkbenchCommand,
+            prefilledCompetitorCommand.parsedCommand,
             "competitor_research",
           ),
         );
@@ -2144,9 +3102,18 @@ export function useWorkspaceSendActions({
           ? parseDeepSearchWorkbenchCommand(sourceText)
           : null;
       if (parsedDeepSearchWorkbenchCommand) {
+        const prefilledDeepSearchCommand =
+          maybeApplyMentionCommandRecentDefaults({
+            rawText: sourceText,
+            commandKey: "deep_search",
+            parsedCommand: parsedDeepSearchWorkbenchCommand,
+            reparse: parseDeepSearchWorkbenchCommand,
+          });
+        sourceText = prefilledDeepSearchCommand.rawText;
+        dispatchText = sourceText;
         const requestContext = buildDeepSearchSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedDeepSearchWorkbenchCommand,
+          parsedCommand: prefilledDeepSearchCommand.parsedCommand,
           projectId,
           contentId,
         });
@@ -2163,7 +3130,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "deep_search",
           resolveMentionCommandReplayText(
-            parsedDeepSearchWorkbenchCommand,
+            prefilledDeepSearchCommand.parsedCommand,
             "deep_search",
           ),
         );
@@ -2185,9 +3152,18 @@ export function useWorkspaceSendActions({
           ? parseSiteSearchWorkbenchCommand(sourceText)
           : null;
       if (parsedSiteSearchWorkbenchCommand) {
+        const prefilledSiteSearchCommand =
+          maybeApplyMentionCommandRecentDefaults({
+            rawText: sourceText,
+            commandKey: "site_search",
+            parsedCommand: parsedSiteSearchWorkbenchCommand,
+            reparse: parseSiteSearchWorkbenchCommand,
+          });
+        sourceText = prefilledSiteSearchCommand.rawText;
+        dispatchText = sourceText;
         const requestContext = buildSiteSearchSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedSiteSearchWorkbenchCommand,
+          parsedCommand: prefilledSiteSearchCommand.parsedCommand,
           projectId,
           contentId,
         });
@@ -2204,7 +3180,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "site_search",
           resolveMentionCommandReplayText(
-            parsedSiteSearchWorkbenchCommand,
+            prefilledSiteSearchCommand.parsedCommand,
             "site_search",
           ),
         );
@@ -2227,9 +3203,17 @@ export function useWorkspaceSendActions({
           ? parsePdfWorkbenchCommand(sourceText)
           : null;
       if (parsedPdfWorkbenchCommand) {
+        const prefilledPdfCommand = maybeApplyMentionCommandRecentDefaults({
+          rawText: sourceText,
+          commandKey: "read_pdf",
+          parsedCommand: parsedPdfWorkbenchCommand,
+          reparse: parsePdfWorkbenchCommand,
+        });
+        sourceText = prefilledPdfCommand.rawText;
+        dispatchText = sourceText;
         const requestContext = buildPdfReadSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedPdfWorkbenchCommand,
+          parsedCommand: prefilledPdfCommand.parsedCommand,
           projectId,
           contentId,
         });
@@ -2246,7 +3230,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "read_pdf",
           resolveMentionCommandReplayText(
-            parsedPdfWorkbenchCommand,
+            prefilledPdfCommand.parsedCommand,
             "read_pdf",
           ),
         );
@@ -2270,9 +3254,15 @@ export function useWorkspaceSendActions({
           ? parseSummaryWorkbenchCommand(sourceText)
           : null;
       if (parsedSummaryWorkbenchCommand) {
+        const mergedSummaryCommand = mergeSummaryCommandRecentDefaults({
+          parsedCommand: parsedSummaryWorkbenchCommand,
+          slotValues: mentionUsageMap.get(
+            getMentionEntryUsageRecordKey("builtin_command", "summary"),
+          )?.slotValues,
+        });
         const requestContext = buildSummarySkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedSummaryWorkbenchCommand,
+          parsedCommand: mergedSummaryCommand,
           projectId,
           contentId,
         });
@@ -2286,7 +3276,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "summary",
           resolveMentionCommandReplayText(
-            parsedSummaryWorkbenchCommand,
+            mergedSummaryCommand,
             "summary",
           ),
         );
@@ -2311,9 +3301,15 @@ export function useWorkspaceSendActions({
           ? parseTranslationWorkbenchCommand(sourceText)
           : null;
       if (parsedTranslationWorkbenchCommand) {
+        const mergedTranslationCommand = mergeTranslationCommandRecentDefaults({
+          parsedCommand: parsedTranslationWorkbenchCommand,
+          slotValues: mentionUsageMap.get(
+            getMentionEntryUsageRecordKey("builtin_command", "translation"),
+          )?.slotValues,
+        });
         const requestContext = buildTranslationSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedTranslationWorkbenchCommand,
+          parsedCommand: mergedTranslationCommand,
           projectId,
           contentId,
         });
@@ -2327,7 +3323,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "translation",
           resolveMentionCommandReplayText(
-            parsedTranslationWorkbenchCommand,
+            mergedTranslationCommand,
             "translation",
           ),
         );
@@ -2353,9 +3349,18 @@ export function useWorkspaceSendActions({
           ? parseComplianceWorkbenchCommand(sourceText)
           : null;
       if (parsedComplianceWorkbenchCommand) {
+        const mergedComplianceCommand = mergeComplianceCommandRecentDefaults({
+          parsedCommand: parsedComplianceWorkbenchCommand,
+          slotValues: mentionUsageMap.get(
+            getMentionEntryUsageRecordKey(
+              "builtin_command",
+              "publish_compliance",
+            ),
+          )?.slotValues,
+        });
         const requestContext = buildAnalysisSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedComplianceWorkbenchCommand,
+          parsedCommand: mergedComplianceCommand,
           projectId,
           contentId,
           entrySource: "at_publish_compliance_command",
@@ -2370,7 +3375,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "publish_compliance",
           resolveMentionCommandReplayText(
-            parsedComplianceWorkbenchCommand,
+            mergedComplianceCommand,
             "publish_compliance",
           ),
         );
@@ -2397,9 +3402,15 @@ export function useWorkspaceSendActions({
           ? parseAnalysisWorkbenchCommand(sourceText)
           : null;
       if (parsedAnalysisWorkbenchCommand) {
+        const mergedAnalysisCommand = mergeAnalysisCommandRecentDefaults({
+          parsedCommand: parsedAnalysisWorkbenchCommand,
+          slotValues: mentionUsageMap.get(
+            getMentionEntryUsageRecordKey("builtin_command", "analysis"),
+          )?.slotValues,
+        });
         const requestContext = buildAnalysisSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedAnalysisWorkbenchCommand,
+          parsedCommand: mergedAnalysisCommand,
           projectId,
           contentId,
         });
@@ -2413,7 +3424,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "analysis",
           resolveMentionCommandReplayText(
-            parsedAnalysisWorkbenchCommand,
+            mergedAnalysisCommand,
             "analysis",
           ),
         );
@@ -2498,9 +3509,15 @@ export function useWorkspaceSendActions({
           ? parseTypesettingWorkbenchCommand(sourceText)
           : null;
       if (parsedTypesettingWorkbenchCommand) {
+        const mergedTypesettingCommand = mergeTypesettingCommandRecentDefaults({
+          parsedCommand: parsedTypesettingWorkbenchCommand,
+          slotValues: mentionUsageMap.get(
+            getMentionEntryUsageRecordKey("builtin_command", "typesetting"),
+          )?.slotValues,
+        });
         const requestContext = buildTypesettingSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedTypesettingWorkbenchCommand,
+          parsedCommand: mergedTypesettingCommand,
           projectId,
           contentId,
         });
@@ -2521,7 +3538,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "typesetting",
           resolveMentionCommandReplayText(
-            parsedTypesettingWorkbenchCommand,
+            mergedTypesettingCommand,
             "typesetting",
           ),
         );
@@ -2549,9 +3566,19 @@ export function useWorkspaceSendActions({
           ? parsePresentationWorkbenchCommand(sourceText)
           : null;
       if (parsedPresentationWorkbenchCommand) {
+        const mergedPresentationCommand =
+          mergePresentationCommandRecentDefaults({
+            parsedCommand: parsedPresentationWorkbenchCommand,
+            slotValues: mentionUsageMap.get(
+              getMentionEntryUsageRecordKey(
+                "builtin_command",
+                "presentation_generate",
+              ),
+            )?.slotValues,
+          });
         const requestContext = buildPresentationSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedPresentationWorkbenchCommand,
+          parsedCommand: mergedPresentationCommand,
           projectId,
           contentId,
         });
@@ -2566,7 +3593,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "presentation_generate",
           resolveMentionCommandReplayText(
-            parsedPresentationWorkbenchCommand,
+            mergedPresentationCommand,
             "presentation_generate",
           ),
         );
@@ -2595,9 +3622,15 @@ export function useWorkspaceSendActions({
           ? parseFormWorkbenchCommand(sourceText)
           : null;
       if (parsedFormWorkbenchCommand) {
+        const mergedFormCommand = mergeFormCommandRecentDefaults({
+          parsedCommand: parsedFormWorkbenchCommand,
+          slotValues: mentionUsageMap.get(
+            getMentionEntryUsageRecordKey("builtin_command", "form_generate"),
+          )?.slotValues,
+        });
         const requestContext = buildFormSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedFormWorkbenchCommand,
+          parsedCommand: mergedFormCommand,
           projectId,
           contentId,
         });
@@ -2612,7 +3645,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "form_generate",
           resolveMentionCommandReplayText(
-            parsedFormWorkbenchCommand,
+            mergedFormCommand,
             "form_generate",
           ),
         );
@@ -2642,9 +3675,18 @@ export function useWorkspaceSendActions({
           ? parseWebpageWorkbenchCommand(sourceText)
           : null;
       if (parsedWebpageWorkbenchCommand) {
+        const mergedWebpageCommand = mergeWebpageCommandRecentDefaults({
+          parsedCommand: parsedWebpageWorkbenchCommand,
+          slotValues: mentionUsageMap.get(
+            getMentionEntryUsageRecordKey(
+              "builtin_command",
+              "webpage_generate",
+            ),
+          )?.slotValues,
+        });
         const requestContext = buildWebpageSkillLaunchRequestContext({
           rawText: sourceText,
-          parsedCommand: parsedWebpageWorkbenchCommand,
+          parsedCommand: mergedWebpageCommand,
           projectId,
           contentId,
         });
@@ -2659,7 +3701,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "webpage_generate",
           resolveMentionCommandReplayText(
-            parsedWebpageWorkbenchCommand,
+            mergedWebpageCommand,
             "webpage_generate",
           ),
         );
@@ -2752,12 +3794,26 @@ export function useWorkspaceSendActions({
           ? parseChannelPreviewWorkbenchCommand(sourceText)
           : null;
       if (parsedChannelPreviewWorkbenchCommand) {
+        const mergedChannelPreviewCommand =
+          mergePublishLikeCommandRecentDefaults({
+            parsedCommand: parsedChannelPreviewWorkbenchCommand,
+            slotValues: mentionUsageMap.get(
+              getMentionEntryUsageRecordKey(
+                "builtin_command",
+                "channel_preview_runtime",
+              ),
+            )?.slotValues,
+          });
         const existingHarnessMetadata =
           asRecord(sendOptions?.requestMetadata?.harness) || {};
+        const dispatchBody = buildChannelPreviewDispatchBody({
+          prompt:
+            mergedChannelPreviewCommand.prompt ||
+            mergedChannelPreviewCommand.body,
+          platformLabel: mergedChannelPreviewCommand.platformLabel,
+        });
         dispatchText = `/${CONTENT_POST_SKILL_KEY}${
-          parsedChannelPreviewWorkbenchCommand.dispatchBody
-            ? ` ${parsedChannelPreviewWorkbenchCommand.dispatchBody}`
-            : ""
+          dispatchBody ? ` ${dispatchBody}` : ""
         }`;
         ensureSubmissionPreview();
         sendOptions = {
@@ -2768,15 +3824,13 @@ export function useWorkspaceSendActions({
               ...existingHarnessMetadata,
               publish_command: {
                 prompt:
-                  parsedChannelPreviewWorkbenchCommand.prompt ||
-                  parsedChannelPreviewWorkbenchCommand.body,
-                content: parsedChannelPreviewWorkbenchCommand.body,
+                  mergedChannelPreviewCommand.prompt ||
+                  mergedChannelPreviewCommand.body,
+                content: mergedChannelPreviewCommand.body,
                 platform_type:
-                  parsedChannelPreviewWorkbenchCommand.platformType ||
-                  undefined,
+                  mergedChannelPreviewCommand.platformType || undefined,
                 platform_label:
-                  parsedChannelPreviewWorkbenchCommand.platformLabel ||
-                  undefined,
+                  mergedChannelPreviewCommand.platformLabel || undefined,
                 intent: "preview",
                 entry_source: "at_channel_preview_command",
               },
@@ -2786,7 +3840,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "channel_preview_runtime",
           resolveMentionCommandReplayText(
-            parsedChannelPreviewWorkbenchCommand,
+            mergedChannelPreviewCommand,
             "channel_preview_runtime",
           ),
         );
@@ -2818,17 +3872,23 @@ export function useWorkspaceSendActions({
           ? parseUploadWorkbenchCommand(sourceText)
           : null;
       if (parsedUploadWorkbenchCommand) {
+        const mergedUploadCommand = mergePublishLikeCommandRecentDefaults({
+          parsedCommand: parsedUploadWorkbenchCommand,
+          slotValues: mentionUsageMap.get(
+            getMentionEntryUsageRecordKey("builtin_command", "upload_runtime"),
+          )?.slotValues,
+        });
         const existingHarnessMetadata =
           asRecord(sendOptions?.requestMetadata?.harness) || {};
+        const dispatchBody = buildUploadDispatchBody({
+          prompt: mergedUploadCommand.prompt || mergedUploadCommand.body,
+          platformLabel: mergedUploadCommand.platformLabel,
+        });
         const uploadBrowserRequirementMatch = detectBrowserTaskRequirement(
-          parsedUploadWorkbenchCommand.body ||
-            parsedUploadWorkbenchCommand.prompt ||
-            sourceText,
+          dispatchBody || mergedUploadCommand.body || mergedUploadCommand.prompt,
         );
         dispatchText = `/${CONTENT_POST_SKILL_KEY}${
-          parsedUploadWorkbenchCommand.dispatchBody
-            ? ` ${parsedUploadWorkbenchCommand.dispatchBody}`
-            : ""
+          dispatchBody ? ` ${dispatchBody}` : ""
         }`;
         ensureSubmissionPreview();
         sendOptions = {
@@ -2849,13 +3909,10 @@ export function useWorkspaceSendActions({
                 : {}),
               publish_command: {
                 prompt:
-                  parsedUploadWorkbenchCommand.prompt ||
-                  parsedUploadWorkbenchCommand.body,
-                content: parsedUploadWorkbenchCommand.body,
-                platform_type:
-                  parsedUploadWorkbenchCommand.platformType || undefined,
-                platform_label:
-                  parsedUploadWorkbenchCommand.platformLabel || undefined,
+                  mergedUploadCommand.prompt || mergedUploadCommand.body,
+                content: mergedUploadCommand.body,
+                platform_type: mergedUploadCommand.platformType || undefined,
+                platform_label: mergedUploadCommand.platformLabel || undefined,
                 intent: "upload",
                 entry_source: "at_upload_command",
               },
@@ -2865,7 +3922,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "upload_runtime",
           resolveMentionCommandReplayText(
-            parsedUploadWorkbenchCommand,
+            mergedUploadCommand,
             "upload_runtime",
           ),
         );
@@ -2898,16 +3955,21 @@ export function useWorkspaceSendActions({
           ? parsePublishWorkbenchCommand(sourceText)
           : null;
       if (parsedPublishWorkbenchCommand) {
+        const mergedPublishCommand = mergePublishLikeCommandRecentDefaults({
+          parsedCommand: parsedPublishWorkbenchCommand,
+          slotValues: mentionUsageMap.get(
+            getMentionEntryUsageRecordKey("builtin_command", "publish_runtime"),
+          )?.slotValues,
+        });
         const existingHarnessMetadata =
           asRecord(sendOptions?.requestMetadata?.harness) || {};
+        const nextBody = buildPublishDispatchBody({
+          prompt: mergedPublishCommand.prompt || mergedPublishCommand.body,
+          platformLabel: mergedPublishCommand.platformLabel,
+        });
         const publishBrowserRequirementMatch = detectBrowserTaskRequirement(
-          parsedPublishWorkbenchCommand.body ||
-            parsedPublishWorkbenchCommand.prompt ||
-            sourceText,
+          nextBody || mergedPublishCommand.body || mergedPublishCommand.prompt,
         );
-        const nextBody =
-          parsedPublishWorkbenchCommand.body ||
-          parsedPublishWorkbenchCommand.prompt;
         dispatchText = `/${CONTENT_POST_SKILL_KEY}${nextBody ? ` ${nextBody}` : ""}`;
         ensureSubmissionPreview();
         sendOptions = {
@@ -2928,13 +3990,10 @@ export function useWorkspaceSendActions({
                 : {}),
               publish_command: {
                 prompt:
-                  parsedPublishWorkbenchCommand.prompt ||
-                  parsedPublishWorkbenchCommand.body,
-                content: parsedPublishWorkbenchCommand.body,
-                platform_type:
-                  parsedPublishWorkbenchCommand.platformType || undefined,
-                platform_label:
-                  parsedPublishWorkbenchCommand.platformLabel || undefined,
+                  mergedPublishCommand.prompt || mergedPublishCommand.body,
+                content: mergedPublishCommand.body,
+                platform_type: mergedPublishCommand.platformType || undefined,
+                platform_label: mergedPublishCommand.platformLabel || undefined,
                 entry_source: "at_publish_command",
               },
             },
@@ -2943,7 +4002,7 @@ export function useWorkspaceSendActions({
         markCompletedMentionCommand(
           "publish_runtime",
           resolveMentionCommandReplayText(
-            parsedPublishWorkbenchCommand,
+            mergedPublishCommand,
             "publish_runtime",
           ),
         );
@@ -3283,6 +4342,7 @@ export function useWorkspaceSendActions({
             kind: "builtin_command",
             entryId: completedMentionCommandUsage.entryId,
             replayText: completedMentionCommandUsage.replayText,
+            slotValues: completedMentionCommandUsage.slotValues,
           });
         }
 

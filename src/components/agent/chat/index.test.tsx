@@ -42,7 +42,7 @@ const {
   mockEmptyState,
   mockInputbar,
   mockMessageList,
-  mockWorkspacePendingA2UIDialog,
+  mockWorkspacePendingA2UIPanel,
   mockExecutionRunGetGeneralWorkbenchState,
   mockExecutionRunListGeneralWorkbenchHistory,
   mockExecutionRunGet,
@@ -105,8 +105,8 @@ const {
   mockMessageList: vi.fn((_props?: Record<string, unknown>) => (
     <div data-testid="message-list" />
   )),
-  mockWorkspacePendingA2UIDialog: vi.fn((_props?: Record<string, unknown>) => (
-    <div data-testid="workspace-pending-a2ui-dialog" />
+  mockWorkspacePendingA2UIPanel: vi.fn((_props?: Record<string, unknown>) => (
+    <div data-testid="workspace-pending-a2ui-panel" />
   )),
   mockExecutionRunGetGeneralWorkbenchState: vi.fn(),
   mockExecutionRunListGeneralWorkbenchHistory: vi.fn(),
@@ -479,9 +479,9 @@ vi.mock("./components/EmptyState", () => ({
   EmptyState: (props?: { input?: string }) => mockEmptyState(props),
 }));
 
-vi.mock("./workspace/WorkspacePendingA2UIDialog", () => ({
-  WorkspacePendingA2UIDialog: (props: Record<string, unknown>) =>
-    mockWorkspacePendingA2UIDialog(props),
+vi.mock("./workspace/WorkspacePendingA2UIPanel", () => ({
+  WorkspacePendingA2UIPanel: (props: Record<string, unknown>) =>
+    mockWorkspacePendingA2UIPanel(props),
 }));
 
 vi.mock("./components/CanvasWorkbenchLayout", () => ({
@@ -1190,7 +1190,7 @@ beforeEach(() => {
     workspaceHarnessEnabled: true,
   });
   mockInputbar.mockClear();
-  mockWorkspacePendingA2UIDialog.mockClear();
+  mockWorkspacePendingA2UIPanel.mockClear();
   mockUseTopicBranchBoard.mockReturnValue({
     branchItems: [
       {
@@ -2612,6 +2612,50 @@ describe("AgentChatPage 通用工作台", () => {
     );
   });
 
+  it("默认回退时不应自动选中后台生成的 document artifact", async () => {
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        messages: [
+          {
+            id: "msg-generated-doc",
+            role: "assistant",
+            content: "已导出结果",
+            timestamp: new Date("2026-03-14T03:00:01.000Z"),
+            artifacts: [
+              {
+                id: "artifact-generated-doc-1",
+                type: "document",
+                title: "导出结果",
+                content: "# 导出结果",
+                status: "complete",
+                meta: {
+                  filePath: "exports/x-article-export/result.md",
+                  source: "artifact_snapshot",
+                },
+                position: { start: 0, end: 0 },
+                createdAt: 1,
+                updatedAt: 2,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    mockJotaiState.artifacts = [];
+    mockJotaiState.selectedArtifactId = null;
+
+    renderPage({
+      theme: "general",
+      lockTheme: true,
+    });
+    await flushEffects(10);
+
+    expect(mockJotaiState.selectedArtifactId).toBeNull();
+    expect(mockSetSelectedArtifactIdAtom).not.toHaveBeenCalledWith(
+      "artifact-generated-doc-1",
+    );
+  });
+
   it("只有浏览器协助 artifact 时默认不应进入浏览器画布", async () => {
     mockJotaiState.artifacts = [
       {
@@ -3305,7 +3349,9 @@ describe("AgentChatPage 通用工作台", () => {
     clickButton(container, "resume-topic");
     await flushEffects(12);
 
-    expect(sharedSwitchTopicMock).toHaveBeenCalledWith("topic-a");
+    expect(sharedSwitchTopicMock).toHaveBeenCalledWith("topic-a", {
+      forceRefresh: true,
+    });
     expect(onNavigate).not.toHaveBeenCalled();
     expect(mockLaunchBrowserSession).not.toHaveBeenCalled();
   });
@@ -5356,6 +5402,65 @@ describe("AgentChatPage 通用工作区无专用视频模式", () => {
   });
 });
 
+describe("AgentChatPage 服务技能 A2UI", () => {
+  it("页面参数带着 pending service skill 时，应在当前对话挂起服务技能 A2UI", async () => {
+    installMockAgentChatUnifiedState(createMockAgentChatUnifiedState());
+
+    const container = renderPage({
+      projectId: "project-service-skill-a2ui",
+      contentId: "content-service-skill-a2ui",
+      theme: "general",
+      lockTheme: true,
+      initialPendingServiceSkillLaunch: {
+        skillId: "daily-trend-briefing",
+        requestKey: 20260409,
+        initialSlotValues: {
+          industry_keywords: "",
+          schedule_time: "每天 10:00",
+        },
+        prefillHint: "已根据 Skills 页入口推荐自动预填。",
+      },
+    });
+    await flushEffects(12);
+
+    expect(
+      container
+        .querySelector('[data-testid="layout-transition"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("chat");
+
+    const latestPendingPanelProps =
+      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
+        | {
+            pendingA2UIForm?: {
+              id?: string;
+              components?: Array<Record<string, unknown>>;
+            } | null;
+          }
+        | undefined;
+
+    expect(latestPendingPanelProps?.pendingA2UIForm?.id).toBe(
+      "service-skill-launch:daily-trend-briefing:daily-trend-briefing:20260409",
+    );
+    expect(latestPendingPanelProps?.pendingA2UIForm?.components || []).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: expect.stringContaining(":prefill-hint"),
+          text: "已根据 Skills 页入口推荐自动预填。",
+        }),
+        expect.objectContaining({
+          id: "service-skill-slot-industry_keywords",
+          component: "TextField",
+        }),
+        expect.objectContaining({
+          id: "service-skill-slot-schedule_time",
+          value: "每天 10:00",
+        }),
+      ]),
+    );
+  });
+});
+
 describe("AgentChatPage legacy 问卷 A2UI", () => {
   it("工作区编排出现待补充 A2UI 时应保持聊天主区域，不展示左侧工作台侧栏", async () => {
     mockUseThemeContextWorkspace.mockReturnValue(
@@ -5408,8 +5513,8 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
       container.querySelector('[data-testid="general-workbench-sidebar"]'),
     ).toBeNull();
 
-    const latestPendingDialogProps =
-      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+    const latestPendingPanelProps =
+      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
         | {
             pendingA2UIForm?: {
               data?: Record<string, unknown>;
@@ -5417,7 +5522,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
           }
         | undefined;
 
-    expect(latestPendingDialogProps?.pendingA2UIForm?.data).toMatchObject({
+    expect(latestPendingPanelProps?.pendingA2UIForm?.data).toMatchObject({
       source: "legacy_questionnaire",
       questionCount: 1,
     });
@@ -5498,8 +5603,8 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
       "已整理为补充信息表单，请在输入区完成填写。",
     );
 
-    const latestPendingDialogProps =
-      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+    const latestPendingPanelProps =
+      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
         | {
             pendingA2UIForm?: {
               data?: Record<string, unknown>;
@@ -5509,8 +5614,8 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
           }
         | undefined;
 
-    expect(latestPendingDialogProps?.pendingA2UIForm).toBeTruthy();
-    expect(latestPendingDialogProps?.pendingA2UIForm?.data).toMatchObject({
+    expect(latestPendingPanelProps?.pendingA2UIForm).toBeTruthy();
+    expect(latestPendingPanelProps?.pendingA2UIForm?.data).toMatchObject({
       source: "legacy_questionnaire",
       questionCount: 1,
       governance: expect.objectContaining({
@@ -5518,7 +5623,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
         deferredQuestionCount: 3,
       }),
     });
-    expect(latestPendingDialogProps?.pendingA2UIForm?.components || []).toEqual(
+    expect(latestPendingPanelProps?.pendingA2UIForm?.components || []).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           component: "ChoicePicker",
@@ -5527,7 +5632,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
       ]),
     );
     expect(
-      latestPendingDialogProps?.pendingA2UIForm?.components || [],
+      latestPendingPanelProps?.pendingA2UIForm?.components || [],
     ).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -5543,7 +5648,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
     );
 
     const componentIdByLabel = Object.fromEntries(
-      (latestPendingDialogProps?.pendingA2UIForm?.components || [])
+      (latestPendingPanelProps?.pendingA2UIForm?.components || [])
         .filter(
           (component) =>
             (component.component === "ChoicePicker" ||
@@ -5555,7 +5660,7 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
     );
 
     act(() => {
-      latestPendingDialogProps?.onA2UISubmit?.({
+      latestPendingPanelProps?.onA2UISubmit?.({
         [componentIdByLabel["这次内容主要面向谁？"]]: ["客户"],
       });
     });
@@ -5674,8 +5779,8 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       "已整理为补充信息表单，请在输入区完成填写。",
     );
 
-    const latestPendingDialogProps =
-      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+    const latestPendingPanelProps =
+      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
         | {
             pendingA2UIForm?: {
               data?: Record<string, unknown>;
@@ -5684,7 +5789,7 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
           }
         | undefined;
 
-    expect(latestPendingDialogProps?.pendingA2UIForm?.data).toMatchObject({
+    expect(latestPendingPanelProps?.pendingA2UIForm?.data).toMatchObject({
       source: "legacy_questionnaire",
       sectionCount: 1,
       questionCount: 1,
@@ -5694,7 +5799,7 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       }),
     });
     expect(
-      (latestPendingDialogProps?.pendingA2UIForm?.components || []).some(
+      (latestPendingPanelProps?.pendingA2UIForm?.components || []).some(
         (component) =>
           component.component === "TextField" &&
           component.label === "请提供您希望我研究的具体主题",
@@ -5779,8 +5884,8 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       "已整理为补充信息表单，请在输入区完成填写。",
     );
 
-    const latestPendingDialogProps =
-      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+    const latestPendingPanelProps =
+      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
         | {
             pendingA2UIForm?: {
               data?: Record<string, unknown>;
@@ -5789,7 +5894,7 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
           }
         | undefined;
 
-    expect(latestPendingDialogProps?.pendingA2UIForm?.data).toMatchObject({
+    expect(latestPendingPanelProps?.pendingA2UIForm?.data).toMatchObject({
       source: "legacy_questionnaire",
       sectionCount: 1,
       questionCount: 1,
@@ -5798,7 +5903,7 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
         deferredQuestionCount: 2,
       }),
     });
-    expect(latestPendingDialogProps?.pendingA2UIForm?.components || []).toEqual(
+    expect(latestPendingPanelProps?.pendingA2UIForm?.components || []).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           component: "TextField",
@@ -5807,12 +5912,12 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       ]),
     );
     expect(
-      (latestPendingDialogProps?.pendingA2UIForm?.components || []).filter(
+      (latestPendingPanelProps?.pendingA2UIForm?.components || []).filter(
         (component) => component.component === "TextField",
       ),
     ).toHaveLength(1);
     expect(
-      latestPendingDialogProps?.pendingA2UIForm?.components || [],
+      latestPendingPanelProps?.pendingA2UIForm?.components || [],
     ).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -6003,15 +6108,15 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
       "为了继续推进，我需要你先补充以下信息",
     );
 
-    const latestPendingDialogProps =
-      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+    const latestPendingPanelProps =
+      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
         | {
             pendingA2UIForm?: {
               id?: string;
             } | null;
           }
         | undefined;
-    expect(latestPendingDialogProps?.pendingA2UIForm?.id).toBe(
+    expect(latestPendingPanelProps?.pendingA2UIForm?.id).toBe(
       "action-request-req-action-required",
     );
   });
@@ -6087,8 +6192,8 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
     });
     await flushEffects(10);
 
-    const latestPendingDialogProps =
-      mockWorkspacePendingA2UIDialog.mock.calls.at(-1)?.[0] as
+    const latestPendingPanelProps =
+      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
         | {
             pendingA2UIForm?: {
               id?: string;
@@ -6100,7 +6205,7 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
           }
         | undefined;
 
-    expect(latestPendingDialogProps?.pendingA2UIForm ?? null).toBeNull();
-    expect(latestPendingDialogProps?.a2uiSubmissionNotice ?? null).toBeNull();
+    expect(latestPendingPanelProps?.pendingA2UIForm ?? null).toBeNull();
+    expect(latestPendingPanelProps?.a2uiSubmissionNotice ?? null).toBeNull();
   });
 });

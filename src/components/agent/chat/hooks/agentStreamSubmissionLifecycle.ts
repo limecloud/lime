@@ -27,6 +27,7 @@ export interface StreamRequestState {
   requestStartedAt: number;
   requestFinished: boolean;
   queuedTurnId: string | null;
+  queuedDraftCleanupTimerId?: ReturnType<typeof setTimeout> | null;
 }
 
 interface CreateSubmissionLifecycleOptions {
@@ -80,6 +81,7 @@ export function createAgentStreamSubmissionLifecycle(
     requestStartedAt: 0,
     requestFinished: false,
     queuedTurnId: null,
+    queuedDraftCleanupTimerId: null,
   };
   const optimisticStartedAt = assistantMsg.timestamp.toISOString();
   const pendingTurnKey = createPendingTurnKey();

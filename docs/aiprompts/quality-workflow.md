@@ -84,7 +84,8 @@
 
 如果本轮涉及 team runtime 工具面或主线程用户消息工具，还要同步检查 Rust catalog / inventory、runtime 注册、浏览器 fallback mock 与前端 tool display；`Agent / TeamCreate / TeamDelete / SendMessage / ListPeers` 必须保持同一组 current surface，`SendUserMessage` 也必须继续停留在 current 主线程工具面，`SubAgentTask` 只能继续停留在 compat 读取边界。
 
-如果本轮涉及 MCP bridge runtime tool surface、inventory 或 ToolSearch，还要同步检查 Rust extension 注入、inventory 快照、浏览器 fallback mock 与 GUI 面板命名；当前唯一命名事实源是 `mcp__<server>__<tool>`，对应 extension surface key 为 `mcp__<server>`，不要让 mock 或 UI 退回裸 `server__tool`。
+如果本轮涉及 MCP bridge runtime tool surface、inventory 或 ToolSearch，还要同步检查 Rust extension 注入、inventory 快照、浏览器 fallback mock 与 GUI 面板命名；当前唯一命名事实源是 `mcp__<server>__<tool>`，对应 extension surface key 为 `mcp__<server>`，不要让 mock 或 UI 退回裸 `server__tool`。同时，Lime runtime 里的 `ToolSearch` 当前事实源必须是 `ToolSearchBridgeTool`；`aster-rust` 自带 `ToolSearchTool` 只能停留在 compat 存量，不允许再抢占当前 runtime surface。
+如果本轮还需要对子工作区单独跑 Rust 定向测试，例如 `src-tauri/crates/aster-rust`，必须确认产物仍落在统一的 `src-tauri/target`，不要重新写回子目录自己的 `target/`；否则 `tauri dev` 会把构建产物当成源码变化，反复触发重编译。
 
 如果本轮涉及 `create_skill_scaffold_for_app`、`SkillsPage / SkillScaffoldDialog`，或“聊天结果 -> Skill 脚手架”沉淀闭环，还要同步检查前端网关、Rust 模板、DevBridge 分发与默认 mock 是否仍保持同一条主链；若新增了结构化骨架字段，至少要确认 `何时使用 / 输入 / 执行步骤 / 输出 / 失败回退` 能真实落进生成后的 `SKILL.md`。
 
@@ -106,6 +107,7 @@
 - 默认先跑受影响 crate、模块或定向测试
 - 再根据边界扩散决定是否执行全量 `cargo test`
 - 目标是尽快暴露问题，而不是一上来把所有测试都跑满
+- 如果定向测试来自 `src-tauri/crates/aster-rust` 这类被 Tauri watch 覆盖的子工作区，先确认其 Cargo `target-dir` 已统一回 `src-tauri/target`，避免 watch 风暴导致 dev 无法启动
 
 ## 质量分层
 
@@ -546,6 +548,7 @@ npm run verify:gui-smoke
 npm run smoke:workspace-ready
 npm run smoke:browser-runtime
 npm run smoke:site-adapters
+npm run smoke:agent-service-skill-entry
 
 # 前端 / 桥接 / 契约
 npm test

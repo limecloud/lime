@@ -1,4 +1,4 @@
-import styled, { keyframes } from "styled-components";
+import styled, { css, keyframes } from "styled-components";
 import type { KeyboardEvent, ReactNode } from "react";
 import {
   EMPTY_STATE_META_PILL_CLASSNAME,
@@ -98,6 +98,63 @@ const RecommendationCard = styled.div.attrs({
   }
 `;
 
+const PresetRail = styled.div<{ $layout: "wrap" | "scroll" }>`
+  margin-top: 0.625rem;
+  display: flex;
+  gap: 0.5rem;
+
+  ${({ $layout }) =>
+    $layout === "scroll"
+      ? css`
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding-bottom: 0.1rem;
+          scrollbar-width: none;
+
+          &::-webkit-scrollbar {
+            display: none;
+          }
+
+          > * {
+            flex: 0 0 auto;
+          }
+        `
+      : css`
+          flex-wrap: wrap;
+        `}
+`;
+
+const RecommendationRail = styled.div<{ $layout: "grid" | "carousel" }>`
+  margin-top: 0.625rem;
+
+  ${({ $layout }) =>
+    $layout === "carousel"
+      ? css`
+          display: grid;
+          grid-auto-flow: column;
+          grid-auto-columns: minmax(220px, 244px);
+          gap: 0.75rem;
+          min-width: 0;
+          overflow-x: auto;
+          overflow-y: hidden;
+          padding-bottom: 0.1rem;
+          scrollbar-width: none;
+
+          &::-webkit-scrollbar {
+            display: none;
+          }
+        `
+      : css`
+          display: grid;
+          gap: 0.5rem;
+
+          @media (min-width: 768px) {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        `}
+`;
+
 export interface EmptyStateQuickActionItem {
   key: string;
   title: string;
@@ -132,6 +189,8 @@ interface EmptyStateQuickActionsProps {
   presets?: EmptyStateQuickPresetItem[];
   items: EmptyStateQuickActionItem[];
   embedded?: boolean;
+  cardLayout?: "grid" | "carousel";
+  presetLayout?: "wrap" | "scroll";
   loading?: boolean;
   onPresetAction?: (item: EmptyStateQuickPresetItem) => void;
   onSecondaryStatusAction?: (item: EmptyStateQuickActionItem) => void;
@@ -153,6 +212,8 @@ export function EmptyStateQuickActions({
   presets = [],
   items,
   embedded = false,
+  cardLayout = "grid",
+  presetLayout = "wrap",
   loading = false,
   onPresetAction,
   onSecondaryStatusAction,
@@ -182,7 +243,7 @@ export function EmptyStateQuickActions({
       </div>
 
       {presets.length > 0 ? (
-        <div className="mt-2.5 flex flex-wrap gap-2">
+        <PresetRail $layout={presetLayout}>
           {presets.map((preset, index) => (
             <PresetButton
               key={preset.key}
@@ -198,7 +259,7 @@ export function EmptyStateQuickActions({
               <span>{preset.label}</span>
             </PresetButton>
           ))}
-        </div>
+        </PresetRail>
       ) : null}
 
       {selectedTextPreview ? (
@@ -219,7 +280,7 @@ export function EmptyStateQuickActions({
           当前目录暂无可用项。
         </div>
       ) : (
-        <div className="mt-2.5 grid gap-2 md:grid-cols-2">
+        <RecommendationRail $layout={cardLayout}>
           {items.map((item, index) => (
             <RecommendationCard
               key={item.key}
@@ -306,7 +367,7 @@ export function EmptyStateQuickActions({
               </div>
             </RecommendationCard>
           ))}
-        </div>
+        </RecommendationRail>
       )}
     </QuickActionsPanel>
   );

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  extractSearchQueryLabel,
   normalizeToolNameKey,
   resolveToolDisplayLabel,
 } from "./toolDisplayInfo";
@@ -67,8 +68,20 @@ describe("toolDisplayInfo", () => {
     expect(resolveToolDisplayLabel("TeamCreateTool")).toBe("创建团队");
     expect(resolveToolDisplayLabel("TeamDeleteTool")).toBe("删除团队");
     expect(resolveToolDisplayLabel("ScheduleCronTool")).toBe("定时触发器");
-    expect(resolveToolDisplayLabel("SyntheticOutputTool")).toBe("结构化输出");
+    expect(resolveToolDisplayLabel("SyntheticOutputTool")).toBe("最终答复");
     expect(resolveToolDisplayLabel("AgentOutputTool")).toBe("任务输出");
     expect(resolveToolDisplayLabel("BashOutputTool")).toBe("任务输出");
+  });
+
+  it("应隐藏 ToolSearch 中的内部协议查询词", () => {
+    expect(
+      extractSearchQueryLabel({
+        id: "tool-1",
+        name: "ToolSearch",
+        arguments: JSON.stringify({ query: "select:StructuredOutput" }),
+        status: "completed",
+        startTime: new Date("2026-04-09T00:00:00.000Z"),
+      }),
+    ).toBe("内部流程");
   });
 });

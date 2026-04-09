@@ -26,7 +26,7 @@ const RUNNER_DESCRIPTIONS: Record<ServiceSkillRunnerType, string> = {
 };
 
 const LOCAL_ACTION_LABELS: Record<ServiceSkillRunnerType, string> = {
-  instant: "填写参数",
+  instant: "对话内补参",
   scheduled: "创建任务",
   managed: "创建跟踪",
 };
@@ -43,6 +43,12 @@ function uniqueStrings(values: string[]): string[] {
       values.map((value) => value.trim()).filter((value) => value.length > 0),
     ),
   );
+}
+
+function hasRequiredSlots(
+  item: Pick<ServiceSkillItem, "slotSchema">,
+): boolean {
+  return item.slotSchema.some((slot) => slot.required);
 }
 
 function readServiceSkillBundleMetadata(
@@ -139,6 +145,9 @@ export function getServiceSkillActionLabel(item: ServiceSkillItem): string {
     return "云端执行";
   }
   if (resolveServiceSkillType(item) === "site") {
+    if (hasRequiredSlots(item)) {
+      return "对话内补参";
+    }
     return "开始执行";
   }
   return LOCAL_ACTION_LABELS[item.runnerType];
@@ -212,6 +221,9 @@ export function getServiceSkillPrimaryActionLabel(
     return "云端执行";
   }
   if (resolveServiceSkillType(skill) === "site") {
+    if (hasRequiredSlots(skill)) {
+      return "对话内补参";
+    }
     return "开始执行";
   }
   return "进入工作区";

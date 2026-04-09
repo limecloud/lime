@@ -218,6 +218,12 @@
     sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     },
+    resolveRoot(value) {
+      if (value && typeof value === "object" && "nodeType" in value) {
+        return value;
+      }
+      return document.body;
+    },
     text(value) {
       return String(value?.textContent || "")
         .replace(/\s+/g, " ")
@@ -251,6 +257,212 @@
         await new Promise((resolve) => setTimeout(resolve, intervalMs));
       }
       return null;
+    },
+    async waitForDomStable(options = {}) {
+      const root = siteAdapterHelpers.resolveRoot(options.root);
+      const stableMs = Math.max(100, Number(options.stableMs) || 500);
+      const timeoutMs = Math.max(stableMs, Number(options.timeoutMs) || 2500);
+
+      if (!root || typeof MutationObserver === "undefined") {
+        await siteAdapterHelpers.sleep(Math.min(timeoutMs, stableMs));
+        return true;
+      }
+
+      return await new Promise((resolve) => {
+        let finished = false;
+        let settleTimer = null;
+        let timeoutTimer = null;
+
+        const finish = () => {
+          if (finished) {
+            return;
+          }
+          finished = true;
+          if (settleTimer) clearTimeout(settleTimer);
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+          observer.disconnect();
+          resolve(true);
+        };
+
+        const schedule = () => {
+          if (settleTimer) clearTimeout(settleTimer);
+          settleTimer = setTimeout(finish, stableMs);
+        };
+
+        const observer = new MutationObserver(() => {
+          schedule();
+        });
+
+        observer.observe(root, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          characterData: true,
+        });
+
+        timeoutTimer = setTimeout(finish, timeoutMs);
+        schedule();
+      });
+    },
+    async scrollUntilSettled(options = {}) {
+      const root = siteAdapterHelpers.resolveRoot(options.root);
+      const maxScrolls = Math.max(1, Number(options.maxScrolls) || 8);
+      const delayMs = Math.max(80, Number(options.delayMs) || 350);
+      const settleRounds = Math.max(1, Number(options.settleRounds) || 2);
+      const viewportFactor = Math.max(
+        0.2,
+        Number(options.viewportFactor) || 0.9,
+      );
+      const getSnapshot =
+        typeof options.getSnapshot === "function" ? options.getSnapshot : () => ({});
+      const scrollingElement =
+        document.scrollingElement || document.documentElement || document.body;
+      let lastSignature = "";
+      let lastScrollY = Math.round(window.scrollY);
+      let stableCount = 0;
+      let scrolls = 0;
+
+      while (scrolls < maxScrolls) {
+        const stepPx = Math.max(
+          320,
+          Number(options.stepPx) || Math.round(window.innerHeight * viewportFactor),
+        );
+        window.scrollBy(0, stepPx);
+        await siteAdapterHelpers.sleep(delayMs);
+        await siteAdapterHelpers.waitForDomStable({
+          root,
+          stableMs: Math.min(600, delayMs),
+          timeoutMs: Math.max(1200, delayMs * 4),
+        });
+
+        let snapshot = {};
+        try {
+          snapshot = getSnapshot() || {};
+        } catch {
+          snapshot = {};
+        }
+
+        const signature = JSON.stringify({
+          scrollY: Math.round(window.scrollY),
+          scrollHeight: Math.round(scrollingElement?.scrollHeight || 0),
+          ...snapshot,
+        });
+
+        if (
+          signature === lastSignature ||
+          Math.round(window.scrollY) === lastScrollY
+        ) {
+          stableCount += 1;
+        } else {
+          stableCount = 0;
+        }
+
+        lastSignature = signature;
+        lastScrollY = Math.round(window.scrollY);
+        scrolls += 1;
+
+        if (stableCount >= settleRounds) {
+          break;
+        }
+      }
+
+      return {
+        scrolls,
+        scrollY: Math.round(window.scrollY),
+        scrollHeight: Math.round(scrollingElement?.scrollHeight || 0),
+        stableCount,
+      };
+    },
+    async waitForImagesReady(rootOrOptions, maybeOptions = {}) {
+      const root =
+        rootOrOptions &&
+        typeof rootOrOptions === "object" &&
+        "nodeType" in rootOrOptions
+          ? rootOrOptions
+          : siteAdapterHelpers.resolveRoot(maybeOptions.root);
+      const options =
+        rootOrOptions &&
+        typeof rootOrOptions === "object" &&
+        "nodeType" in rootOrOptions
+          ? maybeOptions
+          : rootOrOptions || {};
+      const timeoutMs = Math.max(200, Number(options.timeoutMs) || 3000);
+      const intervalMs = Math.max(80, Number(options.intervalMs) || 200);
+      const stableRounds = Math.max(1, Number(options.stableRounds) || 2);
+
+      const collectCandidates = () => {
+        const target = siteAdapterHelpers.resolveRoot(root);
+        const entries = [];
+        const seen = new Set();
+        const push = (element) => {
+          if (!element || seen.has(element)) {
+            return;
+          }
+          seen.add(element);
+          entries.push(element);
+        };
+
+        if (target?.matches?.("img, [role='img'], [style*='background-image']")) {
+          push(target);
+        }
+        target
+          ?.querySelectorAll?.("img, [role='img'], [style*='background-image']")
+          ?.forEach?.((element) => push(element));
+
+        const details = entries.map((element) => {
+          const inlineStyle = element.getAttribute?.("style") || "";
+          const computedStyle =
+            typeof getComputedStyle === "function"
+              ? getComputedStyle(element).backgroundImage || ""
+              : "";
+          const bgMatch = String(`${inlineStyle};${computedStyle}`).match(
+            /url\((['"]?)(.*?)\1\)/,
+          );
+          const source =
+            element.currentSrc ||
+            element.getAttribute?.("src") ||
+            element.getAttribute?.("data-src") ||
+            element.getAttribute?.("data-image-url") ||
+            element.getAttribute?.("srcset") ||
+            bgMatch?.[2] ||
+            "";
+          return String(source || "").trim();
+        });
+
+        return {
+          total: details.length,
+          ready: details.filter(Boolean).length,
+        };
+      };
+
+      const startedAt = Date.now();
+      let previousSignature = "";
+      let stableCount = 0;
+      let lastSnapshot = collectCandidates();
+
+      while (Date.now() - startedAt < timeoutMs) {
+        lastSnapshot = collectCandidates();
+        const signature = JSON.stringify(lastSnapshot);
+
+        if (lastSnapshot.total > 0 && lastSnapshot.ready >= lastSnapshot.total) {
+          return lastSnapshot;
+        }
+
+        if (signature === previousSignature) {
+          stableCount += 1;
+        } else {
+          stableCount = 0;
+        }
+        previousSignature = signature;
+
+        if (stableCount >= stableRounds) {
+          return lastSnapshot;
+        }
+
+        await siteAdapterHelpers.sleep(intervalMs);
+      }
+
+      return lastSnapshot;
     },
     take(items, limit) {
       return items.slice(0, Math.max(1, limit));

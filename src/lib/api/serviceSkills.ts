@@ -73,14 +73,22 @@ export type ServiceSkillSiteCapabilitySaveMode =
   | "current_content"
   | "project_resource";
 
+export interface ServiceSkillSiteCapabilityAdapterMatch {
+  urlArgName: string;
+  requiredCapabilities?: string[];
+  hostAliases?: string[];
+}
+
 export interface ServiceSkillSiteCapabilityBinding {
-  adapterName: string;
+  adapterName?: string;
+  adapterMatch?: ServiceSkillSiteCapabilityAdapterMatch;
   autoRun?: boolean;
   requireAttachedSession?: boolean;
   saveMode?: ServiceSkillSiteCapabilitySaveMode;
   slotArgMap?: Record<string, string>;
   fixedArgs?: Record<string, unknown>;
   suggestedTitleTemplate?: string;
+  siteLabel?: string;
 }
 
 export interface ServiceSkillSceneBinding {
@@ -168,7 +176,7 @@ const SERVICE_SKILL_CATALOG_STORAGE_KEY = "lime:service-skill-catalog:v1";
 const SERVICE_SKILL_CATALOG_CHANGED_EVENT =
   "lime:service-skill-catalog-changed";
 const SEEDED_SERVICE_SKILL_CATALOG_VERSION =
-  "client-seed-2026-04-08-creation-copy";
+  "client-seed-2026-04-09-browser-scene";
 
 const PLATFORM_OPTIONS: ServiceSkillSlotOption[] = [
   { value: "xiaohongshu", label: "小红书" },
@@ -226,6 +234,22 @@ function toServiceSkillBundleMetadata(
     Lime_prompt_template_key: item.promptTemplateKey,
     Lime_theme_target: trimToUndefined(item.themeTarget),
     Lime_site_adapter: trimToUndefined(item.siteCapabilityBinding?.adapterName),
+    Lime_site_label: trimToUndefined(item.siteCapabilityBinding?.siteLabel),
+    Lime_site_adapter_match_url_arg: trimToUndefined(
+      item.siteCapabilityBinding?.adapterMatch?.urlArgName,
+    ),
+    Lime_site_adapter_match_capabilities:
+      item.siteCapabilityBinding?.adapterMatch?.requiredCapabilities &&
+      item.siteCapabilityBinding.adapterMatch.requiredCapabilities.length > 0
+        ? JSON.stringify(
+            item.siteCapabilityBinding.adapterMatch.requiredCapabilities,
+          )
+        : undefined,
+    Lime_site_adapter_match_host_aliases:
+      item.siteCapabilityBinding?.adapterMatch?.hostAliases &&
+      item.siteCapabilityBinding.adapterMatch.hostAliases.length > 0
+        ? JSON.stringify(item.siteCapabilityBinding.adapterMatch.hostAliases)
+        : undefined,
     Lime_surface_scopes:
       item.surfaceScopes && item.surfaceScopes.length > 0
         ? JSON.stringify(item.surfaceScopes)
@@ -954,10 +978,15 @@ const SEEDED_SERVICE_SKILL_CATALOG: ServiceSkillCatalog = {
       outputDestination:
         "结果会写入当前项目目录下的导出文件夹，并在工作区生成一个结果入口文档。",
       siteCapabilityBinding: {
-        adapterName: "x/article-export",
         autoRun: true,
         requireAttachedSession: true,
         saveMode: "project_resource",
+        siteLabel: "X",
+        adapterMatch: {
+          urlArgName: "url",
+          requiredCapabilities: ["article_export", "markdown_bundle"],
+          hostAliases: ["twitter.com", "www.twitter.com", "www.x.com"],
+        },
         slotArgMap: {
           article_url: "url",
           target_language: "target_language",
@@ -1129,10 +1158,29 @@ function isServiceSkillSiteCapabilityBinding(
     binding.saveMode === undefined ||
     binding.saveMode === "current_content" ||
     binding.saveMode === "project_resource";
+  const adapterNameValid =
+    binding.adapterName === undefined ||
+    (typeof binding.adapterName === "string" &&
+      binding.adapterName.trim().length > 0);
+  const adapterMatchValid =
+    binding.adapterMatch === undefined ||
+    (typeof binding.adapterMatch === "object" &&
+      binding.adapterMatch !== null &&
+      typeof binding.adapterMatch.urlArgName === "string" &&
+      binding.adapterMatch.urlArgName.trim().length > 0 &&
+      (binding.adapterMatch.requiredCapabilities === undefined ||
+        isStringArray(binding.adapterMatch.requiredCapabilities)) &&
+      (binding.adapterMatch.hostAliases === undefined ||
+        isStringArray(binding.adapterMatch.hostAliases)));
+  const hasAdapterSelector =
+    (typeof binding.adapterName === "string" &&
+      binding.adapterName.trim().length > 0) ||
+    binding.adapterMatch !== undefined;
 
   return (
-    typeof binding.adapterName === "string" &&
-    binding.adapterName.trim().length > 0 &&
+    hasAdapterSelector &&
+    adapterNameValid &&
+    adapterMatchValid &&
     (binding.autoRun === undefined || typeof binding.autoRun === "boolean") &&
     (binding.requireAttachedSession === undefined ||
       typeof binding.requireAttachedSession === "boolean") &&
@@ -1140,7 +1188,8 @@ function isServiceSkillSiteCapabilityBinding(
     (binding.slotArgMap === undefined || isStringRecord(binding.slotArgMap)) &&
     (binding.fixedArgs === undefined || isPlainRecord(binding.fixedArgs)) &&
     (binding.suggestedTitleTemplate === undefined ||
-      typeof binding.suggestedTitleTemplate === "string")
+      typeof binding.suggestedTitleTemplate === "string") &&
+    (binding.siteLabel === undefined || typeof binding.siteLabel === "string")
   );
 }
 
@@ -1267,6 +1316,22 @@ function cloneServiceSkillCatalog(
       siteCapabilityBinding: item.siteCapabilityBinding
         ? {
             ...item.siteCapabilityBinding,
+            adapterMatch: item.siteCapabilityBinding.adapterMatch
+              ? {
+                  ...item.siteCapabilityBinding.adapterMatch,
+                  requiredCapabilities: item.siteCapabilityBinding.adapterMatch
+                    .requiredCapabilities
+                    ? [
+                        ...item.siteCapabilityBinding.adapterMatch
+                          .requiredCapabilities,
+                      ]
+                    : undefined,
+                  hostAliases: item.siteCapabilityBinding.adapterMatch
+                    .hostAliases
+                    ? [...item.siteCapabilityBinding.adapterMatch.hostAliases]
+                    : undefined,
+                }
+              : undefined,
             slotArgMap: item.siteCapabilityBinding.slotArgMap
               ? { ...item.siteCapabilityBinding.slotArgMap }
               : undefined,

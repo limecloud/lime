@@ -16,8 +16,14 @@ const SITE_SKILL_EXAMPLE_BY_ADAPTER: Record<string, string> = {
   "zhihu/search": "帮我去知乎搜一下 AI Agent 相关内容",
 };
 
+const EXPORT_STYLE_CAPABILITIES = new Set(["article_export", "markdown_bundle"]);
+
 function normalizeAdapterName(adapterName?: string | null): string {
   return adapterName?.trim().toLowerCase() || "";
+}
+
+function normalizeCapability(value?: string | null): string {
+  return value?.trim().toLowerCase() || "";
 }
 
 export function hasAutoLaunchableSiteSkill(
@@ -42,6 +48,19 @@ export function getSiteSkillAutoLaunchExample(
     const example = SITE_SKILL_EXAMPLE_BY_ADAPTER[adapterName];
     if (example) {
       return example;
+    }
+
+    const requiredCapabilities =
+      skill.siteCapabilityBinding.adapterMatch?.requiredCapabilities ?? [];
+    if (
+      requiredCapabilities.some((capability) =>
+        EXPORT_STYLE_CAPABILITIES.has(normalizeCapability(capability)),
+      )
+    ) {
+      const siteLabel = skill.siteCapabilityBinding.siteLabel?.trim();
+      return siteLabel
+        ? `帮我把这个${siteLabel}文章链接导出成 Markdown，并把图片一起保存到项目里`
+        : "帮我把这个页面导出成 Markdown，并把图片一起保存到项目里";
     }
   }
 

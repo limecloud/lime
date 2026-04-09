@@ -17,8 +17,13 @@ import {
 } from "@/lib/webview-api";
 import type { Artifact } from "@/lib/artifact/types";
 import type { AgentSiteSkillLaunchParams } from "@/types/page";
-import type { BrowserAssistSessionState, Message } from "../types";
+import type {
+  BrowserAssistSessionState,
+  Message,
+  SiteSavedContentTarget,
+} from "../types";
 import { resolveArtifactWritePhase } from "../utils/messageArtifacts";
+import { resolveSiteSavedContentTargetFromRunResult } from "../utils/siteToolResultSummary";
 import {
   areBrowserAssistSessionStatesEqual,
   clearBrowserAssistSessionState,
@@ -198,6 +203,7 @@ interface WorkspaceBrowserAssistRuntimeResult {
   browserAssistLaunching: boolean;
   browserAssistSessionState: BrowserAssistSessionState | null;
   siteSkillExecutionState: SiteSkillExecutionState | null;
+  siteSkillSavedContentTarget: SiteSavedContentTarget | null;
   isBrowserAssistReady: boolean;
   currentBrowserAssistScopeKey: string | null;
   ensureBrowserAssistCanvas: EnsureBrowserAssistCanvasHandler;
@@ -247,6 +253,13 @@ export function useWorkspaceBrowserAssistRuntime({
         ? resolveBrowserAssistSessionScopeKey(projectId, sessionId)
         : null,
     [activeTheme, projectId, sessionId],
+  );
+  const siteSkillSavedContentTarget = useMemo(
+    () =>
+      resolveSiteSavedContentTargetFromRunResult(
+        siteSkillExecutionState?.result || null,
+      ),
+    [siteSkillExecutionState?.result],
   );
 
   const initialSiteSkillLaunchSignature = useMemo(() => {
@@ -1476,6 +1489,7 @@ export function useWorkspaceBrowserAssistRuntime({
     browserAssistLaunching,
     browserAssistSessionState,
     siteSkillExecutionState,
+    siteSkillSavedContentTarget,
     isBrowserAssistReady,
     currentBrowserAssistScopeKey,
     ensureBrowserAssistCanvas,

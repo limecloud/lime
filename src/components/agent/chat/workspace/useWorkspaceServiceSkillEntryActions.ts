@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { siteGetAdapterLaunchReadiness } from "@/lib/webview-api";
 import { createAutomationJob } from "@/lib/api/automation";
@@ -19,15 +19,21 @@ import {
   type AutomationJobDialogInitialValues,
   type AutomationJobDialogSubmit,
 } from "@/components/settings-v2/system/automation/AutomationJobDialog";
+import type { A2UIFormData, A2UIResponse } from "@/lib/workspace/a2ui";
 import type { BrowserRuntimePageParams, Page, PageParams } from "@/types/page";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { CreationMode } from "../components/types";
+import type { PendingA2UISource } from "../types";
 import { normalizeProjectId } from "../utils/topicProjectResolution";
 import {
   resolveWorkspaceEntry,
   type WorkspaceEntryPayload,
 } from "../workspaceEntry";
-import { composeServiceSkillPrompt } from "../service-skills/promptComposer";
+import {
+  composeServiceSkillPrompt,
+  createDefaultServiceSkillSlotValues,
+  validateServiceSkillSlotValues,
+} from "../service-skills/promptComposer";
 import {
   buildServiceSkillAutomationAgentTurnPayloadContext,
   buildServiceSkillAutomationInitialValues,
@@ -35,19 +41,27 @@ import {
 } from "../service-skills/automationDraft";
 import { recordServiceSkillAutomationLink } from "../service-skills/automationLinkStorage";
 import { recordServiceSkillCloudRun } from "../service-skills/cloudRunStorage";
+import {
+  buildServiceSkillLaunchA2UIResponse,
+  readServiceSkillLaunchSlotValuesFromFormData,
+} from "../service-skills/serviceSkillLaunchA2UI";
+import { resolveServiceSkillLaunchPrefill } from "../service-skills/serviceSkillLaunchPrefill";
 import { buildServiceSkillWorkspaceSeed } from "../service-skills/workspaceLaunch";
 import {
   buildSiteLaunchBlockedMessage,
   buildServiceSkillClawLaunchContext,
   buildServiceSkillClawLaunchRequestMetadata,
-  buildServiceSkillSiteCapabilityArgs,
   buildServiceSkillSiteCapabilitySaveTitle,
   composeServiceSkillClawLaunchPrompt,
   isServiceSkillExecutableAsSiteAdapter,
   isSiteLaunchReadinessReady,
+  resolveServiceSkillSiteCapabilityExecution,
+  type ResolvedServiceSkillSiteCapabilityExecution,
 } from "../service-skills/siteCapabilityBinding";
 import type { AutoMatchedSiteSkill } from "../service-skills/autoMatchSiteSkill";
+import type { CreationReplayMetadata } from "../utils/creationReplayMetadata";
 import type {
+  RecordServiceSkillUsageInput,
   ServiceSkillHomeItem,
   ServiceSkillSlotValues,
 } from "../service-skills/types";
@@ -103,6 +117,12 @@ function siteSkillRequiresProject(skill: ServiceSkillHomeItem): boolean {
 interface ServiceSkillLaunchOptions {
   launchUserInput?: string | null;
   fallbackToWorkspaceOnCloudSubmitFailure?: boolean;
+}
+
+interface ServiceSkillSelectionOptions {
+  requestKey?: number | string;
+  initialSlotValues?: ServiceSkillSlotValues;
+  prefillHint?: string;
 }
 
 function resolveServiceSkillLaunchUserInput(
@@ -210,10 +230,14 @@ interface PendingServiceSkillAutomationLaunch {
   prompt: string;
   slotValues: ServiceSkillSlotValues;
   userInput?: string;
-  usage: {
-    skillId: string;
-    runnerType: ServiceSkillHomeItem["runnerType"];
-  };
+  usage: RecordServiceSkillUsageInput;
+}
+
+interface PendingServiceSkillLaunchInputState {
+  requestKey: string;
+  skill: ServiceSkillHomeItem;
+  initialSlotValues: ServiceSkillSlotValues;
+  prefillHint?: string;
 }
 
 interface UseWorkspaceServiceSkillEntryActionsParams {
@@ -223,15 +247,13 @@ interface UseWorkspaceServiceSkillEntryActionsParams {
   contentId?: string | null;
   input: string;
   chatToolPreferences: ChatToolPreferences;
+  creationReplay?: CreationReplayMetadata;
   preferredTeamPresetId?: string | null;
   selectedTeam?: TeamDefinition | null;
   selectedTeamLabel?: string | null;
   selectedTeamSummary?: string | null;
   onNavigate?: (page: Page, params?: PageParams) => void;
-  recordServiceSkillUsage: (input: {
-    skillId: string;
-    runnerType: ServiceSkillHomeItem["runnerType"];
-  }) => void;
+  recordServiceSkillUsage: (input: RecordServiceSkillUsageInput) => void;
 }
 
 export function useWorkspaceServiceSkillEntryActions({
@@ -241,6 +263,7 @@ export function useWorkspaceServiceSkillEntryActions({
   contentId,
   input,
   chatToolPreferences,
+  creationReplay,
   preferredTeamPresetId,
   selectedTeam,
   selectedTeamLabel,
@@ -248,9 +271,6 @@ export function useWorkspaceServiceSkillEntryActions({
   onNavigate,
   recordServiceSkillUsage,
 }: UseWorkspaceServiceSkillEntryActionsParams) {
-  const [selectedServiceSkill, setSelectedServiceSkill] =
-    useState<ServiceSkillHomeItem | null>(null);
-  const [serviceSkillDialogOpen, setServiceSkillDialogOpen] = useState(false);
   const [automationDialogOpen, setAutomationDialogOpen] = useState(false);
   const [automationDialogInitialValues, setAutomationDialogInitialValues] =
     useState<AutomationJobDialogInitialValues | null>(null);
@@ -260,6 +280,9 @@ export function useWorkspaceServiceSkillEntryActions({
   const [automationJobSaving, setAutomationJobSaving] = useState(false);
   const [pendingServiceSkillAutomation, setPendingServiceSkillAutomation] =
     useState<PendingServiceSkillAutomationLaunch | null>(null);
+  const [pendingServiceSkillLaunchInput, setPendingServiceSkillLaunchInput] =
+    useState<PendingServiceSkillLaunchInputState | null>(null);
+  const serviceSkillLaunchRequestCountRef = useRef(0);
 
   const currentProjectId = normalizeProjectId(projectId);
   const currentContentId = contentId?.trim() || null;
@@ -456,6 +479,7 @@ export function useWorkspaceServiceSkillEntryActions({
     async (
       skill: ServiceSkillHomeItem,
       slotValues: ServiceSkillSlotValues,
+      resolvedCapability: ResolvedServiceSkillSiteCapabilityExecution,
       launchReadiness: Awaited<
         ReturnType<typeof siteGetAdapterLaunchReadiness>
       > | null,
@@ -475,6 +499,9 @@ export function useWorkspaceServiceSkillEntryActions({
       const initialSaveTitle = buildServiceSkillSiteCapabilitySaveTitle(
         skill,
         slotValues,
+        {
+          adapterName: resolvedCapability.adapterName,
+        },
       );
       let nextContentId = currentContentId || undefined;
 
@@ -492,6 +519,7 @@ export function useWorkspaceServiceSkillEntryActions({
 
       const clawLaunchContext = {
         ...buildServiceSkillClawLaunchContext(skill, slotValues, {
+          adapterName: resolvedCapability.adapterName,
           contentId: nextContentId,
           projectId: resolvedProjectId,
           launchReadiness,
@@ -559,21 +587,6 @@ export function useWorkspaceServiceSkillEntryActions({
     [activeTheme, createServiceSkillSeededContent, currentProjectId],
   );
 
-  const handleServiceSkillSelect = useCallback(
-    (skill: ServiceSkillHomeItem) => {
-      setSelectedServiceSkill(skill);
-      setServiceSkillDialogOpen(true);
-    },
-    [],
-  );
-
-  const handleServiceSkillDialogOpenChange = useCallback((open: boolean) => {
-    setServiceSkillDialogOpen(open);
-    if (!open) {
-      setSelectedServiceSkill(null);
-    }
-  }, []);
-
   const handleServiceSkillBrowserRuntimeLaunch = useCallback(
     async (
       skill: ServiceSkillHomeItem,
@@ -600,21 +613,32 @@ export function useWorkspaceServiceSkillEntryActions({
       let launchReadiness: Awaited<
         ReturnType<typeof siteGetAdapterLaunchReadiness>
       > | null = null;
+      let resolvedCapability: ResolvedServiceSkillSiteCapabilityExecution;
+      try {
+        resolvedCapability = await resolveServiceSkillSiteCapabilityExecution(
+          skill,
+          slotValues,
+        );
+      } catch (error) {
+        toast.error(`解析站点技能失败：${getErrorMessage(error)}`);
+        return;
+      }
+
       try {
         launchReadiness = await siteGetAdapterLaunchReadiness({
-          adapter_name: binding.adapterName,
+          adapter_name: resolvedCapability.adapterName,
         });
       } catch {
         launchReadiness = null;
       }
       const saveMode = binding.saveMode ?? "project_resource";
-      const initialArgs = buildServiceSkillSiteCapabilityArgs(
-        skill,
-        slotValues,
-      );
+      const initialArgs = resolvedCapability.args;
       const initialSaveTitle = buildServiceSkillSiteCapabilitySaveTitle(
         skill,
         slotValues,
+        {
+          adapterName: resolvedCapability.adapterName,
+        },
       );
       let nextContentId = currentContentId || undefined;
 
@@ -646,7 +670,7 @@ export function useWorkspaceServiceSkillEntryActions({
           launchReadiness?.status === "ready"
             ? launchReadiness.target_id
             : undefined,
-        initialAdapterName: binding.adapterName,
+        initialAdapterName: resolvedCapability.adapterName,
         initialArgs,
         initialAutoRun: binding.autoRun ?? false,
         initialRequireAttachedSession: binding.requireAttachedSession ?? false,
@@ -657,9 +681,9 @@ export function useWorkspaceServiceSkillEntryActions({
       recordServiceSkillUsage({
         skillId: skill.id,
         runnerType: skill.runnerType,
+        slotValues,
       });
-      setServiceSkillDialogOpen(false);
-      setSelectedServiceSkill(null);
+      setPendingServiceSkillLaunchInput(null);
     },
     [
       createServiceSkillSeededContent,
@@ -675,14 +699,25 @@ export function useWorkspaceServiceSkillEntryActions({
       skill: ServiceSkillHomeItem,
       slotValues: ServiceSkillSlotValues,
       options?: ServiceSkillLaunchOptions,
-    ) => {
+    ): Promise<boolean> => {
       if (isServiceSkillExecutableAsSiteAdapter(skill)) {
+        let resolvedCapability: ResolvedServiceSkillSiteCapabilityExecution;
+        try {
+          resolvedCapability = await resolveServiceSkillSiteCapabilityExecution(
+            skill,
+            slotValues,
+          );
+        } catch (error) {
+          toast.error(`解析站点技能失败：${getErrorMessage(error)}`);
+          return false;
+        }
+
         let launchReadiness: Awaited<
           ReturnType<typeof siteGetAdapterLaunchReadiness>
         > | null = null;
         try {
           launchReadiness = await siteGetAdapterLaunchReadiness({
-            adapter_name: skill.siteCapabilityBinding.adapterName,
+            adapter_name: resolvedCapability.adapterName,
           });
         } catch {
           // 门禁检查失败时保持当前入口态，由后续阻断提示兜底。
@@ -690,7 +725,7 @@ export function useWorkspaceServiceSkillEntryActions({
 
         if (!isSiteLaunchReadinessReady(launchReadiness)) {
           toast.info(buildSiteLaunchBlockedMessage(launchReadiness));
-          return;
+          return false;
         }
 
         let workspacePayload: WorkspaceEntryPayload;
@@ -698,26 +733,27 @@ export function useWorkspaceServiceSkillEntryActions({
           workspacePayload = await prepareServiceSkillSiteWorkspacePayload(
             skill,
             slotValues,
+            resolvedCapability,
             launchReadiness,
             options,
           );
         } catch (error) {
           toast.error(`准备站点技能失败：${getErrorMessage(error)}`);
-          return;
+          return false;
         }
 
         const entered = navigateToServiceSkillWorkspace(workspacePayload);
         if (!entered) {
-          return;
+          return false;
         }
 
         recordServiceSkillUsage({
           skillId: skill.id,
           runnerType: skill.runnerType,
+          slotValues,
         });
-        setServiceSkillDialogOpen(false);
-        setSelectedServiceSkill(null);
-        return;
+        setPendingServiceSkillLaunchInput(null);
+        return true;
       }
 
       const prompt = composeServiceSkillPrompt({
@@ -731,8 +767,7 @@ export function useWorkspaceServiceSkillEntryActions({
         let runCreated = false;
 
         try {
-          setServiceSkillDialogOpen(false);
-          setSelectedServiceSkill(null);
+          setPendingServiceSkillLaunchInput(null);
 
           let run = await createServiceSkillRun(skill.id, prompt);
           runCreated = true;
@@ -740,6 +775,7 @@ export function useWorkspaceServiceSkillEntryActions({
           recordServiceSkillUsage({
             skillId: skill.id,
             runnerType: skill.runnerType,
+            slotValues,
           });
 
           if (!isTerminalServiceSkillRunStatus(run.status)) {
@@ -784,13 +820,14 @@ export function useWorkspaceServiceSkillEntryActions({
                 toast.error(
                   "云端结果已生成，但进入工作区失败，请稍后手动打开。",
                 );
+                return false;
               }
             } else if (workspaceErrorMessage) {
               toast.error(
                 `云端结果已生成，但回流本地工作区失败：${workspaceErrorMessage}`,
               );
             }
-            return;
+            return true;
           }
 
           if (isTerminalServiceSkillRunStatus(run.status)) {
@@ -806,6 +843,7 @@ export function useWorkspaceServiceSkillEntryActions({
               id: toastId,
             },
           );
+          return true;
         } catch (error) {
           if (options?.fallbackToWorkspaceOnCloudSubmitFailure && !runCreated) {
             let workspacePayload: WorkspaceEntryPayload;
@@ -821,7 +859,7 @@ export function useWorkspaceServiceSkillEntryActions({
                   id: toastId,
                 },
               );
-              return;
+              return false;
             }
 
             const entered = navigateToServiceSkillWorkspace(workspacePayload);
@@ -832,12 +870,13 @@ export function useWorkspaceServiceSkillEntryActions({
                   id: toastId,
                 },
               );
-              return;
+              return false;
             }
 
             recordServiceSkillUsage({
               skillId: skill.id,
               runnerType: skill.runnerType,
+              slotValues,
             });
             toast.info(
               `${skill.title} 云端暂不可用，已切换到本地工作区继续。`,
@@ -845,14 +884,15 @@ export function useWorkspaceServiceSkillEntryActions({
                 id: toastId,
               },
             );
-            return;
+            setPendingServiceSkillLaunchInput(null);
+            return true;
           }
 
           toast.error(`云端执行失败：${getErrorMessage(error)}`, {
             id: toastId,
           });
+          return false;
         }
-        return;
       }
 
       if (skill.runnerType !== "instant") {
@@ -869,29 +909,129 @@ export function useWorkspaceServiceSkillEntryActions({
         );
       } catch (error) {
         toast.error(`准备技能工作区失败：${getErrorMessage(error)}`);
-        return;
+        return false;
       }
 
       const entered = navigateToServiceSkillWorkspace(workspacePayload);
       if (!entered) {
-        return;
+        return false;
       }
 
       recordServiceSkillUsage({
         skillId: skill.id,
         runnerType: skill.runnerType,
+        slotValues,
       });
-      setServiceSkillDialogOpen(false);
-      setSelectedServiceSkill(null);
+      setPendingServiceSkillLaunchInput(null);
+      return true;
     },
     [
       input,
       navigateToServiceSkillWorkspace,
+      setPendingServiceSkillLaunchInput,
       prepareServiceSkillCloudResultWorkspacePayload,
       prepareServiceSkillSiteWorkspacePayload,
       prepareServiceSkillWorkspacePayload,
       recordServiceSkillUsage,
     ],
+  );
+
+  const pendingServiceSkillLaunchForm = useMemo<A2UIResponse | null>(() => {
+    if (!pendingServiceSkillLaunchInput) {
+      return null;
+    }
+
+    return buildServiceSkillLaunchA2UIResponse(
+      pendingServiceSkillLaunchInput.skill,
+      {
+        initialSlotValues: pendingServiceSkillLaunchInput.initialSlotValues,
+        prefillHint: pendingServiceSkillLaunchInput.prefillHint,
+        submitLabel: "直接开始",
+        responseKey: pendingServiceSkillLaunchInput.requestKey,
+      },
+    );
+  }, [pendingServiceSkillLaunchInput]);
+
+  const pendingServiceSkillLaunchSource =
+    useMemo<PendingA2UISource | null>(() => {
+      if (!pendingServiceSkillLaunchInput) {
+        return null;
+      }
+
+      return {
+        kind: "service_skill",
+        skillId: pendingServiceSkillLaunchInput.skill.id,
+        requestKey: pendingServiceSkillLaunchInput.requestKey,
+        messageId: undefined,
+      };
+    }, [pendingServiceSkillLaunchInput]);
+
+  const handlePendingServiceSkillLaunchSubmit = useCallback(
+    async (formData: A2UIFormData): Promise<boolean> => {
+      if (!pendingServiceSkillLaunchInput) {
+        return false;
+      }
+
+      const slotValues = readServiceSkillLaunchSlotValuesFromFormData(
+        pendingServiceSkillLaunchInput.skill,
+        formData,
+      );
+      const validation = validateServiceSkillSlotValues(
+        pendingServiceSkillLaunchInput.skill,
+        slotValues,
+      );
+      if (!validation.valid) {
+        toast.info(
+          `还差${validation.missing.map((slot) => slot.label).join("、")}，补齐后再继续。`,
+        );
+        return false;
+      }
+
+      const launched = await handleServiceSkillLaunch(
+        pendingServiceSkillLaunchInput.skill,
+        slotValues,
+      );
+      if (launched) {
+        setPendingServiceSkillLaunchInput(null);
+      }
+      return launched;
+    },
+    [handleServiceSkillLaunch, pendingServiceSkillLaunchInput],
+  );
+
+  const handleServiceSkillSelect = useCallback(
+    (
+      skill: ServiceSkillHomeItem,
+      options?: ServiceSkillSelectionOptions,
+    ) => {
+      const replayPrefill = resolveServiceSkillLaunchPrefill({
+        skill,
+        creationReplay,
+      });
+      const initialSlotValues = {
+        ...createDefaultServiceSkillSlotValues(skill),
+        ...(replayPrefill?.slotValues || {}),
+        ...(options?.initialSlotValues || {}),
+      };
+      const validation = validateServiceSkillSlotValues(skill, initialSlotValues);
+
+      if (skill.slotSchema.length === 0 || validation.valid) {
+        void handleServiceSkillLaunch(skill, initialSlotValues);
+        return;
+      }
+
+      serviceSkillLaunchRequestCountRef.current += 1;
+      setPendingServiceSkillLaunchInput({
+        requestKey:
+          options?.requestKey === undefined
+            ? `${skill.id}:${serviceSkillLaunchRequestCountRef.current}`
+            : `${skill.id}:${options.requestKey}`,
+        skill,
+        initialSlotValues,
+        prefillHint: options?.prefillHint ?? replayPrefill?.hint,
+      });
+    },
+    [creationReplay, handleServiceSkillLaunch],
   );
 
   const handleAutoLaunchMatchedSiteSkill = useCallback(
@@ -956,16 +1096,22 @@ export function useWorkspaceServiceSkillEntryActions({
           usage: {
             skillId: skill.id,
             runnerType: skill.runnerType,
+            slotValues,
           },
         });
-        setServiceSkillDialogOpen(false);
-        setSelectedServiceSkill(null);
+        setPendingServiceSkillLaunchInput(null);
         setAutomationDialogOpen(true);
       } catch (error) {
         toast.error(`准备本地自动化任务失败：${getErrorMessage(error)}`);
       }
     },
-    [activeTheme, currentProjectId, handleServiceSkillLaunch, input],
+    [
+      activeTheme,
+      currentProjectId,
+      handleServiceSkillLaunch,
+      input,
+      setPendingServiceSkillLaunchInput,
+    ],
   );
 
   const handleAutomationDialogOpenChange = useCallback((open: boolean) => {
@@ -1068,14 +1214,14 @@ export function useWorkspaceServiceSkillEntryActions({
   );
 
   return {
-    selectedServiceSkill,
-    serviceSkillDialogOpen,
+    pendingServiceSkillLaunchForm,
+    pendingServiceSkillLaunchSource,
     automationDialogOpen,
     automationDialogInitialValues,
     automationWorkspaces,
     automationJobSaving,
     handleServiceSkillSelect,
-    handleServiceSkillDialogOpenChange,
+    handlePendingServiceSkillLaunchSubmit,
     handleServiceSkillLaunch,
     handleAutoLaunchMatchedSiteSkill,
     handleServiceSkillBrowserRuntimeLaunch,

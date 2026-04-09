@@ -6739,4 +6739,34 @@ mod tests {
             .is_some());
         assert!(tools.iter().all(|tool| tool["name"] != "admin_secret"));
     }
+
+    #[tokio::test]
+    async fn test_tool_search_bridge_registration_replaces_legacy_tool_search() {
+        let registry = Arc::new(tokio::sync::RwLock::new(aster::tools::ToolRegistry::new()));
+        let mut guard = registry.write().await;
+
+        guard.register(Box::new(aster::tools::ToolSearchTool::new(
+            std::sync::Weak::new(),
+        )));
+        assert!(guard
+            .get("ToolSearch")
+            .expect("legacy ToolSearch should exist")
+            .description()
+            .contains("Fetches full schema definitions"));
+
+        super::tool_runtime::search_bridge::register_tool_search_tool_to_registry(
+            &mut guard,
+            registry.clone(),
+            None,
+        );
+
+        let tool = guard
+            .get("ToolSearch")
+            .expect("bridge ToolSearch should replace legacy implementation");
+        assert!(tool.description().contains("统一搜索当前会话工具面"));
+        assert!(tool
+            .input_schema()["properties"]
+            .get("caller")
+            .is_some());
+    }
 }

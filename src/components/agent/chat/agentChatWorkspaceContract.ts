@@ -3,6 +3,7 @@ import type { MessageImage } from "./types";
 import type { StepStatus } from "@/lib/workspace/workbenchContract";
 import type { Page, PageParams } from "@/types/page";
 import type {
+  AgentPendingServiceSkillLaunchParams,
   AgentProjectFileOpenTarget,
   AgentSiteSkillLaunchParams,
 } from "@/types/page";
@@ -50,5 +51,6 @@ export interface AgentChatWorkspaceProps {
   preferContentReviewInRightRail?: boolean;
   openBrowserAssistOnMount?: boolean;
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
+  initialPendingServiceSkillLaunch?: AgentPendingServiceSkillLaunchParams;
   initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
 }

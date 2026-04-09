@@ -1,24 +1,62 @@
 import type {
   RecordServiceSkillUsageInput,
+  ServiceSkillSlotValues,
   ServiceSkillUsageRecord,
 } from "./types";
 
 const SERVICE_SKILL_USAGE_STORAGE_KEY = "lime:service-skill-usage:v1";
 const MAX_SERVICE_SKILL_USAGE_RECORDS = 12;
 
-function isValidUsageRecord(value: unknown): value is ServiceSkillUsageRecord {
+function normalizeOptionalText(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  return normalized ? normalized : undefined;
+}
+
+function normalizeServiceSkillSlotValues(
+  value: unknown,
+): ServiceSkillSlotValues | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const nextValues = Object.fromEntries(
+    Object.entries(value)
+      .map(([key, slotValue]) => [key.trim(), normalizeOptionalText(slotValue)])
+      .filter((entry): entry is [string, string] => Boolean(entry[0] && entry[1])),
+  );
+
+  return Object.keys(nextValues).length > 0 ? nextValues : undefined;
+}
+
+function readUsageRecord(value: unknown): ServiceSkillUsageRecord | null {
   if (!value || typeof value !== "object") {
-    return false;
+    return null;
   }
 
   const record = value as Partial<ServiceSkillUsageRecord>;
-  return (
-    typeof record.skillId === "string" &&
-    record.skillId.length > 0 &&
-    typeof record.usedAt === "number" &&
-    Number.isFinite(record.usedAt) &&
-    typeof record.runnerType === "string"
-  );
+  const skillId = normalizeOptionalText(record.skillId);
+  const runnerType = normalizeOptionalText(record.runnerType);
+  if (
+    !skillId ||
+    !runnerType ||
+    typeof record.usedAt !== "number" ||
+    !Number.isFinite(record.usedAt)
+  ) {
+    return null;
+  }
+
+  const slotValues = normalizeServiceSkillSlotValues(record.slotValues);
+
+  return {
+    skillId,
+    usedAt: record.usedAt,
+    runnerType: runnerType as ServiceSkillUsageRecord["runnerType"],
+    ...(slotValues ? { slotValues } : {}),
+  };
 }
 
 export function listServiceSkillUsage(): ServiceSkillUsageRecord[] {
@@ -38,7 +76,8 @@ export function listServiceSkillUsage(): ServiceSkillUsageRecord[] {
     }
 
     return parsed
-      .filter(isValidUsageRecord)
+      .map((record) => readUsageRecord(record))
+      .filter((record): record is ServiceSkillUsageRecord => Boolean(record))
       .sort((left, right) => right.usedAt - left.usedAt)
       .slice(0, MAX_SERVICE_SKILL_USAGE_RECORDS);
   } catch {
@@ -58,10 +97,12 @@ export function getServiceSkillUsageMap(): Map<
 export function recordServiceSkillUsage(
   input: RecordServiceSkillUsageInput,
 ): ServiceSkillUsageRecord[] {
+  const slotValues = normalizeServiceSkillSlotValues(input.slotValues);
   const nextRecord: ServiceSkillUsageRecord = {
     skillId: input.skillId,
     usedAt: input.usedAt ?? Date.now(),
     runnerType: input.runnerType,
+    ...(slotValues ? { slotValues } : {}),
   };
 
   const nextRecords = [

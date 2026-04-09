@@ -100,6 +100,12 @@ interface BuildHydratedAgentSessionSnapshotOptions {
   currentExecutionRuntime: AsterSessionExecutionRuntime | null;
   currentExecutionStrategy: AsterExecutionStrategy;
   topics: Topic[];
+  localSnapshotOverride?: {
+    sessionId: string;
+    messages: Message[];
+    threadTurns: AgentThreadTurn[];
+    threadItems: AgentThreadItem[];
+  } | null;
   syncSessionId?: boolean;
   executionStrategyOverride?: AsterExecutionStrategy;
   preserveExecutionStrategyOnMissingDetail?: boolean;
@@ -121,16 +127,32 @@ export function buildHydratedAgentSessionSnapshot(
     currentExecutionRuntime,
     currentExecutionStrategy,
     topics,
+    localSnapshotOverride,
     syncSessionId = false,
     executionStrategyOverride,
     preserveExecutionStrategyOnMissingDetail = false,
   } = options;
+  const effectiveCurrentSessionId =
+    localSnapshotOverride?.sessionId ?? currentSessionId;
+  const effectiveCurrentMessages =
+    localSnapshotOverride?.messages ?? currentMessages;
+  const effectiveCurrentThreadTurns =
+    localSnapshotOverride?.threadTurns ?? currentThreadTurns;
+  const effectiveCurrentThreadItems =
+    localSnapshotOverride?.threadItems ?? currentThreadItems;
   const hydratedMessages = hydrateSessionDetailMessages(detail, topicId);
   const incomingTurns = detail.turns || [];
   const incomingItems = normalizeLegacyThreadItems(detail.items || []);
-  const shouldPreserveExistingTimeline = currentSessionId === topicId;
+  const hasRecoverableLocalSessionCache =
+    effectiveCurrentSessionId === null &&
+    syncSessionId &&
+    (effectiveCurrentMessages.length > 0 ||
+      effectiveCurrentThreadTurns.length > 0 ||
+      effectiveCurrentThreadItems.length > 0);
+  const shouldPreserveExistingTimeline =
+    effectiveCurrentSessionId === topicId || hasRecoverableLocalSessionCache;
   const shouldPreserveExecutionRuntimeOnMissingDetail =
-    shouldPreserveExistingTimeline && !syncSessionId;
+    shouldPreserveExistingTimeline;
   const nextExecutionRuntime = createExecutionRuntimeFromSessionDetail(detail);
   const selectedTopic = topics.find((topic) => topic.id === topicId);
   const nextExecutionStrategy =
@@ -141,11 +163,11 @@ export function buildHydratedAgentSessionSnapshot(
       ? currentExecutionStrategy
       : null);
   const nextThreadTurns = shouldPreserveExistingTimeline
-    ? mergeThreadTurns(currentThreadTurns, incomingTurns)
+    ? mergeThreadTurns(effectiveCurrentThreadTurns, incomingTurns)
     : incomingTurns;
   const nextThreadItems = shouldPreserveExistingTimeline
     ? filterConversationThreadItems(
-        mergeThreadItems(currentThreadItems, incomingItems),
+        mergeThreadItems(effectiveCurrentThreadItems, incomingItems),
       )
     : filterConversationThreadItems(incomingItems);
 
@@ -154,7 +176,10 @@ export function buildHydratedAgentSessionSnapshot(
     snapshot: {
       sessionId: syncSessionId ? topicId : currentSessionId,
       messages: shouldPreserveExistingTimeline
-        ? mergeHydratedMessagesWithLocalState(currentMessages, hydratedMessages)
+        ? mergeHydratedMessagesWithLocalState(
+            effectiveCurrentMessages,
+            hydratedMessages,
+          )
         : hydratedMessages,
       threadTurns: nextThreadTurns,
       threadItems: nextThreadItems,

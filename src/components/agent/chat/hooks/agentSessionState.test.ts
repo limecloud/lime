@@ -265,6 +265,344 @@ describe("agentSessionState", () => {
     });
   });
 
+  it("同会话 hydrate 时远端暂未返回最新 assistant 消息也应保留本地尾部消息", () => {
+    const now = new Date("2026-04-08T10:00:02.000Z");
+    const currentMessages = [
+      createMessage({
+        id: "local-user",
+        role: "user",
+        content: "继续保存文章",
+        timestamp: new Date("2026-04-08T10:00:00.000Z"),
+      }),
+      createMessage({
+        id: "local-assistant",
+        role: "assistant",
+        content: "内容已保存到项目目录。",
+        timestamp: now,
+        contentParts: [
+          {
+            type: "tool_use",
+            toolCall: {
+              id: "tool-site-2",
+              name: "site_run_adapter",
+              arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+              status: "completed",
+              startTime: new Date("2026-04-08T10:00:01.000Z"),
+              endTime: now,
+              result: {
+                success: true,
+                output: "saved: articles/google-cloud-tech-2.md",
+              },
+            },
+          },
+          {
+            type: "text",
+            text: "内容已保存到项目目录。",
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-site-2",
+            name: "site_run_adapter",
+            arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+            status: "completed",
+            startTime: new Date("2026-04-08T10:00:01.000Z"),
+            endTime: now,
+            result: {
+              success: true,
+              output: "saved: articles/google-cloud-tech-2.md",
+            },
+          },
+        ],
+      }),
+    ];
+    const detail = {
+      id: "topic-1",
+      created_at: 1700000000,
+      updated_at: 1700000001,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1710000001,
+          content: [{ type: "text", text: "继续保存文章" }],
+        },
+      ],
+    } satisfies AsterSessionDetail;
+
+    const result = buildHydratedAgentSessionSnapshot({
+      topicId: "topic-1",
+      detail,
+      currentSessionId: "topic-1",
+      currentMessages,
+      currentThreadTurns: [],
+      currentThreadItems: [],
+      currentExecutionRuntime: null,
+      currentExecutionStrategy: "react",
+      topics: [],
+    });
+
+    expect(result.snapshot.messages).toHaveLength(2);
+    expect(result.snapshot.messages[1]?.role).toBe("assistant");
+    expect(
+      result.snapshot.messages[1]?.contentParts?.some(
+        (part) =>
+          part.type === "tool_use" && part.toolCall.id === "tool-site-2",
+      ),
+    ).toBe(true);
+  });
+
+  it("首次按 restore 候选 hydrate 时也应合并本地缓存而不是整段覆盖", () => {
+    const now = new Date("2026-04-08T10:00:02.000Z");
+    const currentMessages = [
+      createMessage({
+        id: "local-user",
+        role: "user",
+        content: "把文章保存到项目里",
+        timestamp: new Date("2026-04-08T10:00:00.000Z"),
+      }),
+      createMessage({
+        id: "local-assistant",
+        role: "assistant",
+        content: "内容已保存到项目目录。",
+        timestamp: now,
+        contentParts: [
+          {
+            type: "tool_use",
+            toolCall: {
+              id: "tool-site-restore",
+              name: "site_run_adapter",
+              arguments: "{\"url\":\"https://x.com/example/article/3\"}",
+              status: "completed",
+              startTime: new Date("2026-04-08T10:00:01.000Z"),
+              endTime: now,
+              result: {
+                success: true,
+                output: "saved: articles/google-cloud-tech-3.md",
+              },
+            },
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-site-restore",
+            name: "site_run_adapter",
+            arguments: "{\"url\":\"https://x.com/example/article/3\"}",
+            status: "completed",
+            startTime: new Date("2026-04-08T10:00:01.000Z"),
+            endTime: now,
+            result: {
+              success: true,
+              output: "saved: articles/google-cloud-tech-3.md",
+            },
+          },
+        ],
+      }),
+    ];
+    const detail = {
+      id: "topic-restore",
+      created_at: 1700000000,
+      updated_at: 1700000001,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1710000001,
+          content: [{ type: "text", text: "把文章保存到项目里" }],
+        },
+      ],
+    } satisfies AsterSessionDetail;
+
+    const result = buildHydratedAgentSessionSnapshot({
+      topicId: "topic-restore",
+      detail,
+      currentSessionId: null,
+      currentMessages,
+      currentThreadTurns: [],
+      currentThreadItems: [],
+      currentExecutionRuntime: null,
+      currentExecutionStrategy: "react",
+      topics: [],
+      syncSessionId: true,
+    });
+
+    expect(result.snapshot.sessionId).toBe("topic-restore");
+    expect(result.snapshot.messages).toHaveLength(2);
+    expect(result.snapshot.messages[1]?.toolCalls?.[0]?.id).toBe(
+      "tool-site-restore",
+    );
+  });
+
+  it("切回其他历史会话时也应优先合并目标会话自己的本地快照", () => {
+    const now = new Date("2026-04-08T10:00:02.000Z");
+    const detail = {
+      id: "topic-history-target",
+      created_at: 1700000000,
+      updated_at: 1700000001,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1710000001,
+          content: [{ type: "text", text: "把文章保存到项目里" }],
+        },
+      ],
+    } satisfies AsterSessionDetail;
+
+    const result = buildHydratedAgentSessionSnapshot({
+      topicId: "topic-history-target",
+      detail,
+      currentSessionId: "topic-other",
+      currentMessages: [
+        createMessage({
+          id: "other-session-message",
+          role: "assistant",
+          content: "这是另一个会话，不应参与合并",
+        }),
+      ],
+      currentThreadTurns: [],
+      currentThreadItems: [],
+      currentExecutionRuntime: null,
+      currentExecutionStrategy: "react",
+      topics: [],
+      localSnapshotOverride: {
+        sessionId: "topic-history-target",
+        messages: [
+          createMessage({
+            id: "local-user-target",
+            role: "user",
+            content: "把文章保存到项目里",
+            timestamp: new Date("2026-04-08T10:00:00.000Z"),
+          }),
+          createMessage({
+            id: "local-assistant-target",
+            role: "assistant",
+            content: "内容已保存到项目目录。",
+            timestamp: now,
+            toolCalls: [
+              {
+                id: "tool-site-target",
+                name: "site_run_adapter",
+                arguments: "{\"url\":\"https://x.com/example/article/4\"}",
+                status: "completed",
+                startTime: new Date("2026-04-08T10:00:01.000Z"),
+                endTime: now,
+                result: {
+                  success: true,
+                  output: "saved: articles/google-cloud-tech-4.md",
+                },
+              },
+            ],
+            contentParts: [
+              {
+                type: "tool_use",
+                toolCall: {
+                  id: "tool-site-target",
+                  name: "site_run_adapter",
+                  arguments: "{\"url\":\"https://x.com/example/article/4\"}",
+                  status: "completed",
+                  startTime: new Date("2026-04-08T10:00:01.000Z"),
+                  endTime: now,
+                  result: {
+                    success: true,
+                    output: "saved: articles/google-cloud-tech-4.md",
+                  },
+                },
+              },
+            ],
+          }),
+        ],
+        threadTurns: [],
+        threadItems: [],
+      },
+      syncSessionId: true,
+    });
+
+    expect(result.snapshot.messages).toHaveLength(2);
+    expect(result.snapshot.messages[1]?.content).toBe("内容已保存到项目目录。");
+    expect(result.snapshot.messages[1]?.toolCalls?.[0]?.id).toBe(
+      "tool-site-target",
+    );
+    expect(result.snapshot.messages[1]?.content).not.toContain(
+      "这是另一个会话",
+    );
+  });
+
+  it("同会话 hydrate 时远端最后停在 user 且时间更晚，也应保留本地 assistant 尾部", () => {
+    const currentMessages = [
+      createMessage({
+        id: "local-user-earlier",
+        role: "user",
+        content: "导出这篇文章",
+        timestamp: new Date("2026-04-08T10:00:00.000Z"),
+      }),
+      createMessage({
+        id: "local-assistant-earlier",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-08T10:00:00.500Z"),
+        contentParts: [
+          {
+            type: "tool_use",
+            toolCall: {
+              id: "tool-site-earlier",
+              name: "site_run_adapter",
+              arguments: "{\"url\":\"https://x.com/example/article/earlier\"}",
+              status: "completed",
+              startTime: new Date("2026-04-08T10:00:00.100Z"),
+              endTime: new Date("2026-04-08T10:00:00.500Z"),
+              result: {
+                success: true,
+                output: "saved: articles/example-earlier.md",
+              },
+            },
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-site-earlier",
+            name: "site_run_adapter",
+            arguments: "{\"url\":\"https://x.com/example/article/earlier\"}",
+            status: "completed",
+            startTime: new Date("2026-04-08T10:00:00.100Z"),
+            endTime: new Date("2026-04-08T10:00:00.500Z"),
+            result: {
+              success: true,
+              output: "saved: articles/example-earlier.md",
+            },
+          },
+        ],
+      }),
+    ];
+    const detail = {
+      id: "topic-earlier-tail",
+      created_at: 1700000000,
+      updated_at: 1700000001,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1712570401,
+          content: [{ type: "text", text: "导出这篇文章" }],
+        },
+      ],
+    } satisfies AsterSessionDetail;
+
+    const result = buildHydratedAgentSessionSnapshot({
+      topicId: "topic-earlier-tail",
+      detail,
+      currentSessionId: "topic-earlier-tail",
+      currentMessages,
+      currentThreadTurns: [],
+      currentThreadItems: [],
+      currentExecutionRuntime: null,
+      currentExecutionStrategy: "react",
+      topics: [],
+    });
+
+    expect(result.snapshot.messages).toHaveLength(2);
+    expect(result.snapshot.messages[1]?.role).toBe("assistant");
+    expect(result.snapshot.messages[1]?.toolCalls?.[0]?.id).toBe(
+      "tool-site-earlier",
+    );
+  });
+
   it("应按本地时间线活动判断是否需要校验丢失会话", () => {
     expect(
       hasSessionHydrationActivity({

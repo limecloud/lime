@@ -175,6 +175,40 @@ describe("AppPageContent", () => {
     });
   });
 
+  it("agent 页面应把 initialPendingServiceSkillLaunch 透传给 AgentChatPage", async () => {
+    const pageParams: AgentPageParams = {
+      agentEntry: "new-task",
+      projectId: "project-3",
+      theme: "general",
+      initialPendingServiceSkillLaunch: {
+        skillId: "service-skill-1",
+        requestKey: 20260409,
+        initialSlotValues: {
+          article_source: "参考摘要",
+          target_duration: "90 秒",
+        },
+        prefillHint: "已根据最近一次创作自动预填。",
+      },
+    };
+
+    renderContent("agent", pageParams);
+    await flushEffects();
+
+    expect(latestAgentChatProps.value).toMatchObject({
+      projectId: "project-3",
+      agentEntry: "new-task",
+      initialPendingServiceSkillLaunch: {
+        skillId: "service-skill-1",
+        requestKey: 20260409,
+        initialSlotValues: {
+          article_source: "参考摘要",
+          target_duration: "90 秒",
+        },
+        prefillHint: "已根据最近一次创作自动预填。",
+      },
+    });
+  });
+
   it("channels 页面应渲染 IM 配置页", async () => {
     const container = renderContent("channels");
     await flushEffects();

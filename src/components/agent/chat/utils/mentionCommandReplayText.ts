@@ -48,6 +48,7 @@ import type {
 import type { ParsedVideoWorkbenchCommand } from "./videoWorkbenchCommand";
 import type { ParsedVoiceWorkbenchCommand } from "./voiceWorkbenchCommand";
 import type { ParsedWebpageWorkbenchCommand, WebpageType } from "./webpageWorkbenchCommand";
+import type { ServiceSkillSlotValues } from "../service-skills/types";
 
 type ReplayParsedCommand = {
   body: string;
@@ -146,10 +147,117 @@ const RESOURCE_TYPE_LABELS: Record<ResourceSearchType, string> = {
   sfx: "音效",
   video: "视频",
 };
+const SEARCH_DEPTH_VALUES = ["quick", "standard", "deep"] as const;
+const SUMMARY_LENGTH_VALUES = ["short", "medium", "long"] as const;
+const URL_PARSE_GOAL_VALUES = [
+  "summary",
+  "key_points",
+  "full_text",
+  "quotes",
+] as const;
+const PRESENTATION_DECK_TYPE_VALUES = [
+  "pitch_deck",
+  "sales_deck",
+  "training_deck",
+  "report_deck",
+  "proposal_deck",
+] as const;
+const FORM_TYPE_VALUES = [
+  "survey_form",
+  "lead_form",
+  "registration_form",
+  "feedback_form",
+  "application_form",
+] as const;
+const WEBPAGE_TYPE_VALUES = [
+  "landing_page",
+  "homepage",
+  "campaign_page",
+  "product_page",
+  "docs_page",
+  "portfolio",
+  "resume_page",
+] as const;
+const CODE_TASK_TYPE_VALUES = [
+  "code_review",
+  "bug_fix",
+  "implementation",
+  "refactor",
+  "explain",
+] as const;
+const RESOURCE_TYPE_VALUES = ["image", "bgm", "sfx", "video"] as const;
+const DEFAULT_PDF_READ_PROMPT = "请阅读这份 PDF 并提炼关键信息";
+const DEFAULT_PRESENTATION_PROMPT = "请生成一份可直接讲述的演示文稿草稿";
+const DEFAULT_FORM_PROMPT = "请生成一个可直接在聊天区渲染的 A2UI 表单";
+const DEFAULT_WEBPAGE_PROMPT = "请生成一个可直接预览的网页";
 
 function normalizeText(value?: string | null): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function normalizeEnumValue<T extends string>(
+  value: string | undefined,
+  values: readonly T[],
+): T | undefined {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  return values.includes(normalized as T) ? (normalized as T) : undefined;
+}
+
+function normalizeNumericSlotValue(value: string | undefined): number | undefined {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeBooleanSlotValue(value: string | undefined): boolean | undefined {
+  const normalized = normalizeText(value)?.toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized === "true") {
+    return true;
+  }
+  if (normalized === "false") {
+    return false;
+  }
+
+  return undefined;
+}
+
+function resolvePromptWithContentFallback(params: {
+  prompt?: string;
+  content?: string;
+  defaultPrompt?: string;
+}): string | undefined {
+  const prompt = normalizeText(params.prompt);
+  const content = normalizeText(params.content);
+  const defaultPrompt = normalizeText(params.defaultPrompt);
+
+  if (!prompt) {
+    return content;
+  }
+  if (defaultPrompt && prompt === defaultPrompt && content) {
+    return content;
+  }
+
+  return prompt;
+}
+
+function resolvePreferredText(
+  current?: string | null,
+  fallback?: string | null,
+): string | undefined {
+  return normalizeText(current) || normalizeText(fallback);
 }
 
 function escapeRegExp(value: string): string {
@@ -957,4 +1065,441 @@ export function buildMentionCommandReplayText(
   }
 
   return normalizeText(input.parsedCommand.body);
+}
+
+function buildMentionCommandReplayTextFromSlotValues(params: {
+  commandKey?: string;
+  slotValues?: ServiceSkillSlotValues;
+}): string | undefined {
+  const commandKey = params.commandKey?.trim();
+  const slotValues = params.slotValues;
+  if (!commandKey || !slotValues) {
+    return undefined;
+  }
+
+  if (
+    commandKey === "image_generate" ||
+    commandKey === "image_edit" ||
+    commandKey === "image_variation"
+  ) {
+    return buildImageReplayText({
+      body: "",
+      prompt: slotValues.prompt,
+      count: normalizeNumericSlotValue(slotValues.count),
+      size: slotValues.size,
+      aspectRatio: slotValues.aspect_ratio,
+      targetRef: slotValues.target_output_ref_id,
+    } as ParsedImageWorkbenchCommand);
+  }
+
+  if (commandKey === "poster_generate") {
+    return buildPosterReplayText({
+      body: "",
+      prompt: slotValues.prompt,
+      size: slotValues.size,
+      aspectRatio: slotValues.aspect_ratio,
+    } as ParsedPosterWorkbenchCommand);
+  }
+
+  if (commandKey === "cover_generate") {
+    return buildCoverReplayText({
+      body: "",
+      prompt: slotValues.prompt,
+      platform: slotValues.platform,
+      title: slotValues.title,
+      style: slotValues.style,
+      size: slotValues.size,
+    } as ParsedCoverWorkbenchCommand);
+  }
+
+  if (commandKey === "video_generate") {
+    return buildVideoReplayText({
+      body: "",
+      prompt: slotValues.prompt,
+      duration: normalizeNumericSlotValue(slotValues.duration),
+      aspectRatio: slotValues.aspect_ratio,
+      resolution: slotValues.resolution,
+    } as ParsedVideoWorkbenchCommand);
+  }
+
+  if (commandKey === "broadcast_generate") {
+    return buildBroadcastReplayText({
+      body: "",
+      prompt: slotValues.prompt,
+      content: slotValues.content,
+      title: slotValues.title,
+      audience: slotValues.audience,
+      tone: slotValues.tone,
+      durationHintMinutes: normalizeNumericSlotValue(
+        slotValues.duration_hint_minutes,
+      ),
+    } as ParsedBroadcastWorkbenchCommand);
+  }
+
+  if (commandKey === "modal_resource_search") {
+    return buildResourceSearchReplayText({
+      body: "",
+      title: slotValues.title,
+      resourceType: normalizeEnumValue(
+        slotValues.resource_type,
+        RESOURCE_TYPE_VALUES,
+      ),
+      query: slotValues.query,
+      usage: slotValues.usage,
+      count: normalizeNumericSlotValue(slotValues.count),
+    } as ParsedResourceSearchWorkbenchCommand);
+  }
+
+  if (commandKey === "research") {
+    return buildSearchReplayText({
+      body: "",
+      query: slotValues.query,
+      site: slotValues.site,
+      timeRange: slotValues.time_range,
+      depth: normalizeEnumValue(slotValues.depth, SEARCH_DEPTH_VALUES),
+      focus: slotValues.focus,
+      outputFormat: slotValues.output_format,
+    });
+  }
+
+  if (commandKey === "deep_search") {
+    return buildSearchReplayText(
+      {
+        body: "",
+        query: slotValues.query,
+        site: slotValues.site,
+        timeRange: slotValues.time_range,
+        depth: normalizeEnumValue(slotValues.depth, SEARCH_DEPTH_VALUES),
+        focus: slotValues.focus,
+        outputFormat: slotValues.output_format,
+      },
+      "deep",
+    );
+  }
+
+  if (commandKey === "research_report" || commandKey === "competitor_research") {
+    return buildReportReplayText({
+      body: "",
+      query: slotValues.query,
+      site: slotValues.site,
+      timeRange: slotValues.time_range,
+      focus: slotValues.focus,
+      outputFormat: slotValues.output_format,
+    });
+  }
+
+  if (commandKey === "site_search") {
+    return buildSiteSearchReplayText({
+      body: "",
+      site: slotValues.site,
+      query: slotValues.query,
+      limit: normalizeNumericSlotValue(slotValues.limit),
+    } as ParsedSiteSearchWorkbenchCommand);
+  }
+
+  if (commandKey === "read_pdf") {
+    const prompt =
+      normalizeText(slotValues.prompt) === DEFAULT_PDF_READ_PROMPT
+        ? undefined
+        : slotValues.prompt;
+
+    return buildPdfReplayText({
+      body: "",
+      prompt,
+      sourcePath: slotValues.source_path,
+      sourceUrl: slotValues.source_url,
+      focus: slotValues.focus,
+      outputFormat: slotValues.output_format,
+    } as ParsedPdfWorkbenchCommand);
+  }
+
+  if (commandKey === "typesetting") {
+    return buildTypesettingReplayText({
+      body: "",
+      targetPlatform: slotValues.target_platform,
+      prompt: resolvePromptWithContentFallback({
+        prompt: slotValues.prompt,
+        content: slotValues.content,
+      }),
+    } as ParsedTypesettingWorkbenchCommand);
+  }
+
+  if (commandKey === "presentation_generate") {
+    return buildPresentationReplayText({
+      body: "",
+      deckType: normalizeEnumValue(slotValues.deck_type, PRESENTATION_DECK_TYPE_VALUES),
+      style: slotValues.style,
+      audience: slotValues.audience,
+      slideCount: normalizeNumericSlotValue(slotValues.slide_count),
+      prompt: resolvePromptWithContentFallback({
+        prompt: slotValues.prompt,
+        content: slotValues.content,
+        defaultPrompt: DEFAULT_PRESENTATION_PROMPT,
+      }),
+    } as ParsedPresentationWorkbenchCommand);
+  }
+
+  if (commandKey === "form_generate") {
+    return buildFormReplayText({
+      body: "",
+      formType: normalizeEnumValue(slotValues.form_type, FORM_TYPE_VALUES),
+      style: slotValues.style,
+      audience: slotValues.audience,
+      fieldCount: normalizeNumericSlotValue(slotValues.field_count),
+      prompt: resolvePromptWithContentFallback({
+        prompt: slotValues.prompt,
+        content: slotValues.content,
+        defaultPrompt: DEFAULT_FORM_PROMPT,
+      }),
+    } as ParsedFormWorkbenchCommand);
+  }
+
+  if (commandKey === "webpage_generate") {
+    return buildWebpageReplayText({
+      body: "",
+      pageType: normalizeEnumValue(slotValues.page_type, WEBPAGE_TYPE_VALUES),
+      style: slotValues.style,
+      techStack: slotValues.tech_stack,
+      prompt: resolvePromptWithContentFallback({
+        prompt: slotValues.prompt,
+        content: slotValues.content,
+        defaultPrompt: DEFAULT_WEBPAGE_PROMPT,
+      }),
+    } as ParsedWebpageWorkbenchCommand);
+  }
+
+  if (commandKey === "summary") {
+    return buildSummaryReplayText({
+      body: "",
+      content: slotValues.content,
+      focus: slotValues.focus,
+      length: normalizeEnumValue(slotValues.length, SUMMARY_LENGTH_VALUES),
+      style: slotValues.style,
+      outputFormat: slotValues.output_format,
+    } as ParsedSummaryWorkbenchCommand);
+  }
+
+  if (commandKey === "translation") {
+    return buildTranslationReplayText({
+      body: "",
+      content: slotValues.content,
+      sourceLanguage: slotValues.source_language,
+      targetLanguage: slotValues.target_language,
+      style: slotValues.style,
+      outputFormat: slotValues.output_format,
+    } as ParsedTranslationWorkbenchCommand);
+  }
+
+  if (commandKey === "analysis" || commandKey === "publish_compliance") {
+    return buildAnalysisReplayText({
+      body: "",
+      content: slotValues.content,
+      focus: slotValues.focus,
+      style: slotValues.style,
+      outputFormat: slotValues.output_format,
+    });
+  }
+
+  if (
+    commandKey === "url_parse" ||
+    commandKey === "web_scrape" ||
+    commandKey === "webpage_read"
+  ) {
+    return buildUrlParseReplayText({
+      body: "",
+      url: slotValues.url,
+      extractGoal: normalizeEnumValue(
+        slotValues.extract_goal,
+        URL_PARSE_GOAL_VALUES,
+      ),
+      prompt: slotValues.prompt,
+    } as ParsedUrlParseWorkbenchCommand);
+  }
+
+  if (commandKey === "code_runtime") {
+    return buildCodeReplayText({
+      body: "",
+      taskType: normalizeEnumValue(slotValues.intent, CODE_TASK_TYPE_VALUES),
+      prompt: resolvePromptWithContentFallback({
+        prompt: slotValues.prompt,
+        content: slotValues.content,
+      }),
+    } as ParsedCodeWorkbenchCommand);
+  }
+
+  if (
+    commandKey === "channel_preview_runtime" ||
+    commandKey === "upload_runtime" ||
+    commandKey === "publish_runtime"
+  ) {
+    return buildPublishLikeReplayText({
+      body: "",
+      platformLabel: slotValues.platform_label,
+      prompt: resolvePromptWithContentFallback({
+        prompt: slotValues.prompt,
+        content: slotValues.content,
+      }),
+    } as ParsedPublishWorkbenchCommand);
+  }
+
+  if (commandKey === "transcription_generate") {
+    return buildTranscriptionReplayText({
+      body: "",
+      sourcePath: slotValues.source_path,
+      sourceUrl: slotValues.source_url,
+      language: slotValues.language,
+      outputFormat: slotValues.output_format,
+      speakerLabels: normalizeBooleanSlotValue(slotValues.speaker_labels),
+      timestamps: normalizeBooleanSlotValue(slotValues.timestamps),
+      prompt: slotValues.prompt,
+    } as ParsedTranscriptionWorkbenchCommand);
+  }
+
+  if (commandKey === "voice_runtime") {
+    return buildVoiceReplayText({
+      body: "",
+      targetLanguage: slotValues.target_language,
+      voiceStyle: slotValues.voice_style,
+      prompt: slotValues.user_input,
+    } as ParsedVoiceWorkbenchCommand);
+  }
+
+  return undefined;
+}
+
+export function resolveMentionCommandPrefillReplayText(input: {
+  commandKey?: string;
+  replayText?: string;
+  slotValues?: ServiceSkillSlotValues;
+}): string | undefined {
+  return (
+    normalizeText(input.replayText) ||
+    buildMentionCommandReplayTextFromSlotValues({
+      commandKey: input.commandKey,
+      slotValues: input.slotValues,
+    })
+  );
+}
+
+export function resolveMentionCommandMergedPrefillReplayText(input: {
+  commandKey?: string;
+  parsedCommand: BuildMentionCommandReplayTextInput["parsedCommand"];
+  slotValues?: ServiceSkillSlotValues;
+}): string | undefined {
+  const commandKey = input.commandKey?.trim();
+  const slotValues = input.slotValues;
+  const currentReplayText = buildMentionCommandReplayText({
+    commandKey,
+    parsedCommand: input.parsedCommand,
+  });
+
+  if (!commandKey || !slotValues) {
+    return currentReplayText;
+  }
+
+  if (commandKey === "research") {
+    const parsedCommand = input.parsedCommand as ParsedSearchWorkbenchCommand;
+    return buildSearchReplayText({
+      body: "",
+      query: resolvePreferredText(parsedCommand.query, slotValues.query),
+      site: resolvePreferredText(parsedCommand.site, slotValues.site),
+      timeRange: resolvePreferredText(
+        parsedCommand.timeRange,
+        slotValues.time_range,
+      ),
+      depth:
+        parsedCommand.depth ??
+        normalizeEnumValue(slotValues.depth, SEARCH_DEPTH_VALUES),
+      focus: resolvePreferredText(parsedCommand.focus, slotValues.focus),
+      outputFormat: resolvePreferredText(
+        parsedCommand.outputFormat,
+        slotValues.output_format,
+      ),
+    });
+  }
+
+  if (commandKey === "deep_search") {
+    const parsedCommand = input.parsedCommand as ParsedDeepSearchWorkbenchCommand;
+    return buildSearchReplayText(
+      {
+        body: "",
+        query: resolvePreferredText(parsedCommand.query, slotValues.query),
+        site: resolvePreferredText(parsedCommand.site, slotValues.site),
+        timeRange: resolvePreferredText(
+          parsedCommand.timeRange,
+          slotValues.time_range,
+        ),
+        depth:
+          parsedCommand.depth ??
+          normalizeEnumValue(slotValues.depth, SEARCH_DEPTH_VALUES),
+        focus: resolvePreferredText(parsedCommand.focus, slotValues.focus),
+        outputFormat: resolvePreferredText(
+          parsedCommand.outputFormat,
+          slotValues.output_format,
+        ),
+      },
+      "deep",
+    );
+  }
+
+  if (
+    commandKey === "research_report" ||
+    commandKey === "competitor_research"
+  ) {
+    const parsedCommand = input.parsedCommand as ParsedReportWorkbenchCommand;
+    return buildReportReplayText({
+      body: "",
+      query: resolvePreferredText(parsedCommand.query, slotValues.query),
+      site: resolvePreferredText(parsedCommand.site, slotValues.site),
+      timeRange: resolvePreferredText(
+        parsedCommand.timeRange,
+        slotValues.time_range,
+      ),
+      focus: resolvePreferredText(parsedCommand.focus, slotValues.focus),
+      outputFormat: resolvePreferredText(
+        parsedCommand.outputFormat,
+        slotValues.output_format,
+      ),
+    });
+  }
+
+  if (commandKey === "site_search") {
+    const parsedCommand = input.parsedCommand as ParsedSiteSearchWorkbenchCommand;
+    return buildSiteSearchReplayText({
+      body: "",
+      site: resolvePreferredText(parsedCommand.site, slotValues.site),
+      query: resolvePreferredText(parsedCommand.query, slotValues.query),
+      limit:
+        parsedCommand.limit ??
+        normalizeNumericSlotValue(slotValues.limit),
+    } as ParsedSiteSearchWorkbenchCommand);
+  }
+
+  if (commandKey === "read_pdf") {
+    const parsedCommand = input.parsedCommand as ParsedPdfWorkbenchCommand;
+    const fallbackPrompt =
+      normalizeText(slotValues.prompt) === DEFAULT_PDF_READ_PROMPT
+        ? undefined
+        : slotValues.prompt;
+
+    return buildPdfReplayText({
+      body: "",
+      prompt: resolvePreferredText(parsedCommand.prompt, fallbackPrompt),
+      sourcePath: resolvePreferredText(
+        parsedCommand.sourcePath,
+        slotValues.source_path,
+      ),
+      sourceUrl: resolvePreferredText(
+        parsedCommand.sourceUrl,
+        slotValues.source_url,
+      ),
+      focus: resolvePreferredText(parsedCommand.focus, slotValues.focus),
+      outputFormat: resolvePreferredText(
+        parsedCommand.outputFormat,
+        slotValues.output_format,
+      ),
+    } as ParsedPdfWorkbenchCommand);
+  }
+
+  return currentReplayText;
 }

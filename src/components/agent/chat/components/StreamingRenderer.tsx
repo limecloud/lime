@@ -43,6 +43,10 @@ import {
   stripProposedPlanBlocks,
 } from "../utils/proposedPlan";
 import { isActionRequestA2UICompatible } from "../utils/actionRequestA2UI";
+import {
+  sanitizeContentPartsForDisplay,
+  sanitizeMessageTextForDisplay,
+} from "../utils/internalImagePlaceholder";
 
 const STRUCTURED_CONTENT_HINT_RE = /<a2ui|```\s*a2ui|<write_file|<document/i;
 const STRUCTURED_PARSE_CACHE_LIMIT = 64;
@@ -1009,8 +1013,18 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     );
 
     // 判断是否使用交错显示模式
+    const displayContent = useMemo(
+      () =>
+        sanitizeMessageTextForDisplay(content, {
+          role: "assistant",
+        }),
+      [content],
+    );
     const interleavedContentParts = useMemo(
-      () => contentParts ?? [],
+      () =>
+        sanitizeContentPartsForDisplay(contentParts, {
+          role: "assistant",
+        }) ?? [],
       [contentParts],
     );
     const useInterleavedMode = interleavedContentParts.length > 0;
@@ -1018,8 +1032,8 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
 
     // 解析思考内容（仅在非交错模式下使用）
     const { visibleText, thinkingText } = useMemo(
-      () => parseThinkingContent(content),
-      [content],
+      () => parseThinkingContent(displayContent),
+      [displayContent],
     );
     const containsStructuredContent = useMemo(
       () => hasStructuredContentHint(visibleText),
@@ -1487,7 +1501,7 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
           return shouldRenderInlineActionRequest(part.actionRequired);
         }) ||
         (isStreaming &&
-          (content.length > 0 ||
+          (displayContent.length > 0 ||
             (externalThinking && externalThinking.length > 0)))
       : visibleText.length > 0 ||
         Boolean(finalThinking) ||

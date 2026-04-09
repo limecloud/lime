@@ -24,6 +24,7 @@ import {
   type TeamWorkspaceRuntimeSessionSnapshot,
   type TeamWorkspaceRuntimeStatus,
 } from "../teamWorkspaceRuntime";
+import { resolveToolDisplayLabel } from "../utils/toolDisplayInfo";
 import { resolveTeamWorkspaceDisplayRuntimeStatusLabel } from "../utils/teamWorkspaceCopy";
 
 const LIVE_ACTIVITY_ENTRY_LIMIT = 3;
@@ -193,10 +194,13 @@ function buildToolActivityEntry(params: {
   result?: ToolExecutionResult;
 }) {
   const { sessionId, toolId, toolName, result } = params;
-  const title = toolName?.trim() ? `处理中 · ${toolName}` : "处理中";
+  const displayToolName = toolName?.trim()
+    ? resolveToolDisplayLabel(toolName)
+    : null;
+  const title = displayToolName ? `处理中 · ${displayToolName}` : "处理中";
   const detail = result
-    ? result.error || result.output || toolName || "当前步骤已完成。"
-    : `正在处理 ${toolName || "当前步骤"}。`;
+    ? result.error || result.output || displayToolName || "当前步骤已完成。"
+    : `正在处理 ${displayToolName || "当前步骤"}。`;
   const success = result ? result.success !== false : true;
 
   return buildActivityEntry({

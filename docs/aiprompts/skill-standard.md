@@ -14,6 +14,7 @@
 其中：
 
 - [site-adapter-standard.md](site-adapter-standard.md) 是站点适配器子标准
+- [web-browser-scene-skill.md](web-browser-scene-skill.md) 是网页 / 浏览器场景的专题设计文档
 - 本文负责技能总模型、事实源、分发和 UI 表达边界
 
 ## 第一原则
@@ -58,6 +59,7 @@
 - 发现仓库里开始出现多套 skill 定义、多套入口术语或多套运行语义
 
 如果问题已经缩小到站点适配器字段、脚本、导入和执行，先回到 [site-adapter-standard.md](site-adapter-standard.md)。
+如果问题已经是“网页登录态访问、导出 Markdown、下载图片、保存网页内容”这一类浏览器场景，再看 [web-browser-scene-skill.md](web-browser-scene-skill.md)。
 
 ## 非目标
 
@@ -424,9 +426,15 @@ Lime 技能能力必须明确区分三个对象：
 - 需要什么依赖
 - 结果去哪
 
-### 2. 启动弹窗
+### 2. 补参与启动承载
 
-启动弹窗统一应包含：
+Agent / Claw 主路径里的 skill 补参与启动，统一承载在当前对话输入区上方的 A2UI 卡片里，不再允许主产品流程回退到独立启动弹窗。
+
+当前 `Claw` 首页、空态推荐、Skills 工作台、`@` / slash 场景入口，都应走“选技能 -> 在当前对话补参 -> 继续当前对话执行”。
+
+只有开发调试或尚未迁完的历史兼容壳，才允许短期保留弹窗；这类弹窗不能作为新增入口，也不能继续代表主产品交互。
+
+对话内 A2UI 卡统一应包含：
 
 - 技能摘要
 - 补参表单
@@ -457,7 +465,7 @@ Lime 技能能力必须明确区分三个对象：
   - 负责表达：`name`、`description`、`license`、`compatibility`、`metadata`、`allowedTools`
   - 以及 Lime 运行时真正需要的标准状态：`resourceSummary`、`standardCompliance`
 - `ServiceSkillCatalog` / `ClientServiceSkillCatalog`
-  - Lime 面向 Claw / 工作区 / 启动弹窗的**产品投影层**
+  - Lime 面向 Claw / 工作区 / 对话内 A2UI 卡的**产品投影层**
   - 负责表达：卡片文案、补参表单、执行绑定、结果去向、主题目标、自动化入口等业务语义
 
 强约束：

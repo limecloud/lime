@@ -16,7 +16,13 @@ import {
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
 import { resolveServiceSkillEntryDescription } from "@/components/agent/chat/service-skills/entryAdapter";
-import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
+import { buildServiceSkillRecommendationBuckets } from "@/components/agent/chat/service-skills/recommendedServiceSkills";
+import type {
+  ServiceSkillGroup,
+  ServiceSkillHomeItem,
+  ServiceSkillSlotValues,
+} from "@/components/agent/chat/service-skills/types";
+import { resolveMentionCommandPrefillReplayText } from "@/components/agent/chat/utils/mentionCommandReplayText";
 import type { CodexSlashCommandDefinition } from "../commands";
 import type {
   BuiltinInputCommand,
@@ -66,18 +72,6 @@ interface RecentMentionEntry {
 const FEATURED_SERVICE_SKILL_LIMIT = 4;
 const RECENT_REPLAY_TEXT_PREVIEW_LIMIT = 48;
 
-function compareRecentServiceSkills(
-  left: ServiceSkillHomeItem,
-  right: ServiceSkillHomeItem,
-): number {
-  const leftUsedAt = left.recentUsedAt ?? 0;
-  const rightUsedAt = right.recentUsedAt ?? 0;
-  if (leftUsedAt !== rightUsedAt) {
-    return rightUsedAt - leftUsedAt;
-  }
-  return left.title.localeCompare(right.title, "zh-CN");
-}
-
 function compareRecentSlashEntries(
   left: RecentSlashEntry,
   right: RecentSlashEntry,
@@ -96,6 +90,18 @@ function compareRecentMentionEntries(
     return right.usedAt - left.usedAt;
   }
   return left.title.localeCompare(right.title, "zh-CN");
+}
+
+function resolveBuiltinCommandPrefillReplayText(params: {
+  command: BuiltinInputCommand;
+  replayText?: string;
+  slotValues?: ServiceSkillSlotValues;
+}): string | undefined {
+  return resolveMentionCommandPrefillReplayText({
+    commandKey: params.command.key,
+    replayText: params.replayText,
+    slotValues: params.slotValues,
+  });
 }
 
 function resolveRecentBuiltinCommandDescription(
@@ -179,11 +185,16 @@ function resolveServiceSkillGroupSort(groupKey: string): number {
 
 function groupMentionServiceSkills(
   skills: ServiceSkillHomeItem[],
+  serviceSkillGroups: ServiceSkillGroup[] = [],
 ): MentionServiceSkillGroup[] {
+  const serviceSkillGroupMap = new Map(
+    serviceSkillGroups.map((group) => [group.key, group] as const),
+  );
   const groups = new Map<string, MentionServiceSkillGroup>();
 
   for (const skill of skills) {
     const groupKey = resolveServiceSkillGroupKey(skill);
+    const groupMeta = serviceSkillGroupMap.get(groupKey);
     const current = groups.get(groupKey);
     if (current) {
       current.skills.push(skill);
@@ -192,8 +203,8 @@ function groupMentionServiceSkills(
 
     groups.set(groupKey, {
       key: groupKey,
-      title: resolveServiceSkillGroupTitle(groupKey),
-      sort: resolveServiceSkillGroupSort(groupKey),
+      title: groupMeta?.title ?? resolveServiceSkillGroupTitle(groupKey),
+      sort: groupMeta?.sort ?? resolveServiceSkillGroupSort(groupKey),
       skills: [skill],
     });
   }
@@ -213,6 +224,7 @@ interface CharacterMentionPanelProps {
   slashCommands: CodexSlashCommandDefinition[];
   sceneCommands: RuntimeSceneSlashCommand[];
   mentionServiceSkills: ServiceSkillHomeItem[];
+  serviceSkillGroups?: ServiceSkillGroup[];
   filteredCharacters: Character[];
   installedSkills: Skill[];
   availableSkills: Skill[];
@@ -247,6 +259,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   slashCommands,
   sceneCommands,
   mentionServiceSkills,
+  serviceSkillGroups = [],
   filteredCharacters,
   installedSkills,
   availableSkills,
@@ -398,30 +411,43 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
         : [],
     [isEmptyQuery, mode, slashCommands],
   );
-  const visibleRecentServiceSkills = React.useMemo(() => {
-    if (mode !== "mention" || !isEmptyQuery) {
-      return [];
-    }
-
-    return mentionServiceSkills
-      .filter((skill) => skill.isRecent && skill.recentUsedAt)
-      .sort(compareRecentServiceSkills);
-  }, [isEmptyQuery, mentionServiceSkills, mode]);
+  const serviceSkillRecommendationBuckets = React.useMemo(
+    () =>
+      mode === "mention" && isEmptyQuery
+        ? buildServiceSkillRecommendationBuckets(mentionServiceSkills, {
+            featuredLimit: FEATURED_SERVICE_SKILL_LIMIT,
+            surface: "mention",
+          })
+        : {
+            recentSkills: [],
+            featuredSkills: [],
+            remainingSkills: [],
+          },
+    [isEmptyQuery, mentionServiceSkills, mode],
+  );
+  const visibleRecentServiceSkills =
+    serviceSkillRecommendationBuckets.recentSkills;
+  const mentionUsageMap = getMentionEntryUsageMap();
   const visibleRecentMentionEntries = React.useMemo(() => {
     if (mode !== "mention" || !isEmptyQuery) {
       return [];
     }
 
-    const usageMap = getMentionEntryUsageMap();
     const recentEntries: RecentMentionEntry[] = [];
 
     for (const command of builtinCommands) {
-      const recentRecord = usageMap.get(
+      const recentRecord = mentionUsageMap.get(
         getMentionEntryUsageRecordKey("builtin_command", command.key),
       );
       if (!recentRecord) {
         continue;
       }
+
+      const resolvedReplayText = resolveBuiltinCommandPrefillReplayText({
+        command,
+        replayText: recentRecord.replayText,
+        slotValues: recentRecord.slotValues,
+      });
 
       recentEntries.push({
         key: `builtin-command:${command.key}`,
@@ -430,10 +456,10 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
         title: command.commandPrefix,
         description: resolveRecentBuiltinCommandDescription(
           command,
-          recentRecord.replayText,
+          resolvedReplayText,
         ),
         usedAt: recentRecord.usedAt,
-        replayText: recentRecord.replayText,
+        replayText: resolvedReplayText,
         commandKey: command.key,
         commandPrefix: command.commandPrefix,
       });
@@ -456,7 +482,13 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
     }
 
     return recentEntries.sort(compareRecentMentionEntries);
-  }, [builtinCommands, isEmptyQuery, mode, visibleRecentServiceSkills]);
+  }, [
+    builtinCommands,
+    isEmptyQuery,
+    mentionUsageMap,
+    mode,
+    visibleRecentServiceSkills,
+  ]);
   const recentMentionCommandKeys = React.useMemo(
     () =>
       new Set(
@@ -480,39 +512,27 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
       (command) => !recentMentionCommandKeys.has(command.key),
     );
   }, [builtinCommands, isEmptyQuery, mode, recentMentionCommandKeys]);
-  const visibleFeaturedServiceSkills = React.useMemo(() => {
-    if (mode !== "mention" || !isEmptyQuery) {
-      return [];
-    }
-
-    const recentSkillIds = new Set(
-      visibleRecentServiceSkills.map((skill) => skill.id),
-    );
-
-    return mentionServiceSkills
-      .filter((skill) => !recentSkillIds.has(skill.id))
-      .slice(0, FEATURED_SERVICE_SKILL_LIMIT);
-  }, [isEmptyQuery, mentionServiceSkills, mode, visibleRecentServiceSkills]);
+  const visibleFeaturedServiceSkills =
+    serviceSkillRecommendationBuckets.featuredSkills;
   const visibleServiceSkillGroups = React.useMemo(() => {
     if (mode !== "mention") {
       return [];
     }
 
-    const excludedSkillIds = new Set(
-      visibleRecentServiceSkills.map((skill) => skill.id),
-    );
-    for (const skill of visibleFeaturedServiceSkills) {
-      excludedSkillIds.add(skill.id);
+    if (!isEmptyQuery) {
+      return groupMentionServiceSkills(mentionServiceSkills, serviceSkillGroups);
     }
 
     return groupMentionServiceSkills(
-      mentionServiceSkills.filter((skill) => !excludedSkillIds.has(skill.id)),
+      serviceSkillRecommendationBuckets.remainingSkills,
+      serviceSkillGroups,
     );
   }, [
+    isEmptyQuery,
     mentionServiceSkills,
     mode,
-    visibleFeaturedServiceSkills,
-    visibleRecentServiceSkills,
+    serviceSkillGroups,
+    serviceSkillRecommendationBuckets,
   ]);
   const visibleCharacters = mode === "mention" ? filteredCharacters : [];
   const visibleSceneCommands = React.useMemo(
@@ -783,21 +803,39 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
         ) : null}
         {visibleBuiltinCommands.length > 0 ? (
           <CommandGroup heading="内建命令">
-            {visibleBuiltinCommands.map((command) => (
-              <CommandItem
-                key={command.key}
-                onSelect={() => onSelectBuiltinCommand(command)}
-                className="cursor-pointer"
-              >
-                <ImagePlus className="mr-2 h-4 w-4 text-sky-600" />
-                <div className="flex-1">
-                  <div className="font-medium">{command.commandPrefix}</div>
-                  <div className="text-xs text-muted-foreground line-clamp-1">
-                    {command.description}
+            {visibleBuiltinCommands.map((command) => {
+              const recentRecord = mentionUsageMap.get(
+                getMentionEntryUsageRecordKey("builtin_command", command.key),
+              );
+              const resolvedReplayText = resolveBuiltinCommandPrefillReplayText({
+                command,
+                replayText: recentRecord?.replayText,
+                slotValues: recentRecord?.slotValues,
+              });
+
+              return (
+                <CommandItem
+                  key={command.key}
+                  onSelect={() =>
+                    onSelectBuiltinCommand(command, {
+                      replayText: resolvedReplayText,
+                    })
+                  }
+                  className="cursor-pointer"
+                >
+                  <ImagePlus className="mr-2 h-4 w-4 text-sky-600" />
+                  <div className="flex-1">
+                    <div className="font-medium">{command.commandPrefix}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">
+                      {resolveRecentBuiltinCommandDescription(
+                        command,
+                        resolvedReplayText,
+                      )}
+                    </div>
                   </div>
-                </div>
-              </CommandItem>
-            ))}
+                </CommandItem>
+              );
+            })}
           </CommandGroup>
         ) : null}
         {visibleFeaturedServiceSkills.length > 0 ? (

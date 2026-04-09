@@ -1,6 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ServiceSkillItem } from "@/lib/api/serviceSkills";
-import { buildServiceSkillNaturalLaunchMessage } from "./siteCapabilityBinding";
+import {
+  buildServiceSkillNaturalLaunchMessage,
+  resolveServiceSkillSiteCapabilityExecution,
+} from "./siteCapabilityBinding";
+
+const mockSiteListAdapters = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/webview-api", () => ({
+  siteListAdapters: (...args: unknown[]) => mockSiteListAdapters(...args),
+}));
 
 function createBrowserSkill(
   overrides: Partial<ServiceSkillItem> = {},
@@ -42,6 +51,10 @@ function createBrowserSkill(
 }
 
 describe("site capability binding natural launch message", () => {
+  beforeEach(() => {
+    mockSiteListAdapters.mockReset();
+  });
+
   it("应把 GitHub 搜索技能渲染成可直接驱动站点适配器的一句话", () => {
     const message = buildServiceSkillNaturalLaunchMessage({
       skill: createBrowserSkill(),
@@ -105,10 +118,15 @@ describe("site capability binding natural launch message", () => {
           },
         ],
         siteCapabilityBinding: {
-          adapterName: "x/article-export",
           autoRun: true,
           requireAttachedSession: true,
           saveMode: "project_resource",
+          siteLabel: "X",
+          adapterMatch: {
+            urlArgName: "url",
+            requiredCapabilities: ["article_export", "markdown_bundle"],
+            hostAliases: ["twitter.com", "www.twitter.com"],
+          },
           slotArgMap: {
             article_url: "url",
             target_language: "target_language",
@@ -122,7 +140,72 @@ describe("site capability binding natural launch message", () => {
     });
 
     expect(message).toBe(
-      "你帮我把这篇 X 长文导出为 Markdown，并将正文翻译成“中文”，保留代码块原文、图片链接和 Markdown 结构。",
+      "你帮我把这篇X文章导出为 Markdown，并将正文翻译成“中文”，保留代码块原文、图片链接和 Markdown 结构。",
     );
+  });
+
+  it("应按 URL 域名、能力标签和 host alias 解析动态站点适配器", async () => {
+    mockSiteListAdapters.mockResolvedValueOnce([
+      {
+        name: "x/article-export",
+        domain: "x.com",
+        description: "导出 X 长文",
+        read_only: true,
+        capabilities: ["article_export", "markdown_bundle"],
+        input_schema: {},
+        example_args: {},
+        example: "",
+      },
+      {
+        name: "x/timeline",
+        domain: "x.com",
+        description: "读取 X 时间线",
+        read_only: true,
+        capabilities: ["timeline"],
+        input_schema: {},
+        example_args: {},
+        example: "",
+      },
+    ]);
+
+    const resolved = await resolveServiceSkillSiteCapabilityExecution(
+      createBrowserSkill({
+        id: "x-article-export",
+        title: "X 文章转存",
+        slotSchema: [
+          {
+            key: "article_url",
+            label: "X 文章链接",
+            type: "url",
+            required: true,
+            placeholder: "https://x.com/<账号>/article/<文章ID>",
+          },
+        ],
+        siteCapabilityBinding: {
+          autoRun: true,
+          requireAttachedSession: true,
+          saveMode: "project_resource",
+          siteLabel: "X",
+          adapterMatch: {
+            urlArgName: "url",
+            requiredCapabilities: ["article_export", "markdown_bundle"],
+            hostAliases: ["twitter.com", "www.twitter.com"],
+          },
+          slotArgMap: {
+            article_url: "url",
+          },
+        },
+      }),
+      {
+        article_url: "https://twitter.com/GoogleCloudTech/article/2033953579824758855",
+      },
+    );
+
+    expect(resolved).toEqual({
+      adapterName: "x/article-export",
+      args: {
+        url: "https://twitter.com/GoogleCloudTech/article/2033953579824758855",
+      },
+    });
   });
 });

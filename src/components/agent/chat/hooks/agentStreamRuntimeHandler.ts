@@ -42,6 +42,10 @@ import {
   applyModelChangeExecutionRuntime,
   applyTurnContextExecutionRuntime,
 } from "../utils/sessionExecutionRuntime";
+import {
+  containsAssistantProtocolResidue,
+  stripAssistantProtocolResidue,
+} from "../utils/protocolResidue";
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 
@@ -57,7 +61,13 @@ interface StreamRequestState {
   requestLogId: string | null;
   requestStartedAt: number;
   requestFinished: boolean;
+  queuedDraftCleanupTimerId?: ReturnType<typeof setTimeout> | null;
 }
+
+const EMPTY_FINAL_REPLY_ERROR_HINT = "模型未输出最终答复";
+const EMPTY_FINAL_REPLY_FALLBACK_CONTENT =
+  "本轮执行已完成，详细过程与产物已保留在当前对话中。";
+const QUEUED_DRAFT_CLEANUP_GRACE_MS = 1800;
 
 interface StreamLifecycleCallbacks {
   activateStream: () => void;
@@ -180,6 +190,29 @@ export function handleTurnStreamEvent({
     appendThinkingToParts,
   } = callbacks;
 
+  const clearQueuedDraftCleanupTimer = () => {
+    if (requestState.queuedDraftCleanupTimerId) {
+      clearTimeout(requestState.queuedDraftCleanupTimerId);
+      requestState.queuedDraftCleanupTimerId = null;
+    }
+  };
+
+  const scheduleQueuedDraftCleanup = (shouldWatchCurrentRequest: boolean) => {
+    clearQueuedDraftCleanupTimer();
+    if (!shouldWatchCurrentRequest || isStreamActivated()) {
+      return;
+    }
+
+    requestState.queuedDraftCleanupTimerId = setTimeout(() => {
+      requestState.queuedDraftCleanupTimerId = null;
+      if (requestState.requestFinished || isStreamActivated()) {
+        return;
+      }
+      disposeListener();
+      removeQueuedDraftMessages();
+    }, QUEUED_DRAFT_CLEANUP_GRACE_MS);
+  };
+
   const markFailedTimelineState = (errorMessage: string) => {
     const failedAt = new Date().toISOString();
     const failedRuntimeStatus = buildFailedAgentRuntimeStatus(errorMessage);
@@ -223,6 +256,20 @@ export function handleTurnStreamEvent({
     });
   };
 
+  const resolveGracefulCompletionContent = () => {
+    const rawFinalContent = requestState.accumulatedContent.trim();
+    const cleanedFinalContent = stripAssistantProtocolResidue(
+      requestState.accumulatedContent,
+    );
+    return (
+      cleanedFinalContent ||
+      (!containsAssistantProtocolResidue(requestState.accumulatedContent)
+        ? rawFinalContent
+        : "") ||
+      EMPTY_FINAL_REPLY_FALLBACK_CONTENT
+    );
+  };
+
   const markQueuedDraftState = (queuedMessageText?: string | null) => {
     clearActiveStreamIfMatch(eventName);
     clearOptimisticItem();
@@ -260,35 +307,29 @@ export function handleTurnStreamEvent({
 
     case "queue_removed":
       removeQueuedTurnState([data.queued_turn_id]);
-      if (
-        !isStreamActivated() &&
-        (!requestState.queuedTurnId ||
-          requestState.queuedTurnId === data.queued_turn_id)
-      ) {
-        disposeListener();
-        removeQueuedDraftMessages();
-      }
+      scheduleQueuedDraftCleanup(
+        !requestState.queuedTurnId ||
+          requestState.queuedTurnId === data.queued_turn_id,
+      );
       break;
 
     case "queue_started":
       requestState.queuedTurnId = data.queued_turn_id;
       removeQueuedTurnState([data.queued_turn_id]);
+      clearQueuedDraftCleanupTimer();
       activateStream();
       break;
 
     case "queue_cleared":
       removeQueuedTurnState(data.queued_turn_ids);
-      if (
-        !isStreamActivated() &&
-        (!requestState.queuedTurnId ||
-          data.queued_turn_ids.includes(requestState.queuedTurnId))
-      ) {
-        disposeListener();
-        removeQueuedDraftMessages();
-      }
+      scheduleQueuedDraftCleanup(
+        !requestState.queuedTurnId ||
+          data.queued_turn_ids.includes(requestState.queuedTurnId),
+      );
       break;
 
     case "turn_started":
+      clearQueuedDraftCleanupTimer();
       activateStream();
       setCurrentTurnId(data.turn.id);
       setThreadTurns((prev) =>
@@ -332,6 +373,7 @@ export function handleTurnStreamEvent({
 
     case "turn_completed":
     case "turn_failed":
+      clearQueuedDraftCleanupTimer();
       activateStream();
       clearOptimisticItem();
       setThreadTurns((prev) =>
@@ -522,6 +564,7 @@ export function handleTurnStreamEvent({
       break;
 
     case "final_done": {
+      clearQueuedDraftCleanupTimer();
       clearOptimisticItem();
       clearOptimisticTurn();
       removeQueuedTurnState(
@@ -532,10 +575,16 @@ export function handleTurnStreamEvent({
         status: "success",
         description: `请求完成，工具调用 ${toolLogIdByToolId.size} 次`,
       });
-      const finalContent =
-        requestState.accumulatedContent.trim() ||
-        "已完成工具执行，但模型未输出最终答复，请重试。";
-      if (!requestState.accumulatedContent.trim()) {
+      const rawFinalContent = requestState.accumulatedContent.trim();
+      const cleanedFinalContent = stripAssistantProtocolResidue(
+        requestState.accumulatedContent,
+      );
+      const missingFinalReply =
+        !cleanedFinalContent &&
+        (containsAssistantProtocolResidue(requestState.accumulatedContent) ||
+          !rawFinalContent);
+      const finalContent = resolveGracefulCompletionContent();
+      if (missingFinalReply) {
         toast.error("已完成工具执行，但模型未输出最终答复，请重试");
       }
       observer?.onComplete?.(finalContent);
@@ -558,6 +607,37 @@ export function handleTurnStreamEvent({
     }
 
     case "error": {
+      clearQueuedDraftCleanupTimer();
+      if (data.message.includes(EMPTY_FINAL_REPLY_ERROR_HINT)) {
+        clearOptimisticItem();
+        clearOptimisticTurn();
+        removeQueuedTurnState(
+          requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
+        );
+        finishRequestLog(requestState, {
+          eventType: "chat_request_complete",
+          status: "success",
+          description: "请求完成，模型未补充最终总结，已降级保留当前过程结果",
+        });
+        const gracefulContent = resolveGracefulCompletionContent();
+        observer?.onComplete?.(gracefulContent);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? {
+                  ...updateMessageArtifactsStatus(msg, "complete"),
+                  isThinking: false,
+                  content: gracefulContent,
+                  runtimeStatus: undefined,
+                }
+              : msg,
+          ),
+        );
+        clearActiveStreamIfMatch(eventName);
+        disposeListener();
+        break;
+      }
+
       markFailedTimelineState(data.message);
       removeQueuedTurnState(
         requestState.queuedTurnId ? [requestState.queuedTurnId] : [],

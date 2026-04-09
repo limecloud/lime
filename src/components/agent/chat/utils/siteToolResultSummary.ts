@@ -1,3 +1,4 @@
+import type { SiteAdapterRunResult } from "@/lib/webview-api";
 import type { SiteSavedContentTarget } from "../types";
 
 export interface SiteToolResultSummary {
@@ -101,6 +102,37 @@ export function resolveSiteSavedContentTarget(
           preferredTarget: "project_file" as const,
           projectFile: {
             relativePath: summary.savedContent.markdownRelativePath,
+          },
+        }
+      : {}),
+  };
+}
+
+export function resolveSiteSavedContentTargetFromRunResult(
+  result: Pick<SiteAdapterRunResult, "saved_content" | "saved_project_id"> | null,
+): SiteSavedContentTarget | null {
+  const savedContent = result?.saved_content;
+  const contentId = savedContent?.content_id?.trim();
+  if (!contentId) {
+    return null;
+  }
+
+  const projectId =
+    savedContent.project_id?.trim() || result?.saved_project_id?.trim();
+  if (!projectId) {
+    return null;
+  }
+
+  const markdownRelativePath = savedContent.markdown_relative_path?.trim();
+  return {
+    projectId,
+    contentId,
+    ...(savedContent.title?.trim() ? { title: savedContent.title.trim() } : {}),
+    ...(markdownRelativePath
+      ? {
+          preferredTarget: "project_file" as const,
+          projectFile: {
+            relativePath: markdownRelativePath,
           },
         }
       : {}),

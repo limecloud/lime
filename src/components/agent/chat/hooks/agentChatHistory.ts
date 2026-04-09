@@ -561,6 +561,30 @@ const findMatchingLocalAssistantMessageIndex = (
   return -1;
 };
 
+function resolveMessageTimestampMs(message: Message): number | null {
+  const timestampMs = message.timestamp.getTime();
+  return Number.isFinite(timestampMs) ? timestampMs : null;
+}
+
+function hasRetainableLocalMessageState(message: Message): boolean {
+  if (message.role === "user") {
+    return message.content.trim().length > 0 || hasMessageImages(message);
+  }
+
+  return (
+    Boolean(message.thinkingContent?.trim()) ||
+    (message.contentParts || []).some(contentPartContainsProcess) ||
+    (message.toolCalls?.length || 0) > 0 ||
+    (message.actionRequests?.length || 0) > 0 ||
+    (message.contextTrace?.length || 0) > 0 ||
+    (message.artifacts?.length || 0) > 0 ||
+    Boolean(message.imageWorkbenchPreview) ||
+    Boolean(message.taskPreview) ||
+    Boolean(message.runtimeStatus) ||
+    message.content.trim().length > 0
+  );
+}
+
 export const mergeHydratedMessagesWithLocalState = (
   localMessages: Message[],
   hydratedMessages: Message[],
@@ -614,8 +638,9 @@ export const mergeHydratedMessagesWithLocalState = (
 
   let localUserCursor = 0;
   let localAssistantCursor = 0;
+  const matchedLocalMessageIds = new Set<string>();
 
-  return hydratedMessages.map((message) => {
+  const mergedMessages = hydratedMessages.map((message) => {
     if (message.role === "assistant") {
       const matchedAssistantIndex = findMatchingLocalAssistantMessageIndex(
         localAssistantMessages,
@@ -628,6 +653,9 @@ export const mergeHydratedMessagesWithLocalState = (
           : undefined;
       if (matchedAssistantIndex >= 0) {
         localAssistantCursor = matchedAssistantIndex + 1;
+        if (localAssistantMessage?.id) {
+          matchedLocalMessageIds.add(localAssistantMessage.id);
+        }
       }
 
       const localImagePreview = message.imageWorkbenchPreview?.taskId
@@ -709,6 +737,9 @@ export const mergeHydratedMessagesWithLocalState = (
 
     localUserCursor = matchedIndex + 1;
     const localMessage = localUserMessages[matchedIndex];
+    if (localMessage?.id) {
+      matchedLocalMessageIds.add(localMessage.id);
+    }
     if (
       !localMessage ||
       hasMessageImages(message) ||
@@ -722,6 +753,52 @@ export const mergeHydratedMessagesWithLocalState = (
       images: localMessage.images,
     };
   });
+
+  const lastHydratedMessage =
+    hydratedMessages.length > 0
+      ? (hydratedMessages[hydratedMessages.length - 1] as Message)
+      : null;
+  const lastHydratedTimestampMs = lastHydratedMessage
+    ? resolveMessageTimestampMs(lastHydratedMessage)
+    : null;
+  const lastMatchedLocalIndex = localMessages.reduce((latest, message, index) => {
+    if (!matchedLocalMessageIds.has(message.id)) {
+      return latest;
+    }
+    return index;
+  }, -1);
+  const lastMatchedLocalMessage =
+    lastMatchedLocalIndex >= 0 ? localMessages[lastMatchedLocalIndex] : null;
+  const retainedLocalTail = localMessages.filter((message, index) => {
+    if (matchedLocalMessageIds.has(message.id)) {
+      return false;
+    }
+    if (index <= lastMatchedLocalIndex) {
+      return false;
+    }
+    if (!hasRetainableLocalMessageState(message)) {
+      return false;
+    }
+
+    const shouldRetainAssistantTailAfterHydratedUser =
+      message.role === "assistant" &&
+      lastHydratedMessage?.role === "user" &&
+      lastMatchedLocalMessage?.role === "user";
+    if (shouldRetainAssistantTailAfterHydratedUser) {
+      return true;
+    }
+
+    const localTimestampMs = resolveMessageTimestampMs(message);
+    if (lastHydratedTimestampMs === null || localTimestampMs === null) {
+      return true;
+    }
+
+    return localTimestampMs >= lastHydratedTimestampMs;
+  });
+
+  return retainedLocalTail.length > 0
+    ? [...mergedMessages, ...retainedLocalTail]
+    : mergedMessages;
 };
 
 const messageImageSignature = (images?: MessageImage[]): string => {

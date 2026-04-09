@@ -253,10 +253,11 @@ describe("EmptyState", () => {
     expect(container.textContent).not.toContain("新建任务");
   });
 
-  it("通用首页应展示推荐方案并替换旧快速启动内容", async () => {
+  it("通用首页应展示精简后的推荐方案条", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       onLaunchBrowserAssist: vi.fn(),
+      onSelectServiceSkill: vi.fn(),
     });
 
     await act(async () => {
@@ -268,10 +269,42 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain("内容主稿生成");
     expect(container.textContent).toContain("前端概念方案");
     expect(container.textContent).toContain("演示提纲草案");
-    expect(container.textContent).toContain("浏览器工作台执行");
+    expect(container.textContent).toContain("网页登录与采集");
     expect(container.textContent).toContain("多代理拆任务");
+    expect(container.textContent).toContain("复制轮播帖");
+    expect(container.textContent).toContain("复制视频脚本");
+    expect(container.textContent).toContain("文章转 Slide 视频提纲");
+    expect(container.textContent).toContain("云端视频配音");
+    expect(container.textContent).toContain("视频配音成其他语言");
+    expect(container.textContent).toContain("每日趋势摘要");
+    expect(container.textContent).toContain("账号增长跟踪");
+    expect(container.textContent).not.toContain("从这里开始");
+    expect(container.textContent).not.toContain("快速启动");
     expect(container.textContent).not.toContain("生成配图");
+    expect(container.textContent).not.toContain("浏览器任务起步");
     expect(container.textContent).not.toContain("Team 冒烟测试");
+
+    const recommendationTitles = Array.from(
+      container.querySelectorAll(
+        '[data-testid^="entry-recommended-"], [data-testid^="entry-service-skill-"]',
+      ),
+    ).map((element) => element.textContent?.trim());
+
+    expect(recommendationTitles).toEqual([
+      "网页研究简报",
+      "内容主稿生成",
+      "前端概念方案",
+      "演示提纲草案",
+      "网页登录与采集",
+      "多代理拆任务",
+      "复制轮播帖",
+      "复制视频脚本",
+      "文章转 Slide 视频提纲",
+      "云端视频配音",
+      "视频配音成其他语言",
+      "每日趋势摘要",
+      "账号增长跟踪",
+    ]);
   });
 
   it("通用首页应继续渲染 4 个带视觉预览的支撑能力入口", async () => {
@@ -354,7 +387,6 @@ describe("EmptyState", () => {
     expect(setInput).toHaveBeenCalledWith(
       "请围绕这个主题先给我做一版网页研究简报：明确研究目标、关键信息来源、核心发现、风险点，以及接下来最值得继续追踪的问题。",
     );
-    expect(container.textContent).toContain("最近使用");
   });
 
   it("点击内容主稿生成应直接写入起始动作，不再切换旧主题", async () => {
@@ -385,7 +417,7 @@ describe("EmptyState", () => {
     );
   });
 
-  it("点击浏览器工作台执行应触发浏览器接入并写入起始动作", async () => {
+  it("点击网页登录与采集应触发浏览器接入并写入起始动作", async () => {
     const setInput = vi.fn<(value: string) => void>();
     const onLaunchBrowserAssist = vi.fn();
     const container = renderEmptyState({
@@ -409,7 +441,7 @@ describe("EmptyState", () => {
 
     expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
     expect(setInput).toHaveBeenCalledWith(
-      "请协助我完成一个浏览器任务：先明确目标网页、目标动作、约束条件和预期结果，再进入执行。",
+      "请协助我完成一个浏览器任务：先明确目标网页、目标动作、约束条件和预期结果，并在当前对话里继续执行。",
     );
   });
 
@@ -439,6 +471,38 @@ describe("EmptyState", () => {
     expect(onSubagentEnabledChange).toHaveBeenCalledWith(true);
     expect(setInput).toHaveBeenCalledWith(
       "请把这个任务按多代理方式拆解：先定义目标和约束，再拆成并行子任务，明确每个子代理的职责、产出和回收方式。",
+    );
+  });
+
+  it("指定 service skill 即使未从运行时目录注入，也应从 seeded 目录拼接到推荐区尾部", async () => {
+    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      serviceSkills: [createGithubSearchServiceSkill()],
+      onSelectServiceSkill,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("每日趋势摘要");
+    expect(container.textContent).not.toContain("GitHub 仓库线索检索");
+
+    const card = container.querySelector(
+      '[data-testid="entry-service-skill-daily-trend-briefing"]',
+    ) as HTMLButtonElement | null;
+    expect(card).toBeTruthy();
+
+    act(() => {
+      card?.click();
+    });
+
+    expect(onSelectServiceSkill).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "daily-trend-briefing",
+        title: "每日趋势摘要",
+      }),
     );
   });
 

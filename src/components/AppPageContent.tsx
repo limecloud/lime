@@ -181,7 +181,7 @@ export function AppPageContent({
     return (
       <div style={columnPageStyle}>
         <AgentChatPage
-          key={`${agentPageParams.projectId || ""}:${agentPageParams.contentId || ""}:${agentPageParams.theme || ""}:${agentPageParams.lockTheme ? "1" : "0"}:${agentPageParams.agentEntry || "claw"}:${agentPageParams.immersiveHome ? "immersive" : "standard"}:${agentPageParams.newChatAt ?? 0}:${agentPageParams.initialProjectFileOpenTarget?.relativePath || ""}:${agentPageParams.initialProjectFileOpenTarget?.requestKey ?? 0}`}
+          key={`${agentPageParams.projectId || ""}:${agentPageParams.contentId || ""}:${agentPageParams.theme || ""}:${agentPageParams.lockTheme ? "1" : "0"}:${agentPageParams.agentEntry || "claw"}:${agentPageParams.immersiveHome ? "immersive" : "standard"}:${agentPageParams.newChatAt ?? 0}:${agentPageParams.initialPendingServiceSkillLaunch?.skillId || ""}:${agentPageParams.initialPendingServiceSkillLaunch?.requestKey ?? 0}:${agentPageParams.initialProjectFileOpenTarget?.relativePath || ""}:${agentPageParams.initialProjectFileOpenTarget?.requestKey ?? 0}`}
           onNavigate={onNavigate}
           projectId={agentPageParams.projectId}
           contentId={agentPageParams.contentId}
@@ -194,6 +194,9 @@ export function AppPageContent({
           immersiveHome={agentPageParams.immersiveHome}
           openBrowserAssistOnMount={agentPageParams.openBrowserAssistOnMount}
           initialSiteSkillLaunch={agentPageParams.initialSiteSkillLaunch}
+          initialPendingServiceSkillLaunch={
+            agentPageParams.initialPendingServiceSkillLaunch
+          }
           initialProjectFileOpenTarget={
             agentPageParams.initialProjectFileOpenTarget
           }

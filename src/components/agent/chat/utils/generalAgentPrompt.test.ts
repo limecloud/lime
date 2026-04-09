@@ -96,6 +96,7 @@ describe("generalAgentPrompt", () => {
     expect(prompt).toContain("不得先退化成 WebSearch");
     expect(prompt).toContain("一旦给了 URL，先打开页面");
     expect(prompt).toContain("service_skill_launch");
+    expect(prompt).toContain("对话内 A2UI");
     expect(prompt).toContain("站点技能启动上下文");
     expect(prompt).toContain("lime_site_run");
     expect(prompt).toContain("mcp__lime-browser__browser_navigate");

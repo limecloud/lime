@@ -259,6 +259,16 @@ function seedSession(workspaceId: string, sessionId: string) {
   );
 }
 
+function seedSessionSnapshots(
+  workspaceId: string,
+  snapshots: Record<string, unknown>,
+) {
+  sessionStorage.setItem(
+    `aster_session_snapshots_${workspaceId}`,
+    JSON.stringify(snapshots),
+  );
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -888,6 +898,110 @@ describe("useAsterAgentChat 任务快照", () => {
           position: 1,
         },
       ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("恢复会话时远端暂未返回最新 assistant 消息也应保留本地执行过程", async () => {
+    const workspaceId = "ws-hydrate-missing-assistant-tail";
+    const sessionId = "session-hydrate-missing-assistant-tail";
+    sessionStorage.setItem(
+      `aster_curr_sessionId_${workspaceId}`,
+      JSON.stringify(sessionId),
+    );
+    sessionStorage.setItem(
+      `aster_messages_${workspaceId}`,
+      JSON.stringify([
+        {
+          id: "msg-local-user",
+          role: "user",
+          content: "把文章保存到项目里",
+          timestamp: "2026-04-08T10:00:00.000Z",
+        },
+        {
+          id: "msg-local-assistant",
+          role: "assistant",
+          content: "内容已保存到项目目录。",
+          timestamp: "2026-04-08T10:00:02.000Z",
+          contentParts: [
+            {
+              type: "tool_use",
+              toolCall: {
+                id: "tool-site-tail-1",
+                name: "site_run_adapter",
+                arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+                status: "completed",
+                startTime: "2026-04-08T10:00:01.000Z",
+                endTime: "2026-04-08T10:00:02.000Z",
+                result: {
+                  success: true,
+                  output: "saved: articles/google-cloud-tech-2.md",
+                },
+              },
+            },
+            {
+              type: "text",
+              text: "内容已保存到项目目录。",
+            },
+          ],
+          toolCalls: [
+            {
+              id: "tool-site-tail-1",
+              name: "site_run_adapter",
+              arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+              status: "completed",
+              startTime: "2026-04-08T10:00:01.000Z",
+              endTime: "2026-04-08T10:00:02.000Z",
+              result: {
+                success: true,
+                output: "saved: articles/google-cloud-tech-2.md",
+              },
+            },
+          ],
+        },
+      ]),
+    );
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: sessionId,
+        name: "会话恢复缺 assistant",
+        created_at: 1700000100,
+        updated_at: 1700000101,
+        messages_count: 1,
+      },
+    ]);
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: sessionId,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1712570401,
+          content: [{ type: "text", text: "把文章保存到项目里" }],
+        },
+      ],
+      turns: [],
+      items: [],
+      queued_turns: [],
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+      await flushEffects();
+
+      const value = harness.getValue();
+      expect(value.messages).toHaveLength(2);
+      expect(value.messages[1]?.role).toBe("assistant");
+      expect(
+        value.messages[1]?.contentParts?.some(
+          (part) =>
+            part.type === "tool_use" &&
+            part.toolCall.id === "tool-site-tail-1",
+        ),
+      ).toBe(true);
     } finally {
       harness.unmount();
     }
@@ -2695,10 +2809,165 @@ describe("useAsterAgentChat runtime routing", () => {
         .find((msg) => msg.role === "assistant");
 
       expect(assistantMessage?.content).toContain(
-        "已完成工具执行，但模型未输出最终答复，请重试。",
+        "本轮执行已完成，详细过程与产物已保留在当前对话中。",
       );
       expect(mockToast.error).toHaveBeenCalledWith(
         "已完成工具执行，但模型未输出最终答复，请重试",
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("final_done 无正文且刷新详情只返回用户消息时，也应保留本地 assistant 过程", async () => {
+    const workspaceId = "ws-empty-final-refresh-user-only";
+    const sessionId = "session-empty-final-refresh-user-only";
+    seedSession(workspaceId, sessionId);
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+    mockGetAgentRuntimeSession.mockResolvedValueOnce({
+      id: sessionId,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1710000000,
+          content: [{ type: "text", text: "导出并保存这篇文章" }],
+        },
+      ],
+      turns: [],
+      items: [],
+    });
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("导出并保存这篇文章", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "tool_start",
+          tool_name: "site_run_adapter",
+          tool_id: "tool-site-refresh-1",
+          arguments: JSON.stringify({ url: "https://x.com/example/article/1" }),
+        });
+        stream.emit({
+          type: "tool_end",
+          tool_id: "tool-site-refresh-1",
+          result: {
+            success: true,
+            output: "saved: articles/example.md",
+          },
+        });
+        stream.emit({
+          type: "final_done",
+        });
+      });
+
+      await flushEffects();
+      await flushEffects();
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+      expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
+      expect(assistantMessage).toBeTruthy();
+      expect(assistantMessage?.content).toContain(
+        "本轮执行已完成，详细过程与产物已保留在当前对话中。",
+      );
+      expect(
+        assistantMessage?.contentParts?.some(
+          (part) =>
+            part.type === "tool_use" &&
+            part.toolCall.id === "tool-site-refresh-1",
+        ),
+      ).toBe(true);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("stream error 命中空最终答复收尾时应降级为完成态而不是整轮失败", async () => {
+    const workspaceId = "ws-thread-empty-final-reply-soft-complete";
+    seedSession(workspaceId, "session-thread-empty-final-reply-soft-complete");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("请继续导出并保存内容", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "turn_started",
+          turn: {
+            id: "turn-empty-final-reply-soft-complete-1",
+            thread_id: "session-thread-empty-final-reply-soft-complete",
+            prompt_text: "请继续导出并保存内容",
+            status: "running",
+            started_at: "2026-03-20T10:00:00.000Z",
+            created_at: "2026-03-20T10:00:00.000Z",
+            updated_at: "2026-03-20T10:00:00.000Z",
+          },
+        });
+        stream.emit({
+          type: "tool_start",
+          tool_name: "site_run_adapter",
+          tool_id: "tool-site-run-1",
+          arguments: JSON.stringify({ adapter_name: "x/article-export" }),
+        });
+        stream.emit({
+          type: "tool_end",
+          tool_id: "tool-site-run-1",
+          result: {
+            success: true,
+            output: "saved/x-article-export/index.md",
+          },
+        });
+        stream.emit({
+          type: "turn_completed",
+          turn: {
+            id: "turn-empty-final-reply-soft-complete-1",
+            thread_id: "session-thread-empty-final-reply-soft-complete",
+            prompt_text: "请继续导出并保存内容",
+            status: "completed",
+            started_at: "2026-03-20T10:00:00.000Z",
+            completed_at: "2026-03-20T10:00:05.000Z",
+            created_at: "2026-03-20T10:00:00.000Z",
+            updated_at: "2026-03-20T10:00:05.000Z",
+          },
+        });
+        stream.emit({
+          type: "error",
+          message:
+            "已完成当前回合的工具执行，但模型未输出最终答复。\n尝试记录: 无工具调用",
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      expect(assistantMessage?.content).toContain(
+        "本轮执行已完成，详细过程与产物已保留在当前对话中。",
+      );
+      expect(assistantMessage?.runtimeStatus).toBeUndefined();
+      expect(harness.getValue().turns).toEqual([
+        expect.objectContaining({
+          id: "turn-empty-final-reply-soft-complete-1",
+          status: "completed",
+        }),
+      ]);
+      expect(mockToast.error).not.toHaveBeenCalledWith(
+        expect.stringContaining("模型未输出最终答复"),
       );
     } finally {
       harness.unmount();
@@ -5472,6 +5741,164 @@ describe("useAsterAgentChat 偏好持久化", () => {
         providerType: "zhipu",
         model: "glm-4.7",
       });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("切到其他话题后再恢复历史话题时应优先还原该话题自己的本地快照", async () => {
+    const workspaceId = "ws-topic-history-session-snapshot";
+    const createdAt = Math.floor(Date.now() / 1000);
+    seedSessionSnapshots(workspaceId, {
+      "topic-a": {
+        messages: [
+          {
+            id: "topic-a-user-local",
+            role: "user",
+            content: "把文章保存成 markdown 并下载图片",
+            timestamp: "2026-04-09T09:00:00.000Z",
+          },
+          {
+            id: "topic-a-assistant-local",
+            role: "assistant",
+            content: "内容已保存到项目目录。",
+            timestamp: "2026-04-09T09:00:02.000Z",
+            thinkingContent: "先恢复 topic-a 自己的本地执行轨迹。",
+            contentParts: [
+              {
+                type: "thinking",
+                text: "先恢复 topic-a 自己的本地执行轨迹。",
+              },
+              {
+                type: "tool_use",
+                toolCall: {
+                  id: "tool-topic-a-1",
+                  name: "site_run_adapter",
+                  arguments: "{\"url\":\"https://x.com/example/article/a\"}",
+                  status: "completed",
+                  startTime: "2026-04-09T09:00:01.000Z",
+                  endTime: "2026-04-09T09:00:02.000Z",
+                  result: {
+                    success: true,
+                    output: "saved: articles/topic-a.md",
+                  },
+                },
+              },
+              {
+                type: "text",
+                text: "内容已保存到项目目录。",
+              },
+            ],
+            toolCalls: [
+              {
+                id: "tool-topic-a-1",
+                name: "site_run_adapter",
+                arguments: "{\"url\":\"https://x.com/example/article/a\"}",
+                status: "completed",
+                startTime: "2026-04-09T09:00:01.000Z",
+                endTime: "2026-04-09T09:00:02.000Z",
+                result: {
+                  success: true,
+                  output: "saved: articles/topic-a.md",
+                },
+              },
+            ],
+          },
+        ],
+        threadTurns: [],
+        threadItems: [],
+        currentTurnId: null,
+        updatedAt: Date.now(),
+      },
+    });
+    mockListAgentRuntimeSessions.mockResolvedValue([
+      {
+        id: "topic-a",
+        name: "历史任务 A",
+        created_at: createdAt,
+        messages_count: 1,
+      },
+      {
+        id: "topic-b",
+        name: "当前任务 B",
+        created_at: createdAt,
+        messages_count: 1,
+      },
+    ]);
+    mockGetAgentRuntimeSession.mockImplementation(async (topicId: string) => {
+      if (topicId === "topic-a") {
+        return {
+          id: "topic-a",
+          messages: [
+            {
+              role: "user",
+              timestamp: 1712653200,
+              content: [
+                {
+                  type: "text",
+                  text: "把文章保存成 markdown 并下载图片",
+                },
+              ],
+            },
+          ],
+          turns: [],
+          items: [],
+          queued_turns: [],
+          execution_strategy: "react",
+        };
+      }
+
+      return {
+        id: "topic-b",
+        messages: [
+          {
+            role: "assistant",
+            timestamp: 1712653201,
+            content: [{ type: "text", text: "这是另一个话题" }],
+          },
+        ],
+        turns: [],
+        items: [],
+        queued_turns: [],
+        execution_strategy: "react",
+      };
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().switchTopic("topic-b");
+      });
+      await flushEffects();
+
+      expect(harness.getValue().messages).toHaveLength(1);
+      expect(harness.getValue().messages[0]?.content).toBe("这是另一个话题");
+
+      await act(async () => {
+        await harness.getValue().switchTopic("topic-a");
+      });
+      await flushEffects();
+
+      const value = harness.getValue();
+      expect(value.messages).toHaveLength(2);
+      expect(value.messages[1]?.content).toBe("内容已保存到项目目录。");
+      expect(value.messages[1]?.thinkingContent).toBe(
+        "先恢复 topic-a 自己的本地执行轨迹。",
+      );
+      expect(value.messages[1]?.toolCalls?.[0]?.id).toBe("tool-topic-a-1");
+      expect(
+        value.messages[1]?.contentParts?.some(
+          (part) =>
+            part.type === "tool_use" && part.toolCall.id === "tool-topic-a-1",
+        ),
+      ).toBe(true);
+      expect(
+        value.messages.some((message) => message.content === "这是另一个话题"),
+      ).toBe(false);
     } finally {
       harness.unmount();
     }

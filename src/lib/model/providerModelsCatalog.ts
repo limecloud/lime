@@ -34,6 +34,26 @@ function sortModels(models: EnhancedModelMetadata[]): EnhancedModelMetadata[] {
   });
 }
 
+function normalizeModelId(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function collectRegistryProviderIds(
+  selectedProvider: ProviderModelsCatalogProvider,
+): string[] {
+  return Array.from(
+    new Set(
+      [
+        selectedProvider.registryId,
+        selectedProvider.fallbackRegistryId,
+        selectedProvider.key,
+      ]
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
+
 function convertCustomModelsToMetadata(
   models: string[],
   providerId: string,
@@ -65,6 +85,62 @@ function convertCustomModelsToMetadata(
       source: "custom" as const,
       created_at: Date.now() / 1000,
       updated_at: Date.now() / 1000,
+    };
+  });
+}
+
+function convertBackendModelIdsToMetadata(
+  modelIds: string[],
+  selectedProvider: ProviderModelsCatalogProvider,
+  registryModels: EnhancedModelMetadata[],
+): EnhancedModelMetadata[] {
+  const providerIds = new Set(collectRegistryProviderIds(selectedProvider));
+  const registryModelMap = new Map(
+    registryModels
+      .filter((model) => providerIds.has(model.provider_id))
+      .map((model) => [normalizeModelId(model.id), model] as const),
+  );
+  const dedupedModelIds = Array.from(
+    new Map(
+      modelIds
+        .map((modelId) => modelId.trim())
+        .filter((modelId) => modelId.length > 0)
+        .map((modelId) => [normalizeModelId(modelId), modelId] as const),
+    ).values(),
+  );
+  const now = Date.now() / 1000;
+
+  return dedupedModelIds.map((modelId): EnhancedModelMetadata => {
+    const registryModel = registryModelMap.get(normalizeModelId(modelId));
+    if (registryModel) {
+      return registryModel;
+    }
+
+    return {
+      id: modelId,
+      display_name: modelId,
+      provider_id: selectedProvider.registryId || selectedProvider.key,
+      provider_name: selectedProvider.label,
+      family: null,
+      tier: "pro" as const,
+      capabilities: inferModelCapabilities({
+        modelId,
+        providerId: selectedProvider.registryId || selectedProvider.key,
+      }),
+      pricing: null,
+      limits: {
+        context_length: null,
+        max_output_tokens: null,
+        requests_per_minute: null,
+        tokens_per_minute: null,
+      },
+      status: "active" as const,
+      release_date: null,
+      is_latest: false,
+      description: null,
+      source: "custom" as const,
+      created_at: now,
+      updated_at: now,
     };
   });
 }
@@ -225,4 +301,20 @@ export function buildProviderModelsFromRegistry(
     models: fallbackModels,
     hasLocalModels: false,
   };
+}
+
+export function buildProviderModelsFromBackendModelIds(
+  selectedProvider: ProviderModelsCatalogProvider | undefined | null,
+  registryModels: EnhancedModelMetadata[],
+  modelIds: string[],
+): EnhancedModelMetadata[] {
+  if (!selectedProvider) {
+    return [];
+  }
+
+  return convertBackendModelIdsToMetadata(
+    modelIds,
+    selectedProvider,
+    registryModels,
+  );
 }

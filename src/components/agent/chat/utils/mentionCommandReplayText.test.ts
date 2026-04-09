@@ -10,7 +10,11 @@ import { parseCoverWorkbenchCommand } from "./coverWorkbenchCommand";
 import { parseDeepSearchWorkbenchCommand } from "./deepSearchWorkbenchCommand";
 import { parseFormWorkbenchCommand } from "./formWorkbenchCommand";
 import { parseImageWorkbenchCommand } from "./imageWorkbenchCommand";
-import { buildMentionCommandReplayText } from "./mentionCommandReplayText";
+import {
+  buildMentionCommandReplayText,
+  resolveMentionCommandMergedPrefillReplayText,
+  resolveMentionCommandPrefillReplayText,
+} from "./mentionCommandReplayText";
 import { parsePdfWorkbenchCommand } from "./pdfWorkbenchCommand";
 import { parsePosterWorkbenchCommand } from "./posterWorkbenchCommand";
 import { parsePresentationWorkbenchCommand } from "./presentationWorkbenchCommand";
@@ -492,5 +496,94 @@ describe("buildMentionCommandReplayText", () => {
         parsedCommand: parsedCommand!,
       }),
     ).toBe("平台:微信公众号后台 要求:帮我把这篇文章整理成可直接发布的版本");
+  });
+});
+
+describe("resolveMentionCommandPrefillReplayText", () => {
+  it("只有 slotValues 时也应反推 @搜索 的字段骨架", () => {
+    expect(
+      resolveMentionCommandPrefillReplayText({
+        commandKey: "research",
+        slotValues: {
+          query: "AI Agent 融资",
+          site: "36Kr",
+          time_range: "近30天",
+          depth: "deep",
+          focus: "融资额与产品发布",
+          output_format: "要点",
+        },
+      }),
+    ).toBe(
+      "关键词:AI Agent 融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点",
+    );
+  });
+
+  it("遇到默认 prompt 时应优先回放真实内容而不是模板文案", () => {
+    expect(
+      resolveMentionCommandPrefillReplayText({
+        commandKey: "webpage_generate",
+        slotValues: {
+          prompt: "请生成一个可直接预览的网页",
+          content: "帮我做一个 SaaS 官网首页，突出 AI 工作流和团队协作",
+          page_type: "homepage",
+          style: "极简科技",
+          tech_stack: "React",
+        },
+      }),
+    ).toBe(
+      "类型:官网 风格:极简科技 技术:React 要求:帮我做一个 SaaS 官网首页，突出 AI 工作流和团队协作",
+    );
+  });
+
+  it("已有 replayText 时应优先复用原始回放文本", () => {
+    expect(
+      resolveMentionCommandPrefillReplayText({
+        commandKey: "research",
+        replayText: "关键词:OpenAI 站点:GitHub 时间:最近一周 深度:标准",
+        slotValues: {
+          query: "应被忽略",
+          depth: "deep",
+        },
+      }),
+    ).toBe("关键词:OpenAI 站点:GitHub 时间:最近一周 深度:标准");
+  });
+});
+
+describe("resolveMentionCommandMergedPrefillReplayText", () => {
+  it("部分 @搜索 输入应补齐最近成功的默认字段", () => {
+    const parsedCommand = parseSearchWorkbenchCommand("@搜索 OpenAI 最新融资");
+
+    expect(
+      resolveMentionCommandMergedPrefillReplayText({
+        commandKey: "research",
+        parsedCommand: parsedCommand!,
+        slotValues: {
+          query: "AI Agent 融资",
+          site: "36Kr",
+          time_range: "近30天",
+          depth: "deep",
+          focus: "融资额与产品发布",
+          output_format: "要点",
+        },
+      }),
+    ).toBe(
+      "关键词:OpenAI 最新融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点",
+    );
+  });
+
+  it("部分 @读PDF 输入应补齐最近一次成功的文件与重点", () => {
+    const parsedCommand = parsePdfWorkbenchCommand("@读PDF 输出:投资人摘要");
+
+    expect(
+      resolveMentionCommandMergedPrefillReplayText({
+        commandKey: "read_pdf",
+        parsedCommand: parsedCommand!,
+        slotValues: {
+          source_path: "/tmp/agent-report.pdf",
+          focus: "融资情况与发布时间",
+          output_format: "投资人摘要",
+        },
+      }),
+    ).toBe("文件:/tmp/agent-report.pdf 重点:融资情况与发布时间 输出:投资人摘要");
   });
 });

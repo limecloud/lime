@@ -12,7 +12,10 @@ import {
   type SkillCatalog,
 } from "@/lib/api/skillCatalog";
 import { filterMentionableServiceSkills } from "@/components/agent/chat/service-skills/entryAdapter";
-import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
+import type {
+  ServiceSkillGroup,
+  ServiceSkillHomeItem,
+} from "@/components/agent/chat/service-skills/types";
 import type { BuiltinInputCommand } from "./builtinCommands";
 import { recordMentionEntryUsage } from "./mentionEntryUsage";
 import { recordSlashEntryUsage } from "./slashEntryUsage";
@@ -193,6 +196,7 @@ interface HarnessProps {
   characters?: Character[];
   skills?: Skill[];
   serviceSkills?: ServiceSkillHomeItem[];
+  serviceSkillGroups?: ServiceSkillGroup[];
   syncValue?: boolean;
   onNavigateToSettings?: () => void;
   onChangeSpy?: (value: string) => void;
@@ -207,6 +211,7 @@ const Harness: React.FC<HarnessProps> = ({
   characters = [],
   skills = [],
   serviceSkills = [],
+  serviceSkillGroups = [],
   syncValue = true,
   onNavigateToSettings,
   onChangeSpy,
@@ -232,6 +237,7 @@ const Harness: React.FC<HarnessProps> = ({
         characters={characters}
         skills={skills}
         serviceSkills={serviceSkills}
+        serviceSkillGroups={serviceSkillGroups}
         inputRef={inputRef}
         value={value}
         onChange={(next) => {
@@ -280,6 +286,15 @@ function typeAt(textarea: HTMLTextAreaElement) {
   });
 }
 
+function typeMention(textarea: HTMLTextAreaElement, value: string) {
+  act(() => {
+    textarea.focus();
+    textarea.value = value;
+    textarea.setSelectionRange(value.length, value.length);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 function typeSlash(textarea: HTMLTextAreaElement, value = "/") {
   act(() => {
     textarea.focus();
@@ -295,6 +310,20 @@ async function typeAtAndWait(textarea: HTMLTextAreaElement) {
   });
 
   typeAt(textarea);
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+async function typeMentionAndWait(
+  textarea: HTMLTextAreaElement,
+  value: string,
+) {
+  await act(async () => {
+    await import("./CharacterMentionPanel");
+  });
+
+  typeMention(textarea, value);
   await act(async () => {
     await Promise.resolve();
   });
@@ -1184,7 +1213,7 @@ describe("CharacterMention", () => {
           runnerLabel: "浏览器协助",
           runnerTone: "sky",
           runnerDescription: "进入真实浏览器执行只读采集。",
-          actionLabel: "填写参数",
+          actionLabel: "对话内补参",
           groupKey: "github",
         }),
       ],
@@ -1279,7 +1308,8 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).toContain(`上次输入：${replayText}`);
+    expect(document.body.textContent).toContain("上次输入：");
+    expect(document.body.textContent).toContain("关键词:AI Agent 融资");
 
     const recentCommandButton = Array.from(
       document.body.querySelectorAll("button"),
@@ -1294,6 +1324,121 @@ describe("CharacterMention", () => {
     expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         key: "research",
+      }),
+      expect.objectContaining({
+        replayText,
+      }),
+    );
+  });
+
+  it("普通 @命令搜索结果也应自动带入上次成功草稿", async () => {
+    const replayText =
+      "关键词:AI Agent 融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点";
+    act(() => {
+      recordMentionEntryUsage({
+        kind: "builtin_command",
+        entryId: "research",
+        usedAt: 1_712_345_678_900,
+        replayText,
+      });
+    });
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectBuiltinCommand =
+      vi.fn<
+        (
+          command: BuiltinInputCommand,
+          options?: { replayText?: string },
+        ) => void
+      >();
+    const container = renderHarness({
+      onChangeSpy,
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeMentionAndWait(textarea, "@搜");
+
+    expect(document.body.textContent).toContain("上次输入：");
+    expect(document.body.textContent).toContain(
+      "关键词:AI Agent 融资 站点:36Kr 时间:近30天",
+    );
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@搜索"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onChangeSpy).toHaveBeenLastCalledWith(replayText);
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "research",
+        commandPrefix: "@搜索",
+      }),
+      expect.objectContaining({
+        replayText,
+      }),
+    );
+  });
+
+  it("普通 @命令搜索结果在只有 slotValues 时也应自动反推参数骨架", async () => {
+    const replayText =
+      "关键词:AI Agent 融资 站点:36Kr 时间:近30天 深度:深度 重点:融资额与产品发布 输出:要点";
+    act(() => {
+      recordMentionEntryUsage({
+        kind: "builtin_command",
+        entryId: "research",
+        usedAt: 1_712_345_678_900,
+        slotValues: {
+          query: "AI Agent 融资",
+          site: "36Kr",
+          time_range: "近30天",
+          depth: "deep",
+          focus: "融资额与产品发布",
+          output_format: "要点",
+        },
+      });
+    });
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectBuiltinCommand =
+      vi.fn<
+        (
+          command: BuiltinInputCommand,
+          options?: { replayText?: string },
+        ) => void
+      >();
+    const container = renderHarness({
+      onChangeSpy,
+      onSelectBuiltinCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeMentionAndWait(textarea, "@搜");
+
+    expect(document.body.textContent).toContain("上次输入：");
+    expect(document.body.textContent).toContain(
+      "关键词:AI Agent 融资 站点:36Kr 时间:近30天",
+    );
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@搜索"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onChangeSpy).toHaveBeenLastCalledWith(replayText);
+    expect(onSelectBuiltinCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "research",
+        commandPrefix: "@搜索",
       }),
       expect.objectContaining({
         replayText,
@@ -1368,7 +1513,7 @@ describe("CharacterMention", () => {
           runnerLabel: "浏览器协助",
           runnerTone: "sky",
           runnerDescription: "进入真实浏览器执行只读采集。",
-          actionLabel: "填写参数",
+          actionLabel: "对话内补参",
         }),
       ],
     });
@@ -1393,6 +1538,52 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).not.toContain("推荐技能");
     expect(document.body.textContent).toContain("技能组 · GitHub");
     expect(document.body.textContent).toContain("GitHub 仓库雷达");
+  });
+
+  it("@ 面板技能组标题和排序应优先复用后端目录分组", async () => {
+    const container = renderHarness({
+      serviceSkills: [
+        createServiceSkill({
+          id: "creative-workbench-brief",
+          title: "创作工作台摘要",
+          aliases: ["创作摘要"],
+          groupKey: "creative-workbench",
+        }),
+        createServiceSkill({
+          id: "general-brief",
+          title: "通用创作摘要",
+          aliases: ["通用摘要"],
+          groupKey: "general",
+        }),
+      ],
+      serviceSkillGroups: [
+        {
+          key: "general",
+          title: "通用技能",
+          summary: "常规创作技能。",
+          sort: 90,
+          itemCount: 1,
+        },
+        {
+          key: "creative-workbench",
+          title: "创作中台",
+          summary: "围绕创作链路的协作技能。",
+          sort: 5,
+          itemCount: 1,
+        },
+      ],
+    });
+    const textarea = getTextarea(container);
+
+    await typeMentionAndWait(textarea, "@摘要");
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("技能组 · 创作中台");
+    expect(bodyText).toContain("技能组 · 通用技能");
+    expect(bodyText).not.toContain("技能组 · creative-workbench");
+    expect(bodyText.indexOf("技能组 · 创作中台")).toBeLessThan(
+      bodyText.indexOf("技能组 · 通用技能"),
+    );
   });
 
   it("输入 @网 时应展示新的内建网页命令", async () => {
@@ -1731,7 +1922,7 @@ describe("CharacterMention", () => {
           runnerLabel: "本地即时执行",
           runnerTone: "emerald",
           runnerDescription: "客户端起步版可直接进入工作区执行。",
-          actionLabel: "填写参数",
+          actionLabel: "对话内补参",
           promptTemplateKey: "replication",
         }),
       ],
@@ -1908,7 +2099,7 @@ describe("CharacterMention", () => {
     expect(onChangeSpy).toHaveBeenLastCalledWith("/review src-tauri packages");
   });
 
-  it("选择最近使用的 scene 时应优先回填上次成功参数，而不是再次打开补参弹窗", async () => {
+  it("选择最近使用的 scene 时应优先回填上次成功参数，而不是再次挂起补参卡", async () => {
     act(() => {
       saveSkillCatalog(buildCatalogWithXSceneEntry(), "bootstrap_sync");
       recordSlashEntryUsage({
@@ -2013,7 +2204,7 @@ describe("CharacterMention", () => {
     expect(onChangeSpy).toHaveBeenCalledWith("/campaign-launch ");
   });
 
-  it("slash 面板选择带必填参数的 scene 时应交给服务技能弹窗接管", async () => {
+  it("slash 面板选择带必填参数的 scene 时应交给父层 A2UI 补参接管", async () => {
     act(() => {
       saveSkillCatalog(buildCatalogWithXSceneEntry(), "bootstrap_sync");
     });

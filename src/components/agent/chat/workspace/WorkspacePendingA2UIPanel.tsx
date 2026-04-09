@@ -9,7 +9,7 @@ import { useA2UISubmissionNotice } from "./useA2UISubmissionNotice";
 import { useStickyA2UIForm } from "./useStickyA2UIForm";
 import { readProgressiveA2UIProgressMeta } from "../utils/progressivePendingA2UI";
 
-interface WorkspacePendingA2UIDialogProps {
+interface WorkspacePendingA2UIPanelProps {
   pendingA2UIForm?: A2UIResponse | null;
   onA2UISubmit?: (formData: A2UIFormData) => void;
   a2uiSubmissionNotice?: A2UISubmissionNoticeData | null;
@@ -18,11 +18,11 @@ interface WorkspacePendingA2UIDialogProps {
 const STALE_STATUS_LABEL = "继续处理中";
 const STALE_FOOTER_TEXT = "刚刚补充的信息已收到，暂时不用重复提交。";
 
-export function WorkspacePendingA2UIDialog({
+export function WorkspacePendingA2UIPanel({
   pendingA2UIForm = null,
   onA2UISubmit,
   a2uiSubmissionNotice = null,
-}: WorkspacePendingA2UIDialogProps) {
+}: WorkspacePendingA2UIPanelProps) {
   const { visibleForm, isStale } = useStickyA2UIForm({
     form: pendingA2UIForm,
     clearImmediately: Boolean(a2uiSubmissionNotice),
@@ -55,7 +55,7 @@ export function WorkspacePendingA2UIDialog({
 
   return (
     <section
-      data-testid="workspace-pending-a2ui-dialog"
+      data-testid="workspace-pending-a2ui-panel"
       className={`mx-4 mb-3 shrink-0 space-y-3 rounded-[22px] border px-3 py-3 shadow-sm shadow-slate-950/5 ${toneClassName}`}
     >
       {visibleNotice ? (

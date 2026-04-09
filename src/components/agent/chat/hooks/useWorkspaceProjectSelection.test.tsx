@@ -126,7 +126,9 @@ describe("useWorkspaceProjectSelection", () => {
       expect(harness.getValue().startTopicProjectResolution()).toBe(false);
 
       act(() => {
-        harness.getValue().deferTopicSwitch("topic-1", "project-target");
+        harness.getValue().deferTopicSwitch("topic-1", "project-target", {
+          forceRefresh: true,
+        });
       });
 
       expect(harness.getValue().projectId).toBe("project-target");
@@ -136,6 +138,7 @@ describe("useWorkspaceProjectSelection", () => {
       expect(
         harness.getValue().consumePendingTopicSwitch("project-target"),
       ).toEqual({
+        forceRefresh: true,
         topicId: "topic-1",
         targetProjectId: "project-target",
       });

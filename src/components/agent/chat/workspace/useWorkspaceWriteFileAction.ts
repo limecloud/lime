@@ -23,6 +23,7 @@ import {
   buildArtifactFromWrite,
   resolveDefaultArtifactViewMode,
 } from "../utils/messageArtifacts";
+import { shouldKeepGeneralArtifactInBackground } from "./generalArtifactAutoSelection";
 import {
   MAX_PERSISTED_DOCUMENT_VERSIONS,
   isGeneralWorkbenchPrimaryDocumentArtifact,
@@ -42,12 +43,6 @@ function shouldAutoOpenCanvasForActiveWrite(
     writePhase === "preparing" ||
     writePhase === "streaming"
   );
-}
-
-function shouldBackgroundGeneralArtifactWrite(
-  context?: WriteArtifactContext,
-): boolean {
-  return context?.source === "tool_result";
 }
 
 function shouldSkipGeneralArtifactWrite(params: {
@@ -257,8 +252,10 @@ export function useWorkspaceWriteFileAction({
                   (nextContent.length > 0 ? "complete" : "pending"),
               },
             });
-        const shouldKeepInBackground =
-          shouldBackgroundGeneralArtifactWrite(context);
+        const shouldKeepInBackground = shouldKeepGeneralArtifactInBackground(
+          nextArtifact,
+          context,
+        );
 
         if (
           shouldSkipGeneralArtifactWrite({

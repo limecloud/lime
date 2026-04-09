@@ -81,7 +81,9 @@ function createBaseParams(overrides: Record<string, unknown> = {}) {
     handleRecommendationClick: noop,
     projectCharacters: [],
     skills: [],
+    serviceSkills: [],
     skillsLoading: false,
+    onSelectServiceSkill: noop,
     handleNavigateToSkillSettings: noop,
     handleRefreshSkills: noop,
     handleOpenBrowserAssistInCanvas: noop,
@@ -214,5 +216,27 @@ describe("useWorkspaceConversationSceneRuntime", () => {
 
     const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
     expect(presentationParams?.scene.harnessToggleLabel).toBe("工作台");
+  });
+
+  it("首页空态应继续透传 service skills 与选择回调", () => {
+    const onSelectServiceSkill = vi.fn();
+    const serviceSkills = [
+      {
+        id: "daily-trend-briefing",
+        title: "每日趋势摘要",
+      },
+    ];
+    const params = createBaseParams({
+      serviceSkills,
+      onSelectServiceSkill,
+    });
+
+    useWorkspaceConversationSceneRuntime(params);
+
+    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
+    expect(presentationParams?.scene.serviceSkills).toBe(serviceSkills);
+    expect(presentationParams?.scene.onSelectServiceSkill).toBe(
+      onSelectServiceSkill,
+    );
   });
 });

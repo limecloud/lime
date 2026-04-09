@@ -68,7 +68,10 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   handleRecommendationClick: ConversationScenePresentationParams["scene"]["onRecommendationClick"];
   projectCharacters: Character[];
   skills: ConversationScenePresentationParams["scene"]["skills"];
+  serviceSkills: ConversationScenePresentationParams["scene"]["serviceSkills"];
+  serviceSkillGroups: ConversationScenePresentationParams["scene"]["serviceSkillGroups"];
   skillsLoading: ConversationScenePresentationParams["scene"]["isSkillsLoading"];
+  onSelectServiceSkill?: ConversationScenePresentationParams["scene"]["onSelectServiceSkill"];
   handleNavigateToSkillSettings: ConversationScenePresentationParams["scene"]["onNavigateToSettings"];
   handleRefreshSkills: ConversationScenePresentationParams["scene"]["onRefreshSkills"];
   handleOpenBrowserAssistInCanvas: ConversationScenePresentationParams["scene"]["onLaunchBrowserAssist"];
@@ -196,7 +199,10 @@ export function useWorkspaceConversationSceneRuntime({
   handleRecommendationClick,
   projectCharacters,
   skills,
+  serviceSkills,
+  serviceSkillGroups,
   skillsLoading,
+  onSelectServiceSkill,
   handleNavigateToSkillSettings,
   handleRefreshSkills,
   handleOpenBrowserAssistInCanvas,
@@ -356,7 +362,10 @@ export function useWorkspaceConversationSceneRuntime({
       onRecommendationClick: handleRecommendationClick,
       characters: projectCharacters,
       skills,
+      serviceSkills,
+      serviceSkillGroups,
       isSkillsLoading: skillsLoading,
+      onSelectServiceSkill,
       onNavigateToSettings: handleNavigateToSkillSettings,
       onRefreshSkills: handleRefreshSkills,
       onLaunchBrowserAssist: handleOpenBrowserAssistInCanvas,

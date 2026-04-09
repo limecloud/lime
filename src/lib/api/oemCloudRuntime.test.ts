@@ -20,8 +20,8 @@ describe("oemCloudRuntime", () => {
   it("应优先从运行时配置解析基础地址与 Lime Hub 元信息", () => {
     window.__LIME_OEM_CLOUD__ = {
       enabled: true,
-      baseUrl: "https://user.150404.xyz/",
-      gatewayBaseUrl: "https://gateway.150404.xyz/root/",
+      baseUrl: "https://user.limeai.run/",
+      gatewayBaseUrl: "https://gateway-api.limeai.run/root/",
       tenantId: "tenant-0001",
       hubProviderName: "Acme Hub",
       sessionToken: "runtime-session-token",
@@ -32,10 +32,10 @@ describe("oemCloudRuntime", () => {
     };
 
     expect(resolveOemCloudRuntimeContext()).toEqual({
-      baseUrl: "https://user.150404.xyz",
-      controlPlaneBaseUrl: "https://user.150404.xyz/api",
-      sceneBaseUrl: "https://user.150404.xyz/scene-api",
-      gatewayBaseUrl: "https://gateway.150404.xyz/root",
+      baseUrl: "https://user.limeai.run",
+      controlPlaneBaseUrl: "https://user.limeai.run/api",
+      sceneBaseUrl: "https://user.limeai.run/scene-api",
+      gatewayBaseUrl: "https://gateway-api.limeai.run/root",
       tenantId: "tenant-0001",
       sessionToken: "runtime-session-token",
       hubProviderName: "Acme Hub",
@@ -49,13 +49,13 @@ describe("oemCloudRuntime", () => {
   it("未显式提供 gatewayBaseUrl 时应回退到 baseUrl/gateway-api", () => {
     window.__LIME_OEM_CLOUD__ = {
       enabled: true,
-      baseUrl: "https://user.150404.xyz",
+      baseUrl: "https://user.limeai.run",
       tenantId: "tenant-0001",
     };
 
     expect(resolveOemCloudRuntimeContext()).toMatchObject({
-      baseUrl: "https://user.150404.xyz",
-      gatewayBaseUrl: "https://user.150404.xyz/gateway-api",
+      baseUrl: "https://user.limeai.run",
+      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
       tenantId: "tenant-0001",
       hubProviderName: null,
       loginPath: "/login",
@@ -81,12 +81,12 @@ describe("oemCloudRuntime", () => {
 
     window.__LIME_OEM_CLOUD__ = {
       enabled: true,
-      baseUrl: "https://user.150404.xyz",
+      baseUrl: "https://user.limeai.run",
     };
 
     expect(resolveOemCloudRuntimeContext()).toMatchObject({
-      baseUrl: "https://user.150404.xyz",
-      gatewayBaseUrl: "https://user.150404.xyz/gateway-api",
+      baseUrl: "https://user.limeai.run",
+      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
       tenantId: "tenant-from-storage",
       sessionToken: "persisted-session-token",
       loginPath: "/login",

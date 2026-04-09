@@ -202,6 +202,11 @@ describe("useWorkspaceBrowserAssistRuntime", () => {
         skillTitle: "GitHub 仓库线索检索",
       }),
     );
+    expect(getValue().siteSkillSavedContentTarget).toEqual({
+      projectId: "workspace-1",
+      contentId: "content-current",
+      title: "GitHub 仓库线索",
+    });
   });
 
   it("恢复完成态 browser assist 会话时不应被动展开画布", async () => {

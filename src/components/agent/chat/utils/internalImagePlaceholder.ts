@@ -1,4 +1,5 @@
 import type { ContentPart, Message } from "../types";
+import { stripAssistantProtocolResidue } from "./protocolResidue";
 
 const BRACKET_IMAGE_PLACEHOLDER_RE = /\[\s*Image\s*#\d+\s*\]/gi;
 const BARE_IMAGE_PLACEHOLDER_RE =
@@ -68,7 +69,10 @@ export function sanitizeMessageTextForDisplay(
   text: string,
   options: SanitizeMessageTextOptions,
 ): string {
-  const normalized = text.trim();
+  const normalized =
+    options.role === "assistant"
+      ? stripAssistantProtocolResidue(text)
+      : text.trim();
   if (!normalized) {
     return "";
   }

@@ -212,6 +212,15 @@ fn native_tool_search_aliases(name: &str) -> &'static [&'static str] {
             "content search",
             "text search",
         ],
+        "bash" | "bashtool" => &[
+            "system",
+            "shell",
+            "terminal",
+            "run command",
+            "command execution",
+        ],
+        "webfetch" | "webfetchtool" => &["fetch url", "fetch page", "read url", "web reader"],
+        "websearch" | "websearchtool" => &["search web", "internet search", "web search"],
         "askuserquestion" | "askuserquestiontool" => {
             &["request_user_input", "ask user", "user input"]
         }
@@ -296,6 +305,15 @@ fn compile_tool_search_term_patterns(terms: &[&str]) -> HashMap<String, Regex> {
     patterns
 }
 
+fn suffix_identifier_match(parts: &[String], suffix: &[String]) -> bool {
+    !suffix.is_empty()
+        && suffix.len() <= parts.len()
+        && parts[(parts.len() - suffix.len())..]
+            .iter()
+            .zip(suffix.iter())
+            .all(|(left, right)| left == right)
+}
+
 pub fn tool_search_exact_match(name: &str, query: &str) -> bool {
     let query_lower = query.trim().to_ascii_lowercase();
     if query_lower.is_empty() {
@@ -314,6 +332,16 @@ pub fn tool_search_exact_match(name: &str, query: &str) -> bool {
     let parsed = parse_tool_search_name(name);
     if parsed.inner_name.as_deref().is_some_and(|inner_name| {
         inner_name == query_lower || tool_search_lookup_key(inner_name) == query_key
+    }) {
+        return true;
+    }
+
+    let query_parts = split_tool_search_identifier(&query_lower);
+    if parsed.inner_name.as_deref().is_some_and(|inner_name| {
+        let inner_parts = split_tool_search_identifier(inner_name);
+        inner_parts.len() >= 2
+            && (suffix_identifier_match(&inner_parts, &query_parts)
+                || suffix_identifier_match(&query_parts, &inner_parts))
     }) {
         return true;
     }
@@ -339,36 +367,54 @@ pub fn score_tool_match(name: &str, description: &str, tags: &[String], query: &
         return 160;
     }
 
-    let query_terms = query
+    let raw_query_terms = query
         .split_whitespace()
         .filter(|term| !term.is_empty())
         .collect::<Vec<_>>();
-    if query_terms.is_empty() {
+    if raw_query_terms.is_empty() {
         return 0;
     }
 
     let mut required_terms = Vec::new();
     let mut optional_terms = Vec::new();
-    for term in &query_terms {
-        if let Some(required_term) = term.strip_prefix('+') {
-            if !required_term.is_empty() {
-                required_terms.push(required_term);
-                continue;
-            }
+    for term in &raw_query_terms {
+        let (required, normalized_term) = if let Some(required_term) = term.strip_prefix('+') {
+            (true, required_term)
+        } else {
+            (false, *term)
+        };
+        if normalized_term.is_empty() {
+            continue;
         }
-        optional_terms.push(*term);
+
+        let split_terms = split_tool_search_identifier(normalized_term);
+        let target = if required {
+            &mut required_terms
+        } else {
+            &mut optional_terms
+        };
+        if split_terms.is_empty() {
+            target.push(normalized_term.to_string());
+        } else {
+            target.extend(split_terms);
+        }
+    }
+
+    if required_terms.is_empty() && optional_terms.is_empty() {
+        return 0;
     }
 
     let scoring_terms = if required_terms.is_empty() {
-        query_terms.clone()
+        optional_terms.clone()
     } else {
         required_terms
             .iter()
-            .copied()
-            .chain(optional_terms.iter().copied())
+            .cloned()
+            .chain(optional_terms.iter().cloned())
             .collect::<Vec<_>>()
     };
-    let term_patterns = compile_tool_search_term_patterns(&scoring_terms);
+    let scoring_term_refs = scoring_terms.iter().map(String::as_str).collect::<Vec<_>>();
+    let term_patterns = compile_tool_search_term_patterns(&scoring_term_refs);
     let parsed = parse_tool_search_name(name);
     let description_lc = description.to_ascii_lowercase();
     let aliases = native_tool_search_aliases(name)
@@ -385,7 +431,8 @@ pub fn score_tool_match(name: &str, description: &str, tags: &[String], query: &
         .collect::<Vec<_>>();
 
     let required_matches = required_terms.iter().all(|term| {
-        let Some(pattern) = term_patterns.get(*term) else {
+        let term = term.as_str();
+        let Some(pattern) = term_patterns.get(term) else {
             return false;
         };
         parsed
@@ -408,6 +455,7 @@ pub fn score_tool_match(name: &str, description: &str, tags: &[String], query: &
 
     let mut score = 0;
     for term in scoring_terms {
+        let term = term.as_str();
         let Some(pattern) = term_patterns.get(term) else {
             continue;
         };
@@ -786,6 +834,29 @@ mod tests {
             "mcp__playwright__browser_click",
             "browser_click"
         ));
+        assert!(tool_search_exact_match("Bash", "system"));
+    }
+
+    #[test]
+    fn test_tool_search_exact_match_does_not_match_generic_tool_suffix() {
+        assert!(!tool_search_exact_match("alpha__tool", "beta__tool"));
+    }
+
+    #[test]
+    fn test_score_tool_match_splits_identifier_queries() {
+        let exact = score_tool_match(
+            "mcp__playwright__browser_click",
+            "Click inside browser",
+            &["browser".to_string()],
+            "browser_click",
+        );
+        let partial = score_tool_match(
+            "mcp__playwright__browser_hover",
+            "Hover inside browser",
+            &["browser".to_string()],
+            "browser_click",
+        );
+        assert!(exact > partial);
     }
 
     #[test]

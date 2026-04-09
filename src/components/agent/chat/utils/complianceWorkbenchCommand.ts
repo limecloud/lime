@@ -19,10 +19,12 @@ export interface ParsedComplianceWorkbenchCommand {
 const COMPLIANCE_COMMAND_PREFIX_REGEX =
   /^\s*(@发布合规|@合规|@compliance)(?:\s+|$)([\s\S]*)$/i;
 
-const DEFAULT_FOCUS = "广告法、版权、平台发布风险";
-const DEFAULT_STYLE = "合规审校";
-const DEFAULT_OUTPUT_FORMAT = "风险等级、风险点、修改建议、待确认项";
-const DEFAULT_PROMPT = "请检查当前对话中最相关内容的发布合规风险";
+export const DEFAULT_COMPLIANCE_FOCUS = "广告法、版权、平台发布风险";
+export const DEFAULT_COMPLIANCE_STYLE = "合规审校";
+export const DEFAULT_COMPLIANCE_OUTPUT_FORMAT =
+  "风险等级、风险点、修改建议、待确认项";
+export const DEFAULT_COMPLIANCE_PROMPT =
+  "请检查当前对话中最相关内容的发布合规风险";
 
 function normalizeTrigger(value: string): ComplianceWorkbenchCommandTrigger {
   const normalized = value.trim().toLowerCase();
@@ -50,10 +52,11 @@ export function parseComplianceWorkbenchCommand(
     rawText: text,
     trigger: normalizeTrigger(matched[1] || ""),
     body,
-    prompt: analysisResult?.prompt?.trim() || body || DEFAULT_PROMPT,
+    prompt: analysisResult?.prompt?.trim() || body || DEFAULT_COMPLIANCE_PROMPT,
     content: analysisResult?.content,
-    focus: analysisResult?.focus || DEFAULT_FOCUS,
-    style: analysisResult?.style || DEFAULT_STYLE,
-    outputFormat: analysisResult?.outputFormat || DEFAULT_OUTPUT_FORMAT,
+    focus: analysisResult?.focus || DEFAULT_COMPLIANCE_FOCUS,
+    style: analysisResult?.style || DEFAULT_COMPLIANCE_STYLE,
+    outputFormat:
+      analysisResult?.outputFormat || DEFAULT_COMPLIANCE_OUTPUT_FORMAT,
   };
 }

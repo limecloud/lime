@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SiteSavedContentTarget } from "../types";
+import { resolveSiteSavedContentTargetFromRunResult } from "../utils/siteToolResultSummary";
 import type { SiteSkillExecutionState } from "./useWorkspaceBrowserAssistRuntime";
 
 interface ServiceSkillExecutionCardProps {
@@ -41,22 +42,7 @@ export function ServiceSkillExecutionCard({
     state.result?.saved_content?.images_relative_dir?.trim() || "";
   const imageCount = state.result?.saved_content?.image_count;
   const savedSiteContentTarget: SiteSavedContentTarget | null =
-    state.result?.saved_content?.content_id?.trim() &&
-    state.result?.saved_content?.project_id?.trim()
-      ? {
-          projectId: state.result.saved_content.project_id.trim(),
-          contentId: state.result.saved_content.content_id.trim(),
-          title: resultTitle || undefined,
-          ...(markdownRelativePath
-            ? {
-                preferredTarget: "project_file" as const,
-                projectFile: {
-                  relativePath: markdownRelativePath,
-                },
-              }
-            : {}),
-        }
-      : null;
+    resolveSiteSavedContentTargetFromRunResult(state.result || null);
   const savedContentActionLabel =
     savedSiteContentTarget?.preferredTarget === "project_file"
       ? "在下方预览导出 Markdown"

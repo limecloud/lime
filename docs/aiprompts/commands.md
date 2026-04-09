@@ -332,6 +332,8 @@ MCP bridge 当前唯一继续演进的工具命名事实源是：
 - 工具全名：`mcp__<server>__<tool>`
 - extension surface key：`mcp__<server>`
 - UI 展示名：继续优先显示 server 原名，例如 `lime-browser`
+- deferred 工具需要通过 `ToolSearch` 拉起时，优先使用精确 `select:mcp__<server>__<tool>`；如 `select:mcp__playwright__browser_click`
+- `ToolSearch` 空结果后不要继续改写成 `playwright_browser_click`、`read_file`、`system` 之类同义词重试；原生工具直接调用当前可见的 `Read / Write / Edit / Glob / Grep / Bash / WebFetch / WebSearch`
 
 不要再新增或恢复以下旧命名心智：
 
@@ -523,7 +525,7 @@ npm run verify:local
 - **站点能力主链**：继续收敛到 `site_list_adapters / site_recommend_adapters / site_search_adapters / site_get_adapter_info / site_get_adapter_launch_readiness / site_get_adapter_catalog_status / site_import_adapter_yaml_bundle / site_run_adapter`
 - **站点适配器导入主链**：`site_import_adapter_yaml_bundle` 只负责把外部 YAML 来源编译为 Lime 标准并写入 `imported` 目录，不允许带入第二套 runtime、daemon 或自动唤醒浏览器链路
 - **站点 Agent 工具主链**：继续收敛到 `lime_site_list / lime_site_recommend / lime_site_search / lime_site_info / lime_site_run`
-- **站点技能首页入口主链**：首页 / 工作区弹窗只负责补参数、组装 `initialUserPrompt + harness.service_skill_launch` 上下文并进入 `Claw`；真正执行统一收口到 `Claw` 首回合，不再由首页弹窗或工作区挂载副作用直接调用 `site_run_adapter`
+- **站点技能首页入口主链**：`Claw` 首页、空态推荐和技能选择入口只负责选技能、在当前对话输入区上方挂起 A2UI 补参卡、组装 `initialUserPrompt + harness.service_skill_launch` 上下文并进入 `Claw`；真正执行统一收口到 `Claw` 首回合，不再由首页弹窗、工作区挂载副作用或前端直跑逻辑直接调用 `site_run_adapter`
 - **站点结果沉淀主线**：`site_run_adapter` / `lime_site_run` 优先透传 `content_id` 写回当前主稿；只有缺少 `content_id` 时，才回退到 `project_id` 新建结果文档
 - **`markdown_bundle` 落盘回传主线**：当站点结果是 `markdown_bundle` 时，`saved_content` 除了 `content_id / project_id / title`，还应继续回传 `project_root_path / markdown_relative_path / images_relative_dir / meta_relative_path / image_count`，让聊天轻卡与 tool timeline 都能直接说明 Markdown 和图片实际保存到哪里
 - **`markdown_bundle` 消费主线**：当前端拿到 `saved_content.markdown_relative_path` 后，聊天轻卡、工具结果卡和站点工作台应优先导航到项目内真实 Markdown 文件，而不是继续打开一份运行摘要 artifact；后续 viewer 渲染相对图片时，也必须以该 Markdown 文件路径作为 base 解析本地资源

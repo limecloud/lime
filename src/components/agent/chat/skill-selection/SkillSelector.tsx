@@ -8,7 +8,10 @@ import {
 import type { Skill } from "@/lib/api/skills";
 import { toast } from "sonner";
 import { filterMentionableServiceSkills } from "@/components/agent/chat/service-skills/entryAdapter";
-import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
+import type {
+  ServiceSkillGroup,
+  ServiceSkillHomeItem,
+} from "@/components/agent/chat/service-skills/types";
 import type { BuiltinInputCommand } from "./builtinCommands";
 import {
   LazyCharacterMentionPanel,
@@ -24,6 +27,7 @@ import { useIdleModulePreload } from "./useIdleModulePreload";
 interface SkillSelectorProps {
   skills?: Skill[];
   serviceSkills?: ServiceSkillHomeItem[];
+  serviceSkillGroups?: ServiceSkillGroup[];
   activeSkill?: Skill | null;
   isLoading?: boolean;
   onSelectSkill: (skill: Skill) => void;
@@ -39,6 +43,7 @@ interface SkillSelectorContentProps {
   installedSkills: Skill[];
   availableSkills: Skill[];
   mentionServiceSkills?: ServiceSkillHomeItem[];
+  serviceSkillGroups?: ServiceSkillGroup[];
   query: string;
   refreshBusy: boolean;
   hasResults: boolean;
@@ -61,6 +66,7 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
   installedSkills,
   availableSkills,
   mentionServiceSkills = [],
+  serviceSkillGroups = [],
   query,
   refreshBusy,
   hasResults,
@@ -123,6 +129,7 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
           sceneCommands={[]}
           slashCommands={[]}
           mentionServiceSkills={mentionServiceSkills}
+          serviceSkillGroups={serviceSkillGroups}
           filteredCharacters={[]}
           installedSkills={installedSkills}
           availableSkills={availableSkills}
@@ -190,6 +197,7 @@ export const SkillSelectorContent: React.FC<SkillSelectorContentProps> = ({
 export const SkillSelector: React.FC<SkillSelectorProps> = ({
   skills = [],
   serviceSkills = [],
+  serviceSkillGroups = [],
   activeSkill = null,
   isLoading = false,
   onSelectSkill,
@@ -346,6 +354,7 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
             installedSkills={installedSkills}
             availableSkills={availableSkills}
             mentionServiceSkills={filteredServiceSkills}
+            serviceSkillGroups={serviceSkillGroups}
             query={query}
             refreshBusy={refreshBusy}
             hasResults={hasResults}

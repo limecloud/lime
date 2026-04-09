@@ -128,7 +128,7 @@ describe("useOemCloudAccess", () => {
     delete window.__LIME_BOOTSTRAP__;
     window.__LIME_OEM_CLOUD__ = {
       enabled: true,
-      baseUrl: "https://user.150404.xyz",
+      baseUrl: "https://user.limeai.run",
       tenantId: "tenant-0001",
     };
 

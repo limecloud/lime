@@ -114,6 +114,27 @@ impl ToolSearchBridgeTool {
             status.extension_name,
         )
     }
+
+    fn build_tool_search_notes(query: &str, hit_count: usize) -> Vec<String> {
+        if hit_count > 0 {
+            return Vec::new();
+        }
+
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return Vec::new();
+        }
+
+        if Self::parse_select_query(trimmed).is_some() {
+            return vec![
+                "未命中任何工具。不要继续改写同义词反复重试；如果需要文件、命令或网页原生能力，请直接调用当前可见的 Read / Write / Edit / Glob / Grep / Bash / WebFetch / WebSearch。".to_string(),
+            ];
+        }
+
+        vec![
+            "未命中任何工具。优先直接调用当前可见的原生工具，或补充更明确的产品域关键词；不要继续用 ToolSearch 反复改写同义词。".to_string(),
+        ]
+    }
 }
 
 #[async_trait]
@@ -336,10 +357,12 @@ impl Tool for ToolSearchBridgeTool {
             .take(limit)
             .map(|(_, item)| item)
             .collect::<Vec<_>>();
+        let notes = Self::build_tool_search_notes(&raw_query, result.len());
         let text = serde_json::to_string_pretty(&serde_json::json!({
             "query": raw_query,
             "caller": caller,
             "count": result.len(),
+            "notes": notes,
             "tools": result
         }))
         .map_err(|e| {
@@ -355,9 +378,8 @@ pub(super) fn register_tool_search_tool_to_registry(
     registry_arc: Arc<tokio::sync::RwLock<aster::tools::ToolRegistry>>,
     extension_manager: Option<Arc<aster::agents::extension_manager::ExtensionManager>>,
 ) {
-    if registry.contains(TOOL_SEARCH_TOOL_NAME) {
-        return;
-    }
+    // Lime runtime 里的 ToolSearch 事实源是 bridge 实现。
+    // 这里始终重新注册，确保旧 aster ToolSearch 不会抢占当前 surface。
     registry.register(Box::new(ToolSearchBridgeTool::new(
         registry_arc,
         extension_manager,

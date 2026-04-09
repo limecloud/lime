@@ -11,9 +11,9 @@ describe("oemLimeHubProvider", () => {
   it("应从运行时配置提取 Lime Hub 网关地址", () => {
     expect(
       buildOemLimeHubApiHost({
-        gatewayBaseUrl: "https://user.150404.xyz/gateway-api/",
+        gatewayBaseUrl: "https://user.limeai.run/gateway-api/",
       }),
-    ).toBe("https://user.150404.xyz/gateway-api");
+    ).toBe("https://user.limeai.run/gateway-api");
   });
 
   it("应在未配置品牌名时回退默认 Lime Hub 名称", () => {
@@ -32,7 +32,7 @@ describe("oemLimeHubProvider", () => {
       isLegacyProxyCastHubProvider({
         id: OEM_LIME_HUB_PROVIDER_ID,
         name: "Lime Hub",
-        api_host: "https://user.150404.xyz/gateway-api",
+        api_host: "https://user.limeai.run/gateway-api",
       }),
     ).toBe(false);
 

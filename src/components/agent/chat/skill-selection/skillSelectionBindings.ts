@@ -1,9 +1,13 @@
 import type { Skill } from "@/lib/api/skills";
-import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
+import type {
+  ServiceSkillGroup,
+  ServiceSkillHomeItem,
+} from "@/components/agent/chat/service-skills/types";
 
 export interface SkillSelectionSourceProps {
   skills?: Skill[];
   serviceSkills?: ServiceSkillHomeItem[];
+  serviceSkillGroups?: ServiceSkillGroup[];
   isSkillsLoading?: boolean;
   onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
   onNavigateToSettings?: () => void;
@@ -21,6 +25,7 @@ export interface SkillSelectionProps
   extends SkillSelectionSourceProps, SkillSelectionControllerProps {
   skills: Skill[];
   serviceSkills: ServiceSkillHomeItem[];
+  serviceSkillGroups: ServiceSkillGroup[];
   activeSkill: Skill | null;
   isSkillsLoading: boolean;
 }
@@ -28,6 +33,7 @@ export interface SkillSelectionProps
 export function createSkillSelectionProps({
   skills = [],
   serviceSkills = [],
+  serviceSkillGroups = [],
   activeSkill = null,
   isSkillsLoading = false,
   ...rest
@@ -37,6 +43,7 @@ export function createSkillSelectionProps({
     ...rest,
     skills,
     serviceSkills,
+    serviceSkillGroups,
     activeSkill,
     isSkillsLoading,
   };
@@ -45,6 +52,7 @@ export function createSkillSelectionProps({
 export function buildSkillSelectionBindings({
   skills,
   serviceSkills = [],
+  serviceSkillGroups = [],
   activeSkill = null,
   isSkillsLoading = false,
   onSelectSkill,
@@ -58,6 +66,7 @@ export function buildSkillSelectionBindings({
     mentionProps: {
       skills,
       serviceSkills,
+      serviceSkillGroups,
       onSelectSkill,
       onSelectServiceSkill,
       onNavigateToSettings,
@@ -65,6 +74,7 @@ export function buildSkillSelectionBindings({
     selectorProps: {
       skills,
       serviceSkills,
+      serviceSkillGroups,
       activeSkill,
       isLoading: isSkillsLoading,
       onSelectSkill,

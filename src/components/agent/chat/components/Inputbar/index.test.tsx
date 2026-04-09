@@ -385,7 +385,7 @@ describe("Inputbar", () => {
     ).toBeTruthy();
   });
 
-  it("存在 executionRuntime 时应仅展示结构化输出提示", async () => {
+  it("存在 executionRuntime 时应保留模型选择器，但不再展示结构化输出提示", async () => {
     const { container } = renderInputbar({
       providerType: "openai",
       setProviderType: vi.fn(),
@@ -411,9 +411,11 @@ describe("Inputbar", () => {
     });
 
     expect(container.textContent).not.toContain("最近执行模型");
-    expect(container.textContent).toContain(
-      "结构化输出 Native schema · turn contract",
-    );
+    expect(
+      container.querySelector('[data-testid="model-selector"]'),
+    ).toBeTruthy();
+    expect(container.textContent).not.toContain("结构化输出");
+    expect(container.textContent).not.toContain("Native schema");
   });
 
   it("应将 Plan 开关与权限模式拆成独立控件，并透传对应回调", async () => {

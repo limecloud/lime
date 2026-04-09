@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import {
   Lightbulb,
@@ -50,6 +50,15 @@ import {
   getSiteSkillAutoLaunchExample,
   hasAutoLaunchableSiteSkill,
 } from "../service-skills/siteSkillExamplePrompts";
+import { getSeededServiceSkillCatalog } from "@/lib/api/serviceSkills";
+import { resolveServiceSkillEntryDescription } from "../service-skills/entryAdapter";
+import {
+  getServiceSkillActionLabel,
+  getServiceSkillRunnerDescription,
+  getServiceSkillRunnerLabel,
+  getServiceSkillRunnerTone,
+} from "../service-skills/skillPresentation";
+import type { ServiceSkillHomeItem } from "../service-skills/types";
 import capabilitySkillsPlaceholder from "@/assets/entry-surface/capability-skills-lime.png";
 import capabilityAutomationsPlaceholder from "@/assets/entry-surface/capability-automations-lime.png";
 import capabilityAgentTeamsPlaceholder from "@/assets/entry-surface/capability-agent-teams-lime.png";
@@ -87,66 +96,62 @@ const ContentWrapper = styled.div.attrs({
 
 const RecommendationShelf = styled.div`
   display: flex;
-  align-items: center;
-  gap: 0.55rem;
   min-width: 0;
-  padding: 0 0.3rem 0.1rem;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 0 0.2rem 0.05rem;
 `;
 
 const RecommendationShelfHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+`;
+
+const RecommendationShelfHeaderBody = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
   flex-shrink: 0;
+`;
+
+const RecommendationShelfHeaderTitle = styled.div`
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgb(100 116 139);
 `;
 
 const RecommendationShelfList = styled.div`
   display: flex;
   align-items: center;
-  gap: 0;
+  flex-wrap: wrap;
+  gap: 0.38rem;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  white-space: nowrap;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
+  overflow: visible;
+  white-space: normal;
+  padding-bottom: 0.1rem;
 `;
 
 const RecommendationShelfRow = styled.div`
-  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  flex-shrink: 0;
-
-  & + & {
-    margin-left: 0.55rem;
-    padding-left: 0.55rem;
-  }
-
-  & + &::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    width: 1px;
-    height: 0.72rem;
-    transform: translateY(-50%);
-    background: rgba(203, 213, 225, 0.9);
-  }
+  gap: 0.38rem;
+  min-width: 0;
 `;
 
 const RecommendationShelfButton = styled.button`
   display: inline-flex;
+  min-width: 0;
   align-items: center;
-  gap: 0.3rem;
   border: none;
   background: transparent;
   padding: 0;
   text-align: left;
+  white-space: nowrap;
   color: rgb(100 116 139);
   transition: color 180ms ease;
 
@@ -156,19 +161,18 @@ const RecommendationShelfButton = styled.button`
 `;
 
 const RecommendationShelfTitle = styled.span`
-  white-space: nowrap;
   font-size: 12px;
   font-weight: 500;
-  line-height: 1.55;
+  line-height: 1.4;
   color: currentColor;
 `;
 
-const RecommendationShelfMeta = styled.span`
-  font-size: 9.5px;
-  font-weight: 600;
+const RecommendationShelfHint = styled.span`
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
   line-height: 1;
-  letter-spacing: 0.01em;
-  color: rgb(5 150 105 / 0.88);
+  color: rgb(148 163 184);
 `;
 
 interface EmptyStateProps extends SkillSelectionSourceProps {
@@ -230,7 +234,91 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   onOpenSettings?: () => void;
 }
 
+type RecommendationShelfItem =
+  | {
+      kind: "service-skill";
+      key: string;
+      title: string;
+      summary: string;
+      badge: string;
+      hint: string;
+      testId: string;
+      onSelect: () => void;
+    }
+  | {
+      kind: "solution";
+      key: string;
+      title: string;
+      summary: string;
+      badge: string;
+      hint: string;
+      testId: string;
+      onSelect: () => void;
+    };
+
 const GENERAL_CATEGORY_LABEL = "通用对话";
+const FEATURED_HOME_SERVICE_SKILL_IDS = [
+  "carousel-post-replication",
+  "short-video-script-replication",
+  "article-to-slide-video-outline",
+  "cloud-video-dubbing",
+  "video-dubbing-language",
+  "daily-trend-briefing",
+  "account-performance-tracking",
+] as const;
+
+function resolveFeaturedSkillExecutionKind(
+  binding: ServiceSkillHomeItem["defaultExecutorBinding"],
+): ServiceSkillHomeItem["executionKind"] {
+  if (binding === "browser_assist") {
+    return "site_adapter";
+  }
+  if (binding === "automation_job") {
+    return "automation_job";
+  }
+  if (binding === "cloud_scene") {
+    return "cloud_scene";
+  }
+  if (binding === "native_skill") {
+    return "native_skill";
+  }
+  return "agent_turn";
+}
+
+function buildSeededFeaturedHomeServiceSkills(): ServiceSkillHomeItem[] {
+  const seededCatalog = getSeededServiceSkillCatalog();
+
+  return FEATURED_HOME_SERVICE_SKILL_IDS.flatMap((skillId) => {
+    const matchedSkill = seededCatalog.items.find((item) => item.id === skillId);
+    if (!matchedSkill) {
+      return [];
+    }
+
+    return [
+      {
+        ...matchedSkill,
+        groupKey: "general",
+        executionKind:
+          matchedSkill.executionLocation === "cloud_required"
+            ? "cloud_scene"
+            : resolveFeaturedSkillExecutionKind(
+                matchedSkill.defaultExecutorBinding,
+              ),
+        badge: matchedSkill.source === "cloud_catalog" ? "云目录" : "本地技能",
+        recentUsedAt: null,
+        isRecent: false,
+        runnerLabel: getServiceSkillRunnerLabel(matchedSkill),
+        runnerTone: getServiceSkillRunnerTone(matchedSkill),
+        runnerDescription: getServiceSkillRunnerDescription(matchedSkill),
+        actionLabel: getServiceSkillActionLabel(matchedSkill),
+        automationStatus: null,
+        cloudStatus: null,
+      },
+    ];
+  });
+}
+
+const SEEDED_FEATURED_HOME_SERVICE_SKILLS = buildSeededFeaturedHomeServiceSkills();
 
 // 需要显示创作模式选择器的主题
 const CREATION_THEMES: string[] = [];
@@ -298,6 +386,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   characters = [],
   skills,
   serviceSkills,
+  serviceSkillGroups,
   isSkillsLoading,
   onSelectServiceSkill,
   onNavigateToSettings,
@@ -315,6 +404,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const skillSelection = buildSkillSelection({
     skills,
     serviceSkills,
+    serviceSkillGroups,
     isSkillsLoading,
     onSelectServiceSkill,
     onNavigateToSettings,
@@ -374,11 +464,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   }, []);
 
   // 使用外部传入的 activeTheme，如果有 onThemeChange 则使用受控模式
-  const handleThemeChange = (theme: string) => {
+  const handleThemeChange = useCallback((theme: string) => {
     if (onThemeChange) {
       onThemeChange(theme === "general" ? theme : "general");
     }
-  };
+  }, [onThemeChange]);
 
   // 判断当前主题是否需要显示创作模式选择器
   const showCreationModeSelector = CREATION_THEMES.includes(activeTheme);
@@ -493,7 +583,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   };
 
   const planEnabled = executionStrategy === "code_orchestrated";
-  const executionModeLabel = planEnabled ? "编排模式已开启" : "直接开工";
+  const executionModeLabel = planEnabled ? "编排模式已开启" : "对话内开工";
 
   const workbenchCopy =
     THEME_WORKBENCH_COPY[activeTheme] || THEME_WORKBENCH_COPY.general;
@@ -505,7 +595,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       : "有什么我可以帮你的？";
   };
 
-  const handleApplyRecommendation = (
+  const handleApplyRecommendation = useCallback((
     shortLabel: string,
     fullPrompt: string,
   ) => {
@@ -526,9 +616,16 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       return;
     }
     setInput(promptWithSelection);
-  };
+  }, [
+    activeTheme,
+    appendSelectedTextToRecommendation,
+    onRecommendationClick,
+    onSubagentEnabledChange,
+    selectedText,
+    setInput,
+  ]);
 
-  const handleApplyEntryRecommendedSolution = (
+  const handleApplyEntryRecommendedSolution = useCallback((
     solution: EntryRecommendedSolutionItem,
   ) => {
     recordEntryRecommendedSolutionUsage(solution.id);
@@ -556,7 +653,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       appendSelectedTextToRecommendation,
     );
     setInput(promptWithSelection);
-  };
+  }, [
+    appendSelectedTextToRecommendation,
+    handleThemeChange,
+    onLaunchBrowserAssist,
+    onSubagentEnabledChange,
+    onWebSearchEnabledChange,
+    selectedText,
+    setInput,
+    subagentEnabled,
+    webSearchEnabled,
+  ]);
 
   const workspaceBadges = useMemo(() => {
     const badges: Array<{
@@ -696,6 +803,68 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     subagentEnabled,
   ]);
 
+  const recommendationShelfItems = useMemo<RecommendationShelfItem[]>(() => {
+    const solutionRecommendations = entryRecommendedSolutions
+      .map((solution) => ({
+        kind: "solution" as const,
+        key: solution.id,
+        title: solution.title,
+        summary: solution.summary,
+        badge: solution.badge,
+        hint: solution.outputHint,
+        testId: `entry-recommended-${solution.id}`,
+        onSelect: () => handleApplyEntryRecommendedSolution(solution),
+      }));
+
+    const featuredServiceSkills = FEATURED_HOME_SERVICE_SKILL_IDS.flatMap(
+      (skillId) => {
+        const runtimeSkill = (serviceSkills ?? []).find(
+          (candidate) => candidate.id === skillId,
+        );
+        if (runtimeSkill) {
+          return [runtimeSkill];
+        }
+
+        const seededSkill = SEEDED_FEATURED_HOME_SERVICE_SKILLS.find(
+          (candidate) => candidate.id === skillId,
+        );
+        return seededSkill ? [seededSkill] : [];
+      },
+    );
+
+    const serviceSkillRecommendations = isGeneralTheme
+      ? featuredServiceSkills.map((skill) => {
+            const requiresSlots = skill.slotSchema.some(
+              (slot) => slot.required,
+            );
+
+            return {
+              kind: "service-skill" as const,
+              key: `service-skill-${skill.id}`,
+              title: skill.title,
+              summary:
+                skill.summary?.trim() || resolveServiceSkillEntryDescription(skill),
+              badge: skill.isRecent ? "最近使用" : skill.badge,
+              hint: requiresSlots
+                ? "对话内补参后开始"
+                : `${skill.actionLabel} · 当前对话继续`,
+              testId: `entry-service-skill-${skill.id}`,
+              onSelect: () => {
+                onSelectServiceSkill?.(skill);
+              },
+            };
+          })
+      : [];
+
+    return [...solutionRecommendations, ...serviceSkillRecommendations];
+  }, [
+    entryRecommendedSolutions,
+    handleApplyEntryRecommendedSolution,
+    isGeneralTheme,
+    onSelectServiceSkill,
+    serviceSkills,
+  ]);
+
   const quickActionItems = useMemo(
     () =>
       currentRecommendations.slice(0, 4).map(([shortLabel, fullPrompt]) => ({
@@ -824,9 +993,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const generalRecommendedSolutionsPanel = (
     <RecommendationShelf>
       <RecommendationShelfHeader>
-        <div className="text-[11px] font-semibold tracking-[0.02em] text-slate-500">
-          推荐方案
-        </div>
+        <RecommendationShelfHeaderBody>
+          <RecommendationShelfHeaderTitle>
+            推荐方案
+          </RecommendationShelfHeaderTitle>
+        </RecommendationShelfHeaderBody>
         {selectedTextPreview ? (
           <span className="truncate text-[10px] text-slate-400">
             当前会带上选中内容
@@ -835,23 +1006,20 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       </RecommendationShelfHeader>
 
       <RecommendationShelfList>
-        {entryRecommendedSolutions.map((solution) => (
-          <RecommendationShelfRow key={solution.id}>
+        {recommendationShelfItems.map((item, index) => (
+          <RecommendationShelfRow key={item.key}>
+            {index > 0 ? (
+              <RecommendationShelfHint aria-hidden="true">|</RecommendationShelfHint>
+            ) : null}
             <RecommendationShelfButton
               type="button"
-              data-testid={`entry-recommended-${solution.id}`}
+              data-testid={item.testId}
+              title={`${item.badge} · ${item.summary}`}
               onClick={() => {
-                handleApplyEntryRecommendedSolution(solution);
+                item.onSelect();
               }}
             >
-              <RecommendationShelfTitle>
-                {solution.title}
-              </RecommendationShelfTitle>
-              {solution.isRecent ? (
-                <RecommendationShelfMeta>
-                  {solution.badge}
-                </RecommendationShelfMeta>
-              ) : null}
+              <RecommendationShelfTitle>{item.title}</RecommendationShelfTitle>
             </RecommendationShelfButton>
           </RecommendationShelfRow>
         ))}

@@ -26,10 +26,10 @@ const mounted: MountedPage[] = [];
 function createAccessState(overrides: Record<string, unknown> = {}) {
   return {
     runtime: {
-      baseUrl: "https://user.150404.xyz",
-      controlPlaneBaseUrl: "https://user.150404.xyz/api",
-      sceneBaseUrl: "https://user.150404.xyz/scene-api",
-      gatewayBaseUrl: "https://user.150404.xyz/gateway-api",
+      baseUrl: "https://user.limeai.run",
+      controlPlaneBaseUrl: "https://user.limeai.run/api",
+      sceneBaseUrl: "https://user.limeai.run/scene-api",
+      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
       tenantId: "tenant-0001",
       sessionToken: null,
       hubProviderName: "Lime Hub",
@@ -39,7 +39,7 @@ function createAccessState(overrides: Record<string, unknown> = {}) {
       desktopOauthNextPath: "/welcome",
     },
     configuredTarget: {
-      baseUrl: "https://user.150404.xyz",
+      baseUrl: "https://user.limeai.run",
       tenantId: "tenant-0001",
     },
     hubProviderName: "Lime Hub",

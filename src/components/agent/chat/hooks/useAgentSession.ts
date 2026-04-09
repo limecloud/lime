@@ -30,7 +30,11 @@ import {
   savePersistedSessionWorkspaceId,
 } from "./agentProjectStorage";
 import { normalizeHistoryMessages } from "./agentChatHistory";
-import { getAgentSessionScopedKeys } from "./agentSessionScopedStorage";
+import {
+  getAgentSessionScopedKeys,
+  loadAgentSessionCachedSnapshot,
+  saveAgentSessionCachedSnapshot,
+} from "./agentSessionScopedStorage";
 import {
   getExecutionStrategyStorageKey,
   loadPersisted,
@@ -357,6 +361,32 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     }
     saveTransient(scopedKeys.currentTurnKey, currentTurnId);
   }, [currentTurnId, scopedKeys, workspaceId]);
+
+  useEffect(() => {
+    const resolvedWorkspaceId = workspaceId?.trim();
+    const resolvedSessionId = sessionId?.trim();
+    if (
+      !resolvedWorkspaceId ||
+      !resolvedSessionId ||
+      sessionStateWorkspaceRef.current !== resolvedWorkspaceId
+    ) {
+      return;
+    }
+
+    saveAgentSessionCachedSnapshot(resolvedWorkspaceId, resolvedSessionId, {
+      messages,
+      threadTurns,
+      threadItems,
+      currentTurnId,
+    });
+  }, [
+    currentTurnId,
+    messages,
+    sessionId,
+    threadItems,
+    threadTurns,
+    workspaceId,
+  ]);
 
   useEffect(() => {
     if (disableSessionRestore || !workspaceId?.trim()) {
@@ -720,6 +750,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         syncSessionId?: boolean;
         executionStrategyOverride?: AsterExecutionStrategy;
         preserveExecutionStrategyOnMissingDetail?: boolean;
+        localSnapshotOverride?: {
+          sessionId: string;
+          messages: Message[];
+          threadTurns: AgentThreadTurn[];
+          threadItems: AgentThreadItem[];
+        } | null;
       },
     ) => {
       const { executionStrategy: nextExecutionStrategy, snapshot } =
@@ -733,6 +769,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           currentExecutionRuntime: executionRuntimeRef.current,
           currentExecutionStrategy: executionStrategy,
           topics,
+          localSnapshotOverride: options?.localSnapshotOverride,
           syncSessionId: options?.syncSessionId,
           executionStrategyOverride: options?.executionStrategyOverride,
           preserveExecutionStrategyOnMissingDetail:
@@ -777,7 +814,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       skipAutoRestoreRef.current = false;
       try {
         const startedAt = Date.now();
+        const cachedTargetSnapshot =
+          currentSessionId && currentSessionId === topicId
+            ? null
+            : loadAgentSessionCachedSnapshot(workspaceId, topicId);
         logAgentDebug("useAgentSession", "switchTopic.start", {
+          cachedLocalMessagesCount: cachedTargetSnapshot?.messages.length ?? 0,
           currentSessionId,
           messagesCount: messages.length,
           topicId,
@@ -832,6 +874,14 @@ export function useAgentSession(options: UseAgentSessionOptions) {
 
         persistSessionRestoreCandidate(topicId);
         applySessionDetail(topicId, detail, {
+          localSnapshotOverride: cachedTargetSnapshot
+            ? {
+                sessionId: topicId,
+                messages: cachedTargetSnapshot.messages,
+                threadTurns: cachedTargetSnapshot.threadTurns,
+                threadItems: cachedTargetSnapshot.threadItems,
+              }
+            : null,
           syncSessionId: true,
           executionStrategyOverride:
             runtimeExecutionStrategy ||

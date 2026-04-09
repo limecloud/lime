@@ -9,6 +9,7 @@ import {
 interface PendingTopicSwitchState {
   topicId: string;
   targetProjectId: string;
+  forceRefresh?: boolean;
 }
 
 interface UseWorkspaceProjectSelectionOptions {
@@ -109,7 +110,13 @@ export function useWorkspaceProjectSelection(
   }, []);
 
   const deferTopicSwitch = useCallback(
-    (topicId: string, targetProjectId: string) => {
+    (
+      topicId: string,
+      targetProjectId: string,
+      options?: {
+        forceRefresh?: boolean;
+      },
+    ) => {
       const normalizedTargetProjectId = normalizeProjectId(targetProjectId);
       if (!normalizedTargetProjectId) {
         pendingTopicSwitchRef.current = null;
@@ -120,6 +127,7 @@ export function useWorkspaceProjectSelection(
       pendingTopicSwitchRef.current = {
         topicId,
         targetProjectId: normalizedTargetProjectId,
+        ...(options?.forceRefresh === true ? { forceRefresh: true } : {}),
       };
       setInternalProjectId(normalizedTargetProjectId);
     },

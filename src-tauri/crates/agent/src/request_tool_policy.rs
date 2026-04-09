@@ -349,6 +349,21 @@ pub struct StreamReplyExecution {
     pub attempts_summary: String,
 }
 
+fn build_empty_final_reply_fallback(
+    diagnostics: &StreamEventDiagnostics,
+    emitted_any: bool,
+) -> Option<String> {
+    if !emitted_any {
+        return None;
+    }
+
+    if diagnostics.tool_start_count > 0 || diagnostics.tool_end_count > 0 {
+        return Some("本轮执行已完成，详细过程与产物已保留在当前对话中。".to_string());
+    }
+
+    Some("本轮执行已结束，过程记录已保留在当前对话中。".to_string())
+}
+
 #[derive(Debug, Default)]
 struct AutoCompactionProjectionState;
 
@@ -1614,6 +1629,23 @@ where
                 emitted_any,
             });
         }
+        if let Some(fallback_text) =
+            build_empty_final_reply_fallback(&diagnostics, emitted_any)
+        {
+            tracing::warn!(
+                "[AsterAgent][ReplyPolicy] empty final text downgraded to synthesized fallback: emitted_any={}, tool_starts={}, tool_ends={}, attempts={}",
+                emitted_any,
+                diagnostics.tool_start_count,
+                diagnostics.tool_end_count,
+                web_search_tracker.format_attempts()
+            );
+            return Ok(StreamReplyExecution {
+                text_output: fallback_text,
+                event_errors,
+                emitted_any,
+                attempts_summary: web_search_tracker.format_attempts(),
+            });
+        }
         return Err(ReplyAttemptError {
             message: format!(
                 "已完成当前回合的工具执行，但模型未输出最终答复。\n尝试记录: {}",
@@ -1830,6 +1862,27 @@ mod tests {
             .expect_err("failed required tool should fail");
         assert!(err.contains("network timeout"));
         assert!(err.contains("尝试记录"));
+    }
+
+    #[test]
+    fn empty_final_reply_with_tool_events_should_use_fallback_text() {
+        let diagnostics = StreamEventDiagnostics {
+            tool_start_count: 1,
+            tool_end_count: 1,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            build_empty_final_reply_fallback(&diagnostics, true).as_deref(),
+            Some("本轮执行已完成，详细过程与产物已保留在当前对话中。")
+        );
+    }
+
+    #[test]
+    fn empty_final_reply_without_any_emission_should_still_error() {
+        let diagnostics = StreamEventDiagnostics::default();
+
+        assert_eq!(build_empty_final_reply_fallback(&diagnostics, false), None);
     }
 
     #[test]

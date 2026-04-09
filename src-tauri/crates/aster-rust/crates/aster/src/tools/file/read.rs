@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use tracing::debug;
 
 use super::{compute_content_hash, FileReadRecord, SharedFileReadHistory};
@@ -843,12 +844,12 @@ impl Tool for ReadTool {
     }
 
     fn description(&self) -> &str {
-        "Enhanced multimodal file reader with intelligent analysis capabilities. \
-         Supports text files (with syntax highlighting and language detection), \
-         images (with metadata and AI analysis hints), PDF files (with document processing), \
+        "Multimodal file reader. \
+         Text files are returned as direct line-numbered content by default, \
+         with an optional enhanced analysis mode when explicitly requested. \
+         Also supports images (with metadata and AI analysis hints), PDF files (with document processing), \
          SVG files (with vector graphics analysis), and Jupyter notebooks (with computational analysis). \
-         Automatically detects file type and provides structured information optimized for AI processing. \
-         Aligned with the current multimodal file understanding surface."
+         Optimized for reliable file reading in agent workflows."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -868,6 +869,11 @@ impl Tool for ReadTool {
                     "type": "integer",
                     "description": "End line number (1-indexed, inclusive, for text files only)",
                     "minimum": 1
+                },
+                "text_output_mode": {
+                    "type": "string",
+                    "enum": ["plain", "enhanced"],
+                    "description": "For text files only. `plain` returns direct line-numbered content and is the default. `enhanced` adds file-analysis headers and hints."
                 }
             },
             "required": ["path"]
@@ -923,11 +929,16 @@ impl Tool for ReadTool {
 
         // Enhanced text file reading with intelligent analysis
         let range = self.extract_line_range(&params);
-        let content = self.read_text_enhanced(path, range, context).await?;
+        let text_output_mode = self.extract_text_output_mode(&params);
+        let content = match text_output_mode {
+            TextOutputMode::Plain => self.read_text(path, range, context).await?,
+            TextOutputMode::Enhanced => self.read_text_enhanced(path, range, context).await?,
+        };
 
         Ok(ToolResult::success(content)
             .with_metadata("file_type", serde_json::json!("text"))
-            .with_metadata("analysis_type", serde_json::json!("enhanced_textual")))
+            .with_metadata("analysis_type", serde_json::json!("textual"))
+            .with_metadata("text_output_mode", json!(text_output_mode.as_str())))
     }
 
     async fn check_permissions(
@@ -974,6 +985,17 @@ impl ReadTool {
             (Some(s), e) => Some(LineRange::new(s, e)),
             (None, Some(e)) => Some(LineRange::new(1, Some(e))),
             (None, None) => None,
+        }
+    }
+
+    fn extract_text_output_mode(&self, params: &serde_json::Value) -> TextOutputMode {
+        match params
+            .get("text_output_mode")
+            .and_then(|value| value.as_str())
+            .unwrap_or("plain")
+        {
+            "enhanced" => TextOutputMode::Enhanced,
+            _ => TextOutputMode::Plain,
         }
     }
 
@@ -1281,6 +1303,21 @@ impl ReadTool {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TextOutputMode {
+    Plain,
+    Enhanced,
+}
+
+impl TextOutputMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Plain => "plain",
+            Self::Enhanced => "enhanced",
+        }
+    }
+}
+
 // =============================================================================
 // Unit Tests
 // =============================================================================
@@ -1499,10 +1536,16 @@ mod tests {
         let result = tool.execute(params, &context).await.unwrap();
 
         assert!(result.is_success());
-        assert!(result.output.unwrap().contains("Hello, World!"));
+        let output = result.output.unwrap();
+        assert!(output.contains("1 | Hello, World!"));
+        assert!(!output.contains("[Enhanced Text Analysis:"));
         assert_eq!(
             result.metadata.get("file_type"),
             Some(&serde_json::json!("text"))
+        );
+        assert_eq!(
+            result.metadata.get("text_output_mode"),
+            Some(&serde_json::json!("plain"))
         );
     }
 
@@ -1533,6 +1576,31 @@ mod tests {
         assert!(output.contains("Line 4"));
         assert!(!output.contains("Line 1"));
         assert!(!output.contains("Line 5"));
+    }
+
+    #[tokio::test]
+    async fn test_tool_execute_text_with_enhanced_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.md");
+        fs::write(&file_path, "# Title\n\nBody").unwrap();
+
+        let tool = create_read_tool();
+        let context = create_test_context(temp_dir.path());
+        let params = serde_json::json!({
+            "path": file_path.to_str().unwrap(),
+            "text_output_mode": "enhanced"
+        });
+
+        let result = tool.execute(params, &context).await.unwrap();
+
+        assert!(result.is_success());
+        let output = result.output.unwrap();
+        assert!(output.contains("[Enhanced Text Analysis:"));
+        assert!(output.contains("File Content:"));
+        assert_eq!(
+            result.metadata.get("text_output_mode"),
+            Some(&serde_json::json!("enhanced"))
+        );
     }
 
     #[tokio::test]

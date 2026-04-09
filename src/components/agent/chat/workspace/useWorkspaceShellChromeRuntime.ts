@@ -9,6 +9,7 @@ interface UseWorkspaceShellChromeRuntimeParams {
   agentEntry?: "new-task" | "claw";
   contextWorkspaceEnabled: boolean;
   hasDisplayMessages: boolean;
+  hasPendingA2UIForm: boolean;
   hideTopBar: boolean;
   isBootstrapDispatchPending: boolean;
   isSpecializedThemeMode: boolean;
@@ -29,6 +30,7 @@ export function useWorkspaceShellChromeRuntime({
   agentEntry,
   contextWorkspaceEnabled,
   hasDisplayMessages,
+  hasPendingA2UIForm,
   hideTopBar,
   isBootstrapDispatchPending,
   isSpecializedThemeMode,
@@ -50,6 +52,7 @@ export function useWorkspaceShellChromeRuntime({
   const showChatLayout =
     agentEntry === "claw" ||
     hasDisplayMessages ||
+    hasPendingA2UIForm ||
     isThemeWorkbench ||
     hasUnconsumedInitialDispatch ||
     isSending ||

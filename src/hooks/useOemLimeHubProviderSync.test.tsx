@@ -68,8 +68,8 @@ describe("useOemLimeHubProviderSync", () => {
     delete window.__LIME_BOOTSTRAP__;
     window.__LIME_OEM_CLOUD__ = {
       enabled: true,
-      baseUrl: "https://user.150404.xyz",
-      gatewayBaseUrl: "https://gateway.150404.xyz/root",
+      baseUrl: "https://user.limeai.run",
+      gatewayBaseUrl: "https://gateway-api.limeai.run/root",
       tenantId: "tenant-0001",
       hubProviderName: "Acme Hub",
     };
@@ -159,7 +159,7 @@ describe("useOemLimeHubProviderSync", () => {
       "lime-hub",
       {
         name: "Acme Hub",
-        api_host: "https://gateway.150404.xyz/root",
+        api_host: "https://gateway-api.limeai.run/root",
         type: "openai",
         enabled: true,
         sort_order: 0,
@@ -192,7 +192,7 @@ describe("useOemLimeHubProviderSync", () => {
       {
         id: "lime-hub",
         name: "Acme Hub",
-        api_host: "https://gateway.150404.xyz/root",
+        api_host: "https://gateway-api.limeai.run/root",
         type: "openai",
         enabled: true,
         sort_order: 0,

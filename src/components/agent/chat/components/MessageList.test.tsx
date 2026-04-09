@@ -1067,6 +1067,84 @@ describe("MessageList", () => {
     );
   });
 
+  it("内联高层工具过程不应吞掉不同工具名的底层执行轨迹", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-service-tool",
+        role: "assistant",
+        content: "文章已经保存到项目。",
+        timestamp: now,
+        contentParts: [
+          {
+            type: "tool_use",
+            toolCall: {
+              id: "tool-service-1",
+              name: "lime_run_service_skill",
+              arguments: JSON.stringify({ skill_id: "x_article_export" }),
+              status: "completed",
+              result: { success: true, output: "saved" },
+              startTime: now,
+              endTime: now,
+            },
+          },
+          {
+            type: "text",
+            text: "文章已经保存到项目。",
+          },
+        ],
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-service-tool",
+      turns: [
+        {
+          id: "turn-service-tool",
+          thread_id: "thread-1",
+          prompt_text: "继续保存文章",
+          status: "completed",
+          started_at: "2026-04-09T12:00:00Z",
+          completed_at: "2026-04-09T12:00:05Z",
+          created_at: "2026-04-09T12:00:00Z",
+          updated_at: "2026-04-09T12:00:05Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "item-read-1",
+          thread_id: "thread-1",
+          turn_id: "turn-service-tool",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-04-09T12:00:01Z",
+          completed_at: "2026-04-09T12:00:02Z",
+          updated_at: "2026-04-09T12:00:02Z",
+          type: "tool_call",
+          tool_name: "Read",
+          arguments: { file_path: "article.md" },
+        },
+        {
+          id: "item-write-1",
+          thread_id: "thread-1",
+          turn_id: "turn-service-tool",
+          sequence: 2,
+          status: "completed",
+          started_at: "2026-04-09T12:00:03Z",
+          completed_at: "2026-04-09T12:00:04Z",
+          updated_at: "2026-04-09T12:00:04Z",
+          type: "tool_call",
+          tool_name: "Write",
+          arguments: { file_path: "article.md" },
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).not.toBeNull();
+  });
+
   it("正文已承载过程流时，未被正文承载的计划信息仍应保留在消息前序", () => {
     const now = new Date();
     const messages: Message[] = [

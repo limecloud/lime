@@ -11,12 +11,14 @@ vi.mock("react-syntax-highlighter", () => ({
     children,
     language,
     className,
+    style,
     customStyle,
     codeTagProps,
   }: {
     children: React.ReactNode;
     language?: string;
     className?: string;
+    style?: Record<string, unknown>;
     customStyle?: React.CSSProperties;
     codeTagProps?: {
       style?: React.CSSProperties;
@@ -26,6 +28,7 @@ vi.mock("react-syntax-highlighter", () => ({
       data-testid="syntax-highlighter"
       data-language={language}
       className={className}
+      data-theme={(style as { __theme?: string } | undefined)?.__theme}
       data-font-family={customStyle?.fontFamily}
       data-text-shadow={customStyle?.textShadow}
       data-font-ligatures={String(codeTagProps?.style?.fontVariantLigatures)}
@@ -47,7 +50,8 @@ vi.mock("react-syntax-highlighter", () => ({
 }));
 
 vi.mock("react-syntax-highlighter/dist/esm/styles/prism", () => ({
-  oneDark: {},
+  oneDark: { __theme: "dark" },
+  oneLight: { __theme: "light" },
 }));
 
 vi.mock("./ArtifactPlaceholder", () => ({
@@ -478,6 +482,24 @@ describe("MarkdownRenderer", () => {
     expect(syntaxHighlighter?.getAttribute("data-font-ligatures")).toBe("none");
     expect(syntaxHighlighter?.getAttribute("data-font-family")).toContain(
       "ui-monospace",
+    );
+  });
+
+  it("代码块应改用浅色主题与浅底容器，避免整片黑底压过正文", () => {
+    const content = ["```typescript", "const answer = 42;", "```"].join("\n");
+
+    const container = render(content);
+    const syntaxHighlighter = container.querySelector(
+      '[data-testid="syntax-highlighter"]',
+    );
+    const codeBlock = container.querySelector(
+      '[data-testid="markdown-syntax-code-block"]',
+    );
+
+    expect(syntaxHighlighter?.getAttribute("data-theme")).toBe("light");
+    expect(codeBlock).not.toBeNull();
+    expect(getComputedStyle(codeBlock as HTMLElement).backgroundColor).toBe(
+      "rgb(248, 250, 252)",
     );
   });
 

@@ -18,6 +18,24 @@ use crate::agents::ExtensionManager;
 
 const TOOL_SEARCH_TOOL_NAME: &str = "ToolSearch";
 const TOOL_SURFACE_UPDATED_KEY: &str = "tool_surface_updated";
+const BUILTIN_VISIBLE_NATIVE_TOOLS: &[(&str, &str)] = &[
+    ("Read", "Read file contents with line-aware output."),
+    ("Write", "Create or overwrite files."),
+    ("Edit", "Apply targeted edits to existing files."),
+    ("Glob", "Find files by path pattern."),
+    ("Grep", "Search file contents by pattern."),
+    ("Bash", "Run shell commands in the workspace."),
+    ("WebFetch", "Fetch and read a specific URL."),
+    ("WebSearch", "Search the web for current information."),
+    (
+        "StructuredOutput",
+        "Return the final JSON answer for the current turn without re-searching tools.",
+    ),
+    (
+        "AskUserQuestion",
+        "Ask the user for clarification or missing information.",
+    ),
+];
 
 #[derive(Debug, Clone, Deserialize)]
 struct ToolSearchInput {
@@ -31,6 +49,8 @@ struct ToolSearchOutput {
     matches: Vec<String>,
     query: String,
     total_deferred_tools: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    notes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +115,7 @@ async fn collect_tool_search_state(
         .into_iter()
         .map(|tool| tool.name.to_string())
         .collect::<HashSet<_>>();
+    let mut visible_names = visible_names;
 
     let mut all_searchable = Vec::with_capacity(all_tools.len());
     let mut deferred_searchable = Vec::new();
@@ -112,11 +133,32 @@ async fn collect_tool_search_state(
         all_searchable.push(searchable);
     }
 
+    append_builtin_visible_native_tools(&mut all_searchable, &mut visible_names);
+
     Ok(ToolSearchState {
         all_tools: all_searchable,
         deferred_tools: deferred_searchable,
         visible_names,
     })
+}
+
+fn append_builtin_visible_native_tools(
+    all_tools: &mut Vec<SearchableTool>,
+    visible_names: &mut HashSet<String>,
+) {
+    for (name, description) in BUILTIN_VISIBLE_NATIVE_TOOLS {
+        visible_names.insert((*name).to_string());
+        if all_tools
+            .iter()
+            .any(|tool| tool.name.eq_ignore_ascii_case(name))
+        {
+            continue;
+        }
+        all_tools.push(SearchableTool {
+            name: (*name).to_string(),
+            description: (*description).to_string(),
+        });
+    }
 }
 
 fn parse_select_query(query: &str) -> Option<Vec<String>> {
@@ -147,16 +189,24 @@ fn resolve_selected_tools(
     for requested_name in requested {
         let maybe_match = deferred_tools
             .iter()
-            .find(|tool| tool.name.eq_ignore_ascii_case(requested_name))
+            .filter_map(|tool| {
+                select_match_rank(&tool.name, requested_name).map(|rank| (rank, &tool.name))
+            })
+            .max_by(|left, right| left.0.cmp(&right.0).then_with(|| right.1.cmp(left.1)))
+            .map(|(_, name)| name)
             .or_else(|| {
                 all_tools
                     .iter()
-                    .find(|tool| tool.name.eq_ignore_ascii_case(requested_name))
+                    .filter_map(|tool| {
+                        select_match_rank(&tool.name, requested_name).map(|rank| (rank, &tool.name))
+                    })
+                    .max_by(|left, right| left.0.cmp(&right.0).then_with(|| right.1.cmp(left.1)))
+                    .map(|(_, name)| name)
             });
 
         if let Some(tool) = maybe_match {
-            if !found.iter().any(|existing| existing == &tool.name) {
-                found.push(tool.name.clone());
+            if !found.iter().any(|existing| existing == tool) {
+                found.push(tool.clone());
             }
         }
     }
@@ -170,6 +220,69 @@ fn tool_search_lookup_key(value: &str) -> String {
         .filter(|character| character.is_ascii_alphanumeric())
         .map(|character| character.to_ascii_lowercase())
         .collect()
+}
+
+fn native_tool_search_aliases(name: &str) -> &'static [&'static str] {
+    match tool_search_lookup_key(name).as_str() {
+        "read" | "readtool" => &[
+            "read_file",
+            "read file",
+            "open file",
+            "workspace file",
+            "project file",
+        ],
+        "write" | "writetool" => &[
+            "write_file",
+            "write file",
+            "create_file",
+            "create file",
+            "save file",
+            "workspace file",
+            "project file",
+        ],
+        "edit" | "edittool" => &[
+            "edit_file",
+            "edit file",
+            "modify file",
+            "patch file",
+            "workspace file",
+            "project file",
+        ],
+        "glob" | "globtool" => &[
+            "find_files",
+            "find files",
+            "file_search",
+            "list files",
+            "path search",
+        ],
+        "grep" | "greptool" => &[
+            "search_files",
+            "search files",
+            "search in files",
+            "content search",
+            "text search",
+        ],
+        "bash" | "bashtool" => &[
+            "system",
+            "shell",
+            "terminal",
+            "run command",
+            "command execution",
+        ],
+        "webfetch" | "webfetchtool" => &["fetch url", "fetch page", "read url", "web reader"],
+        "websearch" | "websearchtool" => &["search web", "internet search", "web search"],
+        "structuredoutput" | "syntheticoutputtool" => &[
+            "structured output",
+            "final output",
+            "final output tool",
+            "final response",
+        ],
+        "askuserquestion" | "askuserquestiontool" => {
+            &["request_user_input", "ask user", "user input"]
+        }
+        "toolsearch" | "toolsearchtool" => &["tool lookup", "search tools", "find tool"],
+        _ => &[],
+    }
 }
 
 fn parse_tool_name(name: &str) -> ParsedToolName {
@@ -269,9 +382,83 @@ fn tool_search_exact_match(name: &str, query: &str) -> bool {
     }
 
     let parsed = parse_tool_name(name);
-    parsed.inner_name.as_deref().is_some_and(|inner_name| {
+    if parsed.inner_name.as_deref().is_some_and(|inner_name| {
         inner_name == query_lower || tool_search_lookup_key(inner_name) == query_key
+    }) {
+        return true;
+    }
+
+    let query_parts = split_identifier_parts(&query_lower);
+    if parsed.inner_name.as_deref().is_some_and(|inner_name| {
+        let inner_parts = split_identifier_parts(inner_name);
+        inner_parts.len() >= 2
+            && (suffix_identifier_match(&inner_parts, &query_parts)
+                || suffix_identifier_match(&query_parts, &inner_parts))
+    }) {
+        return true;
+    }
+
+    native_tool_search_aliases(name).iter().any(|alias| {
+        alias.eq_ignore_ascii_case(&query_lower)
+            || (!query_key.is_empty() && tool_search_lookup_key(alias) == query_key)
     })
+}
+
+fn suffix_identifier_match(parts: &[String], suffix: &[String]) -> bool {
+    !suffix.is_empty()
+        && suffix.len() <= parts.len()
+        && parts[(parts.len() - suffix.len())..]
+            .iter()
+            .zip(suffix.iter())
+            .all(|(left, right)| left == right)
+}
+
+fn select_match_rank(name: &str, query: &str) -> Option<i32> {
+    let query_lower = query.trim().to_ascii_lowercase();
+    if query_lower.is_empty() {
+        return None;
+    }
+
+    if name.eq_ignore_ascii_case(&query_lower) {
+        return Some(500);
+    }
+
+    let query_key = tool_search_lookup_key(&query_lower);
+    if !query_key.is_empty() && tool_search_lookup_key(name) == query_key {
+        return Some(450);
+    }
+
+    let parsed = parse_tool_name(name);
+    if let Some(inner_name) = parsed.inner_name.as_deref() {
+        if inner_name == query_lower {
+            return Some(420);
+        }
+        if !query_key.is_empty() && tool_search_lookup_key(inner_name) == query_key {
+            return Some(400);
+        }
+
+        let query_parts = split_identifier_parts(&query_lower);
+        let inner_parts = split_identifier_parts(inner_name);
+        let looks_like_identifier =
+            query_lower.contains('_') || query_lower.contains('-') || query_lower.contains(' ');
+        if looks_like_identifier
+            && inner_parts.len() >= 2
+            && query_parts.len() >= 2
+            && (suffix_identifier_match(&inner_parts, &query_parts)
+                || suffix_identifier_match(&query_parts, &inner_parts))
+        {
+            return Some(360);
+        }
+    }
+
+    if native_tool_search_aliases(name).iter().any(|alias| {
+        alias.eq_ignore_ascii_case(&query_lower)
+            || (!query_key.is_empty() && tool_search_lookup_key(alias) == query_key)
+    }) {
+        return Some(350);
+    }
+
+    None
 }
 
 fn score_searchable_tool(
@@ -343,37 +530,54 @@ fn score_query_match(
         }
     }
 
-    let query_terms = query_lower
+    let raw_query_terms = query_lower
         .split_whitespace()
         .filter(|term| !term.is_empty())
         .collect::<Vec<_>>();
-    if query_terms.is_empty() {
+    if raw_query_terms.is_empty() {
         return Vec::new();
     }
 
     let mut required_terms = Vec::new();
     let mut optional_terms = Vec::new();
-    for term in &query_terms {
-        if let Some(required_term) = term.strip_prefix('+') {
-            if !required_term.is_empty() {
-                required_terms.push(required_term);
-                continue;
-            }
+    for term in &raw_query_terms {
+        let (required, normalized_term) = if let Some(required_term) = term.strip_prefix('+') {
+            (true, required_term)
+        } else {
+            (false, *term)
+        };
+        if normalized_term.is_empty() {
+            continue;
         }
 
-        optional_terms.push(*term);
+        let split_terms = split_identifier_parts(normalized_term);
+        let target = if required {
+            &mut required_terms
+        } else {
+            &mut optional_terms
+        };
+        if split_terms.is_empty() {
+            target.push(normalized_term.to_string());
+        } else {
+            target.extend(split_terms);
+        }
+    }
+
+    if required_terms.is_empty() && optional_terms.is_empty() {
+        return Vec::new();
     }
 
     let scoring_terms = if required_terms.is_empty() {
-        query_terms.clone()
+        optional_terms.clone()
     } else {
         required_terms
             .iter()
-            .copied()
-            .chain(optional_terms.iter().copied())
+            .cloned()
+            .chain(optional_terms.iter().cloned())
             .collect::<Vec<_>>()
     };
-    let term_patterns = compile_term_patterns(&scoring_terms);
+    let scoring_term_refs = scoring_terms.iter().map(String::as_str).collect::<Vec<_>>();
+    let term_patterns = compile_term_patterns(&scoring_term_refs);
 
     let mut scored = Vec::new();
     for tool in deferred_tools {
@@ -381,7 +585,7 @@ fn score_query_match(
         let lower_description = tool.description.to_lowercase();
 
         let required_matches = required_terms.iter().all(|term| {
-            let Some(pattern) = term_patterns.get(*term) else {
+            let Some(pattern) = term_patterns.get(term.as_str()) else {
                 return false;
             };
             parsed
@@ -395,7 +599,7 @@ fn score_query_match(
             continue;
         }
 
-        let score = score_searchable_tool(tool, &scoring_terms, &term_patterns);
+        let score = score_searchable_tool(tool, &scoring_term_refs, &term_patterns);
 
         if score == 0 {
             continue;
@@ -414,6 +618,29 @@ fn pretty_json<T: Serialize>(value: &T) -> Result<String, ToolError> {
     })
 }
 
+fn build_tool_search_notes(query: &str, matches: &[String]) -> Vec<String> {
+    if !matches.is_empty() {
+        return Vec::new();
+    }
+
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+
+    let mut notes = Vec::new();
+    if parse_select_query(trimmed).is_some() {
+        notes.push(
+            "未命中任何工具。不要继续用同义词反复重试；优先直接调用当前已可见的原生工具，如 Read / Write / Edit / Glob / Grep / Bash / WebFetch / WebSearch / StructuredOutput。".to_string(),
+        );
+    } else {
+        notes.push(
+            "未命中任何 deferred 工具。若你需要文件、命令、网页或最终答复能力，请直接调用当前已可见的 Read / Write / Edit / Glob / Grep / Bash / WebFetch / WebSearch / StructuredOutput，而不是继续用 ToolSearch 改写同义词。".to_string(),
+        );
+    }
+    notes
+}
+
 fn build_tool_search_result(
     output: &ToolSearchOutput,
     tool_surface_updated: bool,
@@ -423,6 +650,7 @@ fn build_tool_search_result(
         .with_metadata("matches", json!(&output.matches))
         .with_metadata("query", json!(&output.query))
         .with_metadata("total_deferred_tools", json!(output.total_deferred_tools))
+        .with_metadata("notes", json!(&output.notes))
         .with_metadata(TOOL_SURFACE_UPDATED_KEY, json!(tool_surface_updated)))
 }
 
@@ -433,7 +661,7 @@ impl Tool for ToolSearchTool {
     }
 
     fn description(&self) -> &str {
-        "Searches deferred tools by keyword or select:<tool_a,tool_b> so their schemas can be loaded into the active tool surface."
+        "Fetches full schema definitions for deferred extension/MCP tools so they can be called. Use select:<tool_name> for direct selection, or keywords like \"browser click\" / \"+playwright click\". Do not use ToolSearch for already-visible native tools such as Read, Write, Edit, Glob, Grep, or StructuredOutput."
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -442,7 +670,7 @@ impl Tool for ToolSearchTool {
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Query to find deferred tools. Use select:<tool_name> for direct selection, or keywords to search."
+                    "description": "Query to find deferred extension/MCP tools. Use select:<tool_name>[,<tool_name>] for direct selection, or keywords like browser click / +playwright click. Do not use this for already-visible native tools such as Read/Write/Edit/Glob/Grep/StructuredOutput."
                 },
                 "max_results": {
                     "type": "number",
@@ -482,9 +710,20 @@ impl Tool for ToolSearchTool {
             let mut tool_surface_updated = false;
             let mut total_deferred_tools = state_before.deferred_tools.len();
 
-            if !matches.is_empty() {
+            let deferred_match_names = matches
+                .iter()
+                .filter(|name| {
+                    state_before
+                        .deferred_tools
+                        .iter()
+                        .any(|tool| tool.name.eq_ignore_ascii_case(name))
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+
+            if !deferred_match_names.is_empty() {
                 extension_manager
-                    .load_deferred_tools(&matches)
+                    .load_deferred_tools(&deferred_match_names)
                     .await
                     .map_err(map_extension_error)?;
 
@@ -495,6 +734,7 @@ impl Tool for ToolSearchTool {
 
             return build_tool_search_result(
                 &ToolSearchOutput {
+                    notes: build_tool_search_notes(query, &matches),
                     matches,
                     query: query.to_string(),
                     total_deferred_tools,
@@ -511,6 +751,7 @@ impl Tool for ToolSearchTool {
 
         build_tool_search_result(
             &ToolSearchOutput {
+                notes: build_tool_search_notes(query, &matches),
                 matches,
                 query: query.to_string(),
                 total_deferred_tools: state_before.deferred_tools.len(),
@@ -569,6 +810,62 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_selected_tools_matches_inner_prefixed_tool_name() {
+        let deferred = vec![searchable(
+            "mcp__lime-browser__browser_file_upload",
+            "upload a file through the browser",
+        )];
+        let all = deferred.clone();
+
+        let matches = resolve_selected_tools(&["browser_file_upload".to_string()], &deferred, &all);
+
+        assert_eq!(
+            matches,
+            vec!["mcp__lime-browser__browser_file_upload".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_resolve_selected_tools_matches_native_alias_for_visible_tool() {
+        let deferred = Vec::new();
+        let all = vec![searchable("Read", "read a file")];
+
+        let matches = resolve_selected_tools(&["read_file".to_string()], &deferred, &all);
+
+        assert_eq!(matches, vec!["Read".to_string()]);
+    }
+
+    #[test]
+    fn test_resolve_selected_tools_matches_system_alias_for_bash() {
+        let deferred = Vec::new();
+        let all = vec![searchable("Bash", "run shell commands")];
+
+        let matches = resolve_selected_tools(&["system".to_string()], &deferred, &all);
+
+        assert_eq!(matches, vec!["Bash".to_string()]);
+    }
+
+    #[test]
+    fn test_resolve_selected_tools_normalizes_server_prefix_variants() {
+        let deferred = vec![searchable(
+            "mcp__lime-browser__browser_file_upload",
+            "upload a file through the browser",
+        )];
+        let all = deferred.clone();
+
+        let matches = resolve_selected_tools(
+            &["mcp__lime_browser__browser_file_upload".to_string()],
+            &deferred,
+            &all,
+        );
+
+        assert_eq!(
+            matches,
+            vec!["mcp__lime-browser__browser_file_upload".to_string()]
+        );
+    }
+
+    #[test]
     fn test_score_query_match_prefers_deferred_tool_keyword_hits() {
         let deferred = vec![
             searchable("slack__send_message", "send a Slack message"),
@@ -614,6 +911,22 @@ mod tests {
     }
 
     #[test]
+    fn test_score_query_match_splits_identifier_queries() {
+        let deferred = vec![searchable(
+            "mcp__lime-browser__workspace_read_file",
+            "read a file from the browser workspace",
+        )];
+        let all = deferred.clone();
+
+        let matches = score_query_match("read_file", &deferred, &all);
+
+        assert_eq!(
+            matches,
+            vec!["mcp__lime-browser__workspace_read_file".to_string()]
+        );
+    }
+
+    #[test]
     fn test_score_query_match_supports_prefixed_tool_prefix_queries() {
         let deferred = vec![
             searchable("mcp__playwright__browser_click", "click browser element"),
@@ -639,6 +952,24 @@ mod tests {
             "browser_click"
         ));
         assert!(tool_search_exact_match("BrowserClick", "browser_click"));
+        assert!(tool_search_exact_match("Read", "read_file"));
+        assert!(tool_search_exact_match("Bash", "system"));
+    }
+
+    #[test]
+    fn test_tool_search_exact_match_does_not_match_generic_tool_suffix() {
+        assert!(!tool_search_exact_match("alpha__tool", "beta__tool"));
+    }
+
+    #[test]
+    fn test_select_match_rank_supports_server_prefixed_identifier_variant() {
+        assert_eq!(
+            select_match_rank(
+                "mcp__playwright__browser_file_upload",
+                "playwright_browser_file_upload"
+            ),
+            Some(360)
+        );
     }
 
     #[test]
@@ -660,6 +991,7 @@ mod tests {
             matches: vec!["alpha__tool".to_string()],
             query: "select:alpha__tool".to_string(),
             total_deferred_tools: 3,
+            notes: Vec::new(),
         };
 
         let result = build_tool_search_result(&output, true).unwrap();
@@ -668,5 +1000,49 @@ mod tests {
             result.metadata.get(TOOL_SURFACE_UPDATED_KEY),
             Some(&json!(true))
         );
+    }
+
+    #[test]
+    fn test_build_tool_search_notes_warns_against_retry_loops() {
+        let notes = build_tool_search_notes("select:unknown_tool", &[]);
+
+        assert_eq!(notes.len(), 1);
+        assert!(notes[0].contains("不要继续用同义词反复重试"));
+    }
+
+    #[test]
+    fn test_append_builtin_visible_native_tools_adds_core_native_tools_once() {
+        let mut all_tools = vec![searchable("Read", "existing read tool")];
+        let mut visible_names = HashSet::new();
+
+        append_builtin_visible_native_tools(&mut all_tools, &mut visible_names);
+
+        assert!(visible_names.contains("Read"));
+        assert!(visible_names.contains("Write"));
+        assert!(visible_names.contains("StructuredOutput"));
+        assert_eq!(
+            all_tools
+                .iter()
+                .filter(|tool| tool.name.eq_ignore_ascii_case("Read"))
+                .count(),
+            1
+        );
+        assert!(all_tools
+            .iter()
+            .any(|tool| tool.name.eq_ignore_ascii_case("Write")));
+        assert!(all_tools
+            .iter()
+            .any(|tool| tool.name.eq_ignore_ascii_case("StructuredOutput")));
+    }
+
+    #[test]
+    fn test_score_query_match_can_resolve_structured_output_alias() {
+        let matches = score_query_match(
+            "final output tool",
+            &[],
+            &[searchable("StructuredOutput", "return the final JSON answer")],
+        );
+
+        assert_eq!(matches, vec!["StructuredOutput".to_string()]);
     }
 }

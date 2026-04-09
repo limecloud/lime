@@ -105,7 +105,7 @@ export function buildGeneralAgentSystemPrompt(
         "- 网页任务的第一步应先建立或复用 Browser Assist 浏览器会话，并尽量显式带上当前 profile_key。",
         "- 新闻、最新动态、热点盘点等规则，只有在用户没有提供明确 URL 时才优先走 WebSearch；一旦给了 URL，先打开页面，再决定是否补充检索。",
         "- 不要改用 Playwright code、browser_run_code、browser_navigate 或其他通用 Playwright 浏览器工具，否则 Lime 无法继续复用浏览器工作台里的实时会话。",
-        "- 如果当前回合的 request metadata / harness 里带有 service_skill_launch，说明这是技能弹窗交给 Claw 执行的站点任务。此时应优先调用 lime_site_run，而不是停留在普通文本回答。",
+        "- 如果当前回合的 request metadata / harness 里带有 service_skill_launch，说明这是服务技能入口经由对话内 A2UI 补参后交给 Claw 执行的站点任务。此时应优先调用 lime_site_run，而不是停留在普通文本回答。",
         "- 兼容旧链路时，用户消息里也可能仍出现 [站点技能启动上下文]；它和 service_skill_launch 属于同一类站点技能启动信号。",
         "- 站点技能 metadata 里如果已经给出 adapter_name、args、profile_key、target_id，执行 lime_site_run 时应显式透传这些值。",
         "- 一旦命中站点技能启动，不要直接调用 mcp__lime-browser__browser_navigate、mcp__lime-browser__read_page、browser_navigate、browser_run_code 或其他 mcp__lime-browser__* / browser_* 底层浏览器工具；这些只允许在 lime_site_run 完成后再决定是否补充使用。",

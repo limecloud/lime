@@ -12,6 +12,7 @@
 它是 **站点适配器能力的工程标准文档**，不是某个外部项目的引入说明书。
 
 如果讨论的是 Skills 总模型、`skill / adapter / runtime binding` 总边界，先读 [skill-standard.md](skill-standard.md)，再回到本文。
+如果讨论的是网页登录态访问、长文导出、Markdown 落盘、图片下载这类浏览器场景编排，再补读 [web-browser-scene-skill.md](web-browser-scene-skill.md)。
 
 ## 第一原则
 

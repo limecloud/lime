@@ -153,6 +153,12 @@ export type PendingA2UISource =
       gateKey: string;
       sceneKey: string;
       messageId?: undefined;
+    }
+  | {
+      kind: "service_skill";
+      skillId: string;
+      requestKey: string;
+      messageId?: undefined;
     };
 
 // ============ 权限确认相关类型 ============

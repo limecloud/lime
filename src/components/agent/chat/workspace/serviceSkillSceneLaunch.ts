@@ -13,6 +13,7 @@ import {
   buildServiceSkillClawLaunchContext,
   buildServiceSkillClawLaunchRequestMetadata,
   isServiceSkillSiteCapabilityBound,
+  resolveServiceSkillSiteCapabilityExecution,
   type ServiceSkillClawLaunchContext,
 } from "../service-skills/siteCapabilityBinding";
 import type { ServiceSkillSlotValues } from "../service-skills/types";
@@ -295,6 +296,7 @@ function buildServiceSceneLaunchRequestContext(params: {
 function buildSiteSceneLaunchRequestContext(params: {
   skill: ServiceSkillItem;
   slotValues: ServiceSkillSlotValues;
+  resolvedAdapterName: string;
   projectId?: string;
   contentId?: string | null;
   launchReadiness?: Awaited<
@@ -312,6 +314,7 @@ function buildSiteSceneLaunchRequestContext(params: {
   const saveMode = skill.siteCapabilityBinding.saveMode ?? "project_resource";
 
   return buildServiceSkillClawLaunchContext(skill, slotValues, {
+    adapterName: params.resolvedAdapterName,
     projectId,
     contentId: saveMode === "current_content" ? contentId : undefined,
     launchReadiness,
@@ -319,15 +322,11 @@ function buildSiteSceneLaunchRequestContext(params: {
 }
 
 async function resolveSiteSceneLaunchReadiness(
-  skill: ServiceSkillItem,
+  adapterName: string,
 ): Promise<Awaited<ReturnType<typeof siteGetAdapterLaunchReadiness>> | null> {
-  if (!isServiceSkillSiteCapabilityBound(skill)) {
-    return null;
-  }
-
   try {
     return await siteGetAdapterLaunchReadiness({
-      adapter_name: skill.siteCapabilityBinding.adapterName,
+      adapter_name: adapterName,
     });
   } catch {
     return null;
@@ -432,13 +431,27 @@ export async function resolveRuntimeSceneLaunchRequest(params: {
         { gateRequest },
       );
     }
+    let resolvedCapability;
+    try {
+      resolvedCapability = await resolveServiceSkillSiteCapabilityExecution(
+        matchedSkill,
+        slotResolution.resolvedSlotValues,
+      );
+    } catch (error) {
+      throw new RuntimeSceneLaunchValidationError(
+        error instanceof Error ? error.message : "当前站点技能暂时无法解析。",
+      );
+    }
 
     requestContext = buildSiteSceneLaunchRequestContext({
       skill: matchedSkill,
       slotValues: slotResolution.resolvedSlotValues,
+      resolvedAdapterName: resolvedCapability.adapterName,
       projectId: projectResolution.projectId,
       contentId: params.contentId,
-      launchReadiness: await resolveSiteSceneLaunchReadiness(matchedSkill),
+      launchReadiness: await resolveSiteSceneLaunchReadiness(
+        resolvedCapability.adapterName,
+      ),
     });
   } else {
     requestContext = buildServiceSceneLaunchRequestContext({

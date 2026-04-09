@@ -16,7 +16,9 @@ pub const TOOL_GUIDELINES: &str = r#"# Tool usage policy
 - Use specialized tools instead of bash commands when possible, as this provides a better user experience.
 - NEVER use bash echo or other command-line tools to communicate thoughts, explanations, or instructions to the user.
 - Use TaskCreate, TaskList, TaskGet, and TaskUpdate to track progress on multi-step work.
-- Use ToolSearch to discover deferred extension tools, and use `select:<tool_name>` when you need to load a specific deferred tool into the active tool surface.
+- Use ToolSearch only for deferred extension/MCP tools, and use exact names such as `select:Read,Edit,Grep` or `select:mcp__playwright__browser_click` when you need to load or confirm a tool. Do not use ToolSearch for already-visible native tools like Read, Write, Edit, Glob, Grep, Bash, WebFetch, or WebSearch.
+- Do not search for native tools via aliases like `read_file`, `write_file`, `edit_file`, or `system`; call the actual tool names directly.
+- If ToolSearch returns no matches, do not keep retrying with synonyms. Either call the already-visible native tools directly or explain that the deferred capability is unavailable.
 - Use Config when the user asks to inspect or update supported runtime settings such as model selection or permission mode.
 - Use Sleep instead of `Bash(sleep ...)` when you intentionally need to wait.
 - Only use host-injected delegation tools when the tool schema explicitly exposes them."#;

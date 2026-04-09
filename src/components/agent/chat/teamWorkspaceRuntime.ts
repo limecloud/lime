@@ -13,6 +13,7 @@ import {
   resolveTeamWorkspaceDisplayMemberStatusLabel,
   resolveTeamWorkspaceDisplayRuntimeStatusLabel,
 } from "./utils/teamWorkspaceCopy";
+import { resolveToolDisplayLabel } from "./utils/toolDisplayInfo";
 
 export type TeamWorkspaceRuntimeStatus =
   AsterSubagentSessionInfo["runtime_status"];
@@ -329,13 +330,17 @@ function resolveItemActivityDescriptor(item: AgentThreadItem): {
         title: "计划",
         detail: normalizeActivityText(item.text),
       };
-    case "tool_call":
+    case "tool_call": {
+      const displayToolName = item.tool_name
+        ? resolveToolDisplayLabel(item.tool_name)
+        : null;
       return {
-        title: item.tool_name ? `工具 ${item.tool_name}` : "工具输出",
+        title: displayToolName ? `工具 ${displayToolName}` : "工具输出",
         detail:
           normalizeActivityText(item.error || item.output) ||
-          normalizeActivityText(item.tool_name),
+          normalizeActivityText(displayToolName || item.tool_name),
       };
+    }
     case "command_execution":
       return {
         title: item.error || item.aggregated_output ? "命令输出" : "命令",

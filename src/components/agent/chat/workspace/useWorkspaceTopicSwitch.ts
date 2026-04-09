@@ -12,15 +12,27 @@ import { resolveTopicSwitchProject } from "../utils/topicProjectSwitch";
 interface PendingTopicSwitchState {
   topicId: string;
   targetProjectId: string;
+  forceRefresh?: boolean;
+}
+
+interface TopicSwitchOptions {
+  forceRefresh?: boolean;
 }
 
 interface UseWorkspaceTopicSwitchParams {
   projectId?: string;
   externalProjectId?: string | null;
-  originalSwitchTopic: (topicId: string) => Promise<unknown>;
+  originalSwitchTopic: (
+    topicId: string,
+    options?: TopicSwitchOptions,
+  ) => Promise<unknown>;
   startTopicProjectResolution: () => boolean;
   finishTopicProjectResolution: () => void;
-  deferTopicSwitch: (topicId: string, targetProjectId: string) => void;
+  deferTopicSwitch: (
+    topicId: string,
+    targetProjectId: string,
+    options?: TopicSwitchOptions,
+  ) => void;
   consumePendingTopicSwitch: (
     currentProjectId?: string | null,
   ) => PendingTopicSwitchState | null;
@@ -44,17 +56,25 @@ export function useWorkspaceTopicSwitch({
   resetTopicLocalState,
 }: UseWorkspaceTopicSwitchParams) {
   const runTopicSwitch = useCallback(
-    async (topicId: string) => {
+    async (topicId: string, options?: TopicSwitchOptions) => {
+      const forwardedOptions =
+        options?.forceRefresh === true ? { forceRefresh: true } : undefined;
       const startedAt = Date.now();
       logAgentDebug("AgentChatPage", "runTopicSwitch.start", {
         currentProjectId: projectId ?? null,
+        forceRefresh: options?.forceRefresh === true,
         topicId,
       });
       resetTopicLocalState();
       try {
-        await originalSwitchTopic(topicId);
+        if (forwardedOptions) {
+          await originalSwitchTopic(topicId, forwardedOptions);
+        } else {
+          await originalSwitchTopic(topicId);
+        }
         logAgentDebug("AgentChatPage", "runTopicSwitch.success", {
           durationMs: Date.now() - startedAt,
+          forceRefresh: options?.forceRefresh === true,
           topicId,
         });
       } catch (error) {
@@ -64,6 +84,7 @@ export function useWorkspaceTopicSwitch({
           {
             durationMs: Date.now() - startedAt,
             error,
+            forceRefresh: options?.forceRefresh === true,
             topicId,
           },
           { level: "error" },
@@ -75,12 +96,15 @@ export function useWorkspaceTopicSwitch({
   );
 
   const switchTopic = useCallback(
-    async (topicId: string) => {
+    async (topicId: string, options?: TopicSwitchOptions) => {
       if (!startTopicProjectResolution()) {
         logAgentDebug(
           "AgentChatPage",
           "switchTopic.skipWhileResolving",
-          { topicId },
+          {
+            forceRefresh: options?.forceRefresh === true,
+            topicId,
+          },
           { level: "warn", throttleMs: 1000 },
         );
         return;
@@ -90,6 +114,7 @@ export function useWorkspaceTopicSwitch({
         logAgentDebug("AgentChatPage", "switchTopic.start", {
           currentProjectId: projectId ?? null,
           externalProjectId: externalProjectId ?? null,
+          forceRefresh: options?.forceRefresh === true,
           topicId,
         });
         const decision = await resolveTopicSwitchProject({
@@ -140,9 +165,10 @@ export function useWorkspaceTopicSwitch({
 
         const currentProjectId = normalizeProjectId(projectId);
         if (currentProjectId !== targetProjectId) {
-          deferTopicSwitch(topicId, targetProjectId);
+          deferTopicSwitch(topicId, targetProjectId, options);
           logAgentDebug("AgentChatPage", "switchTopic.deferUntilProjectReady", {
             currentProjectId,
+            forceRefresh: options?.forceRefresh === true,
             targetProjectId,
             topicId,
           });
@@ -150,7 +176,7 @@ export function useWorkspaceTopicSwitch({
         }
 
         rememberProjectId(targetProjectId);
-        await runTopicSwitch(topicId);
+        await runTopicSwitch(topicId, options);
       } catch (error) {
         console.error("[AgentChatPage] 解析任务项目失败:", error);
         logAgentDebug(
@@ -158,6 +184,7 @@ export function useWorkspaceTopicSwitch({
           "switchTopic.error",
           {
             error,
+            forceRefresh: options?.forceRefresh === true,
             projectId: projectId ?? null,
             topicId,
           },
@@ -189,16 +216,20 @@ export function useWorkspaceTopicSwitch({
 
     const currentProjectId = normalizeProjectId(projectId);
     logAgentDebug("AgentChatPage", "switchTopic.resumePending", {
+      forceRefresh: pending.forceRefresh === true,
       projectId: currentProjectId,
       topicId: pending.topicId,
     });
-    runTopicSwitch(pending.topicId).catch((error) => {
+    runTopicSwitch(pending.topicId, {
+      forceRefresh: pending.forceRefresh === true,
+    }).catch((error) => {
       console.error("[AgentChatPage] 执行待切换任务失败:", error);
       logAgentDebug(
         "AgentChatPage",
         "switchTopic.resumePendingError",
         {
           error,
+          forceRefresh: pending.forceRefresh === true,
           projectId: currentProjectId,
           topicId: pending.topicId,
         },

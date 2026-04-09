@@ -90,6 +90,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   characters: InputbarParams["characters"];
   skills: InputbarParams["skills"];
   serviceSkills: InputbarParams["serviceSkills"];
+  serviceSkillGroups: InputbarParams["serviceSkillGroups"];
   skillsLoading: InputbarParams["isSkillsLoading"];
   onSelectServiceSkill: InputbarParams["onSelectServiceSkill"];
   setChatToolPreferences: Dispatch<SetStateAction<ChatToolPreferences>>;
@@ -177,6 +178,7 @@ export function useWorkspaceInputbarSceneRuntime({
   characters,
   skills,
   serviceSkills,
+  serviceSkillGroups,
   skillsLoading,
   onSelectServiceSkill,
   setChatToolPreferences,
@@ -306,6 +308,7 @@ export function useWorkspaceInputbarSceneRuntime({
         characters,
         skills,
         serviceSkills,
+        serviceSkillGroups,
         isSkillsLoading: skillsLoading,
         onSelectServiceSkill,
         toolStates: {

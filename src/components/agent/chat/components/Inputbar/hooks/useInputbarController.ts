@@ -71,6 +71,7 @@ export function useInputbarController({
   onEnableSuggestedTeam,
   skills,
   serviceSkills,
+  serviceSkillGroups,
   isSkillsLoading,
   onSelectServiceSkill,
   onNavigateToSettings,
@@ -220,6 +221,7 @@ export function useInputbarController({
   const skillSelection = buildSkillSelection({
     skills,
     serviceSkills,
+    serviceSkillGroups,
     isSkillsLoading,
     onSelectServiceSkill,
     onNavigateToSettings,

@@ -44,6 +44,7 @@ export type {
 export function AgentChatPage(props: AgentChatWorkspaceProps) {
   const {
     agentEntry = "claw",
+    initialPendingServiceSkillLaunch,
     initialProjectFileOpenTarget,
     initialSiteSkillLaunch,
     initialUserImages,
@@ -58,6 +59,7 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
     Boolean(initialUserPrompt?.trim()) ||
     Boolean(initialUserImages?.length) ||
     Boolean(initialSiteSkillLaunch) ||
+    Boolean(initialPendingServiceSkillLaunch?.skillId?.trim()) ||
     Boolean(initialProjectFileOpenTarget?.relativePath?.trim()) ||
     openBrowserAssistOnMount;
   const shouldForceClawWorkspace =

@@ -87,7 +87,23 @@ describe("legacySurfaceCatalog", () => {
     );
   });
 
-  it("应记录已迁出 Inputbar 的 A2UI 对话框 helper", () => {
+  it("应记录已删除的 WorkspacePendingA2UIDialog 文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "workspace-pending-a2ui-dialog-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual(
+      expect.arrayContaining([
+        "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.tsx",
+        "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.test.tsx",
+      ]),
+    );
+  });
+
+  it("应记录已迁出 Inputbar 的 A2UI 提示 helper", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "inputbar-a2ui-dialog-helper-entry",
     );
@@ -875,7 +891,7 @@ describe("legacySurfaceCatalog", () => {
 
   it("应禁止 Inputbar 恢复 A2UI 浮层 props 透传", () => {
     const monitor = legacySurfaceCatalogJson.frontendText.find(
-      (entry) => entry.id === "inputbar-a2ui-dialog-prop-bridge",
+      (entry) => entry.id === "inputbar-a2ui-panel-prop-bridge",
     );
 
     expect(monitor).toBeTruthy();
@@ -891,17 +907,17 @@ describe("legacySurfaceCatalog", () => {
     ]);
   });
 
-  it("应禁止 WorkspacePendingA2UIDialog 回流到 Inputbar A2UI helper 路径", () => {
+  it("应禁止 WorkspacePendingA2UIPanel 回流到 Inputbar A2UI panel helper 路径", () => {
     const monitor = legacySurfaceCatalogJson.frontendText.find(
-      (entry) => entry.id === "workspace-pending-a2ui-dialog-inputbar-imports",
+      (entry) => entry.id === "workspace-pending-a2ui-panel-inputbar-imports",
     );
 
     expect(monitor).toBeTruthy();
     expect(monitor?.classification).toBe("dead-candidate");
     expect(monitor?.allowedPaths).toEqual([]);
     expect(monitor?.includePathPrefixes).toEqual([
-      "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.tsx",
-      "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.test.tsx",
+      "src/components/agent/chat/workspace/WorkspacePendingA2UIPanel.tsx",
+      "src/components/agent/chat/workspace/WorkspacePendingA2UIPanel.test.tsx",
     ]);
     expect(monitor?.patterns).toEqual([
       "../components/Inputbar/components/A2UISubmissionNotice",

@@ -21,7 +21,7 @@ const BASE_SKILL: ServiceSkillHomeItem = {
   runnerLabel: "本地即时执行",
   runnerTone: "sky",
   runnerDescription: "测试描述",
-  actionLabel: "填写参数",
+  actionLabel: "对话内补参",
   automationStatus: null,
 };
 

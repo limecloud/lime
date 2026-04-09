@@ -187,8 +187,69 @@ function shouldRenderConversationTimelineItem(
 interface InlineProcessCoverage {
   hasInlineProcessEntries: boolean;
   thinking: boolean;
-  tools: boolean;
-  actions: boolean;
+  toolNameCounts: Map<string, number>;
+  actionRequestCounts: Map<string, number>;
+}
+
+function normalizeInlineCoverageKey(
+  value: string | null | undefined,
+): string | null {
+  const normalized = value?.trim().toLowerCase();
+  return normalized || null;
+}
+
+function incrementInlineCoverageCount(
+  counts: Map<string, number>,
+  key: string | null,
+) {
+  if (!key) {
+    return;
+  }
+  counts.set(key, (counts.get(key) || 0) + 1);
+}
+
+function consumeInlineCoverageCount(
+  counts: Map<string, number>,
+  key: string | null,
+): boolean {
+  if (!key) {
+    return false;
+  }
+  const current = counts.get(key) || 0;
+  if (current <= 0) {
+    return false;
+  }
+  if (current === 1) {
+    counts.delete(key);
+  } else {
+    counts.set(key, current - 1);
+  }
+  return true;
+}
+
+function createInlineCoverageMatcher(coverage: InlineProcessCoverage) {
+  const remainingToolNameCounts = new Map(coverage.toolNameCounts);
+  const remainingActionRequestCounts = new Map(coverage.actionRequestCounts);
+
+  return (item: AgentThreadItem): boolean => {
+    switch (item.type) {
+      case "reasoning":
+        return coverage.thinking;
+      case "tool_call":
+        return consumeInlineCoverageCount(
+          remainingToolNameCounts,
+          normalizeInlineCoverageKey(item.tool_name),
+        );
+      case "approval_request":
+      case "request_user_input":
+        return consumeInlineCoverageCount(
+          remainingActionRequestCounts,
+          normalizeInlineCoverageKey(item.request_id),
+        );
+      default:
+        return false;
+    }
+  };
 }
 
 function resolveInlineProcessCoverage(params: {
@@ -199,50 +260,58 @@ function resolveInlineProcessCoverage(params: {
 }): InlineProcessCoverage {
   const contentParts = params.contentParts || [];
   if (contentParts.length > 0) {
+    const toolNameCounts = new Map<string, number>();
+    const actionRequestCounts = new Map<string, number>();
     const thinking = contentParts.some(
       (part) => part.type === "thinking" && part.text.trim().length > 0,
     );
-    const tools = contentParts.some((part) => part.type === "tool_use");
-    const actions = contentParts.some(
-      (part) => part.type === "action_required",
-    );
+    contentParts.forEach((part) => {
+      if (part.type === "tool_use") {
+        incrementInlineCoverageCount(
+          toolNameCounts,
+          normalizeInlineCoverageKey(part.toolCall.name),
+        );
+        return;
+      }
+      if (part.type === "action_required") {
+        incrementInlineCoverageCount(
+          actionRequestCounts,
+          normalizeInlineCoverageKey(part.actionRequired.requestId),
+        );
+      }
+    });
     return {
-      hasInlineProcessEntries: thinking || tools || actions,
+      hasInlineProcessEntries:
+        thinking || toolNameCounts.size > 0 || actionRequestCounts.size > 0,
       thinking,
-      tools,
-      actions,
+      toolNameCounts,
+      actionRequestCounts,
     };
   }
 
+  const toolNameCounts = new Map<string, number>();
+  const actionRequestCounts = new Map<string, number>();
   const thinking = Boolean(params.thinkingContent?.trim());
-  const tools = Boolean(params.toolCalls?.length);
-  const actions = Boolean(params.actionRequests?.length);
+  (params.toolCalls || []).forEach((toolCall) => {
+    incrementInlineCoverageCount(
+      toolNameCounts,
+      normalizeInlineCoverageKey(toolCall.name),
+    );
+  });
+  (params.actionRequests || []).forEach((actionRequest) => {
+    incrementInlineCoverageCount(
+      actionRequestCounts,
+      normalizeInlineCoverageKey(actionRequest.requestId),
+    );
+  });
 
   return {
-    hasInlineProcessEntries: thinking || tools || actions,
+    hasInlineProcessEntries:
+      thinking || toolNameCounts.size > 0 || actionRequestCounts.size > 0,
     thinking,
-    tools,
-    actions,
+    toolNameCounts,
+    actionRequestCounts,
   };
-}
-
-function isInlineCoveredTimelineItem(
-  item: AgentThreadItem,
-  coverage: InlineProcessCoverage,
-): boolean {
-  switch (item.type) {
-    case "reasoning":
-      return coverage.thinking;
-    case "tool_call":
-    case "command_execution":
-    case "web_search":
-      return coverage.tools;
-    case "approval_request":
-    case "request_user_input":
-      return coverage.actions;
-    default:
-      return false;
-  }
 }
 
 const MessageListInner: React.FC<MessageListProps> = ({
@@ -425,6 +494,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
           }),
         )
       : [];
+    const isInlineCoveredTimelineItem = createInlineCoverageMatcher(
+      inlineProcessCoverage,
+    );
     const primaryTimelineItems = timeline
       ? timeline.items.filter((item) => {
           if (
@@ -443,7 +515,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
             return true;
           }
 
-          if (isInlineCoveredTimelineItem(item, inlineProcessCoverage)) {
+          if (isInlineCoveredTimelineItem(item)) {
             return false;
           }
 
@@ -461,7 +533,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
       timeline && trailingTimelineItems.length > 0
         ? { ...timeline, items: trailingTimelineItems }
         : null;
-    const timelineActionRequests = inlineProcessCoverage.actions
+    const timelineActionRequests = inlineProcessCoverage.actionRequestCounts.size
       ? undefined
       : msg.actionRequests;
     const primaryActionRequests =

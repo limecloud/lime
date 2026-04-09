@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
+import {
+  containsAssistantProtocolResidue,
+  stripAssistantProtocolResidue,
+} from "./protocolResidue";
 
 export type ToolCallStatus = ToolCallState["status"];
 export type ToolCallFamily =
@@ -770,15 +774,15 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "structuredoutput",
     {
       family: "generic",
-      label: "结构化输出",
-      verb: "返回",
+      label: "最终答复",
+      verb: "整理",
       icon: FileText,
       groupTitle: "回复",
       actionKey: "generic",
       actions: {
-        failed: "返回失败",
-        completed: "已返回结构化结果",
-        running: "返回结构化结果中",
+        failed: "整理失败",
+        completed: "已整理最终答复",
+        running: "整理最终答复中",
       },
     },
   ],
@@ -1773,6 +1777,15 @@ export const extractSearchQueryLabel = (toolCall: ToolCallState): string => {
   for (const key of ["query", "q", "pattern", "search", "url"]) {
     const value = record[key];
     if (typeof value === "string" && value.trim()) {
+      const sanitized = stripAssistantProtocolResidue(value).trim();
+      if (sanitized) {
+        return sanitized;
+      }
+
+      if (containsAssistantProtocolResidue(value)) {
+        return "内部流程";
+      }
+
       return value.trim();
     }
   }

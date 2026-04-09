@@ -1,5 +1,9 @@
 import type { ServiceSkillItem } from "@/lib/api/serviceSkills";
-import type { SiteAdapterLaunchReadinessResult } from "@/lib/webview-api";
+import {
+  siteListAdapters,
+  type SiteAdapterDefinition,
+  type SiteAdapterLaunchReadinessResult,
+} from "@/lib/webview-api";
 import type { ServiceSkillSlotValues } from "./types";
 import {
   composeServiceSkillPrompt,
@@ -46,6 +50,11 @@ export interface ServiceSkillClawLaunchContext {
   contentId?: string;
   projectId?: string;
   launchReadiness?: ServiceSkillClawLaunchReadiness;
+}
+
+export interface ResolvedServiceSkillSiteCapabilityExecution {
+  adapterName: string;
+  args: Record<string, unknown>;
 }
 
 type SiteLaunchReadinessLike =
@@ -100,6 +109,8 @@ const SITE_LABELS: Record<string, string> = {
   zhihu: "知乎",
 };
 
+const EXPORT_CAPABILITIES = new Set(["article_export", "markdown_bundle"]);
+
 function normalizeNaturalText(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -123,6 +134,180 @@ function quoteNaturalValue(value: string): string {
 
 function normalizeAdapterName(adapterName: string): string {
   return adapterName.trim().toLowerCase();
+}
+
+function normalizeHost(value?: string | null): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  let normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(
+      normalized.startsWith("http://") || normalized.startsWith("https://")
+        ? normalized
+        : `https://${normalized}`,
+    );
+    normalized = parsed.hostname.toLowerCase();
+  } catch {
+    normalized = normalized
+      .replace(/^https?:\/\//, "")
+      .replace(/\/.*$/, "")
+      .replace(/:\d+$/, "");
+  }
+
+  return normalized.replace(/^\.+|\.+$/g, "").replace(/^www\./, "");
+}
+
+function normalizeCapability(value?: string | null): string {
+  return value?.trim().toLowerCase() || "";
+}
+
+function isExportStyleSiteSkill(
+  skill: Pick<ServiceSkillItem, "siteCapabilityBinding">,
+): boolean {
+  const capabilities =
+    skill.siteCapabilityBinding?.adapterMatch?.requiredCapabilities ?? [];
+  return capabilities.some((capability) =>
+    EXPORT_CAPABILITIES.has(normalizeCapability(capability)),
+  );
+}
+
+function resolveSkillSiteLabel(
+  skill: Pick<ServiceSkillItem, "title" | "siteCapabilityBinding">,
+): string | null {
+  const explicitLabel = normalizeNaturalText(
+    skill.siteCapabilityBinding?.siteLabel,
+  );
+  if (explicitLabel) {
+    return explicitLabel;
+  }
+
+  const adapterName = normalizeNaturalText(skill.siteCapabilityBinding?.adapterName);
+  if (!adapterName) {
+    return null;
+  }
+
+  const label = resolveSiteLabel(adapterName);
+  return label === "general" ? null : label;
+}
+
+function readRequiredCapabilities(
+  skill: Pick<ServiceSkillItem, "siteCapabilityBinding">,
+): string[] {
+  const values = skill.siteCapabilityBinding?.adapterMatch?.requiredCapabilities;
+  if (!values?.length) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(values.map((value) => normalizeCapability(value)).filter(Boolean)),
+  );
+}
+
+function siteScopeMatchesDomain(scope: string, domain: string): boolean {
+  const normalizedScope = normalizeHost(scope);
+  const normalizedDomain = normalizeHost(domain);
+  if (!normalizedScope || !normalizedDomain) {
+    return false;
+  }
+
+  return (
+    normalizedDomain === normalizedScope ||
+    normalizedDomain.endsWith(`.${normalizedScope}`) ||
+    normalizedScope.endsWith(`.${normalizedDomain}`)
+  );
+}
+
+function adapterSupportsCapabilities(
+  adapter: SiteAdapterDefinition,
+  requiredCapabilities: string[],
+): boolean {
+  if (requiredCapabilities.length === 0) {
+    return true;
+  }
+
+  const available = new Set(
+    (adapter.capabilities ?? [])
+      .map((capability) => normalizeCapability(capability))
+      .filter(Boolean),
+  );
+  return requiredCapabilities.every((capability) => available.has(capability));
+}
+
+function scoreMatchedAdapter(params: {
+  adapter: SiteAdapterDefinition;
+  host: string;
+  extraHosts: string[];
+  requiredCapabilities: string[];
+}): number | null {
+  const { adapter, host, extraHosts, requiredCapabilities } = params;
+  if (!adapterSupportsCapabilities(adapter, requiredCapabilities)) {
+    return null;
+  }
+
+  const candidateHosts = Array.from(
+    new Set(
+      [adapter.domain, ...extraHosts]
+        .map((value) => normalizeHost(value))
+        .filter(Boolean),
+    ),
+  );
+
+  let hostScore = 0;
+  for (const candidateHost of candidateHosts) {
+    if (normalizeHost(host) === candidateHost) {
+      hostScore = Math.max(hostScore, 300);
+      continue;
+    }
+    if (siteScopeMatchesDomain(host, candidateHost)) {
+      hostScore = Math.max(hostScore, 200);
+    }
+  }
+
+  if (hostScore === 0) {
+    return null;
+  }
+
+  return (
+    hostScore +
+    requiredCapabilities.length * 10 +
+    normalizeHost(adapter.domain).length
+  );
+}
+
+function resolveMatchedAdapterName(params: {
+  host: string;
+  adapters: SiteAdapterDefinition[];
+  extraHosts: string[];
+  requiredCapabilities: string[];
+}): string | undefined {
+  let matched: { name: string; score: number } | null = null;
+
+  for (const adapter of params.adapters) {
+    const score = scoreMatchedAdapter({
+      adapter,
+      host: params.host,
+      extraHosts: params.extraHosts,
+      requiredCapabilities: params.requiredCapabilities,
+    });
+    if (score === null) {
+      continue;
+    }
+
+    if (!matched || score > matched.score) {
+      matched = {
+        name: adapter.name,
+        score,
+      };
+    }
+  }
+
+  return matched?.name;
 }
 
 function resolveSiteLabel(adapterName: string): string {
@@ -194,6 +379,15 @@ function buildSiteSkillPrimarySentence(
   const symbol = readStringArg(args, "symbol");
   const period = readStringArg(args, "period");
   const targetLanguage = readStringArg(args, "target_language");
+  const siteLabel = resolveSkillSiteLabel(skill);
+
+  if (isExportStyleSiteSkill(skill)) {
+    const exportTarget = siteLabel ? `这篇${siteLabel}文章` : "这个页面";
+    if (targetLanguage) {
+      return `你帮我把${exportTarget}导出为 Markdown，并将正文翻译成${quoteNaturalValue(targetLanguage)}，保留代码块原文、图片链接和 Markdown 结构`;
+    }
+    return `你帮我把${exportTarget}导出为 Markdown，并把文内图片和代码块一起保存到项目里`;
+  }
 
   switch (adapterName) {
     case "github/search":
@@ -247,20 +441,23 @@ function buildSiteSkillPrimarySentence(
       return symbol
         ? `你帮我看一下 ${symbol} 的最新行情摘要`
         : "你帮我看一下最新行情摘要";
-    case "x/article-export":
-      if (targetLanguage) {
-        return `你帮我把这篇 X 长文导出为 Markdown，并将正文翻译成${quoteNaturalValue(targetLanguage)}，保留代码块原文、图片链接和 Markdown 结构`;
-      }
-      return "你帮我把这篇 X 长文导出为 Markdown，并把文内图片和代码块一起保存到项目里";
     default: {
-      const siteLabel = resolveSiteLabel(adapterName);
       if (query) {
-        return `你帮我在 ${siteLabel} 搜一下和${quoteNaturalValue(query)}相关的内容`;
+        if (siteLabel) {
+          return `你帮我在 ${siteLabel} 搜一下和${quoteNaturalValue(query)}相关的内容`;
+        }
+        return `你帮我找一下和${quoteNaturalValue(query)}相关的内容`;
       }
       if (symbol) {
-        return `你帮我在 ${siteLabel} 看一下 ${symbol} 的最新信息`;
+        if (siteLabel) {
+          return `你帮我在 ${siteLabel} 看一下 ${symbol} 的最新信息`;
+        }
+        return `你帮我看一下 ${symbol} 的最新信息`;
       }
-      return `你帮我在 ${siteLabel} 执行一下${skill.title}`;
+      if (siteLabel) {
+        return `你帮我在 ${siteLabel} 执行一下${skill.title}`;
+      }
+      return `你帮我执行一下${skill.title}`;
     }
   }
 }
@@ -329,10 +526,92 @@ export function buildServiceSkillSiteCapabilityArgs(
   };
 }
 
+export async function resolveServiceSkillSiteCapabilityExecution(
+  skill: ServiceSkillItem,
+  slotValues: ServiceSkillSlotValues,
+  options?: {
+    listAdapters?: () => Promise<SiteAdapterDefinition[]>;
+  },
+): Promise<ResolvedServiceSkillSiteCapabilityExecution> {
+  if (!isServiceSkillSiteCapabilityBound(skill)) {
+    throw new Error("当前技能未绑定站点执行能力");
+  }
+
+  const args = buildServiceSkillSiteCapabilityArgs(skill, slotValues);
+  const binding = skill.siteCapabilityBinding;
+  const fallbackAdapterName = normalizeNaturalText(binding.adapterName);
+  const adapterMatch = binding.adapterMatch;
+
+  if (!adapterMatch) {
+    if (!fallbackAdapterName) {
+      throw new Error("当前技能缺少站点适配器绑定。");
+    }
+
+    return {
+      adapterName: fallbackAdapterName,
+      args,
+    };
+  }
+
+  const urlValue = readStringArg(args, adapterMatch.urlArgName);
+  if (!urlValue) {
+    if (fallbackAdapterName) {
+      return {
+        adapterName: fallbackAdapterName,
+        args,
+      };
+    }
+    throw new Error(
+      `当前技能缺少 ${adapterMatch.urlArgName}，暂时无法匹配站点适配器。`,
+    );
+  }
+
+  const host = normalizeHost(urlValue);
+  if (!host) {
+    if (fallbackAdapterName) {
+      return {
+        adapterName: fallbackAdapterName,
+        args,
+      };
+    }
+    throw new Error("当前链接格式无效，暂时无法匹配站点适配器。");
+  }
+
+  const listAdapters = options?.listAdapters ?? siteListAdapters;
+  const adapters = await listAdapters();
+  const matchedAdapterName = resolveMatchedAdapterName({
+    host,
+    adapters,
+    extraHosts: adapterMatch.hostAliases ?? [],
+    requiredCapabilities: readRequiredCapabilities(skill),
+  });
+
+  if (matchedAdapterName) {
+    return {
+      adapterName: matchedAdapterName,
+      args,
+    };
+  }
+
+  if (fallbackAdapterName) {
+    return {
+      adapterName: fallbackAdapterName,
+      args,
+    };
+  }
+
+  const siteLabel = resolveSkillSiteLabel(skill);
+  if (siteLabel) {
+    throw new Error(`当前没有找到可处理该 ${siteLabel} 链接的站点适配器。`);
+  }
+  throw new Error("当前没有找到可处理该链接的站点适配器。");
+}
+
 export function buildServiceSkillClawLaunchContext(
   skill: ServiceSkillItem,
   slotValues: ServiceSkillSlotValues,
   options?: {
+    adapterName?: string | null;
     contentId?: string | null;
     projectId?: string | null;
     launchReadiness?: SiteAdapterLaunchReadinessResult | null;
@@ -343,6 +622,12 @@ export function buildServiceSkillClawLaunchContext(
   }
 
   const binding = skill.siteCapabilityBinding;
+  const adapterName =
+    normalizeNaturalText(options?.adapterName) ??
+    normalizeNaturalText(binding.adapterName);
+  if (!adapterName) {
+    throw new Error("当前技能未解析出可用的站点适配器");
+  }
   const launchReadiness = options?.launchReadiness
     ? {
         status: options.launchReadiness.status,
@@ -358,10 +643,12 @@ export function buildServiceSkillClawLaunchContext(
     kind: "site_adapter",
     skillId: skill.id,
     skillTitle: skill.title,
-    adapterName: binding.adapterName,
+    adapterName,
     args: buildServiceSkillSiteCapabilityArgs(skill, slotValues),
     saveMode: binding.saveMode ?? "project_resource",
-    saveTitle: buildServiceSkillSiteCapabilitySaveTitle(skill, slotValues),
+    saveTitle: buildServiceSkillSiteCapabilitySaveTitle(skill, slotValues, {
+      adapterName,
+    }),
     contentId: options?.contentId?.trim() || undefined,
     projectId: options?.projectId?.trim() || undefined,
     launchReadiness,
@@ -449,6 +736,9 @@ function normalizeTemplateSegment(value: unknown): string {
 export function buildServiceSkillSiteCapabilitySaveTitle(
   skill: ServiceSkillItem,
   slotValues: ServiceSkillSlotValues,
+  options?: {
+    adapterName?: string | null;
+  },
 ): string | undefined {
   if (
     !isServiceSkillSiteCapabilityBound(skill) ||
@@ -471,7 +761,9 @@ export function buildServiceSkillSiteCapabilitySaveTitle(
           return normalizeTemplateSegment(skill.title);
         case "adapter.name":
           return normalizeTemplateSegment(
-            skill.siteCapabilityBinding.adapterName,
+            options?.adapterName ??
+              skill.siteCapabilityBinding.adapterName ??
+              skill.siteCapabilityBinding.siteLabel,
           );
         default:
           return normalizeTemplateSegment(slotValueMap[rawToken]);

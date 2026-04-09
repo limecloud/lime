@@ -352,6 +352,126 @@ afterEach(() => {
 });
 
 describe("useWorkspaceServiceSkillEntryActions", () => {
+  it("选择需要补参的技能时应在当前对话挂起 A2UI 表单，而不是打开弹窗", async () => {
+    const onNavigate = vi.fn();
+    const { render, getValue } = renderHook({
+      onNavigate,
+    });
+    await render();
+
+    act(() => {
+      getValue().handleServiceSkillSelect(createBrowserServiceSkill());
+    });
+
+    expect(getValue().pendingServiceSkillLaunchForm).toMatchObject({
+      id: expect.stringContaining("service-skill-launch:github-repo-radar"),
+      submitAction: expect.objectContaining({
+        label: "直接开始",
+      }),
+    });
+    expect(getValue().pendingServiceSkillLaunchSource).toEqual(
+      expect.objectContaining({
+        kind: "service_skill",
+        skillId: "github-repo-radar",
+      }),
+    );
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("外部透传的 slotValues 和提示文案应优先用于当前对话 A2UI", async () => {
+    const { render, getValue } = renderHook({
+      creationReplay: {
+        kind: "skill_scaffold",
+        source: {
+          page: "skills",
+        },
+        data: {
+          name: "AI Agent 行业复盘",
+          description: "旧草稿说明",
+          outputs: ["聚焦 AI Agent 协作趋势"],
+          source_excerpt: "旧草稿线索",
+        },
+      } as HookProps["creationReplay"],
+    });
+    await render();
+
+    act(() => {
+      getValue().handleServiceSkillSelect(createScheduledServiceSkill(), {
+        requestKey: 20260409,
+        initialSlotValues: {
+          industry_keywords: "",
+          schedule_time: "每天 10:00",
+        },
+        prefillHint: "已根据 Skills 页入口推荐自动预填。",
+      });
+    });
+
+    expect(getValue().pendingServiceSkillLaunchForm).toMatchObject({
+      id: expect.stringContaining("service-skill-launch:daily-trend-briefing"),
+    });
+    expect(getValue().pendingServiceSkillLaunchSource).toEqual(
+      expect.objectContaining({
+        kind: "service_skill",
+        skillId: "daily-trend-briefing",
+        requestKey: "daily-trend-briefing:20260409",
+      }),
+    );
+    expect(getValue().pendingServiceSkillLaunchForm?.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: expect.stringContaining(":prefill-hint"),
+          text: "已根据 Skills 页入口推荐自动预填。",
+        }),
+        expect.objectContaining({
+          id: "service-skill-slot-industry_keywords",
+          value: "",
+        }),
+        expect.objectContaining({
+          id: "service-skill-slot-schedule_time",
+          value: "每天 10:00",
+        }),
+      ]),
+    );
+  });
+
+  it("提交聊天内技能补参表单后应继续走现有启动链路", async () => {
+    const onNavigate = vi.fn();
+    const recordServiceSkillUsage = vi.fn();
+    const { render, getValue } = renderHook({
+      onNavigate,
+      recordServiceSkillUsage,
+    });
+    await render();
+
+    act(() => {
+      getValue().handleServiceSkillSelect(createBrowserServiceSkill());
+    });
+
+    await act(async () => {
+      await getValue().handlePendingServiceSkillLaunchSubmit({
+        "service-skill-slot-repository_query": "browser assist mcp",
+      });
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        initialUserPrompt:
+          "你帮我在 GitHub 找一下和“browser assist mcp”相关的项目。",
+      }),
+    );
+    expect(recordServiceSkillUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skillId: "github-repo-radar",
+        runnerType: "instant",
+        slotValues: {
+          repository_query: "browser assist mcp",
+        },
+      }),
+    );
+    expect(getValue().pendingServiceSkillLaunchForm).toBeNull();
+  });
+
   it("站点型技能主按钮应进入 Claw 工作区并复用当前主稿", async () => {
     const onNavigate = vi.fn();
     const recordServiceSkillUsage = vi.fn();
@@ -428,6 +548,9 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     expect(recordServiceSkillUsage).toHaveBeenCalledWith({
       skillId: "github-repo-radar",
       runnerType: "instant",
+      slotValues: {
+        repository_query: "browser assist mcp",
+      },
     });
   });
 
@@ -554,6 +677,9 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     expect(recordServiceSkillUsage).toHaveBeenCalledWith({
       skillId: "github-repo-radar",
       runnerType: "instant",
+      slotValues: {
+        repository_query: "browser assist mcp",
+      },
     });
   });
 
@@ -660,6 +786,9 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     expect(recordServiceSkillUsage).toHaveBeenCalledWith({
       skillId: "cloud-video-dubbing",
       runnerType: "instant",
+      slotValues: {
+        reference_video: "https://example.com/cloud-video",
+      },
     });
     expect(mockToastLoading).toHaveBeenCalledWith(
       "正在开始 云端视频配音 的云端执行...",
@@ -831,6 +960,11 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     expect(recordServiceSkillUsage).toHaveBeenCalledWith({
       skillId: "daily-trend-briefing",
       runnerType: "scheduled",
+      slotValues: {
+        platform: "x",
+        industry_keywords: "AI Agent，创作者工具",
+        schedule_time: "每天 09:00",
+      },
     });
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",

@@ -131,7 +131,7 @@
     {
       "id": "inputbar-a2ui-overlay-bridge-entry",
       "classification": "dead-candidate",
-      "description": "已删除的 Inputbar A2UI 浮层壳与过渡显示状态 Hook，当前统一由 WorkspacePendingA2UIDialog 承载",
+      "description": "已删除的 Inputbar A2UI 浮层壳与过渡显示状态 Hook，当前统一由 WorkspacePendingA2UIPanel 承载",
       "targets": [
         "src/components/agent/chat/components/Inputbar/components/A2UIFloatingForm.tsx",
         "src/components/agent/chat/components/Inputbar/hooks/useInputbarDisplayState.ts"
@@ -141,13 +141,33 @@
     {
       "id": "inputbar-a2ui-dialog-helper-entry",
       "classification": "dead-candidate",
-      "description": "已迁出 Inputbar 目录的 A2UI 对话框提示组件与粘滞状态 Hook，当前统一收口到 workspace A2UI 对话框边界",
+      "description": "已迁出 Inputbar 目录的 A2UI 提示组件与粘滞状态 Hook，当前统一收口到 workspace A2UI 面板边界",
       "targets": [
         "src/components/agent/chat/components/Inputbar/components/A2UISubmissionNotice.tsx",
         "src/components/agent/chat/components/Inputbar/hooks/useA2UISubmissionNotice.ts",
         "src/components/agent/chat/components/Inputbar/hooks/useStickyA2UIForm.ts",
         "src/components/agent/chat/components/Inputbar/hooks/useA2UISubmissionNotice.test.tsx",
         "src/components/agent/chat/components/Inputbar/hooks/useStickyA2UIForm.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "service-skill-launch-dialog-entry",
+      "classification": "dead-candidate",
+      "description": "旧服务技能参数弹窗已退出主链，当前统一收口到 Agent 对话内 A2UI 补参卡",
+      "targets": [
+        "src/components/agent/chat/service-skills/ServiceSkillLaunchDialog.tsx",
+        "src/components/agent/chat/service-skills/ServiceSkillLaunchDialog.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "workspace-pending-a2ui-dialog-entry",
+      "classification": "dead-candidate",
+      "description": "旧 WorkspacePendingA2UIDialog 文件路径已退出主链，当前统一收口到 WorkspacePendingA2UIPanel",
+      "targets": [
+        "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.tsx",
+        "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.test.tsx"
       ],
       "allowedPaths": []
     },
@@ -1933,9 +1953,9 @@
       "allowedPaths": []
     },
     {
-      "id": "inputbar-a2ui-dialog-prop-bridge",
+      "id": "inputbar-a2ui-panel-prop-bridge",
       "classification": "dead-candidate",
-      "description": "Inputbar 不允许恢复 pendingA2UIForm/onA2UISubmit/a2uiSubmissionNotice 透传，A2UI 表单统一由 WorkspacePendingA2UIDialog 承载",
+      "description": "Inputbar 不允许恢复 pendingA2UIForm/onA2UISubmit/a2uiSubmissionNotice 透传，A2UI 表单统一由 WorkspacePendingA2UIPanel 承载",
       "patterns": [],
       "regexPatterns": [
         "\\bpendingA2UIForm\\s*\\?:",
@@ -1948,17 +1968,17 @@
       "allowedPaths": []
     },
     {
-      "id": "workspace-pending-a2ui-dialog-inputbar-imports",
+      "id": "workspace-pending-a2ui-panel-inputbar-imports",
       "classification": "dead-candidate",
-      "description": "WorkspacePendingA2UIDialog 不允许继续从 Inputbar 目录导入 A2UI 对话框 helper，必须直连 workspace 边界",
+      "description": "WorkspacePendingA2UIPanel 不允许继续从 Inputbar 目录导入 A2UI panel helper，必须直连 workspace 边界",
       "patterns": [
         "../components/Inputbar/components/A2UISubmissionNotice",
         "../components/Inputbar/hooks/useA2UISubmissionNotice",
         "../components/Inputbar/hooks/useStickyA2UIForm"
       ],
       "includePathPrefixes": [
-        "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.tsx",
-        "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.test.tsx"
+        "src/components/agent/chat/workspace/WorkspacePendingA2UIPanel.tsx",
+        "src/components/agent/chat/workspace/WorkspacePendingA2UIPanel.test.tsx"
       ],
       "allowedPaths": []
     },

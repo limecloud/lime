@@ -6,7 +6,7 @@ use std::borrow::Cow;
 
 pub const FINAL_OUTPUT_TOOL_NAME: &str = "StructuredOutput";
 pub const FINAL_OUTPUT_CONTINUATION_MESSAGE: &str =
-    "You MUST call the `StructuredOutput` tool NOW with the structured final output for the user.";
+    "Do not use ToolSearch, WebSearch, or any other search tool. `StructuredOutput` is already available in the current tool list. Call `StructuredOutput` NOW with the final JSON object for the user.";
 
 #[derive(Debug)]
 pub struct FinalOutputTool {

@@ -1,19 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowRight,
-  FolderOpen,
-  RefreshCw,
-  Search,
-} from "lucide-react";
+import { ArrowRight, FolderOpen, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useSkills } from "@/hooks/useSkills";
 import type { Skill } from "@/lib/api/skills";
-import {
-  createServiceSkillRun,
-  getServiceSkillRun,
-  isTerminalServiceSkillRunStatus,
-  type ServiceSkillRun,
-} from "@/lib/api/serviceSkillRuns";
 import type {
   Page,
   PageParams,
@@ -30,23 +19,15 @@ import {
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ServiceSkillLaunchDialog } from "@/components/agent/chat/service-skills/ServiceSkillLaunchDialog";
-import { buildCreationReplaySlotPrefill } from "@/components/agent/chat/service-skills/creationReplaySlotPrefill";
 import { resolveServiceSkillEntryDescription } from "@/components/agent/chat/service-skills/entryAdapter";
-import { composeServiceSkillPrompt } from "@/components/agent/chat/service-skills/promptComposer";
+import { buildServiceSkillRecommendationBuckets } from "@/components/agent/chat/service-skills/recommendedServiceSkills";
+import { resolveServiceSkillLaunchPrefill } from "@/components/agent/chat/service-skills/serviceSkillLaunchPrefill";
 import {
   getServiceSkillOutputDestination,
   getServiceSkillTypeLabel,
 } from "@/components/agent/chat/service-skills/skillPresentation";
-import {
-  buildServiceSkillSiteCapabilityArgs,
-  buildServiceSkillSiteCapabilitySaveTitle,
-  isServiceSkillSiteCapabilityBound,
-} from "@/components/agent/chat/service-skills/siteCapabilityBinding";
-import { recordServiceSkillCloudRun } from "@/components/agent/chat/service-skills/cloudRunStorage";
 import type {
   ServiceSkillHomeItem,
-  ServiceSkillSlotValues,
   ServiceSkillTone,
 } from "@/components/agent/chat/service-skills/types";
 import { useServiceSkills } from "@/components/agent/chat/service-skills/useServiceSkills";
@@ -96,42 +77,6 @@ function matchesText(
   );
 }
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
-function getCloudRunStatusLabel(status: string): string {
-  switch (status) {
-    case "queued":
-      return "排队中";
-    case "running":
-      return "运行中";
-    case "success":
-      return "已完成";
-    case "failed":
-      return "失败";
-    case "canceled":
-      return "已取消";
-    case "timeout":
-      return "超时";
-    default:
-      return "处理中";
-  }
-}
-
-function buildCloudRunSuccessMessage(
-  skill: ServiceSkillHomeItem,
-  run: ServiceSkillRun,
-): string {
-  const summary = run.outputSummary?.trim();
-  if (summary) {
-    return summary;
-  }
-  return `${skill.title} 已完成云端处理`;
-}
-
 function resolveLocalSkillSourceLabel(skill: Skill): string {
   return LOCAL_SKILL_SOURCE_LABELS[getSkillSource(skill)];
 }
@@ -173,6 +118,34 @@ function resolveSkillGroupKey(skill: ServiceSkillHomeItem): string {
   );
 }
 
+function buildServiceSkillGroupMap(
+  skills: ServiceSkillHomeItem[],
+  groupKeys: Array<{ key: string }>,
+): Map<string, ServiceSkillHomeItem[]> {
+  const nextMap = new Map<string, ServiceSkillHomeItem[]>();
+  for (const group of groupKeys) {
+    nextMap.set(group.key, []);
+  }
+  for (const skill of skills) {
+    const groupKey = resolveSkillGroupKey(skill);
+    const current = nextMap.get(groupKey) ?? [];
+    current.push(skill);
+    nextMap.set(groupKey, current);
+  }
+  return nextMap;
+}
+
+function listPreferredGroupSkills(
+  skills: ServiceSkillHomeItem[],
+): ServiceSkillHomeItem[] {
+  const recommendationBuckets = buildServiceSkillRecommendationBuckets(skills, {
+    featuredLimit: 0,
+  });
+  return recommendationBuckets.remainingSkills.length > 0
+    ? recommendationBuckets.remainingSkills
+    : recommendationBuckets.recentSkills;
+}
+
 export function SkillsWorkspacePage({
   onNavigate,
   pageParams,
@@ -184,7 +157,6 @@ export function SkillsWorkspacePage({
     isLoading: serviceSkillsLoading,
     error: serviceSkillsError,
     refresh: refreshServiceSkills,
-    recordUsage,
   } = useServiceSkills();
   const {
     skills: localSkills,
@@ -196,9 +168,6 @@ export function SkillsWorkspacePage({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
-  const [selectedServiceSkill, setSelectedServiceSkill] =
-    useState<ServiceSkillHomeItem | null>(null);
-  const [serviceSkillDialogOpen, setServiceSkillDialogOpen] = useState(false);
   const [advancedManagerOpen, setAdvancedManagerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const lastHandledScaffoldRequestKeyRef = useRef<number | null>(null);
@@ -207,23 +176,28 @@ export function SkillsWorkspacePage({
     () => localSkills.filter((skill) => skill.installed),
     [localSkills],
   );
-  const recentServiceSkills = useMemo(
-    () => serviceSkills.filter((skill) => skill.isRecent),
+  const serviceSkillRecommendationBuckets = useMemo(
+    () =>
+      buildServiceSkillRecommendationBuckets(serviceSkills, {
+        featuredLimit: 0,
+        surface: "workspace",
+      }),
     [serviceSkills],
   );
-  const skillGroupMap = useMemo(() => {
-    const nextMap = new Map<string, ServiceSkillHomeItem[]>();
-    for (const group of skillGroups) {
-      nextMap.set(group.key, []);
-    }
-    for (const skill of serviceSkills) {
-      const groupKey = resolveSkillGroupKey(skill);
-      const current = nextMap.get(groupKey) ?? [];
-      current.push(skill);
-      nextMap.set(groupKey, current);
-    }
-    return nextMap;
-  }, [serviceSkills, skillGroups]);
+  const recentServiceSkills = serviceSkillRecommendationBuckets.recentSkills;
+  const nonRecentServiceSkills = serviceSkillRecommendationBuckets.remainingSkills;
+  const workspaceServiceSkills = useMemo(
+    () => [...recentServiceSkills, ...nonRecentServiceSkills],
+    [nonRecentServiceSkills, recentServiceSkills],
+  );
+  const allSkillGroupMap = useMemo(
+    () => buildServiceSkillGroupMap(workspaceServiceSkills, skillGroups),
+    [skillGroups, workspaceServiceSkills],
+  );
+  const recommendedSkillGroupMap = useMemo(
+    () => buildServiceSkillGroupMap(nonRecentServiceSkills, skillGroups),
+    [nonRecentServiceSkills, skillGroups],
+  );
   const selectedGroup = useMemo(
     () => skillGroups.find((group) => group.key === selectedGroupKey) ?? null,
     [selectedGroupKey, skillGroups],
@@ -255,16 +229,6 @@ export function SkillsWorkspacePage({
       },
     ).harness.creation_replay;
   }, [pageParams?.creationProjectId, pageParams?.initialScaffoldDraft]);
-  const serviceSkillCreationReplayPrefill = useMemo(() => {
-    if (!selectedServiceSkill || !scaffoldCreationReplay) {
-      return null;
-    }
-
-    return buildCreationReplaySlotPrefill(
-      selectedServiceSkill,
-      scaffoldCreationReplay,
-    );
-  }, [scaffoldCreationReplay, selectedServiceSkill]);
 
   useEffect(() => {
     if (selectedGroupKey && !selectedGroup) {
@@ -308,7 +272,10 @@ export function SkillsWorkspacePage({
 
   const visibleGroups = useMemo(() => {
     return skillGroups.filter((group) => {
-      const groupSkills = skillGroupMap.get(group.key) ?? [];
+      const groupSkills = allSkillGroupMap.get(group.key) ?? [];
+      if (groupSkills.length === 0) {
+        return false;
+      }
       return matchesText(
         searchQuery,
         group.title,
@@ -322,11 +289,11 @@ export function SkillsWorkspacePage({
         ]),
       );
     });
-  }, [searchQuery, skillGroupMap, skillGroups]);
+  }, [allSkillGroupMap, searchQuery, skillGroups]);
 
   const visibleGroupSkills = useMemo(() => {
     const scopedSkills = selectedGroup
-      ? (skillGroupMap.get(selectedGroup.key) ?? [])
+      ? listPreferredGroupSkills(allSkillGroupMap.get(selectedGroup.key) ?? [])
       : [];
 
     return scopedSkills.filter((skill) =>
@@ -342,7 +309,7 @@ export function SkillsWorkspacePage({
         getServiceSkillTypeLabel(skill),
       ),
     );
-  }, [searchQuery, selectedGroup, skillGroupMap]);
+  }, [allSkillGroupMap, searchQuery, selectedGroup]);
 
   const visibleRecentSkills = useMemo(() => {
     return recentServiceSkills.filter((skill) =>
@@ -411,107 +378,19 @@ export function SkillsWorkspacePage({
   };
 
   const handleServiceSkillSelect = (skill: ServiceSkillHomeItem) => {
-    setSelectedServiceSkill(skill);
-    setServiceSkillDialogOpen(true);
-  };
-
-  const handleServiceSkillLaunch = async (
-    skill: ServiceSkillHomeItem,
-    slotValues: ServiceSkillSlotValues,
-  ) => {
-    if (isServiceSkillSiteCapabilityBound(skill)) {
-      const binding = skill.siteCapabilityBinding;
-      onNavigate("browser-runtime", {
-        initialAdapterName: binding.adapterName,
-        initialArgs: buildServiceSkillSiteCapabilityArgs(skill, slotValues),
-        initialAutoRun: binding.autoRun ?? false,
-        initialRequireAttachedSession: binding.requireAttachedSession ?? false,
-        initialSaveTitle: buildServiceSkillSiteCapabilitySaveTitle(
-          skill,
-          slotValues,
-        ),
-      });
-      recordUsage({
-        skillId: skill.id,
-        runnerType: skill.runnerType,
-      });
-      toast.success(`已打开 ${skill.title} 的浏览器工作台`);
-      setServiceSkillDialogOpen(false);
-      setSelectedServiceSkill(null);
-      return;
-    }
-
-    const prompt = composeServiceSkillPrompt({
+    const prefill = resolveServiceSkillLaunchPrefill({
       skill,
-      slotValues,
+      creationReplay: scaffoldCreationReplay,
     });
-
-    if (skill.executionLocation === "cloud_required") {
-      const toastId = toast.loading(`正在开始 ${skill.title} 的云端执行...`);
-
-      try {
-        setServiceSkillDialogOpen(false);
-        setSelectedServiceSkill(null);
-
-        let run = await createServiceSkillRun(skill.id, prompt);
-        recordServiceSkillCloudRun(skill.id, run);
-        recordUsage({
-          skillId: skill.id,
-          runnerType: skill.runnerType,
-        });
-
-        for (let attempt = 0; attempt < 8; attempt += 1) {
-          if (isTerminalServiceSkillRunStatus(run.status)) {
-            break;
-          }
-          await wait(1_500);
-          run = await getServiceSkillRun(run.id);
-          recordServiceSkillCloudRun(skill.id, run);
-        }
-
-        if (run.status === "success") {
-          toast.success(buildCloudRunSuccessMessage(skill, run), {
-            id: toastId,
-          });
-          return;
-        }
-
-        if (isTerminalServiceSkillRunStatus(run.status)) {
-          throw new Error(
-            run.errorMessage ||
-              `${skill.title} ${getCloudRunStatusLabel(run.status)}`,
-          );
-        }
-
-        toast.info(
-          `${skill.title} 已开始云端执行，当前${getCloudRunStatusLabel(run.status)}。`,
-          {
-            id: toastId,
-          },
-        );
-      } catch (error) {
-        toast.error(`云端执行失败：${String(error)}`, {
-          id: toastId,
-        });
-      }
-      return;
-    }
-
     onNavigate("agent", {
-      agentEntry: "claw",
-      initialUserPrompt: prompt,
-      initialSessionName: skill.title,
-      theme: skill.themeTarget,
-      lockTheme: Boolean(skill.themeTarget),
-      newChatAt: Date.now(),
+      ...buildHomeAgentParams(),
+      initialPendingServiceSkillLaunch: {
+        skillId: skill.id,
+        requestKey: Date.now(),
+        initialSlotValues: prefill?.slotValues,
+        prefillHint: prefill?.hint,
+      },
     });
-    recordUsage({
-      skillId: skill.id,
-      runnerType: skill.runnerType,
-    });
-    toast.success(`已进入 ${skill.title} 工作模式`);
-    setServiceSkillDialogOpen(false);
-    setSelectedServiceSkill(null);
   };
 
   const renderSkillCard = (skill: ServiceSkillHomeItem) => {
@@ -595,7 +474,7 @@ export function SkillsWorkspacePage({
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="space-y-3">
                   <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-emerald-700">
-                    技能 · 直接开工
+                    技能 · 对话内开工
                   </span>
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
@@ -604,12 +483,12 @@ export function SkillsWorkspacePage({
                       </h1>
                       <WorkbenchInfoTip
                         ariaLabel="技能主入口说明"
-                        content="技能中心现在先展示技能组，再进入具体技能项。适配器继续留在后台做治理，前台不再暴露 adapter、runtime 或 YAML 等技术细节。"
+                        content="技能中心现在先展示技能组；选中具体技能后，统一进入 Agent 对话补参或执行。适配器继续留在后台做治理，前台不再暴露 adapter、runtime 或 YAML 等技术细节。"
                         tone="mint"
                       />
                     </div>
                     <p className="max-w-3xl text-sm leading-7 text-slate-600">
-                      先找能直接开工的做法，再进入具体技能。
+                      先找适合当前目标的做法，再进入 Agent 对话补参和执行。
                     </p>
                     <p className="text-sm leading-6 text-slate-500">
                       {directoryStatusLabel}
@@ -647,7 +526,7 @@ export function SkillsWorkspacePage({
                     <span>查找技能组 / 技能项</span>
                     <WorkbenchInfoTip
                       ariaLabel="技能搜索说明"
-                      content="先从能直接开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。"
+                      content="先从能直接进入 Agent 对话开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。"
                       tone="slate"
                     />
                   </div>
@@ -671,7 +550,7 @@ export function SkillsWorkspacePage({
                         </span>
                       ) : null}
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                        技能 {serviceSkills.length}
+                        技能 {workspaceServiceSkills.length}
                       </span>
                       {catalogMeta.groupCount ? (
                         <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
@@ -787,7 +666,9 @@ export function SkillsWorkspacePage({
 
                   <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {visibleGroups.map((group) => {
-                      const groupSkills = skillGroupMap.get(group.key) ?? [];
+                      const groupSkills =
+                        recommendedSkillGroupMap.get(group.key) ?? [];
+                      const hasRecommendedGroupSkills = groupSkills.length > 0;
 
                       return (
                         <article
@@ -798,9 +679,15 @@ export function SkillsWorkspacePage({
                             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
                               技能组
                             </span>
-                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                              {group.itemCount} 项技能
-                            </span>
+                            {hasRecommendedGroupSkills ? (
+                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                                {groupSkills.length} 项技能
+                              </span>
+                            ) : (
+                              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                                已收进最近使用
+                              </span>
+                            )}
                           </div>
 
                           <div className="mt-4 space-y-3">
@@ -826,16 +713,22 @@ export function SkillsWorkspacePage({
                               </div>
                             </div>
                             <div className="space-y-2 text-xs leading-5 text-slate-500">
-                              <div>
-                                <span className="font-medium text-slate-700">
-                                  覆盖技能：
-                                </span>
-                                {groupSkills
-                                  .slice(0, 3)
-                                  .map((skill) => skill.title)
-                                  .join("、")}
-                                {groupSkills.length > 3 ? " 等" : ""}
-                              </div>
+                              {hasRecommendedGroupSkills ? (
+                                <div>
+                                  <span className="font-medium text-slate-700">
+                                    覆盖技能：
+                                  </span>
+                                  {groupSkills
+                                    .slice(0, 3)
+                                    .map((skill) => skill.title)
+                                    .join("、")}
+                                  {groupSkills.length > 3 ? " 等" : ""}
+                                </div>
+                              ) : (
+                                <div>
+                                  当前这组技能已沉淀到最近使用，可直接从右侧继续，或打开技能组查看。
+                                </div>
+                              )}
                               {group.themeTarget ? (
                                 <div>
                                   <span className="font-medium text-slate-700">
@@ -998,20 +891,6 @@ export function SkillsWorkspacePage({
         </div>
       </div>
 
-      <ServiceSkillLaunchDialog
-        skill={selectedServiceSkill}
-        open={serviceSkillDialogOpen}
-        initialSlotValues={serviceSkillCreationReplayPrefill?.slotValues}
-        prefillHint={serviceSkillCreationReplayPrefill?.hint}
-        onOpenChange={(open) => {
-          setServiceSkillDialogOpen(open);
-          if (!open) {
-            setSelectedServiceSkill(null);
-          }
-        }}
-        onLaunch={handleServiceSkillLaunch}
-      />
-
       <Dialog open={advancedManagerOpen} onOpenChange={setAdvancedManagerOpen}>
         <DialogContent className="max-h-[calc(100vh-40px)] w-[min(1240px,calc(100vw-32px))] max-w-none overflow-hidden border-slate-200 p-0">
           <div className="flex h-[calc(100vh-88px)] min-h-[680px] flex-col bg-white">
@@ -1020,7 +899,7 @@ export function SkillsWorkspacePage({
                 <DialogTitle>导入与维护</DialogTitle>
                 <WorkbenchInfoTip
                   ariaLabel="导入与维护弹窗说明"
-                  content="首页先服务直接开工；这里保留本地导入、仓库管理、标准检查和远程技能安装能力。"
+                  content="首页先服务进入 Agent 对话开工；这里保留本地导入、仓库管理、标准检查和远程技能安装能力。"
                   tone="mint"
                 />
               </div>

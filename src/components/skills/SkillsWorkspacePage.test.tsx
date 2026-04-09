@@ -2,7 +2,11 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Skill } from "@/lib/api/skills";
-import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
+import type {
+  ServiceSkillGroup,
+  ServiceSkillHomeItem,
+} from "@/components/agent/chat/service-skills/types";
+import { recordServiceSkillUsage } from "@/components/agent/chat/service-skills/storage";
 import type { SkillsPageParams } from "@/types/page";
 import { SkillsWorkspacePage } from "./SkillsWorkspacePage";
 
@@ -10,7 +14,133 @@ const mockRefreshServiceSkills = vi.fn();
 const mockRecordUsage = vi.fn();
 const mockRefreshLocalSkills = vi.fn();
 const mockAdvancedSkillsPage = vi.fn();
-const mockServiceSkillLaunchDialog = vi.fn();
+
+function createDefaultServiceSkills(): ServiceSkillHomeItem[] {
+  return [
+    {
+      id: "service-skill-1",
+      title: "深度研究",
+      summary: "综合多来源信息并给出归纳后的结论。",
+      category: "调研",
+      outputHint: "研究摘要",
+      source: "cloud_catalog",
+      runnerType: "instant",
+      defaultExecutorBinding: "agent_turn",
+      executionLocation: "client_default",
+      slotSchema: [
+        {
+          key: "article_source",
+          label: "文章链接/正文",
+          type: "textarea",
+          required: false,
+          placeholder: "输入文章链接、正文，或文章摘要",
+        },
+        {
+          key: "target_duration",
+          label: "目标时长",
+          type: "text",
+          required: false,
+          defaultValue: "60-90 秒",
+          placeholder: "例如 60-90 秒",
+        },
+      ],
+      version: "2026-03-29",
+      badge: "云目录",
+      recentUsedAt: 1_812_345_678_000,
+      isRecent: true,
+      runnerLabel: "立即开始",
+      runnerTone: "emerald",
+      runnerDescription: "会直接在当前工作区生成首版结果。",
+      actionLabel: "对话内补参",
+      automationStatus: null,
+      cloudStatus: null,
+      groupKey: "general",
+    },
+    {
+      id: "service-skill-2",
+      title: "品牌文案改写",
+      summary: "围绕已有素材整理一版可直接继续创作的文案。",
+      category: "创作",
+      outputHint: "改写文案",
+      source: "cloud_catalog",
+      runnerType: "instant",
+      defaultExecutorBinding: "agent_turn",
+      executionLocation: "client_default",
+      slotSchema: [],
+      version: "2026-03-29",
+      badge: "云目录",
+      recentUsedAt: null,
+      isRecent: false,
+      runnerLabel: "立即开始",
+      runnerTone: "emerald",
+      runnerDescription: "会直接在当前工作区生成首版结果。",
+      actionLabel: "对话内补参",
+      automationStatus: null,
+      cloudStatus: null,
+      groupKey: "general",
+    },
+    {
+      id: "site-skill:github/search",
+      title: "GitHub 仓库检索",
+      summary: "围绕关键词采集 GitHub 仓库搜索结果。",
+      category: "GitHub",
+      outputHint: "仓库列表",
+      source: "cloud_catalog",
+      runnerType: "instant",
+      defaultExecutorBinding: "browser_assist",
+      executionLocation: "client_default",
+      slotSchema: [
+        {
+          key: "repository_query",
+          label: "检索主题",
+          type: "text",
+          required: true,
+          placeholder: "例如 browser assist mcp",
+        },
+      ],
+      version: "2026-03-29",
+      badge: "云目录",
+      recentUsedAt: null,
+      isRecent: false,
+      runnerLabel: "浏览器采集",
+      runnerTone: "emerald",
+      runnerDescription: "会复用当前浏览器里的真实登录态执行站点任务。",
+      actionLabel: "对话内补参",
+      automationStatus: null,
+      cloudStatus: null,
+      groupKey: "github",
+      siteCapabilityBinding: {
+        adapterName: "github/search",
+        autoRun: true,
+        slotArgMap: {
+          repository_query: "query",
+        },
+      },
+    },
+  ];
+}
+
+function createDefaultSkillGroups(): ServiceSkillGroup[] {
+  return [
+    {
+      key: "github",
+      title: "GitHub",
+      summary: "围绕仓库与 Issue 的只读研究技能。",
+      sort: 10,
+      itemCount: 1,
+    },
+    {
+      key: "general",
+      title: "通用技能",
+      summary: "不依赖站点登录态的创作技能。",
+      sort: 90,
+      itemCount: 2,
+    },
+  ];
+}
+
+let mockServiceSkills = createDefaultServiceSkills();
+let mockSkillGroups = createDefaultSkillGroups();
 
 vi.mock("sonner", () => ({
   toast: {
@@ -23,96 +153,14 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/components/agent/chat/service-skills/useServiceSkills", () => ({
   useServiceSkills: () => ({
-    skills: [
-      {
-        id: "service-skill-1",
-        title: "深度研究",
-        summary: "综合多来源信息并给出归纳后的结论。",
-        category: "调研",
-        outputHint: "研究摘要",
-        source: "cloud_catalog",
-        runnerType: "instant",
-        defaultExecutorBinding: "agent_turn",
-        executionLocation: "client_default",
-        slotSchema: [
-          {
-            key: "article_source",
-            label: "文章链接/正文",
-            type: "textarea",
-            required: false,
-            placeholder: "输入文章链接、正文，或文章摘要",
-          },
-          {
-            key: "target_duration",
-            label: "目标时长",
-            type: "text",
-            required: false,
-            defaultValue: "60-90 秒",
-            placeholder: "例如 60-90 秒",
-          },
-        ],
-        version: "2026-03-29",
-        badge: "云目录",
-        recentUsedAt: Date.now(),
-        isRecent: true,
-        runnerLabel: "立即开始",
-        runnerTone: "emerald",
-        runnerDescription: "会直接在当前工作区生成首版结果。",
-        actionLabel: "填写参数",
-        automationStatus: null,
-        cloudStatus: null,
-        groupKey: "general",
-      },
-      {
-        id: "site-skill:github/search",
-        title: "GitHub 仓库检索",
-        summary: "围绕关键词采集 GitHub 仓库搜索结果。",
-        category: "GitHub",
-        outputHint: "仓库列表",
-        source: "cloud_catalog",
-        runnerType: "instant",
-        defaultExecutorBinding: "browser_assist",
-        executionLocation: "client_default",
-        slotSchema: [],
-        version: "2026-03-29",
-        badge: "云目录",
-        recentUsedAt: null,
-        isRecent: false,
-        runnerLabel: "浏览器采集",
-        runnerTone: "emerald",
-        runnerDescription: "会复用当前浏览器里的真实登录态执行站点任务。",
-        actionLabel: "开始执行",
-        automationStatus: null,
-        cloudStatus: null,
-        groupKey: "github",
-        siteCapabilityBinding: {
-          adapterName: "github/search",
-          autoRun: true,
-        },
-      },
-    ] as ServiceSkillHomeItem[],
-    groups: [
-      {
-        key: "github",
-        title: "GitHub",
-        summary: "围绕仓库与 Issue 的只读研究技能。",
-        sort: 10,
-        itemCount: 1,
-      },
-      {
-        key: "general",
-        title: "通用技能",
-        summary: "不依赖站点登录态的创作技能。",
-        sort: 90,
-        itemCount: 1,
-      },
-    ],
+    skills: mockServiceSkills,
+    groups: mockSkillGroups,
     catalogMeta: {
       tenantId: "tenant-demo",
       version: "catalog-v2",
       syncedAt: "2026-03-29T08:00:00Z",
-      itemCount: 2,
-      groupCount: 2,
+      itemCount: mockServiceSkills.length,
+      groupCount: mockSkillGroups.length,
       sourceLabel: "租户技能目录",
       isSeeded: false,
     },
@@ -147,25 +195,6 @@ vi.mock("@/hooks/useSkills", () => ({
     removeRepo: vi.fn(),
   }),
 }));
-
-vi.mock(
-  "@/components/agent/chat/service-skills/ServiceSkillLaunchDialog",
-  () => ({
-    ServiceSkillLaunchDialog: (
-      props: {
-        skill: ServiceSkillHomeItem | null;
-        open: boolean;
-        initialSlotValues?: Record<string, string>;
-        prefillHint?: string;
-      },
-    ) => {
-      mockServiceSkillLaunchDialog(props);
-      return props.open ? (
-        <div data-testid="service-skill-launch-dialog">{props.skill?.title}</div>
-      ) : null;
-    },
-  }),
-);
 
 vi.mock("./SkillsPage", () => ({
   SkillsPage: (props: Record<string, unknown>) => {
@@ -220,6 +249,12 @@ function getBodyText() {
   return document.body.textContent ?? "";
 }
 
+function getLatestNavigationPayload(onNavigate: ReturnType<typeof vi.fn>) {
+  return onNavigate.mock.calls.at(-1)?.[1] as
+    | Record<string, unknown>
+    | undefined;
+}
+
 async function hoverTip(ariaLabel: string) {
   const trigger = document.body.querySelector(
     `button[aria-label='${ariaLabel}']`,
@@ -249,13 +284,15 @@ describe("SkillsWorkspacePage", () => {
       }
     ).IS_REACT_ACT_ENVIRONMENT = true;
 
+    mockServiceSkills = createDefaultServiceSkills();
+    mockSkillGroups = createDefaultSkillGroups();
     mockRefreshServiceSkills.mockReset();
     mockRefreshServiceSkills.mockResolvedValue(undefined);
     mockRecordUsage.mockReset();
     mockRefreshLocalSkills.mockReset();
     mockRefreshLocalSkills.mockResolvedValue(undefined);
     mockAdvancedSkillsPage.mockReset();
-    mockServiceSkillLaunchDialog.mockReset();
+    window.localStorage.clear();
   });
 
   afterEach(() => {
@@ -289,31 +326,44 @@ describe("SkillsWorkspacePage", () => {
     );
   });
 
+  it("推荐技能组卡片不应重复展示已进入最近使用的技能", () => {
+    const { container } = renderPage();
+
+    const generalCard = Array.from(container.querySelectorAll("article")).find(
+      (article) => article.textContent?.includes("通用技能"),
+    );
+
+    expect(generalCard).toBeTruthy();
+    expect(container.textContent).toContain("深度研究");
+    expect(generalCard?.textContent).toContain("品牌文案改写");
+    expect(generalCard?.textContent).not.toContain("深度研究");
+  });
+
   it("应把主入口说明和搜索说明收进 tips", async () => {
     renderPage();
 
     expect(getBodyText()).not.toContain(
-      "技能中心现在先展示技能组，再进入具体技能项。",
+      "技能中心现在先展示技能组；选中具体技能后，统一进入 Agent 对话补参或执行。",
     );
     expect(getBodyText()).not.toContain(
-      "先从能直接开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。",
+      "先从能直接进入 Agent 对话开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。",
     );
 
     const entryTip = await hoverTip("技能主入口说明");
     expect(getBodyText()).toContain(
-      "技能中心现在先展示技能组，再进入具体技能项。",
+      "技能中心现在先展示技能组；选中具体技能后，统一进入 Agent 对话补参或执行。",
     );
     await leaveTip(entryTip);
 
     const searchTip = await hoverTip("技能搜索说明");
     expect(getBodyText()).toContain(
-      "先从能直接开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。",
+      "先从能直接进入 Agent 对话开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。",
     );
     await leaveTip(searchTip);
   });
 
-  it("点击技能组后应进入组内技能列表并可打开启动对话框", () => {
-    const { container } = renderPage();
+  it("点击技能组后应进入组内技能列表并跳转到 Agent 对话承接", () => {
+    const { container, onNavigate } = renderPage();
 
     const groupButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("打开技能组"),
@@ -327,7 +377,7 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("GitHub 仓库检索");
 
     const launchButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("开始执行"),
+      (button) => button.textContent?.includes("对话内补参"),
     );
     expect(launchButton).toBeTruthy();
 
@@ -335,14 +385,63 @@ describe("SkillsWorkspacePage", () => {
       launchButton?.click();
     });
 
-    const dialog = container.querySelector(
-      '[data-testid="service-skill-launch-dialog"]',
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agentEntry: "new-task",
+        theme: "general",
+        initialPendingServiceSkillLaunch: expect.objectContaining({
+          skillId: "site-skill:github/search",
+          requestKey: expect.any(Number),
+        }),
+      }),
     );
-    expect(dialog?.textContent).toContain("GitHub 仓库检索");
+    expect(mockRecordUsage).not.toHaveBeenCalled();
   });
 
-  it("技能页带着技能草稿时，启动弹窗应复用草稿里的预填参数", () => {
-    const { container } = renderPage({
+  it("技能组只剩最近使用时，打开后仍应回退展示该技能", () => {
+    mockServiceSkills = [
+      {
+        ...createDefaultServiceSkills()[0],
+        id: "site-skill:zhihu/qa",
+        title: "知乎问答拆解",
+        summary: "围绕知乎问答拆出观点结构与可复用表达。",
+        category: "知乎",
+        groupKey: "zhihu",
+      },
+    ];
+    mockSkillGroups = [
+      {
+        key: "zhihu",
+        title: "知乎",
+        summary: "围绕问答拆解与创作的技能组。",
+        sort: 10,
+        itemCount: 1,
+      },
+    ];
+
+    const { container } = renderPage();
+
+    const zhihuCard = Array.from(container.querySelectorAll("article")).find(
+      (article) => article.textContent?.includes("知乎"),
+    );
+    expect(zhihuCard?.textContent).toContain("已收进最近使用");
+
+    const openButton = Array.from(zhihuCard?.querySelectorAll("button") ?? []).find(
+      (button) => button.textContent?.includes("打开技能组"),
+    );
+    expect(openButton).toBeTruthy();
+
+    act(() => {
+      openButton?.click();
+    });
+
+    expect(container.textContent).toContain("知乎问答拆解");
+    expect(container.textContent).toContain("对话内补参");
+  });
+
+  it("技能页带着技能草稿时，应把预填参数交给 Agent 对话里的 A2UI", () => {
+    const { container, onNavigate } = renderPage({
       initialScaffoldDraft: {
         name: "AI Agent 行业拆解",
         description: "参考原文做一版 90 秒总结，结论更聚焦团队协作。",
@@ -352,7 +451,7 @@ describe("SkillsWorkspacePage", () => {
     });
 
     const launchButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("填写参数"),
+      (button) => button.textContent?.includes("对话内补参"),
     );
     expect(launchButton).toBeTruthy();
 
@@ -360,21 +459,119 @@ describe("SkillsWorkspacePage", () => {
       launchButton?.click();
     });
 
-    const latestProps = mockServiceSkillLaunchDialog.mock.lastCall?.[0] as
-      | {
-          initialSlotValues?: Record<string, string>;
-          prefillHint?: string;
-        }
-      | undefined;
-
-    expect(latestProps?.initialSlotValues).toEqual({
-      article_source:
-        "参考线索：参考 https://example.com/report 并保留关键结论。\n改写目标：参考原文做一版 90 秒总结，结论更聚焦团队协作。\n来源标题：AI Agent 行业拆解",
-      target_duration: "90 秒",
-    });
-    expect(latestProps?.prefillHint).toBe(
-      "已根据当前技能草稿自动预填 文章链接/正文、目标时长，可继续修改后执行。",
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        initialPendingServiceSkillLaunch: {
+          skillId: "service-skill-1",
+          requestKey: expect.any(Number),
+          initialSlotValues: {
+            article_source:
+              "参考线索：参考 https://example.com/report 并保留关键结论。\n改写目标：参考原文做一版 90 秒总结，结论更聚焦团队协作。\n来源标题：AI Agent 行业拆解",
+            target_duration: "90 秒",
+          },
+          prefillHint:
+            "已根据当前技能草稿自动预填 文章链接/正文、目标时长，可继续修改后执行。",
+        },
+      }),
     );
+    expect(mockRecordUsage).not.toHaveBeenCalled();
+  });
+
+  it("技能页独立选择服务技能时，应复用最近一次成功参数并交给 Agent", () => {
+    recordServiceSkillUsage({
+      skillId: "service-skill-1",
+      runnerType: "instant",
+      slotValues: {
+        article_source: "上次沉淀的文章摘要",
+        target_duration: "120 秒",
+      },
+    });
+
+    const { container, onNavigate } = renderPage();
+
+    const launchButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("对话内补参"),
+    );
+    expect(launchButton).toBeTruthy();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        initialPendingServiceSkillLaunch: {
+          skillId: "service-skill-1",
+          requestKey: expect.any(Number),
+          initialSlotValues: {
+            article_source: "上次沉淀的文章摘要",
+            target_duration: "120 秒",
+          },
+          prefillHint:
+            "已根据你上次成功执行 深度研究 时的参数自动预填，可继续修改后执行。",
+        },
+      }),
+    );
+    expect(mockRecordUsage).not.toHaveBeenCalled();
+  });
+
+  it("技能页选择普通技能后，应只把 pending skill 交给 Agent 对话处理", async () => {
+    const { container, onNavigate } = renderPage();
+
+    const launchButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("对话内补参"),
+    );
+    expect(launchButton).toBeTruthy();
+
+    await act(async () => {
+      launchButton?.click();
+    });
+
+    const payload = getLatestNavigationPayload(onNavigate);
+    expect(payload).toEqual(
+      expect.objectContaining({
+        agentEntry: "new-task",
+        initialPendingServiceSkillLaunch: expect.objectContaining({
+          skillId: "service-skill-1",
+        }),
+      }),
+    );
+    expect(mockRecordUsage).not.toHaveBeenCalled();
+  });
+
+  it("技能页选择站点技能后，应交由 Agent 对话继续承接而不是本页直接启动", async () => {
+    const { container, onNavigate } = renderPage();
+
+    const groupButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("打开技能组"),
+    );
+    expect(groupButton).toBeTruthy();
+
+    act(() => {
+      groupButton?.click();
+    });
+
+    const launchButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("对话内补参"),
+    );
+    expect(launchButton).toBeTruthy();
+
+    await act(async () => {
+      launchButton?.click();
+    });
+
+    const payload = getLatestNavigationPayload(onNavigate);
+    expect(payload).toEqual(
+      expect.objectContaining({
+        agentEntry: "new-task",
+        initialPendingServiceSkillLaunch: expect.objectContaining({
+          skillId: "site-skill:github/search",
+        }),
+      }),
+    );
+    expect(mockRecordUsage).not.toHaveBeenCalled();
   });
 
   it("点击刷新目录应同时刷新技能目录与本地技能", async () => {

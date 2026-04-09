@@ -99,8 +99,15 @@ describe("serviceSkills API", () => {
           commandPrefix: "/x文章转存",
         }),
         siteCapabilityBinding: expect.objectContaining({
-          adapterName: "x/article-export",
+          siteLabel: "X",
           saveMode: "project_resource",
+          adapterMatch: expect.objectContaining({
+            urlArgName: "url",
+            requiredCapabilities: expect.arrayContaining([
+              "article_export",
+              "markdown_bundle",
+            ]),
+          }),
           slotArgMap: expect.objectContaining({
             target_language: "target_language",
           }),
@@ -176,7 +183,7 @@ describe("serviceSkills API", () => {
     const catalog = await getServiceSkillCatalog();
 
     expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-04-08-creation-copy");
+    expect(catalog.version).toBe("client-seed-2026-04-09-browser-scene");
   });
 
   it("当前 OEM 租户不匹配时不应读取其他租户的缓存目录", async () => {
@@ -189,7 +196,7 @@ describe("serviceSkills API", () => {
     const catalog = await getServiceSkillCatalog();
 
     expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-04-08-creation-copy");
+    expect(catalog.version).toBe("client-seed-2026-04-09-browser-scene");
   });
 
   it("旧的 seeded 本地缓存应自动升级到当前 seeded 目录", async () => {

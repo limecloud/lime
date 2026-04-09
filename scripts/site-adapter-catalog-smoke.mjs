@@ -7,6 +7,7 @@ const DEFAULTS = {
   invokeUrl: "http://127.0.0.1:3030/invoke",
   timeoutMs: 60_000,
   intervalMs: 1_000,
+  invokeTimeoutMs: 20_000,
 };
 
 function printHelp() {
@@ -24,6 +25,7 @@ Lime Site Adapter Catalog Smoke
   --invoke-url <url>       DevBridge invoke 地址，默认 http://127.0.0.1:3030/invoke
   --timeout-ms <ms>        等待健康检查超时，默认 60000
   --interval-ms <ms>       健康检查轮询间隔，默认 1000
+  --invoke-timeout-ms <ms> 单次 invoke 超时，默认 20000
   -h, --help               显示帮助
 `);
 }
@@ -53,6 +55,11 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (arg === "--invoke-timeout-ms" && argv[index + 1]) {
+      options.invokeTimeoutMs = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
     if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -64,6 +71,12 @@ function parseArgs(argv) {
   }
   if (!Number.isFinite(options.intervalMs) || options.intervalMs < 100) {
     throw new Error("--interval-ms 必须是 >= 100 的数字");
+  }
+  if (
+    !Number.isFinite(options.invokeTimeoutMs) ||
+    options.invokeTimeoutMs < 1_000
+  ) {
+    throw new Error("--invoke-timeout-ms 必须是 >= 1000 的数字");
   }
 
   return options;
@@ -111,14 +124,26 @@ async function waitForHealth(options) {
   );
 }
 
-async function invoke(invokeUrl, cmd, args) {
-  const response = await fetch(invokeUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ cmd, args }),
-  });
+async function invoke(options, cmd, args) {
+  console.log(`[smoke:site-adapters] invoke ${cmd}`);
+  let response;
+  try {
+    response = await fetch(options.invokeUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ cmd, args }),
+      signal: AbortSignal.timeout(options.invokeTimeoutMs),
+    });
+  } catch (error) {
+    if (error?.name === "TimeoutError") {
+      throw new Error(
+        `[smoke:site-adapters] ${cmd} 超时，${options.invokeTimeoutMs}ms 内未收到 DevBridge 响应`,
+      );
+    }
+    throw error;
+  }
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -140,7 +165,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   await waitForHealth(options);
 
-  const status = await invoke(options.invokeUrl, "site_get_adapter_catalog_status");
+  const status = await invoke(options, "site_get_adapter_catalog_status");
   assert(status && typeof status === "object", "site_get_adapter_catalog_status 返回为空");
   assert(
     typeof status.adapter_count === "number" && status.adapter_count >= 0,
@@ -151,7 +176,7 @@ async function main() {
     "site_get_adapter_catalog_status 返回了未知 source_kind",
   );
 
-  const adapters = await invoke(options.invokeUrl, "site_list_adapters");
+  const adapters = await invoke(options, "site_list_adapters");
   assert(Array.isArray(adapters), "site_list_adapters 返回不是数组");
   assert(adapters.length > 0, "site_list_adapters 返回为空");
 
@@ -165,7 +190,7 @@ async function main() {
     "site_list_adapters 首项缺少 domain",
   );
 
-  const recommendations = await invoke(options.invokeUrl, "site_recommend_adapters", {
+  const recommendations = await invoke(options, "site_recommend_adapters", {
     request: {
       limit: 3,
     },
@@ -189,7 +214,7 @@ async function main() {
     );
   }
 
-  const searchResults = await invoke(options.invokeUrl, "site_search_adapters", {
+  const searchResults = await invoke(options, "site_search_adapters", {
     request: {
       query: adapter.name,
     },

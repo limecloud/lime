@@ -14,6 +14,7 @@ const mockListServiceSkills = vi.hoisted(() => vi.fn());
 const mockGetOrCreateDefaultProject = vi.hoisted(() => vi.fn());
 const mockResolveOemCloudRuntimeContext = vi.hoisted(() => vi.fn());
 const mockSiteGetAdapterLaunchReadiness = vi.hoisted(() => vi.fn());
+const mockSiteListAdapters = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/skillCatalog", () => ({
   getSkillCatalog: () => mockGetSkillCatalog(),
@@ -34,6 +35,7 @@ vi.mock("@/lib/api/oemCloudRuntime", () => ({
 }));
 
 vi.mock("@/lib/webview-api", () => ({
+  siteListAdapters: (...args: unknown[]) => mockSiteListAdapters(...args),
   siteGetAdapterLaunchReadiness: (...args: unknown[]) =>
     mockSiteGetAdapterLaunchReadiness(...args),
 }));
@@ -108,10 +110,15 @@ function createXArticleExportSkill(): ServiceSkillHomeItem {
       requiresProject: true,
     },
     siteCapabilityBinding: {
-      adapterName: "x/article-export",
       autoRun: true,
       requireAttachedSession: true,
       saveMode: "project_resource",
+      siteLabel: "X",
+      adapterMatch: {
+        urlArgName: "url",
+        requiredCapabilities: ["article_export", "markdown_bundle"],
+        hostAliases: ["twitter.com", "www.twitter.com", "www.x.com"],
+      },
       slotArgMap: {
         article_url: "url",
         target_language: "target_language",
@@ -138,6 +145,18 @@ describe("serviceSkillSceneLaunch", () => {
     });
     mockResolveOemCloudRuntimeContext.mockReturnValue(null);
     mockSiteGetAdapterLaunchReadiness.mockResolvedValue(null);
+    mockSiteListAdapters.mockResolvedValue([
+      {
+        name: "x/article-export",
+        domain: "x.com",
+        description: "导出 X 长文",
+        read_only: true,
+        capabilities: ["article_export", "markdown_bundle"],
+        input_schema: {},
+        example_args: {},
+        example: "",
+      },
+    ]);
   });
 
   it("应解析 slash scene 命令", () => {
@@ -188,10 +207,10 @@ describe("serviceSkillSceneLaunch", () => {
       },
     ]);
     mockResolveOemCloudRuntimeContext.mockReturnValueOnce({
-      baseUrl: "https://user.150404.xyz",
-      controlPlaneBaseUrl: "https://user.150404.xyz/api",
-      sceneBaseUrl: "https://user.150404.xyz/scene-api",
-      gatewayBaseUrl: "https://user.150404.xyz/gateway-api",
+      baseUrl: "https://user.limeai.run",
+      controlPlaneBaseUrl: "https://user.limeai.run/api",
+      sceneBaseUrl: "https://user.limeai.run/scene-api",
+      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
       tenantId: "tenant-demo",
       sessionToken: "session-token-demo",
       hubProviderName: null,
@@ -225,7 +244,7 @@ describe("serviceSkillSceneLaunch", () => {
             content_id: "content-1",
             user_input: "帮我做一版新品活动启动方案",
             oem_runtime: {
-              scene_base_url: "https://user.150404.xyz/scene-api",
+              scene_base_url: "https://user.limeai.run/scene-api",
               tenant_id: "tenant-demo",
               session_token: "session-token-demo",
             },
@@ -432,6 +451,63 @@ describe("serviceSkillSceneLaunch", () => {
       kind: "site_adapter",
       adapterName: "x/article-export",
       projectId: "project-1",
+    });
+  });
+
+  it("site skill scene 应根据 URL 和能力标签解析真正的 adapter", async () => {
+    mockGetSkillCatalog.mockResolvedValueOnce({ entries: [] });
+    mockListSkillCatalogSceneEntries.mockReturnValueOnce([
+      {
+        id: "scene:x-article-export",
+        kind: "scene",
+        title: "X文章转存",
+        summary: "把 X 长文导出成 Markdown。",
+        sceneKey: "x-article-export",
+        commandPrefix: "/x文章转存",
+        linkedSkillId: "x-article-export",
+        executionKind: "site_adapter",
+      },
+    ]);
+    mockSiteListAdapters.mockResolvedValueOnce([
+      {
+        name: "x/timeline",
+        domain: "x.com",
+        description: "读取 X 时间线",
+        read_only: true,
+        capabilities: ["timeline"],
+        input_schema: {},
+        example_args: {},
+        example: "",
+      },
+      {
+        name: "x/article-export",
+        domain: "x.com",
+        description: "导出 X 长文",
+        read_only: true,
+        capabilities: ["article_export", "markdown_bundle"],
+        input_schema: {},
+        example_args: {},
+        example: "",
+      },
+    ]);
+
+    const request = await resolveRuntimeSceneLaunchRequest({
+      rawText:
+        "/x文章转存 https://twitter.com/GoogleCloudTech/article/2033953579824758855",
+      serviceSkills: [createXArticleExportSkill()],
+      projectId: "project-1",
+    });
+
+    expect(request?.requestContext).toMatchObject({
+      kind: "site_adapter",
+      adapterName: "x/article-export",
+      args: {
+        url: "https://twitter.com/GoogleCloudTech/article/2033953579824758855",
+        target_language: "中文",
+      },
+    });
+    expect(mockSiteGetAdapterLaunchReadiness).toHaveBeenCalledWith({
+      adapter_name: "x/article-export",
     });
   });
 });

@@ -168,6 +168,17 @@ function createSavedSiteMetadata(): AgentToolResultMetadata {
 }
 
 describe("StreamingRenderer", () => {
+  it("应过滤 assistant 正文中的工具协议残留", () => {
+    const { container } = renderHarness({
+      content:
+        '<tool_call import={"name":"Read","arguments":{"file_path":"article.md"}}>{"ok":true}</tool_call>\n\n已完成 Markdown 保存。',
+    });
+
+    expect(container.textContent).toContain("已完成 Markdown 保存。");
+    expect(container.textContent).not.toContain("tool_call");
+    expect(container.textContent).not.toContain("file_path");
+  });
+
   it("纯文本内容应短路跳过结构化解析", () => {
     renderHarness({
       content: "这是普通文本输出，不包含结构化标签。",

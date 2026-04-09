@@ -884,6 +884,10 @@ impl TurnItemRuntimeProjector {
     }
 
     fn project_message(&mut self, message: &Message) -> Vec<AgentEvent> {
+        if !message.is_user_visible() {
+            return Vec::new();
+        }
+
         message
             .content
             .iter()
@@ -3752,7 +3756,9 @@ impl Agent {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
-                            let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
+                            let message = Message::user()
+                                .with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE)
+                                .agent_only();
                             messages_to_add.push(message.clone());
                             yield AgentEvent::Message(message);
                         } else {
@@ -4504,6 +4510,25 @@ mod tests {
             )),
             "应保留 reasoning summary 分段"
         );
+    }
+
+    #[test]
+    fn test_project_message_skips_agent_only_text_message() {
+        let turn = TurnRuntime::new(
+            "turn-hidden",
+            "session-1",
+            "thread-1",
+            Some("隐藏内部提示".to_string()),
+            None,
+        );
+        let mut projector = TurnItemRuntimeProjector::new(&turn);
+        let message = Message::user()
+            .with_text("internal continuation")
+            .agent_only();
+
+        let events = projector.project_agent_event(&AgentEvent::Message(message));
+
+        assert!(events.is_empty(), "agent-only 消息不应再投影到用户可见事件流");
     }
 
     #[test]

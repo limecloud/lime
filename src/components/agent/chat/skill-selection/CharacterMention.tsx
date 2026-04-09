@@ -30,7 +30,10 @@ import {
   getServiceSkillRunnerLabel,
   getServiceSkillRunnerTone,
 } from "@/components/agent/chat/service-skills/skillPresentation";
-import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
+import type {
+  ServiceSkillGroup,
+  ServiceSkillHomeItem,
+} from "@/components/agent/chat/service-skills/types";
 import { toast } from "sonner";
 import {
   filterCodexSlashCommands,
@@ -60,6 +63,8 @@ interface CharacterMentionProps {
   skills?: Skill[];
   /** 技能目录项列表 */
   serviceSkills?: ServiceSkillHomeItem[];
+  /** 技能目录分组 */
+  serviceSkillGroups?: ServiceSkillGroup[];
   /** 输入框 ref */
   inputRef: React.RefObject<HTMLTextAreaElement>;
   /** 当前输入值 */
@@ -236,6 +241,7 @@ export function CharacterMention({
   characters,
   skills = [],
   serviceSkills = [],
+  serviceSkillGroups = [],
   inputRef,
   value,
   onChange,
@@ -891,6 +897,7 @@ export function CharacterMention({
             slashCommands={filteredSlashCommands}
             sceneCommands={filteredRuntimeSceneCommands}
             mentionServiceSkills={filteredServiceSkills}
+            serviceSkillGroups={serviceSkillGroups}
             filteredCharacters={filteredCharacters}
             installedSkills={installedSkills}
             availableSkills={availableSkills}

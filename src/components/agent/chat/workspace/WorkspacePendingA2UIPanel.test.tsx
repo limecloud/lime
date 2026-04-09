@@ -2,7 +2,7 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkspacePendingA2UIDialog } from "./WorkspacePendingA2UIDialog";
+import { WorkspacePendingA2UIPanel } from "./WorkspacePendingA2UIPanel";
 
 const mockA2UITaskCard = vi.fn((_props?: unknown) => (
   <div data-testid="workspace-a2ui-card" />
@@ -71,8 +71,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function renderDialog(
-  props?: Partial<React.ComponentProps<typeof WorkspacePendingA2UIDialog>>,
+function renderPanel(
+  props?: Partial<React.ComponentProps<typeof WorkspacePendingA2UIPanel>>,
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -80,7 +80,7 @@ function renderDialog(
 
   act(() => {
     root.render(
-      <WorkspacePendingA2UIDialog
+      <WorkspacePendingA2UIPanel
         pendingA2UIForm={null}
         onA2UISubmit={vi.fn()}
         a2uiSubmissionNotice={null}
@@ -93,7 +93,7 @@ function renderDialog(
   return container;
 }
 
-describe("WorkspacePendingA2UIDialog", () => {
+describe("WorkspacePendingA2UIPanel", () => {
   it("有待处理表单时应在聊天区底部渲染内置 A2UI 卡片", () => {
     mockUseStickyA2UIForm.mockReturnValue({
       visibleForm: {
@@ -108,7 +108,7 @@ describe("WorkspacePendingA2UIDialog", () => {
       isStale: true,
     });
 
-    const container = renderDialog({
+    const container = renderPanel({
       pendingA2UIForm: {
         id: "form-1",
         root: "root",
@@ -121,7 +121,7 @@ describe("WorkspacePendingA2UIDialog", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="workspace-pending-a2ui-dialog"]'),
+      container.querySelector('[data-testid="workspace-pending-a2ui-panel"]'),
     ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="workspace-a2ui-card"]'),
@@ -150,7 +150,7 @@ describe("WorkspacePendingA2UIDialog", () => {
       isVisible: true,
     });
 
-    const container = renderDialog({
+    const container = renderPanel({
       a2uiSubmissionNotice: {
         title: "补充信息已确认",
         summary: "已继续处理。",
@@ -158,7 +158,7 @@ describe("WorkspacePendingA2UIDialog", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="workspace-pending-a2ui-dialog"]'),
+      container.querySelector('[data-testid="workspace-pending-a2ui-panel"]'),
     ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="workspace-a2ui-notice"]'),
