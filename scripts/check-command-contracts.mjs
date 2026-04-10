@@ -22,6 +22,7 @@ const ignoredDirectories = new Set([
 const frontendCommandPatterns = [
   /\bsafeInvoke(?:<[^>]+>)?\s*\(\s*["'`]([^"'`]+)["'`]/g,
   /\binvoke(?:<[^>]+>)?\s*\(\s*["'`]([^"'`]+)["'`]/g,
+  /\binvokeAgentRuntimeBridge(?:<[^>]+>)?\s*\(\s*["'`]([^"'`]+)["'`]/g,
 ];
 
 const knownDeferredRegistrationReasons = new Map();
@@ -84,11 +85,19 @@ function addUsage(map, command, relativePath) {
   map.get(command).add(relativePath);
 }
 
+function isFrameworkPluginCommand(command) {
+  return command.startsWith("plugin:");
+}
+
 function extractCommandsFromSource(sourceCode) {
   const commands = new Set();
   for (const pattern of frontendCommandPatterns) {
     for (const match of sourceCode.matchAll(pattern)) {
-      commands.add(match[1]);
+      const command = match[1];
+      if (isFrameworkPluginCommand(command)) {
+        continue;
+      }
+      commands.add(command);
     }
   }
   return commands;
@@ -106,6 +115,31 @@ function collectFrontendCommandUsage() {
       }
     }
   }
+  return commandUsage;
+}
+
+function collectAgentRuntimeSchemaUsage() {
+  const commandUsage = new Map();
+  const schemaPath = path.join(
+    repoRoot,
+    "src/lib/governance/agentRuntimeCommandSchema.json",
+  );
+  if (!fs.existsSync(schemaPath)) {
+    return commandUsage;
+  }
+
+  const relativePath = normalizePath(path.relative(repoRoot, schemaPath));
+  const parsed = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
+  const schemaCommands = Array.isArray(parsed?.commands) ? parsed.commands : [];
+
+  for (const entry of schemaCommands) {
+    const command = String(entry?.command ?? "").trim();
+    if (!command) {
+      continue;
+    }
+    addUsage(commandUsage, command, relativePath);
+  }
+
   return commandUsage;
 }
 
@@ -309,6 +343,12 @@ function printCommandGroup(title, commands, usageMap) {
 
 function main() {
   const frontendUsage = collectFrontendCommandUsage();
+  const agentRuntimeSchemaUsage = collectAgentRuntimeSchemaUsage();
+  for (const [command, files] of agentRuntimeSchemaUsage.entries()) {
+    for (const file of files) {
+      addUsage(frontendUsage, command, file);
+    }
+  }
   const frontendCommands = new Set(frontendUsage.keys());
   const registeredCommands = collectRegisteredCommands();
   const mockPriorityCommands = collectMockPriorityCommands();

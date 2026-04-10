@@ -12,6 +12,7 @@ import {
 import { safeListen } from "@/lib/dev-bridge";
 import { subscribeProviderDataChanged } from "@/lib/providerDataEvents";
 import { loadCompanionProviderOverview } from "@/lib/provider/companionProviderOverview";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 import type { Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
 
@@ -36,6 +37,12 @@ export function useCompanionProviderBridge({
   const syncRequestIdRef = useRef(0);
 
   useEffect(() => {
+    // 浏览器开发模式下 DevBridge 事件桥会占用有限的同源连接槽位，
+    // companion 事件不属于聊天主链，优先跳过以避免阻塞 /invoke。
+    if (!hasTauriInvokeCapability()) {
+      return;
+    }
+
     let cancelled = false;
     let statusUnlisten: UnlistenFn | null = null;
     let openSettingsUnlisten: UnlistenFn | null = null;

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
   Select,
   SelectContent,
@@ -385,6 +386,26 @@ export function AutomationJobDialog({
   const scheduleSummary = useMemo(() => scheduleHint(form), [form]);
   const isTextOnlyDelivery =
     form.delivery_channel === TEXT_ONLY_DELIVERY_CHANNEL;
+  const workspaceLabel = useMemo(
+    () =>
+      workspaces.find((workspace) => workspace.id === form.workspace_id)?.name ??
+      form.workspace_id ??
+      "未选择",
+    [form.workspace_id, workspaces],
+  );
+  const dialogTitle = mode === "create" ? "新建自动化任务" : "编辑自动化任务";
+  const dialogSummary = isLegacyBrowserJob
+    ? "查看历史配置快照并迁移到新的 Agent 对话任务。"
+    : "配置任务名称、调度、提示词和输出投递。";
+  const dialogTipContent = isLegacyBrowserJob
+    ? "浏览器自动化已下线，当前弹窗只保留历史配置展示与迁移参考，不允许继续保存。"
+    : "用结构化 job 承载 Agent 对话任务，统一管理调度、工作区、输出投递和运行历史。";
+  const scheduleKindLabel =
+    form.schedule_kind === "every"
+      ? "固定间隔"
+      : form.schedule_kind === "cron"
+        ? "Cron"
+        : "一次性";
 
   async function handleSubmit() {
     try {
@@ -480,14 +501,64 @@ export function AutomationJobDialog({
         maxWidth="max-w-[820px]"
         className="max-h-[calc(100vh-32px)] overflow-hidden rounded-[28px] border border-slate-200/80 bg-white p-0"
       >
-        <div className="flex max-h-[calc(100vh-32px)] flex-col rounded-[28px] bg-[linear-gradient(135deg,rgba(246,250,244,0.96)_0%,rgba(255,255,255,0.98)_48%,rgba(241,247,255,0.98)_100%)]">
-          <DialogHeader className="shrink-0 border-b border-slate-200/70 px-4 py-4 sm:px-6 sm:py-5">
-            <DialogTitle>
-              {mode === "create" ? "新建自动化任务" : "编辑自动化任务"}
-            </DialogTitle>
-            <DialogDescription>
-              用结构化 job 承载 Agent 对话任务，统一管理调度、工作区和运行历史。
-            </DialogDescription>
+        <div className="flex max-h-[calc(100vh-32px)] flex-col rounded-[28px] bg-white">
+          <DialogHeader className="shrink-0 border-b border-slate-200/70 bg-white px-4 py-4 sm:px-6 sm:py-5">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle className="text-[22px] font-semibold tracking-tight text-slate-900">
+                  {dialogTitle}
+                </DialogTitle>
+                <WorkbenchInfoTip
+                  ariaLabel="自动化任务弹窗说明"
+                  content={dialogTipContent}
+                  tone="mint"
+                />
+              </div>
+              <DialogDescription className="text-sm text-slate-500">
+                {dialogSummary}
+              </DialogDescription>
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                  工作区：{workspaceLabel}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                  调度：{scheduleKindLabel}
+                </span>
+                <span
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    isLegacyBrowserJob
+                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                      : "border-sky-200 bg-sky-50 text-sky-700"
+                  }`}
+                >
+                  任务类型：
+                  {isLegacyBrowserJob
+                    ? "浏览器自动化（已下线）"
+                    : "Agent 对话任务"}
+                </span>
+                <span
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    form.delivery_mode === "announce"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-slate-200 bg-slate-50 text-slate-600"
+                  }`}
+                >
+                  输出投递：
+                  {form.delivery_mode === "announce" ? "已启用" : "未启用"}
+                </span>
+                {!isLegacyBrowserJob ? (
+                  <span
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                      form.enabled
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-slate-200 bg-slate-50 text-slate-600"
+                    }`}
+                  >
+                    任务状态：{form.enabled ? "已启用" : "已停用"}
+                  </span>
+                ) : null}
+              </div>
+            </div>
           </DialogHeader>
 
           <div

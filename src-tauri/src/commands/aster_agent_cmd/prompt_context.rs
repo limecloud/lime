@@ -579,6 +579,48 @@ fn build_markdown_bundle_translation_followup(
     lines
 }
 
+fn build_markdown_bundle_source_material_followup(
+    execution: &ServiceSkillLaunchPreloadExecution,
+) -> Vec<String> {
+    if !execution.result.ok {
+        return Vec::new();
+    }
+
+    let Some(saved_content) = execution.result.saved_content.as_ref() else {
+        return Vec::new();
+    };
+    let Some(markdown_relative_path) = saved_content
+        .markdown_relative_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Vec::new();
+    };
+
+    let export_kind = execution
+        .result
+        .data
+        .as_ref()
+        .and_then(serde_json::Value::as_object)
+        .and_then(|data| extract_object_string(data, &["export_kind", "exportKind"]));
+    if export_kind.as_deref() != Some("markdown_bundle") {
+        return Vec::new();
+    }
+
+    let markdown_path = build_prompt_file_path(
+        saved_content.project_root_path.as_deref(),
+        markdown_relative_path,
+    );
+    vec![
+        format!("- 当前已导出的 Markdown bundle 位于 {markdown_path}。"),
+        "- 这个 bundle 是系统侧采集得到的源材料，不默认等于用户要的最终交付结果。".to_string(),
+        "- 如果用户当前目标是继续提炼、分析、改写、生成技能包、报告、方案、脚本或其他正式成果，必须先基于这份已保存的 Markdown 继续完成原任务，而不是只重复导出成功摘要。".to_string(),
+        "- 后续处理优先使用本地文件工具(Read / Write / Edit / Glob)围绕已保存 bundle 展开；不要再次抓站点，也不要把保存路径、图片数量或采集摘要原样复述后就停止。".to_string(),
+        "- 除非当前任务本身就是翻译、校对或回写源 Markdown，否则不要把 exports 下的源 bundle 直接当成最终结果目录；需要新增正式结果时，应另外写出真正可交付的工作区文件。".to_string(),
+    ]
+}
+
 fn build_service_skill_launch_preload_prompt(
     execution: &ServiceSkillLaunchPreloadExecution,
 ) -> String {
@@ -652,6 +694,7 @@ fn build_service_skill_launch_preload_prompt(
         format!("- 已预执行请求(JSON)：{request_json}。"),
         format!("- 已预执行结果(JSON)：{result_json}。"),
     ];
+    lines.extend(build_markdown_bundle_source_material_followup(execution));
     lines.extend(build_markdown_bundle_translation_followup(execution));
     lines.push(
         "- 除非用户明确要求“重跑一次 / 换关键词 / 换筛选条件 / 重新抓取”，否则本回合不要再次调用任何站点执行工具。"

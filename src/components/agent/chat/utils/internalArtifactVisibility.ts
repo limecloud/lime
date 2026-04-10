@@ -15,3 +15,23 @@ export function isHiddenInternalArtifactPath(path?: string | null): boolean {
     normalizedPath.includes("/.lime/tasks/")
   );
 }
+
+export function isHiddenConversationArtifactPath(
+  path?: string | null,
+): boolean {
+  const normalizedPath = normalizeArtifactPath(path);
+  if (!normalizedPath) {
+    return false;
+  }
+
+  if (isHiddenInternalArtifactPath(normalizedPath)) {
+    return true;
+  }
+
+  const isInternalArtifactDocument =
+    normalizedPath.endsWith(".artifact.json") &&
+    (normalizedPath.startsWith(".lime/artifacts/") ||
+      normalizedPath.includes("/.lime/artifacts/"));
+
+  return isInternalArtifactDocument;
+}

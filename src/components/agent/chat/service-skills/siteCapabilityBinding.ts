@@ -44,6 +44,7 @@ export interface ServiceSkillClawLaunchContext {
   skillId: string;
   skillTitle: string;
   adapterName: string;
+  isExportStyle?: boolean;
   args: Record<string, unknown>;
   saveMode: "current_content" | "project_resource";
   saveTitle?: string;
@@ -110,6 +111,17 @@ const SITE_LABELS: Record<string, string> = {
 };
 
 const EXPORT_CAPABILITIES = new Set(["article_export", "markdown_bundle"]);
+const SITE_EXPORT_TRANSLATION_FOLLOWUP_ENTRY_SOURCE =
+  "service_skill_site_export_followup";
+
+interface ServiceSkillFollowupTranslationRequest {
+  prompt: string;
+  raw_text: string;
+  target_language: string;
+  project_id?: string;
+  content_id?: string;
+  entry_source: string;
+}
 
 function normalizeNaturalText(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -172,8 +184,19 @@ function isExportStyleSiteSkill(
 ): boolean {
   const capabilities =
     skill.siteCapabilityBinding?.adapterMatch?.requiredCapabilities ?? [];
-  return capabilities.some((capability) =>
-    EXPORT_CAPABILITIES.has(normalizeCapability(capability)),
+  if (
+    capabilities.some((capability) =>
+      EXPORT_CAPABILITIES.has(normalizeCapability(capability)),
+    )
+  ) {
+    return true;
+  }
+
+  const adapterName = normalizeAdapterName(
+    skill.siteCapabilityBinding?.adapterName ?? "",
+  );
+  return (
+    adapterName === "article-export" || adapterName.endsWith("/article-export")
   );
 }
 
@@ -644,6 +667,7 @@ export function buildServiceSkillClawLaunchContext(
     skillId: skill.id,
     skillTitle: skill.title,
     adapterName,
+    isExportStyle: isExportStyleSiteSkill(skill),
     args: buildServiceSkillSiteCapabilityArgs(skill, slotValues),
     saveMode: binding.saveMode ?? "project_resource",
     saveTitle: buildServiceSkillSiteCapabilitySaveTitle(skill, slotValues, {
@@ -655,9 +679,35 @@ export function buildServiceSkillClawLaunchContext(
   };
 }
 
+function buildServiceSkillFollowupTranslationRequest(
+  context: ServiceSkillClawLaunchContext,
+): ServiceSkillFollowupTranslationRequest | null {
+  if (!context.isExportStyle) {
+    return null;
+  }
+
+  const targetLanguage = readStringArg(context.args, "target_language");
+  if (!targetLanguage) {
+    return null;
+  }
+
+  return {
+    prompt: `请读取本轮刚导出的 Markdown 文件，并将正文翻译成${quoteNaturalValue(
+      targetLanguage,
+    )}，保留 Markdown 结构、代码块原文、图片链接和相对路径，再回写到原文件。`,
+    raw_text: `${context.skillTitle}：导出后将 Markdown 正文翻译成${targetLanguage}并回写原文件`,
+    target_language: targetLanguage,
+    ...(context.projectId ? { project_id: context.projectId } : {}),
+    ...(context.contentId ? { content_id: context.contentId } : {}),
+    entry_source: SITE_EXPORT_TRANSLATION_FOLLOWUP_ENTRY_SOURCE,
+  };
+}
+
 export function buildServiceSkillClawLaunchRequestMetadata(
   context: ServiceSkillClawLaunchContext,
 ): Record<string, unknown> {
+  const followupTranslationRequest =
+    buildServiceSkillFollowupTranslationRequest(context);
   const readyLaunchReadiness = isSiteLaunchReadinessReady(
     context.launchReadiness,
   )
@@ -673,6 +723,16 @@ export function buildServiceSkillClawLaunchRequestMetadata(
     harness: {
       browser_requirement: "required",
       browser_requirement_reason: browserRequirementReason,
+      ...(followupTranslationRequest
+        ? {
+            allow_model_skills: true,
+            translation_skill_launch: {
+              skill_name: "translation",
+              kind: "translation_request",
+              translation_request: followupTranslationRequest,
+            },
+          }
+        : {}),
       ...(attachedProfileKey
         ? {
             browser_assist: {

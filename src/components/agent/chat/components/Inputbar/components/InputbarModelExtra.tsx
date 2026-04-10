@@ -22,9 +22,9 @@ export const InputbarModelExtra: React.FC<InputbarModelExtraProps> = ({
   setModel,
   activeTheme,
   onManageProviders,
-  executionRuntime = null,
+  executionRuntime: _executionRuntime = null,
 }) => {
-  if (isFullscreen || !providerType || !model) {
+  if (isFullscreen) {
     return null;
   }
   const selectorBackgroundPreload = hasTauriInvokeCapability()
@@ -34,9 +34,9 @@ export const InputbarModelExtra: React.FC<InputbarModelExtraProps> = ({
   return (
     <div className="flex items-center flex-wrap gap-2">
       <ChatModelSelector
-        providerType={providerType}
+        providerType={providerType ?? ""}
         setProviderType={setProviderType}
-        model={model}
+        model={model ?? ""}
         setModel={setModel}
         activeTheme={activeTheme}
         compactTrigger

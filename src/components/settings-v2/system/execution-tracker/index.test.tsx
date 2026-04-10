@@ -156,7 +156,9 @@ describe("ExecutionTrackerSettings", () => {
 
     const text = container.textContent ?? "";
     expect(mockExecutionRunList).toHaveBeenCalledWith(50, 0);
-    expect(text).toContain("EXECUTION TRACKER");
+    expect(text).toContain("执行轨迹");
+    expect(text).toContain("统一查看执行状态、来源引用和错误信息。");
+    expect(text).toContain("当前同步概览");
     expect(text).toContain("轨迹列表");
     expect(text).toContain("筛选与同步");
     expect(text).toContain("查看约定");
@@ -169,7 +171,7 @@ describe("ExecutionTrackerSettings", () => {
     await flushEffects();
 
     expect(getBodyText()).not.toContain(
-      "这里优先解决“刚刚发生了什么”这个问题。你可以统一看状态、会话 ID、来源引用和错误信息，再决定是否继续下钻到单条详情。",
+      "统一查看 Chat、Skill 和 Automation 的执行状态、来源引用与错误信息。",
     );
     expect(getBodyText()).not.toContain(
       "打开后会按固定周期静默同步，便于持续观察近期执行状态。",
@@ -177,7 +179,7 @@ describe("ExecutionTrackerSettings", () => {
 
     const heroTip = await hoverTip("执行轨迹工作台说明");
     expect(getBodyText()).toContain(
-      "这里优先解决“刚刚发生了什么”这个问题。你可以统一看状态、会话 ID、来源引用和错误信息，再决定是否继续下钻到单条详情。",
+      "统一查看 Chat、Skill 和 Automation 的执行状态、来源引用与错误信息。",
     );
     await leaveTip(heroTip);
 

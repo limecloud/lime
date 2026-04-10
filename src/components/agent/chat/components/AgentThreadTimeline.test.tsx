@@ -260,7 +260,7 @@ function createFileArtifactItem(
   return {
     ...createBaseItem("artifact-1", 1),
     type: "file_artifact",
-    path: ".lime/artifacts/thread-1/demo.artifact.json",
+    path: "exports/x-article-export/google/index.md",
     source: "artifact_snapshot",
     content: JSON.stringify({
       schemaVersion: "artifact_document.v1",
@@ -374,10 +374,38 @@ describe("AgentThreadTimeline", () => {
     expect(onOpenArtifactFromTimeline).toHaveBeenCalledWith(
       expect.objectContaining({
         timelineItemId: "artifact-1",
-        filePath: ".lime/artifacts/thread-1/demo.artifact.json",
+        filePath: "exports/x-article-export/google/index.md",
         blockId: "hero-1",
       }),
     );
+  });
+
+  it("多个 file_artifact 应直接渲染卡片，不再重复显示产出摘要头", () => {
+    const container = renderTimeline([
+      createFileArtifactItem({
+        path: "workspace/index.md",
+        content: "# Index\n\n主文档内容",
+      }),
+      createFileArtifactItem({
+        ...createBaseItem("artifact-2", 2),
+        path: "workspace/Agents.md",
+        content: "# Agents\n\n协作说明",
+      }),
+    ]);
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-block:1:artifact"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="agent-thread-block:1:artifact:shell"]',
+      ),
+    ).toBeNull();
+    expect(
+      container.querySelectorAll('[data-testid="timeline-file-artifact-card"]'),
+    ).toHaveLength(2);
+    expect(container.textContent).not.toContain("产出了 index.md");
+    expect(container.textContent).not.toContain("产出了 Agents.md");
   });
 
   it("不应把 .lime/tasks 下的内部任务快照 JSON 渲染到时间线里", () => {

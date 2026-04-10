@@ -23,6 +23,7 @@ export interface ActiveStreamState {
 
 export interface StreamRequestState {
   accumulatedContent: string;
+  hasMeaningfulCompletionSignal?: boolean;
   requestLogId: string | null;
   requestStartedAt: number;
   requestFinished: boolean;
@@ -77,6 +78,7 @@ export function createAgentStreamSubmissionLifecycle(
   let streamActivated = false;
   const requestState: StreamRequestState = {
     accumulatedContent: "",
+    hasMeaningfulCompletionSignal: false,
     requestLogId: null,
     requestStartedAt: 0,
     requestFinished: false,

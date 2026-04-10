@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { ChevronDown, ChevronUp, Settings2 } from "lucide-react";
 import type { ChatInputAdapter } from "@/components/input-kit/adapters/types";
 import type { Character } from "@/lib/api/memory";
 import type {
@@ -29,6 +30,14 @@ import type {
   WorkflowQuickAction,
   WorkflowStep,
 } from "../../../utils/workflowInputState";
+import { Badge } from "@/components/ui/badge";
+import {
+  MetaToggleButton,
+  MetaToggleCheck,
+  MetaToggleGlyph,
+  MetaToggleLabel,
+} from "../styles";
+import { getProviderLabel } from "@/lib/constants/providerMappings";
 
 interface InputbarComposerSectionProps {
   renderWorkflowGeneratingPanel: boolean;
@@ -112,6 +121,7 @@ export const InputbarComposerSection: React.FC<
   const [teamSelectorAutoOpenToken, setTeamSelectorAutoOpenToken] = useState<
     number | null
   >(null);
+  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const showSkillSelector =
     !isWorkspaceVariant && isGeneralResearchTheme(activeTheme);
   const currentPendingImages =
@@ -121,6 +131,14 @@ export const InputbarComposerSection: React.FC<
     buildSkillSelectionBindings(skillSelection);
   const resolvedProviderType = inputAdapter.model?.providerType;
   const resolvedModel = inputAdapter.model?.model;
+  const trimmedProviderType = resolvedProviderType?.trim() || "";
+  const trimmedModel = resolvedModel?.trim() || "";
+  const shouldShowModelControls = !isWorkspaceVariant;
+  const hasConfiguredModel = Boolean(trimmedProviderType && trimmedModel);
+  const currentModelSummary =
+    shouldShowModelControls && hasConfiguredModel
+      ? `${getProviderLabel(trimmedProviderType)} / ${trimmedModel}`
+      : null;
   const resolvedSetProviderType =
     inputAdapter.actions.setProviderType || (() => undefined);
   const resolvedSetModel = inputAdapter.actions.setModel || (() => undefined);
@@ -151,6 +169,113 @@ export const InputbarComposerSection: React.FC<
     }
     onToolClick(tool);
   };
+  const shouldShowTeamSelector =
+    isGeneralResearchTheme(activeTheme) && activeTools["subagent_mode"];
+  const hasHighlightedAdvancedPreference =
+    activeTools["thinking"] ||
+    activeTools["web_search"] ||
+    activeTools["subagent_mode"] ||
+    executionStrategy === "code_orchestrated" ||
+    accessMode === "read-only" ||
+    accessMode === "full-access";
+  const shouldShowAdvancedToggle =
+    showSkillSelector ||
+    shouldShowTeamSelector ||
+    Boolean(setExecutionStrategy) ||
+    shouldShowModelControls ||
+    Boolean(setAccessMode);
+  const leftExtra = shouldShowAdvancedToggle ? (
+    <>
+      <MetaToggleButton
+        type="button"
+        $checked={showAdvancedControls || hasHighlightedAdvancedPreference}
+        aria-label={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
+        aria-expanded={showAdvancedControls}
+        data-testid="inputbar-advanced-toggle"
+        title={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
+        onClick={() => setShowAdvancedControls((previous) => !previous)}
+      >
+        <MetaToggleCheck
+          $checked={showAdvancedControls || hasHighlightedAdvancedPreference}
+          aria-hidden
+        />
+        <MetaToggleGlyph aria-hidden>
+          <Settings2 strokeWidth={1.8} />
+        </MetaToggleGlyph>
+        <MetaToggleLabel>高级设置</MetaToggleLabel>
+        {showAdvancedControls ? (
+          <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+        )}
+      </MetaToggleButton>
+
+      {!showAdvancedControls && currentModelSummary ? (
+        <Badge
+          variant="outline"
+          className="h-8 max-w-[240px] items-center overflow-hidden rounded-full border-slate-200/80 bg-white/90 px-3 text-xs font-medium text-slate-600"
+          title={`当前模型：${currentModelSummary}`}
+        >
+          <span className="mr-1 text-slate-500">当前模型</span>
+          <span className="truncate">{trimmedModel}</span>
+        </Badge>
+      ) : null}
+
+      {!showAdvancedControls && shouldShowModelControls && !hasConfiguredModel ? (
+        <InputbarModelExtra
+          isFullscreen={isFullscreen}
+          providerType={resolvedProviderType}
+          setProviderType={resolvedSetProviderType}
+          model={resolvedModel}
+          setModel={resolvedSetModel}
+          activeTheme={activeTheme}
+          onManageProviders={onManageProviders}
+          executionRuntime={executionRuntime}
+        />
+      ) : null}
+
+      {showAdvancedControls ? (
+        <>
+          {showSkillSelector ? (
+            <SkillSelector {...skillSelectorProps} />
+          ) : null}
+          {shouldShowTeamSelector ? (
+            <TeamSelector
+              activeTheme={activeTheme}
+              input={input}
+              autoOpenToken={teamSelectorAutoOpenToken}
+              selectedTeam={selectedTeam}
+              workspaceSettings={teamWorkspaceSettings}
+              onPersistCustomTeams={onPersistCustomTeams}
+              onSelectTeam={(team) => onSelectTeam?.(team)}
+            />
+          ) : null}
+          <InputbarExecutionStrategySelect
+            isFullscreen={isFullscreen}
+            executionStrategy={executionStrategy}
+            setExecutionStrategy={setExecutionStrategy}
+          />
+          {shouldShowModelControls ? (
+            <InputbarModelExtra
+              isFullscreen={isFullscreen}
+              providerType={resolvedProviderType}
+              setProviderType={resolvedSetProviderType}
+              model={resolvedModel}
+              setModel={resolvedSetModel}
+              activeTheme={activeTheme}
+              onManageProviders={onManageProviders}
+              executionRuntime={executionRuntime}
+            />
+          ) : null}
+          <InputbarAccessModeSelect
+            isFullscreen={isFullscreen}
+            accessMode={accessMode}
+            setAccessMode={setAccessMode}
+          />
+        </>
+      ) : null}
+    </>
+  ) : undefined;
 
   if (renderWorkflowGeneratingPanel) {
     return (
@@ -215,48 +340,8 @@ export const InputbarComposerSection: React.FC<
         queuedTurns={queuedTurns}
         onPromoteQueuedTurn={onPromoteQueuedTurn}
         onRemoveQueuedTurn={onRemoveQueuedTurn}
-        leftExtra={
-          <>
-            {showSkillSelector ? (
-              <SkillSelector {...skillSelectorProps} />
-            ) : null}
-            {isGeneralResearchTheme(activeTheme) ? (
-              activeTools["subagent_mode"] ? (
-                <TeamSelector
-                  activeTheme={activeTheme}
-                  input={input}
-                  autoOpenToken={teamSelectorAutoOpenToken}
-                  selectedTeam={selectedTeam}
-                  workspaceSettings={teamWorkspaceSettings}
-                  onPersistCustomTeams={onPersistCustomTeams}
-                  onSelectTeam={(team) => onSelectTeam?.(team)}
-                />
-              ) : null
-            ) : null}
-            <InputbarExecutionStrategySelect
-              isFullscreen={isFullscreen}
-              executionStrategy={executionStrategy}
-              setExecutionStrategy={setExecutionStrategy}
-            />
-            {!isWorkspaceVariant ? (
-              <InputbarModelExtra
-                isFullscreen={isFullscreen}
-                providerType={inputAdapter.model?.providerType}
-                setProviderType={resolvedSetProviderType}
-                model={inputAdapter.model?.model}
-                setModel={resolvedSetModel}
-                activeTheme={activeTheme}
-                onManageProviders={onManageProviders}
-                executionRuntime={executionRuntime}
-              />
-            ) : null}
-            <InputbarAccessModeSelect
-              isFullscreen={isFullscreen}
-              accessMode={accessMode}
-              setAccessMode={setAccessMode}
-            />
-          </>
-        }
+        leftExtra={leftExtra}
+        showMetaTools={showAdvancedControls}
       />
     </>
   );

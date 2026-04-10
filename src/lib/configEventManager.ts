@@ -5,6 +5,7 @@
  */
 
 import { safeListen } from "@/lib/dev-bridge";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 /** 配置变更来源 */
@@ -132,6 +133,13 @@ class ConfigEventManager {
    */
   async subscribe(): Promise<void> {
     if (this.subscribed || this.subscribing) {
+      return;
+    }
+
+    // 浏览器开发模式下优先让出 DevBridge 事件连接给聊天主链，
+    // 配置热更新监听不再默认占用一个长期 SSE 连接。
+    if (!hasTauriInvokeCapability()) {
+      this.error = null;
       return;
     }
 

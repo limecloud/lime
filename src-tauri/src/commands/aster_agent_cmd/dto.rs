@@ -1,5 +1,6 @@
 use super::*;
 use chrono::{DateTime, Utc};
+use lime_core::models::model_registry::ModelCapabilities;
 
 /// Aster Agent 状态信息
 #[derive(Debug, Serialize)]
@@ -26,6 +27,12 @@ pub struct ConfigureProviderRequest {
     pub api_key: Option<String>,
     #[serde(default)]
     pub base_url: Option<String>,
+    #[serde(default, alias = "modelCapabilities")]
+    pub model_capabilities: Option<ModelCapabilities>,
+    #[serde(default, alias = "toolCallStrategy")]
+    pub tool_call_strategy: Option<RuntimeToolCallStrategy>,
+    #[serde(default, alias = "toolshimModel")]
+    pub toolshim_model: Option<String>,
 }
 
 /// 从凭证池配置 Provider 的请求

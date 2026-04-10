@@ -452,7 +452,7 @@ export function ProfileSettings() {
   if (isInitialLoading) {
     return (
       <div className="space-y-4">
-        <div className="h-[220px] animate-pulse rounded-[30px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(245,249,247,0.98)_0%,rgba(255,255,255,0.98)_52%,rgba(243,247,255,0.96)_100%)]" />
+        <div className="h-[176px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.95fr)]">
           <div className="space-y-4">
             <div className="h-[320px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
@@ -486,137 +486,122 @@ export function ProfileSettings() {
         </div>
       )}
 
-      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(245,250,248,0.98)_0%,rgba(255,255,255,0.98)_52%,rgba(242,247,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-16 top-[-68px] h-52 w-52 rounded-full bg-emerald-200/25 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-88px] top-[-14px] h-56 w-56 rounded-full bg-sky-200/25 blur-3xl" />
-
-        <div className="relative flex flex-col gap-6 p-6 lg:p-7">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="relative flex-shrink-0">
-                <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[28px] border border-white/90 bg-[linear-gradient(145deg,rgba(255,255,255,0.95)_0%,rgba(230,244,238,0.92)_100%)] shadow-sm shadow-slate-950/5">
-                  {profile.avatar_url ? (
-                    <img
-                      src={profile.avatar_url}
-                      alt="头像"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <User className="h-11 w-11 text-slate-400" />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  aria-label="更新头像"
-                  onClick={handleUploadAvatar}
-                  className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-2xl border border-white bg-slate-900 text-white shadow-lg shadow-slate-950/15 transition hover:bg-slate-800"
-                >
-                  <Camera className="h-4 w-4" />
-                </button>
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                  个人资料
+                </h1>
+                <WorkbenchInfoTip
+                  ariaLabel="个人资料总览说明"
+                  content="管理昵称、简介、邮箱和偏好标签，帮助 Lime 在工作区里更准确地理解你的语境。"
+                  tone="mint"
+                />
               </div>
-
-              <div className="min-w-0 space-y-3">
-                <span className="inline-flex items-center rounded-full border border-white/90 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                  PROFILE SNAPSHOT
-                </span>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                      {profile.nickname || "未设置昵称"}
-                    </h2>
-                    <span
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-xs font-medium",
-                        statusClassName,
-                      )}
-                    >
-                      {statusLabel}
-                    </span>
-                  </div>
-                  <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                    {profile.bio ||
-                      "补充几句你的工作背景、关注方向或使用目标，AI 会更快进入正确语境。"}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-white/90 bg-white/85 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                    <Mail className="h-3.5 w-3.5 text-slate-400" />
-                    {profile.email || "邮箱待补充"}
-                  </span>
-
-                  {quickTags.length > 0 ? (
-                    quickTags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full border border-white/90 bg-white/85 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm"
-                      >
-                        {tag}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="rounded-full border border-dashed border-slate-300 bg-white/70 px-3 py-1.5 text-xs text-slate-500">
-                      添加标签帮助 AI 理解你的领域偏好
-                    </span>
-                  )}
-
-                  {extraTagCount > 0 && (
-                    <span className="rounded-full border border-white/90 bg-white/85 px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm">
-                      +{extraTagCount} 个标签
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 text-xs leading-5 text-slate-500">
-                  <span>头像格式限制已收纳</span>
-                  <WorkbenchInfoTip
-                    ariaLabel="头像上传限制说明"
-                    content="头像支持 PNG / JPG / GIF / WEBP，单文件不超过 5MB。"
-                    tone="slate"
-                  />
-                </div>
-              </div>
+              <p className="text-sm text-slate-500">
+                管理昵称、简介、邮箱和偏好标签。
+              </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[360px]">
-              <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <span>资料完成度</span>
-                  <WorkbenchInfoTip
-                    ariaLabel="资料完成度说明"
-                    content="昵称、简介、邮箱与偏好标签。"
-                    tone="slate"
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <span
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium",
+                  statusClassName,
+                )}
+              >
+                状态：{statusLabel}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                完成度：{completionPercent}%
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                标签：{tags.length}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 lg:flex-row lg:items-start">
+            <div className="relative flex-shrink-0 self-start">
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5">
+                {profile.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="头像"
+                    className="h-full w-full object-cover"
                   />
+                ) : (
+                  <User className="h-10 w-10 text-slate-400" />
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="更新头像"
+                onClick={handleUploadAvatar}
+                className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-2xl border border-white bg-slate-900 text-white shadow-lg shadow-slate-950/15 transition hover:bg-slate-800"
+              >
+                <Camera className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-w-0 space-y-3">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+                    {profile.nickname || "未设置昵称"}
+                  </h2>
+                  <span
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-medium",
+                      statusClassName,
+                    )}
+                  >
+                    {statusLabel}
+                  </span>
                 </div>
-                <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
-                  {completionPercent}%
+                <p className="max-w-2xl text-sm leading-6 text-slate-600">
+                  {profile.bio ||
+                    "补充几句你的工作背景、关注方向或使用目标，AI 会更快进入正确语境。"}
                 </p>
               </div>
-              <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <span>兴趣标签</span>
-                  <WorkbenchInfoTip
-                    ariaLabel="兴趣标签说明"
-                    content="用于偏好理解与内容召回。"
-                    tone="slate"
-                  />
-                </div>
-                <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
-                  {tags.length}
-                </p>
+
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
+                  <Mail className="h-3.5 w-3.5 text-slate-400" />
+                  {profile.email || "邮箱待补充"}
+                </span>
+
+                {quickTags.length > 0 ? (
+                  quickTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600"
+                    >
+                      {tag}
+                    </span>
+                  ))
+                ) : (
+                  <span className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-500">
+                    添加标签帮助 AI 理解你的领域偏好
+                  </span>
+                )}
+
+                {extraTagCount > 0 && (
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500">
+                    +{extraTagCount} 个标签
+                  </span>
+                )}
               </div>
-              <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <span>个性化状态</span>
-                  <WorkbenchInfoTip
-                    ariaLabel="个性化状态说明"
-                    content="当前资料可用于 AI 上下文提示。"
-                    tone="slate"
-                  />
-                </div>
-                <p className="mt-4 text-xl font-semibold tracking-tight text-slate-900">
-                  {statusLabel}
-                </p>
+
+              <div className="flex items-center gap-2 text-xs leading-5 text-slate-500">
+                <span>头像格式限制已收纳</span>
+                <WorkbenchInfoTip
+                  ariaLabel="头像上传限制说明"
+                  content="头像支持 PNG / JPG / GIF / WEBP，单文件不超过 5MB。"
+                  tone="slate"
+                />
               </div>
             </div>
           </div>

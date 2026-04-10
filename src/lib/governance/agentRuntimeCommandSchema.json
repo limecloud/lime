@@ -1,0 +1,239 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "command": "agent_runtime_submit_turn",
+      "domain": "thread",
+      "requestType": "AgentRuntimeSubmitTurnRequest",
+      "responseType": "void",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_interrupt_turn",
+      "domain": "thread",
+      "requestType": "AgentRuntimeInterruptTurnRequest",
+      "responseType": "boolean",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_compact_session",
+      "domain": "thread",
+      "requestType": "AgentRuntimeCompactSessionRequest",
+      "responseType": "void",
+      "lifecycle": "current",
+      "mockStrategy": "bridge-only",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_resume_thread",
+      "domain": "thread",
+      "requestType": "AgentRuntimeResumeThreadRequest",
+      "responseType": "boolean",
+      "lifecycle": "current",
+      "mockStrategy": "bridge-only",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_replay_request",
+      "domain": "thread",
+      "requestType": "AgentRuntimeReplayRequestRequest",
+      "responseType": "AgentRuntimeReplayedActionRequiredView | null",
+      "lifecycle": "current",
+      "mockStrategy": "bridge-only",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_get_thread_read",
+      "domain": "thread",
+      "requestType": "{ sessionId: string }",
+      "responseType": "AgentRuntimeThreadReadModel",
+      "lifecycle": "current",
+      "mockStrategy": "bridge-only",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_promote_queued_turn",
+      "domain": "thread",
+      "requestType": "AgentRuntimePromoteQueuedTurnRequest",
+      "responseType": "boolean",
+      "lifecycle": "current",
+      "mockStrategy": "bridge-only",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_remove_queued_turn",
+      "domain": "thread",
+      "requestType": "AgentRuntimeRemoveQueuedTurnRequest",
+      "responseType": "boolean",
+      "lifecycle": "current",
+      "mockStrategy": "bridge-only",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_respond_action",
+      "domain": "thread",
+      "requestType": "AgentRuntimeRespondActionRequest",
+      "responseType": "void",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_create_session",
+      "domain": "session",
+      "requestType": "{ workspaceId: string; name?: string; executionStrategy?: AsterExecutionStrategy }",
+      "responseType": "string",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.session"
+    },
+    {
+      "command": "agent_runtime_list_sessions",
+      "domain": "session",
+      "requestType": "void",
+      "responseType": "AsterSessionInfo[]",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.session"
+    },
+    {
+      "command": "agent_runtime_get_session",
+      "domain": "session",
+      "requestType": "{ sessionId: string }",
+      "responseType": "AsterSessionDetail",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.session"
+    },
+    {
+      "command": "agent_runtime_update_session",
+      "domain": "session",
+      "requestType": "AgentRuntimeUpdateSessionRequest",
+      "responseType": "void",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.session"
+    },
+    {
+      "command": "agent_runtime_delete_session",
+      "domain": "session",
+      "requestType": "{ sessionId: string }",
+      "responseType": "void",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.session"
+    },
+    {
+      "command": "agent_runtime_export_analysis_handoff",
+      "domain": "export",
+      "requestType": "{ sessionId: string }",
+      "responseType": "AgentRuntimeAnalysisHandoff",
+      "lifecycle": "current",
+      "mockStrategy": "mock-priority",
+      "docsSection": "agent-runtime.export"
+    },
+    {
+      "command": "agent_runtime_export_handoff_bundle",
+      "domain": "export",
+      "requestType": "{ sessionId: string }",
+      "responseType": "AgentRuntimeHandoffBundle",
+      "lifecycle": "current",
+      "mockStrategy": "mock-priority",
+      "docsSection": "agent-runtime.export"
+    },
+    {
+      "command": "agent_runtime_export_evidence_pack",
+      "domain": "export",
+      "requestType": "{ sessionId: string }",
+      "responseType": "AgentRuntimeEvidencePack",
+      "lifecycle": "current",
+      "mockStrategy": "mock-priority",
+      "docsSection": "agent-runtime.export"
+    },
+    {
+      "command": "agent_runtime_export_review_decision_template",
+      "domain": "export",
+      "requestType": "{ sessionId: string }",
+      "responseType": "AgentRuntimeReviewDecisionTemplate",
+      "lifecycle": "current",
+      "mockStrategy": "mock-priority",
+      "docsSection": "agent-runtime.export"
+    },
+    {
+      "command": "agent_runtime_save_review_decision",
+      "domain": "export",
+      "requestType": "AgentRuntimeSaveReviewDecisionRequest",
+      "responseType": "AgentRuntimeReviewDecisionTemplate",
+      "lifecycle": "current",
+      "mockStrategy": "mock-priority",
+      "docsSection": "agent-runtime.export"
+    },
+    {
+      "command": "agent_runtime_export_replay_case",
+      "domain": "export",
+      "requestType": "{ sessionId: string }",
+      "responseType": "AgentRuntimeReplayCase",
+      "lifecycle": "current",
+      "mockStrategy": "mock-priority",
+      "docsSection": "agent-runtime.export"
+    },
+    {
+      "command": "agent_runtime_get_tool_inventory",
+      "domain": "inventory",
+      "requestType": "AgentRuntimeToolInventoryRequest",
+      "responseType": "AgentRuntimeToolInventory",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.inventory"
+    },
+    {
+      "command": "agent_runtime_spawn_subagent",
+      "domain": "subagent",
+      "requestType": "AgentRuntimeSpawnSubagentRequest",
+      "responseType": "AgentRuntimeSpawnSubagentResponse",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.subagent"
+    },
+    {
+      "command": "agent_runtime_send_subagent_input",
+      "domain": "subagent",
+      "requestType": "AgentRuntimeSendSubagentInputRequest",
+      "responseType": "AgentRuntimeSendSubagentInputResponse",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.subagent"
+    },
+    {
+      "command": "agent_runtime_wait_subagents",
+      "domain": "subagent",
+      "requestType": "AgentRuntimeWaitSubagentsRequest",
+      "responseType": "AgentRuntimeWaitSubagentsResponse",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.subagent"
+    },
+    {
+      "command": "agent_runtime_resume_subagent",
+      "domain": "subagent",
+      "requestType": "AgentRuntimeResumeSubagentRequest",
+      "responseType": "AgentRuntimeResumeSubagentResponse",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.subagent"
+    },
+    {
+      "command": "agent_runtime_close_subagent",
+      "domain": "subagent",
+      "requestType": "AgentRuntimeCloseSubagentRequest",
+      "responseType": "AgentRuntimeCloseSubagentResponse",
+      "lifecycle": "current",
+      "mockStrategy": "default-mock",
+      "docsSection": "agent-runtime.subagent"
+    }
+  ]
+}

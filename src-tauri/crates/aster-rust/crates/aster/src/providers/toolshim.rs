@@ -31,7 +31,8 @@
 //!
 
 use super::errors::ProviderError;
-use super::ollama::OLLAMA_DEFAULT_PORT;
+use super::ollama::OllamaProvider;
+use super::ollama::OLLAMA_BASE_URL_ENV;
 use super::ollama::OLLAMA_HOST;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
@@ -66,10 +67,15 @@ pub trait ToolInterpreter {
 pub struct OllamaInterpreter {
     client: Client,
     base_url: String,
+    interpreter_model: Option<String>,
 }
 
 impl OllamaInterpreter {
     pub fn new() -> Result<Self, ProviderError> {
+        Self::new_with_model(None)
+    }
+
+    pub fn new_with_model(interpreter_model: Option<String>) -> Result<Self, ProviderError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()
@@ -77,40 +83,27 @@ impl OllamaInterpreter {
 
         let base_url = Self::get_ollama_base_url()?;
 
-        Ok(Self { client, base_url })
+        Ok(Self {
+            client,
+            base_url,
+            interpreter_model: normalize_interpreter_model_override(interpreter_model),
+        })
     }
 
     /// Get the Ollama base URL from existing config or use default values
     fn get_ollama_base_url() -> Result<String, ProviderError> {
         let config = crate::config::Config::global();
-        let host: String = config
-            .get_param("OLLAMA_HOST")
-            .unwrap_or_else(|_| OLLAMA_HOST.to_string());
+        let host = config
+            .get_param::<String>("OLLAMA_HOST")
+            .ok()
+            .unwrap_or_else(|| OLLAMA_HOST.to_string());
+        let base_url = config.get_param::<String>(OLLAMA_BASE_URL_ENV).ok();
 
-        // Format the URL correctly with http:// prefix if needed
-        let base = if host.starts_with("http://") || host.starts_with("https://") {
-            &host
-        } else {
-            &format!("http://{}", host)
-        };
-
-        let mut base_url = url::Url::parse(base)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-
-        // Set the default port if missing
-        // Don't add default port if:
-        // 1. URL explicitly ends with standard ports (:80 or :443)
-        // 2. URL uses HTTPS (which implicitly uses port 443)
-        let explicit_default_port = host.ends_with(":80") || host.ends_with(":443");
-        let is_https = base_url.scheme() == "https";
-
-        if base_url.port().is_none() && !explicit_default_port && !is_https {
-            base_url.set_port(Some(OLLAMA_DEFAULT_PORT)).map_err(|_| {
-                ProviderError::RequestFailed("Failed to set default port".to_string())
-            })?;
-        }
-
-        Ok(base_url.to_string())
+        Ok(
+            OllamaProvider::resolve_base_url(base_url.as_deref(), Some(&host))
+                .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?
+                .to_string(),
+        )
     }
 
     fn tool_structured_ouput_format_schema() -> Value {
@@ -240,6 +233,26 @@ impl OllamaInterpreter {
     }
 }
 
+fn normalize_interpreter_model_override(interpreter_model: Option<String>) -> Option<String> {
+    interpreter_model
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn resolve_interpreter_model(explicit_model: Option<&str>) -> String {
+    explicit_model
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .or_else(|| {
+            std::env::var("ASTER_TOOLSHIM_OLLAMA_MODEL")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| DEFAULT_INTERPRETER_MODEL_OLLAMA.to_string())
+}
+
 #[async_trait::async_trait]
 impl ToolInterpreter for OllamaInterpreter {
     async fn interpret_to_tool_calls(
@@ -283,8 +296,7 @@ Otherwise, if no JSON tool requests are provided, use the no-op tool:
         let format_schema = OllamaInterpreter::tool_structured_ouput_format_schema();
 
         // Determine which model to use for interpretation (from env var or default)
-        let interpreter_model = std::env::var("ASTER_TOOLSHIM_OLLAMA_MODEL")
-            .unwrap_or_else(|_| DEFAULT_INTERPRETER_MODEL_OLLAMA.to_string());
+        let interpreter_model = resolve_interpreter_model(self.interpreter_model.as_deref());
 
         // Make a call to ollama with structured output
         let interpreter_response = self
@@ -442,4 +454,44 @@ pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
     }
 
     Ok(final_message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static TOOLSHIM_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn resolve_interpreter_model_prefers_explicit_override() {
+        let _guard = TOOLSHIM_ENV_LOCK.lock().expect("lock env");
+        std::env::set_var("ASTER_TOOLSHIM_OLLAMA_MODEL", "env-model");
+
+        let resolved = resolve_interpreter_model(Some("glm-5.1:cloud"));
+
+        assert_eq!(resolved, "glm-5.1:cloud");
+        std::env::remove_var("ASTER_TOOLSHIM_OLLAMA_MODEL");
+    }
+
+    #[test]
+    fn resolve_interpreter_model_falls_back_to_env() {
+        let _guard = TOOLSHIM_ENV_LOCK.lock().expect("lock env");
+        std::env::set_var("ASTER_TOOLSHIM_OLLAMA_MODEL", "env-model");
+
+        let resolved = resolve_interpreter_model(None);
+
+        assert_eq!(resolved, "env-model");
+        std::env::remove_var("ASTER_TOOLSHIM_OLLAMA_MODEL");
+    }
+
+    #[test]
+    fn resolve_interpreter_model_uses_default_when_no_override_exists() {
+        let _guard = TOOLSHIM_ENV_LOCK.lock().expect("lock env");
+        std::env::remove_var("ASTER_TOOLSHIM_OLLAMA_MODEL");
+
+        let resolved = resolve_interpreter_model(None);
+
+        assert_eq!(resolved, DEFAULT_INTERPRETER_MODEL_OLLAMA);
+    }
 }

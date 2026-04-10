@@ -114,32 +114,6 @@ function ExecutionPanel({
   );
 }
 
-function SummaryStat({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
-        <span>{label}</span>
-        <WorkbenchInfoTip
-          ariaLabel={`${label}说明`}
-          content={description}
-          tone="slate"
-        />
-      </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function SurfacePill({
   className,
   children,
@@ -430,103 +404,79 @@ export function ExecutionTrackerSettings() {
 
   return (
     <div className="space-y-6 pb-8">
-      <section className="relative overflow-hidden rounded-[30px] border border-sky-200/70 bg-[linear-gradient(135deg,rgba(244,250,255,0.98)_0%,rgba(248,250,252,0.98)_48%,rgba(242,248,250,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-76px] top-[-18px] h-56 w-56 rounded-full bg-emerald-200/24 blur-3xl" />
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                执行轨迹
+              </h1>
+              <WorkbenchInfoTip
+                ariaLabel="执行轨迹工作台说明"
+                content="统一查看 Chat、Skill 和 Automation 的执行状态、来源引用与错误信息。"
+                tone="mint"
+              />
+            </div>
+            <p className="text-sm text-slate-500">
+              统一查看执行状态、来源引用和错误信息。
+            </p>
+          </div>
 
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]">
-            <div className="max-w-3xl space-y-5">
-              <span className="inline-flex items-center rounded-full border border-sky-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-sky-700 shadow-sm">
-                EXECUTION TRACKER
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            <SurfacePill className="border-slate-200 bg-slate-50 text-slate-600">
+              最近同步 {lastSyncedAt ?? "尚未完成"}
+            </SurfacePill>
+            <SurfacePill
+              className={cn(
+                autoRefreshEnabled
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-slate-100 text-slate-500",
+              )}
+            >
+              {autoRefreshHint}
+            </SurfacePill>
+            <SurfacePill className="border-slate-200 bg-slate-50 text-slate-600">
+              当前可见 {summary.visibleCount} 条
+            </SurfacePill>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-4 rounded-[20px] border border-slate-200/80 bg-slate-50/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs leading-5 text-slate-500">
+              <span>当前同步概览</span>
+              <WorkbenchInfoTip
+                ariaLabel="当前同步概览说明"
+                content="列表默认抓取最近一页记录；需要更早记录时可继续向后加载。"
+                tone="slate"
+              />
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                已加载 {summary.totalCount} 条
               </span>
-
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-                    把 Chat、Skill 和 Automation 的执行轨迹放进同一个排查工作台
-                  </h1>
-                  <WorkbenchInfoTip
-                    ariaLabel="执行轨迹工作台说明"
-                    content="这里优先解决“刚刚发生了什么”这个问题。你可以统一看状态、会话 ID、来源引用和错误信息，再决定是否继续下钻到单条详情。"
-                    tone="mint"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <SurfacePill className="border-white/90 bg-white/88 text-slate-600 shadow-sm">
-                  最近同步 {lastSyncedAt ?? "尚未完成"}
-                </SurfacePill>
-                <SurfacePill
-                  className={cn(
-                    autoRefreshEnabled
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-slate-200 bg-slate-100 text-slate-500",
-                  )}
-                >
-                  {autoRefreshHint}
-                </SurfacePill>
-                <SurfacePill className="border-white/90 bg-white/88 text-slate-600 shadow-sm">
-                  当前可见 {summary.visibleCount} 条
-                </SurfacePill>
-              </div>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                活跃任务 {summary.activeCount}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                风险记录 {summary.issueCount}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                来源覆盖 {summary.activeSourceCount}
+              </span>
             </div>
+          </div>
 
-            <div className="rounded-[26px] border border-white/90 bg-white/84 p-5 shadow-sm shadow-slate-950/5 backdrop-blur-[2px]">
-              <div className="flex items-start gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-sky-200 bg-sky-100 text-sky-700">
-                  <Activity className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                      当前同步概览
-                    </h2>
-                    <WorkbenchInfoTip
-                      ariaLabel="当前同步概览说明"
-                      content="列表默认抓取最近一页记录；需要更早记录时可继续向后加载。"
-                      tone="slate"
-                    />
-                    <SurfacePill className="border-slate-200 bg-slate-100 text-slate-600">
-                      已加载 {summary.totalCount} 条
-                    </SurfacePill>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <SummaryStat
-                  label="活跃任务"
-                  value={summary.activeCount.toString()}
-                  description="运行中与排队中的任务会优先占据注意力。"
-                />
-                <SummaryStat
-                  label="风险记录"
-                  value={summary.issueCount.toString()}
-                  description="失败与超时通常值得先查看详情和上下文。"
-                />
-                <SummaryStat
-                  label="来源覆盖"
-                  value={summary.activeSourceCount.toString()}
-                  description="表示最近这一批记录覆盖了多少种入口来源。"
-                />
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => void loadRuns()}
-                  disabled={loading}
-                  className="h-10 rounded-full border-slate-200 bg-white px-4 text-slate-700 hover:bg-slate-50"
-                >
-                  <RefreshCw
-                    className={cn("mr-2 h-4 w-4", loading && "animate-spin")}
-                  />
-                  立即刷新
-                </Button>
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              onClick={() => void loadRuns()}
+              disabled={loading}
+              className="h-10 rounded-full border-slate-200 bg-white px-4 text-slate-700 hover:bg-slate-50"
+            >
+              <RefreshCw
+                className={cn("mr-2 h-4 w-4", loading && "animate-spin")}
+              />
+              立即刷新
+            </Button>
           </div>
         </div>
       </section>

@@ -43,3 +43,12 @@ export async function getUrls(): Promise<string[]> {
 
   return [];
 }
+
+/**
+ * Mock getCurrent function
+ * 对齐 @tauri-apps/plugin-deep-link 的启动 URL 读取接口
+ */
+export async function getCurrent(): Promise<string[] | null> {
+  const urls = await getUrls();
+  return urls.length > 0 ? urls : null;
+}

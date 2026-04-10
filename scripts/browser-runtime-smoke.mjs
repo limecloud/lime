@@ -13,6 +13,10 @@ const DEFAULTS = {
   streamMode: "both",
 };
 
+const INVOKE_TIMEOUT_MS = 60_000;
+const INVOKE_RETRY_COUNT = 3;
+const INVOKE_RETRY_DELAY_MS = 500;
+
 function printHelp() {
   console.log(`
 Lime Browser Runtime Smoke
@@ -111,25 +115,55 @@ function assert(condition, message) {
   }
 }
 
-async function invoke(invokeUrl, cmd, args) {
-  const response = await fetch(invokeUrl, {
+function isTransientInvokeError(error) {
+  return (
+    error?.name === "TimeoutError" ||
+    (error instanceof TypeError && error.message === "fetch failed")
+  );
+}
+
+async function invoke(options, cmd, args) {
+  const requestInit = {
     method: "POST",
     headers: {
       "content-type": "application/json",
     },
     body: JSON.stringify({ cmd, args }),
-  });
+    signal: AbortSignal.timeout(Math.min(options.timeoutMs, INVOKE_TIMEOUT_MS)),
+  };
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  for (let attempt = 1; attempt <= INVOKE_RETRY_COUNT; attempt += 1) {
+    try {
+      const response = await fetch(options.invokeUrl, requestInit);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const payload = await response.json();
+      if (payload?.error) {
+        throw new Error(String(payload.error));
+      }
+
+      return payload?.result;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (!isTransientInvokeError(error) || attempt >= INVOKE_RETRY_COUNT) {
+        if (error?.name === "TimeoutError") {
+          throw new Error(
+            `[smoke:browser-runtime] ${cmd} 超时，${Math.min(options.timeoutMs, INVOKE_TIMEOUT_MS)}ms 内未收到 DevBridge 响应`,
+          );
+        }
+        throw new Error(`[smoke:browser-runtime] ${cmd} 请求失败: ${detail}`);
+      }
+      console.warn(
+        `[smoke:browser-runtime] ${cmd} 第 ${attempt} 次请求失败，${INVOKE_RETRY_DELAY_MS}ms 后重试: ${detail}`,
+      );
+      await sleep(INVOKE_RETRY_DELAY_MS);
+    }
   }
 
-  const payload = await response.json();
-  if (payload?.error) {
-    throw new Error(String(payload.error));
-  }
-
-  return payload?.result;
+  throw new Error(`[smoke:browser-runtime] ${cmd} 请求失败: unknown error`);
 }
 
 async function waitForHealth(options) {
@@ -180,7 +214,7 @@ async function main() {
   let sessionId = null;
 
   try {
-    const launchResponse = await invoke(options.invokeUrl, "launch_browser_session", {
+    const launchResponse = await invoke(options, "launch_browser_session", {
       request: {
         profile_key: profileKey,
         url: options.launchUrl,
@@ -201,7 +235,7 @@ async function main() {
     );
 
     const sessionState = await invoke(
-      options.invokeUrl,
+      options,
       "get_browser_session_state",
       {
         request: {
@@ -222,7 +256,7 @@ async function main() {
       "get_browser_session_state 未返回 target_id",
     );
 
-    const actionResult = await invoke(options.invokeUrl, "browser_execute_action", {
+    const actionResult = await invoke(options, "browser_execute_action", {
       request: {
         profile_key: profileKey,
         action: "read_page",
@@ -239,7 +273,7 @@ async function main() {
       "browser_execute_action 未返回对应的 target_id",
     );
 
-    const auditLogs = await invoke(options.invokeUrl, "get_browser_action_audit_logs", {
+    const auditLogs = await invoke(options, "get_browser_action_audit_logs", {
       limit: 10,
     });
     const launchAudit = findLatestAudit(
@@ -278,7 +312,7 @@ async function main() {
   } finally {
     if (sessionId) {
       try {
-        await invoke(options.invokeUrl, "close_cdp_session", {
+        await invoke(options, "close_cdp_session", {
           request: {
             session_id: sessionId,
           },

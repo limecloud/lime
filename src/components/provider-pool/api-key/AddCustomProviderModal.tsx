@@ -184,7 +184,7 @@ const FALLBACK_KNOWN_PROVIDERS: KnownProvider[] = [
     id: "ollama",
     name: "Ollama (本地)",
     type: "ollama",
-    apiHost: "http://localhost:11434",
+    apiHost: "http://127.0.0.1:11434",
   },
   {
     id: "fal",

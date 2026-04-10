@@ -39,13 +39,17 @@ pub async fn aster_agent_init(
 pub async fn aster_agent_configure_provider(
     state: State<'_, AsterAgentState>,
     db: State<'_, DbConnection>,
-    request: ConfigureProviderRequest,
+    mut request: ConfigureProviderRequest,
     session_id: String,
 ) -> Result<AsterAgentStatus, String> {
+    let runtime_tool_call_decision =
+        enrich_provider_config_with_runtime_tool_strategy(&mut request).await;
     tracing::info!(
-        "[AsterAgent] 配置 Provider: {} / {}",
+        "[AsterAgent] 配置 Provider: {} / {}，tool_call_strategy={:?}，toolshim_model={:?}",
         request.provider_name,
-        request.model_name
+        request.model_name,
+        runtime_tool_call_decision.strategy,
+        runtime_tool_call_decision.toolshim_model
     );
 
     let provider_selector = request
@@ -61,6 +65,11 @@ pub async fn aster_agent_configure_provider(
         credential_uuid: None,
         force_responses_api: false,
         credential_path: None,
+        toolshim: matches!(
+            request.tool_call_strategy,
+            Some(RuntimeToolCallStrategy::ToolShim)
+        ),
+        toolshim_model: request.toolshim_model.clone(),
     };
 
     state

@@ -1,5 +1,6 @@
 use super::*;
 use crate::commands::model_registry_cmd::ModelRegistryState;
+use lime_core::database::dao::api_key_provider::{ApiProviderType, ProviderGroup};
 use lime_core::models::model_registry::{
     EnhancedModelMetadata, ModelCapabilities, ModelSource, ModelTier, ProviderAliasConfig,
 };
@@ -9,11 +10,22 @@ use tauri::Manager;
 #[derive(Debug, Clone)]
 struct ProviderResolutionContext {
     provider_selector: String,
+    aster_provider_name: String,
     compatibility_provider_key: String,
     registry_provider_ids: Vec<String>,
     alias_key: String,
     custom_models: Vec<String>,
     is_custom_provider: bool,
+    provider_type: Option<ApiProviderType>,
+    provider_group: Option<ProviderGroup>,
+    configured_api_host: Option<String>,
+    has_credentials: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RuntimeProviderConfigurationStrategy {
+    Manual { base_url: Option<String> },
+    CredentialPool,
 }
 
 fn normalize_identifier(value: &str) -> String {
@@ -42,6 +54,77 @@ fn provider_registry_id_from_key(provider_key: &str) -> String {
         "antigravity" => "antigravity".to_string(),
         "iflow" => "openai".to_string(),
         normalized => normalized.to_string(),
+    }
+}
+
+fn provider_type_from_key(provider_key: &str) -> Option<ApiProviderType> {
+    match normalize_identifier(provider_key).as_str() {
+        "openai" | "iflow" => Some(ApiProviderType::Openai),
+        "anthropic" | "claude" | "claude_oauth" => Some(ApiProviderType::Anthropic),
+        "anthropic-compatible" => Some(ApiProviderType::AnthropicCompatible),
+        "gemini" | "gemini_api_key" => Some(ApiProviderType::Gemini),
+        "azure-openai" => Some(ApiProviderType::AzureOpenai),
+        "vertexai" => Some(ApiProviderType::Vertexai),
+        "aws-bedrock" | "bedrock" => Some(ApiProviderType::AwsBedrock),
+        "ollama" => Some(ApiProviderType::Ollama),
+        "fal" => Some(ApiProviderType::Fal),
+        "new-api" => Some(ApiProviderType::NewApi),
+        "gateway" => Some(ApiProviderType::Gateway),
+        "codex" => Some(ApiProviderType::Codex),
+        _ => None,
+    }
+}
+
+fn normalize_runtime_provider_base_url(
+    provider_type: Option<ApiProviderType>,
+    base_url: Option<String>,
+) -> Option<String> {
+    let normalized = normalize_optional_text(base_url)?;
+    if provider_type != Some(ApiProviderType::Ollama) {
+        return Some(normalized);
+    }
+
+    let trimmed = normalized.trim_end_matches('/').to_string();
+    if let Some(without_version) = trimmed.strip_suffix("/v1") {
+        return normalize_optional_text(Some(without_version.to_string())).or_else(|| {
+            Some(
+                ApiProviderType::Ollama
+                    .runtime_spec()
+                    .default_api_host
+                    .to_string(),
+            )
+        });
+    }
+
+    Some(trimmed)
+}
+
+fn resolve_runtime_provider_configuration_strategy(
+    context: &ProviderResolutionContext,
+) -> RuntimeProviderConfigurationStrategy {
+    let configured_base_url = normalize_runtime_provider_base_url(
+        context.provider_type,
+        context.configured_api_host.clone(),
+    );
+    let is_credentialless_local_provider =
+        matches!(context.provider_group, Some(ProviderGroup::Local)) && !context.has_credentials;
+    let should_use_manual_provider =
+        is_credentialless_local_provider || context.provider_type == Some(ApiProviderType::Ollama);
+
+    if !should_use_manual_provider {
+        return RuntimeProviderConfigurationStrategy::CredentialPool;
+    }
+
+    let fallback_base_url = context.provider_type.map(|provider_type| {
+        normalize_runtime_provider_base_url(
+            Some(provider_type),
+            Some(provider_type.runtime_spec().default_api_host.to_string()),
+        )
+        .unwrap_or_else(|| provider_type.runtime_spec().default_api_host.to_string())
+    });
+
+    RuntimeProviderConfigurationStrategy::Manual {
+        base_url: configured_base_url.or(fallback_base_url),
     }
 }
 
@@ -227,18 +310,37 @@ fn build_provider_resolution_context(
     let provider_selector = normalize_identifier(provider_selector);
     let is_custom_provider =
         lime_core::models::provider_type::is_custom_provider_id(&provider_selector);
+    let mut provider_type = provider_type_from_key(&provider_selector);
+    let mut aster_provider_name = provider_type
+        .map(|provider_type| provider_type.runtime_spec().aster_provider_name.to_string())
+        .unwrap_or_else(|| provider_selector.clone());
     let mut compatibility_provider_key = provider_selector.clone();
     let mut registry_provider_ids = vec![
         provider_selector.clone(),
         provider_registry_id_from_key(&provider_selector),
     ];
     let mut custom_models = Vec::new();
+    let mut provider_group = None;
+    let mut configured_api_host = None;
+    let mut has_credentials = false;
 
-    if is_custom_provider {
-        if let Some(provider_with_keys) = api_key_provider_service
-            .0
-            .get_provider(db, &provider_selector)?
-        {
+    if let Some(provider_with_keys) = api_key_provider_service
+        .0
+        .get_provider(db, &provider_selector)?
+    {
+        provider_type = Some(provider_with_keys.provider.provider_type);
+        aster_provider_name = provider_with_keys
+            .provider
+            .provider_type
+            .runtime_spec()
+            .aster_provider_name
+            .to_string();
+        provider_group = Some(provider_with_keys.provider.group);
+        configured_api_host =
+            normalize_optional_text(Some(provider_with_keys.provider.api_host.clone()));
+        has_credentials = !provider_with_keys.api_keys.is_empty();
+
+        if is_custom_provider {
             compatibility_provider_key = provider_with_keys.provider.provider_type.to_string();
             registry_provider_ids.push(provider_registry_id_from_key(&compatibility_provider_key));
             custom_models = provider_with_keys.provider.custom_models;
@@ -251,10 +353,15 @@ fn build_provider_resolution_context(
     });
 
     Ok(ProviderResolutionContext {
+        aster_provider_name,
         alias_key: provider_alias_config_key(&provider_selector),
         compatibility_provider_key,
         custom_models,
+        configured_api_host,
+        has_credentials,
         is_custom_provider,
+        provider_group,
+        provider_type,
         provider_selector,
         registry_provider_ids,
     })
@@ -904,18 +1011,38 @@ pub(super) async fn resolve_runtime_request_provider_config(
         );
     }
 
+    let provider_strategy = resolve_runtime_provider_configuration_strategy(&context);
+    let base_url = match provider_strategy {
+        RuntimeProviderConfigurationStrategy::Manual { base_url } => base_url,
+        RuntimeProviderConfigurationStrategy::CredentialPool => None,
+    };
+    let model_capabilities = find_model_meta(&resolved_model, &catalog)
+        .map(|model| model.capabilities.clone())
+        .unwrap_or_else(|| {
+            infer_model_capabilities(
+                &resolved_model,
+                Some(&context.provider_selector),
+                None,
+                None,
+            )
+        });
+
     Ok(Some(ConfigureProviderRequest {
         provider_id: Some(context.provider_selector.clone()),
-        provider_name: context.provider_selector,
+        provider_name: context.aster_provider_name,
         model_name: resolved_model,
         api_key: None,
-        base_url: None,
+        base_url,
+        model_capabilities: Some(model_capabilities),
+        tool_call_strategy: None,
+        toolshim_model: None,
     }))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lime_core::database::dao::api_key_provider::ProviderGroup;
 
     fn build_model(
         id: &str,
@@ -1212,6 +1339,41 @@ mod tests {
         assert_eq!(
             resolved,
             ("gemini".to_string(), RequestPreferenceSource::Request)
+        );
+    }
+
+    #[test]
+    fn runtime_provider_strategy_prefers_manual_mode_for_credentialless_local_provider() {
+        let context = ProviderResolutionContext {
+            provider_selector: "ollama".to_string(),
+            aster_provider_name: "ollama".to_string(),
+            compatibility_provider_key: "ollama".to_string(),
+            registry_provider_ids: vec!["ollama".to_string()],
+            alias_key: "ollama".to_string(),
+            custom_models: vec![],
+            is_custom_provider: false,
+            provider_type: Some(ApiProviderType::Ollama),
+            provider_group: Some(ProviderGroup::Local),
+            configured_api_host: Some("http://127.0.0.1:11434".to_string()),
+            has_credentials: false,
+        };
+
+        assert_eq!(
+            resolve_runtime_provider_configuration_strategy(&context),
+            RuntimeProviderConfigurationStrategy::Manual {
+                base_url: Some("http://127.0.0.1:11434".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn normalize_runtime_provider_base_url_strips_ollama_v1_suffix() {
+        assert_eq!(
+            normalize_runtime_provider_base_url(
+                Some(ApiProviderType::Ollama),
+                Some("http://127.0.0.1:11434/v1/".to_string()),
+            ),
+            Some("http://127.0.0.1:11434".to_string())
         );
     }
 }

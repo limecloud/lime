@@ -3865,6 +3865,7 @@ describe("useWorkspaceSendActions", () => {
       expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
         requestMetadata: {
           harness: {
+            allow_model_skills: true,
             browser_requirement: "required",
             service_skill_launch: {
               kind: "site_adapter",
@@ -3875,6 +3876,15 @@ describe("useWorkspaceSendActions", () => {
               args: {
                 url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
                 target_language: "中文",
+              },
+            },
+            translation_skill_launch: {
+              skill_name: "translation",
+              kind: "translation_request",
+              translation_request: {
+                target_language: "中文",
+                project_id: "project-1",
+                entry_source: "service_skill_site_export_followup",
               },
             },
           },

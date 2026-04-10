@@ -151,6 +151,7 @@
 - `cancel_media_task_artifact`
 
 无论入口来自纯文本命令、slash scene 组合还是显式图片动作，最终都只允许写入当前项目根目录下的标准 `image_generate` task file，并写入 `session_id / project_id / content_id / entry_source / mode` 等上下文。若当前来源是文稿 inline 配图，还会继续写入 `usage=document-inline`，并以 `relationships.slot_id` 作为正文占位块与后续任务回填的正式绑定字段；payload 中的 `slot_id` 仅保留兼容读取。若前端已经能推断目标小节，还应继续把 `anchor_section_title` 写入 task payload；若还能识别用户当前选中的具体段落，还应继续把裁剪后的 `anchor_text` 一并写入，用于正文占位图与最终图片的 paragraph 级原位落位。聊天区动态占位、正文占位替换、结果回填、刷新恢复都必须继续以 `.lime/tasks` 为唯一事实源，不允许重新回到前端直连图片服务。
+
 - `.lime/tasks/**/*.json` 本身是内部任务状态快照，不是面向用户的正式产物。聊天区 artifact 卡片、时间线 file artifact 与默认文件面板都应把这类 JSON 隐藏掉；它们只服务恢复、轮询、取消、重试和诊断，真正给用户看的应该是轻量结果卡、tool timeline 与右侧 viewer。
 
 Workspace `Bash` 运行时在当前主链中应优先解析同名 `lime` 入口：开发态优先回落到 `cargo run -p lime-cli`，打包态优先使用随应用提供的 CLI 二进制。默认 skill 若已经切到 `Bash -> lime media ...`，仍应保留 compat tool 作为兜底，避免在 CLI 暂不可用时把用户流量打断。
@@ -325,6 +326,24 @@ Lime 主应用会在本地维护 `ws://127.0.0.1:45554/companion/pet` 的桌宠 
 
 只看其中一侧都不够。只要能力仍然依赖命令边界，就至少要同时核对前端调用、Rust 注册、治理目录册、mock 集合这几面。
 
+对于 `agent_runtime_*` 这一组运行时主命令，当前还额外有一份结构合同事实源：
+
+- `src/lib/governance/agentRuntimeCommandSchema.json`
+
+它负责定义 domain、lifecycle、mock 策略与文档归属，再由 `scripts/generate-agent-runtime-clients.mjs` 生成前端命令 manifest，并在 `npm run test:contracts` 中通过 `--check` 口径校验 schema、治理目录与生成产物没有漂移。
+
+当前前端 runtime client 目录也已经固定为：
+
+- `current`：`src/lib/api/agentRuntime/types.ts`、`src/lib/api/agentRuntime/index.ts` 与各分域 client
+- `compat`：`src/lib/api/agentRuntime.ts`
+
+固定约束：
+
+- `src/lib/api/agentRuntime/**/*.ts` 内部类型依赖只允许从 `./types` 读取，不要再回绕 `../agentRuntime`
+- 外部业务模块继续从 `@/lib/api/agentRuntime` 进入 compat barrel，不要直接跳进分域 client
+- `commandManifest.generated.ts` 只由生成器产出，不手工改命令名字符串
+- 新的 `agent_runtime_*` 命令如需落前端主链，优先补 schema / generator / 分域 client，而不是先往 compat 根文件里堆实现
+
 ## MCP 工具命名主链
 
 MCP bridge 当前唯一继续演进的工具命名事实源是：
@@ -495,6 +514,7 @@ npm run verify:local
 - **用户可见消息工具主链**：继续收敛到 `SendUserMessage`，用于把回复、进度同步、主动提醒和附件送到用户主可见消息面；不要再把这类能力拆到其它平行工具名或旁路协议里
 - **会话状态回写主链**：继续收敛到 `agent_runtime_update_session`，用于名称、执行策略、session provider/model、`recent_access_mode`、`recent_preferences` 以及 `recent_team_selection` 的轻量持久化回写
 - **会话权限主链**：`agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy` 是正式 turn context 权限协议；`getSession` 返回的 `execution_runtime.recent_access_mode` 负责承接会话最近一次 accessMode。当前端已命中同一 steady-state 权限时，不应继续依赖 `harness.access_mode` 作为唯一事实源
+- **运行时 Provider 能力快照主链**：`agent_runtime_submit_turn.turn_config.provider_config` 允许携带 `model_capabilities / tool_call_strategy / toolshim_model` 这组三个运行时字段；后端会在真正发起 turn 前刷新它们，尤其是 `ollama` 会根据当前模型真实能力在原生 tools 与 `tool_shim` 之间做最终决策。前端不得把模型目录里的静态 tools 标记当作唯一真相
 - **运行时交接导出主链**：继续收敛到 `agent_runtime_export_handoff_bundle`；前端统一通过 `src/lib/api/agentRuntime.ts` 网关进入，当前 GUI 入口位于 `HarnessStatusPanel`
 - **运行时证据导出主链**：继续收敛到 `agent_runtime_export_evidence_pack`，用于把 runtime / timeline / artifacts 打包成最小问题证据
 - **运行时 replay 样本主链**：继续收敛到 `agent_runtime_export_replay_case`，复用 handoff bundle + evidence pack 生成 `input / expected / grader / evidence-links`

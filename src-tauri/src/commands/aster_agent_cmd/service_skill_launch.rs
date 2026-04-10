@@ -1,4 +1,7 @@
 use super::*;
+use crate::agent_tools::catalog::{
+    LIME_SITE_INFO_TOOL_NAME, LIME_SITE_RUN_TOOL_NAME, LIME_SITE_SEARCH_TOOL_NAME,
+};
 use crate::services::site_capability_service::{
     get_site_adapter, run_site_adapter_with_optional_save, RunSiteAdapterRequest,
     SiteAdapterDefinition, SiteAdapterRunResult,
@@ -11,6 +14,12 @@ const SERVICE_SKILL_LAUNCH_BROWSER_DENY_PATTERNS: &[&str] = &[
     "browser_*",
     "mcp__playwright__*",
     "playwright*",
+];
+
+const SERVICE_SKILL_LAUNCH_REPEAT_SITE_TOOL_DENY_PATTERNS: &[&str] = &[
+    LIME_SITE_RUN_TOOL_NAME,
+    LIME_SITE_SEARCH_TOOL_NAME,
+    LIME_SITE_INFO_TOOL_NAME,
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -374,6 +383,10 @@ pub(crate) fn service_skill_launch_browser_deny_patterns() -> &'static [&'static
     SERVICE_SKILL_LAUNCH_BROWSER_DENY_PATTERNS
 }
 
+pub(crate) fn service_skill_launch_repeat_site_tool_deny_patterns() -> &'static [&'static str] {
+    SERVICE_SKILL_LAUNCH_REPEAT_SITE_TOOL_DENY_PATTERNS
+}
+
 pub(crate) fn build_service_skill_launch_run_request(
     request_metadata: Option<&serde_json::Value>,
 ) -> Option<RunSiteAdapterRequest> {
@@ -444,6 +457,22 @@ pub(crate) fn append_service_skill_launch_session_permissions(
             reason: Some(
                 "站点技能启动回合已锁定为 site adapter 执行，禁止直接回退到底层浏览器兼容工具"
                     .to_string(),
+            ),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+    }
+
+    for pattern in service_skill_launch_repeat_site_tool_deny_patterns() {
+        permissions.push(ToolPermission {
+            tool: (*pattern).to_string(),
+            allowed: false,
+            priority: 1250,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some(
+                "站点技能启动回合已完成系统预执行，禁止在同回合重复调用站点执行工具".to_string(),
             ),
             expires_at: None,
             metadata: HashMap::new(),

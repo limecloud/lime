@@ -22,7 +22,8 @@ use serde_json::Value;
 use std::time::Duration;
 use url::Url;
 
-pub const OLLAMA_HOST: &str = "localhost";
+pub const OLLAMA_HOST: &str = "127.0.0.1";
+pub const OLLAMA_BASE_URL_ENV: &str = "OLLAMA_BASE_URL";
 pub const OLLAMA_TIMEOUT: u64 = 600;
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
 pub const OLLAMA_DEFAULT_MODEL: &str = "qwen3";
@@ -43,36 +44,61 @@ pub struct OllamaProvider {
 }
 
 impl OllamaProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = crate::config::Config::global();
-        let host: String = config
-            .get_param("OLLAMA_HOST")
-            .unwrap_or_else(|_| OLLAMA_HOST.to_string());
+    pub(crate) fn resolve_base_url(
+        base_url_override: Option<&str>,
+        host_override: Option<&str>,
+    ) -> Result<Url> {
+        let candidate = base_url_override
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                host_override
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+            })
+            .unwrap_or(OLLAMA_HOST);
 
-        let timeout: Duration =
-            Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
-
-        let base = if host.starts_with("http://") || host.starts_with("https://") {
-            host.clone()
+        let base = if candidate.starts_with("http://") || candidate.starts_with("https://") {
+            candidate.to_string()
         } else {
-            format!("http://{}", host)
+            format!("http://{candidate}")
         };
 
         let mut base_url =
             Url::parse(&base).map_err(|e| anyhow::anyhow!("Invalid base URL: {e}"))?;
 
-        let explicit_port = host.contains(':');
-        let is_localhost = host == "localhost" || host == "127.0.0.1" || host == "::1";
+        if matches!(base_url.host_str(), Some("localhost")) {
+            base_url
+                .set_host(Some(OLLAMA_HOST))
+                .map_err(|_| anyhow::anyhow!("Failed to normalize localhost to IPv4 loopback"))?;
+        }
 
-        if base_url.port().is_none() && !explicit_port && !host.starts_with("http") && is_localhost
-        {
+        let explicit_default_port = candidate.ends_with(":80") || candidate.ends_with(":443");
+        let is_https = base_url.scheme() == "https";
+
+        if base_url.port().is_none() && !explicit_default_port && !is_https {
             base_url
                 .set_port(Some(OLLAMA_DEFAULT_PORT))
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
+        Ok(base_url)
+    }
+
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+        let config = crate::config::Config::global();
+        let host = config.get_param::<String>("OLLAMA_HOST").ok();
+        let base_url = config.get_param::<String>(OLLAMA_BASE_URL_ENV).ok();
+
+        let timeout: Duration =
+            Duration::from_secs(config.get_param("OLLAMA_TIMEOUT").unwrap_or(OLLAMA_TIMEOUT));
+
         let auth = AuthMethod::Custom(Box::new(NoAuth));
-        let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+        let api_client = ApiClient::with_timeout(
+            Self::resolve_base_url(base_url.as_deref(), host.as_deref())?.to_string(),
+            auth,
+            timeout,
+        )?;
 
         Ok(Self {
             api_client,
@@ -88,28 +114,12 @@ impl OllamaProvider {
     ) -> Result<Self> {
         let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
-        let base =
-            if config.base_url.starts_with("http://") || config.base_url.starts_with("https://") {
-                config.base_url.clone()
-            } else {
-                format!("http://{}", config.base_url)
-            };
-
-        let mut base_url = Url::parse(&base)
-            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
-
-        let explicit_default_port =
-            config.base_url.ends_with(":80") || config.base_url.ends_with(":443");
-        let is_https = base_url.scheme() == "https";
-
-        if base_url.port().is_none() && !explicit_default_port && !is_https {
-            base_url
-                .set_port(Some(OLLAMA_DEFAULT_PORT))
-                .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
-        }
-
         let auth = AuthMethod::Custom(Box::new(NoAuth));
-        let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+        let api_client = ApiClient::with_timeout(
+            Self::resolve_base_url(Some(&config.base_url), None)?.to_string(),
+            auth,
+            timeout,
+        )?;
 
         Ok(Self {
             api_client,
@@ -125,6 +135,37 @@ impl OllamaProvider {
             .response_post("v1/chat/completions", payload)
             .await?;
         handle_response_openai_compat(response).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OllamaProvider;
+
+    #[test]
+    fn should_normalize_localhost_to_ipv4_loopback() {
+        let url = OllamaProvider::resolve_base_url(Some("http://localhost:11434"), None)
+            .expect("resolve localhost base url");
+
+        assert_eq!(url.as_str(), "http://127.0.0.1:11434/");
+    }
+
+    #[test]
+    fn should_apply_default_port_for_host_only_input() {
+        let url = OllamaProvider::resolve_base_url(None, Some("127.0.0.1")).expect("resolve host");
+
+        assert_eq!(url.as_str(), "http://127.0.0.1:11434/");
+    }
+
+    #[test]
+    fn should_prefer_base_url_override_over_host_override() {
+        let url = OllamaProvider::resolve_base_url(
+            Some("http://127.0.0.1:11434/api"),
+            Some("127.0.0.1:9999"),
+        )
+        .expect("resolve base url override");
+
+        assert_eq!(url.as_str(), "http://127.0.0.1:11434/api");
     }
 }
 

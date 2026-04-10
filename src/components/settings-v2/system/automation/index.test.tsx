@@ -304,7 +304,7 @@ async function leaveTip(trigger: HTMLButtonElement | null) {
 
 describe("AutomationSettings", () => {
   it("应把工作台说明和任务入口说明收进 tips", async () => {
-    await renderSettings();
+    const container = await renderSettings();
 
     expect(getBodyText()).not.toContain(
       "统一管理 Agent 自动化任务的创建、运行历史和调度器配置。",
@@ -312,6 +312,8 @@ describe("AutomationSettings", () => {
     expect(getBodyText()).not.toContain(
       "默认页只保留 Agent 对话任务相关动作。",
     );
+    expect(container.textContent).toContain("统一管理自动化任务、运行状态和调度入口。");
+    expect(container.textContent).not.toContain("Automation Workspace");
 
     const heroTip = await hoverTip("自动化工作台说明");
     expect(getBodyText()).toContain(

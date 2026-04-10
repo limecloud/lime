@@ -1270,6 +1270,172 @@ describe("MessageList", () => {
     ).not.toBeNull();
   });
 
+  it("不应把 .lime/artifacts 下的内部 artifact 文稿 JSON 渲染成尾部时间线", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-hidden-artifact-json",
+        role: "assistant",
+        content: "已生成内部文稿快照。",
+        timestamp: now,
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-hidden-artifact-json",
+      turns: [
+        {
+          id: "turn-hidden-artifact-json",
+          thread_id: "thread-1",
+          prompt_text: "生成内部 artifact 文稿",
+          status: "completed",
+          started_at: "2026-04-10T10:35:00Z",
+          completed_at: "2026-04-10T10:35:03Z",
+          created_at: "2026-04-10T10:35:00Z",
+          updated_at: "2026-04-10T10:35:03Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "item-hidden-artifact-json",
+          thread_id: "thread-1",
+          turn_id: "turn-hidden-artifact-json",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-04-10T10:35:01Z",
+          completed_at: "2026-04-10T10:35:02Z",
+          updated_at: "2026-04-10T10:35:02Z",
+          type: "file_artifact",
+          path: ".lime/artifacts/thread-1/report.artifact.json",
+          source: "artifact_snapshot",
+          content: "{\"schemaVersion\":\"artifact_document.v1\"}",
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
+    ).toBeNull();
+  });
+
+  it("同一路径的 file_artifact 重复出现时，尾部时间线只应保留更完整的一条", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-duplicate-artifact",
+        role: "assistant",
+        content: "导出完成。",
+        timestamp: now,
+      },
+    ];
+
+    render(messages, {
+      currentTurnId: "turn-duplicate-artifact",
+      turns: [
+        {
+          id: "turn-duplicate-artifact",
+          thread_id: "thread-1",
+          prompt_text: "导出 index.md",
+          status: "completed",
+          started_at: "2026-04-10T09:57:00Z",
+          completed_at: "2026-04-10T09:57:05Z",
+          created_at: "2026-04-10T09:57:00Z",
+          updated_at: "2026-04-10T09:57:05Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "item-artifact-duplicate-empty",
+          thread_id: "thread-1",
+          turn_id: "turn-duplicate-artifact",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-04-10T09:57:01Z",
+          completed_at: "2026-04-10T09:57:02Z",
+          updated_at: "2026-04-10T09:57:02Z",
+          type: "file_artifact",
+          path: "exports/x-article-export/google/index.md",
+          source: "artifact_snapshot",
+          content: "",
+        },
+        {
+          id: "item-artifact-duplicate-rich",
+          thread_id: "thread-1",
+          turn_id: "turn-duplicate-artifact",
+          sequence: 2,
+          status: "completed",
+          started_at: "2026-04-10T09:57:03Z",
+          completed_at: "2026-04-10T09:57:04Z",
+          updated_at: "2026-04-10T09:57:04Z",
+          type: "file_artifact",
+          path: "exports/x-article-export/google/index.md",
+          source: "artifact_snapshot",
+          content: "# 最新导出\n\n这里是完整预览。",
+        },
+      ],
+    });
+
+    const trailingTimelineProps = mockAgentThreadTimeline.mock.calls.find(
+      ([props]) => props?.placement === "trailing",
+    )?.[0] as { items?: Array<Record<string, unknown>> } | undefined;
+
+    expect(trailingTimelineProps?.items).toHaveLength(1);
+    expect(trailingTimelineProps?.items?.[0]).toEqual(
+      expect.objectContaining({
+        path: "exports/x-article-export/google/index.md",
+        content: "# 最新导出\n\n这里是完整预览。",
+      }),
+    );
+  });
+
+  it("已有尾部 file_artifact 卡片时，不应再额外渲染消息级在画布中打开入口", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-artifact-card-only",
+        role: "assistant",
+        content: "导出完成。",
+        timestamp: now,
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-artifact-card-only",
+      turns: [
+        {
+          id: "turn-artifact-card-only",
+          thread_id: "thread-1",
+          prompt_text: "导出 index.md",
+          status: "completed",
+          started_at: "2026-04-10T10:20:00Z",
+          completed_at: "2026-04-10T10:20:05Z",
+          created_at: "2026-04-10T10:20:00Z",
+          updated_at: "2026-04-10T10:20:05Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "item-artifact-card-only",
+          thread_id: "thread-1",
+          turn_id: "turn-artifact-card-only",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-04-10T10:20:01Z",
+          completed_at: "2026-04-10T10:20:02Z",
+          updated_at: "2026-04-10T10:20:02Z",
+          type: "file_artifact",
+          path: "exports/x-article-export/google/index.md",
+          source: "artifact_snapshot",
+          content: "# 最新导出\n\n这里是完整预览。",
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="message-canvas-shortcut"]'),
+    ).toBeNull();
+  });
+
   it("运行中的 turn_summary 应作为尾部过程状态展示，而不是顶到消息头部", () => {
     const now = new Date();
     const messages: Message[] = [
@@ -1836,6 +2002,38 @@ describe("MessageList", () => {
     const container = render(messages);
     expect(container.textContent).toContain("图片任务进行中");
     expect(container.textContent).not.toContain("task-image-1.json");
+  });
+
+  it("不应把 .lime/artifacts 下的内部 artifact 文稿 JSON 渲染成用户可见产物卡片", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-hidden-conversation-artifact-json",
+        role: "assistant",
+        content: "内部文稿已同步。",
+        timestamp: now,
+        artifacts: [
+          {
+            id: "artifact-hidden-conversation-artifact-json",
+            type: "document",
+            title: "report.artifact.json",
+            content: "{\"schemaVersion\":\"artifact_document.v1\"}",
+            status: "complete",
+            meta: {
+              filePath: ".lime/artifacts/thread-1/report.artifact.json",
+              filename: "report.artifact.json",
+            },
+            position: { start: 0, end: 0 },
+            createdAt: now.getTime(),
+            updatedAt: now.getTime(),
+          },
+        ],
+      },
+    ];
+
+    const container = render(messages);
+    expect(container.textContent).toContain("内部文稿已同步。");
+    expect(container.textContent).not.toContain("report.artifact.json");
   });
 
   it("应先渲染思考与过程，再渲染正文，最后再落产物", () => {

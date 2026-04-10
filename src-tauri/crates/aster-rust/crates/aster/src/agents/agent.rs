@@ -4528,7 +4528,10 @@ mod tests {
 
         let events = projector.project_agent_event(&AgentEvent::Message(message));
 
-        assert!(events.is_empty(), "agent-only 消息不应再投影到用户可见事件流");
+        assert!(
+            events.is_empty(),
+            "agent-only 消息不应再投影到用户可见事件流"
+        );
     }
 
     #[test]

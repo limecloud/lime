@@ -62,6 +62,23 @@ const {
 }));
 
 vi.mock("@/lib/api/agentRuntime", () => ({
+  createAgentRuntimeClient: () => ({
+    initAsterAgent: mockInitAsterAgent,
+    submitAgentRuntimeTurn: mockSubmitAgentRuntimeTurn,
+    createAgentRuntimeSession: mockCreateAgentRuntimeSession,
+    listAgentRuntimeSessions: mockListAgentRuntimeSessions,
+    getAgentRuntimeSession: mockGetAgentRuntimeSession,
+    getAgentRuntimeThreadRead: mockGetAgentRuntimeThreadRead,
+    updateAgentRuntimeSession: mockUpdateAgentRuntimeSession,
+    deleteAgentRuntimeSession: mockDeleteAgentRuntimeSession,
+    compactAgentRuntimeSession: mockCompactAgentRuntimeSession,
+    interruptAgentRuntimeTurn: mockInterruptAgentRuntimeTurn,
+    resumeAgentRuntimeThread: mockResumeAgentRuntimeThread,
+    replayAgentRuntimeRequest: mockReplayAgentRuntimeRequest,
+    promoteAgentRuntimeQueuedTurn: mockPromoteAgentRuntimeQueuedTurn,
+    removeAgentRuntimeQueuedTurn: mockRemoveAgentRuntimeQueuedTurn,
+    respondAgentRuntimeAction: mockRespondAgentRuntimeAction,
+  }),
   initAsterAgent: mockInitAsterAgent,
   submitAgentRuntimeTurn: mockSubmitAgentRuntimeTurn,
   createAgentRuntimeSession: mockCreateAgentRuntimeSession,
@@ -2812,6 +2829,68 @@ describe("useAsterAgentChat runtime routing", () => {
         "本轮执行已完成，详细过程与产物已保留在当前对话中。",
       );
       expect(mockToast.error).toHaveBeenCalledWith(
+        "已完成工具执行，但模型未输出最终答复，请重试",
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("final_done 无正文但已保存站点导出结果时不应误报缺少最终答复", async () => {
+    const workspaceId = "ws-empty-final-site-export";
+    seedSession(workspaceId, "session-empty-final-site-export");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("请导出这篇文章并保存到项目", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "tool_start",
+          tool_name: "site_run_adapter",
+          tool_id: "tool-site-export-1",
+          arguments: JSON.stringify({
+            adapter_name: "x/article-export",
+          }),
+        });
+        stream.emit({
+          type: "tool_end",
+          tool_id: "tool-site-export-1",
+          result: {
+            success: true,
+            output: "exports/x-article-export/article/index.md",
+            metadata: {
+              tool_family: "site",
+              saved_content: {
+                content_id: "content-site-export-1",
+                project_id: "project-site-export-1",
+                markdown_relative_path:
+                  "exports/x-article-export/article/index.md",
+                images_relative_dir: "exports/x-article-export/article/images",
+              },
+            },
+          },
+        });
+        stream.emit({
+          type: "final_done",
+        });
+      });
+
+      const assistantMessage = [...harness.getValue().messages]
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      expect(assistantMessage?.content).toContain(
+        "本轮执行已完成，详细过程与产物已保留在当前对话中。",
+      );
+      expect(mockToast.error).not.toHaveBeenCalledWith(
         "已完成工具执行，但模型未输出最终答复，请重试",
       );
     } finally {

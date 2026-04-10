@@ -4,7 +4,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { Artifact } from "@/lib/artifact/types";
-import { emitCompactRightPanelOpen } from "@/lib/compactRightPanelEvents";
 import type { TaskFile } from "./TaskFiles";
 import {
   CanvasWorkbenchLayout,
@@ -265,12 +264,6 @@ function MockArtifactDocumentPreview({
   );
 }
 
-function mount(
-  props: React.ComponentProps<typeof CanvasWorkbenchLayout>,
-): HTMLDivElement {
-  return mountHarness(props).container;
-}
-
 function mountHarness(
   props: React.ComponentProps<typeof CanvasWorkbenchLayout>,
 ): MountedHarness {
@@ -296,6 +289,12 @@ function mountHarness(
 
   mountedRoots.push(harness);
   return harness;
+}
+
+function mount(
+  props: React.ComponentProps<typeof CanvasWorkbenchLayout>,
+): HTMLDivElement {
+  return mountHarness(props).container;
 }
 
 async function flushEffects(times = 6) {
@@ -330,16 +329,16 @@ async function resizeWorkbench(width: number, height = 720) {
   });
 }
 
-function clickButtonByLabel(container: HTMLElement, ariaLabel: string) {
-  const button = container.querySelector(
-    `button[aria-label="${ariaLabel}"]`,
-  ) as HTMLButtonElement | null;
-  if (!button) {
-    throw new Error(`未找到按钮: ${ariaLabel}`);
+function clickByAriaLabel(container: HTMLElement, ariaLabel: string) {
+  const element = container.querySelector(
+    `[aria-label="${ariaLabel}"]`,
+  ) as HTMLElement | null;
+  if (!element) {
+    throw new Error(`未找到元素: ${ariaLabel}`);
   }
 
   act(() => {
-    button.click();
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
 }
 
@@ -404,6 +403,41 @@ beforeEach(() => {
         error: null,
         entries: [
           {
+            name: ".lime",
+            path: "/workspace/.lime",
+            isDir: true,
+            size: 0,
+            modifiedAt: 100,
+          },
+          {
+            name: "exports",
+            path: "/workspace/exports",
+            isDir: true,
+            size: 0,
+            modifiedAt: 100,
+          },
+          {
+            name: "output",
+            path: "/workspace/output",
+            isDir: true,
+            size: 0,
+            modifiedAt: 100,
+          },
+          {
+            name: ".DS_Store",
+            path: "/workspace/.DS_Store",
+            isDir: false,
+            size: 10,
+            modifiedAt: 100,
+          },
+          {
+            name: "output_image.jpg",
+            path: "/workspace/output_image.jpg",
+            isDir: false,
+            size: 512,
+            modifiedAt: 100,
+          },
+          {
             name: "README.md",
             path: "/workspace/README.md",
             isDir: false,
@@ -430,6 +464,51 @@ beforeEach(() => {
           {
             name: "binary.dat",
             path: "/workspace/src/binary.dat",
+            isDir: false,
+            size: 2048,
+            modifiedAt: 100,
+          },
+        ],
+      };
+    }
+
+    if (path === "/workspace/exports/x-article-export/latest") {
+      return {
+        path,
+        parentPath: "/workspace/exports/x-article-export",
+        error: null,
+        entries: [
+          {
+            name: "manifest.json",
+            path: "/workspace/exports/x-article-export/latest/manifest.json",
+            isDir: false,
+            size: 1024,
+            modifiedAt: 100,
+          },
+          {
+            name: "images",
+            path: "/workspace/exports/x-article-export/latest/images",
+            isDir: true,
+            size: 0,
+            modifiedAt: 100,
+          },
+          {
+            name: "skills",
+            path: "/workspace/exports/x-article-export/latest/skills",
+            isDir: true,
+            size: 0,
+            modifiedAt: 100,
+          },
+          {
+            name: "Agents.md",
+            path: "/workspace/exports/x-article-export/latest/Agents.md",
+            isDir: false,
+            size: 256,
+            modifiedAt: 100,
+          },
+          {
+            name: "index.md",
+            path: "/workspace/exports/x-article-export/latest/index.md",
             isDir: false,
             size: 2048,
             modifiedAt: 100,
@@ -479,8 +558,7 @@ afterEach(() => {
 });
 
 describe("CanvasWorkbenchLayout", () => {
-  it("应支持默认画布、标签切换、文件树、diff 与下载动作", async () => {
-    const previewTargets: CanvasWorkbenchPreviewTarget[] = [];
+  it("应以顶部标签式画布承载 session、文件与结果文件标签", async () => {
     const onOpenPath = vi.fn(async () => undefined);
     const onRevealPath = vi.fn(async () => undefined);
     const loadFilePreview = vi.fn(async (path: string) => {
@@ -526,79 +604,147 @@ describe("CanvasWorkbenchLayout", () => {
       loadFilePreview,
       onOpenPath,
       onRevealPath,
-      renderPreview: (target, options) => {
-        previewTargets.push(target);
-        return (
-          <div data-testid="preview-panel">
-            {options?.stackedWorkbenchTrigger}
-            {target.kind}:{target.title}
-          </div>
-        );
-      },
+      renderPreview: (target) => (
+        <div data-testid="preview-panel">
+          {target.kind}:{target.title}
+        </div>
+      ),
     });
 
     await flushEffects();
 
     expect(mockListDirectory).toHaveBeenCalledWith("/workspace");
     expect(
+      container
+        .querySelector('[data-testid="canvas-workbench-shell"]')
+        ?.getAttribute("data-layout-mode"),
+    ).toBe("split");
+    expect(
+      container.querySelector(
+        'button[aria-label="切换画布标签-Session · Main"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('button[aria-label="切换画布标签-文件"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('button[aria-label="切换画布标签-outputs"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('button[aria-label="切换画布标签-draft.md"]'),
+    ).not.toBeNull();
+    expect(
       container.querySelector('[data-testid="preview-panel"]')?.textContent,
     ).toContain("default-canvas:draft.md");
 
-    clickButtonByLabel(container, "切换画布标签-变更");
+    clickByAriaLabel(container, "切换画布标签-文件");
     await flushEffects();
-    expect(container.textContent).toContain("上一版本");
-    expect(container.textContent).toContain("当前画布正文");
 
-    clickButtonByLabel(container, "切换画布标签-预览");
-    expect(container.textContent).toContain("当前画布正文");
-
-    clickButtonByLabel(container, "折叠画布工作台");
-    expect(
-      container.querySelector('button[aria-label="展开画布工作台"]'),
-    ).not.toBeNull();
-    clickButtonByLabel(container, "展开画布工作台");
-
-    clickButtonByLabel(container, "切换画布标签-产物");
-    clickButtonByLabel(container, "选择画布产物-draft.md");
-    await flushEffects();
-    expect(
-      container.querySelector('[data-testid="preview-panel"]')?.textContent,
-    ).toContain("artifact:draft.md");
-
-    clickButtonByLabel(container, "切换画布标签-全部文件");
-    await flushEffects();
-    clickButtonByLabel(container, "选择工作区文件-README.md");
+    expect(container.textContent).not.toContain(".lime");
+    expect(container.textContent).toContain("exports");
+    expect(container.textContent).not.toContain("output_image.jpg");
+    expect(container.textContent).not.toContain(".DS_Store");
+    clickByAriaLabel(container, "选择工作区文件-README.md");
     await flushEffects();
 
     expect(loadFilePreview).toHaveBeenCalledWith("/workspace/README.md");
-    expect(previewTargets.at(-1)?.kind).toBe("synthetic-artifact");
+    expect(
+      container.querySelector('[data-testid="preview-panel"]')?.textContent,
+    ).toContain("default-canvas:README.md");
+    expect(
+      container.querySelector('button[aria-label="切换画布标签-README.md"]'),
+    ).not.toBeNull();
 
-    clickButtonByLabel(container, "复制当前路径");
+    clickByAriaLabel(container, "复制当前路径");
     await flushEffects();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       "/workspace/README.md",
     );
 
-    clickButtonByLabel(container, "定位当前文件");
+    clickByAriaLabel(container, "定位当前文件");
     await flushEffects();
     expect(onRevealPath).toHaveBeenCalledWith("/workspace/README.md");
 
-    clickButtonByLabel(container, "系统打开当前文件");
+    clickByAriaLabel(container, "系统打开当前文件");
     await flushEffects();
     expect(onOpenPath).toHaveBeenCalledWith("/workspace/README.md");
 
-    clickButtonByLabel(container, "下载当前画布项");
+    clickByAriaLabel(container, "下载当前画布项");
     expect(globalThis.URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1);
+
+    clickByAriaLabel(container, "关闭文件标签-README.md");
+    await flushEffects();
+    expect(
+      container.querySelector('button[aria-label="切换画布标签-README.md"]'),
+    ).toBeNull();
   });
 
-  it("命中文档产物时应把文稿 inspector 收口到右侧工作台", async () => {
+  it("命中导出结果文件时应将文件树聚焦到当前结果目录", async () => {
+    const container = mount({
+      artifacts: [],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: {
+        selectionKey: "default-preview:exports/x-article-export/latest/index.md",
+        title: "index.md",
+        content: "# 导出结果\n\n这是正文。",
+        filePath: "exports/x-article-export/latest/index.md",
+        absolutePath: "/workspace/exports/x-article-export/latest/index.md",
+        previousContent: null,
+      },
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: "# 文件内容",
+        isBinary: false,
+        size: 128,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target) => (
+        <div data-testid="preview-panel">
+          {target.kind}:{target.title}
+        </div>
+      ),
+    });
+
+    await flushEffects();
+    clickByAriaLabel(container, "切换画布标签-文件");
+    await flushEffects();
+
+    expect(mockListDirectory).toHaveBeenCalledWith(
+      "/workspace/exports/x-article-export/latest",
+    );
+    expect(container.textContent).toContain("结果目录");
+    expect(container.textContent).toContain("exports/x-article-export/latest");
+
+    const workspaceButtons = Array.from(
+      container.querySelectorAll(
+        '[data-testid="canvas-workbench-panel-workspace"] button[aria-label]',
+      ),
+    ).map((element) => element.getAttribute("aria-label"));
+
+    expect(workspaceButtons).toContain("选择工作区文件-index.md");
+    expect(workspaceButtons).toContain("选择工作区文件-Agents.md");
+    expect(workspaceButtons).toContain("展开目录-skills");
+    expect(workspaceButtons).toContain("展开目录-images");
+
+    const indexButtonPosition = workspaceButtons.indexOf("选择工作区文件-index.md");
+    const agentsButtonPosition =
+      workspaceButtons.indexOf("选择工作区文件-Agents.md");
+    const manifestButtonPosition =
+      workspaceButtons.indexOf("选择工作区文件-manifest.json");
+
+    expect(indexButtonPosition).toBeGreaterThanOrEqual(0);
+    expect(agentsButtonPosition).toBeGreaterThan(indexButtonPosition);
+    expect(manifestButtonPosition).toBeGreaterThan(agentsButtonPosition);
+  });
+
+  it("命中文档产物时应在文件标签内提供文稿 inspector", async () => {
     const controller = createMockArtifactDocumentController();
-    const previewOptions: Array<{
-      onArtifactDocumentControllerChange?: (
-        value: ArtifactWorkbenchDocumentController | null,
-      ) => void;
-    }> = [];
 
     const container = mount({
       artifacts: [controller.artifact],
@@ -616,21 +762,15 @@ describe("CanvasWorkbenchLayout", () => {
       })),
       onOpenPath: vi.fn(async () => undefined),
       onRevealPath: vi.fn(async () => undefined),
-      renderPreview: (target, options) => {
-        previewOptions.push({
-          onArtifactDocumentControllerChange:
-            options?.onArtifactDocumentControllerChange,
-        });
-        return (
-          <MockArtifactDocumentPreview
-            controller={controller}
-            target={target}
-            onArtifactDocumentControllerChange={
-              options?.onArtifactDocumentControllerChange
-            }
-          />
-        );
-      },
+      renderPreview: (target, options) => (
+        <MockArtifactDocumentPreview
+          controller={controller}
+          target={target}
+          onArtifactDocumentControllerChange={
+            options?.onArtifactDocumentControllerChange
+          }
+        />
+      ),
     });
 
     await flushEffects();
@@ -638,26 +778,16 @@ describe("CanvasWorkbenchLayout", () => {
     expect(
       container.querySelector('[data-testid="preview-panel"]')?.textContent,
     ).toContain("artifact:board-review.artifact.json");
+    expect(container.textContent).toContain("当前文稿");
+    expect(container.textContent).toContain("董事会季度复盘");
+    expect(container.textContent).toContain("需要优先补齐来源与版本线索。");
     expect(
       container.querySelector('button[aria-label="展开当前文稿检查器"]'),
     ).not.toBeNull();
-    expect(
-      container.querySelector(
-        '[data-testid="canvas-workbench-document-inspector"]',
-      ),
-    ).toBeNull();
-    expect(container.textContent).toContain("当前文稿");
-    expect(container.textContent).toContain("统一在右侧切换产物与版本");
-    expect(container.textContent).toContain("董事会季度复盘");
-    expect(container.textContent).toContain("需要优先补齐来源与版本线索。");
-    expect(container.textContent).toContain("默认先收起概览、来源、版本与编辑");
 
-    clickButtonByLabel(container, "展开当前文稿检查器");
+    clickByAriaLabel(container, "展开当前文稿检查器");
     await flushEffects();
 
-    expect(
-      container.querySelector('button[aria-label="折叠当前文稿检查器"]'),
-    ).not.toBeNull();
     expect(
       container.querySelector(
         '[data-testid="canvas-workbench-document-inspector"]',
@@ -665,7 +795,7 @@ describe("CanvasWorkbenchLayout", () => {
     ).not.toBeNull();
   });
 
-  it("内容发布主链产物应在右侧工作台列表显示语义标题", async () => {
+  it("内容发布主链输出应直接打开真实文件标签，同时预览保留语义标题", async () => {
     const artifact = createArtifact(
       "artifact-content-preview",
       "content-posts/demo-preview.md",
@@ -695,9 +825,8 @@ describe("CanvasWorkbenchLayout", () => {
       })),
       onOpenPath: vi.fn(async () => undefined),
       onRevealPath: vi.fn(async () => undefined),
-      renderPreview: (target, options) => (
+      renderPreview: (target) => (
         <div data-testid="preview-panel">
-          {options?.stackedWorkbenchTrigger}
           {target.kind}:{target.title}
         </div>
       ),
@@ -705,66 +834,351 @@ describe("CanvasWorkbenchLayout", () => {
 
     await flushEffects();
 
-    expect(container.textContent).toContain("渠道预览稿");
-    expect(container.textContent).toContain("content-posts/demo-preview.md");
-
-    clickButtonByLabel(container, "选择画布产物-渠道预览稿");
-    await flushEffects();
-
     expect(
       container.querySelector('[data-testid="preview-panel"]')?.textContent,
     ).toContain("artifact:渠道预览稿");
+    expect(
+      container.querySelector(
+        'button[aria-label="切换画布标签-demo-preview.md"]',
+      ),
+    ).not.toBeNull();
   });
 
-  it("恢复后的内容发布任务文件也应在右侧工作台列表显示语义标题", async () => {
-    const taskFile = createTaskFile(
-      "task-content-preview",
-      "content-posts/restored-preview.md",
-      "# 春日咖啡活动\n\n首屏预览",
-      60,
-    );
-    taskFile.metadata = {
-      contentPostIntent: "preview",
-      contentPostLabel: "渠道预览稿",
-      contentPostPlatformLabel: "小红书",
-    };
+  it("sessionView 存在但没有默认主稿时，Session · Main 应回退渲染会话过程面板", async () => {
+    const renderPreview = vi.fn((target: CanvasWorkbenchPreviewTarget) => (
+      <div data-testid="preview-panel">
+        {target.kind}:{target.title}
+      </div>
+    ));
+    const renderSessionPanel = vi.fn(() => (
+      <div data-testid="session-view-panel">session-runtime-panel</div>
+    ));
 
     const container = mount({
       artifacts: [],
       canvasState: null,
-      taskFiles: [taskFile],
+      taskFiles: [],
       workspaceRoot: "/workspace",
       workspaceUnavailable: false,
       defaultPreview: null,
       loadFilePreview: vi.fn(async (path: string) => ({
         path,
-        content: "# 春日咖啡活动\n\n首屏预览",
+        content: "",
         isBinary: false,
         size: 0,
         error: null,
       })),
       onOpenPath: vi.fn(async () => undefined),
       onRevealPath: vi.fn(async () => undefined),
-      renderPreview: (target, options) => (
-        <div data-testid="preview-panel">
-          {options?.stackedWorkbenchTrigger}
-          {target.kind}:{target.title}
-        </div>
-      ),
+      renderPreview,
+      sessionView: {
+        eyebrow: "Session Runtime",
+        title: "执行过程",
+        subtitle: "展示技能、工具和待处理交互。",
+        badges: [
+          {
+            key: "session-status",
+            label: "执行中",
+            tone: "accent",
+          },
+        ],
+        renderPanel: renderSessionPanel,
+      },
     });
 
     await flushEffects();
 
-    clickButtonByLabel(container, "切换画布标签-全部文件");
-    await flushEffects();
-
-    expect(container.textContent).toContain("渠道预览稿");
-    expect(container.textContent).toContain("content-posts/restored-preview.md");
+    expect(
+      container.querySelector('[data-testid="canvas-workbench-panel-session"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="session-view-panel"]')
+        ?.textContent,
+    ).toContain("session-runtime-panel");
+    expect(renderSessionPanel).toHaveBeenCalled();
+    expect(renderPreview).not.toHaveBeenCalled();
   });
 
-  it("工作区文件为二进制时应展示不支持预览提示", async () => {
-    const previewTargets: CanvasWorkbenchPreviewTarget[] = [];
+  it("workspaceView 存在时，应优先使用运行时注入的头部语义", async () => {
+    const container = mount({
+      artifacts: [createArtifact("artifact-1", "draft.md", "标题\n内容", 20)],
+      canvasState: null,
+      taskFiles: [createTaskFile("task-1", "notes.md", "# notes", 30)],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: null,
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: "README 内容",
+        isBinary: false,
+        size: 12,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target) => (
+        <div data-testid="preview-panel">
+          {target.kind}:{target.title}
+        </div>
+      ),
+      workspaceView: {
+        eyebrow: "Runtime Workspace",
+        tabLabel: "项目文件",
+        tabBadge: "已连接",
+        tabBadgeTone: "sky",
+        title: "工作区文件",
+        subtitle: "运行时已经为 workspace 汇总了目录语义。",
+        panelCopy: {
+          emptyText: "工作区空态来自运行时。",
+          unavailableText: "工作区不可用提示来自运行时。",
+          sectionEyebrow: "运行时目录",
+          loadingText: "目录加载文案来自运行时。",
+          emptyDirectoryText: "目录空态来自运行时。",
+        },
+        badges: [
+          {
+            key: "workspace-runtime",
+            label: "已连接",
+            tone: "accent",
+          },
+        ],
+        summaryStats: [
+          {
+            key: "workspace-runtime-stat",
+            label: "目录状态",
+            value: "运行时注入",
+            detail: "workspace 头部信息不再由布局壳推断。",
+            tone: "success",
+          },
+        ],
+      },
+    });
 
+    await flushEffects();
+
+    expect(
+      container.querySelector('button[aria-label="切换画布标签-项目文件"]'),
+    ).not.toBeNull();
+
+    clickByAriaLabel(container, "切换画布标签-项目文件");
+    await flushEffects();
+
+    expect(container.textContent).toContain("运行时目录");
+  });
+
+  it("workspaceView 的 panelCopy 应覆盖空态与不可用提示", async () => {
+    const unavailableContainer = mount({
+      artifacts: [],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: true,
+      defaultPreview: null,
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: null,
+        isBinary: true,
+        size: 0,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target) => <div>{target.title}</div>,
+      workspaceView: {
+        panelCopy: {
+          unavailableText: "工作区不可用提示来自运行时。",
+        },
+      },
+    });
+
+    await flushEffects();
+
+    clickByAriaLabel(unavailableContainer, "切换画布标签-文件");
+    await flushEffects();
+    expect(unavailableContainer.textContent).toContain(
+      "工作区不可用提示来自运行时。",
+    );
+
+    const emptyWorkspaceContainer = mount({
+      artifacts: [],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: null,
+      workspaceUnavailable: false,
+      defaultPreview: null,
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: null,
+        isBinary: true,
+        size: 0,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target) => <div>{target.title}</div>,
+      workspaceView: {
+        panelCopy: {
+          emptyText: "工作区空态来自运行时。",
+        },
+      },
+    });
+
+    await flushEffects();
+
+    clickByAriaLabel(emptyWorkspaceContainer, "切换画布标签-文件");
+    await flushEffects();
+    expect(emptyWorkspaceContainer.textContent).toContain(
+      "工作区空态来自运行时。",
+    );
+  });
+
+  it("sessionView 存在且有默认主稿时，应优先展示主稿预览", async () => {
+    const renderSessionPanel = vi.fn(() => (
+      <div data-testid="session-view-panel">session-runtime-panel</div>
+    ));
+    const container = mount({
+      artifacts: [],
+      canvasState: null,
+      taskFiles: [
+        createTaskFile("task-current", "draft.md", "# 标题\n\n当前主稿", 30),
+      ],
+      selectedFileId: "task-current",
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: {
+        selectionKey: "task:task-current",
+        title: "draft.md",
+        content: "# 标题\n\n当前主稿",
+        filePath: "draft.md",
+        absolutePath: "/workspace/draft.md",
+        previousContent: null,
+      } satisfies CanvasWorkbenchDefaultPreview,
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: "",
+        isBinary: false,
+        size: 0,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target) => (
+        <div data-testid="preview-panel">
+          {target.kind}:{target.title}
+        </div>
+      ),
+      sessionView: {
+        eyebrow: "Session Runtime",
+        title: "Session · Main",
+        subtitle: "统一展示过程与主稿焦点。",
+        badges: [
+          {
+            key: "session-status",
+            label: "执行中",
+            tone: "accent",
+          },
+          {
+            key: "session-runtime-items",
+            label: "轨迹 3",
+            tone: "default",
+          },
+        ],
+        renderPanel: renderSessionPanel,
+      },
+    });
+
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="canvas-workbench-panel-document"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="canvas-workbench-panel-session"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="preview-panel"]')?.textContent,
+    ).toContain("default-canvas:draft.md");
+    expect(
+      container.querySelector('[data-testid="session-view-panel"]'),
+    ).toBeNull();
+    expect(renderSessionPanel).not.toHaveBeenCalled();
+  });
+
+  it("sessionView 首次落在过程页时，后续出现真实主稿应自动切到文件标签", async () => {
+    const renderSessionPanel = vi.fn(() => (
+      <div data-testid="session-view-panel">session-runtime-panel</div>
+    ));
+    const renderPreview = vi.fn((target: CanvasWorkbenchPreviewTarget) => (
+      <div data-testid="preview-panel">
+        {target.kind}:{target.title}
+      </div>
+    ));
+
+    const baseProps: React.ComponentProps<typeof CanvasWorkbenchLayout> = {
+      artifacts: [],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: null,
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: "",
+        isBinary: false,
+        size: 0,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview,
+      sessionView: {
+        title: "Session · Main",
+        renderPanel: renderSessionPanel,
+      },
+    };
+
+    const harness = mountHarness(baseProps);
+    await flushEffects();
+
+    expect(
+      harness.container.querySelector('[data-testid="canvas-workbench-panel-session"]'),
+    ).not.toBeNull();
+    expect(
+      harness.container.querySelector('[data-testid="session-view-panel"]'),
+    ).not.toBeNull();
+
+    harness.rerender({
+      ...baseProps,
+      taskFiles: [
+        createTaskFile("task-current", "index.md", "# 标题\n\n当前主稿", 30),
+      ],
+      selectedFileId: "task-current",
+      defaultPreview: {
+        selectionKey: "task:task-current",
+        title: "index.md",
+        content: "# 标题\n\n当前主稿",
+        filePath: "index.md",
+        absolutePath: "/workspace/index.md",
+        previousContent: null,
+      } satisfies CanvasWorkbenchDefaultPreview,
+    });
+    await flushEffects();
+
+    expect(
+      harness.container.querySelector(
+        '[data-testid="canvas-workbench-panel-document"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      harness.container.querySelector('[data-testid="session-view-panel"]'),
+    ).toBeNull();
+    expect(
+      harness.container.querySelector('[data-testid="preview-panel"]')
+        ?.textContent,
+    ).toContain("default-canvas:index.md");
+  });
+
+  it("工作区文件为二进制时应在文件标签内显示 unsupported 目标", async () => {
     const container = mount({
       artifacts: [],
       canvasState: null,
@@ -781,41 +1195,145 @@ describe("CanvasWorkbenchLayout", () => {
       })),
       onOpenPath: vi.fn(async () => undefined),
       onRevealPath: vi.fn(async () => undefined),
-      renderPreview: (target, options) => {
-        previewTargets.push(target);
-        return (
-          <div data-testid="preview-panel">
-            {options?.stackedWorkbenchTrigger}
-            {target.kind}:{target.title}
-          </div>
-        );
-      },
+      renderPreview: (target) => (
+        <div data-testid="preview-panel">
+          {target.kind}:{target.title}
+        </div>
+      ),
     });
 
     await flushEffects();
 
-    clickButtonByLabel(container, "切换画布标签-全部文件");
+    clickByAriaLabel(container, "切换画布标签-文件");
     await flushEffects();
-    clickButtonByLabel(container, "展开目录-src");
+    clickByAriaLabel(container, "展开目录-src");
     await flushEffects();
-    clickButtonByLabel(container, "选择工作区文件-binary.dat");
+    clickByAriaLabel(container, "选择工作区文件-binary.dat");
     await flushEffects();
 
-    expect(previewTargets.at(-1)?.kind).toBe("unsupported");
-
-    clickButtonByLabel(container, "切换画布标签-预览");
-    expect(container.textContent).toContain("该文件为二进制内容");
+    expect(
+      container.querySelector('[data-testid="preview-panel"]')?.textContent,
+    ).toContain("unsupported:binary.dat");
   });
 
-  it("启用 teamView 且没有默认预览时应优先展示团队预览，并默认收起右侧工作台", async () => {
-    const renderPreview = vi.fn((_target: CanvasWorkbenchPreviewTarget) => (
-      <div data-testid="fallback-preview">fallback</div>
-    ));
-    const renderTeamPreview = vi.fn(
-      (_options?: { stackedWorkbenchTrigger?: React.ReactNode }) => (
-        <div data-testid="team-preview">team-preview</div>
+  it("重新展开结果目录下的 images 时应刷新目录子项，避免沿用空缓存", async () => {
+    let imageListingRequestCount = 0;
+    mockListDirectory.mockImplementation(async (path: string) => {
+      if (path === "/workspace/exports/x-article-export/latest") {
+        return {
+          path,
+          parentPath: "/workspace/exports/x-article-export",
+          error: null,
+          entries: [
+            {
+              name: "images",
+              path: "/workspace/exports/x-article-export/latest/images",
+              isDir: true,
+              size: 0,
+              modifiedAt: 100,
+            },
+            {
+              name: "index.md",
+              path: "/workspace/exports/x-article-export/latest/index.md",
+              isDir: false,
+              size: 2048,
+              modifiedAt: 100,
+            },
+          ],
+        };
+      }
+
+      if (path === "/workspace/exports/x-article-export/latest/images") {
+        imageListingRequestCount += 1;
+        return {
+          path,
+          parentPath: "/workspace/exports/x-article-export/latest",
+          error: null,
+          entries:
+            imageListingRequestCount === 1
+              ? []
+              : [
+                  {
+                    name: "image-1.jpg",
+                    path: `${path}/image-1.jpg`,
+                    isDir: false,
+                    size: 1024,
+                    modifiedAt: 100,
+                  },
+                  {
+                    name: "image-2.jpg",
+                    path: `${path}/image-2.jpg`,
+                    isDir: false,
+                    size: 2048,
+                    modifiedAt: 100,
+                  },
+                ],
+        };
+      }
+
+      return {
+        path,
+        parentPath: "/workspace",
+        error: null,
+        entries: [],
+      };
+    });
+
+    const container = mount({
+      artifacts: [],
+      canvasState: null,
+      taskFiles: [],
+      workspaceRoot: "/workspace",
+      workspaceUnavailable: false,
+      defaultPreview: {
+        selectionKey: "default-preview:exports/x-article-export/latest/index.md",
+        title: "index.md",
+        content: "# 导出结果\n\n这是正文。",
+        filePath: "exports/x-article-export/latest/index.md",
+        absolutePath: "/workspace/exports/x-article-export/latest/index.md",
+        previousContent: null,
+      },
+      loadFilePreview: vi.fn(async (path: string) => ({
+        path,
+        content: "# 文件内容",
+        isBinary: false,
+        size: 128,
+        error: null,
+      })),
+      onOpenPath: vi.fn(async () => undefined),
+      onRevealPath: vi.fn(async () => undefined),
+      renderPreview: (target) => (
+        <div data-testid="preview-panel">
+          {target.kind}:{target.title}
+        </div>
       ),
+    });
+
+    await flushEffects();
+    clickByAriaLabel(container, "切换画布标签-文件");
+    await flushEffects();
+
+    clickByAriaLabel(container, "展开目录-images");
+    await flushEffects();
+    expect(container.textContent).not.toContain("image-1.jpg");
+
+    clickByAriaLabel(container, "折叠目录-images");
+    await flushEffects();
+    clickByAriaLabel(container, "展开目录-images");
+    await flushEffects();
+
+    expect(mockListDirectory).toHaveBeenCalledWith(
+      "/workspace/exports/x-article-export/latest/images",
     );
+    expect(imageListingRequestCount).toBe(2);
+    expect(container.textContent).toContain("image-1.jpg");
+    expect(container.textContent).toContain("image-2.jpg");
+  });
+
+  it("启用 teamView 且没有默认预览时应默认落在 team 标签", async () => {
+    const renderPreview = vi.fn((target: CanvasWorkbenchPreviewTarget) => (
+      <div data-testid="preview-panel">preview:{target.kind}</div>
+    ));
     const renderTeamPanel = vi.fn(() => (
       <div data-testid="team-panel">team-panel</div>
     ));
@@ -840,8 +1358,29 @@ describe("CanvasWorkbenchLayout", () => {
       teamView: {
         enabled: true,
         title: "Team Workbench",
-        subtitle: "多 agent 实时协作",
-        renderPreview: renderTeamPreview,
+        subtitle: "多成员实时协作",
+        badges: [
+          {
+            key: "team-runtime",
+            label: "Team Workbench",
+            tone: "accent",
+          },
+          {
+            key: "team-trigger-state",
+            label: "处理中",
+            tone: "accent",
+          },
+        ],
+        summaryStats: [
+          {
+            key: "team-status",
+            label: "协作状态",
+            value: "处理中",
+            detail: "2 位处理中，1 位排队中。",
+            tone: "accent",
+          },
+        ],
+        renderPreview: () => <div>unused-team-preview</div>,
         renderPanel: renderTeamPanel,
       },
     });
@@ -849,29 +1388,26 @@ describe("CanvasWorkbenchLayout", () => {
     await flushEffects();
 
     expect(
-      container.querySelector('[data-testid="team-preview"]'),
+      container.querySelector('[data-testid="canvas-workbench-panel-team"]'),
     ).not.toBeNull();
-    expect(container.querySelector('[data-testid="team-panel"]')).toBeNull();
     expect(
-      container.querySelector('button[aria-label="展开画布工作台"]'),
+      container.querySelector('[data-testid="preview-panel"]')?.textContent,
+    ).toContain("preview:team-workbench");
+    expect(
+      container.querySelector('[data-testid="team-panel"]'),
     ).not.toBeNull();
-    expect(container.textContent).toContain("团队");
-    expect(renderTeamPreview).toHaveBeenCalled();
-    expect(renderTeamPanel).not.toHaveBeenCalled();
-    expect(renderPreview).not.toHaveBeenCalled();
+    expect(
+      container.querySelector(
+        'button[aria-label="切换画布标签-Team Workbench"]',
+      ),
+    ).not.toBeNull();
+    expect(renderPreview).toHaveBeenCalled();
+    expect(renderTeamPanel).toHaveBeenCalled();
   });
 
-  it("teamView 的 autoFocusToken 变化时应切到 Team Workbench", async () => {
+  it("teamView 的 autoFocusToken 变化时应切到 team 标签", async () => {
     const renderPreview = vi.fn((target: CanvasWorkbenchPreviewTarget) => (
-      <div data-testid="fallback-preview">fallback:{target.kind}</div>
-    ));
-    const renderTeamPreview = vi.fn(
-      (_options?: { stackedWorkbenchTrigger?: React.ReactNode }) => (
-        <div data-testid="team-preview">team-preview</div>
-      ),
-    );
-    const renderTeamPanel = vi.fn(() => (
-      <div data-testid="team-panel">team-panel</div>
+      <div data-testid="preview-panel">preview:{target.kind}</div>
     ));
 
     const baseProps: React.ComponentProps<typeof CanvasWorkbenchLayout> = {
@@ -905,8 +1441,8 @@ describe("CanvasWorkbenchLayout", () => {
         title: "Team Workbench",
         subtitle: "多成员实时协作",
         autoFocusToken: 1,
-        renderPreview: renderTeamPreview,
-        renderPanel: renderTeamPanel,
+        renderPreview: () => <div>unused-team-preview</div>,
+        renderPanel: () => <div data-testid="team-panel">team-panel</div>,
       },
     };
 
@@ -914,13 +1450,9 @@ describe("CanvasWorkbenchLayout", () => {
     await flushEffects();
 
     expect(
-      harness.container.querySelector('[data-testid="team-preview"]'),
-    ).toBeNull();
-    expect(
-      harness.container.querySelector('[data-testid="team-panel"]'),
-    ).toBeNull();
-    expect(
-      harness.container.querySelector('[data-testid="fallback-preview"]'),
+      harness.container.querySelector(
+        '[data-testid="canvas-workbench-panel-document"]',
+      ),
     ).not.toBeNull();
 
     harness.rerender({
@@ -933,74 +1465,20 @@ describe("CanvasWorkbenchLayout", () => {
     await flushEffects();
 
     expect(
-      harness.container.querySelector('[data-testid="team-preview"]'),
+      harness.container.querySelector(
+        '[data-testid="canvas-workbench-panel-team"]',
+      ),
     ).not.toBeNull();
     expect(
       harness.container.querySelector('[data-testid="team-panel"]'),
     ).not.toBeNull();
-    expect(harness.container.textContent).toContain("多成员实时协作");
+    expect(
+      harness.container.querySelector('[data-testid="preview-panel"]')
+        ?.textContent,
+    ).toContain("preview:team-workbench");
   });
 
-  it("teamView 存在活动态提示时，应在窄屏悬浮入口显示状态标签", async () => {
-    const container = mount({
-      artifacts: [
-        createArtifact("artifact-1", "draft.md", "标题\n当前内容", 20),
-      ],
-      canvasState: null,
-      taskFiles: [],
-      workspaceRoot: "/workspace",
-      workspaceUnavailable: false,
-      defaultPreview: {
-        selectionKey: "artifact:artifact-1",
-        title: "draft.md",
-        content: "标题\n当前内容",
-        filePath: "draft.md",
-        absolutePath: "/workspace/draft.md",
-        previousContent: null,
-      },
-      loadFilePreview: vi.fn(async (path: string) => ({
-        path,
-        content: "",
-        isBinary: false,
-        size: 0,
-        error: null,
-      })),
-      onOpenPath: vi.fn(async () => undefined),
-      onRevealPath: vi.fn(async () => undefined),
-      renderPreview: (target, options) => (
-        <div data-testid="preview-panel">
-          {options?.stackedWorkbenchTrigger}
-          {target.kind}:{target.title}
-        </div>
-      ),
-      teamView: {
-        enabled: true,
-        title: "Team Workbench",
-        subtitle: "多成员实时协作",
-        triggerState: {
-          tone: "active",
-          label: "组建中",
-        },
-        renderPreview: () => <div data-testid="team-preview">team-preview</div>,
-        renderPanel: () => <div data-testid="team-panel">team-panel</div>,
-      },
-    });
-
-    await flushEffects();
-    await resizeWorkbench(820);
-    await flushEffects();
-
-    const trigger = container.querySelector<HTMLElement>(
-      '[data-testid="canvas-workbench-trigger"]',
-    );
-
-    expect(trigger).toBeTruthy();
-    expect(trigger?.textContent).toContain("工作台");
-    expect(trigger?.textContent).toContain("组建中");
-    expect(trigger?.className).toContain("bg-sky-50");
-  });
-
-  it("容器变窄时应切换为右侧抽屉工作台布局并保持工作台可展开收起", async () => {
+  it("容器变窄时应继续保持顶部标签壳，但 data-layout-mode 切到 stacked", async () => {
     const container = mount({
       artifacts: [
         createArtifact("artifact-new", "draft.md", "标题\n产物版本", 20),
@@ -1029,9 +1507,8 @@ describe("CanvasWorkbenchLayout", () => {
       })),
       onOpenPath: vi.fn(async () => undefined),
       onRevealPath: vi.fn(async () => undefined),
-      renderPreview: (target, options) => (
+      renderPreview: (target) => (
         <div data-testid="preview-panel">
-          {options?.stackedWorkbenchTrigger}
           {target.kind}:{target.title}
         </div>
       ),
@@ -1044,11 +1521,6 @@ describe("CanvasWorkbenchLayout", () => {
         .querySelector('[data-testid="canvas-workbench-shell"]')
         ?.getAttribute("data-layout-mode"),
     ).toBe("split");
-    expect(
-      container
-        .querySelector('[data-testid="canvas-workbench-layout"]')
-        ?.getAttribute("data-panel-placement"),
-    ).toBe("side");
 
     await resizeWorkbench(820);
     await flushEffects();
@@ -1060,288 +1532,19 @@ describe("CanvasWorkbenchLayout", () => {
     ).toBe("stacked");
     expect(
       container.querySelector('button[aria-label="展开画布工作台"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="canvas-workbench-trigger"]')
-        ?.textContent,
-    ).toContain("工作台");
-
-    clickButtonByLabel(container, "展开画布工作台");
-    expect(
-      container
-        .querySelector('[data-testid="canvas-workbench-layout"]')
-        ?.getAttribute("data-panel-placement"),
-    ).toBe("overlay-right");
-    expect(
-      container.querySelector('button[aria-label="折叠画布工作台"]'),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("右侧工作台");
-    expect(container.textContent).toContain("产物、文件、变更与预览");
-
-    clickButtonByLabel(container, "折叠画布工作台");
-    expect(
-      container.querySelector('button[aria-label="展开画布工作台"]'),
-    ).not.toBeNull();
-
-    clickButtonByLabel(container, "展开画布工作台");
-    clickButtonByLabel(container, "切换画布标签-预览");
-    expect(container.textContent).toContain("当前画布正文");
-  });
-
-  it("Team 全屏预览时主预览区应占满剩余宽度，而不是收缩成窄列", async () => {
-    const container = mount({
-      artifacts: [],
-      canvasState: null,
-      taskFiles: [],
-      workspaceRoot: "/workspace",
-      workspaceUnavailable: false,
-      defaultPreview: null,
-      loadFilePreview: vi.fn(async (path: string) => ({
-        path,
-        content: "README 内容",
-        isBinary: false,
-        size: 12,
-        error: null,
-      })),
-      onOpenPath: vi.fn(async () => undefined),
-      onRevealPath: vi.fn(async () => undefined),
-      renderPreview: () => <div data-testid="fallback-preview">fallback</div>,
-      teamView: {
-        enabled: true,
-        title: "Team Workbench",
-        subtitle: "多成员实时协作",
-        preferFullscreenPreview: true,
-        renderPreview: () => <div data-testid="team-preview">team-preview</div>,
-        renderPanel: () => <div data-testid="team-panel">team-panel</div>,
-      },
-    });
-
-    await flushEffects();
-
-    expect(
-      container.querySelector('[data-testid="team-preview"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="canvas-workbench-layout"]'),
     ).toBeNull();
-
-    const previewRegion = container.querySelector<HTMLElement>(
-      '[data-testid="canvas-workbench-preview-region"]',
-    );
-    expect(previewRegion).not.toBeNull();
-    expect(previewRegion?.className).toContain("flex-1");
-    expect(previewRegion?.className).toContain("h-full");
-  });
-
-  it("Team 固定工作台在桌面宽度下应保持右侧侧栏，并默认以闭合态展示", async () => {
-    const container = mount({
-      artifacts: [],
-      canvasState: null,
-      taskFiles: [],
-      workspaceRoot: "/workspace",
-      workspaceUnavailable: false,
-      defaultPreview: null,
-      loadFilePreview: vi.fn(async (path: string) => ({
-        path,
-        content: "README 内容",
-        isBinary: false,
-        size: 12,
-        error: null,
-      })),
-      onOpenPath: vi.fn(async () => undefined),
-      onRevealPath: vi.fn(async () => undefined),
-      renderPreview: () => <div data-testid="fallback-preview">fallback</div>,
-      teamView: {
-        enabled: true,
-        title: "Team Workbench",
-        subtitle: "多成员实时协作",
-        preferFixedPanel: true,
-        renderPreview: () => <div data-testid="team-preview">team-preview</div>,
-        renderPanel: () => <div data-testid="team-panel">team-panel</div>,
-      },
-    });
-
-    await flushEffects();
-    await resizeWorkbench(900);
-
     expect(
-      container
-        .querySelector('[data-testid="canvas-workbench-layout"]')
-        ?.getAttribute("data-panel-placement"),
-    ).toBe("side");
-    expect(
-      container.querySelector('[data-testid="canvas-workbench-trigger"]'),
-    ).toBeNull();
-    expect(container.querySelector('[data-testid="team-panel"]')).toBeNull();
-    expect(
-      container.querySelector('button[aria-label="展开画布工作台"]'),
-    ).not.toBeNull();
-  });
-
-  it("窄屏右侧抽屉工作台应支持拖拽调整宽度", async () => {
-    const container = mount({
-      artifacts: [
-        createArtifact("artifact-new", "draft.md", "标题\n产物版本", 20),
-      ],
-      canvasState: null,
-      taskFiles: [],
-      workspaceRoot: "/workspace",
-      workspaceUnavailable: false,
-      defaultPreview: {
-        selectionKey: "artifact:artifact-new",
-        title: "draft.md",
-        content: "标题\n产物版本",
-        filePath: "draft.md",
-        absolutePath: "/workspace/draft.md",
-        previousContent: "标题\n上一版本",
-      } satisfies CanvasWorkbenchDefaultPreview,
-      loadFilePreview: vi.fn(async (path: string) => ({
-        path,
-        content: "README 内容",
-        isBinary: false,
-        size: 12,
-        error: null,
-      })),
-      onOpenPath: vi.fn(async () => undefined),
-      onRevealPath: vi.fn(async () => undefined),
-      renderPreview: (target, options) => (
-        <div data-testid="preview-panel">
-          {options?.stackedWorkbenchTrigger}
-          {target.kind}:{target.title}
-        </div>
+      container.querySelector(
+        'button[aria-label="切换画布标签-Session · Main"]',
       ),
-    });
+    ).not.toBeNull();
 
+    clickByAriaLabel(container, "切换画布标签-文件");
     await flushEffects();
-    await resizeWorkbench(820, 640);
-    await flushEffects();
-
-    clickButtonByLabel(container, "展开画布工作台");
-    await flushEffects();
-
-    const layout = container.querySelector<HTMLElement>(
-      '[data-testid="canvas-workbench-layout"]',
-    );
-    const resizeHandle = container.querySelector<HTMLElement>(
-      '[data-testid="canvas-workbench-resize-handle"]',
-    );
-
-    expect(layout).toBeTruthy();
-    expect(resizeHandle).toBeTruthy();
-
-    const initialWidth = Number.parseFloat(layout?.style.width || "0");
-    expect(initialWidth).toBeGreaterThan(0);
-
-    await act(async () => {
-      resizeHandle?.dispatchEvent(
-        new MouseEvent("mousedown", {
-          bubbles: true,
-          clientX: 620,
-        }),
-      );
-      window.dispatchEvent(
-        new MouseEvent("mousemove", {
-          bubbles: true,
-          clientX: 520,
-        }),
-      );
-      window.dispatchEvent(
-        new MouseEvent("mouseup", {
-          bubbles: true,
-          clientX: 520,
-        }),
-      );
-      await Promise.resolve();
-    });
-
-    const expandedWidth = Number.parseFloat(layout?.style.width || "0");
-    expect(expandedWidth).toBeGreaterThan(initialWidth);
-
-    await act(async () => {
-      resizeHandle?.dispatchEvent(
-        new MouseEvent("mousedown", {
-          bubbles: true,
-          clientX: 520,
-        }),
-      );
-      window.dispatchEvent(
-        new MouseEvent("mousemove", {
-          bubbles: true,
-          clientX: 660,
-        }),
-      );
-      window.dispatchEvent(
-        new MouseEvent("mouseup", {
-          bubbles: true,
-          clientX: 660,
-        }),
-      );
-      await Promise.resolve();
-    });
-
-    const reducedWidth = Number.parseFloat(layout?.style.width || "0");
-    expect(reducedWidth).toBeLessThan(expandedWidth);
-    expect(reducedWidth).toBeGreaterThanOrEqual(280);
-  });
-
-  it("窄屏工作台抽屉打开后，收到聊天抽屉打开事件应自动收起", async () => {
-    const container = mount({
-      artifacts: [
-        createArtifact("artifact-new", "draft.md", "标题\n产物版本", 20),
-      ],
-      canvasState: null,
-      taskFiles: [],
-      workspaceRoot: "/workspace",
-      workspaceUnavailable: false,
-      defaultPreview: {
-        selectionKey: "artifact:artifact-new",
-        title: "draft.md",
-        content: "标题\n产物版本",
-        filePath: "draft.md",
-        absolutePath: "/workspace/draft.md",
-        previousContent: "标题\n上一版本",
-      } satisfies CanvasWorkbenchDefaultPreview,
-      loadFilePreview: vi.fn(async (path: string) => ({
-        path,
-        content: "README 内容",
-        isBinary: false,
-        size: 12,
-        error: null,
-      })),
-      onOpenPath: vi.fn(async () => undefined),
-      onRevealPath: vi.fn(async () => undefined),
-      renderPreview: (target, options) => (
-        <div data-testid="preview-panel">
-          {options?.stackedWorkbenchTrigger}
-          {target.kind}:{target.title}
-        </div>
+    expect(
+      container.querySelector(
+        '[data-testid="canvas-workbench-panel-workspace"]',
       ),
-    });
-
-    await flushEffects();
-    await resizeWorkbench(820, 640);
-    await flushEffects();
-
-    clickButtonByLabel(container, "展开画布工作台");
-    await flushEffects();
-
-    expect(
-      container
-        .querySelector('[data-testid="canvas-workbench-layout"]')
-        ?.getAttribute("data-panel-placement"),
-    ).toBe("overlay-right");
-
-    await act(async () => {
-      emitCompactRightPanelOpen({ source: "chat" });
-      await Promise.resolve();
-    });
-    await flushEffects();
-
-    expect(
-      container.querySelector('[data-testid="canvas-workbench-layout"]'),
-    ).toBeNull();
-    expect(
-      container.querySelector('[data-testid="canvas-workbench-trigger"]'),
     ).not.toBeNull();
   });
 });

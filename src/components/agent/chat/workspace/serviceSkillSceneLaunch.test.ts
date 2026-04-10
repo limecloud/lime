@@ -299,6 +299,7 @@ describe("serviceSkillSceneLaunch", () => {
     expect(requestMetadata).toMatchObject({
       harness: {
         chat_mode: "general",
+        allow_model_skills: true,
         browser_requirement: "required",
         browser_assist: {
           enabled: true,
@@ -325,6 +326,15 @@ describe("serviceSkillSceneLaunch", () => {
             domain: "x.com",
             message: "已复用当前附着的 X 会话",
             report_hint: "将自动打开目标文章页。",
+          },
+        },
+        translation_skill_launch: {
+          skill_name: "translation",
+          kind: "translation_request",
+          translation_request: {
+            target_language: "中文",
+            project_id: "project-1",
+            entry_source: "service_skill_site_export_followup",
           },
         },
       },

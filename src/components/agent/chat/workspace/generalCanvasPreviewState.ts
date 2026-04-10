@@ -9,3 +9,16 @@ export function hasRenderableGeneralCanvasPreview(
 
   return state.content.trim().length > 0;
 }
+
+export function hasNamedGeneralCanvasFilePreview(
+  state:
+    | Pick<GeneralCanvasState, "isOpen" | "content" | "filename">
+    | null
+    | undefined,
+): boolean {
+  if (!hasRenderableGeneralCanvasPreview(state)) {
+    return false;
+  }
+
+  return typeof state?.filename === "string" && state.filename.trim().length > 0;
+}

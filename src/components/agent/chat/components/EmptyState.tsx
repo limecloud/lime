@@ -257,14 +257,15 @@ type RecommendationShelfItem =
     };
 
 const GENERAL_CATEGORY_LABEL = "通用对话";
+const FEATURED_HOME_RECOMMENDED_SOLUTION_IDS = [
+  "web-research-brief",
+  "social-post-starter",
+  "slide-outline",
+  "browser-assist-task",
+] as const;
 const FEATURED_HOME_SERVICE_SKILL_IDS = [
   "carousel-post-replication",
   "short-video-script-replication",
-  "article-to-slide-video-outline",
-  "cloud-video-dubbing",
-  "video-dubbing-language",
-  "daily-trend-briefing",
-  "account-performance-tracking",
 ] as const;
 
 function resolveFeaturedSkillExecutionKind(
@@ -339,7 +340,7 @@ const THEME_WORKBENCH_COPY: Record<
     title: "",
     description: "说一句目标，剩下的交给 Lime。",
     supportingDescription:
-      "文案、图片、视频、搜索、整理与网页执行可以围绕同一目标持续推进；成功做法会沉淀成技能，偏好、参考与成果会逐渐沉淀成个人资产。",
+      "文案、图片、视频、搜索和网页任务，会围绕同一个目标持续推进。跑通过的方法会沉淀成技能、偏好和项目上下文，下次不用重新开始。",
   },
 };
 
@@ -738,7 +739,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         title: "技能",
         value: skillSummaryLabel,
         description:
-          "把跑通过的提示、步骤和工具组合沉淀下来，下次遇到同类任务可以直接复用。",
+          "把常用做法沉淀下来，下次遇到同类任务可以直接复用。",
         icon: <Lightbulb className="h-5 w-5" />,
         imageSrc: capabilitySkillsPlaceholder,
         imageAlt: "技能能力卡占位图",
@@ -748,9 +749,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         key: "automation",
         eyebrow: "支撑能力",
         title: "自动化",
-        value: planEnabled ? "当前会按步骤推进" : "重复流程可持续跑起来",
+        value: planEnabled ? "当前会按步骤推进" : "重复任务可持续推进",
         description:
-          "适合长链路处理、批量任务和持续产出，让重复动作不再每次都从头手动重做。",
+          "适合批量任务和重复流程，让常做的事情持续推进，不再每次从头开始。",
         icon: <ListChecks className="h-5 w-5" />,
         imageSrc: capabilityAutomationsPlaceholder,
         imageAlt: "自动化能力卡占位图",
@@ -761,10 +762,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         eyebrow: "支撑能力",
         title: "多代理",
         value: subagentEnabled
-          ? "当前任务支持并行协作"
-          : "复杂任务可拆成并行分工",
+          ? "当前任务支持协作分工"
+          : "复杂任务可拆分并行推进",
         description:
-          "当研究、方案和执行需要同时推进时，可把任务拆给多个代理并行处理，再统一回收结论。",
+          "当一个目标需要调研、方案和执行同时推进时，可以拆成协作分工后统一回收结论。",
         icon: <Workflow className="h-5 w-5" />,
         imageSrc: capabilityAgentTeamsPlaceholder,
         imageAlt: "多代理协作能力卡占位图",
@@ -776,9 +777,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       key: "browser",
       eyebrow: "支撑能力",
       title: "浏览器接入",
-      value: browserAssistLoading ? "正在检查连接状态" : "CDP / 浏览器插件复用",
+      value: browserAssistLoading ? "正在检查连接状态" : "网页登录与网页执行",
       description:
-        "登录、验证和网页动作可直接复用 CDP 或浏览器插件连接，不必再切到单独工作台。",
+        "登录、验证和网页操作可以直接在当前任务里继续，不必再切到单独工作台。",
       icon: <Globe className="h-5 w-5" />,
       imageSrc: capabilityBrowserAssistPlaceholder,
       imageAlt: "浏览器接入能力卡占位图",
@@ -805,6 +806,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
   const recommendationShelfItems = useMemo<RecommendationShelfItem[]>(() => {
     const solutionRecommendations = entryRecommendedSolutions
+      .filter((solution) =>
+        FEATURED_HOME_RECOMMENDED_SOLUTION_IDS.includes(
+          solution.id as (typeof FEATURED_HOME_RECOMMENDED_SOLUTION_IDS)[number],
+        ),
+      )
       .map((solution) => ({
         kind: "solution" as const,
         key: solution.id,

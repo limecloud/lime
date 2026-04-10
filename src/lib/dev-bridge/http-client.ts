@@ -16,7 +16,7 @@ const BRIDGE_EVENTS_URL = "http://127.0.0.1:3030/events";
 const DEV_BRIDGE_EVENT_CONNECT_TIMEOUT_MS = 1500;
 const DEV_BRIDGE_REQUEST_TIMEOUT_MS = 1800;
 const DEV_BRIDGE_HEALTH_TIMEOUT_MS = 800;
-const DEV_BRIDGE_HEALTH_CACHE_MS = 2500;
+const DEV_BRIDGE_HEALTH_CACHE_MS = 10000;
 const DEV_BRIDGE_FAILURE_COOLDOWN_MS = 3000;
 
 export interface InvokeRequest {
@@ -86,6 +86,28 @@ function isBridgeConnectionError(message: string): boolean {
     message.includes("ECONNREFUSED") ||
     normalizedMessage.includes("timeout") ||
     normalizedMessage.includes("aborterror")
+  );
+}
+
+function isBridgeTimeoutError(message: string): boolean {
+  const normalizedMessage = message.toLowerCase();
+  return (
+    normalizedMessage.includes("timeout") ||
+    normalizedMessage.includes("aborterror")
+  );
+}
+
+function isBridgeHardConnectionError(message: string): boolean {
+  if (isBridgeTimeoutError(message)) {
+    return false;
+  }
+  return (
+    message.includes("Failed to fetch") ||
+    message.includes("fetch failed") ||
+    message.includes("NetworkError") ||
+    message.includes("ERR_CONNECTION_REFUSED") ||
+    message.includes("Load failed") ||
+    message.includes("ECONNREFUSED")
   );
 }
 
@@ -165,7 +187,16 @@ async function ensureBridgeReachable(): Promise<void> {
         markBridgeHealthy();
         return true;
       } catch (error) {
-        if (isBridgeConnectionError(toErrorMessage(error))) {
+        const message = toErrorMessage(error);
+        if (isBridgeHardConnectionError(message)) {
+          markBridgeUnavailable();
+          return false;
+        }
+        if (isBridgeTimeoutError(message)) {
+          if (bridgeLastHealthyAt > 0) {
+            markBridgeHealthy();
+            return true;
+          }
           markBridgeUnavailable();
           return false;
         }
@@ -421,7 +452,8 @@ export async function invokeViaHttp<T = unknown>(
     markBridgeHealthy();
     return data.result as T;
   } catch (e) {
-    if (isBridgeConnectionError(toErrorMessage(e))) {
+    const message = toErrorMessage(e);
+    if (isBridgeHardConnectionError(message)) {
       markBridgeUnavailable();
     }
     console.error(`[DevBridge] HTTP 调用失败: ${cmd}`, e);

@@ -144,12 +144,14 @@ describe("SettingsHomePage", () => {
     const text = container.textContent ?? "";
 
     expect(text).toContain("设置首页");
+    expect(text).toContain("快速进入常用设置并查看各分组入口。");
     expect(text).toContain("常用入口");
     expect(text).toContain("通用");
     expect(text).toContain("智能体");
     expect(text).toContain("系统");
     expect(text).toContain("外观");
     expect(text).toContain("AI 服务商");
+    expect(text).not.toContain("SETTINGS OVERVIEW");
     expect(text).not.toContain("安全与性能");
     expect(text).not.toContain("权限、稳定性与运行开关");
   });
@@ -200,12 +202,12 @@ describe("SettingsHomePage", () => {
     renderPage();
 
     expect(getBodyText()).not.toContain(
-      "在一个总览页里快速进入常用设置，减少在多层菜单之间来回寻找。",
+      "快速进入常用设置并查看各分组入口，减少在多层菜单之间来回寻找。",
     );
 
     const heroTip = await hoverTip("设置首页说明");
     expect(getBodyText()).toContain(
-      "在一个总览页里快速进入常用设置，减少在多层菜单之间来回寻找。",
+      "快速进入常用设置并查看各分组入口，减少在多层菜单之间来回寻找。",
     );
     await leaveTip(heroTip);
 

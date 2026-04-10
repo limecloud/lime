@@ -7,7 +7,6 @@ import {
 } from "react";
 import {
   AlertCircle,
-  Brain,
   CheckCircle2,
   Database,
   Files,
@@ -279,32 +278,6 @@ function MultiSelectSection({
   );
 }
 
-function SummaryStat({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[20px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <div className="flex flex-wrap items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
-        <span>{label}</span>
-        <WorkbenchInfoTip
-          ariaLabel={`${label}说明`}
-          content={description}
-          tone="slate"
-        />
-      </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function SourceStatusPill({
   loaded,
   exists,
@@ -331,7 +304,7 @@ function SourceStatusPill({
 function LoadingSkeleton() {
   return (
     <div className="space-y-6 pb-8">
-      <div className="h-[228px] animate-pulse rounded-[30px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)]" />
+      <div className="h-[176px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.92fr)]">
         <div className="h-[420px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
         <div className="space-y-6">
@@ -691,88 +664,64 @@ export function MemorySettings() {
         </div>
       ) : null}
 
-      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
-
-        <div className="relative grid gap-6 p-6 lg:p-8 xl:grid-cols-[minmax(0,1.12fr)_minmax(380px,0.88fr)]">
-          <div className="space-y-5">
-            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-              MEMORY SNAPSHOT
-            </span>
-            <div className="space-y-2">
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                  让记忆真正参与上下文
-                </p>
+                <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                  记忆
+                </h1>
                 <WorkbenchInfoTip
-                  ariaLabel="记忆快照说明"
-                  content="这页负责管理用户画像、三层记忆来源与自动记忆入口。目标不是堆更多配置，而是让代理在长期使用里更稳定地理解你的背景与偏好。"
+                  ariaLabel="记忆设置说明"
+                  content="管理用户画像、三层记忆来源与自动记忆入口，让代理在长期使用里更稳定地理解你的背景与偏好。"
                   tone="mint"
                 />
               </div>
+              <p className="text-sm text-slate-500">
+                管理用户画像、来源策略与自动记忆入口。
+              </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border border-white/90 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                画像完成度 {profileCompletionPercent}%
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                画像完成度：{profileCompletionPercent}%
               </span>
-              <span className="rounded-full border border-white/90 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                三层可用 {readyLayerLabel}
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                三层可用：{readyLayerLabel}
               </span>
-              <span className="rounded-full border border-white/90 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                来源命中 {sourceHitLabel}
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                来源命中：{sourceHitLabel}
               </span>
-              <span className="rounded-full border border-white/90 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                自动记忆 {autoStatusLabel}
+              <span
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium",
+                  autoConfig.enabled
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-amber-200 bg-amber-50 text-amber-700",
+                )}
+              >
+                自动记忆：{autoStatusLabel}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium",
+                  dirty
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700",
+                )}
+              >
+                配置状态：{dirty ? "待保存" : "已同步"}
               </span>
             </div>
-
-            <p className="text-xs leading-5 text-slate-500">
-              当前模式：{draft.enabled ? "记忆已启用" : "记忆已关闭"}。
-              {dirty ? " 有未保存更改。" : " 当前配置与已保存版本一致。"}
-            </p>
           </div>
 
-          <article className="flex h-full flex-col rounded-[26px] border border-white/90 bg-white/84 p-5 shadow-sm shadow-slate-950/5 backdrop-blur-[2px]">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
-                  <Brain className="h-4 w-4 text-sky-600" />
-                  记忆控制台
-                  <WorkbenchInfoTip
-                    ariaLabel="记忆控制台说明"
-                    content="统一管理开关、保存动作与核心状态摘要。"
-                    tone="slate"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  disabled={!dirty || saving}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={!dirty || saving}
-                  className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
-                >
-                  {saving ? "保存中..." : "保存"}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-5 flex items-center justify-between rounded-[20px] border border-slate-200 bg-slate-50/70 px-4 py-3">
-              <div>
+          <div className="flex flex-col gap-4 rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+              <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-semibold text-slate-900">
-                    启用记忆
+                    记忆总开关
                   </p>
                   <WorkbenchInfoTip
                     ariaLabel="启用记忆说明"
@@ -780,39 +729,45 @@ export function MemorySettings() {
                     tone="slate"
                   />
                 </div>
+                <p className="text-xs leading-5 text-slate-500">
+                  当前模式：{draft.enabled ? "记忆已启用" : "记忆已关闭"}。
+                  {dirty ? " 当前有未保存更改。" : " 当前配置与已保存版本一致。"}
+                </p>
               </div>
-              <Switch
-                aria-label="启用记忆"
-                checked={draft.enabled}
-                onCheckedChange={(checked) =>
-                  setDraft((prev) => ({ ...prev, enabled: checked }))
-                }
-              />
+
+              <div className="flex items-center gap-3 self-start rounded-full border border-slate-200 bg-white px-3 py-2">
+                <span className="text-xs font-medium text-slate-600">
+                  {draft.enabled ? "已启用" : "已关闭"}
+                </span>
+                <Switch
+                  aria-label="启用记忆"
+                  checked={draft.enabled}
+                  onCheckedChange={(checked) =>
+                    setDraft((prev) => ({ ...prev, enabled: checked }))
+                  }
+                />
+              </div>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <SummaryStat
-                label="画像完成度"
-                value={`${profileCompletionPercent}%`}
-                description="状态、擅长方向、解释偏好与拆解方式的完成比例。"
-              />
-              <SummaryStat
-                label="三层可用"
-                value={readyLayerLabel}
-                description="统一记忆、上下文记忆与项目记忆的当前可用层数。"
-              />
-              <SummaryStat
-                label="来源命中"
-                value={sourceHitLabel}
-                description="当前工作目录下已加载的记忆来源数量。"
-              />
-              <SummaryStat
-                label="自动记忆"
-                value={autoStatusLabel}
-                description="Auto Memory 入口的当前启用与初始化状态。"
-              />
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={!dirty || saving}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!dirty || saving}
+                className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+              >
+                {saving ? "保存中..." : "保存"}
+              </button>
             </div>
-          </article>
+          </div>
         </div>
       </section>
 

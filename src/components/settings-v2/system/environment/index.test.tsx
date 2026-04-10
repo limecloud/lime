@@ -195,7 +195,11 @@ describe("EnvironmentSettings", () => {
     await waitForLoad();
 
     const text = container.textContent ?? "";
-    expect(text).toContain("ENVIRONMENT LAYER");
+    expect(text).toContain("环境变量");
+    expect(text).toContain("管理 Shell 导入、显式覆盖和最终环境预览。");
+    expect(text).toContain("Shell 导入：已导入");
+    expect(text).toContain("覆盖项：1/1");
+    expect(text).toContain("预览变量：2");
     expect(text).toContain("Shell 环境导入");
     expect(text).toContain("环境变量覆盖");
     expect(text).toContain("合并规则");
@@ -284,12 +288,12 @@ describe("EnvironmentSettings", () => {
     await waitForLoad();
 
     expect(getBodyText()).not.toContain(
-      "这里把 Shell 导入、显式覆盖和运行时预览放在同一个工作区里，减少分散配置。敏感值默认保持掩码，避免在设置页里意外暴露。",
+      "管理 Shell 导入、显式覆盖和最终环境预览；敏感值默认保持掩码，减少在设置页误暴露的风险。",
     );
 
     const heroTip = await hoverTip("环境变量设置总览说明");
     expect(getBodyText()).toContain(
-      "这里把 Shell 导入、显式覆盖和运行时预览放在同一个工作区里，减少分散配置。敏感值默认保持掩码，避免在设置页里意外暴露。",
+      "管理 Shell 导入、显式覆盖和最终环境预览；敏感值默认保持掩码，减少在设置页误暴露的风险。",
     );
     await leaveTip(heroTip);
 

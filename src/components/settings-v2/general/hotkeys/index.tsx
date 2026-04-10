@@ -44,32 +44,6 @@ import {
 
 type RuntimeAvailability = "ready" | "fallback";
 
-function SummaryMetric({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[20px] border border-slate-200/80 bg-slate-50 p-4">
-      <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
-        <span>{label}</span>
-        <WorkbenchInfoTip
-          ariaLabel={`${label}说明`}
-          content={description}
-          tone="slate"
-        />
-      </div>
-      <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function SummaryChip({
   tone = "neutral",
   children,
@@ -332,24 +306,26 @@ export function HotkeysSettings() {
         </div>
       ) : null}
 
-      <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-950/5">
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-emerald-700">快捷键审计</p>
+      <section className="rounded-[28px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                  已审计快捷键
-                </h2>
+                <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                  快捷键
+                </h1>
                 <WorkbenchInfoTip
                   ariaLabel="已审计快捷键说明"
                   content={`当前按 ${platformLabel} 展示已接入实现的快捷键。全局项读取运行时注册状态，页面内项直接来自对应模块的真实事件匹配逻辑，不再展示手工拼装的占位清单。`}
                   tone="mint"
                 />
               </div>
+              <p className="text-sm text-slate-500">
+                查看已接入实现并完成审计的快捷键。
+              </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
               <SummaryChip>{platformLabel}</SummaryChip>
               <SummaryChip tone="success">
                 全局运行中 {catalog.summary.globalReady} / 3
@@ -361,25 +337,21 @@ export function HotkeysSettings() {
                   ? "运行时状态已连接"
                   : "运行时状态不可读，已回退到配置判断"}
               </SummaryChip>
+              <SummaryChip>已审计 {catalog.summary.total} 项</SummaryChip>
+              <SummaryChip tone="success">
+                可直接使用 {catalog.summary.ready} 项
+              </SummaryChip>
+              <SummaryChip
+                tone={catalog.summary.attention > 0 ? "warning" : "neutral"}
+              >
+                需要处理 {catalog.summary.attention} 项
+              </SummaryChip>
+              <WorkbenchInfoTip
+                ariaLabel="已审计说明"
+                content="当前页只列出已接入实现且已核对的快捷键。"
+                tone="slate"
+              />
             </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-            <SummaryMetric
-              label="已审计"
-              value={catalog.summary.total.toString()}
-              description="当前页只列出已接入实现且已核对的快捷键。"
-            />
-            <SummaryMetric
-              label="可直接使用"
-              value={catalog.summary.ready.toString()}
-              description="当前无需额外配置即可使用的快捷键数量。"
-            />
-            <SummaryMetric
-              label="需要处理"
-              value={catalog.summary.attention.toString()}
-              description="还需要启用功能、补配置或修复注册状态的项目。"
-            />
           </div>
         </div>
       </section>

@@ -161,6 +161,11 @@ describe("AppearanceSettings", () => {
       (button) => button.textContent?.trim() ?? "",
     );
 
+    expect(text).toContain("外观");
+    expect(text).toContain("管理主题、语言、导航入口和推荐行为。");
+    expect(text).toContain("主题：跟随系统");
+    expect(text).toContain("语言：中文");
+    expect(text).toContain("提示音效：已开启");
     expect(text).toContain("基础外观");
     expect(text).toContain("主题模式");
     expect(text).toContain("界面语言");
@@ -244,7 +249,7 @@ describe("AppearanceSettings", () => {
     await renderPage();
 
     expect(getBodyText()).not.toContain(
-      "主题、语言、提示音效，以及工作区里的侧栏入口和推荐行为，都在这里统一维护。",
+      "管理主题、语言、提示音效，以及左侧导航入口和推荐行为。",
     );
     expect(getBodyText()).not.toContain(
       "先确定全局主题、语言和声音反馈，再统一工作区里的视觉节奏。",
@@ -252,7 +257,7 @@ describe("AppearanceSettings", () => {
 
     const heroTip = await hoverTip("外观设置总览说明");
     expect(getBodyText()).toContain(
-      "主题、语言、提示音效，以及工作区里的侧栏入口和推荐行为，都在这里统一维护。",
+      "管理主题、语言、提示音效，以及左侧导航入口和推荐行为。",
     );
     await leaveTip(heroTip);
 

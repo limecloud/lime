@@ -4,25 +4,15 @@ import {
   type AgentEvent,
   type AgentOp,
 } from "@/lib/api/agentProtocol";
-import { listenAgentRuntimeEvent } from "@/lib/api/agentRuntimeEvents";
 import {
-  compactAgentRuntimeSession,
-  createAgentRuntimeSession,
-  deleteAgentRuntimeSession,
+  listenAgentRuntimeEvent,
+  type AgentRuntimeEventListener,
+} from "@/lib/api/agentRuntimeEvents";
+import {
+  createAgentRuntimeClient,
   type AgentRuntimeReplayedActionRequiredView,
+  type AgentRuntimeClient,
   type AsterAgentStatus,
-  getAgentRuntimeSession,
-  getAgentRuntimeThreadRead,
-  initAsterAgent,
-  interruptAgentRuntimeTurn,
-  promoteAgentRuntimeQueuedTurn,
-  replayAgentRuntimeRequest,
-  removeAgentRuntimeQueuedTurn,
-  resumeAgentRuntimeThread,
-  listAgentRuntimeSessions,
-  respondAgentRuntimeAction,
-  submitAgentRuntimeTurn,
-  updateAgentRuntimeSession,
   type AsterExecutionStrategy,
   type AsterSessionDetail,
   type AsterSessionInfo,
@@ -90,118 +80,153 @@ export interface AgentRuntimeAdapter {
   ): Promise<UnlistenFn>;
 }
 
-export const defaultAgentRuntimeAdapter: AgentRuntimeAdapter = {
-  async init() {
-    return initAsterAgent();
-  },
-  async createSession(workspaceId, name, executionStrategy) {
-    return createAgentRuntimeSession(workspaceId, name, executionStrategy);
-  },
-  async listSessions() {
-    return listAgentRuntimeSessions();
-  },
-  async getSession(sessionId) {
-    return getAgentRuntimeSession(sessionId);
-  },
-  async getSessionReadModel(sessionId) {
-    return getAgentRuntimeThreadRead(sessionId);
-  },
-  async replayRequest(sessionId, requestId) {
-    return replayAgentRuntimeRequest({
-      session_id: sessionId,
-      request_id: requestId,
-    });
-  },
-  async renameSession(sessionId, title) {
-    await updateAgentRuntimeSession({
-      session_id: sessionId,
-      name: title,
-    });
-  },
-  async deleteSession(sessionId) {
-    await deleteAgentRuntimeSession(sessionId);
-  },
-  async setSessionExecutionStrategy(sessionId, executionStrategy) {
-    await updateAgentRuntimeSession({
-      session_id: sessionId,
-      execution_strategy: executionStrategy,
-    });
-  },
-  async setSessionAccessMode(sessionId, accessMode) {
-    await updateAgentRuntimeSession({
-      session_id: sessionId,
-      recent_access_mode: accessMode,
-    });
-  },
-  async setSessionProviderSelection(sessionId, providerType, model) {
-    await updateAgentRuntimeSession({
-      session_id: sessionId,
-      provider_name: providerType,
-      model_name: model,
-    });
-  },
-  async submitOp(op) {
-    switch (op.type) {
-      case "user_input":
-        await submitAgentRuntimeTurn(createSubmitTurnRequestFromAgentOp(op));
-        return;
-      default:
-        throw new Error(`当前 runtime adapter 尚不支持 AgentOp: ${op.type}`);
-    }
-  },
-  async compactSession(sessionId, eventName) {
-    await compactAgentRuntimeSession({
-      session_id: sessionId,
-      event_name: eventName,
-    });
-  },
-  async interruptTurn(sessionId) {
-    return interruptAgentRuntimeTurn({
-      session_id: sessionId,
-    });
-  },
-  async resumeThread(sessionId) {
-    return resumeAgentRuntimeThread({
-      session_id: sessionId,
-    });
-  },
-  async promoteQueuedTurn(sessionId, queuedTurnId) {
-    return promoteAgentRuntimeQueuedTurn({
-      session_id: sessionId,
-      queued_turn_id: queuedTurnId,
-    });
-  },
-  async removeQueuedTurn(sessionId, queuedTurnId) {
-    return removeAgentRuntimeQueuedTurn({
-      session_id: sessionId,
-      queued_turn_id: queuedTurnId,
-    });
-  },
-  async respondToAction(request) {
-    await respondAgentRuntimeAction({
-      session_id: request.sessionId,
-      request_id: request.requestId,
-      action_type: request.actionType,
-      confirmed: request.confirmed,
-      response: request.response,
-      user_data: request.userData,
-      metadata: request.metadata,
-      ...(request.eventName ? { event_name: request.eventName } : {}),
-      ...(request.actionScope
-        ? {
-            action_scope: {
-              session_id: request.actionScope.sessionId,
-              thread_id: request.actionScope.threadId,
-              turn_id: request.actionScope.turnId,
-            },
-          }
-        : {}),
-    });
-  },
-  async listenToTurnEvents(eventName, handler) {
-    return listenAgentRuntimeEvent(eventName, handler);
-  },
-  async listenToTeamEvents(eventName, handler) {
-    return listenAgentRuntimeEvent(eventName, handler);
-  },
-};
+export interface AgentRuntimeAdapterDeps {
+  client?: Pick<
+    AgentRuntimeClient,
+    | "compactAgentRuntimeSession"
+    | "createAgentRuntimeSession"
+    | "deleteAgentRuntimeSession"
+    | "getAgentRuntimeSession"
+    | "getAgentRuntimeThreadRead"
+    | "initAsterAgent"
+    | "interruptAgentRuntimeTurn"
+    | "listAgentRuntimeSessions"
+    | "promoteAgentRuntimeQueuedTurn"
+    | "replayAgentRuntimeRequest"
+    | "removeAgentRuntimeQueuedTurn"
+    | "resumeAgentRuntimeThread"
+    | "respondAgentRuntimeAction"
+    | "submitAgentRuntimeTurn"
+    | "updateAgentRuntimeSession"
+  >;
+  listenRuntimeEvent?: AgentRuntimeEventListener;
+}
+
+export function createAgentRuntimeAdapter({
+  client = createAgentRuntimeClient(),
+  listenRuntimeEvent = listenAgentRuntimeEvent,
+}: AgentRuntimeAdapterDeps = {}): AgentRuntimeAdapter {
+  return {
+    async init() {
+      return client.initAsterAgent();
+    },
+    async createSession(workspaceId, name, executionStrategy) {
+      return client.createAgentRuntimeSession(
+        workspaceId,
+        name,
+        executionStrategy,
+      );
+    },
+    async listSessions() {
+      return client.listAgentRuntimeSessions();
+    },
+    async getSession(sessionId) {
+      return client.getAgentRuntimeSession(sessionId);
+    },
+    async getSessionReadModel(sessionId) {
+      return client.getAgentRuntimeThreadRead(sessionId);
+    },
+    async replayRequest(sessionId, requestId) {
+      return client.replayAgentRuntimeRequest({
+        session_id: sessionId,
+        request_id: requestId,
+      });
+    },
+    async renameSession(sessionId, title) {
+      await client.updateAgentRuntimeSession({
+        session_id: sessionId,
+        name: title,
+      });
+    },
+    async deleteSession(sessionId) {
+      await client.deleteAgentRuntimeSession(sessionId);
+    },
+    async setSessionExecutionStrategy(sessionId, executionStrategy) {
+      await client.updateAgentRuntimeSession({
+        session_id: sessionId,
+        execution_strategy: executionStrategy,
+      });
+    },
+    async setSessionAccessMode(sessionId, accessMode) {
+      await client.updateAgentRuntimeSession({
+        session_id: sessionId,
+        recent_access_mode: accessMode,
+      });
+    },
+    async setSessionProviderSelection(sessionId, providerType, model) {
+      await client.updateAgentRuntimeSession({
+        session_id: sessionId,
+        provider_name: providerType,
+        model_name: model,
+      });
+    },
+    async submitOp(op) {
+      switch (op.type) {
+        case "user_input":
+          await client.submitAgentRuntimeTurn(
+            createSubmitTurnRequestFromAgentOp(op),
+          );
+          return;
+        default:
+          throw new Error(`当前 runtime adapter 尚不支持 AgentOp: ${op.type}`);
+      }
+    },
+    async compactSession(sessionId, eventName) {
+      await client.compactAgentRuntimeSession({
+        session_id: sessionId,
+        event_name: eventName,
+      });
+    },
+    async interruptTurn(sessionId) {
+      return client.interruptAgentRuntimeTurn({
+        session_id: sessionId,
+      });
+    },
+    async resumeThread(sessionId) {
+      return client.resumeAgentRuntimeThread({
+        session_id: sessionId,
+      });
+    },
+    async promoteQueuedTurn(sessionId, queuedTurnId) {
+      return client.promoteAgentRuntimeQueuedTurn({
+        session_id: sessionId,
+        queued_turn_id: queuedTurnId,
+      });
+    },
+    async removeQueuedTurn(sessionId, queuedTurnId) {
+      return client.removeAgentRuntimeQueuedTurn({
+        session_id: sessionId,
+        queued_turn_id: queuedTurnId,
+      });
+    },
+    async respondToAction(request) {
+      await client.respondAgentRuntimeAction({
+        session_id: request.sessionId,
+        request_id: request.requestId,
+        action_type: request.actionType,
+        confirmed: request.confirmed,
+        response: request.response,
+        user_data: request.userData,
+        metadata: request.metadata,
+        ...(request.eventName ? { event_name: request.eventName } : {}),
+        ...(request.actionScope
+          ? {
+              action_scope: {
+                session_id: request.actionScope.sessionId,
+                thread_id: request.actionScope.threadId,
+                turn_id: request.actionScope.turnId,
+              },
+            }
+          : {}),
+      });
+    },
+    async listenToTurnEvents(eventName, handler) {
+      return listenRuntimeEvent(eventName, handler);
+    },
+    async listenToTeamEvents(eventName, handler) {
+      return listenRuntimeEvent(eventName, handler);
+    },
+  };
+}
+
+export const defaultAgentRuntimeAdapter = createAgentRuntimeAdapter();

@@ -31,12 +31,17 @@ import {
   normalizeSiteToolResultSummary,
   resolveSiteAdapterSourceLabel,
   resolveSiteProjectSourceLabel,
-  resolveSiteSavedContentTarget,
+  resolveSiteSavedContentTargetFromMetadata,
 } from "../utils/siteToolResultSummary";
 import {
   classifySearchQuerySemantic,
   summarizeSearchQuerySemantics,
 } from "../utils/searchQueryGrouping";
+import {
+  normalizeToolSearchResultSummary,
+  resolveToolSearchItemSourceLabel,
+  resolveToolSearchItemStatusLabel,
+} from "../utils/toolSearchResultSummary";
 import type { ToolCallArgumentValue } from "../utils/toolDisplayInfo";
 import {
   buildGroupedChildLine as buildGroupedChildLineFromInfo,
@@ -550,8 +555,8 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     [toolCall.result?.metadata],
   );
   const savedSiteContentTarget = useMemo(
-    () => resolveSiteSavedContentTarget(siteResultSummary),
-    [siteResultSummary],
+    () => resolveSiteSavedContentTargetFromMetadata(toolCall.result?.metadata),
+    [toolCall.result?.metadata],
   );
   const resultText = useMemo(() => {
     const rawText = toolCall.result?.error || toolCall.result?.output || "";
@@ -766,10 +771,22 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   );
   const hasResultImages = resultImages.length > 0;
   const hasSearchResults = searchResultItems.length > 0;
+  const isToolSearch = useMemo(
+    () => normalizeToolNameKeyFromInfo(toolCall.name) === "toolsearch",
+    [toolCall.name],
+  );
+  const toolSearchSummary = useMemo(
+    () => (isToolSearch ? normalizeToolSearchResultSummary(resultText) : null),
+    [isToolSearch, resultText],
+  );
+  const hasToolSearchSummary = Boolean(toolSearchSummary);
   const shouldShowRawSearchResultToggle =
     hasSearchResults && resultText !== "(无输出)";
   const shouldRenderResultPanel =
-    isExpanded && hasResult && (!hasSearchResults || showRawSearchResultOutput);
+    isExpanded &&
+    hasResult &&
+    (!hasSearchResults || showRawSearchResultOutput) &&
+    !hasToolSearchSummary;
 
   const handleOpenExternalUrl = useCallback(async (url: string) => {
     try {
@@ -786,12 +803,14 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   useEffect(() => {
     if (
       isMessageStreaming &&
+      !isToolSearch &&
       (isRunning || hasResult || hasResultImages || hasSearchResults)
     ) {
       setIsExpanded(true);
     }
   }, [
     isMessageStreaming,
+    isToolSearch,
     isRunning,
     hasResult,
     hasResultImages,
@@ -989,6 +1008,65 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
           ) : null}
         </div>
       )}
+
+      {toolSearchSummary && isExpanded ? (
+        <div
+          className="mb-2 ml-6 mt-1.5 space-y-2"
+          data-testid="tool-call-tool-search-result"
+        >
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
+            <span>匹配工具：{toolSearchSummary.count} 个</span>
+            {toolSearchSummary.query ? (
+              <span className="break-all">查询：{toolSearchSummary.query}</span>
+            ) : null}
+            {typeof toolSearchSummary.totalDeferredTools === "number" ? (
+              <span>Deferred 总数：{toolSearchSummary.totalDeferredTools}</span>
+            ) : null}
+          </div>
+          {toolSearchSummary.notes.length > 0 ? (
+            <div className="space-y-1 text-[11px] text-amber-700">
+              {toolSearchSummary.notes.map((note, index) => (
+                <div key={`${note}-${index}`}>{note}</div>
+              ))}
+            </div>
+          ) : null}
+          {toolSearchSummary.tools.length > 0 ? (
+            <div className="space-y-2">
+              {toolSearchSummary.tools.map((item) => {
+                const sourceLabel = resolveToolSearchItemSourceLabel(item);
+                const statusLabel = resolveToolSearchItemStatusLabel(item);
+                return (
+                  <div
+                    key={item.name}
+                    className="rounded-[14px] border border-slate-200 bg-white p-3"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-slate-900">
+                        {item.name}
+                      </span>
+                      {sourceLabel ? (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
+                          {sourceLabel}
+                        </span>
+                      ) : null}
+                      {statusLabel ? (
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                          {statusLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                    {item.description ? (
+                      <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                        {item.description}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {shouldRenderResultPanel && (
         <div

@@ -2,6 +2,7 @@ import type { AsterSubagentSkillInfo } from "@/lib/api/agentRuntime";
 import { STABLE_PROCESSING_LABEL } from "./stableProcessingExperience";
 
 export type TeamWorkspaceDisplayRuntimeStatus =
+  | "idle"
   | "queued"
   | "running"
   | "completed"

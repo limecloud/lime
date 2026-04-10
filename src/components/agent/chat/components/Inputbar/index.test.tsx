@@ -25,28 +25,33 @@ const mockInputbarCore = vi.fn(
     topExtra?: React.ReactNode;
     placeholder?: string;
     toolMode?: "default" | "attach-only";
+    showMetaTools?: boolean;
   }) => (
     <div data-testid="inputbar-core">
-      <button
-        type="button"
-        data-testid="toggle-web-search"
-        onClick={() => props.onToolClick?.("web_search")}
-      >
-        切换联网
-      </button>
-      <span data-testid="web-search-state">
-        {props.activeTools?.web_search ? "on" : "off"}
-      </span>
-      <button
-        type="button"
-        data-testid="toggle-subagent-mode"
-        onClick={() => props.onToolClick?.("subagent_mode")}
-      >
-        切换多代理
-      </button>
-      <span data-testid="subagent-state">
-        {props.activeTools?.subagent_mode ? "on" : "off"}
-      </span>
+      {props.showMetaTools ? (
+        <>
+          <button
+            type="button"
+            data-testid="toggle-web-search"
+            onClick={() => props.onToolClick?.("web_search")}
+          >
+            切换联网
+          </button>
+          <span data-testid="web-search-state">
+            {props.activeTools?.web_search ? "on" : "off"}
+          </span>
+          <button
+            type="button"
+            data-testid="toggle-subagent-mode"
+            onClick={() => props.onToolClick?.("subagent_mode")}
+          >
+            切换多代理
+          </button>
+          <span data-testid="subagent-state">
+            {props.activeTools?.subagent_mode ? "on" : "off"}
+          </span>
+        </>
+      ) : null}
       <button
         type="button"
         data-testid="send-btn"
@@ -69,6 +74,7 @@ vi.mock("./components/InputbarCore", () => ({
     topExtra?: React.ReactNode;
     placeholder?: string;
     toolMode?: "default" | "attach-only";
+    showMetaTools?: boolean;
   }) => mockInputbarCore(props),
 }));
 
@@ -252,6 +258,20 @@ function renderInputbar(
     rerender: render,
   };
 }
+
+function expandAdvancedControls(container: HTMLDivElement) {
+  const toggleButton = container.querySelector(
+    '[data-testid="inputbar-advanced-toggle"]',
+  ) as HTMLButtonElement | null;
+
+  expect(toggleButton).toBeTruthy();
+
+  act(() => {
+    toggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+
+  return toggleButton;
+}
 describe("Inputbar", () => {
   it("即使角色和技能为空，也应挂载 CharacterMention", async () => {
     const { container } = renderInputbar();
@@ -358,7 +378,7 @@ describe("Inputbar", () => {
       container.querySelector('[data-testid="inputbar-secondary-controls"]'),
     ).toBeNull();
   });
-  it("工作区输入区应保留技能下拉，但与 @ 面板共用同一技能数据源", async () => {
+  it("工作区输入区默认隐藏技能入口，展开高级设置后与 @ 面板共用同一技能数据源", async () => {
     const { container } = renderInputbar({
       activeTheme: "general",
       skills: [
@@ -379,13 +399,22 @@ describe("Inputbar", () => {
 
     expect(
       container.querySelector('[data-testid="skill-selector-trigger"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-advanced-toggle"]'),
     ).toBeTruthy();
     expect(
       container.querySelector('[data-testid="character-mention-stub"]'),
     ).toBeTruthy();
+
+    expandAdvancedControls(container);
+
+    expect(
+      container.querySelector('[data-testid="skill-selector-trigger"]'),
+    ).toBeTruthy();
   });
 
-  it("存在 executionRuntime 时应保留模型选择器，但不再展示结构化输出提示", async () => {
+  it("存在 executionRuntime 时折叠态应保留当前模型提示，展开后再显示模型选择器", async () => {
     const { container } = renderInputbar({
       providerType: "openai",
       setProviderType: vi.fn(),
@@ -410,7 +439,15 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
+    expect(container.textContent).toContain("当前模型");
+    expect(container.textContent).toContain("gpt-5.4-mini");
     expect(container.textContent).not.toContain("最近执行模型");
+    expect(
+      container.querySelector('[data-testid="model-selector"]'),
+    ).toBeNull();
+
+    expandAdvancedControls(container);
+
     expect(
       container.querySelector('[data-testid="model-selector"]'),
     ).toBeTruthy();
@@ -418,7 +455,7 @@ describe("Inputbar", () => {
     expect(container.textContent).not.toContain("Native schema");
   });
 
-  it("应将 Plan 开关与权限模式拆成独立控件，并透传对应回调", async () => {
+  it("应在高级设置中渲染 Plan 开关与权限模式，并透传对应回调", async () => {
     const setExecutionStrategy = vi.fn();
     const setAccessMode = vi.fn();
     const { container } = renderInputbar({
@@ -431,6 +468,15 @@ describe("Inputbar", () => {
     await act(async () => {
       await Promise.resolve();
     });
+
+    expect(
+      container.querySelector('[data-testid="inputbar-plan-toggle"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('select[aria-label="权限模式"]'),
+    ).toBeNull();
+
+    expandAdvancedControls(container);
 
     const planToggle = container.querySelector(
       '[data-testid="inputbar-plan-toggle"]',
@@ -478,6 +524,12 @@ describe("Inputbar", () => {
     await act(async () => {
       await Promise.resolve();
     });
+
+    expect(
+      container.querySelector('[data-testid="toggle-web-search"]'),
+    ).toBeNull();
+
+    expandAdvancedControls(container);
 
     const toggleButton = container.querySelector(
       '[data-testid="toggle-web-search"]',
@@ -567,10 +619,16 @@ describe("Inputbar", () => {
 
     expect(
       enabledContainer.querySelector('[data-testid="team-selector-stub"]'),
+    ).toBeNull();
+
+    expandAdvancedControls(enabledContainer);
+
+    expect(
+      enabledContainer.querySelector('[data-testid="team-selector-stub"]'),
     ).toBeTruthy();
   });
 
-  it("未开启 Team mode 时应只保留图标开关，并可直接启用", async () => {
+  it("未开启 Team mode 时默认不暴露多代理开关，展开高级设置后可启用", async () => {
     const onToolStatesChange = vi.fn();
     const { container } = renderInputbar({
       activeTheme: "general",
@@ -589,6 +647,11 @@ describe("Inputbar", () => {
     expect(
       container.querySelector('[data-testid="team-mode-enable-button"]'),
     ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="toggle-subagent-mode"]'),
+    ).toBeNull();
+
+    expandAdvancedControls(container);
 
     const enableButton = container.querySelector(
       '[data-testid="toggle-subagent-mode"]',
@@ -616,6 +679,8 @@ describe("Inputbar", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+
+    expandAdvancedControls(container);
 
     const enableButton = container.querySelector(
       '[data-testid="toggle-subagent-mode"]',
@@ -664,7 +729,7 @@ describe("Inputbar", () => {
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="toggle-subagent-mode"]'),
-    ).toBeTruthy();
+    ).toBeNull();
     expect(recommendationButton).toBeTruthy();
     expect(container.textContent).toContain("当前任务更适合 Team 协作");
   });

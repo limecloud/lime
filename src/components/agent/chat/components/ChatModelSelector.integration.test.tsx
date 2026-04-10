@@ -12,6 +12,8 @@ const {
   mockParseAgentEvent,
   mockSafeListen,
   mockToast,
+  mockLoadConfiguredProviders,
+  mockLoadProviderModels,
   mockUseConfiguredProviders,
   mockUseProviderModels,
   mockProviderPoolGetOverview,
@@ -32,6 +34,8 @@ const {
     info: vi.fn(),
     warning: vi.fn(),
   },
+  mockLoadConfiguredProviders: vi.fn(),
+  mockLoadProviderModels: vi.fn(),
   mockUseConfiguredProviders: vi.fn(),
   mockUseProviderModels: vi.fn(),
   mockProviderPoolGetOverview: vi.fn(),
@@ -82,6 +86,7 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/hooks/useConfiguredProviders", () => ({
+  loadConfiguredProviders: mockLoadConfiguredProviders,
   useConfiguredProviders: mockUseConfiguredProviders,
   findConfiguredProviderBySelection: (
     providers: Array<{ key: string; providerId?: string }>,
@@ -110,6 +115,7 @@ vi.mock("@/hooks/useConfiguredProviders", () => ({
 }));
 
 vi.mock("@/hooks/useProviderModels", () => ({
+  loadProviderModels: mockLoadProviderModels,
   useProviderModels: mockUseProviderModels,
 }));
 
@@ -136,12 +142,16 @@ vi.mock("@/lib/api/channelsRuntime", () => ({
 import { useAsterAgentChat } from "../hooks/useAsterAgentChat";
 import { ChatModelSelector } from "./ChatModelSelector";
 
-interface MountedHarness {
+interface MountedRoot {
   container: HTMLDivElement;
   root: Root;
 }
 
-const mountedRoots: MountedHarness[] = [];
+interface MountedHarness extends MountedRoot {
+  getChat: () => ReturnType<typeof useAsterAgentChat>;
+}
+
+const mountedRoots: MountedRoot[] = [];
 
 interface MountOptions {
   onManageProviders?: () => void;
@@ -183,35 +193,51 @@ function createModel(id: string, providerId: string) {
   };
 }
 
+function createConfiguredProviderFixtures() {
+  return [
+    { key: "gemini", label: "Gemini", registryId: "gemini", type: "gemini" },
+    {
+      key: "deepseek",
+      label: "DeepSeek",
+      registryId: "deepseek",
+      type: "deepseek",
+    },
+  ];
+}
+
+function createProviderModelsFixture(providerKey?: string | null) {
+  if (providerKey === "gemini") {
+    return [
+      createModel("gemini-2.5-pro", "gemini"),
+      createModel("gemini-2.5-flash", "gemini"),
+    ];
+  }
+
+  if (providerKey === "deepseek") {
+    return [
+      createModel("deepseek-chat", "deepseek"),
+      createModel("deepseek-reasoner", "deepseek"),
+    ];
+  }
+
+  return [];
+}
+
 function mount(
   workspaceId: string,
   options: MountOptions = {},
-): HTMLDivElement {
+): MountedHarness {
   const { onManageProviders, chatModelSelectorProps } = options;
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
+  let chatValue: ReturnType<typeof useAsterAgentChat> | null = null;
 
   function TestComponent() {
     const chat = useAsterAgentChat({ workspaceId });
+    chatValue = chat;
     return (
       <div>
-        <button
-          data-testid="switch-topic-a"
-          onClick={() => {
-            void chat.switchTopic("topic-a");
-          }}
-        >
-          切到 topic-a
-        </button>
-        <button
-          data-testid="switch-topic-b"
-          onClick={() => {
-            void chat.switchTopic("topic-b");
-          }}
-        >
-          切到 topic-b
-        </button>
         <ChatModelSelector
           providerType={chat.providerType}
           setProviderType={chat.setProviderType}
@@ -233,20 +259,16 @@ function mount(
   });
 
   mountedRoots.push({ container, root });
-  return container;
-}
-
-function getButtonByTestId(
-  container: HTMLElement,
-  testId: string,
-): HTMLButtonElement {
-  const button = container.querySelector(
-    `[data-testid="${testId}"]`,
-  ) as HTMLButtonElement | null;
-  if (!button) {
-    throw new Error(`未找到按钮: ${testId}`);
-  }
-  return button;
+  return {
+    container,
+    root,
+    getChat: () => {
+      if (!chatValue) {
+        throw new Error("chat 尚未初始化");
+      }
+      return chatValue;
+    },
+  };
 }
 
 function getComboboxTrigger(container: HTMLElement): HTMLButtonElement {
@@ -303,6 +325,7 @@ beforeEach(() => {
   mockApiKeyProvidersGetProviders.mockResolvedValue([]);
   mockEmitProviderDataChanged.mockImplementation(() => {});
   mockWechatChannelSetRuntimeModel.mockResolvedValue(undefined);
+  const configuredProviders = createConfiguredProviderFixtures();
 
   const createdAt = Math.floor(Date.now() / 1000);
   mockListAgentRuntimeSessions.mockResolvedValue([
@@ -333,33 +356,14 @@ beforeEach(() => {
   }));
 
   mockUseConfiguredProviders.mockReturnValue({
-    providers: [
-      { key: "gemini", label: "Gemini", registryId: "gemini", type: "gemini" },
-      {
-        key: "deepseek",
-        label: "DeepSeek",
-        registryId: "deepseek",
-        type: "deepseek",
-      },
-    ],
+    providers: configuredProviders,
     loading: false,
   });
+  mockLoadConfiguredProviders.mockResolvedValue(configuredProviders);
 
   mockUseProviderModels.mockImplementation(
     (selectedProvider: { key: string } | null) => {
-      const key = selectedProvider?.key;
-      const models =
-        key === "gemini"
-          ? [
-              createModel("gemini-2.5-pro", "gemini"),
-              createModel("gemini-2.5-flash", "gemini"),
-            ]
-          : key === "deepseek"
-            ? [
-                createModel("deepseek-chat", "deepseek"),
-                createModel("deepseek-reasoner", "deepseek"),
-              ]
-            : [];
+      const models = createProviderModelsFixture(selectedProvider?.key);
 
       return {
         modelIds: models.map((item) => item.id),
@@ -368,6 +372,10 @@ beforeEach(() => {
         error: null,
       };
     },
+  );
+  mockLoadProviderModels.mockImplementation(
+    async (selectedProvider?: { key?: string | null } | null) =>
+      createProviderModelsFixture(selectedProvider?.key),
   );
 });
 
@@ -387,14 +395,16 @@ afterEach(() => {
 describe("ChatModelSelector + useAsterAgentChat 集成", () => {
   it("通过 UI 选择模型后切换话题再切回，应恢复会话模型", async () => {
     const workspaceId = "ws-model-selector-integration";
-    const container = mount(workspaceId);
+    const harness = mount(workspaceId);
+    const { container } = harness;
 
     await flushEffects();
     await flushEffects();
 
     await act(async () => {
-      getButtonByTestId(container, "switch-topic-a").click();
+      await harness.getChat().switchTopic("topic-a");
     });
+    await flushEffects();
     await flushEffects();
 
     await act(async () => {
@@ -413,8 +423,9 @@ describe("ChatModelSelector + useAsterAgentChat 集成", () => {
     await flushEffects();
 
     await act(async () => {
-      getButtonByTestId(container, "switch-topic-b").click();
+      await harness.getChat().switchTopic("topic-b");
     });
+    await flushEffects();
     await flushEffects();
 
     await act(async () => {
@@ -433,8 +444,9 @@ describe("ChatModelSelector + useAsterAgentChat 集成", () => {
     await flushEffects();
 
     await act(async () => {
-      getButtonByTestId(container, "switch-topic-a").click();
+      await harness.getChat().switchTopic("topic-a");
     });
+    await flushEffects();
     await flushEffects();
 
     const currentModel = container.querySelector(
@@ -467,6 +479,7 @@ describe("ChatModelSelector + useAsterAgentChat 集成", () => {
       providers: [],
       loading: false,
     });
+    mockLoadConfiguredProviders.mockResolvedValue([]);
     mockUseProviderModels.mockReturnValue({
       modelIds: [],
       models: [],
@@ -475,7 +488,7 @@ describe("ChatModelSelector + useAsterAgentChat 集成", () => {
     });
 
     const onManageProviders = vi.fn();
-    const container = mount("ws-no-provider-guide", { onManageProviders });
+    const { container } = mount("ws-no-provider-guide", { onManageProviders });
 
     await flushEffects();
 
@@ -489,8 +502,41 @@ describe("ChatModelSelector + useAsterAgentChat 集成", () => {
     expect(onManageProviders).toHaveBeenCalledTimes(1);
   });
 
+  it("无 Provider 时应支持关闭配置引导", async () => {
+    mockUseConfiguredProviders.mockReturnValue({
+      providers: [],
+      loading: false,
+    });
+    mockLoadConfiguredProviders.mockResolvedValue([]);
+    mockUseProviderModels.mockReturnValue({
+      modelIds: [],
+      models: [],
+      loading: false,
+      error: null,
+    });
+
+    const { container } = mount("ws-no-provider-guide-dismiss");
+
+    await flushEffects();
+
+    expect(container.textContent).toContain("工具模型未配置");
+
+    const dismissButton = container.querySelector(
+      'button[aria-label="关闭工具模型未配置提示"]',
+    ) as HTMLButtonElement | null;
+    if (!dismissButton) {
+      throw new Error("未找到关闭引导按钮");
+    }
+
+    await act(async () => {
+      dismissButton.click();
+    });
+
+    expect(container.textContent ?? "").not.toContain("工具模型未配置");
+  });
+
   it("关闭后台预加载时，应在打开选择器后再加载 Provider 和模型", async () => {
-    const container = mount("ws-model-selector-lazy-provider-load", {
+    const { container } = mount("ws-model-selector-lazy-provider-load", {
       chatModelSelectorProps: {
         backgroundPreload: "disabled",
       },

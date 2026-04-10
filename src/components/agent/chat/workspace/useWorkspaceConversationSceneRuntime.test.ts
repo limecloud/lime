@@ -239,4 +239,154 @@ describe("useWorkspaceConversationSceneRuntime", () => {
       onSelectServiceSkill,
     );
   });
+
+  it("应向画布壳透传解耦后的 sessionView 过程面板", () => {
+    const params = createBaseParams({
+      turns: [
+        {
+          id: "turn-1",
+          thread_id: "thread-1",
+          prompt_text: "请抓取文章并整理成 markdown",
+          status: "running",
+          started_at: "2026-04-09T10:00:00.000Z",
+          created_at: "2026-04-09T10:00:00.000Z",
+          updated_at: "2026-04-09T10:00:01.000Z",
+        },
+      ],
+      currentTurnId: "turn-1",
+      effectiveThreadItems: [
+        {
+          id: "item-1",
+          thread_id: "thread-1",
+          turn_id: "turn-1",
+          sequence: 1,
+          status: "in_progress",
+          started_at: "2026-04-09T10:00:00.000Z",
+          updated_at: "2026-04-09T10:00:01.000Z",
+          type: "tool_call",
+          tool_name: "Skill(url_parse)",
+          arguments: { url: "https://example.com" },
+        },
+      ],
+      pendingActions: [
+        {
+          requestId: "req-1",
+          actionType: "elicitation",
+          prompt: "请补充导出目录",
+          status: "pending",
+        },
+      ],
+      queuedTurns: [
+        {
+          queued_turn_id: "queued-1",
+          message_preview: "继续下载图片",
+          message_text: "继续下载图片",
+          created_at: 1_712_650_000,
+          image_count: 0,
+          position: 1,
+        },
+      ],
+      settledWorkbenchArtifacts: [{ id: "artifact-1" }],
+      isSending: true,
+      focusedTimelineItemId: "item-1",
+    });
+
+    useWorkspaceConversationSceneRuntime(params);
+
+    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
+    const sessionView = presentationParams?.canvasWorkbenchLayout?.sessionView;
+
+    expect(sessionView?.title).toBe("Session · Main");
+    expect(sessionView?.tabLabel).toBe("Session · Main");
+    expect(sessionView?.tabBadge).toBe("进行中 1");
+    expect(sessionView?.tabBadgeTone).toBe("sky");
+    expect(sessionView?.subtitle).toContain("请抓取文章并整理成 markdown");
+    expect(sessionView?.summaryStats).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "session-status",
+          label: "会话状态",
+          value: "执行中",
+        }),
+        expect.objectContaining({
+          key: "session-follow-up",
+          label: "待补信息",
+          value: "待补信息 1",
+        }),
+      ]),
+    );
+    expect(sessionView?.badges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "session-status",
+          label: "执行中",
+        }),
+        expect.objectContaining({
+          key: "session-pending-actions",
+          label: "待补信息 1",
+        }),
+      ]),
+    );
+    expect(typeof sessionView?.renderPanel).toBe("function");
+  });
+
+  it("应向画布壳透传 workspaceView 头部语义", () => {
+    const params = createBaseParams({
+      settledWorkbenchArtifacts: [{ id: "artifact-1" }, { id: "artifact-2" }],
+      taskFiles: [{ id: "task-1", name: "draft.md" }],
+      projectRootPath: "/tmp/demo-project",
+      workspacePathMissing: false,
+      workspaceHealthError: false,
+      queuedTurns: [
+        {
+          queued_turn_id: "queued-1",
+          message_preview: "继续处理",
+          message_text: "继续处理",
+          created_at: 1_712_650_000,
+          image_count: 0,
+          position: 1,
+        },
+      ],
+    });
+
+    useWorkspaceConversationSceneRuntime(params);
+
+    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
+    const workspaceView =
+      presentationParams?.canvasWorkbenchLayout?.workspaceView;
+
+    expect(workspaceView?.title).toBe("项目工作区文件");
+    expect(workspaceView?.tabLabel).toBe("文件");
+    expect(workspaceView?.tabBadge).toBe("demo-project");
+    expect(workspaceView?.tabBadgeTone).toBe("sky");
+    expect(workspaceView?.badges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "workspace-root",
+          label: "demo-project",
+        }),
+      ]),
+    );
+    expect(workspaceView?.summaryStats).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "workspace-root",
+          label: "工作区",
+          value: "demo-project",
+        }),
+        expect.objectContaining({
+          key: "workspace-binding",
+          label: "目录状态",
+          value: "已连接",
+        }),
+      ]),
+    );
+    expect(workspaceView?.panelCopy).toEqual(
+      expect.objectContaining({
+        unavailableText: "当前工作区路径不可用，暂时无法浏览项目文件。",
+        emptyText: "当前会话没有绑定可浏览的工作区目录。",
+        sectionEyebrow: "项目目录",
+      }),
+    );
+  });
 });

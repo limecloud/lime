@@ -3,7 +3,6 @@ import {
   Film,
   Image as ImageIcon,
   Mic,
-  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
@@ -145,94 +144,90 @@ export function MediaServicesSettings({
 
   return (
     <div className="space-y-6 pb-8">
-      <section className="relative overflow-hidden rounded-[30px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(245,250,248,0.98)_0%,rgba(248,250,252,0.98)_48%,rgba(246,248,252,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-24 top-[-76px] h-60 w-60 rounded-full bg-emerald-200/28 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-72px] top-[-20px] h-56 w-56 rounded-full bg-sky-200/24 blur-3xl" />
-        <div className="pointer-events-none absolute bottom-[-88px] left-1/3 h-56 w-56 rounded-full bg-amber-200/18 blur-3xl" />
-
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-3xl space-y-3">
-              <span className="inline-flex items-center rounded-full border border-slate-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-slate-600 shadow-sm">
-                MEDIA SERVICES
-              </span>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                    媒体服务
-                  </h1>
-                  <WorkbenchInfoTip
-                    ariaLabel="媒体服务总览说明"
-                    content="将图片、视频和语音的全局默认服务集中到一个工作台里管理，减少在侧栏来回切换，也让默认策略更容易统一。"
-                    tone="mint"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-white/90 bg-white/82 p-5 shadow-sm xl:w-[340px]">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <Sparkles className="h-4 w-4 text-slate-500" />
-                统一入口
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                  媒体服务
+                </h1>
                 <WorkbenchInfoTip
-                  ariaLabel="统一入口说明"
-                  content="图片、视频和语音只保留一个设置入口，正式切换交互放在下方 Tabs，Hero 只负责说明页面目的和当前焦点。"
-                  tone="slate"
+                  ariaLabel="媒体服务总览说明"
+                  content="将图片、视频和语音的全局默认服务集中到一个工作台里管理，减少在侧栏来回切换，也让默认策略更容易统一。"
+                  tone="mint"
                 />
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {MEDIA_SERVICE_TABS.map((item) => (
-                  <span
-                    key={item.value}
-                    className={cn(
-                      "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium",
-                      item.badgeClassName,
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                ))}
-              </div>
+              <p className="text-sm text-slate-500">
+                统一管理图片、视频和语音的默认服务策略。
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                服务类型：{MEDIA_SERVICE_TABS.length}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium",
+                  activeMeta.badgeClassName,
+                )}
+              >
+                当前页签：{activeMeta.label}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                统一入口：已收敛
+              </span>
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-white/90 bg-white/86 p-4 shadow-sm">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-start gap-3">
-                <div
+          <div className="flex flex-col gap-4 rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div
+                className={cn(
+                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
+                  activeMeta.iconClassName,
+                )}
+              >
+                <ActiveIcon className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                    {activeMeta.panelTitle}
+                  </h2>
+                  <WorkbenchInfoTip
+                    ariaLabel={`${activeMeta.panelTitle}说明`}
+                    content={activeMeta.panelDescription}
+                    tone="slate"
+                  />
+                  <span
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                      activeMeta.badgeClassName,
+                    )}
+                  >
+                    当前页签
+                  </span>
+                </div>
+                <p className="text-sm text-slate-500">{activeMeta.caption}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              {MEDIA_SERVICE_TABS.map((item) => (
+                <span
+                  key={item.value}
                   className={cn(
-                    "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
-                    activeMeta.iconClassName,
+                    "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium",
+                    item.value === activeSection
+                      ? item.badgeClassName
+                      : "border-slate-200 bg-white text-slate-600",
                   )}
                 >
-                  <ActiveIcon className="h-5 w-5" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                      {activeMeta.panelTitle}
-                    </h2>
-                    <WorkbenchInfoTip
-                      ariaLabel={`${activeMeta.panelTitle}说明`}
-                      content={activeMeta.panelDescription}
-                      tone="slate"
-                    />
-                    <span
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-[11px] font-medium",
-                        activeMeta.badgeClassName,
-                      )}
-                    >
-                      当前页签
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
-                <Sparkles className="h-3.5 w-3.5 text-slate-500" />
-                统一管理默认 Provider、模型与关键行为
-              </div>
+                  {item.label}
+                </span>
+              ))}
             </div>
           </div>
         </div>

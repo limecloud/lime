@@ -249,7 +249,12 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain("创作");
     expect(container.textContent).toContain("青柠一下，灵感即来");
     expect(container.textContent).toContain("说一句目标，剩下的交给 Lime。");
-    expect(container.textContent).toContain("成功做法会沉淀成技能");
+    expect(container.textContent).toContain(
+      "文案、图片、视频、搜索和网页任务，会围绕同一个目标持续推进。",
+    );
+    expect(container.textContent).toContain(
+      "跑通过的方法会沉淀成技能、偏好和项目上下文，下次不用重新开始。",
+    );
     expect(container.textContent).not.toContain("新建任务");
   });
 
@@ -267,17 +272,17 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain("推荐方案");
     expect(container.textContent).toContain("网页研究简报");
     expect(container.textContent).toContain("内容主稿生成");
-    expect(container.textContent).toContain("前端概念方案");
     expect(container.textContent).toContain("演示提纲草案");
     expect(container.textContent).toContain("网页登录与采集");
-    expect(container.textContent).toContain("多代理拆任务");
     expect(container.textContent).toContain("复制轮播帖");
     expect(container.textContent).toContain("复制视频脚本");
-    expect(container.textContent).toContain("文章转 Slide 视频提纲");
-    expect(container.textContent).toContain("云端视频配音");
-    expect(container.textContent).toContain("视频配音成其他语言");
-    expect(container.textContent).toContain("每日趋势摘要");
-    expect(container.textContent).toContain("账号增长跟踪");
+    expect(container.textContent).not.toContain("前端概念方案");
+    expect(container.textContent).not.toContain("多代理拆任务");
+    expect(container.textContent).not.toContain("文章转 Slide 视频提纲");
+    expect(container.textContent).not.toContain("云端视频配音");
+    expect(container.textContent).not.toContain("视频配音成其他语言");
+    expect(container.textContent).not.toContain("每日趋势摘要");
+    expect(container.textContent).not.toContain("账号增长跟踪");
     expect(container.textContent).not.toContain("从这里开始");
     expect(container.textContent).not.toContain("快速启动");
     expect(container.textContent).not.toContain("生成配图");
@@ -293,17 +298,10 @@ describe("EmptyState", () => {
     expect(recommendationTitles).toEqual([
       "网页研究简报",
       "内容主稿生成",
-      "前端概念方案",
       "演示提纲草案",
       "网页登录与采集",
-      "多代理拆任务",
       "复制轮播帖",
       "复制视频脚本",
-      "文章转 Slide 视频提纲",
-      "云端视频配音",
-      "视频配音成其他语言",
-      "每日趋势摘要",
-      "账号增长跟踪",
     ]);
   });
 
@@ -328,6 +326,10 @@ describe("EmptyState", () => {
     for (const label of expectedLabels) {
       expect(container.textContent).toContain(label);
     }
+
+    expect(container.textContent).toContain("重复任务可持续推进");
+    expect(container.textContent).toContain("复杂任务可拆分并行推进");
+    expect(container.textContent).toContain("网页登录与网页执行");
 
     for (const alt of expectedAlts) {
       const image = container.querySelector(`img[alt="${alt}"]`);
@@ -445,36 +447,7 @@ describe("EmptyState", () => {
     );
   });
 
-  it("点击多代理拆任务应开启多代理偏好并写入起始动作", async () => {
-    const setInput = vi.fn<(value: string) => void>();
-    const onSubagentEnabledChange = vi.fn<(enabled: boolean) => void>();
-    const container = renderEmptyState({
-      activeTheme: "general",
-      setInput,
-      onSubagentEnabledChange,
-      subagentEnabled: false,
-    });
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    const card = container.querySelector(
-      '[data-testid="entry-recommended-team-breakdown"]',
-    ) as HTMLDivElement | null;
-    expect(card).toBeTruthy();
-
-    act(() => {
-      card?.click();
-    });
-
-    expect(onSubagentEnabledChange).toHaveBeenCalledWith(true);
-    expect(setInput).toHaveBeenCalledWith(
-      "请把这个任务按多代理方式拆解：先定义目标和约束，再拆成并行子任务，明确每个子代理的职责、产出和回收方式。",
-    );
-  });
-
-  it("指定 service skill 即使未从运行时目录注入，也应从 seeded 目录拼接到推荐区尾部", async () => {
+  it("指定 service skill 即使未从运行时目录注入，也应从 seeded 目录拼接到首页精选区尾部", async () => {
     const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
     const container = renderEmptyState({
       activeTheme: "general",
@@ -486,11 +459,11 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("每日趋势摘要");
+    expect(container.textContent).toContain("复制视频脚本");
     expect(container.textContent).not.toContain("GitHub 仓库线索检索");
 
     const card = container.querySelector(
-      '[data-testid="entry-service-skill-daily-trend-briefing"]',
+      '[data-testid="entry-service-skill-short-video-script-replication"]',
     ) as HTMLButtonElement | null;
     expect(card).toBeTruthy();
 
@@ -500,8 +473,8 @@ describe("EmptyState", () => {
 
     expect(onSelectServiceSkill).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: "daily-trend-briefing",
-        title: "每日趋势摘要",
+        id: "short-video-script-replication",
+        title: "复制视频脚本",
       }),
     );
   });
@@ -736,9 +709,10 @@ describe("EmptyState", () => {
     );
   });
 
-  it("点击地球按钮应切换联网搜索开关", async () => {
+  it("点击高级设置中的地球按钮应切换联网搜索开关", async () => {
     const onWebSearchEnabledChange = vi.fn<(enabled: boolean) => void>();
     const container = renderEmptyState({
+      activeTheme: "general",
       webSearchEnabled: false,
       onWebSearchEnabledChange,
     });
@@ -746,16 +720,131 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
+    const advancedToggle = container.querySelector(
+      '[data-testid="empty-state-advanced-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(advancedToggle).toBeTruthy();
     const globeToggle = container.querySelector(
       'button[title="联网搜索已关闭"]',
     ) as HTMLButtonElement | null;
-    expect(globeToggle).toBeTruthy();
+    expect(globeToggle).toBeNull();
 
     act(() => {
-      globeToggle?.click();
+      advancedToggle?.click();
+    });
+
+    const expandedGlobeToggle = container.querySelector(
+      'button[title="联网搜索已关闭"]',
+    ) as HTMLButtonElement | null;
+    expect(expandedGlobeToggle).toBeTruthy();
+
+    act(() => {
+      expandedGlobeToggle?.click();
     });
 
     expect(onWebSearchEnabledChange).toHaveBeenCalledWith(true);
+  });
+
+  it("通用主题默认只保留最小主路径，展开高级设置后才显示进阶控制", async () => {
+    const onThinkingEnabledChange = vi.fn<(enabled: boolean) => void>();
+    const onWebSearchEnabledChange = vi.fn<(enabled: boolean) => void>();
+    const onSubagentEnabledChange = vi.fn<(enabled: boolean) => void>();
+    const setExecutionStrategy =
+      vi.fn<(strategy: "react" | "code_orchestrated" | "auto") => void>();
+    const setAccessMode =
+      vi.fn<(mode: "read-only" | "current" | "full-access") => void>();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      thinkingEnabled: false,
+      onThinkingEnabledChange,
+      webSearchEnabled: false,
+      onWebSearchEnabledChange,
+      subagentEnabled: false,
+      onSubagentEnabledChange,
+      executionStrategy: "react",
+      setExecutionStrategy,
+      accessMode: "current",
+      setAccessMode,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const attachButton = container.querySelector(
+      'button[title="添加图片"]',
+    ) as HTMLButtonElement | null;
+    expect(attachButton).toBeTruthy();
+
+    const advancedToggle = container.querySelector(
+      '[data-testid="empty-state-advanced-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(advancedToggle).toBeTruthy();
+
+    expect(container.querySelector('button[title="深度思考已关闭"]')).toBeNull();
+    expect(container.querySelector('button[title="联网搜索已关闭"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-plan-toggle"]'),
+    ).toBeNull();
+    expect(container.querySelector('button[title="多代理偏好已关闭"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-access-mode-select"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="chat-model-selector"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("通用任务上下文");
+
+    act(() => {
+      advancedToggle?.click();
+    });
+
+    const thinkingButton = container.querySelector(
+      'button[title="深度思考已关闭"]',
+    ) as HTMLButtonElement | null;
+    expect(thinkingButton).toBeTruthy();
+    const globeButton = container.querySelector(
+      'button[title="联网搜索已关闭"]',
+    ) as HTMLButtonElement | null;
+    expect(globeButton).toBeTruthy();
+    const planButton = container.querySelector(
+      '[data-testid="inputbar-plan-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(planButton).toBeTruthy();
+    const subagentButton = container.querySelector(
+      'button[title="多代理偏好已关闭"]',
+    ) as HTMLButtonElement | null;
+    expect(subagentButton).toBeTruthy();
+    const accessModeSelect = container.querySelector(
+      '[data-testid="inputbar-access-mode-select"]',
+    ) as HTMLSelectElement | null;
+    expect(accessModeSelect).toBeTruthy();
+    expect(
+      container.querySelector('[data-testid="chat-model-selector"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("通用任务上下文");
+
+    act(() => {
+      thinkingButton?.click();
+    });
+    act(() => {
+      globeButton?.click();
+    });
+    act(() => {
+      planButton?.click();
+    });
+    act(() => {
+      subagentButton?.click();
+    });
+    act(() => {
+      accessModeSelect!.value = "full-access";
+      accessModeSelect?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(onThinkingEnabledChange).toHaveBeenCalledWith(true);
+    expect(onWebSearchEnabledChange).toHaveBeenCalledWith(true);
+    expect(setExecutionStrategy).toHaveBeenCalledWith("code_orchestrated");
+    expect(onSubagentEnabledChange).toHaveBeenCalledWith(true);
+    expect(setAccessMode).toHaveBeenCalledWith("full-access");
   });
 
   it("通用首页发送时不应自动注入任何历史默认 skill", async () => {
@@ -880,57 +969,6 @@ describe("EmptyState", () => {
       "react",
       undefined,
     );
-  });
-
-  it("通用主题工具栏应包含附件、思考、Plan 与多代理开关", async () => {
-    const onThinkingEnabledChange = vi.fn<(enabled: boolean) => void>();
-    const onSubagentEnabledChange = vi.fn<(enabled: boolean) => void>();
-    const setExecutionStrategy =
-      vi.fn<(strategy: "react" | "code_orchestrated" | "auto") => void>();
-    const container = renderEmptyState({
-      activeTheme: "general",
-      thinkingEnabled: false,
-      onThinkingEnabledChange,
-      subagentEnabled: false,
-      onSubagentEnabledChange,
-      executionStrategy: "react",
-      setExecutionStrategy,
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    const attachButton = container.querySelector(
-      'button[title="添加图片"]',
-    ) as HTMLButtonElement | null;
-    expect(attachButton).toBeTruthy();
-
-    const thinkingButton = container.querySelector(
-      'button[title="深度思考已关闭"]',
-    ) as HTMLButtonElement | null;
-    expect(thinkingButton).toBeTruthy();
-    const planButton = container.querySelector(
-      '[data-testid="inputbar-plan-toggle"]',
-    ) as HTMLButtonElement | null;
-    expect(planButton).toBeTruthy();
-    const subagentButton = container.querySelector(
-      'button[title="多代理偏好已关闭"]',
-    ) as HTMLButtonElement | null;
-    expect(subagentButton).toBeTruthy();
-
-    act(() => {
-      thinkingButton?.click();
-    });
-    act(() => {
-      planButton?.click();
-    });
-    act(() => {
-      subagentButton?.click();
-    });
-
-    expect(onThinkingEnabledChange).toHaveBeenCalledWith(true);
-    expect(setExecutionStrategy).toHaveBeenCalledWith("code_orchestrated");
-    expect(onSubagentEnabledChange).toHaveBeenCalledWith(true);
   });
 
   it("通用主题应提供浏览器协助入口并触发启动回调", async () => {

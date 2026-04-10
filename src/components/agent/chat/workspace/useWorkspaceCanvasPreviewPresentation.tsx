@@ -32,6 +32,8 @@ import {
 } from "./workbenchPreview";
 import { wrapPreviewWithWorkbenchTrigger } from "./workbenchPreviewHelpers";
 import { buildCanvasWorkbenchDefaultPreview } from "./canvasWorkbenchDefaultPreview";
+import { resolveAbsoluteWorkspacePath } from "./workspacePath";
+import { buildGeneralCanvasStateFromWorkspaceFile } from "./workspaceFilePreview";
 import {
   useTeamWorkbenchPresentation,
   type TeamWorkbenchSurfaceProps,
@@ -360,10 +362,15 @@ export function useWorkspaceCanvasPreviewPresentation({
   const generalCanvasPanelProps = useMemo<GeneralCanvasPanelProps>(
     () => ({
       state: generalCanvas.state,
+      baseFilePath: resolveAbsoluteWorkspacePath(
+        defaultPreview.workspaceRoot,
+        generalCanvas.state.filename,
+      ),
       onClose: generalCanvas.onCloseCanvas,
       onContentChange: generalCanvas.onContentChange,
     }),
     [
+      defaultPreview.workspaceRoot,
       generalCanvas.onCloseCanvas,
       generalCanvas.onContentChange,
       generalCanvas.state,
@@ -517,6 +524,37 @@ export function useWorkspaceCanvasPreviewPresentation({
     ],
   );
 
+  const renderGeneralCanvasPreviewTarget = useCallback(
+    (
+      target: Extract<CanvasWorkbenchPreviewTarget, { kind: "default-canvas" }>,
+      stackedWorkbenchTrigger?: ReactNode,
+    ) =>
+      (
+        <GeneralCanvasPanel
+          state={buildGeneralCanvasStateFromWorkspaceFile(
+            target.filePath || target.title,
+            target.content,
+          )}
+          baseFilePath={
+            target.absolutePath ||
+            resolveAbsoluteWorkspacePath(
+              defaultPreview.workspaceRoot,
+              target.filePath,
+            )
+          }
+          onClose={artifactPreview.onCloseCanvas}
+          onContentChange={generalCanvas.onContentChange}
+          chrome="embedded"
+          toolbarActions={stackedWorkbenchTrigger}
+        />
+      ),
+    [
+      artifactPreview.onCloseCanvas,
+      defaultPreview.workspaceRoot,
+      generalCanvas.onContentChange,
+    ],
+  );
+
   const { renderTeamWorkbenchPreview, teamWorkbenchView } =
     useTeamWorkbenchPresentation({
       enabled: teamWorkbench.enabled,
@@ -553,7 +591,10 @@ export function useWorkspaceCanvasPreviewPresentation({
 
       switch (target.kind) {
         case "default-canvas":
-          return renderLiveCanvasPreview(stackedWorkbenchTrigger);
+          return renderGeneralCanvasPreviewTarget(
+            target,
+            stackedWorkbenchTrigger,
+          );
         case "artifact":
         case "synthetic-artifact":
           return renderArtifactWorkbenchPreview(target.artifact, {
@@ -573,7 +614,7 @@ export function useWorkspaceCanvasPreviewPresentation({
     },
     [
       renderArtifactWorkbenchPreview,
-      renderLiveCanvasPreview,
+      renderGeneralCanvasPreviewTarget,
       renderTeamWorkbenchPreview,
     ],
   );

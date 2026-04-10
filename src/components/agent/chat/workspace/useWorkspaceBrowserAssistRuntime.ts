@@ -22,7 +22,6 @@ import type {
   Message,
   SiteSavedContentTarget,
 } from "../types";
-import { resolveArtifactWritePhase } from "../utils/messageArtifacts";
 import { resolveSiteSavedContentTargetFromRunResult } from "../utils/siteToolResultSummary";
 import {
   areBrowserAssistSessionStatesEqual,
@@ -128,16 +127,6 @@ function hasActiveBrowserAssistSession(
   return !["failed", "closed", "terminated"].includes(lifecycleState || "");
 }
 
-function shouldAutoOpenGeneralStreamingArtifact(artifact: Artifact): boolean {
-  const writePhase = resolveArtifactWritePhase(artifact);
-  return (
-    artifact.type !== "browser_assist" &&
-    (artifact.status === "streaming" ||
-      writePhase === "preparing" ||
-      writePhase === "streaming")
-  );
-}
-
 function shouldAutoOpenPassiveBrowserAssist(
   artifact: Artifact | null,
   launching: boolean,
@@ -224,7 +213,6 @@ export function useWorkspaceBrowserAssistRuntime({
   siteSkillLaunchNonce,
   artifacts,
   messages,
-  setLayoutMode,
   upsertGeneralArtifact,
   generalBrowserAssistProfileKey,
 }: UseWorkspaceBrowserAssistRuntimeParams): WorkspaceBrowserAssistRuntimeResult {
@@ -240,12 +228,6 @@ export function useWorkspaceBrowserAssistRuntime({
   const browserAssistLaunchRequestIdRef = useRef(0);
   const browserAssistAutoOpenDismissedScopeRef = useRef<string | null>(null);
   const browserAssistScopeTrackerRef = useRef<string | null>(null);
-  const dismissedGeneralCanvasAutoOpenFingerprintRef = useRef<string | null>(
-    null,
-  );
-  const previousGeneralCanvasAutoOpenSessionIdRef = useRef<string | null>(
-    sessionId ?? null,
-  );
 
   const currentBrowserAssistScopeKey = useMemo(
     () =>
@@ -345,21 +327,6 @@ export function useWorkspaceBrowserAssistRuntime({
     [activeTheme, projectId, sessionId],
   );
 
-  const latestGeneralCanvasAutoOpenFingerprint = useMemo(() => {
-    if (activeTheme !== "general") {
-      return null;
-    }
-
-    const latestArtifact = [...artifacts]
-      .reverse()
-      .find(shouldAutoOpenGeneralStreamingArtifact);
-    if (!latestArtifact) {
-      return null;
-    }
-
-    return `${latestArtifact.id}:${latestArtifact.updatedAt}:${latestArtifact.status}`;
-  }, [activeTheme, artifacts]);
-
   const canAutoRestoreDetachedBrowserAssistSession = useMemo(() => {
     if (activeTheme !== "general") {
       return false;
@@ -413,26 +380,7 @@ export function useWorkspaceBrowserAssistRuntime({
     browserAssistAutoOpenDismissedScopeRef.current = "__dismissed__";
   }, [activeTheme]);
 
-  const suppressGeneralCanvasArtifactAutoOpen = useCallback(() => {
-    if (activeTheme !== "general" || !latestGeneralCanvasAutoOpenFingerprint) {
-      return;
-    }
-
-    dismissedGeneralCanvasAutoOpenFingerprintRef.current =
-      latestGeneralCanvasAutoOpenFingerprint;
-  }, [activeTheme, latestGeneralCanvasAutoOpenFingerprint]);
-
-  useEffect(() => {
-    const normalizedSessionId = sessionId ?? null;
-    if (
-      previousGeneralCanvasAutoOpenSessionIdRef.current === normalizedSessionId
-    ) {
-      return;
-    }
-
-    previousGeneralCanvasAutoOpenSessionIdRef.current = normalizedSessionId;
-    dismissedGeneralCanvasAutoOpenFingerprintRef.current = null;
-  }, [sessionId]);
+  const suppressGeneralCanvasArtifactAutoOpen = useCallback(() => {}, []);
 
   useEffect(() => {
     if (activeTheme !== "general") {
@@ -454,25 +402,6 @@ export function useWorkspaceBrowserAssistRuntime({
 
     browserAssistScopeTrackerRef.current = currentBrowserAssistScopeKey;
   }, [activeTheme, currentBrowserAssistScopeKey]);
-
-  useEffect(() => {
-    if (activeTheme !== "general") {
-      return;
-    }
-
-    if (!latestGeneralCanvasAutoOpenFingerprint) {
-      return;
-    }
-
-    if (
-      dismissedGeneralCanvasAutoOpenFingerprintRef.current ===
-      latestGeneralCanvasAutoOpenFingerprint
-    ) {
-      return;
-    }
-
-    setLayoutMode("chat-canvas");
-  }, [activeTheme, latestGeneralCanvasAutoOpenFingerprint, setLayoutMode]);
 
   const commitBrowserAssistSessionState = useCallback(
     (candidate: BrowserAssistSessionState | null) => {

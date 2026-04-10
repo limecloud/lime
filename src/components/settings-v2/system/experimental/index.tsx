@@ -12,7 +12,6 @@ import {
   useState,
   useEffect,
   useCallback,
-  useMemo,
   type ReactNode,
 } from "react";
 import {
@@ -140,32 +139,6 @@ function ExperimentalPanel({
 
       <div className="mt-5">{children}</div>
     </article>
-  );
-}
-
-function SummaryStat({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[22px] border border-slate-200/80 bg-slate-50 p-4">
-      <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-        <span>{label}</span>
-        <WorkbenchInfoTip
-          ariaLabel={`${label}说明`}
-          content={description}
-          tone="slate"
-        />
-      </div>
-      <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
   );
 }
 
@@ -652,21 +625,6 @@ export function ExperimentalSettings() {
     }
   }, []);
 
-  const summary = useMemo(
-    () => ({
-      toolCallingLabel: toolCallingConfig.enabled ? "已启用" : "未启用",
-      screenshotLabel: config?.screenshot_chat.enabled ? "已启用" : "未启用",
-      voiceLabel: voiceConfig?.enabled ? "已启用" : "未启用",
-      crashLabel: crashConfig.enabled ? "已启用" : "未启用",
-    }),
-    [
-      config?.screenshot_chat.enabled,
-      crashConfig.enabled,
-      toolCallingConfig.enabled,
-      voiceConfig?.enabled,
-    ],
-  );
-
   if (loading) {
     return (
       <div className="space-y-6 pb-8">
@@ -717,54 +675,64 @@ export function ExperimentalSettings() {
         </div>
       )}
 
-      <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryStat
-            label="Tool Calling"
-            value={summary.toolCallingLabel}
-            description="控制编程式工具调用与动态过滤链路。"
-          />
-          <SummaryStat
-            label="截图对话"
-            value={summary.screenshotLabel}
-            description="决定是否允许通过全局快捷键进入截图问答流程。"
-          />
-          <SummaryStat
-            label="语音输入"
-            value={summary.voiceLabel}
-            description="实验语音链路是否已启用并允许快捷键输入。"
-          />
-          <SummaryStat
-            label="崩溃上报"
-            value={summary.crashLabel}
-            description="控制 Sentry 上报和诊断导出相关能力。"
-          />
-        </div>
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                  实验功能
+                </h1>
+                <WorkbenchInfoTip
+                  ariaLabel="实验功能总览说明"
+                  content="集中管理仍在验证阶段的功能开关和诊断能力，保持风险可见，同时避免说明区压过真正的配置面板。"
+                  tone="mint"
+                />
+              </div>
+              <p className="text-sm text-slate-500">
+                集中管理实验能力开关、诊断动作和预留入口。
+              </p>
+            </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-          <StatusPill
-            active={toolCallingConfig.enabled}
-            activeLabel="Tool Calling 已启用"
-            inactiveLabel="Tool Calling 未启用"
-          />
-          <StatusPill
-            active={Boolean(config?.screenshot_chat.enabled)}
-            activeLabel="截图对话已启用"
-            inactiveLabel="截图对话未启用"
-          />
-          <StatusPill
-            active={Boolean(config?.webmcp?.enabled)}
-            activeLabel="WebMCP 预留已启用"
-            inactiveLabel="WebMCP 预留未启用"
-          />
-          <StatusPill
-            active={Boolean(crashConfig.enabled)}
-            activeLabel="崩溃上报已启用"
-            inactiveLabel="崩溃上报未启用"
-          />
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-            {saving ? "保存中" : diagnosticBusy ? "诊断执行中" : "当前空闲"}
-          </span>
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <StatusPill
+                active={toolCallingConfig.enabled}
+                activeLabel="Tool Calling 已启用"
+                inactiveLabel="Tool Calling 未启用"
+              />
+              <WorkbenchInfoTip
+                ariaLabel="Tool Calling说明"
+                content="控制编程式工具调用与动态过滤链路。"
+                tone="slate"
+              />
+              <StatusPill
+                active={Boolean(config?.screenshot_chat.enabled)}
+                activeLabel="截图对话已启用"
+                inactiveLabel="截图对话未启用"
+              />
+              <StatusPill
+                active={Boolean(voiceConfig?.enabled)}
+                activeLabel="语音输入已启用"
+                inactiveLabel="语音输入未启用"
+              />
+              <StatusPill
+                active={Boolean(config?.webmcp?.enabled)}
+                activeLabel="WebMCP 预留已启用"
+                inactiveLabel="WebMCP 预留未启用"
+              />
+              <StatusPill
+                active={Boolean(crashConfig.enabled)}
+                activeLabel="崩溃上报已启用"
+                inactiveLabel="崩溃上报未启用"
+              />
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                诊断动作：5 项
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                {saving ? "保存中" : diagnosticBusy ? "诊断执行中" : "当前空闲"}
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 

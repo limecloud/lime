@@ -226,6 +226,7 @@ npm run bridge:health -- --timeout-ms 120000
 - 修改 `create_skill_scaffold_for_app`、技能草稿透传字段，或“聊天结果 -> Skill 脚手架”主链
 - 修改 `src/lib/api/document-export.ts`、`save_exported_document`，或把新的 GUI 导出入口接到本地文件保存主链
 - 修改 `agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy`
+- 修改 `agent_runtime_submit_turn.turn_config.provider_config.model_capabilities / tool_call_strategy / toolshim_model`
 - 修改 `agent_runtime_submit_turn.request_metadata.harness.team_memory_shadow`
 - 修改 `agent_runtime_spawn_subagent` 的 `name / teamName / cwd`、spawn 后 Team 成员写回，或 child `working_dir` / 父子上下文投影语义
 - 修改 team runtime tool surface、tool inventory、主线程用户消息工具或协作工具展示，例如 `SendUserMessage`、`Agent / TeamCreate / TeamDelete / SendMessage / ListPeers`
@@ -507,6 +508,12 @@ npm run bridge:health -- --timeout-ms 120000
   - `src/lib/api/agent.test.ts` 一类的网关回归，确认仍走统一 `agent_runtime_*` 主命令
   - `HarnessStatusPanel.test.tsx` 一类的 UI 回归，确认导出入口、保存弹窗、状态与制品展示正常
   - 受影响 Rust 服务 / 命令的定向测试，确认 `.lime/harness/sessions/<session_id>/...` 一类制品仍能生成
+- 如果这次改动影响 `src/lib/api/agentRuntime/` 的 current 目录结构，例如 `types.ts`、分域 client、`commandManifest.generated.ts` 或 compat 根入口 `agentRuntime.ts`，最低应补：
+  - `npm run typecheck`
+  - `npx eslint "src/lib/api/agentRuntime.ts" "src/lib/api/agentRuntime/*.ts" --max-warnings 0`
+  - `npm test -- src/lib/api/agent.test.ts src/components/agent/chat/hooks/agentRuntimeAdapter.test.ts`
+  - `npm run test:contracts`
+    同时确认目录内实现没有再从 `../agentRuntime` 或 `@/lib/api/agentRuntime` 回绕 compat barrel 取类型。
 
 ## CI 事实源
 

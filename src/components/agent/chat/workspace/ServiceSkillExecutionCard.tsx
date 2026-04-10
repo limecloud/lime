@@ -3,11 +3,17 @@ import { cn } from "@/lib/utils";
 import type { SiteSavedContentTarget } from "../types";
 import { resolveSiteSavedContentTargetFromRunResult } from "../utils/siteToolResultSummary";
 import type { SiteSkillExecutionState } from "./useWorkspaceBrowserAssistRuntime";
+import { normalizeManagedWorkspacePathForDisplay } from "./workspacePath";
 
 interface ServiceSkillExecutionCardProps {
   state: SiteSkillExecutionState | null;
   onOpenBrowserRuntime?: () => void;
   onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
+  preferredResultFileTarget?: {
+    relativePath: string;
+    title?: string;
+  } | null;
+  onOpenResultFile?: (relativePath: string) => void;
 }
 
 const PHASE_LABELS: Record<SiteSkillExecutionState["phase"], string> = {
@@ -28,14 +34,17 @@ export function ServiceSkillExecutionCard({
   state,
   onOpenBrowserRuntime,
   onOpenSavedSiteContent,
+  preferredResultFileTarget = null,
+  onOpenResultFile,
 }: ServiceSkillExecutionCardProps) {
   if (!state) {
     return null;
   }
 
   const resultTitle = state.result?.saved_content?.title?.trim();
-  const projectRootPath =
-    state.result?.saved_content?.project_root_path?.trim() || "";
+  const projectRootPath = normalizeManagedWorkspacePathForDisplay(
+    state.result?.saved_content?.project_root_path,
+  );
   const markdownRelativePath =
     state.result?.saved_content?.markdown_relative_path?.trim() || "";
   const imagesRelativeDir =
@@ -44,9 +53,11 @@ export function ServiceSkillExecutionCard({
   const savedSiteContentTarget: SiteSavedContentTarget | null =
     resolveSiteSavedContentTargetFromRunResult(state.result || null);
   const savedContentActionLabel =
-    savedSiteContentTarget?.preferredTarget === "project_file"
-      ? "在下方预览导出 Markdown"
-      : "打开已保存内容";
+    preferredResultFileTarget?.relativePath
+      ? `打开结果文件 ${preferredResultFileTarget.title || "index.md"}`
+      : savedSiteContentTarget?.preferredTarget === "project_file"
+        ? "查看采集源 Markdown"
+        : "打开已保存内容";
 
   return (
     <section
@@ -102,12 +113,21 @@ export function ServiceSkillExecutionCard({
         <p className="mt-2 text-xs leading-5 opacity-80">{state.reportHint}</p>
       ) : null}
 
-      {savedSiteContentTarget && onOpenSavedSiteContent ? (
+      {(preferredResultFileTarget?.relativePath && onOpenResultFile) ||
+      (savedSiteContentTarget && onOpenSavedSiteContent) ? (
         <div className="mt-3">
           <Button
             type="button"
             variant="outline"
-            onClick={() => onOpenSavedSiteContent(savedSiteContentTarget)}
+            onClick={() => {
+              if (preferredResultFileTarget?.relativePath && onOpenResultFile) {
+                onOpenResultFile(preferredResultFileTarget.relativePath);
+                return;
+              }
+              if (savedSiteContentTarget && onOpenSavedSiteContent) {
+                onOpenSavedSiteContent(savedSiteContentTarget);
+              }
+            }}
             data-testid="service-skill-execution-open-saved-content"
           >
             {savedContentActionLabel}

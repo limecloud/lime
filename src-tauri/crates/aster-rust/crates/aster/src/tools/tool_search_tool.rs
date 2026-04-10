@@ -1040,7 +1040,10 @@ mod tests {
         let matches = score_query_match(
             "final output tool",
             &[],
-            &[searchable("StructuredOutput", "return the final JSON answer")],
+            &[searchable(
+                "StructuredOutput",
+                "return the final JSON answer",
+            )],
         );
 
         assert_eq!(matches, vec!["StructuredOutput".to_string()]);

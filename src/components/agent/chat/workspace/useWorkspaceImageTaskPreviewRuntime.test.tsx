@@ -13,6 +13,10 @@ import {
   type MediaTaskArtifactOutput,
 } from "@/lib/api/mediaTasks";
 import { safeListen } from "@/lib/dev-bridge";
+import {
+  hasTauriInvokeCapability,
+  hasTauriRuntimeMarkers,
+} from "@/lib/tauri-runtime";
 import type { Message } from "../types";
 import {
   createInitialSessionImageWorkbenchState,
@@ -23,6 +27,7 @@ import type { DirectoryListing } from "@/lib/api/fileBrowser";
 import { createInitialDocumentState } from "@/lib/workspace/workbenchCanvas";
 
 vi.mock("@/lib/dev-bridge", () => ({
+  safeInvoke: vi.fn(),
   safeListen: vi.fn(),
 }));
 
@@ -34,6 +39,11 @@ vi.mock("@/lib/api/fileBrowser", () => ({
 vi.mock("@/lib/api/mediaTasks", () => ({
   getMediaTaskArtifact: vi.fn(),
   listMediaTaskArtifacts: vi.fn(),
+}));
+
+vi.mock("@/lib/tauri-runtime", () => ({
+  hasTauriInvokeCapability: vi.fn(() => true),
+  hasTauriRuntimeMarkers: vi.fn(() => true),
 }));
 
 type HookProps = Parameters<typeof useWorkspaceImageTaskPreviewRuntime>[0];
@@ -214,6 +224,8 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
     ).IS_REACT_ACT_ENVIRONMENT = true;
     vi.resetAllMocks();
     vi.useFakeTimers();
+    vi.mocked(hasTauriInvokeCapability).mockReturnValue(true);
+    vi.mocked(hasTauriRuntimeMarkers).mockReturnValue(true);
     vi.mocked(safeListen).mockResolvedValue(vi.fn());
     vi.mocked(getMediaTaskArtifact).mockRejectedValue(
       new Error("task artifact unavailable"),
@@ -1004,6 +1016,8 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
 
   it("历史消息已带 taskId 时，应直接按 taskId 走媒体任务接口恢复图片结果", async () => {
     const taskId = "task-image-history-direct-1";
+    vi.mocked(hasTauriInvokeCapability).mockReturnValue(false);
+    vi.mocked(hasTauriRuntimeMarkers).mockReturnValue(false);
     vi.mocked(getMediaTaskArtifact).mockResolvedValueOnce(
       createArtifactOutput({
         task_id: taskId,
@@ -1069,6 +1083,25 @@ describe("useWorkspaceImageTaskPreviewRuntime", () => {
         }),
       }),
     ]);
+  });
+
+  it("浏览器开发模式下不应触发工作区级图片任务全量恢复", async () => {
+    vi.mocked(hasTauriInvokeCapability).mockReturnValue(false);
+    vi.mocked(hasTauriRuntimeMarkers).mockReturnValue(false);
+
+    const { render, getValue } = renderHook();
+    await render();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(listMediaTaskArtifacts).not.toHaveBeenCalled();
+    expect(listDirectory).not.toHaveBeenCalled();
+    expect(readFilePreview).not.toHaveBeenCalled();
+    expect(getValue().messages).toEqual([]);
+    expect(getValue().imageWorkbenchState.tasks).toEqual([]);
   });
 
   it("同一历史会话已缓存图片工作台结果时，应直接回填聊天卡而不是继续显示等待队列", async () => {

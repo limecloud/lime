@@ -12,16 +12,13 @@ import { readFilePreview } from "@/lib/api/fileBrowser";
 import type { SessionFile } from "@/lib/api/session-files";
 import type { Artifact } from "@/lib/artifact/types";
 import {
-  areArtifactProtocolPathsEquivalent,
   resolveArtifactProtocolFilePath,
 } from "@/lib/artifact-protocol";
 import type { TaskFile } from "../components/TaskFiles";
 import type { HarnessFilePreviewResult } from "../components/HarnessStatusPanel";
 import { useArtifactAutoPreviewSync } from "../hooks/useArtifactAutoPreviewSync";
-import {
-  buildArtifactFromWrite,
-  resolveDefaultArtifactViewMode,
-} from "../utils/messageArtifacts";
+import { resolveDefaultArtifactViewMode } from "../utils/messageArtifacts";
+import { openCanvasForReason } from "./canvasOpenPolicy";
 import type { ApplyArtifactViewMode } from "./useWorkspaceArtifactViewModeControl";
 import {
   isRenderableTaskFile,
@@ -29,6 +26,8 @@ import {
   resolveTaskFileType,
 } from "./generalWorkbenchHelpers";
 import { extractFileNameFromPath } from "./workspacePath";
+import { buildGeneralCanvasStateFromWorkspaceFile } from "./workspaceFilePreview";
+import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
 
 function buildCanvasStateFromContent(params: {
   previous: CanvasStateUnion | null;
@@ -66,6 +65,7 @@ interface UseWorkspaceArtifactPreviewActionsParams {
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
   setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
   setSelectedFileId: (fileId: string) => void;
+  setGeneralCanvasState: Dispatch<SetStateAction<GeneralCanvasState>>;
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
 }
 
@@ -100,6 +100,7 @@ export function useWorkspaceArtifactPreviewActions({
   setLayoutMode,
   setTaskFiles,
   setSelectedFileId,
+  setGeneralCanvasState,
   setCanvasState,
 }: UseWorkspaceArtifactPreviewActionsParams): WorkspaceArtifactPreviewActionsResult {
   const handleHarnessLoadFilePreview = useCallback(
@@ -187,6 +188,9 @@ export function useWorkspaceArtifactPreviewActions({
 
       if (activeTheme === "general") {
         suppressBrowserAssistCanvasAutoOpen();
+        setGeneralCanvasState((previous) =>
+          previous.isOpen ? { ...previous, isOpen: false } : previous,
+        );
       }
 
       let nextArtifact = artifact;
@@ -223,13 +227,14 @@ export function useWorkspaceArtifactPreviewActions({
         }),
         { artifactId: nextArtifact.id },
       );
-      setLayoutMode("chat-canvas");
+      openCanvasForReason("user_open_artifact", setLayoutMode);
     },
     [
       activeTheme,
       handleHarnessLoadFilePreview,
       onOpenBrowserRuntimeForArtifact,
       setArtifactViewMode,
+      setGeneralCanvasState,
       setLayoutMode,
       setSelectedArtifactId,
       suppressBrowserAssistCanvasAutoOpen,
@@ -272,7 +277,7 @@ export function useWorkspaceArtifactPreviewActions({
           content,
         }),
       );
-      setLayoutMode("chat-canvas");
+      openCanvasForReason("user_open_file", setLayoutMode);
     },
     [mappedTheme, setCanvasState, setLayoutMode],
   );
@@ -280,33 +285,12 @@ export function useWorkspaceArtifactPreviewActions({
   const handleFileClick = useCallback(
     (fileName: string, content: string) => {
       if (activeTheme === "general") {
-        const matchingArtifact = artifacts.find((artifact) => {
-          const artifactPath = resolveArtifactProtocolFilePath(artifact);
-          return (
-            areArtifactProtocolPathsEquivalent(artifactPath, fileName) ||
-            artifact.title === extractFileNameFromPath(fileName) ||
-            (content.trim().length > 0 && artifact.content === content)
-          );
-        });
-        const nextArtifact =
-          matchingArtifact ||
-          buildArtifactFromWrite({
-            filePath: fileName,
-            content,
-            context: {
-              source: "message_content",
-              status: content.length > 0 ? "complete" : "pending",
-              metadata: {
-                persistOutsideMessages: true,
-              },
-            },
-          });
-
-        if (!matchingArtifact) {
-          upsertGeneralArtifact(nextArtifact);
-        }
-
-        void openArtifactInWorkbench(nextArtifact);
+        suppressBrowserAssistCanvasAutoOpen();
+        setSelectedArtifactId(null);
+        setGeneralCanvasState(
+          buildGeneralCanvasStateFromWorkspaceFile(fileName, content),
+        );
+        openCanvasForReason("user_open_file", setLayoutMode);
         return;
       }
 
@@ -346,12 +330,13 @@ export function useWorkspaceArtifactPreviewActions({
     [
       activeTheme,
       applyContentToCanvas,
-      artifacts,
       isThemeWorkbench,
-      openArtifactInWorkbench,
+      setGeneralCanvasState,
+      setLayoutMode,
+      setSelectedArtifactId,
       setSelectedFileId,
       setTaskFiles,
-      upsertGeneralArtifact,
+      suppressBrowserAssistCanvasAutoOpen,
     ],
   );
 
@@ -406,6 +391,24 @@ export function useWorkspaceArtifactPreviewActions({
 
   const handleTaskFileClick = useCallback(
     (file: TaskFile) => {
+      if (activeTheme === "general") {
+        if (!file.content?.trim()) {
+          toast.info("该文件为辅助产物，暂不在主稿画布渲染");
+          return;
+        }
+
+        suppressBrowserAssistCanvasAutoOpen();
+        setSelectedArtifactId(null);
+        setGeneralCanvasState(
+          buildGeneralCanvasStateFromWorkspaceFile(
+            file.name,
+            file.content ?? "",
+          ),
+        );
+        openCanvasForReason("user_open_file", setLayoutMode);
+        return;
+      }
+
       setSelectedFileId(file.id);
 
       if (
@@ -419,7 +422,16 @@ export function useWorkspaceArtifactPreviewActions({
 
       applyContentToCanvas(file.content ?? "");
     },
-    [applyContentToCanvas, isThemeWorkbench, setSelectedFileId],
+    [
+      activeTheme,
+      applyContentToCanvas,
+      isThemeWorkbench,
+      setGeneralCanvasState,
+      setLayoutMode,
+      setSelectedArtifactId,
+      setSelectedFileId,
+      suppressBrowserAssistCanvasAutoOpen,
+    ],
   );
 
   return {

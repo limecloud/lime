@@ -105,7 +105,52 @@ async function renderDialog(props: {
   return container;
 }
 
+function getBodyText() {
+  return document.body.textContent ?? "";
+}
+
+async function hoverTip(ariaLabel: string) {
+  const trigger = document.body.querySelector(
+    `button[aria-label='${ariaLabel}']`,
+  );
+  expect(trigger).toBeInstanceOf(HTMLButtonElement);
+
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await Promise.resolve();
+  });
+
+  return trigger as HTMLButtonElement;
+}
+
+async function leaveTip(trigger: HTMLButtonElement | null) {
+  await act(async () => {
+    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+    await Promise.resolve();
+  });
+}
+
 describe("AutomationJobDialog", () => {
+  it("应把弹窗长说明收进 tip 并显示轻量摘要头部", async () => {
+    await renderDialog({
+      onSubmit: vi.fn().mockResolvedValue(undefined),
+      mode: "create",
+    });
+
+    expect(getBodyText()).toContain("新建自动化任务");
+    expect(getBodyText()).toContain("配置任务名称、调度、提示词和输出投递。");
+    expect(getBodyText()).toContain("任务类型：Agent 对话任务");
+    expect(getBodyText()).not.toContain(
+      "用结构化 job 承载 Agent 对话任务，统一管理调度、工作区、输出投递和运行历史。",
+    );
+
+    const headerTip = await hoverTip("自动化任务弹窗说明");
+    expect(getBodyText()).toContain(
+      "用结构化 job 承载 Agent 对话任务，统一管理调度、工作区、输出投递和运行历史。",
+    );
+    await leaveTip(headerTip);
+  });
+
   it("编辑 agent_turn 任务时应保留 content_id 与 request_metadata", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     await renderDialog({

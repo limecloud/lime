@@ -13,7 +13,7 @@ pub(crate) mod media_cli_bridge;
 #[path = "tool_runtime/resource_search_tools.rs"]
 mod resource_search_tools;
 #[path = "tool_runtime/search_bridge.rs"]
-mod search_bridge;
+pub(crate) mod search_bridge;
 #[path = "tool_runtime/service_skill_tools.rs"]
 mod service_skill_tools;
 #[path = "tool_runtime/site_tools.rs"]
@@ -33,6 +33,8 @@ pub(crate) use mcp_resource_tools::ensure_mcp_resource_tools_registered;
 #[allow(unused_imports)]
 pub(crate) use mcp_resource_tools::{ListMcpResourcesBridgeTool, ReadMcpResourceBridgeTool};
 pub(crate) use search_bridge::ensure_tool_search_tool_registered;
+#[cfg(test)]
+pub(crate) use search_bridge::register_tool_search_tool_to_registry;
 #[allow(unused_imports)]
 pub(crate) use search_bridge::ToolSearchBridgeTool;
 #[allow(unused_imports)]

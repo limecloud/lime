@@ -39,12 +39,6 @@ interface SurfacePanelProps {
   children: ReactNode;
 }
 
-interface SummaryStatProps {
-  label: string;
-  value: string;
-  description: string;
-}
-
 interface FieldBlockProps {
   label: string;
   htmlFor: string;
@@ -153,24 +147,6 @@ function SurfacePanel({
   );
 }
 
-function SummaryStat({ label, value, description }: SummaryStatProps) {
-  return (
-    <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
-        <span>{label}</span>
-        <WorkbenchInfoTip
-          ariaLabel={`${label}说明`}
-          content={description}
-          tone="slate"
-        />
-      </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function FieldBlock({ label, htmlFor, hint, children }: FieldBlockProps) {
   return (
     <div className="space-y-2">
@@ -195,7 +171,7 @@ function FieldBlock({ label, htmlFor, hint, children }: FieldBlockProps) {
 function LoadingSkeleton() {
   return (
     <div className="space-y-6 pb-8">
-      <div className="h-[228px] animate-pulse rounded-[30px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)]" />
+      <div className="h-[132px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.16fr)_minmax(320px,0.84fr)]">
         <div className="space-y-6">
           <div className="h-[290px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
@@ -389,113 +365,79 @@ export function EnvironmentSettings() {
         </div>
       ) : null}
 
-      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
-
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-            <div className="max-w-3xl space-y-5">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                ENVIRONMENT LAYER
-              </span>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                    用同一层环境变量结果驱动运行时、搜索和服务配置
-                  </p>
-                  <WorkbenchInfoTip
-                    ariaLabel="环境变量设置总览说明"
-                    content="这里把 Shell 导入、显式覆盖和运行时预览放在同一个工作区里，减少分散配置。敏感值默认保持掩码，避免在设置页里意外暴露。"
-                    tone="mint"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  旧入口最终都会写入同一份环境配置
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  显式覆盖优先级高于 Shell 导入
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  生效结果以底部预览为准
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 xl:content-start">
-              <SummaryStat
-                label="Shell 导入"
-                value={summary.shellImportMeta.label}
-                description={
-                  preview?.shellImport.message ||
-                  "根据当前开关和状态展示导入结果。"
-                }
-              />
-              <SummaryStat
-                label="覆盖项"
-                value={`${summary.enabledOverrides}/${summary.overrideCount}`}
-                description="已启用覆盖项 / 总覆盖项，用于快速判断当前是否存在有效显式变量。"
-              />
-              <SummaryStat
-                label="预览变量"
-                value={summary.previewCount.toString()}
-                description="当前统一环境层最终提供给运行时的变量数量。"
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                环境变量
+              </h1>
+              <WorkbenchInfoTip
+                ariaLabel="环境变量设置总览说明"
+                content="管理 Shell 导入、显式覆盖和最终环境预览；敏感值默认保持掩码，减少在设置页误暴露的风险。"
+                tone="mint"
               />
             </div>
+            <p className="text-sm text-slate-500">
+              管理 Shell 导入、显式覆盖和最终环境预览。
+            </p>
           </div>
 
-          <div className="flex flex-col gap-4 rounded-[24px] border border-white/90 bg-white/80 p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs font-medium",
-                    summary.shellImportMeta.className,
-                  )}
-                >
-                  Shell 导入 {summary.shellImportMeta.label}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                  已导入 {preview?.shellImport.importedCount ?? 0} 项
-                </span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                  耗时 {formatDuration(preview?.shellImport.durationMs)}
-                </span>
-              </div>
-              <p className="text-sm leading-6 text-slate-600">
-                {preview?.shellImport.message ||
-                  "保存后会重新计算当前统一环境层的结果。"}
-              </p>
-            </div>
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            <span
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs font-medium",
+                summary.shellImportMeta.className,
+              )}
+            >
+              Shell 导入：{summary.shellImportMeta.label}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              覆盖项：{summary.enabledOverrides}/{summary.overrideCount}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              预览变量：{summary.previewCount}
+            </span>
+          </div>
+        </div>
 
+        <div className="mt-4 flex flex-col gap-4 rounded-[20px] border border-slate-200/80 bg-slate-50/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void refreshPreview()}
-                disabled={refreshingPreview}
-                className={SECONDARY_BUTTON_CLASS_NAME}
-              >
-                <RefreshCw
-                  className={cn(
-                    "h-4 w-4",
-                    refreshingPreview ? "animate-spin" : "",
-                  )}
-                />
-                刷新预览
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={saving}
-                className={PRIMARY_BUTTON_CLASS_NAME}
-              >
-                <Save className="h-4 w-4" />
-                {saving ? "保存中..." : "保存并应用"}
-              </button>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                已导入 {preview?.shellImport.importedCount ?? 0} 项
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                耗时 {formatDuration(preview?.shellImport.durationMs)}
+              </span>
             </div>
+            <p className="text-sm leading-6 text-slate-600">
+              {preview?.shellImport.message ||
+                "保存后会重新计算当前统一环境层的结果。"}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void refreshPreview()}
+              disabled={refreshingPreview}
+              className={SECONDARY_BUTTON_CLASS_NAME}
+            >
+              <RefreshCw
+                className={cn("h-4 w-4", refreshingPreview ? "animate-spin" : "")}
+              />
+              刷新预览
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className={PRIMARY_BUTTON_CLASS_NAME}
+            >
+              <Save className="h-4 w-4" />
+              {saving ? "保存中..." : "保存并应用"}
+            </button>
           </div>
         </div>
       </section>

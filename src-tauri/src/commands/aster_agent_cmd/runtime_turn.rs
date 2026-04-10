@@ -13,6 +13,37 @@ const CONTEXT_COMPACTION_NOT_NEEDED_WARNING_CODE: &str = "context_compaction_not
 const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
 const LIME_RUNTIME_AUTO_COMPACT_KEY: &str = "auto_compact";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProviderConfigApplyMode {
+    Direct,
+    CredentialPool,
+}
+
+fn normalize_provider_identity(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
+fn resolve_provider_config_apply_mode(
+    provider_config: &ConfigureProviderRequest,
+) -> ProviderConfigApplyMode {
+    if provider_config.api_key.is_some() || provider_config.base_url.is_some() {
+        return ProviderConfigApplyMode::Direct;
+    }
+
+    let provider_selector = provider_config
+        .provider_id
+        .as_deref()
+        .unwrap_or(&provider_config.provider_name);
+    let normalized_selector = normalize_provider_identity(provider_selector);
+    let normalized_provider_name = normalize_provider_identity(&provider_config.provider_name);
+
+    if normalized_selector == "ollama" || normalized_provider_name == "ollama" {
+        return ProviderConfigApplyMode::Direct;
+    }
+
+    ProviderConfigApplyMode::CredentialPool
+}
+
 fn emit_runtime_side_event(
     app: &AppHandle,
     event_name: &str,
@@ -440,6 +471,21 @@ async fn execute_aster_chat_request(
     )?;
     if let Some(resolved_provider_config) = resolved_provider_config {
         request.provider_config = Some(resolved_provider_config);
+    }
+    if let Some(provider_config) = request.provider_config.as_mut() {
+        let runtime_tool_call_decision =
+            enrich_provider_config_with_runtime_tool_strategy(provider_config).await;
+        tracing::info!(
+            "[AsterAgent] provider_config 运行时工具策略: provider_id={:?}, provider_name={}, model_name={}, strategy={:?}, toolshim_model={:?}, tools={}, function_calling={}, reasoning={}",
+            provider_config.provider_id,
+            provider_config.provider_name,
+            provider_config.model_name,
+            runtime_tool_call_decision.strategy,
+            runtime_tool_call_decision.toolshim_model,
+            runtime_tool_call_decision.capabilities.tools,
+            runtime_tool_call_decision.capabilities.function_calling,
+            runtime_tool_call_decision.capabilities.reasoning
+        );
     }
     normalize_runtime_turn_request_metadata(
         &mut request,
@@ -1015,6 +1061,7 @@ async fn execute_aster_chat_request(
             provider_config.api_key.is_some(),
             provider_config.base_url
         );
+        let apply_mode = resolve_provider_config_apply_mode(provider_config);
         let config = ProviderConfig {
             provider_name: provider_config.provider_name.clone(),
             provider_selector: provider_config
@@ -1027,31 +1074,39 @@ async fn execute_aster_chat_request(
             credential_uuid: None,
             force_responses_api: false,
             credential_path: None,
+            toolshim: matches!(
+                provider_config.tool_call_strategy,
+                Some(RuntimeToolCallStrategy::ToolShim)
+            ),
+            toolshim_model: provider_config.toolshim_model.clone(),
         };
-        // 如果前端提供了 api_key，直接使用；否则从凭证池选择凭证
-        if provider_config.api_key.is_some() {
-            state.configure_provider(config, session_id, db).await?;
-            let provider_selector = provider_config
-                .provider_id
-                .as_deref()
-                .unwrap_or(&provider_config.provider_name);
-            persist_session_provider_routing(session_id, provider_selector).await?;
-        } else {
-            // 没有 api_key，使用凭证池（优先 provider_id，其次 provider_name）
-            let provider_selector = provider_config
-                .provider_id
-                .as_deref()
-                .unwrap_or(&provider_config.provider_name);
-            state
-                .configure_provider_from_pool(
-                    db,
-                    provider_selector,
-                    &provider_config.model_name,
-                    session_id,
-                )
-                .await?;
-            persist_session_provider_routing(session_id, provider_selector).await?;
+        let provider_selector = provider_config
+            .provider_id
+            .as_deref()
+            .unwrap_or(&provider_config.provider_name);
+        tracing::info!(
+            "[AsterAgent] provider_config 应用策略: provider_selector={}, mode={:?}, tool_call_strategy={:?}, toolshim_model={:?}",
+            provider_selector,
+            apply_mode,
+            provider_config.tool_call_strategy,
+            provider_config.toolshim_model
+        );
+        match apply_mode {
+            ProviderConfigApplyMode::Direct => {
+                state.configure_provider(config, session_id, db).await?;
+            }
+            ProviderConfigApplyMode::CredentialPool => {
+                state
+                    .configure_provider_from_pool(
+                        db,
+                        provider_selector,
+                        &provider_config.model_name,
+                        session_id,
+                    )
+                    .await?;
+            }
         }
+        persist_session_provider_routing(session_id, provider_selector).await?;
     }
 
     // 检查 Provider 是否已配置
@@ -2735,6 +2790,25 @@ mod tests {
                 .and_then(|artifact| artifact.get("artifact_stage"))
                 .and_then(Value::as_str),
             Some("stage2")
+        );
+    }
+
+    #[test]
+    fn resolve_provider_config_apply_mode_prefers_direct_for_ollama_without_api_key() {
+        let provider_config = ConfigureProviderRequest {
+            provider_id: Some("ollama".to_string()),
+            provider_name: "ollama".to_string(),
+            model_name: "deepseek-r1:latest".to_string(),
+            api_key: None,
+            base_url: None,
+            model_capabilities: None,
+            tool_call_strategy: None,
+            toolshim_model: None,
+        };
+
+        assert_eq!(
+            resolve_provider_config_apply_mode(&provider_config),
+            ProviderConfigApplyMode::Direct
         );
     }
 

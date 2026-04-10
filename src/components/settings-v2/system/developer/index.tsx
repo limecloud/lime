@@ -3,7 +3,6 @@ import {
   lazy,
   useCallback,
   useEffect,
-  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -82,12 +81,6 @@ interface SurfacePanelProps {
   children: ReactNode;
 }
 
-interface SummaryStatProps {
-  label: string;
-  value: string;
-  description: string;
-}
-
 function SurfacePanel({
   icon: Icon,
   title,
@@ -116,24 +109,6 @@ function SurfacePanel({
 
       <div className="mt-5">{children}</div>
     </article>
-  );
-}
-
-function SummaryStat({ label, value, description }: SummaryStatProps) {
-  return (
-    <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
-        <span>{label}</span>
-        <WorkbenchInfoTip
-          ariaLabel={`${label}说明`}
-          content={description}
-          tone="slate"
-        />
-      </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
   );
 }
 
@@ -406,17 +381,6 @@ export function DeveloperSettings() {
   );
 
   const workspaceHarnessEnabled = isWorkspaceHarnessEnabled(appConfig);
-  const summary = useMemo(
-    () => ({
-      diagnosticActionCount: 5,
-      debugModeLabel: enabled ? "已启用" : "未启用",
-      workspaceHarnessLabel: workspaceHarnessEnabled ? "已启用" : "已关闭",
-      clipboardLabel: showClipboardGuide ? "待处理" : "正常",
-      serviceCatalogLabel: "按需加载",
-      siteAdapterCatalogLabel: "按需加载",
-    }),
-    [enabled, showClipboardGuide, workspaceHarnessEnabled],
-  );
 
   return (
     <div className="space-y-6 pb-8">
@@ -434,68 +398,58 @@ export function DeveloperSettings() {
         </div>
       ) : null}
 
-      <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <SummaryStat
-            label="组件调试"
-            value={summary.debugModeLabel}
-            description="控制组件轮廓显示与 Alt 点击诊断，不改变运行逻辑。"
-          />
-          <SummaryStat
-            label="处理工作台"
-            value={summary.workspaceHarnessLabel}
-            description="默认关闭；关闭时不显示入口，也不会再收集工作台运行态摘要。"
-          />
-          <SummaryStat
-            label="诊断动作"
-            value={summary.diagnosticActionCount.toString()}
-            description="当前提供清空、复制、纯 JSON、导出和打开目录五个动作。"
-          />
-          <SummaryStat
-            label="剪贴板权限"
-            value={summary.clipboardLabel}
-            description="复制诊断失败且属于权限问题时，会在本页展示系统设置指引。"
-          />
-          <SummaryStat
-            label="技能目录联调"
-            value={summary.serviceCatalogLabel}
-            description="目录联调改为区块级按需加载，不再挡住开发页首屏。"
-          />
-          <SummaryStat
-            label="站点脚本联调"
-            value={summary.siteAdapterCatalogLabel}
-            description="进入页面先保留基础诊断与开关，目录校验在需要时再加载。"
-          />
-        </div>
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                  开发者
+                </h1>
+                <WorkbenchInfoTip
+                  ariaLabel="开发者设置首屏说明"
+                  content="首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。"
+                  tone="mint"
+                />
+              </div>
+              <p className="text-sm text-slate-500">
+                管理处理工作台、组件调试和诊断动作。
+              </p>
+            </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-          <StatusPill
-            active={workspaceHarnessEnabled}
-            activeLabel="处理工作台已启用"
-            inactiveLabel="处理工作台已关闭"
-          />
-          <StatusPill
-            active={enabled}
-            activeLabel="组件调试已启用"
-            inactiveLabel="组件调试未启用"
-          />
-          <StatusPill
-            active={!showClipboardGuide}
-            activeLabel="剪贴板权限正常"
-            inactiveLabel="需检查剪贴板权限"
-          />
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-            {diagnosticBusy ? "诊断任务执行中" : "当前空闲"}
-          </span>
-        </div>
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <StatusPill
+                active={workspaceHarnessEnabled}
+                activeLabel="处理工作台已启用"
+                inactiveLabel="处理工作台已关闭"
+              />
+              <StatusPill
+                active={enabled}
+                activeLabel="组件调试已启用"
+                inactiveLabel="组件调试未启用"
+              />
+              <StatusPill
+                active={!showClipboardGuide}
+                activeLabel="剪贴板权限正常"
+                inactiveLabel="需检查剪贴板权限"
+              />
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                诊断动作：5 项
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                技能目录联调：按需加载
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                站点脚本联调：按需加载
+              </span>
+            </div>
+          </div>
 
-        <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
-          <span>首屏说明已收纳</span>
-          <WorkbenchInfoTip
-            ariaLabel="开发者设置首屏说明"
-            content="首屏先保留处理工作台、组件调试和诊断动作，目录联调、自愈记录与权限卡片按需加载，减少进入设置后的等待感。"
-            tone="slate"
-          />
+          <div className="flex flex-wrap items-center gap-2 rounded-[22px] border border-slate-200/80 bg-slate-50/60 px-4 py-3 text-sm text-slate-500">
+            <span>{diagnosticBusy ? "诊断任务执行中" : "当前空闲"}</span>
+            <span className="text-slate-300">/</span>
+            <span>首屏说明已收纳</span>
+          </div>
         </div>
       </section>
 

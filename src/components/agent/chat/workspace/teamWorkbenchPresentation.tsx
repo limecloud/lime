@@ -4,7 +4,11 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import type { CanvasWorkbenchTeamView } from "../components/CanvasWorkbenchLayout";
+import type {
+  CanvasWorkbenchHeaderBadge,
+  CanvasWorkbenchSummaryStat,
+  CanvasWorkbenchTeamView,
+} from "../components/CanvasWorkbenchLayout";
 import { TeamWorkbenchSummaryPanel } from "../components/TeamWorkbenchSummaryPanel";
 import { TeamWorkspaceBoard } from "../components/TeamWorkspaceBoard";
 import {
@@ -203,6 +207,91 @@ export function useTeamWorkbenchPresentation({
     ],
   );
 
+  const headerBadges = useMemo<CanvasWorkbenchHeaderBadge[]>(() => {
+    const badges: CanvasWorkbenchHeaderBadge[] = [
+      {
+        key: "team-runtime",
+        label: "Team Workbench",
+        tone: "accent",
+      },
+    ];
+
+    if (triggerState?.label?.trim()) {
+      badges.push({
+        key: "team-trigger-state",
+        label: triggerState.label.trim(),
+        tone: triggerState.tone === "active" ? "accent" : "default",
+      });
+    }
+
+    if (teamWaitSummary?.awaitedSessionIds?.length) {
+      badges.push({
+        key: "team-awaiting",
+        label: `等待 ${teamWaitSummary.awaitedSessionIds.length}`,
+        tone: "default",
+      });
+    }
+
+    return badges;
+  }, [teamWaitSummary?.awaitedSessionIds, triggerState]);
+
+  const summaryStats = useMemo<CanvasWorkbenchSummaryStat[]>(() => {
+    const leadStatus =
+      triggerState?.label?.trim() || executionSummary.statusTitle || "待机";
+    const leadDetail =
+      executionSummary.statusTitle || "当前没有活跃的协作执行。";
+
+    const stats: CanvasWorkbenchSummaryStat[] = [
+      {
+        key: "team-status",
+        label: "协作状态",
+        value: leadStatus,
+        detail: leadDetail,
+        tone: triggerState?.tone === "active" ? "accent" : "default",
+      },
+      {
+        key: "team-members",
+        label: "活跃成员",
+        value:
+          executionSummary.totalSessionCount > 0
+            ? `${executionSummary.activeSessionCount}/${executionSummary.totalSessionCount}`
+            : "0",
+        detail:
+          executionSummary.totalSessionCount > 0
+            ? `${executionSummary.runningSessionCount} 位处理中，${executionSummary.queuedSessionCount} 位排队中。`
+            : "当前还没有可展示的协作成员。",
+        tone: executionSummary.activeSessionCount > 0 ? "accent" : "default",
+      },
+    ];
+
+    if (teamWaitSummary?.awaitedSessionIds?.length) {
+      stats.push({
+        key: "team-awaiting",
+        label: "等待确认",
+        value: `${teamWaitSummary.awaitedSessionIds.length} 项`,
+        detail: teamWaitSummary.timedOut
+          ? "等待结果超时，建议重新检查成员状态。"
+          : "正在等待成员完成或返回结果。",
+        tone: "default",
+      });
+    } else if (teamControlSummary?.affectedSessionIds?.length) {
+      stats.push({
+        key: "team-control",
+        label: "最近控制",
+        value:
+          teamControlSummary.action === "resume"
+            ? "恢复执行"
+            : teamControlSummary.action === "close_completed"
+              ? "清理已完成"
+              : "关闭协作",
+        detail: `影响 ${teamControlSummary.affectedSessionIds.length} 个会话。`,
+        tone: "default",
+      });
+    }
+
+    return stats;
+  }, [executionSummary, teamControlSummary, teamWaitSummary, triggerState]);
+
   const teamWorkbenchView = useMemo<CanvasWorkbenchTeamView | null>(() => {
     if (!enabled) {
       return null;
@@ -215,10 +304,23 @@ export function useTeamWorkbenchPresentation({
         dispatchPreviewState?.blueprint?.label?.trim() ||
         surfaceProps.selectedTeamLabel ||
         "团队工作台",
+      tabLabel: surfaceProps.selectedTeamLabel?.trim() || undefined,
+      tabBadge: triggerState?.label?.trim() || undefined,
+      tabBadgeTone:
+        triggerState?.tone === "error"
+          ? "rose"
+          : triggerState?.tone === "active"
+            ? "sky"
+            : "slate",
       subtitle: "主对话保留调度记录，画布按角色分别展示执行过程与结果。",
       autoFocusToken,
       preferFixedPanel: true,
       triggerState,
+      badges: headerBadges,
+      summaryStats,
+      panelCopy: {
+        emptyText: "当前没有可展示的 Team Workbench。",
+      },
       renderPreview: (options?: { stackedWorkbenchTrigger?: ReactNode }) =>
         renderTeamWorkbenchPreview(options?.stackedWorkbenchTrigger),
       renderPanel: () => teamWorkbenchSummaryPanel,
@@ -228,6 +330,8 @@ export function useTeamWorkbenchPresentation({
     enabled,
     renderTeamWorkbenchPreview,
     dispatchPreviewState,
+    headerBadges,
+    summaryStats,
     surfaceProps.selectedTeamLabel,
     teamWorkbenchSummaryPanel,
     triggerState,

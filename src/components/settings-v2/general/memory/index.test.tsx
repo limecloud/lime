@@ -256,15 +256,15 @@ describe("MemorySettings", () => {
     await flushEffects();
 
     expect(getBodyText()).not.toContain(
-      "这页负责管理用户画像、三层记忆来源与自动记忆入口。",
+      "管理用户画像、三层记忆来源与自动记忆入口，让代理在长期使用里更稳定地理解你的背景与偏好。",
     );
     expect(getBodyText()).not.toContain(
       "单选，用于帮助代理判断你的知识密度和上下文称呼。",
     );
 
-    const heroTip = await hoverTip("记忆快照说明");
+    const heroTip = await hoverTip("记忆设置说明");
     expect(getBodyText()).toContain(
-      "这页负责管理用户画像、三层记忆来源与自动记忆入口。",
+      "管理用户画像、三层记忆来源与自动记忆入口，让代理在长期使用里更稳定地理解你的背景与偏好。",
     );
     await leaveTip(heroTip);
 
@@ -281,7 +281,9 @@ describe("MemorySettings", () => {
     await flushEffects();
 
     const text = container.textContent ?? "";
-    expect(text).toContain("MEMORY SNAPSHOT");
+    expect(text).toContain("记忆");
+    expect(text).toContain("管理用户画像、来源策略与自动记忆入口。");
+    expect(text).toContain("记忆总开关");
     expect(text).toContain("偏好画像");
     expect(text).toContain("三层记忆可用性");
     expect(text).toContain("记忆来源策略");

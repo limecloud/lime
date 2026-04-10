@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ExternalLink, Loader2 } from "lucide-react";
+import { ChevronDown, ExternalLink, FileText, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import {
@@ -19,8 +19,9 @@ import {
 import {
   normalizeSiteToolResultSummary,
   resolveSiteAdapterSourceLabel,
+  resolveSiteSavedContentTargetRelativePath,
   resolveSiteProjectSourceLabel,
-  resolveSiteSavedContentTarget,
+  resolveSiteSavedContentTargetFromMetadata,
 } from "../utils/siteToolResultSummary";
 
 interface InlineToolProcessStepProps {
@@ -187,13 +188,13 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
     () => normalizeToolResultImages(toolCall.result?.images, resultText) || [],
     [resultText, toolCall.result?.images],
   );
-  const siteSummary = useMemo(
-    () => normalizeSiteToolResultSummary(toolCall.result?.metadata),
+  const savedSiteContentTarget = useMemo(
+    () => resolveSiteSavedContentTargetFromMetadata(toolCall.result?.metadata),
     [toolCall.result?.metadata],
   );
-  const savedSiteContentTarget = useMemo(
-    () => resolveSiteSavedContentTarget(siteSummary),
-    [siteSummary],
+  const savedSiteContentRelativePath = useMemo(
+    () => resolveSiteSavedContentTargetRelativePath(savedSiteContentTarget),
+    [savedSiteContentTarget],
   );
   const siteNoticeLines = useMemo(
     () => buildSiteNoticeLines(toolCall),
@@ -346,14 +347,27 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
                 <div>
                   <button
                     type="button"
-                    className="inline-flex items-center rounded-md border border-emerald-300 px-2 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-50"
+                    className="flex w-full items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50/70 px-3 py-2 text-left transition-colors hover:bg-emerald-100/70"
                     onClick={() =>
                       onOpenSavedSiteContent(savedSiteContentTarget)
                     }
                   >
-                    {savedSiteContentTarget.preferredTarget === "project_file"
-                      ? "在下方预览导出 Markdown"
-                      : "打开已保存内容"}
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-700">
+                      <FileText className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-medium leading-5 text-emerald-900">
+                        {savedSiteContentTarget.preferredTarget === "project_file"
+                          ? "在下方预览导出 Markdown"
+                          : "打开已保存内容"}
+                      </span>
+                      {savedSiteContentRelativePath ? (
+                        <span className="block truncate text-[11px] leading-5 text-emerald-700/80">
+                          {savedSiteContentRelativePath}
+                        </span>
+                      ) : null}
+                    </span>
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
                   </button>
                 </div>
               ) : null}

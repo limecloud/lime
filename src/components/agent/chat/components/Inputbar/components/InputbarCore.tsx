@@ -77,6 +77,7 @@ interface InputbarCoreProps {
   queuedTurns?: QueuedTurnSnapshot[];
   onPromoteQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   onRemoveQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
+  showMetaTools?: boolean;
 }
 
 export const InputbarCore: React.FC<InputbarCoreProps> = ({
@@ -103,6 +104,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   queuedTurns = [],
   onPromoteQueuedTurn,
   onRemoveQueuedTurn,
+  showMetaTools = true,
 }) => {
   const [isComposerExpanded, setIsComposerExpanded] = useState(false);
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
@@ -421,7 +423,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                 <BottomBar className={bottomBarClassName}>
                   <LeftSection className={leftSectionClassName}>
                     {leftExtra ? <MetaSlot>{leftExtra}</MetaSlot> : null}
-                    {!shouldCollapseFloatingTools ? (
+                    {!shouldCollapseFloatingTools && showMetaTools ? (
                       <InputbarTools
                         onToolClick={onToolClick}
                         activeTools={activeTools}

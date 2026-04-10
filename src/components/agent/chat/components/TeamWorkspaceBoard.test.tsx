@@ -676,8 +676,9 @@ describe("TeamWorkspaceBoard", () => {
     expect(currentLane?.textContent).toContain(
       "推理：先检查 team runtime 的控制面状态，再决定是否等待。",
     );
+    expect(siblingLane?.textContent).toContain("页面截图");
     expect(siblingLane?.textContent).toContain(
-      "工具 browser_snapshot：页面已刷新为最新状态并生成差异截图。",
+      "页面已刷新为最新状态并生成差异截图。",
     );
 
     const returnButton = Array.from(container.querySelectorAll("button")).find(
@@ -703,8 +704,9 @@ describe("TeamWorkspaceBoard", () => {
     ).toBeTruthy();
     expect(container.textContent).toContain("检索结果");
     expect(container.textContent).toContain("已汇总 5 条 roadmap 差异。");
+    expect(container.textContent).toContain("页面截图");
     expect(container.textContent).toContain(
-      "工具 browser_snapshot：页面已刷新为最新状态并生成差异截图。",
+      "页面已刷新为最新状态并生成差异截图。",
     );
     expect(container.textContent).toContain("等待父线程确认是否继续扩展范围。");
 
@@ -985,7 +987,7 @@ describe("TeamWorkspaceBoard", () => {
         "child-live-stream-1": [
           {
             id: "tool:child-live-stream-1:tool-1",
-            title: "工具 browser_snapshot",
+            title: "工具 页面截图",
             detail: "页面结构差异已提取完成。",
             statusLabel: "完成",
             badgeClassName:
@@ -1000,9 +1002,9 @@ describe("TeamWorkspaceBoard", () => {
 
     expect(container.textContent).toContain("实时片段代理");
     expect(container.textContent).toContain(
-      "工具 browser_snapshot：页面结构差异已提取完成。",
+      "工具 页面截图：页面结构差异已提取完成。",
     );
-    expect(container.textContent).toContain("工具 browser_snapshot");
+    expect(container.textContent).toContain("工具 页面截图");
     expect(container.textContent).toContain("页面结构差异已提取完成。");
   });
 

@@ -360,7 +360,7 @@ describe("ToolCallDisplay", () => {
       "结果已自动保存到项目 project-1：GitHub MCP 搜索结果 · 来自当前项目上下文",
     );
     expect(container.textContent).toContain(
-      "项目目录：/Users/coso/.proxycast/projects/project-1",
+      "项目目录：/Users/coso/Library/Application Support/lime/projects/project-1",
     );
     expect(container.textContent).toContain(
       "Markdown 文件：exports/x-article-export/github-mcp/index.md",
@@ -499,6 +499,98 @@ describe("ToolCallDisplay", () => {
         relativePath: "exports/social-article/google-cloud/index.md",
       },
     });
+  });
+
+  it("ToolSearch 展开后应展示结构化工具摘要，而不是原始 JSON", () => {
+    const { container } = renderTool({
+      id: "tool-search-bridge-1",
+      name: "ToolSearch",
+      arguments: JSON.stringify({ query: "select:Read,Write" }),
+      status: "completed",
+      result: {
+        success: true,
+        output: JSON.stringify({
+          query: "select:Read,Write",
+          caller: "assistant",
+          count: 2,
+          notes: [],
+          tools: [
+            {
+              name: "Read",
+              source: "native_registry",
+              description: "Read a file from disk",
+              always_visible: true,
+            },
+            {
+              name: "Write",
+              source: "native_registry",
+              description: "Write content to a file",
+              always_visible: true,
+            },
+          ],
+        }),
+      },
+      startTime: new Date("2026-04-10T04:00:00.000Z"),
+      endTime: new Date("2026-04-10T04:00:01.000Z"),
+    });
+
+    act(() => {
+      const toggle = container.querySelector(
+        'button[title="查看结果"]',
+      ) as HTMLButtonElement | null;
+      toggle?.click();
+    });
+
+    expect(
+      container.querySelector('[data-testid="tool-call-tool-search-result"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("匹配工具：2 个");
+    expect(container.textContent).toContain("Read");
+    expect(container.textContent).toContain("Write");
+    expect(container.textContent).toContain("原生工具");
+    expect(container.textContent).not.toContain('"always_visible":true');
+    expect(
+      container.querySelector('[data-testid="tool-call-rendered-result"]'),
+    ).toBeNull();
+  });
+
+  it("ToolSearch 在流式阶段不应自动展开内部结果", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <ToolCallDisplay
+          isMessageStreaming
+          toolCall={{
+            id: "tool-search-streaming-1",
+            name: "ToolSearch",
+            arguments: JSON.stringify({ query: "select:Read,Write" }),
+            status: "completed",
+            result: {
+              success: true,
+              output: JSON.stringify({
+                query: "select:Read,Write",
+                count: 2,
+                notes: [],
+                tools: [{ name: "Read" }, { name: "Write" }],
+              }),
+            },
+            startTime: new Date("2026-04-10T04:05:00.000Z"),
+            endTime: new Date("2026-04-10T04:05:01.000Z"),
+          }}
+        />,
+      );
+    });
+
+    mountedRoots.push({ container, root });
+
+    expect(
+      container.querySelector('[data-testid="tool-call-tool-search-result"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("匹配工具：2 个");
+    expect(container.textContent).not.toContain("Read a file from disk");
   });
 
   it("站点能力工具失败时应展示未保存原因", () => {

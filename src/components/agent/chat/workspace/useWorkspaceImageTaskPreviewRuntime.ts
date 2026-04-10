@@ -6,6 +6,10 @@ import {
   type MediaTaskArtifactOutput,
 } from "@/lib/api/mediaTasks";
 import { safeListen } from "@/lib/dev-bridge";
+import {
+  hasTauriInvokeCapability,
+  hasTauriRuntimeMarkers,
+} from "@/lib/tauri-runtime";
 import { resolveAbsoluteWorkspacePath } from "./workspacePath";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
 import {
@@ -1636,6 +1640,10 @@ export function useWorkspaceImageTaskPreviewRuntime({
   }, [messages, projectRootPath, sessionId]);
 
   useEffect(() => {
+    const shouldRestoreWorkspaceTaskCatalog =
+      restoreFromWorkspace &&
+      (hasTauriInvokeCapability() || hasTauriRuntimeMarkers());
+
     const trackedTasks = trackedTasksRef.current;
     trackedTasks.forEach((trackedTask) => {
       if (trackedTask.timerId !== null) {
@@ -2233,7 +2241,7 @@ export function useWorkspaceImageTaskPreviewRuntime({
 
     if (restoreFromWorkspace) {
       void restoreTrackedTasksFromMessages().then((restoredFromMessages) => {
-        if (!restoredFromMessages) {
+        if (!restoredFromMessages && shouldRestoreWorkspaceTaskCatalog) {
           void restoreTrackedTasksFromWorkspace();
         }
       });

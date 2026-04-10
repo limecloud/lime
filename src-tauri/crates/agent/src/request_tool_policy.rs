@@ -14,6 +14,8 @@ use futures::{stream, StreamExt};
 use lime_core::env_compat;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use serde_json::Map;
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use tokio_util::sync::CancellationToken;
@@ -286,9 +288,14 @@ struct StreamEventDiagnostics {
     tool_end_count: usize,
     error_count: usize,
     context_trace_events: usize,
+    artifact_snapshot_count: usize,
+    persisted_artifact_count: usize,
+    saved_site_content_count: usize,
     max_text_delta_chars: usize,
     max_tool_output_chars: usize,
     max_context_trace_steps: usize,
+    last_persisted_artifact_path: Option<String>,
+    last_saved_markdown_path: Option<String>,
 }
 
 fn update_stream_event_diagnostics(
@@ -314,6 +321,13 @@ fn update_stream_event_diagnostics(
             diagnostics.tool_end_count += 1;
             let output_chars = result.output.chars().count();
             diagnostics.max_tool_output_chars = diagnostics.max_tool_output_chars.max(output_chars);
+            if tool_result_contains_saved_site_content(result) {
+                diagnostics.saved_site_content_count += 1;
+                if diagnostics.last_saved_markdown_path.is_none() {
+                    diagnostics.last_saved_markdown_path =
+                        extract_saved_markdown_path_from_tool_result(result);
+                }
+            }
             if output_chars >= STREAM_EVENT_DIAG_WARN_TOOL_OUTPUT_CHARS {
                 tracing::warn!(
                     "[AsterAgent][Diag] large tool_end output observed: tool_id={}, output_chars={}, success={}",
@@ -332,6 +346,15 @@ fn update_stream_event_diagnostics(
                     "[AsterAgent][Diag] large context_trace observed: steps={}",
                     steps.len()
                 );
+            }
+        }
+        RuntimeAgentEvent::ArtifactSnapshot { artifact } => {
+            diagnostics.artifact_snapshot_count += 1;
+            if artifact_snapshot_is_persisted(artifact) {
+                diagnostics.persisted_artifact_count += 1;
+                if diagnostics.last_persisted_artifact_path.is_none() {
+                    diagnostics.last_persisted_artifact_path = Some(artifact.file_path.clone());
+                }
             }
         }
         RuntimeAgentEvent::Error { .. } => {
@@ -362,6 +385,103 @@ fn build_empty_final_reply_fallback(
     }
 
     Some("本轮执行已结束，过程记录已保留在当前对话中。".to_string())
+}
+
+fn read_lookup_string<'a, F>(keys: &[&str], mut lookup: F) -> Option<String>
+where
+    F: FnMut(&str) -> Option<&'a Value>,
+{
+    keys.iter().find_map(|key| {
+        lookup(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_string())
+    })
+}
+
+fn read_metadata_string(metadata: &HashMap<String, Value>, keys: &[&str]) -> Option<String> {
+    read_lookup_string(keys, |key| metadata.get(key))
+}
+
+fn read_json_map_string(metadata: &Map<String, Value>, keys: &[&str]) -> Option<String> {
+    read_lookup_string(keys, |key| metadata.get(key))
+}
+
+fn tool_result_contains_saved_site_content(result: &AgentToolResult) -> bool {
+    let Some(metadata) = result.metadata.as_ref() else {
+        return false;
+    };
+    metadata
+        .get("saved_content")
+        .and_then(Value::as_object)
+        .is_some()
+}
+
+fn extract_saved_markdown_path_from_tool_result(result: &AgentToolResult) -> Option<String> {
+    let metadata = result.metadata.as_ref()?;
+    let saved_content = metadata.get("saved_content")?.as_object()?;
+    read_json_map_string(
+        saved_content,
+        &["markdown_relative_path", "markdownRelativePath"],
+    )
+}
+
+fn artifact_snapshot_is_persisted(artifact: &crate::protocol::AgentArtifactSignal) -> bool {
+    let Some(metadata) = artifact.metadata.as_ref() else {
+        return false;
+    };
+
+    let phase = read_metadata_string(metadata, &["writePhase", "write_phase"])
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if phase == "persisted" {
+        return true;
+    }
+
+    metadata
+        .get("complete")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn should_downgrade_provider_tail_failure(
+    error_message: &str,
+    diagnostics: &StreamEventDiagnostics,
+    emitted_any: bool,
+) -> bool {
+    emitted_any
+        && error_message
+            .trim()
+            .to_ascii_lowercase()
+            .starts_with("agent provider execution failed:")
+        && (diagnostics.saved_site_content_count > 0 || diagnostics.persisted_artifact_count > 0)
+}
+
+fn build_output_preserved_reply_fallback(diagnostics: &StreamEventDiagnostics) -> Option<String> {
+    if diagnostics.saved_site_content_count > 0 {
+        let markdown_hint = diagnostics
+            .last_saved_markdown_path
+            .as_deref()
+            .map(|path| format!("（Markdown：{path}）"))
+            .unwrap_or_default();
+        return Some(format!(
+            "本轮站点内容已成功保存到项目文件中{markdown_hint}。由于模型通道暂时不可用，未能补充最终总结；详细过程与产物已保留在当前对话中。"
+        ));
+    }
+
+    if diagnostics.persisted_artifact_count > 0 {
+        let artifact_hint = diagnostics
+            .last_persisted_artifact_path
+            .as_deref()
+            .map(|path| format!("（文件：{path}）"))
+            .unwrap_or_default();
+        return Some(format!(
+            "本轮输出文件已成功生成{artifact_hint}。由于模型通道暂时不可用，未能补充最终总结；详细过程与产物已保留在当前对话中。"
+        ));
+    }
+
+    None
 }
 
 #[derive(Debug, Default)]
@@ -1213,6 +1333,12 @@ where
                     }
                     _ => None,
                 };
+                if let Some(message) = inline_provider_error {
+                    return Err(ReplyAttemptError {
+                        message,
+                        emitted_any: true,
+                    });
+                }
                 let runtime_events = auto_compaction_projection
                     .project_event(&agent_event)
                     .unwrap_or_else(|| project_runtime_event(agent_event));
@@ -1253,12 +1379,6 @@ where
                     }
                     update_stream_event_diagnostics(diagnostics, &runtime_event);
                     on_event(&runtime_event);
-                }
-                if let Some(message) = inline_provider_error {
-                    return Err(ReplyAttemptError {
-                        message,
-                        emitted_any: true,
-                    });
                 }
             }
             Err(e) => {
@@ -1544,7 +1664,7 @@ where
     let mut text_chunks: Vec<String> = Vec::new();
     let mut event_errors: Vec<String> = Vec::new();
     let mut diagnostics = StreamEventDiagnostics::default();
-    stream_agent_reply_once(
+    let first_attempt = stream_agent_reply_once(
         agent,
         user_message,
         duplicate_session_config(&session_config),
@@ -1558,7 +1678,31 @@ where
         &mut diagnostics,
         &mut on_event,
     )
-    .await?;
+    .await;
+    if let Err(error) = first_attempt {
+        if should_downgrade_provider_tail_failure(&error.message, &diagnostics, emitted_any) {
+            tracing::warn!(
+                "[AsterAgent][ReplyPolicy] provider tail failure downgraded after persisted output: tools={}, artifacts={}, saved_site={}",
+                diagnostics.tool_end_count,
+                diagnostics.persisted_artifact_count,
+                diagnostics.saved_site_content_count
+            );
+            let fallback_text = text_chunks.join("").trim().to_string();
+            return Ok(StreamReplyExecution {
+                text_output: if fallback_text.is_empty() {
+                    build_output_preserved_reply_fallback(&diagnostics).unwrap_or_else(|| {
+                        "本轮执行已完成，详细过程与产物已保留在当前对话中。".to_string()
+                    })
+                } else {
+                    fallback_text
+                },
+                event_errors,
+                emitted_any,
+                attempts_summary: web_search_tracker.format_attempts(),
+            });
+        }
+        return Err(error);
+    }
 
     let current_text_output = text_chunks.join("");
     if should_retry_after_empty_reply(
@@ -1583,7 +1727,7 @@ where
         session_config.system_prompt = merge_system_prompt_with_web_search_synthesis_instruction(
             session_config.system_prompt.take(),
         );
-        stream_agent_reply_once(
+        let retry_attempt = stream_agent_reply_once(
             agent,
             Message::user().with_text(WEB_SEARCH_EMPTY_REPLY_RETRY_PROMPT),
             duplicate_session_config(&session_config),
@@ -1597,7 +1741,27 @@ where
             &mut diagnostics,
             &mut on_event,
         )
-        .await?;
+        .await;
+        if let Err(error) = retry_attempt {
+            if should_downgrade_provider_tail_failure(&error.message, &diagnostics, emitted_any) {
+                tracing::warn!(
+                    "[AsterAgent][ReplyPolicy] provider tail failure downgraded after retry with persisted output: tools={}, artifacts={}, saved_site={}",
+                    diagnostics.tool_end_count,
+                    diagnostics.persisted_artifact_count,
+                    diagnostics.saved_site_content_count
+                );
+                return Ok(StreamReplyExecution {
+                    text_output: build_output_preserved_reply_fallback(&diagnostics)
+                        .unwrap_or_else(|| {
+                            "本轮执行已完成，详细过程与产物已保留在当前对话中。".to_string()
+                        }),
+                    event_errors,
+                    emitted_any,
+                    attempts_summary: web_search_tracker.format_attempts(),
+                });
+            }
+            return Err(error);
+        }
     }
 
     if let Err(validation_error) =
@@ -1629,9 +1793,7 @@ where
                 emitted_any,
             });
         }
-        if let Some(fallback_text) =
-            build_empty_final_reply_fallback(&diagnostics, emitted_any)
-        {
+        if let Some(fallback_text) = build_empty_final_reply_fallback(&diagnostics, emitted_any) {
             tracing::warn!(
                 "[AsterAgent][ReplyPolicy] empty final text downgraded to synthesized fallback: emitted_any={}, tool_starts={}, tool_ends={}, attempts={}",
                 emitted_any,
@@ -1883,6 +2045,63 @@ mod tests {
         let diagnostics = StreamEventDiagnostics::default();
 
         assert_eq!(build_empty_final_reply_fallback(&diagnostics, false), None);
+    }
+
+    #[test]
+    fn provider_tail_failure_with_saved_site_content_should_downgrade() {
+        let diagnostics = StreamEventDiagnostics {
+            saved_site_content_count: 1,
+            last_saved_markdown_path: Some("exports/x-article-export/article/index.md".to_string()),
+            ..Default::default()
+        };
+
+        assert!(should_downgrade_provider_tail_failure(
+            "Agent provider execution failed: Request failed: network timeout",
+            &diagnostics,
+            true,
+        ));
+        assert_eq!(
+            build_output_preserved_reply_fallback(&diagnostics).as_deref(),
+            Some(
+                "本轮站点内容已成功保存到项目文件中（Markdown：exports/x-article-export/article/index.md）。由于模型通道暂时不可用，未能补充最终总结；详细过程与产物已保留在当前对话中。"
+            )
+        );
+    }
+
+    #[test]
+    fn provider_tail_failure_with_persisted_artifact_should_downgrade() {
+        let diagnostics = StreamEventDiagnostics {
+            persisted_artifact_count: 1,
+            last_persisted_artifact_path: Some("outputs/report.md".to_string()),
+            ..Default::default()
+        };
+
+        assert!(should_downgrade_provider_tail_failure(
+            "Agent provider execution failed: Request failed: channel unavailable",
+            &diagnostics,
+            true,
+        ));
+        assert_eq!(
+            build_output_preserved_reply_fallback(&diagnostics).as_deref(),
+            Some(
+                "本轮输出文件已成功生成（文件：outputs/report.md）。由于模型通道暂时不可用，未能补充最终总结；详细过程与产物已保留在当前对话中。"
+            )
+        );
+    }
+
+    #[test]
+    fn provider_tail_failure_without_persisted_output_should_not_downgrade() {
+        let diagnostics = StreamEventDiagnostics {
+            tool_end_count: 2,
+            ..Default::default()
+        };
+
+        assert!(!should_downgrade_provider_tail_failure(
+            "Agent provider execution failed: Request failed: network timeout",
+            &diagnostics,
+            true,
+        ));
+        assert_eq!(build_output_preserved_reply_fallback(&diagnostics), None);
     }
 
     #[test]

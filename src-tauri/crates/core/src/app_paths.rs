@@ -138,6 +138,16 @@ pub fn resolve_default_project_dir() -> Result<PathBuf, String> {
     with_app_roots(resolve_default_project_dir_from_source_roots)
 }
 
+pub fn migrate_managed_project_path_to_preferred(path: &Path) -> Result<Option<PathBuf>, String> {
+    with_app_roots(|preferred_root, legacy_roots| {
+        migrate_managed_project_path_to_preferred_from_source_roots(
+            path,
+            preferred_root,
+            legacy_roots,
+        )
+    })
+}
+
 pub fn best_effort_runtime_subdir(subdir: &str) -> PathBuf {
     resolve_runtime_subdir(subdir).unwrap_or_else(|_| fallback_runtime_subdir(subdir))
 }
@@ -438,6 +448,52 @@ fn resolve_subdir_with_legacy_copy_from_roots(
         &[legacy_root.to_path_buf()],
         subdir,
     )
+}
+
+fn migrate_managed_project_path_to_preferred_from_source_roots(
+    path: &Path,
+    preferred_root: &Path,
+    legacy_roots: &[PathBuf],
+) -> Result<Option<PathBuf>, String> {
+    let preferred_projects_root = preferred_root.join("projects");
+    fs::create_dir_all(&preferred_projects_root).map_err(|e| {
+        format!(
+            "无法创建当前项目目录 {}: {e}",
+            preferred_projects_root.display()
+        )
+    })?;
+
+    if let Ok(relative_path) = path.strip_prefix(&preferred_projects_root) {
+        return Ok(Some(preferred_projects_root.join(relative_path)));
+    }
+
+    for legacy_root in legacy_roots {
+        let legacy_projects_root = legacy_root.join("projects");
+        let Ok(relative_path) = path.strip_prefix(&legacy_projects_root) else {
+            continue;
+        };
+
+        let target_path = preferred_projects_root.join(relative_path);
+        fs::create_dir_all(&target_path)
+            .map_err(|e| format!("无法创建项目目录 {}: {e}", target_path.display()))?;
+
+        if path.exists() && path.is_dir() {
+            copy_dir_contents_if_missing(path, &target_path)?;
+        }
+
+        return Ok(Some(target_path));
+    }
+
+    Ok(None)
+}
+
+#[cfg(test)]
+pub(crate) fn migrate_managed_project_path_to_preferred_from_roots(
+    path: &Path,
+    preferred_root: &Path,
+    legacy_roots: &[PathBuf],
+) -> Result<Option<PathBuf>, String> {
+    migrate_managed_project_path_to_preferred_from_source_roots(path, preferred_root, legacy_roots)
 }
 
 fn dir_has_entries(path: &Path) -> bool {
@@ -885,6 +941,47 @@ mod tests {
         assert_eq!(resolved, preferred_root.join("projects").join("default"));
         assert!(resolved.exists());
         assert!(resolved.is_dir());
+    }
+
+    #[test]
+    fn migrate_managed_project_path_to_preferred_remaps_proxycast_home_project() {
+        let temp = tempdir().unwrap();
+        let preferred_root = temp.path().join("appdata").join("lime");
+        let legacy_root = temp.path().join("home").join(".proxycast");
+        let legacy_project = legacy_root.join("projects").join("default");
+        fs::create_dir_all(&legacy_project).unwrap();
+        fs::write(legacy_project.join("index.md"), "# legacy").unwrap();
+
+        let resolved = migrate_managed_project_path_to_preferred_from_roots(
+            &legacy_project,
+            &preferred_root,
+            &[legacy_root],
+        )
+        .unwrap();
+
+        let expected = preferred_root.join("projects").join("default");
+        assert_eq!(resolved, Some(expected.clone()));
+        assert_eq!(
+            fs::read_to_string(expected.join("index.md")).unwrap(),
+            "# legacy"
+        );
+    }
+
+    #[test]
+    fn migrate_managed_project_path_to_preferred_ignores_custom_project() {
+        let temp = tempdir().unwrap();
+        let preferred_root = temp.path().join("appdata").join("lime");
+        let legacy_root = temp.path().join("home").join(".proxycast");
+        let custom_project = temp.path().join("workspace").join("demo");
+
+        let resolved = migrate_managed_project_path_to_preferred_from_roots(
+            &custom_project,
+            &preferred_root,
+            &[legacy_root],
+        )
+        .unwrap();
+
+        assert_eq!(resolved, None);
     }
 
     #[test]

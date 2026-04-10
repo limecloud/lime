@@ -38,11 +38,6 @@ const AutomationSettings = lazy(() =>
     default: module.AutomationSettings,
   })),
 );
-const ExecutionTrackerSettings = lazy(() =>
-  import("../system/execution-tracker").then((module) => ({
-    default: module.ExecutionTrackerSettings,
-  })),
-);
 const ExperimentalSettings = lazy(() =>
   import("../system/experimental").then((module) => ({
     default: module.ExperimentalSettings,
@@ -267,7 +262,6 @@ const ACTIVE_SETTINGS_TABS = new Set<SettingsTabs>([
   SettingsTabs.Environment,
   SettingsTabs.ChromeRelay,
   SettingsTabs.Automation,
-  SettingsTabs.ExecutionTracker,
   SettingsTabs.Experimental,
   SettingsTabs.Developer,
   SettingsTabs.About,
@@ -318,8 +312,6 @@ function preloadSettingsTab(tab: SettingsTabs): Promise<unknown> | null {
       return import("../system/chrome-relay");
     case SettingsTabs.Automation:
       return import("../system/automation");
-    case SettingsTabs.ExecutionTracker:
-      return import("../system/execution-tracker");
     case SettingsTabs.Experimental:
       return import("../system/experimental");
     case SettingsTabs.Developer:
@@ -449,12 +441,6 @@ function renderSettingsContent(
           onOpenWorkspace={() => onNavigate?.("automation")}
         />,
         "正在加载自动化设置...",
-      );
-
-    case SettingsTabs.ExecutionTracker:
-      return withSettingsContentFallback(
-        <ExecutionTrackerSettings />,
-        "正在加载执行轨迹...",
       );
 
     case SettingsTabs.Experimental:

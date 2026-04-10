@@ -169,10 +169,12 @@ describe("ProfileSettings", () => {
     await waitForLoad();
 
     const text = container.textContent ?? "";
-    expect(text).toContain("PROFILE SNAPSHOT");
+    expect(text).toContain("个人资料");
+    expect(text).toContain("管理昵称、简介、邮箱和偏好标签。");
     expect(text).toContain("张三");
     expect(text).toContain("专注 AI 产品与工程效率");
-    expect(text).toContain("资料完成度");
+    expect(text).toContain("状态：资料完整");
+    expect(text).toContain("完成度：100%");
     expect(text).toContain("偏好标签");
     expect(text).toContain("编程");
     expect(text).toContain("设计");

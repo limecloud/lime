@@ -21,7 +21,6 @@ import {
   Search,
   Variable,
   Monitor,
-  Activity,
   FlaskConical,
   Code,
   Info,
@@ -164,11 +163,6 @@ export function useSettingsCategory(): CategoryGroup[] {
           key: SettingsTabs.Automation,
           label: t("settings.tab.automation", "自动化设置"),
           icon: Bot,
-        },
-        {
-          key: SettingsTabs.ExecutionTracker,
-          label: t("settings.tab.executionTracker", "执行轨迹"),
-          icon: Activity,
         },
         {
           key: SettingsTabs.Experimental,

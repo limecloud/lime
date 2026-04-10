@@ -14,7 +14,7 @@ import type {
   AsterSandboxPolicy,
   AutoContinueRequestPayload,
   ImageInput,
-} from "./agentRuntime";
+} from "./agentRuntime/types";
 
 export interface AgentContextTraceStep {
   stage: string;

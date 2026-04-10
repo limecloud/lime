@@ -270,6 +270,7 @@ mod mcp_bridge;
 mod pdf_read_skill_launch;
 mod presentation_skill_launch;
 mod prompt_context;
+mod provider_runtime_strategy;
 mod reply_runtime;
 mod report_skill_launch;
 mod request_model_resolution;
@@ -400,6 +401,9 @@ pub(crate) use prompt_context::{
     merge_system_prompt_with_service_skill_launch,
     merge_system_prompt_with_service_skill_launch_preload,
     merge_system_prompt_with_team_preference,
+};
+pub(crate) use provider_runtime_strategy::{
+    enrich_provider_config_with_runtime_tool_strategy, RuntimeToolCallStrategy,
 };
 #[cfg(test)]
 use reply_runtime::message_suggests_live_search;

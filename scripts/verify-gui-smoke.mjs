@@ -298,9 +298,13 @@ async function resolveStartupMode(options) {
     };
   }
 
-  throw new Error(
-    `[verify:gui-smoke] 检测到已有前端 dev server 正在占用 ${options.appUrl}，但 DevBridge 尚未就绪（${options.healthUrl}）。请先关闭现有 dev server，或启动完整 headless 环境后使用 --reuse-running。`,
+  console.log(
+    `[verify:gui-smoke] 检测到已有前端 dev server 正在占用 ${options.appUrl}，但 DevBridge 尚未就绪；将继续拉起 headless Tauri，并复用现有前端壳。`,
   );
+  return {
+    shouldStart: true,
+    reusedExisting: false,
+  };
 }
 
 async function main() {

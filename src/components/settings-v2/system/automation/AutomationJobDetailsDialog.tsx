@@ -3,6 +3,7 @@ import type { AutomationJobRecord } from "@/lib/api/automation";
 import type { AgentRun } from "@/lib/api/executionRun";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
   Dialog,
   DialogContent,
@@ -70,19 +71,47 @@ export function AutomationJobDetailsDialog({
         {job ? (
           <div
             data-testid="automation-job-details-dialog"
-            className="flex max-h-[calc(100vh-32px)] flex-col rounded-[28px] bg-[linear-gradient(135deg,rgba(246,250,244,0.96)_0%,rgba(255,255,255,0.98)_48%,rgba(241,247,255,0.98)_100%)]"
+            className="flex max-h-[calc(100vh-32px)] flex-col rounded-[28px] bg-white"
           >
-            <DialogHeader className="shrink-0 border-b border-slate-200/70 px-4 py-4 sm:px-6 sm:py-5">
-              <DialogTitle>任务详情与历史</DialogTitle>
-              <DialogDescription className="space-y-1 text-sm leading-6 text-slate-500">
-                <span className="block font-medium text-slate-900">
-                  {job.name}
-                </span>
-                <span className="block">
-                  {workspaceName ?? job.workspace_id} · {describeSchedule(job)}{" "}
-                  · {payloadKindLabel(job.payload.kind)}
-                </span>
-              </DialogDescription>
+            <DialogHeader className="shrink-0 border-b border-slate-200/70 bg-white px-4 py-4 sm:px-6 sm:py-5">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <DialogTitle className="text-[22px] font-semibold tracking-tight text-slate-900">
+                    任务详情与历史
+                  </DialogTitle>
+                  <WorkbenchInfoTip
+                    ariaLabel="任务详情说明"
+                    content="查看任务状态、输出投递和最近运行历史；需要迁移旧浏览器任务时，也在这里确认遗留配置和风险提示。"
+                    tone="mint"
+                  />
+                </div>
+                <DialogDescription className="text-sm text-slate-500">
+                  查看任务状态、输出投递和最近运行历史。
+                </DialogDescription>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                    任务：{job.name}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                    工作区：{workspaceName ?? job.workspace_id}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                    调度：{describeSchedule(job)}
+                  </span>
+                  <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700">
+                    类型：{payloadKindLabel(job.payload.kind)}
+                  </span>
+                  <span
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                      isLegacyBrowserAutomation(job)
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : "border-slate-200 bg-slate-50 text-slate-600"
+                    }`}
+                  >
+                    状态：{statusLabel(job.last_status)}
+                  </span>
+                </div>
+              </div>
             </DialogHeader>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-5">

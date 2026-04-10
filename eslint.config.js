@@ -471,7 +471,7 @@ const agentRuntimeCommandSelectors = [
 ].map((command) => ({
   selector: `CallExpression[callee.name='safeInvoke'][arguments.0.value='${command}'], CallExpression[callee.name='invoke'][arguments.0.value='${command}']`,
   message:
-    "agent runtime 命令只允许集中放在 `src/lib/api/agentRuntime.ts`；旧 agent_/aster_ 命令已废弃，禁止在业务模块直接扩散。",
+    "agent runtime 命令只允许集中放在 `src/lib/api/agentRuntime` 网关目录；旧 agent_/aster_ 命令已废弃，禁止在业务模块直接扩散。",
 }));
 
 const projectGatewayCommandSelectors = [
@@ -1158,6 +1158,7 @@ export default [
   {
     files: [
       "src/lib/api/agentRuntime.ts",
+      "src/lib/api/agentRuntime/**/*.ts",
       "src/lib/api/agentCompat.ts",
       "src/lib/api/project.ts",
       "src/lib/api/materials.ts",
@@ -1202,6 +1203,46 @@ export default [
     ],
     rules: {
       "no-restricted-syntax": "off",
+    },
+  },
+  {
+    files: ["src/lib/api/agentRuntime/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "../agentRuntime",
+              message:
+                "agentRuntime 目录内部已收敛到 `./types` + 分域 client；禁止再回绕 compat 根入口 `../agentRuntime`。",
+            },
+            {
+              name: "@/lib/api/agentRuntime",
+              message:
+                "agentRuntime 目录内部已收敛到 `./types` + 分域 client；禁止再通过 alias 根入口回绕 compat barrel。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/lib/api/*.ts"],
+    ignores: ["src/lib/api/agentRuntime.ts", "src/lib/api/agent.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "./agentRuntime",
+              message:
+                "src/lib/api 根层如需复用 agent runtime，请直接依赖 `./agentRuntime/types` 或具体分域 client，不要回绕 compat barrel `./agentRuntime`。",
+            },
+          ],
+        },
+      ],
     },
   },
 ];

@@ -761,7 +761,7 @@ pub fn get_system_providers() -> Vec<SystemProviderDef> {
             id: "ollama",
             name: "Ollama",
             provider_type: ApiProviderType::Ollama,
-            api_host: "http://localhost:11434",
+            api_host: "http://127.0.0.1:11434",
             group: ProviderGroup::Local,
             sort_order: 56,
             api_version: None,

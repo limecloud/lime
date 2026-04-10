@@ -456,6 +456,10 @@ describe("ChromeRelaySettings", () => {
     await flushEffects();
 
     expect(container.textContent).toContain("核心设置");
+    expect(container.textContent).toContain("连接器");
+    expect(container.textContent).toContain(
+      "管理扩展安装、连接器状态和桥接能力。",
+    );
     expect(container.textContent).toContain("安装 Lime Browser Bridge");
     expect(container.textContent).not.toContain("连接方式");
     expect(container.textContent).not.toContain("高级控制");

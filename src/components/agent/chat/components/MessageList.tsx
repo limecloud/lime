@@ -42,7 +42,7 @@ import {
   sanitizeContentPartsForDisplay,
   sanitizeMessageTextForDisplay,
 } from "../utils/internalImagePlaceholder";
-import { isHiddenInternalArtifactPath } from "../utils/internalArtifactVisibility";
+import { isHiddenConversationArtifactPath } from "../utils/internalArtifactVisibility";
 import { isInternalRoutingTurnSummaryText } from "../utils/turnSummaryPresentation";
 import {
   Message,
@@ -62,8 +62,15 @@ import type {
 } from "@/lib/api/agentRuntime";
 import { buildMessageTurnTimeline } from "../utils/threadTimelineView";
 import { buildMessageTurnGroups } from "../utils/messageTurnGrouping";
+import { resolveLatestProjectFileSavedSiteContentTargetFromMessage } from "../utils/latestSavedSiteContentTarget";
+import {
+  resolveSiteSavedContentTargetDisplayName,
+  resolveSiteSavedContentTargetRelativePath,
+} from "../utils/siteToolResultSummary";
 import logoImg from "/logo.png";
-import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
+import {
+  type ArtifactTimelineOpenTarget,
+} from "../utils/artifactTimelineNavigation";
 
 interface MessageListProps {
   messages: Message[];
@@ -154,6 +161,56 @@ interface MessageListProps {
 
 function isDeferredTimelineItem(item: AgentThreadItem): boolean {
   return item.type === "file_artifact" || item.type === "turn_summary";
+}
+
+function normalizeDeferredArtifactPath(path?: string | null): string {
+  return (path || "").trim().replace(/\\/g, "/").toLowerCase();
+}
+
+function scoreDeferredArtifactItem(
+  item: Extract<AgentThreadItem, { type: "file_artifact" }>,
+): number {
+  const contentScore = (item.content || "").trim().length;
+  const completedAt = Date.parse(item.completed_at || item.updated_at || "");
+  const timestampScore = Number.isFinite(completedAt) ? completedAt : 0;
+  return contentScore * 1_000_000_000 + timestampScore;
+}
+
+function dedupeDeferredTimelineItems(
+  items: AgentThreadItem[],
+): AgentThreadItem[] {
+  const deduped: AgentThreadItem[] = [];
+  const artifactIndexByPath = new Map<string, number>();
+
+  for (const item of items) {
+    if (item.type !== "file_artifact") {
+      deduped.push(item);
+      continue;
+    }
+
+    const normalizedPath = normalizeDeferredArtifactPath(item.path);
+    if (!normalizedPath) {
+      deduped.push(item);
+      continue;
+    }
+
+    const existingIndex = artifactIndexByPath.get(normalizedPath);
+    if (existingIndex === undefined) {
+      artifactIndexByPath.set(normalizedPath, deduped.length);
+      deduped.push(item);
+      continue;
+    }
+
+    const existingItem = deduped[existingIndex];
+    if (
+      existingItem?.type !== "file_artifact" ||
+      scoreDeferredArtifactItem(item) >= scoreDeferredArtifactItem(existingItem)
+    ) {
+      deduped[existingIndex] = item;
+    }
+  }
+
+  return deduped;
 }
 
 function shouldRenderConversationTimelineItem(
@@ -523,7 +580,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
         })
       : [];
     const trailingTimelineItems = timeline
-      ? timelineConversationItems.filter((item) => isDeferredTimelineItem(item))
+      ? dedupeDeferredTimelineItems(
+          timelineConversationItems.filter((item) => isDeferredTimelineItem(item)),
+        ).filter(
+          (item) =>
+            item.type !== "file_artifact" ||
+            !isHiddenConversationArtifactPath(item.path),
+        )
       : [];
     const primaryTimeline =
       timeline && primaryTimelineItems.length > 0
@@ -533,6 +596,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
       timeline && trailingTimelineItems.length > 0
         ? { ...timeline, items: trailingTimelineItems }
         : null;
+    const hasTrailingArtifactTimelineItems = trailingTimelineItems.some(
+      (item) => item.type === "file_artifact",
+    );
     const timelineActionRequests = inlineProcessCoverage.actionRequestCounts.size
       ? undefined
       : msg.actionRequests;
@@ -571,6 +637,22 @@ const MessageListInner: React.FC<MessageListProps> = ({
       (msg.role === "user" && (canQuoteMessage || canCopyMessage)) ||
       canSaveMessageAsSkill ||
       canSaveMessageAsInspiration;
+    const messageSavedSiteContentTarget =
+      msg.role === "assistant"
+        ? resolveLatestProjectFileSavedSiteContentTargetFromMessage(msg)
+        : null;
+    const shouldRenderMessageCanvasShortcut = Boolean(
+      messageSavedSiteContentTarget &&
+        onOpenSavedSiteContent &&
+        !hasTrailingArtifactTimelineItems,
+    );
+    const messageCanvasShortcutTitle = messageSavedSiteContentTarget
+      ? resolveSiteSavedContentTargetDisplayName(messageSavedSiteContentTarget) ||
+        "导出稿"
+      : "文件";
+    const messageCanvasShortcutPath = messageSavedSiteContentTarget
+      ? resolveSiteSavedContentTargetRelativePath(messageSavedSiteContentTarget)
+      : null;
 
     return (
       <MessageWrapper
@@ -653,6 +735,36 @@ const MessageListInner: React.FC<MessageListProps> = ({
                       : undefined
                   }
                 />
+                {shouldRenderMessageCanvasShortcut ? (
+                  <button
+                    type="button"
+                    className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2.5 text-left transition-colors hover:bg-emerald-100/80"
+                    data-testid="message-canvas-shortcut"
+                    onClick={() => {
+                      if (
+                        messageSavedSiteContentTarget &&
+                        onOpenSavedSiteContent
+                      ) {
+                        onOpenSavedSiteContent(messageSavedSiteContentTarget);
+                      }
+                    }}
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700">
+                      <FileText className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium leading-6 text-emerald-900">
+                        在画布中打开 {messageCanvasShortcutTitle}
+                      </span>
+                      {messageCanvasShortcutPath ? (
+                        <span className="block truncate text-xs leading-5 text-emerald-700/80">
+                          {messageCanvasShortcutPath}
+                        </span>
+                      ) : null}
+                    </span>
+                    <ExternalLink className="h-4 w-4 shrink-0 text-emerald-700" />
+                  </button>
+                ) : null}
                 {msg.imageWorkbenchPreview ? (
                   <ImageWorkbenchMessagePreview
                     preview={msg.imageWorkbenchPreview}
@@ -837,7 +949,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
     const visibleArtifacts =
       artifacts?.filter(
         (artifact) =>
-          !isHiddenInternalArtifactPath(
+          !isHiddenConversationArtifactPath(
             resolveArtifactProtocolFilePath(artifact),
           ),
       ) || [];
@@ -865,11 +977,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
               onClick={() => onArtifactClick?.(artifact)}
               className="w-full flex items-center gap-3 rounded-lg border border-border/70 bg-background/70 px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-background"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary shrink-0">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                 {artifact.status === "streaming" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <FileText className="w-4 h-4" />
+                  <FileText className="h-4 w-4" />
                 )}
               </div>
               <div className="min-w-0 flex-1">
@@ -894,8 +1006,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
                   ) : null}
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+              <div className="flex shrink-0 items-center gap-2">
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
               </div>
             </button>
           );

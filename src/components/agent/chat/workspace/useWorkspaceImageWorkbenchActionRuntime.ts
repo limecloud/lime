@@ -7,7 +7,6 @@ import {
 } from "react";
 import { toast } from "sonner";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
-import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import type {
   CreateImageGenerationTaskArtifactRequest,
   MediaTaskArtifactOutput,
@@ -63,7 +62,6 @@ interface UseWorkspaceImageWorkbenchActionRuntimeParams {
   ) => Promise<boolean>;
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
   setInput: Dispatch<SetStateAction<string>>;
-  setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
   updateCurrentImageWorkbenchState: (
     updater: (
       current: SessionImageWorkbenchState,
@@ -269,7 +267,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
   submitImageWorkbenchAgentCommand,
   setCanvasState,
   setInput,
-  setLayoutMode,
   updateCurrentImageWorkbenchState,
 }: UseWorkspaceImageWorkbenchActionRuntimeParams) {
   const resolveImageWorkbenchSessionKey = useCallback(
@@ -611,7 +608,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
         ...current,
         active: false,
       }));
-      setLayoutMode("chat-canvas");
       toast.success(applyTarget.successLabel);
       return;
     }
@@ -636,7 +632,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
       ...current,
       active: false,
     }));
-    setLayoutMode("chat-canvas");
     toast.info(applyTarget.dispatchLabel);
   }, [
     contentId,
@@ -644,7 +639,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
     currentImageWorkbenchState.selectedOutputId,
     projectId,
     setCanvasState,
-    setLayoutMode,
     updateCurrentImageWorkbenchState,
   ]);
 

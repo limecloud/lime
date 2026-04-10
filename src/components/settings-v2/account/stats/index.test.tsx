@@ -158,10 +158,13 @@ describe("StatsSettings", () => {
     await waitForLoad();
 
     const text = container.textContent ?? "";
-    expect(text).toContain("USAGE SNAPSHOT");
+    expect(text).toContain("数据统计");
+    expect(text).toContain("查看当前区间的使用强度、模型分布和趋势。");
+    expect(text).toContain("当前统计口径：本月");
     expect(text).toContain("阶段概览");
     expect(text).toContain("模型使用排行");
     expect(text).toContain("当前观察");
+    expect(text).toContain("主力模型：gpt-4.1");
     expect(text).toContain("每日使用趋势");
     expect(text).toContain("活跃度日历");
     expect(text).toContain("gpt-4.1");
@@ -192,12 +195,12 @@ describe("StatsSettings", () => {
     await waitForLoad();
 
     expect(getBodyText()).not.toContain(
-      "将当前区间的 Token 消耗、活跃天数与主力模型放在同一个视图里，方便快速判断近期是否进入高频使用状态。",
+      "管理当前区间的 Token 消耗、活跃天数、模型分布和趋势观察。",
     );
 
     const heroTip = await hoverTip("使用统计总览说明");
     expect(getBodyText()).toContain(
-      "将当前区间的 Token 消耗、活跃天数与主力模型放在同一个视图里，方便快速判断近期是否进入高频使用状态。",
+      "管理当前区间的 Token 消耗、活跃天数、模型分布和趋势观察。",
     );
     await leaveTip(heroTip);
 

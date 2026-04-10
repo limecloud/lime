@@ -24,12 +24,14 @@ vi.mock("@/lib/dev-bridge", () => ({
 }));
 
 type HookProps = Parameters<typeof useTeamWorkspaceRuntime>[0];
+type HookDeps = Parameters<typeof useTeamWorkspaceRuntime>[1];
 
 let latestValue: ReturnType<typeof useTeamWorkspaceRuntime> | null = null;
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
-function HookProbe(props: HookProps) {
-  latestValue = useTeamWorkspaceRuntime(props);
+function HookProbe(props: HookProps & { deps?: HookDeps }) {
+  const { deps, ...hookProps } = props;
+  latestValue = useTeamWorkspaceRuntime(hookProps, deps);
   return null;
 }
 
@@ -40,7 +42,7 @@ async function flushHookEffects() {
   });
 }
 
-async function renderHookProbe(props?: Partial<HookProps>) {
+async function renderHookProbe(props?: Partial<HookProps>, deps?: HookDeps) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -64,7 +66,14 @@ async function renderHookProbe(props?: Partial<HookProps>) {
 
   const render = async (nextProps?: Partial<HookProps>) => {
     await act(async () => {
-      root.render(<HookProbe {...defaultProps} {...props} {...nextProps} />);
+      root.render(
+        <HookProbe
+          {...defaultProps}
+          {...props}
+          {...nextProps}
+          deps={deps}
+        />,
+      );
       await Promise.resolve();
     });
     await flushHookEffects();
@@ -170,6 +179,63 @@ describe("useTeamWorkspaceRuntime", () => {
     );
   });
 
+  it("注入自定义 eventSource 时，不应再直接依赖默认 safeListen", async () => {
+    const statusListeners = new Map<string, (event: { payload: unknown }) => void>();
+    const streamListeners = new Map<string, (event: { payload: unknown }) => void>();
+    const eventSource = {
+      listenSubagentStatus: vi.fn(
+        async (
+          sessionId: string,
+          handler: (event: { payload: unknown }) => void,
+        ) => {
+          statusListeners.set(sessionId, handler);
+          return () => {
+            statusListeners.delete(sessionId);
+          };
+        },
+      ),
+      listenSubagentStream: vi.fn(
+        async (
+          sessionId: string,
+          handler: (event: { payload: unknown }) => void,
+        ) => {
+          streamListeners.set(sessionId, handler);
+          return () => {
+            streamListeners.delete(sessionId);
+          };
+        },
+      ),
+    };
+
+    await renderHookProbe(undefined, { eventSource });
+
+    expect(mockSafeListen).not.toHaveBeenCalled();
+    expect(eventSource.listenSubagentStatus).toHaveBeenCalledWith(
+      "parent-1",
+      expect.any(Function),
+    );
+    expect(eventSource.listenSubagentStream).toHaveBeenCalledWith(
+      "child-1",
+      expect.any(Function),
+    );
+
+    await act(async () => {
+      statusListeners.get("parent-1")?.({
+        payload: {
+          type: "subagent_status_changed",
+          session_id: "child-1",
+          root_session_id: "parent-1",
+          status: "running",
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(latestValue?.liveRuntimeBySessionId["child-1"]?.runtimeStatus).toBe(
+      "running",
+    );
+  });
+
   it("收到子代理 runtime stream 事件后，应投影最近过程，并在关键完成事件后递增刷新版本", async () => {
     const listeners = new Map<string, (event: { payload: unknown }) => void>();
     mockSafeListen.mockImplementation(
@@ -203,11 +269,11 @@ describe("useTeamWorkspaceRuntime", () => {
     });
 
     expect(latestValue?.liveActivityBySessionId["child-1"]?.[0]?.title).toBe(
-      "处理中 · browser_snapshot",
+      "处理中 · 页面截图",
     );
     expect(
       latestValue?.liveActivityBySessionId["child-1"]?.[0]?.detail,
-    ).toContain("正在处理 browser_snapshot");
+    ).toContain("正在处理 页面截图");
     expect(latestValue?.activityRefreshVersionBySessionId["child-1"] ?? 0).toBe(
       0,
     );
@@ -227,7 +293,7 @@ describe("useTeamWorkspaceRuntime", () => {
     });
 
     expect(latestValue?.liveActivityBySessionId["child-1"]?.[0]?.title).toBe(
-      "处理中 · browser_snapshot",
+      "处理中 · 页面截图",
     );
     expect(
       latestValue?.liveActivityBySessionId["child-1"]?.[0]?.detail,

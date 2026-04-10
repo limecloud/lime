@@ -615,7 +615,7 @@ export const SYSTEM_PROVIDERS: Record<SystemProviderId, ProviderConfig> = {
     id: "ollama",
     name: "Ollama",
     type: "ollama",
-    apiHost: "http://localhost:11434",
+    apiHost: "http://127.0.0.1:11434",
     isSystem: true,
     group: "local",
     enabled: false,

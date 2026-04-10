@@ -115,7 +115,7 @@ describe("ServiceSkillExecutionCard", () => {
 
     expect(container.textContent).toContain("已沉淀内容：GitHub 仓库线索");
     expect(container.textContent).toContain(
-      "项目目录：/Users/coso/.proxycast/projects/project-1",
+      "项目目录：/Users/coso/Library/Application Support/lime/projects/project-1",
     );
     expect(container.textContent).toContain(
       "Markdown 文件：exports/x-article-export/github-mcp/index.md",
@@ -161,7 +161,7 @@ describe("ServiceSkillExecutionCard", () => {
       '[data-testid="service-skill-execution-open-saved-content"]',
     ) as HTMLButtonElement | null;
 
-    expect(button?.textContent).toContain("在下方预览导出 Markdown");
+    expect(button?.textContent).toContain("查看采集源 Markdown");
 
     act(() => {
       button?.click();
@@ -176,5 +176,52 @@ describe("ServiceSkillExecutionCard", () => {
         relativePath: "exports/x-article-export/google-cloud/index.md",
       },
     });
+  });
+
+  it("存在更正式的结果文件时应优先打开结果文件", () => {
+    const onOpenResultFile = vi.fn();
+    const onOpenSavedSiteContent = vi.fn();
+    const container = renderCard({
+      onOpenResultFile,
+      onOpenSavedSiteContent,
+      preferredResultFileTarget: {
+        relativePath: "workspace/index.md",
+        title: "index.md",
+      },
+      state: {
+        phase: "success",
+        adapterName: "x/article-export",
+        skillTitle: "X 文章转存",
+        message: "站点技能已完成，后续技能包已落盘",
+        result: {
+          ok: true,
+          adapter: "x/article-export",
+          domain: "x.com",
+          profile_key: "attached-x",
+          entry_url:
+            "https://x.com/GoogleCloudTech/article/2033953579824758855",
+          saved_content: {
+            content_id: "content-article-1",
+            project_id: "project-article-1",
+            title: "Google Cloud Tech 文章导出",
+            markdown_relative_path:
+              "exports/x-article-export/google-cloud/index.md",
+          },
+        },
+      },
+    });
+
+    const button = container.querySelector(
+      '[data-testid="service-skill-execution-open-saved-content"]',
+    ) as HTMLButtonElement | null;
+
+    expect(button?.textContent).toContain("打开结果文件 index.md");
+
+    act(() => {
+      button?.click();
+    });
+
+    expect(onOpenResultFile).toHaveBeenCalledWith("workspace/index.md");
+    expect(onOpenSavedSiteContent).not.toHaveBeenCalled();
   });
 });

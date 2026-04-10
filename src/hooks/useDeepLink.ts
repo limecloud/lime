@@ -9,6 +9,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { safeInvoke, safeListen } from "@/lib/dev-bridge";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrent } from "@tauri-apps/plugin-deep-link";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 import {
   completeOemCloudDesktopOAuthLogin,
   parseOemCloudDesktopOAuthCallbackUrl,
@@ -268,6 +270,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
   // 用于清理的 ref
   const unlistenRef = useRef<UnlistenFn | null>(null);
   const unlistenErrorRef = useRef<UnlistenFn | null>(null);
+  const handledUrlSetRef = useRef<Set<string>>(new Set());
 
   // 统计回调 hook
   const { sendSuccessCallback, sendCancelledCallback, sendErrorCallback } =
@@ -337,6 +340,57 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
 
     return true;
   }, []);
+
+  const processDeepLinkUrl = useCallback(
+    async (url: string) => {
+      const normalizedUrl = String(url || "").trim();
+      if (!normalizedUrl) {
+        return;
+      }
+
+      if (handledUrlSetRef.current.has(normalizedUrl)) {
+        return;
+      }
+      handledUrlSetRef.current.add(normalizedUrl);
+
+      if (handledUrlSetRef.current.size > 32) {
+        const oldestHandledUrl = handledUrlSetRef.current.values().next().value;
+        if (oldestHandledUrl) {
+          handledUrlSetRef.current.delete(oldestHandledUrl);
+        }
+      }
+
+      const connectorParams = parseBrowserConnectorDeepLink(normalizedUrl);
+      if (connectorParams) {
+        onOpenBrowserConnectorSettings?.(connectorParams);
+        return;
+      }
+
+      if (await handleOauthCallbackUrl(normalizedUrl)) {
+        return;
+      }
+
+      if (!normalizedUrl.startsWith("lime://connect")) {
+        return;
+      }
+
+      try {
+        const result = await safeInvoke<DeepLinkResult>("handle_deep_link", {
+          url: normalizedUrl,
+        });
+        handleDeepLinkEvent(result);
+      } catch (err) {
+        console.error("[useDeepLink] 处理 Deep Link 失败:", err);
+        const connectError = err as ConnectError;
+        showDeepLinkError(connectError.message, connectError.code);
+      }
+    },
+    [
+      handleDeepLinkEvent,
+      handleOauthCallbackUrl,
+      onOpenBrowserConnectorSettings,
+    ],
+  );
 
   /**
    * 确认添加 API Key
@@ -439,6 +493,12 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
   // 监听 Deep Link URL 和后端事件
   // _Requirements: 5.1, 7.1_
   useEffect(() => {
+    // 浏览器开发模式下 deep-link 事件不属于当前聊天主链，
+    // 跳过这些 SSE 监听以避免占满 DevBridge 连接槽位。
+    if (!hasTauriInvokeCapability()) {
+      return;
+    }
+
     let mounted = true;
     let unlistenDeepLink: (() => void) | null = null;
 
@@ -455,35 +515,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
             console.log("[useDeepLink] 收到 Deep Link URL:", urls);
 
             for (const url of urls) {
-              const connectorParams = parseBrowserConnectorDeepLink(url);
-              if (connectorParams) {
-                onOpenBrowserConnectorSettings?.(connectorParams);
-                continue;
-              }
-
-              if (await handleOauthCallbackUrl(url)) {
-                continue;
-              }
-
-              if (!url.startsWith("lime://connect")) {
-                continue;
-              }
-
-              try {
-                const result = await safeInvoke<DeepLinkResult>(
-                  "handle_deep_link",
-                  { url },
-                );
-                if (mounted) {
-                  handleDeepLinkEvent(result);
-                }
-              } catch (err) {
-                console.error("[useDeepLink] 处理 Deep Link 失败:", err);
-                if (mounted) {
-                  const connectError = err as ConnectError;
-                  showDeepLinkError(connectError.message, connectError.code);
-                }
-              }
+              await processDeepLinkUrl(url);
             }
           },
         );
@@ -513,6 +545,14 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
           unlistenRef.current = unlisten;
           unlistenErrorRef.current = unlistenError;
           console.log("[useDeepLink] 已注册 Deep Link 和事件监听器");
+
+          const currentUrls = await getCurrent();
+          if (mounted && Array.isArray(currentUrls) && currentUrls.length > 0) {
+            console.log("[useDeepLink] 读取启动时 Deep Link URL:", currentUrls);
+            for (const url of currentUrls) {
+              await processDeepLinkUrl(url);
+            }
+          }
         } else {
           // 如果组件已卸载，立即取消监听
           unlisten();
@@ -546,6 +586,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
     handleDeepLinkEvent,
     handleDeepLinkError,
     handleOauthCallbackUrl,
+    processDeepLinkUrl,
     onOpenBrowserConnectorSettings,
   ]);
 

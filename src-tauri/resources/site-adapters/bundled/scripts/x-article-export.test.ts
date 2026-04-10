@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 const runnerSource = fs.readFileSync(
   path.resolve(
-    process.cwd(),
+    globalThis.process?.cwd() || "",
     "src-tauri/resources/site-adapters/bundled/scripts/x-article-export.js",
   ),
   "utf8",
@@ -293,6 +293,77 @@ description: Generates API documentation from source.</div>
     expect(result.data?.markdown).toContain("# skills/doc-pipeline/SKILL.md");
     expect(result.data?.markdown).toContain("![Pipeline diagram]");
     expect(result.data?.images).toHaveLength(1);
+  });
+
+  it("会在长文先渲染纯文本骨架时执行二次预热并补回图片与代码块", async () => {
+    const repeatedParagraph =
+      "This section explains why agents need structured skills, reusable templates, and review gates. ".repeat(
+        24,
+      );
+    document.body.innerHTML = `
+      <div data-testid="twitterArticleReadView">
+        <div data-testid="twitter-article-title">Structured recovery export</div>
+        <div data-testid="longformRichTextComponent">
+          <div data-contents="true">
+            <div><span>${repeatedParagraph}</span></div>
+            <div><span>## Pattern 1: The Tool Wrapper</span></div>
+            <div><span>Here is the first rich example block:</span></div>
+            <div id="late-rich-content"></div>
+            <div><span>## Pattern 2: The Generator</span></div>
+            <div><span>${repeatedParagraph}</span></div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    let scrollCallCount = 0;
+    const result = await xArticleExportRunner(
+      {
+        url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
+      },
+      createHelpers({
+        async scrollUntilSettled() {
+          scrollCallCount += 1;
+          if (scrollCallCount === 2) {
+            const lateRichContent = document.querySelector("#late-rich-content");
+            if (lateRichContent) {
+              lateRichContent.innerHTML = `
+                <div data-testid="tweetPhoto">
+                  <img
+                    alt="Late skill diagram"
+                    src="https://pbs.twimg.com/media/late-skill-diagram?format=png&name=small"
+                  />
+                </div>
+                <div
+                  class="late-code-shell"
+                  data-language="markdown"
+                  style="white-space: pre-wrap; font-family: Menlo, monospace;"
+                ># skills/late-loader/SKILL.md
+---
+name: late-loader
+description: Recovers delayed rich content after a second warmup pass.</div>
+              `;
+            }
+          }
+          return {
+            scrolls: 6,
+            scrollY: 1200,
+            scrollHeight: 4200,
+            stableCount: 1,
+          };
+        },
+      }),
+    );
+
+    expect(scrollCallCount).toBeGreaterThanOrEqual(2);
+    expect(result.ok).toBe(true);
+    expect(result.data?.markdown).toContain("![Late skill diagram]");
+    expect(result.data?.markdown).toContain("```markdown");
+    expect(result.data?.markdown).toContain("# skills/late-loader/SKILL.md");
+    expect(result.data?.images).toHaveLength(1);
+    expect(result.data?.images?.[0]?.url).toContain(
+      "https://pbs.twimg.com/media/late-skill-diagram?format=png&name=orig",
+    );
   });
 
   it("能兼容真实 X 长文常见的 twitterArticleRichTextView 结构并保留封面图", async () => {

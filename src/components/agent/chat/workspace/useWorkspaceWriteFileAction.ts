@@ -34,17 +34,6 @@ import type { ApplyArtifactViewMode } from "./useWorkspaceArtifactViewModeContro
 
 const shouldLogWorkspaceWriteInfo = import.meta.env.MODE !== "test";
 
-function shouldAutoOpenCanvasForActiveWrite(
-  status: Artifact["status"] | undefined,
-  writePhase: unknown,
-): boolean {
-  return (
-    status === "streaming" ||
-    writePhase === "preparing" ||
-    writePhase === "streaming"
-  );
-}
-
 function shouldSkipGeneralArtifactWrite(params: {
   fileName: string;
   content: string;
@@ -183,8 +172,6 @@ export function useWorkspaceWriteFileAction({
   upsertGeneralArtifact,
   setSelectedArtifactId,
   setArtifactViewMode,
-  setLayoutMode,
-  suppressCanvasAutoOpen,
   completeStep,
   setTaskFiles,
   setSelectedFileId,
@@ -198,12 +185,6 @@ export function useWorkspaceWriteFileAction({
         content.length,
         "字符",
       );
-      const shouldAutoOpenCanvas =
-        !suppressCanvasAutoOpen &&
-        shouldAutoOpenCanvasForActiveWrite(
-          context?.status,
-          context?.metadata?.writePhase,
-        );
 
       if (activeTheme === "general" && !isThemeWorkbench) {
         const existingArtifact = artifacts.find((artifact) => {
@@ -300,15 +281,6 @@ export function useWorkspaceWriteFileAction({
             }),
             { artifactId: nextArtifact.id },
           );
-          if (
-            !suppressCanvasAutoOpen &&
-            shouldAutoOpenCanvasForActiveWrite(
-              nextArtifact.status,
-              nextArtifact.meta.writePhase,
-            )
-          ) {
-            setLayoutMode("chat-canvas");
-          }
         }
         return;
       }
@@ -621,10 +593,6 @@ export function useWorkspaceWriteFileAction({
           content,
         };
       });
-
-      if (shouldAutoOpenCanvas) {
-        setLayoutMode("chat-canvas");
-      }
     },
     [
       activeTheme,
@@ -642,12 +610,10 @@ export function useWorkspaceWriteFileAction({
       setArtifactViewMode,
       setCanvasState,
       setDocumentVersionStatusMap,
-      setLayoutMode,
       setSelectedArtifactId,
       setSelectedFileId,
       setTaskFiles,
       socialStageLogRef,
-      suppressCanvasAutoOpen,
       syncGeneralArtifactToResource,
       taskFilesRef,
       themeWorkbenchActiveQueueItem,

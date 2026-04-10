@@ -136,92 +136,90 @@ export function SettingsHomePage({
 
   return (
     <div className="space-y-6 pb-8">
-      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-3xl space-y-3">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                SETTINGS OVERVIEW
-              </span>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                    设置首页
-                  </h1>
-                  <WorkbenchInfoTip
-                    ariaLabel="设置首页说明"
-                    content="在一个总览页里快速进入常用设置，减少在多层菜单之间来回寻找。"
-                    tone="mint"
-                  />
-                </div>
-              </div>
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                设置首页
+              </h1>
+              <WorkbenchInfoTip
+                ariaLabel="设置首页说明"
+                content="快速进入常用设置并查看各分组入口，减少在多层菜单之间来回寻找。"
+                tone="mint"
+              />
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[420px]">
-              <div className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <span>设置分组</span>
-                  <WorkbenchInfoTip
-                    ariaLabel="设置分组说明"
-                    content="账号、通用、智能体、系统。"
-                    tone="slate"
-                  />
-                </div>
-                <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
-                  {overview.visibleGroups.length}
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <span>可配置项</span>
-                  <WorkbenchInfoTip
-                    ariaLabel="可配置项说明"
-                    content="当前设置中心入口总数。"
-                    tone="slate"
-                  />
-                </div>
-                <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
-                  {overview.totalItems}
-                </p>
-              </div>
-              <div className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <span>实验功能</span>
-                  <WorkbenchInfoTip
-                    ariaLabel="实验功能说明"
-                    content="需要额外关注稳定性的入口。"
-                    tone="slate"
-                  />
-                </div>
-                <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
-                  {overview.experimentalCount}
-                </p>
-              </div>
-            </div>
+            <p className="text-sm text-slate-500">
+              快速进入常用设置并查看各分组入口。
+            </p>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-              <Sparkles className="h-4 w-4 text-emerald-600" />
-              常用入口
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              设置分组：{overview.visibleGroups.length}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              可配置项：{overview.totalItems}
+            </span>
+            <span
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                overview.experimentalCount > 0
+                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              实验功能：{overview.experimentalCount}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              常用入口：
+              {overview.quickAccessItems.length + (onOpenCompanion ? 1 : 0)}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {overview.quickAccessItems.length > 0 || onOpenCompanion ? (
+        <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <Sparkles className="h-4 w-4 text-emerald-600" />
+                常用入口
+                <WorkbenchInfoTip
+                  ariaLabel="常用入口说明"
+                  content="把最常走的页面留在首屏，进入后再展开更细的设置项。"
+                  tone="slate"
+                />
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                把高频页面放在首屏，减少设置中心内部跳转成本。
+              </p>
             </div>
-            <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-              {overview.quickAccessItems.map((item) => {
-                const meta = quickAccessMeta[item.key];
-                if (!meta) {
-                  return null;
-                }
-                const ItemIcon = meta.icon;
-                return (
+
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+              {overview.quickAccessItems.length + (onOpenCompanion ? 1 : 0)} 项
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+            {overview.quickAccessItems.map((item) => {
+              const meta = quickAccessMeta[item.key];
+              if (!meta) {
+                return null;
+              }
+              const ItemIcon = meta.icon;
+              return (
+                <article
+                  key={item.key}
+                  className="group rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                >
                   <button
-                    key={item.key}
+                    type="button"
                     onMouseEnter={() => onTabPrefetch?.(item.key)}
                     onMouseDown={() => onTabPrefetch?.(item.key)}
                     onFocus={() => onTabPrefetch?.(item.key)}
                     onClick={() => onTabChange(item.key)}
-                    className="group rounded-[22px] border border-white/90 bg-white/90 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                    className="w-full text-left"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-700">
@@ -230,26 +228,29 @@ export function SettingsHomePage({
                       <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-600" />
                     </div>
                     <p className="mt-4 text-base font-semibold text-slate-900">
-                      <span className="inline-flex items-center gap-2">
-                        <span>{meta.title}</span>
-                        <WorkbenchInfoTip
-                          ariaLabel={`${meta.title}说明`}
-                          content={meta.description}
-                          tone="slate"
-                        />
-                      </span>
+                      {meta.title}
                     </p>
                   </button>
-                );
-              })}
-              {onOpenCompanion ? (
+
+                  <div className="mt-3 flex justify-end">
+                    <WorkbenchInfoTip
+                      ariaLabel={`${meta.title}说明`}
+                      content={meta.description}
+                      tone="slate"
+                    />
+                  </div>
+                </article>
+              );
+            })}
+            {onOpenCompanion ? (
+              <article className="group rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
                 <button
                   type="button"
                   onMouseEnter={() => onTabPrefetch?.(SettingsTabs.Providers)}
                   onMouseDown={() => onTabPrefetch?.(SettingsTabs.Providers)}
                   onFocus={() => onTabPrefetch?.(SettingsTabs.Providers)}
                   onClick={() => onOpenCompanion()}
-                  className="group rounded-[22px] border border-white/90 bg-white/90 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                  className="w-full text-left"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-700">
@@ -258,21 +259,22 @@ export function SettingsHomePage({
                     <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-600" />
                   </div>
                   <p className="mt-4 text-base font-semibold text-slate-900">
-                    <span className="inline-flex items-center gap-2">
-                      <span>桌宠</span>
-                      <WorkbenchInfoTip
-                        ariaLabel="桌宠说明"
-                        content="开启桌宠、安装引导与连接诊断。"
-                        tone="slate"
-                      />
-                    </span>
+                    桌宠
                   </p>
                 </button>
-              ) : null}
-            </div>
+
+                <div className="mt-3 flex justify-end">
+                  <WorkbenchInfoTip
+                    ariaLabel="桌宠说明"
+                    content="开启桌宠、安装引导与连接诊断。"
+                    tone="slate"
+                  />
+                </div>
+              </article>
+            ) : null}
           </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 xl:grid-cols-2">
         {overview.visibleGroups.map((group) => {

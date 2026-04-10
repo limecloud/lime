@@ -132,6 +132,7 @@ import { useGeneralWorkbenchEntryPrompt } from "./hooks/useGeneralWorkbenchEntry
 import { useGeneralWorkbenchEntryPromptActions } from "./hooks/useGeneralWorkbenchEntryPromptActions";
 import { useGeneralWorkbenchSendBoundary } from "./hooks/useGeneralWorkbenchSendBoundary";
 import { mergeThreadItems } from "./utils/threadTimelineView";
+import { openCanvasForReason } from "./workspace/canvasOpenPolicy";
 import { useWorkbenchStore } from "@/stores/useWorkbenchStore";
 import {
   asRecord,
@@ -188,12 +189,18 @@ import { useWorkspaceTeamSessionRuntime } from "./workspace/useWorkspaceTeamSess
 import { useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime } from "./workspace/useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime";
 import { useWorkspaceServiceSkillEntryActions } from "./workspace/useWorkspaceServiceSkillEntryActions";
 import { useWorkspaceArtifactViewModeControl } from "./workspace/useWorkspaceArtifactViewModeControl";
-import { resolveAbsoluteWorkspacePath } from "./workspace/workspacePath";
+import { hasNamedGeneralCanvasFilePreview } from "./workspace/generalCanvasPreviewState";
+import { resolvePreferredServiceSkillResultFileTarget } from "./workspace/serviceSkillResultFileTarget";
+import {
+  isAbsoluteWorkspacePath,
+  resolveAbsoluteWorkspacePath,
+} from "./workspace/workspacePath";
 import {
   areArtifactProtocolPathsEquivalent,
   normalizeArtifactProtocolPath,
   resolveArtifactProtocolFilePath,
 } from "@/lib/artifact-protocol";
+import { resolveSiteSavedContentTargetFromRunResult } from "./utils/siteToolResultSummary";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { ArtifactTimelineOpenTarget } from "./utils/artifactTimelineNavigation";
 import { createUnifiedMemory } from "@/lib/api/unifiedMemory";
@@ -624,7 +631,6 @@ export function AgentChatWorkspace({
   } | null>(null);
   const handledInitialPendingServiceSkillLaunchSignatureRef = useRef("");
   const handledInitialProjectFileOpenSignatureRef = useRef("");
-  const autoOpenedSiteSkillSavedContentSignatureRef = useRef("");
   const initialCreationReplay = useMemo(
     () => extractCreationReplayMetadata(initialRequestMetadata),
     [initialRequestMetadata],
@@ -891,9 +897,18 @@ export function AgentChatWorkspace({
     () => resolveDefaultSelectedArtifact(activeTheme, artifacts),
     [activeTheme, artifacts],
   );
+  const preferGeneralCanvasFilePreview = useMemo(
+    () =>
+      activeTheme === "general" &&
+      hasNamedGeneralCanvasFilePreview(generalCanvasState),
+    [activeTheme, generalCanvasState],
+  );
   const liveArtifact = useMemo(
-    () => selectedArtifact || defaultSelectedArtifact,
-    [defaultSelectedArtifact, selectedArtifact],
+    () =>
+      preferGeneralCanvasFilePreview
+        ? null
+        : selectedArtifact || defaultSelectedArtifact,
+    [defaultSelectedArtifact, preferGeneralCanvasFilePreview, selectedArtifact],
   );
 
   // Artifact 预览状态
@@ -1847,7 +1862,6 @@ export function AgentChatWorkspace({
     browserAssistLaunching,
     browserAssistSessionState,
     siteSkillExecutionState,
-    siteSkillSavedContentTarget,
     currentBrowserAssistScopeKey,
     ensureBrowserAssistCanvas,
     suppressBrowserAssistCanvasAutoOpen,
@@ -2080,6 +2094,13 @@ export function AgentChatWorkspace({
       return;
     }
 
+    if (preferGeneralCanvasFilePreview) {
+      if (selectedArtifactId !== null) {
+        setSelectedArtifactId(null);
+      }
+      return;
+    }
+
     if (artifacts.length === 0) {
       if (selectedArtifactId !== null) {
         setSelectedArtifactId(null);
@@ -2113,6 +2134,7 @@ export function AgentChatWorkspace({
     activeTheme,
     artifacts,
     defaultSelectedArtifact,
+    preferGeneralCanvasFilePreview,
     selectedArtifact,
     selectedArtifactId,
     setSelectedArtifactId,
@@ -2592,7 +2614,6 @@ export function AgentChatWorkspace({
       (await submitImageWorkbenchAgentCommandRef.current?.(params)) ?? false,
     setCanvasState,
     setInput,
-    setLayoutMode,
     updateCurrentImageWorkbenchState,
   });
   const { handleImageWorkbenchCommand, resolveImageWorkbenchSkillRequest } =
@@ -3031,6 +3052,7 @@ export function AgentChatWorkspace({
     setLayoutMode,
     setTaskFiles,
     setSelectedFileId,
+    setGeneralCanvasState,
     setCanvasState,
   });
   const handleWorkspaceFileClick = useCallback(
@@ -3039,6 +3061,42 @@ export function AgentChatWorkspace({
       handleFileClick(fileName, content);
     },
     [handleFileClick],
+  );
+  const openProjectFilePreviewInCanvas = useCallback(
+    async ({
+      relativePath,
+      absolutePath,
+      isCancelled,
+    }: {
+      relativePath?: string | null;
+      absolutePath: string;
+      isCancelled?: () => boolean;
+    }) => {
+      const preview = await handleHarnessLoadFilePreview(absolutePath);
+      if (isCancelled?.()) {
+        return false;
+      }
+
+      if (preview.error) {
+        toast.error(`打开导出文件失败: ${preview.error}`);
+        return false;
+      }
+
+      if (preview.isBinary) {
+        toast.info("导出文件是二进制格式，暂不支持在工作台预览");
+        return false;
+      }
+
+      const nextContent =
+        typeof preview.content === "string" ? preview.content : "";
+      const nextFilePath =
+        relativePath?.trim() || preview.path || absolutePath;
+      startTransition(() => {
+        handleWorkspaceFileClick(nextFilePath, nextContent);
+      });
+      return true;
+    },
+    [handleHarnessLoadFilePreview, handleWorkspaceFileClick],
   );
   const handleOpenSavedSiteContent = useCallback(
     async ({
@@ -3061,23 +3119,13 @@ export function AgentChatWorkspace({
           relativePath,
         );
         if (absolutePath) {
-          const preview = await handleHarnessLoadFilePreview(absolutePath);
-          if (preview.error) {
-            toast.error(`打开导出文件失败: ${preview.error}`);
-            return;
-          }
-
-          if (preview.isBinary) {
-            toast.info("导出文件是二进制格式，暂不支持在工作台预览");
-            return;
-          }
-
-          const nextContent =
-            typeof preview.content === "string" ? preview.content : "";
-          startTransition(() => {
-            handleWorkspaceFileClick(preview.path || absolutePath, nextContent);
+          const opened = await openProjectFilePreviewInCanvas({
+            relativePath,
+            absolutePath,
           });
-          return;
+          if (opened) {
+            return;
+          }
         }
       }
 
@@ -3098,58 +3146,11 @@ export function AgentChatWorkspace({
     },
     [
       _onNavigate,
-      handleHarnessLoadFilePreview,
-      handleWorkspaceFileClick,
+      openProjectFilePreviewInCanvas,
       project?.rootPath,
       projectId,
     ],
   );
-  useEffect(() => {
-    if (siteSkillExecutionState?.phase === "success") {
-      return;
-    }
-    autoOpenedSiteSkillSavedContentSignatureRef.current = "";
-  }, [siteSkillExecutionState?.phase]);
-  useEffect(() => {
-    if (siteSkillExecutionState?.phase !== "success") {
-      return;
-    }
-
-    if (siteSkillSavedContentTarget?.preferredTarget !== "project_file") {
-      return;
-    }
-
-    if (!projectId || siteSkillSavedContentTarget.projectId !== projectId) {
-      return;
-    }
-
-    const relativePath =
-      siteSkillSavedContentTarget.projectFile?.relativePath?.trim() || "";
-    if (!relativePath) {
-      return;
-    }
-
-    const signature = JSON.stringify({
-      adapterName: siteSkillExecutionState.adapterName,
-      sourceUrl: siteSkillExecutionState.sourceUrl?.trim() || "",
-      projectId: siteSkillSavedContentTarget.projectId,
-      contentId: siteSkillSavedContentTarget.contentId,
-      relativePath,
-    });
-    if (autoOpenedSiteSkillSavedContentSignatureRef.current === signature) {
-      return;
-    }
-    autoOpenedSiteSkillSavedContentSignatureRef.current = signature;
-
-    void handleOpenSavedSiteContent(siteSkillSavedContentTarget);
-  }, [
-    handleOpenSavedSiteContent,
-    projectId,
-    siteSkillExecutionState?.adapterName,
-    siteSkillExecutionState?.phase,
-    siteSkillExecutionState?.sourceUrl,
-    siteSkillSavedContentTarget,
-  ]);
   const handleWorkspaceArtifactClick = useCallback(
     (artifact: Artifact) => {
       setFocusedArtifactBlockId(null);
@@ -3169,7 +3170,7 @@ export function AgentChatWorkspace({
             active: true,
           };
         });
-        setLayoutMode("chat-canvas");
+        openCanvasForReason("user_open_message_preview", setLayoutMode);
         return;
       }
 
@@ -3191,7 +3192,7 @@ export function AgentChatWorkspace({
               ? preview.statusMessage?.trim() || "视频任务未成功完成"
               : undefined,
         });
-        setLayoutMode("chat-canvas");
+        openCanvasForReason("user_open_message_preview", setLayoutMode);
         return;
       }
 
@@ -3247,6 +3248,72 @@ export function AgentChatWorkspace({
     },
     [handleWorkspaceFileClick],
   );
+  const siteSkillSavedContentTarget = useMemo(
+    () =>
+      resolveSiteSavedContentTargetFromRunResult(
+        siteSkillExecutionState?.result || null,
+      ),
+    [siteSkillExecutionState?.result],
+  );
+  const currentTurnThreadItems = useMemo(
+    () =>
+      currentTurnId
+        ? effectiveThreadItems.filter((item) => item.turn_id === currentTurnId)
+        : [],
+    [currentTurnId, effectiveThreadItems],
+  );
+  const preferredServiceSkillResultFileTarget = useMemo(
+    () =>
+      resolvePreferredServiceSkillResultFileTarget({
+        threadItems: currentTurnThreadItems,
+        savedContentTarget: siteSkillSavedContentTarget,
+      }),
+    [currentTurnThreadItems, siteSkillSavedContentTarget],
+  );
+  const handleOpenServiceSkillResultFile = useCallback(
+    async (relativePath: string) => {
+      const normalizedPath = relativePath.trim();
+      if (!normalizedPath) {
+        return;
+      }
+
+      const absolutePath = resolveAbsoluteWorkspacePath(
+        project?.rootPath,
+        normalizedPath,
+      );
+      if (absolutePath) {
+        const opened = await openProjectFilePreviewInCanvas({
+          relativePath: normalizedPath,
+          absolutePath,
+        });
+        if (opened) {
+          return;
+        }
+      }
+
+      const matchedTaskFile = taskFiles.find(
+        (file) =>
+          areArtifactProtocolPathsEquivalent(file.name, normalizedPath) ||
+          normalizeArtifactProtocolPath(file.name) ===
+            normalizeArtifactProtocolPath(normalizedPath),
+      );
+      if (matchedTaskFile) {
+        handleWorkspaceFileClick(
+          matchedTaskFile.name,
+          matchedTaskFile.content ?? "",
+        );
+        return;
+      }
+
+      toast.error("打开结果文件失败：当前工作区里还没有同步到这份文件");
+    },
+    [
+      handleWorkspaceFileClick,
+      openProjectFilePreviewInCanvas,
+      project?.rootPath,
+      taskFiles,
+    ],
+  );
   useEffect(() => {
     const relativePath = initialProjectFileOpenTarget?.relativePath?.trim();
     if (!relativePath) {
@@ -3255,6 +3322,10 @@ export function AgentChatWorkspace({
     }
 
     if (contentId && isInitialContentLoading) {
+      return;
+    }
+
+    if (!project?.rootPath && !isAbsoluteWorkspacePath(relativePath)) {
       return;
     }
 
@@ -3276,24 +3347,10 @@ export function AgentChatWorkspace({
 
     let cancelled = false;
     void (async () => {
-      const preview = await handleHarnessLoadFilePreview(absolutePath);
-      if (cancelled) {
-        return;
-      }
-
-      if (preview.error) {
-        toast.error(`打开导出文件失败: ${preview.error}`);
-        return;
-      }
-
-      if (preview.isBinary) {
-        toast.info("导出文件是二进制格式，暂不支持在工作台预览");
-        return;
-      }
-
-      const nextContent = typeof preview.content === "string" ? preview.content : "";
-      startTransition(() => {
-        handleWorkspaceFileClick(preview.path || absolutePath, nextContent);
+      await openProjectFilePreviewInCanvas({
+        relativePath,
+        absolutePath,
+        isCancelled: () => cancelled,
       });
     })();
 
@@ -3302,10 +3359,9 @@ export function AgentChatWorkspace({
     };
   }, [
     contentId,
-    handleHarnessLoadFilePreview,
-    handleWorkspaceFileClick,
     initialProjectFileOpenTarget,
     isInitialContentLoading,
+    openProjectFilePreviewInCanvas,
     project?.rootPath,
     projectId,
   ]);
@@ -3318,12 +3374,16 @@ export function AgentChatWorkspace({
             ? handleOpenBrowserRuntimeForSiteSkillExecution
             : undefined
         }
+        preferredResultFileTarget={preferredServiceSkillResultFileTarget}
+        onOpenResultFile={handleOpenServiceSkillResultFile}
         onOpenSavedSiteContent={handleOpenSavedSiteContent}
       />
     ),
     [
+      handleOpenServiceSkillResultFile,
       handleOpenBrowserRuntimeForSiteSkillExecution,
       handleOpenSavedSiteContent,
+      preferredServiceSkillResultFileTarget,
       siteSkillExecutionState,
     ],
   );

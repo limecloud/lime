@@ -232,7 +232,7 @@ describe("useWorkspaceBrowserAssistRuntime", () => {
     expect(setLayoutMode).not.toHaveBeenCalled();
   });
 
-  it("普通产物处于流式写入时仍应自动展开画布", async () => {
+  it("普通产物处于流式写入时不应再自动展开画布", async () => {
     const setLayoutMode = vi.fn();
     const { render } = renderHook({
       artifacts: [createStreamingArtifact()],
@@ -241,7 +241,7 @@ describe("useWorkspaceBrowserAssistRuntime", () => {
 
     await render();
 
-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+    expect(setLayoutMode).not.toHaveBeenCalled();
   });
 
   it("existing_session 启动失败时应回退到当前 Chrome 扩展桥接", async () => {

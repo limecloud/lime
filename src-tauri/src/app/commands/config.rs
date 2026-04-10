@@ -406,7 +406,10 @@ fn build_provider_env_vars(
             ]
         }
         // Ollama 本地部署
-        "ollama" => vec![("OLLAMA_BASE_URL".to_string(), api_host.to_string())],
+        "ollama" => vec![
+            ("OLLAMA_BASE_URL".to_string(), api_host.to_string()),
+            ("OLLAMA_HOST".to_string(), api_host.to_string()),
+        ],
         _ => {
             // 未知类型尽量按已注册 ApiProviderType 的协议族生成环境变量
             if let Ok(api_type) = provider_type.parse::<ApiProviderType>() {

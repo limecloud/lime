@@ -123,32 +123,6 @@ function AboutPanel({
   );
 }
 
-function AboutStat({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[22px] border border-white/90 bg-white/86 p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
-        <span>{label}</span>
-        <WorkbenchInfoTip
-          ariaLabel={`${label}说明`}
-          content={description}
-          tone="slate"
-        />
-      </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
-  );
-}
-
 export function AboutSection() {
   const { t } = useTranslation();
   const [versionInfo, setVersionInfo] = useState<VersionInfo>({
@@ -286,233 +260,197 @@ export function AboutSection() {
 
   return (
     <div className="space-y-6 pb-8">
-      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(245,250,248,0.98)_0%,rgba(255,255,255,0.98)_52%,rgba(242,247,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/28 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-80px] top-[-18px] h-56 w-56 rounded-full bg-sky-200/24 blur-3xl" />
-
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
-            <div className="max-w-3xl space-y-5">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                ABOUT LIME
-              </span>
-
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-[28px] font-semibold tracking-tight text-slate-900">
-                    把灵感、素材、出图、改稿和沉淀放进同一个创作工作台
-                  </h2>
-                  <WorkbenchInfoTip
-                    ariaLabel="关于 Lime 总览说明"
-                    content={t(
-                      "Lime 面向真实创作流程而不是单点问答。你可以从一句模糊需求开始，在同一个空间里完成方向判断、内容生成、素材制作和结果沉淀。",
-                      "Lime 面向真实创作流程而不是单点问答。你可以从一句模糊需求开始，在同一个空间里完成方向判断、内容生成、素材制作和结果沉淀。",
-                    )}
-                    tone="mint"
-                  />
-                </div>
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                  {t("关于 Lime", "关于 Lime")}
+                </h2>
+                <WorkbenchInfoTip
+                  ariaLabel="关于 Lime 总览说明"
+                  content={t(
+                    "Lime 面向真实创作流程而不是单点问答。你可以从一句模糊需求开始，在同一个空间里完成方向判断、内容生成、素材制作和结果沉淀。",
+                    "Lime 面向真实创作流程而不是单点问答。你可以从一句模糊需求开始，在同一个空间里完成方向判断、内容生成、素材制作和结果沉淀。",
+                  )}
+                  tone="mint"
+                />
               </div>
+              <p className="text-sm text-slate-500">
+                {t(
+                  "了解版本、更新入口和 Lime 的工作区定位。",
+                  "了解版本、更新入口和 Lime 的工作区定位。",
+                )}
+              </p>
+            </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  {t(
-                    "一句话：从“想到”直接走到“可发布”",
-                    "一句话：从“想到”直接走到“可发布”",
-                  )}
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  {t(
-                    "支持多主题创作与跨媒介工作流",
-                    "支持多主题创作与跨媒介工作流",
-                  )}
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  {t(
-                    "适合个人创作者与小团队长期沉淀资产",
-                    "适合个人创作者与小团队长期沉淀资产",
-                  )}
-                </span>
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                {t("当前版本 {{version}}", {
+                  version: versionInfo.current || t("读取中", "读取中"),
+                  defaultValue: "当前版本 {{version}}",
+                })}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium",
+                  versionBadge.className,
+                )}
+              >
+                {versionBadge.label}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                {t("工作区主线 {{count}} 项", {
+                  count: WORKSPACE_FOCUSES.length,
+                  defaultValue: "工作区主线 {{count}} 项",
+                })}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                {t("相关入口 {{count}} 个", {
+                  count: RELATED_LINKS.length,
+                  defaultValue: "相关入口 {{count}} 个",
+                })}
+              </span>
+            </div>
+          </div>
+
+          <article className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4 shadow-sm shadow-slate-950/5 sm:p-5">
+            <div className="flex items-start gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-slate-900 to-slate-700 shadow-sm shadow-slate-950/20">
+                <img
+                  src="/logo.png"
+                  alt="Lime"
+                  className="h-10 w-10 object-contain"
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-semibold tracking-tight text-slate-900">
+                    Lime
+                  </h3>
+                  <WorkbenchInfoTip
+                    ariaLabel="Lime 产品定位说明"
+                    content={t("创作类 AI Agent 平台", "创作类 AI Agent 平台")}
+                    tone="slate"
+                  />
+                  <span
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-medium",
+                      versionBadge.className,
+                    )}
+                  >
+                    {versionBadge.label}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {t("当前版本 {{version}}", {
+                    version: versionInfo.current || t("读取中", "读取中"),
+                    defaultValue: "当前版本 {{version}}",
+                  })}
+                </p>
               </div>
             </div>
 
-            <article className="flex h-full flex-col rounded-[26px] border border-white/90 bg-white/84 p-5 shadow-sm shadow-slate-950/5 backdrop-blur-[2px]">
-              <div className="flex items-start gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-slate-900 to-slate-700 shadow-sm shadow-slate-950/20">
-                  <img
-                    src="/logo.png"
-                    alt="Lime"
-                    className="h-10 w-10 object-contain"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-xl font-semibold tracking-tight text-slate-900">
-                      Lime
-                    </h3>
-                    <WorkbenchInfoTip
-                      ariaLabel="Lime 产品定位说明"
-                      content={t(
-                        "创作类 AI Agent 平台",
-                        "创作类 AI Agent 平台",
-                      )}
-                      tone="slate"
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleCheckUpdate()}
+                disabled={checking || downloading}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <RefreshCw className={cn("h-4 w-4", checking && "animate-spin")} />
+                {t("检查更新", "检查更新")}
+              </button>
+
+              {versionInfo.hasUpdate ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleDownloadUpdate()}
+                    disabled={downloading}
+                    className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      className={cn("h-4 w-4", downloading && "animate-spin")}
                     />
-                    <span
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-xs font-medium",
-                        versionBadge.className,
-                      )}
-                    >
-                      {versionBadge.label}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    {t("当前版本 {{version}}", {
-                      version: versionInfo.current || t("读取中", "读取中"),
-                      defaultValue: "当前版本 {{version}}",
-                    })}
+                    {downloading
+                      ? t("下载中...", "下载中...")
+                      : t("下载更新", "下载更新")}
+                  </button>
+                  <a
+                    href={manualDownloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    {t("网页下载", "网页下载")}
+                  </a>
+                </>
+              ) : null}
+            </div>
+
+            {isWindows ? (
+              <p className="mt-4 text-xs leading-5 text-slate-500">
+                {t(
+                  "Windows 默认下载在线安装包；如果处于离线、内网或受限网络环境，请在网页下载页改用 offline 安装包。",
+                  "Windows 默认下载在线安装包；如果处于离线、内网或受限网络环境，请在网页下载页改用 offline 安装包。",
+                )}
+              </p>
+            ) : null}
+
+            {versionInfo.hasUpdate && (releaseNotesPreview || updatePublishedAt) ? (
+              <div className="mt-4 rounded-[20px] border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm shadow-slate-950/5">
+                <p className="font-medium text-slate-700">
+                  {t("最新版本 {{version}}", {
+                    version: versionInfo.latest ?? "",
+                    defaultValue: "最新版本 {{version}}",
+                  })}
+                  {updatePublishedAt
+                    ? ` · ${t("发布时间 {{date}}", {
+                        date: updatePublishedAt,
+                        defaultValue: "发布时间 {{date}}",
+                      })}`
+                    : ""}
+                </p>
+                {releaseNotesPreview ? (
+                  <p className="mt-2 text-xs leading-6 text-slate-500">
+                    {releaseNotesPreview}
                   </p>
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleCheckUpdate()}
-                  disabled={checking || downloading}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <RefreshCw
-                    className={cn("h-4 w-4", checking && "animate-spin")}
-                  />
-                  {t("检查更新", "检查更新")}
-                </button>
-
-                {versionInfo.hasUpdate ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => void handleDownloadUpdate()}
-                      disabled={downloading}
-                      className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
-                    >
-                      <RefreshCw
-                        className={cn("h-4 w-4", downloading && "animate-spin")}
-                      />
-                      {downloading
-                        ? t("下载中...", "下载中...")
-                        : t("下载更新", "下载更新")}
-                    </button>
-                    <a
-                      href={manualDownloadUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      {t("网页下载", "网页下载")}
-                    </a>
-                  </>
                 ) : null}
               </div>
+            ) : null}
 
-              {isWindows ? (
-                <p className="mt-4 text-xs leading-5 text-slate-500">
-                  {t(
-                    "Windows 默认下载在线安装包；如果处于离线、内网或受限网络环境，请在网页下载页改用 offline 安装包。",
-                    "Windows 默认下载在线安装包；如果处于离线、内网或受限网络环境，请在网页下载页改用 offline 安装包。",
-                  )}
-                </p>
-              ) : null}
-
-              {versionInfo.hasUpdate &&
-              (releaseNotesPreview || updatePublishedAt) ? (
-                <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50/85 p-4 text-sm text-slate-600 shadow-sm shadow-slate-950/5">
-                  <p className="font-medium text-slate-700">
-                    {t("最新版本 {{version}}", {
-                      version: versionInfo.latest ?? "",
-                      defaultValue: "最新版本 {{version}}",
-                    })}
-                    {updatePublishedAt
-                      ? ` · ${t("发布时间 {{date}}", {
-                          date: updatePublishedAt,
-                          defaultValue: "发布时间 {{date}}",
-                        })}`
-                      : ""}
-                  </p>
-                  {releaseNotesPreview ? (
-                    <p className="mt-2 text-xs leading-6 text-slate-500">
-                      {releaseNotesPreview}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {downloadResult ? (
-                <div
-                  className={cn(
-                    "mt-4 rounded-[20px] border p-4 text-sm shadow-sm shadow-slate-950/5",
-                    downloadResult.success
-                      ? "border-emerald-200 bg-emerald-50/90 text-emerald-700"
-                      : "border-rose-200 bg-rose-50/90 text-rose-700",
-                  )}
-                >
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p>{downloadResult.message}</p>
-                      {!downloadResult.success ? (
-                        <a
-                          href={manualDownloadUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 inline-flex items-center gap-1 underline hover:no-underline"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          {t("前往网页下载", "前往网页下载")}
-                        </a>
-                      ) : null}
-                    </div>
+            {downloadResult ? (
+              <div
+                className={cn(
+                  "mt-4 rounded-[20px] border p-4 text-sm shadow-sm shadow-slate-950/5",
+                  downloadResult.success
+                    ? "border-emerald-200 bg-emerald-50/90 text-emerald-700"
+                    : "border-rose-200 bg-rose-50/90 text-rose-700",
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p>{downloadResult.message}</p>
+                    {!downloadResult.success ? (
+                      <a
+                        href={manualDownloadUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 underline hover:no-underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {t("前往网页下载", "前往网页下载")}
+                      </a>
+                    ) : null}
                   </div>
                 </div>
-              ) : null}
-            </article>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <AboutStat
-              label={t("工作区主线", "工作区主线")}
-              value={WORKSPACE_FOCUSES.length.toString()}
-              description={t(
-                "围绕 Claw、浏览器协助、资源沉淀与项目迭代组织主路径。",
-                "围绕 Claw、浏览器协助、资源沉淀与项目迭代组织主路径。",
-              )}
-            />
-            <AboutStat
-              label={t("起步步骤", "起步步骤")}
-              value={QUICK_START_STEPS.length.toString()}
-              description={t(
-                "从进入工作区到持续迭代，压缩成清晰的三步流程。",
-                "从进入工作区到持续迭代，压缩成清晰的三步流程。",
-              )}
-            />
-            <AboutStat
-              label={t("目标人群", "目标人群")}
-              value={TARGET_USERS.length.toString()}
-              description={t(
-                "既适合单人创作，也适合需要共用策略的小团队。",
-                "既适合单人创作，也适合需要共用策略的小团队。",
-              )}
-            />
-            <AboutStat
-              label={t("官方入口", "官方入口")}
-              value={RELATED_LINKS.length.toString()}
-              description={t(
-                "源码、文档和 issue 入口集中保留，方便反馈和跟进。",
-                "源码、文档和 issue 入口集中保留，方便反馈和跟进。",
-              )}
-            />
-          </div>
+              </div>
+            ) : null}
+          </article>
         </div>
       </section>
 

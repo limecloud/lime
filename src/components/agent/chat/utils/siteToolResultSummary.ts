@@ -1,5 +1,6 @@
 import type { SiteAdapterRunResult } from "@/lib/webview-api";
 import type { SiteSavedContentTarget } from "../types";
+import { normalizeManagedWorkspacePathForDisplay } from "../workspace/workspacePath";
 
 export interface SiteToolResultSummary {
   savedContent?: {
@@ -80,6 +81,39 @@ function readFirstFiniteNumber(
   return undefined;
 }
 
+function readFirstBoolean(
+  candidates: Array<Record<string, unknown> | null | undefined>,
+  keys: string[],
+): boolean | undefined {
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    for (const key of keys) {
+      const value = candidate[key];
+      if (typeof value === "boolean") {
+        return value;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function isPreloadSiteToolResultMetadata(rawMetadata: unknown): boolean {
+  const metadata = normalizeToolResultMetadata(rawMetadata);
+  if (!metadata) {
+    return false;
+  }
+
+  const metadataResult = asRecord(metadata.result);
+  const candidates = [metadata, metadataResult];
+  return (
+    readFirstNonEmptyString(candidates, [
+      "execution_origin",
+      "executionOrigin",
+    ]) === "preload" ||
+    readFirstBoolean(candidates, ["preload"]) === true
+  );
+}
+
 export function resolveSiteSavedContentTarget(
   summary: SiteToolResultSummary | null,
 ): SiteSavedContentTarget | null {
@@ -108,10 +142,56 @@ export function resolveSiteSavedContentTarget(
   };
 }
 
+export function resolveSiteSavedContentTargetFromMetadata(
+  rawMetadata: unknown,
+): SiteSavedContentTarget | null {
+  if (isPreloadSiteToolResultMetadata(rawMetadata)) {
+    return null;
+  }
+  return resolveSiteSavedContentTarget(normalizeSiteToolResultSummary(rawMetadata));
+}
+
+export function hasMeaningfulSiteToolResultSignal(
+  rawMetadata: unknown,
+): boolean {
+  const summary = normalizeSiteToolResultSummary(rawMetadata);
+  return Boolean(
+    summary?.savedContent ||
+      summary?.savedProjectId ||
+      summary?.saveSkippedProjectId ||
+      summary?.saveErrorMessage,
+  );
+}
+
+export function resolveSiteSavedContentTargetRelativePath(
+  target: SiteSavedContentTarget | null | undefined,
+): string | null {
+  const relativePath = target?.projectFile?.relativePath?.trim();
+  return relativePath || null;
+}
+
+export function resolveSiteSavedContentTargetDisplayName(
+  target: SiteSavedContentTarget | null | undefined,
+): string | null {
+  const relativePath = resolveSiteSavedContentTargetRelativePath(target);
+  if (relativePath) {
+    const normalized = relativePath.replace(/\\/g, "/");
+    const segments = normalized.split("/").filter(Boolean);
+    return segments.at(-1) || normalized;
+  }
+
+  const title = target?.title?.trim();
+  return title || null;
+}
+
 export function resolveSiteSavedContentTargetFromRunResult(
   result: Pick<SiteAdapterRunResult, "saved_content" | "saved_project_id"> | null,
 ): SiteSavedContentTarget | null {
   const savedContent = result?.saved_content;
+  if (!savedContent) {
+    return null;
+  }
+
   const contentId = savedContent?.content_id?.trim();
   if (!contentId) {
     return null;
@@ -210,10 +290,13 @@ export function normalizeSiteToolResultSummary(
             ["project_id", "projectId"],
           ),
           title: readFirstNonEmptyString([savedContentRecord], ["title"]),
-          projectRootPath: readFirstNonEmptyString(
-            [savedContentRecord],
-            ["project_root_path", "projectRootPath"],
-          ),
+          projectRootPath:
+            normalizeManagedWorkspacePathForDisplay(
+              readFirstNonEmptyString([savedContentRecord], [
+                "project_root_path",
+                "projectRootPath",
+              ]),
+            ) || undefined,
           bundleRelativeDir: readFirstNonEmptyString(
             [savedContentRecord],
             ["bundle_relative_dir", "bundleRelativeDir"],

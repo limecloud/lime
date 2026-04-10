@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Globe } from "lucide-react";
+import { ChevronDown, ChevronUp, Globe, Settings2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -26,12 +26,19 @@ import {
   EMPTY_STATE_PASSIVE_BADGE_CLASSNAME,
   EMPTY_STATE_SELECT_TRIGGER_CLASSNAME,
 } from "./emptyStateSurfaceTokens";
+import {
+  MetaToggleButton,
+  MetaToggleCheck,
+  MetaToggleGlyph,
+  MetaToggleLabel,
+} from "./Inputbar/styles";
 import { getTeamSuggestion } from "../utils/teamSuggestion";
 import {
   buildSkillSelectionBindings,
   type SkillSelectionProps,
 } from "../skill-selection/skillSelectionBindings";
 import type { AgentAccessMode } from "../hooks/agentChatStorage";
+import { getProviderLabel } from "@/lib/constants/providerMappings";
 
 interface EmptyStateComposerPanelProps {
   input: string;
@@ -122,6 +129,7 @@ export function EmptyStateComposerPanel({
   const [teamSelectorAutoOpenToken, setTeamSelectorAutoOpenToken] = useState<
     number | null
   >(null);
+  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const activeSkill = skillSelection.activeSkill ?? null;
   const clearActiveSkill = skillSelection.onClearSkill;
   const { mentionProps: mentionSkillProps, selectorProps: skillSelectorProps } =
@@ -203,93 +211,156 @@ export function EmptyStateComposerPanel({
     ) : undefined;
 
   const shouldShowThemeSpecificExtra = showCreationModeSelector;
-  const shouldShowModelExtra = Boolean(providerType?.trim() && model?.trim());
-  const shouldShowLeftExtra =
+  const trimmedProviderType = providerType.trim();
+  const trimmedModel = model.trim();
+  const hasConfiguredModel = Boolean(trimmedProviderType && trimmedModel);
+  const shouldShowModelControls = true;
+  const currentModelSummary = hasConfiguredModel
+    ? `${getProviderLabel(trimmedProviderType)} / ${trimmedModel}`
+    : null;
+  const hasHighlightedAdvancedPreference =
+    thinkingEnabled ||
+    webSearchEnabled ||
+    subagentEnabled ||
+    executionStrategy === "code_orchestrated" ||
+    accessMode === "read-only" ||
+    accessMode === "full-access";
+  const shouldShowAdvancedToggle =
     isGeneralTheme ||
     shouldShowTeamSelector ||
     Boolean(setExecutionStrategy) ||
-    shouldShowModelExtra ||
+    shouldShowModelControls ||
     Boolean(setAccessMode) ||
     shouldShowThemeSpecificExtra;
-  const leftExtra = shouldShowLeftExtra ? (
+  const leftExtra = shouldShowAdvancedToggle ? (
     <>
-      {isGeneralTheme ? <SkillSelector {...skillSelectorProps} /> : null}
-
-      {shouldShowTeamSelector ? (
-        <TeamSelector
-          activeTheme={activeTheme}
-          input={input}
-          autoOpenToken={teamSelectorAutoOpenToken}
-          selectedTeam={selectedTeam}
-          workspaceSettings={teamWorkspaceSettings}
-          onPersistCustomTeams={onPersistCustomTeams}
-          onSelectTeam={(team) => onSelectTeam?.(team)}
+      <MetaToggleButton
+        type="button"
+        $checked={showAdvancedControls || hasHighlightedAdvancedPreference}
+        aria-label={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
+        aria-expanded={showAdvancedControls}
+        data-testid="empty-state-advanced-toggle"
+        title={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
+        onClick={() => setShowAdvancedControls((previous) => !previous)}
+      >
+        <MetaToggleCheck
+          $checked={showAdvancedControls || hasHighlightedAdvancedPreference}
+          aria-hidden
         />
-      ) : null}
+        <MetaToggleGlyph aria-hidden>
+          <Settings2 strokeWidth={1.8} />
+        </MetaToggleGlyph>
+        <MetaToggleLabel>高级设置</MetaToggleLabel>
+        {showAdvancedControls ? (
+          <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+        )}
+      </MetaToggleButton>
 
-      <InputbarExecutionStrategySelect
-        executionStrategy={executionStrategy}
-        setExecutionStrategy={setExecutionStrategy}
-      />
-
-      <InputbarModelExtra
-        providerType={providerType}
-        setProviderType={setProviderType}
-        model={model}
-        setModel={setModel}
-        activeTheme={activeTheme}
-        onManageProviders={onManageProviders}
-      />
-
-      <InputbarAccessModeSelect
-        accessMode={accessMode}
-        setAccessMode={setAccessMode}
-      />
-
-      {showCreationModeSelector ? (
-        <Select
-          value={creationMode}
-          onValueChange={(value) =>
-            onCreationModeChange?.(value as CreationMode)
-          }
-        >
-          <SelectTrigger
-            className={`${EMPTY_STATE_SELECT_TRIGGER_CLASSNAME} min-w-[120px]`}
-          >
-            <div className="flex items-center gap-2">
-              {CREATION_MODE_CONFIG[creationMode].icon}
-              <span>{CREATION_MODE_CONFIG[creationMode].name}</span>
-            </div>
-          </SelectTrigger>
-          <SelectContent className="min-w-[200px] p-1" side="top">
-            <div className="px-2 py-1.5 text-xs font-medium text-slate-500">
-              选择创作模式
-            </div>
-            {(
-              Object.entries(CREATION_MODE_CONFIG) as [
-                CreationMode,
-                (typeof CREATION_MODE_CONFIG)[CreationMode],
-              ][]
-            ).map(([key, config]) => (
-              <SelectItem key={key} value={key}>
-                <div className="flex items-center gap-3">
-                  <span className="flex-shrink-0">{config.icon}</span>
-                  <span className="font-medium">{config.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : null}
-
-      {isGeneralTheme ? (
+      {!showAdvancedControls && currentModelSummary ? (
         <Badge
           variant="outline"
           className={EMPTY_STATE_PASSIVE_BADGE_CLASSNAME}
+          title={`当前模型：${currentModelSummary}`}
         >
-          <Globe className="mr-1 h-3.5 w-3.5" />
-          通用任务上下文
+          <span className="mr-1 text-slate-500">当前模型</span>
+          <span className="max-w-[220px] truncate">{trimmedModel}</span>
         </Badge>
+      ) : null}
+
+      {!showAdvancedControls && !hasConfiguredModel ? (
+        <InputbarModelExtra
+          providerType={providerType}
+          setProviderType={setProviderType}
+          model={model}
+          setModel={setModel}
+          activeTheme={activeTheme}
+          onManageProviders={onManageProviders}
+        />
+      ) : null}
+
+      {showAdvancedControls ? (
+        <>
+          {isGeneralTheme ? <SkillSelector {...skillSelectorProps} /> : null}
+
+          {shouldShowTeamSelector ? (
+            <TeamSelector
+              activeTheme={activeTheme}
+              input={input}
+              autoOpenToken={teamSelectorAutoOpenToken}
+              selectedTeam={selectedTeam}
+              workspaceSettings={teamWorkspaceSettings}
+              onPersistCustomTeams={onPersistCustomTeams}
+              onSelectTeam={(team) => onSelectTeam?.(team)}
+            />
+          ) : null}
+
+          <InputbarExecutionStrategySelect
+            executionStrategy={executionStrategy}
+            setExecutionStrategy={setExecutionStrategy}
+          />
+
+          <InputbarModelExtra
+            providerType={providerType}
+            setProviderType={setProviderType}
+            model={model}
+            setModel={setModel}
+            activeTheme={activeTheme}
+            onManageProviders={onManageProviders}
+          />
+
+          <InputbarAccessModeSelect
+            accessMode={accessMode}
+            setAccessMode={setAccessMode}
+          />
+
+          {showCreationModeSelector ? (
+            <Select
+              value={creationMode}
+              onValueChange={(value) =>
+                onCreationModeChange?.(value as CreationMode)
+              }
+            >
+              <SelectTrigger
+                className={`${EMPTY_STATE_SELECT_TRIGGER_CLASSNAME} min-w-[120px]`}
+              >
+                <div className="flex items-center gap-2">
+                  {CREATION_MODE_CONFIG[creationMode].icon}
+                  <span>{CREATION_MODE_CONFIG[creationMode].name}</span>
+                </div>
+              </SelectTrigger>
+              <SelectContent className="min-w-[200px] p-1" side="top">
+                <div className="px-2 py-1.5 text-xs font-medium text-slate-500">
+                  选择创作模式
+                </div>
+                {(
+                  Object.entries(CREATION_MODE_CONFIG) as [
+                    CreationMode,
+                    (typeof CREATION_MODE_CONFIG)[CreationMode],
+                  ][]
+                ).map(([key, config]) => (
+                  <SelectItem key={key} value={key}>
+                    <div className="flex items-center gap-3">
+                      <span className="flex-shrink-0">{config.icon}</span>
+                      <span className="font-medium">{config.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+
+          {isGeneralTheme ? (
+            <Badge
+              variant="outline"
+              className={EMPTY_STATE_PASSIVE_BADGE_CLASSNAME}
+            >
+              <Globe className="mr-1 h-3.5 w-3.5" />
+              通用任务上下文
+            </Badge>
+          ) : null}
+        </>
       ) : null}
     </>
   ) : undefined;
@@ -340,6 +411,7 @@ export function EmptyStateComposerPanel({
         visualVariant="floating"
         topExtra={topExtra}
         leftExtra={leftExtra}
+        showMetaTools={showAdvancedControls}
       />
     </>
   );

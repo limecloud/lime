@@ -162,8 +162,11 @@ describe("UserCenterSessionSettings", () => {
     const text = container.textContent ?? "";
 
     expect(text).toContain("账户资料");
+    expect(text).toContain("查看登录状态、默认服务和账号同步结果。");
+    expect(text).toContain("状态：未登录");
+    expect(text).toContain("默认服务：登录后自动同步");
     expect(text).toContain("使用 Google 一键登录");
-    expect(text).toContain("登录后会自动完成");
+    expect(text).toContain("浏览器完成后自动同步");
   });
 
   it("点击 Google 一键登录时应调用 hook 的 handleGoogleLogin", async () => {
@@ -251,6 +254,8 @@ describe("UserCenterSessionSettings", () => {
     expect(text).toContain("Demo Operator");
     expect(text).toContain("fmt:2026-03-25T08:00:00.000Z");
     expect(text).toContain("2 项技能 / 1 个入口");
+    expect(text).toContain("状态：已登录");
+    expect(text).toContain("默认服务：Lime Hub 主服务 · gpt-5.2-pro");
     expect(text).toContain("Lime Hub 主服务 · gpt-5.2-pro");
     expect(text).toContain("资料维护已统一到账号中心");
     expect(text).toContain("前往账号中心修改资料");
@@ -277,12 +282,12 @@ describe("UserCenterSessionSettings", () => {
     renderPage();
 
     expect(getBodyText()).not.toContain(
-      "昵称、头像、邮箱等资料统一由账号中心维护。本地只同步展示当前账户状态与默认服务配置，避免在多个入口重复编辑后出现不一致。",
+      "昵称、头像、邮箱和默认服务统一由账号中心维护；本地只展示当前会话状态与同步结果。",
     );
 
     const accountTip = await hoverTip("账户资料说明");
     expect(getBodyText()).toContain(
-      "昵称、头像、邮箱等资料统一由账号中心维护。本地只同步展示当前账户状态与默认服务配置，避免在多个入口重复编辑后出现不一致。",
+      "昵称、头像、邮箱和默认服务统一由账号中心维护；本地只展示当前会话状态与同步结果。",
     );
     await leaveTip(accountTip);
 

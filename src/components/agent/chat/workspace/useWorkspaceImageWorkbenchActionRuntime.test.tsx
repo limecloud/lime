@@ -114,7 +114,6 @@ function renderHook(props?: Partial<HookProps>) {
     submitImageWorkbenchAgentCommand: vi.fn().mockResolvedValue(true),
     setCanvasState: vi.fn(),
     setInput: vi.fn(),
-    setLayoutMode: vi.fn(),
     updateCurrentImageWorkbenchState: vi.fn(),
   };
 
@@ -523,6 +522,56 @@ describe("useWorkspaceImageWorkbenchActionRuntime", () => {
         }),
       }),
     );
+  });
+
+  it("应用图片结果时应只关闭图片工作台并派发插入，不主动切换布局", async () => {
+    const updateCurrentImageWorkbenchState = vi.fn();
+    const currentImageWorkbenchState: HookProps["currentImageWorkbenchState"] = {
+      ...createInitialSessionImageWorkbenchState(),
+      selectedOutputId: "task-image-1:output:1",
+      outputs: [
+        {
+          id: "task-image-1:output:1",
+          taskId: "task-image-1",
+          hookImageId: "task-image-1:hook:1",
+          refId: "img-2",
+          url: "https://example.com/image-2.png",
+          prompt: "原始图片",
+          createdAt: Date.now(),
+          providerName: "fal",
+          modelName: "fal-ai/nano-banana-pro",
+          size: "1024x1024",
+          parentOutputId: null,
+          resourceSaved: false,
+          applyTarget: {
+            kind: "canvas-insert" as const,
+            canvasType: "document" as const,
+            anchorHint: "section_end" as const,
+            sectionTitle: "核心观点",
+            anchorText: "这里是核心观点段落。",
+            actionLabel: "插入文稿",
+            dispatchLabel: "已切回文稿，正在插入图片",
+          },
+        },
+      ],
+    };
+    const { render, getValue } = renderHook({
+      currentImageWorkbenchState,
+      updateCurrentImageWorkbenchState,
+    });
+
+    await render();
+
+    act(() => {
+      getValue().handleApplySelectedImageWorkbenchOutput();
+    });
+
+    expect(updateCurrentImageWorkbenchState).toHaveBeenCalledTimes(1);
+    expect(updateCurrentImageWorkbenchState).toHaveBeenCalledWith(
+      expect.any(Function),
+    );
+    expect(toast.info).toHaveBeenCalledWith("已切回文稿，正在插入图片");
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("继续修图 follow-up 应回填输入框并使用中性提示文案", async () => {

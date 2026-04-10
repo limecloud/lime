@@ -416,6 +416,7 @@ npm run test:contracts
 3. 在两个话题之间来回切换
 4. 验证模型选择器恢复的是该话题最近一次 session runtime，而不是陈旧的 localStorage 默认值
 5. 如页面暴露运行时摘要条，再确认 provider/model 文案与选择器一致
+6. 如其中一个组合是 `ollama`，再补验证一组原生 tools 模型与一组非原生 tools 模型都能真实发出回复，而不是只拿到模型列表后在运行时卡成 `502 Bad Gateway`
 
 ### 话题权限恢复验证
 

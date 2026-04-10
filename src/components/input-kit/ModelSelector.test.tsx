@@ -91,6 +91,7 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 
   vi.clearAllMocks();
+  window.localStorage.clear();
 
   mockUseConfiguredProviders.mockReturnValue({
     providers: [
@@ -154,6 +155,7 @@ afterEach(() => {
     });
     mounted.container.remove();
   }
+  window.localStorage.clear();
 });
 
 describe("ModelSelector", () => {
@@ -307,5 +309,54 @@ describe("ModelSelector", () => {
     expect(pageText).toContain("支持思考");
     expect(pageText).toContain("支持多模态");
     expect(pageText).toContain("无多模态");
+  });
+
+  it("无 Provider 引导关闭后应隐藏，并在重新挂载时保持关闭状态", () => {
+    mockUseConfiguredProviders.mockReturnValue({
+      providers: [],
+      loading: false,
+    });
+    mockUseProviderModels.mockReturnValue({
+      modelIds: [],
+      models: [],
+      loading: false,
+      error: null,
+    });
+
+    const firstRender = renderModelSelector({
+      providerType: "",
+      model: "",
+    });
+
+    expect(firstRender.container.textContent).toContain("工具模型未配置");
+
+    const dismissButton = firstRender.container.querySelector(
+      'button[aria-label="关闭工具模型未配置提示"]',
+    ) as HTMLButtonElement | null;
+    if (!dismissButton) {
+      throw new Error("未找到关闭引导按钮");
+    }
+
+    act(() => {
+      dismissButton.click();
+    });
+
+    expect(firstRender.container.textContent ?? "").not.toContain(
+      "工具模型未配置",
+    );
+    expect(
+      window.localStorage.getItem(
+        "lime_model_selector_no_provider_guide_dismissed_v1",
+      ),
+    ).toBe("1");
+
+    const secondRender = renderModelSelector({
+      providerType: "",
+      model: "",
+    });
+
+    expect(secondRender.container.textContent ?? "").not.toContain(
+      "工具模型未配置",
+    );
   });
 });

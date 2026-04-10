@@ -39,9 +39,6 @@ vi.mock("../general/memory", () => ({
 vi.mock("../system/automation", () => ({
   AutomationSettings: () => <div>automation</div>,
 }));
-vi.mock("../system/execution-tracker", () => ({
-  ExecutionTrackerSettings: () => <div>execution-tracker</div>,
-}));
 vi.mock("../system/experimental", () => ({
   ExperimentalSettings: () => <div>experimental</div>,
 }));
@@ -197,6 +194,15 @@ describe("SettingsLayoutV2 Profile Tab", () => {
 });
 
 describe("SettingsLayoutV2 Experimental Tab", () => {
+  it("旧的执行轨迹页入口应直接回退到首页", async () => {
+    const container = renderComponent(SettingsTabs.ExecutionTracker);
+    await flushEffects();
+    const text = container.textContent ?? "";
+
+    expect(text).toContain("home");
+    expect(text).not.toContain("execution-tracker");
+  });
+
   it("实验功能页应直接展示内容，不再复用壳层设置页标题", async () => {
     const container = renderComponent(SettingsTabs.Experimental);
     await flushEffects();

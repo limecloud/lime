@@ -803,7 +803,7 @@ export function useOemCloudAccess() {
 
       await openExternalUrl(authSession.authorizeUrl);
       setInfoMessage(
-        "已打开系统浏览器，请完成 Google 授权；桌面端会自动同步登录结果。",
+        "已打开系统浏览器，请完成 Google 授权；如果浏览器出现确认页，请继续完成，桌面端会自动同步登录结果。",
       );
 
       const pollPromise = pollGoogleDesktopAuthSession(

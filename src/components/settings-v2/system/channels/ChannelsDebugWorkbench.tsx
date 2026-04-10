@@ -50,6 +50,7 @@ import {
   type WechatGatewayAccountStatus,
   type WechatGatewayStatus,
 } from "@/lib/api/channelsRuntime";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { ChannelLogTailPanel } from "./ChannelLogTailPanel";
 import { cn } from "@/lib/utils";
 import QRCode from "qrcode";
@@ -355,23 +356,20 @@ function PasswordInput({
   );
 }
 
-function ConfigGuideCard({
-  title,
+function GuideTipContent({
   steps,
   note,
 }: {
-  title: string;
   steps: string[];
   note?: string;
 }) {
   return (
-    <div className={SOFT_CARD_CLASS_NAME}>
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-      <div className="mt-3 space-y-2">
+    <div className="space-y-2.5 text-sm leading-6 text-slate-600">
+      <div className="space-y-2">
         {steps.map((step, index) => (
           <div
             key={step}
-            className="flex gap-2 text-sm leading-6 text-slate-500"
+            className="flex gap-2"
           >
             <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[11px] font-semibold text-slate-600">
               {index + 1}
@@ -381,8 +379,32 @@ function ConfigGuideCard({
         ))}
       </div>
       {note ? (
-        <p className="mt-3 text-xs leading-5 text-slate-500">{note}</p>
+        <p className="text-xs leading-5 text-slate-500">{note}</p>
       ) : null}
+    </div>
+  );
+}
+
+function CompactSummaryRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[18px] border border-slate-200/80 bg-slate-50/70 px-3.5 py-3">
+      <p className="text-sm text-slate-500">{label}</p>
+      <p
+        className={cn(
+          "text-right text-sm font-medium text-slate-900",
+          mono && "font-mono",
+        )}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -2339,8 +2361,31 @@ export function ChannelsDebugWorkbench({
         icon={LayoutDashboard}
         title="高级排障"
         description="这里只保留网关、日志和运行状态。"
+        aside={
+          <>
+            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+              当前查看：{currentScopeLabel}
+            </span>
+            <WorkbenchInfoTip
+              ariaLabel="高级排障范围说明"
+              label="收口说明"
+              tone="slate"
+              variant="pill"
+              align="end"
+              content={
+                <GuideTipContent
+                  steps={[
+                    "旧的概览与配置入口已统一收口到这里，避免在多个子页重复暴露同类入口。",
+                    "网关页用于处理公网入口、隧道与回调同步；日志页用于观察日志、启停与状态查询。",
+                    "配置表单不再作为主入口展示，排障时优先在这里完成状态确认与问题复现。",
+                  ]}
+                />
+              }
+            />
+          </>
+        }
       >
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="flex flex-wrap gap-2.5">
           {subPages.map((page) => {
             const Icon = page.icon;
             const isActive = activeSubPage === page.key;
@@ -2350,50 +2395,50 @@ export function ChannelsDebugWorkbench({
                 type="button"
                 onClick={() => setActiveSubPage(page.key)}
                 className={cn(
-                  "group rounded-[22px] border p-4 text-left transition",
+                  "group flex min-w-[220px] flex-1 items-center gap-3 rounded-[18px] border px-3.5 py-3 text-left transition",
                   isActive
                     ? "border-slate-300 bg-slate-900 text-white shadow-sm"
-                    : "border-slate-200/80 bg-slate-50/60 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white",
+                    : "border-slate-200/80 bg-slate-50/60 text-slate-700 hover:border-slate-300 hover:bg-white",
                 )}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div
+                <div
+                  className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
+                    isActive
+                      ? "border-white/20 bg-white/10 text-white"
+                      : "border-slate-200 bg-white text-slate-700",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p
                     className={cn(
-                      "flex h-11 w-11 items-center justify-center rounded-2xl border",
-                      isActive
-                        ? "border-white/20 bg-white/10 text-white"
-                        : "border-slate-200 bg-white text-slate-700",
-                    )}
-                  >
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <span
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-[11px] font-medium",
-                      isActive
-                        ? "border-white/15 bg-white/10 text-white"
-                        : "border-slate-200 bg-white text-slate-500",
+                      "text-sm font-semibold",
+                      isActive ? "text-white" : "text-slate-900",
                     )}
                   >
                     {page.label}
-                  </span>
+                  </p>
+                  <p
+                    className={cn(
+                      "text-xs leading-5",
+                      isActive ? "text-white/80" : "text-slate-500",
+                    )}
+                  >
+                    {page.description}
+                  </p>
                 </div>
-                <p
+                <span
                   className={cn(
-                    "mt-4 text-sm font-semibold",
-                    isActive ? "text-white" : "text-slate-900",
+                    "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                    isActive
+                      ? "border-white/15 bg-white/10 text-white"
+                      : "border-slate-200 bg-white text-slate-500",
                   )}
                 >
-                  {page.label}
-                </p>
-                <p
-                  className={cn(
-                    "mt-1 text-sm leading-6",
-                    isActive ? "text-white/80" : "text-slate-500",
-                  )}
-                >
-                  {page.description}
-                </p>
+                  {isActive ? "当前" : "切换"}
+                </span>
               </button>
             );
           })}
@@ -2407,69 +2452,67 @@ export function ChannelsDebugWorkbench({
             title="网关与隧道"
             description="统一管理公网隧道、回调同步与连通性探测。"
             aside={
-              <span
-                className={cn(
-                  "rounded-full border px-3 py-1 text-xs font-medium",
-                  tunnelEnabled
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-slate-200 bg-slate-100 text-slate-500",
-                )}
-              >
-                {tunnelEnabled ? "隧道已启用" : "隧道未启用"}
-              </span>
+              <>
+                <span
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium",
+                    tunnelEnabled
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-slate-200 bg-slate-100 text-slate-500",
+                  )}
+                >
+                  {tunnelEnabled ? "隧道已启用" : "隧道未启用"}
+                </span>
+                <WorkbenchInfoTip
+                  ariaLabel="网关与隧道配置步骤"
+                  label="配置步骤"
+                  tone="slate"
+                  variant="pill"
+                  align="end"
+                  content={
+                    <GuideTipContent
+                      steps={[
+                        "先确认本地网关地址（local host/port）可访问，再配置 tunnel 参数。",
+                        "Cloudflare 模式优先设置 tunnel_name 与 dns_name，再执行“创建隧道”。",
+                        "隧道启动后执行“同步飞书回调 URL”，确保飞书侧回调地址一致。",
+                      ]}
+                      note="建议每次变更后都先“查询状态”，再到日志页观察是否有连接异常。"
+                    />
+                  }
+                />
+              </>
             }
           >
-            <div className="space-y-4">
-              <ConfigGuideCard
-                title="网关与隧道说明"
-                steps={[
-                  "先确认本地网关地址（local host/port）可访问，再配置 tunnel 参数。",
-                  "Cloudflare 模式优先设置 tunnel_name 与 dns_name，再执行“创建隧道”。",
-                  "隧道启动后执行“同步飞书回调 URL”，确保飞书侧回调地址一致。",
-                ]}
-                note="建议每次变更后都先“查询状态”，再到日志页观察是否有连接异常。"
-              />
-              <GatewayTunnelPanel
-                config={gateway}
-                onChange={setGateway}
-                defaultFeishuAccountId={
-                  channels.feishu.default_account || "default"
-                }
-                onReloadConfig={loadConfig}
-              />
-            </div>
+            <GatewayTunnelPanel
+              config={gateway}
+              onChange={setGateway}
+              defaultFeishuAccountId={
+                channels.feishu.default_account || "default"
+              }
+              onReloadConfig={loadConfig}
+            />
           </SurfacePanel>
 
           <SurfacePanel
             icon={LayoutDashboard}
-            title="入口摘要"
-            description="用于快速核对当前 tunnel 关键参数。"
+            title="当前摘要"
+            description="快速核对当前 tunnel 关键参数。"
           >
-            <div className="space-y-3">
-              <div className={SOFT_CARD_CLASS_NAME}>
-                <p className="text-sm font-semibold text-slate-900">本地入口</p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {gateway.tunnel?.local_host || "127.0.0.1"}:
-                  {gateway.tunnel?.local_port ?? 3000}
-                </p>
-              </div>
-              <div className={SOFT_CARD_CLASS_NAME}>
-                <p className="text-sm font-semibold text-slate-900">
-                  Tunnel Provider / 模式
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {gateway.tunnel?.provider || "cloudflare"} /{" "}
-                  {gateway.tunnel?.mode || "managed"}
-                </p>
-              </div>
-              <div className={SOFT_CARD_CLASS_NAME}>
-                <p className="text-sm font-semibold text-slate-900">
-                  飞书默认账号
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {channels.feishu.default_account || "default"}
-                </p>
-              </div>
+            <div className="space-y-2.5">
+              <CompactSummaryRow
+                label="本地入口"
+                value={`${gateway.tunnel?.local_host || "127.0.0.1"}:${gateway.tunnel?.local_port ?? 3000}`}
+                mono
+              />
+              <CompactSummaryRow
+                label="Tunnel 模式"
+                value={`${gateway.tunnel?.provider || "cloudflare"} / ${gateway.tunnel?.mode || "managed"}`}
+              />
+              <CompactSummaryRow
+                label="飞书默认账号"
+                value={channels.feishu.default_account || "default"}
+                mono
+              />
             </div>
           </SurfacePanel>
         </div>
@@ -2481,18 +2524,26 @@ export function ChannelsDebugWorkbench({
             icon={ScrollText}
             title="日志"
             description="观察渠道网关 / RPC 日志。"
-          >
-            <div className="space-y-4">
-              <ConfigGuideCard
-                title="日志排查说明"
-                steps={[
-                  "先选择过滤模式（如 TelegramGateway / WechatGateway / RPC），缩小观察范围。",
-                  "遇到历史噪音可先“清空日志”，再复现问题获取干净样本。",
-                  "如果日志无输出，先去“运行”页执行状态查询确认服务已启动。",
-                ]}
+            aside={
+              <WorkbenchInfoTip
+                ariaLabel="日志排查说明"
+                label="排查说明"
+                tone="slate"
+                variant="pill"
+                align="end"
+                content={
+                  <GuideTipContent
+                    steps={[
+                      "先选择过滤模式（如 TelegramGateway / WechatGateway / RPC），缩小观察范围。",
+                      "遇到历史噪音可先“清空日志”，再复现问题获取干净样本。",
+                      "如果日志无输出，先去“运行”页执行状态查询确认服务已启动。",
+                    ]}
+                  />
+                }
               />
-              <ChannelLogTailPanel />
-            </div>
+            }
+          >
+            <ChannelLogTailPanel />
           </SurfacePanel>
 
           <SurfacePanel

@@ -6,11 +6,11 @@ export type {
   MediaTaskArtifactRecord,
   MediaTaskListFilters,
   MediaTaskLookupRequest,
-} from "./agentRuntime";
+} from "./agentRuntime/types";
 
 export {
   cancelMediaTaskArtifact,
   createImageGenerationTaskArtifact,
   getMediaTaskArtifact,
   listMediaTaskArtifacts,
-} from "./agentRuntime";
+} from "./agentRuntime/mediaClient";

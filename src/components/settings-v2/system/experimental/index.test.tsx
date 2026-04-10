@@ -353,6 +353,8 @@ describe("ExperimentalSettings", () => {
       "把还在试验中的能力统一放到一处管理，但不要把风险提示藏起来",
     );
     expect(text).not.toContain("更多实验功能即将推出");
+    expect(text).toContain("实验功能");
+    expect(text).toContain("集中管理实验能力开关、诊断动作和预留入口。");
     expect(text).toContain("Tool Calling");
     expect(text).toContain("当前空闲");
   });
@@ -361,10 +363,19 @@ describe("ExperimentalSettings", () => {
     renderComponent();
     await waitForLoad();
 
+    expect(getBodyText()).not.toContain(
+      "集中管理仍在验证阶段的功能开关和诊断能力，保持风险可见，同时避免说明区压过真正的配置面板。",
+    );
     expect(getBodyText()).not.toContain("控制编程式工具调用与动态过滤链路。");
     expect(getBodyText()).not.toContain(
       "控制编程式工具调用、动态过滤和 input examples 透传。",
     );
+
+    const overviewTip = await hoverTip("实验功能总览说明");
+    expect(getBodyText()).toContain(
+      "集中管理仍在验证阶段的功能开关和诊断能力，保持风险可见，同时避免说明区压过真正的配置面板。",
+    );
+    await leaveTip(overviewTip);
 
     const statTip = await hoverTip("Tool Calling说明");
     expect(getBodyText()).toContain("控制编程式工具调用与动态过滤链路。");

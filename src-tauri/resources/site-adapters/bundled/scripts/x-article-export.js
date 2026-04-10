@@ -782,6 +782,113 @@ async (args, helpers) => {
     return uniqueCandidates.flatMap((candidate) => serializeCodeBlock(candidate));
   }
 
+  function extractArticleMarkdown(articleRoot, richTextRoot) {
+    const state = createState();
+    const articleSegments = collectArticleSegments(articleRoot, richTextRoot);
+    const fallbackCodeBlocks = collectFallbackCodeBlocks(articleRoot);
+    const potentialMediaCarriers = collectPotentialMediaCarriers(articleRoot);
+    let markdown = serializeArticleSegments(articleSegments, state);
+    markdown = appendMissingBlocks(markdown, fallbackCodeBlocks);
+    markdown = appendMissingBlocks(markdown, collectImageMarkdown(articleRoot, state));
+
+    return {
+      state,
+      fallbackCodeBlocks,
+      potentialMediaCarriers,
+      markdown,
+    };
+  }
+
+  function shouldAttemptStructuredContentRecovery(articleRoot, extraction) {
+    if (!extraction?.markdown) {
+      return false;
+    }
+
+    if (extraction.state.images.length > 0) {
+      return false;
+    }
+
+    if (extraction.fallbackCodeBlocks.length > 0) {
+      return false;
+    }
+
+    if (countExtractedCodeBlocks(extraction.markdown) > 0) {
+      return false;
+    }
+
+    const snapshot = buildWarmupSnapshot(articleRoot);
+    return snapshot.textLength >= 1800 && snapshot.articleBlocks >= 1;
+  }
+
+  function safeWindowScrollTo(x, y) {
+    if (typeof window?.scrollTo !== "function") {
+      return false;
+    }
+
+    const userAgent = String(globalThis?.navigator?.userAgent || "").toLowerCase();
+    if (userAgent.includes("jsdom")) {
+      return false;
+    }
+
+    try {
+      window.scrollTo(x, y);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function attemptStructuredContentRecovery(articleRoot) {
+    if (!(articleRoot instanceof Element)) {
+      return;
+    }
+
+    const initialScrollY = Number.isFinite(window?.scrollY)
+      ? Math.round(window.scrollY)
+      : 0;
+    if (safeWindowScrollTo(0, 0)) {
+      await helpers.sleep?.(80);
+    }
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await helpers.waitForDomStable?.({
+        root: articleRoot,
+        stableMs: 650,
+        timeoutMs: 4200,
+      });
+      await helpers.scrollUntilSettled?.({
+        root: articleRoot,
+        maxScrolls: 18,
+        delayMs: 420,
+        settleRounds: 1,
+        viewportFactor: 0.95,
+        getSnapshot: () => buildWarmupSnapshot(articleRoot),
+      });
+      await helpers.waitForDomStable?.({
+        root: articleRoot,
+        stableMs: 700,
+        timeoutMs: 4600,
+      });
+      await helpers.waitForImagesReady?.(articleRoot, {
+        timeoutMs: 4200,
+        intervalMs: 250,
+        stableRounds: 3,
+      });
+
+      const snapshot = buildWarmupSnapshot(articleRoot);
+      if (snapshot.mediaCarriers > 0 || snapshot.codeBlocks > 0) {
+        break;
+      }
+    }
+
+    const currentScrollY = Number.isFinite(window?.scrollY)
+      ? Math.round(window.scrollY)
+      : initialScrollY;
+    if (currentScrollY !== initialScrollY && safeWindowScrollTo(0, initialScrollY)) {
+      await helpers.sleep?.(80);
+    }
+  }
+
   function collectPotentialMediaCarriers(root) {
     if (!(root instanceof Element)) {
       return [];
@@ -937,13 +1044,25 @@ async (args, helpers) => {
     };
   }
 
-  const state = createState();
-  const articleSegments = collectArticleSegments(articleRoot, richTextRoot);
-  const fallbackCodeBlocks = collectFallbackCodeBlocks(articleRoot);
-  const potentialMediaCarriers = collectPotentialMediaCarriers(articleRoot);
-  let markdown = serializeArticleSegments(articleSegments, state);
-  markdown = appendMissingBlocks(markdown, fallbackCodeBlocks);
-  markdown = appendMissingBlocks(markdown, collectImageMarkdown(articleRoot, state));
+  let extraction = extractArticleMarkdown(articleRoot, richTextRoot);
+  if (shouldAttemptStructuredContentRecovery(articleRoot, extraction)) {
+    await attemptStructuredContentRecovery(articleRoot);
+    const recoveredExtraction = extractArticleMarkdown(articleRoot, richTextRoot);
+    const improved =
+      recoveredExtraction.state.images.length > extraction.state.images.length ||
+      recoveredExtraction.fallbackCodeBlocks.length >
+        extraction.fallbackCodeBlocks.length ||
+      countExtractedCodeBlocks(recoveredExtraction.markdown) >
+        countExtractedCodeBlocks(extraction.markdown);
+    if (improved) {
+      extraction = recoveredExtraction;
+    }
+  }
+
+  const state = extraction.state;
+  const fallbackCodeBlocks = extraction.fallbackCodeBlocks;
+  const potentialMediaCarriers = extraction.potentialMediaCarriers;
+  let markdown = extraction.markdown;
   if (!markdown) {
     return {
       ok: false,

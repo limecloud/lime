@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ServiceSkillItem } from "@/lib/api/serviceSkills";
 import {
+  buildServiceSkillClawLaunchContext,
+  buildServiceSkillClawLaunchRequestMetadata,
   buildServiceSkillNaturalLaunchMessage,
   resolveServiceSkillSiteCapabilityExecution,
 } from "./siteCapabilityBinding";
@@ -142,6 +144,77 @@ describe("site capability binding natural launch message", () => {
     expect(message).toBe(
       "你帮我把这篇X文章导出为 Markdown，并将正文翻译成“中文”，保留代码块原文、图片链接和 Markdown 结构。",
     );
+  });
+
+  it("导出型站点技能带目标语言时应同时注入 translation_skill_launch metadata", () => {
+    const skill = createBrowserSkill({
+      id: "x-article-export",
+      title: "X 文章转存",
+      summary: "导出 X 长文并按目标语言翻译正文。",
+      slotSchema: [
+        {
+          key: "article_url",
+          label: "X 文章链接",
+          type: "url",
+          required: true,
+          placeholder: "https://x.com/<账号>/article/<文章ID>",
+        },
+        {
+          key: "target_language",
+          label: "目标语言",
+          type: "text",
+          required: false,
+          defaultValue: "中文",
+          placeholder: "例如 中文、英文、日文",
+        },
+      ],
+      siteCapabilityBinding: {
+        autoRun: true,
+        requireAttachedSession: true,
+        saveMode: "project_resource",
+        siteLabel: "X",
+        adapterMatch: {
+          urlArgName: "url",
+          requiredCapabilities: ["article_export", "markdown_bundle"],
+          hostAliases: ["twitter.com", "www.twitter.com"],
+        },
+        slotArgMap: {
+          article_url: "url",
+          target_language: "target_language",
+        },
+      },
+    });
+    const context = buildServiceSkillClawLaunchContext(
+      skill,
+      {
+        article_url: "https://x.com/GoogleCloudTech/article/2033953579824758855",
+        target_language: "中文",
+      },
+      {
+        adapterName: "x/article-export",
+        projectId: "project-1",
+        contentId: "content-1",
+      },
+    );
+
+    expect(buildServiceSkillClawLaunchRequestMetadata(context)).toMatchObject({
+      harness: {
+        allow_model_skills: true,
+        translation_skill_launch: {
+          skill_name: "translation",
+          kind: "translation_request",
+          translation_request: {
+            target_language: "中文",
+            project_id: "project-1",
+            content_id: "content-1",
+            entry_source: "service_skill_site_export_followup",
+          },
+        },
+        service_skill_launch: {
+          adapter_name: "x/article-export",
+        },
+      },
+    });
   });
 
   it("应按 URL 域名、能力标签和 host alias 解析动态站点适配器", async () => {

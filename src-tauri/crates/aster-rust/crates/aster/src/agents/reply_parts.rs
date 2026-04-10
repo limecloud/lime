@@ -127,10 +127,12 @@ fn normalize_response_tool_requests(response: &Message, tool_requests: &[ToolReq
 async fn toolshim_postprocess(
     response: Message,
     toolshim_tools: &[Tool],
+    toolshim_model: Option<&str>,
 ) -> Result<Message, ProviderError> {
-    let interpreter = OllamaInterpreter::new().map_err(|e| {
-        ProviderError::ExecutionError(format!("Failed to create OllamaInterpreter: {}", e))
-    })?;
+    let interpreter = OllamaInterpreter::new_with_model(toolshim_model.map(str::to_string))
+        .map_err(|e| {
+            ProviderError::ExecutionError(format!("Failed to create OllamaInterpreter: {}", e))
+        })?;
 
     augment_message_with_tool_calls(&interpreter, response, toolshim_tools)
         .await
@@ -283,7 +285,14 @@ impl Agent {
 
                 // Post-process / structure the response only if tool interpretation is enabled
                 if message.is_some() && model_config.toolshim {
-                    message = Some(toolshim_postprocess(message.unwrap(), &toolshim_tools).await?);
+                    message = Some(
+                        toolshim_postprocess(
+                            message.unwrap(),
+                            &toolshim_tools,
+                            model_config.toolshim_model.as_deref(),
+                        )
+                        .await?,
+                    );
                 }
 
                 yield (message, usage);

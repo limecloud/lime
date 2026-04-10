@@ -68,6 +68,7 @@ function renderHook(props?: Partial<HookProps>) {
     setLayoutMode: vi.fn(),
     setTaskFiles: vi.fn(),
     setSelectedFileId: vi.fn(),
+    setGeneralCanvasState: vi.fn(),
     setCanvasState: vi.fn(),
   };
 
@@ -125,12 +126,14 @@ describe("useWorkspaceArtifactPreviewActions", () => {
     const setSelectedArtifactId = vi.fn();
     const setArtifactViewMode = vi.fn();
     const setLayoutMode = vi.fn();
+    const setGeneralCanvasState = vi.fn();
     const artifact = createArtifact();
     const { render, getValue } = renderHook({
       suppressBrowserAssistCanvasAutoOpen,
       setSelectedArtifactId,
       setArtifactViewMode,
       setLayoutMode,
+      setGeneralCanvasState,
     });
 
     await render();
@@ -149,6 +152,7 @@ describe("useWorkspaceArtifactPreviewActions", () => {
     expect(setArtifactViewMode).toHaveBeenCalledWith("preview", {
       artifactId: "artifact-doc-1",
     });
+    expect(setGeneralCanvasState).toHaveBeenCalledTimes(1);
   });
 
   it("显式打开浏览器协助 artifact 时应改走浏览器工作台入口", async () => {
@@ -189,10 +193,18 @@ describe("useWorkspaceArtifactPreviewActions", () => {
     expect(setLayoutMode).not.toHaveBeenCalled();
   });
 
-  it("通用模式打开文件预览时应把生成的 artifact 标记为持久项，避免后续同步被清掉", async () => {
+  it("通用模式打开文件预览时应直接切到真实文件画布，而不是再包装成 artifact", async () => {
     const upsertGeneralArtifact = vi.fn();
+    const setGeneralCanvasState = vi.fn();
+    const setSelectedArtifactId = vi.fn();
+    const setLayoutMode = vi.fn();
+    const suppressBrowserAssistCanvasAutoOpen = vi.fn();
     const { render, getValue } = renderHook({
       upsertGeneralArtifact,
+      setGeneralCanvasState,
+      setSelectedArtifactId,
+      setLayoutMode,
+      suppressBrowserAssistCanvasAutoOpen,
     });
 
     await render();
@@ -204,13 +216,16 @@ describe("useWorkspaceArtifactPreviewActions", () => {
       );
     });
 
-    expect(upsertGeneralArtifact).toHaveBeenCalledWith(
+    expect(upsertGeneralArtifact).not.toHaveBeenCalled();
+    expect(suppressBrowserAssistCanvasAutoOpen).toHaveBeenCalledTimes(1);
+    expect(setSelectedArtifactId).toHaveBeenCalledWith(null);
+    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+    expect(setGeneralCanvasState).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: "artifact:session:.lime/artifacts/thread-1/report.md",
-        meta: expect.objectContaining({
-          persistOutsideMessages: true,
-          filePath: ".lime/artifacts/thread-1/report.md",
-        }),
+        isOpen: true,
+        contentType: "markdown",
+        filename: ".lime/artifacts/thread-1/report.md",
+        content: "# 研究简报\n\n这里是预览内容。",
       }),
     );
   });

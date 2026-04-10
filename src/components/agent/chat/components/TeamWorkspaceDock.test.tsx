@@ -8,7 +8,8 @@ import { TeamWorkspaceDock } from "./TeamWorkspaceDock";
 const { mockGetAgentRuntimeSession } = vi.hoisted(() => ({
   mockGetAgentRuntimeSession: vi.fn(),
 }));
-const { mockSafeListen, mockParseAgentEvent } = vi.hoisted(() => ({
+const { mockSafeInvoke, mockSafeListen, mockParseAgentEvent } = vi.hoisted(() => ({
+  mockSafeInvoke: vi.fn(),
   mockSafeListen: vi.fn(),
   mockParseAgentEvent: vi.fn((payload: unknown) => payload),
 }));
@@ -34,6 +35,7 @@ vi.mock("@/lib/api/agentProtocol", async () => {
 });
 
 vi.mock("@/lib/dev-bridge", () => ({
+  safeInvoke: mockSafeInvoke,
   safeListen: mockSafeListen,
 }));
 
@@ -76,6 +78,7 @@ beforeEach(() => {
   mockGetAgentRuntimeSession.mockImplementation(async (sessionId: string) =>
     createSessionDetail(sessionId),
   );
+  mockSafeInvoke.mockResolvedValue(undefined);
   mockSafeListen.mockResolvedValue(() => {});
   mockParseAgentEvent.mockImplementation((payload: unknown) => payload);
 });

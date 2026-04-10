@@ -112,8 +112,10 @@ describe("MediaServicesSettings", () => {
     const text = container.textContent ?? "";
 
     expect(text).toContain("媒体服务");
+    expect(text).toContain("统一管理图片、视频和语音的默认服务策略。");
     expect(text).toContain("图片配置内容");
     expect(text).not.toContain("视频配置内容");
+    expect(text).not.toContain("MEDIA SERVICES");
   });
 
   it("应支持通过初始参数打开语音页签", async () => {

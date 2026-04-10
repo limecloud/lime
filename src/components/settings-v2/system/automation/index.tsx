@@ -483,6 +483,11 @@ export function AutomationSettings({
     : workspaceOnly
       ? "默认进入任务视图，当前只保留 Agent 对话任务的创建与运行。统计和风险提醒收进单独的概览页。"
       : "统一管理 Agent 自动化任务的创建、运行历史和调度器配置。";
+  const headerSummary = settingsOnly
+    ? "管理调度器开关、轮询间隔和历史保留。"
+    : workspaceOnly
+      ? "聚焦任务创建、运行和概览切换。"
+      : "统一管理自动化任务、运行状态和调度入口。";
 
   if (loading || !schedulerConfig) {
     return (
@@ -494,30 +499,23 @@ export function AutomationSettings({
 
   return (
     <div className="space-y-6 pb-8">
-      <div className="overflow-hidden rounded-[32px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(245,250,246,0.96)_0%,rgba(255,255,255,0.98)_52%,rgba(241,247,255,0.96)_100%)] p-6 shadow-sm shadow-slate-950/5">
+      <section className="rounded-[28px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="space-y-3">
-            <div className="inline-flex items-center rounded-full border border-slate-200/80 bg-white/80 px-3 py-1 text-xs font-medium text-slate-500">
-              Automation Workspace
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                {heroTitle}
+              </h1>
+              <WorkbenchInfoTip
+                ariaLabel="自动化工作台说明"
+                content={heroDescription}
+                tone="mint"
+              />
             </div>
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-slate-900 text-white shadow-lg shadow-slate-900/10">
-                  <Bot className="h-5 w-5" />
-                </div>
-                <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                  {heroTitle}
-                </h2>
-                <WorkbenchInfoTip
-                  ariaLabel="自动化工作台说明"
-                  content={heroDescription}
-                  tone="mint"
-                />
-              </div>
-            </div>
+            <p className="text-sm text-slate-500">{headerSummary}</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
             {showWorkspacePanels ? (
               <Button variant="default" onClick={() => openCreateDialog()}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -545,34 +543,72 @@ export function AutomationSettings({
           </div>
         </div>
 
-        {showWorkspacePanels ? (
-          <div className="mt-5">
+        <div className="mt-4 flex flex-col gap-4 rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                schedulerConfig.enabled
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              调度器：{schedulerConfig.enabled ? "已启用" : "已停用"}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
+              任务数：{jobs.length}
+            </span>
+            <span
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                (health?.risky_jobs.length ?? 0) > 0
+                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              风险提醒：{health?.risky_jobs.length ?? 0}
+            </span>
+            <span
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                status?.running
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              轮询状态：{status?.running ? "运行中" : "已暂停"}
+            </span>
+            {legacyBrowserJobCount > 0 ? (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
+                遗留浏览器任务：{legacyBrowserJobCount}
+              </span>
+            ) : null}
+          </div>
+
+          {showWorkspacePanels ? (
             <Tabs
               value={workspaceTab}
               onValueChange={(value) =>
                 setWorkspaceTab(value as AutomationWorkspaceTab)
               }
             >
-              <TabsList className="grid h-auto w-full max-w-[420px] grid-cols-2 rounded-[22px] border border-slate-200/80 bg-white/86 p-1 shadow-sm shadow-slate-950/5">
+              <TabsList className="grid h-auto w-full max-w-[420px] grid-cols-2 rounded-[20px] border border-slate-200 bg-white p-1 shadow-sm shadow-slate-950/5">
                 <TabsTrigger
                   value="tasks"
                   data-testid="automation-tab-tasks"
-                  className="rounded-[16px] px-4 py-3"
+                  className="rounded-[14px] px-4 py-3"
                 >
                   任务
                 </TabsTrigger>
                 <TabsTrigger
                   value="overview"
                   data-testid="automation-tab-overview"
-                  className="rounded-[16px] px-4 py-3"
+                  className="rounded-[14px] px-4 py-3"
                 >
                   概览
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      </section>
 
       {showSchedulerEditor ? (
         <Card className="rounded-[28px] border-slate-200/80 bg-white shadow-sm shadow-slate-950/5">

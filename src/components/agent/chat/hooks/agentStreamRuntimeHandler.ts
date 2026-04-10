@@ -46,6 +46,15 @@ import {
   containsAssistantProtocolResidue,
   stripAssistantProtocolResidue,
 } from "../utils/protocolResidue";
+import { normalizeIncomingToolResult } from "./agentChatToolResult";
+import {
+  hasMeaningfulSiteToolResultSignal,
+} from "../utils/siteToolResultSummary";
+import {
+  buildImageTaskPreviewFromToolResult,
+  buildTaskPreviewFromToolResult,
+  buildToolResultArtifactFromToolResult,
+} from "../utils/taskPreviewFromToolResult";
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 
@@ -57,6 +66,7 @@ interface StreamObserver {
 
 interface StreamRequestState {
   accumulatedContent: string;
+  hasMeaningfulCompletionSignal?: boolean;
   queuedTurnId: string | null;
   requestLogId: string | null;
   requestStartedAt: number;
@@ -144,6 +154,41 @@ function finishRequestLog(
     description: payload.description,
     error: payload.error,
   });
+}
+
+function hasMeaningfulCompletionSignalFromToolResult(params: {
+  toolId: string;
+  toolName: string;
+  normalizedResult:
+    | {
+        metadata?: unknown;
+      }
+    | undefined;
+}): boolean {
+  const resultRecord =
+    params.normalizedResult &&
+    typeof params.normalizedResult === "object" &&
+    !Array.isArray(params.normalizedResult)
+      ? (params.normalizedResult as Record<string, unknown>)
+      : undefined;
+
+  if (hasMeaningfulSiteToolResultSignal(resultRecord?.metadata)) {
+    return true;
+  }
+
+  const previewParams = {
+    toolId: params.toolId,
+    toolName: params.toolName,
+    toolArguments: undefined,
+    toolResult: resultRecord,
+    fallbackPrompt: "",
+  };
+
+  return Boolean(
+    buildImageTaskPreviewFromToolResult(previewParams) ||
+      buildTaskPreviewFromToolResult(previewParams) ||
+      buildToolResultArtifactFromToolResult(previewParams),
+  );
 }
 
 export function handleTurnStreamEvent({
@@ -509,6 +554,19 @@ export function handleTurnStreamEvent({
     case "tool_end":
       activateStream();
       clearOptimisticItem();
+      {
+        const normalizedResult = normalizeIncomingToolResult(data.result);
+        const toolName = toolNameByToolId.get(data.tool_id) || "";
+        if (
+          hasMeaningfulCompletionSignalFromToolResult({
+            toolId: data.tool_id,
+            toolName,
+            normalizedResult,
+          })
+        ) {
+          requestState.hasMeaningfulCompletionSignal = true;
+        }
+      }
       handleToolEndEvent({
         data,
         onWriteFile,
@@ -525,6 +583,7 @@ export function handleTurnStreamEvent({
     case "artifact_snapshot":
       activateStream();
       clearOptimisticItem();
+      requestState.hasMeaningfulCompletionSignal = true;
       handleArtifactSnapshotEvent({
         data,
         onWriteFile,
@@ -584,23 +643,27 @@ export function handleTurnStreamEvent({
         (containsAssistantProtocolResidue(requestState.accumulatedContent) ||
           !rawFinalContent);
       const finalContent = resolveGracefulCompletionContent();
-      if (missingFinalReply) {
-        toast.error("已完成工具执行，但模型未输出最终答复，请重试");
-      }
+      const shouldWarnMissingFinalReply =
+        missingFinalReply && !requestState.hasMeaningfulCompletionSignal;
       observer?.onComplete?.(finalContent);
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMsgId
-            ? {
-                ...updateMessageArtifactsStatus(msg, "complete"),
-                isThinking: false,
-                content: finalContent,
-                runtimeStatus: undefined,
-                usage: data.usage ?? msg.usage,
-              }
-            : msg,
-        ),
+        prev.map((msg) => {
+          if (msg.id !== assistantMsgId) {
+            return msg;
+          }
+
+          return {
+            ...updateMessageArtifactsStatus(msg, "complete"),
+            isThinking: false,
+            content: finalContent,
+            runtimeStatus: undefined,
+            usage: data.usage ?? msg.usage,
+          };
+        }),
       );
+      if (shouldWarnMissingFinalReply) {
+        toast.error("已完成工具执行，但模型未输出最终答复，请重试");
+      }
       clearActiveStreamIfMatch(eventName);
       disposeListener();
       break;

@@ -760,6 +760,18 @@ mod tests {
             deny_rule.conditions[0].value,
             serde_json::json!("session-service-skill-1")
         );
+
+        let site_run_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == "lime_site_run")
+            .expect("should add site run deny rule");
+        assert!(!site_run_rule.allowed);
+        assert_eq!(site_run_rule.priority, 1250);
+        assert_eq!(site_run_rule.conditions.len(), 1);
+        assert_eq!(
+            site_run_rule.conditions[0].value,
+            serde_json::json!("session-service-skill-1")
+        );
     }
 
     #[test]
@@ -5484,6 +5496,11 @@ mod tests {
         )
         .expect("should contain preload prompt");
 
+        assert!(merged.contains("这个 bundle 是系统侧采集得到的源材料"));
+        assert!(merged.contains("不默认等于用户要的最终交付结果"));
+        assert!(merged.contains("必须先基于这份已保存的 Markdown 继续完成原任务"));
+        assert!(merged.contains("不要把保存路径、图片数量或采集摘要原样复述后就停止"));
+        assert!(merged.contains("不要把 exports 下的源 bundle 直接当成最终结果目录"));
         assert!(merged.contains("Markdown 正文翻译成中文"));
         assert!(merged.contains("/tmp/project/saved/x-article-export/index.md"));
         assert!(merged.contains("只允许新增 Read / Write / Edit"));
@@ -6754,7 +6771,7 @@ mod tests {
             .description()
             .contains("Fetches full schema definitions"));
 
-        super::tool_runtime::search_bridge::register_tool_search_tool_to_registry(
+        super::tool_runtime::register_tool_search_tool_to_registry(
             &mut guard,
             registry.clone(),
             None,

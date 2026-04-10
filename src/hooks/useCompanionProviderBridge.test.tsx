@@ -15,6 +15,7 @@ import { safeListen } from "@/lib/dev-bridge";
 import { apiKeyProviderApi } from "@/lib/api/apiKeyProvider";
 import { providerPoolApi } from "@/lib/api/providerPool";
 import { subscribeProviderDataChanged } from "@/lib/providerDataEvents";
+import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 import { SettingsTabs } from "@/types/settings";
 
 vi.mock("@/lib/api/companion", () => ({
@@ -44,6 +45,10 @@ vi.mock("@/lib/api/providerPool", () => ({
 
 vi.mock("@/lib/providerDataEvents", () => ({
   subscribeProviderDataChanged: vi.fn(),
+}));
+
+vi.mock("@/lib/tauri-runtime", () => ({
+  hasTauriInvokeCapability: vi.fn(() => true),
 }));
 
 type HookProps = Parameters<typeof useCompanionProviderBridge>[0];
@@ -132,6 +137,7 @@ describe("useCompanionProviderBridge", () => {
     vi.mocked(apiKeyProviderApi.getProviders).mockResolvedValue([]);
     vi.mocked(subscribeProviderDataChanged).mockReturnValue(vi.fn());
     vi.mocked(safeListen).mockResolvedValue(vi.fn());
+    vi.mocked(hasTauriInvokeCapability).mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -172,6 +178,18 @@ describe("useCompanionProviderBridge", () => {
         needs_attention_provider_count: 0,
       },
     });
+  });
+
+  it("浏览器开发模式下不应注册桌宠事件桥", async () => {
+    vi.mocked(hasTauriInvokeCapability).mockReturnValue(false);
+
+    const { render } = renderHook();
+    await render();
+
+    expect(getCompanionPetStatus).not.toHaveBeenCalled();
+    expect(listenCompanionPetStatus).not.toHaveBeenCalled();
+    expect(safeListen).not.toHaveBeenCalled();
+    expect(subscribeProviderDataChanged).not.toHaveBeenCalled();
   });
 
   it("收到打开服务商设置事件时，应导航到 Providers 标签页", async () => {

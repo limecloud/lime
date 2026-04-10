@@ -5,6 +5,12 @@ import { useWorkspaceNavigationActions } from "./useWorkspaceNavigationActions";
 import { useWorkspaceInputbarSceneRuntime } from "./useWorkspaceInputbarSceneRuntime";
 import { useWorkspaceCanvasSceneRuntime } from "./useWorkspaceCanvasSceneRuntime";
 import { useWorkspaceShellChromeRuntime } from "./useWorkspaceShellChromeRuntime";
+import { CanvasSessionOverviewPanel } from "../components/CanvasSessionOverviewPanel";
+import type {
+  CanvasWorkbenchHeaderView,
+  CanvasWorkbenchSessionView,
+  CanvasWorkbenchSummaryStat,
+} from "../components/CanvasWorkbenchLayout";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { CreationMode } from "../components/types";
 import type { WriteArtifactContext } from "../types";
@@ -26,6 +32,47 @@ type ShellChromeRuntime = ReturnType<typeof useWorkspaceShellChromeRuntime>;
 type ConversationScenePresentationParams = Parameters<
   typeof useWorkspaceConversationScenePresentation
 >[0];
+
+function shortenSessionText(value?: string | null, maxLength = 120): string {
+  const normalized = (value || "").trim().replace(/\s+/g, " ");
+  if (!normalized) {
+    return "";
+  }
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function resolveSessionStatusBadge(
+  status?: "running" | "completed" | "failed" | "aborted" | null,
+): {
+  label: string;
+  tone: "default" | "accent" | "success";
+} {
+  if (status === "running") {
+    return { label: "执行中", tone: "accent" };
+  }
+  if (status === "completed") {
+    return { label: "已完成", tone: "success" };
+  }
+  if (status === "failed") {
+    return { label: "失败", tone: "default" };
+  }
+  if (status === "aborted") {
+    return { label: "已中断", tone: "default" };
+  }
+  return { label: "空闲", tone: "default" };
+}
+
+function resolvePathLeaf(value?: string | null): string {
+  const normalized = (value || "").trim().replace(/\\/g, "/");
+  if (!normalized) {
+    return "";
+  }
+  const segments = normalized.split("/").filter(Boolean);
+  return segments.at(-1) || normalized;
+}
 
 interface UseWorkspaceConversationSceneRuntimeParams {
   messageListEmptyStateVariant?: "default" | "task-center";
@@ -237,13 +284,13 @@ export function useWorkspaceConversationSceneRuntime({
   currentStepIndex,
   goToStep,
   displayMessages,
-  turns,
-  effectiveThreadItems,
+  turns = [],
+  effectiveThreadItems = [],
   currentTurnId,
   threadRead,
-  pendingActions,
+  pendingActions = [],
   submittedActionsInFlight,
-  queuedTurns,
+  queuedTurns = [],
   isPreparingSend,
   isSending,
   stopSending,
@@ -307,6 +354,203 @@ export function useWorkspaceConversationSceneRuntime({
     !isThemeWorkbench &&
     activeTheme === "general" &&
     layoutMode === "chat-canvas";
+  const currentSessionTurn =
+    turns.find((turn) => turn.id === currentTurnId) || turns.at(-1) || null;
+  const currentSessionStatus = resolveSessionStatusBadge(
+    isSending ? "running" : currentSessionTurn?.status,
+  );
+  const runtimeItemCount = effectiveThreadItems.filter(
+    (item) => item.type !== "user_message" && item.type !== "agent_message",
+  ).length;
+  const inProgressItemCount = effectiveThreadItems.filter(
+    (item) => item.status === "in_progress",
+  ).length;
+  const sessionSummaryStats: CanvasWorkbenchSummaryStat[] = [
+    {
+      key: "session-status",
+      label: "会话状态",
+      value: currentSessionStatus.label,
+      detail: "当前回合的整体推进状态。",
+      tone: currentSessionStatus.tone,
+    },
+    {
+      key: "session-runtime-items",
+      label: "运行轨迹",
+      value:
+        inProgressItemCount > 0
+          ? `进行中 ${inProgressItemCount}`
+          : `轨迹 ${runtimeItemCount}`,
+      detail: "技能、工具与运行事件的实时轨迹。",
+      tone: inProgressItemCount > 0 ? "accent" : "default",
+    },
+    {
+      key: "session-follow-up",
+      label: pendingActions.length > 0 ? "待补信息" : "排队消息",
+      value:
+        pendingActions.length > 0
+          ? `待补信息 ${pendingActions.length}`
+          : queuedTurns.length > 0
+            ? `排队 ${queuedTurns.length}`
+            : "无需跟进",
+      detail:
+        pendingActions.length > 0
+          ? "仍在等待用户补充或确认的信息。"
+          : queuedTurns.length > 0
+            ? `另有 ${queuedTurns.length} 条消息正在排队。`
+            : "当前没有待处理的补充或排队消息。",
+      tone:
+        pendingActions.length > 0
+          ? "accent"
+          : queuedTurns.length > 0
+            ? "default"
+            : "default",
+    },
+  ];
+  const sessionView: CanvasWorkbenchSessionView = {
+    eyebrow: "Session Runtime",
+    title: "Session · Main",
+    tabLabel: "Session · Main",
+    tabBadge:
+      inProgressItemCount > 0
+        ? `进行中 ${inProgressItemCount}`
+        : queuedTurns.length > 0
+          ? `排队 ${queuedTurns.length}`
+          : undefined,
+    tabBadgeTone: inProgressItemCount > 0 ? "sky" : "slate",
+    subtitle: currentSessionTurn
+      ? `当前 turn：${shortenSessionText(currentSessionTurn.prompt_text, 160) || "暂无提示词"}`
+      : "展示当前会话的 turn、skills、工具轨迹、A2UI 与排队状态。",
+    summaryStats: sessionSummaryStats,
+    badges: [
+      {
+        key: "session-status",
+        label: currentSessionStatus.label,
+        tone: currentSessionStatus.tone,
+      },
+      {
+        key: "session-runtime-items",
+        label:
+          inProgressItemCount > 0
+            ? `进行中 ${inProgressItemCount}`
+            : `轨迹 ${runtimeItemCount}`,
+        tone: inProgressItemCount > 0 ? "accent" : "default",
+      },
+      ...(pendingActions.length > 0
+        ? [
+            {
+              key: "session-pending-actions",
+              label: `待补信息 ${pendingActions.length}`,
+              tone: "accent" as const,
+            },
+          ]
+        : []),
+      ...(queuedTurns.length > 0
+        ? [
+            {
+              key: "session-queued-turns",
+              label: `排队 ${queuedTurns.length}`,
+              tone: "default" as const,
+            },
+          ]
+        : []),
+    ],
+    renderPanel: () => (
+      <CanvasSessionOverviewPanel
+        turns={turns}
+        threadItems={effectiveThreadItems}
+        currentTurnId={currentTurnId}
+        pendingActions={pendingActions}
+        queuedTurns={queuedTurns}
+        isSending={isSending}
+        focusedItemId={focusedTimelineItemId}
+      />
+    ),
+  };
+  const workspaceRootLabel = resolvePathLeaf(projectRootPath) || "未绑定";
+  const workspaceBindingValue = workspacePathMissing
+    ? "路径缺失"
+    : workspaceHealthError
+      ? "状态异常"
+      : projectRootPath
+        ? "已连接"
+        : "未绑定";
+  const workspaceView: CanvasWorkbenchHeaderView = {
+    eyebrow: "Project Workspace",
+    tabLabel: "文件",
+    tabBadge:
+      workspacePathMissing || workspaceHealthError
+        ? workspaceBindingValue
+        : projectRootPath?.trim()
+          ? workspaceRootLabel
+          : undefined,
+    tabBadgeTone:
+      workspacePathMissing || workspaceHealthError
+        ? "rose"
+        : projectRootPath?.trim()
+          ? "sky"
+          : undefined,
+    title: projectRootPath?.trim()
+      ? "项目工作区文件"
+      : "当前没有可浏览的项目文件",
+    subtitle: projectRootPath?.trim()
+      ? projectRootPath
+      : "绑定工作区目录后，这里会显示真实文件树。",
+    badges: [
+      {
+        key: "workspace-root",
+        label: projectRootPath?.trim() ? workspaceRootLabel : "未绑定工作区",
+        tone: projectRootPath?.trim() ? "accent" : "default",
+      },
+      ...(workspacePathMissing
+        ? [
+            {
+              key: "workspace-missing",
+              label: "路径缺失",
+              tone: "default" as const,
+            },
+          ]
+        : workspaceHealthError
+          ? [
+              {
+                key: "workspace-health-error",
+                label: "状态异常",
+                tone: "default" as const,
+              },
+            ]
+          : []),
+    ],
+    summaryStats: [
+      {
+        key: "workspace-root",
+        label: "工作区",
+        value: workspaceRootLabel,
+        detail:
+          projectRootPath?.trim() || "绑定工作区后，这里会展示真实文件树。",
+        tone: projectRootPath?.trim() ? "accent" : "default",
+      },
+      {
+        key: "workspace-binding",
+        label: "目录状态",
+        value: workspaceBindingValue,
+        detail: workspacePathMissing
+          ? "当前工作区路径缺失，需重新选择目录。"
+          : workspaceHealthError
+            ? "当前工作区状态异常，建议先修复后再继续浏览。"
+            : projectRootPath?.trim()
+              ? "画布会直接读取项目里的真实文件。"
+              : "尚未绑定工作区目录。",
+        tone:
+          workspacePathMissing || workspaceHealthError ? "default" : "success",
+      },
+    ],
+    panelCopy: {
+      unavailableText: "当前工作区路径不可用，暂时无法浏览项目文件。",
+      emptyText: "当前会话没有绑定可浏览的工作区目录。",
+      sectionEyebrow: "项目目录",
+      loadingText: "正在加载目录...",
+      emptyDirectoryText: "暂无目录内容。",
+    },
+  };
 
   return useWorkspaceConversationScenePresentation({
     scene: {
@@ -489,6 +733,8 @@ export function useWorkspaceConversationSceneRuntime({
       onOpenPath: canvasScene.handleOpenCanvasWorkbenchPath,
       onRevealPath: canvasScene.handleRevealCanvasWorkbenchPath,
       renderPreview: canvasScene.renderCanvasWorkbenchPreview,
+      workspaceView,
+      sessionView,
       onLayoutModeChange: shouldSyncCanvasWorkbenchLayoutMode
         ? setCanvasWorkbenchLayoutMode
         : undefined,

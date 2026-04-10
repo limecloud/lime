@@ -1392,6 +1392,7 @@ impl ModelRegistryService {
         if normalized_provider == "ollama"
             || normalized_host.contains("ollama")
             || normalized_host.contains("://localhost:11434")
+            || normalized_host.contains("://127.0.0.1:11434")
         {
             return ModelFetchProtocol::Ollama;
         }
@@ -1450,7 +1451,8 @@ impl ModelRegistryService {
     }
 
     fn build_ollama_models_api_url(api_host: &str) -> String {
-        let host = api_host.trim_end_matches('/');
+        let normalized_host = Self::normalize_ollama_loopback_host(api_host);
+        let host = normalized_host.trim_end_matches('/');
 
         if host.ends_with("/api/tags") {
             return host.to_string();
@@ -1461,6 +1463,38 @@ impl ModelRegistryService {
         }
 
         format!("{host}/api/tags")
+    }
+
+    fn normalize_ollama_loopback_host(api_host: &str) -> String {
+        let trimmed = api_host.trim();
+        if trimmed.is_empty() {
+            return String::new();
+        }
+
+        let had_scheme = trimmed.starts_with("http://") || trimmed.starts_with("https://");
+        let parse_target = if had_scheme {
+            trimmed.to_string()
+        } else {
+            format!("http://{trimmed}")
+        };
+
+        let Ok(mut url) = reqwest::Url::parse(&parse_target) else {
+            return trimmed.to_string();
+        };
+
+        if matches!(url.host_str(), Some("localhost")) && url.set_host(Some("127.0.0.1")).is_err() {
+            return trimmed.to_string();
+        }
+
+        let normalized = url.to_string();
+        if had_scheme {
+            normalized.trim_end_matches('/').to_string()
+        } else {
+            normalized
+                .trim_start_matches("http://")
+                .trim_end_matches('/')
+                .to_string()
+        }
     }
 
     fn build_diagnostic_models_api_url(
@@ -1614,15 +1648,19 @@ impl ModelRegistryService {
         let request =
             Self::prepare_model_fetch_request(provider_id, api_host, api_key, provider_type)?;
 
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .map_err(|e| {
-                ModelsApiError::new(
-                    ModelFetchErrorKind::Other,
-                    format!("创建 HTTP 客户端失败: {e}"),
-                )
-            })?;
+        let mut client_builder =
+            reqwest::Client::builder().timeout(std::time::Duration::from_secs(30));
+        if Self::should_bypass_proxy_for_models_api_url(&request.url) {
+            tracing::info!("[ModelRegistry] 本地模型地址绕过系统代理: {}", request.url);
+            client_builder = client_builder.no_proxy();
+        }
+
+        let client = client_builder.build().map_err(|e| {
+            ModelsApiError::new(
+                ModelFetchErrorKind::Other,
+                format!("创建 HTTP 客户端失败: {e}"),
+            )
+        })?;
 
         let models = match request.protocol {
             ModelFetchProtocol::OpenAiCompatible => {
@@ -1922,6 +1960,27 @@ impl ModelRegistryService {
             updated_at: now,
         }
     }
+
+    fn should_bypass_proxy_for_models_api_url(url: &str) -> bool {
+        let Ok(parsed) = reqwest::Url::parse(url) else {
+            return false;
+        };
+
+        let Some(host) = parsed.host_str() else {
+            return false;
+        };
+
+        if matches!(
+            host,
+            "localhost" | "127.0.0.1" | "::1" | "0.0.0.0" | "host.docker.internal"
+        ) {
+            return true;
+        }
+
+        host.parse::<std::net::IpAddr>()
+            .map(|ip| ip.is_loopback() || ip.is_unspecified())
+            .unwrap_or(false)
+    }
 }
 
 // ============================================================================
@@ -2127,11 +2186,43 @@ mod tests {
     fn test_build_ollama_models_api_url() {
         assert_eq!(
             ModelRegistryService::build_ollama_models_api_url("http://localhost:11434"),
-            "http://localhost:11434/api/tags"
+            "http://127.0.0.1:11434/api/tags"
         );
         assert_eq!(
             ModelRegistryService::build_ollama_models_api_url("http://localhost:11434/api"),
-            "http://localhost:11434/api/tags"
+            "http://127.0.0.1:11434/api/tags"
+        );
+        assert_eq!(
+            ModelRegistryService::build_ollama_models_api_url("http://127.0.0.1:11434"),
+            "http://127.0.0.1:11434/api/tags"
+        );
+        assert_eq!(
+            ModelRegistryService::build_ollama_models_api_url("http://127.0.0.1:11434/api"),
+            "http://127.0.0.1:11434/api/tags"
+        );
+    }
+
+    #[test]
+    fn test_should_bypass_proxy_for_models_api_url() {
+        assert!(
+            ModelRegistryService::should_bypass_proxy_for_models_api_url(
+                "http://127.0.0.1:11434/api/tags"
+            )
+        );
+        assert!(
+            ModelRegistryService::should_bypass_proxy_for_models_api_url(
+                "http://localhost:11434/api/tags"
+            )
+        );
+        assert!(
+            ModelRegistryService::should_bypass_proxy_for_models_api_url(
+                "http://[::1]:11434/api/tags"
+            )
+        );
+        assert!(
+            !ModelRegistryService::should_bypass_proxy_for_models_api_url(
+                "https://api.openai.com/v1/models"
+            )
         );
     }
 
@@ -2272,7 +2363,7 @@ mod tests {
         ));
         assert!(!ModelRegistryService::requires_api_key_for_model_fetch(
             "ollama",
-            "http://localhost:11434",
+            "http://127.0.0.1:11434",
             ApiProviderType::Ollama
         ));
         assert!(!ModelRegistryService::requires_api_key_for_model_fetch(

@@ -68,7 +68,6 @@ export function useWorkspaceImageWorkbenchEventRuntime({
   setImageWorkbenchSelectedProviderId,
   setImageWorkbenchSelectedModelId,
   setImageWorkbenchSelectedSize,
-  setLayoutMode,
   setCanvasState,
   updateCurrentImageWorkbenchState,
   handleImageWorkbenchCommand,
@@ -202,9 +201,8 @@ export function useWorkspaceImageWorkbenchEventRuntime({
           active: true,
         };
       });
-      setLayoutMode("chat-canvas");
     });
-  }, [contentId, projectId, setLayoutMode, updateCurrentImageWorkbenchState]);
+  }, [contentId, projectId, updateCurrentImageWorkbenchState]);
 
   useEffect(() => {
     const handler = (event: Event) => {

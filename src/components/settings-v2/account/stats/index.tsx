@@ -12,7 +12,6 @@ import {
   CalendarDays,
   Coins,
   RefreshCw,
-  TrendingUp,
 } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
@@ -41,11 +40,6 @@ interface SegmentCardProps {
   tokens: number;
   minutes: number;
   accentClassName: string;
-}
-
-interface MetricTileProps {
-  label: string;
-  value: string;
 }
 
 const TIME_RANGE_OPTIONS: TimeRangeOption[] = [
@@ -130,8 +124,8 @@ function SegmentCard({
 }: SegmentCardProps) {
   return (
     <article className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex-1 space-y-2">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
           <span
             className={cn(
               "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium",
@@ -140,36 +134,29 @@ function SegmentCard({
           >
             {title}
           </span>
-          <div>
-            <WorkbenchInfoTip
-              ariaLabel={`${title}区段说明`}
-              content={description}
-              tone="slate"
-            />
-          </div>
+          <WorkbenchInfoTip
+            ariaLabel={`${title}区段说明`}
+            content={description}
+            tone="slate"
+          />
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+            {messages} 条消息
+          </span>
         </div>
-        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-          {messages} 条消息
-        </span>
-      </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3 xl:min-w-[420px]">
-        <MetricTile label="对话" value={conversations.toString()} />
-        <MetricTile label="Token" value={formatNumber(tokens)} />
-        <MetricTile label="时长" value={formatTime(minutes)} />
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+            对话：{conversations}
+          </span>
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+            Token：{formatNumber(tokens)}
+          </span>
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+            时长：{formatTime(minutes)}
+          </span>
+        </div>
       </div>
     </article>
-  );
-}
-
-function MetricTile({ label, value }: MetricTileProps) {
-  return (
-    <div className="rounded-[18px] border border-white/90 bg-white/92 px-4 py-4 shadow-sm">
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-[30px] font-semibold tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
   );
 }
 
@@ -262,7 +249,7 @@ export function StatsSettings() {
   if (isInitialLoading) {
     return (
       <div className="space-y-6 pb-8">
-        <div className="h-[228px] animate-pulse rounded-[30px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)]" />
+        <div className="h-[132px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.95fr)]">
           <div className="h-[398px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
           <div className="space-y-6">
@@ -293,153 +280,93 @@ export function StatsSettings() {
         </div>
       )}
 
-      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                数据统计
+              </h1>
+              <WorkbenchInfoTip
+                ariaLabel="使用统计总览说明"
+                content="管理当前区间的 Token 消耗、活跃天数、模型分布和趋势观察。"
+                tone="mint"
+              />
+            </div>
+            <p className="text-sm text-slate-500">
+              查看当前区间的使用强度、模型分布和趋势。
+            </p>
+          </div>
 
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.92fr)] xl:items-stretch">
-            <div className="max-w-3xl space-y-5">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                USAGE SNAPSHOT
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            {TIME_RANGE_OPTIONS.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setTimeRange(option.key)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-sm font-medium transition",
+                  timeRange === option.key
+                    ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                    : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:text-slate-900",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={loadStats}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              刷新数据
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-4 rounded-[20px] border border-slate-200/80 bg-slate-50/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                当前统计口径：{selectedRange.label}
               </span>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                    观察最近的使用强度
-                  </p>
-                  <WorkbenchInfoTip
-                    ariaLabel="使用统计总览说明"
-                    content="将当前区间的 Token 消耗、活跃天数与主力模型放在同一个视图里，方便快速判断近期是否进入高频使用状态。"
-                    tone="mint"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {TIME_RANGE_OPTIONS.map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setTimeRange(option.key)}
-                    className={cn(
-                      "rounded-full px-3 py-1.5 text-sm font-medium transition",
-                      timeRange === option.key
-                        ? "bg-slate-900 text-white shadow-sm"
-                        : "border border-white/90 bg-white/85 text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-900",
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={loadStats}
-                  disabled={loading}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/90 bg-white/85 px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  <RefreshCw
-                    className={cn("h-4 w-4", loading && "animate-spin")}
-                  />
-                  刷新数据
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-white/90 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  当前统计口径：{selectedRange.label}
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  活跃 {activeDays} 天
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  日均 {formatNumber(averageDailyTokens)} Token
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs leading-5 text-slate-500">
-                <span>当前统计口径说明已收纳</span>
-                <WorkbenchInfoTip
-                  ariaLabel="当前统计口径说明"
-                  content={selectedRange.description}
-                  tone="slate"
-                />
-              </div>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                活跃 {activeDays} 天
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                日均 {formatNumber(averageDailyTokens)} Token
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                当前区间 {formatNumber(totalRangeTokens)} Token
+              </span>
             </div>
 
-            <article className="flex h-full flex-col rounded-[26px] border border-white/90 bg-white/84 p-5 shadow-sm shadow-slate-950/5 backdrop-blur-[2px]">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <TrendingUp className="h-4 w-4 text-sky-600" />
-                    当前观察
-                    <WorkbenchInfoTip
-                      ariaLabel="当前观察说明"
-                      content="用一个摘要面板快速查看这段时间的主要节奏。"
-                      tone="slate"
-                    />
-                  </div>
-                </div>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-                  {selectedRange.label}
-                </span>
-              </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs leading-5 text-slate-500">
+              <span>当前观察</span>
+              <WorkbenchInfoTip
+                ariaLabel="当前观察说明"
+                content="用一个摘要面板快速查看这段时间的主要节奏。"
+                tone="slate"
+              />
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                主力模型：{topModel?.model || "暂无数据"}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                峰值：{peakDayLabel}
+              </span>
+            </div>
+          </div>
 
-              <div className="mt-5 rounded-[24px] border border-slate-200/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.95)_0%,rgba(239,246,255,0.82)_100%)] p-5 shadow-sm">
-                <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
-                  <Coins className="h-3.5 w-3.5 text-slate-400" />
-                  当前区间 TOKEN
-                </div>
-                <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-900">
-                  {formatNumber(totalRangeTokens)}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {topModel
-                    ? `主力模型 ${topModel.model}，占比 ${topModel.percentage}%`
-                    : "当前区间还没有模型排行数据"}
-                </p>
-              </div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[20px] border border-slate-200/80 bg-slate-50/70 px-4 py-4">
-                  <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                    <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-                    活跃天数
-                  </div>
-                  <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
-                    {activeDays}
-                  </p>
-                </div>
-                <div className="rounded-[20px] border border-slate-200/80 bg-slate-50/70 px-4 py-4">
-                  <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                    <BarChart3 className="h-3.5 w-3.5 text-slate-400" />
-                    日均 Token
-                  </div>
-                  <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
-                    {formatNumber(averageDailyTokens)}
-                  </p>
-                </div>
-                <div className="rounded-[20px] border border-slate-200/80 bg-slate-50/70 px-4 py-4">
-                  <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                    <Brain className="h-3.5 w-3.5 text-slate-400" />
-                    主力模型
-                  </div>
-                  <p className="mt-2 truncate text-lg font-semibold tracking-tight text-slate-900">
-                    {topModel?.model || "暂无数据"}
-                  </p>
-                </div>
-                <div className="rounded-[20px] border border-slate-200/80 bg-slate-50/70 px-4 py-4">
-                  <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                    <TrendingUp className="h-3.5 w-3.5 text-slate-400" />
-                    峰值日期
-                  </div>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
-                    {peakDayLabel}
-                  </p>
-                </div>
-              </div>
-            </article>
+          <div className="flex items-center gap-2 text-xs leading-5 text-slate-500">
+            <span>当前统计口径说明已收纳</span>
+            <WorkbenchInfoTip
+              ariaLabel="当前统计口径说明"
+              content={selectedRange.description}
+              tone="slate"
+            />
           </div>
         </div>
       </section>
@@ -526,33 +453,36 @@ export function StatsSettings() {
                 <div className="mt-5 space-y-4">
                   {modelUsage.length > 0 ? (
                     <>
-                      <article className="rounded-[24px] border border-emerald-200/80 bg-[linear-gradient(145deg,rgba(248,252,250,0.98)_0%,rgba(240,249,255,0.92)_100%)] p-5 shadow-sm">
-                        <div className="flex items-start justify-between gap-4">
+                      <article className="rounded-[20px] border border-slate-200/80 bg-slate-50/70 p-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                           <div className="min-w-0">
-                            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/90 px-3 py-1 text-[11px] font-medium text-emerald-700">
-                              #1 主力模型
-                            </span>
-                            <p className="mt-3 truncate text-2xl font-semibold tracking-tight text-slate-900">
-                              {topModel?.model}
-                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-700">
+                                #1 主力模型
+                              </span>
+                              <p className="truncate text-base font-semibold text-slate-900">
+                                {topModel?.model}
+                              </p>
+                            </div>
                             <p className="mt-2 text-sm leading-6 text-slate-500">
                               {topModel?.conversations || 0} 次对话 ·{" "}
                               {formatNumber(topModel?.tokens || 0)} Token
                             </p>
                           </div>
-                          <div className="rounded-[20px] border border-white/90 bg-white/88 px-4 py-3 text-right shadow-sm">
-                            <p className="text-xs font-medium text-slate-500">
-                              使用占比
-                            </p>
-                            <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-                              {topModel?.percentage || 0}%
-                            </p>
+
+                          <div className="flex flex-wrap gap-2 lg:justify-end">
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                              使用占比：{topModel?.percentage || 0}%
+                            </span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                              排名：#1
+                            </span>
                           </div>
                         </div>
 
-                        <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/90">
+                        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
                           <div
-                            className="h-full rounded-full bg-[linear-gradient(90deg,rgba(16,185,129,0.9)_0%,rgba(15,23,42,0.92)_100%)] transition-all"
+                            className="h-full rounded-full bg-slate-900 transition-all"
                             style={{
                               width: `${Math.min(topModel?.percentage || 0, 100)}%`,
                             }}
@@ -635,31 +565,16 @@ export function StatsSettings() {
 
               {dailyUsage.length > 0 ? (
                 <div className="mt-6 rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-[18px] border border-white/90 bg-white/88 px-4 py-3 shadow-sm">
-                      <p className="text-xs font-medium text-slate-500">
-                        峰值日
-                      </p>
-                      <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
-                        {peakDayLabel}
-                      </p>
-                    </div>
-                    <div className="rounded-[18px] border border-white/90 bg-white/88 px-4 py-3 shadow-sm">
-                      <p className="text-xs font-medium text-slate-500">
-                        活跃天数
-                      </p>
-                      <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
-                        {activeDays}
-                      </p>
-                    </div>
-                    <div className="rounded-[18px] border border-white/90 bg-white/88 px-4 py-3 shadow-sm">
-                      <p className="text-xs font-medium text-slate-500">
-                        区间均值
-                      </p>
-                      <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
-                        {formatNumber(averageDailyTokens)}
-                      </p>
-                    </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                      峰值日：{peakDayLabel}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                      活跃天数：{activeDays}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                      区间均值：{formatNumber(averageDailyTokens)}
+                    </span>
                   </div>
 
                   <div className="mt-6 grid grid-cols-[44px_minmax(0,1fr)] gap-3">
@@ -759,23 +674,13 @@ export function StatsSettings() {
               </div>
 
               <div className="mt-6 rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[18px] border border-white/90 bg-white/88 px-4 py-3 shadow-sm">
-                    <p className="text-xs font-medium text-slate-500">
-                      覆盖范围
-                    </p>
-                    <p className="mt-2 text-sm font-semibold leading-6 text-slate-900">
-                      {heatmapRangeLabel}
-                    </p>
-                  </div>
-                  <div className="rounded-[18px] border border-white/90 bg-white/88 px-4 py-3 shadow-sm">
-                    <p className="text-xs font-medium text-slate-500">
-                      有效活跃格
-                    </p>
-                    <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
-                      {activeDays}
-                    </p>
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                    覆盖范围：{heatmapRangeLabel}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                    有效活跃格：{activeDays}
+                  </span>
                 </div>
 
                 <div className="mt-5 grid grid-cols-7 gap-2">

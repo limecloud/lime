@@ -187,7 +187,10 @@ describe("WebSearchSettings", () => {
     await flushEffects();
 
     const text = container.textContent ?? "";
-    expect(text).toContain("SEARCH STACK");
+    expect(text).toContain("网络搜索");
+    expect(text).toContain("管理搜索引擎、Provider 回退和图片搜索 Key。");
+    expect(text).toContain("当前 Provider：duckduckgo_instant");
+    expect(text).toContain("状态：已保存");
     expect(text).toContain("联网搜索配置");
     expect(text).toContain("Provider 凭证");
     expect(text).toContain("Multi Search Engine");
@@ -222,7 +225,7 @@ describe("WebSearchSettings", () => {
     await flushEffects();
 
     expect(getBodyText()).not.toContain(
-      "把搜索入口、Provider 回退链、MSE 聚合参数和图片搜索 Key 放在同一个宽版视图里，不再让长表单把信息挤成一列。",
+      "管理搜索引擎、Provider 回退链和图片搜索 Key；各服务的接入说明已经分别收进对应配置分区。",
     );
     expect(getBodyText()).not.toContain(
       "申请地址：https://www.pexels.com/api/new/",
@@ -230,7 +233,7 @@ describe("WebSearchSettings", () => {
 
     const heroTip = await hoverTip("联网搜索设置总览说明");
     expect(getBodyText()).toContain(
-      "把搜索入口、Provider 回退链、MSE 聚合参数和图片搜索 Key 放在同一个宽版视图里，不再让长表单把信息挤成一列。",
+      "管理搜索引擎、Provider 回退链和图片搜索 Key；各服务的接入说明已经分别收进对应配置分区。",
     );
     await leaveTip(heroTip);
 

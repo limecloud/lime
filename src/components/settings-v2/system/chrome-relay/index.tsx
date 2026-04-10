@@ -1521,29 +1521,23 @@ export function ChromeRelaySettings() {
       }
     >
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-            <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-              OBSERVER
-            </p>
-            <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-              {runtimeSummary.observerCount}
-            </p>
-            <p className="mt-2 text-xs leading-5 text-slate-500">
-              扩展侧页面观察连接数，用于回传页面信息和心跳。
-            </p>
-          </div>
-          <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-            <p className="text-xs font-medium tracking-[0.12em] text-slate-500">
-              CONTROL
-            </p>
-            <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-              {runtimeSummary.controlCount}
-            </p>
-            <p className="mt-2 text-xs leading-5 text-slate-500">
-              控制通道连接数，用于命令转发与桥接调试。
-            </p>
-          </div>
+        <div className="flex flex-wrap gap-2 rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+            Observer：{runtimeSummary.observerCount}
+          </span>
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+            Control：{runtimeSummary.controlCount}
+          </span>
+          <span
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium",
+              hasObserverConnected
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-amber-200 bg-amber-50 text-amber-700",
+            )}
+          >
+            {hasObserverConnected ? "扩展已接入 observer" : "待接入 observer"}
+          </span>
         </div>
 
         <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-4">
@@ -1666,8 +1660,8 @@ export function ChromeRelaySettings() {
       title="当前概览"
       description="把最常用的观察点和入口压缩在一屏内，详情再进入对应页签查看。"
     >
-      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
-        <div className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.92)_100%)] p-5">
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-slate-900">
@@ -1682,22 +1676,19 @@ export function ChromeRelaySettings() {
               {selectedSession ? "已启动" : "未启动"}
             </StatusPill>
           </div>
-          <p className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
-            {runtimeSummary.runningProfiles}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            运行中的独立 Profile 数量
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            运行中的独立 Profile 数量：{runtimeSummary.runningProfiles}
           </p>
           <button
             type="button"
             onClick={() => setActiveSectionTab("profile")}
-            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4 w-full")}
+            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4")}
           >
             查看 Profile 详情
           </button>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.92)_100%)] p-5">
+        <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-slate-900">扩展桥接</p>
@@ -1709,22 +1700,20 @@ export function ChromeRelaySettings() {
               {hasObserverConnected ? "已连通" : "待接入"}
             </StatusPill>
           </div>
-          <p className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            observer / control 当前连接数：
             {runtimeSummary.observerCount}/{runtimeSummary.controlCount}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            observer / control 当前连接数
           </p>
           <button
             type="button"
             onClick={() => setActiveSectionTab("bridge")}
-            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4 w-full")}
+            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4")}
           >
             查看桥接详情
           </button>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.92)_100%)] p-5">
+        <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-slate-900">后端策略</p>
@@ -1744,24 +1733,24 @@ export function ChromeRelaySettings() {
                 : "自动回退关"}
             </StatusPill>
           </div>
-          <p className="mt-4 text-sm font-medium text-slate-900">
+          <p className="mt-3 text-sm font-medium leading-6 text-slate-900">
             {(draftBackendPolicy?.priority ?? BACKEND_OPTIONS)
               .map((backend) => BACKEND_LABELS[backend])
               .join(" / ")}
           </p>
-          <p className="mt-2 text-xs leading-5 text-slate-500">
+          <p className="mt-1 text-xs leading-5 text-slate-500">
             当前优先级顺序
           </p>
           <button
             type="button"
             onClick={() => setActiveSectionTab("backend")}
-            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4 w-full")}
+            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4")}
           >
             查看后端详情
           </button>
         </div>
 
-        <div className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.92)_100%)] p-5">
+        <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-slate-900">实时调试</p>
@@ -1773,16 +1762,13 @@ export function ChromeRelaySettings() {
               {runtimeSessionId ? "已有会话" : "按需进入"}
             </StatusPill>
           </div>
-          <p className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
-            {runtimeSummary.cdpAliveProfiles}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            当前可复用的 CDP 会话
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            当前可复用的 CDP 会话：{runtimeSummary.cdpAliveProfiles}
           </p>
           <button
             type="button"
             onClick={() => setActiveSectionTab("debug")}
-            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4 w-full")}
+            className={cn(SECONDARY_BUTTON_CLASS_NAME, "mt-4")}
           >
             打开实时调试
           </button>
@@ -1977,26 +1963,45 @@ export function ChromeRelaySettings() {
         <TabsContent value="core" className="mt-6 space-y-6">
           {activePrimaryTab === "core" ? (
             <>
-              <section className="relative overflow-hidden rounded-[30px] border border-sky-200/70 bg-[linear-gradient(135deg,rgba(247,251,255,0.98)_0%,rgba(255,255,255,0.98)_48%,rgba(246,250,248,0.96)_100%)] shadow-sm shadow-slate-950/5">
-                <div className="pointer-events-none absolute -left-16 top-[-48px] h-48 w-48 rounded-full bg-sky-200/25 blur-3xl" />
-                <div className="pointer-events-none absolute right-[-52px] top-[-24px] h-52 w-52 rounded-full bg-emerald-200/25 blur-3xl" />
+              <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                          连接器
+                        </h2>
+                        <WorkbenchInfoTip
+                          ariaLabel="连接器总览说明"
+                          content="先安装扩展，再开启连接器。这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。"
+                          tone="mint"
+                        />
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        管理扩展安装、连接器状态和桥接能力。
+                      </p>
+                    </div>
 
-                <div className="relative flex flex-col gap-4 p-5 sm:p-6 lg:p-7">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                        连接器
-                      </h2>
-                      <WorkbenchInfoTip
-                        ariaLabel="连接器总览说明"
-                        content="先安装扩展，再开启连接器。这里集中放 Profile 会话、扩展桥接、后端策略和实时调试。"
-                        tone="mint"
-                      />
+                    <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                      <StatusPill tone={connectorInstallStatusTone}>
+                        {connectorInstallStatusLabel}
+                      </StatusPill>
+                      <StatusPill tone={connectorEnabled ? "success" : "neutral"}>
+                        {connectorEnabled ? "连接器已开启" : "连接器已关闭"}
+                      </StatusPill>
+                      <StatusPill
+                        tone={runtimeSummary.observerCount > 0 ? "success" : "neutral"}
+                      >
+                        观察连接 {runtimeSummary.observerCount}
+                      </StatusPill>
+                      <StatusPill tone="neutral">
+                        当前查看 {selectedEngine.label}
+                      </StatusPill>
                     </div>
                   </div>
 
                   <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-                    <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
+                    <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
@@ -2073,7 +2078,7 @@ export function ChromeRelaySettings() {
                       </div>
                     </div>
 
-                    <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
+                    <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
                       <div className="space-y-1">
                         <p className="text-base font-semibold text-slate-900">
                           在 Chrome 中加载

@@ -234,8 +234,22 @@ function renderStatefulPanel(
   return container;
 }
 
+function expandAdvancedControls(container: HTMLDivElement) {
+  const toggleButton = container.querySelector(
+    '[data-testid="empty-state-advanced-toggle"]',
+  ) as HTMLButtonElement | null;
+
+  expect(toggleButton).toBeTruthy();
+
+  act(() => {
+    toggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+
+  return toggleButton;
+}
+
 describe("EmptyStateComposerPanel", () => {
-  it("首页空态输入区应保留技能下拉，但与 @ 面板共用同一技能入口", () => {
+  it("首页空态输入区默认隐藏技能入口，展开高级设置后与 @ 面板共用同一技能入口", () => {
     const container = renderPanel({
       isGeneralTheme: true,
       skillSelection: createSkillSelection({
@@ -255,6 +269,12 @@ describe("EmptyStateComposerPanel", () => {
     expect(
       container.querySelector('[data-testid="empty-state-character-mention"]'),
     ).toBeTruthy();
+    expect(
+      container.querySelector('[data-testid="empty-state-skill-selector"]'),
+    ).toBeNull();
+
+    expandAdvancedControls(container);
+
     expect(
       container.querySelector('[data-testid="empty-state-skill-selector"]'),
     ).toBeTruthy();
@@ -414,10 +434,16 @@ describe("EmptyStateComposerPanel", () => {
 
     expect(
       container.querySelector('[data-testid="empty-state-team-selector"]'),
+    ).toBeNull();
+
+    expandAdvancedControls(container);
+
+    expect(
+      container.querySelector('[data-testid="empty-state-team-selector"]'),
     ).toBeTruthy();
   });
 
-  it("未开启 Team mode 时应只保留图标开关，不再显示重复的文字入口", () => {
+  it("未开启 Team mode 时默认不暴露多代理开关，只保留高级设置入口", () => {
     const container = renderPanel({
       isGeneralTheme: true,
       subagentEnabled: false,
@@ -431,20 +457,26 @@ describe("EmptyStateComposerPanel", () => {
         '[data-testid="empty-state-team-mode-enable-button"]',
       ),
     ).toBeNull();
-
-    const toggleButton = container.querySelector(
-      'button[title="多代理偏好已关闭"]',
-    ) as HTMLButtonElement | null;
-
-    expect(toggleButton).toBeTruthy();
+    expect(
+      container.querySelector('button[title="多代理偏好已关闭"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="empty-state-advanced-toggle"]'),
+    ).toBeTruthy();
   });
 
-  it("应通过 Plan 开关透传执行策略切换，不再渲染执行模式下拉", () => {
+  it("应通过高级设置中的 Plan 开关透传执行策略切换，不再渲染执行模式下拉", () => {
     const setExecutionStrategy = vi.fn();
     const container = renderPanel({
       executionStrategy: "react",
       setExecutionStrategy,
     });
+
+    expect(
+      container.querySelector('[data-testid="inputbar-plan-toggle"]'),
+    ).toBeNull();
+
+    expandAdvancedControls(container);
 
     const planToggle = container.querySelector(
       '[data-testid="inputbar-plan-toggle"]',
@@ -479,6 +511,9 @@ describe("EmptyStateComposerPanel", () => {
     expect(enableButton).toBeNull();
     expect(
       container.querySelector('button[title="多代理偏好已关闭"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="empty-state-advanced-toggle"]'),
     ).toBeTruthy();
   });
 
@@ -498,6 +533,8 @@ describe("EmptyStateComposerPanel", () => {
 
   it("点击多代理图标后应自动透传 Team 配置面板打开令牌", async () => {
     const container = renderStatefulPanel();
+
+    expandAdvancedControls(container);
 
     const enableButton = container.querySelector(
       'button[title="多代理偏好已关闭"]',
@@ -529,6 +566,8 @@ describe("EmptyStateComposerPanel", () => {
       },
       true,
     );
+
+    expandAdvancedControls(container);
 
     expect(
       container.querySelector('[data-testid="empty-state-team-selector"]'),
@@ -574,18 +613,43 @@ describe("EmptyStateComposerPanel", () => {
     ).toBeNull();
     expect(
       container.querySelector('button[title="多代理偏好已关闭"]'),
-    ).toBeTruthy();
+    ).toBeNull();
     expect(enableButton).toBeTruthy();
     expect(enableButton?.textContent).toContain("启用 Team");
     expect(container.textContent).toContain("当前任务更适合 Team 协作");
   });
 
-  it("应渲染权限模式选择并透传切换", () => {
+  it("折叠态应保留当前模型轻提示，展开高级设置后再允许修改", () => {
+    const container = renderPanel({
+      providerType: "claude",
+      model: "claude-sonnet-4-5",
+    });
+
+    expect(container.textContent).toContain("当前模型");
+    expect(container.textContent).toContain("claude-sonnet-4-5");
+    expect(
+      container.querySelector('[data-testid="empty-state-model-selector"]'),
+    ).toBeNull();
+
+    expandAdvancedControls(container);
+
+    expect(
+      container.querySelector('[data-testid="empty-state-model-selector"]'),
+    ).toBeTruthy();
+  });
+
+  it("应在高级设置中渲染权限模式选择并透传切换", () => {
     const setAccessMode = vi.fn();
     const container = renderPanel({
       accessMode: "current",
       setAccessMode,
     });
+
+    expect(
+      container.querySelector('[data-testid="inputbar-access-mode-select"]'),
+    ).toBeNull();
+
+    expandAdvancedControls(container);
 
     const select = container.querySelector(
       '[data-testid="inputbar-access-mode-select"]',

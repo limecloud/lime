@@ -59,21 +59,23 @@ function SessionValueCard(props: {
   icon?: ReactNode;
 }) {
   return (
-    <div className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3">
-      <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-        {props.icon ? (
-          <span className="text-slate-400">{props.icon}</span>
-        ) : null}
-        <span>{props.label}</span>
-        <WorkbenchInfoTip
-          ariaLabel={`${props.label}说明`}
-          content={props.hint}
-          tone="slate"
-        />
+    <div className="rounded-[16px] border border-slate-200/80 bg-slate-50/80 px-3.5 py-3">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
+          {props.icon ? (
+            <span className="text-slate-400">{props.icon}</span>
+          ) : null}
+          <span>{props.label}</span>
+          <WorkbenchInfoTip
+            ariaLabel={`${props.label}说明`}
+            content={props.hint}
+            tone="slate"
+          />
+        </div>
+        <p className="break-all text-sm font-medium text-slate-900 sm:text-right">
+          {props.value}
+        </p>
       </div>
-      <p className="mt-2 break-all text-sm font-semibold text-slate-900">
-        {props.value}
-      </p>
     </div>
   );
 }
@@ -124,20 +126,22 @@ function RuntimeSummaryItem(props: {
   hint?: string;
 }) {
   return (
-    <div className="rounded-[18px] border border-slate-200/80 bg-slate-50 px-4 py-3">
-      <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-        <span>{props.label}</span>
-        {props.hint ? (
-          <WorkbenchInfoTip
-            ariaLabel={`${props.label}说明`}
-            content={props.hint}
-            tone="slate"
-          />
-        ) : null}
+    <div className="rounded-[16px] border border-slate-200/80 bg-slate-50/80 px-3.5 py-3">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
+          <span>{props.label}</span>
+          {props.hint ? (
+            <WorkbenchInfoTip
+              ariaLabel={`${props.label}说明`}
+              content={props.hint}
+              tone="slate"
+            />
+          ) : null}
+        </div>
+        <p className="text-sm font-medium leading-6 text-slate-900 sm:text-right">
+          {props.value}
+        </p>
       </div>
-      <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">
-        {props.value}
-      </p>
     </div>
   );
 }
@@ -606,15 +610,15 @@ function CompanionProviderBridgeCard() {
       className={SURFACE_CLASS_NAME}
       data-testid="companion-provider-card"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="space-y-4">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700">
               <Bot className="h-5 w-5" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-lg font-semibold text-slate-900">
+                <h3 className="text-base font-semibold text-slate-900">
                   Lime Pet Companion
                 </h3>
                 <InfoPill
@@ -646,7 +650,7 @@ function CompanionProviderBridgeCard() {
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             <RuntimeSummaryItem
               label="桥接状态"
               value={
@@ -1223,15 +1227,15 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
         data-testid="oem-cloud-session-summary"
       >
         <article className={SURFACE_CLASS_NAME}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700">
                   <Cloud className="h-5 w-5" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-lg font-semibold text-slate-900">
+                    <p className="text-base font-semibold text-slate-900">
                       {session.user.displayName ||
                         session.user.email ||
                         "已登录"}
@@ -1250,7 +1254,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-3">
                 <SessionValueCard
                   label="租户"
                   value={session.tenant.id}
@@ -1303,10 +1307,10 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
         </article>
 
         <article className={SURFACE_CLASS_NAME}>
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-lg font-semibold text-slate-900">
+                <h3 className="text-base font-semibold text-slate-900">
                   当前云端摘要
                 </h3>
                 <WorkbenchInfoTip
@@ -1317,7 +1321,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               <RuntimeSummaryItem
                 label="默认来源"
                 value={defaultProviderSummary || "未设定"}

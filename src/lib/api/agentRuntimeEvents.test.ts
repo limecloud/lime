@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { safeListen } from "@/lib/dev-bridge";
 import {
+  createAgentRuntimeEventListener,
+  createAgentRuntimeEventSource,
   dedupeAgentRuntimeEventNames,
+  defaultAgentRuntimeEventSource,
   getAgentSubagentStatusEventName,
   getAgentSubagentStreamEventName,
   listenAgentRuntimeEvent,
@@ -101,5 +104,29 @@ describe("agentRuntimeEvents API", () => {
       listener,
     );
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("应支持注入自定义 listen transport 与 event source", async () => {
+    const listen = vi.fn().mockResolvedValue(vi.fn());
+    const listenEvent = createAgentRuntimeEventListener({ listen });
+    const eventSource = createAgentRuntimeEventSource({ listenEvent });
+    const handler = vi.fn();
+
+    await eventSource.listenSubagentStatus("session-9", handler);
+    await eventSource.listenSubagentStream("session-9", handler);
+
+    expect(listen).toHaveBeenNthCalledWith(
+      1,
+      "agent_subagent_status:session-9",
+      handler,
+    );
+    expect(listen).toHaveBeenNthCalledWith(
+      2,
+      "agent_subagent_stream:session-9",
+      handler,
+    );
+    expect(defaultAgentRuntimeEventSource.listenRuntimeEvent).toBeTypeOf(
+      "function",
+    );
   });
 });

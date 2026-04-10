@@ -109,7 +109,7 @@ impl ApiProviderType {
             },
             ApiProviderType::Ollama => ProviderRuntimeSpec {
                 protocol_family: ProviderProtocolFamily::Ollama,
-                default_api_host: "http://localhost:11434",
+                default_api_host: "http://127.0.0.1:11434",
                 auth_header: "Authorization",
                 auth_prefix: Some("Bearer"),
                 extra_headers: &NO_EXTRA_HEADERS,
@@ -278,7 +278,7 @@ mod tests {
             (
                 ApiProviderType::Ollama,
                 ProviderProtocolFamily::Ollama,
-                "http://localhost:11434",
+                "http://127.0.0.1:11434",
                 "Authorization",
                 Some("Bearer"),
                 "ollama",

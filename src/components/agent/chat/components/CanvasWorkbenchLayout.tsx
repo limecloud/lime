@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import {
@@ -20,23 +19,13 @@ import {
   FolderOpen,
   GitCompare,
   Loader2,
-  PanelRightClose,
-  PanelRightOpen,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import { Badge } from "@/components/ui/badge";
-import { CompactRightDockButton } from "@/components/ui/compact-right-dock-button";
-import {
-  CompactRightDrawerHeader,
-  CompactRightDrawerIconButton,
-} from "@/components/ui/compact-right-drawer-header";
-import {
-  emitCompactRightPanelOpen,
-  onCompactRightPanelOpen,
-} from "@/lib/compactRightPanelEvents";
 import { listDirectory, type DirectoryListing } from "@/lib/api/fileBrowser";
 import type { Artifact } from "@/lib/artifact/types";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
@@ -56,19 +45,21 @@ import {
 } from "../utils/canvasWorkbenchDiff";
 import {
   extractFileNameFromPath,
+  normalizeManagedWorkspacePathForDisplay,
   resolveAbsoluteWorkspacePath,
 } from "../workspace/workspacePath";
+import { filterWorkspaceDirectoryListing } from "../workspace/workspaceTreeVisibility";
 import {
   ArtifactWorkbenchDocumentInspector,
   type ArtifactWorkbenchDocumentController,
 } from "../workspace/artifactWorkbenchDocument";
 
 type CanvasWorkbenchTab =
-  | "artifacts"
-  | "files"
-  | "changes"
-  | "preview"
-  | "team";
+  | "session"
+  | "workspace"
+  | "team"
+  | `document:${string}`;
+type CanvasWorkbenchDocumentViewMode = "preview" | "changes";
 export type CanvasWorkbenchLayoutMode = "split" | "stacked";
 
 interface CanvasWorkbenchEntryBase {
@@ -111,6 +102,43 @@ export interface CanvasWorkbenchDefaultPreview {
   filePath?: string;
   absolutePath?: string;
   previousContent?: string | null;
+}
+
+export type CanvasWorkbenchHeaderBadgeTone = "default" | "accent" | "success";
+
+export interface CanvasWorkbenchHeaderBadge {
+  key: string;
+  label: string;
+  tone?: CanvasWorkbenchHeaderBadgeTone;
+}
+
+export interface CanvasWorkbenchSummaryStat {
+  key: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: CanvasWorkbenchHeaderBadgeTone;
+}
+
+export interface CanvasWorkbenchPanelCopy {
+  introText?: string;
+  emptyText?: string;
+  unavailableText?: string;
+  sectionEyebrow?: string;
+  loadingText?: string;
+  emptyDirectoryText?: string;
+}
+
+export interface CanvasWorkbenchHeaderView {
+  eyebrow?: string;
+  title?: string;
+  subtitle?: string;
+  badges?: CanvasWorkbenchHeaderBadge[];
+  summaryStats?: CanvasWorkbenchSummaryStat[];
+  tabLabel?: string;
+  tabBadge?: string;
+  tabBadgeTone?: "slate" | "sky" | "rose";
+  panelCopy?: CanvasWorkbenchPanelCopy;
 }
 
 export type CanvasWorkbenchPreviewTarget =
@@ -157,10 +185,8 @@ export type CanvasWorkbenchPreviewTarget =
       title: string;
     };
 
-export interface CanvasWorkbenchTeamView {
+export interface CanvasWorkbenchTeamView extends CanvasWorkbenchHeaderView {
   enabled: boolean;
-  title?: string;
-  subtitle?: string;
   autoFocusToken?: string | number | null;
   preferFullscreenPreview?: boolean;
   preferFixedPanel?: boolean;
@@ -175,6 +201,10 @@ export interface CanvasWorkbenchTeamView {
   renderFooter?: () => ReactNode;
 }
 
+export interface CanvasWorkbenchSessionView extends CanvasWorkbenchHeaderView {
+  renderPanel: () => ReactNode;
+}
+
 interface WorkspaceFileSelection {
   path: string;
   title: string;
@@ -182,6 +212,23 @@ interface WorkspaceFileSelection {
   content?: string;
   error?: string | null;
   size?: number;
+}
+
+interface CanvasWorkbenchResolvedSelection {
+  selectionKey: string | null;
+  entrySource:
+    | CanvasWorkbenchEntry["source"]
+    | "workspace-file"
+    | "default-preview";
+  title: string;
+  tabLabel: string;
+  subtitle?: string;
+  kindLabel: string;
+  badgeLabel?: string;
+  target: CanvasWorkbenchPreviewTarget;
+  content: string;
+  previousContent: string | null;
+  selectionPath?: string;
 }
 
 export interface CanvasWorkbenchLayoutProps {
@@ -205,8 +252,13 @@ export interface CanvasWorkbenchLayoutProps {
     },
   ) => ReactNode;
   onLayoutModeChange?: (mode: CanvasWorkbenchLayoutMode) => void;
+  workspaceView?: CanvasWorkbenchHeaderView | null;
   teamView?: CanvasWorkbenchTeamView | null;
+  sessionView?: CanvasWorkbenchSessionView | null;
 }
+
+const WORKBENCH_SHELL_CLASSNAME =
+  "rounded-[28px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5";
 
 const WORKBENCH_PANEL_CLASSNAME =
   "rounded-[24px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5";
@@ -215,46 +267,188 @@ const WORKBENCH_MUTED_PANEL_CLASSNAME =
   "rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500";
 
 const WORKBENCH_BUTTON_CLASSNAME =
-  "border-slate-200/80 bg-white/90 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900";
+  "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white hover:text-slate-900";
 
 const WORKBENCH_ACTIVE_BUTTON_CLASSNAME =
-  "border-slate-300 bg-slate-100 text-slate-900";
+  "border-slate-300 bg-white text-slate-950 shadow-sm shadow-slate-950/5";
 
 const WORKBENCH_GHOST_BUTTON_CLASSNAME =
   "border-slate-200/80 text-slate-500 hover:bg-slate-50 hover:text-slate-900";
 
 const STACKED_LAYOUT_BREAKPOINT = 1040;
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
-function resolveStackedWorkbenchMetrics(shellWidth: number): {
-  minWidth: number;
-  maxWidth: number;
-  defaultWidth: number;
-} {
-  const safeShellWidth =
-    shellWidth > 0 ? shellWidth : STACKED_LAYOUT_BREAKPOINT;
-  const minWidth = Math.max(
-    280,
-    Math.min(340, Math.round(safeShellWidth * 0.36)),
-  );
-  const maxWidth = Math.max(minWidth + 40, Math.min(480, safeShellWidth - 28));
-  const defaultWidth = clamp(
-    Math.round(safeShellWidth * 0.42),
-    minWidth,
-    maxWidth,
-  );
-  return {
-    minWidth,
-    maxWidth,
-    defaultWidth,
-  };
-}
-
 function normalizePath(value: string): string {
   return value.replace(/\\/g, "/");
+}
+
+function resolveWorkspaceRelativeDisplayPath(
+  workspaceRoot: string | null | undefined,
+  path: string | null | undefined,
+): string | undefined {
+  const normalizedPath = normalizePath(path?.trim() || "");
+  if (!normalizedPath) {
+    return undefined;
+  }
+
+  const normalizedRoot = normalizePath(workspaceRoot?.trim() || "");
+  if (!normalizedRoot) {
+    return normalizedPath;
+  }
+
+  if (normalizedPath === normalizedRoot) {
+    return extractFileNameFromPath(normalizedPath);
+  }
+
+  const prefix = `${normalizedRoot}/`;
+  if (normalizedPath.startsWith(prefix)) {
+    return normalizedPath.slice(prefix.length);
+  }
+
+  return normalizedPath;
+}
+
+function resolveWorkspaceRelativePath(
+  workspaceRoot: string | null | undefined,
+  path: string | null | undefined,
+): string | null {
+  const normalizedPath = normalizePath(path?.trim() || "");
+  if (!normalizedPath) {
+    return null;
+  }
+
+  const normalizedRoot = normalizePath(workspaceRoot?.trim() || "");
+  if (!normalizedRoot) {
+    return normalizedPath;
+  }
+
+  if (normalizedPath === normalizedRoot) {
+    return "";
+  }
+
+  const prefix = `${normalizedRoot}/`;
+  if (normalizedPath.startsWith(prefix)) {
+    return normalizedPath.slice(prefix.length);
+  }
+
+  if (!/^(\/|[A-Za-z]:\/|\\\\)/.test(normalizedPath)) {
+    return normalizedPath;
+  }
+
+  return null;
+}
+
+function resolveSavedContentBundleRoot(
+  workspaceRoot: string | null | undefined,
+  selectionPath: string | null | undefined,
+): string | null {
+  const relativePath = resolveWorkspaceRelativePath(workspaceRoot, selectionPath);
+  if (!relativePath) {
+    return null;
+  }
+
+  const match = relativePath.match(/^(exports\/[^/]+\/[^/]+)/);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  return resolveAbsoluteWorkspacePath(workspaceRoot, match[1]) || null;
+}
+
+function resolveWorkspacePanelDisplayPath(
+  workspaceRoot: string | null | undefined,
+  panelRootPath: string | null | undefined,
+): string | undefined {
+  const normalizedPanelRoot = normalizePath(panelRootPath?.trim() || "");
+  if (!normalizedPanelRoot) {
+    return undefined;
+  }
+
+  const normalizedWorkspaceRoot = normalizePath(workspaceRoot?.trim() || "");
+  if (
+    normalizedWorkspaceRoot &&
+    normalizedPanelRoot !== normalizedWorkspaceRoot
+  ) {
+    return (
+      resolveWorkspaceRelativeDisplayPath(workspaceRoot, panelRootPath) ||
+      normalizeManagedWorkspacePathForDisplay(normalizedPanelRoot)
+    );
+  }
+
+  return normalizeManagedWorkspacePathForDisplay(normalizedPanelRoot);
+}
+
+function isSavedContentBundleDirectory(
+  workspaceRoot: string | null | undefined,
+  listingPath: string,
+): boolean {
+  const relativePath = resolveWorkspaceRelativePath(workspaceRoot, listingPath);
+  return Boolean(relativePath?.match(/^exports\/[^/]+\/[^/]+(?:\/.*)?$/));
+}
+
+function compareWorkspaceTreeEntryName(left: string, right: string): number {
+  return left.localeCompare(right, "zh-CN", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function sortWorkspaceListingEntries(
+  entries: DirectoryListing["entries"],
+  listingPath: string,
+  workspaceRoot: string | null | undefined,
+): DirectoryListing["entries"] {
+  const isBundleDirectory = isSavedContentBundleDirectory(
+    workspaceRoot,
+    listingPath,
+  );
+
+  const resolveRank = (entry: DirectoryListing["entries"][number]) => {
+    const normalizedName = (entry.name || "").trim().toLowerCase();
+
+    if (isBundleDirectory) {
+      if (normalizedName === "index.md") {
+        return 0;
+      }
+      if (normalizedName === "agents.md") {
+        return 1;
+      }
+      if (entry.isDir && normalizedName === "skills") {
+        return 2;
+      }
+      if (entry.isDir && (normalizedName === "images" || normalizedName === "assets")) {
+        return 3;
+      }
+      if (entry.isDir) {
+        return 4;
+      }
+      if (/\.(md|markdown|mdx)$/i.test(normalizedName)) {
+        return 5;
+      }
+      if (/\.(png|jpe?g|webp|gif|svg)$/i.test(normalizedName)) {
+        return 6;
+      }
+      if (/\.json$/i.test(normalizedName)) {
+        return 8;
+      }
+      return 7;
+    }
+
+    if (entry.isDir) {
+      return 0;
+    }
+    if (/\.(md|markdown|mdx)$/i.test(normalizedName)) {
+      return 1;
+    }
+    return 2;
+  };
+
+  return [...entries].sort((left, right) => {
+    const rankDiff = resolveRank(left) - resolveRank(right);
+    if (rankDiff !== 0) {
+      return rankDiff;
+    }
+    return compareWorkspaceTreeEntryName(left.name, right.name);
+  });
 }
 
 function buildSyntheticArtifact(
@@ -499,6 +693,252 @@ function renderDiffState(diffLines: CanvasWorkbenchDiffLine[]): ReactNode {
   );
 }
 
+function buildDocumentTabKey(selectionKey: string): `document:${string}` {
+  return `document:${selectionKey}`;
+}
+
+function isDocumentTabKey(
+  value: CanvasWorkbenchTab | string,
+): value is `document:${string}` {
+  return value.startsWith("document:");
+}
+
+function parseDocumentTabKey(tabKey: `document:${string}` | string): string {
+  return tabKey.replace(/^document:/, "");
+}
+
+function resolvePreviewContent(target: CanvasWorkbenchPreviewTarget): string {
+  if (target.kind === "default-canvas") {
+    return target.content;
+  }
+
+  if (target.kind === "artifact" || target.kind === "synthetic-artifact") {
+    return target.artifact.content;
+  }
+
+  return "";
+}
+
+function resolvePreviewPath(
+  target: CanvasWorkbenchPreviewTarget,
+): string | undefined {
+  if (
+    target.kind === "default-canvas" ||
+    target.kind === "artifact" ||
+    target.kind === "synthetic-artifact" ||
+    target.kind === "loading" ||
+    target.kind === "unsupported"
+  ) {
+    return target.absolutePath || target.filePath;
+  }
+
+  return undefined;
+}
+
+function buildDefaultPreviewSelection(
+  defaultPreview: CanvasWorkbenchDefaultPreview,
+): CanvasWorkbenchResolvedSelection {
+  const target: CanvasWorkbenchPreviewTarget = {
+    kind: "default-canvas",
+    title: defaultPreview.title,
+    content: defaultPreview.content,
+    filePath: defaultPreview.filePath,
+    absolutePath: defaultPreview.absolutePath,
+  };
+  const fileLabel = extractFileNameFromPath(
+    defaultPreview.filePath || defaultPreview.title,
+  );
+
+  return {
+    selectionKey: defaultPreview.selectionKey || null,
+    entrySource: "default-preview",
+    title: defaultPreview.title,
+    tabLabel: fileLabel || defaultPreview.title,
+    subtitle: defaultPreview.filePath,
+    kindLabel: "主稿",
+    target,
+    content: defaultPreview.content,
+    previousContent: defaultPreview.previousContent || null,
+    selectionPath: resolvePreviewPath(target),
+  };
+}
+
+function resolveSelectionContext({
+  selectionKey,
+  defaultPreview,
+  entryMap,
+  workspaceFileSelections,
+  canvasState,
+  artifacts,
+  workspaceRoot,
+}: {
+  selectionKey: string | null;
+  defaultPreview: CanvasWorkbenchDefaultPreview | null;
+  entryMap: Map<string, CanvasWorkbenchEntry>;
+  workspaceFileSelections: Record<string, WorkspaceFileSelection>;
+  canvasState: CanvasStateUnion | null;
+  artifacts: Artifact[];
+  workspaceRoot?: string | null;
+}): CanvasWorkbenchResolvedSelection | null {
+  if (
+    selectionKey &&
+    defaultPreview &&
+    selectionKey === defaultPreview.selectionKey &&
+    defaultPreview.content.trim()
+  ) {
+    return buildDefaultPreviewSelection(defaultPreview);
+  }
+
+  if (!selectionKey) {
+    return defaultPreview ? buildDefaultPreviewSelection(defaultPreview) : null;
+  }
+
+  if (selectionKey.startsWith("workspace-file:")) {
+    const rawPath = selectionKey.replace(/^workspace-file:/, "");
+    const workspaceFile = workspaceFileSelections[selectionKey] || {
+      path: rawPath,
+      title: extractFileNameFromPath(rawPath),
+      status: "loading" as const,
+    };
+
+    let target: CanvasWorkbenchPreviewTarget;
+    if (workspaceFile.status === "loading") {
+      target = {
+        kind: "loading",
+        title: workspaceFile.title,
+        filePath: workspaceFile.path,
+        absolutePath: workspaceFile.path,
+      };
+    } else if (workspaceFile.status === "binary") {
+      target = {
+        kind: "unsupported",
+        title: workspaceFile.title,
+        reason: "该文件为二进制内容，暂不支持画布文本预览。",
+        filePath: workspaceFile.path,
+        absolutePath: workspaceFile.path,
+      };
+    } else if (workspaceFile.status === "error") {
+      target = {
+        kind: "unsupported",
+        title: workspaceFile.title,
+        reason: workspaceFile.error || "读取文件失败",
+        filePath: workspaceFile.path,
+        absolutePath: workspaceFile.path,
+      };
+    } else {
+      target = {
+        kind: "default-canvas",
+        title: workspaceFile.title,
+        content: workspaceFile.content || "",
+        filePath: workspaceFile.path,
+        absolutePath: workspaceFile.path,
+      };
+    }
+
+    const displayPath = resolveWorkspaceRelativeDisplayPath(
+      workspaceRoot,
+      workspaceFile.path,
+    );
+
+    return {
+      selectionKey,
+      entrySource: "workspace-file",
+      title: workspaceFile.title,
+      tabLabel:
+        extractFileNameFromPath(workspaceFile.path) || workspaceFile.title,
+      subtitle: displayPath,
+      kindLabel: "文件",
+      target,
+      content: resolvePreviewContent(target),
+      previousContent:
+        workspaceFile.status === "ready"
+          ? resolveMappedPreviousContentForPath(
+              workspaceFile.path,
+              canvasState,
+              artifacts,
+              workspaceRoot,
+            )
+          : null,
+      selectionPath: resolvePreviewPath(target),
+    };
+  }
+
+  const entry = entryMap.get(selectionKey) || null;
+  if (!entry) {
+    return defaultPreview ? buildDefaultPreviewSelection(defaultPreview) : null;
+  }
+
+  let target: CanvasWorkbenchPreviewTarget;
+  if (entry.source === "artifact") {
+    target = {
+      kind: "artifact",
+      title: entry.title,
+      artifact: entry.artifact,
+      filePath: entry.filePath,
+      absolutePath: entry.absolutePath,
+    };
+  } else if (entry.source === "document-version") {
+    target = {
+      kind: "synthetic-artifact",
+      title: entry.title,
+      artifact: buildSyntheticArtifact(
+        `canvas-workbench:version:${entry.version.id}`,
+        entry.filePath || `${entry.title}.md`,
+        entry.version.content,
+      ),
+      filePath: entry.filePath,
+      absolutePath: entry.absolutePath,
+    };
+  } else {
+    target = {
+      kind: "synthetic-artifact",
+      title: entry.title,
+      artifact: buildSyntheticArtifact(
+        `canvas-workbench:task:${entry.taskFile.id}`,
+        entry.filePath || entry.title,
+        entry.taskFile.content || "",
+      ),
+      filePath: entry.filePath,
+      absolutePath: entry.absolutePath,
+    };
+  }
+
+  let previousContent: string | null = null;
+  if (entry.source === "artifact") {
+    previousContent = resolvePreviousArtifactContent(entry.artifact, artifacts);
+  } else if (
+    entry.source === "document-version" &&
+    isDocumentCanvasState(canvasState)
+  ) {
+    previousContent = resolvePreviousVersionContent(
+      entry.version,
+      canvasState.versions,
+    );
+  } else if (entry.absolutePath) {
+    previousContent = resolveMappedPreviousContentForPath(
+      entry.absolutePath,
+      canvasState,
+      artifacts,
+      workspaceRoot,
+    );
+  }
+
+  return {
+    selectionKey,
+    entrySource: entry.source,
+    title: entry.title,
+    tabLabel:
+      extractFileNameFromPath(entry.filePath || entry.title) || entry.title,
+    subtitle: entry.subtitle,
+    kindLabel: entry.kindLabel,
+    badgeLabel: entry.badgeLabel,
+    target,
+    content: resolvePreviewContent(target),
+    previousContent,
+    selectionPath: resolvePreviewPath(target),
+  };
+}
+
 export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
   artifacts,
   canvasState,
@@ -512,27 +952,18 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
   onRevealPath,
   renderPreview,
   onLayoutModeChange,
+  workspaceView = null,
   teamView = null,
+  sessionView = null,
 }: CanvasWorkbenchLayoutProps) {
   const shouldPreferTeamTabByDefault =
     teamView?.enabled === true && !defaultPreview;
   const shellRef = useRef<HTMLDivElement | null>(null);
-  const stackedResizeCleanupRef = useRef<(() => void) | null>(null);
-  const [activeTab, setActiveTab] = useState<CanvasWorkbenchTab>(() =>
-    shouldPreferTeamTabByDefault ? "team" : "artifacts",
-  );
-  const [collapsed, setCollapsed] = useState(
-    () => shouldPreferTeamTabByDefault,
-  );
   const [isStackedLayout, setIsStackedLayout] = useState(false);
-  const [stackedWorkbenchOpen, setStackedWorkbenchOpen] = useState(false);
-  const [shellWidth, setShellWidth] = useState(STACKED_LAYOUT_BREAKPOINT);
-  const [stackedWorkbenchWidth, setStackedWorkbenchWidth] = useState<
-    number | null
-  >(null);
+  const [documentPreviewMode, setDocumentPreviewMode] =
+    useState<CanvasWorkbenchDocumentViewMode>("preview");
   const [documentInspectorCollapsed, setDocumentInspectorCollapsed] =
     useState(true);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [artifactDocumentController, setArtifactDocumentController] =
     useState<ArtifactWorkbenchDocumentController | null>(null);
   const [directoryCache, setDirectoryCache] = useState<
@@ -547,18 +978,6 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
   const [workspaceFileSelections, setWorkspaceFileSelections] = useState<
     Record<string, WorkspaceFileSelection>
   >({});
-  const availableTabs = useMemo<
-    Array<{ key: CanvasWorkbenchTab; label: string }>
-  >(
-    () => [
-      ...(teamView?.enabled ? [{ key: "team" as const, label: "团队" }] : []),
-      { key: "artifacts" as const, label: "产物" },
-      { key: "files" as const, label: "全部文件" },
-      { key: "changes" as const, label: "变更" },
-      { key: "preview" as const, label: "预览" },
-    ],
-    [teamView?.enabled],
-  );
 
   const entries = useMemo(
     () => buildEntries(artifacts, canvasState, taskFiles, workspaceRoot),
@@ -570,15 +989,12 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
     [entries],
   );
 
-  const fallbackEntryKey = useMemo(() => {
-    if (defaultPreview) {
-      if (
-        defaultPreview.selectionKey &&
-        entryMap.has(defaultPreview.selectionKey)
-      ) {
-        return defaultPreview.selectionKey;
-      }
-      return null;
+  const fallbackSelectionKey = useMemo(() => {
+    if (
+      defaultPreview?.selectionKey &&
+      entryMap.has(defaultPreview.selectionKey)
+    ) {
+      return defaultPreview.selectionKey;
     }
 
     if (selectedFileId) {
@@ -589,47 +1005,128 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
     }
 
     return entries[0]?.key || null;
-  }, [defaultPreview, entries, entryMap, selectedFileId]);
+  }, [defaultPreview?.selectionKey, entries, entryMap, selectedFileId]);
 
-  useEffect(() => {
-    if (
-      selectedKey &&
-      (entryMap.has(selectedKey) || selectedKey.startsWith("workspace-file:"))
-    ) {
-      return;
-    }
-    setSelectedKey(fallbackEntryKey);
-  }, [entryMap, fallbackEntryKey, selectedKey]);
+  const initialDocumentSelectionKey =
+    defaultPreview?.selectionKey || fallbackSelectionKey;
+  const shouldPreferSessionTabOnMount = Boolean(
+    sessionView?.renderPanel && !initialDocumentSelectionKey,
+  );
 
-  const loadDirectory = useCallback(async (path: string) => {
-    if (!path.trim()) {
-      return;
+  const [selectedKey, setSelectedKey] = useState<string | null>(
+    initialDocumentSelectionKey,
+  );
+  const [openDocumentTabs, setOpenDocumentTabs] = useState<
+    Array<`document:${string}`>
+  >(() =>
+    initialDocumentSelectionKey
+      ? [buildDocumentTabKey(initialDocumentSelectionKey)]
+      : [],
+  );
+  const [activeTab, setActiveTab] = useState<CanvasWorkbenchTab>(() => {
+    if (shouldPreferSessionTabOnMount) {
+      return "session";
     }
-    setLoadingDirectories((previous) => ({ ...previous, [path]: true }));
-    try {
-      const listing = await listDirectory(path);
-      setDirectoryCache((previous) => ({
-        ...previous,
-        [path]: listing,
-      }));
-    } catch (error) {
-      toast.error(
-        `读取目录失败：${error instanceof Error ? error.message : String(error)}`,
+    if (initialDocumentSelectionKey) {
+      return buildDocumentTabKey(initialDocumentSelectionKey);
+    }
+    return shouldPreferTeamTabByDefault ? "team" : "session";
+  });
+  const hasAutoFocusedInitialDocumentTabRef = useRef(
+    Boolean(initialDocumentSelectionKey),
+  );
+
+  const isKnownSelectionKey = useCallback(
+    (selectionKey: string | null) => {
+      if (!selectionKey) {
+        return false;
+      }
+      if (selectionKey.startsWith("workspace-file:")) {
+        return true;
+      }
+      return (
+        entryMap.has(selectionKey) ||
+        selectionKey === defaultPreview?.selectionKey
       );
-    } finally {
-      setLoadingDirectories((previous) => ({ ...previous, [path]: false }));
-    }
-  }, []);
+    },
+    [defaultPreview?.selectionKey, entryMap],
+  );
 
   useEffect(() => {
-    if (!workspaceRoot?.trim() || workspaceUnavailable) {
+    if (!selectedKey || isKnownSelectionKey(selectedKey)) {
       return;
     }
-    if (directoryCache[workspaceRoot]) {
+    setSelectedKey(fallbackSelectionKey);
+  }, [fallbackSelectionKey, isKnownSelectionKey, selectedKey]);
+
+  useEffect(() => {
+    const seedSelectionKeys = [
+      defaultPreview?.selectionKey || null,
+      fallbackSelectionKey,
+    ].filter((value): value is string => Boolean(value));
+
+    if (seedSelectionKeys.length === 0) {
       return;
     }
-    void loadDirectory(workspaceRoot);
-  }, [directoryCache, loadDirectory, workspaceRoot, workspaceUnavailable]);
+
+    setOpenDocumentTabs((previous) => {
+      const next = [...previous];
+      let changed = false;
+      seedSelectionKeys.forEach((selectionKey) => {
+        const tabKey = buildDocumentTabKey(selectionKey);
+        if (!next.includes(tabKey)) {
+          next.push(tabKey);
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+  }, [defaultPreview?.selectionKey, fallbackSelectionKey]);
+
+  useEffect(() => {
+    setOpenDocumentTabs((previous) => {
+      const next = previous.filter((tabKey) =>
+        isKnownSelectionKey(parseDocumentTabKey(tabKey)),
+      );
+      return next.length === previous.length ? previous : next;
+    });
+  }, [isKnownSelectionKey]);
+
+  useEffect(() => {
+    if (activeTab !== "team" || teamView?.enabled) {
+      return;
+    }
+    setActiveTab(openDocumentTabs[0] || "session");
+  }, [activeTab, openDocumentTabs, teamView?.enabled]);
+
+  useEffect(() => {
+    if (!isDocumentTabKey(activeTab)) {
+      return;
+    }
+    const selectionKey = parseDocumentTabKey(activeTab);
+    if (!isKnownSelectionKey(selectionKey)) {
+      setActiveTab(openDocumentTabs[0] || "session");
+      return;
+    }
+    if (selectedKey !== selectionKey) {
+      setSelectedKey(selectionKey);
+    }
+  }, [activeTab, isKnownSelectionKey, openDocumentTabs, selectedKey]);
+
+  useEffect(() => {
+    if (hasAutoFocusedInitialDocumentTabRef.current) {
+      return;
+    }
+    if (!sessionView?.renderPanel || activeTab !== "session") {
+      return;
+    }
+    const initialDocumentTab = openDocumentTabs[0];
+    if (!initialDocumentTab) {
+      return;
+    }
+    hasAutoFocusedInitialDocumentTabRef.current = true;
+    setActiveTab(initialDocumentTab);
+  }, [activeTab, openDocumentTabs, sessionView?.renderPanel]);
 
   useEffect(() => {
     const node = shellRef.current;
@@ -642,7 +1139,6 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
         return;
       }
       setIsStackedLayout(width < STACKED_LAYOUT_BREAKPOINT);
-      setShellWidth(width);
     };
 
     const fallbackWidth =
@@ -655,8 +1151,8 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       return;
     }
 
-    const observer = new ResizeObserver((entries) => {
-      const contentRect = entries[0]?.contentRect;
+    const observer = new ResizeObserver((observerEntries) => {
+      const contentRect = observerEntries[0]?.contentRect;
       const nextWidth =
         contentRect?.width ||
         node.getBoundingClientRect().width ||
@@ -670,65 +1166,35 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
     };
   }, []);
 
-  const shouldPinTeamWorkbenchPanel =
-    activeTab === "team" &&
-    teamView?.enabled === true &&
-    teamView.preferFixedPanel === true &&
-    shellWidth >= 860;
-  const usesStackedWorkbenchLayout =
-    isStackedLayout && !shouldPinTeamWorkbenchPanel;
-
   useEffect(() => {
-    onLayoutModeChange?.(usesStackedWorkbenchLayout ? "stacked" : "split");
-  }, [onLayoutModeChange, usesStackedWorkbenchLayout]);
+    onLayoutModeChange?.(isStackedLayout ? "stacked" : "split");
+  }, [isStackedLayout, onLayoutModeChange]);
 
-  useEffect(() => {
-    if (usesStackedWorkbenchLayout) {
-      setStackedWorkbenchOpen(false);
-    }
-  }, [usesStackedWorkbenchLayout]);
-
-  useEffect(() => {
-    if (!usesStackedWorkbenchLayout) {
-      return;
-    }
-
-    return onCompactRightPanelOpen((detail) => {
-      if (detail.source !== "workbench") {
-        setStackedWorkbenchOpen(false);
+  const loadDirectory = useCallback(
+    async (path: string) => {
+      if (!path.trim()) {
+        return;
       }
-    });
-  }, [usesStackedWorkbenchLayout]);
-
-  const stackedWorkbenchMetrics = useMemo(
-    () => resolveStackedWorkbenchMetrics(shellWidth),
-    [shellWidth],
+      setLoadingDirectories((previous) => ({ ...previous, [path]: true }));
+      try {
+        const listing = filterWorkspaceDirectoryListing(
+          await listDirectory(path),
+          workspaceRoot,
+        );
+        setDirectoryCache((previous) => ({
+          ...previous,
+          [path]: listing,
+        }));
+      } catch (error) {
+        toast.error(
+          `读取目录失败：${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setLoadingDirectories((previous) => ({ ...previous, [path]: false }));
+      }
+    },
+    [workspaceRoot],
   );
-
-  useEffect(() => {
-    setStackedWorkbenchWidth((previous) =>
-      previous == null
-        ? stackedWorkbenchMetrics.defaultWidth
-        : clamp(
-            previous,
-            stackedWorkbenchMetrics.minWidth,
-            stackedWorkbenchMetrics.maxWidth,
-          ),
-    );
-  }, [stackedWorkbenchMetrics]);
-
-  useEffect(() => {
-    return () => {
-      stackedResizeCleanupRef.current?.();
-      stackedResizeCleanupRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!availableTabs.some((tab) => tab.key === activeTab)) {
-      setActiveTab(availableTabs[0]?.key || "artifacts");
-    }
-  }, [activeTab, availableTabs]);
 
   const teamAutoFocusTokenRef = useRef<string | number | null | undefined>(
     teamView?.autoFocusToken,
@@ -745,34 +1211,89 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
 
     teamAutoFocusTokenRef.current = teamView.autoFocusToken;
     setActiveTab("team");
-    setCollapsed(false);
-    if (usesStackedWorkbenchLayout) {
-      setStackedWorkbenchOpen(true);
-      emitCompactRightPanelOpen({ source: "workbench" });
-    }
-  }, [teamView?.autoFocusToken, teamView?.enabled, usesStackedWorkbenchLayout]);
+  }, [teamView?.autoFocusToken, teamView?.enabled]);
+
+  const handleOpenDocumentSelection = useCallback((selectionKey: string) => {
+    setSelectedKey(selectionKey);
+    const tabKey = buildDocumentTabKey(selectionKey);
+    setOpenDocumentTabs((previous) =>
+      previous.includes(tabKey) ? previous : [...previous, tabKey],
+    );
+    setActiveTab(tabKey);
+  }, []);
+
+  const handleCloseDocumentTab = useCallback(
+    (tabKey: `document:${string}`) => {
+      const selectionKey = parseDocumentTabKey(tabKey);
+      setOpenDocumentTabs((previous) =>
+        previous.filter((currentTabKey) => currentTabKey !== tabKey),
+      );
+
+      if (selectedKey === selectionKey) {
+        setSelectedKey(fallbackSelectionKey);
+      }
+
+      if (activeTab === tabKey) {
+        const fallbackTab =
+          openDocumentTabs.find((currentTabKey) => currentTabKey !== tabKey) ||
+          (teamView?.enabled && shouldPreferTeamTabByDefault
+            ? "team"
+            : "session");
+        setActiveTab(fallbackTab as CanvasWorkbenchTab);
+      }
+    },
+    [
+      activeTab,
+      fallbackSelectionKey,
+      openDocumentTabs,
+      selectedKey,
+      shouldPreferTeamTabByDefault,
+      teamView?.enabled,
+    ],
+  );
 
   const handleToggleDirectory = useCallback(
     (path: string) => {
-      setExpandedDirectories((previous) => {
-        const nextExpanded = !previous[path];
-        return {
-          ...previous,
-          [path]: nextExpanded,
-        };
-      });
-      if (!directoryCache[path]) {
+      const willExpand = !expandedDirectories[path];
+      setExpandedDirectories((previous) => ({
+        ...previous,
+        [path]: willExpand,
+      }));
+      if (willExpand) {
         void loadDirectory(path);
       }
     },
-    [directoryCache, loadDirectory],
+    [expandedDirectories, loadDirectory],
+  );
+
+  const refreshDirectorySubtree = useCallback(
+    async (rootPath: string) => {
+      const normalizedRootPath = normalizePath(rootPath.trim());
+      if (!normalizedRootPath) {
+        return;
+      }
+
+      const expandedDescendants = Object.entries(expandedDirectories)
+        .filter(
+          ([path, expanded]) =>
+            expanded &&
+            normalizePath(path).startsWith(`${normalizedRootPath}/`),
+        )
+        .map(([path]) => path);
+
+      await Promise.all([
+        loadDirectory(rootPath),
+        ...expandedDescendants.map((path) => loadDirectory(path)),
+      ]);
+    },
+    [expandedDirectories, loadDirectory],
   );
 
   const handleSelectWorkspaceFile = useCallback(
     async (path: string) => {
       const title = extractFileNameFromPath(path);
       const selectionKey = `workspace-file:${path}`;
-      setSelectedKey(selectionKey);
+      handleOpenDocumentSelection(selectionKey);
       setWorkspaceFileSelections((previous) => ({
         ...previous,
         [selectionKey]: {
@@ -822,16 +1343,118 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
         };
       });
     },
-    [loadFilePreview],
+    [handleOpenDocumentSelection, loadFilePreview],
   );
 
-  const effectiveKey = selectedKey || fallbackEntryKey;
-  const selectedEntry = effectiveKey
-    ? entryMap.get(effectiveKey) || null
-    : null;
-  const selectedWorkspaceFile = effectiveKey?.startsWith("workspace-file:")
-    ? workspaceFileSelections[effectiveKey] || null
-    : null;
+  const documentSelectionKey = useMemo(() => {
+    if (isDocumentTabKey(activeTab)) {
+      return parseDocumentTabKey(activeTab);
+    }
+    return selectedKey || fallbackSelectionKey;
+  }, [activeTab, fallbackSelectionKey, selectedKey]);
+
+  const documentContext = useMemo(
+    () =>
+      resolveSelectionContext({
+        selectionKey: documentSelectionKey,
+        defaultPreview,
+        entryMap,
+        workspaceFileSelections,
+        canvasState,
+        artifacts,
+        workspaceRoot,
+      }),
+    [
+      artifacts,
+      canvasState,
+      defaultPreview,
+      documentSelectionKey,
+      entryMap,
+      workspaceFileSelections,
+      workspaceRoot,
+    ],
+  );
+
+  const sessionContext = useMemo(() => {
+    if (defaultPreview?.content.trim()) {
+      return buildDefaultPreviewSelection(defaultPreview);
+    }
+    return documentContext;
+  }, [defaultPreview, documentContext]);
+
+  const workspacePanelRootPath = useMemo(
+    () =>
+      resolveSavedContentBundleRoot(
+        workspaceRoot,
+        documentContext?.selectionPath || sessionContext?.selectionPath,
+      ) || workspaceRoot || null,
+    [
+      documentContext?.selectionPath,
+      sessionContext?.selectionPath,
+      workspaceRoot,
+    ],
+  );
+
+  const workspacePanelDisplayPath = useMemo(
+    () =>
+      resolveWorkspacePanelDisplayPath(workspaceRoot, workspacePanelRootPath),
+    [workspacePanelRootPath, workspaceRoot],
+  );
+
+  useEffect(() => {
+    if (!workspacePanelRootPath?.trim() || workspaceUnavailable) {
+      return;
+    }
+    if (directoryCache[workspacePanelRootPath]) {
+      return;
+    }
+    void loadDirectory(workspacePanelRootPath);
+  }, [
+    directoryCache,
+    loadDirectory,
+    workspacePanelRootPath,
+    workspaceUnavailable,
+  ]);
+
+  const teamTarget = useMemo<CanvasWorkbenchPreviewTarget | null>(() => {
+    if (!teamView?.enabled) {
+      return null;
+    }
+    return {
+      kind: "team-workbench",
+      title: teamView.title || "Team Workbench",
+    };
+  }, [teamView]);
+
+  const hasCustomSessionView = Boolean(sessionView?.renderPanel);
+
+  const activePreviewContext =
+    activeTab === "session"
+      ? hasCustomSessionView
+        ? null
+        : sessionContext
+      : isDocumentTabKey(activeTab)
+        ? documentContext
+        : null;
+
+  const activeSelectionPath = activePreviewContext?.selectionPath;
+  const activeContent = activePreviewContext?.content || "";
+
+  const documentDiffLines = useMemo(
+    () =>
+      documentContext && documentContext.previousContent !== null
+        ? buildCanvasWorkbenchDiff(
+            documentContext.previousContent,
+            documentContext.content,
+          )
+        : [],
+    [documentContext],
+  );
+
+  useEffect(() => {
+    setDocumentPreviewMode("preview");
+  }, [documentSelectionKey]);
+
   const handleArtifactDocumentControllerChange = useCallback(
     (controller: ArtifactWorkbenchDocumentController | null) => {
       setArtifactDocumentController((previous) =>
@@ -842,414 +1465,246 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
   );
 
   useEffect(() => {
-    if (selectedEntry?.source === "artifact") {
+    if (activeTab !== "session" && !isDocumentTabKey(activeTab)) {
+      setArtifactDocumentController(null);
       return;
     }
-    setArtifactDocumentController(null);
-  }, [selectedEntry]);
+
+    const previewTarget = activePreviewContext?.target;
+    if (previewTarget?.kind !== "artifact") {
+      setArtifactDocumentController(null);
+    }
+  }, [activePreviewContext?.target, activeTab]);
 
   useEffect(() => {
     setDocumentInspectorCollapsed(true);
-  }, [selectedEntry?.key, artifactDocumentController?.document?.artifactId]);
+  }, [documentSelectionKey, artifactDocumentController?.document?.artifactId]);
 
-  const currentTarget = useMemo<CanvasWorkbenchPreviewTarget>(() => {
-    if (activeTab === "team" && teamView?.enabled) {
-      return {
-        kind: "team-workbench",
-        title: teamView.title || "团队工作台",
-      };
-    }
-
-    if (selectedWorkspaceFile) {
-      if (selectedWorkspaceFile.status === "loading") {
-        return {
-          kind: "loading",
-          title: selectedWorkspaceFile.title,
-          filePath: selectedWorkspaceFile.path,
-          absolutePath: selectedWorkspaceFile.path,
-        };
-      }
-
-      if (selectedWorkspaceFile.status === "binary") {
-        return {
-          kind: "unsupported",
-          title: selectedWorkspaceFile.title,
-          reason: "该文件为二进制内容，暂不支持画布文本预览。",
-          filePath: selectedWorkspaceFile.path,
-          absolutePath: selectedWorkspaceFile.path,
-        };
-      }
-
-      if (selectedWorkspaceFile.status === "error") {
-        return {
-          kind: "unsupported",
-          title: selectedWorkspaceFile.title,
-          reason: selectedWorkspaceFile.error || "读取文件失败",
-          filePath: selectedWorkspaceFile.path,
-          absolutePath: selectedWorkspaceFile.path,
-        };
-      }
-
-      return {
-        kind: "synthetic-artifact",
-        title: selectedWorkspaceFile.title,
-        artifact: buildSyntheticArtifact(
-          `canvas-workbench:file:${selectedWorkspaceFile.path}`,
-          selectedWorkspaceFile.path,
-          selectedWorkspaceFile.content || "",
-        ),
-        filePath: selectedWorkspaceFile.path,
-        absolutePath: selectedWorkspaceFile.path,
-      };
-    }
-
-    if (selectedEntry) {
-      if (
-        defaultPreview &&
-        selectedEntry.key === defaultPreview.selectionKey &&
-        defaultPreview.content.trim()
-      ) {
-        return {
-          kind: "default-canvas",
-          title: defaultPreview.title,
-          content: defaultPreview.content,
-          filePath: defaultPreview.filePath,
-          absolutePath: defaultPreview.absolutePath,
-        };
-      }
-
-      if (selectedEntry.source === "artifact") {
-        return {
-          kind: "artifact",
-          title: selectedEntry.title,
-          artifact: selectedEntry.artifact,
-          filePath: selectedEntry.filePath,
-          absolutePath: selectedEntry.absolutePath,
-        };
-      }
-
-      if (selectedEntry.source === "document-version") {
-        return {
-          kind: "synthetic-artifact",
-          title: selectedEntry.title,
-          artifact: buildSyntheticArtifact(
-            `canvas-workbench:version:${selectedEntry.version.id}`,
-            selectedEntry.filePath || `${selectedEntry.title}.md`,
-            selectedEntry.version.content,
-          ),
-          filePath: selectedEntry.filePath,
-          absolutePath: selectedEntry.absolutePath,
-        };
-      }
-
-      return {
-        kind: "synthetic-artifact",
-        title: selectedEntry.title,
-        artifact: buildSyntheticArtifact(
-          `canvas-workbench:task:${selectedEntry.taskFile.id}`,
-          selectedEntry.filePath || selectedEntry.title,
-          selectedEntry.taskFile.content || "",
-        ),
-        filePath: selectedEntry.filePath,
-        absolutePath: selectedEntry.absolutePath,
-      };
-    }
-
-    if (defaultPreview) {
-      return {
-        kind: "default-canvas",
-        title: defaultPreview.title,
-        content: defaultPreview.content,
-        filePath: defaultPreview.filePath,
-        absolutePath: defaultPreview.absolutePath,
-      };
-    }
-
-    return {
-      kind: "empty",
-      title: "暂无可预览内容",
-    };
-  }, [
-    activeTab,
-    defaultPreview,
-    selectedEntry,
-    selectedWorkspaceFile,
-    teamView,
-  ]);
-
-  const currentContent = useMemo(() => {
-    if (currentTarget.kind === "default-canvas") {
-      return currentTarget.content;
-    }
-    if (
-      currentTarget.kind === "artifact" ||
-      currentTarget.kind === "synthetic-artifact"
-    ) {
-      return currentTarget.artifact.content;
-    }
-    return "";
-  }, [currentTarget]);
-
-  const previousContent = useMemo(() => {
-    if (selectedWorkspaceFile?.status === "ready") {
-      return resolveMappedPreviousContentForPath(
-        selectedWorkspaceFile.path,
-        canvasState,
-        artifacts,
-        workspaceRoot,
-      );
-    }
-
-    if (!selectedEntry) {
-      return defaultPreview?.previousContent || null;
-    }
-
-    if (
-      defaultPreview &&
-      selectedEntry.key === defaultPreview.selectionKey &&
-      defaultPreview.content.trim()
-    ) {
-      return defaultPreview.previousContent || null;
-    }
-
-    if (selectedEntry.source === "artifact") {
-      return resolvePreviousArtifactContent(selectedEntry.artifact, artifacts);
-    }
-
-    if (
-      selectedEntry.source === "document-version" &&
-      isDocumentCanvasState(canvasState)
-    ) {
-      return resolvePreviousVersionContent(
-        selectedEntry.version,
-        canvasState.versions,
-      );
-    }
-
-    if (selectedEntry.absolutePath) {
-      return resolveMappedPreviousContentForPath(
-        selectedEntry.absolutePath,
-        canvasState,
-        artifacts,
-        workspaceRoot,
-      );
-    }
-
-    return null;
-  }, [
-    artifacts,
-    canvasState,
-    defaultPreview,
-    selectedEntry,
-    selectedWorkspaceFile,
-    workspaceRoot,
-  ]);
-
-  const diffLines = useMemo(
+  const documentTabs = useMemo(
     () =>
-      previousContent !== null
-        ? buildCanvasWorkbenchDiff(previousContent, currentContent)
-        : [],
-    [currentContent, previousContent],
+      openDocumentTabs.map((tabKey) => {
+        const context = resolveSelectionContext({
+          selectionKey: parseDocumentTabKey(tabKey),
+          defaultPreview,
+          entryMap,
+          workspaceFileSelections,
+          canvasState,
+          artifacts,
+          workspaceRoot,
+        });
+
+        if (context) {
+          return {
+            key: tabKey,
+            label: context.tabLabel,
+            title: context.title,
+            badgeLabel: context.badgeLabel,
+            kindLabel: context.kindLabel,
+          };
+        }
+
+        const selectionKey = parseDocumentTabKey(tabKey);
+        const fallbackLabel = selectionKey.startsWith("workspace-file:")
+          ? extractFileNameFromPath(
+              selectionKey.replace(/^workspace-file:/, ""),
+            )
+          : selectionKey;
+        return {
+          key: tabKey,
+          label: fallbackLabel,
+          title: fallbackLabel,
+          badgeLabel: undefined,
+          kindLabel: undefined,
+        };
+      }),
+    [
+      artifacts,
+      canvasState,
+      defaultPreview,
+      entryMap,
+      openDocumentTabs,
+      workspaceFileSelections,
+      workspaceRoot,
+    ],
   );
 
-  const selectionPath =
-    currentTarget.kind === "default-canvas" ||
-    currentTarget.kind === "artifact" ||
-    currentTarget.kind === "synthetic-artifact" ||
-    currentTarget.kind === "loading" ||
-    currentTarget.kind === "unsupported"
-      ? currentTarget.absolutePath || currentTarget.filePath
-      : undefined;
+  const primaryTabs = useMemo<
+    Array<{
+      key: CanvasWorkbenchTab;
+      label: string;
+      badge?: string;
+      badgeTone?: "slate" | "sky" | "rose";
+    }>
+  >(
+    () => [
+      {
+        key: "session" as const,
+        label: sessionView?.tabLabel?.trim() || "Session · Main",
+        badge: sessionView?.tabBadge?.trim() || undefined,
+        badgeTone: sessionView?.tabBadgeTone,
+      },
+      {
+        key: "workspace" as const,
+        label: workspaceView?.tabLabel?.trim() || "文件",
+        badge:
+          workspaceView?.tabBadge?.trim() ||
+          (workspacePanelRootPath?.trim() &&
+          directoryCache[workspacePanelRootPath]?.entries.length
+            ? String(
+                Math.min(
+                  directoryCache[workspacePanelRootPath].entries.length,
+                  99,
+                ),
+              )
+            : undefined),
+        badgeTone: workspaceView?.tabBadgeTone,
+      },
+      ...(teamView?.enabled
+        ? [
+            {
+              key: "team" as const,
+              label:
+                teamView.tabLabel?.trim() || teamView.title?.trim() || "team",
+              badge:
+                teamView.tabBadge?.trim() ||
+                teamView.triggerState?.label?.trim() ||
+                undefined,
+              badgeTone:
+                teamView.tabBadgeTone ||
+                (teamView.triggerState?.tone === "error"
+                  ? ("rose" as const)
+                  : teamView.triggerState?.tone === "active"
+                    ? ("sky" as const)
+                    : ("slate" as const)),
+            },
+          ]
+        : []),
+    ],
+    [
+      directoryCache,
+      sessionView?.tabBadge,
+      sessionView?.tabBadgeTone,
+      sessionView?.tabLabel,
+      teamView,
+      workspacePanelRootPath,
+      workspaceView?.tabBadge,
+      workspaceView?.tabBadgeTone,
+      workspaceView?.tabLabel,
+    ],
+  );
 
   const handleCopyPath = useCallback(async () => {
-    if (!selectionPath) {
+    if (!activeSelectionPath) {
       return;
     }
     try {
       if (!navigator.clipboard?.writeText) {
         throw new Error("当前环境不支持剪贴板写入");
       }
-      await navigator.clipboard.writeText(selectionPath);
+      await navigator.clipboard.writeText(activeSelectionPath);
       toast.success("已复制路径");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "复制路径失败");
     }
-  }, [selectionPath]);
+  }, [activeSelectionPath]);
 
   const handleDownload = useCallback(() => {
-    if (!currentContent.trim()) {
+    if (!activeContent.trim()) {
       return;
     }
     const filename = extractFileNameFromPath(
-      selectionPath || currentTarget.title,
+      activeSelectionPath || activePreviewContext?.title || "canvas.md",
     );
-    downloadText(filename, currentContent);
-  }, [currentContent, currentTarget.title, selectionPath]);
+    downloadText(filename, activeContent);
+  }, [activeContent, activePreviewContext?.title, activeSelectionPath]);
 
-  const renderEntriesTab = () => {
-    if (entries.length === 0) {
-      return (
-        <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
-          暂无产物记录，可先生成一份文稿或从文件树中选择已有文件。
-        </div>
-      );
+  const renderDocumentInspector = () => {
+    if (
+      !isDocumentTabKey(activeTab) ||
+      !artifactDocumentController?.document ||
+      !documentContext
+    ) {
+      return null;
     }
 
-    const showDocumentInspector = Boolean(
-      selectedEntry?.source === "artifact" &&
-      artifactDocumentController?.document,
-    );
     const documentTitle =
-      artifactDocumentController?.document?.title?.trim() ||
-      selectedEntry?.title ||
-      "当前文稿";
+      artifactDocumentController.document.title?.trim() ||
+      documentContext.title;
     const documentSummary =
-      artifactDocumentController?.document?.summary?.trim() ||
-      "当前选中的结构化文稿已接入右侧工作台，按需展开查看概览、来源、版本与编辑。";
-    const versionCount = artifactDocumentController?.versionHistory.length || 0;
-    const sourceCount = artifactDocumentController?.sourceLinks.length || 0;
+      artifactDocumentController.document.summary?.trim() ||
+      "当前结构化文稿已接入文档检查器，可继续查看概览、来源、版本与编辑状态。";
+    const versionCount = artifactDocumentController.versionHistory.length || 0;
+    const sourceCount = artifactDocumentController.sourceLinks.length || 0;
     const diffCount =
-      artifactDocumentController?.currentVersionDiff?.changedBlocks.length || 0;
-    const currentVersionLabel = artifactDocumentController?.currentVersion
+      artifactDocumentController.currentVersionDiff?.changedBlocks.length || 0;
+    const currentVersionLabel = artifactDocumentController.currentVersion
       ? `v${artifactDocumentController.currentVersion.versionNo}`
       : null;
-    const documentInspectorButtonLabel = documentInspectorCollapsed
-      ? "展开当前文稿检查器"
-      : "折叠当前文稿检查器";
 
     return (
-      <div className="space-y-4">
-        <section className={cn(WORKBENCH_PANEL_CLASSNAME, "p-3")}>
-          <div className="border-b border-slate-200/80 px-1 pb-3">
+      <section
+        className={cn(WORKBENCH_PANEL_CLASSNAME, "overflow-hidden bg-slate-50")}
+      >
+        <button
+          type="button"
+          aria-label={
+            documentInspectorCollapsed
+              ? "展开当前文稿检查器"
+              : "折叠当前文稿检查器"
+          }
+          aria-expanded={!documentInspectorCollapsed}
+          aria-controls="canvas-workbench-document-inspector-panel"
+          onClick={() => setDocumentInspectorCollapsed((current) => !current)}
+          className="flex w-full items-start justify-between gap-3 border-b border-slate-200/80 bg-white px-4 py-3 text-left transition-colors hover:bg-slate-50"
+        >
+          <div className="min-w-0 flex-1">
             <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-              工作项导航
+              当前文稿
             </div>
-            <div className="mt-1 text-sm font-semibold text-slate-900">
-              统一在右侧切换产物与版本
-            </div>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              左侧只保留正文画布，这里作为唯一的产物入口与文稿上下文区。
-            </p>
-          </div>
-          <div className="mt-3 space-y-2">
-            {entries.map((entry) => (
-              <button
-                key={entry.key}
-                type="button"
-                aria-label={`选择画布产物-${entry.title}`}
-                onClick={() => setSelectedKey(entry.key)}
-                className={cn(
-                  "w-full rounded-[22px] border px-3.5 py-3.5 text-left shadow-sm shadow-slate-950/5 transition-colors",
-                  effectiveKey === entry.key
-                    ? WORKBENCH_ACTIVE_BUTTON_CLASSNAME
-                    : WORKBENCH_BUTTON_CLASSNAME,
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-full border border-slate-200/80 bg-slate-50/90 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                        {entry.kindLabel}
-                      </span>
-                      {entry.isCurrent ? (
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                          当前
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-2 truncate text-sm font-medium text-foreground">
-                      {entry.title}
-                    </div>
-                    {entry.subtitle ? (
-                      <div className="mt-1 truncate text-xs text-slate-500">
-                        {entry.subtitle}
-                      </div>
-                    ) : null}
-                    {entry.previewText ? (
-                      <div className="mt-2 line-clamp-3 text-xs leading-5 text-slate-500">
-                        {entry.previewText}
-                      </div>
-                    ) : null}
-                  </div>
-                  {entry.badgeLabel ? (
-                    <Badge variant="outline" className="shrink-0">
-                      {entry.badgeLabel}
-                    </Badge>
-                  ) : null}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {showDocumentInspector && artifactDocumentController ? (
-          <section
-            className={cn(
-              WORKBENCH_PANEL_CLASSNAME,
-              "overflow-hidden bg-slate-50/80",
-            )}
-          >
-            <button
-              type="button"
-              aria-label={documentInspectorButtonLabel}
-              aria-expanded={!documentInspectorCollapsed}
-              aria-controls="canvas-workbench-document-inspector-panel"
-              onClick={() =>
-                setDocumentInspectorCollapsed((current) => !current)
-              }
-              className="flex w-full items-start justify-between gap-3 border-b border-slate-200/80 bg-white/70 px-4 py-3 text-left transition-colors hover:bg-white"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                  当前文稿
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <div className="truncate text-sm font-semibold text-slate-900">
-                    {documentTitle}
-                  </div>
-                  {currentVersionLabel ? (
-                    <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold text-white">
-                      {currentVersionLabel}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
-                  {documentSummary}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
-                  <span>来源 {sourceCount}</span>
-                  <span>版本 {versionCount}</span>
-                  <span>差异 {diffCount}</span>
-                </div>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <div className="truncate text-sm font-semibold text-slate-900">
+                {documentTitle}
               </div>
-              <div className="flex items-center gap-1 pt-1 text-slate-500">
-                <span className="text-[11px] font-medium">
-                  {documentInspectorCollapsed ? "展开" : "收起"}
+              {currentVersionLabel ? (
+                <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  {currentVersionLabel}
                 </span>
-                {documentInspectorCollapsed ? (
-                  <ChevronRight className="h-4 w-4 shrink-0" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 shrink-0" />
-                )}
-              </div>
-            </button>
-
+              ) : null}
+            </div>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+              {documentSummary}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+              <span>来源 {sourceCount}</span>
+              <span>版本 {versionCount}</span>
+              <span>差异 {diffCount}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 pt-1 text-slate-500">
+            <span className="text-[11px] font-medium">
+              {documentInspectorCollapsed ? "展开" : "收起"}
+            </span>
             {documentInspectorCollapsed ? (
-              <div className="px-4 py-3 text-xs leading-5 text-slate-500">
-                默认先收起概览、来源、版本与编辑，避免小屏进入时直接挤占画布空间；需要时再展开查看。
-              </div>
+              <ChevronRight className="h-4 w-4 shrink-0" />
             ) : (
-              <ArtifactWorkbenchDocumentInspector
-                controller={artifactDocumentController}
-                testId="canvas-workbench-document-inspector"
-                containerClassName="min-h-0 overflow-hidden bg-slate-50/80"
-                tabsClassName="flex h-full min-h-0 flex-col p-4"
-              />
+              <ChevronDown className="h-4 w-4 shrink-0" />
             )}
-          </section>
-        ) : null}
-      </div>
+          </div>
+        </button>
+
+        {documentInspectorCollapsed ? (
+          <div className="px-4 py-3 text-xs leading-5 text-slate-500">
+            默认先收起概览、来源、版本与编辑，避免主画布被说明区挤压；需要时再展开查看。
+          </div>
+        ) : (
+          <ArtifactWorkbenchDocumentInspector
+            controller={artifactDocumentController}
+            testId="canvas-workbench-document-inspector"
+            containerClassName="min-h-0 overflow-hidden bg-slate-50"
+            tabsClassName="flex h-full min-h-0 flex-col p-4"
+          />
+        )}
+      </section>
     );
   };
 
@@ -1259,12 +1714,16 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
       return null;
     }
 
-    return listing.entries.map((entry) => {
+    return sortWorkspaceListingEntries(
+      listing.entries,
+      path,
+      workspaceRoot,
+    ).map((entry) => {
       const rowKey = entry.path;
       const isDirectory = entry.isDir;
       const isExpanded = Boolean(expandedDirectories[entry.path]);
       const fileSelectionKey = `workspace-file:${entry.path}`;
-      const isSelected = effectiveKey === fileSelectionKey;
+      const isSelected = documentSelectionKey === fileSelectionKey;
 
       return (
         <div key={rowKey}>
@@ -1286,7 +1745,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
               "flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition-colors",
               isSelected
                 ? "bg-slate-100 text-slate-900"
-                : "text-slate-500 hover:bg-white/84 hover:text-slate-900",
+                : "text-slate-500 hover:bg-white hover:text-slate-900",
             )}
             style={{ paddingLeft: `${depth * 14 + 8}px` }}
           >
@@ -1325,581 +1784,470 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
     });
   };
 
-  const renderFilesTab = () => {
-    if (workspaceUnavailable) {
-      return (
-        <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
-          当前工作区路径不可用，暂时无法浏览全部文件。
-        </div>
-      );
-    }
-
-    if (!workspaceRoot?.trim()) {
-      return (
-        <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
-          当前会话没有绑定可浏览的工作区目录。
-        </div>
-      );
-    }
-
-    const rootListing = directoryCache[workspaceRoot];
-    return (
-      <div className={WORKBENCH_PANEL_CLASSNAME}>
-        <div className="flex items-center justify-between border-b border-slate-200/80 px-3 py-3">
-          <div className="min-w-0">
-            <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">
-              Workspace Root
-            </div>
-            <div className="mt-1 truncate text-sm text-foreground">
-              {workspaceRoot}
-            </div>
-          </div>
-          <button
-            type="button"
-            aria-label="刷新工作区文件树"
-            onClick={() => void loadDirectory(workspaceRoot)}
-            className={cn(
-              "rounded-xl border px-2.5 py-1.5 text-xs transition-colors",
-              WORKBENCH_GHOST_BUTTON_CLASSNAME,
-            )}
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="max-h-[30rem] overflow-auto px-2 py-2">
-          {loadingDirectories[workspaceRoot] && !rootListing ? (
-            <div className="flex items-center gap-2 px-2 py-4 text-sm text-slate-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              正在加载目录...
-            </div>
-          ) : rootListing ? (
-            renderDirectoryNode(workspaceRoot)
-          ) : (
-            <div className="px-2 py-4 text-sm text-slate-500">
-              暂无目录内容。
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderChangesTab = () => {
-    if (!currentContent.trim()) {
-      return (
-        <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
-          当前选中项没有可比较的正文内容。
-        </div>
-      );
-    }
-
-    if (previousContent === null) {
-      return (
-        <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
-          当前选中项没有可用的上一版本，暂时无法展示变更。
-        </div>
-      );
-    }
-
-    return renderDiffState(diffLines);
-  };
-
-  const renderPreviewTab = () => {
-    if (currentTarget.kind === "loading") {
-      return (
-        <div className="flex items-center gap-2 rounded-[24px] border border-slate-200/80 bg-white/86 px-4 py-6 text-sm text-slate-500 shadow-sm shadow-slate-950/5">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          正在读取文件内容...
-        </div>
-      );
-    }
-
-    if (currentTarget.kind === "unsupported") {
-      return (
-        <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
-          {currentTarget.reason}
-        </div>
-      );
-    }
-
-    if (!currentContent.trim()) {
-      return (
-        <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
-          当前选中项暂无可展示内容。
-        </div>
-      );
-    }
-
-    return (
-      <div className={cn("overflow-hidden", WORKBENCH_PANEL_CLASSNAME)}>
-        <div className="max-h-[30rem] overflow-auto px-4 py-4">
-          <pre className="whitespace-pre-wrap break-all text-xs leading-6 text-foreground">
-            {currentContent}
-          </pre>
-        </div>
-      </div>
-    );
-  };
-
-  const renderTeamTab = () => {
-    if (!teamView?.enabled) {
-      return (
-        <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
-          当前没有可展示的团队工作台。
-        </div>
-      );
-    }
-
-    return teamView.renderPanel ? (
-      teamView.renderPanel()
-    ) : (
-      <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>团队工作台已启用。</div>
-    );
-  };
-
-  const renderTabButtons = (stacked: boolean) =>
-    stacked ? (
-      <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {availableTabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            aria-label={`切换画布标签-${tab.label}`}
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-              activeTab === tab.key
-                ? WORKBENCH_ACTIVE_BUTTON_CLASSNAME
-                : WORKBENCH_BUTTON_CLASSNAME,
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-    ) : (
-      <div
-        className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
-        style={{
-          gridTemplateColumns: `repeat(${Math.min(
-            Math.max(availableTabs.length, 1),
-            5,
-          )}, minmax(0, 1fr))`,
-        }}
-      >
-        {availableTabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            aria-label={`切换画布标签-${tab.label}`}
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              "rounded-2xl border px-2 py-2 text-xs font-medium transition-colors",
-              activeTab === tab.key
-                ? WORKBENCH_ACTIVE_BUTTON_CLASSNAME
-                : WORKBENCH_BUTTON_CLASSNAME,
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-    );
-
-  const renderWorkbenchHeader = (
-    stacked: boolean,
-    options?: {
-      showCollapseButton?: boolean;
-    },
-  ) => {
-    const headerTitle =
-      activeTab === "team"
-        ? teamView?.title || currentTarget.title
-        : currentTarget.title;
-
-    if (stacked) {
-      return (
-        <CompactRightDrawerHeader
-          eyebrow="右侧工作台"
-          heading={headerTitle}
-          subtitle={
-            activeTab === "team"
-              ? teamView?.subtitle || "产物、文件、变更与预览"
-              : "产物、文件、变更与预览"
-          }
-          meta={activeTab !== "team" ? selectionPath : undefined}
-          icon={<PanelRightOpen className="h-3.5 w-3.5" />}
-          actions={
-            <>
-              {activeTab !== "team" ? (
-                <CompactRightDrawerIconButton
-                  aria-label="下载当前画布项"
-                  disabled={!currentContent.trim()}
-                  onClick={handleDownload}
-                >
-                  <Download className="h-4 w-4" />
-                </CompactRightDrawerIconButton>
-              ) : null}
-              <CompactRightDrawerIconButton
-                aria-label="折叠画布工作台"
-                onClick={() => setStackedWorkbenchOpen(false)}
-              >
-                <PanelRightClose className="h-4 w-4" />
-              </CompactRightDrawerIconButton>
-            </>
-          }
-        >
-          {renderTabButtons(true)}
-        </CompactRightDrawerHeader>
-      );
-    }
-
-    return (
-      <div className="border-b border-slate-200/80 px-4 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-              {activeTab === "team" ? "团队工作台" : "画布工作台"}
-            </div>
-            <div className="mt-1 truncate text-sm font-semibold text-foreground">
-              {headerTitle}
-            </div>
-            {activeTab === "team" && teamView?.subtitle ? (
-              <div className="mt-1 truncate text-xs text-slate-500">
-                {teamView.subtitle}
-              </div>
-            ) : null}
-            {activeTab !== "team" && selectionPath ? (
-              <div className="mt-1 truncate text-xs text-slate-500">
-                {selectionPath}
-              </div>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-2">
-            {activeTab !== "team" ? (
-              <button
-                type="button"
-                aria-label="下载当前画布项"
-                disabled={!currentContent.trim()}
-                onClick={handleDownload}
-                className={cn(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-xl border transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-                  WORKBENCH_GHOST_BUTTON_CLASSNAME,
-                )}
-              >
-                <Download className="h-4 w-4" />
-              </button>
-            ) : null}
-            {options?.showCollapseButton ? (
-              <button
-                type="button"
-                aria-label="折叠画布工作台"
-                onClick={() => setCollapsed(true)}
-                className={cn(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-xl border transition-colors",
-                  WORKBENCH_GHOST_BUTTON_CLASSNAME,
-                )}
-              >
-                <PanelRightClose className="h-4 w-4" />
-              </button>
-            ) : null}
-          </div>
-        </div>
-        {renderTabButtons(false)}
-      </div>
-    );
-  };
-
-  const renderWorkbenchFooter = (stacked: boolean) =>
-    activeTab === "team" && teamView?.renderFooter ? (
-      <div
-        className={cn(
-          "border-t border-slate-200/80",
-          stacked ? "px-3 py-3" : "px-4 py-3",
-        )}
-      >
-        {teamView.renderFooter()}
-      </div>
-    ) : (
-      <div
-        className={cn(
-          "border-t border-slate-200/80",
-          stacked ? "px-3 py-3" : "px-4 py-3",
-        )}
-      >
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            aria-label="复制当前路径"
-            disabled={!selectionPath}
-            onClick={() => {
-              void handleCopyPath();
-            }}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-              WORKBENCH_GHOST_BUTTON_CLASSNAME,
-            )}
-          >
-            <Copy className="h-3.5 w-3.5" />
-            复制路径
-          </button>
-          <button
-            type="button"
-            aria-label="定位当前文件"
-            disabled={!selectionPath}
-            onClick={() => {
-              if (selectionPath) {
-                void onRevealPath(selectionPath);
-              }
-            }}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-              WORKBENCH_GHOST_BUTTON_CLASSNAME,
-            )}
-          >
-            <FolderOpen className="h-3.5 w-3.5" />
-            定位
-          </button>
-          <button
-            type="button"
-            aria-label="系统打开当前文件"
-            disabled={!selectionPath}
-            onClick={() => {
-              if (selectionPath) {
-                void onOpenPath(selectionPath);
-              }
-            }}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-              WORKBENCH_GHOST_BUTTON_CLASSNAME,
-            )}
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            打开
-          </button>
-        </div>
-        {previousContent !== null ? (
-          <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500">
-            <GitCompare className="h-3.5 w-3.5" />
-            已关联到上一版本，可在“变更”中查看差异。
-          </div>
-        ) : null}
-      </div>
-    );
-
-  const renderActiveTab = () =>
-    activeTab === "team"
-      ? renderTeamTab()
-      : activeTab === "artifacts"
-        ? renderEntriesTab()
-        : activeTab === "files"
-          ? renderFilesTab()
-          : activeTab === "changes"
-            ? renderChangesTab()
-            : renderPreviewTab();
-
-  const handleStartStackedResize = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
-      if (!usesStackedWorkbenchLayout || !stackedWorkbenchOpen) {
-        return;
-      }
-
-      event.preventDefault();
-      stackedResizeCleanupRef.current?.();
-
-      const startX = event.clientX;
-      const startWidth =
-        stackedWorkbenchWidth ?? stackedWorkbenchMetrics.defaultWidth;
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const nextWidth = clamp(
-          startWidth + (startX - moveEvent.clientX),
-          stackedWorkbenchMetrics.minWidth,
-          stackedWorkbenchMetrics.maxWidth,
-        );
-        setStackedWorkbenchWidth(nextWidth);
-      };
-
-      const handleMouseUp = () => {
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", handleMouseUp);
-        stackedResizeCleanupRef.current = null;
-      };
-
-      stackedResizeCleanupRef.current = () => {
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", handleMouseUp);
-      };
-
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    },
-    [
-      stackedWorkbenchMetrics.defaultWidth,
-      stackedWorkbenchMetrics.maxWidth,
-      stackedWorkbenchMetrics.minWidth,
-      stackedWorkbenchOpen,
-      stackedWorkbenchWidth,
-      usesStackedWorkbenchLayout,
-    ],
-  );
-
-  const stackedWorkbenchTrigger =
-    usesStackedWorkbenchLayout && !stackedWorkbenchOpen ? (
-      <CompactRightDockButton
-        icon={<PanelRightOpen className="h-4 w-4" />}
-        label={activeTab === "team" ? "团队工作台" : "工作台"}
-        badgeLabel={teamView?.triggerState?.label || undefined}
-        badgeTone={
-          teamView?.triggerState?.tone === "idle"
-            ? "default"
-            : teamView?.triggerState?.tone || "default"
-        }
-        ariaLabel="展开画布工作台"
-        title="工作台"
-        testId="canvas-workbench-trigger"
-        onClick={() => {
-          setStackedWorkbenchOpen(true);
-          emitCompactRightPanelOpen({ source: "workbench" });
-        }}
-      />
-    ) : undefined;
-  const preferFullscreenTeamPreview =
-    activeTab === "team" &&
-    teamView?.enabled === true &&
-    teamView.preferFullscreenPreview === true;
-  const useFramelessTeamShell =
-    activeTab === "team" &&
-    teamView?.enabled === true &&
-    !usesStackedWorkbenchLayout;
-
-  return (
-    <div
-      ref={shellRef}
-      data-testid="canvas-workbench-shell"
-      data-layout-mode={usesStackedWorkbenchLayout ? "stacked" : "split"}
+  const renderHeaderActionButton = ({
+    label,
+    onClick,
+    disabled,
+    icon,
+  }: {
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+    icon: ReactNode;
+  }) => (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
       className={cn(
-        "relative h-full min-h-0 overflow-hidden rounded-[28px]",
-        useFramelessTeamShell
-          ? "border-0 bg-transparent shadow-none"
-          : "border border-slate-200 bg-white shadow-sm shadow-slate-950/5",
-        usesStackedWorkbenchLayout ? "block" : "flex flex-row",
+        "inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        WORKBENCH_GHOST_BUTTON_CLASSNAME,
       )}
     >
-      <div
-        data-testid="canvas-workbench-preview-region"
+      {icon}
+      <span className="whitespace-nowrap">{label}</span>
+    </button>
+  );
+
+  const renderTopTab = ({
+    key,
+    label,
+    badge,
+    badgeTone,
+    closable = false,
+  }: {
+    key: CanvasWorkbenchTab;
+    label: string;
+    badge?: string;
+    badgeTone?: "slate" | "sky" | "rose";
+    closable?: boolean;
+  }) => {
+    const active = activeTab === key;
+    const badgeClassName =
+      badgeTone === "rose"
+        ? "bg-rose-50 text-rose-700"
+        : badgeTone === "sky"
+          ? "bg-sky-50 text-sky-700"
+          : "bg-slate-100 text-slate-600";
+    const leading =
+      key === "session" ? (
+        <span className="h-2 w-2 rounded-full bg-slate-400" />
+      ) : key === "workspace" ? (
+        <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+      ) : key === "team" ? (
+        <span className="h-2 w-2 rounded-full bg-sky-400" />
+      ) : label.match(/\.(ts|tsx|js|jsx|rs|json|yml|yaml|toml)$/i) ? (
+        <FileCode2 className="h-3.5 w-3.5 shrink-0" />
+      ) : (
+        <FileText className="h-3.5 w-3.5 shrink-0" />
+      );
+
+    return (
+      <button
+        key={key}
+        type="button"
+        aria-label={`切换画布标签-${label}`}
+        data-canvas-tab-key={key}
+        onClick={() => setActiveTab(key)}
         className={cn(
-          "min-w-0 overflow-hidden",
-          usesStackedWorkbenchLayout ? "h-full" : "flex-1 h-full",
+          "inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition-colors",
+          active
+            ? "border-slate-200 bg-white text-slate-950 shadow-sm shadow-slate-950/5"
+            : "border-transparent bg-transparent text-slate-600 hover:border-slate-200/80 hover:bg-white hover:text-slate-900",
         )}
       >
-        {activeTab === "team" && teamView?.enabled
-          ? teamView.renderPreview(
-              preferFullscreenTeamPreview
-                ? undefined
-                : {
-                    stackedWorkbenchTrigger,
-                  },
-            )
-          : renderPreview(currentTarget, {
-              stackedWorkbenchTrigger,
-              onArtifactDocumentControllerChange:
-                handleArtifactDocumentControllerChange,
-            })}
-      </div>
+        <span className={cn(active ? "text-slate-500" : "text-slate-400")}>
+          {leading}
+        </span>
+        <span className="truncate">{label}</span>
+        {badge ? (
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              badgeClassName,
+            )}
+          >
+            {badge}
+          </span>
+        ) : null}
+        {closable && isDocumentTabKey(key) ? (
+          <span
+            role="button"
+            aria-label={`关闭文件标签-${label}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleCloseDocumentTab(key);
+            }}
+            className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X className="h-3 w-3" />
+          </span>
+        ) : null}
+      </button>
+    );
+  };
 
-      {preferFullscreenTeamPreview ? null : usesStackedWorkbenchLayout ? (
-        stackedWorkbenchOpen ? (
-          <>
-            <button
-              type="button"
-              aria-label="折叠画布工作台遮罩"
-              onClick={() => setStackedWorkbenchOpen(false)}
-              className="absolute inset-0 z-10 bg-slate-950/8"
-            />
-            <section
-              data-testid="canvas-workbench-layout"
-              data-panel-placement="overlay-right"
-              className="absolute bottom-3 right-3 top-3 z-20 flex max-w-[calc(100%-24px)] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.16)]"
-              style={{
-                width: `${stackedWorkbenchWidth ?? stackedWorkbenchMetrics.defaultWidth}px`,
-                minWidth: `${stackedWorkbenchMetrics.minWidth}px`,
-                maxWidth: `${stackedWorkbenchMetrics.maxWidth}px`,
-              }}
-            >
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="调整画布工作台宽度"
-                data-testid="canvas-workbench-resize-handle"
-                onMouseDown={handleStartStackedResize}
-                className="absolute inset-y-0 left-0 flex w-5 shrink-0 cursor-col-resize items-center justify-center border-r border-slate-200/80 bg-white"
-              >
-                <span className="h-10 w-1.5 rounded-full bg-slate-200" />
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col pl-5">
-                {renderWorkbenchHeader(true)}
-                <div className="flex-1 overflow-auto px-3 py-3">
-                  {renderActiveTab()}
-                </div>
-                {renderWorkbenchFooter(true)}
-              </div>
-            </section>
-          </>
-        ) : null
-      ) : (
-        <aside
-          data-testid="canvas-workbench-layout"
-          data-panel-placement="side"
+  const renderWorkspacePanel = () => {
+    if (workspaceUnavailable) {
+      return (
+        <div data-testid="canvas-workbench-panel-workspace" className="p-5">
+          <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
+            {workspaceView?.panelCopy?.unavailableText ||
+              "当前工作区路径不可用，暂时无法浏览项目文件。"}
+          </div>
+        </div>
+      );
+    }
+
+    if (!workspacePanelRootPath?.trim()) {
+      return (
+        <div data-testid="canvas-workbench-panel-workspace" className="p-5">
+          <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
+            {workspaceView?.panelCopy?.emptyText ||
+              "当前会话没有绑定可浏览的工作区目录。"}
+          </div>
+        </div>
+      );
+    }
+
+    const rootListing = directoryCache[workspacePanelRootPath];
+    const workspacePanelEyebrow =
+      workspacePanelRootPath !== workspaceRoot ? "结果目录" : null;
+
+    return (
+      <section
+        data-testid="canvas-workbench-panel-workspace"
+        className="flex h-full min-h-0 flex-col p-5"
+      >
+        <div
           className={cn(
-            "relative flex h-full flex-col border-l border-slate-200/80 bg-white transition-[width] duration-200",
-            collapsed ? "w-12" : "w-[360px]",
+            WORKBENCH_PANEL_CLASSNAME,
+            "min-h-0 flex-1 overflow-hidden",
           )}
         >
-          {collapsed ? (
-            <div className="flex h-full flex-col items-center gap-3 px-2 py-4">
+          <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
+            <div className="min-w-0">
+              <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">
+                {workspaceView?.panelCopy?.sectionEyebrow ||
+                  workspacePanelEyebrow ||
+                  "项目目录"}
+              </div>
+              <div className="mt-1 truncate text-sm font-medium text-slate-900">
+                {workspacePanelDisplayPath || workspacePanelRootPath}
+              </div>
+            </div>
+            <button
+              type="button"
+              aria-label="刷新工作区文件树"
+              onClick={() => void refreshDirectorySubtree(workspacePanelRootPath)}
+              className={cn(
+                "inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-colors",
+                WORKBENCH_GHOST_BUTTON_CLASSNAME,
+              )}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto px-3 py-3">
+            {loadingDirectories[workspacePanelRootPath] && !rootListing ? (
+              <div className="flex items-center gap-2 px-2 py-4 text-sm text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {workspaceView?.panelCopy?.loadingText || "正在加载目录..."}
+              </div>
+            ) : rootListing ? (
+              renderDirectoryNode(workspacePanelRootPath)
+            ) : (
+              <div className="px-2 py-4 text-sm text-slate-500">
+                {workspaceView?.panelCopy?.emptyDirectoryText || "暂无目录内容。"}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  };
+
+  const renderSessionPanel = () => {
+    if (sessionContext) {
+      return (
+        <div
+          data-testid="canvas-workbench-panel-session"
+          className="h-full min-h-0 p-4"
+        >
+          <div
+            data-testid="canvas-workbench-preview-region"
+            className="h-full min-h-0 overflow-hidden rounded-[24px] border border-slate-200 bg-white"
+          >
+            {renderPreview(sessionContext.target)}
+          </div>
+        </div>
+      );
+    }
+
+    if (sessionView?.renderPanel) {
+      return (
+        <div
+          data-testid="canvas-workbench-panel-session"
+          className="h-full min-h-0 overflow-auto p-5"
+        >
+          {sessionView.renderPanel()}
+        </div>
+      );
+    }
+
+    return (
+      <div data-testid="canvas-workbench-panel-session" className="p-5">
+        <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
+          当前没有可展示的会话主画布。
+        </div>
+      </div>
+    );
+  };
+
+  const renderTeamPanel = () => {
+    if (!teamView?.enabled || !teamTarget) {
+      return (
+        <div data-testid="canvas-workbench-panel-team" className="p-5">
+          <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
+            {teamView?.panelCopy?.emptyText ||
+              "当前没有可展示的 Team Workbench。"}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <section
+        data-testid="canvas-workbench-panel-team"
+        className="flex h-full min-h-0 flex-col gap-4 p-4"
+      >
+        <div
+          data-testid="canvas-workbench-preview-region"
+          className="min-h-0 flex-1 overflow-hidden rounded-[24px] border border-slate-200 bg-white"
+        >
+          {renderPreview(teamTarget)}
+        </div>
+        {teamView.renderPanel ? (
+          <div
+            className={cn(
+              WORKBENCH_PANEL_CLASSNAME,
+              "min-h-0 overflow-auto p-4",
+            )}
+          >
+            {teamView.renderPanel()}
+          </div>
+        ) : null}
+        {teamView.renderFooter ? (
+          <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3">
+            {teamView.renderFooter()}
+          </div>
+        ) : null}
+      </section>
+    );
+  };
+
+  const renderDocumentPanel = () => {
+    if (!documentContext) {
+      return (
+        <div data-testid="canvas-workbench-panel-document" className="p-5">
+          <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
+            当前标签没有对应的可展示内容。
+          </div>
+        </div>
+      );
+    }
+
+    const canShowDiff = documentContext.previousContent !== null;
+    const showDiff = canShowDiff && documentPreviewMode === "changes";
+
+    return (
+      <section
+        data-testid="canvas-workbench-panel-document"
+        className="flex h-full min-h-0 flex-col gap-4 p-4"
+      >
+        <div className={cn(WORKBENCH_PANEL_CLASSNAME, "px-4 py-3")}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                  {documentContext.kindLabel}
+                </span>
+                {documentContext.badgeLabel ? (
+                  <Badge variant="outline">{documentContext.badgeLabel}</Badge>
+                ) : null}
+              </div>
+              <div className="mt-2 truncate text-sm font-semibold text-slate-900">
+                {documentContext.title}
+              </div>
+              {documentContext.subtitle ? (
+                <div className="mt-1 truncate text-xs text-slate-500">
+                  {documentContext.subtitle}
+                </div>
+              ) : documentContext.selectionPath ? (
+                <div className="mt-1 truncate text-xs text-slate-500">
+                  {documentContext.selectionPath}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                aria-label="展开画布工作台"
-                onClick={() => setCollapsed(false)}
+                aria-label="切换文档视图-正文"
+                onClick={() => setDocumentPreviewMode("preview")}
                 className={cn(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-xl border transition-colors",
-                  WORKBENCH_GHOST_BUTTON_CLASSNAME,
+                  "rounded-xl border px-3 py-1.5 text-xs transition-colors",
+                  documentPreviewMode === "preview"
+                    ? WORKBENCH_ACTIVE_BUTTON_CLASSNAME
+                    : WORKBENCH_BUTTON_CLASSNAME,
                 )}
               >
-                <PanelRightOpen className="h-4 w-4" />
+                正文
               </button>
-              {availableTabs.map((tab) => (
+              {canShowDiff ? (
                 <button
-                  key={tab.key}
                   type="button"
-                  aria-label={`切换画布标签-${tab.label}`}
-                  onClick={() => setActiveTab(tab.key)}
+                  aria-label="切换文档视图-变更"
+                  onClick={() => setDocumentPreviewMode("changes")}
                   className={cn(
-                    "rounded-xl border px-2 py-1.5 text-[11px] transition-colors",
-                    activeTab === tab.key
+                    "rounded-xl border px-3 py-1.5 text-xs transition-colors",
+                    documentPreviewMode === "changes"
                       ? WORKBENCH_ACTIVE_BUTTON_CLASSNAME
                       : WORKBENCH_BUTTON_CLASSNAME,
                   )}
                 >
-                  {tab.label}
+                  变更
                 </button>
-              ))}
+              ) : null}
             </div>
+          </div>
+          {canShowDiff ? (
+            <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500">
+              <GitCompare className="h-3.5 w-3.5" />
+              已关联上一版本，可直接在当前文件标签内切换查看 diff。
+            </div>
+          ) : null}
+        </div>
+
+        {renderDocumentInspector()}
+
+        <div className="min-h-0 flex-1">
+          {showDiff ? (
+            renderDiffState(documentDiffLines)
           ) : (
-            <>
-              {renderWorkbenchHeader(false, {
-                showCollapseButton: true,
+            <div
+              data-testid="canvas-workbench-preview-region"
+              className="h-full min-h-0 overflow-hidden rounded-[24px] border border-slate-200 bg-white"
+            >
+              {renderPreview(documentContext.target, {
+                onArtifactDocumentControllerChange:
+                  handleArtifactDocumentControllerChange,
               })}
-              <div className="flex-1 overflow-auto px-4 py-4">
-                {renderActiveTab()}
-              </div>
-              {renderWorkbenchFooter(false)}
-            </>
+            </div>
           )}
-        </aside>
+        </div>
+      </section>
+    );
+  };
+
+  return (
+    <section
+      ref={shellRef}
+      data-testid="canvas-workbench-shell"
+      data-layout-mode={isStackedLayout ? "stacked" : "split"}
+      className={cn(
+        WORKBENCH_SHELL_CLASSNAME,
+        "relative flex h-full min-h-0 flex-col overflow-hidden",
       )}
-    </div>
+    >
+      <header className="border-b border-slate-200/80 bg-white px-4 py-3">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-3",
+            isStackedLayout && "flex-col items-stretch",
+          )}
+        >
+          <div className="min-w-0 flex-1 rounded-[24px] border border-slate-200 bg-slate-100 p-1.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {primaryTabs.map((tab) =>
+                renderTopTab({
+                  key: tab.key,
+                  label: tab.label,
+                  badge: tab.badge,
+                  badgeTone: tab.badgeTone,
+                }),
+              )}
+
+              {documentTabs.length > 0 ? (
+                <div className="mx-1 h-6 w-px shrink-0 bg-slate-300/80" />
+              ) : null}
+
+              {documentTabs.map((tab) =>
+                renderTopTab({
+                  key: tab.key,
+                  label: tab.label,
+                  badge: tab.badgeLabel || tab.kindLabel,
+                  closable: true,
+                }),
+              )}
+            </div>
+          </div>
+
+          {activeTab !== "team" && activePreviewContext ? (
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {renderHeaderActionButton({
+                label: "复制当前路径",
+                disabled: !activeSelectionPath,
+                onClick: () => {
+                  void handleCopyPath();
+                },
+                icon: <Copy className="h-4 w-4" />,
+              })}
+              {renderHeaderActionButton({
+                label: "定位当前文件",
+                disabled: !activeSelectionPath,
+                onClick: () => {
+                  if (activeSelectionPath) {
+                    void onRevealPath(activeSelectionPath);
+                  }
+                },
+                icon: <FolderOpen className="h-4 w-4" />,
+              })}
+              {renderHeaderActionButton({
+                label: "系统打开当前文件",
+                disabled: !activeSelectionPath,
+                onClick: () => {
+                  if (activeSelectionPath) {
+                    void onOpenPath(activeSelectionPath);
+                  }
+                },
+                icon: <ExternalLink className="h-4 w-4" />,
+              })}
+              {renderHeaderActionButton({
+                label: "下载当前画布项",
+                disabled: !activeContent.trim(),
+                onClick: handleDownload,
+                icon: <Download className="h-4 w-4" />,
+              })}
+            </div>
+          ) : null}
+        </div>
+      </header>
+
+      <div
+        data-testid="canvas-workbench-layout"
+        data-panel-placement="canvas"
+        className="min-h-0 flex-1 overflow-hidden bg-slate-50"
+      >
+        {activeTab === "workspace"
+          ? renderWorkspacePanel()
+          : activeTab === "team"
+              ? renderTeamPanel()
+              : activeTab === "session"
+                ? renderSessionPanel()
+                : renderDocumentPanel()}
+      </div>
+    </section>
   );
 });
 

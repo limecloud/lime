@@ -34,12 +34,6 @@ interface SurfacePanelProps {
   children: ReactNode;
 }
 
-interface SummaryStatProps {
-  label: string;
-  value: string;
-  description: string;
-}
-
 interface FieldBlockProps {
   label: string;
   htmlFor: string;
@@ -232,24 +226,6 @@ function SurfacePanel({
 
       <div className="mt-5">{children}</div>
     </article>
-  );
-}
-
-function SummaryStat({ label, value, description }: SummaryStatProps) {
-  return (
-    <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
-        <span>{label}</span>
-        <WorkbenchInfoTip
-          ariaLabel={`${label}说明`}
-          content={description}
-          tone="slate"
-        />
-      </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
   );
 }
 
@@ -531,14 +507,6 @@ export function WebSearchSettings() {
   const pexelsKeyConfigured = draftPexelsApiKey.trim().length > 0;
   const pixabayKeyConfigured = draftPixabayApiKey.trim().length > 0;
 
-  const configuredSearchProviders = [
-    tavilyKeyConfigured,
-    bingSearchKeyConfigured,
-    googleSearchKeyConfigured && googleSearchEngineConfigured,
-    draftProvider === "duckduckgo_instant",
-    draftProvider === "multi_search_engine" || mseCustomEngineReady,
-  ].filter(Boolean).length;
-
   const providerChainPreview =
     parseCsv(draftProviderPriority).length > 0
       ? parseCsv(draftProviderPriority).join(" -> ")
@@ -671,61 +639,41 @@ export function WebSearchSettings() {
         </div>
       ) : null}
 
-      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
-
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] xl:items-stretch">
-            <div className="max-w-3xl space-y-5">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                SEARCH STACK
-              </span>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                    统一管理联网搜索链路、回退策略和图片搜索凭证
-                  </p>
-                  <WorkbenchInfoTip
-                    ariaLabel="联网搜索设置总览说明"
-                    content="把搜索入口、Provider 回退链、MSE 聚合参数和图片搜索 Key 放在同一个宽版视图里，不再让长表单把信息挤成一列。"
-                    tone="mint"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  搜索引擎：{draftEngine === "google" ? "Google" : "小红书"}
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  首选 Provider：{draftProvider}
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  当前回退链：{providerChainPreview}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 xl:content-start">
-              <SummaryStat
-                label="已就绪 Provider"
-                value={configuredSearchProviders.toString()}
-                description="按当前表单状态估算，可直接参与回退链的搜索来源。"
-              />
-              <SummaryStat
-                label="图片搜索 Key"
-                value={[pexelsKeyConfigured, pixabayKeyConfigured]
-                  .filter(Boolean)
-                  .length.toString()}
-                description="用于插图页联网图片搜索的可用 API Key 数量。"
-              />
-              <SummaryStat
-                label="待保存变更"
-                value={hasUnsavedChanges ? "有" : "无"}
-                description="修改搜索引擎、Key 或聚合参数后统一在底部保存。"
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                网络搜索
+              </h1>
+              <WorkbenchInfoTip
+                ariaLabel="联网搜索设置总览说明"
+                content="管理搜索引擎、Provider 回退链和图片搜索 Key；各服务的接入说明已经分别收进对应配置分区。"
+                tone="mint"
               />
             </div>
+            <p className="text-sm text-slate-500">
+              管理搜索引擎、Provider 回退和图片搜索 Key。
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              搜索引擎：{draftEngine === "google" ? "Google" : "小红书"}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              当前 Provider：{draftProvider}
+            </span>
+            <span
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs font-medium",
+                hasUnsavedChanges
+                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700",
+              )}
+            >
+              状态：{hasUnsavedChanges ? "待保存" : "已保存"}
+            </span>
           </div>
         </div>
       </section>

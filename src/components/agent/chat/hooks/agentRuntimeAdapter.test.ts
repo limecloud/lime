@@ -1,27 +1,41 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listenAgentRuntimeEvent } from "@/lib/api/agentRuntimeEvents";
-import { defaultAgentRuntimeAdapter } from "./agentRuntimeAdapter";
+import {
+  createAgentRuntimeAdapter,
+  defaultAgentRuntimeAdapter,
+} from "./agentRuntimeAdapter";
+
+const { mockCreateAgentRuntimeClient, mockRuntimeClient } = vi.hoisted(() => {
+  const mockRuntimeClient = {
+    compactAgentRuntimeSession: vi.fn(),
+    createAgentRuntimeSession: vi.fn(),
+    deleteAgentRuntimeSession: vi.fn(),
+    getAgentRuntimeSession: vi.fn(),
+    getAgentRuntimeThreadRead: vi.fn(),
+    initAsterAgent: vi.fn(),
+    interruptAgentRuntimeTurn: vi.fn(),
+    listAgentRuntimeSessions: vi.fn(),
+    promoteAgentRuntimeQueuedTurn: vi.fn(),
+    replayAgentRuntimeRequest: vi.fn(),
+    removeAgentRuntimeQueuedTurn: vi.fn(),
+    resumeAgentRuntimeThread: vi.fn(),
+    respondAgentRuntimeAction: vi.fn(),
+    submitAgentRuntimeTurn: vi.fn(),
+    updateAgentRuntimeSession: vi.fn(),
+  };
+
+  return {
+    mockCreateAgentRuntimeClient: vi.fn(() => mockRuntimeClient),
+    mockRuntimeClient,
+  };
+});
 
 vi.mock("@/lib/api/agentRuntimeEvents", () => ({
   listenAgentRuntimeEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/api/agentRuntime", () => ({
-  initAsterAgent: vi.fn(),
-  createAgentRuntimeSession: vi.fn(),
-  listAgentRuntimeSessions: vi.fn(),
-  getAgentRuntimeSession: vi.fn(),
-  getAgentRuntimeThreadRead: vi.fn(),
-  replayAgentRuntimeRequest: vi.fn(),
-  updateAgentRuntimeSession: vi.fn(),
-  deleteAgentRuntimeSession: vi.fn(),
-  compactAgentRuntimeSession: vi.fn(),
-  interruptAgentRuntimeTurn: vi.fn(),
-  resumeAgentRuntimeThread: vi.fn(),
-  promoteAgentRuntimeQueuedTurn: vi.fn(),
-  removeAgentRuntimeQueuedTurn: vi.fn(),
-  respondAgentRuntimeAction: vi.fn(),
-  submitAgentRuntimeTurn: vi.fn(),
+  createAgentRuntimeClient: mockCreateAgentRuntimeClient,
 }));
 
 describe("defaultAgentRuntimeAdapter", () => {
@@ -51,6 +65,48 @@ describe("defaultAgentRuntimeAdapter", () => {
       2,
       "team-event",
       handler,
+    );
+  });
+
+  it("应允许注入自定义 runtime 事件监听器", async () => {
+    const injectedListen = vi.fn().mockResolvedValue(vi.fn());
+    const adapter = createAgentRuntimeAdapter({
+      listenRuntimeEvent: injectedListen,
+    });
+    const handler = vi.fn();
+
+    await adapter.listenToTurnEvents("turn-event-2", handler);
+    await adapter.listenToTeamEvents("team-event-2", handler);
+
+    expect(injectedListen).toHaveBeenNthCalledWith(
+      1,
+      "turn-event-2",
+      handler,
+    );
+    expect(injectedListen).toHaveBeenNthCalledWith(
+      2,
+      "team-event-2",
+      handler,
+    );
+  });
+
+  it("应允许注入自定义 runtime client", async () => {
+    const client = {
+      ...mockRuntimeClient,
+      createAgentRuntimeSession: vi.fn().mockResolvedValue("session-9"),
+    };
+    const adapter = createAgentRuntimeAdapter({
+      client,
+    });
+
+    await expect(
+      adapter.createSession("workspace-9", "新会话", "auto"),
+    ).resolves.toBe("session-9");
+
+    expect(client.createAgentRuntimeSession).toHaveBeenCalledWith(
+      "workspace-9",
+      "新会话",
+      "auto",
     );
   });
 });

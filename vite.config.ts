@@ -19,6 +19,7 @@ if (!process.env.VITE_APP_VERSION && cargoWorkspaceVersion) {
 // 获取 Tauri mock 目录路径
 const tauriMockDir = path.resolve(__dirname, "./src/lib/tauri-mock");
 const tauriEventWrapper = path.resolve(__dirname, "./src/lib/tauri-event.ts");
+const sharedTauriOptimizeDepsExclude = ["@tauri-apps/plugin-deep-link"];
 
 export default defineConfig(({ mode }) => {
   const browserBridgeFlag =
@@ -104,14 +105,16 @@ export default defineConfig(({ mode }) => {
   optimizeDeps: {
     // 强制每次启动时校验并重建依赖预构建，避免命中损坏缓存
     force: true,
-    // 只在非 Tauri 环境下排除 Tauri 包的预构建
-    exclude: isTauri ? [] : [
-      "@tauri-apps/api",
-      "@tauri-apps/plugin-dialog",
-      "@tauri-apps/plugin-shell",
-      "@tauri-apps/plugin-deep-link",
-      "@tauri-apps/plugin-global-shortcut",
-    ],
+    // deep-link 在 Tauri 模式下会命中本地 event shim，交给 Vite 常规模块解析更稳
+    exclude: isTauri
+      ? sharedTauriOptimizeDepsExclude
+      : [
+          "@tauri-apps/api",
+          "@tauri-apps/plugin-dialog",
+          "@tauri-apps/plugin-shell",
+          "@tauri-apps/plugin-global-shortcut",
+          ...sharedTauriOptimizeDepsExclude,
+        ],
   },
   build: {
     chunkSizeWarningLimit: 12000,

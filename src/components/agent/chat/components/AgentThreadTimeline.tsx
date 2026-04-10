@@ -27,7 +27,7 @@ import {
 import type { AgentRuntimeThreadReadModel } from "@/lib/api/agentRuntime";
 import { isActionRequestA2UICompatible } from "../utils/actionRequestA2UI";
 import { resolveInternalImageTaskDisplayName } from "../utils/internalImagePlaceholder";
-import { isHiddenInternalArtifactPath } from "../utils/internalArtifactVisibility";
+import { isHiddenConversationArtifactPath } from "../utils/internalArtifactVisibility";
 import { parseAIResponse } from "@/lib/workspace/a2ui";
 import type { A2UIResponse } from "@/lib/workspace/a2ui";
 import { TIMELINE_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
@@ -815,7 +815,7 @@ function renderGroupItemDetails(
   }
 
   if (item.type === "file_artifact") {
-    if (isHiddenInternalArtifactPath(item.path)) {
+    if (isHiddenConversationArtifactPath(item.path)) {
       return null;
     }
 
@@ -1382,6 +1382,35 @@ function TimelineBlockCard({
     });
   }, [focusRequestKey, hasFocusedItem]);
 
+  const shouldRenderArtifactCardsInline =
+    block.kind === "artifact" &&
+    hasDetailEntries &&
+    block.items.every((item) => item.type === "file_artifact");
+
+  if (shouldRenderArtifactCardsInline) {
+    return (
+      <div
+        className="space-y-2 py-0.5"
+        data-testid={dataTestId}
+        data-emphasis={emphasis}
+      >
+        {detailEntries.map((entry) => (
+          <div
+            key={entry.id}
+            data-thread-item-id={entry.id}
+            ref={entry.id === focusedItemId ? focusedEntryRef : null}
+            className={cn(
+              entry.id === focusedItemId &&
+                "rounded-2xl ring-2 ring-sky-200 ring-offset-2 ring-offset-white",
+            )}
+          >
+            {entry.content}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   const singleItemContent =
     block.items.length === 1 &&
     !(isThinkingOnlyBlock && block.status === "completed")
@@ -1567,7 +1596,7 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
           item.type !== "agent_message" &&
           !(
             item.type === "file_artifact" &&
-            isHiddenInternalArtifactPath(item.path)
+            isHiddenConversationArtifactPath(item.path)
           ),
       ),
     [items],

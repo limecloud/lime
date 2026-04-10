@@ -155,55 +155,42 @@ export function UserCenterSessionSettings() {
 
   return (
     <section className="space-y-4">
-      <div className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(245,250,248,0.98)_0%,rgba(255,255,255,0.98)_52%,rgba(242,247,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-16 top-[-68px] h-52 w-52 rounded-full bg-emerald-200/25 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-88px] top-[-14px] h-56 w-56 rounded-full bg-sky-200/25 blur-3xl" />
-
-        <div className="relative flex flex-col gap-5 p-6 lg:p-7">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-3xl space-y-3">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                ACCOUNT
-              </span>
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-3xl font-semibold tracking-tight text-slate-900">
-                    账户资料
-                  </h2>
-                  <WorkbenchInfoTip
-                    ariaLabel="账户资料说明"
-                    content="昵称、头像、邮箱等资料统一由账号中心维护。本地只同步展示当前账户状态与默认服务配置，避免在多个入口重复编辑后出现不一致。"
-                    tone="mint"
-                  />
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium",
-                      session
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-slate-100 text-slate-600",
-                    )}
-                  >
-                    {session ? "已登录" : "未登录"}
-                  </span>
-                </div>
+      <div className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                  账户资料
+                </h2>
+                <WorkbenchInfoTip
+                  ariaLabel="账户资料说明"
+                  content="昵称、头像、邮箱和默认服务统一由账号中心维护；本地只展示当前会话状态与同步结果。"
+                  tone="mint"
+                />
               </div>
+              <p className="text-sm text-slate-500">
+                查看登录状态、默认服务和账号同步结果。
+              </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
-              <SessionValueCard
-                label="当前状态"
-                value={session ? "账号已连接" : "等待登录"}
-                hint={
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium",
                   session
-                    ? "当前桌面端会直接复用这份账号状态。"
-                    : "登录后将自动同步账户资料与服务配置。"
-                }
-              />
-              <SessionValueCard
-                label="默认服务"
-                value={defaultProviderSummary || "登录后自动同步"}
-                hint="来自账号中心当前默认设置。"
-              />
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 bg-slate-100 text-slate-600",
+                )}
+              >
+                状态：{session ? "已登录" : "未登录"}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                当前状态：{session ? "账号已连接" : "等待登录"}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                默认服务：{defaultProviderSummary || "登录后自动同步"}
+              </span>
             </div>
           </div>
 
@@ -384,7 +371,7 @@ export function UserCenterSessionSettings() {
                       </h3>
                       <WorkbenchInfoTip
                         ariaLabel="Google 一键登录说明"
-                        content="Google 是默认登录方式。授权完成后，客户端会自动同步账户资料、默认服务与已开通能力。"
+                        content="Google 是默认登录方式。浏览器完成授权后，客户端会自动同步账户资料、默认服务与已开通能力；如果浏览器出现确认页，请继续完成。"
                         tone="slate"
                       />
                     </div>
@@ -407,7 +394,7 @@ export function UserCenterSessionSettings() {
                           : "使用 Google 一键登录"}
                       </span>
                       <span className="mt-1 block text-xs leading-5 text-slate-500">
-                        在系统浏览器完成授权后，客户端会自动完成登录。
+                        在系统浏览器完成授权后会自动同步；如果浏览器出现确认页，请继续完成。
                       </span>
                     </span>
                   </button>
@@ -445,12 +432,14 @@ export function UserCenterSessionSettings() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <h4 className="text-sm font-semibold text-slate-900">
-                        登录后会自动完成
+                        浏览器完成后自动同步
                       </h4>
                       <WorkbenchInfoTip
                         ariaLabel="登录后自动完成说明"
                         content={
                           <div className="space-y-1">
+                            <p>Google 登录成功后，桌面端会自动同步当前账户会话。</p>
+                            <p>如果浏览器出现确认页，需要再确认一次当前桌面请求。</p>
                             <p>同步当前账户资料与头像、昵称显示。</p>
                             <p>同步默认 AI 服务、模型目录与已开通能力。</p>
                             <p>

@@ -92,6 +92,44 @@ describe("http-client", () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe("http://127.0.0.1:3030/invoke");
   });
 
+  it("桥已健康后，健康探测短暂超时不应立刻进入 cooldown", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: ["project-a"] }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      )
+      .mockImplementationOnce(createAbortablePendingFetch())
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: { id: "default-project" } }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(invokeViaHttp<string[]>("workspace_list")).resolves.toEqual([
+      "project-a",
+    ]);
+
+    await vi.advanceTimersByTimeAsync(11000);
+
+    const secondInvoke = invokeViaHttp<{ id: string }>("workspace_get_default");
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(secondInvoke).resolves.toEqual({ id: "default-project" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("http://127.0.0.1:3030/health");
+    expect(fetchMock.mock.calls[3]?.[0]).toBe("http://127.0.0.1:3030/invoke");
+  });
+
   it("桥失败短退避期间，事件监听不应继续创建 EventSource 连接", async () => {
     const fetchMock = createAbortablePendingFetch();
     const eventSourceMock = vi.fn();

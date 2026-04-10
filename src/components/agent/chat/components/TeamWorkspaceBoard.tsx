@@ -8,44 +8,23 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import {
-  Activity,
-  ArrowUpLeft,
   Bot,
-  ChevronDown,
-  ChevronUp,
-  Clock3,
-  Loader2,
-  PanelTop,
-  Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { getAgentRuntimeSession } from "@/lib/api/agentRuntime";
-import type { AgentThreadItem } from "@/lib/api/agentProtocol";
 import type {
-  AsterSessionDetail,
   AsterSubagentSkillInfo,
   AsterSubagentParentContext,
   AsterSubagentSessionInfo,
 } from "@/lib/api/agentRuntime";
 import { formatRelativeTime } from "@/lib/api/project";
 import { cn } from "@/lib/utils";
-import { getTeamPresetOption } from "../utils/teamPresets";
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
 import {
   applyLiveRuntimeState,
-  buildTeamWorkspaceActivityEntryFromThreadItem,
-  buildTeamWorkspaceSessionFingerprint,
   isTeamWorkspaceActiveStatus,
-  isTeamWorkspaceTerminalStatus,
-  mergeSessionActivityEntries,
-  normalizeTeamWorkspaceRuntimeStatus,
-  resolveRuntimeFormationStatusMeta,
-  resolveRuntimeMemberStatusMeta,
-  resolveTeamWorkspaceRuntimeStatusLabel,
   type TeamWorkspaceActivityEntry,
   type TeamWorkspaceControlSummary,
-  type TeamWorkspaceRuntimeMember,
   type TeamWorkspaceLiveRuntimeState,
   type TeamWorkspaceRuntimeFormationState,
   type TeamWorkspaceWaitSummary,
@@ -65,16 +44,44 @@ import {
   type TeamWorkspaceCanvasLayoutState,
 } from "../utils/teamWorkspaceCanvas";
 import {
-  buildTeamWorkspaceSkillDisplayName,
   resolveTeamWorkspaceDisplayRuntimeStatusLabel,
-  resolveTeamWorkspaceDisplaySessionTypeLabel,
-  resolveTeamWorkspaceRoleHintLabel,
-  resolveTeamWorkspaceStableProcessingLabel,
   TEAM_WORKSPACE_MAIN_ASSISTANT_LABEL,
-  TEAM_WORKSPACE_PLAN_LABEL,
-  TEAM_WORKSPACE_REALTIME_BADGE_LABEL,
-  TEAM_WORKSPACE_SURFACE_TITLE,
 } from "../utils/teamWorkspaceCopy";
+import {
+  buildPreviewableRailSessionsSyncKey,
+  buildSelectedSessionActivityState,
+  collectStaleSessionActivityTargets,
+  extractSessionActivitySnapshot,
+  type SessionActivityPreviewState,
+} from "../team-workspace-runtime/activityPreviewSelectors";
+import { buildTeamWorkspaceBoardChromeDisplayState } from "../team-workspace-runtime/boardChromeSelectors";
+import {
+  buildTeamWorkspaceCanvasLanes,
+  type TeamWorkspaceCanvasLane,
+  type TeamWorkspaceCanvasLaneKind,
+} from "../team-workspace-runtime/canvasLaneSelectors";
+import {
+  buildRuntimeFormationDisplayState,
+  buildSelectedTeamPlanDisplayState,
+} from "../team-workspace-runtime/formationDisplaySelectors";
+import { buildSelectedSessionDetailDisplayState } from "../team-workspace-runtime/selectedSessionDetailSelectors";
+import {
+  buildTeamWorkspaceSessionControlState,
+  isWaitableTeamSession,
+} from "../team-workspace-runtime/sessionStateSelectors";
+import {
+  buildVisibleTeamOperationState,
+  type TeamOperationDisplayEntry,
+} from "../team-workspace-runtime/teamOperationSelectors";
+import { TeamWorkspaceBoardHeader } from "./team-workspace-board/TeamWorkspaceBoardHeader";
+import { TeamWorkspaceEmptyShellState } from "./team-workspace-board/TeamWorkspaceEmptyShellState";
+import {
+  TeamWorkspaceRuntimeFormationPanel,
+  TeamWorkspaceSelectedPlanPanel,
+} from "./team-workspace-board/TeamWorkspaceFormationPanels";
+import { TeamWorkspaceCanvasStage } from "./team-workspace-board/TeamWorkspaceCanvasStage";
+import { SelectedSessionInlineDetail } from "./team-workspace-board/SelectedSessionInlineDetail";
+import { TeamWorkspaceTeamOverviewChrome } from "./team-workspace-board/TeamWorkspaceTeamOverviewChrome";
 
 type RuntimeStatus = AsterSubagentSessionInfo["runtime_status"];
 
@@ -154,30 +161,8 @@ interface TeamSessionCard {
   isCurrent?: boolean;
 }
 
-interface SessionActivityPreviewState {
-  preview: string | null;
-  entries: SessionActivityEntry[];
-  status: "loading" | "ready" | "error";
-  errorMessage?: string;
-  fingerprint?: string;
-  refreshVersion?: number;
-  syncedAt?: number;
-}
-
-interface TeamOperationDisplayEntry {
-  id: string;
-  title: string;
-  detail: string;
-  badgeClassName: string;
-  updatedAt: number;
-  targetSessionId?: string;
-}
-
-type SessionActivityEntry = TeamWorkspaceActivityEntry;
 const ACTIVITY_PREVIEW_POLL_INTERVAL_MS = 1500;
-const ACTIVITY_PREVIEW_MAX_LENGTH = 360;
 const ACTIVITY_TIMELINE_ENTRY_LIMIT = 4;
-const ACTIVITY_TIMELINE_DETAIL_MAX_LENGTH = 220;
 const DEFAULT_WAIT_SELECTED_SUBAGENT_TIMEOUT_MS = 30_000;
 
 const STATUS_META: Record<
@@ -237,26 +222,11 @@ function resolveStatusMeta(status?: RuntimeStatus) {
   return STATUS_META[status ?? "idle"];
 }
 
-function resolveSessionTypeLabel(value?: string) {
-  return resolveTeamWorkspaceDisplaySessionTypeLabel(value);
-}
-
 function formatUpdatedAt(updatedAt?: number) {
   if (!updatedAt) {
     return "刚刚";
   }
   return formatRelativeTime(updatedAt * 1000);
-}
-
-function formatOperationUpdatedAt(updatedAt?: number) {
-  if (!updatedAt) {
-    return "刚刚";
-  }
-  return formatRelativeTime(updatedAt);
-}
-
-function buildSkillDisplayName(skill: AsterSubagentSkillInfo): string {
-  return buildTeamWorkspaceSkillDisplayName(skill);
 }
 
 function canStartCanvasPanGesture(
@@ -282,191 +252,6 @@ function canStartCanvasPanGesture(
   );
 }
 
-function normalizeActivityPreviewText(
-  value?: string | null,
-  maxLength = ACTIVITY_PREVIEW_MAX_LENGTH,
-): string | null {
-  const normalized = value
-    ?.replace(/\r\n/g, "\n")
-    .split("\0")
-    .join("")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  if (!normalized) {
-    return null;
-  }
-
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-
-  return `${normalized.slice(0, maxLength).trimEnd()}...`;
-}
-
-function buildActivityPreviewLine(
-  label: string,
-  value?: string | null,
-): string | null {
-  const normalized = normalizeActivityPreviewText(value);
-  if (!normalized) {
-    return null;
-  }
-  return `${label}：${normalized}`;
-}
-
-function resolveActivityEntryStatusMeta(
-  item: AgentThreadItem | { type: "message_fallback" },
-  status?: AgentThreadItem["status"],
-) {
-  if (item.type === "error") {
-    return {
-      label: "错误",
-      badgeClassName: "border border-rose-200 bg-rose-50 text-rose-700",
-    };
-  }
-
-  if (item.type === "warning") {
-    return {
-      label: "警告",
-      badgeClassName: "border border-amber-200 bg-amber-50 text-amber-700",
-    };
-  }
-
-  switch (status) {
-    case "in_progress":
-      return {
-        label: "进行中",
-        badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
-      };
-    case "failed":
-      return {
-        label: "失败",
-        badgeClassName: "border border-rose-200 bg-rose-50 text-rose-700",
-      };
-    case "completed":
-      return {
-        label: "完成",
-        badgeClassName:
-          "border border-emerald-200 bg-emerald-50 text-emerald-700",
-      };
-    default:
-      return {
-        label: "消息",
-        badgeClassName: "border border-slate-200 bg-slate-50 text-slate-600",
-      };
-  }
-}
-
-function buildActivityPreviewFromEntry(entry?: SessionActivityEntry | null) {
-  if (!entry) {
-    return null;
-  }
-
-  return buildActivityPreviewLine(entry.title, entry.detail);
-}
-
-function extractMessageActivityEntries(
-  detail: AsterSessionDetail,
-): SessionActivityEntry[] {
-  const reversedMessages = [...detail.messages].sort(
-    (left, right) => right.timestamp - left.timestamp,
-  );
-
-  for (const message of reversedMessages) {
-    if (message.role !== "assistant") {
-      continue;
-    }
-
-    for (const content of message.content) {
-      const title =
-        content.type === "tool_response"
-          ? content.error
-            ? "错误"
-            : content.output
-              ? "输出"
-              : "回复"
-          : "回复";
-      const previewSource =
-        content.type === "tool_response"
-          ? content.error || content.output
-          : content.type === "text" || content.type === "thinking"
-            ? content.text
-            : undefined;
-      const detailText = normalizeActivityPreviewText(
-        previewSource,
-        ACTIVITY_TIMELINE_DETAIL_MAX_LENGTH,
-      );
-
-      if (detailText) {
-        const statusMeta = resolveActivityEntryStatusMeta(
-          { type: "message_fallback" },
-          undefined,
-        );
-        return [
-          {
-            id: `message-${message.id ?? message.timestamp}`,
-            title,
-            detail: detailText,
-            statusLabel: statusMeta.label,
-            badgeClassName: statusMeta.badgeClassName,
-          },
-        ];
-      }
-    }
-  }
-
-  return [];
-}
-
-function extractSessionActivitySnapshot(detail: AsterSessionDetail): {
-  preview: string | null;
-  entries: SessionActivityEntry[];
-} {
-  const orderedItems = [...(detail.items ?? [])].sort(
-    (left, right) => right.sequence - left.sequence,
-  );
-  const entries: SessionActivityEntry[] = [];
-
-  for (const item of orderedItems) {
-    const entry = buildTeamWorkspaceActivityEntryFromThreadItem(item);
-    if (entry) {
-      entries.push(entry);
-    }
-    if (entries.length >= ACTIVITY_TIMELINE_ENTRY_LIMIT) {
-      break;
-    }
-  }
-
-  if (entries.length > 0) {
-    return {
-      preview: buildActivityPreviewFromEntry(entries[0]),
-      entries,
-    };
-  }
-
-  const messageEntries = extractMessageActivityEntries(detail);
-  return {
-    preview: buildActivityPreviewFromEntry(messageEntries[0]),
-    entries: messageEntries,
-  };
-}
-
-function shouldPollSessionActivity(session?: TeamSessionCard | null) {
-  const runtimeStatus = session?.runtimeStatus;
-  const latestTurnStatus = session?.latestTurnStatus;
-  return (
-    runtimeStatus === "running" ||
-    runtimeStatus === "queued" ||
-    latestTurnStatus === "running" ||
-    latestTurnStatus === "queued"
-  );
-}
-
-function buildSessionActivityFingerprint(session?: TeamSessionCard | null) {
-  return buildTeamWorkspaceSessionFingerprint(session);
-}
-
 function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -480,179 +265,6 @@ function isEditableKeyboardTarget(target: EventTarget | null): boolean {
     tagName === "select" ||
     Boolean(target.closest("[contenteditable='true']"))
   );
-}
-
-function buildRuntimeDetailSummary(
-  session?: TeamSessionCard | null,
-): string | null {
-  if (!session) {
-    return null;
-  }
-
-  const parts: string[] = [];
-  const waitingCount = session.teamQueuedCount ?? session.queuedTurnCount ?? 0;
-  if (waitingCount > 0) {
-    parts.push(`等待中 ${waitingCount}`);
-  }
-  if (session.latestTurnStatus) {
-    parts.push(`最近进展 ${resolveStatusMeta(session.latestTurnStatus).label}`);
-  }
-  if (
-    session.teamActiveCount !== undefined &&
-    session.teamParallelBudget !== undefined
-  ) {
-    parts.push(
-      `处理中 ${session.teamActiveCount}/${session.teamParallelBudget}`,
-    );
-  }
-  if (
-    session.providerParallelBudget === 1 &&
-    session.providerConcurrencyGroup
-  ) {
-    parts.push(resolveTeamWorkspaceStableProcessingLabel());
-  }
-
-  return parts.length > 0 ? parts.join(" · ") : null;
-}
-
-function isWaitableTeamSession(session?: TeamSessionCard | null) {
-  return Boolean(
-    session &&
-    session.sessionType !== "user" &&
-    !isTeamWorkspaceTerminalStatus(session.runtimeStatus),
-  );
-}
-
-function isCompletedTeamSession(session?: TeamSessionCard | null) {
-  return (
-    session?.runtimeStatus === "completed" ||
-    session?.runtimeStatus === "failed" ||
-    session?.runtimeStatus === "aborted"
-  );
-}
-
-function buildTeamWaitSummaryDisplay(
-  summary: TeamWorkspaceWaitSummary,
-  sessionNameById: Map<string, string>,
-): {
-  text: string;
-  badgeClassName: string;
-} {
-  if (summary.timedOut) {
-    return {
-      text: `刚才等待结果时超时了，还有 ${summary.awaitedSessionIds.length} 位协作成员仍在处理中。`,
-      badgeClassName: "border border-amber-200 bg-amber-50 text-amber-700",
-    };
-  }
-
-  const resolvedName = summary.resolvedSessionId
-    ? (sessionNameById.get(summary.resolvedSessionId) ??
-      summary.resolvedSessionId)
-    : "成员";
-  const normalizedStatus = summary.resolvedStatus
-    ? normalizeTeamWorkspaceRuntimeStatus(summary.resolvedStatus)
-    : undefined;
-  const statusMeta = resolveStatusMeta(normalizedStatus);
-
-  return {
-    text: `刚才等到 ${resolvedName} 返回了新结果，当前状态为${resolveTeamWorkspaceRuntimeStatusLabel(summary.resolvedStatus)}。`,
-    badgeClassName: statusMeta.badgeClassName,
-  };
-}
-
-function buildTeamControlSummaryDisplay(
-  summary: TeamWorkspaceControlSummary,
-  sessionNameById: Map<string, string>,
-): {
-  text: string;
-  badgeClassName: string;
-} {
-  const affectedCount = summary.affectedSessionIds.length;
-  const firstAffectedId = summary.affectedSessionIds[0];
-  const firstAffectedName = firstAffectedId
-    ? (sessionNameById.get(firstAffectedId) ?? firstAffectedId)
-    : "成员";
-
-  switch (summary.action) {
-    case "resume":
-      return {
-        text:
-          affectedCount > 1
-            ? `刚才已继续 ${affectedCount} 位协作成员的处理。`
-            : `刚才已继续 ${firstAffectedName} 的处理。`,
-        badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
-      };
-    case "close_completed":
-      return {
-        text: `刚才已收起 ${affectedCount} 位已完成成员。`,
-        badgeClassName: "border border-slate-200 bg-slate-100 text-slate-700",
-      };
-    case "close":
-    default:
-      return {
-        text:
-          affectedCount > 1
-            ? `刚才已暂停 ${affectedCount} 位协作成员的处理。`
-            : `刚才已暂停 ${firstAffectedName} 的处理。`,
-        badgeClassName: "border border-slate-200 bg-slate-100 text-slate-700",
-      };
-  }
-}
-
-function buildTeamOperationDisplayEntries(params: {
-  sessionNameById: Map<string, string>;
-  teamWaitSummary?: TeamWorkspaceWaitSummary | null;
-  teamControlSummary?: TeamWorkspaceControlSummary | null;
-}): TeamOperationDisplayEntry[] {
-  const entries: TeamOperationDisplayEntry[] = [];
-
-  if (params.teamWaitSummary) {
-    const display = buildTeamWaitSummaryDisplay(
-      params.teamWaitSummary,
-      params.sessionNameById,
-    );
-    entries.push({
-      id: `wait-${params.teamWaitSummary.updatedAt}`,
-      title: params.teamWaitSummary.timedOut ? "等待超时" : "收到结果",
-      detail: display.text,
-      badgeClassName: display.badgeClassName,
-      updatedAt: params.teamWaitSummary.updatedAt,
-      targetSessionId:
-        params.teamWaitSummary.resolvedSessionId ??
-        params.teamWaitSummary.awaitedSessionIds[0],
-    });
-  }
-
-  if (params.teamControlSummary) {
-    const display = buildTeamControlSummaryDisplay(
-      params.teamControlSummary,
-      params.sessionNameById,
-    );
-    const title = (() => {
-      switch (params.teamControlSummary.action) {
-        case "resume":
-          return "继续处理";
-        case "close_completed":
-          return "收起完成项";
-        case "close":
-        default:
-          return "暂停处理";
-      }
-    })();
-
-    entries.push({
-      id: `control-${params.teamControlSummary.action}-${params.teamControlSummary.updatedAt}`,
-      title,
-      detail: display.text,
-      badgeClassName: display.badgeClassName,
-      updatedAt: params.teamControlSummary.updatedAt,
-      targetSessionId:
-        params.teamControlSummary.affectedSessionIds[0] ??
-        params.teamControlSummary.requestedSessionIds[0],
-    });
-  }
-
-  return entries.sort((left, right) => right.updatedAt - left.updatedAt);
 }
 
 function buildCurrentChildSession(
@@ -862,48 +474,6 @@ function orderSessionsByRuntimeRoles(
     .map((entry) => entry.session);
 }
 
-function buildBoardHeadline(params: {
-  hasRealTeamGraph: boolean;
-  isChildSession: boolean;
-  subagentParentContext?: AsterSubagentParentContext | null;
-  totalTeamSessions: number;
-}) {
-  const {
-    hasRealTeamGraph,
-    isChildSession,
-    subagentParentContext,
-    totalTeamSessions,
-  } = params;
-
-  if (isChildSession) {
-    return subagentParentContext?.parent_session_name?.trim() || "主助手协作区";
-  }
-  if (!hasRealTeamGraph) {
-    return "需要时会自动加入协作成员";
-  }
-  return totalTeamSessions > 0
-    ? `${totalTeamSessions} 位成员协作中`
-    : "创作协作";
-}
-
-function buildBoardHint(params: {
-  hasRealTeamGraph: boolean;
-  isChildSession: boolean;
-  siblingCount: number;
-}) {
-  const { hasRealTeamGraph, isChildSession, siblingCount } = params;
-
-  if (isChildSession) {
-    return siblingCount > 0
-      ? `当前正与 ${siblingCount} 位协作成员并行推进`
-      : "当前由你和这位协作成员一起推进";
-  }
-  if (!hasRealTeamGraph) {
-    return "系统会在需要时自动邀请协作成员加入，不需要你理解内部分工方式。";
-  }
-  return "这里只展示谁在帮你处理什么、处理到哪一步，以及接下来会给你什么结果。";
-}
-
 function buildFallbackSummary(params: {
   hasRealTeamGraph: boolean;
   isChildSession: boolean;
@@ -921,99 +491,6 @@ function buildFallbackSummary(params: {
     return "这位协作成员正在处理主助手分配的内容，你可以在这里切换查看其他成员的进展。";
   }
   return "选中一位协作成员后，这里会展示它正在帮你做什么，以及目前进展到哪一步。";
-}
-
-function buildRuntimeFormationHint(
-  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null,
-) {
-  switch (teamDispatchPreviewState?.status) {
-    case "forming":
-      return "系统正在准备当前任务的协作分工，成员接入后会自动开始处理。";
-    case "formed":
-      return "当前任务的协作分工已经准备好，成员加入后会继续接手处理。";
-    case "failed":
-      return "当前任务的协作准备失败，但你仍然可以继续在当前对话里推进。";
-    default:
-      return "需要时这里会自动展开成协作面板。";
-  }
-}
-
-function buildRuntimeFormationEmptyDetail(
-  teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null,
-) {
-  switch (teamDispatchPreviewState?.status) {
-    case "forming":
-      return "系统正在根据当前任务准备协作分工。完成后，这里会先展示当前成员卡片，再接入真实处理进展。";
-    case "formed":
-      return "当前协作方案已经准备好。画布会先展示当前分工，等成员真正开始处理后，再自动切换为实时进展。";
-    case "failed":
-      return (
-        teamDispatchPreviewState.errorMessage?.trim() ||
-        "当前协作准备失败，暂时无法展示当前成员。"
-      );
-    default:
-      return "当前还没有协作成员加入。系统开始分工后，详情区会切换为成员摘要视图。";
-  }
-}
-
-function buildSessionLaneEmptyState(params: {
-  session?: TeamSessionCard | null;
-  previewState?: SessionActivityPreviewState | null;
-}) {
-  const { session, previewState } = params;
-
-  if (previewState?.status === "error") {
-    return previewState.errorMessage?.trim() || "同步最新内容失败";
-  }
-
-  if (previewState?.status === "loading") {
-    return "正在同步这位协作成员的最新内容...";
-  }
-
-  if (session?.runtimeStatus === "queued") {
-    return "这位协作成员已经收到任务，马上开始处理。";
-  }
-
-  if (session?.runtimeStatus === "running") {
-    return "这位协作成员正在处理，最新进展会持续刷新到这里。";
-  }
-
-  if (session?.runtimeStatus === "completed") {
-    return "这部分已经完成，结果会继续汇入当前内容。";
-  }
-
-  if (
-    session?.runtimeStatus === "failed" ||
-    session?.runtimeStatus === "aborted"
-  ) {
-    return "这一步没有顺利完成，你可以在下方查看细节并决定是否继续。";
-  }
-
-  return "这位协作成员暂时还没有产出可展示的内容。";
-}
-
-type TeamWorkspaceCanvasLaneKind = "session" | "runtime" | "planned";
-
-interface TeamWorkspaceCanvasLane {
-  id: string;
-  persistKey: string;
-  fallbackPersistKeys: string[];
-  kind: TeamWorkspaceCanvasLaneKind;
-  title: string;
-  summary: string;
-  badgeLabel: string;
-  badgeClassName: string;
-  dotClassName: string;
-  roleLabel?: string;
-  profileLabel?: string;
-  presetLabel?: string;
-  modelLabel?: string;
-  statusHint?: string | null;
-  updatedAtLabel?: string | null;
-  skillLabels: string[];
-  session?: TeamSessionCard;
-  previewText?: string | null;
-  previewEntries?: SessionActivityEntry[];
 }
 
 interface TeamWorkspaceCanvasBounds {
@@ -1128,217 +605,6 @@ function buildCanvasStageHint(params: {
   }
 
   return "协作成员加入后，这里会展开成可拖拽、可缩放的进展画布。";
-}
-
-function buildCanvasLaneTitleSummary(
-  member: Pick<TeamWorkspaceRuntimeMember, "status" | "summary" | "sessionId">,
-) {
-  const memberMeta = resolveRuntimeMemberStatusMeta(member.status);
-  const statusHint =
-    member.status === "spawning"
-      ? "正在接入协作成员"
-      : member.status === "running"
-        ? "这位协作成员正在处理"
-        : member.status === "waiting"
-          ? "等待继续补充说明"
-          : member.status === "completed"
-            ? "这一步已经完成"
-            : member.status === "failed"
-              ? "这一步需要重试"
-              : member.sessionId
-                ? "已连接到真实成员"
-                : "等待协作成员加入";
-
-  return {
-    badgeLabel: memberMeta.label,
-    badgeClassName: memberMeta.badgeClassName,
-    dotClassName:
-      member.status === "failed"
-        ? "bg-rose-500"
-        : member.status === "completed"
-          ? "bg-emerald-500"
-          : member.status === "waiting"
-            ? "bg-amber-400"
-            : "bg-sky-500",
-    summary: member.summary,
-    statusHint,
-  };
-}
-
-function buildPlannedRoleLaneSummary(role: TeamRoleDefinition) {
-  return {
-    badgeLabel: "待开始",
-    badgeClassName: "border border-slate-200 bg-slate-50 text-slate-600",
-    dotClassName: "bg-slate-300",
-    summary: role.summary,
-    statusHint: "等待系统邀请协作成员加入",
-  };
-}
-
-function resolveLaneMatchingRuntimeMemberId(
-  session: TeamSessionCard,
-  runtimeMembers: TeamWorkspaceRuntimeMember[],
-): string | null {
-  if (runtimeMembers.length === 0) {
-    return null;
-  }
-
-  const explicitRoleId = session.blueprintRoleId?.trim();
-  if (
-    explicitRoleId &&
-    runtimeMembers.some((member) => member.id === explicitRoleId)
-  ) {
-    return explicitRoleId;
-  }
-
-  const normalizedRoleLabel = normalizeComparableText(
-    session.blueprintRoleLabel || session.name,
-  );
-  const normalizedRoleKey = normalizeComparableText(
-    session.roleKey || session.roleHint,
-  );
-  const normalizedProfileId = normalizeComparableText(session.profileId);
-
-  const candidates = runtimeMembers
-    .map((member) => {
-      let score = 0;
-      if (
-        normalizedRoleLabel &&
-        normalizeComparableText(member.label) === normalizedRoleLabel
-      ) {
-        score += 8;
-      }
-      if (
-        normalizedRoleKey &&
-        normalizeComparableText(member.roleKey) === normalizedRoleKey
-      ) {
-        score += 5;
-      }
-      if (
-        normalizedProfileId &&
-        normalizeComparableText(member.profileId) === normalizedProfileId
-      ) {
-        score += 4;
-      }
-      return {
-        memberId: member.id,
-        score,
-      };
-    })
-    .filter((candidate) => candidate.score > 0)
-    .sort((left, right) => right.score - left.score);
-
-  if (candidates.length === 0) {
-    return null;
-  }
-  if (candidates.length > 1 && candidates[0]?.score === candidates[1]?.score) {
-    return null;
-  }
-  return candidates[0]?.memberId ?? null;
-}
-
-function resolveLaneMatchingPlannedRoleId(
-  session: TeamSessionCard,
-  plannedRoles: TeamRoleDefinition[],
-): string | null {
-  if (plannedRoles.length === 0) {
-    return null;
-  }
-
-  const normalizedRoleLabel = normalizeComparableText(
-    session.blueprintRoleLabel || session.name,
-  );
-  const normalizedRoleKey = normalizeComparableText(
-    session.roleKey || session.roleHint,
-  );
-  const normalizedProfileId = normalizeComparableText(session.profileId);
-
-  const candidates = plannedRoles
-    .map((role) => {
-      let score = 0;
-      if (
-        normalizedRoleLabel &&
-        normalizeComparableText(role.label) === normalizedRoleLabel
-      ) {
-        score += 8;
-      }
-      if (
-        normalizedRoleKey &&
-        normalizeComparableText(role.roleKey) === normalizedRoleKey
-      ) {
-        score += 5;
-      }
-      if (
-        normalizedProfileId &&
-        normalizeComparableText(role.profileId) === normalizedProfileId
-      ) {
-        score += 4;
-      }
-      return {
-        roleId: role.id,
-        score,
-      };
-    })
-    .filter((candidate) => candidate.score > 0)
-    .sort((left, right) => right.score - left.score);
-
-  if (candidates.length === 0) {
-    return null;
-  }
-  if (candidates.length > 1 && candidates[0]?.score === candidates[1]?.score) {
-    return null;
-  }
-  return candidates[0]?.roleId ?? null;
-}
-
-function resolveRuntimeMemberMatchingPlannedRoleId(
-  member: TeamWorkspaceRuntimeMember,
-  plannedRoles: TeamRoleDefinition[],
-): string | null {
-  if (plannedRoles.length === 0) {
-    return null;
-  }
-
-  const normalizedRoleLabel = normalizeComparableText(member.label);
-  const normalizedRoleKey = normalizeComparableText(member.roleKey);
-  const normalizedProfileId = normalizeComparableText(member.profileId);
-
-  const candidates = plannedRoles
-    .map((role) => {
-      let score = 0;
-      if (
-        normalizedRoleLabel &&
-        normalizeComparableText(role.label) === normalizedRoleLabel
-      ) {
-        score += 8;
-      }
-      if (
-        normalizedRoleKey &&
-        normalizeComparableText(role.roleKey) === normalizedRoleKey
-      ) {
-        score += 5;
-      }
-      if (
-        normalizedProfileId &&
-        normalizeComparableText(role.profileId) === normalizedProfileId
-      ) {
-        score += 4;
-      }
-      return {
-        roleId: role.id,
-        score,
-      };
-    })
-    .filter((candidate) => candidate.score > 0)
-    .sort((left, right) => right.score - left.score);
-
-  if (candidates.length === 0) {
-    return null;
-  }
-  if (candidates.length > 1 && candidates[0]?.score === candidates[1]?.score) {
-    return null;
-  }
-  return candidates[0]?.roleId ?? null;
 }
 
 function resolveCanvasLaneBounds(
@@ -1650,217 +916,22 @@ export function TeamWorkspaceBoard({
   const normalizedSelectedTeamRoles = (selectedTeamRoles ?? []).filter((role) =>
     role.label.trim(),
   );
-  const runtimeFormationMeta = dispatchPreviewState
-    ? resolveRuntimeFormationStatusMeta(dispatchPreviewState.status)
-    : null;
-  const runtimeFormationLabel =
-    dispatchPreviewState?.label?.trim() ||
-    dispatchPreviewState?.blueprint?.label?.trim() ||
-    normalizedSelectedTeamLabel;
-  const runtimeFormationSummary =
-    dispatchPreviewState?.summary?.trim() ||
-    dispatchPreviewState?.blueprint?.summary?.trim() ||
-    normalizedSelectedTeamSummary;
   const runtimeMembers = useMemo(
     () => dispatchPreviewState?.members ?? [],
     [dispatchPreviewState?.members],
   );
-  const runtimeBlueprintRoles = useMemo(
-    () => dispatchPreviewState?.blueprint?.roles ?? [],
-    [dispatchPreviewState?.blueprint?.roles],
-  );
-  const hasRuntimeFormation = Boolean(dispatchPreviewState);
-  const hasSelectedTeamPlan =
-    Boolean(normalizedSelectedTeamLabel) ||
-    Boolean(normalizedSelectedTeamSummary) ||
-    normalizedSelectedTeamRoles.length > 0;
-
-  const renderSelectedTeamPlanSummary = () => {
-    if (!hasSelectedTeamPlan) {
-      return null;
-    }
-
-    return (
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-        {normalizedSelectedTeamLabel ? (
-          <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-700">
-            {TEAM_WORKSPACE_PLAN_LABEL} · {normalizedSelectedTeamLabel}
-          </span>
-        ) : null}
-        {normalizedSelectedTeamRoles.length > 0 ? (
-          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-            {normalizedSelectedTeamRoles.length} 个计划分工
-          </span>
-        ) : null}
-      </div>
-    );
-  };
-
-  const renderSelectedTeamPlanPanel = () => {
-    if (!hasSelectedTeamPlan) {
-      return null;
-    }
-
-    return (
-      <div className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-          <Bot className="h-3.5 w-3.5" />
-          <span>计划中的协作分工</span>
-          {normalizedSelectedTeamLabel ? (
-            <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-sky-700 normal-case">
-              {normalizedSelectedTeamLabel}
-            </span>
-          ) : null}
-        </div>
-        {normalizedSelectedTeamSummary ? (
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            {normalizedSelectedTeamSummary}
-          </p>
-        ) : null}
-        {normalizedSelectedTeamRoles.length > 0 ? (
-          <div className="mt-3 grid gap-3 xl:grid-cols-2">
-            {normalizedSelectedTeamRoles.map((role) => (
-              <div
-                key={`planned-team-role-${role.id}`}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-semibold text-slate-900">
-                    {role.label}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {role.summary}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    );
-  };
-
-  const renderRuntimeFormationSummary = () => {
-    if (!hasRuntimeFormation) {
-      return null;
-    }
-
-    return (
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-        {runtimeFormationLabel ? (
-          <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-700">
-            {TEAM_WORKSPACE_PLAN_LABEL} · {runtimeFormationLabel}
-          </span>
-        ) : null}
-        {runtimeFormationMeta ? (
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-1 font-medium",
-              runtimeFormationMeta.badgeClassName,
-            )}
-          >
-            {runtimeFormationMeta.label}
-          </span>
-        ) : null}
-        {runtimeMembers.length > 0 ? (
-          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-            {runtimeMembers.length} 位当前成员
-          </span>
-        ) : null}
-        {dispatchPreviewState?.blueprint?.label ? (
-          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-            参考方案 · {dispatchPreviewState.blueprint.label}
-          </span>
-        ) : null}
-      </div>
-    );
-  };
-
-  const renderRuntimeFormationPanel = () => {
-    if (!dispatchPreviewState || !runtimeFormationMeta) {
-      return null;
-    }
-
-    return (
-      <div
-        data-testid="team-workspace-runtime-formation"
-        className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-950/5"
-      >
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-          <Workflow className="h-3.5 w-3.5" />
-          <span>当前协作准备</span>
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-medium tracking-normal",
-              runtimeFormationMeta.badgeClassName,
-            )}
-          >
-            {runtimeFormationMeta.label}
-          </span>
-          {runtimeFormationLabel ? (
-            <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-sky-700 normal-case">
-              {runtimeFormationLabel}
-            </span>
-          ) : null}
-        </div>
-        <div className="mt-2 text-sm font-semibold text-slate-900">
-          {runtimeFormationMeta.title}
-        </div>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          {dispatchPreviewState.status === "failed"
-            ? dispatchPreviewState.errorMessage?.trim() ||
-              "当前协作准备失败，暂时无法展示更多内容。"
-            : runtimeFormationSummary ||
-              "这里会先展示当前协作方案，成员加入后再切换成实时进展。"}
-        </p>
-        {dispatchPreviewState.blueprint?.label ? (
-          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
-            参考方案：{dispatchPreviewState.blueprint.label}
-          </div>
-        ) : null}
-      </div>
-    );
-  };
-
-  const renderRuntimeMemberPanel = () => {
-    if (runtimeMembers.length === 0) {
-      return null;
-    }
-
-    return (
-      <div
-        className="mt-3 grid gap-3 xl:grid-cols-2"
-        data-testid="team-workspace-runtime-members"
-      >
-        {runtimeMembers.map((member) => {
-          const memberMeta = resolveRuntimeMemberStatusMeta(member.status);
-          return (
-            <div
-              key={`runtime-team-member-${member.id}`}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-slate-900">
-                  {member.label}
-                </span>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px] font-medium",
-                    memberMeta.badgeClassName,
-                  )}
-                >
-                  {memberMeta.label}
-                </span>
-              </div>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {member.summary}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
+  const selectedTeamPlanDisplay = buildSelectedTeamPlanDisplayState({
+    selectedTeamLabel: normalizedSelectedTeamLabel,
+    selectedTeamSummary: normalizedSelectedTeamSummary,
+    selectedTeamRoles: normalizedSelectedTeamRoles,
+  });
+  const runtimeFormationDisplay = buildRuntimeFormationDisplayState({
+    teamDispatchPreviewState: dispatchPreviewState,
+    fallbackLabel: normalizedSelectedTeamLabel,
+    fallbackSummary: normalizedSelectedTeamSummary,
+  });
+  const hasRuntimeFormation = runtimeFormationDisplay.hasRuntimeFormation;
+  const hasSelectedTeamPlan = selectedTeamPlanDisplay.hasSelectedTeamPlan;
 
   const memberCanvasSessions = useMemo(
     () =>
@@ -1959,50 +1030,47 @@ export function TeamWorkspaceBoard({
       null,
     [baseRailSessions, selectedSessionId],
   );
-  const selectedSessionActivityPreview = selectedSession
-    ? (sessionActivityPreviewById[selectedSession.id] ?? null)
-    : null;
-  const selectedSessionActivityEntries = selectedSession
-    ? mergeSessionActivityEntries(
-        liveActivityBySessionId[selectedSession.id],
-        selectedSessionActivityPreview?.entries,
-        ACTIVITY_TIMELINE_ENTRY_LIMIT,
-      )
-    : [];
-  const selectedSessionActivityPreviewText =
-    buildActivityPreviewFromEntry(selectedSessionActivityEntries[0]) ??
-    selectedSessionActivityPreview?.preview ??
-    null;
-  const selectedSessionSupportsActivityPreview = Boolean(
-    selectedSession && selectedSession.sessionType !== "user",
+  const selectedSessionActivityState = useMemo(
+    () =>
+      buildSelectedSessionActivityState({
+        selectedSession,
+        selectedBaseSession,
+        liveActivityBySessionId,
+        previewBySessionId: sessionActivityPreviewById,
+        activityRefreshVersionBySessionId,
+        activityTimelineEntryLimit: ACTIVITY_TIMELINE_ENTRY_LIMIT,
+      }),
+    [
+      activityRefreshVersionBySessionId,
+      liveActivityBySessionId,
+      selectedBaseSession,
+      selectedSession,
+      sessionActivityPreviewById,
+    ],
   );
-  const selectedSessionActivityId = selectedSessionSupportsActivityPreview
-    ? (selectedSession?.id ?? null)
-    : null;
+  const selectedSessionActivityPreview = selectedSessionActivityState.previewState;
+  const selectedSessionActivityEntries = selectedSessionActivityState.entries;
+  const selectedSessionActivityPreviewText =
+    selectedSessionActivityState.previewText;
+  const selectedSessionSupportsActivityPreview =
+    selectedSessionActivityState.supportsPreview;
+  const selectedSessionActivityId = selectedSessionActivityState.activityId;
   const selectedSessionActivityFingerprint =
-    selectedSessionSupportsActivityPreview
-      ? buildSessionActivityFingerprint(selectedBaseSession)
-      : null;
-  const selectedSessionActivityRefreshVersion = selectedSessionActivityId
-    ? (activityRefreshVersionBySessionId[selectedSessionActivityId] ?? 0)
-    : 0;
+    selectedSessionActivityState.fingerprint;
+  const selectedSessionActivityRefreshVersion =
+    selectedSessionActivityState.refreshVersion;
   const selectedSessionActivityShouldPoll =
-    selectedSessionSupportsActivityPreview &&
-    shouldPollSessionActivity(selectedSession);
+    selectedSessionActivityState.shouldPoll;
   const basePreviewableRailSessions = useMemo(
     () => baseRailSessions.filter((session) => session.sessionType !== "user"),
     [baseRailSessions],
   );
   const previewableRailSessionsSyncKey = useMemo(
     () =>
-      basePreviewableRailSessions
-        .map((session) => {
-          const fingerprint = buildSessionActivityFingerprint(session);
-          const refreshVersion =
-            activityRefreshVersionBySessionId[session.id] ?? 0;
-          return `${session.id}:${fingerprint}:${refreshVersion}`;
-        })
-        .join("|"),
+      buildPreviewableRailSessionsSyncKey({
+        sessions: basePreviewableRailSessions,
+        activityRefreshVersionBySessionId,
+      }),
     [activityRefreshVersionBySessionId, basePreviewableRailSessions],
   );
 
@@ -2055,7 +1123,10 @@ export function TeamWorkspaceBoard({
 
       try {
         const detail = await getAgentRuntimeSession(sessionId);
-        const activitySnapshot = extractSessionActivitySnapshot(detail);
+        const activitySnapshot = extractSessionActivitySnapshot(
+          detail,
+          ACTIVITY_TIMELINE_ENTRY_LIMIT,
+        );
         const syncedAt = Date.now();
         setSessionActivityPreviewById((previous) => ({
           ...previous,
@@ -2147,17 +1218,13 @@ export function TeamWorkspaceBoard({
   ]);
 
   useEffect(() => {
-    const staleSessions = basePreviewableRailSessions.filter((session) => {
-      const fingerprint = buildSessionActivityFingerprint(session);
-      const cachedPreview = sessionActivityPreviewByIdRef.current[session.id];
-      const refreshVersion = activityRefreshVersionBySessionId[session.id] ?? 0;
-      return (
-        cachedPreview?.fingerprint !== fingerprint ||
-        (cachedPreview?.refreshVersion ?? 0) < refreshVersion
-      );
+    const staleTargets = collectStaleSessionActivityTargets({
+      sessions: basePreviewableRailSessions,
+      previewBySessionId: sessionActivityPreviewByIdRef.current,
+      activityRefreshVersionBySessionId,
     });
 
-    if (staleSessions.length === 0) {
+    if (staleTargets.length === 0) {
       return;
     }
 
@@ -2165,21 +1232,17 @@ export function TeamWorkspaceBoard({
 
     const prefetchPreviews = async () => {
       await Promise.allSettled(
-        staleSessions.map((session) => {
+        staleTargets.map((target) => {
           if (cancelled) {
             return Promise.resolve();
           }
 
-          const refreshVersion =
-            activityRefreshVersionBySessionId[session.id] ?? 0;
-          const cachedPreview =
-            sessionActivityPreviewByIdRef.current[session.id];
           return syncSessionActivityPreview(
-            session.id,
-            buildSessionActivityFingerprint(session),
-            refreshVersion,
+            target.sessionId,
+            target.fingerprint,
+            target.refreshVersion,
             {
-              force: (cachedPreview?.refreshVersion ?? 0) < refreshVersion,
+              force: true,
             },
           );
         }),
@@ -2198,68 +1261,19 @@ export function TeamWorkspaceBoard({
     syncSessionActivityPreview,
   ]);
 
-  const canvasSessionLanes = useMemo<TeamWorkspaceCanvasLane[]>(
+  const canvasLanes = useMemo<TeamWorkspaceCanvasLane[]>(
     () =>
-      memberCanvasSessions.map((session) => {
-        const previewState = sessionActivityPreviewById[session.id] ?? null;
-        const mergedEntries = mergeSessionActivityEntries(
-          liveActivityBySessionId[session.id],
-          previewState?.entries,
-          ACTIVITY_TIMELINE_ENTRY_LIMIT,
-        );
-        const cardActivityPreview =
-          buildActivityPreviewFromEntry(mergedEntries[0]) ??
-          previewState?.preview ??
-          null;
-        const meta = resolveStatusMeta(session.runtimeStatus);
-        const matchedRuntimeMemberId = resolveLaneMatchingRuntimeMemberId(
-          session,
-          runtimeMembers,
-        );
-        const matchedPlannedRoleId = resolveLaneMatchingPlannedRoleId(
-          session,
-          normalizedSelectedTeamRoles,
-        );
-        const presetLabel = session.teamPresetId
-          ? (getTeamPresetOption(session.teamPresetId)?.label ??
-            session.teamPresetId)
-          : undefined;
-
-        return {
-          id: session.id,
-          persistKey: `session:${session.id}`,
-          fallbackPersistKeys: [
-            matchedRuntimeMemberId ? `runtime:${matchedRuntimeMemberId}` : null,
-            matchedPlannedRoleId ? `planned:${matchedPlannedRoleId}` : null,
-          ].filter(Boolean) as string[],
-          kind: "session" as const,
-          title: session.name,
-          summary:
-            session.taskSummary ||
-            "暂时还没有任务摘要，打开详情后可查看完整上下文。",
-          badgeLabel: meta.label,
-          badgeClassName: meta.badgeClassName,
-          dotClassName: meta.dotClassName,
-          roleLabel:
-            session.blueprintRoleLabel ||
-            resolveTeamWorkspaceRoleHintLabel(session.roleHint) ||
-            undefined,
-          profileLabel: session.profileName || undefined,
-          presetLabel,
-          modelLabel: session.model || undefined,
-          statusHint: buildRuntimeDetailSummary(session),
-          updatedAtLabel: formatUpdatedAt(session.updatedAt),
-          skillLabels: (session.skills ?? [])
-            .slice(0, 4)
-            .map((skill) => buildSkillDisplayName(skill)),
-          session,
-          previewText:
-            cardActivityPreview ||
-            buildSessionLaneEmptyState({ session, previewState }),
-          previewEntries: mergedEntries.slice(0, 3),
-        };
+      buildTeamWorkspaceCanvasLanes({
+        hasRealTeamGraph,
+        sessions: memberCanvasSessions,
+        runtimeMembers,
+        plannedRoles: normalizedSelectedTeamRoles,
+        liveActivityBySessionId,
+        previewBySessionId: sessionActivityPreviewById,
+        activityTimelineEntryLimit: ACTIVITY_TIMELINE_ENTRY_LIMIT,
       }),
     [
+      hasRealTeamGraph,
       liveActivityBySessionId,
       memberCanvasSessions,
       normalizedSelectedTeamRoles,
@@ -2267,69 +1281,6 @@ export function TeamWorkspaceBoard({
       sessionActivityPreviewById,
     ],
   );
-
-  const canvasBlueprintLanes = useMemo<TeamWorkspaceCanvasLane[]>(() => {
-    if (hasRealTeamGraph) {
-      return [];
-    }
-
-    if (runtimeMembers.length > 0) {
-      return runtimeMembers.map((member) => {
-        const laneSummary = buildCanvasLaneTitleSummary(member);
-        const matchedPlannedRoleId = resolveRuntimeMemberMatchingPlannedRoleId(
-          member,
-          normalizedSelectedTeamRoles,
-        );
-        return {
-          id: member.id,
-          persistKey: `runtime:${member.id}`,
-          fallbackPersistKeys: matchedPlannedRoleId
-            ? [`planned:${matchedPlannedRoleId}`]
-            : [],
-          kind: "runtime" as const,
-          title: member.label,
-          summary: laneSummary.summary,
-          badgeLabel: laneSummary.badgeLabel,
-          badgeClassName: laneSummary.badgeClassName,
-          dotClassName: laneSummary.dotClassName,
-          roleLabel:
-            resolveTeamWorkspaceRoleHintLabel(member.roleKey) || undefined,
-          profileLabel: undefined,
-          statusHint: laneSummary.statusHint,
-          updatedAtLabel: "等待成员加入",
-          skillLabels: [],
-          previewText: member.summary,
-          previewEntries: [],
-        };
-      });
-    }
-
-    return normalizedSelectedTeamRoles.map((role) => {
-      const laneSummary = buildPlannedRoleLaneSummary(role);
-      return {
-        id: role.id,
-        persistKey: `planned:${role.id}`,
-        fallbackPersistKeys: [],
-        kind: "planned" as const,
-        title: role.label,
-        summary: laneSummary.summary,
-        badgeLabel: laneSummary.badgeLabel,
-        badgeClassName: laneSummary.badgeClassName,
-        dotClassName: laneSummary.dotClassName,
-        roleLabel: resolveTeamWorkspaceRoleHintLabel(role.roleKey) || undefined,
-        profileLabel: undefined,
-        statusHint: laneSummary.statusHint,
-        updatedAtLabel: "计划分工",
-        skillLabels: [],
-        previewText: role.summary,
-        previewEntries: [],
-      };
-    });
-  }, [hasRealTeamGraph, normalizedSelectedTeamRoles, runtimeMembers]);
-
-  const canvasLanes = hasRealTeamGraph
-    ? canvasSessionLanes
-    : canvasBlueprintLanes;
   const canvasAutoLayoutViewportWidth = embedded
     ? Math.max(canvasViewportMetrics.width, 1240)
     : Math.max(canvasViewportMetrics.width, 1080);
@@ -2981,88 +1932,40 @@ export function TeamWorkspaceBoard({
     ],
   );
 
-  const statusSummary = useMemo(() => {
-    const sessions = isChildSession
-      ? dedupeSessions([currentChildSession, ...visibleSessions])
-      : visibleSessions;
-
-    return sessions.reduce(
-      (summary, session) => {
-        const key = session.runtimeStatus ?? "idle";
-        summary[key] = (summary[key] ?? 0) + 1;
-        return summary;
-      },
-      {} as Record<string, number>,
-    );
-  }, [currentChildSession, isChildSession, visibleSessions]);
-  const railSessionNameById = useMemo(
-    () => new Map(railSessions.map((session) => [session.id, session.name])),
-    [railSessions],
+  const sessionControlState = useMemo(
+    () =>
+      buildTeamWorkspaceSessionControlState({
+        visibleSessions,
+        railSessions,
+        currentChildSession,
+        isChildSession,
+        currentSessionId,
+      }),
+    [
+      currentChildSession,
+      currentSessionId,
+      isChildSession,
+      railSessions,
+      visibleSessions,
+    ],
   );
-  const waitableTeamSessions = useMemo(
-    () => railSessions.filter((session) => isWaitableTeamSession(session)),
-    [railSessions],
-  );
-  const waitableTeamSessionIds = useMemo(
-    () => waitableTeamSessions.map((session) => session.id),
-    [waitableTeamSessions],
-  );
+  const statusSummary = sessionControlState.statusSummary;
+  const waitableTeamSessionIds = sessionControlState.waitableSessionIds;
   const canWaitAnyActiveTeamSession = Boolean(
     onWaitActiveTeamSessions && waitableTeamSessionIds.length > 1,
   );
-  const visibleTeamWaitSummary = useMemo(() => {
-    if (!teamWaitSummary) {
-      return null;
-    }
-
-    return teamWaitSummary.awaitedSessionIds.some((sessionId) =>
-      railSessionNameById.has(sessionId),
-    )
-      ? teamWaitSummary
-      : null;
-  }, [railSessionNameById, teamWaitSummary]);
-  const visibleTeamControlSummary = useMemo(() => {
-    if (!teamControlSummary) {
-      return null;
-    }
-
-    return [
-      ...teamControlSummary.requestedSessionIds,
-      ...teamControlSummary.affectedSessionIds,
-    ].some((sessionId) => railSessionNameById.has(sessionId))
-      ? teamControlSummary
-      : null;
-  }, [railSessionNameById, teamControlSummary]);
-  const teamOperationEntries = useMemo(
+  const teamOperationState = useMemo(
     () =>
-      buildTeamOperationDisplayEntries({
-        sessionNameById: railSessionNameById,
-        teamWaitSummary: visibleTeamWaitSummary,
-        teamControlSummary: visibleTeamControlSummary,
-      }).filter(
-        (entry) =>
-          !entry.targetSessionId ||
-          railSessions.some((session) => session.id === entry.targetSessionId),
-      ),
-    [
-      railSessionNameById,
-      railSessions,
-      visibleTeamControlSummary,
-      visibleTeamWaitSummary,
-    ],
+      buildVisibleTeamOperationState({
+        railSessions,
+        teamWaitSummary,
+        teamControlSummary,
+      }),
+    [railSessions, teamControlSummary, teamWaitSummary],
   );
-  const completedTeamSessions = useMemo(
-    () =>
-      railSessions.filter(
-        (session) =>
-          session.id !== currentSessionId && isCompletedTeamSession(session),
-      ),
-    [currentSessionId, railSessions],
-  );
-  const completedTeamSessionIds = useMemo(
-    () => completedTeamSessions.map((session) => session.id),
-    [completedTeamSessions],
-  );
+  const visibleTeamWaitSummary = teamOperationState.visibleTeamWaitSummary;
+  const teamOperationEntries = teamOperationState.entries;
+  const completedTeamSessionIds = sessionControlState.completedSessionIds;
   const canCloseCompletedTeamSessions = Boolean(
     onCloseCompletedTeamSessions && completedTeamSessionIds.length > 0,
   );
@@ -3278,53 +2181,14 @@ export function TeamWorkspaceBoard({
 
   if (isEmptyShellState && !shellExpanded) {
     return (
-      <section
-        className={cn(
-          "overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm shadow-slate-950/5",
-          embedded && "pointer-events-auto",
-          embedded ? "mx-0 mt-0" : "mx-3 mt-2",
-          className,
-        )}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              <Workflow className="h-3.5 w-3.5" />
-              <span>{TEAM_WORKSPACE_SURFACE_TITLE}</span>
-              <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-emerald-700 normal-case">
-                <Activity className="h-3 w-3" />
-                {TEAM_WORKSPACE_REALTIME_BADGE_LABEL}
-              </span>
-            </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-slate-900">
-                {runtimeFormationMeta?.title || "协作面板已就绪"}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-600">
-                {runtimeFormationMeta?.label || "还没有协作成员加入"}
-              </span>
-            </div>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              {hasRuntimeFormation
-                ? buildRuntimeFormationHint(dispatchPreviewState)
-                : "这里先保持简洁，避免遮挡消息区；只有真正需要协作分工时才会展开完整面板。"}
-            </p>
-            {hasRuntimeFormation
-              ? renderRuntimeFormationSummary()
-              : renderSelectedTeamPlanSummary()}
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setShellExpanded(true)}
-            data-testid="team-workspace-detail-toggle"
-          >
-            <ChevronDown className="mr-1.5 h-3.5 w-3.5" />
-            查看任务进展
-          </Button>
-        </div>
-      </section>
+      <TeamWorkspaceEmptyShellState
+        className={className}
+        embedded={embedded}
+        hasRuntimeFormation={hasRuntimeFormation}
+        onExpand={() => setShellExpanded(true)}
+        runtimeFormationDisplay={runtimeFormationDisplay}
+        selectedTeamPlanDisplay={selectedTeamPlanDisplay}
+      />
     );
   }
 
@@ -3334,23 +2198,25 @@ export function TeamWorkspaceBoard({
       ? detailExpanded || shellExpanded
       : false;
   const detailToggleLabel = detailVisible ? "收起细节" : "查看细节";
-  const boardHeadline =
-    !hasRealTeamGraph && runtimeFormationMeta
-      ? runtimeFormationMeta.title
-      : buildBoardHeadline({
-          hasRealTeamGraph,
-          isChildSession,
-          subagentParentContext,
-          totalTeamSessions,
-        });
-  const boardHint =
-    !hasRealTeamGraph && hasRuntimeFormation
-      ? buildRuntimeFormationHint(dispatchPreviewState)
-      : buildBoardHint({
-          hasRealTeamGraph,
-          isChildSession,
-          siblingCount,
-        });
+  const boardChromeDisplay = buildTeamWorkspaceBoardChromeDisplayState({
+    hasRealTeamGraph,
+    hasRuntimeFormation,
+    runtimeFormationTitle: hasRuntimeFormation
+      ? runtimeFormationDisplay.panelHeadline
+      : null,
+    runtimeFormationHint: runtimeFormationDisplay.hint,
+    isChildSession,
+    parentSessionName: subagentParentContext?.parent_session_name,
+    totalTeamSessions,
+    siblingCount,
+    selectedSession,
+    zoom: canvasLayoutState.viewport.zoom,
+    canWaitAnyActiveTeamSession,
+    waitableCount: waitableTeamSessionIds.length,
+    canCloseCompletedTeamSessions,
+    completedCount: completedTeamSessionIds.length,
+    statusSummary,
+  });
   const detailSummary =
     selectedSession?.taskSummary ||
     buildFallbackSummary({
@@ -3359,46 +2225,11 @@ export function TeamWorkspaceBoard({
       selectedSession,
     });
   const useCompactCanvasChrome = hasRealTeamGraph;
-  const runtimeDetailSummary = buildRuntimeDetailSummary(selectedSession);
-  const selectedPresetOption = getTeamPresetOption(
-    selectedSession?.teamPresetId,
-  );
-  const selectedSkills = selectedSession?.skills ?? [];
-  const selectedMetadata = [
-    selectedSession?.blueprintRoleLabel
-      ? `分工 ${selectedSession.blueprintRoleLabel}`
-      : null,
-    selectedSession?.sessionType
-      ? resolveSessionTypeLabel(selectedSession.sessionType)
-      : null,
-    selectedSession?.providerName
-      ? `服务 ${selectedSession.providerName}`
-      : null,
-    selectedSession?.model ? `模型 ${selectedSession.model}` : null,
-    selectedSession?.originTool ? `来源 ${selectedSession.originTool}` : null,
-    selectedSession?.createdFromTurnId
-      ? `来自之前的任务 ${selectedSession.createdFromTurnId}`
-      : null,
-    selectedSession &&
-    (selectedSession.teamQueuedCount ?? selectedSession.queuedTurnCount ?? 0) >
-      0
-      ? `等待中 ${selectedSession.teamQueuedCount ?? selectedSession.queuedTurnCount}`
-      : null,
-    selectedSession?.teamActiveCount !== undefined &&
-    selectedSession?.teamParallelBudget !== undefined
-      ? `处理中 ${selectedSession.teamActiveCount}/${selectedSession.teamParallelBudget}`
-      : null,
-    selectedSession?.providerParallelBudget === 1 &&
-    selectedSession?.providerConcurrencyGroup
-      ? resolveTeamWorkspaceStableProcessingLabel()
-      : null,
-    selectedSession?.latestTurnStatus
-      ? `最近进展 ${resolveStatusMeta(selectedSession.latestTurnStatus).label}`
-      : null,
-    isChildSession && subagentParentContext?.parent_session_name
-      ? `来自 ${subagentParentContext.parent_session_name}`
-      : null,
-  ].filter(Boolean) as string[];
+  const selectedSessionDetailDisplay = buildSelectedSessionDetailDisplayState({
+    selectedSession,
+    isChildSession,
+    parentSessionName: subagentParentContext?.parent_session_name,
+  });
   const boardShellClassName = cn(
     embedded
       ? "pointer-events-auto flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-transparent shadow-none"
@@ -3452,766 +2283,99 @@ export function TeamWorkspaceBoard({
     "mt-3 rounded-[16px] border border-slate-200 bg-white p-3";
   const inlineTimelineEntryClassName =
     "rounded-[14px] border border-slate-200 bg-white p-3";
-  const compactCanvasSummaryChipClassName =
-    "rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500";
-  const compactCanvasMutedChipClassName =
-    "rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-500";
-  const compactCanvasFocusLabel = selectedSession
-    ? `焦点 ${selectedSession.name}`
-    : "等待成员接入";
-  const compactBoardHeadline =
-    useCompactCanvasChrome && !isChildSession && totalTeamSessions > 0
-      ? `${totalTeamSessions} 位成员协作中`
-      : boardHeadline;
-  const renderSelectedSessionInlineDetail = () => {
-    if (!selectedSession) {
+  const renderCanvasSelectedInlineDetail = (lane: TeamWorkspaceCanvasLane) => {
+    if (!selectedSession || lane.session?.id !== selectedSession.id) {
       return null;
     }
 
     return (
-      <div
-        className="mt-3 border-t border-slate-200 pt-3"
-        data-testid={`team-workspace-member-detail-${selectedSession.id}`}
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              <Bot className="h-3.5 w-3.5" />
-              <span>当前查看</span>
-              {selectedSession.isCurrent ? (
-                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
-                  当前对话
-                </span>
-              ) : null}
-            </div>
-            <p
-              className="mt-2 text-sm leading-6 text-slate-600"
-              data-testid="team-workspace-session-summary"
-            >
-              {detailSummary}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {canResumeSelectedSession ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={selectedActionPending}
-                onClick={() => void handleSelectedSessionAction("resume")}
-              >
-                {selectedActionPending &&
-                pendingSessionAction?.action === "resume" ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : null}
-                {selectedActionPending &&
-                pendingSessionAction?.action === "resume"
-                  ? "继续中..."
-                  : "继续处理"}
-              </Button>
-            ) : null}
-            {canStopSelectedSession ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={selectedActionPending}
-                onClick={() => void handleSelectedSessionAction("close")}
-              >
-                {selectedActionPending &&
-                pendingSessionAction?.action === "close" ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : null}
-                {selectedActionPending &&
-                pendingSessionAction?.action === "close"
-                  ? "暂停中..."
-                  : "暂停处理"}
-              </Button>
-            ) : null}
-            {canOpenSelectedSession ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void onOpenSubagentSession?.(selectedSession.id)}
-              >
-                {isChildSession ? "切换会话" : "打开对话"}
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        {runtimeDetailSummary ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-              {runtimeDetailSummary}
-            </span>
-          </div>
-        ) : null}
-        {selectedSession?.queueReason ? (
-          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-900">
-            {selectedSession.queueReason}
-          </div>
-        ) : null}
-
-        {selectedSession?.profileName ||
-        selectedSession?.teamPresetId ||
-        selectedSession?.theme ||
-        selectedSession?.outputContract ||
-        selectedSkills.length > 0 ? (
-          <div className={inlineDetailSectionClassName}>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-              <Bot className="h-3.5 w-3.5" />
-              <span>协作设置</span>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              {selectedPresetOption ? (
-                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-                  预设 {selectedPresetOption.label}
-                </span>
-              ) : selectedSession?.teamPresetId ? (
-                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-                  预设 {selectedSession.teamPresetId}
-                </span>
-              ) : null}
-              {selectedSession?.profileName ? (
-                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-                  风格 {selectedSession.profileName}
-                </span>
-              ) : null}
-              {resolveTeamWorkspaceRoleHintLabel(selectedSession?.roleKey) ? (
-                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-                  分工{" "}
-                  {resolveTeamWorkspaceRoleHintLabel(selectedSession?.roleKey)}
-                </span>
-              ) : null}
-              {selectedSession?.theme ? (
-                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-                  主题 {selectedSession.theme}
-                </span>
-              ) : null}
-            </div>
-            {selectedSession?.outputContract ? (
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                {selectedSession.outputContract}
-              </p>
-            ) : null}
-            {selectedSkills.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {selectedSkills.map((skill) => (
-                  <span
-                    key={`${selectedSession.id}-${skill.id}`}
-                    className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-600"
-                    title={skill.description || skill.directory || undefined}
-                  >
-                    {buildSkillDisplayName(skill)}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {canWaitSelectedSession || canSendSelectedSessionInput ? (
-          <div className={inlineDetailSectionClassName}>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-              <Clock3 className="h-3.5 w-3.5" />
-              <span>继续协作</span>
-              {canWaitSelectedSession ? (
-                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
-                  可直接查看结果
-                </span>
-              ) : null}
-            </div>
-            {canWaitSelectedSession ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={selectedActionPending}
-                  onClick={() => void handleSelectedSessionAction("wait")}
-                >
-                  {selectedActionPending &&
-                  pendingSessionAction?.action === "wait" ? (
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  ) : null}
-                  {selectedActionPending &&
-                  pendingSessionAction?.action === "wait"
-                    ? "等待中..."
-                    : "等待结果 30 秒"}
-                </Button>
-                <span className="text-xs leading-5 text-slate-500">
-                  仅在当前内容确实依赖这位成员结果时使用。
-                </span>
-              </div>
-            ) : null}
-            {canSendSelectedSessionInput ? (
-              <div className="mt-3 space-y-3">
-                <Textarea
-                  value={selectedSessionInputDraft}
-                  onChange={(event) =>
-                    handleSelectedSessionInputDraftChange(event.target.value)
-                  }
-                  placeholder="给这位协作成员补充说明、补充约束，或请它继续推进下一步。"
-                  className="min-h-[96px] resize-y border-slate-200 bg-white text-sm text-slate-700 placeholder:text-slate-400"
-                  data-testid="team-workspace-send-input-textarea"
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={
-                      selectedActionPending || !selectedSessionInputMessage
-                    }
-                    onClick={() => void handleSelectedSessionSendInput(false)}
-                  >
-                    {selectedActionPending &&
-                    pendingSessionAction?.action === "send" ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : null}
-                    {selectedActionPending &&
-                    pendingSessionAction?.action === "send"
-                      ? "发送中..."
-                      : "发送说明"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={
-                      selectedActionPending || !selectedSessionInputMessage
-                    }
-                    onClick={() => void handleSelectedSessionSendInput(true)}
-                  >
-                    {selectedActionPending &&
-                    pendingSessionAction?.action === "interrupt_send" ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : null}
-                    {selectedActionPending &&
-                    pendingSessionAction?.action === "interrupt_send"
-                      ? "中断中..."
-                      : "立即插入说明"}
-                  </Button>
-                  <span className="text-xs leading-5 text-slate-500">
-                    这条说明只会发送给当前成员，不影响其他协作成员。
-                  </span>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {selectedSessionSupportsActivityPreview ? (
-          <div className={inlineDetailSectionClassName}>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-              <Activity className="h-3.5 w-3.5" />
-              <span>完整进展</span>
-              {selectedSessionActivityShouldPoll ? (
-                <span className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-medium tracking-normal text-sky-700 normal-case">
-                  处理中自动刷新
-                </span>
-              ) : null}
-            </div>
-            {selectedSessionActivityPreviewText ? (
-              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
-                {selectedSessionActivityPreviewText}
-              </p>
-            ) : selectedSessionActivityPreview?.status === "error" ? (
-              <p className="mt-2 text-sm leading-6 text-rose-600">
-                最新进展暂不可用：
-                {selectedSessionActivityPreview.errorMessage ?? "同步失败"}
-              </p>
-            ) : selectedSessionActivityPreview?.status === "ready" ? (
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                这位成员暂时还没有可展示的新进展。
-              </p>
-            ) : (
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                正在同步这位成员的最新进展...
-              </p>
-            )}
-
-            {selectedSessionActivityEntries.length > 0 ? (
-              <div
-                className={inlineTimelineFeedClassName}
-                data-testid="team-workspace-activity-feed"
-              >
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  <span>进展记录</span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
-                    {selectedSessionActivityEntries.length} 条
-                  </span>
-                </div>
-                <div className="mt-3 space-y-2.5">
-                  {selectedSessionActivityEntries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className={inlineTimelineEntryClassName}
-                    >
-                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                        <span className="font-semibold text-slate-800">
-                          {entry.title}
-                        </span>
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-0.5 font-medium",
-                            entry.badgeClassName,
-                          )}
-                        >
-                          {entry.statusLabel}
-                        </span>
-                      </div>
-                      <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">
-                        {entry.detail}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1">
-            <Clock3 className="h-3.5 w-3.5" />
-            更新于 {formatUpdatedAt(selectedSession.updatedAt)}
-          </span>
-          {selectedMetadata.map((meta) => (
-            <span
-              key={meta}
-              className="rounded-full border border-slate-200 bg-white px-2.5 py-1"
-            >
-              {meta}
-            </span>
-          ))}
-        </div>
-      </div>
+      <SelectedSessionInlineDetail
+        canOpenSelectedSession={canOpenSelectedSession}
+        canResumeSelectedSession={canResumeSelectedSession}
+        canSendSelectedSessionInput={canSendSelectedSessionInput}
+        canStopSelectedSession={canStopSelectedSession}
+        canWaitSelectedSession={canWaitSelectedSession}
+        detailSummary={detailSummary}
+        detailDisplay={selectedSessionDetailDisplay}
+        formatUpdatedAt={formatUpdatedAt}
+        inlineDetailSectionClassName={inlineDetailSectionClassName}
+        inlineTimelineEntryClassName={inlineTimelineEntryClassName}
+        inlineTimelineFeedClassName={inlineTimelineFeedClassName}
+        isChildSession={isChildSession}
+        onOpenSelectedSession={() => void onOpenSubagentSession?.(selectedSession.id)}
+        onSelectedSessionAction={handleSelectedSessionAction}
+        onSelectedSessionInputDraftChange={handleSelectedSessionInputDraftChange}
+        onSelectedSessionSendInput={handleSelectedSessionSendInput}
+        pendingAction={
+          selectedActionPending ? pendingSessionAction?.action ?? null : null
+        }
+        selectedActionPending={selectedActionPending}
+        selectedSession={selectedSession}
+        selectedSessionActivityEntries={selectedSessionActivityEntries}
+        selectedSessionActivityPreview={selectedSessionActivityPreview}
+        selectedSessionActivityPreviewText={selectedSessionActivityPreviewText}
+        selectedSessionActivityShouldPoll={selectedSessionActivityShouldPoll}
+        selectedSessionInputDraft={selectedSessionInputDraft}
+        selectedSessionInputMessage={selectedSessionInputMessage}
+        selectedSessionSupportsActivityPreview={
+          selectedSessionSupportsActivityPreview
+        }
+      />
     );
   };
-
   return (
     <section
       className={boardShellClassName}
       data-testid={embedded ? "team-workspace-board-embedded-shell" : undefined}
       style={embedded ? { maxHeight: "inherit" } : undefined}
     >
-      <div
+      <TeamWorkspaceBoardHeader
+        boardChromeDisplay={boardChromeDisplay}
         className={boardHeaderClassName}
-        data-testid={embedded ? "team-workspace-board-header" : undefined}
-      >
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-            <Workflow className="h-3.5 w-3.5" />
-            <span>{TEAM_WORKSPACE_SURFACE_TITLE}</span>
-            <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-emerald-700 normal-case">
-              <Activity className="h-3 w-3" />
-              {TEAM_WORKSPACE_REALTIME_BADGE_LABEL}
-            </span>
-          </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <span
-              className={cn(
-                "font-semibold text-slate-900",
-                useCompactCanvasChrome ? "text-sm" : "text-[15px]",
-              )}
-            >
-              {compactBoardHeadline}
-            </span>
-            {subagentParentContext?.created_from_turn_id ? (
-              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
-                来自之前的任务 {subagentParentContext.created_from_turn_id}
-              </span>
-            ) : null}
-            {!useCompactCanvasChrome &&
-            !isChildSession &&
-            totalTeamSessions > 0 ? (
-              <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700">
-                {totalTeamSessions} 位协作成员
-              </span>
-            ) : null}
-          </div>
-          {!useCompactCanvasChrome ? (
-            <p className="mt-1 text-xs leading-5 text-slate-500">{boardHint}</p>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {isEmptyShellState ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setShellExpanded((previous) => !previous);
-              }}
-              data-testid="team-workspace-detail-toggle"
-            >
-              {detailVisible ? (
-                <ChevronUp className="mr-1.5 h-3.5 w-3.5" />
-              ) : (
-                <ChevronDown className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              {detailToggleLabel}
-            </Button>
-          ) : null}
-          {isEmptyShellState ? (
-            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
-              {runtimeFormationMeta?.label || "还没有协作成员加入"}
-            </span>
-          ) : !useCompactCanvasChrome ? (
-            Object.entries(statusSummary)
-              .filter(([, count]) => count > 0)
-              .map(([status, count]) => {
-                const meta = resolveStatusMeta(status as RuntimeStatus);
-                return (
-                  <span
-                    key={status}
-                    className={cn(
-                      "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium",
-                      meta.badgeClassName,
-                    )}
-                  >
-                    {meta.label} {count}
-                  </span>
-                );
-              })
-          ) : null}
-          {isChildSession && onReturnToParentSession ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void onReturnToParentSession()}
-            >
-              <ArrowUpLeft className="mr-1.5 h-3.5 w-3.5" />
-              返回主助手
-            </Button>
-          ) : null}
-        </div>
-      </div>
+        createdFromTurnId={subagentParentContext?.created_from_turn_id}
+        dataTestId={embedded ? "team-workspace-board-header" : undefined}
+        detailToggleLabel={detailToggleLabel}
+        detailVisible={detailVisible}
+        isChildSession={isChildSession}
+        isEmptyShellState={isEmptyShellState}
+        onReturnToParentSession={onReturnToParentSession}
+        onToggleDetail={() => {
+          setShellExpanded((previous) => !previous);
+        }}
+        resolveStatusMeta={resolveStatusMeta}
+        runtimeFormationStatusLabel={runtimeFormationDisplay.panelStatusLabel}
+        totalTeamSessions={totalTeamSessions}
+        useCompactCanvasChrome={useCompactCanvasChrome}
+      />
 
       <div
         className={boardBodyClassName}
         data-testid={embedded ? "team-workspace-board-body" : undefined}
       >
         <div className={railCardClassName}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {useCompactCanvasChrome ? (
-              <>
-                <div
-                  className="flex flex-wrap items-center gap-2"
-                  data-testid="team-workspace-canvas-toolbar"
-                >
-                  <span className={compactCanvasSummaryChipClassName}>
-                    {compactCanvasFocusLabel}
-                  </span>
-                  {selectedSession ? (
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-1 text-[11px] font-medium",
-                        selectedStatusMeta.badgeClassName,
-                      )}
-                    >
-                      {selectedStatusMeta.label}
-                    </span>
-                  ) : null}
-                  {selectedSession ? (
-                    <span className={compactCanvasMutedChipClassName}>
-                      更新于 {formatUpdatedAt(selectedSession.updatedAt)}
-                    </span>
-                  ) : null}
-                  {selectedSession?.isCurrent ? (
-                    <span className={compactCanvasMutedChipClassName}>
-                      当前对话
-                    </span>
-                  ) : null}
-                  <span className={compactCanvasMutedChipClassName}>
-                    缩放 {Math.round(canvasLayoutState.viewport.zoom * 100)}%
-                  </span>
-                  {canWaitAnyActiveTeamSession ? (
-                    <span className={compactCanvasMutedChipClassName}>
-                      {waitableTeamSessionIds.length} 位处理中
-                    </span>
-                  ) : null}
-                  {canCloseCompletedTeamSessions ? (
-                    <span className={compactCanvasMutedChipClassName}>
-                      {completedTeamSessionIds.length} 位已完成
-                    </span>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {canWaitAnyActiveTeamSession ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={pendingTeamAction === "wait_any"}
-                      onClick={() => void handleWaitAnyActiveTeamSessions()}
-                      data-testid="team-workspace-wait-active-button"
-                    >
-                      {pendingTeamAction === "wait_any" ? (
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      ) : null}
-                      {pendingTeamAction === "wait_any"
-                        ? "等待中..."
-                        : "等待任一成员结果"}
-                    </Button>
-                  ) : null}
-                  {canCloseCompletedTeamSessions ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={pendingTeamAction === "close_completed"}
-                      onClick={() => void handleCloseCompletedTeamSessions()}
-                      data-testid="team-workspace-close-completed-button"
-                    >
-                      {pendingTeamAction === "close_completed" ? (
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      ) : null}
-                      {pendingTeamAction === "close_completed"
-                        ? "收起中..."
-                        : "收起已完成成员"}
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleAutoArrangeCanvas}
-                    data-testid="team-workspace-auto-arrange-button"
-                  >
-                    整理布局
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleZoomOut}
-                  >
-                    缩小
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleZoomIn}
-                  >
-                    放大
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={handleFitCanvasView}
-                  >
-                    适应视图
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    {memberCanvasTitle}
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-slate-900">
-                    {memberCanvasSubtitle}
-                  </div>
-                </div>
-                {selectedSession ? (
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                      <Clock3 className="h-3.5 w-3.5" />
-                      更新于 {formatUpdatedAt(selectedSession.updatedAt)}
-                    </span>
-                    {selectedSession.isCurrent ? (
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                        当前对话
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-              </>
-            )}
-          </div>
-          {!useCompactCanvasChrome &&
-          (canWaitAnyActiveTeamSession ||
-            canCloseCompletedTeamSessions ||
-            teamOperationEntries.length > 0) ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {canWaitAnyActiveTeamSession ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={pendingTeamAction === "wait_any"}
-                  onClick={() => void handleWaitAnyActiveTeamSessions()}
-                  data-testid="team-workspace-wait-active-button"
-                >
-                  {pendingTeamAction === "wait_any" ? (
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  ) : null}
-                  {pendingTeamAction === "wait_any"
-                    ? "等待中..."
-                    : "等待任一成员结果"}
-                </Button>
-              ) : null}
-              {canWaitAnyActiveTeamSession ? (
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-500">
-                  {waitableTeamSessionIds.length} 位成员正在处理中
-                </span>
-              ) : null}
-              {canCloseCompletedTeamSessions ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={pendingTeamAction === "close_completed"}
-                  onClick={() => void handleCloseCompletedTeamSessions()}
-                  data-testid="team-workspace-close-completed-button"
-                >
-                  {pendingTeamAction === "close_completed" ? (
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  ) : null}
-                  {pendingTeamAction === "close_completed"
-                    ? "收起中..."
-                    : "收起已完成成员"}
-                </Button>
-              ) : null}
-              {canCloseCompletedTeamSessions ? (
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-500">
-                  {completedTeamSessionIds.length} 位成员已完成
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-          {teamOperationEntries.length > 0 ? (
-            useCompactCanvasChrome ? (
-              <div
-                className="mt-2 flex items-start gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                data-testid="team-workspace-team-operations"
-              >
-                <div className="sticky left-0 z-10 flex shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-500 shadow-sm shadow-slate-950/5">
-                  <Activity className="h-3.5 w-3.5" />
-                  <span>协作动态</span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600">
-                    {teamOperationEntries.length}
-                  </span>
-                </div>
-                {teamOperationEntries.map((entry) => {
-                  const content = (
-                    <div className="flex min-w-0 items-start gap-2">
-                      <span
-                        className={cn(
-                          "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                          entry.badgeClassName,
-                        )}
-                      >
-                        {entry.title}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="truncate text-xs leading-5 text-slate-700">
-                          {entry.detail}
-                        </div>
-                        <div className="mt-0.5 text-[10px] text-slate-500">
-                          {formatOperationUpdatedAt(entry.updatedAt)}
-                        </div>
-                      </div>
-                    </div>
-                  );
-
-                  return entry.targetSessionId ? (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      className="inline-flex min-w-[220px] max-w-[340px] shrink-0 rounded-[16px] border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-slate-300 hover:bg-slate-50"
-                      onClick={() => handleSelectTeamOperationEntry(entry)}
-                    >
-                      {content}
-                    </button>
-                  ) : (
-                    <div
-                      key={entry.id}
-                      className="inline-flex min-w-[220px] max-w-[340px] shrink-0 rounded-[16px] border border-slate-200 bg-slate-50 px-3 py-2"
-                    >
-                      {content}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div
-                className={cn(
-                  embedded
-                    ? "mt-3 border-t border-slate-200 pt-3"
-                    : "mt-3 rounded-[18px] border border-slate-200 bg-white p-3",
-                )}
-                data-testid="team-workspace-team-operations"
-              >
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  <Activity className="h-3.5 w-3.5" />
-                  <span>协作动态</span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
-                    最近 {teamOperationEntries.length} 条
-                  </span>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {teamOperationEntries.map((entry) => {
-                    const content = (
-                      <>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-[10px] font-medium",
-                              entry.badgeClassName,
-                            )}
-                          >
-                            {entry.title}
-                          </span>
-                          <span className="text-[11px] text-slate-500">
-                            {formatOperationUpdatedAt(entry.updatedAt)}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-sm leading-6 text-slate-700">
-                          {entry.detail}
-                        </p>
-                      </>
-                    );
-
-                    return entry.targetSessionId ? (
-                      <button
-                        key={entry.id}
-                        type="button"
-                        className={cn(
-                          "w-full text-left transition",
-                          embedded
-                            ? "border-l-2 border-slate-200 px-3 py-2 hover:border-slate-300 hover:bg-slate-50"
-                            : "rounded-[14px] border border-slate-200 bg-slate-50 px-3 py-2.5 hover:border-slate-300 hover:bg-slate-50",
-                        )}
-                        onClick={() => handleSelectTeamOperationEntry(entry)}
-                      >
-                        {content}
-                      </button>
-                    ) : (
-                      <div
-                        key={entry.id}
-                        className={cn(
-                          embedded
-                            ? "border-l-2 border-slate-200 px-3 py-2"
-                            : "rounded-[14px] border border-slate-200 bg-slate-50 px-3 py-2.5",
-                        )}
-                      >
-                        {content}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )
-          ) : null}
+          <TeamWorkspaceTeamOverviewChrome
+            boardChromeDisplay={boardChromeDisplay}
+            canCloseCompletedTeamSessions={canCloseCompletedTeamSessions}
+            canWaitAnyActiveTeamSession={canWaitAnyActiveTeamSession}
+            completedCount={completedTeamSessionIds.length}
+            embedded={embedded}
+            formatUpdatedAt={formatUpdatedAt}
+            memberCanvasSubtitle={memberCanvasSubtitle}
+            memberCanvasTitle={memberCanvasTitle}
+            onAutoArrangeCanvas={handleAutoArrangeCanvas}
+            onCloseCompletedTeamSessions={handleCloseCompletedTeamSessions}
+            onFitCanvasView={handleFitCanvasView}
+            onSelectTeamOperationEntry={handleSelectTeamOperationEntry}
+            onWaitAnyActiveTeamSessions={handleWaitAnyActiveTeamSessions}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            pendingTeamAction={pendingTeamAction}
+            resolveStatusMeta={resolveStatusMeta}
+            selectedSession={selectedSession}
+            teamOperationEntries={teamOperationEntries}
+            useCompactCanvasChrome={useCompactCanvasChrome}
+            waitableCount={waitableTeamSessionIds.length}
+          />
 
           <div
             className={cn(
@@ -4279,384 +2443,52 @@ export function TeamWorkspaceBoard({
                 </div>
               </div>
             ) : null}
-            <div
-              ref={canvasViewportRef}
-              className={cn(
-                "relative overflow-hidden rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_100%)] shadow-sm shadow-slate-950/5 cursor-grab active:cursor-grabbing",
-                isCanvasPanModifierActive && "cursor-grabbing",
-              )}
-              data-testid="team-workspace-rail-list"
-              data-layout-kind="free-canvas"
-              data-viewport-x={Math.round(canvasLayoutState.viewport.x)}
-              data-viewport-y={Math.round(canvasLayoutState.viewport.y)}
-              data-viewport-zoom={canvasLayoutState.viewport.zoom.toFixed(2)}
-              data-pan-mode={isCanvasPanModifierActive ? "active" : "idle"}
-              style={{ height: canvasStageHeight }}
-              onMouseDown={handleStartCanvasPan}
-              onWheel={handleCanvasWheel}
-            >
-              <div
-                data-testid="team-workspace-canvas-pan-surface"
-                data-team-workspace-canvas-pan-surface="true"
-                className="absolute inset-0 opacity-60"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(to right, rgba(148,163,184,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.08) 1px, transparent 1px)",
-                  backgroundSize: "32px 32px",
-                }}
-              />
-              <div
-                data-team-workspace-canvas-pan-block="true"
-                className="absolute left-4 top-4 z-10 inline-flex max-w-[320px] items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] text-slate-500 shadow-sm shadow-slate-950/5"
-                data-testid="team-workspace-canvas-shortcuts"
-              >
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-slate-500">
-                  画布
-                </span>
-                <span className="truncate">
-                  空白处拖拽 · Space 手型 · A 整理 · F 适应
-                </span>
-              </div>
-              {canvasLanes.length > 0 ? (
-                <div
-                  data-team-workspace-canvas-pan-surface="true"
-                  className="absolute inset-0 overflow-hidden"
-                  data-testid="team-workspace-canvas-stage"
-                >
-                  <div
-                    data-team-workspace-canvas-pan-surface="true"
-                    className="absolute left-0 top-0"
-                    style={{
-                      transform: `translate(${canvasLayoutState.viewport.x}px, ${canvasLayoutState.viewport.y}px)`,
-                    }}
-                  >
-                    <div
-                      data-team-workspace-canvas-pan-surface="true"
-                      className="relative"
-                      style={{
-                        width: `${canvasBounds.width}px`,
-                        height: `${canvasBounds.height}px`,
-                        transform: `scale(${canvasLayoutState.viewport.zoom})`,
-                        transformOrigin: "top left",
-                      }}
-                    >
-                      {canvasLanes.map((lane) => {
-                        const layout = canvasLaneLayouts[lane.persistKey];
-                        const selected =
-                          lane.session?.id != null &&
-                          selectedSession?.id === lane.session.id;
-                        const expanded =
-                          selected &&
-                          lane.session?.id != null &&
-                          expandedSessionId === lane.session.id;
-                        const resizeHandles = [
-                          {
-                            direction: "n" as const,
-                            className:
-                              "left-1/2 top-0 h-3 w-14 -translate-x-1/2 -translate-y-1/2 cursor-n-resize",
-                          },
-                          {
-                            direction: "s" as const,
-                            className:
-                              "bottom-0 left-1/2 h-3 w-14 -translate-x-1/2 translate-y-1/2 cursor-s-resize",
-                          },
-                          {
-                            direction: "e" as const,
-                            className:
-                              "right-0 top-1/2 h-14 w-3 -translate-y-1/2 translate-x-1/2 cursor-e-resize",
-                          },
-                          {
-                            direction: "w" as const,
-                            className:
-                              "left-0 top-1/2 h-14 w-3 -translate-x-1/2 -translate-y-1/2 cursor-w-resize",
-                          },
-                          {
-                            direction: "ne" as const,
-                            className:
-                              "right-0 top-0 h-4 w-4 translate-x-1/2 -translate-y-1/2 cursor-ne-resize",
-                          },
-                          {
-                            direction: "nw" as const,
-                            className:
-                              "left-0 top-0 h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-nw-resize",
-                          },
-                          {
-                            direction: "se" as const,
-                            className:
-                              "bottom-0 right-0 h-4 w-4 translate-x-1/2 translate-y-1/2 cursor-se-resize",
-                          },
-                          {
-                            direction: "sw" as const,
-                            className:
-                              "bottom-0 left-0 h-4 w-4 -translate-x-1/2 translate-y-1/2 cursor-sw-resize",
-                          },
-                        ];
-
-                        return (
-                          <div
-                            key={lane.persistKey}
-                            data-team-workspace-canvas-pan-block="true"
-                            data-testid={`team-workspace-member-lane-${lane.id}`}
-                            data-lane-x={Math.round(layout.x)}
-                            data-lane-y={Math.round(layout.y)}
-                            data-lane-width={Math.round(layout.width)}
-                            data-lane-height={Math.round(layout.height)}
-                            data-expanded={expanded ? "true" : "false"}
-                            className="absolute"
-                            onClick={() => {
-                              bringCanvasLaneToFront(lane.persistKey);
-                              if (lane.session) {
-                                setSelectedSessionId(lane.session.id);
-                                setExpandedSessionId(lane.session.id);
-                              }
-                            }}
-                            style={{
-                              transform: `translate(${layout.x}px, ${layout.y}px)`,
-                              width: `${layout.width}px`,
-                              height: `${layout.height}px`,
-                              zIndex: layout.zIndex,
-                            }}
-                          >
-                            <div
-                              role={lane.session ? "button" : undefined}
-                              aria-pressed={lane.session ? selected : undefined}
-                              tabIndex={lane.session ? 0 : -1}
-                              onClick={() => {
-                                bringCanvasLaneToFront(lane.persistKey);
-                                if (lane.session) {
-                                  setSelectedSessionId(lane.session.id);
-                                  setExpandedSessionId(lane.session.id);
-                                }
-                              }}
-                              className={cn(
-                                "group flex h-full flex-col overflow-hidden rounded-[24px] border bg-white text-left shadow-[0_18px_52px_-32px_rgba(15,23,42,0.28)] transition",
-                                lane.kind === "planned"
-                                  ? "border-dashed border-slate-300"
-                                  : lane.kind === "runtime"
-                                    ? "border-sky-200"
-                                    : "border-slate-200",
-                                selected
-                                  ? "ring-2 ring-slate-300"
-                                  : "hover:border-slate-300",
-                              )}
-                            >
-                              <div
-                                data-testid={`team-workspace-member-lane-header-${lane.id}`}
-                                className="flex cursor-grab items-start justify-between gap-3 border-b border-slate-200 bg-slate-50/88 px-4 py-3 active:cursor-grabbing"
-                                onMouseDown={(event) =>
-                                  handleStartCanvasLaneDrag(
-                                    lane.persistKey,
-                                    event,
-                                  )
-                                }
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="truncate text-sm font-semibold text-slate-900">
-                                      {lane.title}
-                                    </span>
-                                    {lane.session?.isCurrent ? (
-                                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                                        当前
-                                      </span>
-                                    ) : null}
-                                    {expanded ? (
-                                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700">
-                                        当前查看
-                                      </span>
-                                    ) : null}
-                                    {lane.kind === "runtime" ? (
-                                      <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
-                                        当前分工
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-                                    {lane.roleLabel ? (
-                                      <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-sky-700">
-                                        分工 · {lane.roleLabel}
-                                      </span>
-                                    ) : null}
-                                    {lane.profileLabel ? (
-                                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">
-                                        {lane.profileLabel}
-                                      </span>
-                                    ) : null}
-                                    <span
-                                      className={cn(
-                                        "rounded-full px-2 py-0.5 font-medium",
-                                        lane.badgeClassName,
-                                      )}
-                                    >
-                                      {lane.badgeLabel}
-                                    </span>
-                                  </div>
-                                </div>
-                                <span
-                                  className={cn(
-                                    "mt-1 h-2.5 w-2.5 shrink-0 rounded-full",
-                                    lane.dotClassName,
-                                  )}
-                                />
-                              </div>
-                              <div className="flex min-h-0 flex-1 flex-col px-4 py-3">
-                                <p className="text-sm leading-6 text-slate-600">
-                                  {lane.summary}
-                                </p>
-                                {lane.skillLabels.length > 0 ||
-                                lane.presetLabel ? (
-                                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-                                    {lane.presetLabel ? (
-                                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">
-                                        {lane.presetLabel}
-                                      </span>
-                                    ) : null}
-                                    {lane.skillLabels
-                                      .slice(0, 4)
-                                      .map((skillLabel) => (
-                                        <span
-                                          key={`${lane.persistKey}-${skillLabel}`}
-                                          className="rounded-full border border-slate-200 bg-white px-2 py-0.5"
-                                        >
-                                          {skillLabel}
-                                        </span>
-                                      ))}
-                                  </div>
-                                ) : null}
-                                <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                                  <div className="flex items-center gap-1.5 border-b border-slate-200 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                                    <PanelTop className="h-3 w-3" />
-                                    <span>成员进展</span>
-                                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
-                                      {lane.kind === "session"
-                                        ? "最近进展"
-                                        : "等待接入"}
-                                    </span>
-                                  </div>
-                                  <div className="min-h-0 flex-1 overflow-auto px-3 py-3">
-                                    <p className="whitespace-pre-wrap break-words text-[12px] leading-5 text-slate-700">
-                                      {lane.previewText}
-                                    </p>
-                                    {lane.previewEntries &&
-                                    lane.previewEntries.length > 0 ? (
-                                      <div className="mt-3 space-y-2">
-                                        {lane.previewEntries.map((entry) => (
-                                          <div
-                                            key={`${lane.persistKey}-${entry.id}`}
-                                            className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
-                                          >
-                                            <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                                              <span className="font-semibold text-slate-800">
-                                                {entry.title}
-                                              </span>
-                                              <span
-                                                className={cn(
-                                                  "rounded-full px-2 py-0.5 font-medium",
-                                                  entry.badgeClassName,
-                                                )}
-                                              >
-                                                {entry.statusLabel}
-                                              </span>
-                                            </div>
-                                            <p className="mt-1.5 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600">
-                                              {entry.detail}
-                                            </p>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                </div>
-                                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    {lane.statusHint ? (
-                                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">
-                                        {lane.statusHint}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    {lane.updatedAtLabel ? (
-                                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">
-                                        {lane.updatedAtLabel}
-                                      </span>
-                                    ) : null}
-                                    {lane.modelLabel ? (
-                                      <span className="max-w-[180px] truncate rounded-full border border-slate-200 bg-white px-2 py-0.5">
-                                        {lane.modelLabel}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                </div>
-                                {expanded
-                                  ? renderSelectedSessionInlineDetail()
-                                  : null}
-                              </div>
-                            </div>
-                            {resizeHandles.map((handle) => (
-                              <span
-                                key={`${lane.persistKey}-${handle.direction}`}
-                                data-testid={`team-workspace-member-lane-resize-${lane.id}-${handle.direction}`}
-                                aria-hidden="true"
-                                className={cn(
-                                  "absolute rounded-full border border-slate-300 bg-white shadow-sm",
-                                  handle.className,
-                                )}
-                                onMouseDown={(event) =>
-                                  handleStartCanvasLaneResize(
-                                    lane.persistKey,
-                                    handle.direction,
-                                    event,
-                                  )
-                                }
-                              />
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center p-8">
-                  <div className="max-w-[520px] rounded-[24px] border border-dashed border-slate-300 bg-white/92 px-6 py-5 text-center shadow-sm shadow-slate-950/5">
-                    <div className="text-sm font-semibold text-slate-900">
-                      暂无协作画布
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      {canvasStageHint}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+            <TeamWorkspaceCanvasStage
+              canvasBoundsHeight={canvasBounds.height}
+              canvasBoundsWidth={canvasBounds.width}
+              canvasStageHeight={canvasStageHeight}
+              canvasStageHint={canvasStageHint}
+              expandedSessionId={expandedSessionId}
+              isCanvasPanModifierActive={isCanvasPanModifierActive}
+              laneLayouts={canvasLaneLayouts}
+              lanes={canvasLanes}
+              onCanvasWheel={handleCanvasWheel}
+              onSelectLane={(lane) => {
+                bringCanvasLaneToFront(lane.persistKey);
+                if (lane.session) {
+                  setSelectedSessionId(lane.session.id);
+                  setExpandedSessionId(lane.session.id);
+                }
+              }}
+              onStartCanvasLaneDrag={(lane, event) =>
+                handleStartCanvasLaneDrag(lane.persistKey, event)
+              }
+              onStartCanvasLaneResize={(lane, direction, event) =>
+                handleStartCanvasLaneResize(lane.persistKey, direction, event)
+              }
+              onStartCanvasPan={handleStartCanvasPan}
+              renderSelectedInlineDetail={renderCanvasSelectedInlineDetail}
+              selectedSessionId={selectedSession?.id ?? null}
+              viewport={canvasLayoutState.viewport}
+              viewportRef={canvasViewportRef}
+            />
           </div>
 
           {!hasRealTeamGraph ? (
             <>
               {hasRuntimeFormation ? (
-                <>
-                  {renderRuntimeFormationPanel()}
-                  {renderRuntimeMemberPanel()}
-                </>
+                <TeamWorkspaceRuntimeFormationPanel
+                  runtimeFormationDisplay={runtimeFormationDisplay}
+                />
               ) : (
-                renderSelectedTeamPlanPanel()
+                selectedTeamPlanDisplay.hasSelectedTeamPlan ? (
+                  <TeamWorkspaceSelectedPlanPanel
+                    selectedTeamPlanDisplay={selectedTeamPlanDisplay}
+                  />
+                ) : null
               )}
               <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm leading-6 text-slate-500">
-                {dispatchPreviewState?.status === "forming" ? (
-                  "系统正在准备当前协作分工，完成后会先展示成员卡片，后续再切换为独立的实时进展面板。"
-                ) : dispatchPreviewState?.status === "formed" ? (
-                  <>
-                    当前协作方案已就绪。系统开始分工后，这里会从方案视图过渡到实时协作画布。
-                  </>
-                ) : dispatchPreviewState?.status === "failed" ? (
-                  dispatchPreviewState.errorMessage?.trim() ||
-                  "当前协作准备失败，暂时还没有协作成员加入。"
-                ) : (
-                  <>
-                    还没有协作成员加入。系统开始分工后，这里会生成独立的成员进展画布。
-                  </>
-                )}
+                {runtimeFormationDisplay.noticeText}
               </div>
             </>
           ) : null}
@@ -4671,40 +2503,24 @@ export function TeamWorkspaceBoard({
                 <span>当前详情</span>
               </div>
               <div className="mt-2 text-base font-semibold text-slate-900">
-                {runtimeFormationMeta?.title || "等待协作成员加入"}
+                {runtimeFormationDisplay.panelHeadline}
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                {buildRuntimeFormationEmptyDetail(dispatchPreviewState)}
+                {runtimeFormationDisplay.emptyDetail}
               </p>
               {hasRuntimeFormation ? (
                 <div className="mt-4 space-y-4">
-                  {renderRuntimeFormationPanel()}
-                  {renderRuntimeMemberPanel()}
-                  {runtimeBlueprintRoles.length > 0 ? (
-                    <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-4">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        参考分工
-                      </div>
-                      <div className="mt-3 grid gap-3 xl:grid-cols-2">
-                        {runtimeBlueprintRoles.map((role) => (
-                          <div
-                            key={`runtime-blueprint-role-${role.id}`}
-                            className="rounded-2xl border border-slate-200 bg-white px-3.5 py-3"
-                          >
-                            <div className="text-sm font-semibold text-slate-900">
-                              {role.label}
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-slate-600">
-                              {role.summary}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
+                  <TeamWorkspaceRuntimeFormationPanel
+                    runtimeFormationDisplay={runtimeFormationDisplay}
+                    showBlueprintRoleCards
+                  />
                 </div>
               ) : hasSelectedTeamPlan ? (
-                <div className="mt-4">{renderSelectedTeamPlanPanel()}</div>
+                <div className="mt-4">
+                  <TeamWorkspaceSelectedPlanPanel
+                    selectedTeamPlanDisplay={selectedTeamPlanDisplay}
+                  />
+                </div>
               ) : null}
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">

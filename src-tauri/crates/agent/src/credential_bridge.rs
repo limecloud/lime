@@ -73,6 +73,10 @@ pub struct AsterProviderConfig {
     pub force_responses_api: bool,
     /// OAuth/本地 Provider 需要的凭证文件路径
     pub credential_path: Option<String>,
+    /// 当前回合是否启用 toolshim
+    pub toolshim: bool,
+    /// toolshim 解释器模型
+    pub toolshim_model: Option<String>,
 }
 
 /// 凭证池桥接器
@@ -297,6 +301,8 @@ impl CredentialBridge {
                 CredentialData::KiroOAuth { creds_file_path } => Some(creds_file_path.clone()),
                 _ => None,
             },
+            toolshim: false,
+            toolshim_model: None,
         })
     }
 
@@ -438,9 +444,7 @@ pub async fn create_aster_provider(
     }
 
     if config.provider_name == "kiro" {
-        let model_config = ModelConfig::new(&config.model_name).map_err(|e| {
-            CredentialBridgeError::ProviderCreationFailed(format!("创建 ModelConfig 失败: {e}"))
-        })?;
+        let model_config = build_provider_model_config(config)?;
 
         let credential_path = config.credential_path.clone().ok_or_else(|| {
             CredentialBridgeError::ProviderCreationFailed(
@@ -465,9 +469,7 @@ pub async fn create_aster_provider(
     set_provider_env_vars(config);
 
     // 创建 ModelConfig
-    let model_config = ModelConfig::new(&config.model_name).map_err(|e| {
-        CredentialBridgeError::ProviderCreationFailed(format!("创建 ModelConfig 失败: {e}"))
-    })?;
+    let model_config = build_provider_model_config(config)?;
 
     // 创建 Provider
     aster::providers::create(&config.provider_name, model_config)
@@ -475,6 +477,20 @@ pub async fn create_aster_provider(
         .map(|provider| wrap_provider_with_safety(provider, disable_default_fast_model))
         .map_err(|e| {
             CredentialBridgeError::ProviderCreationFailed(format!("创建 Provider 失败: {e}"))
+        })
+}
+
+fn build_provider_model_config(
+    config: &AsterProviderConfig,
+) -> Result<ModelConfig, CredentialBridgeError> {
+    ModelConfig::new(&config.model_name)
+        .map(|model_config| {
+            model_config
+                .with_toolshim(config.toolshim)
+                .with_toolshim_model(config.toolshim_model.clone())
+        })
+        .map_err(|e| {
+            CredentialBridgeError::ProviderCreationFailed(format!("创建 ModelConfig 失败: {e}"))
         })
 }
 
@@ -631,6 +647,15 @@ fn set_provider_env_vars(config: &AsterProviderConfig) {
                     base_url
                 );
             }
+            "ollama" => {
+                std::env::set_var("OLLAMA_BASE_URL", base_url);
+                std::env::set_var("OLLAMA_HOST", base_url);
+                tracing::info!(
+                    "[CredentialBridge] 设置 OLLAMA_BASE_URL={}, OLLAMA_HOST={}",
+                    base_url,
+                    base_url
+                );
+            }
             _ => {
                 // 其他 Provider 使用通用格式
                 let base_url_key = format!(
@@ -766,6 +791,8 @@ mod tests {
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: true,
             credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
         };
 
         set_provider_env_vars(&config);
@@ -798,6 +825,8 @@ mod tests {
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
             credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
         };
 
         assert!(should_disable_provider_default_fast_model(&config));
@@ -814,6 +843,8 @@ mod tests {
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
             credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
         };
 
         assert!(!should_disable_provider_default_fast_model(&config));
@@ -830,6 +861,8 @@ mod tests {
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: true,
             credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
         };
 
         assert!(!should_disable_provider_default_fast_model(&config));
@@ -874,6 +907,8 @@ mod tests {
             credential_uuid: "test-uuid".to_string(),
             force_responses_api: false,
             credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
         };
 
         set_provider_env_vars(&config);
@@ -885,6 +920,30 @@ mod tests {
         assert_eq!(
             std::env::var("ANTHROPIC_BASE_URL").ok().as_deref(),
             Some("https://open.bigmodel.cn/api/anthropic")
+        );
+    }
+
+    #[test]
+    fn test_build_provider_model_config_applies_toolshim_override() {
+        let config = AsterProviderConfig {
+            provider_name: "openai".to_string(),
+            provider_selector: Some("ollama".to_string()),
+            model_name: "deepseek-r1:latest".to_string(),
+            api_key: None,
+            base_url: Some("http://127.0.0.1:11434".to_string()),
+            credential_uuid: "test-uuid".to_string(),
+            force_responses_api: false,
+            credential_path: None,
+            toolshim: true,
+            toolshim_model: Some("glm-5.1:cloud".to_string()),
+        };
+
+        let model_config = build_provider_model_config(&config).expect("build model config");
+
+        assert!(model_config.toolshim);
+        assert_eq!(
+            model_config.toolshim_model.as_deref(),
+            Some("glm-5.1:cloud")
         );
     }
 }

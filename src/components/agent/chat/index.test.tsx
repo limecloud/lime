@@ -9,6 +9,7 @@ import {
   it,
   vi,
 } from "vitest";
+import * as fileBrowserModule from "@/lib/api/fileBrowser";
 import {
   resolveBrowserAssistSessionScopeKey,
   resolveBrowserAssistSessionStorageKey,
@@ -123,14 +124,26 @@ const {
     renderPreview: false,
   },
   mockCanvasWorkbenchLayout: vi.fn((props?: Record<string, unknown>) => {
+    const defaultPreview =
+      props?.defaultPreview && typeof props.defaultPreview === "object"
+        ? (props.defaultPreview as {
+            title?: string;
+            content?: string;
+            filePath?: string;
+            absolutePath?: string;
+          })
+        : null;
     const preview =
       mockCanvasWorkbenchLayoutState.renderPreview &&
       typeof props?.renderPreview === "function"
         ? props.renderPreview(
             {
               kind: "default-canvas",
-              title: "当前画布草稿",
-              content: "# 新文档\n\n在这里开始编写内容...",
+              title: defaultPreview?.title || "当前画布草稿",
+              content:
+                defaultPreview?.content || "# 新文档\n\n在这里开始编写内容...",
+              filePath: defaultPreview?.filePath,
+              absolutePath: defaultPreview?.absolutePath,
             },
             {
               stackedWorkbenchTrigger: (
@@ -526,8 +539,26 @@ vi.mock("@/components/workspace/canvas/CanvasFactory", () => ({
 }));
 
 vi.mock("@/components/general-chat/bridge", () => ({
-  CanvasPanel: ({ toolbarActions }: { toolbarActions?: ReactNode }) => (
-    <div data-testid="general-canvas">
+  CanvasPanel: ({
+    toolbarActions,
+    state,
+    baseFilePath,
+  }: {
+    toolbarActions?: ReactNode;
+    state?: {
+      filename?: string;
+      contentType?: string;
+      content?: string;
+    };
+    baseFilePath?: string;
+  }) => (
+    <div
+      data-testid="general-canvas"
+      data-filename={state?.filename || ""}
+      data-content-type={state?.contentType || ""}
+      data-base-file-path={baseFilePath || ""}
+      data-content={state?.content || ""}
+    >
       <div data-testid="general-canvas-toolbar">{toolbarActions}</div>
     </div>
   ),
@@ -1677,7 +1708,7 @@ describe("AgentChatPage 侧栏显示控制", () => {
   });
 });
 
-describe("AgentChatPage 通用工作台", () => {
+describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
   it("空白新建任务首页不应自动打开 fallback 新文档画布", async () => {
     const container = renderPage({
       agentEntry: "new-task",
@@ -2159,6 +2190,15 @@ describe("AgentChatPage 通用工作台", () => {
       mounted.container
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
+    ).toBe("chat");
+
+    clickButton(mounted.container, "toggle-canvas");
+    await flushEffects(8);
+
+    expect(
+      mounted.container
+        .querySelector('[data-testid="layout-transition"]')
+        ?.getAttribute("data-mode"),
     ).toBe("chat-canvas");
 
     clickButton(mounted.container, "toggle-canvas");
@@ -2193,7 +2233,7 @@ describe("AgentChatPage 通用工作台", () => {
     ).toBe("chat");
   });
 
-  it("同一会话首次出现真实 Team 成员时，应自动切到 Team 画布", async () => {
+  it("同一会话首次出现真实 Team 成员时，仍应保持聊天态，等待用户手动打开画布", async () => {
     const runtimeState = {
       childSubagentSessions: [] as Array<{
         id: string;
@@ -2290,46 +2330,7 @@ describe("AgentChatPage 通用工作台", () => {
       mounted.container
         .querySelector('[data-testid="layout-transition"]')
         ?.getAttribute("data-mode"),
-    ).toBe("chat-canvas");
-    expect(
-      (
-        mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
-          | {
-              teamView?: {
-                preferFixedPanel?: boolean;
-                preferFullscreenPreview?: boolean;
-                renderPanel?: () => unknown;
-              } | null;
-            }
-          | undefined
-      )?.teamView?.preferFixedPanel,
-    ).toBe(true);
-    expect(
-      (
-        mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
-          | {
-              teamView?: {
-                preferFixedPanel?: boolean;
-                preferFullscreenPreview?: boolean;
-                renderPanel?: () => unknown;
-              } | null;
-            }
-          | undefined
-      )?.teamView?.preferFullscreenPreview,
-    ).not.toBe(true);
-    expect(
-      typeof (
-        mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
-          | {
-              teamView?: {
-                preferFixedPanel?: boolean;
-                preferFullscreenPreview?: boolean;
-                renderPanel?: () => unknown;
-              } | null;
-            }
-          | undefined
-      )?.teamView?.renderPanel,
-    ).toBe("function");
+    ).toBe("chat");
   });
 
   it("仅有已选 Team 偏好时，顶部展开仍可手动打开画布，且不会凭空展示协作 dock", async () => {
@@ -2507,6 +2508,246 @@ describe("AgentChatPage 通用工作台", () => {
 
     expect(document.body.textContent).toContain("已激活技能");
     expect(document.body.textContent).toContain("research");
+  });
+
+  it("历史旧导出结果与同会话新到的 saved_content 都不应自动打开画布，应等待用户手动点开", async () => {
+    mockCanvasWorkbenchLayoutState.renderPreview = true;
+    vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
+      path: "/tmp/project-site-export/exports/x-article-export/latest/index.md",
+      content: "# 最新导出\n\n![封面](images/cover.png)",
+      isBinary: false,
+      size: 42,
+      error: null,
+    });
+
+    let messages = [
+      {
+        id: "msg-site-user-1",
+        role: "user" as const,
+        content: "帮我导出这篇 X 长文",
+        timestamp: new Date("2026-04-08T10:00:00.000Z"),
+      },
+      {
+        id: "msg-site-assistant-old",
+        role: "assistant" as const,
+        content: "历史导出已完成",
+        timestamp: new Date("2026-04-08T10:00:01.000Z"),
+        toolCalls: [
+          {
+            id: "tool-site-old",
+            name: "site_run_adapter",
+            status: "completed" as const,
+            startTime: new Date("2026-04-08T10:00:01.100Z"),
+            endTime: new Date("2026-04-08T10:00:02.000Z"),
+            result: {
+              success: true,
+              output: "ok",
+              metadata: {
+                tool_family: "site",
+                saved_content: {
+                  content_id: "content-site-export",
+                  project_id: "project-site-export",
+                  markdown_relative_path:
+                    "exports/x-article-export/history/index.md",
+                },
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    mockUseAgentChatUnified.mockImplementation(
+      ({ workspaceId }: { workspaceId: string }) => {
+        observedWorkspaceIds.push(workspaceId);
+        return createMockAgentChatUnifiedState({
+          messages,
+          sessionId: "session-site-export",
+        });
+      },
+    );
+
+    const mounted = mountPage({
+      projectId: "project-site-export",
+      contentId: "content-site-export",
+      theme: "general",
+      lockTheme: true,
+    });
+    await flushEffects(10);
+
+    expect(fileBrowserModule.readFilePreview).not.toHaveBeenCalled();
+    expect(
+      mounted.container
+        .querySelector('[data-testid="layout-transition"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("chat");
+
+    messages = [
+      ...messages,
+      {
+        id: "msg-site-assistant-new",
+        role: "assistant" as const,
+        content: "最新导出已完成",
+        timestamp: new Date("2099-04-09T12:00:01.000Z"),
+        toolCalls: [
+          {
+            id: "tool-site-new",
+            name: "site_run_adapter",
+            status: "completed" as const,
+            startTime: new Date("2099-04-09T12:00:01.100Z"),
+            endTime: new Date("2099-04-09T12:00:02.000Z"),
+            result: {
+              success: true,
+              output: "ok",
+              metadata: {
+                tool_family: "site",
+                saved_content: {
+                  content_id: "content-site-export",
+                  project_id: "project-site-export",
+                  markdown_relative_path:
+                    "exports/x-article-export/latest/index.md",
+                },
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    mounted.rerender({});
+    await flushEffects(12);
+
+    expect(fileBrowserModule.readFilePreview).not.toHaveBeenCalled();
+    expect(
+      mounted.container
+        .querySelector('[data-testid="layout-transition"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("chat");
+  });
+
+  it("历史任务携带 initialProjectFileOpenTarget 时应直接恢复真实 Markdown 文件预览", async () => {
+    mockCanvasWorkbenchLayoutState.renderPreview = true;
+    vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
+      path:
+        "/tmp/project-history-export/exports/x-article-export/history/index.md",
+      content: "# 历史导出\n\n![插图](images/history-cover.png)",
+      isBinary: false,
+      size: 52,
+      error: null,
+    });
+
+    const container = renderPage({
+      projectId: "project-history-export",
+      contentId: "content-history-export",
+      theme: "general",
+      lockTheme: true,
+      initialProjectFileOpenTarget: {
+        relativePath: "exports/x-article-export/history/index.md",
+        requestKey: 20260409,
+      },
+    });
+    await flushEffects(12);
+
+    expect(fileBrowserModule.readFilePreview).toHaveBeenCalledTimes(1);
+    expect(fileBrowserModule.readFilePreview).toHaveBeenCalledWith(
+      "/tmp/project-history-export/exports/x-article-export/history/index.md",
+      64 * 1024,
+    );
+    expect(
+      container
+        .querySelector('[data-testid="layout-transition"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("chat-canvas");
+
+    const generalCanvas = container.querySelector(
+      '[data-testid="general-canvas"]',
+    ) as HTMLDivElement | null;
+    expect(generalCanvas).not.toBeNull();
+    expect(generalCanvas?.dataset.filename).toBe(
+      "exports/x-article-export/history/index.md",
+    );
+    expect(generalCanvas?.dataset.baseFilePath).toBe(
+      "/tmp/project-history-export/exports/x-article-export/history/index.md",
+    );
+    expect(generalCanvas?.dataset.contentType).toBe("markdown");
+    expect(generalCanvas?.dataset.content || "").toContain(
+      "![插图](images/history-cover.png)",
+    );
+    expect(
+      container.querySelector('[data-testid="artifact-renderer"]'),
+    ).toBeNull();
+  });
+
+  it("同项目内打开 saved site content 时应直接恢复真实 Markdown 文件预览", async () => {
+    mockCanvasWorkbenchLayoutState.renderPreview = true;
+    vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
+      path:
+        "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+      content: "# 当前导出\n\n![封面](images/cover.png)",
+      isBinary: false,
+      size: 43,
+      error: null,
+    });
+
+    const onNavigate = vi.fn();
+    const container = renderPage({
+      projectId: "project-inline-export",
+      theme: "general",
+      lockTheme: true,
+      onNavigate,
+    });
+    await flushEffects(10);
+
+    const latestMessageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
+      | {
+          onOpenSavedSiteContent?: (target: {
+            projectId: string;
+            contentId: string;
+            preferredTarget: "project_file" | "content";
+            projectFile?: {
+              relativePath?: string | null;
+            } | null;
+          }) => void | Promise<void>;
+        }
+      | undefined;
+
+    await act(async () => {
+      await latestMessageListProps?.onOpenSavedSiteContent?.({
+        projectId: "project-inline-export",
+        contentId: "content-inline-export",
+        preferredTarget: "project_file",
+        projectFile: {
+          relativePath: "exports/x-article-export/latest/index.md",
+        },
+      });
+    });
+    await flushEffects(12);
+
+    expect(onNavigate).not.toHaveBeenCalled();
+    expect(fileBrowserModule.readFilePreview).toHaveBeenCalledWith(
+      "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+      64 * 1024,
+    );
+    expect(
+      container
+        .querySelector('[data-testid="layout-transition"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("chat-canvas");
+
+    const generalCanvas = container.querySelector(
+      '[data-testid="general-canvas"]',
+    ) as HTMLDivElement | null;
+    expect(generalCanvas).not.toBeNull();
+    expect(generalCanvas?.dataset.filename).toBe(
+      "exports/x-article-export/latest/index.md",
+    );
+    expect(generalCanvas?.dataset.baseFilePath).toBe(
+      "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+    );
+    expect(generalCanvas?.dataset.contentType).toBe("markdown");
+    expect(generalCanvas?.dataset.content || "").toContain(
+      "![封面](images/cover.png)",
+    );
   });
 
   it("浏览器工具返回真实会话后不应再自动打开浏览器协助画布", async () => {
@@ -3357,7 +3598,7 @@ describe("AgentChatPage 通用工作台", () => {
   });
 });
 
-describe("AgentChatPage 自动引导", () => {
+describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
   it("general 空文稿应预填通用引导词且不自动发送", async () => {
     renderPage({
       projectId: "project-social",

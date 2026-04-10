@@ -449,6 +449,8 @@ describe("DeveloperSettings", () => {
     await flushEffects();
 
     const text = container.textContent ?? "";
+    expect(text).toContain("开发者");
+    expect(text).toContain("管理处理工作台、组件调试和诊断动作。");
     expect(text).toContain("处理工作台与信息收集");
     expect(text).toContain("服务型技能目录联调");
     expect(text).toContain("站点脚本目录联调");

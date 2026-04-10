@@ -63,12 +63,6 @@ interface SurfacePanelProps {
   children: ReactNode;
 }
 
-interface StatCardProps {
-  label: string;
-  value: string;
-  description: string;
-}
-
 const THEME_OPTIONS: ThemeOption[] = [
   {
     id: "light",
@@ -146,28 +140,10 @@ function SurfacePanel({
   );
 }
 
-function StatCard({ label, value, description }: StatCardProps) {
-  return (
-    <div className="rounded-[22px] border border-white/90 bg-white/88 p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-slate-500">
-        <span>{label}</span>
-        <WorkbenchInfoTip
-          ariaLabel={`${label}说明`}
-          content={description}
-          tone="slate"
-        />
-      </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function LoadingSkeleton() {
   return (
     <div className="space-y-6 pb-8">
-      <div className="h-[228px] animate-pulse rounded-[30px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)]" />
+      <div className="h-[132px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
         <div className="h-[320px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
         <div className="h-[320px] animate-pulse rounded-[26px] border border-slate-200/80 bg-white" />
@@ -414,60 +390,34 @@ export function AppearanceSettings() {
         </div>
       ) : null}
 
-      <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(244,251,248,0.98)_0%,rgba(248,250,252,0.98)_45%,rgba(241,246,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-        <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
-        <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
-
-        <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(360px,0.88fr)] xl:items-stretch">
-            <div className="max-w-3xl space-y-5">
-              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                APPEARANCE STUDIO
-              </span>
-
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[28px] font-semibold tracking-tight text-slate-900">
-                    把界面观感、主导航入口和推荐行为放在同一个视图里调整
-                  </p>
-                  <WorkbenchInfoTip
-                    ariaLabel="外观设置总览说明"
-                    content="主题、语言、提示音效，以及工作区里的侧栏入口和推荐行为，都在这里统一维护。"
-                    tone="mint"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  主题：{workspaceSummary.themeLabel}
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  语言：{workspaceSummary.languageLabel}
-                </span>
-                <span className="rounded-full border border-white/90 bg-white/88 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-                  提示音效：{workspaceSummary.soundsLabel}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 xl:content-start">
-              <StatCard
-                label="主导航入口"
-                value={visibleNavItemCount.toString()}
-                description="左侧工作区当前可见的导航入口数量。"
-              />
-              <StatCard
-                label="主导航"
-                value={enabledWorkspaceNavCount.toString()}
-                description="主导航区域当前启用的工作台、资料库与系统入口数量。"
-              />
-              <StatCard
-                label="推荐上下文"
-                value={appendSelectedTextToRecommendation ? "开启" : "关闭"}
-                description="控制推荐问题时是否自动带上当前选中内容。"
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+                外观
+              </h1>
+              <WorkbenchInfoTip
+                ariaLabel="外观设置总览说明"
+                content="管理主题、语言、提示音效，以及左侧导航入口和推荐行为。"
+                tone="mint"
               />
             </div>
+            <p className="text-sm text-slate-500">
+              管理主题、语言、导航入口和推荐行为。
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              主题：{workspaceSummary.themeLabel}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              语言：{workspaceSummary.languageLabel}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+              提示音效：{workspaceSummary.soundsLabel}
+            </span>
           </div>
         </div>
       </section>

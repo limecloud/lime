@@ -38,6 +38,7 @@ export function buildCanvasWorkbenchDefaultPreview({
 
     const filePath = generalCanvasState.filename?.trim() || undefined;
     return {
+      selectionKey: `default-preview:${filePath || "current-canvas"}`,
       title: filePath ? extractFileNameFromPath(filePath) : "当前画布草稿",
       content: generalCanvasState.content,
       filePath,

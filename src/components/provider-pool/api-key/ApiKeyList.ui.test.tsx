@@ -97,7 +97,7 @@ describe("ApiKeyList", () => {
     const container = renderList({
       providerId: "ollama",
       providerName: "Ollama",
-      apiHost: "http://localhost:11434",
+      apiHost: "http://127.0.0.1:11434",
     });
 
     const infoButton = container.querySelector<HTMLButtonElement>(

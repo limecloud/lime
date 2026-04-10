@@ -231,7 +231,7 @@ describe("useWorkspaceWriteFileAction", () => {
     expect(setSelectedArtifactId).not.toHaveBeenCalled();
   });
 
-  it("进行中的流式写入仍应自动展开画布，便于实时查看输出", async () => {
+  it("进行中的流式写入应只更新当前产物态，不再自动展开画布", async () => {
     const setArtifactViewMode = vi.fn();
     const setLayoutMode = vi.fn();
     const { render, getValue } = renderHook({
@@ -257,7 +257,7 @@ describe("useWorkspaceWriteFileAction", () => {
         artifactId: expect.any(String),
       }),
     );
-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+    expect(setLayoutMode).not.toHaveBeenCalled();
   });
 
   it("内容发布主稿写入时应把创作语义 metadata 一起持久化并挂到任务文件", async () => {

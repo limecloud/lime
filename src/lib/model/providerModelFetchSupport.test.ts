@@ -47,7 +47,7 @@ describe("providerModelFetchSupport", () => {
       getProviderModelAutoFetchCapability({
         providerId: "ollama",
         providerType: "ollama",
-        apiHost: "http://localhost:11434",
+        apiHost: "http://127.0.0.1:11434",
       }),
     ).toEqual({
       supported: true,

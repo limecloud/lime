@@ -9,10 +9,12 @@ const mockHasDevBridgeEventListenerCapability = vi.hoisted(() =>
   vi.fn(() => false),
 );
 const mockHasTauriEventListenerCapability = vi.hoisted(() => vi.fn(() => true));
+const mockSafeListen = vi.hoisted(() => vi.fn(async () => () => {}));
 
 vi.mock("@/lib/dev-bridge", () => ({
   hasDevBridgeEventListenerCapability: mockHasDevBridgeEventListenerCapability,
   isDevBridgeAvailable: mockIsDevBridgeAvailable,
+  safeListen: mockSafeListen,
 }));
 
 vi.mock("@/lib/tauri-runtime", () => ({
@@ -112,6 +114,7 @@ describe("useAgentRuntimeSyncEffects", () => {
     mockIsDevBridgeAvailable.mockReturnValue(false);
     mockHasDevBridgeEventListenerCapability.mockReturnValue(false);
     mockHasTauriEventListenerCapability.mockReturnValue(true);
+    mockSafeListen.mockResolvedValue(() => {});
   });
 
   afterEach(() => {

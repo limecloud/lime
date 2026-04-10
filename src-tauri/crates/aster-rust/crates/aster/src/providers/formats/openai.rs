@@ -38,8 +38,9 @@ struct Delta {
     content: Option<String>,
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
-    /// DeepSeek reasoner 模型的推理内容
+    /// OpenAI-compatible 推理内容，兼容 DeepSeek(`reasoning_content`) 与 Ollama(`reasoning`)
     reasoning_content: Option<String>,
+    reasoning: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -306,10 +307,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
 
     let mut content = Vec::new();
 
-    if let Some(reasoning) = original.get("reasoning_content").and_then(|v| v.as_str()) {
-        if !reasoning.is_empty() {
-            content.push(MessageContent::thinking(reasoning, ""));
-        }
+    if let Some(reasoning) = extract_openai_reasoning_text(original) {
+        content.push(MessageContent::thinking(reasoning, ""));
     }
 
     if let Some(text) = original.get("content") {
@@ -458,6 +457,29 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
     line.strip_prefix("data: ").map(|s| s.trim())
 }
 
+fn normalized_openai_reasoning_text<'a>(
+    reasoning_content: Option<&'a str>,
+    reasoning: Option<&'a str>,
+) -> Option<&'a str> {
+    reasoning_content
+        .filter(|value| !value.is_empty())
+        .or_else(|| reasoning.filter(|value| !value.is_empty()))
+}
+
+fn extract_openai_reasoning_text(message: &Value) -> Option<&str> {
+    normalized_openai_reasoning_text(
+        message.get("reasoning_content").and_then(Value::as_str),
+        message.get("reasoning").and_then(Value::as_str),
+    )
+}
+
+fn extract_openai_stream_reasoning_delta(delta: &Delta) -> Option<&str> {
+    normalized_openai_reasoning_text(
+        delta.reasoning_content.as_deref(),
+        delta.reasoning.as_deref(),
+    )
+}
+
 pub fn response_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -579,11 +601,11 @@ where
                     }
                 }
 
-                // 如果有 reasoning_content（DeepSeek reasoner），添加为 Thinking 内容
-                if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
-                    if !reasoning.is_empty() {
-                        contents.insert(0, MessageContent::thinking(reasoning.clone(), ""));
-                    }
+                // 如果有推理内容，添加为 Thinking 内容
+                if let Some(reasoning) =
+                    extract_openai_stream_reasoning_delta(&chunk.choices[0].delta)
+                {
+                    contents.insert(0, MessageContent::thinking(reasoning.to_string(), ""));
                 }
 
                 let mut msg = Message::new(
@@ -601,14 +623,16 @@ where
                     Some(msg),
                     usage,
                 )
-            } else if chunk.choices[0].delta.content.is_some() || chunk.choices[0].delta.reasoning_content.is_some() {
+            } else if chunk.choices[0].delta.content.is_some()
+                || extract_openai_stream_reasoning_delta(&chunk.choices[0].delta).is_some()
+            {
                 let mut contents = Vec::new();
 
-                // 处理 reasoning_content（DeepSeek reasoner）
-                if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
-                    if !reasoning.is_empty() {
-                        contents.push(MessageContent::thinking(reasoning.clone(), ""));
-                    }
+                // 处理推理内容（兼容 reasoning_content / reasoning）
+                if let Some(reasoning) =
+                    extract_openai_stream_reasoning_delta(&chunk.choices[0].delta)
+                {
+                    contents.push(MessageContent::thinking(reasoning.to_string(), ""));
                 }
 
                 // 处理普通文本内容
@@ -1172,6 +1196,36 @@ mod tests {
     }
 
     #[test]
+    fn test_response_to_message_with_ollama_reasoning_alias() -> anyhow::Result<()> {
+        let response = json!({
+            "choices": [{
+                "role": "assistant",
+                "message": {
+                    "reasoning": "先思考，再给答案。",
+                    "content": "收到"
+                }
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+        assert_eq!(message.content.len(), 2);
+
+        if let MessageContent::Thinking(thinking) = &message.content[0] {
+            assert_eq!(thinking.thinking, "先思考，再给答案。");
+        } else {
+            panic!("Expected Thinking content");
+        }
+
+        if let MessageContent::Text(text) = &message.content[1] {
+            assert_eq!(text.text, "收到");
+        } else {
+            panic!("Expected Text content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn test_response_to_message_valid_toolrequest() -> anyhow::Result<()> {
         let response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
         let message = response_to_message(&response)?;
@@ -1557,5 +1611,58 @@ data: [DONE]
         }
 
         panic!("Expected tool call message with two calls, but did not see it");
+    }
+
+    #[tokio::test]
+    async fn test_streaming_response_with_ollama_reasoning_delta() -> anyhow::Result<()> {
+        let response_lines = [
+            r#"data: {"model":"deepseek-r1:latest","choices":[{"delta":{"role":"assistant","reasoning":"先想一下"},"index":0,"finish_reason":null}],"id":"chatcmpl-ollama-1"}"#,
+            r#"data: {"model":"deepseek-r1:latest","choices":[{"delta":{"content":"收到"},"index":0,"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10},"id":"chatcmpl-ollama-1"}"#,
+            "data: [DONE]",
+        ];
+
+        let response_stream =
+            tokio_stream::iter(response_lines.into_iter().map(|line| Ok(line.to_string())));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut seen_thinking = false;
+        let mut seen_text = false;
+        let mut seen_usage = false;
+
+        while let Some(Ok((message, usage))) = messages.next().await {
+            if let Some(msg) = message {
+                for content in msg.content {
+                    match content {
+                        MessageContent::Thinking(thinking) => {
+                            assert_eq!(thinking.thinking, "先想一下");
+                            seen_thinking = true;
+                        }
+                        MessageContent::Text(text) => {
+                            assert_eq!(text.text, "收到");
+                            seen_text = true;
+                        }
+                        other => panic!("Unexpected content: {:?}", other),
+                    }
+                }
+            }
+
+            if let Some(provider_usage) = usage {
+                assert_eq!(provider_usage.model, "deepseek-r1:latest");
+                assert_eq!(provider_usage.usage.input_tokens, Some(7));
+                assert_eq!(provider_usage.usage.output_tokens, Some(3));
+                assert_eq!(provider_usage.usage.total_tokens, Some(10));
+                seen_usage = true;
+            }
+        }
+
+        assert!(
+            seen_thinking,
+            "Expected reasoning delta to emit Thinking content"
+        );
+        assert!(seen_text, "Expected content delta to emit Text content");
+        assert!(seen_usage, "Expected finish chunk to emit usage");
+
+        Ok(())
     }
 }

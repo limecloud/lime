@@ -121,7 +121,7 @@ pub async fn handle_command(
         return Ok(result);
     }
 
-    if let Some(result) = models::try_handle(state, cmd).await? {
+    if let Some(result) = models::try_handle(state, cmd, args.as_ref()).await? {
         return Ok(result);
     }
 
@@ -593,5 +593,22 @@ mod tests {
         .expect_err("execute_skill without app handle should fail");
 
         assert!(error.to_string().contains("Dev Bridge 未持有 AppHandle"));
+    }
+
+    #[tokio::test]
+    async fn fetch_provider_models_auto_is_bridged() {
+        let state = make_test_state();
+
+        let error = handle_command(
+            &state,
+            "fetch_provider_models_auto",
+            Some(serde_json::json!({
+                "providerId": "ollama"
+            })),
+        )
+        .await
+        .expect_err("missing provider should fail after bridge routing");
+
+        assert!(error.to_string().contains("Provider 不存在: ollama"));
     }
 }

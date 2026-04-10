@@ -373,7 +373,7 @@ impl Tool for ToolSearchBridgeTool {
     }
 }
 
-pub(super) fn register_tool_search_tool_to_registry(
+pub(crate) fn register_tool_search_tool_to_registry(
     registry: &mut aster::tools::ToolRegistry,
     registry_arc: Arc<tokio::sync::RwLock<aster::tools::ToolRegistry>>,
     extension_manager: Option<Arc<aster::agents::extension_manager::ExtensionManager>>,

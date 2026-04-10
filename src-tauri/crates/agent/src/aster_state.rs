@@ -130,6 +130,10 @@ pub struct ProviderConfig {
     pub force_responses_api: bool,
     /// OAuth/本地 Provider 需要的凭证文件路径
     pub credential_path: Option<String>,
+    /// 当前回合是否需要用 toolshim 兼容无原生 tools 的模型
+    pub toolshim: bool,
+    /// toolshim 解释器模型（可与实际回复模型不同）
+    pub toolshim_model: Option<String>,
 }
 
 impl ProviderContinuationCapable for ProviderConfig {
@@ -303,6 +307,8 @@ impl AsterAgentState {
                 .unwrap_or_else(|| format!("manual:{session_id}")),
             force_responses_api: config.force_responses_api,
             credential_path: config.credential_path.clone(),
+            toolshim: config.toolshim,
+            toolshim_model: config.toolshim_model.clone(),
         })
         .await
         .map_err(|e| format!("创建 Provider 失败: {e}"))?;
@@ -383,6 +389,8 @@ impl AsterAgentState {
             credential_uuid: Some(aster_config.credential_uuid.clone()),
             force_responses_api: aster_config.force_responses_api,
             credential_path: aster_config.credential_path.clone(),
+            toolshim: aster_config.toolshim,
+            toolshim_model: aster_config.toolshim_model.clone(),
         };
         let mut config_guard = self.current_provider_config.write().await;
         *config_guard = Some(config);
@@ -846,6 +854,8 @@ mod tests {
             credential_uuid: None,
             force_responses_api: false,
             credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
         };
 
         assert_eq!(
@@ -869,6 +879,8 @@ mod tests {
             credential_uuid: None,
             force_responses_api: true,
             credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
         };
 
         assert_eq!(
@@ -892,6 +904,8 @@ mod tests {
             credential_uuid: None,
             force_responses_api: false,
             credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
         };
 
         assert_eq!(

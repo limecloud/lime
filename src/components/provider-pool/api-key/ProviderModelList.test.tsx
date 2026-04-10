@@ -184,7 +184,7 @@ describe("ProviderModelList", () => {
       providerId: "ollama",
       providerType: "ollama",
       hasApiKey: false,
-      apiHost: "http://localhost:11434",
+      apiHost: "http://127.0.0.1:11434",
     });
 
     await act(async () => {

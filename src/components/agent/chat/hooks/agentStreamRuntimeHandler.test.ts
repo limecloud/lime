@@ -3,9 +3,26 @@ import type { AgentEvent } from "@/lib/api/agentProtocol";
 import type { Message } from "../types";
 import { handleTurnStreamEvent } from "./agentStreamRuntimeHandler";
 
+const { mockToast } = vi.hoisted(() => ({
+  mockToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
+}));
+
+vi.mock("sonner", () => ({
+  toast: mockToast,
+}));
+
 describe("agentStreamRuntimeHandler", () => {
   afterEach(() => {
     vi.useRealTimers();
+    mockToast.success.mockReset();
+    mockToast.error.mockReset();
+    mockToast.info.mockReset();
+    mockToast.warning.mockReset();
   });
 
   it("收到 final_done 时应把 usage 写回 assistant 消息", () => {
@@ -223,6 +240,140 @@ describe("agentStreamRuntimeHandler", () => {
 
     expect(messages[0]?.content).toBe(
       "本轮执行已完成，详细过程与产物已保留在当前对话中。",
+    );
+  });
+
+  it("站点导出在 tool_end 已登记结果时，空 final_done 不应误报缺少最终答复", () => {
+    let messages: Message[] = [
+      {
+        id: "assistant-site-export",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-07T10:00:00.000Z"),
+        isThinking: true,
+        toolCalls: [
+          {
+            id: "tool-site-export-1",
+            name: "site_run_adapter",
+            status: "running",
+            startTime: new Date("2026-04-07T10:00:00.000Z"),
+          },
+        ],
+      },
+    ];
+
+    const requestState = {
+      accumulatedContent: "",
+      hasMeaningfulCompletionSignal: false,
+      queuedTurnId: null,
+      requestLogId: null,
+      requestStartedAt: 0,
+      requestFinished: false,
+    };
+
+    const callbacks = {
+      activateStream: () => {},
+      isStreamActivated: () => true,
+      clearOptimisticItem: () => {},
+      clearOptimisticTurn: () => {},
+      disposeListener: () => {},
+      removeQueuedDraftMessages: () => {},
+      clearActiveStreamIfMatch: () => true,
+      upsertQueuedTurn: () => {},
+      removeQueuedTurnState: () => {},
+      playToolcallSound: () => {},
+      playTypewriterSound: () => {},
+      appendThinkingToParts: (parts: NonNullable<Message["contentParts"]>) =>
+        parts,
+    };
+
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+
+    handleTurnStreamEvent({
+      data: {
+        type: "tool_end",
+        tool_id: "tool-site-export-1",
+        result: {
+          success: true,
+          output: "exports/x-article-export/article/index.md",
+          metadata: {
+            tool_family: "site",
+            saved_content: {
+              content_id: "content-site-export-1",
+              project_id: "project-site-export-1",
+              markdown_relative_path:
+                "exports/x-article-export/article/index.md",
+            },
+          },
+        },
+      } as AgentEvent,
+      requestState,
+      callbacks,
+      eventName: "agent-runtime-test",
+      pendingTurnKey: "pending-turn",
+      pendingItemKey: "pending-item",
+      assistantMsgId: "assistant-site-export",
+      activeSessionId: "session-1",
+      resolvedWorkspaceId: "workspace-1",
+      effectiveExecutionStrategy: "react",
+      content: "",
+      runtime: {} as never,
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>([
+        ["tool-site-export-1", "site_run_adapter"],
+      ]),
+      setMessages: setMessages as never,
+      setPendingActions: vi.fn() as never,
+      setThreadItems: vi.fn() as never,
+      setThreadTurns: vi.fn() as never,
+      setCurrentTurnId: vi.fn() as never,
+      setExecutionRuntime: vi.fn() as never,
+      setIsSending: vi.fn() as never,
+    });
+
+    expect(requestState.hasMeaningfulCompletionSignal).toBe(true);
+
+    handleTurnStreamEvent({
+      data: {
+        type: "final_done",
+      } as AgentEvent,
+      requestState,
+      callbacks,
+      eventName: "agent-runtime-test",
+      pendingTurnKey: "pending-turn",
+      pendingItemKey: "pending-item",
+      assistantMsgId: "assistant-site-export",
+      activeSessionId: "session-1",
+      resolvedWorkspaceId: "workspace-1",
+      effectiveExecutionStrategy: "react",
+      content: "",
+      runtime: {} as never,
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      setMessages: setMessages as never,
+      setPendingActions: vi.fn() as never,
+      setThreadItems: vi.fn() as never,
+      setThreadTurns: vi.fn() as never,
+      setCurrentTurnId: vi.fn() as never,
+      setExecutionRuntime: vi.fn() as never,
+      setIsSending: vi.fn() as never,
+    });
+
+    expect(messages[0]?.content).toBe(
+      "本轮执行已完成，详细过程与产物已保留在当前对话中。",
+    );
+    expect(mockToast.error).not.toHaveBeenCalledWith(
+      "已完成工具执行，但模型未输出最终答复，请重试",
     );
   });
 

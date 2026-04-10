@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   Settings2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +41,8 @@ const itemClassName =
 
 const BACKGROUND_PRELOAD_IDLE_TIMEOUT_MS = 1_500;
 const BACKGROUND_PRELOAD_FALLBACK_DELAY_MS = 180;
+const NO_PROVIDER_GUIDE_DISMISSED_STORAGE_KEY =
+  "lime_model_selector_no_provider_guide_dismissed_v1";
 
 const THEME_LABEL_MAP: Record<string, string> = {
   general: "通用对话",
@@ -73,6 +76,18 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   backgroundPreload = "immediate",
 }) => {
   const [open, setOpen] = useState(false);
+  const [noProviderGuideDismissed, setNoProviderGuideDismissed] = useState(
+    () => {
+      if (typeof window === "undefined") {
+        return false;
+      }
+      return (
+        window.localStorage.getItem(
+          NO_PROVIDER_GUIDE_DISMISSED_STORAGE_KEY,
+        ) === "1"
+      );
+    },
+  );
   const [backgroundProviderLoadReady, setBackgroundProviderLoadReady] =
     useState(false);
   const hasInitialized = useRef(false);
@@ -284,7 +299,29 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const showNoProviderGuide =
     shouldLoadProviders &&
     !providersLoading &&
-    configuredProviders.length === 0;
+    configuredProviders.length === 0 &&
+    !noProviderGuideDismissed;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (configuredProviders.length === 0) {
+      return;
+    }
+    window.localStorage.removeItem(NO_PROVIDER_GUIDE_DISMISSED_STORAGE_KEY);
+    setNoProviderGuideDismissed(false);
+  }, [configuredProviders.length]);
+
+  const handleDismissNoProviderGuide = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        NO_PROVIDER_GUIDE_DISMISSED_STORAGE_KEY,
+        "1",
+      );
+    }
+    setNoProviderGuideDismissed(true);
+  };
 
   if (showNoProviderGuide) {
     return (
@@ -306,17 +343,29 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               </div>
             </div>
           </div>
-          {onManageProviders && (
+          <div className="flex shrink-0 items-center gap-2">
+            {onManageProviders && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 border-amber-300 bg-white text-amber-800 hover:bg-amber-100 hover:text-amber-900"
+                onClick={onManageProviders}
+              >
+                配置
+              </Button>
+            )}
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 shrink-0 border-amber-300 bg-white text-amber-800 hover:bg-amber-100 hover:text-amber-900"
-              onClick={onManageProviders}
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-full text-amber-700 hover:bg-amber-100 hover:text-amber-900"
+              aria-label="关闭工具模型未配置提示"
+              onClick={handleDismissNoProviderGuide}
             >
-              配置
+              <X className="h-4 w-4" />
             </Button>
-          )}
+          </div>
         </div>
       </div>
     );

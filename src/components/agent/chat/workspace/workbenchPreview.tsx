@@ -296,6 +296,7 @@ export function WorkspaceLiveCanvasPreview({
       return (
         <GeneralCanvasPanel
           {...generalCanvasPanelProps}
+          chrome="embedded"
           toolbarActions={stackedWorkbenchTrigger}
         />
       );
