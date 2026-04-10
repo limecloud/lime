@@ -1,5 +1,8 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage,
+    SessionNameGenerationExecutionStrategy, Usage,
+};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
@@ -276,6 +279,10 @@ impl Provider for OllamaProvider {
         description = Self::filter_reasoning_tokens(&description);
 
         Ok(safe_truncate(&description, 100))
+    }
+
+    fn session_name_generation_execution_strategy(&self) -> SessionNameGenerationExecutionStrategy {
+        SessionNameGenerationExecutionStrategy::AfterReply
     }
 
     fn supports_streaming(&self) -> bool {

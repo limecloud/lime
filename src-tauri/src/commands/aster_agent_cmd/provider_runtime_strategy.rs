@@ -1,4 +1,5 @@
 use super::dto::ConfigureProviderRequest;
+use aster::network::should_bypass_system_proxy_for_url;
 use lime_core::models::model_registry::ModelCapabilities;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -95,6 +96,17 @@ fn default_runtime_model_capabilities() -> ModelCapabilities {
         json_mode: true,
         function_calling: true,
         reasoning: false,
+    }
+}
+
+fn conservative_ollama_fallback_capabilities(fallback: &ModelCapabilities) -> ModelCapabilities {
+    ModelCapabilities {
+        vision: fallback.vision,
+        tools: false,
+        streaming: true,
+        json_mode: false,
+        function_calling: false,
+        reasoning: fallback.reasoning,
     }
 }
 
@@ -229,10 +241,16 @@ pub(crate) async fn resolve_runtime_tool_call_decision(
         .cloned()
         .unwrap_or_else(default_runtime_model_capabilities);
     let base_url = normalize_ollama_base_url(base_url);
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(OLLAMA_RUNTIME_PROBE_TIMEOUT_SECS))
-        .build()
-    {
+    let mut client_builder =
+        reqwest::Client::builder().timeout(Duration::from_secs(OLLAMA_RUNTIME_PROBE_TIMEOUT_SECS));
+    if should_bypass_system_proxy_for_url(&base_url) {
+        tracing::info!(
+            "[AsterAgent] Ollama 运行时能力探测绕过系统代理: {}",
+            base_url
+        );
+        client_builder = client_builder.no_proxy();
+    }
+    let client = match client_builder.build() {
         Ok(client) => client,
         Err(error) => {
             tracing::warn!(
@@ -243,8 +261,8 @@ pub(crate) async fn resolve_runtime_tool_call_decision(
                 provider_selector,
                 provider_name,
                 model_name,
-                fallback_capabilities,
-                None,
+                conservative_ollama_fallback_capabilities(&fallback_capabilities),
+                Some(model_name.to_string()),
             );
         }
     };
@@ -258,7 +276,7 @@ pub(crate) async fn resolve_runtime_tool_call_decision(
     .await
     else {
         tracing::warn!(
-            "[AsterAgent] 读取 Ollama 模型能力失败，回退 catalog 能力: model={}, base_url={}",
+            "[AsterAgent] 读取 Ollama 模型能力失败，保守降级到 toolshim: model={}, base_url={}",
             model_name,
             base_url
         );
@@ -266,8 +284,8 @@ pub(crate) async fn resolve_runtime_tool_call_decision(
             provider_selector,
             provider_name,
             model_name,
-            fallback_capabilities,
-            None,
+            conservative_ollama_fallback_capabilities(&fallback_capabilities),
+            Some(model_name.to_string()),
         );
     };
 
@@ -377,6 +395,27 @@ mod tests {
         assert!(parsed.function_calling);
         assert!(parsed.reasoning);
         assert!(parsed.json_mode);
+    }
+
+    #[test]
+    fn conservative_ollama_fallback_disables_native_tool_flags() {
+        let fallback = ModelCapabilities {
+            vision: true,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+        };
+
+        let parsed = conservative_ollama_fallback_capabilities(&fallback);
+
+        assert!(parsed.vision);
+        assert!(parsed.streaming);
+        assert!(parsed.reasoning);
+        assert!(!parsed.tools);
+        assert!(!parsed.function_calling);
+        assert!(!parsed.json_mode);
     }
 
     #[tokio::test]

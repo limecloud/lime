@@ -186,6 +186,31 @@ pub fn should_bypass_proxy(target_url: &str, no_proxy: &[String]) -> bool {
     false
 }
 
+/// 检查目标 URL 是否应直接绕过系统代理。
+///
+/// 主要用于本地 loopback / unspecified 地址，避免本机服务请求被系统代理截流。
+pub fn should_bypass_system_proxy_for_url(target_url: &str) -> bool {
+    let Ok(url) = Url::parse(target_url) else {
+        return false;
+    };
+
+    let Some(hostname) = url.host_str() else {
+        return false;
+    };
+
+    if matches!(
+        hostname,
+        "localhost" | "127.0.0.1" | "::1" | "0.0.0.0" | "host.docker.internal"
+    ) {
+        return true;
+    }
+
+    hostname
+        .parse::<std::net::IpAddr>()
+        .map(|ip| ip.is_loopback() || ip.is_unspecified())
+        .unwrap_or(false)
+}
+
 /// 获取目标 URL 的代理 URL
 pub fn get_proxy_for_url(target_url: &str, config: &ProxyConfig) -> Option<String> {
     // 检查是否绕过代理

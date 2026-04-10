@@ -37,6 +37,7 @@ use super::ollama::OLLAMA_HOST;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
+use crate::network::should_bypass_system_proxy_for_url;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
 use reqwest::Client;
@@ -76,12 +77,18 @@ impl OllamaInterpreter {
     }
 
     pub fn new_with_model(interpreter_model: Option<String>) -> Result<Self, ProviderError> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(600))
+        let base_url = Self::get_ollama_base_url()?;
+        let mut client_builder = Client::builder().timeout(Duration::from_secs(600));
+        if should_bypass_system_proxy_for_url(&base_url) {
+            tracing::info!(
+                "[ToolShim] 本地 Ollama 结构化请求绕过系统代理: {}",
+                base_url
+            );
+            client_builder = client_builder.no_proxy();
+        }
+        let client = client_builder
             .build()
             .expect("Failed to create HTTP client");
-
-        let base_url = Self::get_ollama_base_url()?;
 
         Ok(Self {
             client,

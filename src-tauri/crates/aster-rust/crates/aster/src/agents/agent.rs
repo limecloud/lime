@@ -40,7 +40,7 @@ use crate::model::ModelConfig;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
-use crate::providers::base::Provider;
+use crate::providers::base::{Provider, SessionNameGenerationExecutionStrategy};
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
@@ -3330,17 +3330,26 @@ impl Agent {
         let provider = self.provider().await?;
         let session_for_name = session.clone().without_messages();
         let conversation_for_name = conversation.clone();
-        tokio::spawn(async move {
-            if let Err(e) = SessionManager::maybe_update_name_for_session(
-                &session_for_name,
-                &conversation_for_name,
-                provider,
-            )
-            .await
-            {
-                warn!("Failed to generate session description: {}", e);
-            }
-        });
+        let deferred_session_name_generation =
+            match provider.session_name_generation_execution_strategy() {
+                SessionNameGenerationExecutionStrategy::Background => {
+                    tokio::spawn(async move {
+                        if let Err(e) = SessionManager::maybe_update_name_for_session(
+                            &session_for_name,
+                            &conversation_for_name,
+                            provider,
+                        )
+                        .await
+                        {
+                            warn!("Failed to generate session description: {}", e);
+                        }
+                    });
+                    None
+                }
+                SessionNameGenerationExecutionStrategy::AfterReply => {
+                    Some((session_for_name, conversation_for_name, provider))
+                }
+            };
         let working_dir = session.working_dir.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
@@ -3800,6 +3809,22 @@ impl Agent {
                 }
 
                 tokio::task::yield_now().await;
+            }
+
+            if let Some((session_for_name, conversation_for_name, provider)) =
+                deferred_session_name_generation
+            {
+                tokio::spawn(async move {
+                    if let Err(e) = SessionManager::maybe_update_name_for_session(
+                        &session_for_name,
+                        &conversation_for_name,
+                        provider,
+                    )
+                    .await
+                    {
+                        warn!("Failed to generate session description: {}", e);
+                    }
+                });
             }
         }))
     }

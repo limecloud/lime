@@ -35,6 +35,12 @@ pub fn get_current_model() -> Option<String> {
 
 pub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionNameGenerationExecutionStrategy {
+    Background,
+    AfterReply,
+}
+
 /// Information about a model's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct ModelInfo {
@@ -575,6 +581,10 @@ pub trait Provider: Send + Sync {
             .join(" ");
 
         Ok(safe_truncate(&description, 100))
+    }
+
+    fn session_name_generation_execution_strategy(&self) -> SessionNameGenerationExecutionStrategy {
+        SessionNameGenerationExecutionStrategy::Background
     }
 
     // Generate a prompt for a session name based on the conversation history

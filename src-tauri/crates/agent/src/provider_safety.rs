@@ -2,6 +2,7 @@ use aster::conversation::message::{Message, MessageContent};
 use aster::model::ModelConfig;
 use aster::providers::base::{
     LeadWorkerProviderTrait, MessageStream, Provider, ProviderMetadata, ProviderUsage,
+    SessionNameGenerationExecutionStrategy,
 };
 use aster::providers::errors::ProviderError;
 use aster::providers::RetryConfig;
@@ -201,6 +202,17 @@ impl Provider for ProviderSafety {
         self.inner.get_active_model_name()
     }
 
+    async fn generate_session_name(
+        &self,
+        messages: &aster::conversation::Conversation,
+    ) -> Result<String, ProviderError> {
+        self.inner.generate_session_name(messages).await
+    }
+
+    fn session_name_generation_execution_strategy(&self) -> SessionNameGenerationExecutionStrategy {
+        self.inner.session_name_generation_execution_strategy()
+    }
+
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
         self.inner.configure_oauth().await
     }
@@ -212,8 +224,11 @@ mod tests {
         normalize_provider_messages, normalize_provider_model_config, wrap_provider_with_safety,
     };
     use aster::conversation::message::{Message, MessageContent};
+    use aster::conversation::Conversation;
     use aster::model::ModelConfig;
-    use aster::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+    use aster::providers::base::{
+        Provider, ProviderMetadata, ProviderUsage, SessionNameGenerationExecutionStrategy, Usage,
+    };
     use aster::providers::errors::ProviderError;
     use async_trait::async_trait;
     use rmcp::model::{CallToolRequestParam, CallToolResult, ErrorCode, ErrorData, Tool};
@@ -323,6 +338,55 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
+    struct SessionNamingProvider {
+        model_config: ModelConfig,
+    }
+
+    #[async_trait]
+    impl Provider for SessionNamingProvider {
+        fn metadata() -> ProviderMetadata
+        where
+            Self: Sized,
+        {
+            ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "session-naming"
+        }
+
+        async fn complete_with_model(
+            &self,
+            model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Ok((
+                Message::assistant().with_text("ok"),
+                ProviderUsage::new(model_config.model_name.clone(), Usage::default()),
+            ))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+
+        async fn generate_session_name(
+            &self,
+            _messages: &aster::conversation::Conversation,
+        ) -> Result<String, ProviderError> {
+            Ok("wrapped-title".to_string())
+        }
+
+        fn session_name_generation_execution_strategy(
+            &self,
+        ) -> SessionNameGenerationExecutionStrategy {
+            SessionNameGenerationExecutionStrategy::AfterReply
+        }
+    }
+
     #[tokio::test]
     async fn wrap_provider_with_safety_should_disable_fast_model_for_complete_fast() {
         let seen_models = Arc::new(Mutex::new(Vec::new()));
@@ -367,6 +431,36 @@ mod tests {
         assert_eq!(
             wrapped.get_model_config().fast_model.as_deref(),
             Some("gpt-4o-mini")
+        );
+    }
+
+    #[tokio::test]
+    async fn wrap_provider_with_safety_should_forward_session_name_generation() {
+        let provider = Arc::new(SessionNamingProvider {
+            model_config: ModelConfig::new("deepseek-r1:latest").expect("create model config"),
+        });
+        let wrapped = wrap_provider_with_safety(provider, false);
+        let messages =
+            Conversation::new(vec![Message::user().with_text("你好")]).expect("conversation");
+
+        let generated = wrapped
+            .generate_session_name(&messages)
+            .await
+            .expect("generate session name");
+
+        assert_eq!(generated, "wrapped-title");
+    }
+
+    #[test]
+    fn wrap_provider_with_safety_should_forward_session_name_strategy() {
+        let provider = Arc::new(SessionNamingProvider {
+            model_config: ModelConfig::new("deepseek-r1:latest").expect("create model config"),
+        });
+        let wrapped = wrap_provider_with_safety(provider, false);
+
+        assert_eq!(
+            wrapped.session_name_generation_execution_strategy(),
+            SessionNameGenerationExecutionStrategy::AfterReply
         );
     }
 

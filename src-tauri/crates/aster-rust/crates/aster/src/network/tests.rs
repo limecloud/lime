@@ -49,6 +49,25 @@ fn test_should_bypass_proxy_all() {
 }
 
 #[test]
+fn test_should_bypass_system_proxy_for_loopback_url() {
+    assert!(should_bypass_system_proxy_for_url(
+        "http://127.0.0.1:11434/api/chat"
+    ));
+    assert!(should_bypass_system_proxy_for_url(
+        "http://localhost:11434/api/tags"
+    ));
+    assert!(should_bypass_system_proxy_for_url("http://0.0.0.0:3000"));
+}
+
+#[test]
+fn test_should_not_bypass_system_proxy_for_remote_url() {
+    assert!(!should_bypass_system_proxy_for_url(
+        "https://api.openai.com/v1/chat/completions"
+    ));
+    assert!(!should_bypass_system_proxy_for_url("https://example.com"));
+}
+
+#[test]
 fn test_timeout_config_default() {
     let config = TimeoutConfig::default();
     assert_eq!(config.connect, 30000);

@@ -1,3 +1,4 @@
+use crate::network::should_bypass_system_proxy_for_url;
 use crate::session_context::SESSION_ID_HEADER;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -205,6 +206,10 @@ impl ApiClient {
 
     pub fn with_timeout(host: String, auth: AuthMethod, timeout: Duration) -> Result<Self> {
         let mut client_builder = Client::builder().timeout(timeout);
+        if should_bypass_system_proxy_for_url(&host) {
+            tracing::info!("[ApiClient] 本地地址绕过系统代理: {}", host);
+            client_builder = client_builder.no_proxy();
+        }
 
         // Configure TLS if needed
         let tls_config = TlsConfig::from_config()?;
@@ -228,6 +233,10 @@ impl ApiClient {
         let mut client_builder = Client::builder()
             .timeout(self.timeout)
             .default_headers(self.default_headers.clone());
+        if should_bypass_system_proxy_for_url(&self.host) {
+            tracing::info!("[ApiClient] 重建客户端时绕过系统代理: {}", self.host);
+            client_builder = client_builder.no_proxy();
+        }
 
         // Configure TLS if needed
         if let Some(ref tls_config) = self.tls_config {
@@ -407,6 +416,23 @@ impl fmt::Debug for ApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_bypass_proxy_for_loopback_host() {
+        assert!(should_bypass_system_proxy_for_url("http://127.0.0.1:11434"));
+        assert!(should_bypass_system_proxy_for_url(
+            "http://localhost:11434/api"
+        ));
+        assert!(should_bypass_system_proxy_for_url("http://0.0.0.0:1234"));
+    }
+
+    #[test]
+    fn should_not_bypass_proxy_for_remote_host() {
+        assert!(!should_bypass_system_proxy_for_url(
+            "https://api.openai.com/v1"
+        ));
+        assert!(!should_bypass_system_proxy_for_url("https://example.com"));
+    }
 
     #[tokio::test]
     async fn test_session_id_header_injection() {
