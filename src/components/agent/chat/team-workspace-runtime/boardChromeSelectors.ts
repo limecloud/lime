@@ -1,6 +1,9 @@
 import { formatRelativeTime } from "@/lib/api/project";
 import type { TeamWorkspaceRuntimeStatus } from "../teamWorkspaceRuntime";
-import { resolveTeamWorkspaceDisplayRuntimeStatusLabel } from "../utils/teamWorkspaceCopy";
+import {
+  TEAM_WORKSPACE_SURFACE_TITLE,
+  resolveTeamWorkspaceDisplayRuntimeStatusLabel,
+} from "../utils/teamWorkspaceCopy";
 
 export interface TeamWorkspaceBoardChromeSession {
   name: string;
@@ -54,11 +57,11 @@ function buildBoardHeadline(params: {
     return parentSessionName?.trim() || "主助手协作区";
   }
   if (!hasRealTeamGraph) {
-    return "需要时会自动加入协作成员";
+    return "需要时会自动接入协作成员";
   }
   return totalTeamSessions > 0
     ? `${totalTeamSessions} 位成员协作中`
-    : "创作协作";
+    : TEAM_WORKSPACE_SURFACE_TITLE;
 }
 
 function buildBoardHint(params: {
@@ -74,7 +77,7 @@ function buildBoardHint(params: {
       : "当前由你和这位协作成员一起推进";
   }
   if (!hasRealTeamGraph) {
-    return "系统会在需要时自动邀请协作成员加入，不需要你理解内部分工方式。";
+    return "系统会在需要时自动安排任务分工并接入协作成员，你只需要关注当前任务和结果。";
   }
   return "这里只展示谁在帮你处理什么、处理到哪一步，以及接下来会给你什么结果。";
 }

@@ -44,6 +44,12 @@ interface InputbarComposerSectionProps {
   workflowGate?: WorkflowGateState | null;
   workflowQuickActions: WorkflowQuickAction[];
   workflowQueueItems: WorkflowStep[];
+  workflowActiveItem: WorkflowStep | null;
+  workflowQueueTotalCount: number;
+  workflowCompletedCount: number;
+  workflowTotalCount: number;
+  workflowProgressLabel: string;
+  workflowSummaryLabel: string;
   inputAdapter: ChatInputAdapter;
   characters: Character[];
   skillSelection: SkillSelectionProps;
@@ -86,6 +92,12 @@ export const InputbarComposerSection: React.FC<
   workflowGate,
   workflowQuickActions,
   workflowQueueItems,
+  workflowActiveItem,
+  workflowQueueTotalCount,
+  workflowCompletedCount,
+  workflowTotalCount,
+  workflowProgressLabel,
+  workflowSummaryLabel,
   inputAdapter,
   characters,
   skillSelection,
@@ -283,6 +295,12 @@ export const InputbarComposerSection: React.FC<
         gate={workflowGate}
         quickActions={workflowQuickActions}
         queueItems={workflowQueueItems}
+        activeItem={workflowActiveItem}
+        queueTotalCount={workflowQueueTotalCount}
+        completedCount={workflowCompletedCount}
+        totalCount={workflowTotalCount}
+        progressLabel={workflowProgressLabel}
+        summaryLabel={workflowSummaryLabel}
         renderGeneratingPanel
         onQuickAction={inputAdapter.actions.setText}
         onStop={inputAdapter.actions.stop}
@@ -296,6 +314,12 @@ export const InputbarComposerSection: React.FC<
         gate={workflowGate}
         quickActions={workflowQuickActions}
         queueItems={workflowQueueItems}
+        activeItem={workflowActiveItem}
+        queueTotalCount={workflowQueueTotalCount}
+        completedCount={workflowCompletedCount}
+        totalCount={workflowTotalCount}
+        progressLabel={workflowProgressLabel}
+        summaryLabel={workflowSummaryLabel}
         renderGeneratingPanel={false}
         onQuickAction={inputAdapter.actions.setText}
         onStop={inputAdapter.actions.stop}

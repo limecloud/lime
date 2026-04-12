@@ -6,9 +6,12 @@ import { EmptyState } from "./EmptyState";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
+import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
+import { recordEntryRecommendedSolutionUsage } from "../utils/entryRecommendedSolutions";
 
-const { mockGetConfig } = vi.hoisted(() => ({
+const { mockGetConfig, mockProjectSelector } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(async () => ({})),
+  mockProjectSelector: vi.fn(),
 }));
 
 const mockCharacterMention =
@@ -26,6 +29,21 @@ const mockCharacterMention =
 
 vi.mock("@/lib/api/appConfig", () => ({
   getConfig: mockGetConfig,
+}));
+
+vi.mock("@/components/projects/ProjectSelector", () => ({
+  ProjectSelector: (props: {
+    value: string | null;
+    placeholder?: string;
+    onChange?: (projectId: string) => void;
+  }) => {
+    mockProjectSelector(props);
+    return (
+      <div data-testid="project-selector-stub">
+        {props.value ?? props.placeholder ?? "选择项目"}
+      </div>
+    );
+  },
 }));
 
 vi.mock("./ChatModelSelector", () => ({
@@ -236,6 +254,36 @@ function createGithubSearchServiceSkill(): ServiceSkillHomeItem {
   };
 }
 
+function createSceneBoundServiceSkill(): ServiceSkillHomeItem {
+  return {
+    id: "project-insight-flow",
+    title: "项目线索整理",
+    summary: "围绕当前项目整理线索、结论和下一步动作。",
+    category: "研究与方案",
+    outputHint: "线索清单 + 下一步建议",
+    source: "cloud_catalog",
+    runnerType: "instant",
+    defaultExecutorBinding: "cloud_scene",
+    executionLocation: "cloud_required",
+    version: "seed-v1",
+    badge: "云目录",
+    recentUsedAt: null,
+    isRecent: false,
+    runnerLabel: "云端场景执行",
+    runnerTone: "emerald",
+    runnerDescription: "围绕当前项目持续整理线索和结果。",
+    actionLabel: "继续整理",
+    automationStatus: null,
+    slotSchema: [],
+    sceneBinding: {
+      sceneKey: "project-insight-flow",
+      commandPrefix: "/project-insight-flow",
+      title: "项目线索整理",
+      summary: "围绕当前项目整理线索和下一步动作。",
+    },
+  };
+}
+
 describe("EmptyState", () => {
   it("首页应以 slogan 作为主视觉并保留创作语义", async () => {
     const container = renderEmptyState({
@@ -253,12 +301,12 @@ describe("EmptyState", () => {
       "文案、图片、视频、搜索和网页任务，会围绕同一个目标持续推进。",
     );
     expect(container.textContent).toContain(
-      "跑通过的方法会沉淀成技能、偏好和项目上下文，下次不用重新开始。",
+      "跑通过的方法会沉淀成常用做法、偏好和项目上下文，下次不用重新开始。",
     );
     expect(container.textContent).not.toContain("新建任务");
   });
 
-  it("通用首页应展示精简后的推荐方案条", async () => {
+  it("通用首页应展示收口后的结果模板条", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       onLaunchBrowserAssist: vi.fn(),
@@ -269,7 +317,17 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("推荐方案");
+    expect(container.textContent).toContain("结果模板");
+    expect(container.textContent).toContain("继续上次做法");
+    expect(container.textContent).toContain(
+      "先选你想拿到什么结果，具体由 Lime 在当前任务里分发对应能力。",
+    );
+    expect(container.textContent).toContain(
+      "最近跑通过的结果模板和常用做法会留在这里，下一次不用重新开始。",
+    );
+    expect(container.textContent).toContain(
+      "你最近跑通过的结果模板和方法，会出现在这里。",
+    );
     expect(container.textContent).toContain("网页研究简报");
     expect(container.textContent).toContain("内容主稿生成");
     expect(container.textContent).toContain("演示提纲草案");
@@ -288,6 +346,7 @@ describe("EmptyState", () => {
     expect(container.textContent).not.toContain("生成配图");
     expect(container.textContent).not.toContain("浏览器任务起步");
     expect(container.textContent).not.toContain("Team 冒烟测试");
+    expect(container.textContent).not.toContain("推荐方案");
 
     const recommendationTitles = Array.from(
       container.querySelectorAll(
@@ -303,6 +362,132 @@ describe("EmptyState", () => {
       "复制轮播帖",
       "复制视频脚本",
     ]);
+    expect(
+      container.querySelector('[data-testid^="entry-continuation-"]'),
+    ).toBeNull();
+  });
+
+  it("有最近记录时应展示继续上次做法入口，并允许直接继续模板与方法", async () => {
+    recordEntryRecommendedSolutionUsage("social-post-starter");
+    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+    const setInput = vi.fn<(value: string) => void>();
+    const recentMethod: ServiceSkillHomeItem = {
+      ...createSceneBoundServiceSkill(),
+      id: "content-iteration-flow",
+      title: "内容迭代整理",
+      recentUsedAt: 1_000,
+      isRecent: true,
+    };
+
+    const container = renderEmptyState({
+      activeTheme: "general",
+      setInput,
+      onSelectServiceSkill,
+      serviceSkills: [recentMethod],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("继续上次做法");
+    expect(container.textContent).toContain(
+      "最近跑通过的结果模板和常用做法会留在这里，这次可以直接续上。",
+    );
+
+    const continuationItems = Array.from(
+      container.querySelectorAll('[data-testid^="entry-continuation-"]'),
+    ).map((element) => element.getAttribute("data-testid"));
+
+    expect(continuationItems).toEqual([
+      "entry-continuation-solution-social-post-starter",
+      "entry-continuation-method-content-iteration-flow",
+    ]);
+
+    const recentTemplateButton = container.querySelector(
+      '[data-testid="entry-continuation-solution-social-post-starter"]',
+    ) as HTMLButtonElement | null;
+    expect(recentTemplateButton).toBeTruthy();
+
+    act(() => {
+      recentTemplateButton?.click();
+    });
+
+    expect(setInput).toHaveBeenCalledWith(
+      "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构和可继续扩写的角度。",
+    );
+
+    const recentMethodButton = container.querySelector(
+      '[data-testid="entry-continuation-method-content-iteration-flow"]',
+    ) as HTMLButtonElement | null;
+    expect(recentMethodButton).toBeTruthy();
+
+    act(() => {
+      recentMethodButton?.click();
+    });
+
+    expect(onSelectServiceSkill).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "content-iteration-flow",
+        title: "内容迭代整理",
+      }),
+    );
+  });
+
+  it("scene 最近使用记录也应把对应做法带回首页继续层", async () => {
+    recordSlashEntryUsage({
+      kind: "scene",
+      entryId: "project-insight-flow",
+      usedAt: 1_800_000_000_000,
+      replayText: "继续帮我整理这个项目的关键信息和后续动作",
+    });
+    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      serviceSkills: [createSceneBoundServiceSkill()],
+      onSelectServiceSkill,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("继续上次做法");
+    const sceneContinuationButton = container.querySelector(
+      '[data-testid="entry-continuation-method-project-insight-flow"]',
+    ) as HTMLButtonElement | null;
+    expect(sceneContinuationButton).toBeTruthy();
+
+    act(() => {
+      sceneContinuationButton?.click();
+    });
+
+    expect(onSelectServiceSkill).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "project-insight-flow",
+        title: "项目线索整理",
+      }),
+    );
+  });
+
+  it("传入项目切换能力时应继续保留项目选择器入口", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      projectId: "project-brand",
+      onProjectChange: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="project-selector-stub"]'),
+    ).toBeTruthy();
+    expect(container.textContent).not.toContain("当前项目");
+    expect(
+      container.querySelector('[data-testid^="entry-project-continuation-"]'),
+    ).toBeNull();
   });
 
   it("通用首页应继续渲染 4 个带视觉预览的支撑能力入口", async () => {
@@ -315,10 +500,10 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    const expectedLabels = ["技能", "自动化", "多代理", "浏览器接入"];
+    const expectedLabels = ["我的方法", "持续流程", "多代理", "浏览器接入"];
     const expectedAlts = [
-      "技能能力卡占位图",
-      "自动化能力卡占位图",
+      "方法能力卡占位图",
+      "持续流程能力卡占位图",
       "多代理协作能力卡占位图",
       "浏览器接入能力卡占位图",
     ];
@@ -327,7 +512,7 @@ describe("EmptyState", () => {
       expect(container.textContent).toContain(label);
     }
 
-    expect(container.textContent).toContain("重复任务可持续推进");
+    expect(container.textContent).toContain("重复任务可持续复用");
     expect(container.textContent).toContain("复杂任务可拆分并行推进");
     expect(container.textContent).toContain("网页登录与网页执行");
 
@@ -650,7 +835,7 @@ describe("EmptyState", () => {
     expect(onSend).toHaveBeenCalledWith("帮我设计封面", "react", undefined);
   });
 
-  it("首页技能卡应复用统一的技能数量文案", async () => {
+  it("首页方法卡应复用统一的做法数量文案", async () => {
     const container = renderEmptyState({
       skills: [
         {
@@ -691,7 +876,7 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("2 项技能可挂载");
+    expect(container.textContent).toContain("2 套做法可直接复用");
   });
 
   it("通用对话且存在站点型 service skill 时，应展示自然句占位示例", async () => {
@@ -780,12 +965,18 @@ describe("EmptyState", () => {
     ) as HTMLButtonElement | null;
     expect(advancedToggle).toBeTruthy();
 
-    expect(container.querySelector('button[title="深度思考已关闭"]')).toBeNull();
-    expect(container.querySelector('button[title="联网搜索已关闭"]')).toBeNull();
+    expect(
+      container.querySelector('button[title="深度思考已关闭"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('button[title="联网搜索已关闭"]'),
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="inputbar-plan-toggle"]'),
     ).toBeNull();
-    expect(container.querySelector('button[title="多代理偏好已关闭"]')).toBeNull();
+    expect(
+      container.querySelector('button[title="多代理偏好已关闭"]'),
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="inputbar-access-mode-select"]'),
     ).toBeNull();

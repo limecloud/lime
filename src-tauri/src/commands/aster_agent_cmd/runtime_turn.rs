@@ -10,8 +10,42 @@ const ARTIFACT_DOCUMENT_PERSIST_FAILED_WARNING_CODE: &str = "artifact_document_p
 const AUTO_CONTEXT_COMPACTION_EVENT_PREFIX: &str = "agent_context_compaction_auto_internal";
 const AUTO_CONTEXT_COMPACTION_FAILED_WARNING_CODE: &str = "context_compaction_auto_failed";
 const CONTEXT_COMPACTION_NOT_NEEDED_WARNING_CODE: &str = "context_compaction_not_needed";
+const TURN_MEMORY_PREFETCH_PROMPT_MARKER: &str = "【运行时记忆召回】";
 const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
 const LIME_RUNTIME_AUTO_COMPACT_KEY: &str = "auto_compact";
+
+fn emit_runtime_events(app: &AppHandle, event_name: &str, events: Vec<RuntimeAgentEvent>) {
+    for event in events {
+        if let Err(error) = app.emit(event_name, &event) {
+            tracing::error!("[AsterAgent] 发送运行时事件失败: {}", error);
+        }
+    }
+}
+
+fn merge_runtime_memory_prefetch_prompt(
+    base_prompt: Option<String>,
+    prefetch_prompt: Option<&str>,
+) -> Option<String> {
+    let Some(prefetch_prompt) = prefetch_prompt
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return base_prompt;
+    };
+
+    match base_prompt {
+        Some(base) => {
+            if base.contains(TURN_MEMORY_PREFETCH_PROMPT_MARKER) {
+                Some(base)
+            } else if base.trim().is_empty() {
+                Some(prefetch_prompt.to_string())
+            } else {
+                Some(format!("{base}\n\n{prefetch_prompt}"))
+            }
+        }
+        None => Some(prefetch_prompt.to_string()),
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProviderConfigApplyMode {
@@ -473,6 +507,7 @@ async fn execute_aster_chat_request(
         request.provider_config = Some(resolved_provider_config);
     }
     if let Some(provider_config) = request.provider_config.as_mut() {
+        ensure_provider_runtime_ready(provider_config).await?;
         let runtime_tool_call_decision =
             enrich_provider_config_with_runtime_tool_strategy(provider_config).await;
         tracing::info!(
@@ -776,6 +811,50 @@ async fn execute_aster_chat_request(
         &runtime_config,
         MemoryPromptContext::with_working_dir(Path::new(&workspace_root)),
     );
+    let prompt_with_memory = if runtime_config.memory.enabled {
+        let prefetch_request = crate::commands::memory_management_cmd::TurnMemoryPrefetchRequest {
+            session_id: session_id.to_string(),
+            working_dir: Some(workspace_root.clone()),
+            user_message: request.message.clone(),
+            request_metadata: request.metadata.clone(),
+            max_durable_entries: None,
+            max_working_chars: None,
+        };
+
+        match db.lock() {
+            Ok(conn) => {
+                match crate::commands::memory_management_cmd::build_turn_memory_prefetch_result(
+                    &runtime_config,
+                    &conn,
+                    Path::new(&workspace_root),
+                    &prefetch_request,
+                ) {
+                    Ok(prefetch) => merge_runtime_memory_prefetch_prompt(
+                        prompt_with_memory,
+                        prefetch.prompt.as_deref(),
+                    ),
+                    Err(error) => {
+                        tracing::warn!(
+                            "[AsterAgent] 单回合记忆预取失败，已降级继续: session_id={}, error={}",
+                            session_id,
+                            error
+                        );
+                        prompt_with_memory
+                    }
+                }
+            }
+            Err(error) => {
+                tracing::warn!(
+                    "[AsterAgent] 记忆预取无法获取数据库锁，已降级继续: session_id={}, error={}",
+                    session_id,
+                    error
+                );
+                prompt_with_memory
+            }
+        }
+    } else {
+        prompt_with_memory
+    };
     turn_input_builder.apply_prompt_stage(
         TurnPromptAugmentationStageKind::Memory,
         prompt_with_memory.clone(),
@@ -1669,14 +1748,20 @@ async fn execute_aster_chat_request(
                 &runtime_status_session_config,
             )
             .await;
-            {
+            let terminal_events = {
                 let mut recorder = match timeline_recorder.lock() {
                     Ok(guard) => guard,
                     Err(error) => error.into_inner(),
                 };
-                if let Err(error) = recorder.complete_turn_success(app, &request.event_name) {
+                recorder.complete_turn_success()
+            };
+            {
+                if let Err(error) = &terminal_events {
                     tracing::warn!("[AsterAgent] 完成 turn 时间线失败（已降级继续）: {}", error);
                 }
+            }
+            if let Ok(events) = terminal_events {
+                emit_runtime_events(app, &request.event_name, events);
             }
             let usage = resolve_runtime_message_usage(session_id).await;
             if let Some(ref usage) = usage {
@@ -1703,17 +1788,23 @@ async fn execute_aster_chat_request(
                 &runtime_status_session_config,
             )
             .await;
-            {
+            let terminal_events = {
                 let mut recorder = match timeline_recorder.lock() {
                     Ok(guard) => guard,
                     Err(error) => error.into_inner(),
                 };
-                if let Err(timeline_error) = recorder.fail_turn(app, &request.event_name, &e) {
+                recorder.fail_turn(&e)
+            };
+            {
+                if let Err(timeline_error) = &terminal_events {
                     tracing::warn!(
                         "[AsterAgent] 记录失败 turn 时间线失败（已降级继续）: {}",
                         timeline_error
                     );
                 }
+            }
+            if let Ok(events) = terminal_events {
+                emit_runtime_events(app, &request.event_name, events);
             }
             let error_event = RuntimeAgentEvent::Error { message: e.clone() };
             if let Err(emit_err) = app.emit(&request.event_name, &error_event) {
@@ -2121,15 +2212,21 @@ async fn compact_runtime_session_with_trigger(
 
     match final_result {
         Ok(()) => {
-            let mut recorder = match timeline_recorder.lock() {
-                Ok(guard) => guard,
-                Err(error) => error.into_inner(),
+            let terminal_events = {
+                let mut recorder = match timeline_recorder.lock() {
+                    Ok(guard) => guard,
+                    Err(error) => error.into_inner(),
+                };
+                recorder.complete_turn_success()
             };
-            if let Err(error) = recorder.complete_turn_success(app, &event_name) {
+            if let Err(error) = &terminal_events {
                 tracing::warn!(
                     "[AsterAgent] 完成压缩 turn 时间线失败（已降级继续）: {}",
                     error
                 );
+            }
+            if let Ok(events) = terminal_events {
+                emit_runtime_events(app, &event_name, events);
             }
             let done_event = RuntimeAgentEvent::FinalDone { usage: None };
             if let Err(error) = app.emit(&event_name, &done_event) {
@@ -2137,23 +2234,29 @@ async fn compact_runtime_session_with_trigger(
             }
         }
         Err(error) => {
-            {
+            let terminal_events = {
                 let mut recorder = match timeline_recorder.lock() {
                     Ok(guard) => guard,
                     Err(error) => error.into_inner(),
                 };
-                if let Err(timeline_error) = recorder.fail_turn(app, &event_name, &error) {
+                recorder.fail_turn(&error)
+            };
+            {
+                if let Err(timeline_error) = &terminal_events {
                     tracing::warn!(
                         "[AsterAgent] 记录压缩失败 turn 时间线失败（已降级继续）: {}",
                         timeline_error
                     );
                 }
-                let error_event = RuntimeAgentEvent::Error {
-                    message: error.clone(),
-                };
-                if let Err(emit_error) = app.emit(&event_name, &error_event) {
-                    tracing::error!("[AsterAgent] 发送压缩错误事件失败: {}", emit_error);
-                }
+            }
+            if let Ok(events) = terminal_events {
+                emit_runtime_events(app, &event_name, events);
+            }
+            let error_event = RuntimeAgentEvent::Error {
+                message: error.clone(),
+            };
+            if let Err(emit_error) = app.emit(&event_name, &error_event) {
+                tracing::error!("[AsterAgent] 发送压缩错误事件失败: {}", emit_error);
             }
             state.remove_cancel_token(&session_id).await;
             return Err(error);

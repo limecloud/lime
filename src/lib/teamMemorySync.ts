@@ -35,6 +35,11 @@ export interface TeamMemoryStorageLike {
   setItem(key: string, value: string): void;
 }
 
+export interface TeamMemorySnapshotStorageLike extends TeamMemoryStorageLike {
+  key(index: number): string | null;
+  length: number;
+}
+
 const TEAM_MEMORY_STORAGE_PREFIX = "lime:team-memory:";
 const TEAM_MEMORY_REQUEST_PRIORITY: Record<string, number> = {
   "team.selection": 0,
@@ -175,6 +180,39 @@ export function writeTeamMemorySnapshot(
       ),
     }),
   );
+}
+
+export function listTeamMemorySnapshots(
+  storage: TeamMemorySnapshotStorageLike,
+): TeamMemorySnapshot[] {
+  const snapshots: TeamMemorySnapshot[] = [];
+
+  for (let index = 0; index < storage.length; index += 1) {
+    const storageKey = storage.key(index);
+    if (!storageKey || !storageKey.startsWith(TEAM_MEMORY_STORAGE_PREFIX)) {
+      continue;
+    }
+
+    const repoScope = storageKey.slice(TEAM_MEMORY_STORAGE_PREFIX.length);
+    const snapshot = readTeamMemorySnapshot(storage, repoScope);
+    if (snapshot) {
+      snapshots.push(snapshot);
+    }
+  }
+
+  snapshots.sort((left, right) => {
+    const leftUpdatedAt = Math.max(
+      0,
+      ...Object.values(left.entries).map((entry) => entry.updatedAt),
+    );
+    const rightUpdatedAt = Math.max(
+      0,
+      ...Object.values(right.entries).map((entry) => entry.updatedAt),
+    );
+    return rightUpdatedAt - leftUpdatedAt;
+  });
+
+  return snapshots;
 }
 
 async function sha256Hex(content: string): Promise<string> {

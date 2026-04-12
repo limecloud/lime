@@ -63,6 +63,55 @@ pub(super) async fn try_handle(
                 .map_err(|e| format!("清理记忆失败: {e}"))?,
             )?
         }
+        "memory_runtime_get_working_memory" => {
+            let args = args_or_default(args);
+            let session_id = args
+                .get("sessionId")
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let limit = args
+                .get("limit")
+                .and_then(|value| value.as_u64())
+                .map(|value| value as u32);
+            serde_json::to_value(
+                crate::commands::memory_management_cmd::memory_runtime_get_working_memory(
+                    session_id, limit,
+                )
+                .await
+                .map_err(|e| format!("获取工作记忆失败: {e}"))?,
+            )?
+        }
+        "memory_runtime_get_extraction_status" => {
+            let app_handle = require_app_handle(state)?;
+            let global_config = app_handle.state::<crate::config::GlobalConfigManagerState>();
+            serde_json::to_value(
+                crate::commands::memory_management_cmd::memory_runtime_get_extraction_status(
+                    global_config,
+                )
+                .await
+                .map_err(|e| format!("获取记忆抽取状态失败: {e}"))?,
+            )?
+        }
+        "memory_runtime_prefetch_for_turn" => {
+            let app_handle = require_app_handle(state)?;
+            let args = args_or_default(args);
+            let request = serde_json::from_value(
+                args.get("request")
+                    .cloned()
+                    .ok_or_else(|| "缺少参数: request".to_string())?,
+            )?;
+            let global_config = app_handle.state::<crate::config::GlobalConfigManagerState>();
+            let db = app_handle.state::<crate::database::DbConnection>();
+            serde_json::to_value(
+                crate::commands::memory_management_cmd::memory_runtime_prefetch_for_turn(
+                    global_config,
+                    db,
+                    request,
+                )
+                .await
+                .map_err(|e| format!("预取单回合记忆失败: {e}"))?,
+            )?
+        }
         "memory_get_effective_sources" => {
             let app_handle = require_app_handle(state)?;
             let args = args_or_default(args);

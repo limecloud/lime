@@ -11,17 +11,24 @@ import type {
   Message,
 } from "../types";
 import type { AgentRuntimeThreadReadModel } from "@/lib/api/agentRuntime";
+import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { HarnessSessionState } from "../utils/harnessState";
+import { recordRuntimeMemoryPrefetchHistory } from "@/lib/runtimeMemoryPrefetchHistory";
 
-const { mockToast } = vi.hoisted(() => ({
+const { mockToast, mockPrefetchContextMemoryForTurn } = vi.hoisted(() => ({
   mockToast: {
     success: vi.fn(),
     error: vi.fn(),
   },
+  mockPrefetchContextMemoryForTurn: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
   toast: mockToast,
+}));
+
+vi.mock("@/lib/api/memoryRuntime", () => ({
+  prefetchContextMemoryForTurn: mockPrefetchContextMemoryForTurn,
 }));
 
 interface MountedHarness {
@@ -45,6 +52,16 @@ beforeEach(() => {
     value: {
       writeText: vi.fn().mockResolvedValue(undefined),
     },
+  });
+  window.localStorage.clear();
+  mockPrefetchContextMemoryForTurn.mockResolvedValue({
+    session_id: "session-default",
+    rules_source_paths: [],
+    working_memory_excerpt: null,
+    durable_memories: [],
+    team_memory_entries: [],
+    latest_compaction: null,
+    prompt: null,
   });
 });
 
@@ -77,11 +94,14 @@ function renderPanel(props?: {
   onReplayPendingRequest?: (requestId: string) => boolean | Promise<boolean>;
   onLocatePendingRequest?: (requestId: string) => void;
   onPromoteQueuedTurn?: (queuedTurnId: string) => boolean | Promise<boolean>;
+  onOpenMemoryWorkbench?: () => void;
   harnessState?: HarnessSessionState | null;
   messages?: Message[];
+  teamMemorySnapshot?: TeamMemorySnapshot | null;
   diagnosticRuntimeContext?: {
     sessionId?: string | null;
     workspaceId?: string | null;
+    workingDir?: string | null;
     providerType?: string | null;
     model?: string | null;
     executionStrategy?: string | null;
@@ -108,8 +128,10 @@ function renderPanel(props?: {
         onReplayPendingRequest={props?.onReplayPendingRequest}
         onLocatePendingRequest={props?.onLocatePendingRequest}
         onPromoteQueuedTurn={props?.onPromoteQueuedTurn}
+        onOpenMemoryWorkbench={props?.onOpenMemoryWorkbench}
         harnessState={props?.harnessState}
         messages={props?.messages}
+        teamMemorySnapshot={props?.teamMemorySnapshot}
         diagnosticRuntimeContext={props?.diagnosticRuntimeContext}
       />,
     );
@@ -502,12 +524,306 @@ describe("AgentThreadReliabilityPanel", () => {
     expect(onReplayPendingRequest).toHaveBeenCalledWith("req-replay-1");
   });
 
+  it("应展示本回合五层记忆预取，帮助判断五层续接是否命中", async () => {
+    mockPrefetchContextMemoryForTurn.mockResolvedValue({
+      session_id: "session-memory-1",
+      rules_source_paths: ["/workspace/AGENTS.md", "/workspace/.memory/rules.md"],
+      working_memory_excerpt: "【task_plan.md】继续整理风险点与来源摘要。",
+      durable_memories: [
+        {
+          id: "durable-1",
+          session_id: "session-memory-1",
+          category: "experience",
+          title: "研究简报输出偏好",
+          summary: "优先给风险与证据链",
+          updated_at: 1711184700,
+          tags: ["research"],
+        },
+      ],
+      team_memory_entries: [
+        {
+          key: "team.selection",
+          content: "研究协作队",
+          updated_at: 1711184700,
+        },
+      ],
+      latest_compaction: {
+        session_id: "session-memory-1",
+        source: "summary_cache",
+        summary_preview: "保留研究目标与来源摘要。",
+        created_at: 1711184700,
+        trigger: "token_budget",
+      },
+      prompt: "【运行时记忆召回】...",
+    });
+
+    const container = renderPanel({
+      turns: [
+        {
+          id: "turn-memory-1",
+          thread_id: "thread-memory-1",
+          prompt_text: "继续输出研究简报的风险点",
+          status: "running",
+          started_at: "2026-03-23T10:00:00Z",
+          created_at: "2026-03-23T10:00:00Z",
+          updated_at: "2026-03-23T10:01:00Z",
+        },
+      ],
+      diagnosticRuntimeContext: {
+        sessionId: "session-memory-1",
+        workspaceId: "workspace-memory-1",
+        workingDir: "/workspace/project-a",
+      },
+      teamMemorySnapshot: {
+        repoScope: "/workspace/project-a",
+        entries: {
+          "team.selection": {
+            key: "team.selection",
+            content: "研究协作队",
+            updatedAt: 1711184700,
+          },
+        },
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockPrefetchContextMemoryForTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session_id: "session-memory-1",
+        working_dir: "/workspace/project-a",
+        user_message: "继续输出研究简报的风险点",
+        request_metadata: expect.objectContaining({
+          team_memory_shadow: expect.objectContaining({
+            repo_scope: "/workspace/project-a",
+          }),
+        }),
+      }),
+    );
+    expect(
+      container.querySelector(
+        '[data-testid="agent-thread-reliability-memory-prefetch"]',
+      ),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("本回合记忆预取");
+    expect(container.textContent).toContain("五层记忆预演");
+    expect(container.textContent).toContain("规则 2");
+    expect(container.textContent).toContain("工作 已命中");
+    expect(container.textContent).toContain("持久 1");
+    expect(container.textContent).toContain("Team 1");
+    expect(container.textContent).toContain("压缩 已命中");
+    expect(container.textContent).toContain("工作记忆摘录");
+    expect(container.textContent).toContain("继续整理风险点与来源摘要");
+    expect(container.textContent).toContain("规则来源");
+    expect(container.textContent).toContain("/workspace/AGENTS.md");
+    expect(container.textContent).toContain("持久记忆命中");
+    expect(container.textContent).toContain("研究简报输出偏好");
+    expect(container.textContent).toContain("优先给风险与证据链");
+    expect(container.textContent).toContain("Team Shadow 明细");
+    expect(container.textContent).toContain("team.selection");
+    expect(container.textContent).toContain("研究协作队");
+    expect(container.textContent).toContain("压缩续接摘要");
+    expect(container.textContent).toContain("保留研究目标与来源摘要");
+    expect(container.textContent).toContain("运行时记忆片段");
+    expect(container.textContent).toContain("【运行时记忆召回】");
+  });
+
+  it("应展示相对最近基线的记忆变化摘要", async () => {
+    recordRuntimeMemoryPrefetchHistory({
+      sessionId: "session-memory-compare-1",
+      workingDir: "/workspace/project-a",
+      userMessage: "继续输出旧版简报",
+      source: "memory_page",
+      capturedAt: 1_711_184_600_000,
+      result: {
+        session_id: "session-memory-compare-1",
+        rules_source_paths: ["/workspace/AGENTS.md"],
+        working_memory_excerpt: null,
+        durable_memories: [],
+        team_memory_entries: [],
+        latest_compaction: null,
+        prompt: null,
+      },
+    });
+
+    mockPrefetchContextMemoryForTurn.mockResolvedValue({
+      session_id: "session-memory-compare-1",
+      rules_source_paths: ["/workspace/AGENTS.md", "/workspace/.memory/rules.md"],
+      working_memory_excerpt: "【task_plan.md】补上新版风险结论。",
+      durable_memories: [
+        {
+          id: "durable-compare-1",
+          session_id: "session-memory-compare-1",
+          category: "experience",
+          title: "研究简报结构偏好",
+          summary: "先结论，再列风险",
+          updated_at: 1711184700,
+          tags: ["research"],
+        },
+      ],
+      team_memory_entries: [],
+      latest_compaction: null,
+      prompt: null,
+    });
+
+    const container = renderPanel({
+      turns: [
+        {
+          id: "turn-memory-compare-1",
+          thread_id: "thread-memory-compare-1",
+          prompt_text: "继续输出新版研究简报",
+          status: "running",
+          started_at: "2026-03-23T10:00:00Z",
+          created_at: "2026-03-23T10:00:00Z",
+          updated_at: "2026-03-23T10:01:00Z",
+        },
+      ],
+      diagnosticRuntimeContext: {
+        sessionId: "session-memory-compare-1",
+        workspaceId: "workspace-memory-compare-1",
+        workingDir: "/workspace/project-a",
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("相对最近基线");
+    expect(container.textContent).toContain("基线输入：继续输出旧版简报");
+    expect(container.textContent).toContain("补强");
+    expect(container.textContent).toContain("补强层：规则层、工作层、持久层。 摘要内容也有更新。");
+    expect(container.textContent).toContain("具体变化");
+    expect(container.textContent).toContain("规则 +1");
+    expect(container.textContent).toContain("工作 新命中");
+    expect(container.textContent).toContain("持久 +1");
+    expect(container.textContent).toContain(
+      "工作摘录 无 -> 【task_plan.md】补上新版风险结论。",
+    );
+  });
+
+  it("应支持从线程可靠性面板跳到记忆工作台查看当前预演", async () => {
+    const onOpenMemoryWorkbench = vi.fn();
+    const container = renderPanel({
+      turns: [
+        {
+          id: "turn-memory-open-1",
+          thread_id: "thread-memory-open-1",
+          prompt_text: "继续整理运行时记忆",
+          status: "running",
+          started_at: "2026-03-23T10:00:00Z",
+          created_at: "2026-03-23T10:00:00Z",
+          updated_at: "2026-03-23T10:01:00Z",
+        },
+      ],
+      diagnosticRuntimeContext: {
+        sessionId: "session-memory-open-1",
+        workspaceId: "workspace-memory-open-1",
+        workingDir: "/workspace/project-b",
+      },
+      onOpenMemoryWorkbench,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (element) => element.textContent?.includes("在记忆工作台查看"),
+    );
+    expect(button).toBeTruthy();
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onOpenMemoryWorkbench).toHaveBeenCalledTimes(1);
+  });
+
+  it("应展示最近压缩边界，帮助判断压缩后的工作记忆续接", () => {
+    const container = renderPanel({
+      threadRead: {
+        thread_id: "thread-compaction-1",
+        status: "completed",
+        pending_requests: [],
+        incidents: [],
+        latest_compaction_boundary: {
+          session_id: "session-compaction-1",
+          summary_preview:
+            "保留研究目标、已确认来源和待输出风险点，后续回答应沿这条摘要继续。",
+          turn_count: 8,
+          created_at: "2026-03-23T10:05:00Z",
+          trigger: "token_budget",
+          detail: "压缩后保留研究目标与来源摘要",
+        },
+      },
+    });
+
+    expect(
+      container.querySelector(
+        '[data-testid="agent-thread-reliability-compaction-boundary"]',
+      ),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("最近压缩边界");
+    expect(container.textContent).toContain("token_budget");
+    expect(container.textContent).toContain("覆盖 8 回合");
+    expect(container.textContent).toContain("保留研究目标、已确认来源和待输出风险点");
+    expect(container.textContent).toContain("压缩备注 压缩后保留研究目标与来源摘要");
+  });
+
   it("应支持复制给 AI 的可靠性诊断包", async () => {
+    mockPrefetchContextMemoryForTurn.mockResolvedValue({
+      session_id: "session-diag-1",
+      rules_source_paths: ["/workspace/AGENTS.md"],
+      working_memory_excerpt: "【progress.md】继续生成研究简报。",
+      durable_memories: [
+        {
+          id: "durable-diag-1",
+          session_id: "session-diag-1",
+          category: "experience",
+          title: "研究输出格式偏好",
+          summary: "先给结论，再列风险",
+          updated_at: 1711184700,
+          tags: ["report"],
+        },
+      ],
+      team_memory_entries: [
+        {
+          key: "team.selection",
+          content: "研究协作队",
+          updated_at: 1711184700,
+        },
+      ],
+      latest_compaction: {
+        session_id: "session-diag-1",
+        source: "summary_cache",
+        summary_preview: "保留研究目标与最近来源摘要。",
+        created_at: 1711184700,
+        trigger: "token_budget",
+      },
+      prompt: "【运行时记忆召回】...",
+    });
+
     const container = renderPanel({
       threadRead: {
         thread_id: "thread-1",
         status: "aborted",
         active_turn_id: "turn-1",
+        latest_compaction_boundary: {
+          session_id: "session-diag-1",
+          summary_preview:
+            "保留研究目标、最近来源摘要和待输出风险点，后续回答应基于这段摘要继续。",
+          turn_count: 6,
+          created_at: "2026-03-23T10:01:05Z",
+          trigger: "token_budget",
+          detail: "压缩后保留研究目标与最近来源摘要",
+        },
         diagnostics: {
           latest_turn_status: "aborted",
           latest_turn_started_at: "2026-03-23T10:00:00Z",
@@ -657,12 +973,28 @@ describe("AgentThreadReliabilityPanel", () => {
       diagnosticRuntimeContext: {
         sessionId: "session-diag-1",
         workspaceId: "workspace-diag-1",
+        workingDir: "/workspace/research",
         providerType: "openai",
         model: "gpt-5.4",
         executionStrategy: "react",
         activeTheme: "general",
         selectedTeamLabel: "研究协作队",
       },
+      teamMemorySnapshot: {
+        repoScope: "/workspace/research",
+        entries: {
+          "team.selection": {
+            key: "team.selection",
+            content: "研究协作队",
+            updatedAt: 1711184700,
+          },
+        },
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     const copyButton = container.querySelector(
@@ -689,6 +1021,39 @@ describe("AgentThreadReliabilityPanel", () => {
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining("### Harness 过程信号"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("### 最近压缩边界"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("### 当前回合记忆预取"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("规则层：1 个来源"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("Team 层：1 条"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("规则来源：/workspace/AGENTS.md"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("持久记忆详情：研究输出格式偏好｜先给结论，再列风险"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("Team 影子详情：team.selection｜研究协作队"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("压缩命中摘要：保留研究目标与最近来源摘要。"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("运行时记忆片段：【运行时记忆召回】"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("覆盖回合数：6"),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("边界摘要：保留研究目标、最近来源摘要和待输出风险点"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining("### 后端诊断聚合"),
@@ -722,11 +1087,29 @@ describe("AgentThreadReliabilityPanel", () => {
   });
 
   it("应支持复制原始 JSON 诊断数据", async () => {
+    mockPrefetchContextMemoryForTurn.mockResolvedValue({
+      session_id: "session-json-1",
+      rules_source_paths: ["/workspace/AGENTS.md"],
+      working_memory_excerpt: null,
+      durable_memories: [],
+      team_memory_entries: [],
+      latest_compaction: null,
+      prompt: null,
+    });
+
     const container = renderPanel({
       threadRead: {
         thread_id: "thread-json-1",
         status: "waiting_request",
         active_turn_id: "turn-json-1",
+        latest_compaction_boundary: {
+          session_id: "session-json-1",
+          summary_preview: "保留用户确认点与待继续执行动作。",
+          turn_count: 3,
+          created_at: "2026-03-23T10:00:20Z",
+          trigger: "manual_compact",
+          detail: "压缩后等待用户输入",
+        },
         diagnostics: {
           latest_turn_status: "running",
           warning_count: 0,
@@ -802,12 +1185,18 @@ describe("AgentThreadReliabilityPanel", () => {
       diagnosticRuntimeContext: {
         sessionId: "session-json-1",
         workspaceId: "workspace-json-1",
+        workingDir: "/workspace/json",
         providerType: "openai",
         model: "gpt-5.4-mini",
         executionStrategy: "react",
         activeTheme: "general",
         selectedTeamLabel: "默认协作",
       },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
     const jsonButton = container.querySelector(
@@ -825,6 +1214,12 @@ describe("AgentThreadReliabilityPanel", () => {
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining('"backend_diagnostics"'),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining('"latest_compaction_boundary"'),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining('"memory_prefetch_preview"'),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining('"harness_state"'),

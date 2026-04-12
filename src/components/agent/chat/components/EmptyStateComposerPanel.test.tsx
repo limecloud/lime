@@ -378,7 +378,7 @@ describe("EmptyStateComposerPanel", () => {
     expect(onRemoveImage).toHaveBeenCalledWith(0);
   });
 
-  it("复杂任务应显示 Team 建议并支持开启多代理", () => {
+  it("复杂任务应显示任务分工建议并支持开启多代理", () => {
     const onSubagentEnabledChange = vi.fn();
     const container = renderPanel({
       isGeneralTheme: true,
@@ -387,12 +387,12 @@ describe("EmptyStateComposerPanel", () => {
       onSubagentEnabledChange,
     });
 
-    expect(container.textContent).toContain("当前任务更适合 Team 协作");
+    expect(container.textContent).toContain("当前任务更适合分工推进");
     expect(container.textContent).toContain("建议角色：分析");
 
     const enableTeamButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("启用 Team"));
+    ).find((button) => button.textContent?.includes("启用任务分工"));
 
     expect(enableTeamButton).toBeTruthy();
 
@@ -405,7 +405,7 @@ describe("EmptyStateComposerPanel", () => {
     expect(onSubagentEnabledChange).toHaveBeenCalledWith(true);
   });
 
-  it("继续单代理后应隐藏当前输入对应的 Team 建议", () => {
+  it("继续单代理后应隐藏当前输入对应的任务分工建议", () => {
     const container = renderPanel({
       isGeneralTheme: true,
       input:
@@ -423,7 +423,7 @@ describe("EmptyStateComposerPanel", () => {
       continueButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).not.toContain("当前任务更适合 Team 协作");
+    expect(container.textContent).not.toContain("当前任务更适合分工推进");
   });
 
   it("开启 Team mode 后应显示 TeamSelector", () => {
@@ -603,7 +603,7 @@ describe("EmptyStateComposerPanel", () => {
     });
 
     const enableButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("启用 Team"),
+      (button) => button.textContent?.includes("启用任务分工"),
     ) as HTMLButtonElement | undefined;
 
     expect(
@@ -615,8 +615,8 @@ describe("EmptyStateComposerPanel", () => {
       container.querySelector('button[title="多代理偏好已关闭"]'),
     ).toBeNull();
     expect(enableButton).toBeTruthy();
-    expect(enableButton?.textContent).toContain("启用 Team");
-    expect(container.textContent).toContain("当前任务更适合 Team 协作");
+    expect(enableButton?.textContent).toContain("启用任务分工");
+    expect(container.textContent).toContain("当前任务更适合分工推进");
   });
 
   it("折叠态应保留当前模型轻提示，展开高级设置后再允许修改", () => {

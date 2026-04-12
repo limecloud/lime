@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildTeamWorkspaceSelectedSessionActionState,
   buildTeamWorkspaceSessionControlState,
   isCompletedTeamSession,
   isWaitableTeamSession,
@@ -125,5 +126,90 @@ describe("sessionStateSelectors", () => {
         runtimeStatus: "aborted",
       }),
     ).toBe(true);
+  });
+
+  it("应汇总当前选中会话与 Team 级操作的可用性", () => {
+    const state = buildTeamWorkspaceSelectedSessionActionState({
+      completedTeamSessionIds: ["child-closed"],
+      currentSessionId: "parent-1",
+      hasCloseCompletedTeamSessionsHandler: true,
+      hasCloseSubagentSessionHandler: true,
+      hasOpenSubagentSessionHandler: true,
+      hasResumeSubagentSessionHandler: true,
+      hasSendSubagentInputHandler: true,
+      hasWaitActiveTeamSessionsHandler: true,
+      hasWaitSubagentSessionHandler: true,
+      selectedSession: {
+        id: "child-1",
+        sessionType: "sub_agent",
+        runtimeStatus: "running",
+        latestTurnStatus: "running",
+      },
+      waitableTeamSessionIds: ["child-1", "child-2"],
+    });
+
+    expect(state).toEqual({
+      canWaitAnyActiveTeamSession: true,
+      canCloseCompletedTeamSessions: true,
+      canOpenSelectedSession: true,
+      canWaitSelectedSession: true,
+      canSendSelectedSessionInput: true,
+      canStopSelectedSession: true,
+      canResumeSelectedSession: false,
+    });
+  });
+
+  it("应在当前会话、关闭会话与 user 会话下正确收紧按钮", () => {
+    const currentSessionState = buildTeamWorkspaceSelectedSessionActionState({
+      completedTeamSessionIds: [],
+      currentSessionId: "child-1",
+      hasCloseCompletedTeamSessionsHandler: true,
+      hasCloseSubagentSessionHandler: true,
+      hasOpenSubagentSessionHandler: true,
+      hasResumeSubagentSessionHandler: true,
+      hasSendSubagentInputHandler: true,
+      hasWaitActiveTeamSessionsHandler: true,
+      hasWaitSubagentSessionHandler: true,
+      selectedSession: {
+        id: "child-1",
+        sessionType: "sub_agent",
+        runtimeStatus: "closed",
+      },
+      waitableTeamSessionIds: ["child-1"],
+    });
+
+    expect(currentSessionState).toEqual({
+      canWaitAnyActiveTeamSession: false,
+      canCloseCompletedTeamSessions: false,
+      canOpenSelectedSession: false,
+      canWaitSelectedSession: false,
+      canSendSelectedSessionInput: false,
+      canStopSelectedSession: false,
+      canResumeSelectedSession: true,
+    });
+
+    const userSessionState = buildTeamWorkspaceSelectedSessionActionState({
+      completedTeamSessionIds: [],
+      currentSessionId: "parent-1",
+      hasCloseCompletedTeamSessionsHandler: true,
+      hasCloseSubagentSessionHandler: true,
+      hasOpenSubagentSessionHandler: true,
+      hasResumeSubagentSessionHandler: true,
+      hasSendSubagentInputHandler: true,
+      hasWaitActiveTeamSessionsHandler: true,
+      hasWaitSubagentSessionHandler: true,
+      selectedSession: {
+        id: "parent-1",
+        sessionType: "user",
+        runtimeStatus: "running",
+      },
+      waitableTeamSessionIds: ["parent-1", "child-2"],
+    });
+
+    expect(userSessionState.canOpenSelectedSession).toBe(false);
+    expect(userSessionState.canWaitSelectedSession).toBe(false);
+    expect(userSessionState.canSendSelectedSessionInput).toBe(false);
+    expect(userSessionState.canStopSelectedSession).toBe(false);
+    expect(userSessionState.canResumeSelectedSession).toBe(false);
   });
 });

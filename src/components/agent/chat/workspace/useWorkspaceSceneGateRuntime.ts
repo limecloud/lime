@@ -263,7 +263,7 @@ export function useWorkspaceSceneGateRuntime({
         });
 
         if (!sceneLaunchRequest) {
-          toast.error("当前场景已不可用，请重新输入 slash 命令后再试。");
+          toast.error("当前结果模板已不可用，请重新选择或重新输入命令后再试。");
           return false;
         }
 
@@ -303,7 +303,7 @@ export function useWorkspaceSceneGateRuntime({
         }
 
         const message =
-          error instanceof Error ? error.message : "场景启动失败，请稍后重试";
+          error instanceof Error ? error.message : "结果模板启动失败，请稍后重试";
         toast.error(message);
         return false;
       }

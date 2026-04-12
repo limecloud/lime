@@ -16,6 +16,7 @@ import { parseSkillSlashCommand } from "../hooks/skillCommand";
 import { CONTENT_POST_SKILL_KEY } from "../utils/contentPostSkill";
 import type { Message } from "../types";
 import type { TaskFile } from "../components/TaskFiles";
+import { isPrimaryResultDocumentPath } from "./resultFilePriority";
 
 export const GENERAL_WORKBENCH_DOCUMENT_META_KEY =
   "general_workbench_document_v1";
@@ -829,11 +830,7 @@ export function resolveExecutionIdCandidatesForActivityLog(
 export function isGeneralWorkbenchPrimaryDocumentArtifact(
   fileName: string,
 ): boolean {
-  const normalized = fileName.trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-  return normalized.endsWith(".md") || normalized.endsWith(".markdown");
+  return isPrimaryResultDocumentPath(fileName);
 }
 
 function inferTaskFileType(fileName: string): TaskFile["type"] {

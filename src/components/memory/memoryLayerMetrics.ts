@@ -1,14 +1,13 @@
-import type { ProjectMemory } from "@/lib/api/memory";
-
 export interface LayerMetricsInput {
-  unifiedTotalEntries: number;
-  contextTotalEntries: number;
-  projectId: string | null;
-  projectMemory: ProjectMemory | null;
+  rulesSourceCount: number;
+  workingEntryCount: number;
+  durableEntryCount: number;
+  teamSnapshotCount: number;
+  compactionCount: number;
 }
 
 export interface LayerCard {
-  key: "unified" | "context" | "project";
+  key: "rules" | "working" | "durable" | "team" | "compaction";
   title: string;
   value: number;
   unit: string;
@@ -22,68 +21,70 @@ export interface LayerMetricsResult {
   totalLayers: number;
 }
 
-function hasWorldBuilding(memory: ProjectMemory | null): boolean {
-  return !!memory?.world_building?.description?.trim();
-}
-
-function projectCoverageCount(memory: ProjectMemory | null): number {
-  if (!memory) {
-    return 0;
-  }
-
-  let covered = 0;
-  if (memory.characters.length > 0) covered += 1;
-  if (hasWorldBuilding(memory)) covered += 1;
-  if (memory.outline.length > 0) covered += 1;
-  return covered;
-}
-
 export function buildLayerMetrics(
   input: LayerMetricsInput,
 ): LayerMetricsResult {
-  const projectCoverage = projectCoverageCount(input.projectMemory);
-  const hasProjectSelection = !!input.projectId;
-
   const cards: LayerCard[] = [
     {
-      key: "unified",
-      title: "第一层：统一记忆",
-      value: input.unifiedTotalEntries,
-      unit: "条",
-      available: input.unifiedTotalEntries > 0,
+      key: "rules",
+      title: "规则层",
+      value: input.rulesSourceCount,
+      unit: "源",
+      available: input.rulesSourceCount > 0,
       description:
-        input.unifiedTotalEntries > 0
-          ? "从历史对话沉淀出的结构化记忆。"
-          : "暂无沉淀结果，可点击“请求记忆分析”。",
+        input.rulesSourceCount > 0
+          ? "运行时已检测到可加载的规则与来源文件。"
+          : "当前还没有加载到有效规则来源。",
     },
     {
-      key: "context",
-      title: "第二层：上下文记忆",
-      value: input.contextTotalEntries,
+      key: "working",
+      title: "工作记忆",
+      value: input.workingEntryCount,
       unit: "条",
-      available: input.contextTotalEntries > 0,
+      available: input.workingEntryCount > 0,
       description:
-        input.contextTotalEntries > 0
-          ? "工作流文件记忆（计划/发现/进度）已生效。"
-          : "当前会话尚未形成文件记忆。",
+        input.workingEntryCount > 0
+          ? "会话工作记忆文件已经开始沉淀。"
+          : "当前还没有工作记忆条目。",
     },
     {
-      key: "project",
-      title: "第三层：项目记忆",
-      value: projectCoverage,
-      unit: "/3 维",
-      available: projectCoverage > 0,
-      description: !hasProjectSelection
-        ? "未选择项目，无法加载角色/世界观/大纲。"
-        : projectCoverage > 0
-          ? "项目级长期记忆已参与。"
-          : "项目已选择，但还未填写项目记忆内容。",
+      key: "durable",
+      title: "长期记忆",
+      value: input.durableEntryCount,
+      unit: "条",
+      available: input.durableEntryCount > 0,
+      description:
+        input.durableEntryCount > 0
+          ? "统一记忆库中已有可复用的结构化沉淀。"
+          : "长期记忆库暂时为空。",
+    },
+    {
+      key: "team",
+      title: "Team 影子",
+      value: input.teamSnapshotCount,
+      unit: "份",
+      available: input.teamSnapshotCount > 0,
+      description:
+        input.teamSnapshotCount > 0
+          ? "本地已缓存 repo 作用域 Team 协作影子。"
+          : "当前仓库还没有 Team shadow 快照。",
+    },
+    {
+      key: "compaction",
+      title: "压缩边界",
+      value: input.compactionCount,
+      unit: "次",
+      available: input.compactionCount > 0,
+      description:
+        input.compactionCount > 0
+          ? "最近已有上下文压缩摘要可供续接。"
+          : "还没有可复用的上下文压缩摘要。",
     },
   ];
 
   return {
+    cards,
     readyLayers: cards.filter((card) => card.available).length,
     totalLayers: cards.length,
-    cards,
   };
 }

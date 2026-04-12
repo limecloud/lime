@@ -25,12 +25,14 @@ export type TeamWorkspaceDisplayMemberStatus =
   | "completed"
   | "failed";
 
-export const TEAM_WORKSPACE_SURFACE_TITLE = "创作协作";
-export const TEAM_WORKSPACE_REALTIME_BADGE_LABEL = "进展同步";
+export const TEAM_WORKSPACE_SURFACE_TITLE = "任务协作";
+export const TEAM_WORKSPACE_REALTIME_BADGE_LABEL = "任务进行时";
 export const TEAM_WORKSPACE_MEMBER_NOUN = "协作成员";
-export const TEAM_WORKSPACE_PLAN_LABEL = "协作方案";
+export const TEAM_WORKSPACE_PLAN_LABEL = "任务方案";
 export const TEAM_WORKSPACE_MAIN_ASSISTANT_LABEL = "主助手";
 export const TEAM_WORKSPACE_STABLE_PROCESSING_LABEL = STABLE_PROCESSING_LABEL;
+export const TEAM_WORKSPACE_WAITING_HEADLINE = "等待成员接入";
+export const TEAM_WORKSPACE_IDLE_STATUS_LABEL = "还没有成员接入";
 
 const RUNTIME_STATUS_LABELS = {
   idle: "待开始",
@@ -46,15 +48,15 @@ const RUNTIME_STATUS_LABELS = {
 const FORMATION_STATUS_META = {
   forming: {
     label: "准备中",
-    title: "正在准备协作分工",
+    title: "正在准备任务分工",
   },
   formed: {
     label: "已就绪",
-    title: "协作分工已准备好",
+    title: "任务分工已准备好",
   },
   failed: {
     label: "准备失败",
-    title: "协作准备失败",
+    title: "任务分工准备失败",
   },
 } as const;
 

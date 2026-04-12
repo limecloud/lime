@@ -23,7 +23,7 @@ function createFileArtifactItem(
 }
 
 describe("serviceSkillResultFileTarget", () => {
-  it("应优先选择同回合里脱离源导出 bundle 的正式 index.md", () => {
+  it("应优先选择真实导出 bundle 里的结果 index.md，而不是漂到 workspace 拷贝", () => {
     const savedContentTarget: SiteSavedContentTarget = {
       projectId: "project-1",
       contentId: "content-1",
@@ -55,12 +55,12 @@ describe("serviceSkillResultFileTarget", () => {
     });
 
     expect(target).toEqual({
-      relativePath: "workspace/index.md",
+      relativePath: "exports/x-article-export/google-cloud/index.md",
       title: "index.md",
     });
   });
 
-  it("只有源导出 bundle 时应返回 null，交给 saved_content 兜底", () => {
+  it("只有保存链路返回的 bundle 主稿时，也应直接返回该结果文件", () => {
     const savedContentTarget: SiteSavedContentTarget = {
       projectId: "project-1",
       contentId: "content-1",
@@ -81,7 +81,10 @@ describe("serviceSkillResultFileTarget", () => {
       ],
     });
 
-    expect(target).toBeNull();
+    expect(target).toEqual({
+      relativePath: "exports/x-article-export/google-cloud/index.md",
+      title: "index.md",
+    });
   });
 
   it("导出到其他正式目录时也应优先打开结果 index.md", () => {
@@ -112,6 +115,29 @@ describe("serviceSkillResultFileTarget", () => {
 
     expect(target).toEqual({
       relativePath: "exports/social-article/google-cloud/index.md",
+      title: "index.md",
+    });
+  });
+
+  it("没有导出 bundle 时仍可回退到 workspace 里的 index.md", () => {
+    const target = resolvePreferredServiceSkillResultFileTarget({
+      savedContentTarget: null,
+      threadItems: [
+        createFileArtifactItem({
+          id: "artifact-workspace",
+          path: "workspace/index.md",
+          sequence: 3,
+        }),
+        createFileArtifactItem({
+          id: "artifact-agents",
+          path: "workspace/Agents.md",
+          sequence: 4,
+        }),
+      ],
+    });
+
+    expect(target).toEqual({
+      relativePath: "workspace/index.md",
       title: "index.md",
     });
   });

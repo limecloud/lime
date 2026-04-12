@@ -258,8 +258,8 @@ function TeamCard({
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
               onClick={onCopy}
-              title="复制为自定义 Team"
-              aria-label="复制为自定义 Team"
+              title="复制为自定义分工"
+              aria-label="复制为自定义分工"
             >
               <Copy className="h-4 w-4" />
             </button>
@@ -269,8 +269,8 @@ function TeamCard({
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
               onClick={onEdit}
-              title="编辑 Team"
-              aria-label="编辑 Team"
+              title="编辑分工"
+              aria-label="编辑分工"
             >
               <Pencil className="h-4 w-4" />
             </button>
@@ -280,8 +280,8 @@ function TeamCard({
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
               onClick={onDelete}
-              title="删除 Team"
-              aria-label="删除 Team"
+              title="删除分工"
+              aria-label="删除分工"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -412,7 +412,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
     });
 
     if (!normalized) {
-      toast.error("请至少填写 Team 名称和 1 个角色");
+      toast.error("请至少填写分工名称和 1 个角色");
       return;
     }
 
@@ -437,12 +437,12 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
       onClose?.();
       toast.success(
         isProjectScopedCustomTeam
-          ? `已将 Team「${nextTeam.label}」保存到当前项目`
-          : `已保存 Team「${nextTeam.label}」`,
+          ? `已将分工「${nextTeam.label}」保存到当前项目`
+          : `已保存分工「${nextTeam.label}」`,
       );
     } catch (error) {
       toast.error(
-        `保存 Team 失败：${error instanceof Error ? error.message : String(error)}`,
+        `保存分工失败：${error instanceof Error ? error.message : String(error)}`,
       );
     }
   };
@@ -461,12 +461,12 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
       }
       toast.success(
         isProjectScopedCustomTeam
-          ? `已从当前项目删除 Team「${team.label}」`
-          : `已删除 Team「${team.label}」`,
+          ? `已从当前项目删除分工「${team.label}」`
+          : `已删除分工「${team.label}」`,
       );
     } catch (error) {
       toast.error(
-        `删除 Team 失败：${error instanceof Error ? error.message : String(error)}`,
+        `删除分工失败：${error instanceof Error ? error.message : String(error)}`,
       );
     }
   };
@@ -523,8 +523,8 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
     if (!inspectorTeam) {
       return (
         <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-5 py-6 text-sm text-slate-500">
-          还没有可预览的 Team。你可以从左侧模板中查看详情，或新建一个自定义
-          Team。
+          还没有可预览的分工。你可以从左侧模板中查看详情，或新建一个自定义
+          分工。
         </div>
       );
     }
@@ -561,7 +561,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
             </div>
             <div className="mt-2 text-sm leading-6 text-slate-600">
               {inspectorTeam.description ||
-                "该 Team 将作为主代理拆分子任务时的协作参考。"}
+                "这套分工会作为主代理拆分子任务时的协作参考。"}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -571,7 +571,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                 className="bg-slate-900 text-white hover:bg-slate-800"
                 onClick={() => handleSelect(inspectorTeam)}
               >
-                采用这个 Team
+                采用这套分工
               </Button>
             ) : null}
             <Button
@@ -599,7 +599,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
           <div className="text-xs font-semibold tracking-[0.08em] text-slate-500">
-            TEAM 概览
+            分工概览
           </div>
           <div className="mt-2 text-sm leading-6 text-slate-700">
             {buildTeamDefinitionSummary(inspectorTeam)}
@@ -665,7 +665,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
               }}
             >
               <Trash2 className="mr-1.5 h-4 w-4" />
-              删除这个 Team
+              删除这套分工
             </Button>
           </div>
         ) : null}
@@ -686,10 +686,10 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-base font-semibold text-slate-900">
-              {draft.id ? "编辑自定义 Team" : "新建自定义 Team"}
+              {draft.id ? "编辑自定义分工" : "新建自定义分工"}
             </div>
             <div className="mt-1 text-sm text-slate-500">
-              在右侧完整配置 Team 角色、画像和技能，左侧列表用于浏览与切换模板。
+              在右侧完整配置分工角色、画像和技能，左侧列表用于浏览与切换模板。
             </div>
           </div>
           <button
@@ -705,7 +705,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
         <div className="grid gap-3 md:grid-cols-2">
           <div className="grid gap-2">
             <label className="text-xs font-medium text-slate-600">
-              Team 名称
+              分工名称
             </label>
             <Input
               value={draft.label}
@@ -726,7 +726,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
 
           <div className="grid gap-2 md:col-span-2">
             <label className="text-xs font-medium text-slate-600">
-              Team 描述
+              分工说明
             </label>
             <Textarea
               value={draft.description}
@@ -740,7 +740,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                     : current,
                 )
               }
-              placeholder="说明这个 Team 适合什么类型任务。"
+              placeholder="说明这套分工适合什么类型任务。"
               className="min-h-[88px] border-slate-200 bg-white"
             />
           </div>
@@ -992,7 +992,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
               void handleSaveDraft();
             }}
           >
-            保存 Team
+            保存分工
           </Button>
         </div>
       </section>
@@ -1008,15 +1008,15 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
-              TEAM 配置
+              任务分工配置
             </div>
             <div className="mt-1 text-sm text-slate-700">
-              只在当前任务适合拆分协作时，为主代理提供团队结构参考。
+              只在当前任务适合拆分推进时，为主代理提供分工结构参考。
             </div>
             <div className="mt-2 text-xs text-slate-500">
               {isProjectScopedCustomTeam
-                ? "自定义 Team 会保存到当前项目，便于项目级复用与评审。"
-                : "自定义 Team 当前保存在本地设备，用于快速测试与个人偏好。"}
+                ? "自定义分工会保存到当前项目，便于项目级复用与评审。"
+                : "自定义分工当前保存在本地设备，用于快速测试与个人偏好。"}
             </div>
           </div>
           {selectedTeam ? (
@@ -1024,8 +1024,8 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
               onClick={handleClearSelection}
-              title="清除 Team 选择"
-              aria-label="清除 Team 选择"
+              title="清除分工选择"
+              aria-label="清除分工选择"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1038,7 +1038,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
           >
             <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
               <Users className="h-3.5 w-3.5" />
-              当前已选 Team
+              当前已选分工
             </div>
             <div className="mt-1 text-sm font-semibold text-slate-900">
               {selectedTeam.label}
@@ -1058,7 +1058,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索 Team、角色或职责"
+              placeholder="搜索分工、角色或职责"
               className="border-slate-200 bg-white"
             />
             <div className="flex flex-wrap gap-2">
@@ -1072,7 +1072,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                 }
               >
                 <Plus className="mr-1.5 h-4 w-4" />
-                新建自定义 Team
+                新建自定义分工
               </Button>
               {selectedTeam ? (
                 <Button
@@ -1090,7 +1090,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
               <section className="space-y-2">
                 <div className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.08em] text-slate-500">
                   <Sparkles className="h-3.5 w-3.5" />
-                  推荐 Team
+                  推荐分工
                 </div>
                 <TeamCard
                   team={recommendedTeam}
@@ -1114,7 +1114,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
             <section className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
-                  {isProjectScopedCustomTeam ? "当前项目 Team" : "我的 Team"}
+                  {isProjectScopedCustomTeam ? "当前项目分工" : "我的分工"}
                 </div>
                 <Button
                   type="button"
@@ -1161,8 +1161,8 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
                   <div>
                     {isProjectScopedCustomTeam
-                      ? "当前项目还没有自定义 Team。可以从推荐方案或系统模板复制一份后再改。"
-                      : "还没有自定义 Team。可以从推荐方案或系统模板复制一份后再改。"}
+                      ? "当前项目还没有自定义分工。可以从推荐方案或系统模板复制一份后再改。"
+                      : "还没有自定义分工。可以从推荐方案或系统模板复制一份后再改。"}
                   </div>
                   <Button
                     type="button"

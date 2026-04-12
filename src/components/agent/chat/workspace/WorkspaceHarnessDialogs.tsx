@@ -26,7 +26,9 @@ type HarnessPanelBaseProps = Pick<
   | "onResumeThread"
   | "onReplayPendingRequest"
   | "onPromoteQueuedTurn"
+  | "onOpenMemoryWorkbench"
   | "messages"
+  | "teamMemorySnapshot"
   | "diagnosticRuntimeContext"
   | "toolInventory"
   | "toolInventoryLoading"
@@ -63,6 +65,7 @@ export function GeneralWorkbenchHarnessDialogSection({
       panelProps={{
         ...panelBaseProps,
         layout: "dialog",
+        teamMemorySnapshot,
         leadContent: teamMemorySnapshot ? (
           <TeamMemoryShadowCard snapshot={teamMemorySnapshot} />
         ) : undefined,
@@ -119,6 +122,7 @@ export function GeneralWorkbenchDialogSection({
       panelProps={{
         ...panelBaseProps,
         layout: "dialog",
+        teamMemorySnapshot,
         title: "处理工作台",
         description: "集中查看计划、待确认事项、协作成员、文件活动和处理结果。",
         toggleLabel: "工作台详情",

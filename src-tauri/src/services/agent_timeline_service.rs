@@ -235,12 +235,7 @@ impl AgentTimelineRecorder {
         Ok(())
     }
 
-    pub fn complete_turn_success(
-        &mut self,
-        app: &AppHandle,
-        event_name: &str,
-    ) -> Result<(), String> {
-        self.complete_projection_items(app, event_name, AgentThreadItemStatus::Completed)?;
+    pub fn complete_turn_success(&mut self) -> Result<Vec<RuntimeAgentEvent>, String> {
         let now = Utc::now().to_rfc3339();
         self.turn.status = AgentThreadTurnStatus::Completed;
         self.turn.completed_at = Some(now.clone());
@@ -258,33 +253,14 @@ impl AgentTimelineRecorder {
         .map_err(|e| format!("更新 turn 完成状态失败: {e}"))?;
         drop(conn);
 
-        emit_event(
-            app,
-            event_name,
-            &RuntimeAgentEvent::TurnCompleted {
-                turn: self.turn.clone(),
-            },
-        );
-        Ok(())
+        let mut events = self.complete_projection_items(AgentThreadItemStatus::Completed)?;
+        events.push(RuntimeAgentEvent::TurnCompleted {
+            turn: self.turn.clone(),
+        });
+        Ok(events)
     }
 
-    pub fn fail_turn(
-        &mut self,
-        app: &AppHandle,
-        event_name: &str,
-        message: &str,
-    ) -> Result<(), String> {
-        self.complete_projection_items(app, event_name, AgentThreadItemStatus::Completed)?;
-        let error_item = self.build_item(
-            format!("error:{}", self.turn_id),
-            AgentThreadItemStatus::Failed,
-            Some(Utc::now().to_rfc3339()),
-            AgentThreadItemPayload::Error {
-                message: message.to_string(),
-            },
-        );
-        self.persist_and_emit_item(app, event_name, error_item)?;
-
+    pub fn fail_turn(&mut self, message: &str) -> Result<Vec<RuntimeAgentEvent>, String> {
         let now = Utc::now().to_rfc3339();
         self.turn.status = AgentThreadTurnStatus::Failed;
         self.turn.completed_at = Some(now.clone());
@@ -303,22 +279,27 @@ impl AgentTimelineRecorder {
         .map_err(|e| format!("更新 turn 失败状态失败: {e}"))?;
         drop(conn);
 
-        emit_event(
-            app,
-            event_name,
-            &RuntimeAgentEvent::TurnFailed {
-                turn: self.turn.clone(),
+        let mut events = self.complete_projection_items(AgentThreadItemStatus::Completed)?;
+        let error_item = self.build_item(
+            format!("error:{}", self.turn_id),
+            AgentThreadItemStatus::Failed,
+            Some(Utc::now().to_rfc3339()),
+            AgentThreadItemPayload::Error {
+                message: message.to_string(),
             },
         );
-        Ok(())
+        events.push(self.persist_item_and_build_event(error_item)?);
+        events.push(RuntimeAgentEvent::TurnFailed {
+            turn: self.turn.clone(),
+        });
+        Ok(events)
     }
 
     fn complete_projection_items(
         &mut self,
-        app: &AppHandle,
-        event_name: &str,
         status: AgentThreadItemStatus,
-    ) -> Result<(), String> {
+    ) -> Result<Vec<RuntimeAgentEvent>, String> {
+        let mut events = Vec::new();
         if let Some(plan_text) = self.plan_text.clone() {
             let item = self.build_item(
                 format!("plan:{}", self.turn_id),
@@ -326,10 +307,10 @@ impl AgentTimelineRecorder {
                 Some(Utc::now().to_rfc3339()),
                 AgentThreadItemPayload::Plan { text: plan_text },
             );
-            self.persist_and_emit_item(app, event_name, item)?;
+            events.push(self.persist_item_and_build_event(item)?);
         }
 
-        Ok(())
+        Ok(events)
     }
 
     fn build_item(
@@ -381,6 +362,15 @@ impl AgentTimelineRecorder {
         event_name: &str,
         item: AgentThreadItem,
     ) -> Result<(), String> {
+        let event = self.persist_item_and_build_event(item)?;
+        emit_event(app, event_name, &event);
+        Ok(())
+    }
+
+    fn persist_item_and_build_event(
+        &mut self,
+        item: AgentThreadItem,
+    ) -> Result<RuntimeAgentEvent, String> {
         {
             let conn = lock_db(&self.db)?;
             AgentTimelineDao::upsert_item(&conn, &item)
@@ -400,8 +390,7 @@ impl AgentTimelineRecorder {
             }
             _ => RuntimeAgentEvent::ItemUpdated { item: item.clone() },
         };
-        emit_event(app, event_name, &event);
-        Ok(())
+        Ok(event)
     }
 
     fn persist_runtime_item(
@@ -432,5 +421,73 @@ impl AgentTimelineRecorder {
         if let AgentThreadItemPayload::Plan { text } = &item.payload {
             self.plan_text = Some(text.clone());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lime_core::database::dao::agent_timeline::{AgentThreadTurnStatus, AgentTimelineDao};
+    use lime_core::database::schema::create_tables;
+    use rusqlite::Connection;
+    use std::sync::{Arc, Mutex};
+
+    fn setup_db() -> DbConnection {
+        let conn = Connection::open_in_memory().expect("创建内存数据库失败");
+        create_tables(&conn).expect("创建 agent timeline 表失败");
+        conn.execute(
+            "INSERT INTO agent_sessions (id, model, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![
+                "thread-1",
+                "general:test",
+                "2026-03-13T00:00:00Z",
+                "2026-03-13T00:00:00Z"
+            ],
+        )
+        .expect("创建测试 session");
+        Arc::new(Mutex::new(conn))
+    }
+
+    #[test]
+    fn fail_turn_should_persist_failed_turn_before_emitting_events() {
+        let db = setup_db();
+        let mut recorder = AgentTimelineRecorder::create(db.clone(), "thread-1", "turn-1", "hello")
+            .expect("创建 recorder");
+
+        let events = recorder.fail_turn("boom").expect("写入失败终态");
+
+        let conn = lock_db(&db).expect("获取数据库锁");
+        let turns = AgentTimelineDao::list_turns_by_thread(&conn, "thread-1").expect("读取 turn");
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].status, AgentThreadTurnStatus::Failed);
+        assert_eq!(turns[0].error_message.as_deref(), Some("boom"));
+        drop(conn);
+
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, RuntimeAgentEvent::TurnFailed { .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, RuntimeAgentEvent::ItemCompleted { item } if item.id == "error:turn-1")));
+    }
+
+    #[test]
+    fn complete_turn_success_should_persist_completed_turn_before_emitting_events() {
+        let db = setup_db();
+        let mut recorder = AgentTimelineRecorder::create(db.clone(), "thread-1", "turn-1", "hello")
+            .expect("创建 recorder");
+
+        let events = recorder.complete_turn_success().expect("写入完成终态");
+
+        let conn = lock_db(&db).expect("获取数据库锁");
+        let turns = AgentTimelineDao::list_turns_by_thread(&conn, "thread-1").expect("读取 turn");
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].status, AgentThreadTurnStatus::Completed);
+        assert!(turns[0].completed_at.is_some());
+        drop(conn);
+
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, RuntimeAgentEvent::TurnCompleted { .. })));
     }
 }

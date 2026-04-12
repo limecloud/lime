@@ -8,6 +8,7 @@
 //!   属于当前仍在演进的记忆治理配置入口
 
 use crate::commands::context_memory::ContextMemoryServiceState;
+use crate::commands::unified_memory_cmd::{list_unified_memories, ListFilters};
 use crate::config::GlobalConfigManagerState;
 use crate::database::DbConnection;
 use crate::services::auto_memory_service::{
@@ -22,6 +23,7 @@ use crate::services::runtime_agents_template_service::{
     RuntimeAgentsTemplateScaffoldResult, RuntimeAgentsTemplateTarget,
     WorkspaceGitignoreEnsureResult,
 };
+use aster::session::list_summaries;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use lime_core::app_paths;
 use lime_services::context_memory_service::{MemoryEntry, MemoryFileType};
@@ -102,6 +104,124 @@ pub struct MemoryAutoToggleResponse {
     pub enabled: bool,
 }
 
+/// 工作记忆文件摘要
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkingMemoryFileSummary {
+    pub file_type: String,
+    pub path: String,
+    pub exists: bool,
+    pub entry_count: u32,
+    pub updated_at: i64,
+    pub summary: String,
+}
+
+/// 单个会话的工作记忆视图
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkingMemorySessionSummary {
+    pub session_id: String,
+    pub total_entries: u32,
+    pub updated_at: i64,
+    pub files: Vec<WorkingMemoryFileSummary>,
+    pub highlights: Vec<MemoryEntryPreview>,
+}
+
+/// 工作记忆总览
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkingMemoryView {
+    pub memory_dir: String,
+    pub total_sessions: u32,
+    pub total_entries: u32,
+    pub sessions: Vec<WorkingMemorySessionSummary>,
+}
+
+/// 压缩边界快照
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactionBoundarySnapshot {
+    pub session_id: String,
+    pub source: String,
+    pub summary_preview: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_count: Option<u32>,
+    pub created_at: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+/// 工作记忆抽取状态
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryExtractionStatusResponse {
+    pub enabled: bool,
+    pub status: String,
+    pub status_summary: String,
+    pub working_session_count: u32,
+    pub working_entry_count: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_working_memory_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_compaction: Option<CompactionBoundarySnapshot>,
+    #[serde(default)]
+    pub recent_compactions: Vec<CompactionBoundarySnapshot>,
+}
+
+/// 持久记忆召回条目
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DurableMemoryRecallEntry {
+    pub id: String,
+    pub session_id: String,
+    pub category: String,
+    pub title: String,
+    pub summary: String,
+    pub updated_at: i64,
+    pub tags: Vec<String>,
+}
+
+/// Team 影子记忆条目
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamMemoryShadowEntry {
+    pub key: String,
+    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<i64>,
+}
+
+/// 单回合记忆预取请求
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnMemoryPrefetchRequest {
+    #[serde(default)]
+    pub session_id: String,
+    #[serde(default)]
+    pub working_dir: Option<String>,
+    #[serde(default)]
+    pub user_message: String,
+    #[serde(default)]
+    pub request_metadata: Option<serde_json::Value>,
+    #[serde(default)]
+    pub max_durable_entries: Option<usize>,
+    #[serde(default)]
+    pub max_working_chars: Option<usize>,
+}
+
+/// 单回合记忆预取结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TurnMemoryPrefetchResult {
+    pub session_id: String,
+    #[serde(default)]
+    pub rules_source_paths: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_memory_excerpt: Option<String>,
+    #[serde(default)]
+    pub durable_memories: Vec<DurableMemoryRecallEntry>,
+    #[serde(default)]
+    pub team_memory_entries: Vec<TeamMemoryShadowEntry>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_compaction: Option<CompactionBoundarySnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 struct ErrorEntryRecord {
     #[serde(default)]
@@ -138,6 +258,11 @@ const MAX_GENERATED_PER_REQUEST: usize = 200;
 const MAX_GENERATED_PER_REQUEST_CAP: usize = 2000;
 const MAX_GENERATED_PER_SESSION: usize = 40;
 const MIN_MESSAGE_LENGTH: usize = 18;
+const DEFAULT_WORKING_SESSION_LIMIT: usize = 24;
+const MAX_WORKING_SESSION_LIMIT: usize = 120;
+const DEFAULT_RECENT_COMPACTION_LIMIT: usize = 12;
+const DEFAULT_PREFETCH_DURABLE_LIMIT: usize = 5;
+const DEFAULT_PREFETCH_WORKING_CHARS: usize = 2400;
 
 async fn memory_runtime_get_stats_impl() -> Result<MemoryStatsResponse, String> {
     info!("[记忆管理] 获取记忆统计信息");
@@ -447,6 +572,85 @@ pub async fn memory_ensure_workspace_local_agents_gitignore(
     ensure_workspace_local_agents_gitignore(&resolved_working_dir)
 }
 
+/// 获取结构化工作记忆视图
+#[tauri::command]
+pub async fn memory_runtime_get_working_memory(
+    session_id: Option<String>,
+    limit: Option<u32>,
+) -> Result<WorkingMemoryView, String> {
+    let memory_dir = resolve_memory_dir();
+    let normalized_limit = limit
+        .map(|value| value as usize)
+        .unwrap_or(DEFAULT_WORKING_SESSION_LIMIT)
+        .clamp(1, MAX_WORKING_SESSION_LIMIT);
+    collect_working_memory_view(&memory_dir, session_id.as_deref(), normalized_limit)
+}
+
+/// 获取记忆抽取与压缩状态
+#[tauri::command]
+pub async fn memory_runtime_get_extraction_status(
+    global_config: State<'_, GlobalConfigManagerState>,
+) -> Result<MemoryExtractionStatusResponse, String> {
+    let config = global_config.config();
+    let memory_dir = resolve_memory_dir();
+    let working_view =
+        collect_working_memory_view(&memory_dir, None, DEFAULT_WORKING_SESSION_LIMIT)?;
+    let recent_compactions = list_recent_compactions(DEFAULT_RECENT_COMPACTION_LIMIT);
+    let latest_working_memory_at = working_view
+        .sessions
+        .iter()
+        .map(|session| session.updated_at)
+        .filter(|timestamp| *timestamp > 0)
+        .max();
+    let latest_compaction = recent_compactions.first().cloned();
+
+    let (status, status_summary) = if !config.memory.enabled {
+        (
+            "disabled".to_string(),
+            "全局记忆功能当前已关闭，规则、工作记忆与自动沉淀都不会参与运行时。".to_string(),
+        )
+    } else if working_view.total_entries == 0 && latest_compaction.is_none() {
+        (
+            "idle".to_string(),
+            "还没有检测到工作记忆文件或上下文压缩结果，当前处于冷启动状态。".to_string(),
+        )
+    } else if working_view.total_entries > 0 && latest_compaction.is_none() {
+        (
+            "collecting".to_string(),
+            "已检测到工作记忆文件，当前还没有可复用的上下文压缩快照。".to_string(),
+        )
+    } else {
+        (
+            "ready".to_string(),
+            "工作记忆和上下文压缩快照都已就绪，可用于运行时回忆与续接。".to_string(),
+        )
+    };
+
+    Ok(MemoryExtractionStatusResponse {
+        enabled: config.memory.enabled,
+        status,
+        status_summary,
+        working_session_count: working_view.total_sessions,
+        working_entry_count: working_view.total_entries,
+        latest_working_memory_at,
+        latest_compaction,
+        recent_compactions,
+    })
+}
+
+/// 为单回合构建记忆预取结果
+#[tauri::command]
+pub async fn memory_runtime_prefetch_for_turn(
+    global_config: State<'_, GlobalConfigManagerState>,
+    db: State<'_, DbConnection>,
+    request: TurnMemoryPrefetchRequest,
+) -> Result<TurnMemoryPrefetchResult, String> {
+    let config = global_config.config();
+    let resolved_working_dir = resolve_working_dir(request.working_dir.clone())?;
+    let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
+    build_turn_memory_prefetch_result(&config, &conn, &resolved_working_dir, &request)
+}
+
 fn resolve_memory_dir() -> PathBuf {
     app_paths::best_effort_runtime_subdir("memory")
 }
@@ -578,6 +782,504 @@ fn collect_memory_overview(memory_dir: &Path) -> Result<MemoryOverviewResponse, 
         categories,
         entries,
     })
+}
+
+#[derive(Debug, Default)]
+struct WorkingMemorySessionAccumulator {
+    total_entries: u32,
+    updated_at: i64,
+    highlights: Vec<MemoryEntryPreview>,
+    files: HashMap<String, WorkingMemoryFileSummary>,
+}
+
+fn collect_working_memory_view(
+    memory_dir: &Path,
+    session_id: Option<&str>,
+    limit: usize,
+) -> Result<WorkingMemoryView, String> {
+    let overview = collect_memory_overview(memory_dir)?;
+    let mut sessions: HashMap<String, WorkingMemorySessionAccumulator> = HashMap::new();
+
+    for entry in overview.entries.iter() {
+        if session_id.is_some_and(|value| value.trim() != entry.session_id) {
+            continue;
+        }
+
+        let accumulator = sessions
+            .entry(entry.session_id.clone())
+            .or_insert_with(WorkingMemorySessionAccumulator::default);
+        accumulator.total_entries += 1;
+        accumulator.updated_at = accumulator.updated_at.max(entry.updated_at);
+        accumulator.highlights.push(entry.clone());
+
+        let file_path = memory_dir
+            .join(&entry.session_id)
+            .join(memory_file_name_by_file_type(&entry.file_type));
+        let file_summary = accumulator
+            .files
+            .entry(entry.file_type.clone())
+            .or_insert_with(|| WorkingMemoryFileSummary {
+                file_type: entry.file_type.clone(),
+                path: file_path.to_string_lossy().to_string(),
+                exists: file_path.exists(),
+                entry_count: 0,
+                updated_at: 0,
+                summary: String::new(),
+            });
+        file_summary.entry_count += 1;
+        file_summary.updated_at = file_summary.updated_at.max(entry.updated_at);
+        if file_summary.summary.is_empty() {
+            file_summary.summary = entry.summary.clone();
+        } else if !file_summary.summary.contains(&entry.title) {
+            file_summary.summary =
+                truncate_text(&format!("{} / {}", file_summary.summary, entry.title), 140);
+        }
+    }
+
+    let mut session_summaries = sessions
+        .into_iter()
+        .map(|(current_session_id, mut accumulator)| {
+            accumulator.highlights.sort_by(|left, right| {
+                right
+                    .updated_at
+                    .cmp(&left.updated_at)
+                    .then_with(|| left.id.cmp(&right.id))
+            });
+            accumulator.highlights.truncate(5);
+
+            let mut files = accumulator.files.into_values().collect::<Vec<_>>();
+            files.sort_by(|left, right| {
+                working_file_sort_key(&left.file_type)
+                    .cmp(&working_file_sort_key(&right.file_type))
+                    .then_with(|| left.file_type.cmp(&right.file_type))
+            });
+
+            WorkingMemorySessionSummary {
+                session_id: current_session_id,
+                total_entries: accumulator.total_entries,
+                updated_at: accumulator.updated_at,
+                files,
+                highlights: accumulator.highlights,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    session_summaries.sort_by(|left, right| {
+        right
+            .updated_at
+            .cmp(&left.updated_at)
+            .then_with(|| left.session_id.cmp(&right.session_id))
+    });
+    session_summaries.truncate(limit);
+
+    let total_entries = session_summaries
+        .iter()
+        .map(|session| session.total_entries)
+        .sum();
+
+    Ok(WorkingMemoryView {
+        memory_dir: memory_dir.to_string_lossy().to_string(),
+        total_sessions: session_summaries.len() as u32,
+        total_entries,
+        sessions: session_summaries,
+    })
+}
+
+fn memory_file_name_by_file_type(file_type: &str) -> &'static str {
+    match file_type {
+        "task_plan" => "task_plan.md",
+        "findings" => "findings.md",
+        "progress" => "progress.md",
+        "error_log" => "error_log.json",
+        _ => "unknown",
+    }
+}
+
+fn working_file_sort_key(file_type: &str) -> usize {
+    match file_type {
+        "task_plan" => 0,
+        "findings" => 1,
+        "progress" => 2,
+        "error_log" => 3,
+        _ => 99,
+    }
+}
+
+fn build_compaction_boundary_snapshot(
+    session_id: &str,
+    summary_text: &str,
+    created_at: i64,
+    turn_count: Option<usize>,
+    trigger: Option<String>,
+    detail: Option<String>,
+) -> CompactionBoundarySnapshot {
+    CompactionBoundarySnapshot {
+        session_id: session_id.to_string(),
+        source: "summary_cache".to_string(),
+        summary_preview: compact_preview(summary_text, 220),
+        turn_count: turn_count.map(|value| value as u32),
+        created_at,
+        trigger,
+        detail,
+    }
+}
+
+fn list_recent_compactions(limit: usize) -> Vec<CompactionBoundarySnapshot> {
+    list_summaries()
+        .into_iter()
+        .take(limit)
+        .map(|summary| {
+            build_compaction_boundary_snapshot(
+                &summary.uuid,
+                &summary.summary,
+                summary.timestamp.timestamp_millis(),
+                summary.turn_count,
+                None,
+                None,
+            )
+        })
+        .collect()
+}
+
+pub(crate) fn build_turn_memory_prefetch_result(
+    config: &lime_core::config::Config,
+    conn: &Connection,
+    working_dir: &Path,
+    request: &TurnMemoryPrefetchRequest,
+) -> Result<TurnMemoryPrefetchResult, String> {
+    let memory_dir = resolve_memory_dir();
+    let session_id = request.session_id.trim().to_string();
+    let max_durable_entries = request
+        .max_durable_entries
+        .unwrap_or(DEFAULT_PREFETCH_DURABLE_LIMIT)
+        .clamp(1, 12);
+    let max_working_chars = request
+        .max_working_chars
+        .unwrap_or(DEFAULT_PREFETCH_WORKING_CHARS)
+        .clamp(400, 12_000);
+    let resolution = resolve_effective_sources(config, working_dir, None);
+    let rules_source_paths = resolution
+        .response
+        .sources
+        .iter()
+        .filter(|source| source.loaded)
+        .map(|source| source.path.clone())
+        .collect::<Vec<_>>();
+    let working_memory_excerpt = if session_id.is_empty() {
+        None
+    } else {
+        load_working_memory_excerpt(&memory_dir, &session_id, max_working_chars)
+    };
+    let durable_memories = resolve_durable_memory_recall(
+        conn,
+        &session_id,
+        &request.user_message,
+        max_durable_entries,
+    )?;
+    let team_memory_entries = extract_team_memory_shadow_entries(request.request_metadata.as_ref());
+    let latest_compaction = list_recent_compactions(DEFAULT_RECENT_COMPACTION_LIMIT)
+        .into_iter()
+        .find(|snapshot| snapshot.session_id == session_id);
+    let prompt = build_turn_memory_prefetch_prompt(
+        working_memory_excerpt.as_deref(),
+        &durable_memories,
+        latest_compaction.as_ref(),
+    );
+
+    Ok(TurnMemoryPrefetchResult {
+        session_id,
+        rules_source_paths,
+        working_memory_excerpt,
+        durable_memories,
+        team_memory_entries,
+        latest_compaction,
+        prompt,
+    })
+}
+
+fn load_working_memory_excerpt(
+    memory_dir: &Path,
+    session_id: &str,
+    max_chars: usize,
+) -> Option<String> {
+    let session_dir = memory_dir.join(session_id);
+    if !session_dir.exists() {
+        return None;
+    }
+
+    let mut sections = Vec::new();
+    for file_name in SUPPORTED_MEMORY_FILES {
+        let file_path = session_dir.join(file_name);
+        if !file_path.exists() {
+            continue;
+        }
+
+        let raw = match fs::read_to_string(&file_path) {
+            Ok(content) => content,
+            Err(_) => continue,
+        };
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let rendered = if file_name == "error_log.json" {
+            render_error_log_excerpt(trimmed)
+        } else {
+            compact_preview(trimmed, max_chars / 2)
+        };
+        if rendered.is_empty() {
+            continue;
+        }
+
+        sections.push(format!("【{}】\n{}", file_name, rendered));
+    }
+
+    if sections.is_empty() {
+        None
+    } else {
+        Some(truncate_text(&sections.join("\n\n"), max_chars))
+    }
+}
+
+fn render_error_log_excerpt(content: &str) -> String {
+    parse_error_entries("session", content)
+        .into_iter()
+        .take(3)
+        .map(|entry| format!("- {}：{}", entry.title, entry.summary))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn compact_preview(input: &str, max_chars: usize) -> String {
+    let normalized = input
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" | ");
+    truncate_text(&normalized, max_chars)
+}
+
+fn resolve_durable_memory_recall(
+    conn: &Connection,
+    session_id: &str,
+    user_message: &str,
+    limit: usize,
+) -> Result<Vec<DurableMemoryRecallEntry>, String> {
+    let trimmed_query = user_message.trim();
+    let mut memories = if !trimmed_query.is_empty() {
+        search_durable_memories(conn, trimmed_query, limit)?
+    } else {
+        Vec::new()
+    };
+
+    if memories.is_empty() && !session_id.trim().is_empty() {
+        let session_memories = list_unified_memories(
+            conn,
+            ListFilters {
+                session_id: Some(session_id.to_string()),
+                limit: Some(limit),
+                ..Default::default()
+            },
+        )?;
+        memories = session_memories
+            .into_iter()
+            .map(map_durable_memory_recall_entry)
+            .collect();
+    }
+
+    if memories.is_empty() {
+        let recent_memories = list_unified_memories(
+            conn,
+            ListFilters {
+                limit: Some(limit),
+                ..Default::default()
+            },
+        )?;
+        memories = recent_memories
+            .into_iter()
+            .map(map_durable_memory_recall_entry)
+            .collect();
+    }
+
+    memories.truncate(limit);
+    Ok(memories)
+}
+
+fn search_durable_memories(
+    conn: &Connection,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<DurableMemoryRecallEntry>, String> {
+    let search_pattern = format!("%{}%", escape_like_for_sqlite(query));
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, session_id, category, title, summary, tags, updated_at
+             FROM unified_memory
+             WHERE archived = 0
+               AND (title LIKE ? ESCAPE '\\\\' OR summary LIKE ? ESCAPE '\\\\' OR content LIKE ? ESCAPE '\\\\')
+             ORDER BY updated_at DESC
+             LIMIT ?",
+        )
+        .map_err(|e| format!("构建持久记忆搜索失败: {e}"))?;
+
+    let rows = stmt
+        .query_map(
+            rusqlite::params![search_pattern, search_pattern, search_pattern, limit as i64],
+            |row| {
+                let tags_raw: String = row.get(5)?;
+                let tags = serde_json::from_str::<Vec<String>>(&tags_raw).unwrap_or_default();
+                Ok(DurableMemoryRecallEntry {
+                    id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    category: normalize_category_value_for_storage(&row.get::<_, String>(2)?),
+                    title: row.get(3)?,
+                    summary: row.get(4)?,
+                    tags,
+                    updated_at: row.get(6)?,
+                })
+            },
+        )
+        .map_err(|e| format!("执行持久记忆搜索失败: {e}"))?;
+
+    rows.collect::<Result<Vec<_>, rusqlite::Error>>()
+        .map_err(|e| format!("解析持久记忆搜索结果失败: {e}"))
+}
+
+fn normalize_category_value_for_storage(value: &str) -> String {
+    serde_json::from_str::<String>(value).unwrap_or_else(|_| value.to_string())
+}
+
+fn map_durable_memory_recall_entry(memory: lime_memory::UnifiedMemory) -> DurableMemoryRecallEntry {
+    DurableMemoryRecallEntry {
+        id: memory.id,
+        session_id: memory.session_id,
+        category: serde_json::to_string(&memory.category)
+            .ok()
+            .and_then(|encoded| serde_json::from_str::<String>(&encoded).ok())
+            .unwrap_or_else(|| "context".to_string()),
+        title: memory.title,
+        summary: memory.summary,
+        updated_at: memory.updated_at,
+        tags: memory.tags,
+    }
+}
+
+fn extract_team_memory_shadow_entries(
+    request_metadata: Option<&serde_json::Value>,
+) -> Vec<TeamMemoryShadowEntry> {
+    let Some(metadata_object) = request_metadata.and_then(serde_json::Value::as_object) else {
+        return Vec::new();
+    };
+    let harness_object = metadata_object
+        .get("harness")
+        .and_then(serde_json::Value::as_object);
+    let shadow = harness_object
+        .and_then(|object| {
+            object
+                .get("team_memory_shadow")
+                .or_else(|| object.get("teamMemoryShadow"))
+        })
+        .or_else(|| {
+            metadata_object
+                .get("team_memory_shadow")
+                .or_else(|| metadata_object.get("teamMemoryShadow"))
+        })
+        .and_then(serde_json::Value::as_object);
+    let Some(shadow_object) = shadow else {
+        return Vec::new();
+    };
+    let Some(entries) = shadow_object
+        .get("entries")
+        .and_then(serde_json::Value::as_array)
+    else {
+        return Vec::new();
+    };
+
+    entries
+        .iter()
+        .filter_map(|entry| {
+            let object = entry.as_object()?;
+            let key = object
+                .get("key")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())?;
+            let content = object
+                .get("content")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())?;
+            let updated_at = object
+                .get("updated_at")
+                .or_else(|| object.get("updatedAt"))
+                .and_then(serde_json::Value::as_i64);
+            Some(TeamMemoryShadowEntry {
+                key: key.to_string(),
+                content: compact_preview(content, 220),
+                updated_at,
+            })
+        })
+        .collect()
+}
+
+fn build_turn_memory_prefetch_prompt(
+    working_memory_excerpt: Option<&str>,
+    durable_memories: &[DurableMemoryRecallEntry],
+    latest_compaction: Option<&CompactionBoundarySnapshot>,
+) -> Option<String> {
+    let mut lines = vec!["【运行时记忆召回】".to_string()];
+
+    if let Some(excerpt) = working_memory_excerpt.filter(|value| !value.trim().is_empty()) {
+        lines.push(
+            "- 以下是当前会话最近沉淀下来的工作记忆，只用于帮助你续接上下文，不要逐字复述给用户。"
+                .to_string(),
+        );
+        lines.push(excerpt.to_string());
+    }
+
+    if !durable_memories.is_empty() {
+        lines.push(
+            "- 以下是与当前输入最接近的长期结构化记忆，请优先当作可复用事实，而不是重新臆测。"
+                .to_string(),
+        );
+        for memory in durable_memories {
+            let tag_suffix = if memory.tags.is_empty() {
+                String::new()
+            } else {
+                format!(" / tags: {}", memory.tags.join(", "))
+            };
+            lines.push(format!(
+                "  - [{}] {}：{}{}",
+                memory.category, memory.title, memory.summary, tag_suffix
+            ));
+        }
+    }
+
+    if let Some(compaction) = latest_compaction {
+        lines.push(
+            "- 以下是最近一次上下文压缩后的边界摘要；如果当前对话需要追溯更早历史，优先从这里续接。"
+                .to_string(),
+        );
+        lines.push(format!(
+            "  - session={} / turns={:?} / summary={}",
+            compaction.session_id, compaction.turn_count, compaction.summary_preview
+        ));
+    }
+
+    if lines.len() == 1 {
+        None
+    } else {
+        Some(lines.join("\n"))
+    }
+}
+
+fn escape_like_for_sqlite(input: &str) -> String {
+    input
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 fn parse_memory_file(session_id: &str, file_name: &str, content: &str) -> Vec<MemoryEntryPreview> {

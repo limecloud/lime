@@ -270,6 +270,7 @@ mod mcp_bridge;
 mod pdf_read_skill_launch;
 mod presentation_skill_launch;
 mod prompt_context;
+mod provider_runtime_bootstrap;
 mod provider_runtime_strategy;
 mod reply_runtime;
 mod report_skill_launch;
@@ -402,6 +403,7 @@ pub(crate) use prompt_context::{
     merge_system_prompt_with_service_skill_launch_preload,
     merge_system_prompt_with_team_preference,
 };
+pub(crate) use provider_runtime_bootstrap::ensure_provider_runtime_ready;
 pub(crate) use provider_runtime_strategy::{
     enrich_provider_config_with_runtime_tool_strategy, RuntimeToolCallStrategy,
 };
@@ -524,6 +526,149 @@ pub(crate) use webpage_skill_launch::{
     prune_webpage_skill_launch_detour_tools_from_registry,
 };
 
+pub(crate) struct RuntimeCommandContext {
+    app_handle: AppHandle,
+    state: AsterAgentState,
+    db: DbConnection,
+    api_key_provider_service: ApiKeyProviderServiceState,
+    logs: LogState,
+    config_manager: GlobalConfigManagerState,
+    mcp_manager: McpManagerState,
+    automation_state: AutomationServiceState,
+    runtime_queue_executor: RuntimeQueueExecutor,
+}
+
+impl std::fmt::Debug for RuntimeCommandContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RuntimeCommandContext")
+            .field("app_handle", &"<tauri-app-handle>")
+            .field("state", &"<aster-agent-state>")
+            .field("db", &"<db-connection>")
+            .field("api_key_provider_service", &"<api-key-provider-service>")
+            .field("logs", &"<log-state>")
+            .field("config_manager", &"<global-config-manager>")
+            .field("mcp_manager", &"<mcp-manager>")
+            .field("automation_state", &"<automation-state>")
+            .field("runtime_queue_executor", &"<runtime-queue-executor>")
+            .finish()
+    }
+}
+
+impl Clone for RuntimeCommandContext {
+    fn clone(&self) -> Self {
+        Self {
+            app_handle: self.app_handle.clone(),
+            state: self.state.clone(),
+            db: self.db.clone(),
+            api_key_provider_service: ApiKeyProviderServiceState(
+                self.api_key_provider_service.0.clone(),
+            ),
+            logs: self.logs.clone(),
+            config_manager: GlobalConfigManagerState(self.config_manager.0.clone()),
+            mcp_manager: self.mcp_manager.clone(),
+            automation_state: self.automation_state.clone(),
+            runtime_queue_executor: self.runtime_queue_executor.clone(),
+        }
+    }
+}
+
+impl RuntimeCommandContext {
+    pub(crate) fn new(
+        app_handle: AppHandle,
+        state: &AsterAgentState,
+        db: &DbConnection,
+        api_key_provider_service: &ApiKeyProviderServiceState,
+        logs: &LogState,
+        config_manager: &GlobalConfigManagerState,
+        mcp_manager: &McpManagerState,
+        automation_state: &AutomationServiceState,
+    ) -> Self {
+        Self {
+            app_handle,
+            state: state.clone(),
+            db: db.clone(),
+            api_key_provider_service: ApiKeyProviderServiceState(
+                api_key_provider_service.0.clone(),
+            ),
+            logs: logs.clone(),
+            config_manager: GlobalConfigManagerState(config_manager.0.clone()),
+            mcp_manager: mcp_manager.clone(),
+            automation_state: automation_state.clone(),
+            runtime_queue_executor: build_runtime_queue_executor(),
+        }
+    }
+
+    pub(crate) fn state(&self) -> &AsterAgentState {
+        &self.state
+    }
+
+    pub(crate) fn db(&self) -> &DbConnection {
+        &self.db
+    }
+
+    pub(crate) async fn submit_runtime_turn(
+        &self,
+        queued_task: QueuedTurnTask<serde_json::Value>,
+        queue_if_busy: bool,
+    ) -> Result<(), String> {
+        submit_runtime_turn_service(
+            self.app_handle.clone(),
+            &self.state,
+            &self.db,
+            &self.api_key_provider_service,
+            &self.logs,
+            &self.config_manager,
+            &self.mcp_manager,
+            &self.automation_state,
+            queued_task,
+            queue_if_busy,
+            self.runtime_queue_executor.clone(),
+        )
+        .await
+    }
+
+    pub(crate) async fn resume_runtime_queue_if_needed(
+        &self,
+        session_id: String,
+    ) -> Result<bool, String> {
+        resume_runtime_queue_if_needed_service(
+            self.app_handle.clone(),
+            &self.state,
+            &self.db,
+            &self.api_key_provider_service,
+            &self.logs,
+            &self.config_manager,
+            &self.mcp_manager,
+            &self.automation_state,
+            session_id,
+            self.runtime_queue_executor.clone(),
+        )
+        .await
+    }
+
+    pub(crate) async fn resume_persisted_runtime_queues_on_startup(&self) -> Result<usize, String> {
+        resume_persisted_runtime_queues_on_startup_service(
+            self.app_handle.clone(),
+            &self.state,
+            &self.db,
+            &self.api_key_provider_service,
+            &self.logs,
+            &self.config_manager,
+            &self.mcp_manager,
+            &self.automation_state,
+            self.runtime_queue_executor.clone(),
+        )
+        .await
+    }
+
+    pub(crate) async fn clear_runtime_queue(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<aster::session::QueuedTurnRuntime>, String> {
+        clear_runtime_queue_service(&self.app_handle, session_id).await
+    }
+}
+
 pub async fn resume_persisted_runtime_queues_on_startup(
     app: AppHandle,
     state: &AsterAgentState,
@@ -534,7 +679,7 @@ pub async fn resume_persisted_runtime_queues_on_startup(
     mcp_manager: &McpManagerState,
     automation_state: &AutomationServiceState,
 ) -> Result<usize, String> {
-    resume_persisted_runtime_queues_on_startup_service(
+    RuntimeCommandContext::new(
         app,
         state,
         db,
@@ -543,8 +688,8 @@ pub async fn resume_persisted_runtime_queues_on_startup(
         config_manager,
         mcp_manager,
         automation_state,
-        build_runtime_queue_executor(),
     )
+    .resume_persisted_runtime_queues_on_startup()
     .await
 }
 

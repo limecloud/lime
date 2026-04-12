@@ -17,6 +17,7 @@ use super::types::{AppState, TrayManagerState};
 
 const MAIN_WINDOW_LABEL: &str = "main";
 const SKIP_STARTUP_WINDOW_REVEAL_ENV: &str = "LIME_SKIP_STARTUP_WINDOW_REVEAL";
+const DISABLE_SINGLE_INSTANCE_ENV: &str = "LIME_DISABLE_SINGLE_INSTANCE";
 
 fn env_flag_enabled(key: &str) -> bool {
     matches!(
@@ -32,6 +33,10 @@ fn env_flag_enabled(key: &str) -> bool {
 
 fn should_reveal_main_window_on_startup() -> bool {
     !env_flag_enabled(SKIP_STARTUP_WINDOW_REVEAL_ENV)
+}
+
+fn should_enable_single_instance() -> bool {
+    !env_flag_enabled(DISABLE_SINGLE_INSTANCE_ENV)
 }
 
 fn compiled_updater_public_key() -> Option<&'static str> {
@@ -169,39 +174,43 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_deep_link::init());
     }
 
-    builder = builder
-        // 单实例插件：当第二个实例启动时，将 URL 传递给第一个实例
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            tracing::info!("[单实例] 收到来自新实例的参数: {:?}", args);
+    if should_enable_single_instance() {
+        builder = builder
+            // 单实例插件：当第二个实例启动时，将 URL 传递给第一个实例
+            .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+                tracing::info!("[单实例] 收到来自新实例的参数: {:?}", args);
 
-            // 将窗口带到前台
-            if should_reveal_main_window_on_startup() {
-                if let Some(window) = app.get_webview_window("main") {
-                    reveal_main_window(&window);
-                }
-            } else {
-                tracing::info!("[启动] 已跳过主窗口展示流程（headless smoke 模式）");
-            }
-
-            let deep_link_urls: Vec<String> = args
-                .iter()
-                .filter_map(|arg| {
-                    let value = arg.trim();
-                    if value.starts_with("lime://") {
-                        Some(value.to_string())
-                    } else {
-                        None
+                // 将窗口带到前台
+                if should_reveal_main_window_on_startup() {
+                    if let Some(window) = app.get_webview_window("main") {
+                        reveal_main_window(&window);
                     }
-                })
-                .collect();
-
-            if !deep_link_urls.is_empty() {
-                tracing::info!("[单实例] 转发 Deep Link URL: {:?}", deep_link_urls);
-                if let Err(error) = app.emit("deep-link://new-url", &deep_link_urls) {
-                    tracing::error!("[单实例] 转发 Deep Link URL 失败: {}", error);
+                } else {
+                    tracing::info!("[启动] 已跳过主窗口展示流程（headless smoke 模式）");
                 }
-            }
-        }));
+
+                let deep_link_urls: Vec<String> = args
+                    .iter()
+                    .filter_map(|arg| {
+                        let value = arg.trim();
+                        if value.starts_with("lime://") {
+                            Some(value.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if !deep_link_urls.is_empty() {
+                    tracing::info!("[单实例] 转发 Deep Link URL: {:?}", deep_link_urls);
+                    if let Err(error) = app.emit("deep-link://new-url", &deep_link_urls) {
+                        tracing::error!("[单实例] 转发 Deep Link URL 失败: {}", error);
+                    }
+                }
+            }));
+    } else {
+        tracing::info!("[启动] 已禁用单实例插件（当前会话允许并行实例）");
+    }
 
     builder
         .manage(state)
@@ -1755,6 +1764,9 @@ pub fn run() {
             commands::memory_management_cmd::memory_runtime_get_overview,
             commands::memory_management_cmd::memory_runtime_request_analysis,
             commands::memory_management_cmd::memory_runtime_cleanup,
+            commands::memory_management_cmd::memory_runtime_get_working_memory,
+            commands::memory_management_cmd::memory_runtime_get_extraction_status,
+            commands::memory_management_cmd::memory_runtime_prefetch_for_turn,
             commands::memory_management_cmd::memory_get_effective_sources,
             commands::memory_management_cmd::memory_get_auto_index,
             commands::memory_management_cmd::memory_toggle_auto,
@@ -1856,12 +1868,31 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::should_minimize_to_tray;
+    use super::{
+        should_enable_single_instance, should_minimize_to_tray, DISABLE_SINGLE_INSTANCE_ENV,
+    };
 
     #[test]
     fn should_only_minimize_main_window_to_tray() {
         assert!(should_minimize_to_tray("main", true));
         assert!(!should_minimize_to_tray("openclaw-dashboard", true));
         assert!(!should_minimize_to_tray("main", false));
+    }
+
+    #[test]
+    fn should_allow_disabling_single_instance_via_env() {
+        unsafe {
+            std::env::remove_var(DISABLE_SINGLE_INSTANCE_ENV);
+        }
+        assert!(should_enable_single_instance());
+
+        unsafe {
+            std::env::set_var(DISABLE_SINGLE_INSTANCE_ENV, "1");
+        }
+        assert!(!should_enable_single_instance());
+
+        unsafe {
+            std::env::remove_var(DISABLE_SINGLE_INSTANCE_ENV);
+        }
     }
 }

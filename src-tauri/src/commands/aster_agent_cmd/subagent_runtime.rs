@@ -110,6 +110,19 @@ impl SubagentControlRuntime {
     async fn ensure_initialized(&self) -> Result<(), String> {
         self.state.init_agent_with_db(&self.db).await
     }
+
+    fn runtime_command_context(&self) -> RuntimeCommandContext {
+        RuntimeCommandContext::new(
+            self.app_handle.clone(),
+            &self.state,
+            &self.db,
+            &self.api_key_provider_service,
+            &self.logs,
+            &self.config_manager,
+            &self.mcp_manager,
+            &self.automation_state,
+        )
+    }
 }
 
 fn normalize_required_text(value: &str, field_name: &str) -> Result<String, String> {
@@ -736,21 +749,11 @@ fn spawn_subagent_turn_in_background(
 ) -> Result<String, String> {
     let queued_task = build_queued_turn_task(request)?;
     let submission_id = queued_task.queued_turn_id.clone();
+    let runtime_command_context = runtime.runtime_command_context();
     tokio::spawn(async move {
-        if let Err(error) = submit_runtime_turn_service(
-            runtime.app_handle.clone(),
-            &runtime.state,
-            &runtime.db,
-            &runtime.api_key_provider_service,
-            &runtime.logs,
-            &runtime.config_manager,
-            &runtime.mcp_manager,
-            &runtime.automation_state,
-            queued_task,
-            false,
-            build_runtime_queue_executor(),
-        )
-        .await
+        if let Err(error) = runtime_command_context
+            .submit_runtime_turn(queued_task, false)
+            .await
         {
             tracing::warn!("[AsterAgent][Subagent] 后台启动子代理失败: {}", error);
         }
@@ -835,6 +838,7 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
     request: AgentRuntimeSendSubagentInputRequest,
 ) -> Result<AgentRuntimeSendSubagentInputResponse, String> {
     runtime.ensure_initialized().await?;
+    let runtime_command_context = runtime.runtime_command_context();
     let session_id = normalize_required_text(&request.id, "id")?;
     let message = normalize_required_text(&request.message, "message")?;
     let status = load_subagent_runtime_status(&session_id).await?;
@@ -853,7 +857,9 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
     let system_prompt = build_subagent_customization_system_prompt(customization.as_ref())?;
     if request.interrupt {
         let _ = runtime.state.cancel_session(&session_id).await;
-        let _ = clear_runtime_queue_service(&runtime.app_handle, &session_id).await?;
+        let _ = runtime_command_context
+            .clear_runtime_queue(&session_id)
+            .await?;
     }
 
     let workspace_id =
@@ -897,20 +903,9 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
         queued_turn_id: None,
     })?;
     let submission_id = queued_task.queued_turn_id.clone();
-    submit_runtime_turn_service(
-        runtime.app_handle.clone(),
-        &runtime.state,
-        &runtime.db,
-        &runtime.api_key_provider_service,
-        &runtime.logs,
-        &runtime.config_manager,
-        &runtime.mcp_manager,
-        &runtime.automation_state,
-        queued_task,
-        true,
-        build_runtime_queue_executor(),
-    )
-    .await?;
+    runtime_command_context
+        .submit_runtime_turn(queued_task, true)
+        .await?;
     emit_subagent_status_changed_events(&runtime.app_handle, &session_id).await;
 
     Ok(AgentRuntimeSendSubagentInputResponse { submission_id })
@@ -961,6 +956,7 @@ pub(crate) async fn agent_runtime_resume_subagent_internal(
     request: AgentRuntimeResumeSubagentRequest,
 ) -> Result<AgentRuntimeResumeSubagentResponse, String> {
     runtime.ensure_initialized().await?;
+    let runtime_command_context = runtime.runtime_command_context();
     let session_id = normalize_required_text(&request.id, "id")?;
     let current_status = load_subagent_runtime_status(&session_id).await?;
     if current_status.kind == SubagentRuntimeStatusKind::NotFound
@@ -988,19 +984,9 @@ pub(crate) async fn agent_runtime_resume_subagent_internal(
         write_subagent_control_state(&session, &next_state).await?;
         restore_stashed_subagent_queue(stashed_queued_turns.clone()).await?;
         if !stashed_queued_turns.is_empty() {
-            let _ = resume_runtime_queue_if_needed_service(
-                runtime.app_handle.clone(),
-                &runtime.state,
-                &runtime.db,
-                &runtime.api_key_provider_service,
-                &runtime.logs,
-                &runtime.config_manager,
-                &runtime.mcp_manager,
-                &runtime.automation_state,
-                target_id.clone(),
-                build_runtime_queue_executor(),
-            )
-            .await?;
+            let _ = runtime_command_context
+                .resume_runtime_queue_if_needed(target_id.clone())
+                .await?;
         }
         changed_ids.push(target_id);
     }
@@ -1021,6 +1007,7 @@ pub(crate) async fn agent_runtime_close_subagent_internal(
     request: AgentRuntimeCloseSubagentRequest,
 ) -> Result<AgentRuntimeCloseSubagentResponse, String> {
     runtime.ensure_initialized().await?;
+    let runtime_command_context = runtime.runtime_command_context();
     let session_id = normalize_required_text(&request.id, "id")?;
     let previous_status = load_subagent_runtime_status(&session_id).await?;
     if matches!(
@@ -1044,7 +1031,8 @@ pub(crate) async fn agent_runtime_close_subagent_internal(
         }
 
         let _ = runtime.state.cancel_session(&target_id).await;
-        let cleared_queued_turns = clear_runtime_queue_service(&runtime.app_handle, &target_id)
+        let cleared_queued_turns = runtime_command_context
+            .clear_runtime_queue(&target_id)
             .await
             .unwrap_or_default();
         let next_state = SubagentControlState::closed(

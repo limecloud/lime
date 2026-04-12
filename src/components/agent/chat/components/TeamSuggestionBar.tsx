@@ -37,7 +37,7 @@ export function TeamSuggestionBar({
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="border border-slate-200 bg-white text-slate-700">
               <Workflow className="mr-1 h-3.5 w-3.5" />
-              Team 建议
+              任务分工建议
             </Badge>
             {!compact ? (
               <span className="text-xs font-medium text-slate-500">
@@ -46,7 +46,7 @@ export function TeamSuggestionBar({
             ) : null}
           </div>
           <div className="text-sm font-medium text-slate-900">
-            当前任务更适合 Team 协作
+            当前任务更适合分工推进
           </div>
           <div className="text-sm leading-6 text-slate-600">
             {reasons.slice(0, 2).join(" ")}
@@ -84,7 +84,7 @@ export function TeamSuggestionBar({
             className="bg-slate-900 text-white hover:bg-slate-800"
             onClick={onEnableTeam}
           >
-            启用 Team
+            启用任务分工
             <ArrowRight className="ml-1.5 h-4 w-4" />
           </Button>
         </div>

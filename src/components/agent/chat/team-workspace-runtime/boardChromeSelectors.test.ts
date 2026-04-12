@@ -50,8 +50,8 @@ describe("boardChromeSelectors", () => {
     const state = buildTeamWorkspaceBoardChromeDisplayState({
       hasRealTeamGraph: false,
       hasRuntimeFormation: true,
-      runtimeFormationTitle: "协作分工已准备好",
-      runtimeFormationHint: "当前任务的协作分工已经准备好，成员加入后会继续接手处理。",
+      runtimeFormationTitle: "任务分工已准备好",
+      runtimeFormationHint: "当前任务的分工已经准备好，成员加入后会继续接手处理。",
       isChildSession: false,
       totalTeamSessions: 0,
       siblingCount: 0,
@@ -64,11 +64,9 @@ describe("boardChromeSelectors", () => {
       statusSummary: {},
     });
 
-    expect(state.boardHeadline).toBe("协作分工已准备好");
-    expect(state.boardHint).toBe(
-      "当前任务的协作分工已经准备好，成员加入后会继续接手处理。",
-    );
-    expect(state.compactBoardHeadline).toBe("协作分工已准备好");
+    expect(state.boardHeadline).toBe("任务分工已准备好");
+    expect(state.boardHint).toBe("当前任务的分工已经准备好，成员加入后会继续接手处理。");
+    expect(state.compactBoardHeadline).toBe("任务分工已准备好");
     expect(state.compactToolbarChips).toEqual([
       { key: "focus", text: "等待成员接入", tone: "summary" },
       { key: "zoom", text: "缩放 88%", tone: "muted" },

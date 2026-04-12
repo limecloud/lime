@@ -32,6 +32,29 @@ export const TEAM_WORKSPACE_CANVAS_DEFAULT_WIDTH = 360;
 export const TEAM_WORKSPACE_CANVAS_DEFAULT_HEIGHT = 280;
 export const TEAM_WORKSPACE_CANVAS_MIN_WIDTH = 280;
 export const TEAM_WORKSPACE_CANVAS_MIN_HEIGHT = 200;
+export const TEAM_WORKSPACE_CANVAS_WORLD_MIN_WIDTH = 1480;
+export const TEAM_WORKSPACE_CANVAS_WORLD_MIN_HEIGHT = 980;
+export const TEAM_WORKSPACE_CANVAS_WORLD_PADDING = 180;
+export const TEAM_WORKSPACE_CANVAS_VIEWPORT_PADDING = 64;
+export const TEAM_WORKSPACE_CANVAS_AUTO_LAYOUT_GAP_X = 24;
+export const TEAM_WORKSPACE_CANVAS_AUTO_LAYOUT_GAP_Y = 28;
+export const TEAM_WORKSPACE_CANVAS_STAGE_HEIGHT = "clamp(540px, 74vh, 920px)";
+export const TEAM_WORKSPACE_CANVAS_KEYBOARD_PAN_STEP = 72;
+export const TEAM_WORKSPACE_CANVAS_KEYBOARD_FAST_PAN_STEP = 216;
+
+export interface TeamWorkspaceCanvasBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+}
+
+interface TeamWorkspaceCanvasStageHintState {
+  status?: "forming" | "formed" | "failed" | string;
+  errorMessage?: string | null;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -66,6 +89,193 @@ export function clampTeamWorkspaceCanvasZoom(value: number): number {
     min: TEAM_WORKSPACE_CANVAS_MIN_ZOOM,
     max: TEAM_WORKSPACE_CANVAS_MAX_ZOOM,
   });
+}
+
+function clampCanvasNumber(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function resolveCanvasAutoLayoutColumns(
+  laneCount: number,
+  viewportWidth: number,
+): number {
+  if (laneCount <= 1) {
+    return 1;
+  }
+  if (laneCount === 2) {
+    return 2;
+  }
+
+  if (viewportWidth >= 1080) {
+    return Math.min(3, laneCount);
+  }
+
+  return Math.min(2, laneCount);
+}
+
+export function resolveCanvasLanePreferredSize(params: {
+  laneKind: "session" | "runtime" | "planned";
+  laneCount: number;
+  viewportWidth: number;
+  expanded?: boolean;
+}): Pick<TeamWorkspaceCanvasItemLayout, "width" | "height"> {
+  const columns = resolveCanvasAutoLayoutColumns(
+    params.laneCount,
+    params.viewportWidth,
+  );
+  const safeViewportWidth = Math.max(
+    params.viewportWidth,
+    columns >= 3 ? 1180 : 980,
+  );
+  const usableWidth =
+    safeViewportWidth -
+    TEAM_WORKSPACE_CANVAS_VIEWPORT_PADDING * 2 -
+    Math.max(0, columns - 1) * TEAM_WORKSPACE_CANVAS_AUTO_LAYOUT_GAP_X;
+  const rawWidth = Math.floor(usableWidth / columns);
+  const width =
+    params.laneKind === "session"
+      ? clampCanvasNumber(
+          rawWidth,
+          340,
+          columns === 1 ? 560 : columns === 2 ? 460 : 390,
+        )
+      : clampCanvasNumber(rawWidth - 20, 320, columns === 1 ? 520 : 380);
+  const height =
+    params.laneKind === "session"
+      ? params.expanded
+        ? clampCanvasNumber(Math.round(width * 1.68), 620, 880)
+        : clampCanvasNumber(Math.round(width * 1.12), 380, 520)
+      : clampCanvasNumber(Math.round(width * 0.78), 260, 340);
+
+  return { width, height };
+}
+
+export function buildCanvasStageHint(params: {
+  hasRealTeamGraph: boolean;
+  hasRuntimeFormation: boolean;
+  hasSelectedTeamPlan: boolean;
+  teamDispatchPreviewState?: TeamWorkspaceCanvasStageHintState | null;
+}): string {
+  const {
+    hasRealTeamGraph,
+    hasRuntimeFormation,
+    hasSelectedTeamPlan,
+    teamDispatchPreviewState,
+  } = params;
+
+  if (hasRealTeamGraph) {
+    return "拖动画布空白处可平移，滚轮配合 Ctrl/Cmd 可缩放，拖动成员卡片可调整布局。";
+  }
+
+  if (teamDispatchPreviewState?.status === "forming") {
+    return "当前任务分工正在准备中，成员加入后会接手这些位置。";
+  }
+
+  if (teamDispatchPreviewState?.status === "formed") {
+    return "当前任务分工已经准备好，成员加入后会自动接手这些位置。";
+  }
+
+  if (teamDispatchPreviewState?.status === "failed") {
+    return (
+      teamDispatchPreviewState.errorMessage?.trim() ||
+      "当前任务分工准备失败，暂时无法生成成员画布。"
+    );
+  }
+
+  if (hasRuntimeFormation || hasSelectedTeamPlan) {
+    return "当前画布会先展示计划分工，成员加入后会切换为独立的任务进行时面板。";
+  }
+
+  return "成员加入后，这里会展开成可拖拽、可缩放的任务进行时画布。";
+}
+
+export function resolveCanvasLaneBounds(
+  layouts: TeamWorkspaceCanvasItemLayout[],
+): TeamWorkspaceCanvasBounds {
+  if (layouts.length === 0) {
+    return {
+      minX: 0,
+      minY: 0,
+      maxX: TEAM_WORKSPACE_CANVAS_WORLD_MIN_WIDTH,
+      maxY: TEAM_WORKSPACE_CANVAS_WORLD_MIN_HEIGHT,
+      width: TEAM_WORKSPACE_CANVAS_WORLD_MIN_WIDTH,
+      height: TEAM_WORKSPACE_CANVAS_WORLD_MIN_HEIGHT,
+    };
+  }
+
+  const minX = Math.min(...layouts.map((layout) => layout.x));
+  const minY = Math.min(...layouts.map((layout) => layout.y));
+  const maxX = Math.max(...layouts.map((layout) => layout.x + layout.width));
+  const maxY = Math.max(...layouts.map((layout) => layout.y + layout.height));
+
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: Math.max(
+      TEAM_WORKSPACE_CANVAS_WORLD_MIN_WIDTH,
+      maxX - minX + TEAM_WORKSPACE_CANVAS_WORLD_PADDING * 2,
+    ),
+    height: Math.max(
+      TEAM_WORKSPACE_CANVAS_WORLD_MIN_HEIGHT,
+      maxY - minY + TEAM_WORKSPACE_CANVAS_WORLD_PADDING * 2,
+    ),
+  };
+}
+
+export function resolveCanvasViewportMetrics(
+  element: HTMLDivElement | null,
+  fallbackHeight: number,
+): {
+  width: number;
+  height: number;
+} {
+  const rect = element?.getBoundingClientRect();
+  return {
+    width: rect && rect.width > 0 ? rect.width : 960,
+    height: rect && rect.height > 0 ? rect.height : fallbackHeight,
+  };
+}
+
+export function canStartTeamWorkspaceCanvasPanGesture(
+  target: EventTarget | null,
+  currentTarget: EventTarget | null,
+  modifierActive: boolean,
+): boolean {
+  if (modifierActive) {
+    return true;
+  }
+
+  if (!(target instanceof HTMLElement)) {
+    return target === currentTarget;
+  }
+
+  if (target.closest('[data-team-workspace-canvas-pan-block="true"]')) {
+    return false;
+  }
+
+  return (
+    target.closest('[data-team-workspace-canvas-pan-surface="true"]') !==
+      null || target === currentTarget
+  );
+}
+
+export function isEditableTeamWorkspaceCanvasKeyboardTarget(
+  target: EventTarget | null,
+): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName.toLowerCase();
+  return (
+    target.isContentEditable ||
+    tagName === "input" ||
+    tagName === "textarea" ||
+    tagName === "select" ||
+    Boolean(target.closest("[contenteditable='true']"))
+  );
 }
 
 export function buildDefaultTeamWorkspaceCanvasItemLayout(

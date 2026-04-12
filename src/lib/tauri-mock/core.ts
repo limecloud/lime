@@ -3594,6 +3594,103 @@ const defaultMocks: Record<string, any> = {
     cleaned_entries: 0,
     freed_space: 0,
   }),
+  memory_runtime_get_working_memory: () => ({
+    memory_dir: "/mock/runtime/memory",
+    total_sessions: 1,
+    total_entries: 2,
+    sessions: [
+      {
+        session_id: "mock-session",
+        total_entries: 2,
+        updated_at: Date.now(),
+        files: [
+          {
+            file_type: "task_plan",
+            path: "/mock/runtime/memory/mock-session/task_plan.md",
+            exists: true,
+            entry_count: 1,
+            updated_at: Date.now(),
+            summary: "当前任务与阶段计划。",
+          },
+          {
+            file_type: "findings",
+            path: "/mock/runtime/memory/mock-session/findings.md",
+            exists: true,
+            entry_count: 1,
+            updated_at: Date.now(),
+            summary: "最近的重要发现。",
+          },
+        ],
+        highlights: [
+          {
+            id: "mock-session:task_plan:0",
+            session_id: "mock-session",
+            file_type: "task_plan",
+            category: "context",
+            title: "本轮任务",
+            summary: "先补命令边界，再补页面。",
+            updated_at: Date.now(),
+            tags: ["plan"],
+          },
+        ],
+      },
+    ],
+  }),
+  memory_runtime_get_extraction_status: () => ({
+    enabled: true,
+    status: "ready",
+    status_summary: "工作记忆和上下文压缩快照都已就绪。",
+    working_session_count: 1,
+    working_entry_count: 2,
+    latest_working_memory_at: Date.now(),
+    latest_compaction: {
+      session_id: "mock-session",
+      source: "summary_cache",
+      summary_preview: "这是最近一次压缩后的摘要。",
+      turn_count: 8,
+      created_at: Date.now(),
+    },
+    recent_compactions: [
+      {
+        session_id: "mock-session",
+        source: "summary_cache",
+        summary_preview: "这是最近一次压缩后的摘要。",
+        turn_count: 8,
+        created_at: Date.now(),
+      },
+    ],
+  }),
+  memory_runtime_prefetch_for_turn: () => ({
+    session_id: "mock-session",
+    rules_source_paths: ["/mock/workspace/.lime/AGENTS.md"],
+    working_memory_excerpt: "【task_plan.md】\\n先补命令边界，再补页面。",
+    durable_memories: [
+      {
+        id: "durable-1",
+        session_id: "mock-session",
+        category: "experience",
+        title: "记忆层分层经验",
+        summary: "先收口事实源，再补产品层展示。",
+        updated_at: Date.now(),
+        tags: ["memory", "architecture"],
+      },
+    ],
+    team_memory_entries: [
+      {
+        key: "team.selection",
+        content: "分析、实现、验证三段式推进。",
+        updated_at: Date.now(),
+      },
+    ],
+    latest_compaction: {
+      session_id: "mock-session",
+      source: "summary_cache",
+      summary_preview: "这是最近一次压缩后的摘要。",
+      turn_count: 8,
+      created_at: Date.now(),
+    },
+    prompt: "【运行时记忆召回】\\n- 以下是当前会话最近沉淀下来的工作记忆。",
+  }),
   memory_get_effective_sources: () => ({
     working_dir: "/mock/workspace",
     total_sources: 2,

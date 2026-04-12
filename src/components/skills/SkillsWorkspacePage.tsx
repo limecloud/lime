@@ -204,12 +204,12 @@ export function SkillsWorkspacePage({
   );
   const directoryStatusLabel = useMemo(() => {
     if (serviceSkillsLoading || localSkillsLoading || localSkillsRemoteLoading) {
-      return "正在同步当前目录...";
+      return "正在同步当前方法库...";
     }
     if (selectedGroup) {
-      return `当前正在浏览 ${selectedGroup.title} 技能组。`;
+      return `当前正在浏览 ${selectedGroup.title} 做法组。`;
     }
-    return "先从一个现成技能开始，不必先理解目录结构。";
+    return "这里收的是已经跑通过的做法；不确定从哪开始时，先回首页结果模板。";
   }, [
     localSkillsLoading,
     localSkillsRemoteLoading,
@@ -369,9 +369,9 @@ export function SkillsWorkspacePage({
     setRefreshing(true);
     try {
       await Promise.allSettled([refreshServiceSkills(), refreshLocalSkills()]);
-      toast.success("技能目录已刷新");
+      toast.success("方法库已刷新");
     } catch (error) {
-      toast.error(`刷新技能目录失败：${String(error)}`);
+      toast.error(`刷新方法库失败：${String(error)}`);
     } finally {
       setRefreshing(false);
     }
@@ -474,21 +474,21 @@ export function SkillsWorkspacePage({
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="space-y-3">
                   <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-emerald-700">
-                    技能 · 对话内开工
+                    我的方法 · 对话内继续
                   </span>
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-                        技能
+                        我的方法
                       </h1>
                       <WorkbenchInfoTip
-                        ariaLabel="技能主入口说明"
-                        content="技能中心现在先展示技能组；选中具体技能后，统一进入 Agent 对话补参或执行。适配器继续留在后台做治理，前台不再暴露 adapter、runtime 或 YAML 等技术细节。"
+                        ariaLabel="方法主入口说明"
+                        content="首页负责结果模板，这里负责可复用做法；选中具体方法后，统一进入 Agent 对话补参或继续执行。适配器继续留在后台做治理，前台不再暴露 adapter、runtime 或 YAML 等技术细节。"
                         tone="mint"
                       />
                     </div>
                     <p className="max-w-3xl text-sm leading-7 text-slate-600">
-                      先找适合当前目标的做法，再进入 Agent 对话补参和执行。
+                      这里更像方法库：当你已经知道要找哪类做法时，再进入 Agent 对话补参和执行。
                     </p>
                     <p className="text-sm leading-6 text-slate-500">
                       {directoryStatusLabel}
@@ -506,7 +506,7 @@ export function SkillsWorkspacePage({
                     <RefreshCw
                       className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")}
                     />
-                    刷新目录
+                    刷新方法库
                   </Button>
                   <Button
                     type="button"
@@ -515,7 +515,7 @@ export function SkillsWorkspacePage({
                     onClick={() => setAdvancedManagerOpen(true)}
                   >
                     <FolderOpen className="mr-2 h-4 w-4" />
-                    导入与维护
+                    导入与整理
                   </Button>
                 </div>
               </div>
@@ -523,10 +523,10 @@ export function SkillsWorkspacePage({
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
-                    <span>查找技能组 / 技能项</span>
+                    <span>查找做法组 / 做法项</span>
                     <WorkbenchInfoTip
-                      ariaLabel="技能搜索说明"
-                      content="先从能直接进入 Agent 对话开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。"
+                      ariaLabel="做法搜索说明"
+                      content="先从结果相关的做法组找起；本地导入、仓库维护和远程安装统一收进导入与整理。"
                       tone="slate"
                     />
                   </div>
@@ -535,7 +535,7 @@ export function SkillsWorkspacePage({
                     <Input
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="搜索站点、技能标题或业务关键词"
+                      placeholder="搜索结果方向、站点或做法标题"
                       className="h-12 rounded-[22px] border-slate-200 bg-slate-50 pl-10"
                     />
                   </div>
@@ -550,7 +550,7 @@ export function SkillsWorkspacePage({
                         </span>
                       ) : null}
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                        技能 {workspaceServiceSkills.length}
+                        做法 {workspaceServiceSkills.length}
                       </span>
                       {catalogMeta.groupCount ? (
                         <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
@@ -565,7 +565,7 @@ export function SkillsWorkspacePage({
                     </>
                   ) : (
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
-                      正在读取当前技能目录
+                      正在读取当前方法库
                     </span>
                   )}
                 </div>
@@ -576,11 +576,11 @@ export function SkillsWorkspacePage({
           {(serviceSkillsError || localSkillsError) && (
             <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
               {serviceSkillsError
-                ? `云目录加载失败：${serviceSkillsError}`
+                ? `云端方法库加载失败：${serviceSkillsError}`
                 : null}
               {serviceSkillsError && localSkillsError ? "；" : null}
               {localSkillsError
-                ? `本地技能加载失败：${localSkillsError}`
+                ? `本地方法加载失败：${localSkillsError}`
                 : null}
             </div>
           )}
@@ -593,7 +593,7 @@ export function SkillsWorkspacePage({
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-3">
                         <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
-                          技能组 · {selectedGroup.title}
+                          做法组 · {selectedGroup.title}
                         </span>
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
@@ -601,7 +601,7 @@ export function SkillsWorkspacePage({
                               {selectedGroup.title}
                             </h2>
                             <WorkbenchInfoTip
-                              ariaLabel={`${selectedGroup.title}技能组说明`}
+                              ariaLabel={`${selectedGroup.title}做法组说明`}
                               content={selectedGroup.summary}
                               tone="slate"
                             />
@@ -616,7 +616,7 @@ export function SkillsWorkspacePage({
                             ) : null}
                           </div>
                           <p className="text-sm leading-6 text-slate-500">
-                            先在这个技能组里选一个具体做法，再决定是否继续扩展到更多技能。
+                            先在这个做法组里选一个具体做法，再决定是否继续扩展到更多技能。
                           </p>
                         </div>
                       </div>
@@ -626,7 +626,7 @@ export function SkillsWorkspacePage({
                         className="rounded-2xl border-slate-200"
                         onClick={() => setSelectedGroupKey(null)}
                       >
-                        返回推荐技能组
+                        返回方法目录
                       </Button>
                     </div>
                   </section>
@@ -638,10 +638,10 @@ export function SkillsWorkspacePage({
                   ) : (
                     <div className="rounded-[28px] border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
                       <div className="text-base font-semibold text-slate-900">
-                        当前技能组下暂无匹配技能
+                        当前做法组下暂无匹配做法
                       </div>
                       <p className="mt-2 text-sm leading-6 text-slate-500">
-                        可以调整搜索词，或先返回推荐技能组切换到其他方向。
+                        可以调整搜索词，或先返回方法目录切换到其他方向。
                       </p>
                     </div>
                   )}
@@ -651,16 +651,16 @@ export function SkillsWorkspacePage({
                   <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-                        推荐技能组
+                        方法目录
                       </h2>
                       <WorkbenchInfoTip
-                        ariaLabel="技能组说明"
-                        content="站点能力先按 GitHub、知乎、Linux.do 等技能组进入，通用创作技能也统一收进同一份技能目录。"
+                        ariaLabel="做法组说明"
+                        content="首页先看结果模板；当你已经知道要找哪类做法时，再从这里进入对应技能组。"
                         tone="mint"
                       />
                     </div>
                     <p className="text-sm leading-6 text-slate-500">
-                      先从一个现成技能开始，不必先理解目录结构。
+                      先按目标方向找一组做法，不必先理解目录结构。
                     </p>
                   </div>
 
@@ -677,15 +677,15 @@ export function SkillsWorkspacePage({
                         >
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                              技能组
+                              做法组
                             </span>
                             {hasRecommendedGroupSkills ? (
                               <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                                {groupSkills.length} 项技能
+                                {groupSkills.length} 套做法
                               </span>
                             ) : (
                               <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
-                                已收进最近使用
+                                已沉淀到常用做法
                               </span>
                             )}
                           </div>
@@ -697,7 +697,7 @@ export function SkillsWorkspacePage({
                               </h3>
                               <div className="mt-2 flex flex-wrap items-center gap-2">
                                 <WorkbenchInfoTip
-                                  ariaLabel={`${group.title}技能组摘要`}
+                                  ariaLabel={`${group.title}做法组摘要`}
                                   content={group.summary}
                                   tone="slate"
                                 />
@@ -716,7 +716,7 @@ export function SkillsWorkspacePage({
                               {hasRecommendedGroupSkills ? (
                                 <div>
                                   <span className="font-medium text-slate-700">
-                                    覆盖技能：
+                                    覆盖做法：
                                   </span>
                                   {groupSkills
                                     .slice(0, 3)
@@ -726,7 +726,7 @@ export function SkillsWorkspacePage({
                                 </div>
                               ) : (
                                 <div>
-                                  当前这组技能已沉淀到最近使用，可直接从右侧继续，或打开技能组查看。
+                                  当前这组做法已沉淀到常用做法，可直接从右侧继续，或打开做法组查看。
                                 </div>
                               )}
                               {group.themeTarget ? (
@@ -742,7 +742,7 @@ export function SkillsWorkspacePage({
 
                           <div className="mt-auto flex items-center justify-between gap-3 pt-5">
                             <div className="text-xs text-slate-400">
-                              进入后再选择具体技能项
+                              进入后再选具体做法
                             </div>
                             <Button
                               type="button"
@@ -750,7 +750,7 @@ export function SkillsWorkspacePage({
                               className="h-auto rounded-2xl px-0 text-sm font-medium text-slate-900 hover:bg-transparent hover:text-slate-950"
                               onClick={() => setSelectedGroupKey(group.key)}
                             >
-                              打开技能组
+                              打开做法组
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                           </div>
@@ -762,7 +762,7 @@ export function SkillsWorkspacePage({
               ) : (
                 <div className="rounded-[28px] border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
                   <div className="text-base font-semibold text-slate-900">
-                    当前搜索下暂无技能组
+                    当前搜索下暂无做法组
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
                     可以尝试刷新目录，或换一个站点、业务关键词继续查找。
@@ -775,11 +775,11 @@ export function SkillsWorkspacePage({
               <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-semibold text-slate-900">
-                    最近使用
+                    继续常用做法
                   </h2>
                   <WorkbenchInfoTip
-                    ariaLabel="最近使用技能说明"
-                    content="最近执行过的技能会沉淀在这里，方便再次启动。"
+                    ariaLabel="最近做法说明"
+                    content="最近跑通过的做法会沉淀在这里，方便再次续上。"
                     tone="slate"
                   />
                   {visibleRecentSkills.length > 0 ? (
@@ -800,7 +800,7 @@ export function SkillsWorkspacePage({
                       >
                         <div className="flex items-center justify-between gap-3">
                           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                            最近使用
+                            最近成功
                           </span>
                           <span className="text-[11px] text-slate-400">
                             {skill.actionLabel}
@@ -817,7 +817,7 @@ export function SkillsWorkspacePage({
                   </div>
                 ) : (
                   <div className="mt-4 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
-                    当前还没有最近使用记录。先从一个现成技能开始，后续会自动收敛到这里。
+                    当前还没有最近做法。先从一个现成做法开始，后续会自动收敛到这里。
                   </div>
                 )}
               </section>
@@ -826,11 +826,11 @@ export function SkillsWorkspacePage({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-semibold text-slate-900">
-                      我的技能
+                      我的方法库
                     </h2>
                     <WorkbenchInfoTip
-                      ariaLabel="本地已安装技能区说明"
-                      content="项目级、本地补充和内置技能仍然可用，但高阶仓库、导入和标准检查收纳在高级管理中。"
+                      ariaLabel="本地方法库说明"
+                      content="项目级、本地补充和内置技能仍然可用，但高阶仓库、导入和标准检查收纳在导入与整理。"
                       tone="slate"
                     />
                     {visibleInstalledLocalSkills.length > 0 ? (
@@ -846,7 +846,7 @@ export function SkillsWorkspacePage({
                     onClick={() => setAdvancedManagerOpen(true)}
                   >
                     <FolderOpen className="mr-2 h-4 w-4" />
-                    导入与维护
+                    导入与整理
                   </Button>
                 </div>
 
@@ -882,7 +882,7 @@ export function SkillsWorkspacePage({
                   </div>
                 ) : (
                   <div className="mt-4 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
-                    当前还没有自己的技能。先从一个现成技能开始，后续再沉淀成自己的做法也很自然。
+                    当前还没有自己的方法。先从一个现成做法开始，后续再沉淀到这里也很自然。
                   </div>
                 )}
               </section>
@@ -896,9 +896,9 @@ export function SkillsWorkspacePage({
           <div className="flex h-[calc(100vh-88px)] min-h-[680px] flex-col bg-white">
             <DialogHeader className="border-b border-slate-200 px-6 py-5">
               <div className="flex flex-wrap items-center gap-2">
-                <DialogTitle>导入与维护</DialogTitle>
+                <DialogTitle>导入与整理</DialogTitle>
                 <WorkbenchInfoTip
-                  ariaLabel="导入与维护弹窗说明"
+                  ariaLabel="导入与整理弹窗说明"
                   content="首页先服务进入 Agent 对话开工；这里保留本地导入、仓库管理、标准检查和远程技能安装能力。"
                   tone="mint"
                 />

@@ -45,18 +45,53 @@ export enum TauriEvent {
   DRAG_LEAVE = "tauri://drag-leave",
 }
 
+function resolveListenTarget(options?: Options): EventTarget {
+  return typeof options?.target === "string"
+    ? { kind: "AnyLabel" as const, label: options.target }
+    : (options?.target ?? { kind: "Any" as const });
+}
+
+function createManagedUnlisten(event: string, eventId: number): UnlistenFn {
+  let released = false;
+
+  return () => {
+    if (released) {
+      return;
+    }
+    released = true;
+    void _unlisten(event, eventId);
+  };
+}
+
 async function _unlisten(event: string, eventId: number): Promise<void> {
-  (
+  const eventInternals = (
     window as Window & {
       __TAURI_EVENT_PLUGIN_INTERNALS__?: {
         unregisterListener: (event: string, eventId: number) => void;
       };
     }
-  ).__TAURI_EVENT_PLUGIN_INTERNALS__?.unregisterListener(event, eventId);
-  await invoke("plugin:event|unlisten", {
-    event,
-    eventId,
-  });
+  ).__TAURI_EVENT_PLUGIN_INTERNALS__;
+
+  try {
+    eventInternals?.unregisterListener(event, eventId);
+  } catch (error) {
+    console.warn(
+      `[tauri-event] 忽略重复或失效的事件监听注销: ${event}#${eventId}`,
+      error,
+    );
+  }
+
+  try {
+    await invoke("plugin:event|unlisten", {
+      event,
+      eventId,
+    });
+  } catch (error) {
+    console.warn(
+      `[tauri-event] 事件桥后端注销失败，已忽略: ${event}#${eventId}`,
+      error,
+    );
+  }
 }
 
 export async function listen<T>(
@@ -64,10 +99,7 @@ export async function listen<T>(
   handler: EventCallback<T>,
   options?: Options,
 ): Promise<UnlistenFn> {
-  const target =
-    typeof options?.target === "string"
-      ? { kind: "AnyLabel" as const, label: options.target }
-      : (options?.target ?? { kind: "Any" as const });
+  const target = resolveListenTarget(options);
 
   const eventId = await invoke<number>("plugin:event|listen", {
     event,
@@ -75,9 +107,7 @@ export async function listen<T>(
     handler: transformCallback(handler),
   });
 
-  return () => {
-    void _unlisten(event, eventId);
-  };
+  return createManagedUnlisten(event, eventId);
 }
 
 export async function once<T>(
@@ -85,14 +115,20 @@ export async function once<T>(
   handler: EventCallback<T>,
   options?: Options,
 ): Promise<UnlistenFn> {
-  return listen<T>(
+  const target = resolveListenTarget(options);
+  let unlisten: UnlistenFn = () => {};
+
+  const eventId = await invoke<number>("plugin:event|listen", {
     event,
-    (eventData) => {
-      void _unlisten(event, eventData.id);
+    target,
+    handler: transformCallback((eventData: Event<T>) => {
+      unlisten();
       handler(eventData);
-    },
-    options,
-  );
+    }),
+  });
+
+  unlisten = createManagedUnlisten(event, eventId);
+  return unlisten;
 }
 
 export async function emit<T>(event: string, payload?: T): Promise<void> {

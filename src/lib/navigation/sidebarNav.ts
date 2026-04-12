@@ -79,7 +79,7 @@ const WORKSPACE_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
 const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   {
     id: "skills",
-    label: "技能",
+    label: "我的方法",
     icon: Sparkles,
     page: "skills",
     isActive: (currentPage) => currentPage === "skills",
@@ -87,7 +87,7 @@ const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   },
   {
     id: "automation",
-    label: "自动化",
+    label: "持续流程",
     icon: CalendarRange,
     page: "automation",
     isActive: (currentPage) => currentPage === "automation",
@@ -146,7 +146,6 @@ const SYSTEM_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
       currentPage === "settings" &&
       (currentParams as SettingsPageParams | undefined)?.providerView ===
         "companion",
-    configurable: false,
   },
   {
     id: "settings",
@@ -198,7 +197,7 @@ const CONFIGURABLE_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   ...CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS,
 ];
 
-export const DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS = ["terminal"];
+export const DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS: string[] = [];
 
 const CONFIGURABLE_SIDEBAR_NAV_ITEM_ID_SET = new Set<string>(
   CONFIGURABLE_SIDEBAR_NAV_ITEMS.map((item) => item.id),

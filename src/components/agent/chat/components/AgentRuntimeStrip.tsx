@@ -141,8 +141,8 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
         key: "team_running",
         label:
           queuedTeamSessions > 0
-            ? `协作处理中 ${activeTeamSessions}/${childSubagentSessions.length} · 稍后开始 ${queuedTeamSessions}`
-            : `协作处理中 ${activeTeamSessions}/${childSubagentSessions.length}`,
+            ? `任务进行中 ${activeTeamSessions}/${childSubagentSessions.length} · 稍后开始 ${queuedTeamSessions}`
+            : `任务进行中 ${activeTeamSessions}/${childSubagentSessions.length}`,
         tone: "secondary",
       });
     } else if (childSubagentSessions.length > 0) {

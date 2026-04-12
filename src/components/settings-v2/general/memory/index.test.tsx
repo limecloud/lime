@@ -5,27 +5,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockGetConfig,
   mockSaveConfig,
-  mockGetMemoryOverview,
   mockGetMemoryEffectiveSources,
+  mockGetMemoryExtractionStatus,
   mockGetMemoryAutoIndex,
+  mockGetWorkingMemory,
   mockEnsureWorkspaceLocalAgentsGitignore,
   mockScaffoldRuntimeAgentsTemplate,
   mockToggleMemoryAuto,
   mockUpdateMemoryAutoNote,
   mockGetUnifiedMemoryStats,
-  mockGetProjectMemory,
 } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(),
   mockSaveConfig: vi.fn(),
-  mockGetMemoryOverview: vi.fn(),
   mockGetMemoryEffectiveSources: vi.fn(),
+  mockGetMemoryExtractionStatus: vi.fn(),
   mockGetMemoryAutoIndex: vi.fn(),
+  mockGetWorkingMemory: vi.fn(),
   mockEnsureWorkspaceLocalAgentsGitignore: vi.fn(),
   mockScaffoldRuntimeAgentsTemplate: vi.fn(),
   mockToggleMemoryAuto: vi.fn(),
   mockUpdateMemoryAutoNote: vi.fn(),
   mockGetUnifiedMemoryStats: vi.fn(),
-  mockGetProjectMemory: vi.fn(),
 }));
 
 vi.mock("@/lib/api/appConfig", () => ({
@@ -34,9 +34,10 @@ vi.mock("@/lib/api/appConfig", () => ({
 }));
 
 vi.mock("@/lib/api/memoryRuntime", () => ({
-  getContextMemoryOverview: mockGetMemoryOverview,
   getContextMemoryEffectiveSources: mockGetMemoryEffectiveSources,
+  getContextMemoryExtractionStatus: mockGetMemoryExtractionStatus,
   getContextMemoryAutoIndex: mockGetMemoryAutoIndex,
+  getContextWorkingMemory: mockGetWorkingMemory,
   ensureWorkspaceLocalAgentsGitignore: mockEnsureWorkspaceLocalAgentsGitignore,
   scaffoldRuntimeAgentsTemplate: mockScaffoldRuntimeAgentsTemplate,
   toggleContextMemoryAuto: mockToggleMemoryAuto,
@@ -47,45 +48,52 @@ vi.mock("@/lib/api/unifiedMemory", () => ({
   getUnifiedMemoryStats: mockGetUnifiedMemoryStats,
 }));
 
-vi.mock("@/lib/api/memory", () => ({
-  getProjectMemory: mockGetProjectMemory,
-}));
-
-vi.mock("@/lib/resourceProjectSelection", () => ({
-  getStoredResourceProjectId: vi.fn(() => null),
-  onResourceProjectChange: vi.fn(() => () => {}),
-}));
-
 vi.mock("@/components/memory/memoryLayerMetrics", () => ({
   buildLayerMetrics: vi.fn(() => ({
     cards: [
       {
-        key: "unified",
-        title: "第一层",
+        key: "rules",
+        title: "规则层",
         value: 1,
-        unit: "条",
+        unit: "源",
         available: true,
         description: "ok",
       },
       {
-        key: "context",
-        title: "第二层",
+        key: "working",
+        title: "工作记忆",
         value: 0,
         unit: "条",
         available: false,
         description: "wait",
       },
       {
-        key: "project",
-        title: "第三层",
+        key: "durable",
+        title: "长期记忆",
         value: 0,
-        unit: "/4 维",
+        unit: "条",
+        available: false,
+        description: "wait",
+      },
+      {
+        key: "team",
+        title: "Team 影子",
+        value: 0,
+        unit: "份",
+        available: false,
+        description: "wait",
+      },
+      {
+        key: "compaction",
+        title: "压缩边界",
+        value: 0,
+        unit: "次",
         available: false,
         description: "wait",
       },
     ],
     readyLayers: 1,
-    totalLayers: 3,
+    totalLayers: 5,
   })),
 }));
 
@@ -189,12 +197,6 @@ beforeEach(() => {
   });
 
   mockGetUnifiedMemoryStats.mockResolvedValue({ total_entries: 1 });
-  mockGetMemoryOverview.mockResolvedValue({
-    stats: { total_entries: 0, storage_used: 0, memory_count: 0 },
-    categories: [],
-    entries: [],
-  });
-  mockGetProjectMemory.mockResolvedValue(null);
   mockGetMemoryEffectiveSources.mockResolvedValue({
     working_dir: "/tmp",
     total_sources: 2,
@@ -202,6 +204,22 @@ beforeEach(() => {
     follow_imports: true,
     import_max_depth: 5,
     sources: [],
+  });
+  mockGetMemoryExtractionStatus.mockResolvedValue({
+    enabled: true,
+    status: "ready",
+    status_summary: "工作记忆和上下文压缩快照都已就绪。",
+    working_session_count: 1,
+    working_entry_count: 2,
+    latest_working_memory_at: 1_712_345_678_900,
+    latest_compaction: null,
+    recent_compactions: [],
+  });
+  mockGetWorkingMemory.mockResolvedValue({
+    memory_dir: "/tmp/runtime/memory",
+    total_sessions: 1,
+    total_entries: 2,
+    sessions: [],
   });
   mockGetMemoryAutoIndex.mockResolvedValue({
     enabled: true,
@@ -256,7 +274,7 @@ describe("MemorySettings", () => {
     await flushEffects();
 
     expect(getBodyText()).not.toContain(
-      "管理用户画像、三层记忆来源与自动记忆入口，让代理在长期使用里更稳定地理解你的背景与偏好。",
+      "管理用户画像、五层记忆来源与自动记忆入口，让代理在长期使用里更稳定地续接规则、上下文与协作状态。",
     );
     expect(getBodyText()).not.toContain(
       "单选，用于帮助代理判断你的知识密度和上下文称呼。",
@@ -264,7 +282,7 @@ describe("MemorySettings", () => {
 
     const heroTip = await hoverTip("记忆设置说明");
     expect(getBodyText()).toContain(
-      "管理用户画像、三层记忆来源与自动记忆入口，让代理在长期使用里更稳定地理解你的背景与偏好。",
+      "管理用户画像、五层记忆来源与自动记忆入口，让代理在长期使用里更稳定地续接规则、上下文与协作状态。",
     );
     await leaveTip(heroTip);
 
@@ -285,7 +303,7 @@ describe("MemorySettings", () => {
     expect(text).toContain("管理用户画像、来源策略与自动记忆入口。");
     expect(text).toContain("记忆总开关");
     expect(text).toContain("偏好画像");
-    expect(text).toContain("三层记忆可用性");
+    expect(text).toContain("五层记忆可用性");
     expect(text).toContain("记忆来源策略");
     expect(text).toContain("自动记忆（Auto Memory）");
   });
@@ -295,7 +313,7 @@ describe("MemorySettings", () => {
     await flushEffects();
     await flushEffects();
 
-    expect(mockGetMemoryEffectiveSources).toHaveBeenCalledTimes(1);
+    expect(mockGetMemoryEffectiveSources).toHaveBeenCalledTimes(2);
     expect(mockGetMemoryAutoIndex).toHaveBeenCalledTimes(1);
   });
 

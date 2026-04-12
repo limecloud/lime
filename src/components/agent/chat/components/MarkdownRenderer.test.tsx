@@ -2,6 +2,7 @@ import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as fileBrowserModule from "@/lib/api/fileBrowser";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
 const mockConvertLocalFileSrc = vi.fn((path: string) => `asset://${path}`);
@@ -67,6 +68,10 @@ vi.mock("./A2UITaskCard", () => ({
 
 vi.mock("@/lib/api/fileSystem", () => ({
   convertLocalFileSrc: (path: string) => mockConvertLocalFileSrc(path),
+}));
+
+vi.mock("@/lib/api/fileBrowser", () => ({
+  readFilePreview: vi.fn(),
 }));
 
 interface MountedHarness {
@@ -283,6 +288,48 @@ describe("MarkdownRenderer", () => {
     );
     expect(image?.getAttribute("src")).toBe(
       "asset:///Users/coso/.proxycast/projects/default/exports/x-article/google/images/hero.png",
+    );
+  });
+
+  it("应通过同目录 meta.json 将远程图片替换为本地下载资源", async () => {
+    vi.mocked(fileBrowserModule.readFilePreview).mockResolvedValue({
+      path:
+        "/Users/coso/.lime/projects/default/exports/x-article/google/meta.json",
+      content: JSON.stringify({
+        markdown_relative_path: "exports/x-article/google/index.md",
+        images: [
+          {
+            original_url: "https://cdn.example.com/hero.png",
+            markdown_path: "images/hero.png",
+          },
+        ],
+      }),
+      isBinary: false,
+      size: 160,
+      error: null,
+    });
+
+    const container = render("![配图](https://cdn.example.com/hero.png)", {
+      baseFilePath:
+        "/Users/coso/.lime/projects/default/exports/x-article/google/index.md",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fileBrowserModule.readFilePreview).toHaveBeenCalledWith(
+      "/Users/coso/.lime/projects/default/exports/x-article/google/meta.json",
+      64 * 1024,
+    );
+
+    const image = container.querySelector("img");
+    expect(image).not.toBeNull();
+    expect(mockConvertLocalFileSrc).toHaveBeenCalledWith(
+      "/Users/coso/.lime/projects/default/exports/x-article/google/images/hero.png",
+    );
+    expect(image?.getAttribute("src")).toBe(
+      "asset:///Users/coso/.lime/projects/default/exports/x-article/google/images/hero.png",
     );
   });
 

@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Artifact } from "@/lib/artifact/types";
+import * as fileBrowserModule from "@/lib/api/fileBrowser";
 import { useWorkspaceArtifactPreviewActions } from "./useWorkspaceArtifactPreviewActions";
 
 vi.mock("../hooks/useArtifactAutoPreviewSync", () => ({
@@ -228,5 +229,109 @@ describe("useWorkspaceArtifactPreviewActions", () => {
         content: "# 研究简报\n\n这里是预览内容。",
       }),
     );
+  });
+
+  it("读取带目录的真实结果路径时不应回退到同名裸任务文件", async () => {
+    const readFilePreviewSpy = vi
+      .spyOn(fileBrowserModule, "readFilePreview")
+      .mockResolvedValue({
+        path: "/tmp/project/exports/x-article-export/latest/index.md",
+        content: "# 真实导出",
+        isBinary: false,
+        size: 12,
+        error: null,
+      });
+
+    const { render, getValue } = renderHook({
+      taskFiles: [
+        {
+          id: "task-index",
+          name: "index.md",
+          type: "document",
+          content: "# 过程文件",
+          version: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    });
+
+    await render();
+
+    const preview = await getValue().handleHarnessLoadFilePreview(
+      "/tmp/project/exports/x-article-export/latest/index.md",
+    );
+
+    expect(readFilePreviewSpy).toHaveBeenCalledWith(
+      "/tmp/project/exports/x-article-export/latest/index.md",
+      64 * 1024,
+    );
+    expect(preview).toEqual({
+      path: "/tmp/project/exports/x-article-export/latest/index.md",
+      content: "# 真实导出",
+      isBinary: false,
+      size: 12,
+      error: null,
+    });
+  });
+
+  it("读取裸文件名时仍可回退到同名任务文件", async () => {
+    const readFilePreviewSpy = vi.spyOn(fileBrowserModule, "readFilePreview");
+    const { render, getValue } = renderHook({
+      taskFiles: [
+        {
+          id: "task-index",
+          name: "index.md",
+          type: "document",
+          content: "# 过程文件",
+          version: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    });
+
+    await render();
+
+    const preview = await getValue().handleHarnessLoadFilePreview("index.md");
+
+    expect(readFilePreviewSpy).not.toHaveBeenCalled();
+    expect(preview).toEqual({
+      path: "index.md",
+      content: "# 过程文件",
+      isBinary: false,
+      size: "# 过程文件".length,
+      error: null,
+    });
+  });
+
+  it("读取裸文件名时可回退到带目录的同名任务文件", async () => {
+    const readFilePreviewSpy = vi.spyOn(fileBrowserModule, "readFilePreview");
+    const { render, getValue } = renderHook({
+      taskFiles: [
+        {
+          id: "task-export-index",
+          name: "exports/x-article-export/latest/index.md",
+          type: "document",
+          content: "# 正式结果",
+          version: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    });
+
+    await render();
+
+    const preview = await getValue().handleHarnessLoadFilePreview("index.md");
+
+    expect(readFilePreviewSpy).not.toHaveBeenCalled();
+    expect(preview).toEqual({
+      path: "exports/x-article-export/latest/index.md",
+      content: "# 正式结果",
+      isBinary: false,
+      size: "# 正式结果".length,
+      error: null,
+    });
   });
 });

@@ -5,6 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatSidebar } from "./ChatSidebar";
 import type { Topic } from "../hooks/agentChatShared";
 import type { Message } from "../types";
+import type { Project } from "@/lib/api/project";
+
+const { mockGetProject } = vi.hoisted(() => ({
+  mockGetProject: vi.fn<(projectId: string) => Promise<Project | null>>(
+    async () => null,
+  ),
+}));
+
+vi.mock("@/lib/api/project", () => ({
+  getProject: (projectId: string) => mockGetProject(projectId),
+}));
 
 vi.mock("@/components/ui/badge", () => ({
   Badge: ({
@@ -50,6 +61,8 @@ beforeEach(() => {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+  mockGetProject.mockReset();
+  mockGetProject.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -148,6 +161,96 @@ describe("ChatSidebar", () => {
     );
   });
 
+  it("任务中心侧栏应在顶部展示继续上次任务与最近结果入口", async () => {
+    mockGetProject.mockImplementation(async (projectId: string) => {
+      if (projectId === "project-waiting") {
+        return {
+          id: projectId,
+          name: "品牌项目",
+        } as Project;
+      }
+      if (projectId === "project-recent") {
+        return {
+          id: projectId,
+          name: "活动项目",
+        } as Project;
+      }
+      return null;
+    });
+
+    const onResumeTask = vi.fn();
+    const onSwitchTopic = vi.fn();
+    const now = Date.now();
+    const container = renderSidebar({
+      contextVariant: "task-center",
+      onResumeTask,
+      onSwitchTopic,
+      currentTopicId: null,
+      topics: [
+        {
+          ...defaultTopics[0],
+          id: "topic-waiting",
+          title: "待继续任务",
+          updatedAt: new Date(now),
+          status: "waiting",
+          statusReason: "user_action",
+          lastPreview: "请先确认发布标题后继续。",
+          workspaceId: "project-waiting",
+          sourceSessionId: "topic-waiting",
+        },
+        {
+          ...defaultTopics[0],
+          id: "topic-recent",
+          title: "最近回访任务",
+          updatedAt: new Date(now - 2_000),
+          status: "done",
+          lastPreview: "首版结果已经产出，可继续补充和复盘。",
+          workspaceId: "project-recent",
+          sourceSessionId: "topic-recent",
+        },
+      ],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const panel = container.querySelector(
+      '[data-testid="task-center-continuation-panel"]',
+    ) as HTMLElement | null;
+    expect(panel).toBeTruthy();
+    expect(panel?.textContent).toContain("继续上次任务");
+    expect(panel?.textContent).toContain(
+      "上次推进到哪、结果留在哪个项目里，这里会直接告诉你。",
+    );
+    expect(panel?.textContent).toContain("待继续任务");
+    expect(panel?.textContent).toContain("品牌项目");
+    expect(panel?.textContent).toContain("最近回访任务");
+    expect(panel?.textContent).toContain("活动项目");
+
+    const primaryButton = container.querySelector(
+      '[data-testid="task-center-primary-continuation"]',
+    ) as HTMLButtonElement | null;
+    expect(primaryButton).toBeTruthy();
+
+    act(() => {
+      primaryButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onResumeTask).toHaveBeenCalledWith("topic-waiting", "user_action");
+
+    const relatedButton = container.querySelector(
+      '[data-testid="task-center-related-topic-recent"]',
+    ) as HTMLButtonElement | null;
+    expect(relatedButton).toBeTruthy();
+
+    act(() => {
+      relatedButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onSwitchTopic).toHaveBeenCalledWith("topic-recent");
+  });
+
   it("任务中心侧栏应使用回访型任务分组标题", () => {
     const now = Date.now();
     const container = renderSidebar({
@@ -196,7 +299,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("更早记录");
   });
 
-  it("Team Runtime 和任务列表应处于同一滚动区域", () => {
+  it("任务协作和任务列表应处于同一滚动区域", () => {
     const container = renderSidebar({
       childSubagentSessions: [
         {
@@ -222,11 +325,14 @@ describe("ChatSidebar", () => {
     expect(scrollArea).toBeTruthy();
     expect(teamSection).toBeTruthy();
     expect(scrollArea?.contains(teamSection)).toBe(true);
-    expect(scrollArea?.textContent).toContain("Team Runtime");
+    expect(scrollArea?.textContent).toContain("任务协作");
+    expect(scrollArea?.textContent).toContain(
+      "这里展示当前任务的协作成员、当前任务和任务节点。",
+    );
     expect(scrollArea?.textContent).toContain("任务一");
   });
 
-  it("点击 Team Runtime 的任务入口应收起顶部区块并滚动到任务列表", () => {
+  it("点击任务协作的任务入口应收起顶部区块并滚动到任务列表", () => {
     const container = renderSidebar({
       childSubagentSessions: [
         {
@@ -544,7 +650,7 @@ describe("ChatSidebar", () => {
       onOpenSubagentSession,
     });
 
-    expect(container.textContent).toContain("Team Runtime");
+    expect(container.textContent).toContain("任务协作");
     expect(container.textContent).toContain("代码审查代理");
     expect(container.textContent).toContain("文档校对代理");
     expect(container.textContent).toContain("处理中");
@@ -562,7 +668,7 @@ describe("ChatSidebar", () => {
     expect(onOpenSubagentSession).toHaveBeenCalledWith("child-1");
   });
 
-  it("父线程 Team Runtime 区域应支持折叠和展开", () => {
+  it("父线程任务协作区域应支持折叠和展开", () => {
     const container = renderSidebar({
       childSubagentSessions: [
         {
@@ -592,7 +698,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("文档校对代理");
 
     const collapseButton = container.querySelector(
-      'button[aria-label="收起 Team Runtime"]',
+      'button[aria-label="收起任务协作"]',
     ) as HTMLButtonElement | null;
     expect(collapseButton).toBeTruthy();
 
@@ -607,7 +713,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).not.toContain("文档校对代理");
 
     const expandButton = container.querySelector(
-      'button[aria-label="展开 Team Runtime"]',
+      'button[aria-label="展开任务协作"]',
     ) as HTMLButtonElement | null;
     expect(expandButton).toBeTruthy();
 
@@ -619,7 +725,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("文档校对代理");
   });
 
-  it("父线程 Team Runtime 在子代理较多时应默认收起，并支持展开更多子代理", () => {
+  it("父线程任务协作在子代理较多时应默认收起，并支持展开更多子代理", () => {
     const container = renderSidebar({
       childSubagentSessions: [
         {
@@ -674,7 +780,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).not.toContain("回归验证代理");
 
     const expandTeamButton = container.querySelector(
-      'button[aria-label="展开 Team Runtime"]',
+      'button[aria-label="展开任务协作"]',
     ) as HTMLButtonElement | null;
     expect(expandTeamButton).toBeTruthy();
 
@@ -718,7 +824,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).not.toContain("回归验证代理");
   });
 
-  it("子线程同级子代理较多时应默认收起 Team Runtime", () => {
+  it("子线程同级子代理较多时应默认收起任务协作", () => {
     const container = renderSidebar({
       topics: [
         {
@@ -778,7 +884,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).not.toContain("文档代理");
 
     const expandButton = container.querySelector(
-      'button[aria-label="展开 Team Runtime"]',
+      'button[aria-label="展开任务协作"]',
     ) as HTMLButtonElement | null;
     expect(expandButton).toBeTruthy();
 
@@ -828,7 +934,7 @@ describe("ChatSidebar", () => {
       onReturnToParentSession,
     });
 
-    expect(container.textContent).toContain("Team Runtime");
+    expect(container.textContent).toContain("任务协作");
     expect(container.textContent).toContain("主线程");
     expect(container.textContent).toContain("当前子代理");
     expect(container.textContent).toContain("实现 team sidebar");

@@ -3,12 +3,16 @@ import type {
   AutoMemoryIndexResponse,
   CleanupMemoryResult,
   EffectiveMemorySourcesResponse,
+  MemoryExtractionStatusResponse,
   MemoryAnalysisResult,
   MemoryAutoToggleResponse,
   MemoryStatsResponse,
   MemoryOverviewResponse,
   RuntimeAgentsTemplateScaffoldResult,
   RuntimeAgentsTemplateTarget,
+  TurnMemoryPrefetchRequest,
+  TurnMemoryPrefetchResult,
+  WorkingMemoryView,
   WorkspaceGitignoreEnsureResult,
 } from "./memoryRuntimeTypes";
 
@@ -16,8 +20,11 @@ export type {
   AutoMemoryIndexResponse,
   AutoMemoryIndexItem,
   CleanupMemoryResult,
+  CompactionBoundarySnapshot,
+  DurableMemoryRecallEntry,
   EffectiveMemorySourcesResponse,
   EffectiveMemorySource,
+  MemoryExtractionStatusResponse,
   MemoryAnalysisResult,
   MemoryAutoConfig,
   MemoryAutoToggleResponse,
@@ -32,6 +39,12 @@ export type {
   RuntimeAgentsTemplateScaffoldResult,
   RuntimeAgentsTemplateScaffoldStatus,
   RuntimeAgentsTemplateTarget,
+  TeamMemoryShadowEntry,
+  TurnMemoryPrefetchRequest,
+  TurnMemoryPrefetchResult,
+  WorkingMemoryFileSummary,
+  WorkingMemorySessionSummary,
+  WorkingMemoryView,
   WorkspaceGitignoreEnsureResult,
   WorkspaceGitignoreEnsureStatus,
 } from "./memoryRuntimeTypes";
@@ -58,6 +71,28 @@ export async function analyzeContextMemory(
 
 export async function cleanupContextMemory(): Promise<CleanupMemoryResult> {
   return safeInvoke("memory_runtime_cleanup");
+}
+
+export async function getContextWorkingMemory(
+  sessionId?: string,
+  limit?: number,
+): Promise<WorkingMemoryView> {
+  return safeInvoke("memory_runtime_get_working_memory", {
+    sessionId,
+    limit,
+  });
+}
+
+export async function getContextMemoryExtractionStatus(): Promise<MemoryExtractionStatusResponse> {
+  return safeInvoke("memory_runtime_get_extraction_status");
+}
+
+export async function prefetchContextMemoryForTurn(
+  request: TurnMemoryPrefetchRequest,
+): Promise<TurnMemoryPrefetchResult> {
+  return safeInvoke("memory_runtime_prefetch_for_turn", {
+    request,
+  });
 }
 
 export async function getContextMemoryEffectiveSources(

@@ -177,6 +177,46 @@ function renderSidebar(
 }
 
 describe("GeneralWorkbenchSidebar", () => {
+  it("任务进行时面板应突出当前任务并按状态优先级排序", () => {
+    const { container } = renderSidebar({
+      workflowSteps: [
+        { id: "done", title: "完成提纲", status: "completed" },
+        { id: "pending", title: "等待补充案例", status: "pending" },
+        { id: "active", title: "撰写主稿", status: "active" },
+        { id: "error", title: "封面生成失败", status: "error" },
+      ],
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开任务进行时面板"]',
+    ) as HTMLButtonElement | null;
+    expect(workflowTab).toBeTruthy();
+    expect(workflowTab?.textContent).toContain("任务");
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    expect(container.textContent).toContain("任务工作台");
+    expect(container.textContent).toContain("跟踪当前任务、后续节点与产物版本。");
+    expect(container.textContent).toContain("任务进行时");
+    expect(container.textContent).toContain("当前任务");
+    expect(container.textContent).toContain("撰写主稿");
+    expect(container.textContent).toContain("已完成 1/4");
+
+    const stepNodes = Array.from(
+      container.querySelectorAll('[data-testid="workflow-sidebar-step"]'),
+    );
+    expect(stepNodes).toHaveLength(4);
+    expect(stepNodes.map((node) => node.getAttribute("data-status"))).toEqual([
+      "active",
+      "error",
+      "pending",
+      "completed",
+    ]);
+  });
+
   it("传入折叠回调时应显示折叠按钮并可触发", () => {
     const onRequestCollapse = vi.fn();
     const { container } = renderSidebar({ onRequestCollapse });
@@ -277,7 +317,7 @@ describe("GeneralWorkbenchSidebar", () => {
       container.querySelector('button[aria-label="打开上下文管理"]'),
     ).toBeTruthy();
     expect(
-      container.querySelector('button[aria-label="打开编排面板"]'),
+      container.querySelector('button[aria-label="打开任务进行时面板"]'),
     ).toBeTruthy();
     expect(
       container.querySelector('button[aria-label="打开执行日志"]'),
@@ -685,7 +725,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开编排面板"]',
+      'button[aria-label="打开任务进行时面板"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -713,7 +753,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开编排面板"]',
+      'button[aria-label="打开任务进行时面板"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -740,7 +780,7 @@ describe("GeneralWorkbenchSidebar", () => {
   it("活动日志应展示后端闸门与运行标识", () => {
     const { container } = renderSidebar();
     const workflowTab = container.querySelector(
-      'button[aria-label="打开编排面板"]',
+      'button[aria-label="打开任务进行时面板"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -793,7 +833,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开编排面板"]',
+      'button[aria-label="打开任务进行时面板"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -826,7 +866,7 @@ describe("GeneralWorkbenchSidebar", () => {
     const onViewRunDetail = vi.fn();
     const { container } = renderSidebar({ onViewRunDetail });
     const workflowTab = container.querySelector(
-      'button[aria-label="打开编排面板"]',
+      'button[aria-label="打开任务进行时面板"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -876,7 +916,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开编排面板"]',
+      'button[aria-label="打开任务进行时面板"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -918,7 +958,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开编排面板"]',
+      'button[aria-label="打开任务进行时面板"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -993,7 +1033,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开编排面板"]',
+      'button[aria-label="打开任务进行时面板"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -1099,7 +1139,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开编排面板"]',
+      'button[aria-label="打开任务进行时面板"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -1182,7 +1222,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开编排面板"]',
+      'button[aria-label="打开任务进行时面板"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -1239,7 +1279,7 @@ describe("GeneralWorkbenchSidebar", () => {
       });
 
       const workflowTab = container.querySelector(
-        'button[aria-label="打开编排面板"]',
+        'button[aria-label="打开任务进行时面板"]',
       ) as HTMLButtonElement | null;
       if (workflowTab) {
         act(() => {

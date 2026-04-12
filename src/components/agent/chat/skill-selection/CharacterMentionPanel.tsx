@@ -325,7 +325,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
       recentEntries.push({
         key: `scene:${command.key}`,
         kind: "scene",
-        kindLabel: "场景",
+        kindLabel: "结果模板",
         commandPrefix: command.commandPrefix,
         title: command.label,
         description: resolveRecentSlashEntryDescription({
@@ -570,7 +570,9 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
     <Command ref={commandRef} className="bg-background">
       <CommandInput
         placeholder={
-          mode === "slash" ? "搜索命令或技能..." : "搜索角色或技能..."
+          mode === "slash"
+            ? "搜索命令、结果模板或技能..."
+            : "搜索角色或技能..."
         }
         value={mentionQuery}
         onValueChange={onQueryChange}
@@ -579,7 +581,9 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
         {!hasFilteredResults ? (
           <div className="px-3 py-6 text-center text-sm text-muted-foreground">
             <div>
-              {mode === "slash" ? "暂无可用命令或技能" : "暂无可用角色或技能"}
+              {mode === "slash"
+                ? "暂无可用命令、结果模板或技能"
+                : "暂无可用角色或技能"}
             </div>
             {onNavigateToSettings ? (
               <button
@@ -783,7 +787,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
           </CommandGroup>
         ) : null}
         {visibleSceneCommands.length > 0 ? (
-          <CommandGroup heading="场景组合">
+          <CommandGroup heading="结果模板">
             {visibleSceneCommands.map((command) => (
               <CommandItem
                 key={command.entryId ?? command.key}

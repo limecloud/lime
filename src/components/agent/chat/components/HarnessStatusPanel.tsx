@@ -34,6 +34,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import type { StepStatus } from "@/lib/workspace/workbenchContract";
 import type {
   AgentRuntimeAnalysisHandoff,
   AgentRuntimeEvidencePack,
@@ -102,10 +103,15 @@ import {
   normalizeToolNameKey,
   resolveToolDisplayLabel,
 } from "../utils/toolDisplayInfo";
+import {
+  buildWorkflowSummaryText,
+  getWorkflowStatusLabel,
+} from "../utils/workflowStepPresentation";
 import { buildThreadReliabilityView } from "../utils/threadReliabilityView";
 import { resolveTeamWorkspaceStableProcessingLabel } from "../utils/teamWorkspaceCopy";
 import type { CompatSubagentRuntimeDisplaySnapshot } from "../utils/compatSubagentRuntime";
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
+import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import { AgentThreadReliabilityPanel } from "./AgentThreadReliabilityPanel";
 import { RuntimeReviewDecisionDialog } from "./RuntimeReviewDecisionDialog";
 
@@ -161,10 +167,13 @@ interface HarnessStatusPanelProps {
   onResumeThread?: () => boolean | Promise<boolean>;
   onReplayPendingRequest?: (requestId: string) => boolean | Promise<boolean>;
   onPromoteQueuedTurn?: (queuedTurnId: string) => boolean | Promise<boolean>;
+  onOpenMemoryWorkbench?: () => void;
   messages?: Message[];
+  teamMemorySnapshot?: TeamMemorySnapshot | null;
   diagnosticRuntimeContext?: {
     sessionId?: string | null;
     workspaceId?: string | null;
+    workingDir?: string | null;
     providerType?: string | null;
     model?: string | null;
     executionStrategy?: string | null;
@@ -218,6 +227,16 @@ interface HarnessSummaryCard {
   value: string;
   hint: string;
   icon: LucideIcon;
+}
+
+interface RuntimeTaskPresentation {
+  title: string;
+  summaryText: string;
+  phaseLabel: string;
+  statusLabel: string;
+  progressLabel: string;
+  stepStatus: StepStatus;
+  checkpoints: string[];
 }
 
 interface TextSegment {
@@ -819,6 +838,84 @@ function formatRuntimePhaseLabel(
     default:
       return runtimeStatus.phase;
   }
+}
+
+function resolveRuntimeStepStatus(
+  runtimeStatus: NonNullable<HarnessSessionState["runtimeStatus"]>,
+): StepStatus {
+  if (runtimeStatus.phase === "failed") {
+    return "error";
+  }
+  if (runtimeStatus.phase === "cancelled") {
+    return "skipped";
+  }
+  return "active";
+}
+
+function resolveRuntimeStatusLabel(
+  runtimeStatus: NonNullable<HarnessSessionState["runtimeStatus"]>,
+): string {
+  if (runtimeStatus.phase === "cancelled") {
+    return "已取消";
+  }
+  return getWorkflowStatusLabel(resolveRuntimeStepStatus(runtimeStatus));
+}
+
+function buildRuntimeSummaryText(
+  runtimeStatus: NonNullable<HarnessSessionState["runtimeStatus"]>,
+): string {
+  const detail = runtimeStatus.detail?.trim();
+  if (detail) {
+    return detail;
+  }
+  if (runtimeStatus.phase === "cancelled") {
+    return "当前流程已取消，可重新发起新的任务继续。";
+  }
+  return buildWorkflowSummaryText({
+    leadingStep: {
+      status: resolveRuntimeStepStatus(runtimeStatus),
+    },
+    remainingCount: 1,
+    emptyLabel: "当前流程已完成",
+  });
+}
+
+function formatRuntimeProgressLabel(
+  runtimeStatus: NonNullable<HarnessSessionState["runtimeStatus"]>,
+  checkpoints: string[],
+): string {
+  if (checkpoints.length > 0) {
+    return `已记录 ${checkpoints.length} 个任务节点`;
+  }
+  if (runtimeStatus.phase === "failed") {
+    return "等待处理异常后重试";
+  }
+  if (runtimeStatus.phase === "cancelled") {
+    return "当前流程已取消";
+  }
+  return "等待更多执行进展";
+}
+
+function buildRuntimeTaskPresentation(
+  runtimeStatus: HarnessSessionState["runtimeStatus"],
+): RuntimeTaskPresentation | null {
+  if (!runtimeStatus) {
+    return null;
+  }
+
+  const checkpoints = (runtimeStatus.checkpoints ?? [])
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
+  return {
+    title: runtimeStatus.title?.trim() || "正在整理当前任务",
+    summaryText: buildRuntimeSummaryText(runtimeStatus),
+    phaseLabel: formatRuntimePhaseLabel(runtimeStatus),
+    statusLabel: resolveRuntimeStatusLabel(runtimeStatus),
+    progressLabel: formatRuntimeProgressLabel(runtimeStatus, checkpoints),
+    stepStatus: resolveRuntimeStepStatus(runtimeStatus),
+    checkpoints,
+  };
 }
 
 function formatWriteSourceLabel(source?: string): string {
@@ -1631,7 +1728,9 @@ export function HarnessStatusPanel({
   onResumeThread,
   onReplayPendingRequest,
   onPromoteQueuedTurn,
+  onOpenMemoryWorkbench,
   messages = [],
+  teamMemorySnapshot = null,
   diagnosticRuntimeContext = null,
 }: HarnessStatusPanelProps) {
   const [expanded, setExpanded] = useState(true);
@@ -1939,6 +2038,10 @@ export function HarnessStatusPanel({
     Boolean(toolInventoryError) ||
     Boolean(toolInventory);
   const hasHandoffSection = Boolean(currentSessionId);
+  const runtimeTaskPresentation = useMemo(
+    () => buildRuntimeTaskPresentation(harnessState.runtimeStatus),
+    [harnessState.runtimeStatus],
+  );
   const toolInventorySourceStats = useMemo(
     () => buildToolInventorySourceStats(toolInventory?.catalog_tools || []),
     [toolInventory],
@@ -2129,8 +2232,8 @@ export function HarnessStatusPanel({
       sections.push({ key: "team_config", label: "协作设置" });
     }
 
-    if (harnessState.runtimeStatus) {
-      sections.push({ key: "runtime", label: "任务进展" });
+    if (runtimeTaskPresentation) {
+      sections.push({ key: "runtime", label: "任务进行时" });
     }
     if (hasHandoffSection) {
       sections.push({ key: "handoff", label: "交接制品" });
@@ -2186,24 +2289,23 @@ export function HarnessStatusPanel({
     harnessState.plan.items.length,
     harnessState.plan.phase,
     harnessState.recentFileEvents.length,
-    harnessState.runtimeStatus,
     hasHandoffSection,
     hasSelectedTeamConfig,
     hasCompatSchedulerSignals,
     realTeamSummary.total,
+    runtimeTaskPresentation,
     threadReliabilityView.shouldRender,
   ]);
 
   const summaryCards = useMemo(() => {
     const cards: HarnessSummaryCard[] = [];
 
-    if (harnessState.runtimeStatus) {
+    if (runtimeTaskPresentation) {
       cards.push({
         sectionKey: "runtime",
         title: "当前任务",
-        value: formatRuntimePhaseLabel(harnessState.runtimeStatus),
-        hint:
-          harnessState.runtimeStatus.detail || harnessState.runtimeStatus.title,
+        value: runtimeTaskPresentation.title,
+        hint: `${runtimeTaskPresentation.statusLabel} · ${runtimeTaskPresentation.progressLabel}`,
         icon: Loader2,
       });
     }
@@ -2353,13 +2455,13 @@ export function HarnessStatusPanel({
     harnessState.plan.phase,
     harnessState.plan.summaryText,
     harnessState.recentFileEvents,
-    harnessState.runtimeStatus,
     realTeamSummary.active,
     realTeamSummary.failed,
     realTeamSummary.queued,
     realTeamSummary.running,
     realTeamSummary.settled,
     realTeamSummary.total,
+    runtimeTaskPresentation,
     selectedTeamLabel,
     selectedTeamRoles?.length,
     selectedTeamSummary,
@@ -2592,7 +2694,7 @@ export function HarnessStatusPanel({
               {realTeamSummary.active > 0 ? (
                 <Badge variant="secondary" className="gap-1">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  协作处理中
+                  任务进行中
                 </Badge>
               ) : compatSubagentRuntime.isRunning ? (
                 <Badge variant="secondary" className="gap-1">
@@ -2778,42 +2880,167 @@ export function HarnessStatusPanel({
                   </div>
                 </Section>
               ) : null}
-              {harnessState.runtimeStatus ? (
+              {runtimeTaskPresentation ? (
                 <Section
                   sectionKey="runtime"
-                  title="当前任务进展"
-                  badge={formatRuntimePhaseLabel(harnessState.runtimeStatus)}
+                  title="任务进行时"
+                  badge={
+                    runtimeTaskPresentation.checkpoints.length > 0
+                      ? `${runtimeTaskPresentation.checkpoints.length} 个节点`
+                      : runtimeTaskPresentation.phaseLabel
+                  }
                   registerRef={registerSectionRef}
                 >
                   <div className="space-y-3">
-                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
-                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                        <span>{harnessState.runtimeStatus.title}</span>
+                    <div className="rounded-xl border border-border bg-background p-4 shadow-sm shadow-slate-950/5">
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={cn(
+                            "mt-0.5 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full",
+                            runtimeTaskPresentation.stepStatus === "error" &&
+                              "bg-destructive/10 text-destructive",
+                            runtimeTaskPresentation.stepStatus === "skipped" &&
+                              "bg-muted text-muted-foreground",
+                            runtimeTaskPresentation.stepStatus === "active" &&
+                              "bg-primary/10 text-primary",
+                          )}
+                        >
+                          {runtimeTaskPresentation.stepStatus === "error" ? (
+                            <AlertCircle className="h-4 w-4" />
+                          ) : runtimeTaskPresentation.stepStatus === "skipped" ? (
+                            <Clock3 className="h-4 w-4" />
+                          ) : (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-muted-foreground">
+                            当前任务
+                          </div>
+                          <div className="mt-1 text-sm font-semibold leading-6 text-foreground">
+                            {runtimeTaskPresentation.title}
+                          </div>
+                          <InteractiveText
+                            text={runtimeTaskPresentation.summaryText}
+                            className="mt-2 text-sm leading-6 text-muted-foreground"
+                            onOpenUrl={handleOpenExternalLink}
+                          />
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Badge
+                              variant={
+                                runtimeTaskPresentation.stepStatus === "error"
+                                  ? "destructive"
+                                  : "secondary"
+                              }
+                            >
+                              {runtimeTaskPresentation.statusLabel}
+                            </Badge>
+                            <Badge variant="outline">
+                              {runtimeTaskPresentation.phaseLabel}
+                            </Badge>
+                            <Badge variant="outline">
+                              {runtimeTaskPresentation.progressLabel}
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
-                      <InteractiveText
-                        text={harnessState.runtimeStatus.detail}
-                        className="mt-2 text-sm text-muted-foreground"
-                        onOpenUrl={handleOpenExternalLink}
-                      />
                     </div>
 
-                    {harnessState.runtimeStatus.checkpoints &&
-                    harnessState.runtimeStatus.checkpoints.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {harnessState.runtimeStatus.checkpoints.map(
-                          (checkpoint, index) => (
-                            <ActionableBadge
-                              key={`${checkpoint}-${index}`}
-                              variant="outline"
-                              value={checkpoint}
-                              onOpenUrl={handleOpenExternalLink}
-                              onOpenPath={handleOpenPathValue}
-                            />
-                          ),
-                        )}
+                    {runtimeTaskPresentation.checkpoints.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-semibold text-muted-foreground">
+                            任务节点
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {runtimeTaskPresentation.progressLabel}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {runtimeTaskPresentation.checkpoints.map(
+                            (checkpoint, index) => {
+                              const isCurrentCheckpoint =
+                                index ===
+                                runtimeTaskPresentation.checkpoints.length - 1;
+                              return (
+                                <div
+                                  key={`${checkpoint}-${index}`}
+                                  className={cn(
+                                    "flex items-start gap-3 rounded-xl border px-3 py-2.5",
+                                    isCurrentCheckpoint &&
+                                      runtimeTaskPresentation.stepStatus ===
+                                        "error" &&
+                                      "border-destructive/30 bg-destructive/5",
+                                    isCurrentCheckpoint &&
+                                      runtimeTaskPresentation.stepStatus ===
+                                        "active" &&
+                                      "border-primary/20 bg-primary/5",
+                                    isCurrentCheckpoint &&
+                                      runtimeTaskPresentation.stepStatus ===
+                                        "skipped" &&
+                                      "border-border bg-muted/30",
+                                    !isCurrentCheckpoint &&
+                                      "border-border bg-muted/20",
+                                  )}
+                                >
+                                  <div
+                                    className={cn(
+                                      "mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
+                                      isCurrentCheckpoint &&
+                                        runtimeTaskPresentation.stepStatus ===
+                                          "error" &&
+                                        "bg-destructive/10 text-destructive",
+                                      isCurrentCheckpoint &&
+                                        runtimeTaskPresentation.stepStatus ===
+                                          "active" &&
+                                        "bg-primary/10 text-primary",
+                                      isCurrentCheckpoint &&
+                                        runtimeTaskPresentation.stepStatus ===
+                                          "skipped" &&
+                                        "bg-background text-muted-foreground",
+                                      !isCurrentCheckpoint &&
+                                        "bg-background text-muted-foreground",
+                                    )}
+                                  >
+                                    {isCurrentCheckpoint ? (
+                                      runtimeTaskPresentation.stepStatus ===
+                                      "error" ? (
+                                        <AlertCircle className="h-3.5 w-3.5" />
+                                      ) : runtimeTaskPresentation.stepStatus ===
+                                        "skipped" ? (
+                                        <Clock3 className="h-3.5 w-3.5" />
+                                      ) : (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      )
+                                    ) : (
+                                      index + 1
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <InteractiveText
+                                      text={checkpoint}
+                                      className="text-sm leading-6 text-foreground"
+                                      onOpenUrl={handleOpenExternalLink}
+                                    />
+                                  </div>
+                                  <Badge
+                                    variant={
+                                      isCurrentCheckpoint ? "secondary" : "outline"
+                                    }
+                                  >
+                                    {isCurrentCheckpoint ? "当前" : "已记录"}
+                                  </Badge>
+                                </div>
+                              );
+                            },
+                          )}
+                        </div>
                       </div>
-                    ) : null}
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+                        {runtimeTaskPresentation.progressLabel}
+                      </div>
+                    )}
                   </div>
                 </Section>
               ) : null}
@@ -3538,8 +3765,7 @@ export function HarnessStatusPanel({
                           </div>
                           <div className="mt-1 text-xs leading-5 text-muted-foreground">
                             把 handoff / evidence / replay 主链重新包装成外部
-                            Claude / Codex
-                            可直接消费的分析交接；复制后可直接粘贴给 AI，
+                            AI 可直接消费的分析交接；复制后可直接粘贴给 AI，
                             不需要你再手写补充 prompt。
                           </div>
                         </div>
@@ -3788,7 +4014,7 @@ export function HarnessStatusPanel({
                         <div className="mt-3 rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
                           尚未导出外部分析交接。点击“一键复制给
                           AI”时会自动先导出再复制， 用于把当前 Lime
-                          证据链直接交给外部 Claude / Codex 做诊断与最小修复。
+                          证据链直接交给外部 AI 做诊断与最小修复。
                         </div>
                       )}
                     </div>
@@ -3801,10 +4027,8 @@ export function HarnessStatusPanel({
                             <span>人工审核记录</span>
                           </div>
                           <div className="mt-1 text-xs leading-5 text-muted-foreground">
-                            把外部 Claude / Codex 的分析结论回挂为
-                            `review-decision.md/json`
-                            模板，固定接受、延后、拒绝与回归要求；最终决策仍由开发者审核，不是
-                            Lime 自动闭环。
+                            把外部 AI 的分析结论回挂为
+                            `review-decision.md/json` 模板，固定接受、延后、拒绝与回归要求；最终决策仍由开发者审核，不是 Lime 自动闭环。
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -4304,8 +4528,10 @@ export function HarnessStatusPanel({
                     onResumeThread={onResumeThread}
                     onReplayPendingRequest={onReplayPendingRequest}
                     onPromoteQueuedTurn={onPromoteQueuedTurn}
+                    onOpenMemoryWorkbench={onOpenMemoryWorkbench}
                     harnessState={harnessState}
                     messages={messages}
+                    teamMemorySnapshot={teamMemorySnapshot}
                     diagnosticRuntimeContext={diagnosticRuntimeContext}
                   />
                 </Section>

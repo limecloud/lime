@@ -7,27 +7,34 @@ import {
   setReactActEnvironment,
   type MountedRoot,
 } from "@/components/image-gen/test-utils";
+import { recordRuntimeMemoryPrefetchHistory } from "@/lib/runtimeMemoryPrefetchHistory";
 import { MemoryPage } from "./MemoryPage";
 
 const {
   mockGetConfig,
   mockSaveConfig,
-  mockGetContextMemoryOverview,
-  mockGetProjectMemory,
+  mockGetContextMemoryEffectiveSources,
+  mockGetContextMemoryAutoIndex,
+  mockGetContextWorkingMemory,
+  mockGetContextMemoryExtractionStatus,
+  mockPrefetchContextMemoryForTurn,
   mockGetUnifiedMemoryStats,
   mockListUnifiedMemories,
-  mockBuildLayerMetrics,
+  mockGetProjectMemory,
   mockGetStoredResourceProjectId,
   mockOnResourceProjectChange,
   mockBuildHomeAgentParams,
 } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(),
   mockSaveConfig: vi.fn(),
-  mockGetContextMemoryOverview: vi.fn(),
-  mockGetProjectMemory: vi.fn(),
+  mockGetContextMemoryEffectiveSources: vi.fn(),
+  mockGetContextMemoryAutoIndex: vi.fn(),
+  mockGetContextWorkingMemory: vi.fn(),
+  mockGetContextMemoryExtractionStatus: vi.fn(),
+  mockPrefetchContextMemoryForTurn: vi.fn(),
   mockGetUnifiedMemoryStats: vi.fn(),
   mockListUnifiedMemories: vi.fn(),
-  mockBuildLayerMetrics: vi.fn(),
+  mockGetProjectMemory: vi.fn(),
   mockGetStoredResourceProjectId: vi.fn(),
   mockOnResourceProjectChange: vi.fn(),
   mockBuildHomeAgentParams: vi.fn(),
@@ -39,21 +46,20 @@ vi.mock("@/lib/api/appConfig", () => ({
 }));
 
 vi.mock("@/lib/api/memoryRuntime", () => ({
-  getContextMemoryOverview: mockGetContextMemoryOverview,
-}));
-
-vi.mock("@/lib/api/memory", () => ({
-  createCharacter: vi.fn(),
-  createOutlineNode: vi.fn(),
-  getProjectMemory: mockGetProjectMemory,
-  updateWorldBuilding: vi.fn(),
+  getContextMemoryEffectiveSources: mockGetContextMemoryEffectiveSources,
+  getContextMemoryAutoIndex: mockGetContextMemoryAutoIndex,
+  getContextWorkingMemory: mockGetContextWorkingMemory,
+  getContextMemoryExtractionStatus: mockGetContextMemoryExtractionStatus,
+  prefetchContextMemoryForTurn: mockPrefetchContextMemoryForTurn,
 }));
 
 vi.mock("@/lib/api/unifiedMemory", () => ({
-  analyzeUnifiedMemories: vi.fn(),
-  deleteUnifiedMemory: vi.fn(),
   getUnifiedMemoryStats: mockGetUnifiedMemoryStats,
   listUnifiedMemories: mockListUnifiedMemories,
+}));
+
+vi.mock("@/lib/api/memory", () => ({
+  getProjectMemory: mockGetProjectMemory,
 }));
 
 vi.mock("@/lib/resourceProjectSelection", () => ({
@@ -62,34 +68,30 @@ vi.mock("@/lib/resourceProjectSelection", () => ({
 }));
 
 vi.mock("@/lib/workspace/navigation", () => ({
-  buildClawAgentParams: vi.fn(() => ({ agentEntry: "claw" })),
   buildHomeAgentParams: mockBuildHomeAgentParams,
-}));
-
-vi.mock("@/lib/workspace/workbenchUi", () => ({
-  CanvasBreadcrumbHeader: ({ label }: { label: string }) => <div>{label}</div>,
-}));
-
-vi.mock("./memoryLayerMetrics", () => ({
-  buildLayerMetrics: (...args: unknown[]) => mockBuildLayerMetrics(...args),
 }));
 
 const mountedRoots: MountedRoot[] = [];
 
 function renderPage(options?: {
+  section?: "home" | "identity" | "rules";
   onNavigate?: (page: string, params?: unknown) => void;
+  runtimeSessionId?: string;
+  runtimeWorkingDir?: string;
+  runtimeUserMessage?: string;
 }) {
   return renderIntoDom(
     <MemoryPage
-      onNavigate={options?.onNavigate}
-      pageParams={{ section: "home" }}
+      onNavigate={options?.onNavigate || vi.fn()}
+      pageParams={{
+        section: options?.section || "home",
+        runtimeSessionId: options?.runtimeSessionId,
+        runtimeWorkingDir: options?.runtimeWorkingDir,
+        runtimeUserMessage: options?.runtimeUserMessage,
+      }}
     />,
     mountedRoots,
   ).container;
-}
-
-function getBodyText() {
-  return document.body.textContent ?? "";
 }
 
 async function flushPageEffects(times = 4) {
@@ -98,31 +100,11 @@ async function flushPageEffects(times = 4) {
   }
 }
 
-async function hoverTip(ariaLabel: string) {
-  const trigger = document.body.querySelector(
-    `button[aria-label='${ariaLabel}']`,
-  );
-  expect(trigger).toBeInstanceOf(HTMLButtonElement);
-
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-    await Promise.resolve();
-  });
-
-  return trigger as HTMLButtonElement;
-}
-
-async function leaveTip(trigger: HTMLButtonElement | null) {
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
-    await Promise.resolve();
-  });
-}
-
 describe("MemoryPage", () => {
   beforeEach(() => {
     setReactActEnvironment();
     vi.clearAllMocks();
+    window.localStorage.clear();
 
     mockGetConfig.mockResolvedValue({
       memory: {
@@ -132,78 +114,82 @@ describe("MemoryPage", () => {
         auto_cleanup: true,
       },
     });
-    mockGetContextMemoryOverview.mockResolvedValue({
-      stats: { total_entries: 0 },
-    });
-    mockGetProjectMemory.mockResolvedValue(null);
-    mockGetStoredResourceProjectId.mockReturnValue(null);
-    mockOnResourceProjectChange.mockReturnValue(() => {});
-    mockGetUnifiedMemoryStats.mockResolvedValue({
-      total_entries: 0,
-      storage_used: 0,
-      memory_count: 0,
-      categories: [],
-    });
-    mockListUnifiedMemories.mockResolvedValue([]);
-    mockBuildHomeAgentParams.mockImplementation((overrides = {}) => ({
-      agentEntry: "new-task",
-      ...overrides,
-    }));
-    mockBuildLayerMetrics.mockReturnValue({
-      readyLayers: 1,
-      totalLayers: 3,
-      cards: [
+    mockGetContextMemoryEffectiveSources.mockResolvedValue({
+      working_dir: "/tmp/workspace",
+      total_sources: 2,
+      loaded_sources: 1,
+      follow_imports: true,
+      import_max_depth: 5,
+      sources: [
         {
-          key: "unified",
-          title: "统一记忆",
-          value: 0,
-          unit: "条",
-          available: true,
-          description: "真实数据库已接通。",
-        },
-        {
-          key: "context",
-          title: "上下文记忆",
-          value: 0,
-          unit: "条",
-          available: false,
-          description: "等待更多上下文。",
-        },
-        {
-          key: "project",
-          title: "项目记忆",
-          value: 0,
-          unit: "/4 维",
-          available: false,
-          description: "暂未加载。",
+          kind: "workspace_agents",
+          path: "/tmp/workspace/.lime/AGENTS.md",
+          exists: true,
+          loaded: true,
+          line_count: 12,
+          import_count: 0,
+          warnings: [],
+          preview: "# AGENTS\\n- 默认先跑 verify:local",
         },
       ],
     });
-  });
-
-  afterEach(() => {
-    cleanupMountedRoots(mountedRoots);
-  });
-
-  it("应把灵感库导航说明和总览说明收进 tips", async () => {
-    renderPage();
-    await flushPageEffects();
-
-    expect(getBodyText()).not.toContain("按 / 搜索，按 1-6 切换视图。");
-    expect(getBodyText()).not.toContain("查看已沉淀的风格、参考、成果与偏好");
-
-    const navTip = await hoverTip("灵感库导航说明");
-    expect(getBodyText()).toContain("按 / 搜索，按 1-6 切换视图。");
-    await leaveTip(navTip);
-
-    const heroTip = await hoverTip("灵感总览说明");
-    expect(getBodyText()).toContain("查看已沉淀的风格、参考、成果与偏好");
-    await leaveTip(heroTip);
-  });
-
-  it("应支持把选中的灵感条目带回创作输入", async () => {
-    const onNavigate = vi.fn();
-    mockGetStoredResourceProjectId.mockReturnValue("project-42");
+    mockGetContextMemoryAutoIndex.mockResolvedValue({
+      enabled: true,
+      root_dir: "/tmp/workspace/memory",
+      entrypoint: "MEMORY.md",
+      max_loaded_lines: 200,
+      entry_exists: true,
+      total_lines: 2,
+      preview_lines: ["# MEMORY", "- mock note"],
+      items: [],
+    });
+    mockGetContextWorkingMemory.mockResolvedValue({
+      memory_dir: "/tmp/runtime/memory",
+      total_sessions: 1,
+      total_entries: 2,
+      sessions: [
+        {
+          session_id: "session-1",
+          total_entries: 2,
+          updated_at: 1_712_345_678_900,
+          files: [
+            {
+              file_type: "task_plan",
+              path: "/tmp/runtime/memory/session-1/task_plan.md",
+              exists: true,
+              entry_count: 1,
+              updated_at: 1_712_345_678_900,
+              summary: "先补命令边界，再补页面。",
+            },
+          ],
+          highlights: [],
+        },
+      ],
+    });
+    mockGetContextMemoryExtractionStatus.mockResolvedValue({
+      enabled: true,
+      status: "ready",
+      status_summary: "工作记忆和上下文压缩快照都已就绪。",
+      working_session_count: 1,
+      working_entry_count: 2,
+      latest_working_memory_at: 1_712_345_678_900,
+      latest_compaction: {
+        session_id: "session-1",
+        source: "summary_cache",
+        summary_preview: "这是最近一次压缩后的摘要。",
+        turn_count: 8,
+        created_at: 1_712_345_678_900,
+      },
+      recent_compactions: [
+        {
+          session_id: "session-1",
+          source: "summary_cache",
+          summary_preview: "这是最近一次压缩后的摘要。",
+          turn_count: 8,
+          created_at: 1_712_345_678_900,
+        },
+      ],
+    });
     mockGetUnifiedMemoryStats.mockResolvedValue({
       total_entries: 1,
       storage_used: 1024,
@@ -228,19 +214,62 @@ describe("MemoryPage", () => {
         },
       },
     ]);
+    mockGetProjectMemory.mockResolvedValue({
+      characters: [],
+      world_building: null,
+      outline: [],
+    });
+    mockGetStoredResourceProjectId.mockReturnValue("project-42");
+    mockOnResourceProjectChange.mockReturnValue(() => {});
+    mockBuildHomeAgentParams.mockImplementation((overrides = {}) => ({
+      agentEntry: "new-task",
+      ...overrides,
+    }));
+    mockPrefetchContextMemoryForTurn.mockResolvedValue({
+      session_id: "session-default",
+      rules_source_paths: [],
+      working_memory_excerpt: null,
+      durable_memories: [],
+      team_memory_entries: [],
+      latest_compaction: null,
+      prompt: null,
+    });
+  });
 
-    renderPage({ onNavigate });
+  afterEach(() => {
+    cleanupMountedRoots(mountedRoots);
+  });
+
+  it("应展示新的六区记忆结构", async () => {
+    renderPage();
     await flushPageEffects();
 
-    const bringToCreationButton = Array.from(
-      document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("带回创作输入"));
-    expect(bringToCreationButton).toBeTruthy();
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("记忆工作台");
+    expect(bodyText).toContain("规则");
+    expect(bodyText).toContain("工作记忆");
+    expect(bodyText).toContain("长期记忆");
+    expect(bodyText).toContain("Team 影子");
+    expect(bodyText).toContain("压缩边界");
+    expect(bodyText).toContain("五层总览");
+    expect(bodyText).toContain("项目资料附属层");
+  });
+
+  it("应兼容旧的 durable category 深链，并支持带回创作输入", async () => {
+    const onNavigate = vi.fn();
+    renderPage({ section: "identity", onNavigate });
+    await flushPageEffects();
+
+    expect(document.body.textContent ?? "").toContain("长期结构化记忆");
+    expect(document.body.textContent ?? "").toContain("夏日短视频语气");
+
+    const button = Array.from(document.body.querySelectorAll("button")).find(
+      (element) => element.textContent?.includes("带回创作输入"),
+    );
+    expect(button).toBeTruthy();
 
     await act(async () => {
-      bringToCreationButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-      );
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 
@@ -275,14 +304,455 @@ describe("MemoryPage", () => {
         projectId: "project-42",
         entryBannerMessage: "已从灵感库带入“风格”条目，可继续改写后发送。",
         initialUserPrompt: expect.stringContaining("标签：小红书、口播、夏日氛围"),
-        initialRequestMetadata: {
-          harness: {
-            creation_replay: expect.objectContaining({
-              kind: "memory_entry",
-            }),
+      }),
+    );
+  });
+
+  it("应支持带着当前会话上下文打开运行时五层预演", async () => {
+    window.localStorage.setItem(
+      "lime:team-memory:/tmp/workspace",
+      JSON.stringify({
+        repoScope: "/tmp/workspace",
+        entries: {
+          "team.selection": {
+            key: "team.selection",
+            content: "研究协作队",
+            updatedAt: 1_712_345_678_900,
           },
         },
       }),
+    );
+    mockPrefetchContextMemoryForTurn.mockResolvedValue({
+      session_id: "session-runtime-1",
+      rules_source_paths: ["/tmp/workspace/.lime/AGENTS.md"],
+      working_memory_excerpt: "【task_plan.md】继续整理证据与风险结论。",
+      durable_memories: [
+        {
+          id: "durable-runtime-1",
+          session_id: "session-runtime-1",
+          category: "experience",
+          title: "研究输出格式偏好",
+          summary: "先结论，再列风险与证据",
+          updated_at: 1_712_345_678_900,
+          tags: ["研究"],
+        },
+      ],
+      team_memory_entries: [
+        {
+          key: "team.selection",
+          content: "研究协作队",
+          updated_at: 1_712_345_678_900,
+        },
+      ],
+      latest_compaction: {
+        session_id: "session-runtime-1",
+        source: "summary_cache",
+        summary_preview: "保留结论结构与关键证据链接。",
+        turn_count: 5,
+        created_at: 1_712_345_678_900,
+        trigger: "token_budget",
+      },
+      prompt: "【运行时记忆召回】研究输出格式偏好",
+    });
+
+    renderPage({
+      runtimeSessionId: "session-runtime-1",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "继续整理运行时预演",
+    });
+    await flushPageEffects();
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("当前运行时预演");
+    expect(bodyText).toContain("最近运行时命中");
+    expect(bodyText).toContain("会话：session-runtime-1");
+    expect(bodyText).toContain("工作区：/tmp/workspace");
+    expect(bodyText).toContain("本回合记忆预取");
+    expect(bodyText).toContain("五层记忆预演");
+    expect(bodyText).toContain("研究输出格式偏好");
+    expect(bodyText).toContain("研究协作队");
+    expect(bodyText).toContain("【运行时记忆召回】");
+    expect(bodyText).toContain("来自记忆工作台");
+    expect(bodyText).toContain("切换到这次对照");
+    expect(mockPrefetchContextMemoryForTurn).toHaveBeenCalledWith({
+      session_id: "session-runtime-1",
+      working_dir: "/tmp/workspace",
+      user_message: "继续整理运行时预演",
+      request_metadata: {
+        team_memory_shadow: {
+          repo_scope: "/tmp/workspace",
+          entries: [
+            {
+              key: "team.selection",
+              content: "研究协作队",
+              updated_at: 1_712_345_678_900,
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  it("应支持把当前预演和历史基线正面对照，并允许切换基线", async () => {
+    recordRuntimeMemoryPrefetchHistory({
+      sessionId: "session-runtime-compare-a",
+      workingDir: "/tmp/workspace",
+      userMessage: "基线第一轮",
+      source: "thread_reliability",
+      capturedAt: 1_712_345_677_900,
+      result: {
+        session_id: "session-runtime-compare-a",
+        rules_source_paths: ["/tmp/workspace/.lime/AGENTS.md"],
+        working_memory_excerpt: null,
+        durable_memories: [],
+        team_memory_entries: [],
+        latest_compaction: null,
+        prompt: null,
+      },
+    });
+    recordRuntimeMemoryPrefetchHistory({
+      sessionId: "session-runtime-compare-b",
+      workingDir: "/tmp/workspace",
+      userMessage: "基线第二轮",
+      source: "memory_page",
+      capturedAt: 1_712_345_678_900,
+      result: {
+        session_id: "session-runtime-compare-b",
+        rules_source_paths: ["/tmp/workspace/.lime/AGENTS.md"],
+        working_memory_excerpt: "【task_plan.md】旧版工作摘录。",
+        durable_memories: [],
+        team_memory_entries: [],
+        latest_compaction: null,
+        prompt: null,
+      },
+    });
+
+    mockPrefetchContextMemoryForTurn.mockResolvedValue({
+      session_id: "session-runtime-current",
+      rules_source_paths: [
+        "/tmp/workspace/.lime/AGENTS.md",
+        "/tmp/workspace/.memory/rules.md",
+      ],
+      working_memory_excerpt: "【task_plan.md】新版工作摘录。",
+      durable_memories: [
+        {
+          id: "durable-runtime-compare-1",
+          session_id: "session-runtime-current",
+          category: "experience",
+          title: "当前运行时长期记忆",
+          summary: "当前回合新增结构化沉淀。",
+          updated_at: 1_712_345_679_900,
+          tags: [],
+        },
+      ],
+      team_memory_entries: [],
+      latest_compaction: null,
+      prompt: null,
+    });
+
+    renderPage({
+      runtimeSessionId: "session-runtime-current",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "继续对照当前预演",
+    });
+    await flushPageEffects();
+
+    let bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("当前预演 vs 历史基线");
+    expect(bodyText).toContain("基线输入：基线第二轮");
+    expect(bodyText).toContain("补强");
+    expect(bodyText).toContain("补强层：规则层、持久层。 摘要内容也有更新。");
+    expect(bodyText).toContain("规则 +1");
+    expect(bodyText).toContain("持久 +1");
+    expect(bodyText).toContain("工作摘录 【task_plan.md】旧版工作摘录。 -> 【task_plan.md】新版工作摘录。");
+    expect(bodyText).toContain("当前基线");
+    expect(bodyText).toContain("设为对照基线");
+
+    const switchBaselineButton = Array.from(document.body.querySelectorAll("button")).find(
+      (element) => element.textContent?.trim() === "设为对照基线",
+    );
+    expect(switchBaselineButton).toBeTruthy();
+
+    await act(async () => {
+      switchBaselineButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("基线输入：基线第一轮");
+  });
+
+  it("切换记忆分区时应保留当前运行时上下文", async () => {
+    const onNavigate = vi.fn();
+    renderPage({
+      onNavigate,
+      runtimeSessionId: "session-runtime-2",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "继续沿当前上下文排查",
+    });
+    await flushPageEffects();
+
+    const rulesButton = Array.from(document.body.querySelectorAll("button")).find(
+      (element) =>
+        element.textContent?.includes("规则") &&
+        !element.textContent?.includes("看规则"),
+    );
+    expect(rulesButton).toBeTruthy();
+
+    await act(async () => {
+      rulesButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("memory", {
+      section: "rules",
+      runtimeSessionId: "session-runtime-2",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "继续沿当前上下文排查",
+    });
+  });
+
+  it("在非总览分区也应提示当前仍处于运行时对照模式", async () => {
+    renderPage({
+      section: "rules",
+      runtimeSessionId: "session-runtime-3",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "继续检查规则命中",
+    });
+    await flushPageEffects();
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("当前运行时对照模式");
+    expect(bodyText).toContain("返回总览预演");
+    expect(bodyText).toContain("会话：session-runtime-3");
+    expect(bodyText).toContain("工作区：/tmp/workspace");
+    expect(bodyText).toContain("本轮输入：继续检查规则命中");
+  });
+
+  it("应展示最近命中相对上一条的差异", async () => {
+    recordRuntimeMemoryPrefetchHistory({
+      sessionId: "session-history-prev",
+      workingDir: "/tmp/workspace",
+      userMessage: "继续输出第一版",
+      source: "thread_reliability",
+      capturedAt: 1_712_345_678_900,
+      result: {
+        session_id: "session-history-prev",
+        rules_source_paths: ["/tmp/workspace/.lime/AGENTS.md"],
+        working_memory_excerpt: null,
+        durable_memories: [],
+        team_memory_entries: [],
+        latest_compaction: null,
+        prompt: null,
+      },
+    });
+
+    recordRuntimeMemoryPrefetchHistory({
+      sessionId: "session-history-prev",
+      workingDir: "/tmp/workspace",
+      userMessage: "继续输出第二版",
+      source: "memory_page",
+      capturedAt: 1_712_345_679_900,
+      result: {
+        session_id: "session-history-prev",
+        rules_source_paths: [
+          "/tmp/workspace/.lime/AGENTS.md",
+          "/tmp/workspace/.memory/rules.md",
+        ],
+        working_memory_excerpt: "【task_plan.md】补上证据与风险。",
+        durable_memories: [
+          {
+            id: "durable-history-1",
+            session_id: "session-history-prev",
+            category: "experience",
+            title: "研究输出格式偏好",
+            summary: "先结论，再列风险",
+            updated_at: 1_712_345_679_900,
+            tags: [],
+          },
+        ],
+        team_memory_entries: [
+          {
+            key: "team.selection",
+            content: "研究协作队",
+            updated_at: 1_712_345_679_900,
+          },
+        ],
+        latest_compaction: {
+          session_id: "session-history-prev",
+          source: "summary_cache",
+          summary_preview: "保留研究结论与证据结构。",
+          created_at: 1_712_345_679_900,
+          trigger: "token_budget",
+        },
+        prompt: null,
+      },
+    });
+
+    renderPage();
+    await flushPageEffects();
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("较上一条判断");
+    expect(bodyText).toContain("补强层：规则层、工作层、持久层、Team 层、压缩层。 摘要内容也有更新。");
+    expect(bodyText).toContain("规则 +1");
+    expect(bodyText).toContain("工作 新命中");
+    expect(bodyText).toContain("持久 +1");
+    expect(bodyText).toContain("Team +1");
+    expect(bodyText).toContain("压缩 新命中");
+    expect(bodyText).toContain("输入 继续输出第一版 -> 继续输出第二版");
+  });
+
+  it("应展示当前范围内的层稳定性判断", async () => {
+    recordRuntimeMemoryPrefetchHistory({
+      sessionId: "session-stability",
+      workingDir: "/tmp/workspace",
+      userMessage: "继续观察层稳定性第一轮",
+      source: "thread_reliability",
+      capturedAt: 1_712_345_678_900,
+      result: {
+        session_id: "session-stability",
+        rules_source_paths: ["/tmp/workspace/.lime/AGENTS.md"],
+        working_memory_excerpt: null,
+        durable_memories: [],
+        team_memory_entries: [],
+        latest_compaction: null,
+        prompt: null,
+      },
+    });
+    recordRuntimeMemoryPrefetchHistory({
+      sessionId: "session-stability",
+      workingDir: "/tmp/workspace",
+      userMessage: "继续观察层稳定性第二轮",
+      source: "memory_page",
+      capturedAt: 1_712_345_679_900,
+      result: {
+        session_id: "session-stability",
+        rules_source_paths: ["/tmp/workspace/.lime/AGENTS.md"],
+        working_memory_excerpt: null,
+        durable_memories: [],
+        team_memory_entries: [],
+        latest_compaction: null,
+        prompt: null,
+      },
+    });
+
+    renderPage();
+    await flushPageEffects();
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("稳定命中");
+    expect(bodyText).toContain("最近 2 次都命中规则层，且没有出现层值变化。");
+    expect(bodyText).toContain("一直缺失");
+    expect(bodyText).toContain("最近 2 次里都没有命中工作层。");
+  });
+
+  it("带运行时上下文时应默认聚焦当前工作区，并允许切换查看全部或当前会话", async () => {
+    recordRuntimeMemoryPrefetchHistory({
+      sessionId: "session-runtime-filter",
+      workingDir: "/tmp/workspace",
+      userMessage: "当前工作区旧记录",
+      source: "thread_reliability",
+      capturedAt: 1_712_345_678_900,
+      result: {
+        session_id: "session-runtime-filter",
+        rules_source_paths: ["/tmp/workspace/.lime/AGENTS.md"],
+        working_memory_excerpt: null,
+        durable_memories: [],
+        team_memory_entries: [],
+        latest_compaction: null,
+        prompt: null,
+      },
+    });
+    recordRuntimeMemoryPrefetchHistory({
+      sessionId: "session-other",
+      workingDir: "/tmp/other",
+      userMessage: "其他工作区记录",
+      source: "memory_page",
+      capturedAt: 1_712_345_679_900,
+      result: {
+        session_id: "session-other",
+        rules_source_paths: ["/tmp/other/.lime/AGENTS.md"],
+        working_memory_excerpt: null,
+        durable_memories: [],
+        team_memory_entries: [],
+        latest_compaction: null,
+        prompt: null,
+      },
+    });
+
+    renderPage({
+      runtimeSessionId: "session-runtime-filter",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "当前对照输入",
+    });
+    await flushPageEffects();
+
+    expect(document.body.textContent ?? "").not.toContain("其他工作区记录");
+
+    const allButton = Array.from(document.body.querySelectorAll("button")).find(
+      (element) => element.textContent?.trim() === "全部",
+    );
+    expect(allButton).toBeTruthy();
+
+    await act(async () => {
+      allButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent ?? "").toContain("其他工作区记录");
+
+    const sessionButton = Array.from(document.body.querySelectorAll("button")).find(
+      (element) => element.textContent?.trim() === "当前会话",
+    );
+    expect(sessionButton).toBeTruthy();
+
+    await act(async () => {
+      sessionButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("当前范围：当前会话");
+    expect(bodyText).not.toContain("session-other");
+    expect(bodyText).not.toContain("其他工作区记录");
+  });
+
+  it("应支持清空最近运行时命中历史", async () => {
+    recordRuntimeMemoryPrefetchHistory({
+      sessionId: "session-clear-history",
+      workingDir: "/tmp/workspace",
+      userMessage: "待清空记录",
+      source: "thread_reliability",
+      capturedAt: 1_712_345_678_900,
+      result: {
+        session_id: "session-clear-history",
+        rules_source_paths: [],
+        working_memory_excerpt: null,
+        durable_memories: [],
+        team_memory_entries: [],
+        latest_compaction: null,
+        prompt: null,
+      },
+    });
+
+    renderPage();
+    await flushPageEffects();
+
+    expect(document.body.textContent ?? "").toContain("待清空记录");
+
+    const clearButton = Array.from(document.body.querySelectorAll("button")).find(
+      (element) => element.textContent?.includes("清空历史"),
+    );
+    expect(clearButton).toBeTruthy();
+
+    await act(async () => {
+      clearButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent ?? "").toContain(
+      "当前还没有运行时命中历史。先在对话工作台触发几轮记忆预演，这里会自动沉淀最近记录。",
     );
   });
 });

@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 import type { SiteSavedContentTarget } from "../types";
 import { resolveSiteSavedContentTargetFromRunResult } from "../utils/siteToolResultSummary";
 import type { SiteSkillExecutionState } from "./useWorkspaceBrowserAssistRuntime";
-import { normalizeManagedWorkspacePathForDisplay } from "./workspacePath";
 
 interface ServiceSkillExecutionCardProps {
   state: SiteSkillExecutionState | null;
@@ -41,23 +40,21 @@ export function ServiceSkillExecutionCard({
     return null;
   }
 
-  const resultTitle = state.result?.saved_content?.title?.trim();
-  const projectRootPath = normalizeManagedWorkspacePathForDisplay(
-    state.result?.saved_content?.project_root_path,
-  );
   const markdownRelativePath =
     state.result?.saved_content?.markdown_relative_path?.trim() || "";
-  const imagesRelativeDir =
-    state.result?.saved_content?.images_relative_dir?.trim() || "";
+  const resultFileLabel =
+    preferredResultFileTarget?.title ||
+    markdownRelativePath.split("/").filter(Boolean).at(-1) ||
+    null;
   const imageCount = state.result?.saved_content?.image_count;
   const savedSiteContentTarget: SiteSavedContentTarget | null =
     resolveSiteSavedContentTargetFromRunResult(state.result || null);
   const savedContentActionLabel =
     preferredResultFileTarget?.relativePath
-      ? `打开结果文件 ${preferredResultFileTarget.title || "index.md"}`
+      ? `在画布中打开 ${preferredResultFileTarget.title || "index.md"}`
       : savedSiteContentTarget?.preferredTarget === "project_file"
-        ? "查看采集源 Markdown"
-        : "打开已保存内容";
+        ? `在画布中打开 ${resultFileLabel || "index.md"}`
+        : "打开结果";
 
   return (
     <section
@@ -83,31 +80,19 @@ export function ServiceSkillExecutionCard({
 
       <p className="mt-3 text-sm leading-6">{state.message}</p>
 
-      {resultTitle ? (
-        <p className="mt-2 text-xs leading-5 opacity-80">
-          已沉淀内容：{resultTitle}
-        </p>
-      ) : null}
-      {projectRootPath ? (
-        <p className="mt-2 break-all text-xs leading-5 opacity-80">
-          项目目录：{projectRootPath}
-        </p>
-      ) : null}
-      {markdownRelativePath ? (
-        <p className="mt-2 break-all text-xs leading-5 opacity-80">
-          Markdown 文件：{markdownRelativePath}
-        </p>
-      ) : null}
-      {typeof imageCount === "number" ? (
-        <p className="mt-2 break-all text-xs leading-5 opacity-80">
-          图片资源：{imageCount} 张
-          {imagesRelativeDir ? ` · ${imagesRelativeDir}` : ""}
-        </p>
-      ) : null}
-      {state.sourceUrl ? (
-        <p className="mt-2 break-all text-xs leading-5 opacity-80">
-          来源页面：{state.sourceUrl}
-        </p>
+      {resultFileLabel || typeof imageCount === "number" ? (
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          {resultFileLabel ? (
+            <span className="rounded-full border border-current/10 bg-white/75 px-2.5 py-1 opacity-80">
+              结果文件：{resultFileLabel}
+            </span>
+          ) : null}
+          {typeof imageCount === "number" && imageCount > 0 ? (
+            <span className="rounded-full border border-current/10 bg-white/75 px-2.5 py-1 opacity-80">
+              图片：{imageCount} 张
+            </span>
+          ) : null}
+        </div>
       ) : null}
       {state.reportHint ? (
         <p className="mt-2 text-xs leading-5 opacity-80">{state.reportHint}</p>

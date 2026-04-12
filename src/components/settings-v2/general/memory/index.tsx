@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils";
 import {
   getContextMemoryAutoIndex,
   getContextMemoryEffectiveSources,
-  getContextMemoryOverview,
+  getContextMemoryExtractionStatus,
+  getContextWorkingMemory,
   ensureWorkspaceLocalAgentsGitignore,
   scaffoldRuntimeAgentsTemplate,
   toggleContextMemoryAuto,
@@ -38,15 +39,11 @@ import {
 } from "@/lib/api/memoryRuntime";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import { getUnifiedMemoryStats } from "@/lib/api/unifiedMemory";
-import { getProjectMemory } from "@/lib/api/memory";
-import {
-  getStoredResourceProjectId,
-  onResourceProjectChange,
-} from "@/lib/resourceProjectSelection";
 import {
   buildLayerMetrics,
   type LayerMetricsResult,
 } from "@/components/memory/memoryLayerMetrics";
+import { listTeamMemorySnapshots } from "@/lib/teamMemorySync";
 
 const STATUS_OPTIONS = [
   "高中生",
@@ -336,9 +333,6 @@ export function MemorySettings() {
   const [scaffoldingTarget, setScaffoldingTarget] =
     useState<RuntimeAgentsTemplateTarget | null>(null);
   const [ensuringGitignore, setEnsuringGitignore] = useState(false);
-  const [projectId, setProjectId] = useState<string | null>(() =>
-    getStoredResourceProjectId({ includeLegacy: true }),
-  );
   const [layerMetrics, setLayerMetrics] = useState<LayerMetricsResult | null>(
     null,
   );
@@ -351,36 +345,36 @@ export function MemorySettings() {
   const [autoNote, setAutoNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
-  const loadLayerMetrics = useCallback(
-    async (targetProjectId?: string | null) => {
-      const currentProjectId = targetProjectId ?? projectId;
-      setLoadingLayerMetrics(true);
-      try {
-        const [unifiedStats, contextOverview, projectMemory] =
-          await Promise.all([
-            getUnifiedMemoryStats(),
-            getContextMemoryOverview(200).catch(() => null),
-            currentProjectId
-              ? getProjectMemory(currentProjectId).catch(() => null)
-              : Promise.resolve(null),
-          ]);
+  const loadLayerMetrics = useCallback(async () => {
+    setLoadingLayerMetrics(true);
+    try {
+      const [unifiedStats, sources, workingView, extractionStatus] =
+        await Promise.all([
+          getUnifiedMemoryStats(),
+          getContextMemoryEffectiveSources().catch(() => null),
+          getContextWorkingMemory(undefined, 24).catch(() => null),
+          getContextMemoryExtractionStatus().catch(() => null),
+        ]);
+      const teamSnapshotCount =
+        typeof window !== "undefined"
+          ? listTeamMemorySnapshots(window.localStorage).length
+          : 0;
 
-        setLayerMetrics(
-          buildLayerMetrics({
-            unifiedTotalEntries: unifiedStats.total_entries,
-            contextTotalEntries: contextOverview?.stats.total_entries ?? 0,
-            projectId: currentProjectId ?? null,
-            projectMemory,
-          }),
-        );
-      } catch (error) {
-        console.error("加载三层记忆状态失败:", error);
-      } finally {
-        setLoadingLayerMetrics(false);
-      }
-    },
-    [projectId],
-  );
+      setLayerMetrics(
+        buildLayerMetrics({
+          rulesSourceCount: sources?.loaded_sources ?? 0,
+          workingEntryCount: workingView?.total_entries ?? 0,
+          durableEntryCount: unifiedStats.total_entries,
+          teamSnapshotCount,
+          compactionCount: extractionStatus?.recent_compactions.length ?? 0,
+        }),
+      );
+    } catch (error) {
+      console.error("加载五层记忆状态失败:", error);
+    } finally {
+      setLoadingLayerMetrics(false);
+    }
+  }, []);
 
   const loadSourceState = useCallback(async () => {
     setLoadingSourceState(true);
@@ -419,13 +413,6 @@ export function MemorySettings() {
     loadLayerMetrics();
     loadSourceState();
   }, [loadLayerMetrics, loadSourceState]);
-
-  useEffect(() => {
-    return onResourceProjectChange((detail) => {
-      setProjectId(detail.projectId);
-      loadLayerMetrics(detail.projectId);
-    });
-  }, [loadLayerMetrics]);
 
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(snapshot),
@@ -674,7 +661,7 @@ export function MemorySettings() {
                 </h1>
                 <WorkbenchInfoTip
                   ariaLabel="记忆设置说明"
-                  content="管理用户画像、三层记忆来源与自动记忆入口，让代理在长期使用里更稳定地理解你的背景与偏好。"
+                  content="管理用户画像、五层记忆来源与自动记忆入口，让代理在长期使用里更稳定地续接规则、上下文与协作状态。"
                   tone="mint"
                 />
               </div>
@@ -688,7 +675,7 @@ export function MemorySettings() {
                 画像完成度：{profileCompletionPercent}%
               </span>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-                三层可用：{readyLayerLabel}
+                五层可用：{readyLayerLabel}
               </span>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
                 来源命中：{sourceHitLabel}
@@ -826,8 +813,8 @@ export function MemorySettings() {
         <div className="space-y-6">
           <MemoryPanel
             icon={Layers3}
-            title="三层记忆可用性"
-            description="持续检查统一记忆、上下文记忆与项目记忆的参与情况。"
+            title="五层记忆可用性"
+            description="持续检查规则、工作记忆、长期记忆、Team 影子与压缩边界的参与情况。"
             aside={
               <button
                 type="button"
@@ -885,11 +872,11 @@ export function MemorySettings() {
                   </div>
                 ))}
                 <p className="text-xs leading-5 text-slate-500">
-                  第三层（项目记忆）的补全操作在「记忆」页面进行（支持一键初始化）。
+                  更完整的分层详情、压缩摘要与项目资料附属层都在「记忆」页面查看。
                 </p>
               </div>
             ) : (
-              <p className="text-sm text-slate-500">正在加载三层状态...</p>
+              <p className="text-sm text-slate-500">正在加载五层状态...</p>
             )}
           </MemoryPanel>
 

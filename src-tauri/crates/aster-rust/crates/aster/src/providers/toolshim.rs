@@ -246,6 +246,28 @@ fn normalize_interpreter_model_override(interpreter_model: Option<String>) -> Op
         .filter(|value| !value.is_empty())
 }
 
+fn should_attempt_tool_interpretation(content: &str) -> bool {
+    let trimmed = content.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let lowered = trimmed.to_ascii_lowercase();
+    trimmed.starts_with('{')
+        || trimmed.starts_with('[')
+        || trimmed.starts_with("```")
+        || lowered.contains("\"tool_calls\"")
+        || lowered.contains("\"name\"")
+        || lowered.contains("\"arguments\"")
+        || lowered.contains("tool_calls")
+        || lowered.contains("tool call")
+        || lowered.contains("use tool")
+        || lowered.contains("using tool")
+        || lowered.contains("调用工具")
+        || lowered.contains("使用工具")
+        || lowered.contains("工具调用")
+}
+
 fn resolve_interpreter_model(explicit_model: Option<&str>) -> String {
     explicit_model
         .map(str::trim)
@@ -433,6 +455,11 @@ pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
         None => return Ok(message),
     };
 
+    // 普通自然语言增量不需要进入 toolshim 解释器，否则会被每个文本片段重复放大延迟。
+    if !should_attempt_tool_interpretation(content) {
+        return Ok(message);
+    }
+
     // Check if there's already a tool request
     if message
         .content
@@ -500,5 +527,22 @@ mod tests {
         let resolved = resolve_interpreter_model(None);
 
         assert_eq!(resolved, DEFAULT_INTERPRETER_MODEL_OLLAMA);
+    }
+
+    #[test]
+    fn plain_text_reply_does_not_trigger_tool_interpretation() {
+        assert!(!should_attempt_tool_interpretation("测试通过"));
+        assert!(!should_attempt_tool_interpretation("好的，我来处理。"));
+    }
+
+    #[test]
+    fn json_like_reply_still_triggers_tool_interpretation() {
+        assert!(should_attempt_tool_interpretation(
+            r#"{"name":"write_file","arguments":{"path":"demo.txt"}}"#
+        ));
+        assert!(should_attempt_tool_interpretation(
+            "```json\n{\"tool_calls\":[{\"name\":\"noop\",\"arguments\":{}}]}\n```"
+        ));
+        assert!(should_attempt_tool_interpretation("我准备调用工具"));
     }
 }

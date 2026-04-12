@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { getProject } from "@/lib/api/project";
 import type {
   AsterSubagentParentContext,
   AsterSubagentSessionInfo,
@@ -42,6 +43,7 @@ const RECENT_TASK_WINDOW_MS = 1000 * 60 * 60 * 24 * 3;
 const OLDER_TASKS_INITIAL_COUNT = 8;
 const TEAM_SECTION_INITIAL_CHILD_COUNT = 3;
 const TEAM_SECTION_INITIAL_SIBLING_COUNT = 2;
+const TEAM_SECTION_LABEL = "任务协作";
 const PINNED_TASK_IDS_STORAGE_KEY = "lime_task_sidebar_pinned_ids";
 
 const STATUS_META: Record<
@@ -92,6 +94,7 @@ interface TaskCardViewModel {
   id: string;
   title: string;
   updatedAt: Date;
+  workspaceId?: string | null;
   messagesCount: number;
   status: TaskStatus;
   statusReason?: TaskStatusReason;
@@ -106,6 +109,11 @@ interface TaskSection {
   key: TaskSectionKey;
   title: string;
   items: TaskCardViewModel[];
+}
+
+interface TaskCenterContinuationState {
+  primary: TaskCardViewModel | null;
+  related: TaskCardViewModel[];
 }
 
 interface ChatSidebarProps {
@@ -180,6 +188,87 @@ function sortTaskItems(items: TaskCardViewModel[]) {
     }
     return right.updatedAt.getTime() - left.updatedAt.getTime();
   });
+}
+
+function isResumableTask(item: Pick<TaskCardViewModel, "status" | "statusReason">) {
+  return (
+    item.status === "waiting" ||
+    (item.status === "failed" && item.statusReason === "workspace_error")
+  );
+}
+
+function resolveTaskCenterContinuationState(
+  items: TaskCardViewModel[],
+  currentTopicId: string | null,
+): TaskCenterContinuationState {
+  const sortedItems = sortTaskItems(items);
+  const resumableItems = sortedItems.filter((item) => isResumableTask(item));
+  const recentDoneItems = sortedItems.filter((item) => item.status === "done");
+  const currentItem =
+    sortedItems.find((item) => item.id === currentTopicId) ?? null;
+  const primary =
+    (currentItem && isResumableTask(currentItem) ? currentItem : null) ??
+    resumableItems[0] ??
+    recentDoneItems[0] ??
+    currentItem ??
+    sortedItems[0] ??
+    null;
+
+  const related = [...resumableItems, ...recentDoneItems]
+    .filter((item) => item.id !== primary?.id)
+    .filter(
+      (item, index, array) =>
+        array.findIndex((candidate) => candidate.id === item.id) === index,
+    )
+    .slice(0, 3);
+
+  return {
+    primary,
+    related,
+  };
+}
+
+function resolveTaskCenterContinuationBadge(
+  item: TaskCardViewModel,
+): string {
+  if (isResumableTask(item)) {
+    return "等你继续";
+  }
+  if (item.status === "done") {
+    return "最近结果";
+  }
+  if (item.status === "running") {
+    return "正在推进";
+  }
+  return "工作现场";
+}
+
+function resolveTaskCenterContinuationActionLabel(
+  item: TaskCardViewModel,
+): string {
+  if (isResumableTask(item)) {
+    return "继续任务";
+  }
+  if (item.status === "done") {
+    return "回看结果";
+  }
+  if (item.status === "running") {
+    return "查看进展";
+  }
+  return "打开任务";
+}
+
+function areProjectNameMapsEqual(
+  left: Record<string, string>,
+  right: Record<string, string>,
+): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  return leftKeys.every((key) => left[key] === right[key]);
 }
 
 function loadPinnedTaskIds() {
@@ -506,6 +595,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         id: topic.id,
         title: resolveSidebarDisplayTitle(topic.title, "未命名任务"),
         updatedAt: topic.updatedAt || topic.createdAt,
+        workspaceId: topic.workspaceId ?? null,
         messagesCount: topic.messagesCount,
         status,
         statusReason,
@@ -531,6 +621,34 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     () => taskItems.find((item) => item.id === currentTopicId) ?? null,
     [currentTopicId, taskItems],
   );
+  const taskCenterContinuationState = useMemo(
+    () =>
+      contextVariant === "task-center"
+        ? resolveTaskCenterContinuationState(taskItems, currentTopicId)
+        : { primary: null, related: [] },
+    [contextVariant, currentTopicId, taskItems],
+  );
+  const continuationProjectIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            taskCenterContinuationState.primary,
+            ...taskCenterContinuationState.related,
+          ]
+            .map((item) => item?.workspaceId?.trim())
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ),
+    [taskCenterContinuationState],
+  );
+  const continuationProjectIdsKey = useMemo(
+    () => continuationProjectIds.join("|"),
+    [continuationProjectIds],
+  );
+  const [continuationProjectNames, setContinuationProjectNames] = useState<
+    Record<string, string>
+  >({});
   const sortedChildSubagentSessions = useMemo(
     () =>
       [...childSubagentSessions].sort(
@@ -687,6 +805,55 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     );
   }, [pinnedTaskIds]);
 
+  useEffect(() => {
+    if (
+      contextVariant !== "task-center" ||
+      continuationProjectIds.length === 0
+    ) {
+      setContinuationProjectNames((current) =>
+        Object.keys(current).length > 0 ? {} : current,
+      );
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadProjectNames = async () => {
+      const entries = await Promise.all(
+        continuationProjectIds.map(async (projectId) => {
+          try {
+            const project = await getProject(projectId);
+            return [projectId, project?.name?.trim() || null] as const;
+          } catch {
+            return [projectId, null] as const;
+          }
+        }),
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      const nextProjectNames = Object.fromEntries(
+        entries.filter(
+          (entry): entry is readonly [string, string] => Boolean(entry[1]),
+        ),
+      );
+
+      setContinuationProjectNames((current) =>
+        areProjectNameMapsEqual(current, nextProjectNames)
+          ? current
+          : nextProjectNames,
+      );
+    };
+
+    void loadProjectNames();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [contextVariant, continuationProjectIds, continuationProjectIdsKey]);
+
   const handleDeleteClick = (topicId: string) => {
     onDeleteTopic(topicId);
   };
@@ -711,6 +878,24 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     }
 
     void onSwitchTopic(item.id);
+  };
+
+  const handleOpenContinuationTask = (item: TaskCardViewModel) => {
+    if (isResumableTask(item)) {
+      handleResumeTask(item);
+      return;
+    }
+
+    void onSwitchTopic(item.id);
+  };
+
+  const resolveTaskProjectLabel = (item: TaskCardViewModel) => {
+    const projectId = item.workspaceId?.trim();
+    if (!projectId) {
+      return "通用任务";
+    }
+
+    return continuationProjectNames[projectId] || "当前项目";
   };
 
   const handleJumpToTaskSection = () => {
@@ -870,6 +1055,92 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
           data-testid="chat-sidebar-scroll-area"
         >
           <div className="space-y-4 pb-1">
+            {contextVariant === "task-center" &&
+            taskCenterContinuationState.primary ? (
+              <section
+                className="rounded-[24px] border border-emerald-200/70 bg-white px-3.5 py-3.5 shadow-sm shadow-slate-950/5"
+                data-testid="task-center-continuation-panel"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold tracking-[0.12em] text-emerald-700">
+                      继续上次任务
+                    </div>
+                    <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                      上次推进到哪、结果留在哪个项目里，这里会直接告诉你。
+                    </p>
+                  </div>
+                  <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">
+                    沉淀已保留
+                  </Badge>
+                </div>
+
+                <button
+                  type="button"
+                  data-testid="task-center-primary-continuation"
+                  onClick={() =>
+                    handleOpenContinuationTask(taskCenterContinuationState.primary!)
+                  }
+                  className="mt-3 w-full rounded-[20px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.94)_100%)] px-3.5 py-3 text-left transition hover:border-emerald-200/80 hover:bg-white"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                      {resolveTaskCenterContinuationBadge(
+                        taskCenterContinuationState.primary,
+                      )}
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {resolveTaskProjectLabel(
+                        taskCenterContinuationState.primary,
+                      )}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-slate-900">
+                    {taskCenterContinuationState.primary.title}
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
+                    {taskCenterContinuationState.primary.lastPreview}
+                  </p>
+                  <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-slate-400">
+                    <span>
+                      更新于{" "}
+                      {formatRelativeTime(
+                        taskCenterContinuationState.primary.updatedAt,
+                      )}
+                    </span>
+                    <span className="font-medium text-slate-600">
+                      {resolveTaskCenterContinuationActionLabel(
+                        taskCenterContinuationState.primary,
+                      )}
+                    </span>
+                  </div>
+                </button>
+
+                {taskCenterContinuationState.related.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {taskCenterContinuationState.related.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        data-testid={`task-center-related-${item.id}`}
+                        onClick={() => handleOpenContinuationTask(item)}
+                        className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-left text-[11px] text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-900"
+                        title={`${item.title} · ${item.lastPreview}`}
+                      >
+                        <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[10px] text-slate-500">
+                          {resolveTaskCenterContinuationBadge(item)}
+                        </span>
+                        <span className="truncate">{item.title}</span>
+                        <span className="shrink-0 text-slate-400">
+                          {resolveTaskProjectLabel(item)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+
             {shouldShowTeamSection ? (
               <section
                 className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.94)_0%,rgba(248,250,252,0.9)_100%)] px-3.5 py-3.5 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-white/5"
@@ -882,14 +1153,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        Team Runtime
+                        {TEAM_SECTION_LABEL}
                       </div>
                       <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
                         {teamSectionCollapsed
                           ? collapsedTeamSummary
                           : subagentParentContext
-                            ? "当前线程来自父会话，可直接返回主线程并切换同级子代理。"
-                            : "这里展示真实 child session，而不是 synthetic timeline。"}
+                            ? "当前线程来自主任务，可直接返回主任务并切换其他分工。"
+                            : "这里展示当前任务的协作成员、当前任务和任务节点。"}
                       </p>
                     </div>
                   </div>
@@ -914,8 +1185,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                       type="button"
                       aria-label={
                         teamSectionCollapsed
-                          ? "展开 Team Runtime"
-                          : "收起 Team Runtime"
+                          ? `展开${TEAM_SECTION_LABEL}`
+                          : `收起${TEAM_SECTION_LABEL}`
                       }
                       onClick={() =>
                         setTeamSectionCollapsedOverride(

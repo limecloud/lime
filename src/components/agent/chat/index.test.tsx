@@ -10,6 +10,7 @@ import {
   vi,
 } from "vitest";
 import * as fileBrowserModule from "@/lib/api/fileBrowser";
+import * as webviewApiModule from "@/lib/webview-api";
 import {
   resolveBrowserAssistSessionScopeKey,
   resolveBrowserAssistSessionStorageKey,
@@ -23,6 +24,7 @@ const {
   mockUseTopicBranchBoard,
   mockUseTeamWorkspaceRuntime,
   mockUseCompatSubagentRuntime,
+  mockUseSessionFiles,
   mockGetProject,
   mockGetDefaultProject,
   mockGetOrCreateDefaultProject,
@@ -67,6 +69,7 @@ const {
   mockUseTopicBranchBoard: vi.fn(),
   mockUseTeamWorkspaceRuntime: vi.fn(),
   mockUseCompatSubagentRuntime: vi.fn(),
+  mockUseSessionFiles: vi.fn(),
   mockGetProject: vi.fn(),
   mockGetDefaultProject: vi.fn(),
   mockGetOrCreateDefaultProject: vi.fn(),
@@ -76,6 +79,7 @@ const {
   mockUpdateContent: vi.fn(),
   mockGetProjectMemory: vi.fn(),
   mockToast: {
+    loading: vi.fn(() => "toast-loading"),
     success: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
@@ -202,12 +206,7 @@ vi.mock("@/hooks/useDeveloperFeatureFlags", () => ({
 }));
 
 vi.mock("./hooks/useSessionFiles", () => ({
-  useSessionFiles: () => ({
-    saveFile: vi.fn(async () => undefined),
-    files: [],
-    readFile: vi.fn(async () => null),
-    meta: null,
-  }),
+  useSessionFiles: mockUseSessionFiles,
 }));
 
 vi.mock("./hooks/useContentSync", () => ({
@@ -477,7 +476,7 @@ vi.mock("./components/TeamWorkspaceDock", () => ({
             onActivateWorkbench();
           }}
         >
-          打开创作协作
+          打开任务协作
         </button>
       ) : null}
     </div>
@@ -1246,6 +1245,12 @@ beforeEach(() => {
     error: null,
     recentActivity: [],
     hasSignals: false,
+  });
+  mockUseSessionFiles.mockReturnValue({
+    saveFile: vi.fn(async () => undefined),
+    files: [],
+    readFile: vi.fn(async () => null),
+    meta: null,
   });
   mockCanvasWorkbenchLayoutState.renderPreview = false;
 
@@ -2748,6 +2753,182 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     expect(generalCanvas?.dataset.content || "").toContain(
       "![封面](images/cover.png)",
     );
+  });
+
+  it("点击执行卡片里的结果文件按钮时应打开真实导出 Markdown 预览", async () => {
+    mockCanvasWorkbenchLayoutState.renderPreview = true;
+    vi.spyOn(webviewApiModule, "siteRunAdapter").mockResolvedValue({
+      ok: true,
+      adapter: "x/article-export",
+      domain: "x.com",
+      profile_key: "attached-x",
+      session_id: "session-browser-1",
+      target_id: "target-1",
+      entry_url:
+        "https://x.com/GoogleCloudTech/article/2033953579824758855",
+      source_url:
+        "https://x.com/GoogleCloudTech/article/2033953579824758855",
+      saved_content: {
+        content_id: "content-inline-export",
+        project_id: "project-inline-export",
+        title: "Google Cloud Tech 文章导出",
+        markdown_relative_path: "exports/x-article-export/latest/index.md",
+      },
+      saved_by: "context_content",
+    });
+    vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
+      path:
+        "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+      content: "# 当前导出\n\n![封面](images/cover.png)",
+      isBinary: false,
+      size: 43,
+      error: null,
+    });
+
+    const container = renderPage({
+      projectId: "project-inline-export",
+      contentId: "content-inline-export",
+      theme: "general",
+      lockTheme: true,
+      initialSiteSkillLaunch: {
+        adapterName: "x/article-export",
+        args: {
+          postUrl:
+            "https://x.com/GoogleCloudTech/article/2033953579824758855",
+        },
+        autoRun: true,
+        profileKey: "attached-x",
+        requireAttachedSession: true,
+        skillTitle: "X 文章转存",
+      },
+    });
+    await flushEffects(12);
+
+    const button = container.querySelector(
+      '[data-testid="service-skill-execution-open-saved-content"]',
+    ) as HTMLButtonElement | null;
+    expect(button).not.toBeNull();
+
+    act(() => {
+      button?.click();
+    });
+    await flushEffects(12);
+
+    expect(fileBrowserModule.readFilePreview).toHaveBeenCalledWith(
+      "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+      64 * 1024,
+    );
+    expect(
+      container
+        .querySelector('[data-testid="layout-transition"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("chat-canvas");
+
+    const generalCanvas = container.querySelector(
+      '[data-testid="general-canvas"]',
+    ) as HTMLDivElement | null;
+    expect(generalCanvas).not.toBeNull();
+    expect(generalCanvas?.dataset.filename).toBe(
+      "exports/x-article-export/latest/index.md",
+    );
+    expect(generalCanvas?.dataset.baseFilePath).toBe(
+      "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+    );
+    expect(generalCanvas?.dataset.content || "").toContain(
+      "![封面](images/cover.png)",
+    );
+  });
+
+  it("真实导出路径打开失败时不应回退到裸 index.md 任务文件", async () => {
+    mockCanvasWorkbenchLayoutState.renderPreview = true;
+    mockUseSessionFiles.mockReturnValue({
+      saveFile: vi.fn(async () => undefined),
+      files: [
+        {
+          name: "index.md",
+          fileType: "document",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      readFile: vi.fn(async (name: string) =>
+        name === "index.md" ? "# 过程文件\n\n这不是正式导出。" : null,
+      ),
+      meta: null,
+    });
+    vi.spyOn(webviewApiModule, "siteRunAdapter").mockResolvedValue({
+      ok: true,
+      adapter: "x/article-export",
+      domain: "x.com",
+      profile_key: "attached-x",
+      session_id: "session-browser-1",
+      target_id: "target-1",
+      entry_url:
+        "https://x.com/GoogleCloudTech/article/2033953579824758855",
+      source_url:
+        "https://x.com/GoogleCloudTech/article/2033953579824758855",
+      saved_content: {
+        content_id: "content-inline-export",
+        project_id: "project-inline-export",
+        title: "Google Cloud Tech 文章导出",
+        markdown_relative_path: "exports/x-article-export/latest/index.md",
+      },
+      saved_by: "context_content",
+    });
+    vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
+      path:
+        "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+      content: null,
+      isBinary: false,
+      size: 0,
+      error: "ENOENT: no such file or directory",
+    });
+
+    const container = renderPage({
+      projectId: "project-inline-export",
+      contentId: "content-inline-export",
+      theme: "general",
+      lockTheme: true,
+      initialSiteSkillLaunch: {
+        adapterName: "x/article-export",
+        args: {
+          postUrl:
+            "https://x.com/GoogleCloudTech/article/2033953579824758855",
+        },
+        autoRun: true,
+        profileKey: "attached-x",
+        requireAttachedSession: true,
+        skillTitle: "X 文章转存",
+      },
+    });
+    await flushEffects(14);
+
+    const button = container.querySelector(
+      '[data-testid="service-skill-execution-open-saved-content"]',
+    ) as HTMLButtonElement | null;
+    expect(button).not.toBeNull();
+
+    act(() => {
+      button?.click();
+    });
+    await flushEffects(12);
+
+    expect(fileBrowserModule.readFilePreview).toHaveBeenCalledWith(
+      "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+      64 * 1024,
+    );
+    expect(mockToast.error).toHaveBeenCalledTimes(1);
+    expect(mockToast.error).toHaveBeenCalledWith(
+      "打开导出文件失败: ENOENT: no such file or directory",
+    );
+    expect(
+      container
+        .querySelector('[data-testid="layout-transition"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("chat");
+    expect(
+      container.querySelector('[data-testid="general-canvas"]'),
+    ).toBeNull();
   });
 
   it("浏览器工具返回真实会话后不应再自动打开浏览器协助画布", async () => {

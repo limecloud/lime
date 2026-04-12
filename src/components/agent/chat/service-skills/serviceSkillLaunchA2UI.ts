@@ -81,7 +81,7 @@ export function buildServiceSkillLaunchA2UIResponse(
     prefillHint,
     includeHeading = true,
     includeRequiredLabelSuffix = true,
-    submitLabel = "直接开始",
+    submitLabel = "继续当前结果",
     responseKey,
   } = options;
   const components: A2UIResponse["components"] = [];
@@ -101,7 +101,7 @@ export function buildServiceSkillLaunchA2UIResponse(
     components.push({
       id: titleId,
       component: "Text",
-      text: `继续「${skill.title}」前，先补几项信息`,
+      text: `继续「${skill.title}」前，先补齐做法所需信息`,
       variant: "h3",
     });
     childIds.push(titleId);
@@ -112,7 +112,7 @@ export function buildServiceSkillLaunchA2UIResponse(
       component: "Text",
       text:
         normalizeOptionalText(skill.summary) ||
-        "补齐后会继续在当前对话里直接开始，不用重新打开其他面板。",
+        "补齐后会继续在当前任务里推进这个结果，不用重新打开其他面板。",
       variant: "caption",
     });
     childIds.push(descriptionId);

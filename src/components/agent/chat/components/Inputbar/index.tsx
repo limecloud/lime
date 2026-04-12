@@ -174,6 +174,12 @@ export const Inputbar: React.FC<InputbarProps> = ({
     topExtra,
     workflowQuickActions,
     workflowQueueItems,
+    workflowActiveItem,
+    workflowQueueTotalCount,
+    workflowCompletedCount,
+    workflowTotalCount,
+    workflowProgressLabel,
+    workflowSummaryLabel,
     renderWorkflowGeneratingPanel,
     skillSelection,
     setActiveBuiltinCommand,
@@ -246,6 +252,12 @@ export const Inputbar: React.FC<InputbarProps> = ({
         workflowGate={workflowGate}
         workflowQuickActions={workflowQuickActions}
         workflowQueueItems={workflowQueueItems}
+        workflowActiveItem={workflowActiveItem}
+        workflowQueueTotalCount={workflowQueueTotalCount}
+        workflowCompletedCount={workflowCompletedCount}
+        workflowTotalCount={workflowTotalCount}
+        workflowProgressLabel={workflowProgressLabel}
+        workflowSummaryLabel={workflowSummaryLabel}
         inputAdapter={inputAdapter}
         characters={characters}
         skillSelection={skillSelection}

@@ -19,6 +19,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const LIME_SKIP_STARTUP_WINDOW_REVEAL = "LIME_SKIP_STARTUP_WINDOW_REVEAL";
+const LIME_DISABLE_SINGLE_INSTANCE = "LIME_DISABLE_SINGLE_INSTANCE";
 
 const state = {
   child: null,
@@ -167,6 +168,7 @@ function startHeadlessTauri() {
     env: {
       ...process.env,
       [LIME_SKIP_STARTUP_WINDOW_REVEAL]: "1",
+      [LIME_DISABLE_SINGLE_INSTANCE]: "1",
     },
     detached: process.platform !== "win32",
   });

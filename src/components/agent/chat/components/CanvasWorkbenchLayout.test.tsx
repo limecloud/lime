@@ -634,6 +634,9 @@ describe("CanvasWorkbenchLayout", () => {
       container.querySelector('button[aria-label="切换画布标签-draft.md"]'),
     ).not.toBeNull();
     expect(
+      container.querySelectorAll('button[aria-label="切换画布标签-draft.md"]'),
+    ).toHaveLength(1);
+    expect(
       container.querySelector('[data-testid="preview-panel"]')?.textContent,
     ).toContain("default-canvas:draft.md");
 

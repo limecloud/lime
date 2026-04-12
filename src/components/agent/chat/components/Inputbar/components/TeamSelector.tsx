@@ -46,8 +46,8 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({
   }, [autoOpenToken]);
 
   const resolvedLabel = selectedTeam?.label?.trim()
-    ? `Team · ${selectedTeam.label.trim()}`
-    : "配置 Team";
+    ? `分工 · ${selectedTeam.label.trim()}`
+    : "配置分工";
 
   const selectedRoleCount = selectedTeam?.roles.length || 0;
 

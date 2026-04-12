@@ -274,7 +274,7 @@ export function buildRuntimeSceneGateA2UIForm(params: {
   components.push({
     id: titleId,
     component: "Text",
-    text: `继续「${request.sceneTitle}」前，先补几项信息`,
+    text: `继续「${request.sceneTitle}」前，先补齐结果所需信息`,
     variant: "h3",
   });
   childIds.push(titleId);
@@ -285,7 +285,7 @@ export function buildRuntimeSceneGateA2UIForm(params: {
     component: "Text",
     text:
       request.sceneSummary ||
-      `补齐后会继续执行 ${request.commandPrefix}，不用重新输入。`,
+      "补齐后会继续当前结果流程，不用重新输入命令。",
     variant: "caption",
   });
   childIds.push(descriptionId);
@@ -326,7 +326,7 @@ export function buildRuntimeSceneGateA2UIForm(params: {
     components,
     data: {},
     submitAction: {
-      label: "继续",
+      label: "继续当前结果",
       action: {
         name: "submit",
       },
@@ -394,5 +394,5 @@ export function formatRuntimeSceneGateValidationMessage(
     return "还需要选择项目工作区，补齐后再继续。";
   }
 
-  return "请先补齐当前场景所需信息后再继续。";
+  return "请先补齐当前结果模板所需信息后再继续。";
 }

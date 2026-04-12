@@ -195,8 +195,8 @@ import {
   isAbsoluteWorkspacePath,
   resolveAbsoluteWorkspacePath,
 } from "./workspace/workspacePath";
+import { doesWorkspaceFileCandidateMatch } from "./workspace/workspaceFilePathMatch";
 import {
-  areArtifactProtocolPathsEquivalent,
   normalizeArtifactProtocolPath,
   resolveArtifactProtocolFilePath,
 } from "@/lib/artifact-protocol";
@@ -293,13 +293,10 @@ function resolveTaskPreviewArtifact(
         !isHiddenInternalArtifactPath(
           resolveArtifactProtocolFilePath(artifact),
         ) &&
-        (areArtifactProtocolPathsEquivalent(
+        doesWorkspaceFileCandidateMatch(
           resolveArtifactProtocolFilePath(artifact),
           normalizedArtifactPath,
-        ) ||
-          normalizeArtifactProtocolPath(
-            resolveArtifactProtocolFilePath(artifact),
-          ) === normalizedArtifactPath),
+        ),
     );
     if (matchedArtifact) {
       return matchedArtifact;
@@ -3207,12 +3204,7 @@ export function AgentChatWorkspace({
       );
       if (normalizedArtifactPath) {
         const matchedTaskFile = taskFiles.find(
-          (file) =>
-            areArtifactProtocolPathsEquivalent(
-              file.name,
-              normalizedArtifactPath,
-            ) ||
-            normalizeArtifactProtocolPath(file.name) === normalizedArtifactPath,
+          (file) => doesWorkspaceFileCandidateMatch(file.name, normalizedArtifactPath),
         );
         if (matchedTaskFile?.content?.trim()) {
           handleWorkspaceFileClick(
@@ -3292,16 +3284,17 @@ export function AgentChatWorkspace({
       }
 
       const matchedTaskFile = taskFiles.find(
-        (file) =>
-          areArtifactProtocolPathsEquivalent(file.name, normalizedPath) ||
-          normalizeArtifactProtocolPath(file.name) ===
-            normalizeArtifactProtocolPath(normalizedPath),
+        (file) => doesWorkspaceFileCandidateMatch(file.name, normalizedPath),
       );
       if (matchedTaskFile) {
         handleWorkspaceFileClick(
           matchedTaskFile.name,
           matchedTaskFile.content ?? "",
         );
+        return;
+      }
+
+      if (absolutePath) {
         return;
       }
 
@@ -3615,6 +3608,7 @@ export function AgentChatWorkspace({
     setModel,
     sessionExecutionRuntime: executionRuntime,
     projectId: projectId ?? null,
+    projectRootPath: project?.rootPath || null,
     executionStrategy,
     setExecutionStrategy,
     accessMode,

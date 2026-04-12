@@ -528,6 +528,9 @@ npm run verify:local
 - **旧 `chat_*` 命令**：已停止注册，不应重新回到 `commands::mod` 或 `generate_handler!`
 - **旧 `general_chat_*` 边界**：前端 compat 网关与 Rust 命令都已移除，不应重新接入
 - **记忆系统**：统一沉淀优先走 `unified_memory_*`，runtime / 上下文视图优先走 `memory_runtime_*`
+- **工作记忆主链**：会话级计划 / 发现 / 进度 / 错误文件继续收敛到 `memory_runtime_get_working_memory`；不要让页面、Hook 或运行时各自重新扫描 `.lime/memory`
+- **记忆抽取状态主链**：记忆抽取与上下文压缩状态继续收敛到 `memory_runtime_get_extraction_status`；Memory 页面、诊断视图和后续 GUI 提示都不应各自拼凑“最近是否压缩过”
+- **单回合记忆预取主链**：运行时 working / durable / compaction recall 继续收敛到 `memory_runtime_prefetch_for_turn`；不要把 working memory、统一记忆检索或压缩摘要再拆成第二套 prompt 拼装边界
 - **旧项目风格命令**：`style_guide_get` / `style_guide_update` 已下线，不应再从前端网关、Rust 注册或 mock 中接回
 - **旧项目模板命令**：`create_template` / `list_templates` / `get_template` / `update_template` / `delete_template` / `set_default_template` / `get_default_template` 已下线，不应再从前端网关、Rust 注册或 mock 中接回
 - **旧品牌人设扩展命令**：`get_brand_persona` / `get_brand_extension` / `save_brand_extension` / `update_brand_extension` / `delete_brand_extension` / `list_brand_persona_templates` 已下线，不应再从前端网关、Rust 注册或 mock 中接回

@@ -1,5 +1,4 @@
 use super::*;
-use crate::commands::aster_agent_cmd::runtime_turn::build_runtime_queue_executor;
 use crate::commands::aster_agent_cmd::session_runtime::{
     create_runtime_session_internal, list_runtime_sessions_internal,
     rename_runtime_session_internal, update_runtime_session_execution_strategy_internal,
@@ -19,6 +18,28 @@ pub(crate) mod runtime_api;
 pub(crate) mod session_api;
 #[path = "command_api/subagent_api.rs"]
 pub(crate) mod subagent_api;
+
+fn build_runtime_command_context(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+) -> RuntimeCommandContext {
+    RuntimeCommandContext::new(
+        app,
+        state.inner(),
+        db.inner(),
+        api_key_provider_service.inner(),
+        logs.inner(),
+        config_manager.inner(),
+        mcp_manager.inner(),
+        automation_state.inner(),
+    )
+}
 
 fn build_subagent_control_runtime(
     app: AppHandle,

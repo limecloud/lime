@@ -25,6 +25,7 @@ import {
   looksLikeSocialPublishPayload,
   resolveTaskFileType,
 } from "./generalWorkbenchHelpers";
+import { doesWorkspaceFileCandidateMatch } from "./workspaceFilePathMatch";
 import { extractFileNameFromPath } from "./workspacePath";
 import { buildGeneralCanvasStateFromWorkspaceFile } from "./workspaceFilePreview";
 import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
@@ -121,11 +122,8 @@ export function useWorkspaceArtifactPreviewActions({
         return createFallbackResult({ error: "文件路径为空" });
       }
 
-      const fileName = extractFileNameFromPath(normalizedPath);
-      const candidateNames = [...new Set([normalizedPath, fileName])];
-
       const matchedTaskFile = taskFiles.find((file) =>
-        candidateNames.includes(file.name),
+        doesWorkspaceFileCandidateMatch(file.name, normalizedPath),
       );
       if (matchedTaskFile) {
         const content = matchedTaskFile.content ?? "";
@@ -137,7 +135,7 @@ export function useWorkspaceArtifactPreviewActions({
       }
 
       const matchedSessionFile = sessionFiles.find((file) =>
-        candidateNames.includes(file.name),
+        doesWorkspaceFileCandidateMatch(file.name, normalizedPath),
       );
       if (matchedSessionFile) {
         const content = await readSessionFile(matchedSessionFile.name);

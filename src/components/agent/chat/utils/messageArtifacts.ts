@@ -19,6 +19,7 @@ import type {
   WriteArtifactContext,
 } from "../types";
 import { mergeArtifactDocuments } from "./artifactToolSources";
+import { shouldAllowBareFileNameFallback } from "../workspace/workspaceFilePathMatch";
 
 const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "txt", "rst", "adoc"]);
 const MERMAID_EXTENSIONS = new Set(["mmd", "mermaid"]);
@@ -80,6 +81,28 @@ function fileNameFromPath(path: string): string {
   const normalized = normalizePath(path);
   const segments = normalized.split("/");
   return segments[segments.length - 1] || normalized;
+}
+
+function doesArtifactPathReferenceMatch(
+  candidatePath?: string | null,
+  targetPath?: string | null,
+): boolean {
+  const normalizedCandidate = normalizePath(candidatePath || "");
+  const normalizedTarget = normalizePath(targetPath || "");
+
+  if (!normalizedCandidate || !normalizedTarget) {
+    return false;
+  }
+
+  if (normalizedCandidate === normalizedTarget) {
+    return true;
+  }
+
+  if (!shouldAllowBareFileNameFallback(normalizedTarget)) {
+    return false;
+  }
+
+  return areArtifactProtocolPathsEquivalent(normalizedCandidate, normalizedTarget);
 }
 
 function extensionFromPath(path: string): string {
@@ -195,7 +218,7 @@ export function findMessageArtifact(
     const artifactPath = normalizePath(
       resolveArtifactProtocolFilePath(artifact),
     );
-    return areArtifactProtocolPathsEquivalent(artifactPath, normalizedPath);
+    return doesArtifactPathReferenceMatch(artifactPath, normalizedPath);
   });
 }
 

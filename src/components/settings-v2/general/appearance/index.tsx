@@ -303,10 +303,6 @@ export function AppearanceSettings() {
         ? enabledNavItems.filter((item) => item !== itemId)
         : [...enabledNavItems, itemId];
 
-      if (nextItems.length === 0) {
-        return;
-      }
-
       const previousConfig = config;
       const nextConfig = {
         ...config,

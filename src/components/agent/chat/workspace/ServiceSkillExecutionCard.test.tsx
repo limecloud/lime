@@ -113,15 +113,11 @@ describe("ServiceSkillExecutionCard", () => {
       },
     });
 
-    expect(container.textContent).toContain("已沉淀内容：GitHub 仓库线索");
     expect(container.textContent).toContain(
-      "项目目录：/Users/coso/Library/Application Support/lime/projects/project-1",
+      "结果文件：index.md",
     );
     expect(container.textContent).toContain(
-      "Markdown 文件：exports/x-article-export/github-mcp/index.md",
-    );
-    expect(container.textContent).toContain(
-      "图片资源：7 张 · exports/x-article-export/github-mcp/images",
+      "图片：7 张",
     );
     expect(
       container.querySelector(
@@ -161,7 +157,7 @@ describe("ServiceSkillExecutionCard", () => {
       '[data-testid="service-skill-execution-open-saved-content"]',
     ) as HTMLButtonElement | null;
 
-    expect(button?.textContent).toContain("查看采集源 Markdown");
+    expect(button?.textContent).toContain("在画布中打开 index.md");
 
     act(() => {
       button?.click();
@@ -178,14 +174,14 @@ describe("ServiceSkillExecutionCard", () => {
     });
   });
 
-  it("存在更正式的结果文件时应优先打开结果文件", () => {
+  it("存在更新的正式导出目录时应优先打开该结果文件", () => {
     const onOpenResultFile = vi.fn();
     const onOpenSavedSiteContent = vi.fn();
     const container = renderCard({
       onOpenResultFile,
       onOpenSavedSiteContent,
       preferredResultFileTarget: {
-        relativePath: "workspace/index.md",
+        relativePath: "exports/social-article/google-cloud/index.md",
         title: "index.md",
       },
       state: {
@@ -215,13 +211,15 @@ describe("ServiceSkillExecutionCard", () => {
       '[data-testid="service-skill-execution-open-saved-content"]',
     ) as HTMLButtonElement | null;
 
-    expect(button?.textContent).toContain("打开结果文件 index.md");
+    expect(button?.textContent).toContain("在画布中打开 index.md");
 
     act(() => {
       button?.click();
     });
 
-    expect(onOpenResultFile).toHaveBeenCalledWith("workspace/index.md");
+    expect(onOpenResultFile).toHaveBeenCalledWith(
+      "exports/social-article/google-cloud/index.md",
+    );
     expect(onOpenSavedSiteContent).not.toHaveBeenCalled();
   });
 });

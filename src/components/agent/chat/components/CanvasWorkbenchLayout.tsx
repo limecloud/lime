@@ -575,13 +575,53 @@ function buildEntries(
   taskFiles: TaskFile[],
   workspaceRoot?: string | null,
 ): CanvasWorkbenchEntry[] {
+  const taskFileEntries: CanvasWorkbenchTaskFileEntry[] = taskFiles
+    .slice()
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .map((taskFile) => ({
+      key: `task:${taskFile.id}`,
+      source: "task-file" as const,
+      taskFile,
+      title: resolveContentPostArtifactDisplayTitle({
+        title: extractFileNameFromPath(taskFile.name),
+        filePath: taskFile.name,
+        metadata: taskFile.metadata,
+      }),
+      subtitle: taskFile.name,
+      filePath: taskFile.name,
+      absolutePath: resolveAbsoluteWorkspacePath(
+        workspaceRoot,
+        taskFile.name,
+      ),
+      previewText: taskFile.content?.trim().slice(0, 180),
+      createdAt: taskFile.updatedAt,
+      badgeLabel: taskFile.type === "document" ? "文档" : undefined,
+      kindLabel: "任务文件",
+    }));
+
+  const taskFilePathSet = new Set(
+    taskFileEntries
+      .map((entry) => normalizePath(entry.absolutePath || entry.filePath || ""))
+      .filter(Boolean),
+  );
+  const seenArtifactPaths = new Set<string>();
+
   const entries: CanvasWorkbenchEntry[] = artifacts
     .slice()
     .reverse()
-    .map((artifact) => {
+    .flatMap((artifact) => {
       const filePath = resolveArtifactProtocolFilePath(artifact);
       const writePhase = resolveArtifactWritePhase(artifact);
-      return {
+      const absolutePath = resolveAbsoluteWorkspacePath(workspaceRoot, filePath);
+      const pathKey = normalizePath(absolutePath || filePath || "");
+      if (pathKey) {
+        if (taskFilePathSet.has(pathKey) || seenArtifactPaths.has(pathKey)) {
+          return [];
+        }
+        seenArtifactPaths.add(pathKey);
+      }
+
+      return [{
         key: `artifact:${artifact.id}`,
         source: "artifact",
         artifact,
@@ -592,14 +632,14 @@ function buildEntries(
         }),
         subtitle: filePath,
         filePath,
-        absolutePath: resolveAbsoluteWorkspacePath(workspaceRoot, filePath),
+        absolutePath,
         previewText: resolveArtifactPreviewText(artifact),
         createdAt: artifact.updatedAt || artifact.createdAt,
         badgeLabel: writePhase
           ? formatArtifactWritePhaseLabel(writePhase)
           : undefined,
         kindLabel: "产物",
-      };
+      }];
     });
 
   if (isDocumentCanvasState(canvasState)) {
@@ -630,31 +670,7 @@ function buildEntries(
     );
   }
 
-  entries.push(
-    ...taskFiles
-      .slice()
-      .sort((left, right) => right.updatedAt - left.updatedAt)
-      .map((taskFile) => ({
-        key: `task:${taskFile.id}`,
-        source: "task-file" as const,
-        taskFile,
-        title: resolveContentPostArtifactDisplayTitle({
-          title: extractFileNameFromPath(taskFile.name),
-          filePath: taskFile.name,
-          metadata: taskFile.metadata,
-        }),
-        subtitle: taskFile.name,
-        filePath: taskFile.name,
-        absolutePath: resolveAbsoluteWorkspacePath(
-          workspaceRoot,
-          taskFile.name,
-        ),
-        previewText: taskFile.content?.trim().slice(0, 180),
-        createdAt: taskFile.updatedAt,
-        badgeLabel: taskFile.type === "document" ? "文档" : undefined,
-        kindLabel: "任务文件",
-      })),
-  );
+  entries.push(...taskFileEntries);
 
   const seen = new Set<string>();
   return entries.filter((entry) => {

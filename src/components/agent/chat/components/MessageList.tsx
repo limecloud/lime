@@ -1070,10 +1070,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
                         任务中心
                       </h2>
                       <p className="max-w-[48rem] text-[15px] leading-7 text-slate-600">
-                        回到进行中的任务、旧历史和最近工作现场。
+                        回到进行中的任务、最近结果和已经跑过的工作现场。
                       </p>
                       <p className="text-sm leading-7 text-slate-500">
-                        还没有进行中的任务时，从新建任务开始也很自然。
+                        还没有进行中的任务时，从新建任务开始也很自然；跑过的结果和做法后面都会继续留在这里。
                       </p>
                     </div>
                   </div>
@@ -1081,13 +1081,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
 
                 <div className="mt-6 flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                    左侧会继续显示最近任务
+                    左侧会继续显示继续中的任务
                   </span>
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                    旧历史会继续在这里回访
+                    最近结果会继续在这里回访
                   </span>
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                    恢复中的会话会自动回到这里
+                    常用做法和恢复中的会话会自动回到这里
                   </span>
                 </div>
               </section>

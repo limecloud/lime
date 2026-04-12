@@ -23,6 +23,7 @@ import {
   TEAM_WORKSPACE_PLAN_LABEL,
   TEAM_WORKSPACE_REALTIME_BADGE_LABEL,
   TEAM_WORKSPACE_SURFACE_TITLE,
+  TEAM_WORKSPACE_WAITING_HEADLINE,
 } from "../utils/teamWorkspaceCopy";
 
 const DockContainer = styled.div<{
@@ -642,20 +643,20 @@ export function TeamWorkspaceDock({
     }
     if (hasRealTeamGraph) {
       if (teamConcurrencyBadgeText || teamQueueBadgeText) {
-        return ["查看任务进展", teamConcurrencyBadgeText, teamQueueBadgeText]
+        return ["查看任务进行时", teamConcurrencyBadgeText, teamQueueBadgeText]
           .filter(Boolean)
           .join(" · ");
       }
-      return `查看任务进展 · ${dockCount}`;
+      return `查看任务进行时 · ${dockCount}`;
     }
     if (dispatchPreviewState?.status === "forming") {
-      return "查看任务进展 · 准备中";
+      return "查看任务进行时 · 准备中";
     }
     if (dispatchPreviewState?.status === "formed") {
-      return `查看任务进展 · ${dispatchPreviewState.members.length}`;
+      return `查看任务进行时 · ${dispatchPreviewState.members.length}`;
     }
     if (dispatchPreviewState?.status === "failed") {
-      return "查看任务进展 · 失败";
+      return "查看任务进行时 · 失败";
     }
     return TEAM_WORKSPACE_SURFACE_TITLE;
   }, [
@@ -799,18 +800,18 @@ export function TeamWorkspaceDock({
           ) : null}
         </EmptyStateEyebrow>
         <EmptyStateTitle>
-          {runtimeFormationMeta?.title || "等待协作成员加入"}
+          {runtimeFormationMeta?.title || TEAM_WORKSPACE_WAITING_HEADLINE}
         </EmptyStateTitle>
         <EmptyStateDescription>
           {dispatchPreviewState?.status === "forming" ? (
-            "系统正在按当前任务准备协作分工，成员接入后会自动展开完整协作面板。"
+            "系统正在按当前任务准备分工，成员接入后会自动展开完整协作面板。"
           ) : dispatchPreviewState?.status === "formed" ? (
             `已准备 ${dispatchPreviewState.members.length} 位协作成员，后续会自动接入并继续处理。`
           ) : dispatchPreviewState?.status === "failed" ? (
             dispatchPreviewState.errorMessage?.trim() ||
-            "这次协作准备失败，你仍然可以继续在当前对话中处理。"
+            "这次任务分工准备失败，你仍然可以继续在当前对话中处理。"
           ) : (
-            <>需要时系统会自动邀请协作成员加入，这里会切换成完整协作面板。</>
+            <>需要时系统会自动安排任务分工，这里会切换成完整任务协作面板。</>
           )}
         </EmptyStateDescription>
         {teamQueueReason ? (
@@ -830,8 +831,8 @@ export function TeamWorkspaceDock({
                 </EmptyStateDetailTitle>
                 <EmptyStateDetailHint>
                   {dispatchPreviewState
-                    ? "查看当前协作分工与参考方案"
-                    : "查看当前协作方案与分工"}
+                    ? "查看当前任务分工与参考方案"
+                    : "查看当前任务方案与分工"}
                 </EmptyStateDetailHint>
               </div>
               {teamDetailExpanded ? (
@@ -911,7 +912,7 @@ export function TeamWorkspaceDock({
                     </EmptyStateRoleName>
                     <EmptyStateRoleSummary>
                       {dispatchPreviewState.blueprint.summary ||
-                        "当前协作参考了当前方案里的分工偏好。"}
+                        "当前任务分工参考了当前方案里的角色偏好。"}
                     </EmptyStateRoleSummary>
                   </EmptyStateRoleItem>
                 ) : null}

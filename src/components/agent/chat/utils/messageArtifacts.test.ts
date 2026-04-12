@@ -305,4 +305,33 @@ describe("messageArtifacts 路径归一", () => {
       "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/tasks/image/output_image.jpg",
     );
   });
+
+  it("显式结果路径查找时不应命中同名裸 artifact", () => {
+    const message = {
+      artifacts: [
+        createArtifact({
+          id: "artifact-process-index",
+          title: "index.md",
+          meta: {
+            filePath: "index.md",
+            filename: "index.md",
+          },
+        }),
+        createArtifact({
+          id: "artifact-export-index",
+          title: "index.md",
+          meta: {
+            filePath: "exports/x-article-export/latest/index.md",
+            filename: "index.md",
+          },
+        }),
+      ],
+    };
+
+    expect(
+      findMessageArtifact(message, {
+        filePath: "exports/x-article-export/latest/index.md",
+      })?.id,
+    ).toBe("artifact-export-index");
+  });
 });

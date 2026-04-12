@@ -164,13 +164,16 @@ describe("MessageList", () => {
     expect(container.textContent).toContain("创作");
     expect(container.textContent).toContain("任务中心");
     expect(container.textContent).toContain(
-      "回到进行中的任务、旧历史和最近工作现场。",
+      "回到进行中的任务、最近结果和已经跑过的工作现场。",
     );
     expect(container.textContent).toContain(
-      "还没有进行中的任务时，从新建任务开始也很自然。",
+      "还没有进行中的任务时，从新建任务开始也很自然；跑过的结果和做法后面都会继续留在这里。",
     );
-    expect(container.textContent).toContain("左侧会继续显示最近任务");
-    expect(container.textContent).toContain("旧历史会继续在这里回访");
+    expect(container.textContent).toContain("左侧会继续显示继续中的任务");
+    expect(container.textContent).toContain("最近结果会继续在这里回访");
+    expect(container.textContent).toContain(
+      "常用做法和恢复中的会话会自动回到这里",
+    );
     expect(container.textContent).not.toContain("开始一段新的对话吧");
   });
 

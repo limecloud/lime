@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { updateProject as updateProjectById } from "@/lib/api/project";
 import { notifyProjectRuntimeAgentsGuide } from "@/components/workspace/services/runtimeAgentsGuideService";
-import type { Page, PageParams } from "@/types/page";
+import type { MemoryPageParams, Page, PageParams } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
 import type { WorkspacePathMissingState } from "../hooks/agentChatShared";
 
@@ -17,6 +17,12 @@ interface UseWorkspaceNavigationActionsParams {
   setEntryBannerVisible: Dispatch<SetStateAction<boolean>>;
   setWorkspaceHealthError: Dispatch<SetStateAction<boolean>>;
   workspacePathMissing: WorkspacePathMissingState | boolean | null;
+}
+
+interface OpenRuntimeMemoryWorkbenchParams {
+  sessionId?: string | null;
+  workingDir?: string | null;
+  userMessage?: string | null;
 }
 
 export function useWorkspaceNavigationActions({
@@ -92,6 +98,23 @@ export function useWorkspaceNavigationActions({
     });
   }, [onNavigate]);
 
+  const handleOpenRuntimeMemoryWorkbench = useCallback(
+    ({
+      sessionId,
+      workingDir,
+      userMessage,
+    }: OpenRuntimeMemoryWorkbenchParams) => {
+      const nextParams: MemoryPageParams = {
+        section: "home",
+        runtimeSessionId: sessionId?.trim() || undefined,
+        runtimeWorkingDir: workingDir?.trim() || undefined,
+        runtimeUserMessage: userMessage?.trim() || undefined,
+      };
+      onNavigate?.("memory", nextParams);
+    },
+    [onNavigate],
+  );
+
   const handleCompactContext = useCallback(() => {
     void compactSession();
   }, [compactSession]);
@@ -115,6 +138,7 @@ export function useWorkspaceNavigationActions({
     handleDismissEntryBanner,
     handleDismissWorkspaceAlert,
     handleManageProviders,
+    handleOpenRuntimeMemoryWorkbench,
     handleOpenAppearanceSettings,
     handleProjectChange,
     handleWorkspaceAlertSelectDirectory,

@@ -67,7 +67,7 @@ function buildRuntimeTeamAssistantDraft(
   }
 
   const teamLabel =
-    state.label?.trim() || state.blueprint?.label?.trim() || "当前协作方案";
+    state.label?.trim() || state.blueprint?.label?.trim() || "当前任务方案";
   const summary =
     state.summary?.trim() || state.blueprint?.summary?.trim() || "";
   const planLines = buildRuntimeTeamMemberPlanLines(state);
@@ -80,7 +80,7 @@ function buildRuntimeTeamAssistantDraft(
 
   const initialRuntimeStatus: AgentRuntimeStatus = {
     phase: "routing",
-    title: "协作分工已准备好",
+    title: "任务分工已准备好",
     detail:
       summary || "已整理好当前任务的分工，接下来会分别展开处理并同步结果。",
     checkpoints: [
@@ -92,7 +92,7 @@ function buildRuntimeTeamAssistantDraft(
 
   const waitingRuntimeStatus: AgentRuntimeStatus = {
     phase: "routing",
-    title: "协作成员开始接手",
+    title: "成员开始接手任务",
     detail:
       summary || "分工已经确认，协作成员会按各自职责继续处理并回传关键结果。",
     checkpoints: [
@@ -121,7 +121,7 @@ export function buildRuntimeTeamDispatchPreviewMessages(
   const formedTeamLabel =
     snapshot.formationState?.label?.trim() ||
     snapshot.formationState?.blueprint?.label?.trim() ||
-    "当前协作方案";
+    "当前任务方案";
   const formedSummary =
     snapshot.formationState?.summary?.trim() ||
     snapshot.formationState?.blueprint?.summary?.trim() ||
@@ -130,15 +130,15 @@ export function buildRuntimeTeamDispatchPreviewMessages(
     snapshot.status === "failed"
       ? {
           phase: "failed" as const,
-          title: "Team 调度准备失败",
+          title: "任务分工准备失败",
           detail:
             snapshot.failureMessage?.trim() ||
-            "这次 Team 组建失败，已回退到普通对话发送。",
+            "这次任务分工准备失败，已回退到普通对话发送。",
         }
       : snapshot.status === "formed"
         ? formedAssistantDraft?.initialRuntimeStatus || {
             phase: "routing" as const,
-            title: "协作分工已准备好",
+            title: "任务分工已准备好",
             detail:
               formedSummary ||
               "已整理好当前任务的分工，接下来会分别展开处理并同步结果。",
@@ -150,12 +150,12 @@ export function buildRuntimeTeamDispatchPreviewMessages(
           }
         : {
             phase: "routing" as const,
-            title: "正在组建 Team",
+            title: "正在准备任务分工",
             detail:
               "系统正在根据当前任务安排分工，会先接入合适的成员，再把关键进展持续汇总回主对话。",
             checkpoints: [
               "确认当前任务目标",
-              "安排协作分工",
+              "安排任务分工",
               "等待成员接手处理",
             ],
           };
@@ -173,11 +173,11 @@ export function buildRuntimeTeamDispatchPreviewMessages(
       role: "assistant",
       content:
         snapshot.status === "failed"
-          ? "这次 Team 调度准备失败，已回退到普通执行。"
+          ? "这次任务分工准备失败，已回退到普通执行。"
           : snapshot.status === "formed"
             ? formedAssistantDraft?.content ||
               `我已经为这项任务准备了「${formedTeamLabel}」。\n\n接下来我会让他们分别处理，再把关键进展和结果汇总给你。`
-            : "我会先安排协作分工，再把关键进展和结果汇总给你。",
+            : "我会先安排任务分工，再把关键进展和结果汇总给你。",
       timestamp: new Date(timestamp.getTime() + 1),
       isThinking: snapshot.status === "forming",
       runtimeStatus: assistantRuntimeStatus,

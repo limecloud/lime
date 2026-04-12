@@ -418,18 +418,18 @@ function resolveExecutionSummaryStatusTitle(params: {
   if (runningSessionCount > 0) {
     if (queuedSessionCount > 0) {
       return totalSessionCount > 1
-        ? `协作处理中 · ${runningSessionCount} 位处理中 / ${queuedSessionCount} 位稍后开始`
-        : "协作处理中";
+        ? `任务进行中 · ${runningSessionCount} 位处理中 / ${queuedSessionCount} 位稍后开始`
+        : "任务进行中";
     }
     return totalSessionCount > 1
-      ? `协作处理中 · ${runningSessionCount}/${totalSessionCount}`
-      : "协作处理中";
+      ? `任务进行中 · ${runningSessionCount}/${totalSessionCount}`
+      : "任务进行中";
   }
 
   if (queuedSessionCount > 0) {
     return totalSessionCount > 1
-      ? `协作准备中 · ${queuedSessionCount}/${totalSessionCount}`
-      : "协作准备中";
+      ? `任务准备中 · ${queuedSessionCount}/${totalSessionCount}`
+      : "任务准备中";
   }
 
   return null;

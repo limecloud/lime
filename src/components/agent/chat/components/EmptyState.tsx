@@ -46,6 +46,7 @@ import {
   getActiveSkillDisplayLabel,
   getSkillSelectionSummaryLabel,
 } from "../skill-selection/skillSelectionDisplay";
+import { listSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import {
   getSiteSkillAutoLaunchExample,
   hasAutoLaunchableSiteSkill,
@@ -112,10 +113,11 @@ const RecommendationShelfHeader = styled.div`
 
 const RecommendationShelfHeaderBody = styled.div`
   display: flex;
-  align-items: center;
-  gap: 0.55rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
   min-width: 0;
-  flex-shrink: 0;
+  flex: 1 1 auto;
 `;
 
 const RecommendationShelfHeaderTitle = styled.div`
@@ -123,6 +125,12 @@ const RecommendationShelfHeaderTitle = styled.div`
   font-weight: 600;
   letter-spacing: 0.02em;
   color: rgb(100 116 139);
+`;
+
+const RecommendationShelfHeaderDescription = styled.div`
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgb(148 163 184);
 `;
 
 const RecommendationShelfList = styled.div`
@@ -147,6 +155,7 @@ const RecommendationShelfButton = styled.button`
   display: inline-flex;
   min-width: 0;
   align-items: center;
+  gap: 0.35rem;
   border: none;
   background: transparent;
   padding: 0;
@@ -173,6 +182,26 @@ const RecommendationShelfHint = styled.span`
   font-size: 10px;
   line-height: 1;
   color: rgb(148 163 184);
+`;
+
+const RecommendationShelfBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid rgb(209 250 229);
+  background: rgb(236 253 245);
+  padding: 0.18rem 0.42rem;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: rgb(5 150 105);
+`;
+
+const RecommendationShelfEmptyState = styled.div`
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgb(148 163 184);
+  padding: 0.1rem 0;
 `;
 
 interface EmptyStateProps extends SkillSelectionSourceProps {
@@ -256,6 +285,16 @@ type RecommendationShelfItem =
       onSelect: () => void;
     };
 
+interface ContinuationShelfItem {
+  key: string;
+  title: string;
+  summary: string;
+  badge: string;
+  usedAt: number;
+  testId: string;
+  onSelect: () => void;
+}
+
 const GENERAL_CATEGORY_LABEL = "通用对话";
 const FEATURED_HOME_RECOMMENDED_SOLUTION_IDS = [
   "web-research-brief",
@@ -290,7 +329,9 @@ function buildSeededFeaturedHomeServiceSkills(): ServiceSkillHomeItem[] {
   const seededCatalog = getSeededServiceSkillCatalog();
 
   return FEATURED_HOME_SERVICE_SKILL_IDS.flatMap((skillId) => {
-    const matchedSkill = seededCatalog.items.find((item) => item.id === skillId);
+    const matchedSkill = seededCatalog.items.find(
+      (item) => item.id === skillId,
+    );
     if (!matchedSkill) {
       return [];
     }
@@ -319,7 +360,8 @@ function buildSeededFeaturedHomeServiceSkills(): ServiceSkillHomeItem[] {
   });
 }
 
-const SEEDED_FEATURED_HOME_SERVICE_SKILLS = buildSeededFeaturedHomeServiceSkills();
+const SEEDED_FEATURED_HOME_SERVICE_SKILLS =
+  buildSeededFeaturedHomeServiceSkills();
 
 // 需要显示创作模式选择器的主题
 const CREATION_THEMES: string[] = [];
@@ -340,7 +382,7 @@ const THEME_WORKBENCH_COPY: Record<
     title: "",
     description: "说一句目标，剩下的交给 Lime。",
     supportingDescription:
-      "文案、图片、视频、搜索和网页任务，会围绕同一个目标持续推进。跑通过的方法会沉淀成技能、偏好和项目上下文，下次不用重新开始。",
+      "文案、图片、视频、搜索和网页任务，会围绕同一个目标持续推进。跑通过的方法会沉淀成常用做法、偏好和项目上下文，下次不用重新开始。",
   },
 };
 
@@ -350,6 +392,32 @@ function truncatePrompt(value: string, maxLength = 92) {
     return normalized;
   }
   return `${normalized.slice(0, maxLength).trim()}…`;
+}
+
+function compareRecentShelfItems<
+  T extends {
+    title: string;
+    usedAt: number;
+  },
+>(left: T, right: T): number {
+  if (left.usedAt !== right.usedAt) {
+    return right.usedAt - left.usedAt;
+  }
+
+  return left.title.localeCompare(right.title, "zh-CN");
+}
+
+function formatMethodSummaryLabel(summaryLabel: string): string {
+  const countMatch = summaryLabel.match(/^(\d+)\s+项技能可挂载$/);
+  if (countMatch) {
+    return `${countMatch[1]} 套做法可直接复用`;
+  }
+
+  if (summaryLabel === "按需挂载任务能力") {
+    return "按需挂上常用做法";
+  }
+
+  return summaryLabel;
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
@@ -421,6 +489,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     activeSkill: currentSkill,
     skillCount: skillOptionCount,
   });
+  const methodSummaryLabel = formatMethodSummaryLabel(skillSummaryLabel);
   const hasAutoLaunchSiteSkill = hasAutoLaunchableSiteSkill(serviceSkills);
   const siteSkillAutoLaunchExample =
     getSiteSkillAutoLaunchExample(serviceSkills);
@@ -465,11 +534,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   }, []);
 
   // 使用外部传入的 activeTheme，如果有 onThemeChange 则使用受控模式
-  const handleThemeChange = useCallback((theme: string) => {
-    if (onThemeChange) {
-      onThemeChange(theme === "general" ? theme : "general");
-    }
-  }, [onThemeChange]);
+  const handleThemeChange = useCallback(
+    (theme: string) => {
+      if (onThemeChange) {
+        onThemeChange(theme === "general" ? theme : "general");
+      }
+    },
+    [onThemeChange],
+  );
 
   // 判断当前主题是否需要显示创作模式选择器
   const showCreationModeSelector = CREATION_THEMES.includes(activeTheme);
@@ -514,6 +586,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     void entryRecommendedSolutionsVersion;
     return listEntryRecommendedSolutions();
   }, [entryRecommendedSolutionsVersion]);
+
+  const recentSceneUsageBySceneKey = useMemo(() => {
+    return new Map(
+      listSlashEntryUsage()
+        .filter((record) => record.kind === "scene")
+        .map((record) => [record.entryId, record] as const),
+    );
+  }, []);
 
   const selectedTextPreview = useMemo(() => {
     const normalized = (recommendationSelectedText || "")
@@ -596,75 +676,76 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       : "有什么我可以帮你的？";
   };
 
-  const handleApplyRecommendation = useCallback((
-    shortLabel: string,
-    fullPrompt: string,
-  ) => {
-    const looksLikeTeamRuntimePrompt =
-      activeTheme === "general" &&
-      isTeamRuntimeRecommendation(shortLabel, fullPrompt);
-    if (looksLikeTeamRuntimePrompt) {
-      onSubagentEnabledChange?.(true);
-    }
+  const handleApplyRecommendation = useCallback(
+    (shortLabel: string, fullPrompt: string) => {
+      const looksLikeTeamRuntimePrompt =
+        activeTheme === "general" &&
+        isTeamRuntimeRecommendation(shortLabel, fullPrompt);
+      if (looksLikeTeamRuntimePrompt) {
+        onSubagentEnabledChange?.(true);
+      }
 
-    const promptWithSelection = buildRecommendationPrompt(
-      fullPrompt,
-      selectedText,
+      const promptWithSelection = buildRecommendationPrompt(
+        fullPrompt,
+        selectedText,
+        appendSelectedTextToRecommendation,
+      );
+      if (onRecommendationClick) {
+        onRecommendationClick(shortLabel, promptWithSelection);
+        return;
+      }
+      setInput(promptWithSelection);
+    },
+    [
+      activeTheme,
       appendSelectedTextToRecommendation,
-    );
-    if (onRecommendationClick) {
-      onRecommendationClick(shortLabel, promptWithSelection);
-      return;
-    }
-    setInput(promptWithSelection);
-  }, [
-    activeTheme,
-    appendSelectedTextToRecommendation,
-    onRecommendationClick,
-    onSubagentEnabledChange,
-    selectedText,
-    setInput,
-  ]);
-
-  const handleApplyEntryRecommendedSolution = useCallback((
-    solution: EntryRecommendedSolutionItem,
-  ) => {
-    recordEntryRecommendedSolutionUsage(solution.id);
-    setEntryRecommendedSolutionsVersion((previous) => previous + 1);
-
-    if (solution.shouldEnableWebSearch && !webSearchEnabled) {
-      onWebSearchEnabledChange?.(true);
-    }
-
-    if (solution.shouldEnableTeamMode && !subagentEnabled) {
-      onSubagentEnabledChange?.(true);
-    }
-
-    if (solution.themeTarget) {
-      handleThemeChange(solution.themeTarget);
-    }
-
-    if (solution.shouldLaunchBrowserAssist) {
-      void onLaunchBrowserAssist?.();
-    }
-
-    const promptWithSelection = buildRecommendationPrompt(
-      solution.prompt,
+      onRecommendationClick,
+      onSubagentEnabledChange,
       selectedText,
+      setInput,
+    ],
+  );
+
+  const handleApplyEntryRecommendedSolution = useCallback(
+    (solution: EntryRecommendedSolutionItem) => {
+      recordEntryRecommendedSolutionUsage(solution.id);
+      setEntryRecommendedSolutionsVersion((previous) => previous + 1);
+
+      if (solution.shouldEnableWebSearch && !webSearchEnabled) {
+        onWebSearchEnabledChange?.(true);
+      }
+
+      if (solution.shouldEnableTeamMode && !subagentEnabled) {
+        onSubagentEnabledChange?.(true);
+      }
+
+      if (solution.themeTarget) {
+        handleThemeChange(solution.themeTarget);
+      }
+
+      if (solution.shouldLaunchBrowserAssist) {
+        void onLaunchBrowserAssist?.();
+      }
+
+      const promptWithSelection = buildRecommendationPrompt(
+        solution.prompt,
+        selectedText,
+        appendSelectedTextToRecommendation,
+      );
+      setInput(promptWithSelection);
+    },
+    [
       appendSelectedTextToRecommendation,
-    );
-    setInput(promptWithSelection);
-  }, [
-    appendSelectedTextToRecommendation,
-    handleThemeChange,
-    onLaunchBrowserAssist,
-    onSubagentEnabledChange,
-    onWebSearchEnabledChange,
-    selectedText,
-    setInput,
-    subagentEnabled,
-    webSearchEnabled,
-  ]);
+      handleThemeChange,
+      onLaunchBrowserAssist,
+      onSubagentEnabledChange,
+      onWebSearchEnabledChange,
+      selectedText,
+      setInput,
+      subagentEnabled,
+      webSearchEnabled,
+    ],
+  );
 
   const workspaceBadges = useMemo(() => {
     const badges: Array<{
@@ -735,26 +816,26 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     }> = [
       {
         key: "skills",
-        eyebrow: "支撑能力",
-        title: "技能",
-        value: skillSummaryLabel,
+        eyebrow: "沉淀能力",
+        title: "我的方法",
+        value: methodSummaryLabel,
         description:
-          "把常用做法沉淀下来，下次遇到同类任务可以直接复用。",
+          "把跑通过的常用做法沉淀下来，下次遇到同类任务可以直接续上。",
         icon: <Lightbulb className="h-5 w-5" />,
         imageSrc: capabilitySkillsPlaceholder,
-        imageAlt: "技能能力卡占位图",
+        imageAlt: "方法能力卡占位图",
         tone: "lime",
       },
       {
         key: "automation",
-        eyebrow: "支撑能力",
-        title: "自动化",
-        value: planEnabled ? "当前会按步骤推进" : "重复任务可持续推进",
+        eyebrow: "沉淀能力",
+        title: "持续流程",
+        value: planEnabled ? "当前任务会按步骤推进" : "重复任务可持续复用",
         description:
-          "适合批量任务和重复流程，让常做的事情持续推进，不再每次从头开始。",
+          "适合批量任务和重复流程，让一套做法可以自己持续往下跑，不再每次从头开始。",
         icon: <ListChecks className="h-5 w-5" />,
         imageSrc: capabilityAutomationsPlaceholder,
-        imageAlt: "自动化能力卡占位图",
+        imageAlt: "持续流程能力卡占位图",
         tone: "lime",
       },
       {
@@ -762,10 +843,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         eyebrow: "支撑能力",
         title: "多代理",
         value: subagentEnabled
-          ? "当前任务支持协作分工"
+          ? "当前任务支持分工推进"
           : "复杂任务可拆分并行推进",
         description:
-          "当一个目标需要调研、方案和执行同时推进时，可以拆成协作分工后统一回收结论。",
+          "当一个目标需要调研、方案和执行同时推进时，可以拆成多个分工后统一回收结论。",
         icon: <Workflow className="h-5 w-5" />,
         imageSrc: capabilityAgentTeamsPlaceholder,
         imageAlt: "多代理协作能力卡占位图",
@@ -799,8 +880,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   }, [
     browserAssistLoading,
     planEnabled,
+    methodSummaryLabel,
     onLaunchBrowserAssist,
-    skillSummaryLabel,
     subagentEnabled,
   ]);
 
@@ -840,26 +921,25 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
     const serviceSkillRecommendations = isGeneralTheme
       ? featuredServiceSkills.map((skill) => {
-            const requiresSlots = skill.slotSchema.some(
-              (slot) => slot.required,
-            );
+          const requiresSlots = skill.slotSchema.some((slot) => slot.required);
 
-            return {
-              kind: "service-skill" as const,
-              key: `service-skill-${skill.id}`,
-              title: skill.title,
-              summary:
-                skill.summary?.trim() || resolveServiceSkillEntryDescription(skill),
-              badge: skill.isRecent ? "最近使用" : skill.badge,
-              hint: requiresSlots
-                ? "对话内补参后开始"
-                : `${skill.actionLabel} · 当前对话继续`,
-              testId: `entry-service-skill-${skill.id}`,
-              onSelect: () => {
-                onSelectServiceSkill?.(skill);
-              },
-            };
-          })
+          return {
+            kind: "service-skill" as const,
+            key: `service-skill-${skill.id}`,
+            title: skill.title,
+            summary:
+              skill.summary?.trim() ||
+              resolveServiceSkillEntryDescription(skill),
+            badge: skill.isRecent ? "最近使用" : skill.badge,
+            hint: requiresSlots
+              ? "对话内补参后开始"
+              : `${skill.actionLabel} · 当前对话继续`,
+            testId: `entry-service-skill-${skill.id}`,
+            onSelect: () => {
+              onSelectServiceSkill?.(skill);
+            },
+          };
+        })
       : [];
 
     return [...solutionRecommendations, ...serviceSkillRecommendations];
@@ -868,6 +948,64 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     handleApplyEntryRecommendedSolution,
     isGeneralTheme,
     onSelectServiceSkill,
+    serviceSkills,
+  ]);
+
+  const continuationShelfItems = useMemo<ContinuationShelfItem[]>(() => {
+    const recentSolutionItems = entryRecommendedSolutions
+      .filter(
+        (solution) =>
+          solution.isRecent && typeof solution.recentUsedAt === "number",
+      )
+      .map((solution) => ({
+        key: `solution-${solution.id}`,
+        title: solution.title,
+        summary: solution.summary,
+        badge: "结果模板",
+        usedAt: solution.recentUsedAt as number,
+        testId: `entry-continuation-solution-${solution.id}`,
+        onSelect: () => handleApplyEntryRecommendedSolution(solution),
+      }));
+
+    const recentMethodItems =
+      typeof onSelectServiceSkill === "function"
+        ? (serviceSkills ?? [])
+            .map((skill) => {
+              const serviceSkillUsedAt =
+                typeof skill.recentUsedAt === "number" ? skill.recentUsedAt : 0;
+              const sceneUsedAt = skill.sceneBinding?.sceneKey
+                ? (recentSceneUsageBySceneKey.get(skill.sceneBinding.sceneKey)
+                    ?.usedAt ?? 0)
+                : 0;
+              const usedAt = Math.max(serviceSkillUsedAt, sceneUsedAt);
+
+              if (usedAt <= 0) {
+                return null;
+              }
+
+              return {
+                key: `method-${skill.id}`,
+                title: skill.title,
+                summary: resolveServiceSkillEntryDescription(skill),
+                badge: "我的方法",
+                usedAt,
+                testId: `entry-continuation-method-${skill.id}`,
+                onSelect: () => {
+                  onSelectServiceSkill(skill);
+                },
+              };
+            })
+            .filter((item): item is ContinuationShelfItem => item !== null)
+        : [];
+
+    return [...recentSolutionItems, ...recentMethodItems]
+      .sort(compareRecentShelfItems)
+      .slice(0, 4);
+  }, [
+    entryRecommendedSolutions,
+    handleApplyEntryRecommendedSolution,
+    onSelectServiceSkill,
+    recentSceneUsageBySceneKey,
     serviceSkills,
   ]);
 
@@ -1001,8 +1139,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       <RecommendationShelfHeader>
         <RecommendationShelfHeaderBody>
           <RecommendationShelfHeaderTitle>
-            推荐方案
+            结果模板
           </RecommendationShelfHeaderTitle>
+          <RecommendationShelfHeaderDescription>
+            先选你想拿到什么结果，具体由 Lime 在当前任务里分发对应能力。
+          </RecommendationShelfHeaderDescription>
         </RecommendationShelfHeaderBody>
         {selectedTextPreview ? (
           <span className="truncate text-[10px] text-slate-400">
@@ -1015,7 +1156,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         {recommendationShelfItems.map((item, index) => (
           <RecommendationShelfRow key={item.key}>
             {index > 0 ? (
-              <RecommendationShelfHint aria-hidden="true">|</RecommendationShelfHint>
+              <RecommendationShelfHint aria-hidden="true">
+                |
+              </RecommendationShelfHint>
             ) : null}
             <RecommendationShelfButton
               type="button"
@@ -1030,6 +1173,56 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           </RecommendationShelfRow>
         ))}
       </RecommendationShelfList>
+    </RecommendationShelf>
+  );
+
+  const generalContinuationPanel = (
+    <RecommendationShelf>
+      <RecommendationShelfHeader>
+        <RecommendationShelfHeaderBody>
+          <RecommendationShelfHeaderTitle>
+            继续上次做法
+          </RecommendationShelfHeaderTitle>
+          <RecommendationShelfHeaderDescription>
+            {continuationShelfItems.length > 0
+              ? "最近跑通过的结果模板和常用做法会留在这里，这次可以直接续上。"
+              : "最近跑通过的结果模板和常用做法会留在这里，下一次不用重新开始。"}
+          </RecommendationShelfHeaderDescription>
+        </RecommendationShelfHeaderBody>
+      </RecommendationShelfHeader>
+
+      {continuationShelfItems.length > 0 ? (
+        <RecommendationShelfList>
+          {continuationShelfItems.map((item, index) => (
+            <RecommendationShelfRow key={item.key}>
+              {index > 0 ? (
+                <RecommendationShelfHint aria-hidden="true">
+                  |
+                </RecommendationShelfHint>
+              ) : null}
+              <RecommendationShelfButton
+                type="button"
+                data-testid={item.testId}
+                title={`${item.badge} · ${item.summary}`}
+                onClick={() => {
+                  item.onSelect();
+                }}
+              >
+                <RecommendationShelfBadge>
+                  {item.badge}
+                </RecommendationShelfBadge>
+                <RecommendationShelfTitle>
+                  {item.title}
+                </RecommendationShelfTitle>
+              </RecommendationShelfButton>
+            </RecommendationShelfRow>
+          ))}
+        </RecommendationShelfList>
+      ) : (
+        <RecommendationShelfEmptyState>
+          你最近跑通过的结果模板和方法，会出现在这里。
+        </RecommendationShelfEmptyState>
+      )}
     </RecommendationShelf>
   );
 
@@ -1084,9 +1277,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           cards={workspaceCards}
           prioritySlot={composerPanel}
           supportingSlot={
-            isGeneralTheme
-              ? generalRecommendedSolutionsPanel
-              : defaultQuickActionsPanel
+            isGeneralTheme ? (
+              <>
+                {generalContinuationPanel}
+                {generalRecommendedSolutionsPanel}
+              </>
+            ) : (
+              defaultQuickActionsPanel
+            )
           }
           headerControls={headerControls}
         />

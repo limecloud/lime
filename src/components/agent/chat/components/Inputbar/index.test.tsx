@@ -547,7 +547,7 @@ describe("Inputbar", () => {
     });
   });
 
-  it("通用聊天态复杂任务应显示 Team 建议并支持开启多代理", async () => {
+  it("通用聊天态复杂任务应显示任务分工建议并支持开启多代理", async () => {
     const onToolStatesChange = vi.fn();
     const { container } = renderInputbar({
       input:
@@ -565,11 +565,11 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("当前任务更适合 Team 协作");
+    expect(container.textContent).toContain("当前任务更适合分工推进");
 
     const enableTeamButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("启用 Team"));
+    ).find((button) => button.textContent?.includes("启用任务分工"));
 
     expect(enableTeamButton).toBeTruthy();
 
@@ -722,7 +722,7 @@ describe("Inputbar", () => {
 
     const recommendationButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("启用 Team"));
+    ).find((button) => button.textContent?.includes("启用任务分工"));
 
     expect(
       container.querySelector('[data-testid="team-mode-enable-button"]'),
@@ -731,7 +731,7 @@ describe("Inputbar", () => {
       container.querySelector('[data-testid="toggle-subagent-mode"]'),
     ).toBeNull();
     expect(recommendationButton).toBeTruthy();
-    expect(container.textContent).toContain("当前任务更适合 Team 协作");
+    expect(container.textContent).toContain("当前任务更适合分工推进");
   });
 
   it("内容主题默认发送时不应再注入旧 skill 前缀", async () => {
@@ -924,8 +924,9 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("当前待办");
-    expect(container.textContent).toContain("正在生成中");
+    expect(container.textContent).toContain("任务进行时");
+    expect(container.textContent).toContain("检索项目素材");
+    expect(container.textContent).toContain("任务队列");
     expect(container.querySelector('[data-testid="inputbar-core"]')).toBeNull();
 
     const stopButton = container.querySelector(
@@ -955,19 +956,21 @@ describe("Inputbar", () => {
 
     expect(container.textContent).toContain("检索项目素材");
 
-    const collapseButton = Array.from(
-      container.querySelectorAll("button"),
-    ).find((button) => button.getAttribute("aria-label") === "折叠待办列表");
+    const collapseButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.getAttribute("aria-label") === "折叠任务队列",
+    );
     expect(collapseButton).toBeTruthy();
 
     act(() => {
       collapseButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).not.toContain("检索项目素材");
+    expect(
+      container.querySelectorAll('[data-testid="workflow-queue-item"]'),
+    ).toHaveLength(0);
 
     const expandButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.getAttribute("aria-label") === "展开待办列表",
+      (button) => button.getAttribute("aria-label") === "展开任务队列",
     );
     expect(expandButton).toBeTruthy();
 
@@ -975,7 +978,38 @@ describe("Inputbar", () => {
       expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).toContain("检索项目素材");
+    expect(
+      container.querySelectorAll('[data-testid="workflow-queue-item"]'),
+    ).toHaveLength(2);
+  });
+
+  it("工作区任务队列应展示统一进度计数并按优先级排序", async () => {
+    const { container } = renderInputbar({
+      variant: "workspace",
+      isLoading: true,
+      workflowSteps: [
+        { id: "done", title: "完成选题", status: "completed" },
+        { id: "pending", title: "等待补充案例", status: "pending" },
+        { id: "active", title: "撰写主稿", status: "active" },
+        { id: "error", title: "封面生成失败", status: "error" },
+      ],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("已完成 1/4");
+
+    const queueItems = Array.from(
+      container.querySelectorAll('[data-testid="workflow-queue-item"]'),
+    );
+    expect(queueItems.map((item) => item.getAttribute("data-status"))).toEqual([
+      "active",
+      "error",
+      "pending",
+    ]);
   });
 
   it("工作区工作流在 auto_running 状态下应展示生成面板（不依赖 isLoading）", async () => {
@@ -994,8 +1028,8 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("当前待办");
-    expect(container.textContent).toContain("正在生成中");
+    expect(container.textContent).toContain("任务进行时");
+    expect(container.textContent).toContain("检索项目素材");
     expect(container.querySelector('[data-testid="inputbar-core"]')).toBeNull();
   });
 
@@ -1004,6 +1038,12 @@ describe("Inputbar", () => {
       variant: "workspace",
       isLoading: true,
       workflowRunState: "await_user_decision",
+      workflowGate: {
+        key: "topic_select",
+        title: "等待用户确认选题",
+        status: "waiting",
+        description: "等待你确认后继续推进下一步。",
+      },
       workflowSteps: [
         { id: "topic", title: "等待用户确认选题", status: "pending" },
       ],
@@ -1017,6 +1057,8 @@ describe("Inputbar", () => {
     expect(
       container.querySelector('[data-testid="inputbar-core"]'),
     ).toBeTruthy();
+    expect(container.textContent).toContain("任务进行时");
+    expect(container.textContent).toContain("等待用户确认选题");
     expect(container.textContent).not.toContain("正在生成中");
   });
 });

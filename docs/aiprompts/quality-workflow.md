@@ -89,6 +89,8 @@
 
 如果本轮涉及 `create_skill_scaffold_for_app`、`SkillsPage / SkillScaffoldDialog`，或“聊天结果 -> Skill 脚手架”沉淀闭环，还要同步检查前端网关、Rust 模板、DevBridge 分发与默认 mock 是否仍保持同一条主链；若新增了结构化骨架字段，至少要确认 `何时使用 / 输入 / 执行步骤 / 输出 / 失败回退` 能真实落进生成后的 `SKILL.md`。
 
+如果本轮涉及记忆主链，还要同步检查 `src/lib/api/memoryRuntime.ts`、`src-tauri/src/commands/memory_management_cmd.rs`、`runner.rs`、DevBridge dispatcher 与默认 mock 是否仍保持同一条 current surface；`rules / working / durable / team / compaction` 的产品分层可以在页面上拆开，但底层命令边界仍必须继续收敛到 `memory_runtime_*` 与 `unified_memory_*`。
+
 ### 3. 用户可见 UI 改动必须补稳定回归
 
 - 优先补现有 `*.test.tsx` 的关键文案、状态与交互断言

@@ -1,5 +1,6 @@
 import React, { memo } from "react";
 import {
+  AlertCircle,
   ChevronDown,
   ChevronRight,
   CheckCircle2,
@@ -25,6 +26,12 @@ import type {
   TopicBranchStatus,
 } from "../hooks/useTopicBranchBoard";
 import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import {
+  buildWorkflowStepSnapshot,
+  buildWorkflowSummaryText,
+  formatWorkflowProgressLabel,
+  getWorkflowStatusLabel,
+} from "../utils/workflowStepPresentation";
 import type {
   GeneralWorkbenchActivityLogGroup,
   GeneralWorkbenchCreationTaskGroup,
@@ -87,6 +94,9 @@ const WORKFLOW_PROGRESS_FILL_CLASSNAME =
   "h-full rounded-full bg-[linear-gradient(90deg,rgba(14,116,144,0.72)_0%,rgba(16,185,129,0.76)_100%)] transition-[width] duration-200";
 
 const WORKFLOW_STEP_LIST_CLASSNAME = "mt-3 flex flex-col gap-2";
+
+const WORKFLOW_STATUS_CARD_CLASSNAME =
+  "mt-3 rounded-[16px] border border-slate-200/80 bg-white px-3 py-3 shadow-sm shadow-slate-950/5";
 
 const TOGGLE_BUTTON_CLASSNAME =
   "inline-flex items-center text-slate-500 transition-colors hover:text-slate-900";
@@ -249,13 +259,15 @@ const RunDetailActionButton = createButton(
 
 function getWorkflowStepRowClassName(status: StepStatus) {
   return cn(
-    "flex items-center gap-2 rounded-[12px] border px-2.5 py-2 text-sm leading-5",
+    "flex items-start gap-2 rounded-[12px] border px-2.5 py-2 text-sm leading-5",
     status === "completed" &&
       "border-emerald-200 bg-emerald-50/80 text-slate-900",
+    status === "error" && "border-rose-200 bg-rose-50/80 text-slate-900",
     status === "active" && "border-sky-200 bg-sky-50/80 text-slate-900",
     status !== "completed" &&
+      status !== "error" &&
       status !== "active" &&
-      "border-slate-200/80 bg-white/82 text-slate-500",
+      "border-slate-200/80 bg-slate-50/70 text-slate-500",
   );
 }
 
@@ -263,10 +275,24 @@ function getStepIcon(status: StepStatus) {
   if (status === "completed") {
     return <CheckCircle2 size={13} />;
   }
+  if (status === "error") {
+    return <AlertCircle size={13} />;
+  }
   if (status === "active") {
     return <Clock3 size={13} />;
   }
   return <Circle size={11} />;
+}
+
+function getStatusBadgeClassName(status: StepStatus) {
+  return cn(
+    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
+    status === "completed" && "bg-emerald-100 text-emerald-700",
+    status === "error" && "bg-rose-100 text-rose-700",
+    status === "active" && "bg-sky-100 text-sky-700",
+    status === "pending" && "bg-amber-100 text-amber-700",
+    status === "skipped" && "bg-slate-100 text-slate-500",
+  );
 }
 
 function getBranchStatusText(status: TopicBranchStatus): string {
@@ -452,6 +478,20 @@ function GeneralWorkbenchWorkflowPanelComponent({
   onRevealArtifactInFinder,
   onOpenArtifactWithDefaultApp,
 }: GeneralWorkbenchWorkflowPanelProps) {
+  const workflowSnapshot = buildWorkflowStepSnapshot(workflowSteps, 3);
+  const currentWorkflowStep = workflowSnapshot.leadingStep;
+  const remainingSteps = workflowSnapshot.remainingCount;
+  const sortedWorkflowSteps = workflowSnapshot.sortedSteps;
+  const workflowSummaryText = buildWorkflowSummaryText({
+    leadingStep: currentWorkflowStep,
+    remainingCount: remainingSteps,
+    emptyLabel: workflowSteps.length > 0 ? "当前流程已完成" : "等待创建第一条任务",
+  });
+  const workflowProgressLabel = formatWorkflowProgressLabel({
+    completedCount: completedSteps,
+    totalCount: workflowSteps.length,
+  });
+
   return (
     <>
       <section className={cn(WORKFLOW_SECTION_CLASSNAME, "relative z-10")}>
@@ -489,13 +529,58 @@ function GeneralWorkbenchWorkflowPanelComponent({
 
       <section className={WORKFLOW_SECTION_CLASSNAME}>
         <div className={WORKFLOW_SECTION_TITLE_CLASSNAME}>
-          <span>编排进度</span>
+          <span>任务进行时</span>
           <span className={WORKFLOW_SECTION_BADGE_CLASSNAME}>
-            {workflowSteps.length - completedSteps}
+            {remainingSteps}
           </span>
         </div>
-        <div className={WORKFLOW_PROGRESS_TEXT_CLASSNAME}>
-          {completedSteps}/{workflowSteps.length} 步已完成
+        <div className={WORKFLOW_STATUS_CARD_CLASSNAME}>
+          <div className="flex items-start gap-3">
+            <div
+              className={cn(
+                "inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full",
+                currentWorkflowStep?.status === "error" &&
+                  "bg-rose-100 text-rose-600",
+                currentWorkflowStep?.status === "pending" &&
+                  "bg-amber-100 text-amber-700",
+                (!currentWorkflowStep ||
+                  currentWorkflowStep.status === "active" ||
+                  currentWorkflowStep.status === "completed") &&
+                  "bg-sky-100 text-sky-700",
+              )}
+            >
+              {getStepIcon(currentWorkflowStep?.status ?? "active")}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-semibold text-slate-500">
+                当前任务
+              </div>
+              <div
+                className="mt-1 text-sm font-semibold leading-5 text-slate-900"
+                data-testid="workflow-sidebar-current-step"
+              >
+                {currentWorkflowStep?.title || "当前流程已完成"}
+              </div>
+              <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                {workflowSummaryText}
+              </div>
+              <div className="mt-1 text-[11px] leading-5 text-slate-400">
+                {workflowProgressLabel}
+              </div>
+            </div>
+            <span
+              className={getStatusBadgeClassName(
+                currentWorkflowStep?.status ?? "completed",
+              )}
+            >
+              {getWorkflowStatusLabel(currentWorkflowStep?.status ?? "completed")}
+            </span>
+          </div>
+        </div>
+        <div className={cn(WORKFLOW_PROGRESS_TEXT_CLASSNAME, "mt-3")}>
+          {remainingSteps > 0
+            ? `剩余 ${remainingSteps} 项待处理`
+            : "当前流程已全部完成"}
         </div>
         <div className={WORKFLOW_PROGRESS_BAR_CLASSNAME}>
           <div
@@ -506,13 +591,20 @@ function GeneralWorkbenchWorkflowPanelComponent({
           />
         </div>
         <div className={WORKFLOW_STEP_LIST_CLASSNAME}>
-          {workflowSteps.map((step) => (
+          {sortedWorkflowSteps.map((step) => (
             <div
               key={step.id}
               className={getWorkflowStepRowClassName(step.status)}
+              data-testid="workflow-sidebar-step"
+              data-status={step.status}
             >
-              {getStepIcon(step.status)}
-              <span>{step.title}</span>
+              <span className="mt-0.5">{getStepIcon(step.status)}</span>
+              <div className="min-w-0 flex-1">
+                <div className="break-words text-sm leading-5">{step.title}</div>
+              </div>
+              <span className={getStatusBadgeClassName(step.status)}>
+                {getWorkflowStatusLabel(step.status)}
+              </span>
             </div>
           ))}
         </div>

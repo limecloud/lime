@@ -1993,7 +1993,7 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).not.toContain("/quit");
   });
 
-  it("统一目录中的 scene 应出现在 slash 面板里", async () => {
+  it("统一目录中的结果模板应出现在 slash 面板里", async () => {
     act(() => {
       saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
     });
@@ -2003,7 +2003,7 @@ describe("CharacterMention", () => {
 
     await typeSlashAndWait(textarea, "/camp");
 
-    expect(document.body.textContent).toContain("场景组合");
+    expect(document.body.textContent).toContain("结果模板");
     expect(document.body.textContent).toContain("/campaign-launch");
     expect(document.body.textContent).toContain(
       "把链接解析、配图和封面串成一条产品链路。",

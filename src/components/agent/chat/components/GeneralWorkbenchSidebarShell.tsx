@@ -74,16 +74,25 @@ function resolveSidebarTitle(
   if (activeTab === "context") {
     return "上下文管理";
   }
-  return isVersionMode ? "编排与版本" : "编排与分支";
+  if (activeTab === "workflow") {
+    return "任务进行时";
+  }
+  return isVersionMode ? "版本记录" : "运行记录";
 }
 
 function resolveSidebarDescription(
   activeTab: GeneralWorkbenchSidebarTab,
+  isVersionMode: boolean,
 ): string {
   if (activeTab === "context") {
     return "检索、筛选并启用当前创作真正会用到的上下文。";
   }
-  return "跟踪编排进度、产物版本与运行记录。";
+  if (activeTab === "workflow") {
+    return isVersionMode
+      ? "跟踪当前任务、后续节点与产物版本。"
+      : "跟踪当前任务、后续节点与分支进展。";
+  }
+  return "查看技能调用、工具输出与运行记录。";
 }
 
 export function GeneralWorkbenchSidebarShell({
@@ -105,7 +114,7 @@ export function GeneralWorkbenchSidebarShell({
     >
       <div className={SIDEBAR_HEADER_CLASSNAME}>
         <div className={SIDEBAR_HEADER_META_ROW_CLASSNAME}>
-          <div className={SIDEBAR_EYEBROW_CLASSNAME}>工作区编排</div>
+          <div className={SIDEBAR_EYEBROW_CLASSNAME}>任务工作台</div>
           {headerActionSlot ? (
             <div
               className={SIDEBAR_HEADER_ACTION_SLOT_CLASSNAME}
@@ -119,7 +128,7 @@ export function GeneralWorkbenchSidebarShell({
           {resolveSidebarTitle(activeTab, isVersionMode)}
         </div>
         <div className={SIDEBAR_DESCRIPTION_CLASSNAME}>
-          {resolveSidebarDescription(activeTab)}
+          {resolveSidebarDescription(activeTab, isVersionMode)}
         </div>
         <div className={SIDEBAR_TABS_CLASSNAME}>
           <button
@@ -138,12 +147,12 @@ export function GeneralWorkbenchSidebarShell({
           </button>
           <button
             type="button"
-            aria-label="打开编排面板"
-            title="编排面板"
+            aria-label="打开任务进行时面板"
+            title="任务进行时面板"
             className={getSidebarTabButtonClassName(activeTab === "workflow")}
             onClick={() => onTabChange("workflow")}
           >
-            <span className={SIDEBAR_TAB_LABEL_CLASSNAME}>编排</span>
+            <span className={SIDEBAR_TAB_LABEL_CLASSNAME}>任务</span>
             <span
               className={getSidebarTabCountClassName(activeTab === "workflow")}
             >

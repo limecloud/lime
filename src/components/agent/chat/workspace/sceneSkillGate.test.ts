@@ -155,9 +155,14 @@ describe("sceneSkillGate", () => {
     });
 
     expect(form.id).toContain("scene-gate:");
-    expect(form.submitAction?.label).toBe("继续");
+    expect(form.submitAction?.label).toBe("继续当前结果");
     expect(form.components).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          id: `${gateRequest!.gateKey}:title`,
+          component: "Text",
+          text: "继续「X文章转存」前，先补齐结果所需信息",
+        }),
         expect.objectContaining({
           id: "article_url",
           component: "TextField",

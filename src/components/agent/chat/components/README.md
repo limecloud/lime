@@ -14,12 +14,39 @@ Agent 聊天界面的 UI 组件集合。
 | `MarkdownRenderer.tsx`           | Markdown 渲染组件                                                                      |
 | `MessageList.tsx`                | 消息列表组件                                                                           |
 | `team-workspace-board/TeamWorkspaceBoardHeader.tsx` | Team 头部壳，统一承载标题、状态 badge、空 shell 展开和返回主助手入口 |
+| `team-workspace-board/TeamWorkspaceBoardCanvasSection.tsx` | Team Board 主画布区壳，统一承载 overview chrome、toolbar、canvas stage 与无成员 fallback detail |
+| `team-workspace-board/TeamWorkspaceBoardShell.tsx` | Team Board 顶层壳，统一承载 header、body 与主画布区装配 |
 | `team-workspace-board/TeamWorkspaceCanvasLaneCard.tsx` | Team 自由画布里的 lane 卡片壳，统一承载成员进展、摘要、badge 与 resize handle |
 | `team-workspace-board/TeamWorkspaceCanvasStage.tsx` | Team 自由画布 stage 壳，统一承载视口、背景网格、shortcuts、lane 容器与空态 |
+| `team-workspace-board/TeamWorkspaceCanvasToolbar.tsx` | Team 自由画布顶部 toolbar 壳，统一承载缩放信息、成员面板计数与布局控制按钮 |
 | `team-workspace-board/TeamWorkspaceEmptyShellState.tsx` | Team 空 shell 折叠态横条，保持壳层紧凑与展开入口统一 |
+| `team-workspace-board/TeamWorkspaceFallbackDetailSection.tsx` | Team 在无真实成员画布时的分工展示与当前详情壳，统一承载 notice、计划分工与参考分工 |
 | `team-workspace-board/TeamWorkspaceFormationPanels.tsx` | Team 运行时分工 / 计划分工展示壳，避免 Board 内重复 JSX |
+| `team-workspace-board/SelectedSessionInlineActivitySection.tsx` | Team 当前成员的完整进展区壳，统一承载活动预览文案与进展记录列表 |
+| `team-workspace-board/SelectedSessionInlineCollaborationSection.tsx` | Team 当前成员的继续协作区壳，统一承载等待结果与补充说明输入 |
+| `team-workspace-board/TeamWorkspaceTeamOperationsPanel.tsx` | Team 协作动态列表壳，统一承载 compact / 非 compact 的操作项展示与点击跳转 |
+| `team-workspace-board/TeamWorkspaceTeamOverviewControls.tsx` | Team 顶部控制按钮与 compact toolbar chip 壳，统一承载等待/收尾/视图控制与 badge 映射 |
 | `team-workspace-board/SelectedSessionInlineDetail.tsx` | Team 当前查看成员的详情区与协作操作壳 |
+| `team-workspace-board/SelectedSessionInlineHeader.tsx` | Team 当前成员详情头壳，统一承载摘要、状态提示与会话操作按钮 |
+| `team-workspace-board/TeamWorkspaceCanvasSelectedInlineDetail.tsx` | Team 画布当前选中成员详情壳，统一承载 inline detail 组合与透传 |
 | `team-workspace-board/TeamWorkspaceTeamOverviewChrome.tsx` | Team 顶部 toolbar / 协作动态壳，收口 compact 与非 compact 的重复展示逻辑 |
+| `team-workspace-board/teamWorkspaceBoardPropBuilders.ts` | Team Board 壳层 props 组装工具，统一承载 empty shell 与 shell/header/canvas props 映射 |
+| `team-workspace-board/teamWorkspaceCanvasControllerState.ts` | Team 画布控制纯状态工具，统一承载视口更新、lane 布局写回与置顶规则 |
+| `team-workspace-board/useTeamWorkspaceActivityPreviewSync.ts` | Team 过程预览同步 hook，统一承载请求去重、选中成员轮询与 stale preview 预取 |
+| `team-workspace-board/useTeamWorkspaceActivityPreviews.ts` | Team 过程预览 hook，统一承载成员最近过程的预取、轮询与 stale preview 预热 |
+| `team-workspace-board/useTeamWorkspaceBoardActions.ts` | Team Board 操作控制 hook，统一承载成员发送/等待/关闭与 Team 级等待/收尾的 pending 状态 |
+| `team-workspace-board/useTeamWorkspaceBoardCanvasRuntime.ts` | Team Board 画布运行态组合 hook，统一承载 lane 拼装、stage hint 与自由画布控制接线 |
+| `team-workspace-board/useTeamWorkspaceBoardComposer.ts` | Team Board 高阶编排 hook，统一承载 runtime、activity、canvas、presentation 与 shell/empty-shell props 组合 |
+| `team-workspace-board/useTeamWorkspaceBoardFormationState.ts` | Team Board 分工展示前置 hook，统一承载 selected team 归一化与 runtime formation / plan display 组装 |
+| `team-workspace-board/useTeamWorkspaceBoardRuntimeState.ts` | Team Board 运行态组合 hook，统一承载 team 轨迹、焦点成员、会话控制与交互 action 组装 |
+| `team-workspace-board/useTeamWorkspaceBoardShellProps.ts` | Team Board 壳层 props 组合 hook，统一承载 empty shell / shell props 映射与当前选中成员 inline detail 装配 |
+| `team-workspace-board/useTeamWorkspaceBoardSessionGraph.ts` | Team Board 会话图组合 hook，统一承载 orchestrator/current child/visible/member canvas/rail 的派生组装 |
+| `team-workspace-board/useTeamWorkspaceBoardSelectedInlineDetail.tsx` | Team Board 当前选中成员详情组合 hook，统一承载 inline detail 条件渲染与 props 映射 |
+| `team-workspace-board/useTeamWorkspaceBoardPresentation.tsx` | Team Board 展示态 hook，统一承载 chrome 文案、详情展示与壳层样式拼装 |
+| `team-workspace-board/useTeamWorkspaceCanvasController.ts` | Team Board 画布控制 hook，统一承载自由画布的布局状态、持久化、lane 布局派生与交互接线 |
+| `team-workspace-board/useTeamWorkspaceCanvasInteractionHandlers.ts` | Team 画布交互 hook，统一承载拖拽、resize、平移、缩放、自动布局、fit 与选中行为 |
+| `team-workspace-board/useTeamWorkspaceCanvasKeyboardShortcuts.ts` | Team 画布键盘快捷键 hook，统一承载 Space 手型、缩放、适应与方向键平移 |
+| `team-workspace-board/useTeamWorkspaceSessionFocus.ts` | Team Board 焦点控制 hook，统一承载当前成员选择、展开状态同步与 team wait 自动聚焦 |
 | `StreamingRenderer.tsx`          | 流式消息渲染（支持思考内容、工具调用）                                                 |
 | `TokenUsageDisplay.tsx`          | Token 使用量显示                                                                       |
 | `ToolCallDisplay.tsx`            | 工具调用显示（状态、参数、日志、结果）                                                 |

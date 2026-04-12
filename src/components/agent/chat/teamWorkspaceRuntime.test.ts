@@ -29,7 +29,7 @@ describe("summarizeTeamWorkspaceExecution", () => {
 
     expect(summary.hasActiveRuntime).toBe(true);
     expect(summary.runningSessionCount).toBe(1);
-    expect(summary.statusTitle).toContain("协作处理中");
+    expect(summary.statusTitle).toContain("任务进行中");
   });
 
   it("某个子代理失败但仍有其他子代理运行时，不应提前收敛", () => {
@@ -59,7 +59,7 @@ describe("summarizeTeamWorkspaceExecution", () => {
     expect(summary.hasActiveRuntime).toBe(true);
     expect(summary.activeSessionCount).toBe(1);
     expect(summary.runningSessionCount).toBe(1);
-    expect(summary.statusTitle).toContain("协作处理中");
+    expect(summary.statusTitle).toContain("任务进行中");
   });
 
   it("所有 team 会话进入终态后，应返回非活跃状态", () => {

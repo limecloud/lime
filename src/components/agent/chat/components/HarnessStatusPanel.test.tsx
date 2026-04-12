@@ -12,6 +12,7 @@ const {
   exportAgentRuntimeReplayCaseMock,
   exportAgentRuntimeReviewDecisionTemplateMock,
   saveAgentRuntimeReviewDecisionMock,
+  prefetchContextMemoryForTurnMock,
   mockToast,
 } = vi.hoisted(() => ({
   exportAgentRuntimeAnalysisHandoffMock: vi.fn(),
@@ -20,6 +21,7 @@ const {
   exportAgentRuntimeReplayCaseMock: vi.fn(),
   exportAgentRuntimeReviewDecisionTemplateMock: vi.fn(),
   saveAgentRuntimeReviewDecisionMock: vi.fn(),
+  prefetchContextMemoryForTurnMock: vi.fn(),
   mockToast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -46,6 +48,10 @@ vi.mock("@/lib/api/agentRuntime", async () => {
 
 vi.mock("sonner", () => ({
   toast: mockToast,
+}));
+
+vi.mock("@/lib/api/memoryRuntime", () => ({
+  prefetchContextMemoryForTurn: prefetchContextMemoryForTurnMock,
 }));
 
 interface RenderResult {
@@ -336,6 +342,15 @@ beforeEach(() => {
     configurable: true,
     value: vi.fn(),
   });
+  prefetchContextMemoryForTurnMock.mockResolvedValue({
+    session_id: "session-default",
+    rules_source_paths: [],
+    working_memory_excerpt: null,
+    durable_memories: [],
+    team_memory_entries: [],
+    latest_compaction: null,
+    prompt: null,
+  });
 });
 
 afterEach(() => {
@@ -448,7 +463,9 @@ describe("HarnessStatusPanel", () => {
     });
 
     expect(document.body.textContent).toContain("当前任务");
-    expect(document.body.textContent).toContain("任务进展");
+    expect(document.body.textContent).toContain("任务进行时");
+    expect(document.body.textContent).toContain("任务节点");
+    expect(document.body.textContent).toContain("已记录 2 个任务节点");
     expect(document.body.textContent).toContain("正在启动处理流程");
     expect(document.body.textContent).toContain("等待首个模型事件");
   });
@@ -697,6 +714,8 @@ describe("HarnessStatusPanel", () => {
       ".lime/harness/sessions/session-analysis-1/analysis/analysis-context.json",
     );
     expect(document.body.textContent).toContain("/workspace/lime");
+    expect(document.body.textContent).not.toContain("Claude Code");
+    expect(document.body.textContent).not.toContain("Claude / Codex");
     expect(mockToast.success).toHaveBeenCalledWith("已导出 2 个外部分析文件");
   });
 
@@ -1377,7 +1396,7 @@ describe("HarnessStatusPanel", () => {
       },
     });
 
-    expect(document.body.textContent).toContain("协作处理中");
+    expect(document.body.textContent).toContain("任务进行中");
     expect(document.body.textContent).toContain("协作会话");
     expect(document.body.textContent).toContain("当前协作会话");
     expect(document.body.textContent).toContain("实时协作会话");

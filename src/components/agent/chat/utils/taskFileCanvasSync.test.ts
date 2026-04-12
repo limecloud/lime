@@ -9,12 +9,14 @@ describe("taskFileCanvasSync", () => {
     const files = [
       {
         id: "older",
+        name: "draft.md",
         content: "old",
         createdAt: 10,
         updatedAt: 10,
       },
       {
         id: "latest",
+        name: "index.md",
         content: "new",
         createdAt: 20,
         updatedAt: 20,
@@ -31,12 +33,14 @@ describe("taskFileCanvasSync", () => {
     const files = [
       {
         id: "first",
+        name: "draft.md",
         content: "first",
         createdAt: 10,
         updatedAt: 10,
       },
       {
         id: "second",
+        name: "index.md",
         content: "second",
         createdAt: 15,
         updatedAt: 30,
@@ -46,6 +50,30 @@ describe("taskFileCanvasSync", () => {
     expect(resolveCanvasTaskFileTarget(files)).toEqual({
       targetFile: files[1],
       nextSelectedFileId: "second",
+    });
+  });
+
+  it("未选中文件时应优先真正的主稿而不是 Agents.md", () => {
+    const files = [
+      {
+        id: "agents",
+        name: "exports/x-article-export/latest/Agents.md",
+        content: "# Agents",
+        createdAt: 40,
+        updatedAt: 40,
+      },
+      {
+        id: "index",
+        name: "exports/x-article-export/latest/index.md",
+        content: "# 正文",
+        createdAt: 10,
+        updatedAt: 10,
+      },
+    ];
+
+    expect(resolveCanvasTaskFileTarget(files)).toEqual({
+      targetFile: files[1],
+      nextSelectedFileId: "index",
     });
   });
 

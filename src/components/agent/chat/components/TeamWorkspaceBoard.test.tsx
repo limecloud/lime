@@ -233,9 +233,9 @@ describe("TeamWorkspaceBoard", () => {
       childSubagentSessions: [],
     });
 
-    expect(container.textContent).toContain("创作协作");
-    expect(container.textContent).toContain("还没有协作成员加入");
-    expect(container.textContent).toContain("查看任务进展");
+    expect(container.textContent).toContain("任务协作");
+    expect(container.textContent).toContain("还没有成员接入");
+    expect(container.textContent).toContain("查看任务进行时");
     expect(container.textContent).not.toContain("spawn_agent");
     expect(container.textContent).not.toContain("Explorer 槽位");
     expect(container.textContent).not.toContain("Executor 槽位");
@@ -256,7 +256,7 @@ describe("TeamWorkspaceBoard", () => {
       expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).toContain("需要时会自动加入协作成员");
+    expect(container.textContent).toContain("需要时会自动接入协作成员");
     expect(container.textContent).toContain("邀请协作成员");
     expect(container.textContent).toContain("收起细节");
   });
@@ -299,7 +299,7 @@ describe("TeamWorkspaceBoard", () => {
       expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).toContain("计划中的协作分工");
+    expect(container.textContent).toContain("计划中的任务分工");
     expect(container.textContent).toContain("分析");
     expect(container.textContent).toContain("执行");
   });
@@ -398,7 +398,7 @@ describe("TeamWorkspaceBoard", () => {
       ],
     });
 
-    expect(container.textContent).toContain("创作协作");
+    expect(container.textContent).toContain("任务协作");
     expect(container.textContent).toContain("2 位成员协作中");
     expect(container.textContent).toContain("研究员");
     expect(container.textContent).toContain("执行器");
@@ -2060,13 +2060,13 @@ describe("TeamWorkspaceBoard", () => {
       },
     });
 
-    expect(container.textContent).toContain("正在准备协作分工");
+    expect(container.textContent).toContain("正在准备任务分工");
     expect(container.textContent).toContain("准备中");
-    expect(container.textContent).toContain("协作方案 · 排障 Team");
+    expect(container.textContent).toContain("任务方案 · 排障 Team");
     expect(container.textContent).toContain("参考方案 · 代码排障团队");
   });
 
-  it("本轮协作方案已就绪时，应在无真实子会话下展示当前成员", async () => {
+  it("本轮任务方案已就绪时，应在无真实子会话下展示当前成员", async () => {
     const container = await renderBoard({
       shellVisible: true,
       defaultShellExpanded: true,
@@ -2118,7 +2118,7 @@ describe("TeamWorkspaceBoard", () => {
     expect(
       container.querySelector('[data-testid="team-workspace-runtime-members"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain("协作分工已准备好");
+    expect(container.textContent).toContain("任务分工已准备好");
     expect(container.textContent).toContain("分析");
     expect(container.textContent).toContain("执行");
     expect(container.textContent).toContain("参考分工");
@@ -2140,7 +2140,7 @@ describe("TeamWorkspaceBoard", () => {
       },
     });
 
-    expect(container.textContent).toContain("协作准备失败");
+    expect(container.textContent).toContain("任务分工准备失败");
     expect(container.textContent).toContain(
       "Provider 认证失败，无法生成 Team。",
     );

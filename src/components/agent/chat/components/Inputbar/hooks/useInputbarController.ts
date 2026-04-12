@@ -153,6 +153,12 @@ export function useInputbarController({
   const {
     workflowQuickActions,
     workflowQueueItems,
+    workflowActiveItem,
+    workflowQueueTotalCount,
+    workflowCompletedCount,
+    workflowTotalCount,
+    workflowProgressLabel,
+    workflowSummaryLabel,
     renderWorkflowGeneratingPanel,
   } = useWorkflowInputState({
     isWorkspaceVariant,
@@ -252,6 +258,12 @@ export function useInputbarController({
     topExtra,
     workflowQuickActions,
     workflowQueueItems,
+    workflowActiveItem,
+    workflowQueueTotalCount,
+    workflowCompletedCount,
+    workflowTotalCount,
+    workflowProgressLabel,
+    workflowSummaryLabel,
     renderWorkflowGeneratingPanel,
     skillSelection,
     setActiveBuiltinCommand: (command: BuiltinInputCommand | null) => {

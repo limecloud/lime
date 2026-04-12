@@ -946,7 +946,7 @@ export function useWorkspaceServiceSkillEntryActions({
       {
         initialSlotValues: pendingServiceSkillLaunchInput.initialSlotValues,
         prefillHint: pendingServiceSkillLaunchInput.prefillHint,
-        submitLabel: "直接开始",
+        submitLabel: "继续当前结果",
         responseKey: pendingServiceSkillLaunchInput.requestKey,
       },
     );

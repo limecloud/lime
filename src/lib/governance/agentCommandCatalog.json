@@ -57,6 +57,15 @@
     "companion_launch_pet",
     "companion_send_pet_command"
   ],
+  "memoryRuntimeCommands": [
+    "memory_runtime_get_stats",
+    "memory_runtime_get_overview",
+    "memory_runtime_request_analysis",
+    "memory_runtime_cleanup",
+    "memory_runtime_get_working_memory",
+    "memory_runtime_get_extraction_status",
+    "memory_runtime_prefetch_for_turn"
+  ],
   "deprecatedCommandReplacements": {
     "get_agent_process_status": "agent_get_process_status",
     "list_agent_sessions": "agent_runtime_list_sessions",

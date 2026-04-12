@@ -1,5 +1,8 @@
+import { scorePreferredResultFilePath } from "../workspace/resultFilePriority";
+
 export interface RenderableTaskFileCandidate {
   id: string;
+  name: string;
   content?: string | null;
   createdAt: number;
   updatedAt: number;
@@ -35,6 +38,12 @@ export function resolveCanvasTaskFileTarget<
   const latestFile = files.reduce<T | null>((candidate, file) => {
     if (!candidate) {
       return file;
+    }
+
+    const candidatePriority = scorePreferredResultFilePath(candidate.name);
+    const filePriority = scorePreferredResultFilePath(file.name);
+    if (filePriority !== candidatePriority) {
+      return filePriority > candidatePriority ? file : candidate;
     }
 
     const candidateTimestamp = Math.max(

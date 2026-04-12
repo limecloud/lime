@@ -43,7 +43,7 @@ fn normalize_provider_identity(value: &str) -> String {
     value.trim().to_ascii_lowercase()
 }
 
-fn is_ollama_provider(provider_selector: Option<&str>, provider_name: &str) -> bool {
+pub(crate) fn is_ollama_provider(provider_selector: Option<&str>, provider_name: &str) -> bool {
     provider_selector
         .map(normalize_provider_identity)
         .or_else(|| Some(normalize_provider_identity(provider_name)))
@@ -59,7 +59,7 @@ fn normalize_optional_text(value: Option<&str>) -> Option<String> {
     }
 }
 
-fn normalize_ollama_base_url(base_url: Option<&str>) -> String {
+pub(crate) fn normalize_ollama_base_url(base_url: Option<&str>) -> String {
     let candidate =
         normalize_optional_text(base_url).unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
     let raw = if candidate.starts_with("http://") || candidate.starts_with("https://") {

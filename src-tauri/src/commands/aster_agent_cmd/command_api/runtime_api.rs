@@ -18,6 +18,24 @@ use crate::services::runtime_review_decision_service::{
 use crate::services::thread_reliability_projection_service::sync_thread_reliability_projection;
 use std::path::PathBuf;
 
+async fn resume_runtime_queue_with_warning(
+    runtime: &RuntimeCommandContext,
+    session_id: &str,
+    action_label: &str,
+) {
+    if let Err(error) = runtime
+        .resume_runtime_queue_if_needed(session_id.to_string())
+        .await
+    {
+        tracing::warn!(
+            "[AsterAgent][Queue] {}恢复排队执行失败: session_id={}, error={}",
+            action_label,
+            session_id,
+            error
+        );
+    }
+}
+
 #[tauri::command]
 pub async fn agent_runtime_submit_turn(
     app: AppHandle,
@@ -30,23 +48,22 @@ pub async fn agent_runtime_submit_turn(
     automation_state: State<'_, AutomationServiceState>,
     request: AgentRuntimeSubmitTurnRequest,
 ) -> Result<(), String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
     let runtime_request: AsterChatRequest = request.into();
     let queue_if_busy = runtime_request.queue_if_busy.unwrap_or(false);
     let queued_task = build_queued_turn_task(runtime_request)?;
-    submit_runtime_turn_service(
-        app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        queued_task,
-        queue_if_busy,
-        build_runtime_queue_executor(),
-    )
-    .await
+    runtime
+        .submit_runtime_turn(queued_task, queue_if_busy)
+        .await
 }
 
 /// 统一运行时：中断当前 turn。
@@ -97,24 +114,22 @@ pub async fn agent_runtime_resume_thread(
     automation_state: State<'_, AutomationServiceState>,
     request: AgentRuntimeResumeThreadRequest,
 ) -> Result<bool, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
     let session_id = request.session_id.trim().to_string();
     if session_id.is_empty() {
         return Ok(false);
     }
 
-    resume_runtime_queue_if_needed_service(
-        app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        session_id,
-        build_runtime_queue_executor(),
-    )
-    .await
+    runtime.resume_runtime_queue_if_needed(session_id).await
 }
 
 /// 统一运行时：获取会话详情。
@@ -130,32 +145,23 @@ pub async fn agent_runtime_get_session(
     automation_state: State<'_, AutomationServiceState>,
     session_id: String,
 ) -> Result<AgentRuntimeSessionDetail, String> {
-    tracing::info!("[AsterAgent] 获取运行时会话: {}", session_id);
-    if let Err(error) = resume_runtime_queue_if_needed_service(
+    let runtime = build_runtime_command_context(
         app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        session_id.clone(),
-        build_runtime_queue_executor(),
-    )
-    .await
-    {
-        tracing::warn!(
-            "[AsterAgent][Queue] 获取会话后恢复排队执行失败: session_id={}, error={}",
-            session_id,
-            error
-        );
-    }
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
+    tracing::info!("[AsterAgent] 获取运行时会话: {}", session_id);
+    resume_runtime_queue_with_warning(&runtime, &session_id, "获取会话后").await;
 
-    let detail = AsterAgentWrapper::get_runtime_session_detail(db.inner(), &session_id).await?;
+    let detail = AsterAgentWrapper::get_runtime_session_detail(runtime.db(), &session_id).await?;
     let queued_turns = list_runtime_queue_snapshots_service(&session_id).await?;
-    let projection = sync_thread_reliability_projection(db.inner(), &detail)?;
-    let interrupt_marker = state.get_interrupt_marker(&session_id).await;
+    let projection = sync_thread_reliability_projection(runtime.db(), &detail)?;
+    let interrupt_marker = runtime.state().get_interrupt_marker(&session_id).await;
     let thread_read = AgentRuntimeThreadReadModel::from_parts(
         &detail,
         &queued_turns,
@@ -186,32 +192,23 @@ pub async fn agent_runtime_get_thread_read(
     automation_state: State<'_, AutomationServiceState>,
     session_id: String,
 ) -> Result<AgentRuntimeThreadReadModel, String> {
-    tracing::info!("[AsterAgent] 获取运行时线程读模型: {}", session_id);
-    if let Err(error) = resume_runtime_queue_if_needed_service(
+    let runtime = build_runtime_command_context(
         app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        session_id.clone(),
-        build_runtime_queue_executor(),
-    )
-    .await
-    {
-        tracing::warn!(
-            "[AsterAgent][Queue] 获取线程读模型后恢复排队执行失败: session_id={}, error={}",
-            session_id,
-            error
-        );
-    }
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
+    tracing::info!("[AsterAgent] 获取运行时线程读模型: {}", session_id);
+    resume_runtime_queue_with_warning(&runtime, &session_id, "获取线程读模型后").await;
 
-    let detail = AsterAgentWrapper::get_runtime_session_detail(db.inner(), &session_id).await?;
+    let detail = AsterAgentWrapper::get_runtime_session_detail(runtime.db(), &session_id).await?;
     let queued_turns = list_runtime_queue_snapshots_service(&session_id).await?;
-    let projection = sync_thread_reliability_projection(db.inner(), &detail)?;
-    let interrupt_marker = state.get_interrupt_marker(&session_id).await;
+    let projection = sync_thread_reliability_projection(runtime.db(), &detail)?;
+    let interrupt_marker = runtime.state().get_interrupt_marker(&session_id).await;
     Ok(AgentRuntimeThreadReadModel::from_parts(
         &detail,
         &queued_turns,
@@ -261,43 +258,16 @@ fn resolve_runtime_export_workspace_root(
 }
 
 async fn load_runtime_export_context(
-    app: &AppHandle,
-    state: &AsterAgentState,
-    db: &DbConnection,
-    api_key_provider_service: &ApiKeyProviderServiceState,
-    logs: &LogState,
-    config_manager: &GlobalConfigManagerState,
-    mcp_manager: &McpManagerState,
-    automation_state: &AutomationServiceState,
+    runtime: &RuntimeCommandContext,
     session_id: &str,
     action_label: &str,
 ) -> Result<RuntimeExportContext, String> {
-    if let Err(error) = resume_runtime_queue_if_needed_service(
-        app.clone(),
-        state,
-        db,
-        api_key_provider_service,
-        logs,
-        config_manager,
-        mcp_manager,
-        automation_state,
-        session_id.to_string(),
-        build_runtime_queue_executor(),
-    )
-    .await
-    {
-        tracing::warn!(
-            "[AsterAgent][Queue] {} 前恢复排队执行失败: session_id={}, error={}",
-            action_label,
-            session_id,
-            error
-        );
-    }
+    resume_runtime_queue_with_warning(runtime, session_id, action_label).await;
 
-    let detail = AsterAgentWrapper::get_runtime_session_detail(db, session_id).await?;
+    let detail = AsterAgentWrapper::get_runtime_session_detail(runtime.db(), session_id).await?;
     let queued_turns = list_runtime_queue_snapshots_service(session_id).await?;
-    let projection = sync_thread_reliability_projection(db, &detail)?;
-    let interrupt_marker = state.get_interrupt_marker(session_id).await;
+    let projection = sync_thread_reliability_projection(runtime.db(), &detail)?;
+    let interrupt_marker = runtime.state().get_interrupt_marker(session_id).await;
     let thread_read = AgentRuntimeThreadReadModel::from_parts(
         &detail,
         &queued_turns,
@@ -306,7 +276,7 @@ async fn load_runtime_export_context(
         projection.incidents,
         interrupt_marker.as_ref(),
     );
-    let workspace_root = resolve_runtime_export_workspace_root(db, &detail)?;
+    let workspace_root = resolve_runtime_export_workspace_root(runtime.db(), &detail)?;
 
     Ok(RuntimeExportContext {
         detail,
@@ -328,20 +298,19 @@ pub async fn agent_runtime_export_handoff_bundle(
     automation_state: State<'_, AutomationServiceState>,
     session_id: String,
 ) -> Result<RuntimeHandoffBundleExportResult, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
     tracing::info!("[AsterAgent] 导出 handoff bundle: {}", session_id);
-    let context = load_runtime_export_context(
-        &app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        &session_id,
-        "导出 handoff bundle",
-    )
-    .await?;
+    let context =
+        load_runtime_export_context(&runtime, &session_id, "导出 handoff bundle 前").await?;
 
     export_runtime_handoff_bundle(
         &context.detail,
@@ -363,20 +332,19 @@ pub async fn agent_runtime_export_evidence_pack(
     automation_state: State<'_, AutomationServiceState>,
     session_id: String,
 ) -> Result<RuntimeEvidencePackExportResult, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
     tracing::info!("[AsterAgent] 导出 evidence pack: {}", session_id);
-    let context = load_runtime_export_context(
-        &app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        &session_id,
-        "导出 evidence pack",
-    )
-    .await?;
+    let context =
+        load_runtime_export_context(&runtime, &session_id, "导出 evidence pack 前").await?;
 
     export_runtime_evidence_pack(
         &context.detail,
@@ -398,20 +366,19 @@ pub async fn agent_runtime_export_analysis_handoff(
     automation_state: State<'_, AutomationServiceState>,
     session_id: String,
 ) -> Result<RuntimeAnalysisHandoffExportResult, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
     tracing::info!("[AsterAgent] 导出 analysis handoff: {}", session_id);
-    let context = load_runtime_export_context(
-        &app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        &session_id,
-        "导出 analysis handoff",
-    )
-    .await?;
+    let context =
+        load_runtime_export_context(&runtime, &session_id, "导出 analysis handoff 前").await?;
 
     export_runtime_analysis_handoff(
         &context.detail,
@@ -433,20 +400,19 @@ pub async fn agent_runtime_export_review_decision_template(
     automation_state: State<'_, AutomationServiceState>,
     session_id: String,
 ) -> Result<RuntimeReviewDecisionTemplateExportResult, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
     tracing::info!("[AsterAgent] 导出 review decision 模板: {}", session_id);
-    let context = load_runtime_export_context(
-        &app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        &session_id,
-        "导出 review decision 模板",
-    )
-    .await?;
+    let context =
+        load_runtime_export_context(&runtime, &session_id, "导出 review decision 模板前").await?;
 
     export_runtime_review_decision_template(
         &context.detail,
@@ -468,21 +434,20 @@ pub async fn agent_runtime_save_review_decision(
     automation_state: State<'_, AutomationServiceState>,
     request: AgentRuntimeSaveReviewDecisionRequest,
 ) -> Result<RuntimeReviewDecisionTemplateExportResult, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
     let session_id = request.session_id.trim().to_string();
     tracing::info!("[AsterAgent] 保存 review decision: {}", session_id);
-    let context = load_runtime_export_context(
-        &app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        &session_id,
-        "保存 review decision",
-    )
-    .await?;
+    let context =
+        load_runtime_export_context(&runtime, &session_id, "保存 review decision 前").await?;
 
     save_runtime_review_decision(
         &context.detail,
@@ -516,20 +481,18 @@ pub async fn agent_runtime_export_replay_case(
     automation_state: State<'_, AutomationServiceState>,
     session_id: String,
 ) -> Result<RuntimeReplayCaseExportResult, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
     tracing::info!("[AsterAgent] 导出 replay case: {}", session_id);
-    let context = load_runtime_export_context(
-        &app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        &session_id,
-        "导出 replay case",
-    )
-    .await?;
+    let context = load_runtime_export_context(&runtime, &session_id, "导出 replay case 前").await?;
 
     export_runtime_replay_case(
         &context.detail,
@@ -697,6 +660,16 @@ pub async fn agent_runtime_promote_queued_turn(
     automation_state: State<'_, AutomationServiceState>,
     request: AgentRuntimePromoteQueuedTurnRequest,
 ) -> Result<bool, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
     let session_id = request.session_id.trim().to_string();
     let queued_turn_id = request.queued_turn_id.trim().to_string();
     if session_id.is_empty() || queued_turn_id.is_empty() {
@@ -708,20 +681,8 @@ pub async fn agent_runtime_promote_queued_turn(
         return Ok(false);
     }
 
-    let _ = state.cancel_session(&session_id).await;
-    let _ = resume_runtime_queue_if_needed_service(
-        app,
-        state.inner(),
-        db.inner(),
-        api_key_provider_service.inner(),
-        logs.inner(),
-        config_manager.inner(),
-        mcp_manager.inner(),
-        automation_state.inner(),
-        session_id,
-        build_runtime_queue_executor(),
-    )
-    .await?;
+    let _ = runtime.state().cancel_session(&session_id).await;
+    let _ = runtime.resume_runtime_queue_if_needed(session_id).await?;
 
     Ok(true)
 }

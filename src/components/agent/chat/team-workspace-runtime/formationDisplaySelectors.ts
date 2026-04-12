@@ -1,5 +1,9 @@
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
-import { TEAM_WORKSPACE_PLAN_LABEL } from "../utils/teamWorkspaceCopy";
+import {
+  TEAM_WORKSPACE_IDLE_STATUS_LABEL,
+  TEAM_WORKSPACE_PLAN_LABEL,
+  TEAM_WORKSPACE_WAITING_HEADLINE,
+} from "../utils/teamWorkspaceCopy";
 import {
   resolveRuntimeFormationStatusMeta,
   resolveRuntimeMemberStatusMeta,
@@ -56,13 +60,13 @@ export function buildRuntimeFormationHint(
 ) {
   switch (teamDispatchPreviewState?.status) {
     case "forming":
-      return "系统正在准备当前任务的协作分工，成员接入后会自动开始处理。";
+      return "系统正在准备当前任务的分工，成员接入后会自动开始处理。";
     case "formed":
-      return "当前任务的协作分工已经准备好，成员加入后会继续接手处理。";
+      return "当前任务的分工已经准备好，成员加入后会继续接手处理。";
     case "failed":
-      return "当前任务的协作准备失败，但你仍然可以继续在当前对话里推进。";
+      return "当前任务的分工准备失败，但你仍然可以继续在当前对话里推进。";
     default:
-      return "需要时这里会自动展开成协作面板。";
+      return "需要时这里会自动展开成任务协作面板。";
   }
 }
 
@@ -71,16 +75,16 @@ export function buildRuntimeFormationEmptyDetail(
 ) {
   switch (teamDispatchPreviewState?.status) {
     case "forming":
-      return "系统正在根据当前任务准备协作分工。完成后，这里会先展示当前成员卡片，再接入真实处理进展。";
+      return "系统正在根据当前任务准备分工。完成后，这里会先展示当前成员卡片，再接入真实处理进展。";
     case "formed":
-      return "当前协作方案已经准备好。画布会先展示当前分工，等成员真正开始处理后，再自动切换为实时进展。";
+      return "当前任务方案已经准备好。画布会先展示当前分工，等成员真正开始处理后，再自动切换为实时进展。";
     case "failed":
       return (
         teamDispatchPreviewState.errorMessage?.trim() ||
-        "当前协作准备失败，暂时无法展示当前成员。"
+        "当前任务分工准备失败，暂时无法展示当前成员。"
       );
     default:
-      return "当前还没有协作成员加入。系统开始分工后，详情区会切换为成员摘要视图。";
+      return `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，详情区会切换为成员摘要视图。`;
   }
 }
 
@@ -165,13 +169,13 @@ export function buildRuntimeFormationDisplayState(params: {
 
   const noticeText =
     state?.status === "forming"
-      ? "系统正在准备当前协作分工，完成后会先展示成员卡片，后续再切换为独立的实时进展面板。"
+      ? "系统正在准备当前任务分工，完成后会先展示成员卡片，后续再切换为独立的实时进展面板。"
       : state?.status === "formed"
-        ? "当前协作方案已就绪。系统开始分工后，这里会从方案视图过渡到实时协作画布。"
+        ? "当前任务方案已就绪。系统开始分工后，这里会从方案视图过渡到实时协作画布。"
         : state?.status === "failed"
           ? state.errorMessage?.trim() ||
-            "当前协作准备失败，暂时还没有协作成员加入。"
-          : "还没有协作成员加入。系统开始分工后，这里会生成独立的成员进展画布。";
+            "当前任务分工准备失败，暂时还没有成员接入。"
+          : `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，这里会生成独立的成员进展画布。`;
 
   return {
     hasRuntimeFormation: Boolean(state),
@@ -219,15 +223,15 @@ export function buildRuntimeFormationDisplayState(params: {
           ]
         : []),
     ],
-    panelTitle: "当前协作准备",
+    panelTitle: "当前任务分工",
     panelStatusLabel: meta?.label ?? null,
     panelStatusBadgeClassName: meta?.badgeClassName ?? null,
     panelLabel: label,
-    panelHeadline: meta?.title || "等待协作成员加入",
+    panelHeadline: meta?.title || TEAM_WORKSPACE_WAITING_HEADLINE,
     panelDescription:
       state?.status === "failed"
-        ? state.errorMessage?.trim() || "当前协作准备失败，暂时无法展示更多内容。"
-        : summary || "这里会先展示当前协作方案，成员加入后再切换成实时进展。",
+        ? state.errorMessage?.trim() || "当前任务分工准备失败，暂时无法展示更多内容。"
+        : summary || "这里会先展示当前任务方案，成员接入后再切换成实时进展。",
     referenceLabel: state?.blueprint?.label?.trim() || null,
     memberCards,
     blueprintRoleCards,

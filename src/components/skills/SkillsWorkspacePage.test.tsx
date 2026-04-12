@@ -309,15 +309,15 @@ describe("SkillsWorkspacePage", () => {
     vi.clearAllMocks();
   });
 
-  it("应默认渲染推荐技能组并同时展示最近使用和我的技能入口", () => {
+  it("应默认渲染方法目录并同时展示继续常用做法和我的方法库入口", () => {
     const { container } = renderPage();
 
-    expect(container.textContent).toContain("技能");
-    expect(container.textContent).toContain("推荐技能组");
-    expect(container.textContent).toContain("最近使用");
-    expect(container.textContent).toContain("我的技能");
+    expect(container.textContent).toContain("我的方法");
+    expect(container.textContent).toContain("方法目录");
+    expect(container.textContent).toContain("继续常用做法");
+    expect(container.textContent).toContain("我的方法库");
     expect(container.textContent).toContain(
-      "先从一个现成技能开始，不必先理解目录结构。",
+      "这里收的是已经跑通过的做法；不确定从哪开始时，先回首页结果模板。",
     );
     expect(container.textContent).toContain("GitHub");
     expect(container.textContent).toContain("写作助手");
@@ -326,7 +326,7 @@ describe("SkillsWorkspacePage", () => {
     );
   });
 
-  it("推荐技能组卡片不应重复展示已进入最近使用的技能", () => {
+  it("推荐技能组卡片不应重复展示已进入继续常用做法的技能", () => {
     const { container } = renderPage();
 
     const generalCard = Array.from(container.querySelectorAll("article")).find(
@@ -343,21 +343,21 @@ describe("SkillsWorkspacePage", () => {
     renderPage();
 
     expect(getBodyText()).not.toContain(
-      "技能中心现在先展示技能组；选中具体技能后，统一进入 Agent 对话补参或执行。",
+      "首页负责结果模板，这里负责可复用做法；选中具体方法后，统一进入 Agent 对话补参或继续执行。",
     );
     expect(getBodyText()).not.toContain(
-      "先从能直接进入 Agent 对话开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。",
+      "先从结果相关的做法组找起；本地导入、仓库维护和远程安装统一收进导入与整理。",
     );
 
-    const entryTip = await hoverTip("技能主入口说明");
+    const entryTip = await hoverTip("方法主入口说明");
     expect(getBodyText()).toContain(
-      "技能中心现在先展示技能组；选中具体技能后，统一进入 Agent 对话补参或执行。",
+      "首页负责结果模板，这里负责可复用做法；选中具体方法后，统一进入 Agent 对话补参或继续执行。",
     );
     await leaveTip(entryTip);
 
-    const searchTip = await hoverTip("技能搜索说明");
+    const searchTip = await hoverTip("做法搜索说明");
     expect(getBodyText()).toContain(
-      "先从能直接进入 Agent 对话开工的技能组找起；本地导入、仓库维护和远程安装统一收进导入与维护。",
+      "先从结果相关的做法组找起；本地导入、仓库维护和远程安装统一收进导入与整理。",
     );
     await leaveTip(searchTip);
   });
@@ -366,7 +366,7 @@ describe("SkillsWorkspacePage", () => {
     const { container, onNavigate } = renderPage();
 
     const groupButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("打开技能组"),
+      (button) => button.textContent?.includes("打开做法组"),
     );
     expect(groupButton).toBeTruthy();
 
@@ -399,7 +399,7 @@ describe("SkillsWorkspacePage", () => {
     expect(mockRecordUsage).not.toHaveBeenCalled();
   });
 
-  it("技能组只剩最近使用时，打开后仍应回退展示该技能", () => {
+  it("做法组只剩最近使用时，打开后仍应回退展示该技能", () => {
     mockServiceSkills = [
       {
         ...createDefaultServiceSkills()[0],
@@ -425,11 +425,11 @@ describe("SkillsWorkspacePage", () => {
     const zhihuCard = Array.from(container.querySelectorAll("article")).find(
       (article) => article.textContent?.includes("知乎"),
     );
-    expect(zhihuCard?.textContent).toContain("已收进最近使用");
+    expect(zhihuCard?.textContent).toContain("已沉淀到常用做法");
 
-    const openButton = Array.from(zhihuCard?.querySelectorAll("button") ?? []).find(
-      (button) => button.textContent?.includes("打开技能组"),
-    );
+    const openButton = Array.from(
+      zhihuCard?.querySelectorAll("button") ?? [],
+    ).find((button) => button.textContent?.includes("打开做法组"));
     expect(openButton).toBeTruthy();
 
     act(() => {
@@ -545,7 +545,7 @@ describe("SkillsWorkspacePage", () => {
     const { container, onNavigate } = renderPage();
 
     const groupButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("打开技能组"),
+      (button) => button.textContent?.includes("打开做法组"),
     );
     expect(groupButton).toBeTruthy();
 
@@ -574,11 +574,11 @@ describe("SkillsWorkspacePage", () => {
     expect(mockRecordUsage).not.toHaveBeenCalled();
   });
 
-  it("点击刷新目录应同时刷新技能目录与本地技能", async () => {
+  it("点击刷新方法库应同时刷新云端与本地方法", async () => {
     const { container } = renderPage();
 
     const refreshButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("刷新目录"),
+      (button) => button.textContent?.includes("刷新方法库"),
     );
     expect(refreshButton).toBeTruthy();
 
@@ -591,13 +591,13 @@ describe("SkillsWorkspacePage", () => {
     expect(mockRefreshLocalSkills).toHaveBeenCalledTimes(1);
   });
 
-  it("应默认展示本地已安装技能，并可打开导入与维护", () => {
+  it("应默认展示本地已安装技能，并可打开导入与整理", () => {
     const { container } = renderPage();
 
     expect(container.textContent).toContain("写作助手");
 
     const manageButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("导入与维护"),
+      (button) => button.textContent?.includes("导入与整理"),
     );
     expect(manageButton).toBeTruthy();
 
@@ -608,7 +608,7 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("advanced skills page");
   });
 
-  it("带着技能草稿进入时应自动打开导入与维护，并透传预填参数", () => {
+  it("带着技能草稿进入时应自动打开导入与整理，并透传预填参数", () => {
     renderPage({
       initialScaffoldDraft: {
         target: "project",
@@ -634,7 +634,7 @@ describe("SkillsWorkspacePage", () => {
     );
   });
 
-  it("技能草稿应支持从导入与维护弹窗带回创作输入", () => {
+  it("技能草稿应支持从导入与整理弹窗带回创作输入", () => {
     const { onNavigate } = renderPage({
       creationProjectId: "project-demo",
       initialScaffoldDraft: {

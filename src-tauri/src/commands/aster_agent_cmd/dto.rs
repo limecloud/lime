@@ -412,6 +412,19 @@ pub struct AgentRuntimeDiagnosticPendingRequestSample {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeCompactionBoundarySnapshot {
+    pub session_id: String,
+    pub summary_preview: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_count: Option<u32>,
+    pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRuntimeThreadDiagnostics {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_turn_status: Option<String>,
@@ -476,6 +489,8 @@ pub struct AgentRuntimeThreadReadModel {
     pub interrupt_state: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_compaction_boundary: Option<AgentRuntimeCompactionBoundarySnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<AgentRuntimeThreadDiagnostics>,
 }
@@ -628,6 +643,12 @@ impl AgentRuntimeThreadReadModel {
             &incidents,
             runtime_interrupt_marker,
         );
+        let latest_compaction_boundary = build_latest_compaction_boundary_snapshot(
+            &detail.id,
+            diagnostics
+                .as_ref()
+                .and_then(|value| value.latest_context_compaction.as_ref()),
+        );
         let active_turn = detail
             .turns
             .iter()
@@ -691,6 +712,7 @@ impl AgentRuntimeThreadReadModel {
             updated_at: latest_turn
                 .map(|turn| turn.updated_at.clone())
                 .or_else(|| Some(detail.updated_at.to_string())),
+            latest_compaction_boundary,
             diagnostics,
         }
     }
@@ -715,6 +737,37 @@ fn elapsed_seconds_between(start_raw: Option<&str>, end_raw: Option<&str>) -> Op
     let start = parse_rfc3339_utc(start_raw?)?;
     let end = parse_rfc3339_utc(end_raw?)?;
     Some(end.signed_duration_since(start).num_seconds().max(0))
+}
+
+fn compact_summary_preview(input: &str, max_chars: usize) -> String {
+    let normalized = input
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" | ");
+    let mut chars = normalized.chars();
+    let prefix: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        format!("{prefix}...")
+    } else {
+        prefix
+    }
+}
+
+fn build_latest_compaction_boundary_snapshot(
+    session_id: &str,
+    latest_context_compaction: Option<&AgentRuntimeDiagnosticContextCompactionSample>,
+) -> Option<AgentRuntimeCompactionBoundarySnapshot> {
+    let summary = aster::session::load_summary_data(session_id)?;
+    Some(AgentRuntimeCompactionBoundarySnapshot {
+        session_id: session_id.to_string(),
+        summary_preview: compact_summary_preview(&summary.summary, 220),
+        turn_count: summary.turn_count.map(|value| value as u32),
+        created_at: summary.timestamp.to_rfc3339(),
+        trigger: latest_context_compaction.and_then(|sample| sample.trigger.clone()),
+        detail: latest_context_compaction.and_then(|sample| sample.detail.clone()),
+    })
 }
 
 fn warning_sample_from_item(

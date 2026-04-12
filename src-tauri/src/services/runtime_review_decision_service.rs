@@ -753,6 +753,7 @@ mod tests {
             }],
             interrupt_state: None,
             updated_at: Some("2026-03-27T10:01:20Z".to_string()),
+            latest_compaction_boundary: None,
             diagnostics: Some(AgentRuntimeThreadDiagnostics {
                 latest_turn_status: Some("action_required".to_string()),
                 latest_turn_started_at: None,

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { TeamWorkspaceBoardChromeDisplayState } from "../../team-workspace-runtime/boardChromeSelectors";
 import type { TeamWorkspaceRuntimeStatus } from "../../teamWorkspaceRuntime";
 import {
+  TEAM_WORKSPACE_IDLE_STATUS_LABEL,
   TEAM_WORKSPACE_REALTIME_BADGE_LABEL,
   TEAM_WORKSPACE_SURFACE_TITLE,
 } from "../../utils/teamWorkspaceCopy";
@@ -109,7 +110,7 @@ export function TeamWorkspaceBoardHeader({
         ) : null}
         {isEmptyShellState ? (
           <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
-            {runtimeFormationStatusLabel || "还没有协作成员加入"}
+            {runtimeFormationStatusLabel || TEAM_WORKSPACE_IDLE_STATUS_LABEL}
           </span>
         ) : !useCompactCanvasChrome ? (
           boardChromeDisplay.statusSummaryBadges.map((badge) => {

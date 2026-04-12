@@ -191,6 +191,15 @@ export interface AgentRuntimeDiagnosticPendingRequestSample {
   created_at?: string | number;
 }
 
+export interface AgentRuntimeCompactionBoundarySnapshot {
+  session_id: string;
+  summary_preview: string;
+  turn_count?: number;
+  created_at: string | number;
+  trigger?: string;
+  detail?: string;
+}
+
 export interface AgentRuntimeThreadDiagnostics {
   latest_turn_status?: string;
   latest_turn_started_at?: string | number;
@@ -228,6 +237,7 @@ export interface AgentRuntimeThreadReadModel {
   queued_turns?: QueuedTurnSnapshot[];
   interrupt_state?: string;
   updated_at?: string | number;
+  latest_compaction_boundary?: AgentRuntimeCompactionBoundarySnapshot | null;
   diagnostics?: AgentRuntimeThreadDiagnostics | null;
 }
 

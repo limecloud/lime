@@ -1,5 +1,10 @@
 import { useMemo } from "react";
 import type { StepStatus } from "@/lib/workspace/workbenchContract";
+import {
+  buildWorkflowStepSnapshot,
+  buildWorkflowSummaryText,
+  formatWorkflowProgressLabel,
+} from "./workflowStepPresentation";
 
 export interface WorkflowGateState {
   key: string;
@@ -93,16 +98,60 @@ export function useWorkflowInputState({
     [isWorkspaceVariant, workflowGate?.key],
   );
 
+  const workflowStepSnapshot = useMemo(
+    () =>
+      isWorkspaceVariant ? buildWorkflowStepSnapshot(workflowSteps, 3) : null,
+    [isWorkspaceVariant, workflowSteps],
+  );
+
+  const workflowActiveItem = workflowStepSnapshot?.leadingStep ?? null;
+
+  const workflowQueueTotalCount = useMemo(() => {
+    if (!isWorkspaceVariant) {
+      return 0;
+    }
+    if (workflowStepSnapshot && workflowStepSnapshot.remainingCount > 0) {
+      return workflowStepSnapshot.remainingCount;
+    }
+    return workflowGate ? 1 : 0;
+  }, [isWorkspaceVariant, workflowGate, workflowStepSnapshot]);
+
+  const workflowSummaryLabel = useMemo(
+    () => {
+      if (workflowActiveItem) {
+        return buildWorkflowSummaryText({
+          leadingStep: workflowActiveItem,
+          remainingCount: workflowQueueTotalCount,
+        });
+      }
+      if (workflowGate?.status === "waiting") {
+        return "等待你的决策后继续";
+      }
+      if (workflowGate?.status === "running") {
+        return "正在编排下一步";
+      }
+      return "正在整理任务节奏";
+    },
+    [workflowGate, workflowActiveItem, workflowQueueTotalCount],
+  );
+
+  const workflowCompletedCount = workflowStepSnapshot?.completedCount ?? 0;
+  const workflowTotalCount = workflowStepSnapshot?.totalCount ?? workflowSteps.length;
+  const workflowProgressLabel = useMemo(
+    () =>
+      formatWorkflowProgressLabel({
+        completedCount: workflowCompletedCount,
+        totalCount: workflowTotalCount,
+      }),
+    [workflowCompletedCount, workflowTotalCount],
+  );
+
   const workflowQueueItems = useMemo(() => {
     if (!isWorkspaceVariant) {
       return [];
     }
 
-    const visibleSteps = workflowSteps
-      .filter(
-        (step) => step.status !== "completed" && step.status !== "skipped",
-      )
-      .slice(0, 3);
+    const visibleSteps = workflowStepSnapshot?.visibleQueueItems ?? [];
 
     if (visibleSteps.length > 0) {
       return visibleSteps;
@@ -122,7 +171,7 @@ export function useWorkflowInputState({
     }
 
     return [];
-  }, [isWorkspaceVariant, workflowGate, workflowSteps]);
+  }, [isWorkspaceVariant, workflowGate, workflowStepSnapshot]);
 
   const renderWorkflowGeneratingPanel = isWorkspaceVariant
     ? workflowRunState
@@ -133,6 +182,12 @@ export function useWorkflowInputState({
   return {
     workflowQuickActions,
     workflowQueueItems,
+    workflowActiveItem,
+    workflowQueueTotalCount,
+    workflowCompletedCount,
+    workflowTotalCount,
+    workflowProgressLabel,
+    workflowSummaryLabel,
     renderWorkflowGeneratingPanel,
   };
 }

@@ -120,6 +120,86 @@ export interface MemoryAutoToggleResponse {
   enabled: boolean;
 }
 
+export interface WorkingMemoryFileSummary {
+  file_type: string;
+  path: string;
+  exists: boolean;
+  entry_count: number;
+  updated_at: number;
+  summary: string;
+}
+
+export interface WorkingMemorySessionSummary {
+  session_id: string;
+  total_entries: number;
+  updated_at: number;
+  files: WorkingMemoryFileSummary[];
+  highlights: MemoryEntryPreview[];
+}
+
+export interface WorkingMemoryView {
+  memory_dir: string;
+  total_sessions: number;
+  total_entries: number;
+  sessions: WorkingMemorySessionSummary[];
+}
+
+export interface CompactionBoundarySnapshot {
+  session_id: string;
+  source: string;
+  summary_preview: string;
+  turn_count?: number;
+  created_at: number;
+  trigger?: string;
+  detail?: string;
+}
+
+export interface MemoryExtractionStatusResponse {
+  enabled: boolean;
+  status: "disabled" | "idle" | "collecting" | "ready" | string;
+  status_summary: string;
+  working_session_count: number;
+  working_entry_count: number;
+  latest_working_memory_at?: number;
+  latest_compaction?: CompactionBoundarySnapshot | null;
+  recent_compactions: CompactionBoundarySnapshot[];
+}
+
+export interface DurableMemoryRecallEntry {
+  id: string;
+  session_id: string;
+  category: string;
+  title: string;
+  summary: string;
+  updated_at: number;
+  tags: string[];
+}
+
+export interface TeamMemoryShadowEntry {
+  key: string;
+  content: string;
+  updated_at?: number;
+}
+
+export interface TurnMemoryPrefetchRequest {
+  session_id: string;
+  working_dir?: string;
+  user_message?: string;
+  request_metadata?: Record<string, unknown>;
+  max_durable_entries?: number;
+  max_working_chars?: number;
+}
+
+export interface TurnMemoryPrefetchResult {
+  session_id: string;
+  rules_source_paths: string[];
+  working_memory_excerpt?: string | null;
+  durable_memories: DurableMemoryRecallEntry[];
+  team_memory_entries: TeamMemoryShadowEntry[];
+  latest_compaction?: CompactionBoundarySnapshot | null;
+  prompt?: string | null;
+}
+
 export type RuntimeAgentsTemplateTarget =
   | "global"
   | "workspace"

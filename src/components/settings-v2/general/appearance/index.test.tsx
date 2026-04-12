@@ -199,7 +199,7 @@ describe("AppearanceSettings", () => {
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual(["terminal", "tools"]);
+    expect(savedConfig.navigation.enabled_items).toEqual(["tools"]);
     expect(
       savedConfig.workspace_preferences.media_defaults.voice
         .preferredProviderId,
@@ -219,7 +219,7 @@ describe("AppearanceSettings", () => {
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual(["terminal", "tools"]);
+    expect(savedConfig.navigation.enabled_items).toEqual(["tools"]);
   });
 
   it("缺少导航配置时应回退到底部默认入口", async () => {
@@ -242,7 +242,30 @@ describe("AppearanceSettings", () => {
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual(["terminal", "tools"]);
+    expect(savedConfig.navigation.enabled_items).toEqual(["tools"]);
+  });
+
+  it("应允许把所有可选侧栏入口恢复为默认隐藏", async () => {
+    mockGetConfig.mockResolvedValue({
+      ...createMockConfig(),
+      navigation: {
+        enabled_items: ["tools"],
+      },
+    });
+
+    const { container } = await renderPage();
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("工具箱"),
+    );
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
+
+    expect(savedConfig.navigation.enabled_items).toEqual([]);
   });
 
   it("应把首屏和基础外观说明收进 tips", async () => {

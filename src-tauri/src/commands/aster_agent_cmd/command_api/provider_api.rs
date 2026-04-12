@@ -42,6 +42,7 @@ pub async fn aster_agent_configure_provider(
     mut request: ConfigureProviderRequest,
     session_id: String,
 ) -> Result<AsterAgentStatus, String> {
+    ensure_provider_runtime_ready(&request).await?;
     let runtime_tool_call_decision =
         enrich_provider_config_with_runtime_tool_strategy(&mut request).await;
     tracing::info!(

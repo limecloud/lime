@@ -95,15 +95,15 @@ describe("TeamSelectorPanel", () => {
     vi.clearAllMocks();
   });
 
-  it("不应再展示模型生成 Team 入口", async () => {
+  it("不应再展示模型生成分工入口", async () => {
     const { container } = renderPanel();
 
     await flushEffects();
 
-    expect(container.textContent).not.toContain("模型生成 Team");
+    expect(container.textContent).not.toContain("模型生成分工");
   });
 
-  it("应保存自定义 Team 的 profileId、roleKey 与 skillIds", async () => {
+  it("应保存自定义分工的 profileId、roleKey 与 skillIds", async () => {
     const onSelectTeam = vi.fn();
     const selectedTeam = createTeamDefinitionFromPreset(
       "code-triage-team",
@@ -116,7 +116,7 @@ describe("TeamSelectorPanel", () => {
     await flushEffects();
 
     const createButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("新建自定义 Team"),
+      (button) => button.textContent?.includes("新建自定义分工"),
     );
 
     expect(createButton).toBeTruthy();
@@ -147,7 +147,7 @@ describe("TeamSelectorPanel", () => {
     );
 
     const saveButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("保存 Team"),
+      (button) => button.textContent?.includes("保存分工"),
     );
 
     expect(saveButton).toBeTruthy();
@@ -173,7 +173,7 @@ describe("TeamSelectorPanel", () => {
     expect(mockToast.success).toHaveBeenCalled();
   });
 
-  it("项目级自定义 Team 应通过回调持久化", async () => {
+  it("项目级自定义分工应通过回调持久化", async () => {
     const onPersistCustomTeams = vi.fn().mockResolvedValue(undefined);
     const workspaceSettings: WorkspaceSettings = {
       agentTeam: {
@@ -201,10 +201,10 @@ describe("TeamSelectorPanel", () => {
     await flushEffects();
 
     expect(container.textContent).toContain("项目联调 Team");
-    expect(container.textContent).toContain("当前项目 Team");
+    expect(container.textContent).toContain("当前项目分工");
 
     const deleteButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("删除这个 Team"),
+      (button) => button.textContent?.includes("删除这套分工"),
     );
 
     expect(deleteButton).toBeTruthy();
@@ -219,7 +219,7 @@ describe("TeamSelectorPanel", () => {
     expect(mockToast.success).toHaveBeenCalled();
   });
 
-  it("命中稳妥模式模型时不应再展示 Team 横幅提示", async () => {
+  it("命中稳妥模式模型时不应再展示任务分工横幅提示", async () => {
     const { container } = renderPanel();
 
     await flushEffects();

@@ -366,9 +366,17 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     expect(getValue().pendingServiceSkillLaunchForm).toMatchObject({
       id: expect.stringContaining("service-skill-launch:github-repo-radar"),
       submitAction: expect.objectContaining({
-        label: "直接开始",
+        label: "继续当前结果",
       }),
     });
+    expect(getValue().pendingServiceSkillLaunchForm?.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: expect.stringContaining(":title"),
+          text: "继续「GitHub 仓库线索检索」前，先补齐做法所需信息",
+        }),
+      ]),
+    );
     expect(getValue().pendingServiceSkillLaunchSource).toEqual(
       expect.objectContaining({
         kind: "service_skill",

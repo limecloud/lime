@@ -36,8 +36,8 @@ interface TeamWorkspaceCanvasStageProps {
     event: ReactMouseEvent<HTMLSpanElement>,
   ) => void;
   onStartCanvasPan: (event: ReactMouseEvent<HTMLDivElement>) => void;
-  renderSelectedInlineDetail?: (lane: TeamWorkspaceCanvasLane) => ReactNode;
   selectedSessionId?: string | null;
+  selectedInlineDetail?: ReactNode;
   viewport: TeamWorkspaceCanvasLayoutState["viewport"];
   viewportRef: Ref<HTMLDivElement>;
 }
@@ -56,8 +56,8 @@ export function TeamWorkspaceCanvasStage({
   onStartCanvasLaneDrag,
   onStartCanvasLaneResize,
   onStartCanvasPan,
-  renderSelectedInlineDetail,
   selectedSessionId,
+  selectedInlineDetail,
   viewport,
   viewportRef,
 }: TeamWorkspaceCanvasStageProps) {
@@ -142,9 +142,7 @@ export function TeamWorkspaceCanvasStage({
                       onStartCanvasLaneResize(lane, direction, event)
                     }
                     selected={selected}
-                    selectedInlineDetail={
-                      expanded ? renderSelectedInlineDetail?.(lane) ?? null : null
-                    }
+                    selectedInlineDetail={expanded ? selectedInlineDetail : null}
                   />
                 );
               })}

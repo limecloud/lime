@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Clock3,
@@ -13,6 +13,24 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  prefetchContextMemoryForTurn,
+  type TurnMemoryPrefetchResult,
+} from "@/lib/api/memoryRuntime";
+import {
+  buildTeamMemoryShadowRequestMetadata,
+  type TeamMemorySnapshot,
+} from "@/lib/teamMemorySync";
+import {
+  assessRuntimeMemoryPrefetchHistoryDiff,
+  compareRuntimeMemoryPrefetchHistoryEntries,
+  describeRuntimeMemoryPrefetchHistoryDiffAssessment,
+  formatRuntimeMemoryPrefetchHistoryDiffStatusLabel,
+  recordRuntimeMemoryPrefetchHistory,
+  type RuntimeMemoryPrefetchHistoryDiff,
+  type RuntimeMemoryPrefetchHistoryDiffAssessment,
+  type RuntimeMemoryPrefetchHistoryEntry,
+} from "@/lib/runtimeMemoryPrefetchHistory";
 import { cn } from "@/lib/utils";
 import type {
   AgentRuntimeThreadReadModel,
@@ -30,11 +48,13 @@ import {
   type ThreadReliabilityTone,
 } from "../utils/threadReliabilityView";
 import { AgentIncidentPanel } from "./AgentIncidentPanel";
+import { AgentThreadMemoryPrefetchPreview } from "./AgentThreadMemoryPrefetchPreview";
 import { AgentThreadOutcomeSummary } from "./AgentThreadOutcomeSummary";
 
 interface AgentThreadReliabilityDiagnosticContext {
   sessionId?: string | null;
   workspaceId?: string | null;
+  workingDir?: string | null;
   providerType?: string | null;
   model?: string | null;
   executionStrategy?: string | null;
@@ -56,10 +76,24 @@ interface AgentThreadReliabilityPanelProps {
   onReplayPendingRequest?: (requestId: string) => boolean | Promise<boolean>;
   onLocatePendingRequest?: (requestId: string) => void;
   onPromoteQueuedTurn?: (queuedTurnId: string) => boolean | Promise<boolean>;
+  onOpenMemoryWorkbench?: () => void;
   className?: string;
   harnessState?: HarnessSessionState | null;
   messages?: Message[];
+  teamMemorySnapshot?: TeamMemorySnapshot | null;
   diagnosticRuntimeContext?: AgentThreadReliabilityDiagnosticContext | null;
+}
+
+interface RuntimeMemoryPrefetchState {
+  status: "idle" | "loading" | "ready" | "error";
+  result: TurnMemoryPrefetchResult | null;
+  error: string | null;
+}
+
+interface RuntimeMemoryPrefetchComparisonState {
+  baselineEntry: RuntimeMemoryPrefetchHistoryEntry | null;
+  diff: RuntimeMemoryPrefetchHistoryDiff | null;
+  assessment: RuntimeMemoryPrefetchHistoryDiffAssessment | null;
 }
 
 function serializeClipboardPayload(value: unknown): string {
@@ -86,6 +120,35 @@ function truncateDiagnosticText(
     return normalized;
   }
   return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function parseDiagnosticDate(value?: string | number | null): Date | null {
+  if (typeof value === "number") {
+    const normalizedValue = value > 10_000_000_000 ? value : value * 1000;
+    const date = new Date(normalizedValue);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  return null;
+}
+
+function formatDiagnosticDateTime(value?: string | number | null): string | null {
+  const date = parseDiagnosticDate(value);
+  if (!date) {
+    return null;
+  }
+
+  return date.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function summarizeThreadItemSignals(threadItems: AgentThreadItem[]) {
@@ -285,6 +348,173 @@ function resolveStatShellClassName(tone: ThreadReliabilityTone) {
   }
 }
 
+function buildMemoryPrefetchDiagnosticLines(
+  memoryPrefetchState?: RuntimeMemoryPrefetchState,
+): string[] {
+  if (memoryPrefetchState?.result) {
+    const prefetch = memoryPrefetchState.result;
+    const sections = [
+      `- 规则层：${prefetch.rules_source_paths.length} 个来源`,
+      `- 工作层：${prefetch.working_memory_excerpt ? "已命中" : "未命中"}`,
+      `- 持久层：${prefetch.durable_memories.length} 条`,
+      `- Team 层：${prefetch.team_memory_entries.length} 条`,
+      `- 压缩层：${prefetch.latest_compaction ? "已命中" : "未命中"}`,
+    ];
+
+    if (prefetch.rules_source_paths.length > 0) {
+      sections.push(
+        `- 规则来源：${prefetch.rules_source_paths
+          .slice(0, 3)
+          .map((path) => truncateDiagnosticText(path, 120))
+          .join("｜")}`,
+      );
+    }
+    if (prefetch.working_memory_excerpt) {
+      sections.push(
+        `- 工作记忆摘录：${truncateDiagnosticText(prefetch.working_memory_excerpt, 220)}`,
+      );
+    }
+    if (prefetch.durable_memories.length > 0) {
+      sections.push(
+        `- 持久记忆命中：${prefetch.durable_memories
+          .slice(0, 3)
+          .map((entry) => entry.title)
+          .join("｜")}`,
+      );
+      sections.push(
+        `- 持久记忆详情：${prefetch.durable_memories
+          .slice(0, 3)
+          .map(
+            (entry) =>
+              `${truncateDiagnosticText(entry.title, 80)}｜${truncateDiagnosticText(entry.summary, 120)}`,
+          )
+          .join(" || ")}`,
+      );
+    }
+    if (prefetch.team_memory_entries.length > 0) {
+      sections.push(
+        `- Team 影子键：${prefetch.team_memory_entries
+          .slice(0, 3)
+          .map((entry) => entry.key)
+          .join("｜")}`,
+      );
+      sections.push(
+        `- Team 影子详情：${prefetch.team_memory_entries
+          .slice(0, 3)
+          .map(
+            (entry) =>
+              `${truncateDiagnosticText(entry.key, 80)}｜${truncateDiagnosticText(entry.content, 120)}`,
+          )
+          .join(" || ")}`,
+      );
+    }
+    if (prefetch.latest_compaction) {
+      sections.push(
+        `- 压缩命中摘要：${truncateDiagnosticText(prefetch.latest_compaction.summary_preview, 180)}`,
+      );
+      sections.push(
+        `- 压缩命中元数据：触发=${prefetch.latest_compaction.trigger || "未知"}｜覆盖回合=${prefetch.latest_compaction.turn_count ?? "未知"}`,
+      );
+    }
+    if (prefetch.prompt) {
+      sections.push(
+        `- 运行时记忆片段：${truncateDiagnosticText(prefetch.prompt, 220)}`,
+      );
+    }
+
+    return sections;
+  }
+
+  if (memoryPrefetchState?.status === "loading") {
+    return ["- 正在按当前回合最新 prompt 预演五层记忆命中"];
+  }
+
+  if (memoryPrefetchState?.error) {
+    return [`- 失败：${memoryPrefetchState.error}`];
+  }
+
+  return ["- 无"];
+}
+
+function resolveMemoryPrefetchHistorySourceLabel(
+  source: RuntimeMemoryPrefetchHistoryEntry["source"],
+): string {
+  return source === "thread_reliability" ? "线程面板" : "记忆工作台";
+}
+
+function resolveMemoryPrefetchPreviewChangeLabel(
+  change: RuntimeMemoryPrefetchHistoryDiff["previewChanges"][number],
+): string {
+  switch (change.key) {
+    case "rule":
+      return `规则来源 ${change.previous || "无"} -> ${change.current || "无"}`;
+    case "working":
+      return `工作摘录 ${change.previous || "无"} -> ${change.current || "无"}`;
+    case "durable":
+      return `长期记忆 ${change.previous || "无"} -> ${change.current || "无"}`;
+    case "team":
+      return `Team 影子 ${change.previous || "无"} -> ${change.current || "无"}`;
+    case "compaction":
+      return `压缩摘要 ${change.previous || "无"} -> ${change.current || "无"}`;
+    case "user_message":
+      return `输入 ${change.previous || "无"} -> ${change.current || "无"}`;
+    default:
+      return `${change.previous || "无"} -> ${change.current || "无"}`;
+  }
+}
+
+function resolveMemoryPrefetchAssessmentBadgeClassName(
+  assessment: RuntimeMemoryPrefetchHistoryDiffAssessment,
+): string {
+  switch (assessment.status) {
+    case "stronger":
+      return "border-emerald-200 bg-white text-emerald-700";
+    case "weaker":
+      return "border-amber-200 bg-white text-amber-700";
+    case "mixed":
+      return "border-sky-200 bg-white text-sky-700";
+    case "same":
+    default:
+      return "border-slate-200 bg-white text-slate-700";
+  }
+}
+
+function resolveMemoryPrefetchComparison(
+  entries: RuntimeMemoryPrefetchHistoryEntry[],
+  currentWorkingDir: string,
+): RuntimeMemoryPrefetchComparisonState {
+  const currentEntry = entries[0];
+  if (!currentEntry) {
+    return {
+      baselineEntry: null,
+      diff: null,
+      assessment: null,
+    };
+  }
+
+  const normalizedCurrentWorkingDir =
+    currentWorkingDir.trim().replace(/\\/g, "/").replace(/\/+$/u, "");
+  const candidates = entries.slice(1);
+  const baselineEntry =
+    candidates.find((entry) => entry.sessionId === currentEntry.sessionId) ||
+    candidates.find(
+      (entry) =>
+        entry.workingDir.replace(/\\/g, "/").replace(/\/+$/u, "") ===
+        normalizedCurrentWorkingDir,
+    ) ||
+    candidates[0] ||
+    null;
+  const diff = baselineEntry
+    ? compareRuntimeMemoryPrefetchHistoryEntries(currentEntry, baselineEntry)
+    : null;
+
+  return {
+    baselineEntry,
+    diff,
+    assessment: diff ? assessRuntimeMemoryPrefetchHistoryDiff(diff) : null,
+  };
+}
+
 function buildReliabilityDiagnosticText(params: {
   threadRead?: AgentRuntimeThreadReadModel | null;
   statusLabel: string;
@@ -293,6 +523,8 @@ function buildReliabilityDiagnosticText(params: {
   threadItems: AgentThreadItem[];
   messages: Message[];
   harnessState?: HarnessSessionState | null;
+  memoryPrefetchState?: RuntimeMemoryPrefetchState;
+  memoryPrefetchComparison?: RuntimeMemoryPrefetchComparisonState;
   diagnosticRuntimeContext?: AgentThreadReliabilityDiagnosticContext | null;
 }): string {
   const {
@@ -303,6 +535,8 @@ function buildReliabilityDiagnosticText(params: {
     threadItems,
     messages,
     harnessState,
+    memoryPrefetchState,
+    memoryPrefetchComparison,
     diagnosticRuntimeContext,
   } = params;
   const threadItemSignals = summarizeThreadItemSignals(threadItems);
@@ -341,6 +575,7 @@ function buildReliabilityDiagnosticText(params: {
     `- 执行策略：${diagnosticRuntimeContext?.executionStrategy || "未知"}`,
     `- 主题：${diagnosticRuntimeContext?.activeTheme || "未知"}`,
     `- 协作方案：${diagnosticRuntimeContext?.selectedTeamLabel || "未设置"}`,
+    `- 工作区根目录：${diagnosticRuntimeContext?.workingDir || "未知"}`,
     "",
     "### 当前状态",
     `- 状态：${statusLabel}`,
@@ -453,6 +688,68 @@ function buildReliabilityDiagnosticText(params: {
     }
   } else {
     sections.push("- 无");
+  }
+
+  sections.push("", "### 最近压缩边界");
+  if (threadRead?.latest_compaction_boundary) {
+    const boundary = threadRead.latest_compaction_boundary;
+    sections.push(`- 生成时间：${boundary.created_at || "未知"}`);
+    sections.push(`- 覆盖回合数：${boundary.turn_count ?? "未知"}`);
+    sections.push(`- 触发原因：${boundary.trigger || "未知"}`);
+    sections.push(
+      `- 边界摘要：${boundary.summary_preview || "无摘要预览"}`,
+    );
+    sections.push(`- 压缩备注：${boundary.detail || "无"}`);
+  } else {
+    sections.push("- 无");
+  }
+
+  sections.push("", "### 当前回合记忆预取");
+  sections.push(...buildMemoryPrefetchDiagnosticLines(memoryPrefetchState));
+
+  sections.push("", "### 相对最近基线的记忆变化");
+  if (memoryPrefetchComparison?.baselineEntry && memoryPrefetchComparison.diff) {
+    sections.push(
+      `- 基线来源：${resolveMemoryPrefetchHistorySourceLabel(memoryPrefetchComparison.baselineEntry.source)}`,
+    );
+    sections.push(
+      `- 基线输入：${memoryPrefetchComparison.baselineEntry.userMessage || "无"}`,
+    );
+    sections.push(
+      `- 基线摘要：${truncateDiagnosticText(
+        memoryPrefetchComparison.baselineEntry.preview.durableTitle ||
+          memoryPrefetchComparison.baselineEntry.preview.workingExcerpt ||
+          memoryPrefetchComparison.baselineEntry.preview.compactionSummary ||
+          memoryPrefetchComparison.baselineEntry.preview.firstRuleSourcePath ||
+          memoryPrefetchComparison.baselineEntry.preview.teamKey,
+        180,
+      ) || "无"}`,
+    );
+    if (memoryPrefetchComparison.assessment) {
+      sections.push(
+        `- 对照判断：${formatRuntimeMemoryPrefetchHistoryDiffStatusLabel(memoryPrefetchComparison.assessment.status)}`,
+      );
+      sections.push(
+        `- 对照结论：${describeRuntimeMemoryPrefetchHistoryDiffAssessment(memoryPrefetchComparison.assessment)}`,
+      );
+    }
+    if (memoryPrefetchComparison.diff.changed) {
+      sections.push(
+        `- 层变化：规则 ${memoryPrefetchComparison.diff.layerChanges.rulesDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.rulesDelta}｜工作 ${memoryPrefetchComparison.diff.layerChanges.workingChanged}｜持久 ${memoryPrefetchComparison.diff.layerChanges.durableDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.durableDelta}｜Team ${memoryPrefetchComparison.diff.layerChanges.teamDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.teamDelta}｜压缩 ${memoryPrefetchComparison.diff.layerChanges.compactionChanged}`,
+      );
+      if (memoryPrefetchComparison.diff.previewChanges.length > 0) {
+        sections.push(
+          `- 摘要变化：${memoryPrefetchComparison.diff.previewChanges
+            .slice(0, 4)
+            .map((change) => resolveMemoryPrefetchPreviewChangeLabel(change))
+            .join(" || ")}`,
+        );
+      }
+    } else {
+      sections.push("- 与最近基线相比没有明显变化");
+    }
+  } else {
+    sections.push("- 暂无可对照的历史基线");
   }
 
   sections.push("", "### 后端诊断聚合");
@@ -571,12 +868,25 @@ function buildReliabilityRawPayload(params: {
   view: ReturnType<typeof buildThreadReliabilityView>;
   harnessState?: HarnessSessionState | null;
   messages: Message[];
+  memoryPrefetchState?: RuntimeMemoryPrefetchState;
+  memoryPrefetchComparison?: RuntimeMemoryPrefetchComparisonState;
   diagnosticRuntimeContext?: AgentThreadReliabilityDiagnosticContext | null;
 }): Record<string, unknown> {
   return {
     exported_at: new Date().toISOString(),
     runtime_context: params.diagnosticRuntimeContext || null,
     backend_diagnostics: params.threadRead?.diagnostics || null,
+    latest_compaction_boundary:
+      params.threadRead?.latest_compaction_boundary || null,
+    memory_prefetch_preview: params.memoryPrefetchState?.result || null,
+    memory_prefetch_error: params.memoryPrefetchState?.error || null,
+    memory_prefetch_comparison: params.memoryPrefetchComparison
+      ? {
+          baseline_entry: params.memoryPrefetchComparison.baselineEntry,
+          diff: params.memoryPrefetchComparison.diff,
+          assessment: params.memoryPrefetchComparison.assessment,
+        }
+      : null,
     current_turn_id: params.currentTurnId || null,
     thread_read: params.threadRead || null,
     turns: params.turns,
@@ -607,15 +917,29 @@ export const AgentThreadReliabilityPanel: React.FC<
   onReplayPendingRequest,
   onLocatePendingRequest,
   onPromoteQueuedTurn,
+  onOpenMemoryWorkbench,
   className,
   harnessState = null,
   messages = [],
+  teamMemorySnapshot = null,
   diagnosticRuntimeContext = null,
 }) => {
   const [isInterrupting, setIsInterrupting] = useState(false);
   const [isResumingThread, setIsResumingThread] = useState(false);
   const [isReplayingRequest, setIsReplayingRequest] = useState(false);
   const [isPromotingQueuedTurn, setIsPromotingQueuedTurn] = useState(false);
+  const [memoryPrefetchState, setMemoryPrefetchState] =
+    useState<RuntimeMemoryPrefetchState>({
+      status: "idle",
+      result: null,
+      error: null,
+    });
+  const [memoryPrefetchComparison, setMemoryPrefetchComparison] =
+    useState<RuntimeMemoryPrefetchComparisonState>({
+      baselineEntry: null,
+      diff: null,
+      assessment: null,
+    });
   const view = useMemo(
     () =>
       buildThreadReliabilityView({
@@ -642,6 +966,130 @@ export const AgentThreadReliabilityPanel: React.FC<
   const summary = isInterrupting
     ? "正在请求停止当前执行，等待运行时确认最新线程状态。"
     : view.summary;
+  const latestCompactionBoundary = threadRead?.latest_compaction_boundary || null;
+  const latestCompactionCreatedLabel = formatDiagnosticDateTime(
+    latestCompactionBoundary?.created_at,
+  );
+  const latestCompactionDetail = truncateDiagnosticText(
+    latestCompactionBoundary?.detail,
+    160,
+  );
+  const latestCompactionSummary =
+    latestCompactionBoundary?.summary_preview || "已生成压缩摘要预览";
+  const latestTurnPrompt = useMemo(() => {
+    const activeTurn =
+      turns.find((turn) => turn.id === currentTurnId) || turns[turns.length - 1];
+    return activeTurn?.prompt_text?.trim() || "";
+  }, [currentTurnId, turns]);
+  const teamMemoryShadowMetadata = useMemo(
+    () => buildTeamMemoryShadowRequestMetadata(teamMemorySnapshot),
+    [teamMemorySnapshot],
+  );
+  const teamMemoryShadowKey = useMemo(() => {
+    if (!teamMemoryShadowMetadata) {
+      return "";
+    }
+    return [
+      teamMemoryShadowMetadata.repo_scope,
+      ...teamMemoryShadowMetadata.entries.map(
+        (entry) => `${entry.key}:${entry.updated_at}`,
+      ),
+    ].join("|");
+  }, [teamMemoryShadowMetadata]);
+  const diagnosticSessionId = diagnosticRuntimeContext?.sessionId?.trim() || "";
+  const diagnosticWorkingDir = diagnosticRuntimeContext?.workingDir?.trim() || "";
+
+  useEffect(() => {
+    if (!diagnosticSessionId) {
+      setMemoryPrefetchState({ status: "idle", result: null, error: null });
+      setMemoryPrefetchComparison({
+        baselineEntry: null,
+        diff: null,
+        assessment: null,
+      });
+      return;
+    }
+    if (!diagnosticWorkingDir) {
+      setMemoryPrefetchState({
+        status: "error",
+        result: null,
+        error:
+          "当前未绑定工作区，暂时无法预演 rules / working / durable / compaction 记忆命中。",
+      });
+      setMemoryPrefetchComparison({
+        baselineEntry: null,
+        diff: null,
+        assessment: null,
+      });
+      return;
+    }
+
+    let cancelled = false;
+    setMemoryPrefetchState({
+      status: "loading",
+      result: null,
+      error: null,
+    });
+
+    void prefetchContextMemoryForTurn({
+      session_id: diagnosticSessionId,
+      working_dir: diagnosticWorkingDir,
+      user_message: latestTurnPrompt,
+      request_metadata: teamMemoryShadowMetadata
+        ? {
+            team_memory_shadow: teamMemoryShadowMetadata,
+          }
+        : undefined,
+    })
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        const historyEntries = recordRuntimeMemoryPrefetchHistory({
+          sessionId: diagnosticSessionId,
+          workingDir: diagnosticWorkingDir,
+          userMessage: latestTurnPrompt || null,
+          source: "thread_reliability",
+          result,
+        });
+        setMemoryPrefetchComparison(
+          resolveMemoryPrefetchComparison(historyEntries, diagnosticWorkingDir),
+        );
+        setMemoryPrefetchState({
+          status: "ready",
+          result,
+          error: null,
+        });
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setMemoryPrefetchState({
+          status: "error",
+          result: null,
+          error:
+            error instanceof Error
+              ? error.message
+              : "记忆预取失败，请稍后重试",
+        });
+        setMemoryPrefetchComparison({
+          baselineEntry: null,
+          diff: null,
+          assessment: null,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    diagnosticSessionId,
+    diagnosticWorkingDir,
+    latestTurnPrompt,
+    teamMemoryShadowKey,
+    teamMemoryShadowMetadata,
+  ]);
 
   if (!view.shouldRender) {
     return null;
@@ -725,6 +1173,8 @@ export const AgentThreadReliabilityPanel: React.FC<
           threadItems,
           messages,
           harnessState,
+          memoryPrefetchState,
+          memoryPrefetchComparison,
           diagnosticRuntimeContext,
         }),
       );
@@ -756,6 +1206,8 @@ export const AgentThreadReliabilityPanel: React.FC<
             view,
             harnessState,
             messages,
+            memoryPrefetchState,
+            memoryPrefetchComparison,
             diagnosticRuntimeContext,
           }),
         ),
@@ -843,7 +1295,7 @@ export const AgentThreadReliabilityPanel: React.FC<
       </div>
       <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-[11px] leading-5 text-amber-900">
         当前入口属于 `compat` 线程级快速诊断，只覆盖当前 thread 的运行信号。
-        正式交给外部 Claude / Codex 分析时，请优先使用工作台“交接制品 →
+        正式交给外部模型分析时，请优先使用工作台“交接制品 →
         外部分析交接”的 `analysis-brief.md / analysis-context.json`
         主链；这里的“快速复制给 AI”只适合临时排障，“复制原始
         JSON（debug）”适合程序化分析、存档或二次处理。
@@ -1116,6 +1568,194 @@ export const AgentThreadReliabilityPanel: React.FC<
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      ) : null}
+
+      {diagnosticSessionId ? (
+        <AgentThreadMemoryPrefetchPreview
+          status={memoryPrefetchState.status}
+          result={memoryPrefetchState.result}
+          error={memoryPrefetchState.error}
+          actions={
+            onOpenMemoryWorkbench ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onOpenMemoryWorkbench}
+                className="h-8 rounded-full border-sky-300 bg-white text-sky-700 hover:bg-sky-50"
+              >
+                在记忆工作台查看
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : null}
+
+      {memoryPrefetchState.status === "ready" &&
+      memoryPrefetchComparison.baselineEntry &&
+      memoryPrefetchComparison.diff ? (
+        <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-sm font-medium text-sky-900">
+              相对最近基线
+            </div>
+            <Badge
+              variant="outline"
+              className="border-sky-200 bg-white text-sky-700"
+            >
+              {resolveMemoryPrefetchHistorySourceLabel(
+                memoryPrefetchComparison.baselineEntry.source,
+              )}
+            </Badge>
+            <span className="text-xs text-sky-800">
+              {formatDiagnosticDateTime(
+                memoryPrefetchComparison.baselineEntry.capturedAt,
+              ) || "未知时间"}
+            </span>
+          </div>
+          {memoryPrefetchComparison.baselineEntry.userMessage ? (
+            <div className="mt-2 text-sm leading-6 text-sky-950">
+              基线输入：{memoryPrefetchComparison.baselineEntry.userMessage}
+            </div>
+          ) : null}
+          {memoryPrefetchComparison.assessment ? (
+            <div className="mt-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={resolveMemoryPrefetchAssessmentBadgeClassName(
+                    memoryPrefetchComparison.assessment,
+                  )}
+                >
+                  {formatRuntimeMemoryPrefetchHistoryDiffStatusLabel(
+                    memoryPrefetchComparison.assessment.status,
+                  )}
+                </Badge>
+                <span className="text-sm leading-6 text-sky-950">
+                  {describeRuntimeMemoryPrefetchHistoryDiffAssessment(
+                    memoryPrefetchComparison.assessment,
+                  )}
+                </span>
+              </div>
+            </div>
+          ) : null}
+          {memoryPrefetchComparison.diff.changed ? (
+            <>
+              <div className="mt-3 text-xs font-medium text-sky-700">
+                具体变化
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {memoryPrefetchComparison.diff.layerChanges.rulesDelta !== 0 ? (
+                  <Badge
+                    variant="outline"
+                    className="border-sky-200 bg-white text-sky-700"
+                  >
+                    规则{" "}
+                    {memoryPrefetchComparison.diff.layerChanges.rulesDelta > 0 ? "+" : ""}
+                    {memoryPrefetchComparison.diff.layerChanges.rulesDelta}
+                  </Badge>
+                ) : null}
+                {memoryPrefetchComparison.diff.layerChanges.workingChanged !== "same" ? (
+                  <Badge
+                    variant="outline"
+                    className="border-sky-200 bg-white text-sky-700"
+                  >
+                    工作
+                    {memoryPrefetchComparison.diff.layerChanges.workingChanged === "added"
+                      ? " 新命中"
+                      : " 取消命中"}
+                  </Badge>
+                ) : null}
+                {memoryPrefetchComparison.diff.layerChanges.durableDelta !== 0 ? (
+                  <Badge
+                    variant="outline"
+                    className="border-sky-200 bg-white text-sky-700"
+                  >
+                    持久{" "}
+                    {memoryPrefetchComparison.diff.layerChanges.durableDelta > 0 ? "+" : ""}
+                    {memoryPrefetchComparison.diff.layerChanges.durableDelta}
+                  </Badge>
+                ) : null}
+                {memoryPrefetchComparison.diff.layerChanges.teamDelta !== 0 ? (
+                  <Badge
+                    variant="outline"
+                    className="border-sky-200 bg-white text-sky-700"
+                  >
+                    Team{" "}
+                    {memoryPrefetchComparison.diff.layerChanges.teamDelta > 0 ? "+" : ""}
+                    {memoryPrefetchComparison.diff.layerChanges.teamDelta}
+                  </Badge>
+                ) : null}
+                {memoryPrefetchComparison.diff.layerChanges.compactionChanged !== "same" ? (
+                  <Badge
+                    variant="outline"
+                    className="border-sky-200 bg-white text-sky-700"
+                  >
+                    压缩
+                    {memoryPrefetchComparison.diff.layerChanges.compactionChanged === "added"
+                      ? " 新命中"
+                      : " 取消命中"}
+                  </Badge>
+                ) : null}
+              </div>
+              {memoryPrefetchComparison.diff.previewChanges.length > 0 ? (
+                <div className="mt-3 space-y-1.5 text-sm leading-6 text-sky-950">
+                  {memoryPrefetchComparison.diff.previewChanges
+                    .slice(0, 3)
+                    .map((change, index) => (
+                      <p key={`${change.key}:${index}`}>
+                        {resolveMemoryPrefetchPreviewChangeLabel(change)}
+                      </p>
+                    ))}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="mt-2 text-sm leading-6 text-sky-950">
+              当前回合与最近基线相比没有明显变化。
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {latestCompactionBoundary ? (
+        <div
+          className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3"
+          data-testid="agent-thread-reliability-compaction-boundary"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-sm font-medium text-emerald-900">
+              最近压缩边界
+            </div>
+            {latestCompactionBoundary.trigger ? (
+              <Badge
+                variant="outline"
+                className="border-emerald-300 bg-white text-emerald-700"
+              >
+                {latestCompactionBoundary.trigger}
+              </Badge>
+            ) : null}
+            {typeof latestCompactionBoundary.turn_count === "number" ? (
+              <Badge
+                variant="outline"
+                className="border-emerald-300 bg-white text-emerald-700"
+              >
+                覆盖 {latestCompactionBoundary.turn_count} 回合
+              </Badge>
+            ) : null}
+          </div>
+          <div className="mt-2 text-sm leading-6 text-emerald-950">
+            {latestCompactionSummary}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-emerald-800">
+            <span title={String(latestCompactionBoundary.created_at)}>
+              生成时间 {latestCompactionCreatedLabel || "未知"}
+            </span>
+            {latestCompactionDetail ? (
+              <span>压缩备注 {latestCompactionDetail}</span>
+            ) : null}
           </div>
         </div>
       ) : null}

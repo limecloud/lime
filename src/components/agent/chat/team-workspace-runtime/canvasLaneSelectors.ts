@@ -229,10 +229,10 @@ function buildCanvasLaneTitleSummary(
           : member.status === "completed"
             ? "这一步已经完成"
             : member.status === "failed"
-              ? "这一步需要重试"
-              : member.sessionId
-                ? "已连接到真实成员"
-                : "等待协作成员加入";
+                ? "这一步需要重试"
+                : member.sessionId
+                  ? "已连接到真实成员"
+                : "等待成员接入";
 
   return {
     badgeLabel: memberMeta.label,

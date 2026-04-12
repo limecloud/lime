@@ -3,6 +3,7 @@ export interface EntryRecommendedSolutionItem {
   title: string;
   summary: string;
   outputHint: string;
+  categoryLabel: string;
   prompt: string;
   badge: string;
   actionLabel: string;
@@ -26,6 +27,7 @@ interface EntryRecommendedSolutionDefinition {
   title: string;
   summary: string;
   outputHint: string;
+  categoryLabel: string;
   prompt: string;
   themeTarget?: string;
   shouldEnableWebSearch?: boolean;
@@ -44,6 +46,7 @@ const ENTRY_RECOMMENDED_SOLUTIONS: EntryRecommendedSolutionDefinition[] = [
     summary:
       "快速整理调研范围、关键信息与结论框架，适合先把研究任务落成一版结构化简报。",
     outputHint: "研究提纲 + 结论简报",
+    categoryLabel: "研究与采集",
     prompt:
       "请围绕这个主题先给我做一版网页研究简报：明确研究目标、关键信息来源、核心发现、风险点，以及接下来最值得继续追踪的问题。",
     shouldEnableWebSearch: true,
@@ -54,6 +57,7 @@ const ENTRY_RECOMMENDED_SOLUTIONS: EntryRecommendedSolutionDefinition[] = [
     summary:
       "围绕目标受众、表达结构和关键信息，先生成一版可继续迭代的内容首稿。",
     outputHint: "内容首稿 + 结构提纲",
+    categoryLabel: "写作与方案",
     prompt:
       "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构和可继续扩写的角度。",
   },
@@ -63,6 +67,7 @@ const ENTRY_RECOMMENDED_SOLUTIONS: EntryRecommendedSolutionDefinition[] = [
     summary:
       "快速产出信息架构、关键模块与页面关系，适合产品概念、后台台架或工作台原型讨论。",
     outputHint: "IA + 模块方案",
+    categoryLabel: "写作与方案",
     prompt:
       "请帮我先整理一版前端概念方案：输出信息架构、核心页面、关键模块、交互流程和第一轮组件拆分建议。",
   },
@@ -72,6 +77,7 @@ const ENTRY_RECOMMENDED_SOLUTIONS: EntryRecommendedSolutionDefinition[] = [
     summary:
       "先拿到一版可讲述的演示结构，覆盖封面、问题、观点、案例与行动建议。",
     outputHint: "PPT 大纲 + 讲述线",
+    categoryLabel: "写作与方案",
     prompt:
       "请基于这个目标先生成一版演示提纲：包含封面定位、目录、核心论点、案例支撑、结论和下一步行动。",
   },
@@ -81,6 +87,7 @@ const ENTRY_RECOMMENDED_SOLUTIONS: EntryRecommendedSolutionDefinition[] = [
     summary:
       "适合登录、表单、网页操作和信息采集，起始动作会先写进当前对话，再按需准备浏览器连接。",
     outputHint: "浏览器任务起步",
+    categoryLabel: "研究与采集",
     prompt:
       "请协助我完成一个浏览器任务：先明确目标网页、目标动作、约束条件和预期结果，并在当前对话里继续执行。",
     shouldLaunchBrowserAssist: true,
@@ -91,6 +98,7 @@ const ENTRY_RECOMMENDED_SOLUTIONS: EntryRecommendedSolutionDefinition[] = [
     summary:
       "适合需要并行调研、方案拆解或多角色协作的任务，进入后默认启用 team runtime 偏好。",
     outputHint: "任务拆解 + 分工执行",
+    categoryLabel: "多步骤执行",
     prompt:
       "请把这个任务按多代理方式拆解：先定义目标和约束，再拆成并行子任务，明确每个子代理的职责、产出和回收方式。",
     shouldEnableTeamMode: true,
@@ -153,26 +161,13 @@ function getEntryRecommendedSolutionUsageMap(): Map<
 }
 
 function resolveEntryRecommendedSolutionBadge(
-  solutionId: string,
+  solution: EntryRecommendedSolutionDefinition,
   isRecent: boolean,
 ): string {
   if (isRecent) {
     return "最近使用";
   }
-
-  if (solutionId === "social-post-starter") {
-    return "内容方案";
-  }
-
-  if (solutionId === "browser-assist-task") {
-    return "浏览器接入";
-  }
-
-  if (solutionId === "team-breakdown") {
-    return "多代理";
-  }
-
-  return "Claw 方案";
+  return solution.categoryLabel;
 }
 
 export function listEntryRecommendedSolutions(): EntryRecommendedSolutionItem[] {
@@ -185,7 +180,7 @@ export function listEntryRecommendedSolutions(): EntryRecommendedSolutionItem[] 
     return {
       ...solution,
       badge: resolveEntryRecommendedSolutionBadge(
-        solution.id,
+        solution,
         typeof recentUsedAt === "number",
       ),
       actionLabel: "立即开始",

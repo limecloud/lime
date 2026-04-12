@@ -5,6 +5,7 @@ import {
   buildTeamMemorySyncPlan,
   getTeamMemoryStorageKey,
   hashTeamMemoryContent,
+  listTeamMemorySnapshots,
   normalizeTeamMemoryRepoScope,
   readTeamMemorySnapshot,
   scanTeamMemorySecrets,
@@ -19,6 +20,12 @@ function createMemoryStorage() {
     },
     setItem(key: string, value: string) {
       store.set(key, value);
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    get length() {
+      return store.size;
     },
   };
 }
@@ -55,6 +62,35 @@ describe("teamMemorySync", () => {
         },
       },
     });
+  });
+
+  it("应能列出并按最近更新时间排序所有 team memory 快照", () => {
+    const storage = createMemoryStorage();
+    writeTeamMemorySnapshot(storage, {
+      repoScope: "/tmp/repo-a",
+      entries: {
+        a: {
+          key: "a",
+          content: "较早快照",
+          updatedAt: 1,
+        },
+      },
+    });
+    writeTeamMemorySnapshot(storage, {
+      repoScope: "/tmp/repo-b",
+      entries: {
+        b: {
+          key: "b",
+          content: "较新快照",
+          updatedAt: 9,
+        },
+      },
+    });
+
+    expect(listTeamMemorySnapshots(storage).map((snapshot) => snapshot.repoScope)).toEqual([
+      "/tmp/repo-b",
+      "/tmp/repo-a",
+    ]);
   });
 
   it("应把快照压成稳定的 team_memory_shadow request metadata", () => {

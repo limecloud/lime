@@ -12,13 +12,19 @@ import { parseA2UIJson } from "@/lib/workspace/a2ui";
 import type { A2UIFormData } from "@/lib/workspace/a2ui";
 import { CHAT_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
 import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
+import { readFilePreview } from "@/lib/api/fileBrowser";
 import { resolveMarkdownImageSrc } from "@/lib/markdown/resolveMarkdownImageSrc";
+import {
+  parseMarkdownBundleImageOverrides,
+  resolveMarkdownBundleMetaPath,
+} from "@/lib/markdown/markdownBundleMeta";
 import { ArtifactPlaceholder } from "./ArtifactPlaceholder";
 import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
 
 const STREAMING_LIGHT_RENDER_THRESHOLD = 2_000;
 const STREAMING_LIGHT_RENDER_DEBOUNCE_MS = 48;
 const STREAMING_STANDARD_RENDER_DEBOUNCE_MS = 24;
+const MARKDOWN_BUNDLE_META_MAX_SIZE = 64 * 1024;
 const CODE_BLOCK_SURFACE = "#f8fafc";
 const CODE_BLOCK_SURFACE_ACCENT =
   "linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.98) 100%)";
@@ -570,6 +576,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
     onQuoteContent,
   }) => {
     const [copied, setCopied] = React.useState<string | null>(null);
+    const [bundleImageOverrides, setBundleImageOverrides] = React.useState<
+      Record<string, string>
+    >({});
     const copyTimeoutRef = React.useRef<number | null>(null);
     const blockRef = React.useRef<HTMLDivElement | null>(null);
     const selectionSnapshotRef = React.useRef<string | null>(null);
@@ -598,14 +607,65 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
       () => (useLightweightStreamingRender ? [] : [rehypeRaw, rehypeKatex]),
       [useLightweightStreamingRender],
     );
+    const hasRemoteImageReferences = React.useMemo(
+      () => /https?:\/\//i.test(content),
+      [content],
+    );
+
+    React.useEffect(() => {
+      const metaPath = resolveMarkdownBundleMetaPath(baseFilePath);
+      if (!metaPath || !hasRemoteImageReferences) {
+        setBundleImageOverrides((previous) =>
+          Object.keys(previous).length === 0 ? previous : {},
+        );
+        return;
+      }
+
+      let cancelled = false;
+      void (async () => {
+        try {
+          const preview = await readFilePreview(
+            metaPath,
+            MARKDOWN_BUNDLE_META_MAX_SIZE,
+          );
+          if (cancelled) {
+            return;
+          }
+
+          if (
+            preview.error ||
+            preview.isBinary ||
+            typeof preview.content !== "string"
+          ) {
+            setBundleImageOverrides({});
+            return;
+          }
+
+          setBundleImageOverrides(
+            parseMarkdownBundleImageOverrides(preview.content),
+          );
+        } catch {
+          if (!cancelled) {
+            setBundleImageOverrides({});
+          }
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [baseFilePath, hasRemoteImageReferences]);
+
     const resolveImageSrc = React.useCallback(
       (src?: string | null) => {
         if (typeof src !== "string") {
           return "";
         }
-        return resolveMarkdownImageSrc(src, baseFilePath);
+        const normalizedSrc = src.trim();
+        const overriddenSrc = bundleImageOverrides[normalizedSrc] || normalizedSrc;
+        return resolveMarkdownImageSrc(overriddenSrc, baseFilePath);
       },
-      [baseFilePath],
+      [baseFilePath, bundleImageOverrides],
     );
 
     React.useEffect(() => {

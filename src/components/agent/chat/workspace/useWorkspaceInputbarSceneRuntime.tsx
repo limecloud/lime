@@ -76,12 +76,16 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   setModel: InputbarParams["setModel"];
   sessionExecutionRuntime: InputbarParams["executionRuntime"];
   projectId: string | null | undefined;
+  projectRootPath: string | null | undefined;
   executionStrategy: InputbarParams["executionStrategy"];
   setExecutionStrategy: InputbarParams["setExecutionStrategy"];
   accessMode: InputbarParams["accessMode"];
   setAccessMode: InputbarParams["setAccessMode"];
   activeTheme: InputbarParams["activeTheme"];
-  navigationActions: Pick<NavigationActions, "handleManageProviders">;
+  navigationActions: Pick<
+    NavigationActions,
+    "handleManageProviders" | "handleOpenRuntimeMemoryWorkbench"
+  >;
   selectedTeam: InputbarParams["selectedTeam"];
   handleSelectTeam: InputbarParams["onSelectTeam"];
   handleEnableSuggestedTeam: InputbarParams["onEnableSuggestedTeam"];
@@ -164,6 +168,7 @@ export function useWorkspaceInputbarSceneRuntime({
   setModel,
   sessionExecutionRuntime,
   projectId,
+  projectRootPath,
   executionStrategy,
   setExecutionStrategy,
   accessMode,
@@ -232,6 +237,10 @@ export function useWorkspaceInputbarSceneRuntime({
     [setChatToolPreferences],
   );
   const dockLayoutMode = layoutMode === "chat" ? "chat" : "chat-canvas";
+  const latestTurnPrompt =
+    turns.find((turn) => turn.id === currentTurnId)?.prompt_text?.trim() ||
+    turns[turns.length - 1]?.prompt_text?.trim() ||
+    "";
 
   return useWorkspaceInputbarScenePresentation({
     setMentionedCharacters,
@@ -368,9 +377,19 @@ export function useWorkspaceInputbarSceneRuntime({
                 replayPendingAction(requestId, latestAssistantMessageId)
             : undefined,
         onPromoteQueuedTurn: promoteQueuedTurn,
+        onOpenMemoryWorkbench:
+          sessionIdForDiagnostics && projectRootPath
+            ? () =>
+                navigationActions.handleOpenRuntimeMemoryWorkbench({
+                  sessionId: sessionIdForDiagnostics,
+                  workingDir: projectRootPath,
+                  userMessage: latestTurnPrompt,
+                })
+            : undefined,
         diagnosticRuntimeContext: {
           sessionId: sessionIdForDiagnostics,
           workspaceId: projectId,
+          workingDir: projectRootPath || null,
           providerType:
             activeExecutionRuntime?.provider_selector || providerType || null,
           model: activeExecutionRuntime?.model_name || model || null,

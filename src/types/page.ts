@@ -112,6 +112,11 @@ export interface SettingsPageParams {
 
 export type MemoryPageSection =
   | "home"
+  | "rules"
+  | "working"
+  | "durable"
+  | "team"
+  | "compaction"
   | "identity"
   | "context"
   | "preference"
@@ -120,6 +125,9 @@ export type MemoryPageSection =
 
 export interface MemoryPageParams {
   section?: MemoryPageSection;
+  runtimeSessionId?: string;
+  runtimeWorkingDir?: string;
+  runtimeUserMessage?: string;
 }
 
 export interface SkillScaffoldDraft extends Record<string, unknown> {

@@ -112,7 +112,7 @@ describe("AppSidebar", () => {
     );
   });
 
-  it("旧导航配置未包含能力入口时也应显示固定能力分组和核心能力项", async () => {
+  it("旧导航配置未包含能力入口时也应显示固定能力分组和核心入口", async () => {
     mockGetConfig.mockResolvedValue({
       navigation: {
         enabled_items: ["home-general", "claw"],
@@ -127,13 +127,13 @@ describe("AppSidebar", () => {
     await flushEffects();
 
     expect(container.textContent).toContain("能力");
-    expect(container.textContent).toContain("技能");
+    expect(container.textContent).toContain("我的方法");
     expect(container.textContent).toContain("消息渠道");
     expect(container.textContent).toContain("资料");
     expect(container.textContent).toContain("资料库");
     expect(container.textContent).toContain("灵感库");
     expect(container.textContent).not.toContain("视频");
-    expect(container.textContent).not.toContain("自动化");
+    expect(container.textContent).not.toContain("持续流程");
   });
 
   it("进入消息渠道页时应高亮对应能力入口并保留能力分组标题", async () => {
@@ -148,6 +148,20 @@ describe("AppSidebar", () => {
         'button[aria-label="消息渠道"][aria-current="page"]',
       ),
     ).not.toBeNull();
+  });
+
+  it("默认应隐藏系统区的可选入口，只保留设置", async () => {
+    const container = mountSidebar({
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects();
+
+    expect(container.textContent).toContain("系统");
+    expect(container.textContent).toContain("设置");
+    expect(container.textContent).not.toContain("终端");
+    expect(container.textContent).not.toContain("桌宠");
   });
 
   it("侧边栏不应再渲染旧主题分组标题", async () => {

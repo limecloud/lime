@@ -5,9 +5,12 @@ import {
   cleanupContextMemory,
   getContextMemoryAutoIndex,
   getContextMemoryEffectiveSources,
+  getContextMemoryExtractionStatus,
   getContextMemoryOverview,
   getContextMemoryStats,
+  getContextWorkingMemory,
   ensureWorkspaceLocalAgentsGitignore,
+  prefetchContextMemoryForTurn,
   scaffoldRuntimeAgentsTemplate,
   toggleContextMemoryAuto,
   updateContextMemoryAutoNote,
@@ -35,6 +38,12 @@ describe("memoryRuntime API", () => {
           return { analyzed_sessions: 1 };
         case "memory_runtime_cleanup":
           return { cleaned_entries: 1, freed_space: 2 };
+        case "memory_runtime_get_working_memory":
+          return { sessions: [], total_entries: 0, total_sessions: 0 };
+        case "memory_runtime_get_extraction_status":
+          return { status: "idle", recent_compactions: [] };
+        case "memory_runtime_prefetch_for_turn":
+          return { session_id: "session-1", durable_memories: [] };
         case "memory_runtime_get_overview":
           return { stats: {}, categories: [], entries: [] };
         case "memory_get_effective_sources":
@@ -59,6 +68,15 @@ describe("memoryRuntime API", () => {
     await expect(cleanupContextMemory()).resolves.toEqual(
       expect.objectContaining({ cleaned_entries: 1 }),
     );
+    await expect(getContextWorkingMemory("session-1", 10)).resolves.toEqual(
+      expect.objectContaining({ sessions: [] }),
+    );
+    await expect(getContextMemoryExtractionStatus()).resolves.toEqual(
+      expect.objectContaining({ status: "idle" }),
+    );
+    await expect(
+      prefetchContextMemoryForTurn({ session_id: "session-1" }),
+    ).resolves.toEqual(expect.objectContaining({ session_id: "session-1" }));
     await expect(getContextMemoryOverview(200)).resolves.toEqual(
       expect.objectContaining({ entries: [] }),
     );
@@ -87,24 +105,45 @@ describe("memoryRuntime API", () => {
     expect(safeInvoke).toHaveBeenNthCalledWith(3, "memory_runtime_cleanup");
     expect(safeInvoke).toHaveBeenNthCalledWith(
       4,
+      "memory_runtime_get_working_memory",
+      {
+        limit: 10,
+        sessionId: "session-1",
+      },
+    );
+    expect(safeInvoke).toHaveBeenNthCalledWith(
+      5,
+      "memory_runtime_get_extraction_status",
+    );
+    expect(safeInvoke).toHaveBeenNthCalledWith(
+      6,
+      "memory_runtime_prefetch_for_turn",
+      {
+        request: {
+          session_id: "session-1",
+        },
+      },
+    );
+    expect(safeInvoke).toHaveBeenNthCalledWith(
+      7,
       "memory_runtime_get_overview",
       {
         limit: 200,
       },
     );
     expect(safeInvoke).toHaveBeenNthCalledWith(
-      5,
+      8,
       "memory_get_effective_sources",
       {
         activeRelativePath: undefined,
         workingDir: undefined,
       },
     );
-    expect(safeInvoke).toHaveBeenNthCalledWith(6, "memory_get_auto_index", {
+    expect(safeInvoke).toHaveBeenNthCalledWith(9, "memory_get_auto_index", {
       workingDir: undefined,
     });
     expect(safeInvoke).toHaveBeenNthCalledWith(
-      7,
+      10,
       "memory_scaffold_runtime_agents_template",
       {
         overwrite: undefined,
@@ -113,7 +152,7 @@ describe("memoryRuntime API", () => {
       },
     );
     expect(safeInvoke).toHaveBeenNthCalledWith(
-      8,
+      11,
       "memory_ensure_workspace_local_agents_gitignore",
       {
         workingDir: "/tmp/workspace",
@@ -130,6 +169,12 @@ describe("memoryRuntime API", () => {
           return { analyzed_sessions: 3 };
         case "memory_runtime_cleanup":
           return { cleaned_entries: 4 };
+        case "memory_runtime_get_working_memory":
+          return { sessions: [], total_entries: 0, total_sessions: 0 };
+        case "memory_runtime_get_extraction_status":
+          return { status: "ready", recent_compactions: [] };
+        case "memory_runtime_prefetch_for_turn":
+          return { session_id: "session-2", durable_memories: [] };
         case "memory_runtime_get_overview":
           return { stats: {}, categories: [], entries: [] };
         case "memory_get_effective_sources":
@@ -158,6 +203,15 @@ describe("memoryRuntime API", () => {
     await expect(cleanupContextMemory()).resolves.toEqual(
       expect.objectContaining({ cleaned_entries: 4 }),
     );
+    await expect(getContextWorkingMemory()).resolves.toEqual(
+      expect.objectContaining({ sessions: [] }),
+    );
+    await expect(getContextMemoryExtractionStatus()).resolves.toEqual(
+      expect.objectContaining({ status: "ready" }),
+    );
+    await expect(
+      prefetchContextMemoryForTurn({ session_id: "session-2" }),
+    ).resolves.toEqual(expect.objectContaining({ session_id: "session-2" }));
     await expect(getContextMemoryOverview()).resolves.toEqual(
       expect.objectContaining({ entries: [] }),
     );
