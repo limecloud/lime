@@ -237,9 +237,10 @@ export function useWorkspaceInputbarSceneRuntime({
     [setChatToolPreferences],
   );
   const dockLayoutMode = layoutMode === "chat" ? "chat" : "chat-canvas";
+  const resolvedTurns = turns ?? [];
   const latestTurnPrompt =
-    turns.find((turn) => turn.id === currentTurnId)?.prompt_text?.trim() ||
-    turns[turns.length - 1]?.prompt_text?.trim() ||
+    resolvedTurns.find((turn) => turn.id === currentTurnId)?.prompt_text?.trim() ||
+    resolvedTurns[resolvedTurns.length - 1]?.prompt_text?.trim() ||
     "";
 
   return useWorkspaceInputbarScenePresentation({
