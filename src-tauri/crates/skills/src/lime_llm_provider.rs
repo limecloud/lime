@@ -12,7 +12,7 @@ use lime_core::models::anthropic::AnthropicMessagesRequest;
 #[cfg(test)]
 use lime_core::models::provider_pool_model::PoolProviderType;
 use lime_core::models::provider_pool_model::{CredentialData, ProviderCredential};
-use lime_providers::providers::claude_custom::ClaudeCustomProvider;
+use lime_providers::providers::claude_custom::{ClaudeCustomProvider, PromptCacheMode};
 use lime_providers::providers::kiro::KiroProvider;
 use lime_providers::providers::openai_custom::OpenAICustomProvider;
 use lime_services::api_key_provider_service::ApiKeyProviderService;
@@ -132,6 +132,11 @@ impl LimeLlmProvider {
                 self.call_claude_api(
                     api_key,
                     base_url.as_deref(),
+                    if credential.provider_type.supports_anthropic_prompt_cache() {
+                        PromptCacheMode::Automatic
+                    } else {
+                        PromptCacheMode::ExplicitOnly
+                    },
                     system_prompt,
                     user_message,
                     model,
@@ -153,6 +158,11 @@ impl LimeLlmProvider {
                 self.call_claude_api(
                     api_key,
                     base_url.as_deref(),
+                    if credential.provider_type.supports_anthropic_prompt_cache() {
+                        PromptCacheMode::Automatic
+                    } else {
+                        PromptCacheMode::ExplicitOnly
+                    },
                     system_prompt,
                     user_message,
                     model,
@@ -237,14 +247,18 @@ impl LimeLlmProvider {
         &self,
         api_key: &str,
         base_url: Option<&str>,
+        prompt_cache_mode: PromptCacheMode,
         system_prompt: &str,
         user_message: &str,
         model: &str,
     ) -> Result<String, SkillError> {
         use lime_core::models::anthropic::AnthropicMessage;
 
-        let claude =
-            ClaudeCustomProvider::with_config(api_key.to_string(), base_url.map(|s| s.to_string()));
+        let claude = ClaudeCustomProvider::with_prompt_cache_mode(
+            api_key.to_string(),
+            base_url.map(|s| s.to_string()),
+            prompt_cache_mode,
+        );
 
         // 构建 Anthropic 请求
         let request = AnthropicMessagesRequest {

@@ -41,50 +41,79 @@ function formatUpdatedAt(updatedAt?: number) {
 }
 
 function buildBoardHeadline(params: {
-  hasRealTeamGraph: boolean;
+  hasRuntimeSessions: boolean;
   isChildSession: boolean;
   parentSessionName?: string | null;
+  statusSummary: Record<string, number>;
   totalTeamSessions: number;
 }) {
   const {
-    hasRealTeamGraph,
+    hasRuntimeSessions,
     isChildSession,
     parentSessionName,
+    statusSummary,
     totalTeamSessions,
   } = params;
+  const runningCount = statusSummary.running ?? 0;
+  const queuedCount = statusSummary.queued ?? 0;
+  const completedCount = statusSummary.completed ?? 0;
+  const retryCount =
+    (statusSummary.failed ?? 0) + (statusSummary.aborted ?? 0);
 
   if (isChildSession) {
-    return parentSessionName?.trim() || "主助手协作区";
+    return parentSessionName?.trim() || "主任务总览";
   }
-  if (!hasRealTeamGraph) {
-    return "需要时会自动接入协作成员";
+  if (!hasRuntimeSessions) {
+    return "需要时会自动拆出任务";
+  }
+  if (runningCount > 0) {
+    if (queuedCount > 0) {
+      return `任务进行中 · ${runningCount} 项处理中 / ${queuedCount} 项稍后开始`;
+    }
+    return totalTeamSessions > 1
+      ? `任务进行中 · ${runningCount} 项处理中`
+      : "任务进行中";
+  }
+  if (queuedCount > 0) {
+    return totalTeamSessions > 1
+      ? `任务准备中 · ${queuedCount} 项稍后开始`
+      : "任务准备中";
+  }
+  if (completedCount > 0 && completedCount === totalTeamSessions) {
+    return totalTeamSessions > 1
+      ? `${completedCount} 项任务已完成`
+      : "任务已完成";
+  }
+  if (retryCount > 0 && retryCount === totalTeamSessions) {
+    return totalTeamSessions > 1
+      ? `${retryCount} 项任务需重试`
+      : "任务需重试";
   }
   return totalTeamSessions > 0
-    ? `${totalTeamSessions} 位成员协作中`
+    ? `${totalTeamSessions} 项任务已接入`
     : TEAM_WORKSPACE_SURFACE_TITLE;
 }
 
 function buildBoardHint(params: {
-  hasRealTeamGraph: boolean;
+  hasRuntimeSessions: boolean;
   isChildSession: boolean;
   siblingCount: number;
 }) {
-  const { hasRealTeamGraph, isChildSession, siblingCount } = params;
+  const { hasRuntimeSessions, isChildSession, siblingCount } = params;
 
   if (isChildSession) {
     return siblingCount > 0
-      ? `当前正与 ${siblingCount} 位协作成员并行推进`
-      : "当前由你和这位协作成员一起推进";
+      ? `当前任务正与 ${siblingCount} 项并行子任务一起推进`
+      : "当前正在处理这项子任务，结果会回流到主任务。";
   }
-  if (!hasRealTeamGraph) {
-    return "系统会在需要时自动安排任务分工并接入协作成员，你只需要关注当前任务和结果。";
+  if (!hasRuntimeSessions) {
+    return "系统会在需要时自动拆出任务、安排处理顺序，并把结果回流到当前任务。";
   }
-  return "这里只展示谁在帮你处理什么、处理到哪一步，以及接下来会给你什么结果。";
+  return "这里只展示当前有哪些任务在处理、状态如何，以及最近更新到了哪里。";
 }
 
 export function buildTeamWorkspaceBoardChromeDisplayState(params: {
-  hasRealTeamGraph: boolean;
-  hasRuntimeFormation: boolean;
+  hasRuntimeSessions: boolean;
   runtimeFormationTitle?: string | null;
   runtimeFormationHint?: string | null;
   isChildSession: boolean;
@@ -100,36 +129,29 @@ export function buildTeamWorkspaceBoardChromeDisplayState(params: {
   statusSummary: Record<string, number>;
 }): TeamWorkspaceBoardChromeDisplayState {
   const boardHeadline =
-    !params.hasRealTeamGraph && params.runtimeFormationTitle
+    !params.hasRuntimeSessions && params.runtimeFormationTitle
       ? params.runtimeFormationTitle
       : buildBoardHeadline({
-          hasRealTeamGraph: params.hasRealTeamGraph,
+          hasRuntimeSessions: params.hasRuntimeSessions,
           isChildSession: params.isChildSession,
           parentSessionName: params.parentSessionName,
+          statusSummary: params.statusSummary,
           totalTeamSessions: params.totalTeamSessions,
         });
   const boardHint =
-    !params.hasRealTeamGraph &&
-    params.hasRuntimeFormation &&
-    params.runtimeFormationHint
+    !params.hasRuntimeSessions && params.runtimeFormationHint
       ? params.runtimeFormationHint
       : buildBoardHint({
-          hasRealTeamGraph: params.hasRealTeamGraph,
+          hasRuntimeSessions: params.hasRuntimeSessions,
           isChildSession: params.isChildSession,
           siblingCount: params.siblingCount,
         });
-  const compactBoardHeadline =
-    params.hasRealTeamGraph &&
-    !params.isChildSession &&
-    params.totalTeamSessions > 0
-      ? `${params.totalTeamSessions} 位成员协作中`
-      : boardHeadline;
   const compactToolbarChips: TeamWorkspaceBoardChromeChip[] = [
     {
       key: "focus",
       text: params.selectedSession
-        ? `焦点 ${params.selectedSession.name}`
-        : "等待成员接入",
+        ? `当前焦点 ${params.selectedSession.name}`
+        : "等待任务接手",
       tone: "summary",
     },
     ...(params.selectedSession?.runtimeStatus
@@ -157,21 +179,16 @@ export function buildTeamWorkspaceBoardChromeDisplayState(params: {
       ? [
           {
             key: "current",
-            text: "当前对话",
+            text: "当前任务",
             tone: "muted" as const,
           },
         ]
       : []),
-    {
-      key: "zoom",
-      text: `缩放 ${Math.round(params.zoom * 100)}%`,
-      tone: "muted",
-    },
     ...(params.canWaitAnyActiveTeamSession
       ? [
           {
             key: "waitable",
-            text: `${params.waitableCount} 位处理中`,
+            text: `${params.waitableCount} 项处理中`,
             tone: "muted" as const,
           },
         ]
@@ -180,7 +197,7 @@ export function buildTeamWorkspaceBoardChromeDisplayState(params: {
       ? [
           {
             key: "completed",
-            text: `${params.completedCount} 位已完成`,
+            text: `${params.completedCount} 项已完成`,
             tone: "muted" as const,
           },
         ]
@@ -190,13 +207,15 @@ export function buildTeamWorkspaceBoardChromeDisplayState(params: {
   return {
     boardHeadline,
     boardHint,
-    compactBoardHeadline,
+    compactBoardHeadline: boardHeadline,
     compactToolbarChips,
     statusSummaryBadges: Object.entries(params.statusSummary)
       .filter(([, count]) => count > 0)
       .map(([status, count]) => {
         const normalizedStatus =
-          status === "idle" ? undefined : (status as TeamWorkspaceRuntimeStatus);
+          status === "idle"
+            ? undefined
+            : (status as TeamWorkspaceRuntimeStatus);
 
         return {
           key: status,

@@ -63,7 +63,7 @@ describe("toolDisplayInfo", () => {
     expect(resolveToolDisplayLabel("BriefTool")).toBe("用户消息");
     expect(resolveToolDisplayLabel("FileReadTool")).toBe("文件读取");
     expect(resolveToolDisplayLabel("lime_search_web_images")).toBe("联网搜图");
-    expect(resolveToolDisplayLabel("AgentTool")).toBe("邀请协作成员");
+    expect(resolveToolDisplayLabel("AgentTool")).toBe("创建子任务");
     expect(resolveToolDisplayLabel("SendMessageTool")).toBe("补充说明");
     expect(resolveToolDisplayLabel("TeamCreateTool")).toBe("创建团队");
     expect(resolveToolDisplayLabel("TeamDeleteTool")).toBe("删除团队");

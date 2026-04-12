@@ -24,7 +24,7 @@ pub use antigravity::AntigravityProvider;
 #[allow(unused_imports)]
 pub use antigravity::ANTIGRAVITY_MODELS_FALLBACK;
 #[allow(unused_imports)]
-pub use claude_custom::ClaudeCustomProvider;
+pub use claude_custom::{ClaudeCustomProvider, PromptCacheMode};
 #[allow(unused_imports)]
 pub use claude_oauth::ClaudeOAuthProvider;
 #[allow(unused_imports)]

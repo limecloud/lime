@@ -404,7 +404,14 @@ pub fn get_usage(usage: &Value) -> Usage {
             _ => None,
         });
 
+    let cached_input_tokens = usage
+        .get("prompt_tokens_details")
+        .and_then(|details| details.get("cached_tokens"))
+        .and_then(|v| v.as_i64())
+        .map(|v| v as i32);
+
     Usage::new(input_tokens, output_tokens, total_tokens)
+        .with_cached_input_tokens(cached_input_tokens)
 }
 
 /// Validates and fixes tool schemas to ensure they have proper parameter structure.
@@ -1664,5 +1671,22 @@ data: [DONE]
         assert!(seen_usage, "Expected finish chunk to emit usage");
 
         Ok(())
+    }
+
+    #[test]
+    fn test_get_usage_should_preserve_cached_prompt_tokens() {
+        let usage = get_usage(&json!({
+            "prompt_tokens": 1200,
+            "completion_tokens": 300,
+            "total_tokens": 1500,
+            "prompt_tokens_details": {
+                "cached_tokens": 900
+            }
+        }));
+
+        assert_eq!(usage.input_tokens, Some(1200));
+        assert_eq!(usage.output_tokens, Some(300));
+        assert_eq!(usage.total_tokens, Some(1500));
+        assert_eq!(usage.cached_input_tokens, Some(900));
     }
 }

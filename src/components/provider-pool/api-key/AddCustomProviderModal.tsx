@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useModelRegistry } from "@/hooks/useModelRegistry";
 import type { ProviderType } from "@/lib/types/provider";
+import { resolvePromptCacheSupportNotice } from "@/lib/model/providerPromptCacheSupport";
 import {
   apiKeyProviderApi,
   type AddCustomProviderRequest,
@@ -635,6 +636,13 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
     () => getSpecialProtocolHint(formState.type),
     [formState.type],
   );
+  const promptCacheSupportNotice = useMemo(
+    () =>
+      resolvePromptCacheSupportNotice({
+        configuredProviderType: formState.type,
+      }),
+    [formState.type],
+  );
 
   const visibleProviders = useMemo(
     () => filteredProviders.slice(0, 18),
@@ -1076,6 +1084,22 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
                   >
                     <p className="font-semibold">协议特例保留</p>
                     <p className="mt-1 leading-6">{specialProtocolHint}</p>
+                  </div>
+                ) : null}
+
+                {promptCacheSupportNotice ? (
+                  <div
+                    className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                    data-testid="provider-prompt-cache-notice"
+                  >
+                    <p className="font-semibold">Prompt Cache 提示</p>
+                    <p className="mt-1 leading-6">
+                      Anthropic 兼容只表示请求格式兼容，不等于上游已声明自动
+                      Prompt Cache。
+                    </p>
+                    <p className="mt-1 leading-6">
+                      {promptCacheSupportNotice.detail}
+                    </p>
                   </div>
                 ) : null}
 

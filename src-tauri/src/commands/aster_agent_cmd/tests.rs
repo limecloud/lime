@@ -3851,8 +3851,8 @@ mod tests {
     fn test_merge_system_prompt_with_elicitation_context_appends_prompt() {
         let metadata = serde_json::json!({
             "elicitation_context": {
-                "source": "legacy_questionnaire",
-                "mode": "compatibility_bridge",
+                "source": "runtime_action_required",
+                "mode": "runtime_metadata",
                 "entries": [
                     {
                         "label": "目标受众",
@@ -3875,7 +3875,7 @@ mod tests {
         assert!(merged.contains(ELICITATION_CONTEXT_PROMPT_MARKER));
         assert!(merged.contains("目标受众"));
         assert!(merged.contains("友好专业"));
-        assert!(merged.contains("legacy_questionnaire"));
+        assert!(merged.contains("runtime_action_required"));
     }
 
     #[test]
@@ -6260,122 +6260,6 @@ mod tests {
         let first = shared_task_manager();
         let second = shared_task_manager();
         assert!(Arc::ptr_eq(&first, &second));
-    }
-
-    #[test]
-    fn test_parse_subagent_role_supports_aliases() {
-        assert_eq!(
-            parse_subagent_role(Some("explore")).unwrap(),
-            SubAgentRole::Explorer
-        );
-        assert_eq!(
-            parse_subagent_role(Some("plan")).unwrap(),
-            SubAgentRole::Planner
-        );
-        assert_eq!(
-            parse_subagent_role(Some("code")).unwrap(),
-            SubAgentRole::Executor
-        );
-        assert_eq!(parse_subagent_role(None).unwrap(), SubAgentRole::Executor);
-    }
-
-    #[test]
-    fn test_build_subagent_task_definition_uses_role_defaults() {
-        let input = SubAgentTaskToolInput {
-            prompt: "分析当前 harness 缺口".to_string(),
-            task_type: None,
-            description: None,
-            role: Some("explorer".to_string()),
-            timeout_secs: Some(45),
-            model: None,
-            return_summary: None,
-            allowed_tools: None,
-            denied_tools: None,
-            max_tokens: None,
-        };
-
-        let task = build_subagent_task_definition(&input, SubAgentRole::Explorer).unwrap();
-        assert_eq!(task.task_type, "explore");
-        assert_eq!(task.timeout.map(|value| value.as_secs()), Some(45));
-        assert!(task.return_summary);
-    }
-
-    #[test]
-    fn test_build_subagent_task_definition_applies_optional_fields() {
-        let input = SubAgentTaskToolInput {
-            prompt: "实现 harness 面板".to_string(),
-            task_type: Some("code".to_string()),
-            description: Some("实现前端面板".to_string()),
-            role: Some("executor".to_string()),
-            timeout_secs: Some(120),
-            model: Some("claude-sonnet-4-20250514".to_string()),
-            return_summary: Some(false),
-            allowed_tools: Some(vec!["read_file".to_string(), "write_file".to_string()]),
-            denied_tools: Some(vec!["execute_command".to_string()]),
-            max_tokens: Some(4096),
-        };
-
-        let task = build_subagent_task_definition(&input, SubAgentRole::Executor).unwrap();
-        assert_eq!(task.task_type, "code");
-        assert_eq!(task.description.as_deref(), Some("实现前端面板"));
-        assert_eq!(task.model.as_deref(), Some("claude-sonnet-4-20250514"));
-        assert!(!task.return_summary);
-        assert_eq!(
-            task.allowed_tools,
-            Some(vec!["read_file".to_string(), "write_file".to_string()])
-        );
-        assert_eq!(task.denied_tools, Some(vec!["execute_command".to_string()]));
-        assert_eq!(task.max_tokens, Some(4096));
-    }
-
-    #[test]
-    fn test_build_subagent_task_runtime_message_includes_soft_constraints() {
-        let input = SubAgentTaskToolInput {
-            prompt: "探索 team workspace 最佳实践".to_string(),
-            task_type: Some("explore".to_string()),
-            description: Some("探索 team workspace".to_string()),
-            role: Some("explorer".to_string()),
-            timeout_secs: None,
-            model: None,
-            return_summary: None,
-            allowed_tools: Some(vec!["read_file".to_string()]),
-            denied_tools: Some(vec!["write_file".to_string()]),
-            max_tokens: Some(1200),
-        };
-
-        let task = build_subagent_task_definition(&input, SubAgentRole::Explorer).unwrap();
-        let message = build_subagent_task_runtime_message(&input, &task, SubAgentRole::Explorer);
-
-        assert!(message.contains("任务标题：探索 team workspace"));
-        assert!(message.contains("子代理角色：explorer"));
-        assert!(message.contains("工具偏好：优先仅使用这些工具：read_file"));
-        assert!(message.contains("避免使用这些工具：write_file"));
-        assert!(message.contains("输出控制：请尽量将最终输出控制在 1200 tokens 内。"));
-        assert!(message.contains("不要再创建新的子代理"));
-        assert!(message.contains("任务说明："));
-        assert!(message.contains("探索 team workspace 最佳实践"));
-    }
-
-    #[test]
-    fn test_collect_subagent_task_compat_warnings_marks_soft_constraints() {
-        let input = SubAgentTaskToolInput {
-            prompt: "探索".to_string(),
-            task_type: None,
-            description: None,
-            role: None,
-            timeout_secs: None,
-            model: None,
-            return_summary: None,
-            allowed_tools: Some(vec!["read_file".to_string()]),
-            denied_tools: Some(vec!["write_file".to_string()]),
-            max_tokens: Some(512),
-        };
-
-        let warnings = collect_subagent_task_compat_warnings(&input);
-        assert_eq!(warnings.len(), 3);
-        assert!(warnings.iter().any(|item| item.contains("allowedTools")));
-        assert!(warnings.iter().any(|item| item.contains("deniedTools")));
-        assert!(warnings.iter().any(|item| item.contains("maxTokens")));
     }
 
     #[test]

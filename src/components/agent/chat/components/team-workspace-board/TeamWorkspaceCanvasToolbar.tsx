@@ -23,14 +23,14 @@ export function TeamWorkspaceCanvasToolbar({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-          自由画布
+          任务视图
         </span>
         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
           缩放 {Math.round(zoom * 100)}%
         </span>
         {laneCount > 0 ? (
           <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-            {laneCount} 个成员面板
+            {laneCount} 个任务面板
           </span>
         ) : null}
       </div>
@@ -64,7 +64,7 @@ export function TeamWorkspaceCanvasToolbar({
           variant="outline"
           onClick={onFitCanvasView}
         >
-          适应视图
+          聚焦任务
         </Button>
       </div>
     </div>

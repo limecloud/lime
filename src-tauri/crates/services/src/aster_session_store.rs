@@ -264,6 +264,7 @@ impl SessionStore for LimeSessionStore {
             total_tokens: None,
             input_tokens: None,
             output_tokens: None,
+            cached_input_tokens: None,
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
@@ -306,7 +307,7 @@ impl SessionStore for LimeSessionStore {
             .prepare(
                 "SELECT id, model, system_prompt, title, created_at, updated_at, working_dir,
                         session_type, user_set_name, extension_data_json,
-                        total_tokens, input_tokens, output_tokens,
+                        total_tokens, input_tokens, output_tokens, cached_input_tokens,
                         accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
                         schedule_id, recipe_json, user_recipe_values_json,
                         provider_name, model_config_json
@@ -333,11 +334,12 @@ impl SessionStore for LimeSessionStore {
                     row.get::<_, Option<i32>>(13)?,
                     row.get::<_, Option<i32>>(14)?,
                     row.get::<_, Option<i32>>(15)?,
-                    row.get::<_, Option<String>>(16)?,
+                    row.get::<_, Option<i32>>(16)?,
                     row.get::<_, Option<String>>(17)?,
                     row.get::<_, Option<String>>(18)?,
                     row.get::<_, Option<String>>(19)?,
                     row.get::<_, Option<String>>(20)?,
+                    row.get::<_, Option<String>>(21)?,
                 ))
             })
             .map_err(|e| anyhow!("会话不存在: {e}"))?;
@@ -356,6 +358,7 @@ impl SessionStore for LimeSessionStore {
             total_tokens,
             input_tokens,
             output_tokens,
+            cached_input_tokens,
             accumulated_total_tokens,
             accumulated_input_tokens,
             accumulated_output_tokens,
@@ -392,6 +395,7 @@ impl SessionStore for LimeSessionStore {
             total_tokens,
             input_tokens,
             output_tokens,
+            cached_input_tokens,
             accumulated_total_tokens,
             accumulated_input_tokens,
             accumulated_output_tokens,
@@ -549,7 +553,7 @@ impl SessionStore for LimeSessionStore {
         let mut stmt = conn.prepare(
             "SELECT id, model, system_prompt, title, created_at, updated_at, working_dir,
                     session_type, user_set_name, extension_data_json,
-                    total_tokens, input_tokens, output_tokens,
+                    total_tokens, input_tokens, output_tokens, cached_input_tokens,
                     accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
                     schedule_id, recipe_json, user_recipe_values_json,
                     provider_name, model_config_json
@@ -570,14 +574,15 @@ impl SessionStore for LimeSessionStore {
                 let total_tokens: Option<i32> = row.get(10)?;
                 let input_tokens: Option<i32> = row.get(11)?;
                 let output_tokens: Option<i32> = row.get(12)?;
-                let accumulated_total_tokens: Option<i32> = row.get(13)?;
-                let accumulated_input_tokens: Option<i32> = row.get(14)?;
-                let accumulated_output_tokens: Option<i32> = row.get(15)?;
-                let schedule_id: Option<String> = row.get(16)?;
-                let recipe_json: Option<String> = row.get(17)?;
-                let user_recipe_values_json: Option<String> = row.get(18)?;
-                let provider_name: Option<String> = row.get(19)?;
-                let model_config_json: Option<String> = row.get(20)?;
+                let cached_input_tokens: Option<i32> = row.get(13)?;
+                let accumulated_total_tokens: Option<i32> = row.get(14)?;
+                let accumulated_input_tokens: Option<i32> = row.get(15)?;
+                let accumulated_output_tokens: Option<i32> = row.get(16)?;
+                let schedule_id: Option<String> = row.get(17)?;
+                let recipe_json: Option<String> = row.get(18)?;
+                let user_recipe_values_json: Option<String> = row.get(19)?;
+                let provider_name: Option<String> = row.get(20)?;
+                let model_config_json: Option<String> = row.get(21)?;
 
                 Ok((
                     id,
@@ -592,6 +597,7 @@ impl SessionStore for LimeSessionStore {
                     total_tokens,
                     input_tokens,
                     output_tokens,
+                    cached_input_tokens,
                     accumulated_total_tokens,
                     accumulated_input_tokens,
                     accumulated_output_tokens,
@@ -617,6 +623,7 @@ impl SessionStore for LimeSessionStore {
                     total_tokens,
                     input_tokens,
                     output_tokens,
+                    cached_input_tokens,
                     accumulated_total_tokens,
                     accumulated_input_tokens,
                     accumulated_output_tokens,
@@ -649,6 +656,7 @@ impl SessionStore for LimeSessionStore {
                         total_tokens,
                         input_tokens,
                         output_tokens,
+                        cached_input_tokens,
                         accumulated_total_tokens,
                         accumulated_input_tokens,
                         accumulated_output_tokens,
@@ -736,6 +744,7 @@ impl SessionStore for LimeSessionStore {
                 total_tokens: session.total_tokens,
                 input_tokens: session.input_tokens,
                 output_tokens: session.output_tokens,
+                cached_input_tokens: session.cached_input_tokens,
                 accumulated_total: session.accumulated_total_tokens,
                 accumulated_input: session.accumulated_input_tokens,
                 accumulated_output: session.accumulated_output_tokens,
@@ -787,6 +796,7 @@ impl SessionStore for LimeSessionStore {
                 total_tokens: original.total_tokens,
                 input_tokens: original.input_tokens,
                 output_tokens: original.output_tokens,
+                cached_input_tokens: original.cached_input_tokens,
                 accumulated_total: original.accumulated_total_tokens,
                 accumulated_input: original.accumulated_input_tokens,
                 accumulated_output: original.accumulated_output_tokens,
@@ -884,16 +894,18 @@ impl SessionStore for LimeSessionStore {
                 total_tokens = COALESCE(?1, total_tokens),
                 input_tokens = COALESCE(?2, input_tokens),
                 output_tokens = COALESCE(?3, output_tokens),
-                accumulated_total_tokens = COALESCE(?4, accumulated_total_tokens),
-                accumulated_input_tokens = COALESCE(?5, accumulated_input_tokens),
-                accumulated_output_tokens = COALESCE(?6, accumulated_output_tokens),
-                schedule_id = COALESCE(?7, schedule_id),
-                updated_at = ?8
-             WHERE id = ?9",
+                cached_input_tokens = COALESCE(?4, cached_input_tokens),
+                accumulated_total_tokens = COALESCE(?5, accumulated_total_tokens),
+                accumulated_input_tokens = COALESCE(?6, accumulated_input_tokens),
+                accumulated_output_tokens = COALESCE(?7, accumulated_output_tokens),
+                schedule_id = COALESCE(?8, schedule_id),
+                updated_at = ?9
+             WHERE id = ?10",
             rusqlite::params![
                 stats.total_tokens,
                 stats.input_tokens,
                 stats.output_tokens,
+                stats.cached_input_tokens,
                 stats.accumulated_total,
                 stats.accumulated_input,
                 stats.accumulated_output,
@@ -912,6 +924,9 @@ impl SessionStore for LimeSessionStore {
             }
             if let Some(output_tokens) = stats.output_tokens {
                 session.output_tokens = Some(output_tokens);
+            }
+            if let Some(cached_input_tokens) = stats.cached_input_tokens {
+                session.cached_input_tokens = Some(cached_input_tokens);
             }
             if let Some(accumulated_total) = stats.accumulated_total {
                 session.accumulated_total_tokens = Some(accumulated_total);
@@ -1350,6 +1365,7 @@ mod tests {
                     total_tokens: Some(100),
                     input_tokens: Some(60),
                     output_tokens: Some(40),
+                    cached_input_tokens: Some(24),
                     accumulated_total: Some(300),
                     accumulated_input: Some(180),
                     accumulated_output: Some(120),
@@ -1400,6 +1416,7 @@ mod tests {
         assert!(loaded.user_set_name);
         assert_eq!(loaded.session_type, SessionType::SubAgent);
         assert_eq!(loaded.total_tokens, Some(100));
+        assert_eq!(loaded.cached_input_tokens, Some(24));
         assert_eq!(loaded.accumulated_total_tokens, Some(300));
         assert_eq!(loaded.schedule_id.as_deref(), Some("job-1"));
         assert_eq!(loaded.provider_name.as_deref(), Some("openai"));
@@ -1614,6 +1631,7 @@ mod tests {
                     total_tokens: Some(100),
                     input_tokens: Some(60),
                     output_tokens: Some(40),
+                    cached_input_tokens: Some(24),
                     accumulated_total: Some(300),
                     accumulated_input: Some(180),
                     accumulated_output: Some(120),
@@ -1630,6 +1648,7 @@ mod tests {
                     total_tokens: None,
                     input_tokens: None,
                     output_tokens: None,
+                    cached_input_tokens: None,
                     accumulated_total: None,
                     accumulated_input: None,
                     accumulated_output: None,
@@ -1647,6 +1666,7 @@ mod tests {
         assert_eq!(loaded.total_tokens, Some(100));
         assert_eq!(loaded.input_tokens, Some(60));
         assert_eq!(loaded.output_tokens, Some(40));
+        assert_eq!(loaded.cached_input_tokens, Some(24));
         assert_eq!(loaded.accumulated_total_tokens, Some(300));
         assert_eq!(loaded.accumulated_input_tokens, Some(180));
         assert_eq!(loaded.accumulated_output_tokens, Some(120));
@@ -1672,6 +1692,7 @@ mod tests {
                     total_tokens: Some(100),
                     input_tokens: Some(60),
                     output_tokens: Some(40),
+                    cached_input_tokens: Some(24),
                     accumulated_total: Some(300),
                     accumulated_input: Some(180),
                     accumulated_output: Some(120),
@@ -1688,6 +1709,7 @@ mod tests {
                     total_tokens: Some(0),
                     input_tokens: Some(0),
                     output_tokens: Some(0),
+                    cached_input_tokens: Some(0),
                     accumulated_total: None,
                     accumulated_input: None,
                     accumulated_output: None,
@@ -1705,6 +1727,7 @@ mod tests {
         assert_eq!(loaded.total_tokens, Some(0));
         assert_eq!(loaded.input_tokens, Some(0));
         assert_eq!(loaded.output_tokens, Some(0));
+        assert_eq!(loaded.cached_input_tokens, Some(0));
         assert_eq!(loaded.accumulated_total_tokens, Some(300));
         assert_eq!(loaded.accumulated_input_tokens, Some(180));
         assert_eq!(loaded.accumulated_output_tokens, Some(120));

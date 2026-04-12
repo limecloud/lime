@@ -1438,7 +1438,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
     }
     return {
       kind: "team-workbench",
-      title: teamView.title || "Team Workbench",
+      title: teamView.title || "任务工作台",
     };
   }, [teamView]);
 
@@ -1580,7 +1580,9 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
             {
               key: "team" as const,
               label:
-                teamView.tabLabel?.trim() || teamView.title?.trim() || "team",
+                teamView.tabLabel?.trim() ||
+                teamView.title?.trim() ||
+                "任务工作台",
               badge:
                 teamView.tabBadge?.trim() ||
                 teamView.triggerState?.label?.trim() ||
@@ -2027,7 +2029,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
         <div data-testid="canvas-workbench-panel-team" className="p-5">
           <div className={WORKBENCH_MUTED_PANEL_CLASSNAME}>
             {teamView?.panelCopy?.emptyText ||
-              "当前没有可展示的 Team Workbench。"}
+              "当前没有可展示的任务工作台。"}
           </div>
         </div>
       );

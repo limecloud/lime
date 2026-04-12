@@ -1,6 +1,7 @@
 import { BrainCircuit, FolderTree, Sparkles, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { TeamMemoryEntry, TeamMemorySnapshot } from "@/lib/teamMemorySync";
+import { normalizeTeamMemoryDisplayText } from "../utils/teamMemoryDisplay";
 
 interface TeamMemoryShadowCardProps {
   snapshot?: TeamMemorySnapshot | null;
@@ -16,11 +17,11 @@ interface TeamMemoryDisplayEntry {
 
 const ENTRY_META: Record<string, { label: string; icon: typeof Users }> = {
   "team.selection": {
-    label: "当前 Team",
+    label: "当前任务方案",
     icon: Users,
   },
   "team.subagents": {
-    label: "子代理概览",
+    label: "子任务概览",
     icon: Sparkles,
   },
   "team.parent_context": {
@@ -54,6 +55,7 @@ function toDisplayEntry(entry: TeamMemoryEntry): TeamMemoryDisplayEntry {
     icon: meta.icon,
     lines: entry.content
       .split("\n")
+      .map((line) => normalizeTeamMemoryDisplayText(line))
       .map((line) => line.trim())
       .filter(Boolean)
       .slice(0, 4),
@@ -83,14 +85,13 @@ export function TeamMemoryShadowCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
             <BrainCircuit className="h-3.5 w-3.5" />
-            <span>协作记忆影子</span>
+            <span>任务记忆影子</span>
           </div>
           <div className="mt-2 text-sm font-semibold text-slate-900">
-            当前仓库已缓存 {entries.length} 条 Team 续接上下文
+            当前仓库已缓存 {entries.length} 条任务续接上下文
           </div>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            仅保存在当前仓库本地作用域，用来续接 Team
-            选择、子代理概览和父会话上下文。
+            仅保存在当前仓库本地作用域，用来续接任务方案选择、子任务概览和父会话上下文。
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

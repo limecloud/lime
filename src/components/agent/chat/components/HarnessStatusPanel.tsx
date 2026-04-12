@@ -109,7 +109,6 @@ import {
 } from "../utils/workflowStepPresentation";
 import { buildThreadReliabilityView } from "../utils/threadReliabilityView";
 import { resolveTeamWorkspaceStableProcessingLabel } from "../utils/teamWorkspaceCopy";
-import type { CompatSubagentRuntimeDisplaySnapshot } from "../utils/compatSubagentRuntime";
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import { AgentThreadReliabilityPanel } from "./AgentThreadReliabilityPanel";
@@ -135,7 +134,6 @@ export interface HarnessFilePreviewResult {
 
 interface HarnessStatusPanelProps {
   harnessState: HarnessSessionState;
-  compatSubagentRuntime: CompatSubagentRuntimeDisplaySnapshot;
   environment: HarnessEnvironmentSummary;
   layout?: "default" | "sidebar" | "dialog";
   onLoadFilePreview?: (path: string) => Promise<HarnessFilePreviewResult>;
@@ -340,12 +338,12 @@ function resolveSubagentRuntimeStatusVariant(
 function resolveSubagentSessionTypeLabel(value?: string): string {
   switch (value) {
     case "sub_agent":
-      return "协作成员";
+      return "子任务";
     case "fork":
-      return "分支协作";
+      return "分支任务";
     case "user":
     default:
-      return value?.trim() || "协作会话";
+      return value?.trim() || "任务会话";
   }
 }
 
@@ -1535,115 +1533,6 @@ function SummaryCard({
   );
 }
 
-function CompatSubagentFallbackCard({
-  snapshot,
-  condensed = false,
-  onOpenUrl,
-}: {
-  snapshot: CompatSubagentRuntimeDisplaySnapshot;
-  condensed?: boolean;
-  onOpenUrl: (url: string) => void | Promise<void>;
-}) {
-  if (!snapshot.hasSignals) {
-    return null;
-  }
-
-  const statusVariant: ComponentProps<typeof Badge>["variant"] = snapshot.error
-    ? "destructive"
-    : snapshot.isRunning
-      ? "secondary"
-      : "outline";
-  const statusLabel = snapshot.error
-    ? "异常"
-    : snapshot.isRunning
-      ? snapshot.progress
-        ? `${snapshot.progress.completed}/${snapshot.progress.total}`
-        : "处理中"
-      : snapshot.result
-        ? "已结束"
-        : `${snapshot.recentActivity.length} 条`;
-  const primarySummary = snapshot.progress
-    ? `进度 ${snapshot.progress.completed}/${snapshot.progress.total}${
-        snapshot.progress.currentTasks.length > 0
-          ? ` · 当前任务 ${snapshot.progress.currentTasks.join("、")}`
-          : ""
-      }`
-    : snapshot.summary ||
-      snapshot.recentActivity[0]?.summary ||
-      snapshot.error ||
-      snapshot.result?.mergedSummary ||
-      "检测到兼容调度信号";
-  const visibleActivity = condensed
-    ? snapshot.recentActivity.slice(0, 1)
-    : snapshot.recentActivity.slice(0, 3);
-
-  return (
-    <div className="rounded-xl border border-dashed border-border bg-muted/35 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <TerminalSquare className="h-4 w-4 text-muted-foreground" />
-            <div className="text-sm font-medium text-foreground">兼容模式</div>
-            <Badge variant="outline">旧链路</Badge>
-          </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            仅用于承接旧调度信号，不作为当前协作视图的主事实源。
-          </div>
-        </div>
-        <Badge variant={statusVariant}>{statusLabel}</Badge>
-      </div>
-
-      <div className="mt-3 space-y-2">
-        <InteractiveText
-          text={primarySummary}
-          className="text-xs text-muted-foreground"
-          onOpenUrl={onOpenUrl}
-        />
-
-        {visibleActivity.length > 0 &&
-        visibleActivity[0]?.summary !== primarySummary ? (
-          <div className="rounded-lg bg-background/70 px-2.5 py-2">
-            <div className="text-[11px] font-medium text-muted-foreground">
-              最近兼容轨迹
-            </div>
-            <div className="mt-1 space-y-1">
-              {visibleActivity.map((item) => (
-                <InteractiveText
-                  key={item.id}
-                  text={item.summary}
-                  className="text-xs text-muted-foreground"
-                  onOpenUrl={onOpenUrl}
-                />
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {!condensed &&
-        snapshot.result?.mergedSummary &&
-        snapshot.result.mergedSummary !== primarySummary ? (
-          <div className="rounded-lg bg-background/70 px-2.5 py-2">
-            <div className="text-[11px] font-medium text-muted-foreground">
-              兼容汇总
-            </div>
-            <InteractiveText
-              text={snapshot.result.mergedSummary}
-              className="mt-1 text-xs text-muted-foreground"
-              onOpenUrl={onOpenUrl}
-            />
-          </div>
-        ) : null}
-
-        {!condensed && snapshot.error && snapshot.error !== primarySummary ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
-            <InteractiveText text={snapshot.error} onOpenUrl={onOpenUrl} />
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 function InventoryStatCard({
   title,
   value,
@@ -1696,7 +1585,6 @@ function Section({
 
 export function HarnessStatusPanel({
   harnessState,
-  compatSubagentRuntime,
   environment,
   layout = "default",
   onLoadFilePreview,
@@ -2064,7 +1952,6 @@ export function HarnessStatusPanel({
     () => summarizeChildSubagentSessions(childSubagentSessions),
     [childSubagentSessions],
   );
-  const hasCompatSchedulerSignals = compatSubagentRuntime.hasSignals;
   const hasSelectedTeamConfig =
     Boolean(selectedTeamLabel?.trim()) ||
     Boolean(selectedTeamSummary?.trim()) ||
@@ -2229,7 +2116,7 @@ export function HarnessStatusPanel({
     const sections: HarnessSectionNavItem[] = [];
 
     if (hasSelectedTeamConfig) {
-      sections.push({ key: "team_config", label: "协作设置" });
+      sections.push({ key: "team_config", label: "任务分工" });
     }
 
     if (runtimeTaskPresentation) {
@@ -2264,10 +2151,9 @@ export function HarnessStatusPanel({
     }
     if (
       realTeamSummary.total > 0 ||
-      harnessState.delegatedTasks.length > 0 ||
-      hasCompatSchedulerSignals
+      harnessState.delegatedTasks.length > 0
     ) {
-      sections.push({ key: "delegation", label: "协作成员" });
+      sections.push({ key: "delegation", label: "子任务" });
     }
     if (harnessState.latestContextTrace.length > 0) {
       sections.push({ key: "context", label: "上下文轨迹" });
@@ -2291,7 +2177,6 @@ export function HarnessStatusPanel({
     harnessState.recentFileEvents.length,
     hasHandoffSection,
     hasSelectedTeamConfig,
-    hasCompatSchedulerSignals,
     realTeamSummary.total,
     runtimeTaskPresentation,
     threadReliabilityView.shouldRender,
@@ -2337,7 +2222,7 @@ export function HarnessStatusPanel({
     if (hasSelectedTeamConfig) {
       cards.push({
         sectionKey: "team_config",
-        title: "协作设置",
+        title: "任务分工",
         value:
           selectedTeamLabel?.trim() ||
           `${selectedTeamRoles?.length || 0} 个角色`,
@@ -2345,7 +2230,7 @@ export function HarnessStatusPanel({
           selectedTeamSummary?.trim() ||
           ((selectedTeamRoles?.length || 0) > 0
             ? `已配置 ${selectedTeamRoles?.length || 0} 个角色`
-            : "本次已启用协作设置"),
+            : "本次已启用任务分工"),
         icon: Workflow,
       });
     }
@@ -2364,7 +2249,7 @@ export function HarnessStatusPanel({
     if (realTeamSummary.total > 0) {
       cards.push({
         sectionKey: "delegation",
-        title: "协作成员",
+        title: "子任务",
         value:
           realTeamSummary.active > 0
             ? `${realTeamSummary.active}/${realTeamSummary.total}`
@@ -2696,11 +2581,6 @@ export function HarnessStatusPanel({
                   <Loader2 className="h-3 w-3 animate-spin" />
                   任务进行中
                 </Badge>
-              ) : compatSubagentRuntime.isRunning ? (
-                <Badge variant="secondary" className="gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  兼容调度中
-                </Badge>
               ) : null}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">{description}</p>
@@ -2811,7 +2691,7 @@ export function HarnessStatusPanel({
               {hasSelectedTeamConfig ? (
                 <Section
                   sectionKey="team_config"
-                  title="当前协作设置"
+                  title="当前任务分工"
                   badge={
                     selectedTeamRoles && selectedTeamRoles.length > 0
                       ? `${selectedTeamRoles.length} 个角色`
@@ -2823,7 +2703,7 @@ export function HarnessStatusPanel({
                     <div className="rounded-xl border border-sky-200/80 bg-sky-50/50 p-3">
                       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                         <Workflow className="h-4 w-4 text-sky-600" />
-                        <span>{selectedTeamLabel || "当前已启用协作方案"}</span>
+                        <span>{selectedTeamLabel || "当前已启用任务方案"}</span>
                       </div>
                       {selectedTeamSummary ? (
                         <div className="mt-2 text-sm text-muted-foreground">
@@ -2831,7 +2711,7 @@ export function HarnessStatusPanel({
                         </div>
                       ) : (
                         <div className="mt-2 text-sm text-muted-foreground">
-                          本次会优先参考所选协作方案的角色分工，按需邀请协作成员一起处理。
+                          本次会优先参考所选任务方案的角色分工，按需拆出子任务继续处理。
                         </div>
                       )}
                     </div>
@@ -3140,7 +3020,7 @@ export function HarnessStatusPanel({
                             hint={`待开始 ${handoffBundle.todo_pending} · 进行中 ${handoffBundle.todo_in_progress}`}
                           />
                           <InventoryStatCard
-                            title="协作成员"
+                            title="子任务"
                             value={`${handoffBundle.active_subagent_count}`}
                             hint={`workspace ${handoffBundle.workspace_id || "未绑定"}`}
                           />
@@ -5712,16 +5592,15 @@ export function HarnessStatusPanel({
               ) : null}
 
               {realTeamSummary.total > 0 ||
-              harnessState.delegatedTasks.length > 0 ||
-              hasCompatSchedulerSignals ? (
+              harnessState.delegatedTasks.length > 0 ? (
                 <Section
                   sectionKey="delegation"
-                  title="协作成员"
+                  title="子任务"
                   badge={
                     realTeamSummary.active > 0
                       ? `处理中 ${realTeamSummary.active}`
                       : realTeamSummary.total > 0
-                        ? `${realTeamSummary.total} 个协作`
+                        ? `${realTeamSummary.total} 个子任务`
                         : harnessState.delegatedTasks.length > 0
                           ? `${harnessState.delegatedTasks.length} 条`
                           : undefined
@@ -5733,7 +5612,7 @@ export function HarnessStatusPanel({
                       <div className="rounded-xl border border-border bg-background p-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-medium text-foreground">
-                            当前协作会话
+                            当前子任务
                           </div>
                           <Badge variant="outline">
                             {realTeamSummary.total} 个
@@ -5802,7 +5681,7 @@ export function HarnessStatusPanel({
                     {childSubagentSessions.length > 0 ? (
                       <div className="space-y-3">
                         <div className="text-xs font-medium text-muted-foreground">
-                          实时协作会话
+                          实时子任务
                         </div>
                         {childSubagentSessions.map((session) => (
                           <div
@@ -5900,12 +5779,6 @@ export function HarnessStatusPanel({
                         ))}
                       </div>
                     ) : null}
-
-                    <CompatSubagentFallbackCard
-                      snapshot={compatSubagentRuntime}
-                      condensed={realTeamSummary.total > 0}
-                      onOpenUrl={handleOpenExternalLink}
-                    />
                   </div>
                 </Section>
               ) : null}

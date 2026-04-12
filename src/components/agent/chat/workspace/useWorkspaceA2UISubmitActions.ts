@@ -1,15 +1,13 @@
 import { useCallback } from "react";
 import { toast } from "sonner";
-import type { A2UIFormData, A2UIResponse } from "@/lib/workspace/a2ui";
+import type { A2UIFormData } from "@/lib/workspace/a2ui";
 import type { ConfirmResponse } from "../types";
 import type { SendMessageFn } from "../hooks/agentChatShared";
 import type { ActionRequired } from "../types";
 import { buildActionRequestSubmissionPayload } from "../utils/actionRequestA2UI";
-import { buildCompatQuestionnaireSubmissionPayload } from "../utils/compatQuestionnaireA2UI";
 
 interface UseWorkspaceA2UISubmitActionsParams {
   handlePermissionResponse: (response: ConfirmResponse) => Promise<void>;
-  pendingLegacyQuestionnaireA2UIForm: A2UIResponse | null;
   pendingPromotedA2UIActionRequest: ActionRequired | null;
   resolvePendingA2UISubmit: (formData: A2UIFormData) => {
     status: "advance" | "empty" | "submit";
@@ -20,7 +18,6 @@ interface UseWorkspaceA2UISubmitActionsParams {
 
 export function useWorkspaceA2UISubmitActions({
   handlePermissionResponse,
-  pendingLegacyQuestionnaireA2UIForm,
   pendingPromotedA2UIActionRequest,
   resolvePendingA2UISubmit,
   sendMessage,
@@ -73,42 +70,13 @@ export function useWorkspaceA2UISubmitActions({
         return;
       }
 
-      if (pendingLegacyQuestionnaireA2UIForm) {
-        const submissionPayload = buildCompatQuestionnaireSubmissionPayload(
-          pendingLegacyQuestionnaireA2UIForm,
-          effectiveFormData,
-        );
-
-        if (!submissionPayload) {
-          toast.info("请至少补充一项信息后再继续");
-          return;
-        }
-
-        void sendMessage(
-          submissionPayload.formattedMessage,
-          [],
-          false,
-          false,
-          false,
-          undefined,
-          undefined,
-          undefined,
-          {
-            requestMetadata: submissionPayload.requestMetadata,
-          },
-        );
-        return;
-      }
-
       void handleA2UISubmit(effectiveFormData, "");
     },
     [
       handleA2UISubmit,
       handlePermissionResponse,
-      pendingLegacyQuestionnaireA2UIForm,
       pendingPromotedA2UIActionRequest,
       resolvePendingA2UISubmit,
-      sendMessage,
     ],
   );
 

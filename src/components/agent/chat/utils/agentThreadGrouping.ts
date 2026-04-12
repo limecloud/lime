@@ -372,7 +372,7 @@ function resolveGroupTitle(
     case "artifact":
       return "文件和产物";
     case "subagent":
-      return "协作成员";
+      return "子任务";
     default:
       return "执行过程";
   }
@@ -569,15 +569,22 @@ function summarizeCollaborationItem(item: AgentThreadItem): string | null {
         "taskType",
         "role",
         "agent_type",
-      ]) || resolveToolDisplayLabel(item.tool_name),
-      "分给协作成员处理 ",
-      ["分给协作成员", "协作中 ", "邀请 ", "已邀请 "],
+      ]) || "子任务",
+      "分给子任务处理 ",
+      [
+        "分给子任务",
+        "子任务处理中 ",
+        "分给协作成员",
+        "协作中 ",
+        "邀请 ",
+        "已邀请 ",
+      ],
     );
   }
 
   if (normalized === "sendmessage") {
     return prefixAction(
-      readString(args, ["id", "agent_id", "message"]) || "目标协作成员",
+      readString(args, ["id", "agent_id", "message"]) || "目标子任务",
       "补充说明 ",
       ["补充说明 ", "已补充说明 ", "发送给 "],
     );
@@ -631,9 +638,9 @@ function summarizeSubagentItem(item: AgentThreadItem): string | null {
     resolveInternalImageTaskDisplayName(item.title) ||
       item.summary ||
       item.status_label ||
-      "协作任务",
-    "分给协作成员处理 ",
-    ["分给协作成员", "协作成员"],
+      "子任务",
+    "分给子任务处理 ",
+    ["分给子任务", "子任务", "分给协作成员", "协作成员"],
   );
 }
 
@@ -880,7 +887,7 @@ export function buildAgentThreadDisplayModel(
           : current.kind === "artifact"
             ? "查看产物"
             : current.kind === "subagent"
-              ? "查看协作详情"
+              ? "查看子任务详情"
               : "查看执行过程",
       defaultExpanded: shouldDefaultExpand(current.kind, status),
       startedAt,

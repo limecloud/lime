@@ -7,8 +7,7 @@
 use crate::agent::SessionDetail;
 use crate::commands::aster_agent_cmd::AgentRuntimeThreadReadModel;
 use crate::services::runtime_evidence_pack_service::{
-    build_runtime_observability_summary_json, export_runtime_evidence_pack,
-    RuntimeEvidencePackExportResult,
+    export_runtime_evidence_pack, RuntimeEvidencePackExportResult,
 };
 use crate::services::runtime_handoff_artifact_service::{
     export_runtime_handoff_bundle, RuntimeHandoffBundleExportResult,
@@ -145,12 +144,7 @@ pub fn export_runtime_replay_case(
     let recent_artifacts = collect_recent_artifact_paths(detail);
     let pending_requests = collect_pending_request_inputs(detail, thread_read);
     let recent_timeline = collect_recent_timeline_items(detail);
-    let observability_summary = build_runtime_observability_summary_json(
-        detail,
-        thread_read,
-        &recent_artifacts,
-        &evidence_pack.known_gaps,
-    );
+    let observability_summary = read_observability_summary_from_evidence_pack(&evidence_pack)?;
     let success_criteria = build_success_criteria(
         detail,
         thread_read,
@@ -281,6 +275,29 @@ fn write_replay_file(
         absolute_path: absolute_path.to_string_lossy().to_string(),
         bytes: content.len(),
     })
+}
+
+fn read_observability_summary_from_evidence_pack(
+    evidence_pack: &RuntimeEvidencePackExportResult,
+) -> Result<Value, String> {
+    let runtime_path = Path::new(&evidence_pack.pack_absolute_root).join("runtime.json");
+    let raw = fs::read_to_string(&runtime_path).map_err(|error| {
+        format!(
+            "读取 evidence pack runtime.json 失败 {}: {error}",
+            runtime_path.display()
+        )
+    })?;
+    let payload = serde_json::from_str::<Value>(raw.as_str()).map_err(|error| {
+        format!(
+            "解析 evidence pack runtime.json 失败 {}: {error}",
+            runtime_path.display()
+        )
+    })?;
+
+    Ok(payload
+        .pointer("/observabilitySummary")
+        .cloned()
+        .unwrap_or(Value::Null))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1261,6 +1278,7 @@ mod tests {
         assert!(input.contains("\"pending_request\""));
         assert!(input.contains("\"observability\""));
         assert!(input.contains("\"requestTelemetry\""));
+        assert!(!input.contains("\"artifactValidator\""));
 
         let expected = fs::read_to_string(expected_path).expect("expected");
         assert!(expected.contains("不要要求与原始会话完全相同的工具调用顺序"));
@@ -1274,6 +1292,6 @@ mod tests {
         assert!(links.contains("\"handoffBundle\""));
         assert!(links.contains("\"evidencePack\""));
         assert!(links.contains("\"observabilitySummary\""));
-        assert!(links.contains("\"artifactValidator\""));
+        assert!(!links.contains("\"artifactValidator\""));
     }
 }

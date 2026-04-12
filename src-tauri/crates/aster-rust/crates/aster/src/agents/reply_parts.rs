@@ -438,6 +438,11 @@ impl Agent {
                 usage.usage.output_tokens,
             )
         };
+        let current_cached_input = if is_compaction_usage {
+            Some(0)
+        } else {
+            usage.usage.cached_input_tokens
+        };
 
         if let Some(store) = session_store {
             store
@@ -448,6 +453,7 @@ impl Agent {
                         total_tokens: current_total,
                         input_tokens: current_input,
                         output_tokens: current_output,
+                        cached_input_tokens: current_cached_input,
                         accumulated_total,
                         accumulated_input,
                         accumulated_output,
@@ -460,6 +466,7 @@ impl Agent {
                 .total_tokens(current_total)
                 .input_tokens(current_input)
                 .output_tokens(current_output)
+                .cached_input_tokens(current_cached_input)
                 .accumulated_total_tokens(accumulated_total)
                 .accumulated_input_tokens(accumulated_input)
                 .accumulated_output_tokens(accumulated_output)

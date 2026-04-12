@@ -345,7 +345,7 @@ describe("EmptyState", () => {
     expect(container.textContent).not.toContain("快速启动");
     expect(container.textContent).not.toContain("生成配图");
     expect(container.textContent).not.toContain("浏览器任务起步");
-    expect(container.textContent).not.toContain("Team 冒烟测试");
+    expect(container.textContent).not.toContain("任务拆分冒烟测试");
     expect(container.textContent).not.toContain("推荐方案");
 
     const recommendationTitles = Array.from(
@@ -500,11 +500,11 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    const expectedLabels = ["我的方法", "持续流程", "多代理", "浏览器接入"];
+    const expectedLabels = ["我的方法", "持续流程", "任务拆分", "浏览器接入"];
     const expectedAlts = [
       "方法能力卡占位图",
       "持续流程能力卡占位图",
-      "多代理协作能力卡占位图",
+      "任务拆分能力卡占位图",
       "浏览器接入能力卡占位图",
     ];
 
@@ -975,7 +975,7 @@ describe("EmptyState", () => {
       container.querySelector('[data-testid="inputbar-plan-toggle"]'),
     ).toBeNull();
     expect(
-      container.querySelector('button[title="多代理偏好已关闭"]'),
+      container.querySelector('button[title="任务拆分偏好已关闭"]'),
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="inputbar-access-mode-select"]'),
@@ -1002,7 +1002,7 @@ describe("EmptyState", () => {
     ) as HTMLButtonElement | null;
     expect(planButton).toBeTruthy();
     const subagentButton = container.querySelector(
-      'button[title="多代理偏好已关闭"]',
+      'button[title="任务拆分偏好已关闭"]',
     ) as HTMLButtonElement | null;
     expect(subagentButton).toBeTruthy();
     const accessModeSelect = container.querySelector(

@@ -31,27 +31,18 @@ jobs:
           restore-keys: |
             harness-nightly-history-
 
-      - name: Generate harness eval summary
+      - name: Generate harness eval artifacts
         run: |
-          node scripts/harness-eval-runner.mjs \
-            --output-json "./artifacts/harness-eval-summary.json" \
-            --output-markdown "./artifacts/harness-eval-summary.md" \
-            --record-history-dir "./artifacts/history" \
-            --history-retain 30
-
-      - name: Generate harness eval trend
-        run: |
-          node scripts/harness-eval-trend-report.mjs \
+          node scripts/harness-eval-history-record.mjs \
             --history-dir "./artifacts/history" \
-            --output-json "./artifacts/harness-eval-trend.json" \
-            --output-markdown "./artifacts/harness-eval-trend.md"
-
-      - name: Generate harness cleanup report
-        run: |
-          node scripts/report-generated-slop.mjs \
-            --trend-input "./artifacts/harness-eval-trend.json" \
-            --output-json "./artifacts/harness-cleanup-report.json" \
-            --output-markdown "./artifacts/harness-cleanup-report.md"
+            --retain 30 \
+            --summary-json "./artifacts/harness-eval-summary.json" \
+            --summary-markdown "./artifacts/harness-eval-summary.md" \
+            --trend-json "./artifacts/harness-eval-trend.json" \
+            --trend-markdown "./artifacts/harness-eval-trend.md" \
+            --cleanup-json "./artifacts/harness-cleanup-report.json" \
+            --cleanup-markdown "./artifacts/harness-cleanup-report.md" \
+            --dashboard-html "./artifacts/harness-dashboard.html"
 
       - name: Upload harness eval artifact
         uses: actions/upload-artifact@v4

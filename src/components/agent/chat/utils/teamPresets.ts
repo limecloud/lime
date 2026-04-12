@@ -39,7 +39,7 @@ export const BUILTIN_TEAM_SKILL_OPTIONS: BuiltinTeamSkillOption[] = [
   {
     id: "bounded-implementation",
     label: "边界实现",
-    description: "强调只改授权范围，避免和其他子代理冲突。",
+    description: "强调只改授权范围，避免和其他子任务冲突。",
   },
   {
     id: "verification-report",

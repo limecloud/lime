@@ -114,8 +114,8 @@ beforeEach(() => {
   vi.clearAllMocks();
 
   mockCheckForUpdates.mockResolvedValue({
-    current: "1.8.0",
-    latest: "1.8.1",
+    current: "1.9.0",
+    latest: "1.9.1",
     hasUpdate: true,
     downloadUrl: "https://example.com/lime",
     releaseNotes: "修复设置页视觉层级并优化更新体验。",
@@ -153,7 +153,7 @@ describe("AboutSection", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("关于 Lime");
     expect(text).toContain("了解版本、更新入口和 Lime 的工作区定位。");
-    expect(text).toContain("当前版本 1.8.0");
+    expect(text).toContain("当前版本 1.9.0");
     expect(text).toContain("工作区主线 4 项");
     expect(text).toContain("相关入口 3 个");
     expect(text).toContain("产品定位");

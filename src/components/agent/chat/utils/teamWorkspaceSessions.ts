@@ -48,6 +48,16 @@ export interface TeamSessionCard {
   isCurrent?: boolean;
 }
 
+const TEAM_WORKSPACE_TASK_SCHEDULE_PRIORITY: Record<string, number> = {
+  running: 0,
+  queued: 1,
+  failed: 2,
+  aborted: 2,
+  completed: 3,
+  closed: 4,
+  idle: 5,
+};
+
 const STATUS_META = {
   idle: {
     label: resolveTeamWorkspaceDisplayRuntimeStatusLabel(undefined),
@@ -126,7 +136,7 @@ export function buildCurrentChildSession(
 
   return {
     id: currentSessionId,
-    name: currentSessionName?.trim() || "当前成员",
+    name: currentSessionName?.trim() || "当前任务",
     runtimeStatus: currentSessionRuntimeStatus,
     taskSummary: subagentParentContext.task_summary,
     roleHint: subagentParentContext.role_hint,
@@ -163,7 +173,7 @@ export function buildOrchestratorSession(
     name: currentSessionName?.trim() || TEAM_WORKSPACE_MAIN_ASSISTANT_LABEL,
     runtimeStatus: currentSessionRuntimeStatus,
     taskSummary:
-      "当前主助手会负责拆分需求、邀请协作成员加入，并把各部分结果汇总到同一份内容里。",
+      "当前主任务会负责拆解任务、安排处理顺序，并把各部分结果汇总到同一份内容里。",
     roleHint: "orchestrator",
     sessionType: "user",
     isCurrent: true,
@@ -369,13 +379,28 @@ export function buildTeamWorkspaceMemberCanvasSessions(params: {
     visibleSessions,
     teamDispatchPreviewState,
   } = params;
-
-  return orderSessionsByRuntimeRoles(
+  const roleOrderedSessions = orderSessionsByRuntimeRoles(
     isChildSession
       ? dedupeSessions([currentChildSession, ...visibleSessions])
       : visibleSessions,
     teamDispatchPreviewState,
   );
+
+  return roleOrderedSessions
+    .map((session, index) => ({
+      session,
+      index,
+      priority:
+        TEAM_WORKSPACE_TASK_SCHEDULE_PRIORITY[session.runtimeStatus ?? "idle"] ??
+        TEAM_WORKSPACE_TASK_SCHEDULE_PRIORITY.idle,
+    }))
+    .sort((left, right) => {
+      if (left.priority !== right.priority) {
+        return left.priority - right.priority;
+      }
+      return left.index - right.index;
+    })
+    .map((entry) => entry.session);
 }
 
 export function buildTeamWorkspaceRailSessions(params: {
@@ -457,20 +482,20 @@ export function resolveExpandedTeamWorkspaceSessionId(
 }
 
 export function buildFallbackSummary(params: {
-  hasRealTeamGraph: boolean;
+  hasRuntimeSessions: boolean;
   isChildSession: boolean;
   selectedSession?: TeamSessionCard | null;
 }) {
-  const { hasRealTeamGraph, isChildSession, selectedSession } = params;
+  const { hasRuntimeSessions, isChildSession, selectedSession } = params;
 
-  if (!hasRealTeamGraph) {
-    return "还没有成员接入。需要时系统会自动补充分工，并在这里展示最新进展。";
+  if (!hasRuntimeSessions) {
+    return "还没有任务接入。需要时系统会自动补充分工，并在这里展示最新进展。";
   }
   if (selectedSession?.sessionType === "user") {
-    return "主助手会负责整理需求、分配分工，并把各部分结果汇总到当前内容里。";
+    return "主任务会负责整理需求、安排任务顺序，并把各部分结果汇总到当前内容里。";
   }
   if (isChildSession) {
-    return "这位协作成员正在处理主助手分配的内容，你可以在这里切换查看其他成员的进展。";
+    return "这项任务正在处理主任务分配的内容，你可以在这里切换查看其他并行任务的进展。";
   }
-  return "选中一位协作成员后，这里会展示它正在帮你做什么，以及目前进展到哪一步。";
+  return "选中一项任务后，这里会展示它正在推进什么，以及目前进展到哪一步。";
 }

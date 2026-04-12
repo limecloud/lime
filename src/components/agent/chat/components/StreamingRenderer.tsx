@@ -1602,25 +1602,25 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
       );
     }
 
-    // 回退模式：将思考、工具和确认收敛成同一条执行过程
-    const legacyProcessEntries: StreamingProcessEntry[] = [];
+    // 非交错内容统一收敛到同一条执行过程，避免重复渲染多条过程流。
+    const fallbackProcessEntries: StreamingProcessEntry[] = [];
     if (finalThinking) {
-      legacyProcessEntries.push({
+      fallbackProcessEntries.push({
         kind: "thinking",
-        id: "legacy-thinking",
+        id: "fallback-thinking",
         text: finalThinking,
         defaultExpanded: isStreaming,
       });
     }
     for (const toolCall of suppressProcessFlow ? [] : toolCalls || []) {
-      legacyProcessEntries.push({
+      fallbackProcessEntries.push({
         kind: "tool",
         id: toolCall.id,
         toolCall,
       });
     }
     for (const request of suppressProcessFlow ? [] : visibleActionRequests) {
-      legacyProcessEntries.push({
+      fallbackProcessEntries.push({
         kind: "action",
         id: request.requestId,
         actionRequired: request,
@@ -1634,8 +1634,8 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
         {shouldShowRuntimeStatus && runtimeStatus ? (
           <AgentRuntimeStatusBlock status={runtimeStatus} />
         ) : null}
-        {legacyProcessEntries.length > 0
-          ? renderProcessRun(legacyProcessEntries, "legacy-process")
+        {fallbackProcessEntries.length > 0
+          ? renderProcessRun(fallbackProcessEntries, "fallback-process")
           : null}
 
         {/* 解析后的内容区域（包括 A2UI、write_file、普通文本） */}

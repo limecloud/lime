@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       bridge: ${{ steps.detect.outputs.bridge }}
+      bridge_reasons: ${{ steps.detect.outputs.bridge_reasons }}
       changed_count: ${{ steps.detect.outputs.changed_count }}
       docs: ${{ steps.detect.outputs.docs }}
       docs_only: ${{ steps.detect.outputs.docs_only }}
@@ -194,30 +195,97 @@ jobs:
       - name: Summarize
         shell: bash
         run: |
-          echo "changed_count: ${{ needs.changed.outputs.changed_count }}"
-          echo "docs_only   : ${{ needs.changed.outputs.docs_only }}"
-          echo "integrity   : ${{ needs.integrity.result }}"
-          echo "frontend    : ${{ needs.frontend.result }}"
-          echo "bridge      : ${{ needs.bridge_contracts.result }}"
-          echo "gui_smoke   : ${{ needs.gui_smoke.result }}"
+          CHANGED_COUNT='${{ needs.changed.outputs.changed_count }}'
+          DOCS_ONLY='${{ needs.changed.outputs.docs_only }}'
+          BRIDGE_REASONS='${{ needs.changed.outputs.bridge_reasons }}'
+          INTEGRITY_RESULT='${{ needs.integrity.result }}'
+          FRONTEND_RESULT='${{ needs.frontend.result }}'
+          BRIDGE_RESULT='${{ needs.bridge_contracts.result }}'
+          GUI_SMOKE_RESULT='${{ needs.gui_smoke.result }}'
+          FALLBACK='${{ needs.changed.outputs.fallback }}'
+          WORKFLOW='${{ needs.changed.outputs.workflow }}'
+          INTEGRITY_REQUIRED='${{ needs.changed.outputs.integrity }}'
+          FRONTEND_REQUIRED='${{ needs.changed.outputs.frontend }}'
+          BRIDGE_REQUIRED='${{ needs.changed.outputs.bridge }}'
+          GUI_SMOKE_REQUIRED='${{ needs.changed.outputs.gui_smoke }}'
 
-          if [[ '${{ needs.changed.outputs.docs_only }}' == 'true' ]]; then
-            echo 'Only docs/markdown changes detected -> quality checks not required.'
+          BRIDGE_REASONS_DISPLAY="${BRIDGE_REASONS//,/、}"
+          if [[ -z "${BRIDGE_REASONS_DISPLAY}" ]]; then
+            BRIDGE_REASONS_DISPLAY="无"
+          fi
+
+          echo "changed_count: ${CHANGED_COUNT}"
+          echo "docs_only   : ${DOCS_ONLY}"
+          echo "bridge_reasons: ${BRIDGE_REASONS}"
+          echo "integrity   : ${INTEGRITY_RESULT}"
+          echo "frontend    : ${FRONTEND_RESULT}"
+          echo "bridge      : ${BRIDGE_RESULT}"
+          echo "gui_smoke   : ${GUI_SMOKE_RESULT}"
+
+          FINAL_STATUS="success"
+          FAILURE_REASON=""
+
+          if [[ "${DOCS_ONLY}" == 'true' ]]; then
+            SUMMARY_NOTE="Only docs/markdown changes detected -> quality checks not required."
+          else
+            SUMMARY_NOTE="Quality checks evaluated against changed areas."
+
+            if [[ "${INTEGRITY_REQUIRED}" == 'true' || "${FALLBACK}" == 'true' || "${WORKFLOW}" == 'true' ]]; then
+              if [[ "${INTEGRITY_RESULT}" != 'success' ]]; then
+                FINAL_STATUS="failed"
+                FAILURE_REASON="integrity failed"
+              fi
+            fi
+
+            if [[ -z "${FAILURE_REASON}" && ("${FRONTEND_REQUIRED}" == 'true' || "${FALLBACK}" == 'true' || "${WORKFLOW}" == 'true') ]]; then
+              if [[ "${FRONTEND_RESULT}" != 'success' ]]; then
+                FINAL_STATUS="failed"
+                FAILURE_REASON="frontend failed"
+              fi
+            fi
+
+            if [[ -z "${FAILURE_REASON}" && ("${BRIDGE_REQUIRED}" == 'true' || "${FALLBACK}" == 'true' || "${WORKFLOW}" == 'true') ]]; then
+              if [[ "${BRIDGE_RESULT}" != 'success' ]]; then
+                FINAL_STATUS="failed"
+                FAILURE_REASON="bridge/contracts failed"
+              fi
+            fi
+
+            if [[ -z "${FAILURE_REASON}" && ("${GUI_SMOKE_REQUIRED}" == 'true' || "${FALLBACK}" == 'true' || "${WORKFLOW}" == 'true') ]]; then
+              if [[ "${GUI_SMOKE_RESULT}" != 'success' ]]; then
+                FINAL_STATUS="failed"
+                FAILURE_REASON="gui smoke failed"
+              fi
+            fi
+          fi
+
+          {
+            echo "## Quality Summary"
+            echo
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| changed_count | ${CHANGED_COUNT} |"
+            echo "| docs_only | ${DOCS_ONLY} |"
+            echo "| bridge_reasons | ${BRIDGE_REASONS_DISPLAY} |"
+            echo "| integrity | ${INTEGRITY_RESULT} |"
+            echo "| frontend | ${FRONTEND_RESULT} |"
+            echo "| bridge_contracts | ${BRIDGE_RESULT} |"
+            echo "| gui_smoke | ${GUI_SMOKE_RESULT} |"
+            echo "| final_status | ${FINAL_STATUS} |"
+            echo
+            echo "${SUMMARY_NOTE}"
+            if [[ -n "${FAILURE_REASON}" ]]; then
+              echo
+              echo "Failure reason: ${FAILURE_REASON}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "${DOCS_ONLY}" == 'true' ]]; then
+            echo "${SUMMARY_NOTE}"
             exit 0
           fi
 
-          if [[ '${{ needs.changed.outputs.integrity }}' == 'true' || '${{ needs.changed.outputs.fallback }}' == 'true' || '${{ needs.changed.outputs.workflow }}' == 'true' ]]; then
-            [[ '${{ needs.integrity.result }}' == 'success' ]] || { echo 'integrity failed'; exit 1; }
-          fi
-
-          if [[ '${{ needs.changed.outputs.frontend }}' == 'true' || '${{ needs.changed.outputs.fallback }}' == 'true' || '${{ needs.changed.outputs.workflow }}' == 'true' ]]; then
-            [[ '${{ needs.frontend.result }}' == 'success' ]] || { echo 'frontend failed'; exit 1; }
-          fi
-
-          if [[ '${{ needs.changed.outputs.bridge }}' == 'true' || '${{ needs.changed.outputs.fallback }}' == 'true' || '${{ needs.changed.outputs.workflow }}' == 'true' ]]; then
-            [[ '${{ needs.bridge_contracts.result }}' == 'success' ]] || { echo 'bridge/contracts failed'; exit 1; }
-          fi
-
-          if [[ '${{ needs.changed.outputs.gui_smoke }}' == 'true' || '${{ needs.changed.outputs.fallback }}' == 'true' || '${{ needs.changed.outputs.workflow }}' == 'true' ]]; then
-            [[ '${{ needs.gui_smoke.result }}' == 'success' ]] || { echo 'gui smoke failed'; exit 1; }
+          if [[ -n "${FAILURE_REASON}" ]]; then
+            echo "${FAILURE_REASON}"
+            exit 1
           fi

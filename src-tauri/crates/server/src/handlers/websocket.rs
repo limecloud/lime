@@ -28,12 +28,26 @@ use lime_providers::converter::openai_to_antigravity::{
     convert_antigravity_to_openai_response, convert_openai_to_antigravity_with_context,
 };
 use lime_providers::providers::{
-    AntigravityProvider, ClaudeCustomProvider, KiroProvider, OpenAICustomProvider,
+    AntigravityProvider, ClaudeCustomProvider, KiroProvider, OpenAICustomProvider, PromptCacheMode,
 };
 use lime_server_utils::parse_cw_response;
 use lime_websocket::{
     WsApiRequest, WsApiResponse, WsEndpoint, WsError, WsMessage as WsProtoMessage,
 };
+
+fn extract_openai_usage_pair(response: &serde_json::Value) -> (u64, u64) {
+    let usage = response.get("usage").and_then(serde_json::Value::as_object);
+    let prompt_tokens = usage
+        .and_then(|usage| usage.get("prompt_tokens"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let completion_tokens = usage
+        .and_then(|usage| usage.get("completion_tokens"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+
+    (prompt_tokens, completion_tokens)
+}
 
 /// WebSocket 查询参数
 #[derive(Debug, Deserialize, Default)]
@@ -657,7 +671,16 @@ pub async fn call_provider_openai_for_ws(
                 actual_base_url,
                 &credential.uuid[..8]
             );
-            let provider = ClaudeCustomProvider::with_config(api_key.clone(), base_url.clone());
+            let prompt_cache_mode = if credential.provider_type.supports_anthropic_prompt_cache() {
+                PromptCacheMode::Automatic
+            } else {
+                PromptCacheMode::ExplicitOnly
+            };
+            let provider = ClaudeCustomProvider::with_prompt_cache_mode(
+                api_key.clone(),
+                base_url.clone(),
+                prompt_cache_mode,
+            );
             match provider.call_openai_api(request).await {
                 Ok(result) => {
                     // 记录成功
@@ -798,7 +821,16 @@ pub async fn call_provider_anthropic_for_ws(
                 actual_base_url,
                 &credential.uuid[..8]
             );
-            let provider = ClaudeCustomProvider::with_config(api_key.clone(), base_url.clone());
+            let prompt_cache_mode = if credential.provider_type.supports_anthropic_prompt_cache() {
+                PromptCacheMode::Automatic
+            } else {
+                PromptCacheMode::ExplicitOnly
+            };
+            let provider = ClaudeCustomProvider::with_prompt_cache_mode(
+                api_key.clone(),
+                base_url.clone(),
+                prompt_cache_mode,
+            );
             let resp = match provider.call_api(request).await {
                 Ok(r) => r,
                 Err(e) => {
@@ -838,6 +870,7 @@ pub async fn call_provider_anthropic_for_ws(
             // 转换为 OpenAI 格式并调用（健康状态更新在 call_provider_openai_for_ws 中处理）
             let openai_request = convert_anthropic_to_openai(request);
             let result = call_provider_openai_for_ws(state, credential, &openai_request).await?;
+            let (input_tokens, output_tokens) = extract_openai_usage_pair(&result);
 
             // 转换响应为 Anthropic 格式
             Ok(serde_json::json!({
@@ -856,10 +889,37 @@ pub async fn call_provider_anthropic_for_ws(
                 "model": request.model,
                 "stop_reason": "end_turn",
                 "usage": {
-                    "input_tokens": 0,
-                    "output_tokens": 0
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens
                 }
             }))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_openai_usage_pair_should_read_prompt_and_completion_tokens() {
+        let response = serde_json::json!({
+            "usage": {
+                "prompt_tokens": 420,
+                "completion_tokens": 69,
+                "total_tokens": 489
+            }
+        });
+
+        assert_eq!(extract_openai_usage_pair(&response), (420, 69));
+    }
+
+    #[test]
+    fn extract_openai_usage_pair_should_default_to_zero_without_usage() {
+        let response = serde_json::json!({
+            "id": "chatcmpl-test"
+        });
+
+        assert_eq!(extract_openai_usage_pair(&response), (0, 0));
     }
 }

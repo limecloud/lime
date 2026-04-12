@@ -1,0 +1,28 @@
+{
+  "replayCaseVersion": "v1",
+  "exportedAt": "2026-03-27T14:10:00Z",
+  "sessionId": "fixture-session-observability-gap",
+  "threadId": "fixture-thread-observability-gap",
+  "goalSummary": "确认评估链会把 observability 证据缺口显式识别出来，而不是把证据不完整的会话误判为全量覆盖。",
+  "successCriteria": [
+    "评分结果必须明确指出 requestTelemetry 与 artifactValidator 的 known gap。",
+    "若沿用 handoff bundle 与 evidence pack，结论必须引用至少一条证据来源。",
+    "不得把 evidence 缺口包装成 PASS 证据。"
+  ],
+  "blockingChecks": [
+    "确认当前线程虽已完成，但 observability 缺口仍被保留下来。",
+    "确认 requestTelemetry 缺日志目录不会被误判为已导出空摘要。"
+  ],
+  "artifactChecks": [
+    "确认 `.lime/harness/sessions/fixture-session-observability-gap/handoff/handoff.md` 仍与目标一致。",
+    "确认 evidence pack 中记录的 known gaps 被正确解读。"
+  ],
+  "nonGoals": [
+    "不要要求与原始会话完全相同的工具调用顺序。",
+    "不要把措辞差异当作失败，除非它改变了 observability 风险判断。"
+  ],
+  "graderSuggestion": {
+    "preferredMode": "result_artifact_and_observability_gap_resolution",
+    "requiresHumanReview": false
+  }
+}

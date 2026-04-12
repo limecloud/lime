@@ -172,6 +172,7 @@ describe("agentChatHistory", () => {
           usage: {
             input_tokens: 12000,
             output_tokens: 19000,
+            cached_input_tokens: 4000,
           },
         },
       ],
@@ -182,6 +183,7 @@ describe("agentChatHistory", () => {
     expect(messages[0]?.usage).toEqual({
       input_tokens: 12000,
       output_tokens: 19000,
+      cached_input_tokens: 4000,
     });
   });
 
@@ -433,6 +435,7 @@ describe("agentChatHistory", () => {
         usage: {
           input_tokens: 20480,
           output_tokens: 10240,
+          cached_input_tokens: 8192,
         },
       },
     ];
@@ -459,6 +462,7 @@ describe("agentChatHistory", () => {
     expect(mergedMessages[1]?.usage).toEqual({
       input_tokens: 20480,
       output_tokens: 10240,
+      cached_input_tokens: 8192,
     });
   });
 

@@ -100,7 +100,7 @@ export function SelectedSessionInlineDetail({
         <div className={inlineDetailSectionClassName}>
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             <Bot className="h-3.5 w-3.5" />
-            <span>协作设置</span>
+            <span>任务分工</span>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             {detailDisplay.settingBadges.map((badge) => (

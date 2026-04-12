@@ -126,6 +126,31 @@ x-api-key: {api_key}
 anthropic-version: 2023-06-01
 ```
 
+## Prompt Cache 能力边界
+
+Lime 当前把 Prompt Cache 能力视为 **Provider 类型能力**，而不是“请求长得像哪家协议”：
+
+- `anthropic` / `claude` / `claude-oauth`：声明为 `automatic`
+- `anthropic-compatible`：声明为 `explicit_only`
+- 其它 Provider：默认 `not_applicable`
+
+这条事实源当前收敛在：
+
+- 前端：`src/lib/model/providerPromptCacheSupport.ts`
+- 后端：Provider 类型与运行时能力判断链
+
+需要特别注意：
+
+1. `anthropic-compatible` 只表示接入方兼容 Anthropic wire format，不等于上游已经实现 Anthropic Automatic Prompt Caching
+2. Lime 不会因为某个自定义渠道“长得像 Anthropic”就默认把它当成官方 Anthropic 自动缓存能力
+3. 对 `anthropic-compatible` 渠道，Lime 只保留显式 `cache_control` 语义；如果上游没有实现 Automatic Prompt Cache，`cached_input_tokens` 为空不能直接归因到 Lime 没发字段
+
+排查这类问题时，优先确认三件事：
+
+1. 当前 Provider 类型是不是 `anthropic-compatible`
+2. 上游服务是否真的声明支持 Anthropic Automatic Prompt Caching
+3. 响应 usage 中是否存在 `cache_creation_input_tokens` / `cache_read_input_tokens` / `cached_input_tokens`
+
 ## 凭证管理策略
 
 ### 方案 B: 独立副本策略

@@ -35,6 +35,10 @@ use crate::middleware::request_dedup::{
 use crate::middleware::response_cache::{CachedHttpResponse, ResponseCacheStore};
 use crate::{record_request_telemetry, record_token_usage, AppState};
 use aster::context::MODEL_CONTEXT_WINDOWS;
+use aster::session_context::{
+    PENDING_REQUEST_ID_HEADER, QUEUED_TURN_ID_HEADER, SESSION_ID_HEADER,
+    SUBAGENT_SESSION_ID_HEADER, THREAD_ID_HEADER, TURN_ID_HEADER,
+};
 use lime_core::errors::GatewayErrorCode;
 use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::openai::{ChatCompletionRequest, ContentPart, MessageContent};
@@ -462,6 +466,28 @@ fn headers_to_string_map(headers: &axum::http::HeaderMap) -> HashMap<String, Str
         .collect()
 }
 
+fn attach_request_correlation_metadata(ctx: &mut RequestContext, headers: &HeaderMap) {
+    const REQUEST_TELEMETRY_HEADERS: [(&str, &str); 6] = [
+        (SESSION_ID_HEADER, "session_id"),
+        (THREAD_ID_HEADER, "thread_id"),
+        (TURN_ID_HEADER, "turn_id"),
+        (PENDING_REQUEST_ID_HEADER, "pending_request_id"),
+        (QUEUED_TURN_ID_HEADER, "queued_turn_id"),
+        (SUBAGENT_SESSION_ID_HEADER, "subagent_session_id"),
+    ];
+
+    for (header_name, metadata_key) in REQUEST_TELEMETRY_HEADERS {
+        if let Some(value) = headers
+            .get(header_name)
+            .and_then(|value| value.to_str().ok())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            ctx.set_metadata(metadata_key, serde_json::Value::String(value.to_string()));
+        }
+    }
+}
+
 fn set_request_id_header(response: &mut Response, request_id: &str) {
     if let Ok(value) = header::HeaderValue::from_str(request_id) {
         response
@@ -638,16 +664,123 @@ async fn begin_response_cache(
     Ok(ResponseCacheGuard::new(Some(key), is_stream, store))
 }
 
+type UsageParser = fn(&serde_json::Value) -> Option<(u32, u32)>;
+
+struct UsageCapture<'a> {
+    state: &'a AppState,
+    ctx: &'a RequestContext,
+    parser: UsageParser,
+    fallback_input_tokens: Option<u32>,
+    fallback_output_tokens: Option<u32>,
+}
+
+fn clamp_usage_tokens(value: u64) -> u32 {
+    value.min(u32::MAX as u64) as u32
+}
+
+fn extract_openai_usage_tokens(payload: &serde_json::Value) -> Option<(u32, u32)> {
+    let usage = payload.get("usage")?;
+    let prompt_tokens = usage.get("prompt_tokens")?.as_u64()?;
+    let completion_tokens = usage.get("completion_tokens")?.as_u64()?;
+
+    Some((
+        clamp_usage_tokens(prompt_tokens),
+        clamp_usage_tokens(completion_tokens),
+    ))
+}
+
+fn anthropic_prompt_tokens(usage: &serde_json::Value) -> u64 {
+    usage
+        .get("input_tokens")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0)
+        + usage
+            .get("cache_creation_input_tokens")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0)
+        + usage
+            .get("cache_read_input_tokens")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0)
+}
+
+fn extract_anthropic_usage_tokens(payload: &serde_json::Value) -> Option<(u32, u32)> {
+    let usage = payload.get("usage")?;
+    let prompt_tokens = anthropic_prompt_tokens(usage);
+    let completion_tokens = usage.get("output_tokens")?.as_u64()?;
+
+    Some((
+        clamp_usage_tokens(prompt_tokens),
+        clamp_usage_tokens(completion_tokens),
+    ))
+}
+
+fn record_captured_token_usage(
+    capture: &UsageCapture<'_>,
+    response_status: StatusCode,
+    response_body: &[u8],
+) {
+    if !response_status.is_success() {
+        return;
+    }
+
+    let parsed_usage = serde_json::from_slice::<serde_json::Value>(response_body)
+        .ok()
+        .and_then(|payload| (capture.parser)(&payload));
+
+    let usage = parsed_usage.or_else(|| {
+        match (
+            capture.fallback_input_tokens,
+            capture.fallback_output_tokens,
+        ) {
+            (Some(input_tokens), Some(output_tokens)) => Some((input_tokens, output_tokens)),
+            _ => None,
+        }
+    });
+
+    if let Some((input_tokens, output_tokens)) = usage {
+        record_token_usage(
+            capture.state,
+            capture.ctx,
+            Some(input_tokens),
+            Some(output_tokens),
+        );
+    }
+}
+
 async fn finalize_replayable_response(
-    mut response: Response,
+    response: Response,
     guard: &mut IdempotencyGuard,
     dedup_guard: &mut RequestDedupGuard,
     cache_guard: &mut ResponseCacheGuard,
     request_id: &str,
 ) -> Response {
+    finalize_replayable_response_with_usage_capture(
+        response,
+        guard,
+        dedup_guard,
+        cache_guard,
+        request_id,
+        None,
+    )
+    .await
+}
+
+async fn finalize_replayable_response_with_usage_capture(
+    mut response: Response,
+    guard: &mut IdempotencyGuard,
+    dedup_guard: &mut RequestDedupGuard,
+    cache_guard: &mut ResponseCacheGuard,
+    request_id: &str,
+    usage_capture: Option<UsageCapture<'_>>,
+) -> Response {
     set_request_id_header(&mut response, request_id);
 
-    if !guard.is_enabled() && !dedup_guard.is_enabled() && !cache_guard.is_enabled() {
+    if !guard.is_enabled()
+        && !dedup_guard.is_enabled()
+        && !cache_guard.is_enabled()
+        && usage_capture.is_none()
+    {
         return response;
     }
 
@@ -671,6 +804,9 @@ async fn finalize_replayable_response(
     let (parts, body) = response.into_parts();
     match to_bytes(body, REPLAY_CAPTURE_MAX_BYTES).await {
         Ok(bytes) => {
+            if let Some(capture) = usage_capture.as_ref() {
+                record_captured_token_usage(capture, parts.status, &bytes);
+            }
             let body_string = String::from_utf8_lossy(&bytes).to_string();
             let headers_map = headers_to_string_map(&parts.headers);
             guard.complete(status, body_string.clone());
@@ -733,6 +869,66 @@ mod tests {
             ttl_secs: 60,
             header_name: "Idempotency-Key".to_string(),
         }))
+    }
+
+    #[test]
+    fn attach_request_correlation_metadata_should_copy_headers_into_context() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            SESSION_ID_HEADER,
+            header::HeaderValue::from_static("session-1"),
+        );
+        headers.insert(
+            THREAD_ID_HEADER,
+            header::HeaderValue::from_static("thread-1"),
+        );
+        headers.insert(TURN_ID_HEADER, header::HeaderValue::from_static("turn-1"));
+        headers.insert(
+            PENDING_REQUEST_ID_HEADER,
+            header::HeaderValue::from_static("pending-1"),
+        );
+        headers.insert(
+            QUEUED_TURN_ID_HEADER,
+            header::HeaderValue::from_static("queued-1"),
+        );
+        headers.insert(
+            SUBAGENT_SESSION_ID_HEADER,
+            header::HeaderValue::from_static("subagent-1"),
+        );
+
+        let mut ctx = RequestContext::new("gpt-5.4".to_string());
+        attach_request_correlation_metadata(&mut ctx, &headers);
+
+        assert_eq!(
+            ctx.get_metadata("session_id")
+                .and_then(serde_json::Value::as_str),
+            Some("session-1")
+        );
+        assert_eq!(
+            ctx.get_metadata("thread_id")
+                .and_then(serde_json::Value::as_str),
+            Some("thread-1")
+        );
+        assert_eq!(
+            ctx.get_metadata("turn_id")
+                .and_then(serde_json::Value::as_str),
+            Some("turn-1")
+        );
+        assert_eq!(
+            ctx.get_metadata("pending_request_id")
+                .and_then(serde_json::Value::as_str),
+            Some("pending-1")
+        );
+        assert_eq!(
+            ctx.get_metadata("queued_turn_id")
+                .and_then(serde_json::Value::as_str),
+            Some("queued-1")
+        );
+        assert_eq!(
+            ctx.get_metadata("subagent_session_id")
+                .and_then(serde_json::Value::as_str),
+            Some("subagent-1")
+        );
     }
 
     #[tokio::test]
@@ -1086,6 +1282,60 @@ mod tests {
         assert!(reasons
             .iter()
             .any(|reason| matches!(reason, CapabilityMismatchReason::ContextTooSmall { .. })));
+    }
+
+    #[test]
+    fn extract_openai_usage_tokens_should_read_prompt_and_completion_tokens() {
+        let payload = serde_json::json!({
+            "usage": {
+                "prompt_tokens": 321,
+                "completion_tokens": 123,
+                "total_tokens": 444
+            }
+        });
+
+        assert_eq!(extract_openai_usage_tokens(&payload), Some((321, 123)));
+    }
+
+    #[test]
+    fn extract_anthropic_usage_tokens_should_include_cache_tokens_in_prompt_total() {
+        let payload = serde_json::json!({
+            "usage": {
+                "input_tokens": 300,
+                "cache_creation_input_tokens": 120,
+                "cache_read_input_tokens": 80,
+                "output_tokens": 45
+            }
+        });
+
+        assert_eq!(extract_anthropic_usage_tokens(&payload), Some((500, 45)));
+    }
+
+    #[test]
+    fn convert_anthropic_response_to_openai_should_preserve_cache_aware_usage() {
+        let payload = serde_json::json!({
+            "id": "msg_123",
+            "content": [{ "type": "text", "text": "hello" }],
+            "stop_reason": "end_turn",
+            "usage": {
+                "input_tokens": 200,
+                "cache_creation_input_tokens": 50,
+                "cache_read_input_tokens": 75,
+                "output_tokens": 25
+            }
+        });
+
+        let response = convert_anthropic_response_to_openai(&payload, "claude-sonnet-4");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&response).expect("response should be valid json");
+
+        assert_eq!(parsed["usage"]["prompt_tokens"], 325);
+        assert_eq!(parsed["usage"]["completion_tokens"], 25);
+        assert_eq!(parsed["usage"]["total_tokens"], 350);
+        assert_eq!(
+            parsed["usage"]["prompt_tokens_details"]["cached_tokens"],
+            75
+        );
     }
 }
 
@@ -1827,6 +2077,7 @@ pub async fn chat_completions(
 
     // 创建请求上下文
     let mut ctx = RequestContext::new(request.model.clone()).with_stream(request.stream);
+    attach_request_correlation_metadata(&mut ctx, &headers);
     eprintln!("[CHAT_COMPLETIONS] 请求ID: {}", ctx.request_id);
 
     // 幂等性检查（仅非流式）
@@ -2126,15 +2377,32 @@ pub async fn chat_completions(
         };
         record_request_telemetry(&state, &ctx, status, None);
 
+        let estimated_input_tokens = request
+            .messages
+            .iter()
+            .map(|message| match &message.content {
+                Some(content) => message_content_len(content),
+                None => 0,
+            } / 4)
+            .sum::<usize>() as u32;
+        let estimated_output_tokens = if is_success { 100 } else { 0 };
+
         // 如果成功且需要 Flow 捕获，提取响应体内容和响应头
         // 注意：非流式响应需要读取 body，所以必须在这里处理
         return attach_route_debug_headers(
-            finalize_replayable_response(
+            finalize_replayable_response_with_usage_capture(
                 response,
                 &mut idempotency_guard,
                 &mut dedup_guard,
                 &mut cache_guard,
                 &ctx.request_id,
+                Some(UsageCapture {
+                    state: &state,
+                    ctx: &ctx,
+                    parser: extract_openai_usage_tokens,
+                    fallback_input_tokens: Some(estimated_input_tokens),
+                    fallback_output_tokens: Some(estimated_output_tokens),
+                }),
             )
             .await,
             &selected_provider,
@@ -2553,6 +2821,7 @@ pub async fn anthropic_messages(
 
     // 创建请求上下文
     let mut ctx = RequestContext::new(request.model.clone()).with_stream(request.stream);
+    attach_request_correlation_metadata(&mut ctx, &headers);
 
     // 幂等性检查（仅非流式）
     let idempotency_key = headers
@@ -2869,7 +3138,6 @@ pub async fn anthropic_messages(
         };
         record_request_telemetry(&state, &ctx, status, None);
 
-        // 估算 Token 使用量
         let estimated_input_tokens = request
             .messages
             .iter()
@@ -2888,25 +3156,23 @@ pub async fn anthropic_messages(
             .sum::<usize>() as u32;
         let estimated_output_tokens = if is_success { 100u32 } else { 0u32 };
 
-        if is_success {
-            record_token_usage(
-                &state,
-                &ctx,
-                Some(estimated_input_tokens),
-                Some(estimated_output_tokens),
-            );
-        }
-
         // 完成 Flow 捕获并检查响应拦截
         // **Validates: Requirements 2.1, 2.5**
 
         return attach_route_debug_headers(
-            finalize_replayable_response(
+            finalize_replayable_response_with_usage_capture(
                 response,
                 &mut idempotency_guard,
                 &mut dedup_guard,
                 &mut cache_guard,
                 &ctx.request_id,
+                Some(UsageCapture {
+                    state: &state,
+                    ctx: &ctx,
+                    parser: extract_anthropic_usage_tokens,
+                    fallback_input_tokens: Some(estimated_input_tokens),
+                    fallback_output_tokens: Some(estimated_output_tokens),
+                }),
             )
             .await,
             &selected_provider,
@@ -3506,12 +3772,30 @@ fn convert_anthropic_response_to_openai(anthropic_resp: &serde_json::Value, mode
         .and_then(|c| c["text"].as_str())
         .unwrap_or("");
 
-    let usage = serde_json::json!({
-        "prompt_tokens": anthropic_resp["usage"]["input_tokens"].as_u64().unwrap_or(0),
-        "completion_tokens": anthropic_resp["usage"]["output_tokens"].as_u64().unwrap_or(0),
-        "total_tokens": anthropic_resp["usage"]["input_tokens"].as_u64().unwrap_or(0)
-            + anthropic_resp["usage"]["output_tokens"].as_u64().unwrap_or(0)
+    let usage_obj = anthropic_resp
+        .get("usage")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let prompt_tokens = anthropic_prompt_tokens(&usage_obj);
+    let completion_tokens = usage_obj
+        .get("output_tokens")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let cache_read_tokens = usage_obj
+        .get("cache_read_input_tokens")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+
+    let mut usage = serde_json::json!({
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens
     });
+    if cache_read_tokens > 0 {
+        usage["prompt_tokens_details"] = serde_json::json!({
+            "cached_tokens": cache_read_tokens
+        });
+    }
 
     let openai_resp = serde_json::json!({
         "id": anthropic_resp["id"].as_str().unwrap_or("chatcmpl-unknown"),

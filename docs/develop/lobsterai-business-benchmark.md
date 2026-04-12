@@ -28,8 +28,8 @@
 - `src-tauri/src/services/execution_tracker_service.rs`
 - `src-tauri/src/services/heartbeat_service/mod.rs`
 - `src-tauri/src/services/heartbeat_service/delivery.rs`
-- `src-tauri/src/commands/aster_agent_cmd.rs`
-- `src-tauri/src/commands/subagent_cmd.rs`
+- `src-tauri/src/commands/aster_agent_cmd/mod.rs`
+- `src-tauri/src/commands/aster_agent_cmd/tool_runtime/subagent_tools.rs`
 - `src-tauri/crates/websocket/src/handlers/rpc_handler.rs`
 - `src-tauri/crates/core/src/database/schema.rs`
 
@@ -256,4 +256,3 @@ Lime 的底座（追踪、权限、沙箱、Provider 能力）已经具备，当
 1. **远程触发协议与命令面**（入口）
 2. **任务治理状态模型**（稳定性）
 3. **任务健康与追踪看板**（运营）
-

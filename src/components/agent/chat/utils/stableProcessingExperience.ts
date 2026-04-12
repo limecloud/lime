@@ -45,7 +45,7 @@ export function getStableProcessingDescription(
   scope: StableProcessingScope = "request",
 ): string {
   if (scope === "team") {
-    return "当前模型会让协作成员依次开始，整体节奏更稳。";
+    return "当前模型会让子任务依次开始，整体节奏更稳。";
   }
 
   return "当前模型会在高峰时依次开始同类请求，优先保证稳定完成。";

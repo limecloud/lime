@@ -12,6 +12,7 @@ AI Agent 集成模块，基于 aster-rust 框架实现。
 - **凭证池桥接**：自动从 Lime 凭证池选择凭证配置 Aster Provider
 - **流式响应**：通过 Tauri 事件系统向前端推送流式内容
 - **Skills 集成**：自动加载 Lime Skills 到 aster-rust，使 AI 能够自动调用
+- **多代理收敛**：旧 SubAgent scheduler Tauri 桥已删除，角色与 team runtime 纯逻辑统一收敛到 `crates/agent/src/subagent_scheduler.rs`
 
 ## 文件索引
 
@@ -24,7 +25,6 @@ AI Agent 集成模块，基于 aster-rust 框架实现。
 | `event_converter.rs` | Aster 事件到 Tauri 事件转换 |
 | `credential_bridge.rs` | 重导出层（纯逻辑已迁移到 `crates/agent/src/credential_bridge.rs`） |
 | `mcp_bridge.rs` | MCP 服务桥接 |
-| `subagent_scheduler.rs` | Tauri 事件桥接层（纯逻辑已迁移到 `crates/agent/src/subagent_scheduler.rs`） |
 
 ## Skills 集成
 

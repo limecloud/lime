@@ -37,10 +37,8 @@ function renderHook(props?: Partial<HookProps>) {
 
   const defaultProps: HookProps = {
     projectId: "project-1",
-    sessionId: "session-1",
     selectedTeam: createSelectedTeam(),
     subagentEnabled: true,
-    hasRealTeamGraph: false,
     createRequestId: () => "request-1",
     now: () => 1_710_000_000_000,
   };

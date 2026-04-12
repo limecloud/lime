@@ -330,7 +330,8 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             Some(total_input_i32),
             Some(output_tokens_i32),
             Some(total_tokens_i32),
-        ))
+        )
+        .with_cached_input_tokens(Some(cache_read_tokens.min(i32::MAX as u64) as i32)))
     } else if data.as_object().is_some() {
         // Check if the data itself is the usage object (for message_delta events that might have usage at top level)
         let input_tokens = data
@@ -373,7 +374,8 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
                 Some(total_input_i32),
                 Some(output_tokens_i32),
                 Some(total_tokens_i32),
-            ))
+            )
+            .with_cached_input_tokens(Some(cache_read_tokens.min(i32::MAX as u64) as i32)))
         } else {
             tracing::debug!("🔍 Anthropic no token data found in object");
             Ok(Usage::new(None, None, None))
@@ -655,11 +657,20 @@ where
                                 (None, Some(output)) => Some(output),
                                 (None, None) => None,
                             };
+                            let merged_cached = existing_usage
+                                .usage
+                                .cached_input_tokens
+                                .or(delta_usage.cached_input_tokens);
 
-                            let merged_usage = crate::providers::base::Usage::new(merged_input, merged_output, merged_total);
+                            let merged_usage = crate::providers::base::Usage::new(
+                                merged_input,
+                                merged_output,
+                                merged_total,
+                            )
+                            .with_cached_input_tokens(merged_cached);
                             final_usage = Some(crate::providers::base::ProviderUsage::new(existing_usage.model.clone(), merged_usage));
-                            tracing::debug!("🔍 Anthropic MERGED usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                                    merged_input, merged_output, merged_total);
+                            tracing::debug!("🔍 Anthropic MERGED usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}, cached_input_tokens={:?}",
+                                    merged_input, merged_output, merged_total, merged_cached);
                         } else {
                             // No existing usage, just use delta usage
                             let model = event.data.get("model")
@@ -749,6 +760,7 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(24)); // 12 + 12 = 24 actual tokens
         assert_eq!(usage.output_tokens, Some(15));
         assert_eq!(usage.total_tokens, Some(39)); // 24 + 15
+        assert_eq!(usage.cached_input_tokens, Some(0));
 
         Ok(())
     }
@@ -792,6 +804,7 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(30)); // 15 + 15 = 30 actual tokens
         assert_eq!(usage.output_tokens, Some(20));
         assert_eq!(usage.total_tokens, Some(50)); // 30 + 20
+        assert_eq!(usage.cached_input_tokens, Some(0));
 
         Ok(())
     }
@@ -866,6 +879,7 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(10));
         assert_eq!(usage.output_tokens, Some(45));
         assert_eq!(usage.total_tokens, Some(55));
+        assert_eq!(usage.cached_input_tokens, Some(0));
 
         Ok(())
     }
@@ -1007,6 +1021,7 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(15007));
         assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.total_tokens, Some(15057)); // 15007 + 50
+        assert_eq!(usage.cached_input_tokens, Some(5000));
 
         Ok(())
     }

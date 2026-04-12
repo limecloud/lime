@@ -51,7 +51,7 @@ describe("teamWorkspaceSessions", () => {
       profile_id: "profile-research",
       profile_name: "研究员",
       parent_session_id: "parent-session",
-      parent_session_name: "主助手",
+      parent_session_name: "主任务",
       role_key: "researcher",
       team_preset_id: "preset-1",
       theme: "general",
@@ -159,21 +159,23 @@ describe("teamWorkspaceSessions", () => {
     ).toEqual(["session-plan", "session-exec"]);
   });
 
-  it("应构建 rail sessions、member canvas sessions 与默认选中项", () => {
+  it("应按任务状态优先级构建 task schedule 顺序与默认选中项", () => {
     const orchestrator = createSessionCard({
       id: "session-main",
-      name: "主助手",
+      name: "主任务",
       sessionType: "user",
     });
     const planner = createSessionCard({
       id: "session-plan",
       name: "规划成员",
       blueprintRoleLabel: "规划",
+      runtimeStatus: "completed",
     });
     const executor = createSessionCard({
       id: "session-exec",
       name: "执行成员",
       roleKey: "executor",
+      runtimeStatus: "running",
     });
     const formationState = {
       requestId: "dispatch-1",
@@ -213,8 +215,8 @@ describe("teamWorkspaceSessions", () => {
     });
 
     expect(memberCanvasSessions.map((session) => session.id)).toEqual([
-      "session-plan",
       "session-exec",
+      "session-plan",
     ]);
     expect(railSessions.map((session) => session.id)).toEqual([
       "session-main",
@@ -230,7 +232,7 @@ describe("teamWorkspaceSessions", () => {
         memberCanvasSessions,
         orchestratorSessionId: "session-main",
       }),
-    ).toBe("session-plan");
+    ).toBe("session-exec");
   });
 
   it("应在展开成员失效时自动回收 expanded session id", () => {
@@ -247,22 +249,22 @@ describe("teamWorkspaceSessions", () => {
   it("应返回对应场景的 fallback 文案", () => {
     expect(
       buildFallbackSummary({
-        hasRealTeamGraph: false,
+        hasRuntimeSessions: false,
         isChildSession: false,
       }),
-    ).toContain("还没有成员接入");
+    ).toContain("还没有任务接入");
 
     expect(
       buildFallbackSummary({
-        hasRealTeamGraph: true,
+        hasRuntimeSessions: true,
         isChildSession: false,
         selectedSession: createSessionCard({
           id: "orchestrator",
-          name: "主助手",
+          name: "主任务",
           sessionType: "user",
         }),
       }),
-    ).toContain("主助手会负责整理需求");
+    ).toContain("主任务会负责整理需求、安排任务顺序");
   });
 
   it("应暴露稳定的状态与时间展示 helper", () => {

@@ -94,9 +94,9 @@ export function TeamWorkspaceCanvasStage({
         data-testid="team-workspace-canvas-shortcuts"
       >
         <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-slate-500">
-          画布
+          任务视图
         </span>
-        <span className="truncate">空白处拖拽 · Space 手型 · A 整理 · F 适应</span>
+        <span className="truncate">拖拽调整任务布局 · Space 平移 · A 整理 · F 聚焦</span>
       </div>
       {lanes.length > 0 ? (
         <div
@@ -153,7 +153,7 @@ export function TeamWorkspaceCanvasStage({
         <div className="absolute inset-0 flex items-center justify-center p-8">
           <div className="max-w-[520px] rounded-[24px] border border-dashed border-slate-300 bg-white/92 px-6 py-5 text-center shadow-sm shadow-slate-950/5">
             <div className="text-sm font-semibold text-slate-900">
-              暂无协作画布
+              暂无任务视图
             </div>
             <p className="mt-2 text-sm leading-6 text-slate-500">
               {canvasStageHint}

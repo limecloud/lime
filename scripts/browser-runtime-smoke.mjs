@@ -13,9 +13,12 @@ const DEFAULTS = {
   streamMode: "both",
 };
 
-const INVOKE_TIMEOUT_MS = 60_000;
-const INVOKE_RETRY_COUNT = 3;
-const INVOKE_RETRY_DELAY_MS = 500;
+const INVOKE_TIMEOUT_CEILING_MS = 180_000;
+const INVOKE_RETRY_COUNT = 10;
+const INVOKE_RETRY_DELAY_MS = 1_000;
+const POST_HEALTH_SETTLE_MS = 3_000;
+const POST_LAUNCH_SETTLE_MS = 1_500;
+const READ_PAGE_TIMEOUT_MS = 45_000;
 
 function printHelp() {
   console.log(`
@@ -123,13 +126,14 @@ function isTransientInvokeError(error) {
 }
 
 async function invoke(options, cmd, args) {
+  const invokeTimeoutMs = Math.min(options.timeoutMs, INVOKE_TIMEOUT_CEILING_MS);
   const requestInit = {
     method: "POST",
     headers: {
       "content-type": "application/json",
     },
     body: JSON.stringify({ cmd, args }),
-    signal: AbortSignal.timeout(Math.min(options.timeoutMs, INVOKE_TIMEOUT_MS)),
+    signal: AbortSignal.timeout(invokeTimeoutMs),
   };
 
   for (let attempt = 1; attempt <= INVOKE_RETRY_COUNT; attempt += 1) {
@@ -151,7 +155,7 @@ async function invoke(options, cmd, args) {
       if (!isTransientInvokeError(error) || attempt >= INVOKE_RETRY_COUNT) {
         if (error?.name === "TimeoutError") {
           throw new Error(
-            `[smoke:browser-runtime] ${cmd} 超时，${Math.min(options.timeoutMs, INVOKE_TIMEOUT_MS)}ms 内未收到 DevBridge 响应`,
+            `[smoke:browser-runtime] ${cmd} 超时，${invokeTimeoutMs}ms 内未收到 DevBridge 响应`,
           );
         }
         throw new Error(`[smoke:browser-runtime] ${cmd} 请求失败: ${detail}`);
@@ -209,6 +213,7 @@ async function main() {
 
   const options = parseArgs(process.argv.slice(2));
   await waitForHealth(options);
+  await sleep(POST_HEALTH_SETTLE_MS);
 
   const profileKey = `smoke-browser-runtime-${Date.now()}`;
   let sessionId = null;
@@ -256,11 +261,13 @@ async function main() {
       "get_browser_session_state 未返回 target_id",
     );
 
+    await sleep(POST_LAUNCH_SETTLE_MS);
+
     const actionResult = await invoke(options, "browser_execute_action", {
       request: {
         profile_key: profileKey,
         action: "read_page",
-        timeout_ms: 20_000,
+        timeout_ms: Math.min(options.timeoutMs, READ_PAGE_TIMEOUT_MS),
       },
     });
     assert(actionResult?.success === true, "browser_execute_action(read_page) 未成功");

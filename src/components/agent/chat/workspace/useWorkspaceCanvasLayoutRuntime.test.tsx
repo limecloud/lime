@@ -38,7 +38,7 @@ function renderHook(props?: Partial<HookProps>) {
       content: "",
       isEditing: false,
     },
-    showTeamWorkspaceBoard: false,
+    teamWorkspaceEnabled: false,
     hasCurrentCanvasArtifact: false,
     currentCanvasArtifactType: null,
     hasBrowserAssistArtifact: false,

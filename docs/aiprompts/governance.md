@@ -244,6 +244,17 @@ npm run test:contracts
 
 只要其中任意一个答案是否定的，就说明治理还没完成。
 
+### Harness Engine 主链
+
+遇到 handoff、evidence pack、replay、review、外部诊断交接相关改动时，至少问这几个问题：
+
+- 运行时事实是不是继续收敛到 `agent_runtime_export_evidence_pack`
+- replay / analysis / review / GUI 是否只是在消费 evidence pack，而不是重新拼装一套摘要
+- gap 是否只来自“当前线程真实适用但尚未导出”的信号，而不是历史硬编码模板
+- request telemetry 是否已经按 `session/thread/turn` 真实关联导出；如果当前线程没有匹配请求，是否导出空摘要而不是继续保留 `unlinked`
+
+只要其中任意一个答案是否定的，就说明 Harness Engine 还在继续长平行事实源。
+
 ### 记忆与旁路
 
 遇到记忆系统治理时，至少同时看：
@@ -302,6 +313,7 @@ npm run test:contracts
 ## 相关文档
 
 - `docs/aiprompts/commands.md`
+- `docs/aiprompts/harness-engine-governance.md`
 - `docs/aiprompts/quality-workflow.md`
 - `docs/aiprompts/project-heatmap.md`
 

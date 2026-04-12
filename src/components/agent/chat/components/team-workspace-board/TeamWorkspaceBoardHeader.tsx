@@ -1,19 +1,9 @@
-import {
-  Activity,
-  ArrowUpLeft,
-  ChevronDown,
-  ChevronUp,
-  Workflow,
-} from "lucide-react";
+import { ArrowUpLeft, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { TeamWorkspaceBoardChromeDisplayState } from "../../team-workspace-runtime/boardChromeSelectors";
 import type { TeamWorkspaceRuntimeStatus } from "../../teamWorkspaceRuntime";
-import {
-  TEAM_WORKSPACE_IDLE_STATUS_LABEL,
-  TEAM_WORKSPACE_REALTIME_BADGE_LABEL,
-  TEAM_WORKSPACE_SURFACE_TITLE,
-} from "../../utils/teamWorkspaceCopy";
+import { TEAM_WORKSPACE_IDLE_STATUS_LABEL, TEAM_WORKSPACE_SURFACE_TITLE } from "../../utils/teamWorkspaceCopy";
 
 interface TeamWorkspaceStatusMeta {
   badgeClassName: string;
@@ -57,31 +47,25 @@ export function TeamWorkspaceBoardHeader({
   return (
     <div className={className} data-testid={dataTestId}>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-          <Workflow className="h-3.5 w-3.5" />
-          <span>{TEAM_WORKSPACE_SURFACE_TITLE}</span>
-          <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-emerald-700 normal-case">
-            <Activity className="h-3 w-3" />
-            {TEAM_WORKSPACE_REALTIME_BADGE_LABEL}
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium">
+            {TEAM_WORKSPACE_SURFACE_TITLE}
           </span>
+          {createdFromTurnId ? (
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
+              承接自 {createdFromTurnId}
+            </span>
+          ) : null}
         </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <span
-            className={cn(
-              "font-semibold text-slate-900",
-              useCompactCanvasChrome ? "text-sm" : "text-[15px]",
-            )}
+            className={cn("text-[15px] font-semibold leading-6 text-slate-900")}
           >
             {boardChromeDisplay.compactBoardHeadline}
           </span>
-          {createdFromTurnId ? (
-            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500">
-              来自之前的任务 {createdFromTurnId}
-            </span>
-          ) : null}
           {!useCompactCanvasChrome && !isChildSession && totalTeamSessions > 0 ? (
             <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700">
-              {totalTeamSessions} 位协作成员
+              {totalTeamSessions} 项任务
             </span>
           ) : null}
         </div>
@@ -136,7 +120,7 @@ export function TeamWorkspaceBoardHeader({
             onClick={() => void onReturnToParentSession()}
           >
             <ArrowUpLeft className="mr-1.5 h-3.5 w-3.5" />
-            返回主助手
+            返回主任务
           </Button>
         ) : null}
       </div>

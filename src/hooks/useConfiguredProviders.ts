@@ -17,6 +17,7 @@ import {
   getRegistryIdFromType,
   getProviderLabel,
 } from "@/lib/constants/providerMappings";
+import { resolvePromptCacheSupportNotice } from "@/lib/model/providerPromptCacheSupport";
 
 // ============================================================================
 // 类型定义
@@ -157,7 +158,8 @@ export function findConfiguredProviderBySelection(
   const keyMatch =
     providers.find(
       (provider) =>
-        normalizeConfiguredProviderSelector(provider.key) === normalizedSelection,
+        normalizeConfiguredProviderSelector(provider.key) ===
+        normalizedSelection,
     ) ?? null;
   const providerIdMatch =
     providers.find(
@@ -173,6 +175,20 @@ export function findConfiguredProviderBySelection(
   }
 
   return keyMatch ?? providerIdMatch ?? null;
+}
+
+export function resolveConfiguredProviderPromptCacheSupportNotice(
+  providers: ConfiguredProvider[],
+  selection?: string | null,
+) {
+  const selectedProvider = findConfiguredProviderBySelection(
+    providers,
+    selection,
+  );
+  return resolvePromptCacheSupportNotice({
+    providerType: selection,
+    configuredProviderType: selectedProvider?.type,
+  });
 }
 
 export async function loadConfiguredProviders(

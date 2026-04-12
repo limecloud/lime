@@ -1,4 +1,4 @@
-import { Activity, ChevronDown, Workflow } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
@@ -7,7 +7,6 @@ import type {
 } from "../../team-workspace-runtime/formationDisplaySelectors";
 import {
   TEAM_WORKSPACE_IDLE_STATUS_LABEL,
-  TEAM_WORKSPACE_REALTIME_BADGE_LABEL,
   TEAM_WORKSPACE_SURFACE_TITLE,
 } from "../../utils/teamWorkspaceCopy";
 
@@ -43,19 +42,16 @@ export function TeamWorkspaceEmptyShellState({
     >
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-            <Workflow className="h-3.5 w-3.5" />
-            <span>{TEAM_WORKSPACE_SURFACE_TITLE}</span>
-            <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-emerald-700 normal-case">
-              <Activity className="h-3 w-3" />
-              {TEAM_WORKSPACE_REALTIME_BADGE_LABEL}
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium">
+              {TEAM_WORKSPACE_SURFACE_TITLE}
             </span>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-slate-900">
               {hasRuntimeFormation
                 ? runtimeFormationDisplay.panelHeadline
-                : "任务协作已就绪"}
+                : "任务面板已就绪"}
             </span>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-600">
               {runtimeFormationDisplay.panelStatusLabel ||
@@ -85,7 +81,7 @@ export function TeamWorkspaceEmptyShellState({
           data-testid="team-workspace-detail-toggle"
         >
           <ChevronDown className="mr-1.5 h-3.5 w-3.5" />
-          查看任务进行时
+          查看任务视图
         </Button>
       </div>
     </section>

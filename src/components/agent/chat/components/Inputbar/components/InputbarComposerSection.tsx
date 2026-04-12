@@ -14,6 +14,7 @@ import type { BuiltinInputCommand } from "../../../skill-selection/builtinComman
 import { TeamSelector } from "./TeamSelector";
 import { InputbarWorkflowStatusPanel } from "./InputbarWorkflowStatusPanel";
 import { InputbarModelExtra } from "./InputbarModelExtra";
+import { InputbarPromptCacheNotice } from "./InputbarPromptCacheNotice";
 import { InputbarVisionCapabilityNotice } from "./InputbarVisionCapabilityNotice";
 import { InputbarExecutionStrategySelect } from "./InputbarExecutionStrategySelect";
 import { InputbarAccessModeSelect } from "./InputbarAccessModeSelect";
@@ -158,10 +159,14 @@ export const InputbarComposerSection: React.FC<
     currentPendingImages.length > 0 &&
     Boolean(resolvedProviderType?.trim()) &&
     Boolean(resolvedModel?.trim());
+  const shouldShowPromptCacheNotice = Boolean(resolvedProviderType?.trim());
   const resolvedTopExtra =
-    topExtra || shouldShowVisionNotice ? (
+    topExtra || shouldShowPromptCacheNotice || shouldShowVisionNotice ? (
       <>
         {topExtra}
+        {shouldShowPromptCacheNotice && resolvedProviderType ? (
+          <InputbarPromptCacheNotice providerType={resolvedProviderType} />
+        ) : null}
         {shouldShowVisionNotice && resolvedProviderType && resolvedModel ? (
           <InputbarVisionCapabilityNotice
             providerType={resolvedProviderType}
@@ -233,7 +238,9 @@ export const InputbarComposerSection: React.FC<
         </Badge>
       ) : null}
 
-      {!showAdvancedControls && shouldShowModelControls && !hasConfiguredModel ? (
+      {!showAdvancedControls &&
+      shouldShowModelControls &&
+      !hasConfiguredModel ? (
         <InputbarModelExtra
           isFullscreen={isFullscreen}
           providerType={resolvedProviderType}
@@ -248,9 +255,7 @@ export const InputbarComposerSection: React.FC<
 
       {showAdvancedControls ? (
         <>
-          {showSkillSelector ? (
-            <SkillSelector {...skillSelectorProps} />
-          ) : null}
+          {showSkillSelector ? <SkillSelector {...skillSelectorProps} /> : null}
           {shouldShowTeamSelector ? (
             <TeamSelector
               activeTheme={activeTheme}

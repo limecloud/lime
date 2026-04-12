@@ -240,7 +240,6 @@ pub fn run() {
         .manage(recording_service)
         .manage(mcp_manager_state)
         .manage(automation_service_state)
-        .manage(commands::subagent_cmd::SubAgentSchedulerState::default())
         .manage(commands::websocket_cmd::WsServiceState::default())
         .manage(crate::services::companion_service::CompanionServiceState::default())
         .manage(lime_gateway::telegram::TelegramGatewayState::default())
@@ -1535,10 +1534,6 @@ pub fn run() {
             commands::terminal_cmd::terminal_close,
             commands::terminal_cmd::terminal_list_sessions,
             commands::terminal_cmd::terminal_get_session,
-            // SubAgent commands
-            commands::subagent_cmd::init_subagent_scheduler,
-            commands::subagent_cmd::execute_subagent_tasks,
-            commands::subagent_cmd::cancel_subagent_tasks,
             // Connection commands
             commands::connection_cmd::connection_list,
             commands::connection_cmd::connection_add,

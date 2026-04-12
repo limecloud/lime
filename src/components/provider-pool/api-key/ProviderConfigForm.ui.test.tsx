@@ -163,4 +163,26 @@ describe("ProviderConfigForm", () => {
       }),
     );
   });
+
+  it("anthropic-compatible Provider 应展示显式 Prompt Cache 提示", () => {
+    const provider = createProvider({
+      id: "custom-anthropic-compatible",
+      name: "Anthropic 兼容渠道",
+      is_system: false,
+      type: "anthropic-compatible",
+      api_host: "https://example.com/anthropic",
+    });
+    const { container } = renderForm(provider);
+
+    const notice = container.querySelector(
+      '[data-testid="provider-prompt-cache-notice"]',
+    );
+
+    expect(notice).not.toBeNull();
+    expect(notice?.textContent ?? "").toContain(
+      "Anthropic 兼容只表示请求格式兼容",
+    );
+    expect(notice?.textContent ?? "").toContain("未声明支持自动 Prompt Cache");
+    expect(notice?.textContent ?? "").toContain("显式 cache_control");
+  });
 });

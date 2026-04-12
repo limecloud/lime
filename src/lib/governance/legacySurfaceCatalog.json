@@ -785,7 +785,7 @@
     {
       "id": "legacy-questionnaire-a2ui-entry",
       "classification": "dead-candidate",
-      "description": "已收口到 compatQuestionnaireA2UI 的旧问卷 A2UI 模块命名",
+      "description": "已删除的旧问卷 A2UI 模块命名",
       "targets": [
         "src/components/agent/chat/utils/legacyQuestionnaireA2UI.ts",
         "src/components/agent/chat/utils/legacyQuestionnaireA2UI.test.ts"
@@ -1303,47 +1303,44 @@
     },
     {
       "id": "team-subagent-scheduler-hook",
-      "classification": "compat",
-      "description": "旧 SubAgent scheduler Hook 只允许停留在 compat 展示层",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 SubAgent scheduler Hook 路径",
       "targets": ["src/hooks/useSubAgentScheduler.ts"],
-      "allowedPaths": ["src/components/agent/chat/hooks/useCompatSubagentRuntime.ts"]
+      "allowedPaths": []
     },
     {
       "id": "team-subagent-scheduler-api",
-      "classification": "compat",
-      "description": "旧 SubAgent scheduler API 只允许被 compat Hook 与降级展示层引用",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 SubAgent scheduler 前端 API 路径",
       "targets": ["src/lib/api/subAgentScheduler.ts"],
-      "allowedPaths": [
-        "src/hooks/useSubAgentScheduler.ts",
-        "src/components/agent/chat/utils/compatSubagentRuntime.ts"
-      ]
+      "allowedPaths": []
     },
     {
       "id": "team-subagent-runtime-compat-bridge",
-      "classification": "compat",
-      "description": "聊天内的旧 SubAgent runtime 兼容桥只允许停留在当前 compat 展示层",
+      "classification": "dead-candidate",
+      "description": "已删除的聊天内旧 SubAgent runtime 兼容桥路径",
       "targets": [
         "src/components/agent/chat/hooks/useCompatSubagentRuntime.ts",
         "src/components/agent/chat/utils/compatSubagentRuntime.ts"
       ],
-      "allowedPaths": [
-        "src/components/agent/chat/AgentChatWorkspace.tsx",
-        "src/components/agent/chat/components/AgentRuntimeStrip.tsx",
-        "src/components/agent/chat/components/HarnessStatusPanel.tsx",
-        "src/components/agent/chat/hooks/useCompatSubagentRuntime.ts",
-        "src/components/agent/chat/utils/subagentTimeline.ts"
-      ]
+      "allowedPaths": []
+    },
+    {
+      "id": "team-subagent-scheduler-rust-modules",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 SubAgent scheduler Rust 命令与事件桥模块",
+      "targets": [
+        "src-tauri/src/commands/subagent_cmd.rs",
+        "src-tauri/src/agent/subagent_scheduler.rs"
+      ],
+      "allowedPaths": []
     },
     {
       "id": "legacy-questionnaire-a2ui-compat-bridge",
-      "classification": "compat",
-      "description": "旧问卷转 A2UI 兼容桥只允许停留在 workspace A2UI 展示与提交边界",
+      "classification": "dead-candidate",
+      "description": "已删除的旧问卷转 A2UI 兼容桥路径",
       "targets": ["src/components/agent/chat/utils/compatQuestionnaireA2UI.ts"],
-      "allowedPaths": [
-        "src/components/agent/chat/workspace/useWorkspaceDisplayMessagesRuntime.ts",
-        "src/components/agent/chat/workspace/useWorkspaceA2UIRuntime.ts",
-        "src/components/agent/chat/workspace/useWorkspaceA2UISubmitActions.ts"
-      ]
+      "allowedPaths": []
     },
     {
       "id": "onboarding-legacy-plugin-install-surfaces",
@@ -1655,10 +1652,14 @@
     },
     {
       "id": "team-subagent-scheduler-commands",
-      "classification": "compat",
-      "description": "旧 execute_subagent_tasks/cancel_subagent_tasks 只允许通过 compat API 网关暴露",
-      "commands": ["execute_subagent_tasks", "cancel_subagent_tasks"],
-      "allowedPaths": ["src/lib/api/subAgentScheduler.ts"]
+      "classification": "dead-candidate",
+      "description": "已删除的旧 SubAgent scheduler Tauri 命令",
+      "commands": [
+        "init_subagent_scheduler",
+        "execute_subagent_tasks",
+        "cancel_subagent_tasks"
+      ],
+      "allowedPaths": []
     },
     {
       "id": "provider-switch-legacy-commands",
@@ -1747,10 +1748,10 @@
     },
     {
       "id": "frontend-subagent-scheduler-event-bus",
-      "classification": "compat",
-      "description": "旧 subagent scheduler 事件名只允许 compat Hook 持有",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 subagent scheduler 事件名",
       "patterns": ["subagent-scheduler-event"],
-      "allowedPaths": ["src/hooks/useSubAgentScheduler.ts"]
+      "allowedPaths": []
     },
     {
       "id": "frontend-assistant-settings-surfaces",
@@ -2658,10 +2659,10 @@
   "rustText": [
     {
       "id": "rust-subagent-scheduler-event-bus",
-      "classification": "compat",
-      "description": "旧 subagent scheduler 事件名只允许 compat Rust emitter 持有",
+      "classification": "dead-candidate",
+      "description": "已删除的旧 subagent scheduler Rust 事件名",
       "patterns": ["subagent-scheduler-event"],
-      "allowedPaths": ["src-tauri/src/agent/subagent_scheduler.rs"]
+      "allowedPaths": []
     },
     {
       "id": "rust-general-chat-dao",

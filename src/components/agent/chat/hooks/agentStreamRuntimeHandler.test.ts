@@ -48,6 +48,7 @@ describe("agentStreamRuntimeHandler", () => {
         usage: {
           input_tokens: 12_000,
           output_tokens: 19_000,
+          cached_input_tokens: 8_000,
         },
       } as AgentEvent,
       requestState: {
@@ -100,6 +101,7 @@ describe("agentStreamRuntimeHandler", () => {
       usage: {
         input_tokens: 12_000,
         output_tokens: 19_000,
+        cached_input_tokens: 8_000,
       },
     });
   });

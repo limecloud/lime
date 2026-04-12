@@ -357,7 +357,7 @@ function buildMemoryPrefetchDiagnosticLines(
       `- 规则层：${prefetch.rules_source_paths.length} 个来源`,
       `- 工作层：${prefetch.working_memory_excerpt ? "已命中" : "未命中"}`,
       `- 持久层：${prefetch.durable_memories.length} 条`,
-      `- Team 层：${prefetch.team_memory_entries.length} 条`,
+      `- 任务影子层：${prefetch.team_memory_entries.length} 条`,
       `- 压缩层：${prefetch.latest_compaction ? "已命中" : "未命中"}`,
     ];
 
@@ -393,13 +393,13 @@ function buildMemoryPrefetchDiagnosticLines(
     }
     if (prefetch.team_memory_entries.length > 0) {
       sections.push(
-        `- Team 影子键：${prefetch.team_memory_entries
+        `- 任务影子键：${prefetch.team_memory_entries
           .slice(0, 3)
           .map((entry) => entry.key)
           .join("｜")}`,
       );
       sections.push(
-        `- Team 影子详情：${prefetch.team_memory_entries
+        `- 任务影子详情：${prefetch.team_memory_entries
           .slice(0, 3)
           .map(
             (entry) =>
@@ -453,7 +453,7 @@ function resolveMemoryPrefetchPreviewChangeLabel(
     case "durable":
       return `长期记忆 ${change.previous || "无"} -> ${change.current || "无"}`;
     case "team":
-      return `Team 影子 ${change.previous || "无"} -> ${change.current || "无"}`;
+      return `任务影子 ${change.previous || "无"} -> ${change.current || "无"}`;
     case "compaction":
       return `压缩摘要 ${change.previous || "无"} -> ${change.current || "无"}`;
     case "user_message":
@@ -574,7 +574,7 @@ function buildReliabilityDiagnosticText(params: {
     `- 模型：${diagnosticRuntimeContext?.model || "未知"}`,
     `- 执行策略：${diagnosticRuntimeContext?.executionStrategy || "未知"}`,
     `- 主题：${diagnosticRuntimeContext?.activeTheme || "未知"}`,
-    `- 协作方案：${diagnosticRuntimeContext?.selectedTeamLabel || "未设置"}`,
+    `- 任务方案：${diagnosticRuntimeContext?.selectedTeamLabel || "未设置"}`,
     `- 工作区根目录：${diagnosticRuntimeContext?.workingDir || "未知"}`,
     "",
     "### 当前状态",
@@ -735,7 +735,7 @@ function buildReliabilityDiagnosticText(params: {
     }
     if (memoryPrefetchComparison.diff.changed) {
       sections.push(
-        `- 层变化：规则 ${memoryPrefetchComparison.diff.layerChanges.rulesDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.rulesDelta}｜工作 ${memoryPrefetchComparison.diff.layerChanges.workingChanged}｜持久 ${memoryPrefetchComparison.diff.layerChanges.durableDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.durableDelta}｜Team ${memoryPrefetchComparison.diff.layerChanges.teamDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.teamDelta}｜压缩 ${memoryPrefetchComparison.diff.layerChanges.compactionChanged}`,
+        `- 层变化：规则 ${memoryPrefetchComparison.diff.layerChanges.rulesDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.rulesDelta}｜工作 ${memoryPrefetchComparison.diff.layerChanges.workingChanged}｜持久 ${memoryPrefetchComparison.diff.layerChanges.durableDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.durableDelta}｜任务影子 ${memoryPrefetchComparison.diff.layerChanges.teamDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.teamDelta}｜压缩 ${memoryPrefetchComparison.diff.layerChanges.compactionChanged}`,
       );
       if (memoryPrefetchComparison.diff.previewChanges.length > 0) {
         sections.push(
@@ -1238,7 +1238,7 @@ export const AgentThreadReliabilityPanel: React.FC<
               variant="outline"
               className="border-amber-200 bg-amber-50 text-amber-700"
             >
-              compat 快速诊断
+              线程级快速诊断
             </Badge>
             <Badge
               variant="outline"
@@ -1294,11 +1294,11 @@ export const AgentThreadReliabilityPanel: React.FC<
         </div>
       </div>
       <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-[11px] leading-5 text-amber-900">
-        当前入口属于 `compat` 线程级快速诊断，只覆盖当前 thread 的运行信号。
-        正式交给外部模型分析时，请优先使用工作台“交接制品 →
-        外部分析交接”的 `analysis-brief.md / analysis-context.json`
-        主链；这里的“快速复制给 AI”只适合临时排障，“复制原始
-        JSON（debug）”适合程序化分析、存档或二次处理。
+        当前入口只覆盖当前 thread 的运行信号。正式交给外部模型分析时，
+        请优先使用工作台“交接制品 → 外部分析交接”的
+        `analysis-brief.md / analysis-context.json` 主链；这里的“快速复制给
+        AI”只适合临时排障，“复制原始 JSON（debug）”适合程序化分析、
+        存档或二次处理。
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-3">
@@ -1683,7 +1683,7 @@ export const AgentThreadReliabilityPanel: React.FC<
                     variant="outline"
                     className="border-sky-200 bg-white text-sky-700"
                   >
-                    Team{" "}
+                    任务影子{" "}
                     {memoryPrefetchComparison.diff.layerChanges.teamDelta > 0 ? "+" : ""}
                     {memoryPrefetchComparison.diff.layerChanges.teamDelta}
                   </Badge>

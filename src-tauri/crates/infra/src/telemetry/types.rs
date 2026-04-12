@@ -41,6 +41,18 @@ impl std::fmt::Display for RequestStatus {
 pub struct RequestLog {
     /// 唯一请求 ID
     pub id: String,
+    /// Lime 会话 ID（如果有）
+    pub session_id: Option<String>,
+    /// Lime 线程 ID（如果有）
+    pub thread_id: Option<String>,
+    /// Lime 回合 ID（如果有）
+    pub turn_id: Option<String>,
+    /// 关联的 pending request ID（如果有）
+    pub pending_request_id: Option<String>,
+    /// 关联的 queued turn ID（如果有）
+    pub queued_turn_id: Option<String>,
+    /// 关联的 subagent session ID（如果有）
+    pub subagent_session_id: Option<String>,
     /// 请求时间戳
     pub timestamp: DateTime<Utc>,
     /// Provider 类型
@@ -74,6 +86,12 @@ impl RequestLog {
     pub fn new(id: String, provider: ProviderType, model: String, is_streaming: bool) -> Self {
         Self {
             id,
+            session_id: None,
+            thread_id: None,
+            turn_id: None,
+            pending_request_id: None,
+            queued_turn_id: None,
+            subagent_session_id: None,
             timestamp: Utc::now(),
             provider,
             model,

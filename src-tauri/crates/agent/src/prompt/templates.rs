@@ -44,7 +44,6 @@ pub const TOOL_GUIDELINES: &str = r#"# 工具使用策略
 
 ### 委派工具
 - **Agent / TeamCreate / TeamDelete / SendMessage / ListPeers**: 当前 team runtime 主路径
-- **SubAgentTask**: 兼容入口，仅用于历史 prompt/schema 仍输出旧格式时兜底
 
 ### 人在环工具
 - **AskUserQuestion**: 向用户请求确认或补充信息
@@ -55,7 +54,7 @@ pub const TOOL_GUIDELINES: &str = r#"# 工具使用策略
 2. **并行调用**：如果多个工具调用之间没有依赖关系，应该并行调用
 3. **先读后改**：修改文件前必须先读取文件内容
 4. **最小权限**：只执行必要的操作，避免不必要的文件修改
-5. **独立子问题再委派**：只有当任务需要隔离上下文、并行探索或分离执行时，才使用 team runtime 工具；优先 `Agent`，不要默认走 `SubAgentTask`"#;
+5. **独立子问题再委派**：只有当任务需要隔离上下文、并行探索或分离执行时，才使用 team runtime 工具；优先 `Agent`，不要恢复旧工具名或额外平行入口"#;
 
 /// 代码编写指南
 pub const CODING_GUIDELINES: &str = r#"# 代码编写指南
@@ -102,7 +101,7 @@ pub const TASK_MANAGEMENT: &str = r#"# 任务管理
 
 不要批量完成多个任务后再标记，应该完成一个标记一个。
 
-如果某个子问题可以独立分析、规划或执行，并且不需要持续共享主对话上下文，可以使用 `Agent` 委派出去；`SubAgentTask` 只保留给兼容旧 schema 的场景。"#;
+如果某个子问题可以独立分析、规划或执行，并且不需要持续共享主对话上下文，可以使用 `Agent` 委派出去；统一使用 `Agent / SendMessage / TeamCreate / TeamDelete / ListPeers`，不要恢复旧 schema 工具名。"#;
 
 /// Git 操作指南
 pub const GIT_GUIDELINES: &str = r#"# Git 操作

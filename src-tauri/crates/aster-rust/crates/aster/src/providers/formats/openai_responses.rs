@@ -113,6 +113,8 @@ pub struct ResponseUsage {
     pub input_tokens: i32,
     pub output_tokens: i32,
     pub total_tokens: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_tokens_details: Option<Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -550,6 +552,13 @@ pub fn get_responses_usage(response: &ResponsesApiResponse) -> Usage {
             Some(u.output_tokens),
             Some(u.total_tokens),
         )
+        .with_cached_input_tokens(
+            u.input_tokens_details
+                .as_ref()
+                .and_then(|details| details.get("cached_tokens"))
+                .and_then(|value| value.as_i64())
+                .map(|value| value as i32),
+        )
     })
 }
 
@@ -705,6 +714,13 @@ where
                             Some(u.input_tokens),
                             Some(u.output_tokens),
                             Some(u.total_tokens),
+                        )
+                        .with_cached_input_tokens(
+                            u.input_tokens_details
+                                .as_ref()
+                                .and_then(|details| details.get("cached_tokens"))
+                                .and_then(|value| value.as_i64())
+                                .map(|value| value as i32),
                         ),
                     );
                     final_usage = Some(ProviderUsage {

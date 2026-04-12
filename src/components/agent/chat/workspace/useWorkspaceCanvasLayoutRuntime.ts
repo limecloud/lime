@@ -40,7 +40,7 @@ interface UseWorkspaceCanvasLayoutRuntimeParams {
   shouldBootstrapCanvasOnEntry: boolean;
   canvasState: CanvasStateUnion | null;
   generalCanvasState: GeneralCanvasState;
-  showTeamWorkspaceBoard: boolean;
+  teamWorkspaceEnabled: boolean;
   hasCurrentCanvasArtifact: boolean;
   currentCanvasArtifactType?: string | null;
   hasBrowserAssistArtifact: boolean;
@@ -76,7 +76,7 @@ export function useWorkspaceCanvasLayoutRuntime({
   shouldBootstrapCanvasOnEntry,
   canvasState,
   generalCanvasState,
-  showTeamWorkspaceBoard,
+  teamWorkspaceEnabled,
   hasCurrentCanvasArtifact,
   currentCanvasArtifactType,
   hasBrowserAssistArtifact,
@@ -266,7 +266,7 @@ export function useWorkspaceCanvasLayoutRuntime({
       activeTheme !== "general" ||
       !showChatPanel ||
       layoutMode === "chat" ||
-      showTeamWorkspaceBoard ||
+      teamWorkspaceEnabled ||
       hasCurrentCanvasArtifact ||
       currentImageWorkbenchActive
     ) {
@@ -287,7 +287,7 @@ export function useWorkspaceCanvasLayoutRuntime({
     layoutMode,
     setLayoutMode,
     showChatPanel,
-    showTeamWorkspaceBoard,
+    teamWorkspaceEnabled,
   ]);
 
   useEffect(() => {
@@ -343,7 +343,7 @@ export function useWorkspaceCanvasLayoutRuntime({
   const handleToggleCanvas = useCallback(() => {
     if (activeTheme === "general" && !isThemeWorkbench) {
       const shouldManageStandaloneGeneralCanvas =
-        !showTeamWorkspaceBoard &&
+        !teamWorkspaceEnabled &&
         !hasCurrentCanvasArtifact &&
         !currentImageWorkbenchActive;
 
@@ -397,7 +397,7 @@ export function useWorkspaceCanvasLayoutRuntime({
     setCanvasState,
     setGeneralCanvasState,
     setLayoutMode,
-    showTeamWorkspaceBoard,
+    teamWorkspaceEnabled,
     suppressGeneralCanvasArtifactAutoOpen,
   ]);
 

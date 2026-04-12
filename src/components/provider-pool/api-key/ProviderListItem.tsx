@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { ProviderIcon } from "@/icons/providers";
 import { Badge } from "@/components/ui/badge";
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
+import { getProviderPromptCacheMode } from "@/lib/model/providerPromptCacheSupport";
 
 // ============================================================================
 // 类型定义
@@ -55,6 +56,8 @@ export const ProviderListItem: React.FC<ProviderListItemProps> = ({
 }) => {
   const apiKeyCount = provider.api_keys?.length ?? 0;
   const isEnabled = provider.enabled;
+  const showExplicitPromptCacheBadge =
+    getProviderPromptCacheMode(provider.type) === "explicit_only";
 
   return (
     <div
@@ -104,6 +107,16 @@ export const ProviderListItem: React.FC<ProviderListItemProps> = ({
       >
         {provider.name}
       </span>
+
+      {showExplicitPromptCacheBadge && (
+        <Badge
+          variant="outline"
+          className="h-5 flex-shrink-0 border-amber-200 bg-amber-50 px-1.5 text-[11px] font-medium text-amber-700"
+          data-testid="provider-prompt-cache-badge"
+        >
+          显式缓存
+        </Badge>
+      )}
 
       {/* 启用状态指示器 */}
       <div

@@ -77,29 +77,27 @@ interface GeneralWorkbenchWorkflowPanelProps {
 const WORKFLOW_SECTION_CLASSNAME = "border-b border-slate-200/70 px-4 py-3";
 
 const WORKFLOW_SECTION_TITLE_CLASSNAME =
-  "mb-2.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500";
+  "mb-2.5 flex items-center justify-between text-[11px] font-semibold text-slate-500";
 
 const WORKFLOW_SECTION_BADGE_CLASSNAME =
   "inline-flex min-h-4 min-w-4 items-center justify-center rounded-full border border-slate-200 bg-white px-1.5 text-[10px] font-semibold text-slate-500";
 
 const WORKFLOW_NEW_TOPIC_BUTTON_CLASSNAME =
-  "flex h-10 w-full items-center gap-2 rounded-[14px] border border-dashed border-slate-200/90 bg-white/90 px-3 text-sm font-medium text-slate-700 shadow-sm shadow-slate-950/5 transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-900";
-
-const WORKFLOW_PROGRESS_TEXT_CLASSNAME = "text-sm leading-5 text-slate-500";
-
-const WORKFLOW_PROGRESS_BAR_CLASSNAME =
-  "mt-2 h-2 overflow-hidden rounded-full bg-slate-200/80";
-
-const WORKFLOW_PROGRESS_FILL_CLASSNAME =
-  "h-full rounded-full bg-[linear-gradient(90deg,rgba(14,116,144,0.72)_0%,rgba(16,185,129,0.76)_100%)] transition-[width] duration-200";
+  "inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 text-[11px] font-medium text-slate-500 transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-900";
 
 const WORKFLOW_STEP_LIST_CLASSNAME = "mt-3 flex flex-col gap-2";
 
-const WORKFLOW_STATUS_CARD_CLASSNAME =
-  "mt-3 rounded-[16px] border border-slate-200/80 bg-white px-3 py-3 shadow-sm shadow-slate-950/5";
+const WORKFLOW_TASK_SUMMARY_CLASSNAME =
+  "mt-2 rounded-[14px] border border-slate-200 bg-slate-50 px-3 py-2.5";
+
+const WORKFLOW_TASK_SUMMARY_PILL_CLASSNAME =
+  "inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500";
 
 const TOGGLE_BUTTON_CLASSNAME =
   "inline-flex items-center text-slate-500 transition-colors hover:text-slate-900";
+
+const WORKFLOW_INLINE_LABEL_CLASSNAME =
+  "text-[10px] font-semibold text-slate-500";
 
 function createDiv(baseClassName: string) {
   return function ClassedDiv({
@@ -149,10 +147,10 @@ function BranchItem({
   return (
     <div
       className={cn(
-        "rounded-lg border p-[7px]",
+        "rounded-[14px] border px-3 py-2.5",
         $active
-          ? "border-sky-300/70 bg-sky-50/70"
-          : "border-slate-200/80 bg-white",
+          ? "border-sky-200/80 bg-sky-50/40"
+          : "border-slate-200/80 bg-slate-50/70",
         className,
       )}
       {...props}
@@ -160,10 +158,10 @@ function BranchItem({
   );
 }
 
-const BranchHead = createDiv("flex items-center gap-[5px]");
+const BranchHead = createDiv("flex items-start gap-2");
 
 const BranchTitleButton = createButton(
-  "flex-1 truncate border-0 bg-transparent p-0 text-left text-[11px] text-slate-900",
+  "flex-1 truncate border-0 bg-transparent p-0 text-left text-[12px] font-medium leading-5 text-slate-900",
 );
 
 function StatusBadge({
@@ -176,14 +174,17 @@ function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex rounded-full px-1.5 py-0.5 text-[10px]",
-        $status === "merged" && "bg-emerald-100 text-emerald-700",
-        $status === "in_progress" && "bg-sky-100 text-sky-700",
-        $status === "pending" && "bg-amber-100 text-amber-700",
+        "inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
+        $status === "merged" &&
+          "border-emerald-200 bg-emerald-50 text-emerald-700",
+        $status === "in_progress" &&
+          "border-sky-200 bg-sky-50 text-sky-700",
+        $status === "pending" &&
+          "border-amber-200 bg-amber-50 text-amber-700",
         $status !== "merged" &&
           $status !== "in_progress" &&
           $status !== "pending" &&
-          "bg-slate-100 text-slate-500",
+          "border-slate-200 bg-slate-100 text-slate-500",
         className,
       )}
       {...props}
@@ -191,14 +192,16 @@ function StatusBadge({
   );
 }
 
-const ActionRow = createDiv("mt-1.5 flex gap-[5px]");
+const BranchMeta = createDiv("mt-1 text-[10px] leading-4 text-slate-500");
+
+const ActionRow = createDiv("mt-2 flex flex-wrap gap-1.5");
 
 const TinyButton = createButton(
-  "rounded-md border border-slate-200 bg-white px-[7px] py-[3px] text-[11px] text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900",
+  "rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900",
 );
 
 const DeleteButton = createButton(
-  "rounded p-0.5 text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600",
+  "rounded-full p-1 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600",
 );
 
 const ActivityList = createDiv("flex flex-col gap-[5px]");
@@ -259,15 +262,14 @@ const RunDetailActionButton = createButton(
 
 function getWorkflowStepRowClassName(status: StepStatus) {
   return cn(
-    "flex items-start gap-2 rounded-[12px] border px-2.5 py-2 text-sm leading-5",
-    status === "completed" &&
-      "border-emerald-200 bg-emerald-50/80 text-slate-900",
-    status === "error" && "border-rose-200 bg-rose-50/80 text-slate-900",
-    status === "active" && "border-sky-200 bg-sky-50/80 text-slate-900",
+    "flex items-start gap-2.5 rounded-[14px] border bg-white px-3 py-2.5 text-sm leading-5 shadow-sm shadow-slate-950/5",
+    status === "completed" && "border-slate-200 text-slate-700",
+    status === "error" && "border-rose-200 text-slate-900",
+    status === "active" && "border-sky-200 text-slate-900",
     status !== "completed" &&
       status !== "error" &&
       status !== "active" &&
-      "border-slate-200/80 bg-slate-50/70 text-slate-500",
+      "border-slate-200 text-slate-600",
   );
 }
 
@@ -286,12 +288,24 @@ function getStepIcon(status: StepStatus) {
 
 function getStatusBadgeClassName(status: StepStatus) {
   return cn(
-    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
-    status === "completed" && "bg-emerald-100 text-emerald-700",
-    status === "error" && "bg-rose-100 text-rose-700",
-    status === "active" && "bg-sky-100 text-sky-700",
-    status === "pending" && "bg-amber-100 text-amber-700",
-    status === "skipped" && "bg-slate-100 text-slate-500",
+    "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+    status === "completed" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+    status === "error" && "border-rose-200 bg-rose-50 text-rose-700",
+    status === "active" && "border-sky-200 bg-sky-50 text-sky-700",
+    status === "pending" && "border-amber-200 bg-amber-50 text-amber-700",
+    status === "skipped" && "border-slate-200 bg-slate-50 text-slate-500",
+  );
+}
+
+function getWorkflowStepIconClassName(status: StepStatus) {
+  return cn(
+    status === "completed" && "text-emerald-600",
+    status === "error" && "text-rose-600",
+    status === "active" && "text-sky-600",
+    status !== "completed" &&
+      status !== "error" &&
+      status !== "active" &&
+      "text-slate-400",
   );
 }
 
@@ -300,6 +314,53 @@ function getBranchStatusText(status: TopicBranchStatus): string {
   if (status === "pending") return "待评审";
   if (status === "merged") return "已合并";
   return "备选";
+}
+
+function getBranchSectionTitle(isVersionMode: boolean): string {
+  return isVersionMode ? "相关版本" : "相关分支";
+}
+
+function getBranchCreateLabel(isVersionMode: boolean): string {
+  return isVersionMode ? "新增版本" : "新增分支";
+}
+
+function getBranchPrimaryActionLabel(isVersionMode: boolean): string {
+  return isVersionMode ? "设为主稿" : "采纳";
+}
+
+function getBranchSecondaryActionLabel(isVersionMode: boolean): string {
+  return isVersionMode ? "待评审" : "待决策";
+}
+
+function getEmptyBranchText(isVersionMode: boolean): string {
+  return isVersionMode
+    ? "暂无相关版本，当前任务还没有沉淀出可切换记录"
+    : "暂无相关分支，当前任务还在主线上推进";
+}
+
+function getBranchMetaText(
+  item: TopicBranchItem,
+  isVersionMode: boolean,
+): string {
+  if (item.isCurrent) {
+    return isVersionMode
+      ? "当前任务正在围绕这一版内容继续推进"
+      : "当前任务正在围绕这条分支继续推进";
+  }
+  if (item.status === "merged") {
+    return isVersionMode ? "这版内容已经收进主稿" : "这条分支已经并入主稿";
+  }
+  if (item.status === "pending") {
+    return isVersionMode
+      ? "等待评审后再决定是否继续推进"
+      : "等待决策后再决定是否继续推进";
+  }
+  if (item.status === "candidate") {
+    return isVersionMode ? "保留为可回看的候选版本" : "保留为可回看的候选分支";
+  }
+  return isVersionMode
+    ? "记录一版正在推进中的内容"
+    : "记录一条正在推进中的相关分支";
 }
 
 function formatGateLabel(
@@ -482,6 +543,23 @@ function GeneralWorkbenchWorkflowPanelComponent({
   const currentWorkflowStep = workflowSnapshot.leadingStep;
   const remainingSteps = workflowSnapshot.remainingCount;
   const sortedWorkflowSteps = workflowSnapshot.sortedSteps;
+  const sortedBranchItems = [...branchItems].sort((left, right) => {
+    if (left.isCurrent !== right.isCurrent) {
+      return left.isCurrent ? -1 : 1;
+    }
+    const statusPriority: Record<TopicBranchStatus, number> = {
+      in_progress: 0,
+      pending: 1,
+      candidate: 2,
+      merged: 3,
+    };
+    const statusDiff =
+      statusPriority[left.status] - statusPriority[right.status];
+    if (statusDiff !== 0) {
+      return statusDiff;
+    }
+    return left.title.localeCompare(right.title, "zh-CN");
+  });
   const workflowSummaryText = buildWorkflowSummaryText({
     leadingStep: currentWorkflowStep,
     remainingCount: remainingSteps,
@@ -491,104 +569,85 @@ function GeneralWorkbenchWorkflowPanelComponent({
     completedCount: completedSteps,
     totalCount: workflowSteps.length,
   });
+  const branchSectionTitle = getBranchSectionTitle(isVersionMode);
+  const branchCreateLabel = getBranchCreateLabel(isVersionMode);
+  const branchPrimaryActionLabel = getBranchPrimaryActionLabel(isVersionMode);
+  const branchSecondaryActionLabel = getBranchSecondaryActionLabel(isVersionMode);
 
   return (
     <>
-      <section className={cn(WORKFLOW_SECTION_CLASSNAME, "relative z-10")}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className={WORKFLOW_NEW_TOPIC_BUTTON_CLASSNAME}
-            >
-              <Plus size={14} />
-              {isVersionMode ? "创建版本快照" : "新建分支任务"}
-              <ChevronDown size={12} className="ml-auto" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" style={{ width: "260px" }}>
-            <DropdownMenuItem onClick={onNewTopic}>
-              <GitBranch size={14} />
-              <span>{isVersionMode ? "创建版本快照" : "新建分支任务"}</span>
-            </DropdownMenuItem>
-            {onAddImage ? (
-              <DropdownMenuItem onClick={onAddImage}>
-                <ImageIcon size={14} />
-                <span>添加图片</span>
-              </DropdownMenuItem>
-            ) : null}
-            {onImportDocument ? (
-              <DropdownMenuItem onClick={onImportDocument}>
-                <FileText size={14} />
-                <span>导入文稿</span>
-              </DropdownMenuItem>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </section>
-
-      <section className={WORKFLOW_SECTION_CLASSNAME}>
+      <section
+        className={WORKFLOW_SECTION_CLASSNAME}
+        data-testid="workflow-sidebar-task-section"
+      >
         <div className={WORKFLOW_SECTION_TITLE_CLASSNAME}>
-          <span>任务进行时</span>
+          <span>任务视图</span>
           <span className={WORKFLOW_SECTION_BADGE_CLASSNAME}>
             {remainingSteps}
           </span>
         </div>
-        <div className={WORKFLOW_STATUS_CARD_CLASSNAME}>
-          <div className="flex items-start gap-3">
-            <div
+        <div
+          className={WORKFLOW_TASK_SUMMARY_CLASSNAME}
+          data-testid="workflow-sidebar-task-summary"
+        >
+          <div className="flex items-start gap-2.5">
+            <span
               className={cn(
-                "inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full",
-                currentWorkflowStep?.status === "error" &&
-                  "bg-rose-100 text-rose-600",
-                currentWorkflowStep?.status === "pending" &&
-                  "bg-amber-100 text-amber-700",
-                (!currentWorkflowStep ||
-                  currentWorkflowStep.status === "active" ||
-                  currentWorkflowStep.status === "completed") &&
-                  "bg-sky-100 text-sky-700",
+                "mt-0.5",
+                getWorkflowStepIconClassName(
+                  currentWorkflowStep?.status ?? "active",
+                ),
               )}
             >
               {getStepIcon(currentWorkflowStep?.status ?? "active")}
-            </div>
+            </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-semibold text-slate-500">
-                当前任务
-              </div>
-              <div
-                className="mt-1 text-sm font-semibold leading-5 text-slate-900"
-                data-testid="workflow-sidebar-current-step"
-              >
-                {currentWorkflowStep?.title || "当前流程已完成"}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={WORKFLOW_INLINE_LABEL_CLASSNAME}>
+                  当前任务
+                </span>
+                <span
+                  className="break-words text-sm font-semibold leading-5 text-slate-900"
+                  data-testid="workflow-sidebar-current-step"
+                >
+                  {currentWorkflowStep?.title || "当前流程已完成"}
+                </span>
+                <span
+                  className={getStatusBadgeClassName(
+                    currentWorkflowStep?.status ?? "completed",
+                  )}
+                >
+                  {getWorkflowStatusLabel(
+                    currentWorkflowStep?.status ?? "completed",
+                  )}
+                </span>
               </div>
               <div className="mt-1 text-[11px] leading-5 text-slate-500">
                 {workflowSummaryText}
               </div>
-              <div className="mt-1 text-[11px] leading-5 text-slate-400">
-                {workflowProgressLabel}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className={WORKFLOW_TASK_SUMMARY_PILL_CLASSNAME}>
+                  {workflowProgressLabel}
+                </span>
+                <span className={WORKFLOW_TASK_SUMMARY_PILL_CLASSNAME}>
+                  {remainingSteps > 0
+                    ? `剩余 ${remainingSteps} 项待处理`
+                    : "当前流程已全部完成"}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                  <span className="inline-flex h-1 w-14 overflow-hidden rounded-full bg-slate-200">
+                    <span
+                      className="h-full rounded-full bg-sky-500/70 transition-[width] duration-200"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, progressPercent))}%`,
+                      }}
+                    />
+                  </span>
+                  {Math.max(0, Math.min(100, Math.round(progressPercent)))}%
+                </span>
               </div>
             </div>
-            <span
-              className={getStatusBadgeClassName(
-                currentWorkflowStep?.status ?? "completed",
-              )}
-            >
-              {getWorkflowStatusLabel(currentWorkflowStep?.status ?? "completed")}
-            </span>
           </div>
-        </div>
-        <div className={cn(WORKFLOW_PROGRESS_TEXT_CLASSNAME, "mt-3")}>
-          {remainingSteps > 0
-            ? `剩余 ${remainingSteps} 项待处理`
-            : "当前流程已全部完成"}
-        </div>
-        <div className={WORKFLOW_PROGRESS_BAR_CLASSNAME}>
-          <div
-            className={WORKFLOW_PROGRESS_FILL_CLASSNAME}
-            style={{
-              width: `${Math.max(0, Math.min(100, progressPercent))}%`,
-            }}
-          />
         </div>
         <div className={WORKFLOW_STEP_LIST_CLASSNAME}>
           {sortedWorkflowSteps.map((step) => (
@@ -598,7 +657,11 @@ function GeneralWorkbenchWorkflowPanelComponent({
               data-testid="workflow-sidebar-step"
               data-status={step.status}
             >
-              <span className="mt-0.5">{getStepIcon(step.status)}</span>
+              <span
+                className={cn("mt-0.5", getWorkflowStepIconClassName(step.status))}
+              >
+                {getStepIcon(step.status)}
+              </span>
               <div className="min-w-0 flex-1">
                 <div className="break-words text-sm leading-5">{step.title}</div>
               </div>
@@ -610,50 +673,94 @@ function GeneralWorkbenchWorkflowPanelComponent({
         </div>
       </section>
 
-      <section className={WORKFLOW_SECTION_CLASSNAME}>
+      <section
+        className={cn(WORKFLOW_SECTION_CLASSNAME, "relative z-10")}
+        data-testid="workflow-sidebar-branch-section"
+      >
         <div className={WORKFLOW_SECTION_TITLE_CLASSNAME}>
-          <span>{isVersionMode ? "产物版本" : "篇内分支"}</span>
-          <span className={WORKFLOW_SECTION_BADGE_CLASSNAME}>
-            {branchItems.length}
+          <span>{branchSectionTitle}</span>
+          <span className="inline-flex items-center gap-2">
+            <span className={WORKFLOW_SECTION_BADGE_CLASSNAME}>
+              {branchItems.length}
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className={WORKFLOW_NEW_TOPIC_BUTTON_CLASSNAME}
+                >
+                  <Plus size={13} />
+                  {branchCreateLabel}
+                  <ChevronDown size={11} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" style={{ width: "260px" }}>
+                <DropdownMenuItem onClick={onNewTopic}>
+                  <GitBranch size={14} />
+                  <span>{branchCreateLabel}</span>
+                </DropdownMenuItem>
+                {onAddImage ? (
+                  <DropdownMenuItem onClick={onAddImage}>
+                    <ImageIcon size={14} />
+                    <span>添加图片</span>
+                  </DropdownMenuItem>
+                ) : null}
+                {onImportDocument ? (
+                  <DropdownMenuItem onClick={onImportDocument}>
+                    <FileText size={14} />
+                    <span>导入文稿</span>
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </span>
         </div>
         <BranchList className="custom-scrollbar">
           {branchItems.length === 0 ? (
-            <ActivityMeta>
-              {isVersionMode
-                ? "暂无文稿版本，先生成或创建快照"
-                : "暂无分支任务"}
-            </ActivityMeta>
+            <ActivityMeta>{getEmptyBranchText(isVersionMode)}</ActivityMeta>
           ) : (
-            branchItems.map((item) => (
+            sortedBranchItems.map((item) => (
               <BranchItem key={item.id} $active={item.isCurrent}>
                 <BranchHead>
-                  <GitBranch size={13} />
-                  <BranchTitleButton onClick={() => onSwitchTopic(item.id)}>
-                    {item.title}
-                  </BranchTitleButton>
-                  <StatusBadge $status={item.status}>
-                    {getBranchStatusText(item.status)}
-                  </StatusBadge>
-                  {!isVersionMode ? (
-                    <DeleteButton
-                      onClick={() => onDeleteTopic(item.id)}
-                      aria-label="删除分支"
-                    >
-                      <Trash2 size={12} />
-                    </DeleteButton>
-                  ) : null}
+                  <GitBranch
+                    size={13}
+                    className={cn(
+                      "mt-0.5 shrink-0",
+                      item.isCurrent ? "text-sky-600" : "text-slate-400",
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start gap-2">
+                      <BranchTitleButton onClick={() => onSwitchTopic(item.id)}>
+                        {item.title}
+                      </BranchTitleButton>
+                      <StatusBadge $status={item.status}>
+                        {item.isCurrent
+                          ? "当前焦点"
+                          : getBranchStatusText(item.status)}
+                      </StatusBadge>
+                      {!isVersionMode ? (
+                        <DeleteButton
+                          onClick={() => onDeleteTopic(item.id)}
+                          aria-label="删除分支"
+                        >
+                          <Trash2 size={12} />
+                        </DeleteButton>
+                      ) : null}
+                    </div>
+                    <BranchMeta>{getBranchMetaText(item, isVersionMode)}</BranchMeta>
+                  </div>
                 </BranchHead>
                 <ActionRow>
                   <TinyButton
                     onClick={() => onSetBranchStatus(item.id, "merged")}
                   >
-                    {isVersionMode ? "设为主稿" : "采纳到主稿"}
+                    {branchPrimaryActionLabel}
                   </TinyButton>
                   <TinyButton
                     onClick={() => onSetBranchStatus(item.id, "pending")}
                   >
-                    {isVersionMode ? "标记待评审" : "标记待决策"}
+                    {branchSecondaryActionLabel}
                   </TinyButton>
                 </ActionRow>
               </BranchItem>

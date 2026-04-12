@@ -159,7 +159,7 @@ afterEach(() => {
 });
 
 describe("Harness eval history window", () => {
-  it("runner 应记录并裁剪历史窗口，trend 应复用该目录", () => {
+  it("history-record 应记录并裁剪历史窗口，trend 应复用该目录", () => {
     const tempRoot = createTempRoot();
     const caseDir = createReplayFixture(tempRoot);
     const manifestPath = path.join(tempRoot, "manifest.json");
@@ -167,40 +167,37 @@ describe("Harness eval history window", () => {
 
     writeJson(manifestPath, createHarnessManifest(caseDir));
 
-    runNodeScript("scripts/harness-eval-runner.mjs", [
+    runNodeScript("scripts/harness-eval-history-record.mjs", [
       "--format",
       "json",
       "--manifest",
       manifestPath,
-      "--record-history-dir",
+      "--history-dir",
       historyDir,
-      "--history-retain",
+      "--retain",
       "2",
-      "--no-strict",
     ]);
     sleepMs(10);
-    runNodeScript("scripts/harness-eval-runner.mjs", [
+    runNodeScript("scripts/harness-eval-history-record.mjs", [
       "--format",
       "json",
       "--manifest",
       manifestPath,
-      "--record-history-dir",
+      "--history-dir",
       historyDir,
-      "--history-retain",
+      "--retain",
       "2",
-      "--no-strict",
     ]);
     sleepMs(10);
-    runNodeScript("scripts/harness-eval-runner.mjs", [
+    runNodeScript("scripts/harness-eval-history-record.mjs", [
       "--format",
       "json",
       "--manifest",
       manifestPath,
-      "--record-history-dir",
+      "--history-dir",
       historyDir,
-      "--history-retain",
+      "--retain",
       "2",
-      "--no-strict",
     ]);
 
     const historyFiles = fs
@@ -222,5 +219,5 @@ describe("Harness eval history window", () => {
     expect(report.signals).not.toContain(
       "样本数不足 2，当前仅形成 trend seed，还不能判断长期退化。",
     );
-  });
+  }, 30_000);
 });

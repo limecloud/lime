@@ -68,6 +68,7 @@ function printGithubFormat(result) {
     `frontend=${tasks.frontend}`,
     `rust=${tasks.rust}`,
     `bridge=${tasks.bridge}`,
+    `bridge_reasons=${Array.isArray(tasks.bridgeReasons) ? tasks.bridgeReasons.join(",") : ""}`,
     `gui_smoke=${tasks.guiSmoke}`,
     `docs=${tasks.docs}`,
     `docs_only=${tasks.docsOnly}`,

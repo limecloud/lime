@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "private": true,
-  "version": "1.8.0",
+  "version": "1.9.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
@@ -41,7 +41,7 @@
     "test:watch": "node --max-old-space-size=8192 ./node_modules/vitest/vitest.mjs",
     "test:frontend": "npm run lint && npm run typecheck && npm test",
     "test:bridge": "npm test -- src/lib/dev-bridge/safeInvoke.test.ts src/lib/tauri-mock/core.test.ts",
-    "test:contracts": "npm run check:agent-runtime-clients && node scripts/check-command-contracts.mjs && node scripts/check-harness-contracts.mjs",
+    "test:contracts": "npm run check:agent-runtime-clients && node scripts/check-command-contracts.mjs && node scripts/check-harness-contracts.mjs && npm run harness:cleanup-report:check",
     "test:rust": "cargo test --manifest-path \"src-tauri/Cargo.toml\"",
     "harness:analysis": "node scripts/harness-analysis-brief.mjs",
     "harness:eval": "node scripts/harness-eval-runner.mjs",
@@ -52,6 +52,7 @@
     "harness:eval:trend:json": "node scripts/harness-eval-trend-report.mjs --format json",
     "harness:cleanup-report": "node scripts/report-generated-slop.mjs",
     "harness:cleanup-report:json": "node scripts/report-generated-slop.mjs --format json",
+    "harness:cleanup-report:check": "node scripts/check-generated-slop-report.mjs --generate-current",
     "harness:doc-freshness": "node scripts/check-doc-freshness.mjs",
     "harness:doc-freshness:json": "node scripts/check-doc-freshness.mjs --json",
     "lint:rust": "cargo clippy --manifest-path \"src-tauri/Cargo.toml\"",

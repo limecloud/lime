@@ -74,19 +74,16 @@ export function useWorkspaceTeamSessionControlRuntime({
         }
 
         if (summary.affectedSessionIds.length > 1) {
-          toast.success(
-            `已级联关闭 ${summary.affectedSessionIds.length} 位协作成员`,
-          );
+          toast.success(`已级联停止 ${summary.affectedSessionIds.length} 项任务`);
         } else if (summary.affectedSessionIds.length === 1) {
-          toast.success("协作成员已关闭");
+          toast.success("这项任务已停止");
         } else {
           toast.info(
-            `当前成员状态为${resolveTeamWorkspaceRuntimeStatusLabel(response.previous_status.kind)}，未发生新的关闭变更`,
+            `当前任务状态为${resolveTeamWorkspaceRuntimeStatusLabel(response.previous_status.kind)}，未发生新的停止变更`,
           );
         }
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "关闭协作成员失败";
+        const message = error instanceof Error ? error.message : "停止任务失败";
         toast.error(message);
         throw error;
       }
@@ -111,19 +108,16 @@ export function useWorkspaceTeamSessionControlRuntime({
         }
 
         if (summary.affectedSessionIds.length > 1) {
-          toast.success(
-            `已级联恢复 ${summary.affectedSessionIds.length} 位协作成员`,
-          );
+          toast.success(`已级联恢复 ${summary.affectedSessionIds.length} 项任务`);
         } else if (summary.affectedSessionIds.length === 1) {
-          toast.success("协作成员已恢复");
+          toast.success("这项任务已恢复");
         } else {
           toast.info(
-            `当前成员状态为${resolveTeamWorkspaceRuntimeStatusLabel(response.status.kind)}，未发生新的恢复变更`,
+            `当前任务状态为${resolveTeamWorkspaceRuntimeStatusLabel(response.status.kind)}，未发生新的恢复变更`,
           );
         }
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "恢复协作成员失败";
+        const message = error instanceof Error ? error.message : "恢复任务失败";
         toast.error(message);
         throw error;
       }
@@ -139,16 +133,16 @@ export function useWorkspaceTeamSessionControlRuntime({
           timeout_ms: timeoutMs,
         });
         if (response.timed_out) {
-          toast.info("等待超时，该成员仍未进入最终状态");
+          toast.info("等待超时，这项任务仍未进入最终状态");
           return;
         }
 
         const status = response.status[subagentSessionId];
         toast.success(
-          `该成员已进入${resolveTeamWorkspaceRuntimeStatusLabel(status?.kind)}状态`,
+          `这项任务已进入${resolveTeamWorkspaceRuntimeStatusLabel(status?.kind)}状态`,
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : "等待成员失败";
+        const message = error instanceof Error ? error.message : "等待任务失败";
         toast.error(message);
         throw error;
       }
@@ -162,7 +156,7 @@ export function useWorkspaceTeamSessionControlRuntime({
         normalizeUniqueSessionIds(subagentSessionIds);
 
       if (normalizedSessionIds.length === 0) {
-        const error = new Error("没有可等待的活跃成员");
+        const error = new Error("没有可等待的活跃任务");
         toast.error(error.message);
         throw error;
       }
@@ -178,7 +172,7 @@ export function useWorkspaceTeamSessionControlRuntime({
             timedOut: true,
             updatedAt: Date.now(),
           });
-          toast.info("等待超时，团队内活跃成员仍未进入最终状态");
+          toast.info("等待超时，团队内活跃任务仍未进入最终状态");
           return;
         }
 
@@ -198,11 +192,10 @@ export function useWorkspaceTeamSessionControlRuntime({
           updatedAt: Date.now(),
         });
         toast.success(
-          `团队成员已进入${resolveTeamWorkspaceRuntimeStatusLabel(resolvedStatus)}状态`,
+          `团队任务已进入${resolveTeamWorkspaceRuntimeStatusLabel(resolvedStatus)}状态`,
         );
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "等待团队成员失败";
+        const message = error instanceof Error ? error.message : "等待团队任务失败";
         toast.error(message);
         throw error;
       }
@@ -216,7 +209,7 @@ export function useWorkspaceTeamSessionControlRuntime({
         normalizeUniqueSessionIds(subagentSessionIds);
 
       if (normalizedSessionIds.length === 0) {
-        const error = new Error("没有可关闭的已完成成员");
+        const error = new Error("没有可关闭的已完成任务");
         toast.error(error.message);
         throw error;
       }
@@ -263,8 +256,8 @@ export function useWorkspaceTeamSessionControlRuntime({
       if (succeededCount > 0) {
         toast.success(
           affectedSessionIds.length > 0
-            ? `已级联关闭 ${affectedSessionIds.length} 个会话`
-            : `已关闭 ${succeededCount} 位已完成成员`,
+            ? `已级联收起 ${affectedSessionIds.length} 项任务`
+            : `已收起 ${succeededCount} 项已完成任务`,
         );
       }
 
@@ -273,7 +266,7 @@ export function useWorkspaceTeamSessionControlRuntime({
         const message =
           firstFailure instanceof Error
             ? firstFailure.message
-            : "部分已完成成员关闭失败";
+            : "部分已完成任务收起失败";
         toast.error(message);
         if (succeededCount === 0) {
           throw firstFailure instanceof Error
@@ -293,7 +286,7 @@ export function useWorkspaceTeamSessionControlRuntime({
     ) => {
       const normalizedMessage = message.trim();
       if (!normalizedMessage) {
-        const error = new Error("请输入要发送给成员的内容");
+        const error = new Error("请输入要发送给这项任务的内容");
         toast.error(error.message);
         throw error;
       }
@@ -307,11 +300,11 @@ export function useWorkspaceTeamSessionControlRuntime({
         toast.success(
           options?.interrupt === true
             ? "已中断当前执行并发送新说明"
-            : "已向成员发送补充说明",
+            : "已向这项任务发送补充说明",
         );
       } catch (error) {
         const messageText =
-          error instanceof Error ? error.message : "发送成员说明失败";
+          error instanceof Error ? error.message : "发送任务说明失败";
         toast.error(messageText);
         throw error;
       }
@@ -381,21 +374,19 @@ export function useWorkspaceTeamSessionControlRuntime({
 
       toast.success(
         affectedSessionIds.length > 1
-          ? `已暂停 ${affectedSessionIds.length} 位协作成员的处理`
+          ? `已暂停 ${affectedSessionIds.length} 项任务的处理`
           : affectedSessionIds.length === 1
-            ? "已暂停协作成员处理"
+            ? "已暂停这项任务的处理"
             : activeTeamSessionIds.length > 1
-              ? `已向 ${activeTeamSessionIds.length} 位协作成员发送暂停请求`
-              : "已向协作成员发送暂停请求",
+              ? `已向 ${activeTeamSessionIds.length} 项任务发送暂停请求`
+              : "已向这项任务发送暂停请求",
       );
     }
 
     if (failedResults.length > 0) {
       const firstFailure = failedResults[0]?.reason;
       const message =
-        firstFailure instanceof Error
-          ? firstFailure.message
-          : "停止协作成员失败";
+        firstFailure instanceof Error ? firstFailure.message : "停止任务失败";
       toast.error(message);
       if (successfulResponses.length === 0) {
         throw firstFailure instanceof Error ? firstFailure : new Error(message);

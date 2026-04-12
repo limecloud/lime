@@ -38,8 +38,8 @@ describe("stableProcessingExperience", () => {
     ).toBe(false);
   });
 
-  it("Team 文案应强调成员依次开始", () => {
-    expect(getStableProcessingDescription("team")).toContain("协作成员");
+  it("Team 文案应强调子任务依次开始", () => {
+    expect(getStableProcessingDescription("team")).toContain("子任务");
     expect(getStableProcessingDescription("request")).toContain("同类请求");
   });
 });

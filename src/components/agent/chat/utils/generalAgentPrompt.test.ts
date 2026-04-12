@@ -36,12 +36,13 @@ describe("generalAgentPrompt", () => {
     expect(prompt).toContain("当前能力开关");
     expect(prompt).toContain("执行车道");
     expect(prompt).toContain("计划执行：已开启");
-    expect(prompt).toContain("多代理：已开启");
+    expect(prompt).toContain("任务拆分：已开启");
     expect(prompt).toContain("统一使用 WebSearch");
     expect(prompt).toContain("不要混用 search/search_query/ToolSearch");
     expect(prompt).toContain("1 个当前最关键的问题");
     expect(prompt).toContain("合理假设补齐");
     expect(prompt).toContain("每轮最多只保留 1 个最关键问题");
+    expect(prompt).not.toContain("多代理");
   });
 
   it("通用主题 Prompt 应回落到统一的主题说明", () => {
@@ -53,13 +54,14 @@ describe("generalAgentPrompt", () => {
     expect(prompt).toContain("3-4 组 WebSearch 扩搜");
   });
 
-  it("通用主题 Prompt 仍应强调执行升级与团队协作边界", () => {
+  it("通用主题 Prompt 仍应强调执行升级与任务分工边界", () => {
     const prompt = buildGeneralAgentSystemPrompt("general");
 
     expect(prompt).toContain("计划执行");
-    expect(prompt).toContain("多代理");
-    expect(prompt).toContain("如果进入计划执行或 Team 协作");
-    expect(prompt).toContain("主对话负责解释分工");
+    expect(prompt).toContain("任务拆分");
+    expect(prompt).toContain("如果进入计划执行或任务分工");
+    expect(prompt).toContain("任务分工模式下");
+    expect(prompt).not.toContain("Team 协作");
   });
 
   it("工作区编排场景应注入 harness 上下文，并兼容旧 general workbench alias", () => {

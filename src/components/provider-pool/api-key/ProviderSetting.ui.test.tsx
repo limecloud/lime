@@ -149,4 +149,21 @@ describe("ProviderSetting", () => {
     expect(modelsHeader?.className).toContain("flex-wrap");
     expect(modelsHeader?.className).toContain("justify-between");
   });
+
+  it("anthropic-compatible Provider 应在头部展示显式缓存标签", () => {
+    const container = renderSetting(
+      createProvider({
+        id: "anthropic-proxy",
+        name: "Anthropic Proxy",
+        type: "anthropic-compatible",
+      }),
+    );
+
+    const badge = container.querySelector(
+      '[data-testid="provider-prompt-cache-badge"]',
+    );
+
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent ?? "").toContain("显式缓存");
+  });
 });

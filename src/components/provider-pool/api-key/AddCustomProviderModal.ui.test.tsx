@@ -63,6 +63,18 @@ function findByTestId<T extends Element>(testId: string): T {
   return element;
 }
 
+function findDivByText(text: string): HTMLDivElement {
+  const target = Array.from(document.querySelectorAll("div")).find(
+    (element) => element.textContent?.trim() === text,
+  );
+
+  if (!(target instanceof HTMLDivElement)) {
+    throw new Error(`未找到文本为 ${text} 的节点`);
+  }
+
+  return target;
+}
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & {
@@ -222,5 +234,27 @@ describe("AddCustomProviderModal", () => {
     expect(
       document.querySelector('[data-testid="known-provider-item-zhipuai"]'),
     ).toBeNull();
+  });
+
+  it("切换到 anthropic-compatible 时应展示显式 Prompt Cache 提示", async () => {
+    renderModal();
+
+    await settleModal();
+
+    await act(async () => {
+      findByTestId<HTMLElement>("provider-type-select").click();
+    });
+
+    await act(async () => {
+      findDivByText("Anthropic 兼容").click();
+    });
+
+    const notice = findByTestId<HTMLElement>("provider-prompt-cache-notice");
+
+    expect(notice.textContent ?? "").toContain(
+      "Anthropic 兼容只表示请求格式兼容",
+    );
+    expect(notice.textContent ?? "").toContain("未声明支持自动 Prompt Cache");
+    expect(notice.textContent ?? "").toContain("显式 cache_control");
   });
 });

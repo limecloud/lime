@@ -55,7 +55,7 @@ function buildTeamWaitSummaryDisplay(params: {
 }) {
   if (params.summary.timedOut) {
     return {
-      text: `刚才等待结果时超时了，还有 ${params.summary.awaitedSessionIds.length} 位协作成员仍在处理中。`,
+      text: `刚才等待结果时超时了，还有 ${params.summary.awaitedSessionIds.length} 项任务仍在处理中。`,
       badgeClassName: "border border-amber-200 bg-amber-50 text-amber-700",
     };
   }
@@ -63,7 +63,7 @@ function buildTeamWaitSummaryDisplay(params: {
   const resolvedName = params.summary.resolvedSessionId
     ? (params.sessionNameById.get(params.summary.resolvedSessionId) ??
       params.summary.resolvedSessionId)
-    : "成员";
+    : "这项任务";
   const normalizedStatus = params.summary.resolvedStatus
     ? normalizeTeamWorkspaceRuntimeStatus(params.summary.resolvedStatus)
     : undefined;
@@ -82,20 +82,20 @@ function buildTeamControlSummaryDisplay(params: {
   const firstAffectedId = params.summary.affectedSessionIds[0];
   const firstAffectedName = firstAffectedId
     ? (params.sessionNameById.get(firstAffectedId) ?? firstAffectedId)
-    : "成员";
+    : "这项任务";
 
   switch (params.summary.action) {
     case "resume":
       return {
         text:
           affectedCount > 1
-            ? `刚才已继续 ${affectedCount} 位协作成员的处理。`
+            ? `刚才已继续 ${affectedCount} 项任务的处理。`
             : `刚才已继续 ${firstAffectedName} 的处理。`,
         badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
       };
     case "close_completed":
       return {
-        text: `刚才已收起 ${affectedCount} 位已完成成员。`,
+        text: `刚才已收起 ${affectedCount} 项已完成任务。`,
         badgeClassName: "border border-slate-200 bg-slate-100 text-slate-700",
       };
     case "close":
@@ -103,7 +103,7 @@ function buildTeamControlSummaryDisplay(params: {
       return {
         text:
           affectedCount > 1
-            ? `刚才已暂停 ${affectedCount} 位协作成员的处理。`
+            ? `刚才已暂停 ${affectedCount} 项任务的处理。`
             : `刚才已暂停 ${firstAffectedName} 的处理。`,
         badgeClassName: "border border-slate-200 bg-slate-100 text-slate-700",
       };

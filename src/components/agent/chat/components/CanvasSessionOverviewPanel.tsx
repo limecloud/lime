@@ -216,12 +216,12 @@ function buildActivityView(item: AgentThreadItem): SessionActivityView | null {
     case "subagent_activity":
       return {
         id: item.id,
-        title: item.title?.trim() || "子 Agent 活动",
+        title: item.title?.trim() || "子任务活动",
         summary:
           shortenText(item.summary, 100) ||
           shortenText(item.role, 100) ||
           shortenText(item.model, 100) ||
-          "协作成员正在推进任务。",
+          "子任务正在推进当前任务。",
         timeLabel,
         statusLabel,
         tone,

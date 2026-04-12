@@ -613,7 +613,7 @@ describe("AgentThreadReliabilityPanel", () => {
     expect(container.textContent).toContain("规则 2");
     expect(container.textContent).toContain("工作 已命中");
     expect(container.textContent).toContain("持久 1");
-    expect(container.textContent).toContain("Team 1");
+    expect(container.textContent).toContain("任务影子 1");
     expect(container.textContent).toContain("压缩 已命中");
     expect(container.textContent).toContain("工作记忆摘录");
     expect(container.textContent).toContain("继续整理风险点与来源摘要");
@@ -622,7 +622,7 @@ describe("AgentThreadReliabilityPanel", () => {
     expect(container.textContent).toContain("持久记忆命中");
     expect(container.textContent).toContain("研究简报输出偏好");
     expect(container.textContent).toContain("优先给风险与证据链");
-    expect(container.textContent).toContain("Team Shadow 明细");
+    expect(container.textContent).toContain("任务影子明细");
     expect(container.textContent).toContain("team.selection");
     expect(container.textContent).toContain("研究协作队");
     expect(container.textContent).toContain("压缩续接摘要");
@@ -1032,7 +1032,7 @@ describe("AgentThreadReliabilityPanel", () => {
       expect.stringContaining("规则层：1 个来源"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining("Team 层：1 条"),
+      expect.stringContaining("任务影子层：1 条"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining("规则来源：/workspace/AGENTS.md"),
@@ -1041,7 +1041,7 @@ describe("AgentThreadReliabilityPanel", () => {
       expect.stringContaining("持久记忆详情：研究输出格式偏好｜先给结论，再列风险"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining("Team 影子详情：team.selection｜研究协作队"),
+      expect.stringContaining("任务影子详情：team.selection｜研究协作队"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining("压缩命中摘要：保留研究目标与最近来源摘要。"),
@@ -1077,7 +1077,7 @@ describe("AgentThreadReliabilityPanel", () => {
       expect.stringContaining("浏览器工具执行失败"),
     );
     expect(mockToast.success).toHaveBeenCalledWith("AI 诊断内容已复制");
-    expect(container.textContent).toContain("compat 快速诊断");
+    expect(container.textContent).toContain("线程级快速诊断");
     expect(container.textContent).toContain("快速复制给 AI");
     expect(container.textContent).toContain("复制原始 JSON（debug）");
     expect(container.textContent).toContain("外部分析交接");

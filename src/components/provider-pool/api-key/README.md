@@ -25,9 +25,11 @@
 | 文件 | 描述 |
 |------|------|
 | `ProviderListItem.test.ts` | Property 1 & 11 属性测试 |
+| `ProviderListItem.ui.test.tsx` | 列表项 UI 回归：显式缓存标签 |
 | `ProviderList.test.ts` | Property 10, 14 & 15 属性测试 |
 | `ProviderConfigForm.test.ts` | Property 7 属性测试：Provider 类型处理正确性 |
 | `ProviderSetting.test.ts` | Property 6 属性测试：Provider 设置面板字段完整性 |
+| `ProviderSetting.ui.test.tsx` | 设置面板 UI 回归：头部状态与显式缓存标签 |
 | `ApiKeyProviderSection.test.ts` | Property 2 属性测试：Provider 选择同步 |
 | `AddCustomProviderModal.test.ts` | Property 8 属性测试：自定义 Provider 表单验证 |
 | `DeleteProviderDialog.test.ts` | Property 9 属性测试：System Provider 删除保护 |
@@ -126,3 +128,26 @@ function ApiKeySection() {
 5. 原始 providerId
 
 当提供 `validRegistryProviders` 时，会优先选择“真实存在于模型注册表”的候选值。
+
+## Prompt Cache 能力提示（当前事实源）
+
+Provider 池当前把 Prompt Cache 能力视为 **Provider 类型能力**，而不是“请求长得像哪家协议”：
+
+- `anthropic`：自动缓存能力
+- `anthropic-compatible`：仅显式缓存
+- 其它 Provider：默认不展示 Prompt Cache 能力提示
+
+当前前台提示统一复用 `src/lib/model/providerPromptCacheSupport.ts`，不要在组件里各自写一套判断。
+
+### 当前 UI 落点
+
+- `ProviderListItem.tsx`：列表扫描态用 `显式缓存` badge 提醒
+- `ProviderSetting.tsx`：详情头部继续展示同口径 badge
+- `AddCustomProviderModal.tsx`：创建自定义 Provider 时前置 amber notice
+- `ProviderConfigForm.tsx`：编辑 Provider 类型 / API Host 时继续显示 amber notice
+
+### 语义约束
+
+1. `anthropic-compatible` 只表示 Anthropic wire format 兼容，不等于上游已声明 Automatic Prompt Cache
+2. 如需复用前缀，应提示用户使用显式 `cache_control`
+3. 若上游未实现 Automatic Prompt Caching，`cached_input_tokens` 为空不应直接归因到 Lime 没发字段

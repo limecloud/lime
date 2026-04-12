@@ -1,18 +1,13 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import type {
   TeamWorkspaceControlSummary,
   TeamWorkspaceWaitSummary,
 } from "../../teamWorkspaceRuntime";
-import {
-  buildTeamWorkspaceSelectedSessionActionState,
-  buildTeamWorkspaceSessionControlState,
-} from "../../team-workspace-runtime/sessionStateSelectors";
-import {
-  buildVisibleTeamOperationState,
-  type TeamOperationDisplayEntry,
-} from "../../team-workspace-runtime/teamOperationSelectors";
+import type { TeamOperationDisplayEntry } from "../../team-workspace-runtime/teamOperationSelectors";
 import type { TeamSessionCard } from "../../utils/teamWorkspaceSessions";
 import { useTeamWorkspaceBoardActions } from "./useTeamWorkspaceBoardActions";
+import { useTeamWorkspaceBoardOperationState } from "./useTeamWorkspaceBoardOperationState";
+import { useTeamWorkspaceBoardSelectedSessionActionState } from "./useTeamWorkspaceBoardSelectedSessionActionState";
 import { useTeamWorkspaceSessionFocus } from "./useTeamWorkspaceSessionFocus";
 
 interface UseTeamWorkspaceBoardRuntimeStateParams {
@@ -66,17 +61,21 @@ export function useTeamWorkspaceBoardRuntimeState({
   visibleSessions,
   waitTimeoutMs = 30_000,
 }: UseTeamWorkspaceBoardRuntimeStateParams) {
-  const teamOperationState = useMemo(
-    () =>
-      buildVisibleTeamOperationState({
-        railSessions,
-        teamWaitSummary,
-        teamControlSummary,
-      }),
-    [railSessions, teamControlSummary, teamWaitSummary],
-  );
-  const visibleTeamWaitSummary = teamOperationState.visibleTeamWaitSummary;
-  const teamOperationEntries = teamOperationState.entries;
+  const {
+    completedTeamSessionIds,
+    statusSummary,
+    teamOperationEntries,
+    visibleTeamWaitSummary,
+    waitableTeamSessionIds,
+  } = useTeamWorkspaceBoardOperationState({
+    currentChildSession,
+    currentSessionId,
+    isChildSession,
+    railSessions,
+    teamControlSummary,
+    teamWaitSummary,
+    visibleSessions,
+  });
 
   const {
     expandedSessionId,
@@ -93,69 +92,27 @@ export function useTeamWorkspaceBoardRuntimeState({
     visibleTeamWaitSummary,
   });
 
-  const sessionControlState = useMemo(
-    () =>
-      buildTeamWorkspaceSessionControlState({
-        visibleSessions,
-        railSessions,
-        currentChildSession,
-        isChildSession,
-        currentSessionId,
-      }),
-    [
-      currentChildSession,
-      currentSessionId,
-      isChildSession,
-      railSessions,
-      visibleSessions,
-    ],
-  );
-  const statusSummary = sessionControlState.statusSummary;
-  const waitableTeamSessionIds = sessionControlState.waitableSessionIds;
-  const completedTeamSessionIds = sessionControlState.completedSessionIds;
-
-  const sessionActionState = useMemo(
-    () =>
-      buildTeamWorkspaceSelectedSessionActionState({
-        completedTeamSessionIds,
-        currentSessionId,
-        hasCloseCompletedTeamSessionsHandler: Boolean(
-          onCloseCompletedTeamSessions,
-        ),
-        hasCloseSubagentSessionHandler: Boolean(onCloseSubagentSession),
-        hasOpenSubagentSessionHandler: Boolean(onOpenSubagentSession),
-        hasResumeSubagentSessionHandler: Boolean(onResumeSubagentSession),
-        hasSendSubagentInputHandler: Boolean(onSendSubagentInput),
-        hasWaitActiveTeamSessionsHandler: Boolean(onWaitActiveTeamSessions),
-        hasWaitSubagentSessionHandler: Boolean(onWaitSubagentSession),
-        selectedSession,
-        waitableTeamSessionIds,
-      }),
-    [
-      completedTeamSessionIds,
-      currentSessionId,
-      onCloseCompletedTeamSessions,
-      onCloseSubagentSession,
-      onOpenSubagentSession,
-      onResumeSubagentSession,
-      onSendSubagentInput,
-      onWaitActiveTeamSessions,
-      onWaitSubagentSession,
-      selectedSession,
-      waitableTeamSessionIds,
-    ],
-  );
-  const canCloseCompletedTeamSessions =
-    sessionActionState.canCloseCompletedTeamSessions;
-  const canOpenSelectedSession = sessionActionState.canOpenSelectedSession;
-  const canResumeSelectedSession =
-    sessionActionState.canResumeSelectedSession;
-  const canSendSelectedSessionInput =
-    sessionActionState.canSendSelectedSessionInput;
-  const canStopSelectedSession = sessionActionState.canStopSelectedSession;
-  const canWaitAnyActiveTeamSession =
-    sessionActionState.canWaitAnyActiveTeamSession;
-  const canWaitSelectedSession = sessionActionState.canWaitSelectedSession;
+  const {
+    canCloseCompletedTeamSessions,
+    canOpenSelectedSession,
+    canResumeSelectedSession,
+    canSendSelectedSessionInput,
+    canStopSelectedSession,
+    canWaitAnyActiveTeamSession,
+    canWaitSelectedSession,
+  } = useTeamWorkspaceBoardSelectedSessionActionState({
+    completedTeamSessionIds,
+    currentSessionId,
+    onCloseCompletedTeamSessions,
+    onCloseSubagentSession,
+    onOpenSubagentSession,
+    onResumeSubagentSession,
+    onSendSubagentInput,
+    onWaitActiveTeamSessions,
+    onWaitSubagentSession,
+    selectedSession,
+    waitableTeamSessionIds,
+  });
 
   const {
     handleCloseCompletedTeamSessions,

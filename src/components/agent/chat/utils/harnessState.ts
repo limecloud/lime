@@ -1332,7 +1332,7 @@ function deriveHarnessSessionStateFromItems(
         activity.delegation += 1;
         delegatedTasks.push({
           id: item.id,
-          title: item.title || "子代理任务",
+          title: item.title || "子任务",
           status:
             item.status === "failed"
               ? "failed"

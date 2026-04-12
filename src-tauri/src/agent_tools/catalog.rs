@@ -504,15 +504,6 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         workspace_default_allow: true,
     },
     ToolCatalogEntry {
-        name: "SubAgentTask",
-        profiles: CORE_PROFILES,
-        capabilities: DELEGATION_CAP,
-        lifecycle: ToolLifecycle::Compat,
-        source: ToolSourceKind::LimeInjected,
-        permission_plane: ToolPermissionPlane::SessionAllowlist,
-        workspace_default_allow: false,
-    },
-    ToolCatalogEntry {
         name: SOCIAL_IMAGE_TOOL_NAME,
         profiles: WORKBENCH_PROFILES,
         capabilities: CONTENT_CAP,
@@ -937,7 +928,6 @@ mod tests {
         assert!(names.contains(&"TeamDelete"));
         assert!(names.contains(&"Workflow"));
         assert!(names.contains(&"WebSearch"));
-        assert!(!names.contains(&"SubAgentTask"));
         assert!(!names.contains(&"Read"));
         assert!(!names.contains(&"Bash"));
         assert!(!names.contains(&SOCIAL_IMAGE_TOOL_NAME));
@@ -1059,7 +1049,7 @@ mod tests {
             .iter()
             .filter(|entry| entry.profiles.contains(&ToolSurfaceProfile::BrowserAssist))
             .count();
-        assert_eq!(core.len(), 41);
+        assert_eq!(core.len(), 40);
         assert_eq!(
             core.iter()
                 .filter(|entry| entry.lifecycle == ToolLifecycle::Current)
@@ -1070,7 +1060,7 @@ mod tests {
             core.iter()
                 .filter(|entry| entry.lifecycle == ToolLifecycle::Compat)
                 .count(),
-            1
+            0
         );
         assert!(core
             .iter()

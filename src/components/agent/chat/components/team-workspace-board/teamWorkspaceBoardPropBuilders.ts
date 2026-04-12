@@ -30,9 +30,30 @@ interface BuildTeamWorkspaceBoardEmptyShellPropsParams {
 
 interface BuildTeamWorkspaceBoardShellPropsParams {
   boardBodyClassName: TeamWorkspaceBoardShellProps["boardBodyClassName"];
-  boardChromeDisplay: TeamWorkspaceBoardHeaderProps["boardChromeDisplay"];
   boardHeaderClassName: TeamWorkspaceBoardShellProps["boardHeaderClassName"];
   boardShellClassName: TeamWorkspaceBoardShellProps["boardShellClassName"];
+  canvasSectionProps: TeamWorkspaceBoardShellProps["canvasSectionProps"];
+  embedded: boolean;
+  headerProps: TeamWorkspaceBoardShellProps["headerProps"];
+}
+
+interface BuildTeamWorkspaceBoardHeaderPropsParams {
+  boardChromeDisplay: TeamWorkspaceBoardHeaderProps["boardChromeDisplay"];
+  createdFromTurnId?: TeamWorkspaceBoardHeaderProps["createdFromTurnId"];
+  detailToggleLabel: TeamWorkspaceBoardHeaderProps["detailToggleLabel"];
+  detailVisible: TeamWorkspaceBoardHeaderProps["detailVisible"];
+  isChildSession: TeamWorkspaceBoardHeaderProps["isChildSession"];
+  isEmptyShellState: TeamWorkspaceBoardHeaderProps["isEmptyShellState"];
+  onReturnToParentSession?: TeamWorkspaceBoardHeaderProps["onReturnToParentSession"];
+  onToggleDetail: TeamWorkspaceBoardHeaderProps["onToggleDetail"];
+  resolveStatusMeta: TeamWorkspaceBoardHeaderProps["resolveStatusMeta"];
+  runtimeFormationStatusLabel?: TeamWorkspaceBoardHeaderProps["runtimeFormationStatusLabel"];
+  totalTeamSessions: TeamWorkspaceBoardHeaderProps["totalTeamSessions"];
+  useCompactCanvasChrome: TeamWorkspaceBoardHeaderProps["useCompactCanvasChrome"];
+}
+
+interface BuildTeamWorkspaceBoardCanvasSectionPropsParams {
+  boardChromeDisplay: TeamWorkspaceBoardOverviewChromeProps["boardChromeDisplay"];
   canvasBoundsHeight: TeamWorkspaceBoardCanvasStageProps["canvasBoundsHeight"];
   canvasBoundsWidth: TeamWorkspaceBoardCanvasStageProps["canvasBoundsWidth"];
   canvasStageHeight: TeamWorkspaceBoardCanvasStageProps["canvasStageHeight"];
@@ -44,18 +65,13 @@ interface BuildTeamWorkspaceBoardShellPropsParams {
   canWaitAnyActiveTeamSession:
     TeamWorkspaceBoardOverviewChromeProps["canWaitAnyActiveTeamSession"];
   completedCount: TeamWorkspaceBoardOverviewChromeProps["completedCount"];
-  createdFromTurnId?: TeamWorkspaceBoardHeaderProps["createdFromTurnId"];
   detailCardClassName: TeamWorkspaceBoardFallbackDetailProps["detailCardClassName"];
-  detailToggleLabel: TeamWorkspaceBoardHeaderProps["detailToggleLabel"];
   detailVisible: TeamWorkspaceBoardHeaderProps["detailVisible"];
-  embedded: boolean;
   expandedSessionId?: TeamWorkspaceBoardCanvasStageProps["expandedSessionId"];
   formatUpdatedAt: TeamWorkspaceBoardOverviewChromeProps["formatUpdatedAt"];
-  hasRealTeamGraph: boolean;
+  hasRuntimeSessions: boolean;
   isCanvasPanModifierActive:
     TeamWorkspaceBoardCanvasStageProps["isCanvasPanModifierActive"];
-  isChildSession: TeamWorkspaceBoardHeaderProps["isChildSession"];
-  isEmptyShellState: TeamWorkspaceBoardHeaderProps["isEmptyShellState"];
   laneLayouts: TeamWorkspaceBoardCanvasStageProps["laneLayouts"];
   lanes: TeamWorkspaceBoardCanvasStageProps["lanes"];
   memberCanvasSubtitle: TeamWorkspaceBoardOverviewChromeProps["memberCanvasSubtitle"];
@@ -66,7 +82,6 @@ interface BuildTeamWorkspaceBoardShellPropsParams {
   onCloseCompletedTeamSessions:
     TeamWorkspaceBoardOverviewChromeProps["onCloseCompletedTeamSessions"];
   onFitCanvasView: TeamWorkspaceBoardCanvasToolbarProps["onFitCanvasView"];
-  onReturnToParentSession?: TeamWorkspaceBoardHeaderProps["onReturnToParentSession"];
   onResetCanvasView: TeamWorkspaceBoardCanvasToolbarProps["onResetCanvasView"];
   onSelectCanvasLane: TeamWorkspaceBoardCanvasStageProps["onSelectLane"];
   onSelectTeamOperationEntry:
@@ -85,15 +100,13 @@ interface BuildTeamWorkspaceBoardShellPropsParams {
     >[2],
   ) => void;
   onStartCanvasPan: TeamWorkspaceBoardCanvasStageProps["onStartCanvasPan"];
-  onToggleDetail: TeamWorkspaceBoardHeaderProps["onToggleDetail"];
   onWaitAnyActiveTeamSessions:
     TeamWorkspaceBoardOverviewChromeProps["onWaitAnyActiveTeamSessions"];
   onZoomIn: TeamWorkspaceBoardCanvasToolbarProps["onZoomIn"];
   onZoomOut: TeamWorkspaceBoardCanvasToolbarProps["onZoomOut"];
   pendingTeamAction: TeamWorkspaceBoardOverviewChromeProps["pendingTeamAction"];
   railCardClassName: TeamWorkspaceBoardCanvasSectionProps["railCardClassName"];
-  resolveStatusMeta: TeamWorkspaceBoardHeaderProps["resolveStatusMeta"];
-  runtimeFormationStatusLabel?: TeamWorkspaceBoardHeaderProps["runtimeFormationStatusLabel"];
+  resolveStatusMeta: TeamWorkspaceBoardOverviewChromeProps["resolveStatusMeta"];
   runtimeFormationDisplay:
     TeamWorkspaceBoardFallbackDetailProps["runtimeFormationDisplay"];
   selectedInlineDetail?: TeamWorkspaceBoardCanvasStageProps["selectedInlineDetail"];
@@ -103,8 +116,7 @@ interface BuildTeamWorkspaceBoardShellPropsParams {
     TeamWorkspaceBoardFallbackDetailProps["selectedTeamPlanDisplay"];
   teamOperationEntries:
     TeamWorkspaceBoardOverviewChromeProps["teamOperationEntries"];
-  totalTeamSessions: TeamWorkspaceBoardHeaderProps["totalTeamSessions"];
-  useCompactCanvasChrome: TeamWorkspaceBoardHeaderProps["useCompactCanvasChrome"];
+  useCompactCanvasChrome: TeamWorkspaceBoardCanvasSectionProps["useCompactCanvasChrome"];
   viewport: TeamWorkspaceBoardCanvasStageProps["viewport"];
   waitableCount: TeamWorkspaceBoardOverviewChromeProps["waitableCount"];
 }
@@ -127,31 +139,53 @@ export function buildTeamWorkspaceBoardEmptyShellProps({
   };
 }
 
-export function buildTeamWorkspaceBoardShellProps({
-  boardBodyClassName,
+export function buildTeamWorkspaceBoardHeaderProps({
   boardChromeDisplay,
-  boardHeaderClassName,
-  boardShellClassName,
+  createdFromTurnId,
+  detailToggleLabel,
+  detailVisible,
+  isChildSession,
+  isEmptyShellState,
+  onReturnToParentSession,
+  onToggleDetail,
+  resolveStatusMeta,
+  runtimeFormationStatusLabel,
+  totalTeamSessions,
+  useCompactCanvasChrome,
+}: BuildTeamWorkspaceBoardHeaderPropsParams): TeamWorkspaceBoardHeaderProps {
+  return {
+    boardChromeDisplay,
+    createdFromTurnId,
+    detailToggleLabel,
+    detailVisible,
+    isChildSession,
+    isEmptyShellState,
+    onReturnToParentSession,
+    onToggleDetail,
+    resolveStatusMeta,
+    runtimeFormationStatusLabel,
+    totalTeamSessions,
+    useCompactCanvasChrome,
+  };
+}
+
+export function buildTeamWorkspaceBoardCanvasSectionProps({
+  boardChromeDisplay,
+  canCloseCompletedTeamSessions,
+  canWaitAnyActiveTeamSession,
+  completedCount,
+  detailCardClassName,
+  detailVisible,
+  expandedSessionId,
+  formatUpdatedAt,
+  hasRuntimeSessions,
   canvasBoundsHeight,
   canvasBoundsWidth,
   canvasStageHeight,
   canvasStageHint,
   canvasViewportRef,
   canvasZoom,
-  canCloseCompletedTeamSessions,
-  canWaitAnyActiveTeamSession,
-  completedCount,
-  createdFromTurnId,
-  detailCardClassName,
-  detailToggleLabel,
-  detailVisible,
-  embedded,
-  expandedSessionId,
-  formatUpdatedAt,
-  hasRealTeamGraph,
   isCanvasPanModifierActive,
-  isChildSession,
-  isEmptyShellState,
   laneLayouts,
   lanes,
   memberCanvasSubtitle,
@@ -160,114 +194,108 @@ export function buildTeamWorkspaceBoardShellProps({
   onCanvasWheel,
   onCloseCompletedTeamSessions,
   onFitCanvasView,
-  onReturnToParentSession,
   onResetCanvasView,
   onSelectCanvasLane,
   onSelectTeamOperationEntry,
   onStartCanvasLaneDrag,
   onStartCanvasLaneResize,
   onStartCanvasPan,
-  onToggleDetail,
   onWaitAnyActiveTeamSessions,
   onZoomIn,
   onZoomOut,
   pendingTeamAction,
   railCardClassName,
   resolveStatusMeta,
-  runtimeFormationStatusLabel,
   runtimeFormationDisplay,
   selectedInlineDetail,
   selectedSession,
   selectedSessionId,
   selectedTeamPlanDisplay,
   teamOperationEntries,
-  totalTeamSessions,
   useCompactCanvasChrome,
   viewport,
   waitableCount,
+}: BuildTeamWorkspaceBoardCanvasSectionPropsParams): TeamWorkspaceBoardCanvasSectionProps {
+  return {
+    canvasStageProps: {
+      canvasBoundsHeight,
+      canvasBoundsWidth,
+      canvasStageHeight,
+      canvasStageHint,
+      expandedSessionId,
+      isCanvasPanModifierActive,
+      laneLayouts,
+      lanes,
+      onCanvasWheel,
+      onSelectLane: onSelectCanvasLane,
+      onStartCanvasLaneDrag: (lane, event) =>
+        onStartCanvasLaneDrag(lane.persistKey, event),
+      onStartCanvasLaneResize: (lane, direction, event) =>
+        onStartCanvasLaneResize(lane.persistKey, direction, event),
+      onStartCanvasPan,
+      selectedInlineDetail,
+      selectedSessionId,
+      viewport,
+      viewportRef: canvasViewportRef,
+    },
+    canvasToolbarProps: {
+      laneCount: lanes.length,
+      onAutoArrangeCanvas,
+      onFitCanvasView,
+      onResetCanvasView,
+      onZoomIn,
+      onZoomOut,
+      zoom: canvasZoom,
+    },
+    fallbackDetailProps: hasRuntimeSessions
+      ? null
+      : {
+          detailCardClassName,
+          detailVisible,
+          runtimeFormationDisplay,
+          selectedTeamPlanDisplay,
+        },
+    overviewChromeProps: {
+      boardChromeDisplay,
+      canCloseCompletedTeamSessions,
+      canWaitAnyActiveTeamSession,
+      completedCount,
+      formatUpdatedAt,
+      memberCanvasSubtitle,
+      memberCanvasTitle,
+      onAutoArrangeCanvas,
+      onCloseCompletedTeamSessions,
+      onFitCanvasView,
+      onSelectTeamOperationEntry,
+      onWaitAnyActiveTeamSessions,
+      onZoomIn,
+      onZoomOut,
+      pendingTeamAction,
+      resolveStatusMeta,
+      selectedSession,
+      teamOperationEntries,
+      waitableCount,
+    },
+    railCardClassName,
+    useCompactCanvasChrome,
+  };
+}
+
+export function buildTeamWorkspaceBoardShellProps({
+  boardBodyClassName,
+  boardHeaderClassName,
+  boardShellClassName,
+  canvasSectionProps,
+  embedded,
+  headerProps,
 }: BuildTeamWorkspaceBoardShellPropsParams): TeamWorkspaceBoardShellProps {
   return {
     boardBodyClassName,
     boardHeaderClassName,
     boardShellClassName,
-    canvasSectionProps: {
-      canvasStageProps: {
-        canvasBoundsHeight,
-        canvasBoundsWidth,
-        canvasStageHeight,
-        canvasStageHint,
-        expandedSessionId,
-        isCanvasPanModifierActive,
-        laneLayouts,
-        lanes,
-        onCanvasWheel,
-        onSelectLane: onSelectCanvasLane,
-        onStartCanvasLaneDrag: (lane, event) =>
-          onStartCanvasLaneDrag(lane.persistKey, event),
-        onStartCanvasLaneResize: (lane, direction, event) =>
-          onStartCanvasLaneResize(lane.persistKey, direction, event),
-        onStartCanvasPan,
-        selectedInlineDetail,
-        selectedSessionId,
-        viewport,
-        viewportRef: canvasViewportRef,
-      },
-      canvasToolbarProps: {
-        laneCount: lanes.length,
-        onAutoArrangeCanvas,
-        onFitCanvasView,
-        onResetCanvasView,
-        onZoomIn,
-        onZoomOut,
-        zoom: canvasZoom,
-      },
-      fallbackDetailProps: hasRealTeamGraph
-        ? null
-        : {
-            detailCardClassName,
-            detailVisible,
-            runtimeFormationDisplay,
-            selectedTeamPlanDisplay,
-          },
-      overviewChromeProps: {
-        boardChromeDisplay,
-        canCloseCompletedTeamSessions,
-        canWaitAnyActiveTeamSession,
-        completedCount,
-        formatUpdatedAt,
-        memberCanvasSubtitle,
-        memberCanvasTitle,
-        onAutoArrangeCanvas,
-        onCloseCompletedTeamSessions,
-        onFitCanvasView,
-        onSelectTeamOperationEntry,
-        onWaitAnyActiveTeamSessions,
-        onZoomIn,
-        onZoomOut,
-        pendingTeamAction,
-        resolveStatusMeta,
-        selectedSession,
-        teamOperationEntries,
-        waitableCount,
-      },
-      railCardClassName,
-      useCompactCanvasChrome,
-    },
+    canvasSectionProps,
     embedded,
-    headerProps: {
-      boardChromeDisplay,
-      createdFromTurnId,
-      detailToggleLabel,
-      detailVisible,
-      isChildSession,
-      isEmptyShellState,
-      onReturnToParentSession,
-      onToggleDetail,
-      resolveStatusMeta,
-      runtimeFormationStatusLabel,
-      totalTeamSessions,
-      useCompactCanvasChrome,
-    },
+    headerProps,
     style: embedded ? { maxHeight: "inherit" } : undefined,
   };
 }

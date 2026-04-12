@@ -121,4 +121,37 @@ describe("liveRuntimeProjector", () => {
       retryableOverload: true,
     });
   });
+
+  it("queue 与 turn 生命周期提示应使用子任务口径", () => {
+    const queuedProjection = projectRuntimeStreamEvent({
+      sessionId: "child-1",
+      session: createSessionSnapshot(),
+      event: {
+        type: "queue_added",
+      } as AgentEvent,
+    });
+
+    const startedProjection = projectRuntimeStreamEvent({
+      sessionId: "child-1",
+      session: createSessionSnapshot(),
+      event: {
+        type: "queue_started",
+      } as AgentEvent,
+    });
+
+    const turnProjection = projectRuntimeStreamEvent({
+      sessionId: "child-1",
+      session: createSessionSnapshot({
+        runtimeStatus: "running",
+        latestTurnStatus: "running",
+      }),
+      event: {
+        type: "turn_started",
+      } as AgentEvent,
+    });
+
+    expect(queuedProjection?.entry?.detail).toContain("这项子任务会在前一项完成后继续处理");
+    expect(startedProjection?.entry?.detail).toContain("这项子任务已经开始处理当前任务");
+    expect(turnProjection?.entry?.detail).toContain("这项子任务正在推进当前内容");
+  });
 });

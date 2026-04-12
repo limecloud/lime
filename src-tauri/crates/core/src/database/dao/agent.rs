@@ -881,6 +881,46 @@ impl AgentDao {
         Ok(result)
     }
 
+    pub fn list_message_text_rows_by_session_id(
+        conn: &Connection,
+        session_id: &str,
+        limit: usize,
+    ) -> Result<Vec<AgentMessageTextRow>, rusqlite::Error> {
+        let mut stmt = conn.prepare(
+            "SELECT session_id, role, content_json, timestamp
+             FROM agent_messages
+             WHERE session_id = ?1
+             ORDER BY datetime(timestamp) DESC
+             LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![session_id, limit as i64], |row| {
+            let content_json: String = row.get(2)?;
+            let timestamp: String = row.get(3)?;
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                parse_message_content(&content_json).as_text(),
+                parse_message_timestamp_to_millis(&timestamp),
+            ))
+        })?;
+
+        let mut result = Vec::new();
+        for row in rows {
+            let (session_id, role, content, timestamp_ms) = row?;
+            let Some(timestamp_ms) = timestamp_ms else {
+                continue;
+            };
+            result.push(AgentMessageTextRow {
+                session_id,
+                role,
+                content,
+                timestamp_ms,
+            });
+        }
+
+        Ok(result)
+    }
+
     /// 更新会话的 updated_at 时间
     pub fn update_session_time(
         conn: &Connection,
@@ -926,9 +966,10 @@ impl AgentDao {
                 tool_call_id,
                 reasoning_content,
                 input_tokens,
-                output_tokens
+                output_tokens,
+                cached_input_tokens
             )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 session_id,
                 message.role,
@@ -939,6 +980,10 @@ impl AgentDao {
                 message.reasoning_content.as_deref(),
                 message.usage.as_ref().map(|usage| usage.input_tokens),
                 message.usage.as_ref().map(|usage| usage.output_tokens),
+                message
+                    .usage
+                    .as_ref()
+                    .and_then(|usage| usage.cached_input_tokens),
             ],
         )?;
 
@@ -958,7 +1003,7 @@ impl AgentDao {
     ) -> Result<Vec<AgentMessage>, rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT role, content_json, timestamp, tool_calls_json, tool_call_id, reasoning_content,
-                    input_tokens, output_tokens
+                    input_tokens, output_tokens, cached_input_tokens
              FROM agent_messages WHERE session_id = ? ORDER BY id ASC",
         )?;
 
@@ -971,6 +1016,7 @@ impl AgentDao {
             let reasoning_content: Option<String> = row.get(5)?;
             let input_tokens: Option<u32> = row.get(6)?;
             let output_tokens: Option<u32> = row.get(7)?;
+            let cached_input_tokens: Option<u32> = row.get(8)?;
 
             // 解析 JSON - 支持多种格式
             // 1. Aster 格式: [{"Text":"..."}, {"Text":"..."}]
@@ -988,12 +1034,10 @@ impl AgentDao {
                 tool_call_id,
                 reasoning_content,
                 usage: match (input_tokens, output_tokens) {
-                    (Some(input_tokens), Some(output_tokens)) => {
-                        Some(crate::agent::types::TokenUsage {
-                            input_tokens,
-                            output_tokens,
-                        })
-                    }
+                    (Some(input_tokens), Some(output_tokens)) => Some(
+                        crate::agent::types::TokenUsage::new(input_tokens, output_tokens)
+                            .with_cached_input_tokens(cached_input_tokens),
+                    ),
                     _ => None,
                 },
             })
@@ -1007,17 +1051,18 @@ impl AgentDao {
         session_id: &str,
         input_tokens: u32,
         output_tokens: u32,
+        cached_input_tokens: Option<u32>,
     ) -> Result<bool, rusqlite::Error> {
         let rows = conn.execute(
             "UPDATE agent_messages
-             SET input_tokens = ?1, output_tokens = ?2
+             SET input_tokens = ?1, output_tokens = ?2, cached_input_tokens = ?3
              WHERE id = (
                  SELECT id FROM agent_messages
-                 WHERE session_id = ?3 AND role = 'assistant'
+                 WHERE session_id = ?4 AND role = 'assistant'
                  ORDER BY id DESC
                  LIMIT 1
              )",
-            params![input_tokens, output_tokens, session_id],
+            params![input_tokens, output_tokens, cached_input_tokens, session_id],
         )?;
 
         Ok(rows > 0)
@@ -1171,7 +1216,8 @@ mod tests {
                 tool_call_id TEXT,
                 reasoning_content TEXT,
                 input_tokens INTEGER,
-                output_tokens INTEGER
+                output_tokens INTEGER,
+                cached_input_tokens INTEGER
             );
             ",
         )
@@ -1513,7 +1559,10 @@ mod tests {
                 tool_calls: None,
                 tool_call_id: None,
                 reasoning_content: Some("先分析参数，再继续请求".to_string()),
-                usage: Some(crate::agent::types::TokenUsage::new(1200, 300)),
+                usage: Some(
+                    crate::agent::types::TokenUsage::new(1200, 300)
+                        .with_cached_input_tokens(Some(900)),
+                ),
             },
         )
         .unwrap();
@@ -1526,7 +1575,9 @@ mod tests {
         );
         assert_eq!(
             messages[0].usage,
-            Some(crate::agent::types::TokenUsage::new(1200, 300))
+            Some(
+                crate::agent::types::TokenUsage::new(1200, 300).with_cached_input_tokens(Some(900)),
+            )
         );
     }
 
@@ -1564,9 +1615,14 @@ mod tests {
         )
         .unwrap();
 
-        let updated =
-            AgentDao::update_latest_assistant_message_usage(&conn, "session-usage", 2048, 512)
-                .unwrap();
+        let updated = AgentDao::update_latest_assistant_message_usage(
+            &conn,
+            "session-usage",
+            2048,
+            512,
+            Some(1536),
+        )
+        .unwrap();
         assert!(updated);
 
         let messages = AgentDao::get_messages(&conn, "session-usage").unwrap();
@@ -1574,7 +1630,10 @@ mod tests {
         assert_eq!(messages[1].usage, None);
         assert_eq!(
             messages[2].usage,
-            Some(crate::agent::types::TokenUsage::new(2048, 512))
+            Some(
+                crate::agent::types::TokenUsage::new(2048, 512)
+                    .with_cached_input_tokens(Some(1536)),
+            )
         );
     }
 }

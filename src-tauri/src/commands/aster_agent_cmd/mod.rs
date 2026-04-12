@@ -16,7 +16,7 @@ use crate::agent::runtime_queue_service::{
 };
 use crate::agent::{
     AsterAgentState, AsterAgentWrapper, QueuedTurnSnapshot, QueuedTurnTask, SessionDetail,
-    SessionInfo, SubAgentRole,
+    SessionInfo,
 };
 use crate::agent_tools::catalog::{
     browser_runtime_tool_prefix, build_mcp_extension_surface, workbench_tool_names,
@@ -59,7 +59,6 @@ use crate::services::workspace_health_service::ensure_workspace_ready_with_auto_
 use crate::workspace::WorkspaceManager;
 use crate::LogState;
 use aster::agents::extension::ExtensionConfig;
-use aster::agents::subagent_scheduler::SubAgentTask;
 use aster::agents::{Agent, AgentEvent};
 use aster::chrome_mcp::get_chrome_mcp_tools;
 use aster::conversation::message::{
@@ -481,17 +480,15 @@ pub(crate) use summary_skill_launch::{
 #[allow(unused_imports)]
 pub(crate) use tool_runtime::social_generate_cover_image_cmd;
 pub(crate) use tool_runtime::{apply_workspace_sandbox_permissions, ImageInput};
-#[cfg(test)]
-#[allow(unused_imports)]
-pub(crate) use tool_runtime::{
-    build_subagent_task_definition, build_subagent_task_runtime_message,
-    collect_subagent_task_compat_warnings, extract_runtime_subagent_result_text,
-    parse_subagent_role, LimeBrowserMcpTool, SocialGenerateCoverImageTool, SubAgentTaskToolInput,
-    ToolSearchBridgeTool,
-};
 pub(crate) use tool_runtime::{
     ensure_browser_mcp_tools_registered, ensure_creation_task_tools_registered,
     ensure_runtime_support_tools_registered, ensure_social_image_tool_registered,
+};
+#[cfg(test)]
+#[allow(unused_imports)]
+pub(crate) use tool_runtime::{
+    extract_runtime_subagent_result_text, LimeBrowserMcpTool, SocialGenerateCoverImageTool,
+    ToolSearchBridgeTool,
 };
 pub(crate) use transcription_skill_launch::{
     append_transcription_skill_launch_session_permissions,

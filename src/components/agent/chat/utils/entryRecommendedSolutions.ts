@@ -94,13 +94,13 @@ const ENTRY_RECOMMENDED_SOLUTIONS: EntryRecommendedSolutionDefinition[] = [
   },
   {
     id: "team-breakdown",
-    title: "多代理拆任务",
+    title: "任务拆分",
     summary:
-      "适合需要并行调研、方案拆解或多角色协作的任务，进入后默认启用 team runtime 偏好。",
+      "适合需要并行调研、方案拆解或多角色分工的任务，进入后默认启用任务拆分偏好。",
     outputHint: "任务拆解 + 分工执行",
     categoryLabel: "多步骤执行",
     prompt:
-      "请把这个任务按多代理方式拆解：先定义目标和约束，再拆成并行子任务，明确每个子代理的职责、产出和回收方式。",
+      "请把这个任务按任务拆分方式拆解：先定义目标和约束，再拆成并行子任务，明确每项子任务的职责、产出和回收方式。",
     shouldEnableTeamMode: true,
   },
 ];

@@ -299,7 +299,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("更早记录");
   });
 
-  it("任务协作和任务列表应处于同一滚动区域", () => {
+  it("子任务和任务列表应处于同一滚动区域", () => {
     const container = renderSidebar({
       childSubagentSessions: [
         {
@@ -325,14 +325,120 @@ describe("ChatSidebar", () => {
     expect(scrollArea).toBeTruthy();
     expect(teamSection).toBeTruthy();
     expect(scrollArea?.contains(teamSection)).toBe(true);
-    expect(scrollArea?.textContent).toContain("任务协作");
+    expect(scrollArea?.textContent).toContain("子任务");
     expect(scrollArea?.textContent).toContain(
-      "这里展示当前任务的协作成员、当前任务和任务节点。",
+      "这里优先展示正在处理的子任务，再回到当前任务和后续节点。",
     );
     expect(scrollArea?.textContent).toContain("任务一");
   });
 
-  it("点击任务协作的任务入口应收起顶部区块并滚动到任务列表", () => {
+  it("父线程子任务应按状态优先级排序并前置当前焦点", () => {
+    const container = renderSidebar({
+      childSubagentSessions: [
+        {
+          id: "child-completed",
+          name: "已完成代理",
+          created_at: 1_742_288_400,
+          updated_at: 1_742_288_560,
+          session_type: "sub_agent",
+          task_summary: "已经输出收尾结果。",
+          role_hint: "writer",
+          runtime_status: "completed",
+        },
+        {
+          id: "child-running",
+          name: "处理中代理",
+          created_at: 1_742_288_390,
+          updated_at: 1_742_288_500,
+          session_type: "sub_agent",
+          task_summary: "正在处理主线回归。",
+          role_hint: "executor",
+          runtime_status: "running",
+        },
+        {
+          id: "child-queued",
+          name: "待开始代理",
+          created_at: 1_742_288_395,
+          updated_at: 1_742_288_540,
+          session_type: "sub_agent",
+          task_summary: "等待前序任务完成后接手。",
+          role_hint: "reviewer",
+          runtime_status: "queued",
+        },
+      ],
+    });
+
+    const cards = Array.from(
+      container.querySelectorAll('[data-testid^="sidebar-subagent-session-"]'),
+    );
+
+    expect(cards.map((card) => card.getAttribute("data-testid"))).toEqual([
+      "sidebar-subagent-session-child-running",
+      "sidebar-subagent-session-child-queued",
+      "sidebar-subagent-session-child-completed",
+    ]);
+    expect(cards[0]?.textContent).toContain("当前焦点");
+    expect(cards[0]?.textContent).toContain("处理中代理");
+    expect(cards[2]?.textContent).not.toContain("当前焦点");
+  });
+
+  it("子线程并行子任务应按状态优先级排序并前置当前焦点", () => {
+    const container = renderSidebar({
+      topics: [
+        {
+          ...defaultTopics[0],
+          id: "child-1",
+          title: "当前子任务",
+          sourceSessionId: "child-1",
+        },
+      ],
+      currentTopicId: "child-1",
+      subagentParentContext: {
+        parent_session_id: "parent-1",
+        parent_session_name: "主线程",
+        role_hint: "implementer",
+        task_summary: "对齐任务列表排序。",
+        created_from_turn_id: "turn-42",
+        sibling_subagent_sessions: [
+          {
+            id: "child-completed",
+            name: "已完成代理",
+            created_at: 1_742_288_400,
+            updated_at: 1_742_288_560,
+            session_type: "sub_agent",
+            task_summary: "已经输出收尾结果。",
+            role_hint: "writer",
+            runtime_status: "completed",
+          },
+          {
+            id: "child-running",
+            name: "处理中代理",
+            created_at: 1_742_288_390,
+            updated_at: 1_742_288_500,
+            session_type: "sub_agent",
+            task_summary: "正在处理主线回归。",
+            role_hint: "executor",
+            runtime_status: "running",
+          },
+        ],
+      },
+    });
+
+    const cards = Array.from(
+      container.querySelectorAll('[data-testid^="sidebar-subagent-session-"]'),
+    );
+
+    expect(cards.map((card) => card.getAttribute("data-testid"))).toEqual([
+      "sidebar-subagent-session-child-running",
+      "sidebar-subagent-session-child-completed",
+    ]);
+    expect(cards[0]?.textContent).toContain("当前焦点");
+    expect(container.textContent).toContain(
+      "当前线程来自主任务，可直接返回主任务并切换其他子任务；正在处理的任务会排在前面。",
+    );
+  });
+
+  it("点击子任务入口应收起顶部区块并滚动到任务列表", () => {
     const container = renderSidebar({
       childSubagentSessions: [
         {
@@ -373,7 +479,7 @@ describe("ChatSidebar", () => {
       block: "start",
       behavior: "smooth",
     });
-    expect(container.textContent).toContain("已收起 · 1 个子代理 · 1 个处理中");
+    expect(container.textContent).toContain("已收起 · 1 个子任务 · 1 个处理中");
     expect(container.textContent).not.toContain("代码审查代理");
   });
 
@@ -622,7 +728,7 @@ describe("ChatSidebar", () => {
     expect(onResumeTask).toHaveBeenCalledWith("topic-1", "user_action");
   });
 
-  it("父线程应在侧栏展示真实子代理并支持打开", () => {
+  it("父线程应在侧栏展示真实子任务并支持打开", () => {
     const onOpenSubagentSession = vi.fn();
     const container = renderSidebar({
       childSubagentSessions: [
@@ -650,9 +756,10 @@ describe("ChatSidebar", () => {
       onOpenSubagentSession,
     });
 
-    expect(container.textContent).toContain("任务协作");
+    expect(container.textContent).toContain("子任务");
     expect(container.textContent).toContain("代码审查代理");
     expect(container.textContent).toContain("文档校对代理");
+    expect(container.textContent).toContain("子任务");
     expect(container.textContent).toContain("处理中");
     expect(container.textContent).toContain("已完成");
 
@@ -668,7 +775,7 @@ describe("ChatSidebar", () => {
     expect(onOpenSubagentSession).toHaveBeenCalledWith("child-1");
   });
 
-  it("父线程任务协作区域应支持折叠和展开", () => {
+  it("父线程子任务区域应支持折叠和展开", () => {
     const container = renderSidebar({
       childSubagentSessions: [
         {
@@ -698,7 +805,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("文档校对代理");
 
     const collapseButton = container.querySelector(
-      'button[aria-label="收起任务协作"]',
+      'button[aria-label="收起子任务"]',
     ) as HTMLButtonElement | null;
     expect(collapseButton).toBeTruthy();
 
@@ -707,13 +814,13 @@ describe("ChatSidebar", () => {
     });
 
     expect(container.textContent).toContain(
-      "已收起 · 2 个子代理 · 1 个处理中 · 1 个已完成",
+      "已收起 · 2 个子任务 · 1 个处理中 · 1 个已完成",
     );
     expect(container.textContent).not.toContain("代码审查代理");
     expect(container.textContent).not.toContain("文档校对代理");
 
     const expandButton = container.querySelector(
-      'button[aria-label="展开任务协作"]',
+      'button[aria-label="展开子任务"]',
     ) as HTMLButtonElement | null;
     expect(expandButton).toBeTruthy();
 
@@ -725,7 +832,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("文档校对代理");
   });
 
-  it("父线程任务协作在子代理较多时应默认收起，并支持展开更多子代理", () => {
+  it("父线程子任务较多时应默认收起，并支持展开更多子任务", () => {
     const container = renderSidebar({
       childSubagentSessions: [
         {
@@ -772,7 +879,7 @@ describe("ChatSidebar", () => {
     });
 
     expect(container.textContent).toContain(
-      "已收起 · 4 个子代理 · 2 个处理中 · 1 个稍后开始 · 1 个已完成",
+      "已收起 · 4 个子任务 · 2 个处理中 · 1 个稍后开始 · 1 个已完成",
     );
     expect(container.textContent).not.toContain("代码审查代理");
     expect(container.textContent).not.toContain("文档校对代理");
@@ -780,7 +887,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).not.toContain("回归验证代理");
 
     const expandTeamButton = container.querySelector(
-      'button[aria-label="展开任务协作"]',
+      'button[aria-label="展开子任务"]',
     ) as HTMLButtonElement | null;
     expect(expandTeamButton).toBeTruthy();
 
@@ -791,14 +898,14 @@ describe("ChatSidebar", () => {
     });
 
     expect(container.textContent).toContain("代码审查代理");
-    expect(container.textContent).toContain("文档校对代理");
+    expect(container.textContent).toContain("回归验证代理");
     expect(container.textContent).toContain("数据整理代理");
-    expect(container.textContent).not.toContain("回归验证代理");
-    expect(container.textContent).toContain("展开剩余 1 个子代理");
+    expect(container.textContent).not.toContain("文档校对代理");
+    expect(container.textContent).toContain("展开剩余 1 个子任务");
 
     const expandMoreButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((element) => element.textContent?.includes("展开剩余 1 个子代理"));
+    ).find((element) => element.textContent?.includes("展开剩余 1 个子任务"));
     expect(expandMoreButton).toBeTruthy();
 
     act(() => {
@@ -808,11 +915,12 @@ describe("ChatSidebar", () => {
     });
 
     expect(container.textContent).toContain("回归验证代理");
-    expect(container.textContent).toContain("收起子代理列表");
+    expect(container.textContent).toContain("文档校对代理");
+    expect(container.textContent).toContain("收起子任务列表");
 
     const collapseListButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((element) => element.textContent?.includes("收起子代理列表"));
+    ).find((element) => element.textContent?.includes("收起子任务列表"));
     expect(collapseListButton).toBeTruthy();
 
     act(() => {
@@ -821,10 +929,11 @@ describe("ChatSidebar", () => {
       );
     });
 
-    expect(container.textContent).not.toContain("回归验证代理");
+    expect(container.textContent).toContain("回归验证代理");
+    expect(container.textContent).not.toContain("文档校对代理");
   });
 
-  it("子线程同级子代理较多时应默认收起任务协作", () => {
+  it("子线程并行子任务较多时应默认收起子任务", () => {
     const container = renderSidebar({
       topics: [
         {
@@ -877,14 +986,14 @@ describe("ChatSidebar", () => {
     });
 
     expect(container.textContent).toContain(
-      "已收起 · 3 个同级子代理 · 1 个处理中 · 1 个稍后开始 · 1 个已完成",
+      "已收起 · 3 个并行子任务 · 1 个处理中 · 1 个稍后开始 · 1 个已完成",
     );
     expect(container.textContent).not.toContain("研究代理");
     expect(container.textContent).not.toContain("验证代理");
     expect(container.textContent).not.toContain("文档代理");
 
     const expandButton = container.querySelector(
-      'button[aria-label="展开任务协作"]',
+      'button[aria-label="展开子任务"]',
     ) as HTMLButtonElement | null;
     expect(expandButton).toBeTruthy();
 
@@ -893,12 +1002,12 @@ describe("ChatSidebar", () => {
     });
 
     expect(container.textContent).toContain("验证代理");
-    expect(container.textContent).toContain("文档代理");
-    expect(container.textContent).not.toContain("研究代理");
-    expect(container.textContent).toContain("展开剩余 1 个同级子代理");
+    expect(container.textContent).toContain("研究代理");
+    expect(container.textContent).not.toContain("文档代理");
+    expect(container.textContent).toContain("展开剩余 1 个并行子任务");
   });
 
-  it("子线程应展示父会话和同级子代理入口", () => {
+  it("子线程应展示父会话和并行子任务入口", () => {
     const onOpenSubagentSession = vi.fn();
     const onReturnToParentSession = vi.fn();
     const container = renderSidebar({
@@ -934,9 +1043,9 @@ describe("ChatSidebar", () => {
       onReturnToParentSession,
     });
 
-    expect(container.textContent).toContain("任务协作");
+    expect(container.textContent).toContain("子任务");
     expect(container.textContent).toContain("主线程");
-    expect(container.textContent).toContain("当前子代理");
+    expect(container.textContent).toContain("当前子任务");
     expect(container.textContent).toContain("实现 team sidebar");
     expect(container.textContent).toContain("研究代理");
     expect(container.textContent).toContain("稍后开始");
@@ -964,7 +1073,7 @@ describe("ChatSidebar", () => {
     expect(onOpenSubagentSession).toHaveBeenCalledWith("child-2");
   });
 
-  it("内部图片子代理标题应显示为用户文案", () => {
+  it("内部图片子任务标题应显示为用户文案", () => {
     const container = renderSidebar({
       topics: [
         {

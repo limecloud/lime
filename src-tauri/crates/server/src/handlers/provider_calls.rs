@@ -59,7 +59,7 @@ use lime_providers::converter::openai_to_antigravity::{
 };
 use lime_providers::providers::{
     AntigravityProvider, ClaudeCustomProvider, CodexProvider, KiroProvider, OpenAICustomProvider,
-    VertexProvider,
+    PromptCacheMode, VertexProvider,
 };
 use lime_providers::session::store_thought_signature;
 use lime_providers::stream::{PipelineConfig, StreamPipeline};
@@ -548,7 +548,16 @@ pub async fn call_provider_anthropic(
         CredentialData::ClaudeKey { api_key, base_url } => {
             // 打印 Claude 代理 URL 用于调试
             let actual_base_url = base_url.as_deref().unwrap_or("https://api.anthropic.com");
-            let claude = ClaudeCustomProvider::with_config(api_key.clone(), base_url.clone());
+            let prompt_cache_mode = if credential.provider_type.supports_anthropic_prompt_cache() {
+                PromptCacheMode::Automatic
+            } else {
+                PromptCacheMode::ExplicitOnly
+            };
+            let claude = ClaudeCustomProvider::with_prompt_cache_mode(
+                api_key.clone(),
+                base_url.clone(),
+                prompt_cache_mode,
+            );
             let request_url = claude.get_base_url();
             state.logs.write().await.add(
                 "info",
@@ -773,7 +782,11 @@ pub async fn call_provider_anthropic(
         // Anthropic API Key - 根据 base_url 决定调用方式
         CredentialData::AnthropicKey { api_key, base_url } => {
             // 使用 Anthropic 原生格式调用（无论是否有自定义 base_url）
-            let claude = ClaudeCustomProvider::with_config(api_key.clone(), base_url.clone());
+            let claude = ClaudeCustomProvider::with_prompt_cache_mode(
+                api_key.clone(),
+                base_url.clone(),
+                PromptCacheMode::Automatic,
+            );
             let request_url = claude.get_base_url();
             state.logs.write().await.add(
                 "info",
@@ -1667,7 +1680,16 @@ pub async fn call_provider_openai(
                 &credential.uuid[..8],
                 request.stream
             );
-            let claude = ClaudeCustomProvider::with_config(api_key.clone(), base_url.clone());
+            let prompt_cache_mode = if credential.provider_type.supports_anthropic_prompt_cache() {
+                PromptCacheMode::Automatic
+            } else {
+                PromptCacheMode::ExplicitOnly
+            };
+            let claude = ClaudeCustomProvider::with_prompt_cache_mode(
+                api_key.clone(),
+                base_url.clone(),
+                prompt_cache_mode,
+            );
 
             // 检查是否为流式请求
             if request.stream {

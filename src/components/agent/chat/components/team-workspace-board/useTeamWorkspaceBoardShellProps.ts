@@ -5,7 +5,9 @@ import {
   resolveStatusMeta,
 } from "../../utils/teamWorkspaceSessions";
 import {
+  buildTeamWorkspaceBoardCanvasSectionProps,
   buildTeamWorkspaceBoardEmptyShellProps,
+  buildTeamWorkspaceBoardHeaderProps,
   buildTeamWorkspaceBoardShellProps,
 } from "./teamWorkspaceBoardPropBuilders";
 import { useTeamWorkspaceBoardSelectedInlineDetail } from "./useTeamWorkspaceBoardSelectedInlineDetail";
@@ -148,11 +150,11 @@ export function useTeamWorkspaceBoardShellProps({
     zoom: canvasZoom,
   } = canvasRuntimeState;
   const {
-    hasRealTeamGraph,
     isChildSession,
     isEmptyShellState,
     totalTeamSessions,
   } = sessionGraphState;
+  const hasRuntimeSessions = isChildSession || totalTeamSessions > 0;
 
   const selectedInlineDetail = useTeamWorkspaceBoardSelectedInlineDetail({
     canOpenSelectedSession,
@@ -187,11 +189,22 @@ export function useTeamWorkspaceBoardShellProps({
     runtimeFormationDisplay,
     selectedTeamPlanDisplay,
   });
-  const shellProps = buildTeamWorkspaceBoardShellProps({
-    boardBodyClassName,
+  const headerProps = buildTeamWorkspaceBoardHeaderProps({
     boardChromeDisplay,
-    boardHeaderClassName,
-    boardShellClassName,
+    createdFromTurnId: subagentParentContext?.created_from_turn_id,
+    detailToggleLabel,
+    detailVisible,
+    isChildSession,
+    isEmptyShellState,
+    onReturnToParentSession,
+    onToggleDetail,
+    resolveStatusMeta,
+    runtimeFormationStatusLabel: runtimeFormationDisplay.panelStatusLabel,
+    totalTeamSessions,
+    useCompactCanvasChrome,
+  });
+  const canvasSectionProps = buildTeamWorkspaceBoardCanvasSectionProps({
+    boardChromeDisplay,
     canvasBoundsHeight: canvasBounds.height,
     canvasBoundsWidth: canvasBounds.width,
     canvasStageHeight,
@@ -201,17 +214,12 @@ export function useTeamWorkspaceBoardShellProps({
     canCloseCompletedTeamSessions,
     canWaitAnyActiveTeamSession,
     completedCount: completedTeamSessionIds.length,
-    createdFromTurnId: subagentParentContext?.created_from_turn_id,
     detailCardClassName,
-    detailToggleLabel,
     detailVisible,
-    embedded,
     expandedSessionId,
     formatUpdatedAt,
-    hasRealTeamGraph,
+    hasRuntimeSessions,
     isCanvasPanModifierActive,
-    isChildSession,
-    isEmptyShellState,
     laneLayouts: canvasLaneLayouts,
     lanes: canvasLanes,
     memberCanvasSubtitle,
@@ -220,31 +228,35 @@ export function useTeamWorkspaceBoardShellProps({
     onCanvasWheel: handleCanvasWheel,
     onCloseCompletedTeamSessions: handleCloseCompletedTeamSessions,
     onFitCanvasView: handleFitCanvasView,
-    onReturnToParentSession,
     onResetCanvasView: handleResetCanvasView,
     onSelectCanvasLane: handleSelectCanvasLane,
     onSelectTeamOperationEntry: handleSelectTeamOperationEntry,
     onStartCanvasLaneDrag: handleStartCanvasLaneDrag,
     onStartCanvasLaneResize: handleStartCanvasLaneResize,
     onStartCanvasPan: handleStartCanvasPan,
-    onToggleDetail,
     onWaitAnyActiveTeamSessions: handleWaitAnyActiveTeamSessions,
     onZoomIn: handleZoomIn,
     onZoomOut: handleZoomOut,
     pendingTeamAction,
     railCardClassName,
     resolveStatusMeta,
-    runtimeFormationStatusLabel: runtimeFormationDisplay.panelStatusLabel,
     runtimeFormationDisplay,
     selectedInlineDetail,
     selectedSession,
     selectedSessionId: selectedSession?.id ?? null,
     selectedTeamPlanDisplay,
     teamOperationEntries,
-    totalTeamSessions,
     useCompactCanvasChrome,
     viewport: canvasViewport,
     waitableCount: waitableTeamSessionIds.length,
+  });
+  const shellProps = buildTeamWorkspaceBoardShellProps({
+    boardBodyClassName,
+    boardHeaderClassName,
+    boardShellClassName,
+    canvasSectionProps,
+    embedded,
+    headerProps,
   });
 
   return {

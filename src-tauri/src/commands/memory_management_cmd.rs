@@ -26,7 +26,8 @@ use crate::services::runtime_agents_template_service::{
 use aster::session::list_summaries;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use lime_core::app_paths;
-use lime_services::context_memory_service::{MemoryEntry, MemoryFileType};
+use lime_core::config::MemoryConfig;
+use lime_services::context_memory_service::{ContextMemoryService, MemoryEntry, MemoryFileType};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -330,82 +331,9 @@ async fn memory_runtime_request_analysis_impl(
         });
     }
 
-    let max_generated_per_request = memory_config
-        .max_entries
-        .unwrap_or(MAX_GENERATED_PER_REQUEST as u32)
-        .clamp(1, MAX_GENERATED_PER_REQUEST_CAP as u32)
-        as usize;
-
     let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
     let candidates = load_memory_candidates(&conn, from_timestamp, to_timestamp)?;
-
-    if candidates.is_empty() {
-        return Ok(MemoryAnalysisResult {
-            analyzed_sessions: 0,
-            analyzed_messages: 0,
-            generated_entries: 0,
-            deduplicated_entries: 0,
-        });
-    }
-
-    let mut analyzed_sessions: HashSet<String> = HashSet::new();
-    let mut generated_entries = 0u32;
-    let mut deduplicated_entries = 0u32;
-    let mut generated_count_per_session: HashMap<String, usize> = HashMap::new();
-
-    for candidate in candidates.iter().take(MAX_SOURCE_MESSAGES) {
-        analyzed_sessions.insert(candidate.session_id.clone());
-
-        let counter = generated_count_per_session
-            .entry(candidate.session_id.clone())
-            .or_insert(0);
-        if *counter >= MAX_GENERATED_PER_SESSION {
-            continue;
-        }
-
-        let fingerprint = build_fingerprint(&candidate.content);
-        let (title, summary, file_type, category_tag) = build_memory_entry_fields(candidate);
-        let existing = memory_service
-            .0
-            .get_session_memories(&candidate.session_id, Some(file_type))?;
-
-        if is_duplicate_memory(&existing, &fingerprint, &summary) {
-            deduplicated_entries += 1;
-            continue;
-        }
-
-        let entry = MemoryEntry {
-            id: uuid::Uuid::new_v4().to_string(),
-            session_id: candidate.session_id.clone(),
-            file_type,
-            title,
-            content: summary,
-            tags: vec![
-                "auto_analysis".to_string(),
-                category_tag.to_string(),
-                fingerprint,
-            ],
-            priority: infer_priority(candidate),
-            created_at: candidate.created_at,
-            updated_at: candidate.created_at,
-            archived: false,
-        };
-
-        memory_service.0.save_memory_entry(&entry)?;
-        generated_entries += 1;
-        *counter += 1;
-
-        if generated_entries as usize >= max_generated_per_request {
-            break;
-        }
-    }
-
-    Ok(MemoryAnalysisResult {
-        analyzed_sessions: analyzed_sessions.len() as u32,
-        analyzed_messages: candidates.len() as u32,
-        generated_entries,
-        deduplicated_entries,
-    })
+    analyze_memory_candidates(memory_service.0.as_ref(), &memory_config, &candidates)
 }
 
 /// 从历史对话中抽取 runtime / 上下文记忆条目
@@ -1618,6 +1546,84 @@ fn load_memory_candidates(
         MAX_SOURCE_MESSAGES,
         MIN_MESSAGE_LENGTH,
     )
+}
+
+pub(crate) fn analyze_memory_candidates(
+    memory_service: &ContextMemoryService,
+    memory_config: &MemoryConfig,
+    candidates: &[MemorySourceCandidate],
+) -> Result<MemoryAnalysisResult, String> {
+    if !memory_config.enabled || candidates.is_empty() {
+        return Ok(MemoryAnalysisResult {
+            analyzed_sessions: 0,
+            analyzed_messages: 0,
+            generated_entries: 0,
+            deduplicated_entries: 0,
+        });
+    }
+
+    let max_generated_per_request = memory_config
+        .max_entries
+        .unwrap_or(MAX_GENERATED_PER_REQUEST as u32)
+        .clamp(1, MAX_GENERATED_PER_REQUEST_CAP as u32)
+        as usize;
+    let mut analyzed_sessions: HashSet<String> = HashSet::new();
+    let mut generated_entries = 0u32;
+    let mut deduplicated_entries = 0u32;
+    let mut generated_count_per_session: HashMap<String, usize> = HashMap::new();
+
+    for candidate in candidates.iter().take(MAX_SOURCE_MESSAGES) {
+        analyzed_sessions.insert(candidate.session_id.clone());
+
+        let counter = generated_count_per_session
+            .entry(candidate.session_id.clone())
+            .or_insert(0);
+        if *counter >= MAX_GENERATED_PER_SESSION {
+            continue;
+        }
+
+        let fingerprint = build_fingerprint(&candidate.content);
+        let (title, summary, file_type, category_tag) = build_memory_entry_fields(candidate);
+        let existing =
+            memory_service.get_session_memories(&candidate.session_id, Some(file_type))?;
+
+        if is_duplicate_memory(&existing, &fingerprint, &summary) {
+            deduplicated_entries += 1;
+            continue;
+        }
+
+        let entry = MemoryEntry {
+            id: uuid::Uuid::new_v4().to_string(),
+            session_id: candidate.session_id.clone(),
+            file_type,
+            title,
+            content: summary,
+            tags: vec![
+                "auto_analysis".to_string(),
+                category_tag.to_string(),
+                fingerprint,
+            ],
+            priority: infer_priority(candidate),
+            created_at: candidate.created_at,
+            updated_at: candidate.created_at,
+            archived: false,
+        };
+
+        memory_service.save_memory_entry(&entry)?;
+        generated_entries += 1;
+        *counter += 1;
+
+        if generated_entries as usize >= max_generated_per_request {
+            break;
+        }
+    }
+
+    Ok(MemoryAnalysisResult {
+        analyzed_sessions: analyzed_sessions.len() as u32,
+        analyzed_messages: candidates.len() as u32,
+        generated_entries,
+        deduplicated_entries,
+    })
 }
 
 fn build_fingerprint(content: &str) -> String {

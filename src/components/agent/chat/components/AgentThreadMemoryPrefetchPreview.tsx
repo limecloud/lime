@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { TurnMemoryPrefetchResult } from "@/lib/api/memoryRuntime";
 import { cn } from "@/lib/utils";
+import { normalizeTeamMemoryDisplayText } from "../utils/teamMemoryDisplay";
 
 type RuntimeMemoryPrefetchStatus = "idle" | "loading" | "ready" | "error";
 
@@ -152,7 +153,7 @@ export function AgentThreadMemoryPrefetchPreview({
         )}
       >
         {status === "loading"
-          ? "正在按最新回合 prompt 预演 rules / working / durable / team / compaction 五层记忆命中。"
+          ? "正在按最新回合 prompt 预演规则 / 工作 / 持久 / 任务影子 / 压缩五层记忆命中。"
           : status === "error"
             ? error
             : "下面展示的是当前这轮真实会用到的记忆命中预演，不会改写会话，只帮助判断续接质量。"}
@@ -175,7 +176,7 @@ export function AgentThreadMemoryPrefetchPreview({
               {formatMemoryLayerStatusLabel("持久", result.durable_memories.length)}
             </Badge>
             <Badge variant="outline" className="border-sky-200 bg-white text-sky-700">
-              {formatMemoryLayerStatusLabel("Team", result.team_memory_entries.length)}
+              {formatMemoryLayerStatusLabel("任务影子", result.team_memory_entries.length)}
             </Badge>
             <Badge variant="outline" className="border-sky-200 bg-white text-sky-700">
               {formatMemoryLayerStatusLabel(
@@ -256,7 +257,7 @@ export function AgentThreadMemoryPrefetchPreview({
               ) : null}
             </DetailPanel>
 
-            <DetailPanel title="Team Shadow 明细" emptyText="当前没有命中的 Team shadow。">
+            <DetailPanel title="任务影子明细" emptyText="当前没有命中的任务影子。">
               {result.team_memory_entries.length > 0 ? (
                 <div className="space-y-2">
                   {result.team_memory_entries.slice(0, 3).map((entry) => (
@@ -275,13 +276,16 @@ export function AgentThreadMemoryPrefetchPreview({
                         ) : null}
                       </div>
                       <div className="mt-2 text-sm leading-6 text-slate-700">
-                        {truncateText(entry.content, 220)}
+                        {truncateText(
+                          normalizeTeamMemoryDisplayText(entry.content),
+                          220,
+                        )}
                       </div>
                     </div>
                   ))}
                   {result.team_memory_entries.length > 3 ? (
                     <div className="text-xs text-slate-500">
-                      另有 {result.team_memory_entries.length - 3} 条 Team shadow 未展开。
+                      另有 {result.team_memory_entries.length - 3} 条任务影子未展开。
                     </div>
                   ) : null}
                 </div>

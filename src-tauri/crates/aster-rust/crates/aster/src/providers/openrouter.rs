@@ -153,6 +153,15 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
                             "text": content_str,
                             "cache_control": { "type": "ephemeral" }
                         }]);
+                    } else if let Some(content_array) = content.as_array_mut() {
+                        if let Some(last_content) = content_array.last_mut() {
+                            if let Some(obj) = last_content.as_object_mut() {
+                                obj.insert(
+                                    "cache_control".to_string(),
+                                    json!({ "type": "ephemeral" }),
+                                );
+                            }
+                        }
                     }
                 }
                 user_count += 1;
@@ -177,6 +186,12 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
                             "cache_control": { "type": "ephemeral" }
                         }]
                     });
+                } else if let Some(content_array) = content.as_array_mut() {
+                    if let Some(last_content) = content_array.last_mut() {
+                        if let Some(obj) = last_content.as_object_mut() {
+                            obj.insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
+                        }
+                    }
                 }
             }
         }
@@ -199,6 +214,70 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
         }
     }
     payload
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn update_request_for_anthropic_marks_array_content_blocks() {
+        let payload = json!({
+            "messages": [
+                {
+                    "role": "system",
+                    "content": [{"type": "text", "text": "system prompt"}]
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "first question"}]
+                },
+                {
+                    "role": "assistant",
+                    "content": "answer"
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "second question"},
+                        {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}}
+                    ]
+                }
+            ],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {"name": "first_tool"}
+                },
+                {
+                    "type": "function",
+                    "function": {"name": "second_tool"}
+                }
+            ]
+        });
+
+        let updated = update_request_for_anthropic(&payload);
+        let messages = updated["messages"]
+            .as_array()
+            .expect("messages should be array");
+
+        assert_eq!(
+            messages[0]["content"][0]["cache_control"]["type"],
+            "ephemeral"
+        );
+        assert_eq!(
+            messages[1]["content"][0]["cache_control"]["type"],
+            "ephemeral"
+        );
+        assert_eq!(
+            messages[3]["content"][1]["cache_control"]["type"],
+            "ephemeral"
+        );
+        assert_eq!(
+            updated["tools"][1]["function"]["cache_control"]["type"],
+            "ephemeral"
+        );
+    }
 }
 
 async fn create_request_based_on_model(

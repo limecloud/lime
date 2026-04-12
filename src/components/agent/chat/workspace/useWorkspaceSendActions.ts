@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Dispatch, SetStateAction } from "react";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
@@ -65,12 +65,17 @@ import type { HandleSendOptions } from "../hooks/handleSendTypes";
 import type { GeneralWorkbenchSendBoundaryState } from "../hooks/useGeneralWorkbenchSendBoundary";
 import type { UseRuntimeTeamFormationResult } from "../hooks/useRuntimeTeamFormation";
 import type { SendMessageFn } from "../hooks/agentChatShared";
-import type { MessageImage } from "../types";
+import type { Message, MessageImage } from "../types";
 import type { TeamDefinition } from "../utils/teamDefinitions";
-import type { RuntimeTeamDispatchPreviewSnapshot } from "./runtimeTeamPreview";
 import type { AgentAccessMode } from "../hooks/agentChatStorage";
 import {
   buildRuntimeTeamDispatchPreview,
+  buildRuntimeTeamDispatchPreviewMessages,
+  buildSubmissionPreviewMessages,
+  resolveRuntimeTeamDispatchPreviewState,
+  type RuntimeTeamDispatchPreviewSnapshot,
+  createSubmissionPreviewSnapshot,
+  type SubmissionPreviewSnapshot,
   buildWorkspaceRequestMetadata,
   buildWorkspaceSendText,
   hasModelSkillLaunchRequestMetadata,
@@ -79,10 +84,6 @@ import {
   type ContextWorkspaceSummary,
   type EnsureBrowserAssistCanvasOptions,
 } from "./workspaceSendHelpers";
-import {
-  createSubmissionPreviewSnapshot,
-  type SubmissionPreviewSnapshot,
-} from "./submissionPreview";
 import type { Character } from "@/lib/api/memory";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
@@ -2302,6 +2303,7 @@ interface UseWorkspaceSendActionsParams {
   isThemeWorkbench: boolean;
   contextWorkspace: ContextWorkspaceSummary;
   projectId?: string | null;
+  sessionId?: string | null;
   executionStrategy: ExecutionStrategy;
   accessMode?: AgentAccessMode;
   preferredTeamPresetId?: string | null;
@@ -2320,7 +2322,8 @@ interface UseWorkspaceSendActionsParams {
     | null;
   browserAssistAutoLaunch?: boolean | null;
   workspaceRequestMetadataBase?: Record<string, unknown>;
-  messagesCount: number;
+  messages: Message[];
+  bootstrapDispatchPreviewMessages: Message[];
   sendMessage: SendMessageFn;
   resolveSendBoundary: (input: {
     sourceText: string;
@@ -2333,9 +2336,6 @@ interface UseWorkspaceSendActionsParams {
     boundary: GeneralWorkbenchSendBoundaryState,
   ) => void;
   prepareRuntimeTeamBeforeSend: UseRuntimeTeamFormationResult["prepareRuntimeTeamBeforeSend"];
-  setRuntimeTeamDispatchPreview: Dispatch<
-    SetStateAction<RuntimeTeamDispatchPreviewSnapshot | null>
-  >;
   ensureBrowserAssistCanvas: (
     target: string,
     options?: EnsureBrowserAssistCanvasOptions,
@@ -2414,6 +2414,7 @@ export function useWorkspaceSendActions({
   isThemeWorkbench,
   contextWorkspace,
   projectId,
+  sessionId,
   executionStrategy,
   accessMode,
   preferredTeamPresetId,
@@ -2428,23 +2429,87 @@ export function useWorkspaceSendActions({
   browserAssistPreferredBackend,
   browserAssistAutoLaunch,
   workspaceRequestMetadataBase,
-  messagesCount,
+  messages,
+  bootstrapDispatchPreviewMessages,
   sendMessage,
   resolveSendBoundary,
   finalizeAfterSendSuccess,
   rollbackAfterSendFailure,
   prepareRuntimeTeamBeforeSend: _prepareRuntimeTeamBeforeSend,
-  setRuntimeTeamDispatchPreview,
   ensureBrowserAssistCanvas,
   handleAutoLaunchMatchedSiteSkill,
   openRuntimeSceneGate,
   ensureSessionForCommandMetadata,
   resolveImageWorkbenchSkillRequest,
 }: UseWorkspaceSendActionsParams) {
+  const messagesCount = messages.length;
+  const [runtimeTeamDispatchPreview, setRuntimeTeamDispatchPreview] = useState<
+    RuntimeTeamDispatchPreviewSnapshot | null
+  >(null);
   const [submissionPreview, setSubmissionPreview] =
     useState<SubmissionPreviewSnapshot | null>(null);
   const [isPreparingSend, setIsPreparingSend] = useState(false);
   const isPreparingSendRef = useRef(false);
+  const clearRuntimeTeamDispatchPreview = useCallback(() => {
+    setRuntimeTeamDispatchPreview(null);
+  }, []);
+  const teamDispatchPreviewState = useMemo(
+    () => resolveRuntimeTeamDispatchPreviewState(runtimeTeamDispatchPreview),
+    [runtimeTeamDispatchPreview],
+  );
+  const runtimeTeamDispatchPreviewMessages = useMemo(
+    () =>
+      runtimeTeamDispatchPreview
+        ? buildRuntimeTeamDispatchPreviewMessages(runtimeTeamDispatchPreview)
+        : [],
+    [runtimeTeamDispatchPreview],
+  );
+  const submissionPreviewMessages = useMemo(
+    () =>
+      messagesCount === 0 && submissionPreview
+        ? buildSubmissionPreviewMessages(submissionPreview)
+        : [],
+    [messagesCount, submissionPreview],
+  );
+  const displayMessages = useMemo(() => {
+    if (runtimeTeamDispatchPreviewMessages.length > 0) {
+      return [...messages, ...runtimeTeamDispatchPreviewMessages];
+    }
+
+    if (submissionPreviewMessages.length > 0) {
+      return submissionPreviewMessages;
+    }
+
+    if (messagesCount === 0 && bootstrapDispatchPreviewMessages.length > 0) {
+      return bootstrapDispatchPreviewMessages;
+    }
+
+    return messages;
+  }, [
+    bootstrapDispatchPreviewMessages,
+    messages,
+    messagesCount,
+    runtimeTeamDispatchPreviewMessages,
+    submissionPreviewMessages,
+  ]);
+
+  useEffect(() => {
+    clearRuntimeTeamDispatchPreview();
+  }, [clearRuntimeTeamDispatchPreview, sessionId]);
+
+  useEffect(() => {
+    if (!runtimeTeamDispatchPreview) {
+      return;
+    }
+
+    if (messagesCount > runtimeTeamDispatchPreview.baseMessageCount) {
+      clearRuntimeTeamDispatchPreview();
+    }
+  }, [
+    clearRuntimeTeamDispatchPreview,
+    messagesCount,
+    runtimeTeamDispatchPreview,
+  ]);
 
   const resolveSendExecutionPlan = useCallback(
     async (
@@ -4507,6 +4572,7 @@ export function useWorkspaceSendActions({
     handleSendRef,
     webSearchPreferenceRef,
     isPreparingSend,
-    submissionPreview,
+    displayMessages,
+    teamDispatchPreviewState,
   };
 }

@@ -6,6 +6,20 @@ import path from "node:path";
 import process from "node:process";
 
 const RUNNER_PATH = "scripts/harness-eval-runner.mjs";
+const OBSERVABILITY_GAP_SUITE_TAG = "observability-gap";
+const OBSERVABILITY_FAILURE_OUTCOMES = new Set([
+  "artifactValidator:issues_present",
+  "artifactValidator:fallback_used",
+  "browserVerification:failure",
+  "browserVerification:unknown",
+  "guiSmoke:failed",
+]);
+const RECOVERED_VERIFICATION_OUTCOMES = new Set([
+  "artifactValidator:repaired",
+  "browserVerification:success",
+  "guiSmoke:passed",
+  "guiSmoke:clean",
+]);
 
 function parseArgs(argv) {
   const result = {
@@ -170,12 +184,113 @@ function normalizeNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function listAllCases(summary) {
+  const suites = Array.isArray(summary?.suites) ? summary.suites : [];
+  return suites.flatMap((suite) => (Array.isArray(suite?.cases) ? suite.cases : []));
+}
+
+function getBreakdownEntries(summary, key) {
+  return Array.isArray(summary?.breakdowns?.[key]) ? summary.breakdowns[key] : [];
+}
+
+function getBreakdownCaseCount(summary, key, namesSet) {
+  return getBreakdownEntries(summary, key).reduce((total, entry) => {
+    const name = String(entry?.name ?? "");
+    if (!namesSet.has(name)) {
+      return total;
+    }
+    return total + normalizeNumber(entry?.caseCount);
+  }, 0);
+}
+
+function buildObservabilityGapTotals(summary) {
+  const rawTotals =
+    summary?.totals && typeof summary.totals === "object" ? summary.totals : {};
+  let total = normalizeNumber(rawTotals.observabilityGapCaseCount);
+  let current = normalizeNumber(rawTotals.currentObservabilityGapCaseCount);
+  let degraded = normalizeNumber(rawTotals.degradedObservabilityGapCaseCount);
+  const allCases = listAllCases(summary);
+
+  if (allCases.length === 0) {
+    if (current === 0 && degraded === 0 && total > 0) {
+      current = total;
+    }
+    return {
+      total: total || current + degraded,
+      current,
+      degraded,
+    };
+  }
+
+  let derivedCurrent = 0;
+  let derivedDegraded = 0;
+  for (const entry of allCases) {
+    if (normalizeNumber(entry?.observabilityGapCount) <= 0) {
+      continue;
+    }
+    const tags = Array.isArray(entry?.tags) ? entry.tags : [];
+    if (tags.includes(OBSERVABILITY_GAP_SUITE_TAG)) {
+      derivedDegraded += 1;
+    } else {
+      derivedCurrent += 1;
+    }
+  }
+
+  const derivedTotal = derivedCurrent + derivedDegraded;
+  if (derivedTotal === 0) {
+    return {
+      total: total || current + degraded,
+      current,
+      degraded,
+    };
+  }
+
+  return {
+    total: derivedTotal,
+    current: derivedCurrent,
+    degraded: derivedDegraded,
+  };
+}
+
+function buildNormalizedTotals(summary) {
+  const rawTotals =
+    summary?.totals && typeof summary.totals === "object" ? summary.totals : {};
+  const gapTotals = buildObservabilityGapTotals(summary);
+  const currentVerificationOutcomeEntries = getBreakdownEntries(
+    summary,
+    "currentObservabilityVerificationOutcomes",
+  );
+  return {
+    suiteCount: normalizeNumber(rawTotals.suiteCount),
+    caseCount: normalizeNumber(rawTotals.caseCount),
+    readyCount: normalizeNumber(rawTotals.readyCount),
+    invalidCount: normalizeNumber(rawTotals.invalidCount),
+    pendingRequestCaseCount: normalizeNumber(rawTotals.pendingRequestCaseCount),
+    needsHumanReviewCount: normalizeNumber(rawTotals.needsHumanReviewCount),
+    reviewDecisionRecordedCount: normalizeNumber(
+      rawTotals.reviewDecisionRecordedCount,
+    ),
+    observabilityGapCaseCount: gapTotals.total,
+    currentObservabilityGapCaseCount: gapTotals.current,
+    degradedObservabilityGapCaseCount: gapTotals.degraded,
+    currentRecoveredVerificationCaseCount:
+      currentVerificationOutcomeEntries.length > 0
+        ? getBreakdownCaseCount(
+            summary,
+            "currentObservabilityVerificationOutcomes",
+            RECOVERED_VERIFICATION_OUTCOMES,
+          )
+        : normalizeNumber(rawTotals.currentRecoveredVerificationCaseCount),
+  };
+}
+
 function computeReadyRate(summary) {
-  const caseCount = normalizeNumber(summary?.totals?.caseCount);
+  const totals = buildNormalizedTotals(summary);
+  const caseCount = totals.caseCount;
   if (caseCount <= 0) {
     return 0;
   }
-  return normalizeNumber(summary?.totals?.readyCount) / caseCount;
+  return totals.readyCount / caseCount;
 }
 
 function getSuiteMap(summary) {
@@ -195,9 +310,7 @@ function getSuiteMap(summary) {
 }
 
 function getBreakdownMap(summary, key) {
-  const entries = Array.isArray(summary?.breakdowns?.[key])
-    ? summary.breakdowns[key]
-    : [];
+  const entries = getBreakdownEntries(summary, key);
   return new Map(
     entries.map((entry) => [
       String(entry.name ?? ""),
@@ -309,6 +422,12 @@ function buildBreakdownDeltas(baseline, latest, key) {
     });
 }
 
+function buildFilteredBreakdownDeltas(baseline, latest, key, predicate) {
+  return buildBreakdownDeltas(baseline, latest, key).filter((entry) =>
+    predicate(entry),
+  );
+}
+
 function buildStatusSignals(baseline, latest, sampleCount) {
   const signals = [];
 
@@ -318,15 +437,17 @@ function buildStatusSignals(baseline, latest, sampleCount) {
   }
 
   const readyRateDelta = computeReadyRate(latest) - computeReadyRate(baseline);
-  const invalidDelta =
-    normalizeNumber(latest?.totals?.invalidCount) -
-    normalizeNumber(baseline?.totals?.invalidCount);
+  const baselineTotals = buildNormalizedTotals(baseline);
+  const latestTotals = buildNormalizedTotals(latest);
+  const invalidDelta = latestTotals.invalidCount - baselineTotals.invalidCount;
   const pendingDelta =
-    normalizeNumber(latest?.totals?.pendingRequestCaseCount) -
-    normalizeNumber(baseline?.totals?.pendingRequestCaseCount);
-  const observabilityGapDelta =
-    normalizeNumber(latest?.totals?.observabilityGapCaseCount) -
-    normalizeNumber(baseline?.totals?.observabilityGapCaseCount);
+    latestTotals.pendingRequestCaseCount - baselineTotals.pendingRequestCaseCount;
+  const currentObservabilityGapDelta =
+    latestTotals.currentObservabilityGapCaseCount -
+    baselineTotals.currentObservabilityGapCaseCount;
+  const currentRecoveredVerificationDelta =
+    latestTotals.currentRecoveredVerificationCaseCount -
+    baselineTotals.currentRecoveredVerificationCaseCount;
 
   if (invalidDelta > 0) {
     signals.push(`invalid case 增加 ${invalidDelta}，存在回归候选。`);
@@ -344,9 +465,15 @@ function buildStatusSignals(baseline, latest, sampleCount) {
     );
   }
 
-  if (observabilityGapDelta > 0) {
+  if (currentObservabilityGapDelta > 0) {
     signals.push(
-      `observability gap case 增加 ${observabilityGapDelta}，需先补 evidence / analysis / replay 的证据覆盖。`,
+      `current observability gap case 增加 ${currentObservabilityGapDelta}，说明主线样本开始带缺口，需先补 evidence / analysis / replay 的证据覆盖。`,
+    );
+  }
+
+  if (currentRecoveredVerificationDelta > 0) {
+    signals.push(
+      `current recovered verification case 增加 ${currentRecoveredVerificationDelta}，说明主线路径正在累积正向守卫。`,
     );
   }
 
@@ -361,6 +488,43 @@ function buildStatusSignals(baseline, latest, sampleCount) {
   if (increasedInvalidFailureMode) {
     signals.push(
       `failure mode \`${increasedInvalidFailureMode.name}\` 的 invalid case 增加 ${increasedInvalidFailureMode.delta.invalidCount}。`,
+    );
+  }
+
+  const verificationOutcomeDeltas = buildBreakdownDeltas(
+    baseline,
+    latest,
+    "observabilityVerificationOutcomes",
+  );
+  const increasedVerificationFailure = verificationOutcomeDeltas.find(
+    (entry) =>
+      OBSERVABILITY_FAILURE_OUTCOMES.has(entry.name) &&
+      entry.delta.caseCount > 0,
+  );
+  if (increasedVerificationFailure) {
+    signals.push(
+      `verification outcome \`${increasedVerificationFailure.name}\` 新增 ${increasedVerificationFailure.delta.caseCount} 个 case。`,
+    );
+  }
+
+  const currentRecoveredVerificationDeltas = buildFilteredBreakdownDeltas(
+    baseline,
+    latest,
+    "currentObservabilityVerificationOutcomes",
+    (entry) => RECOVERED_VERIFICATION_OUTCOMES.has(entry.name),
+  );
+  for (const entry of currentRecoveredVerificationDeltas.filter(
+    (candidate) => candidate.delta.caseCount < 0,
+  )) {
+    signals.push(
+      `current recovered verification baseline \`${entry.name}\` 减少 ${Math.abs(entry.delta.caseCount)}，说明正向守卫可能回退。`,
+    );
+  }
+  for (const entry of currentRecoveredVerificationDeltas.filter(
+    (candidate) => candidate.delta.caseCount > 0,
+  )) {
+    signals.push(
+      `current recovered verification baseline \`${entry.name}\` 新增 ${entry.delta.caseCount}，说明主线路径正在形成正向基线。`,
     );
   }
 
@@ -389,6 +553,8 @@ function buildTrendReport(samples, repoRoot) {
   const latestEntry = sortedSamples[sortedSamples.length - 1];
   const baseline = baselineEntry.summary;
   const latest = latestEntry.summary;
+  const baselineTotals = buildNormalizedTotals(baseline);
+  const latestTotals = buildNormalizedTotals(latest);
   const readyRateDelta = computeReadyRate(latest) - computeReadyRate(baseline);
 
   return {
@@ -399,45 +565,46 @@ function buildTrendReport(samples, repoRoot) {
     baseline: {
       generatedAt: baseline.generatedAt,
       sourcePath: baselineEntry.sourcePath,
-      totals: baseline.totals,
+      totals: baselineTotals,
     },
     latest: {
       generatedAt: latest.generatedAt,
       sourcePath: latestEntry.sourcePath,
-      totals: latest.totals,
+      totals: latestTotals,
     },
     delta: {
-      suiteCount:
-        normalizeNumber(latest?.totals?.suiteCount) -
-        normalizeNumber(baseline?.totals?.suiteCount),
-      caseCount:
-        normalizeNumber(latest?.totals?.caseCount) -
-        normalizeNumber(baseline?.totals?.caseCount),
-      readyCount:
-        normalizeNumber(latest?.totals?.readyCount) -
-        normalizeNumber(baseline?.totals?.readyCount),
-      invalidCount:
-        normalizeNumber(latest?.totals?.invalidCount) -
-        normalizeNumber(baseline?.totals?.invalidCount),
+      suiteCount: latestTotals.suiteCount - baselineTotals.suiteCount,
+      caseCount: latestTotals.caseCount - baselineTotals.caseCount,
+      readyCount: latestTotals.readyCount - baselineTotals.readyCount,
+      invalidCount: latestTotals.invalidCount - baselineTotals.invalidCount,
       pendingRequestCaseCount:
-        normalizeNumber(latest?.totals?.pendingRequestCaseCount) -
-        normalizeNumber(baseline?.totals?.pendingRequestCaseCount),
+        latestTotals.pendingRequestCaseCount -
+        baselineTotals.pendingRequestCaseCount,
       needsHumanReviewCount:
-        normalizeNumber(latest?.totals?.needsHumanReviewCount) -
-        normalizeNumber(baseline?.totals?.needsHumanReviewCount),
+        latestTotals.needsHumanReviewCount -
+        baselineTotals.needsHumanReviewCount,
       reviewDecisionRecordedCount:
-        normalizeNumber(latest?.totals?.reviewDecisionRecordedCount) -
-        normalizeNumber(baseline?.totals?.reviewDecisionRecordedCount),
+        latestTotals.reviewDecisionRecordedCount -
+        baselineTotals.reviewDecisionRecordedCount,
       observabilityGapCaseCount:
-        normalizeNumber(latest?.totals?.observabilityGapCaseCount) -
-        normalizeNumber(baseline?.totals?.observabilityGapCaseCount),
+        latestTotals.observabilityGapCaseCount -
+        baselineTotals.observabilityGapCaseCount,
+      currentObservabilityGapCaseCount:
+        latestTotals.currentObservabilityGapCaseCount -
+        baselineTotals.currentObservabilityGapCaseCount,
+      degradedObservabilityGapCaseCount:
+        latestTotals.degradedObservabilityGapCaseCount -
+        baselineTotals.degradedObservabilityGapCaseCount,
+      currentRecoveredVerificationCaseCount:
+        latestTotals.currentRecoveredVerificationCaseCount -
+        baselineTotals.currentRecoveredVerificationCaseCount,
       readyRate: readyRateDelta,
     },
     signals: buildStatusSignals(baseline, latest, sortedSamples.length),
     samples: sortedSamples.map((entry) => ({
       generatedAt: entry.summary.generatedAt,
       sourcePath: entry.sourcePath,
-      totals: entry.summary.totals,
+      totals: buildNormalizedTotals(entry.summary),
     })),
     suiteDeltas: buildSuiteDeltas(baseline, latest),
     classificationDeltas: {
@@ -458,6 +625,28 @@ function buildTrendReport(samples, repoRoot) {
         latest,
         "observabilitySignals",
       ),
+      observabilityVerificationOutcomes: buildBreakdownDeltas(
+        baseline,
+        latest,
+        "observabilityVerificationOutcomes",
+      ),
+      currentRecoveredObservabilityVerificationOutcomes:
+        buildFilteredBreakdownDeltas(
+          baseline,
+          latest,
+          "currentObservabilityVerificationOutcomes",
+          (entry) => RECOVERED_VERIFICATION_OUTCOMES.has(entry.name),
+        ),
+      currentObservabilityVerificationOutcomes: buildBreakdownDeltas(
+        baseline,
+        latest,
+        "currentObservabilityVerificationOutcomes",
+      ),
+      degradedObservabilityVerificationOutcomes: buildBreakdownDeltas(
+        baseline,
+        latest,
+        "degradedObservabilityVerificationOutcomes",
+      ),
     },
   };
 }
@@ -473,6 +662,12 @@ function renderText(report) {
     `[harness-eval-trend] delta pendingRequestCaseCount: ${report.delta.pendingRequestCaseCount}`,
     `[harness-eval-trend] delta reviewDecisionRecordedCount: ${report.delta.reviewDecisionRecordedCount}`,
     `[harness-eval-trend] delta observabilityGapCaseCount: ${report.delta.observabilityGapCaseCount}`,
+    `[harness-eval-trend] delta currentObservabilityGapCaseCount: ${report.delta.currentObservabilityGapCaseCount}`,
+    `[harness-eval-trend] delta degradedObservabilityGapCaseCount: ${report.delta.degradedObservabilityGapCaseCount}`,
+    `[harness-eval-trend] delta currentRecoveredVerificationCaseCount: ${report.delta.currentRecoveredVerificationCaseCount}`,
+    `[harness-eval-trend] latest currentObservabilityGapCaseCount: ${report.latest.totals.currentObservabilityGapCaseCount}`,
+    `[harness-eval-trend] latest degradedObservabilityGapCaseCount: ${report.latest.totals.degradedObservabilityGapCaseCount}`,
+    `[harness-eval-trend] latest currentRecoveredVerificationCaseCount: ${report.latest.totals.currentRecoveredVerificationCaseCount}`,
     `[harness-eval-trend] delta readyRate: ${(report.delta.readyRate * 100).toFixed(1)}%`,
   ];
 
@@ -515,6 +710,42 @@ function renderText(report) {
     }
   }
 
+  const topVerificationOutcomeDeltas =
+    report.classificationDeltas.observabilityVerificationOutcomes.slice(0, 5);
+  if (topVerificationOutcomeDeltas.length > 0) {
+    lines.push("[harness-eval-trend] observability verification outcome deltas:");
+    for (const entry of topVerificationOutcomeDeltas) {
+      lines.push(
+        `  - ${entry.name}: delta_case=${entry.delta.caseCount}, latest_case=${entry.latest.caseCount}, latest_invalid=${entry.latest.invalidCount}`,
+      );
+    }
+  }
+
+  const topCurrentRecoveredVerificationDeltas =
+    report.classificationDeltas.currentRecoveredObservabilityVerificationOutcomes.slice(
+      0,
+      5,
+    );
+  if (topCurrentRecoveredVerificationDeltas.length > 0) {
+    lines.push("[harness-eval-trend] current recovered verification baseline deltas:");
+    for (const entry of topCurrentRecoveredVerificationDeltas) {
+      lines.push(
+        `  - ${entry.name}: baseline_case=${entry.baseline.caseCount}, latest_case=${entry.latest.caseCount}, delta_case=${entry.delta.caseCount}`,
+      );
+    }
+  }
+
+  lines.push("[harness-eval-trend] observability gap roles:");
+  lines.push(
+    `  - total: baseline=${report.baseline.totals.observabilityGapCaseCount}, latest=${report.latest.totals.observabilityGapCaseCount}, delta=${report.delta.observabilityGapCaseCount}`,
+  );
+  lines.push(
+    `  - current: baseline=${report.baseline.totals.currentObservabilityGapCaseCount}, latest=${report.latest.totals.currentObservabilityGapCaseCount}, delta=${report.delta.currentObservabilityGapCaseCount}`,
+  );
+  lines.push(
+    `  - degraded: baseline=${report.baseline.totals.degradedObservabilityGapCaseCount}, latest=${report.latest.totals.degradedObservabilityGapCaseCount}, delta=${report.delta.degradedObservabilityGapCaseCount}`,
+  );
+
   return `${lines.join("\n")}\n`;
 }
 
@@ -537,6 +768,9 @@ function renderMarkdown(report) {
     `- needs review case 变化：${report.delta.needsHumanReviewCount}`,
     `- 已记录人工审核变化：${report.delta.reviewDecisionRecordedCount}`,
     `- observability gap case 变化：${report.delta.observabilityGapCaseCount}`,
+    `- current observability gap case 变化：${report.delta.currentObservabilityGapCaseCount}`,
+    `- degraded observability gap case 变化：${report.delta.degradedObservabilityGapCaseCount}`,
+    `- current recovered verification case 变化：${report.delta.currentRecoveredVerificationCaseCount}`,
     `- ready rate 变化：${(report.delta.readyRate * 100).toFixed(1)}%`,
     "",
     "## 信号",
@@ -616,14 +850,60 @@ function renderMarkdown(report) {
     }
   }
 
+  if (report.classificationDeltas.observabilityVerificationOutcomes.length > 0) {
+    lines.push("");
+    lines.push("## Observability Verification Outcome 变化");
+    lines.push("");
+    lines.push("| Outcome | baseline case | latest case | delta case | delta invalid |");
+    lines.push("| --- | --- | --- | --- | --- |");
+    for (const entry of report.classificationDeltas.observabilityVerificationOutcomes) {
+      lines.push(
+        `| ${entry.name} | ${entry.baseline.caseCount} | ${entry.latest.caseCount} | ${entry.delta.caseCount} | ${entry.delta.invalidCount} |`,
+      );
+    }
+  }
+
+  if (
+    report.classificationDeltas.currentRecoveredObservabilityVerificationOutcomes
+      .length > 0
+  ) {
+    lines.push("");
+    lines.push("## Current Recovered Baseline 变化");
+    lines.push("");
+    lines.push("| Outcome | baseline case | latest case | delta case |");
+    lines.push("| --- | --- | --- | --- |");
+    for (const entry of report.classificationDeltas.currentRecoveredObservabilityVerificationOutcomes) {
+      lines.push(
+        `| ${entry.name} | ${entry.baseline.caseCount} | ${entry.latest.caseCount} | ${entry.delta.caseCount} |`,
+      );
+    }
+  }
+
+  lines.push("");
+  lines.push("## Observability Gap 角色变化");
+  lines.push("");
+  lines.push("| 角色 | baseline case | latest case | delta case |");
+  lines.push("| --- | --- | --- | --- |");
+  lines.push(
+    `| total | ${report.baseline.totals.observabilityGapCaseCount} | ${report.latest.totals.observabilityGapCaseCount} | ${report.delta.observabilityGapCaseCount} |`,
+  );
+  lines.push(
+    `| current | ${report.baseline.totals.currentObservabilityGapCaseCount} | ${report.latest.totals.currentObservabilityGapCaseCount} | ${report.delta.currentObservabilityGapCaseCount} |`,
+  );
+  lines.push(
+    `| degraded | ${report.baseline.totals.degradedObservabilityGapCaseCount} | ${report.latest.totals.degradedObservabilityGapCaseCount} | ${report.delta.degradedObservabilityGapCaseCount} |`,
+  );
+
   lines.push("");
   lines.push("## 时间线样本");
   lines.push("");
-  lines.push("| 时间 | 来源 | case | ready | invalid | pending_request |");
-  lines.push("| --- | --- | --- | --- | --- | --- |");
+  lines.push(
+    "| 时间 | 来源 | case | ready | invalid | pending_request | current_gap | degraded_gap |",
+  );
+  lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const sample of report.samples) {
     lines.push(
-      `| ${sample.generatedAt} | \`${sample.sourcePath}\` | ${sample.totals.caseCount} | ${sample.totals.readyCount} | ${sample.totals.invalidCount} | ${sample.totals.pendingRequestCaseCount} |`,
+      `| ${sample.generatedAt} | \`${sample.sourcePath}\` | ${sample.totals.caseCount} | ${sample.totals.readyCount} | ${sample.totals.invalidCount} | ${sample.totals.pendingRequestCaseCount} | ${sample.totals.currentObservabilityGapCaseCount} | ${sample.totals.degradedObservabilityGapCaseCount} |`,
     );
   }
 

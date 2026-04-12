@@ -13,11 +13,12 @@ import type {
   TeamWorkspaceWaitSummary,
 } from "../teamWorkspaceRuntime";
 import {
-  resolveRuntimeFormationStatusMeta,
   resolveRuntimeMemberStatusMeta,
   summarizeTeamWorkspaceExecution,
 } from "../teamWorkspaceRuntime";
+import { buildRuntimeFormationDisplayState } from "../team-workspace-runtime/formationDisplaySelectors";
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
+import { normalizeTeamWorkspaceDisplayValue } from "../utils/teamWorkspaceDisplay";
 import { TeamMemoryShadowCard } from "./TeamMemoryShadowCard";
 
 interface TeamWorkbenchSummaryPanelProps {
@@ -46,19 +47,19 @@ function buildOperationSummary(params: {
     const affectedCount = params.teamControlSummary.affectedSessionIds.length;
     switch (params.teamControlSummary.action) {
       case "resume":
-        return `最近一次恢复操作影响 ${affectedCount} 个 agent。`;
+        return `最近一次继续操作影响 ${affectedCount} 项任务。`;
       case "close_completed":
-        return `最近一次收尾操作关闭了 ${affectedCount} 位已完成成员。`;
+        return `最近一次收尾操作收起了 ${affectedCount} 项已完成任务。`;
       case "close":
       default:
-        return `最近一次关闭操作影响 ${affectedCount} 个 agent。`;
+        return `最近一次暂停操作影响 ${affectedCount} 项任务。`;
     }
   }
 
   if (params.teamWaitSummary) {
     return params.teamWaitSummary.timedOut
-      ? `最近一次等待超时，仍有 ${params.teamWaitSummary.awaitedSessionIds.length} 位成员在推进。`
-      : "最近一次等待已收到成员结果。";
+      ? `最近一次等待超时，仍有 ${params.teamWaitSummary.awaitedSessionIds.length} 项任务在推进。`
+      : "最近一次等待已收到任务结果。";
   }
 
   return null;
@@ -91,21 +92,13 @@ export function TeamWorkbenchSummaryPanel({
     subagentParentContext,
     liveRuntimeBySessionId,
   });
-  const hasRealTeamGraph =
-    childSubagentSessions.length > 0 || Boolean(subagentParentContext);
-  const runtimeFormationMeta = dispatchPreviewState
-    ? resolveRuntimeFormationStatusMeta(dispatchPreviewState.status)
-    : null;
-  const runtimeTeamLabel =
-    dispatchPreviewState?.label?.trim() ||
-    dispatchPreviewState?.blueprint?.label?.trim() ||
-    selectedTeamLabel?.trim() ||
-    null;
-  const runtimeSummaryText =
-    dispatchPreviewState?.summary?.trim() ||
-    dispatchPreviewState?.blueprint?.summary?.trim() ||
-    selectedTeamSummary ||
-    null;
+  const hasRuntimeSessions = executionSummary.totalSessionCount > 0;
+  const runtimeFormationDisplay = buildRuntimeFormationDisplayState({
+    teamDispatchPreviewState: dispatchPreviewState,
+    fallbackLabel: selectedTeamLabel,
+    fallbackSummary: selectedTeamSummary,
+  });
+  const runtimeTeamLabel = runtimeFormationDisplay.panelLabel;
   const operationSummary = buildOperationSummary({
     teamWaitSummary,
     teamControlSummary,
@@ -113,33 +106,37 @@ export function TeamWorkbenchSummaryPanel({
   const latestActivity = Object.values(liveActivityBySessionId)
     .flat()
     .slice(0, 4);
-  const displayRoleCount = hasRealTeamGraph
+  const selectedRoleCount = (selectedTeamRoles ?? []).filter((role) =>
+    role.label.trim(),
+  ).length;
+  const displayRoleCount = hasRuntimeSessions
     ? executionSummary.totalSessionCount
-    : (dispatchPreviewState?.members.length ?? 0);
+    : (dispatchPreviewState?.members.length ?? selectedRoleCount);
   const roleCards = dispatchPreviewState?.members.length
     ? dispatchPreviewState.members.map((member) => ({
         id: member.id,
-        label: member.label,
+        label: normalizeTeamWorkspaceDisplayValue(member.label) || member.label,
         roleKey: member.roleKey,
         profileId: member.profileId,
-        summary: member.summary,
+        summary:
+          normalizeTeamWorkspaceDisplayValue(member.summary) || member.summary,
         skillIds: member.skillIds,
         statusMeta: resolveRuntimeMemberStatusMeta(member.status),
       }))
     : (selectedTeamRoles ?? []).map((role) => ({
         id: role.id,
-        label: role.label,
+        label: normalizeTeamWorkspaceDisplayValue(role.label) || role.label,
         roleKey: role.roleKey,
         profileId: role.profileId,
-        summary: role.summary,
+        summary: normalizeTeamWorkspaceDisplayValue(role.summary) || role.summary,
         skillIds: role.skillIds ?? [],
         statusMeta: null,
       }));
   const summaryCards = [
     {
-      label: "活跃 Agent",
+      label: "活跃任务",
       value: String(executionSummary.activeSessionCount),
-      hint: executionSummary.hasActiveRuntime ? "正在协作" : "尚未运行",
+      hint: executionSummary.hasActiveRuntime ? "任务进行中" : "尚未运行",
     },
     {
       label: "处理中",
@@ -152,21 +149,25 @@ export function TeamWorkbenchSummaryPanel({
       hint: executionSummary.queuedSessionCount > 0 ? "按顺序继续" : "暂无",
     },
     {
-      label: hasRealTeamGraph
+      label: hasRuntimeSessions
         ? "总会话"
         : dispatchPreviewState
-          ? "当前成员"
-          : "总会话",
+          ? "当前任务"
+          : selectedRoleCount > 0
+            ? "计划分工"
+            : "总会话",
       value: String(
-        hasRealTeamGraph
+        hasRuntimeSessions
           ? executionSummary.totalSessionCount
           : displayRoleCount,
       ),
-      hint: hasRealTeamGraph
-        ? "已进入团队图谱"
+      hint: hasRuntimeSessions
+        ? "已进入任务轨道"
         : dispatchPreviewState
-          ? "当前编队"
-          : "等待创建",
+          ? "当前分工"
+          : selectedRoleCount > 0
+            ? "已选方案"
+            : "等待创建",
     },
   ];
 
@@ -175,55 +176,45 @@ export function TeamWorkbenchSummaryPanel({
       <section className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
           <Workflow className="h-3.5 w-3.5" />
-          <span>团队工作台</span>
+          <span>任务工作台</span>
           {runtimeTeamLabel ? (
             <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium tracking-normal text-sky-700 normal-case">
               {runtimeTeamLabel}
             </span>
           ) : null}
-          {runtimeFormationMeta ? (
+          {runtimeFormationDisplay.panelStatusLabel ? (
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 text-[10px] font-medium tracking-normal normal-case",
-                runtimeFormationMeta.badgeClassName,
+                runtimeFormationDisplay.panelStatusBadgeClassName,
               )}
             >
-              {runtimeFormationMeta.label}
+              {runtimeFormationDisplay.panelStatusLabel}
             </span>
           ) : null}
         </div>
         <div className="mt-2 text-sm font-semibold text-slate-900">
           {executionSummary.statusTitle ||
-            runtimeFormationMeta?.title ||
-            "团队已就绪，等待主代理开始编排"}
+            runtimeFormationDisplay.panelHeadline ||
+            "任务工作台已就绪，等待主线程开始编排"}
         </div>
         <p className="mt-2 text-xs leading-5 text-slate-500">
-          {dispatchPreviewState?.status === "failed"
-            ? dispatchPreviewState.errorMessage?.trim() ||
-              "这次 Team 准备失败，可继续在当前对话中推进。"
-            : runtimeSummaryText ||
-              "这里展示团队总览与运行密度；主对话只保留调度记录，角色执行正文在左侧 Team 画布查看。"}
+          {runtimeFormationDisplay.panelDescription}
         </p>
-        {!hasRealTeamGraph && dispatchPreviewState ? (
+        {!hasRuntimeSessions && dispatchPreviewState ? (
           <div
             className={cn(
               "mt-3 rounded-2xl border px-3 py-2 text-xs leading-5",
-              runtimeFormationMeta?.badgeClassName ||
+              runtimeFormationDisplay.panelStatusBadgeClassName ||
                 "border border-slate-200 bg-slate-50 text-slate-700",
             )}
           >
-            {dispatchPreviewState.status === "forming"
-              ? "模型正在依据当前任务准备 Team，真实成员加入后会自动切换到实时协作轨道。"
-              : dispatchPreviewState.status === "formed"
-                ? `已准备 ${dispatchPreviewState.members.length} 个成员，当前等待系统分派真实成员进入协作。`
-                : dispatchPreviewState.errorMessage?.trim() ||
-                  "暂未成功准备这次 Team。"}
+            {runtimeFormationDisplay.noticeText}
           </div>
         ) : null}
-        {!hasRealTeamGraph && !dispatchPreviewState ? (
+        {!hasRuntimeSessions && !dispatchPreviewState ? (
           <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-700">
-            尚未出现真实团队成员。开始分派成员后，左侧 Team
-            画布会自动切换为实时协作视图。
+            尚未接入任务。发送后这里会先展示分工，再过渡到任务视图。
           </div>
         ) : null}
       </section>
@@ -253,7 +244,7 @@ export function TeamWorkbenchSummaryPanel({
         <section className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-950/5">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
             <Bot className="h-3.5 w-3.5" />
-            <span>{dispatchPreviewState ? "当前成员" : "角色分工"}</span>
+            <span>{dispatchPreviewState ? "当前任务分工" : "角色分工"}</span>
           </div>
           <div className="mt-3 space-y-2">
             {roleCards.map((role) => (
@@ -304,9 +295,9 @@ export function TeamWorkbenchSummaryPanel({
               </div>
             ))}
           </div>
-          {dispatchPreviewState?.blueprint?.label ? (
+          {runtimeFormationDisplay.referenceLabel ? (
             <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
-              参考蓝图 Team：{dispatchPreviewState.blueprint.label}
+              参考方案：{runtimeFormationDisplay.referenceLabel}
             </div>
           ) : null}
         </section>
@@ -359,7 +350,7 @@ export function TeamWorkbenchSummaryPanel({
           <span>交互说明</span>
         </div>
         <div className="mt-2">
-          左侧主画布负责展示成员轨道、实时过程与细节；右侧用于总览、角色结构与快速理解当前协作状态。
+          左侧主画布负责展示任务轨道、实时过程与细节；右侧用于总览、任务结构与快速理解当前进展状态。
         </div>
         <div className="mt-2 flex items-center gap-2 text-sky-700">
           <Sparkles className="h-3.5 w-3.5" />

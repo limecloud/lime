@@ -136,7 +136,6 @@ export function useTeamWorkspaceBoardComposer({
     detailExpanded,
     dispatchPreviewStatus: teamDispatchPreviewState?.status,
     embedded,
-    hasRealTeamGraph: sessionGraphState.hasRealTeamGraph,
     hasRuntimeFormation: formationState.hasRuntimeFormation,
     isChildSession: sessionGraphState.isChildSession,
     isEmptyShellState: sessionGraphState.isEmptyShellState,

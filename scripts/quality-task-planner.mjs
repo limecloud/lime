@@ -39,11 +39,26 @@ const FRONTEND_TOOLING_FILES = new Set([
 const BRIDGE_FILES = new Set([
   "vite.config.ts",
   "scripts/check-command-contracts.mjs",
+  "scripts/check-generated-slop-report.mjs",
   "scripts/check-dev-bridge-health.mjs",
+  "scripts/harness-eval-history-record.mjs",
+  "scripts/harness-eval-trend-report.mjs",
+  "scripts/report-generated-slop.mjs",
   "scripts/social-workbench-e2e-smoke.mjs",
   "scripts/chrome-bridge-e2e.mjs",
   "scripts/verify-gui-smoke.mjs",
+  "scripts/lib/generated-slop-report-core.mjs",
+  "scripts/lib/harness-dashboard-core.mjs",
   "docs/aiprompts/playwright-e2e.md",
+]);
+
+const HARNESS_CLEANUP_CONTRACT_FILES = new Set([
+  "scripts/check-generated-slop-report.mjs",
+  "scripts/harness-eval-history-record.mjs",
+  "scripts/harness-eval-trend-report.mjs",
+  "scripts/report-generated-slop.mjs",
+  "scripts/lib/generated-slop-report-core.mjs",
+  "scripts/lib/harness-dashboard-core.mjs",
 ]);
 
 const INTEGRITY_FILES = new Set([
@@ -249,6 +264,45 @@ function isBridgeChange(file) {
   );
 }
 
+function isHarnessCleanupContractChange(file) {
+  return HARNESS_CLEANUP_CONTRACT_FILES.has(file);
+}
+
+function collectBridgeReasons(changedFiles, { full = false, fallback = false, workflow = false } = {}) {
+  if (full) {
+    return ["full_suite"];
+  }
+
+  if (fallback) {
+    return ["fallback_full_suite"];
+  }
+
+  if (workflow) {
+    return ["workflow_full_suite"];
+  }
+
+  const reasons = [];
+
+  if (changedFiles.some(isHarnessCleanupContractChange)) {
+    reasons.push("harness_cleanup_contract");
+  }
+
+  if (
+    changedFiles.some(
+      (file) =>
+        isBridgeChange(file) && !isHarnessCleanupContractChange(file),
+    )
+  ) {
+    reasons.push("bridge_runtime");
+  }
+
+  if (reasons.length === 0 && changedFiles.some(isBridgeChange)) {
+    reasons.push("bridge_contracts");
+  }
+
+  return reasons;
+}
+
 function isGuiSmokeChange(file) {
   return (
     GUI_SMOKE_FILES.has(file) ||
@@ -272,6 +326,7 @@ function detectTasks(changedFiles, { full = false } = {}) {
       frontend: true,
       rust: true,
       bridge: true,
+      bridgeReasons: collectBridgeReasons([], { full: true }),
       guiSmoke: true,
       docs: true,
       docsOnly: false,
@@ -286,6 +341,7 @@ function detectTasks(changedFiles, { full = false } = {}) {
       frontend: true,
       rust: true,
       bridge: true,
+      bridgeReasons: collectBridgeReasons([], { fallback: true }),
       guiSmoke: true,
       docs: true,
       docsOnly: false,
@@ -301,6 +357,7 @@ function detectTasks(changedFiles, { full = false } = {}) {
       frontend: true,
       rust: true,
       bridge: true,
+      bridgeReasons: collectBridgeReasons([], { workflow: true }),
       guiSmoke: true,
       docs: true,
       docsOnly: false,
@@ -315,6 +372,7 @@ function detectTasks(changedFiles, { full = false } = {}) {
       frontend: false,
       rust: false,
       bridge: false,
+      bridgeReasons: [],
       guiSmoke: false,
       docs: true,
       docsOnly: true,
@@ -323,11 +381,14 @@ function detectTasks(changedFiles, { full = false } = {}) {
     };
   }
 
+  const bridge = changedFiles.some(isBridgeChange);
+
   return {
     integrity: changedFiles.some(isIntegrityChange),
     frontend: changedFiles.some(isFrontendChange),
     rust: changedFiles.some(isRustChange),
-    bridge: changedFiles.some(isBridgeChange),
+    bridge,
+    bridgeReasons: bridge ? collectBridgeReasons(changedFiles) : [],
     guiSmoke: changedFiles.some(isGuiSmokeChange),
     docs: changedFiles.some(isDocsChange),
     docsOnly: false,
@@ -359,4 +420,10 @@ function planQualityTasks({
   };
 }
 
-export { collectChangedFiles, detectTasks, planQualityTasks, resolveDiffBase };
+export {
+  collectBridgeReasons,
+  collectChangedFiles,
+  detectTasks,
+  planQualityTasks,
+  resolveDiffBase,
+};

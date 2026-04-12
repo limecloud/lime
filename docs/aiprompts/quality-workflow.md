@@ -82,7 +82,7 @@
 
 如果本轮涉及 `companion_*` 桌宠命令族，还要同步检查本地 companion `WebSocket` 入口、前端 `src/lib/api/companion.ts` 网关、Rust 注册、治理目录册以及浏览器模式 mock 返回形态；浏览器模式下这组命令默认也要保持可 mock，不要让桌宠接入把默认页面渲染链路卡死。
 
-如果本轮涉及 team runtime 工具面或主线程用户消息工具，还要同步检查 Rust catalog / inventory、runtime 注册、浏览器 fallback mock 与前端 tool display；`Agent / TeamCreate / TeamDelete / SendMessage / ListPeers` 必须保持同一组 current surface，`SendUserMessage` 也必须继续停留在 current 主线程工具面，`SubAgentTask` 只能继续停留在 compat 读取边界。
+如果本轮涉及 team runtime 工具面或主线程用户消息工具，还要同步检查 Rust catalog / inventory、runtime 注册、浏览器 fallback mock 与前端 tool display；`Agent / TeamCreate / TeamDelete / SendMessage / ListPeers` 必须保持同一组 current surface，`SendUserMessage` 也必须继续停留在 current 主线程工具面，不要把已删除的 `SubAgentTask` compat 工具重新接回 Rust catalog、runtime 注册、mock 或前端 tool display。
 
 如果本轮涉及 MCP bridge runtime tool surface、inventory 或 ToolSearch，还要同步检查 Rust extension 注入、inventory 快照、浏览器 fallback mock 与 GUI 面板命名；当前唯一命名事实源是 `mcp__<server>__<tool>`，对应 extension surface key 为 `mcp__<server>`，不要让 mock 或 UI 退回裸 `server__tool`。同时，Lime runtime 里的 `ToolSearch` 当前事实源必须是 `ToolSearchBridgeTool`；`aster-rust` 自带 `ToolSearchTool` 只能停留在 compat 存量，不允许再抢占当前 runtime surface。
 如果本轮还需要对子工作区单独跑 Rust 定向测试，例如 `src-tauri/crates/aster-rust`，必须确认产物仍落在统一的 `src-tauri/target`，不要重新写回子目录自己的 `target/`；否则 `tauri dev` 会把构建产物当成源码变化，反复触发重编译。
@@ -182,6 +182,22 @@ npm run test:contracts
 npm run test:bridge
 npm run bridge:health -- --timeout-ms 120000
 ```
+
+如果本轮改动落在 harness cleanup / dashboard 推荐动作契约，还应补：
+
+```bash
+npm run harness:cleanup-report:check
+```
+
+这条校验已经进入 `npm run test:contracts` 默认门禁；如果你要点检某个指定产物，再显式执行：
+
+```bash
+node scripts/check-generated-slop-report.mjs --input "<cleanup-json>"
+```
+
+同时，`scripts/report-generated-slop.mjs`、`scripts/check-generated-slop-report.mjs`、`scripts/harness-eval-history-record.mjs`、`scripts/harness-eval-trend-report.mjs`、`scripts/lib/generated-slop-report-core.mjs`、`scripts/lib/harness-dashboard-core.mjs` 这条 harness cleanup/report 主链，在 `verify:local` 的 smart 模式里默认也按 bridge/contracts 风险处理。
+本地 `verify:local` 输出里如果看到 `bridge 校验（harness cleanup contract）`，说明命中的就是这条 cleanup/report 契约门禁，而不是普通 DevBridge 变更。
+CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge_reasons`，并写入 `GITHUB_STEP_SUMMARY`，用于区分这次是 `harness_cleanup_contract`、`bridge_runtime`，还是 `workflow_full_suite` / `fallback_full_suite` 这类全量触发。
 
 作用：
 

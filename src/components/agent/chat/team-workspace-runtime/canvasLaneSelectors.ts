@@ -1,6 +1,7 @@
 import type { AsterSubagentSkillInfo } from "@/lib/api/agentRuntime";
 import { formatRelativeTime } from "@/lib/api/project";
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
+import { normalizeTeamWorkspaceDisplayValue } from "../utils/teamWorkspaceDisplay";
 import { getTeamPresetOption } from "../utils/teamPresets";
 import {
   buildTeamWorkspaceSkillDisplayName,
@@ -186,19 +187,22 @@ function buildSessionLaneEmptyState(params: {
   const { session, previewState } = params;
 
   if (previewState?.status === "error") {
-    return previewState.errorMessage?.trim() || "同步最新内容失败";
+    return (
+      normalizeTeamWorkspaceDisplayValue(previewState.errorMessage) ||
+      "同步最新内容失败"
+    );
   }
 
   if (previewState?.status === "loading") {
-    return "正在同步这位协作成员的最新内容...";
+    return "正在同步这项任务的最新内容...";
   }
 
   if (session?.runtimeStatus === "queued") {
-    return "这位协作成员已经收到任务，马上开始处理。";
+    return "这项任务已经收到安排，马上开始处理。";
   }
 
   if (session?.runtimeStatus === "running") {
-    return "这位协作成员正在处理，最新进展会持续刷新到这里。";
+    return "这项任务正在处理，最新进展会持续刷新到这里。";
   }
 
   if (session?.runtimeStatus === "completed") {
@@ -212,7 +216,7 @@ function buildSessionLaneEmptyState(params: {
     return "这一步没有顺利完成，你可以在下方查看细节并决定是否继续。";
   }
 
-  return "这位协作成员暂时还没有产出可展示的内容。";
+  return "这项任务暂时还没有产出可展示的内容。";
 }
 
 function buildCanvasLaneTitleSummary(
@@ -221,9 +225,9 @@ function buildCanvasLaneTitleSummary(
   const memberMeta = resolveRuntimeMemberStatusMeta(member.status);
   const statusHint =
     member.status === "spawning"
-      ? "正在接入协作成员"
+      ? "正在接入这项任务"
       : member.status === "running"
-        ? "这位协作成员正在处理"
+        ? "这项任务正在处理"
         : member.status === "waiting"
           ? "等待继续补充说明"
           : member.status === "completed"
@@ -231,8 +235,8 @@ function buildCanvasLaneTitleSummary(
             : member.status === "failed"
                 ? "这一步需要重试"
                 : member.sessionId
-                  ? "已连接到真实成员"
-                : "等待成员接入";
+                  ? "已连接到真实任务"
+                : "等待任务接手";
 
   return {
     badgeLabel: memberMeta.label,
@@ -245,7 +249,7 @@ function buildCanvasLaneTitleSummary(
           : member.status === "waiting"
             ? "bg-amber-400"
             : "bg-sky-500",
-    summary: member.summary,
+    summary: normalizeTeamWorkspaceDisplayValue(member.summary) || member.summary,
     statusHint,
   };
 }
@@ -255,8 +259,8 @@ function buildPlannedRoleLaneSummary(role: TeamRoleDefinition) {
     badgeLabel: "待开始",
     badgeClassName: "border border-slate-200 bg-slate-50 text-slate-600",
     dotClassName: "bg-slate-300",
-    summary: role.summary,
-    statusHint: "等待系统邀请协作成员加入",
+    summary: normalizeTeamWorkspaceDisplayValue(role.summary) || role.summary,
+    statusHint: "等待系统把这项任务拆出来",
   };
 }
 
@@ -466,7 +470,7 @@ function buildSessionCanvasLane(params: {
     kind: "session",
     title: session.name,
     summary:
-      session.taskSummary ||
+      normalizeTeamWorkspaceDisplayValue(session.taskSummary) ||
       "暂时还没有任务摘要，打开详情后可查看完整上下文。",
     badgeLabel: meta.label,
     badgeClassName: meta.badgeClassName,
@@ -537,9 +541,10 @@ export function buildTeamWorkspaceCanvasLanes(params: {
           resolveTeamWorkspaceRoleHintLabel(member.roleKey) || undefined,
         profileLabel: undefined,
         statusHint: laneSummary.statusHint,
-        updatedAtLabel: "等待成员加入",
+        updatedAtLabel: "等待任务接手",
         skillLabels: [],
-        previewText: member.summary,
+        previewText:
+          normalizeTeamWorkspaceDisplayValue(member.summary) || member.summary,
         previewEntries: [],
       };
     });
@@ -563,7 +568,7 @@ export function buildTeamWorkspaceCanvasLanes(params: {
       statusHint: laneSummary.statusHint,
       updatedAtLabel: "计划分工",
       skillLabels: [],
-      previewText: role.summary,
+      previewText: normalizeTeamWorkspaceDisplayValue(role.summary) || role.summary,
       previewEntries: [],
     };
   });

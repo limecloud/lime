@@ -837,8 +837,14 @@ impl ApiKeyProviderService {
             }
             // Anthropic / AnthropicCompatible 统一走 /v1/messages
             provider_type if Self::uses_anthropic_protocol(provider_type) => {
-                self.test_anthropic_chat_once(&api_key, &provider.api_host, &test_model, &prompt)
-                    .await
+                self.test_anthropic_chat_once(
+                    &api_key,
+                    &provider.api_host,
+                    &test_model,
+                    &prompt,
+                    provider.provider_type.supports_anthropic_prompt_cache(),
+                )
+                .await
             }
             // 其余默认 OpenAI 兼容
             _ => {
@@ -992,11 +998,20 @@ impl ApiKeyProviderService {
         api_host: &str,
         model: &str,
         prompt: &str,
+        enable_automatic_prompt_cache: bool,
     ) -> Result<(String, String), String> {
-        use lime_providers::providers::claude_custom::ClaudeCustomProvider;
+        use lime_providers::providers::claude_custom::{ClaudeCustomProvider, PromptCacheMode};
 
-        let provider =
-            ClaudeCustomProvider::with_config(api_key.to_string(), Some(api_host.to_string()));
+        let prompt_cache_mode = if enable_automatic_prompt_cache {
+            PromptCacheMode::Automatic
+        } else {
+            PromptCacheMode::ExplicitOnly
+        };
+        let provider = ClaudeCustomProvider::with_prompt_cache_mode(
+            api_key.to_string(),
+            Some(api_host.to_string()),
+            prompt_cache_mode,
+        );
 
         let request = serde_json::json!({
             "model": model,
@@ -2155,7 +2170,11 @@ impl ApiKeyProviderService {
                     // 对于其他客户端，需要检查凭证是否是 Claude Code 专用
                     // 通过发送测试请求来检查
                     if let Err(e) = self
-                        .test_claude_key_compatibility(&api_key, &provider.api_host)
+                        .test_claude_key_compatibility(
+                            &api_key,
+                            &provider.api_host,
+                            provider.provider_type.supports_anthropic_prompt_cache(),
+                        )
                         .await
                     {
                         if e.contains("CLAUDE_CODE_ONLY") {
@@ -2395,7 +2414,12 @@ impl ApiKeyProviderService {
                 .unwrap_or_else(|| "claude-3-haiku-20240307".to_string());
 
                 match self
-                    .test_anthropic_connection(&api_key, &provider.api_host, &test_model)
+                    .test_anthropic_connection(
+                        &api_key,
+                        &provider.api_host,
+                        &test_model,
+                        provider.provider_type.supports_anthropic_prompt_cache(),
+                    )
                     .await
                 {
                     Ok(models) => Ok(models),
@@ -2557,11 +2581,20 @@ impl ApiKeyProviderService {
         &self,
         api_key: &str,
         api_host: &str,
+        enable_automatic_prompt_cache: bool,
     ) -> Result<(), String> {
-        use lime_providers::providers::claude_custom::ClaudeCustomProvider;
+        use lime_providers::providers::claude_custom::{ClaudeCustomProvider, PromptCacheMode};
 
-        let provider =
-            ClaudeCustomProvider::with_config(api_key.to_string(), Some(api_host.to_string()));
+        let prompt_cache_mode = if enable_automatic_prompt_cache {
+            PromptCacheMode::Automatic
+        } else {
+            PromptCacheMode::ExplicitOnly
+        };
+        let provider = ClaudeCustomProvider::with_prompt_cache_mode(
+            api_key.to_string(),
+            Some(api_host.to_string()),
+            prompt_cache_mode,
+        );
 
         // 发送一个最小的测试请求
         let request = serde_json::json!({
@@ -2596,11 +2629,20 @@ impl ApiKeyProviderService {
         api_key: &str,
         api_host: &str,
         model: &str,
+        enable_automatic_prompt_cache: bool,
     ) -> Result<Vec<String>, String> {
-        use lime_providers::providers::claude_custom::ClaudeCustomProvider;
+        use lime_providers::providers::claude_custom::{ClaudeCustomProvider, PromptCacheMode};
 
-        let provider =
-            ClaudeCustomProvider::with_config(api_key.to_string(), Some(api_host.to_string()));
+        let prompt_cache_mode = if enable_automatic_prompt_cache {
+            PromptCacheMode::Automatic
+        } else {
+            PromptCacheMode::ExplicitOnly
+        };
+        let provider = ClaudeCustomProvider::with_prompt_cache_mode(
+            api_key.to_string(),
+            Some(api_host.to_string()),
+            prompt_cache_mode,
+        );
 
         // 发送一个简单的测试请求
         let request = serde_json::json!({

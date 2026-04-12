@@ -51,7 +51,7 @@ export function SelectedSessionInlineHeader({
             <span>当前查看</span>
             {selectedSession.isCurrent ? (
               <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
-                当前对话
+                当前任务
               </span>
             ) : null}
           </div>
@@ -103,7 +103,7 @@ export function SelectedSessionInlineHeader({
               variant="outline"
               onClick={() => void onOpenSelectedSession?.()}
             >
-              {isChildSession ? "切换会话" : "打开对话"}
+              {isChildSession ? "切换任务" : "打开任务"}
             </Button>
           ) : null}
         </div>

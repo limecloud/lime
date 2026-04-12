@@ -538,6 +538,7 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             total_tokens INTEGER,
             input_tokens INTEGER,
             output_tokens INTEGER,
+            cached_input_tokens INTEGER,
             accumulated_total_tokens INTEGER,
             accumulated_input_tokens INTEGER,
             accumulated_output_tokens INTEGER,
@@ -586,6 +587,10 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     );
     let _ = conn.execute(
+        "ALTER TABLE agent_sessions ADD COLUMN cached_input_tokens INTEGER",
+        [],
+    );
+    let _ = conn.execute(
         "ALTER TABLE agent_sessions ADD COLUMN accumulated_total_tokens INTEGER",
         [],
     );
@@ -626,6 +631,7 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             reasoning_content TEXT,
             input_tokens INTEGER,
             output_tokens INTEGER,
+            cached_input_tokens INTEGER,
             FOREIGN KEY (session_id) REFERENCES agent_sessions(id) ON DELETE CASCADE
         )",
         [],
@@ -641,6 +647,10 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     );
     let _ = conn.execute(
         "ALTER TABLE agent_messages ADD COLUMN output_tokens INTEGER",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE agent_messages ADD COLUMN cached_input_tokens INTEGER",
         [],
     );
 

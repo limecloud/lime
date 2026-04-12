@@ -129,9 +129,9 @@ const TOOL_STATUS_ACTIONS = {
     running: "创建任务中",
   },
   subagent: {
-    failed: "协作失败",
-    completed: "协作完成",
-    running: "协作中",
+    failed: "子任务失败",
+    completed: "子任务完成",
+    running: "子任务处理中",
   },
   vision: {
     failed: "分析失败",
@@ -806,10 +806,10 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "agent",
     {
       family: "subagent",
-      label: "邀请协作成员",
-      verb: "邀请",
+      label: "创建子任务",
+      verb: "创建",
       icon: Globe,
-      groupTitle: "协作",
+      groupTitle: "子任务",
       actionKey: "subagent",
     },
   ],
@@ -820,7 +820,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
       label: "补充说明",
       verb: "发送",
       icon: Globe,
-      groupTitle: "协作",
+      groupTitle: "子任务",
       actionKey: "subagent",
     },
   ],
@@ -860,10 +860,10 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "listpeers",
     {
       family: "list",
-      label: "协作成员",
+      label: "子任务",
       verb: "查看",
       icon: Globe,
-      groupTitle: "协作",
+      groupTitle: "子任务",
       actionKey: "list",
     },
   ],
@@ -874,7 +874,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
       label: "查看任务进展",
       verb: "查看",
       icon: Globe,
-      groupTitle: "协作",
+      groupTitle: "子任务",
       actionKey: "subagent",
     },
   ],
@@ -885,7 +885,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
       label: "继续处理",
       verb: "继续",
       icon: Globe,
-      groupTitle: "协作",
+      groupTitle: "子任务",
       actionKey: "subagent",
     },
   ],
@@ -896,7 +896,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
       label: "暂停处理",
       verb: "暂停",
       icon: Globe,
-      groupTitle: "协作",
+      groupTitle: "子任务",
       actionKey: "subagent",
     },
   ],
@@ -1590,7 +1590,7 @@ export const resolveToolPrimarySubject = (
   if (normalizedName === "sendmessage") {
     return (
       resolveToolArgumentPreview(args, ["message", "id", "agent_id"]) ||
-      "目标协作成员"
+      "目标子任务"
     );
   }
 
@@ -2033,10 +2033,10 @@ export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
 
   if (info.family === "subagent") {
     return failed
-      ? `协作失败 ${toolCalls.length} 项`
+      ? `子任务失败 ${toolCalls.length} 项`
       : running
-        ? `协作进行中 ${toolCalls.length} 项`
-        : `已完成 ${toolCalls.length} 项协作操作`;
+        ? `子任务处理中 ${toolCalls.length} 项`
+        : `已完成 ${toolCalls.length} 项子任务操作`;
   }
 
   if (info.family === "task") {

@@ -561,7 +561,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
             </div>
             <div className="mt-2 text-sm leading-6 text-slate-600">
               {inspectorTeam.description ||
-                "这套分工会作为主代理拆分子任务时的协作参考。"}
+                "这套分工会作为主代理拆分子任务时的分工参考。"}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -963,7 +963,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
                             {selectedProfile && suggestedSkillIds.length > 0 ? (
                               <>推荐技能：{suggestedSkillIds.join("、")}</>
                             ) : (
-                              "skillIds 会透传给运行时，用于约束子代理的技能集。"
+                              "skillIds 会透传给运行时，用于约束子任务可用的技能集。"
                             )}
                           </div>
                         </div>
@@ -1011,7 +1011,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
               任务分工配置
             </div>
             <div className="mt-1 text-sm text-slate-700">
-              只在当前任务适合拆分推进时，为主代理提供分工结构参考。
+              只在当前任务适合拆分推进时，为当前任务提供任务分工结构参考。
             </div>
             <div className="mt-2 text-xs text-slate-500">
               {isProjectScopedCustomTeam

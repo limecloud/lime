@@ -15,7 +15,7 @@
   ],
   "artifactChecks": [
     "确认 `.lime/harness/sessions/fixture-session-minimal-pending-request/handoff/handoff.md` 仍与目标一致。",
-    "确认 evidence pack 中记录的 known gaps 没有被当作 PASS 证据。"
+    "确认 evidence pack 中导出的 verification 证据与 pending request 风险被正确解读。"
   ],
   "nonGoals": [
     "不要要求与原始会话完全相同的工具调用顺序。",

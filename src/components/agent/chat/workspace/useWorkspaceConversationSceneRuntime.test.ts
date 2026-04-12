@@ -1,13 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import React from "react";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useWorkspaceConversationSceneRuntime } from "./useWorkspaceConversationSceneRuntime";
 
-const { mockPresentation } = vi.hoisted(() => ({
-  mockPresentation: vi.fn((params) => params),
-}));
+type HookProps = Parameters<typeof useWorkspaceConversationSceneRuntime>[0];
 
-vi.mock("./useWorkspaceConversationScenePresentation", () => ({
-  useWorkspaceConversationScenePresentation: mockPresentation,
-}));
+const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
 function createBaseParams(overrides: Record<string, unknown> = {}) {
   const noop = vi.fn();
@@ -19,28 +18,39 @@ function createBaseParams(overrides: Record<string, unknown> = {}) {
       handleWorkspaceAlertSelectDirectory: noop,
       handleDismissWorkspaceAlert: noop,
       handleManageProviders: noop,
+      handleProjectChange: noop,
+      handleOpenAppearanceSettings: noop,
+      handleBackToResources: noop,
+      handleCompactContext: noop,
     },
     inputbarScene: {
       inputbarNode: null,
+      generalWorkbenchDialog: undefined,
       teamWorkbenchSurfaceProps: {},
-      activeCanvasTaskFile: null,
     },
     canvasScene: {
+      hasLiveCanvasPreviewContent: false,
+      liveCanvasPreview: null,
+      shouldShowCanvasLoadingState: false,
+      teamWorkbenchView: null,
       canvasWorkbenchDefaultPreview: null,
       handleOpenCanvasWorkbenchPath: noop,
       handleRevealCanvasWorkbenchPath: noop,
       renderCanvasWorkbenchPreview: noop,
     },
-    conversationSendRuntime: {
-      handleSendFromEmptyState: noop,
-    },
+    handleSendFromEmptyState: noop,
     shellChromeRuntime: {
       showChatLayout: true,
       isWorkspaceCompactChrome: false,
       workflowLayoutBottomSpacing: {
         messageViewportBottomPadding: "0px",
+        shellBottomInset: "0px",
       },
       shouldHideGeneralWorkbenchInputForTheme: false,
+      shouldRenderTopBar: true,
+      layoutTransitionChatPanelWidth: undefined,
+      layoutTransitionChatPanelMinWidth: undefined,
+      shouldShowGeneralWorkbenchFloatingInputOverlay: false,
       shouldRenderInlineA2UI: false,
     },
     generalWorkbenchHarnessDialog: undefined,
@@ -144,7 +154,7 @@ function createBaseParams(overrides: Record<string, unknown> = {}) {
     shouldCollapseCodeBlocks: false,
     shouldCollapseCodeBlockInChat: noop,
     handleCodeBlockClick: noop,
-    showTeamWorkspaceBoard: false,
+    teamWorkspaceEnabled: false,
     layoutMode: "chat-canvas",
     handleActivateTeamWorkbench: noop,
     isThemeWorkbench: false,
@@ -162,19 +172,72 @@ function createBaseParams(overrides: Record<string, unknown> = {}) {
   } as any;
 }
 
-describe("useWorkspaceConversationSceneRuntime", () => {
-  beforeEach(() => {
-    mockPresentation.mockClear();
-  });
+function renderHook(initialProps: HookProps) {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  let latestValue: ReturnType<typeof useWorkspaceConversationSceneRuntime> | null =
+    null;
 
+  function Probe(currentProps: HookProps) {
+    latestValue = useWorkspaceConversationSceneRuntime(currentProps);
+    return null;
+  }
+
+  const render = (nextProps: HookProps) => {
+    act(() => {
+      root.render(React.createElement(Probe, nextProps));
+    });
+  };
+
+  render(initialProps);
+  mountedRoots.push({ root, container });
+
+  return {
+    getValue: () => {
+      if (!latestValue) {
+        throw new Error("hook 尚未初始化");
+      }
+      return latestValue;
+    },
+    render,
+  };
+}
+
+function getRenderedSceneProps(params: ReturnType<typeof createBaseParams>) {
+  const { getValue } = renderHook(params);
+  return (getValue().mainAreaNode as any).props;
+}
+
+beforeEach(() => {
+  (
+    globalThis as typeof globalThis & {
+      IS_REACT_ACT_ENVIRONMENT?: boolean;
+    }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+afterEach(() => {
+  while (mountedRoots.length > 0) {
+    const mounted = mountedRoots.pop();
+    if (!mounted) {
+      break;
+    }
+    act(() => {
+      mounted.root.unmount();
+    });
+    mounted.container.remove();
+  }
+  vi.restoreAllMocks();
+});
+
+describe("useWorkspaceConversationSceneRuntime", () => {
   it("通用 Claw 双栏场景应继续同步 stacked/split 布局状态", () => {
     const params = createBaseParams();
     const setCanvasWorkbenchLayoutMode = params.setCanvasWorkbenchLayoutMode;
 
-    useWorkspaceConversationSceneRuntime(params);
-
-    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
-    expect(presentationParams?.canvasWorkbenchLayout?.onLayoutModeChange).toBe(
+    const sceneProps = getRenderedSceneProps(params);
+    expect(sceneProps.canvasWorkbenchLayoutProps.onLayoutModeChange).toBe(
       setCanvasWorkbenchLayoutMode,
     );
   });
@@ -187,12 +250,8 @@ describe("useWorkspaceConversationSceneRuntime", () => {
       layoutMode: "canvas",
     });
 
-    useWorkspaceConversationSceneRuntime(params);
-
-    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
-    expect(
-      presentationParams?.canvasWorkbenchLayout?.onLayoutModeChange,
-    ).toBeUndefined();
+    const sceneProps = getRenderedSceneProps(params);
+    expect(sceneProps.canvasWorkbenchLayoutProps.onLayoutModeChange).toBeUndefined();
   });
 
   it("任务中心场景应继续向页面层透传顶栏上下文变体", () => {
@@ -200,10 +259,8 @@ describe("useWorkspaceConversationSceneRuntime", () => {
       navbarContextVariant: "task-center",
     });
 
-    useWorkspaceConversationSceneRuntime(params);
-
-    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
-    expect(presentationParams?.scene.navbarContextVariant).toBe("task-center");
+    const sceneProps = getRenderedSceneProps(params);
+    expect(sceneProps.navbarContextVariant).toBe("task-center");
   });
 
   it("存在处理工作台入口时应透传顶栏按钮文案", () => {
@@ -212,10 +269,8 @@ describe("useWorkspaceConversationSceneRuntime", () => {
       harnessToggleLabel: "工作台",
     });
 
-    useWorkspaceConversationSceneRuntime(params);
-
-    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
-    expect(presentationParams?.scene.harnessToggleLabel).toBe("工作台");
+    const sceneProps = getRenderedSceneProps(params);
+    expect(sceneProps.harnessToggleLabel).toBe("工作台");
   });
 
   it("首页空态应继续透传 service skills 与选择回调", () => {
@@ -231,13 +286,9 @@ describe("useWorkspaceConversationSceneRuntime", () => {
       onSelectServiceSkill,
     });
 
-    useWorkspaceConversationSceneRuntime(params);
-
-    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
-    expect(presentationParams?.scene.serviceSkills).toBe(serviceSkills);
-    expect(presentationParams?.scene.onSelectServiceSkill).toBe(
-      onSelectServiceSkill,
-    );
+    const sceneProps = getRenderedSceneProps(params);
+    expect(sceneProps.serviceSkills).toBe(serviceSkills);
+    expect(sceneProps.onSelectServiceSkill).toBe(onSelectServiceSkill);
   });
 
   it("应向画布壳透传解耦后的 sessionView 过程面板", () => {
@@ -291,10 +342,8 @@ describe("useWorkspaceConversationSceneRuntime", () => {
       focusedTimelineItemId: "item-1",
     });
 
-    useWorkspaceConversationSceneRuntime(params);
-
-    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
-    const sessionView = presentationParams?.canvasWorkbenchLayout?.sessionView;
+    const sceneProps = getRenderedSceneProps(params);
+    const sessionView = sceneProps.canvasWorkbenchLayoutProps.sessionView;
 
     expect(sessionView?.title).toBe("Session · Main");
     expect(sessionView?.tabLabel).toBe("Session · Main");
@@ -349,11 +398,8 @@ describe("useWorkspaceConversationSceneRuntime", () => {
       ],
     });
 
-    useWorkspaceConversationSceneRuntime(params);
-
-    const presentationParams = mockPresentation.mock.calls.at(-1)?.[0];
-    const workspaceView =
-      presentationParams?.canvasWorkbenchLayout?.workspaceView;
+    const sceneProps = getRenderedSceneProps(params);
+    const workspaceView = sceneProps.canvasWorkbenchLayoutProps.workspaceView;
 
     expect(workspaceView?.title).toBe("项目工作区文件");
     expect(workspaceView?.tabLabel).toBe("文件");

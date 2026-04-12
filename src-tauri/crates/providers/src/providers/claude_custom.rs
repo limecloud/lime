@@ -3,14 +3,25 @@ use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::openai::{ChatCompletionRequest, ContentPart, MessageContent};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::error::Error;
 use std::time::Duration;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PromptCacheMode {
+    #[default]
+    Automatic,
+    ExplicitOnly,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClaudeCustomConfig {
     pub api_key: Option<String>,
     pub base_url: Option<String>,
     pub enabled: bool,
+    #[serde(default)]
+    pub prompt_cache_mode: PromptCacheMode,
 }
 
 pub struct ClaudeCustomProvider {
@@ -46,17 +57,34 @@ impl Default for ClaudeCustomProvider {
 }
 
 impl ClaudeCustomProvider {
+    const CACHE_CONTROL_FIELD: &'static str = "cache_control";
+    const CONTENT_FIELD: &'static str = "content";
+    const ROLE_FIELD: &'static str = "role";
+    const SYSTEM_FIELD: &'static str = "system";
+    const TOOLS_FIELD: &'static str = "tools";
+    const TYPE_FIELD: &'static str = "type";
+    const USER_ROLE: &'static str = "user";
+
     pub fn new() -> Self {
         Self::default()
     }
 
     /// 使用 API key 和 base_url 创建 Provider
     pub fn with_config(api_key: String, base_url: Option<String>) -> Self {
+        Self::with_prompt_cache_mode(api_key, base_url, PromptCacheMode::Automatic)
+    }
+
+    pub fn with_prompt_cache_mode(
+        api_key: String,
+        base_url: Option<String>,
+        prompt_cache_mode: PromptCacheMode,
+    ) -> Self {
         Self {
             config: ClaudeCustomConfig {
                 api_key: Some(api_key),
                 base_url,
                 enabled: true,
+                prompt_cache_mode,
             },
             client: create_http_client(),
         }
@@ -213,6 +241,136 @@ impl ClaudeCustomProvider {
         }
     }
 
+    fn value_contains_cache_control(value: &Value) -> bool {
+        match value {
+            Value::Object(map) => {
+                map.contains_key(Self::CACHE_CONTROL_FIELD)
+                    || map.values().any(Self::value_contains_cache_control)
+            }
+            Value::Array(items) => items.iter().any(Self::value_contains_cache_control),
+            _ => false,
+        }
+    }
+
+    fn add_ephemeral_cache_control(block: &mut Value) {
+        if let Some(obj) = block.as_object_mut() {
+            obj.entry(Self::CACHE_CONTROL_FIELD.to_string())
+                .or_insert_with(|| json!({ Self::TYPE_FIELD: "ephemeral" }));
+        }
+    }
+
+    fn add_cache_control_to_content(content: &mut Value) {
+        match content {
+            Value::String(text) if !text.is_empty() => {
+                *content = json!([{
+                    Self::TYPE_FIELD: "text",
+                    "text": text.clone(),
+                    Self::CACHE_CONTROL_FIELD: { Self::TYPE_FIELD: "ephemeral" }
+                }]);
+            }
+            Value::Array(items) => {
+                if let Some(last) = items.last_mut() {
+                    Self::add_ephemeral_cache_control(last);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn apply_prompt_cache_control(payload: &mut Value) {
+        if Self::value_contains_cache_control(payload) {
+            return;
+        }
+
+        if let Some(messages) = payload
+            .as_object_mut()
+            .and_then(|obj| obj.get_mut("messages"))
+            .and_then(Value::as_array_mut)
+        {
+            let mut user_count = 0;
+            for message in messages.iter_mut().rev() {
+                if message.get(Self::ROLE_FIELD) == Some(&json!(Self::USER_ROLE)) {
+                    if let Some(content) = message.get_mut(Self::CONTENT_FIELD) {
+                        Self::add_cache_control_to_content(content);
+                    }
+                    user_count += 1;
+                    if user_count >= 2 {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if let Some(system) = payload
+            .as_object_mut()
+            .and_then(|obj| obj.get_mut(Self::SYSTEM_FIELD))
+        {
+            Self::add_cache_control_to_content(system);
+        }
+
+        if let Some(tools) = payload
+            .as_object_mut()
+            .and_then(|obj| obj.get_mut(Self::TOOLS_FIELD))
+            .and_then(Value::as_array_mut)
+        {
+            if let Some(last_tool) = tools.last_mut() {
+                Self::add_ephemeral_cache_control(last_tool);
+            }
+        }
+    }
+
+    fn apply_prompt_cache_control_for_mode(
+        prompt_cache_mode: PromptCacheMode,
+        payload: &mut Value,
+    ) {
+        if prompt_cache_mode == PromptCacheMode::ExplicitOnly {
+            if Self::value_contains_cache_control(payload) {
+                tracing::debug!("[CLAUDE_API] 检测到显式 cache_control，保留上游标记");
+            } else {
+                tracing::debug!(
+                    "[CLAUDE_API] 当前 provider 未声明支持自动 prompt cache，跳过自动注入"
+                );
+            }
+            return;
+        }
+
+        Self::apply_prompt_cache_control(payload);
+    }
+
+    fn maybe_apply_prompt_cache_control(&self, payload: &mut Value) {
+        Self::apply_prompt_cache_control_for_mode(self.config.prompt_cache_mode, payload);
+    }
+
+    fn anthropic_prompt_tokens(response: &Value) -> u64 {
+        let usage = response
+            .get("usage")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+
+        usage
+            .get("input_tokens")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            + usage
+                .get("cache_creation_input_tokens")
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
+            + usage
+                .get("cache_read_input_tokens")
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
+    }
+
+    fn anthropic_completion_tokens(response: &Value) -> u64 {
+        response
+            .get("usage")
+            .and_then(Value::as_object)
+            .and_then(|usage| usage.get("output_tokens"))
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+    }
+
     /// 调用 Anthropic API（原生格式）
     pub async fn call_api(
         &self,
@@ -234,13 +392,16 @@ impl ClaudeCustomProvider {
             request.stream
         );
 
+        let mut payload = serde_json::to_value(request)?;
+        self.maybe_apply_prompt_cache_control(&mut payload);
+
         let resp = self
             .client
             .post(&url)
             .header("x-api-key", api_key)
             .header("anthropic-version", "2023-06-01")
             .header("Content-Type", "application/json")
-            .json(request)
+            .json(&payload)
             .send()
             .await?;
 
@@ -339,6 +500,7 @@ impl ClaudeCustomProvider {
         if let Some(tc) = Self::convert_openai_tool_choice_to_anthropic(&request.tool_choice) {
             anthropic_body["tool_choice"] = tc;
         }
+        self.maybe_apply_prompt_cache_control(&mut anthropic_body);
 
         let api_key = self
             .config
@@ -398,8 +560,10 @@ impl ClaudeCustomProvider {
             .and_then(|arr| arr.first())
             .and_then(|block| block["text"].as_str())
             .unwrap_or("");
+        let prompt_tokens = Self::anthropic_prompt_tokens(&anthropic_resp);
+        let completion_tokens = Self::anthropic_completion_tokens(&anthropic_resp);
 
-        Ok(serde_json::json!({
+        Ok(json!({
             "id": format!("chatcmpl-{}", uuid::Uuid::new_v4()),
             "object": "chat.completion",
             "created": std::time::SystemTime::now()
@@ -416,9 +580,9 @@ impl ClaudeCustomProvider {
                 "finish_reason": "stop"
             }],
             "usage": {
-                "prompt_tokens": anthropic_resp["usage"]["input_tokens"].as_u64().unwrap_or(0),
-                "completion_tokens": anthropic_resp["usage"]["output_tokens"].as_u64().unwrap_or(0),
-                "total_tokens": 0
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens
             }
         }))
     }
@@ -451,13 +615,16 @@ impl ClaudeCustomProvider {
             stream
         );
 
+        let mut payload = request.clone();
+        self.maybe_apply_prompt_cache_control(&mut payload);
+
         let resp = self
             .client
             .post(&url)
             .header("x-api-key", api_key)
             .header("anthropic-version", "2023-06-01")
             .header("Content-Type", "application/json")
-            .json(request)
+            .json(&payload)
             .send()
             .await?;
 
@@ -673,6 +840,7 @@ impl StreamingProvider for ClaudeCustomProvider {
                 anthropic_body["tool_choice"]
             );
         }
+        self.maybe_apply_prompt_cache_control(&mut anthropic_body);
 
         let url = self.build_url("messages");
 
@@ -890,5 +1058,136 @@ mod tests {
 
         assert_eq!(description.matches("[InputExamples]").count(), 1);
         assert_eq!(description.matches("[AllowedCallers]").count(), 1);
+    }
+
+    #[test]
+    fn test_apply_prompt_cache_control_marks_system_last_two_users_and_last_tool() {
+        let mut payload = json!({
+            "model": "claude-sonnet-4",
+            "system": "You are a helpful assistant.",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "第一轮"}]
+                },
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "收到"}]
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "第二轮"}]
+                },
+                {
+                    "role": "user",
+                    "content": "第三轮"
+                }
+            ],
+            "tools": [
+                {"name": "tool_a", "input_schema": {"type": "object"}},
+                {"name": "tool_b", "input_schema": {"type": "object"}}
+            ]
+        });
+
+        ClaudeCustomProvider::apply_prompt_cache_control(&mut payload);
+
+        let system = payload["system"]
+            .as_array()
+            .expect("system should be array");
+        assert_eq!(system[0]["cache_control"]["type"], "ephemeral");
+
+        let messages = payload["messages"]
+            .as_array()
+            .expect("messages should be array");
+        assert!(messages[0]["content"][0].get("cache_control").is_none());
+        assert_eq!(
+            messages[2]["content"][0]["cache_control"]["type"],
+            "ephemeral"
+        );
+        assert_eq!(
+            messages[3]["content"][0]["cache_control"]["type"],
+            "ephemeral"
+        );
+
+        let tools = payload["tools"].as_array().expect("tools should be array");
+        assert!(tools[0].get("cache_control").is_none());
+        assert_eq!(tools[1]["cache_control"]["type"], "ephemeral");
+    }
+
+    #[test]
+    fn test_apply_prompt_cache_control_respects_existing_markers() {
+        let mut payload = json!({
+            "model": "claude-sonnet-4",
+            "system": [{
+                "type": "text",
+                "text": "preset",
+                "cache_control": {"type": "ephemeral"}
+            }],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "hello"}]
+                }
+            ],
+            "tools": [
+                {"name": "tool_a", "input_schema": {"type": "object"}}
+            ]
+        });
+
+        ClaudeCustomProvider::apply_prompt_cache_control(&mut payload);
+
+        assert!(payload["messages"][0]["content"][0]
+            .get("cache_control")
+            .is_none());
+        assert!(payload["tools"][0].get("cache_control").is_none());
+    }
+
+    #[test]
+    fn test_apply_prompt_cache_control_for_explicit_only_skips_auto_injection() {
+        let mut payload = json!({
+            "model": "glm-5.1",
+            "system": "You are a helpful assistant.",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "hello"}]
+                }
+            ],
+            "tools": [
+                {"name": "tool_a", "input_schema": {"type": "object"}}
+            ]
+        });
+
+        ClaudeCustomProvider::apply_prompt_cache_control_for_mode(
+            PromptCacheMode::ExplicitOnly,
+            &mut payload,
+        );
+
+        assert!(payload["system"].is_string());
+        assert!(payload["messages"][0]["content"][0]
+            .get("cache_control")
+            .is_none());
+        assert!(payload["tools"][0].get("cache_control").is_none());
+    }
+
+    #[test]
+    fn test_anthropic_prompt_tokens_include_cache_usage() {
+        let response = json!({
+            "usage": {
+                "input_tokens": 15,
+                "cache_creation_input_tokens": 120,
+                "cache_read_input_tokens": 80,
+                "output_tokens": 10
+            }
+        });
+
+        assert_eq!(
+            ClaudeCustomProvider::anthropic_prompt_tokens(&response),
+            215
+        );
+        assert_eq!(
+            ClaudeCustomProvider::anthropic_completion_tokens(&response),
+            10
+        );
     }
 }

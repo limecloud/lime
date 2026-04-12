@@ -7,7 +7,6 @@ import type {
 } from "@/lib/api/agentRuntime";
 
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
-import type { CompatSubagentRuntimeStatus } from "../utils/compatSubagentRuntime";
 import type { HarnessSessionState } from "../utils/harnessState";
 import { getOutputSchemaRuntimeLabel } from "../utils/sessionExecutionRuntime";
 
@@ -16,7 +15,6 @@ interface AgentRuntimeStripProps {
   toolPreferences: ChatToolPreferences;
   harnessState: HarnessSessionState;
   childSubagentSessions?: AsterSubagentSessionInfo[];
-  compatSubagentRuntime: CompatSubagentRuntimeStatus;
   variant?: "standalone" | "embedded";
   isSending?: boolean;
   executionRuntime?: AsterSessionExecutionRuntime | null;
@@ -47,7 +45,6 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
   activeTheme,
   toolPreferences,
   harnessState,
-  compatSubagentRuntime,
   childSubagentSessions = [],
   variant = "standalone",
   isSending = false,
@@ -72,7 +69,11 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
         label: "联网搜索",
         enabled: toolPreferences.webSearch,
       },
-      { key: "subagent", label: "多代理", enabled: toolPreferences.subagent },
+      {
+        key: "subagent",
+        label: "任务拆分",
+        enabled: toolPreferences.subagent,
+      },
     ],
     [toolPreferences],
   );
@@ -150,26 +151,14 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
         key: "team_sessions",
         label:
           completedTeamSessions > 0
-            ? `协作会话 ${childSubagentSessions.length} · 已完成 ${completedTeamSessions}`
-            : `协作会话 ${childSubagentSessions.length}`,
+            ? `子任务 ${childSubagentSessions.length} · 已完成 ${completedTeamSessions}`
+            : `子任务 ${childSubagentSessions.length}`,
         tone: "outline",
-      });
-    } else if (compatSubagentRuntime.isRunning) {
-      const progressLabel =
-        compatSubagentRuntime.progress &&
-        typeof compatSubagentRuntime.progress.completed === "number" &&
-        typeof compatSubagentRuntime.progress.total === "number"
-          ? `协作成员处理中 ${compatSubagentRuntime.progress.completed}/${compatSubagentRuntime.progress.total}`
-          : "协作成员处理中";
-      nextItems.push({
-        key: "subagent_running",
-        label: progressLabel,
-        tone: "secondary",
       });
     } else if (harnessState.delegatedTasks.length > 0) {
       nextItems.push({
         key: "delegated",
-        label: `最近协作 ${harnessState.delegatedTasks.length}`,
+        label: `最近子任务 ${harnessState.delegatedTasks.length}`,
         tone: "outline",
       });
     }
@@ -193,8 +182,6 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
     return nextItems;
   }, [
     childSubagentSessions,
-    compatSubagentRuntime.isRunning,
-    compatSubagentRuntime.progress,
     executionRuntime,
     harnessState,
     isExecutionRuntimeActive,
@@ -216,8 +203,8 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
         {toolPreferences.subagent ? (
           <Badge variant={hasSelectedTeam ? "secondary" : "outline"}>
             {hasSelectedTeam
-              ? `协作 · ${selectedTeamLabel || `${selectedTeamRoleCount} 角色`}`
-              : "协作模式"}
+              ? `分工 · ${selectedTeamLabel || `${selectedTeamRoleCount} 角色`}`
+              : "分工模式"}
           </Badge>
         ) : null}
       </div>
@@ -238,14 +225,14 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
       </div>
       {toolPreferences.subagent ? (
         <div className="mb-3 rounded-xl border border-border/70 bg-background/80 px-3 py-2 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">当前协作设置</span>
+          <span className="font-medium text-foreground">当前任务分工</span>
           <span>
             {" "}
             ·{" "}
             {selectedTeamSummary?.trim() ||
               (hasSelectedTeam
-                ? `已配置 ${selectedTeamRoleCount} 个角色，系统会按需邀请协作成员。`
-                : "已开启协作模式，本次可选择或自定义协作方案。")}
+                ? `已配置 ${selectedTeamRoleCount} 个角色，系统会按需拆出子任务。`
+                : "已开启分工模式，本次可选择或自定义任务方案。")}
           </span>
         </div>
       ) : null}

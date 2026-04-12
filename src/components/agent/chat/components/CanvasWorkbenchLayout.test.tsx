@@ -1360,12 +1360,12 @@ describe("CanvasWorkbenchLayout", () => {
       renderPreview,
       teamView: {
         enabled: true,
-        title: "Team Workbench",
-        subtitle: "多成员实时协作",
+        title: "任务工作台",
+        subtitle: "任务进行时",
         badges: [
           {
             key: "team-runtime",
-            label: "Team Workbench",
+            label: "任务工作台",
             tone: "accent",
           },
           {
@@ -1377,9 +1377,9 @@ describe("CanvasWorkbenchLayout", () => {
         summaryStats: [
           {
             key: "team-status",
-            label: "协作状态",
+            label: "任务状态",
             value: "处理中",
-            detail: "2 位处理中，1 位排队中。",
+            detail: "2 项处理中，1 项排队中。",
             tone: "accent",
           },
         ],
@@ -1401,7 +1401,7 @@ describe("CanvasWorkbenchLayout", () => {
     ).not.toBeNull();
     expect(
       container.querySelector(
-        'button[aria-label="切换画布标签-Team Workbench"]',
+        'button[aria-label="切换画布标签-任务工作台"]',
       ),
     ).not.toBeNull();
     expect(renderPreview).toHaveBeenCalled();
@@ -1441,8 +1441,8 @@ describe("CanvasWorkbenchLayout", () => {
       renderPreview,
       teamView: {
         enabled: true,
-        title: "Team Workbench",
-        subtitle: "多成员实时协作",
+        title: "任务工作台",
+        subtitle: "任务进行时",
         autoFocusToken: 1,
         renderPreview: () => <div>unused-team-preview</div>,
         renderPanel: () => <div data-testid="team-panel">team-panel</div>,

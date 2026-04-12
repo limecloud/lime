@@ -14,10 +14,8 @@ interface PrepareRuntimeTeamBeforeSendParams {
 
 interface UseRuntimeTeamFormationOptions {
   projectId?: string | null;
-  sessionId?: string | null;
   selectedTeam?: TeamDefinition | null;
   subagentEnabled: boolean;
-  hasRealTeamGraph: boolean;
   createRequestId?: () => string;
   now?: () => number;
 }

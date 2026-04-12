@@ -45,7 +45,7 @@ const mockInputbarCore = vi.fn(
             data-testid="toggle-subagent-mode"
             onClick={() => props.onToolClick?.("subagent_mode")}
           >
-            切换多代理
+            切换任务拆分
           </button>
           <span data-testid="subagent-state">
             {props.activeTools?.subagent_mode ? "on" : "off"}
@@ -137,6 +137,12 @@ vi.mock("./components/TeamSelector", () => ({
 
 vi.mock("../ChatModelSelector", () => ({
   ChatModelSelector: () => <div data-testid="model-selector" />,
+}));
+
+vi.mock("./components/InputbarPromptCacheNotice", () => ({
+  InputbarPromptCacheNotice: (props: { providerType: string }) => (
+    <div data-testid="inputbar-prompt-cache-warning">{props.providerType}</div>
+  ),
 }));
 
 vi.mock("@/lib/dev-bridge", () => ({
@@ -334,7 +340,7 @@ describe("Inputbar", () => {
       ],
       overlayAccessory: (
         <button type="button" data-testid="team-inline-toggle">
-          查看协作进展 · 2
+          查看任务进展 · 2
         </button>
       ),
     });
@@ -472,9 +478,7 @@ describe("Inputbar", () => {
     expect(
       container.querySelector('[data-testid="inputbar-plan-toggle"]'),
     ).toBeNull();
-    expect(
-      container.querySelector('select[aria-label="权限模式"]'),
-    ).toBeNull();
+    expect(container.querySelector('select[aria-label="权限模式"]')).toBeNull();
 
     expandAdvancedControls(container);
 
@@ -824,6 +828,25 @@ describe("Inputbar", () => {
     expect(latestCall.leftExtra).toBeDefined();
   });
 
+  it("已选择 Provider 时应将 prompt cache 提示组件挂到输入区顶部", async () => {
+    const { container } = renderInputbar({
+      providerType: "custom-provider-id",
+      setProviderType: vi.fn(),
+      model: "glm-5.1",
+      setModel: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="inputbar-prompt-cache-warning"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("custom-provider-id");
+  });
+
   it("任务中心工作区应使用继续推进型输入提示", async () => {
     renderInputbar({
       variant: "workspace",
@@ -924,7 +947,7 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("任务进行时");
+    expect(container.textContent).toContain("任务视图");
     expect(container.textContent).toContain("检索项目素材");
     expect(container.textContent).toContain("任务队列");
     expect(container.querySelector('[data-testid="inputbar-core"]')).toBeNull();
@@ -956,9 +979,9 @@ describe("Inputbar", () => {
 
     expect(container.textContent).toContain("检索项目素材");
 
-    const collapseButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.getAttribute("aria-label") === "折叠任务队列",
-    );
+    const collapseButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.getAttribute("aria-label") === "折叠任务队列");
     expect(collapseButton).toBeTruthy();
 
     act(() => {
@@ -1028,7 +1051,7 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("任务进行时");
+    expect(container.textContent).toContain("任务视图");
     expect(container.textContent).toContain("检索项目素材");
     expect(container.querySelector('[data-testid="inputbar-core"]')).toBeNull();
   });
@@ -1057,7 +1080,7 @@ describe("Inputbar", () => {
     expect(
       container.querySelector('[data-testid="inputbar-core"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain("任务进行时");
+    expect(container.textContent).toContain("任务视图");
     expect(container.textContent).toContain("等待用户确认选题");
     expect(container.textContent).not.toContain("正在生成中");
   });

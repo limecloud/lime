@@ -46,7 +46,7 @@ describe("selectedSessionDetailSelectors", () => {
     expect(state.queueReason).toBe("等待上游并发窗口。");
     expect(state.metadata).toEqual([
       "分工 执行",
-      "协作成员",
+      "子任务",
       "服务 OpenAI",
       "模型 gpt-5.4",
       "来源 spawn_agent",

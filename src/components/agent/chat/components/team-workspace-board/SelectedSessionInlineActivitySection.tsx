@@ -50,11 +50,11 @@ export function SelectedSessionInlineActivitySection({
         </p>
       ) : selectedSessionActivityPreview?.status === "ready" ? (
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          这位成员暂时还没有可展示的新进展。
+          这项任务暂时还没有可展示的新进展。
         </p>
       ) : (
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          正在同步这位成员的最新进展...
+          正在同步这项任务的最新进展...
         </p>
       )}
 

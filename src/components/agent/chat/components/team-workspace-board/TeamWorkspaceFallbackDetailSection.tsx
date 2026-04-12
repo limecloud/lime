@@ -69,7 +69,7 @@ export function TeamWorkspaceFallbackDetailSection({
           ) : null}
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
-              推荐流程：邀请协作成员 → 查看结果 → 补充说明
+              推荐流程：拆出任务 → 查看结果 → 补充说明
             </span>
           </div>
         </div>

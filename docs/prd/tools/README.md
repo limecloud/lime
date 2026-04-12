@@ -77,7 +77,6 @@ Lime 实际已经具备这些能力：
 | current        | `src-tauri/crates/mcp/src/manager.rs`            | MCP tools runtime registry                                                                                               |
 | current        | `src-tauri/src/commands/aster_agent_cmd.rs`      | Aster runtime 注入、`ToolSearch`、inventory 命令                                                                         |
 | current        | `src-tauri/src/agent_tools/inventory.rs`         | runtime 工具库存快照                                                                                                     |
-| compat         | `SubAgentTask`                                   | 兼容旧子代理工具名；current 协作工具面已收敛到 `Agent / SendMessage / TeamCreate / TeamDelete / ListPeers`              |
 | compat         | `workspace_allowed_tool_names(...)`              | 当前保留为旧调用入口别名，实际委托默认授权目录                                                                           |
 | dead-candidate | `src-tauri/crates/agent/src/tool_permissions.rs` | 已退出 `lime-agent` 的 `lib.rs` 编译图，仅通过 `src-tauri/crates/agent/tests/legacy_permission_surfaces.rs` 测试夹具加载 |
 | dead-candidate | `src-tauri/crates/agent/src/shell_security.rs`   | 已退出 `lime-agent` 的 `lib.rs` 编译图，仅通过 `src-tauri/crates/agent/tests/legacy_permission_surfaces.rs` 测试夹具加载 |
@@ -237,8 +236,8 @@ Lime 实际已经具备这些能力：
 - **Team runtime current surface**  
   `Agent` / `SendMessage` / `TeamCreate` / `TeamDelete` / `ListPeers`
 
-- **Compat only**  
-  `SubAgentTask`
+- **Compat tool name**
+  当前不再保留 `SubAgentTask`；team runtime 已收敛到 `Agent / SendMessage / TeamCreate / TeamDelete / ListPeers`
 
 - **说明**  
   Core surface 现已按 current surface 收敛；精确数量与分类以 `src-tauri/src/agent_tools/catalog.rs` 为准。

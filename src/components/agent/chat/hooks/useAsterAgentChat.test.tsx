@@ -4565,7 +4565,7 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
         stream.emit({
           type: "tool_start",
           tool_id: "tool-meta-1",
-          tool_name: "SubAgentTask",
+          tool_name: "Agent",
           arguments: JSON.stringify({
             prompt: "检查 harness 缺口",
           }),

@@ -43,12 +43,8 @@ pub(crate) use social_tools::ensure_social_image_tool_registered;
 pub(crate) use social_tools::social_generate_cover_image_cmd;
 #[allow(unused_imports)]
 pub(crate) use social_tools::SocialGenerateCoverImageTool;
-#[allow(unused_imports)]
-pub(crate) use subagent_tools::{
-    build_subagent_task_definition, build_subagent_task_runtime_message,
-    collect_subagent_task_compat_warnings, extract_runtime_subagent_result_text,
-    parse_subagent_role, SubAgentTaskToolInput,
-};
+#[cfg(test)]
+pub(crate) use subagent_tools::extract_runtime_subagent_result_text;
 use workspace_tools::WorkspaceSandboxedBashTool;
 #[cfg(test)]
 pub(crate) use workspace_tools::{

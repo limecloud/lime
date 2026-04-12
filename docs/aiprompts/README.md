@@ -16,6 +16,7 @@
 
 - `overview.md` - 项目架构总览与模块分层
 - `governance.md` - 新旧并存治理、迁移收口、禁止回流
+- `harness-engine-governance.md` - Harness Engine 事实源、evidence pack、replay / analysis / review 治理规范
 - `quality-workflow.md` - 本地校验、GUI smoke、契约检查、CI 门禁
 - `command-runtime.md` - `@` / `/` / 轻卡 / viewer / 功能方案包实施手册
 - `skill-standard.md` - 统一技能标准、skill / adapter / runtime binding 边界
@@ -62,6 +63,7 @@
 - **做网页登录态访问 / 网页导出 / Markdown 落盘场景**：先读 `web-browser-scene-skill.md`
 - **改 Workspace / GUI 壳 / 主路径**：先读 `workspace.md`、`quality-workflow.md`、`playwright-e2e.md`
 - **做迁移 / 收口 / 去兼容层**：先读 `governance.md`
+- **改 handoff / evidence pack / replay / review / HarnessStatusPanel**：先读 `harness-engine-governance.md`，再回看 `governance.md`
 - **改 Provider / 凭证加载 / Token 刷新**：先读 `providers.md`、`credential-pool.md`
 - **做跨仓库联动**：先读 `limecore-collaboration-entry.md`
 

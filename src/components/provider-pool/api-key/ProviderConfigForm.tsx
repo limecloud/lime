@@ -35,6 +35,7 @@ import type { ProviderType } from "@/lib/types/provider";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 import type { ConfiguredProvider } from "@/hooks/useConfiguredProviders";
 import { useProviderModels } from "@/hooks/useProviderModels";
+import { resolvePromptCacheSupportNotice } from "@/lib/model/providerPromptCacheSupport";
 import { resolveRegistryProviderId } from "./providerTypeMapping";
 import { getProviderModelAutoFetchCapability } from "@/lib/model/providerModelFetchSupport";
 import {
@@ -511,6 +512,13 @@ export const ProviderConfigForm = forwardRef<
 
     const extraFields = PROVIDER_TYPE_FIELDS[formState.providerType] || [];
     const specialProtocolHint = getSpecialProtocolHint(formState.providerType);
+    const promptCacheSupportNotice = useMemo(
+      () =>
+        resolvePromptCacheSupportNotice({
+          configuredProviderType: formState.providerType,
+        }),
+      [formState.providerType],
+    );
     const defaultModelId =
       visibleSelectedModels[0] ?? recommendedLatestModel?.id ?? null;
     const extraFieldConfigs = extraFields.map((field) => {
@@ -711,6 +719,20 @@ export const ProviderConfigForm = forwardRef<
             );
           })}
         </div>
+
+        {promptCacheSupportNotice ? (
+          <div
+            className="mt-4 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            data-testid="provider-prompt-cache-notice"
+          >
+            <p className="font-semibold">Prompt Cache 提示</p>
+            <p className="mt-1 leading-6">
+              Anthropic 兼容只表示请求格式兼容，不等于上游已声明自动
+              Prompt Cache。
+            </p>
+            <p className="mt-1 leading-6">{promptCacheSupportNotice.detail}</p>
+          </div>
+        ) : null}
 
         <div className="mt-5 border-t border-slate-200 pt-4">
           <div className="flex flex-wrap items-start justify-between gap-3">

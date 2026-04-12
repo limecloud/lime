@@ -7,7 +7,6 @@ mod aster_agent;
 pub mod aster_state;
 mod credential_bridge;
 pub mod runtime_queue_service;
-mod subagent_scheduler;
 
 // 从 lime-agent crate re-export
 pub use lime_agent::event_converter;
@@ -27,7 +26,4 @@ pub use lime_agent::{
     initialize_aster_runtime, AgentEvent, ChildSubagentRuntimeStatus, ChildSubagentSession,
     QueuedTurnSnapshot, QueuedTurnTask, SubagentControlState, SubagentParentContext,
     SubagentRuntimeStatus, SubagentRuntimeStatusKind,
-};
-pub use subagent_scheduler::{
-    LimeScheduler, LimeSubAgentExecutor, SubAgentProgressEvent, SubAgentRole,
 };

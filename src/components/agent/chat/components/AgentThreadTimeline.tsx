@@ -831,13 +831,12 @@ function renderGroupItemDetails(
 
   if (item.type === "subagent_activity") {
     const subagentSessionId = item.session_id?.trim();
-    const displayTitle =
-      resolveInternalImageTaskDisplayName(item.title) || "协作任务";
+    const displayTitle = resolveInternalImageTaskDisplayName(item.title) || "子任务";
 
     return (
       <SurfaceCard
         icon={Bot}
-        title={`交给协作成员：${displayTitle}`}
+        title={`子任务：${displayTitle}`}
         badge={
           <Badge variant={resolveStatusBadgeVariant(item.status)}>
             {resolveSubagentStatusLabel(item.status_label, item.status)}
@@ -862,7 +861,7 @@ function renderGroupItemDetails(
               variant="outline"
               onClick={() => onOpenSubagentSession(subagentSessionId)}
             >
-              查看协作详情
+              查看子任务详情
             </Button>
           </div>
         ) : null}
@@ -1113,9 +1112,9 @@ function normalizeBlockPreviewLine(
 
   if (
     kind === "subagent" &&
-    !hasAnyPrefix(trimmed, ["分给协作成员", "协作成员"])
+    !hasAnyPrefix(trimmed, ["分给子任务", "子任务", "分给协作成员", "协作成员"])
   ) {
-    return `分给协作成员处理 ${trimmed}`;
+    return `分给子任务处理 ${trimmed}`;
   }
 
   return trimmed;
@@ -1174,9 +1173,7 @@ function resolveBlockSummaryLines(block: AgentThreadOrderedBlock): string[] {
   }
 
   if (block.kind === "subagent") {
-    return [
-      block.status === "completed" ? "协作成员处理完了" : "协作成员在处理",
-    ];
+    return [block.status === "completed" ? "子任务已完成" : "子任务处理中"];
   }
 
   if (block.kind === "other") {

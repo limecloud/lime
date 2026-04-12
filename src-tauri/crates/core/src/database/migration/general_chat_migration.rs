@@ -386,7 +386,8 @@ mod tests {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 working_dir TEXT,
-                execution_strategy TEXT NOT NULL DEFAULT 'react'
+                execution_strategy TEXT NOT NULL DEFAULT 'react',
+                cached_input_tokens INTEGER
             );
             CREATE TABLE agent_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -398,7 +399,8 @@ mod tests {
                 tool_call_id TEXT,
                 reasoning_content TEXT,
                 input_tokens INTEGER,
-                output_tokens INTEGER
+                output_tokens INTEGER,
+                cached_input_tokens INTEGER
             );
             ",
         )
@@ -422,7 +424,8 @@ mod tests {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 working_dir TEXT,
-                execution_strategy TEXT NOT NULL DEFAULT 'react'
+                execution_strategy TEXT NOT NULL DEFAULT 'react',
+                cached_input_tokens INTEGER
             );
             CREATE TABLE agent_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -434,7 +437,8 @@ mod tests {
                 tool_call_id TEXT,
                 reasoning_content TEXT,
                 input_tokens INTEGER,
-                output_tokens INTEGER
+                output_tokens INTEGER,
+                cached_input_tokens INTEGER
             );
             ",
         )

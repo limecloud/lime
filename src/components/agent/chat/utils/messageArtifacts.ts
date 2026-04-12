@@ -83,6 +83,12 @@ function fileNameFromPath(path: string): string {
   return segments[segments.length - 1] || normalized;
 }
 
+function countPathSegments(path: string): number {
+  return normalizePath(path)
+    .split("/")
+    .filter((segment) => segment.length > 0 && segment !== ".").length;
+}
+
 function doesArtifactPathReferenceMatch(
   candidatePath?: string | null,
   targetPath?: string | null,
@@ -96,6 +102,16 @@ function doesArtifactPathReferenceMatch(
 
   if (normalizedCandidate === normalizedTarget) {
     return true;
+  }
+
+  if (
+    countPathSegments(normalizedCandidate) > 1 &&
+    countPathSegments(normalizedTarget) > 1
+  ) {
+    return areArtifactProtocolPathsEquivalent(
+      normalizedCandidate,
+      normalizedTarget,
+    );
   }
 
   if (!shouldAllowBareFileNameFallback(normalizedTarget)) {

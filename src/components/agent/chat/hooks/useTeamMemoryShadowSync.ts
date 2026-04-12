@@ -91,7 +91,7 @@ function buildSubagentMemoryContent(params: {
 
   return [
     params.sessionId ? `会话：${params.sessionId}` : null,
-    "子代理：",
+    "子任务：",
     ...sessions.map(summarizeSubagentSession),
   ]
     .filter((item): item is string => Boolean(item))

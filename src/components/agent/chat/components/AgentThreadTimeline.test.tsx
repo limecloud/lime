@@ -990,7 +990,7 @@ describe("AgentThreadTimeline", () => {
     ).toBeNull();
   });
 
-  it("真实协作成员 item 应支持查看协作详情", () => {
+  it("真实子任务 item 应支持查看子任务详情", () => {
     const onOpenSubagentSession = vi.fn();
     const items: AgentThreadItem[] = [
       {
@@ -1012,10 +1012,11 @@ describe("AgentThreadTimeline", () => {
 
     expect(container.textContent).toContain("图片任务 1");
     expect(container.textContent).not.toContain("Image #1");
+    expect(container.textContent).toContain("子任务：图片任务 1");
 
     const button = Array.from(
       container.querySelectorAll<HTMLButtonElement>("button"),
-    ).find((element) => element.textContent?.includes("查看协作详情"));
+    ).find((element) => element.textContent?.includes("查看子任务详情"));
 
     expect(button).toBeTruthy();
 

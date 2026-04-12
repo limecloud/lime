@@ -18,6 +18,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { Artifact } from "@/lib/artifact/types";
+import {
+  resolveConfiguredProviderPromptCacheSupportNotice,
+  useConfiguredProviders,
+} from "@/hooks/useConfiguredProviders";
 import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import {
   MessageListContainer,
@@ -68,9 +72,7 @@ import {
   resolveSiteSavedContentTargetRelativePath,
 } from "../utils/siteToolResultSummary";
 import logoImg from "/logo.png";
-import {
-  type ArtifactTimelineOpenTarget,
-} from "../utils/artifactTimelineNavigation";
+import { type ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
 
 interface MessageListProps {
   messages: Message[];
@@ -157,6 +159,8 @@ interface MessageListProps {
   timelineFocusRequestKey?: number;
   /** 当前由聊天区底部承载的待处理 A2UI 来源 */
   activePendingA2UISource?: PendingA2UISource | null;
+  /** 当前会话的 provider 选择器 */
+  providerType?: string;
 }
 
 function isDeferredTimelineItem(item: AgentThreadItem): boolean {
@@ -403,6 +407,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   focusedTimelineItemId = null,
   timelineFocusRequestKey = 0,
   activePendingA2UISource = null,
+  providerType,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -411,6 +416,34 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+
+  const shouldInspectPromptCacheNotice = useMemo(
+    () =>
+      Boolean(
+        providerType?.trim() &&
+        messages.some(
+          (msg) =>
+            msg.role === "assistant" &&
+            !msg.isThinking &&
+            msg.usage &&
+            (msg.usage.cached_input_tokens ?? 0) <= 0,
+        ),
+      ),
+    [messages, providerType],
+  );
+  const { providers } = useConfiguredProviders({
+    autoLoad: shouldInspectPromptCacheNotice,
+  });
+  const promptCacheNotice = useMemo(
+    () =>
+      shouldInspectPromptCacheNotice
+        ? resolveConfiguredProviderPromptCacheSupportNotice(
+            providers,
+            providerType,
+          )
+        : null,
+    [providerType, providers, shouldInspectPromptCacheNotice],
+  );
 
   const visibleMessages = useMemo(
     () =>
@@ -581,7 +614,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
       : [];
     const trailingTimelineItems = timeline
       ? dedupeDeferredTimelineItems(
-          timelineConversationItems.filter((item) => isDeferredTimelineItem(item)),
+          timelineConversationItems.filter((item) =>
+            isDeferredTimelineItem(item),
+          ),
         ).filter(
           (item) =>
             item.type !== "file_artifact" ||
@@ -599,7 +634,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
     const hasTrailingArtifactTimelineItems = trailingTimelineItems.some(
       (item) => item.type === "file_artifact",
     );
-    const timelineActionRequests = inlineProcessCoverage.actionRequestCounts.size
+    const timelineActionRequests = inlineProcessCoverage.actionRequestCounts
+      .size
       ? undefined
       : msg.actionRequests;
     const primaryActionRequests =
@@ -643,12 +679,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
         : null;
     const shouldRenderMessageCanvasShortcut = Boolean(
       messageSavedSiteContentTarget &&
-        onOpenSavedSiteContent &&
-        !hasTrailingArtifactTimelineItems,
+      onOpenSavedSiteContent &&
+      !hasTrailingArtifactTimelineItems,
     );
     const messageCanvasShortcutTitle = messageSavedSiteContentTarget
-      ? resolveSiteSavedContentTargetDisplayName(messageSavedSiteContentTarget) ||
-        "导出稿"
+      ? resolveSiteSavedContentTargetDisplayName(
+          messageSavedSiteContentTarget,
+        ) || "导出稿"
       : "文件";
     const messageCanvasShortcutPath = messageSavedSiteContentTarget
       ? resolveSiteSavedContentTargetRelativePath(messageSavedSiteContentTarget)
@@ -846,7 +883,14 @@ const MessageListInner: React.FC<MessageListProps> = ({
             ) : null}
 
             {msg.role === "assistant" && !msg.isThinking && msg.usage && (
-              <TokenUsageDisplay usage={msg.usage} />
+              <TokenUsageDisplay
+                usage={msg.usage}
+                promptCacheNotice={
+                  (msg.usage.cached_input_tokens ?? 0) <= 0
+                    ? promptCacheNotice
+                    : undefined
+                }
+              />
             )}
 
             {msg.role === "assistant" &&

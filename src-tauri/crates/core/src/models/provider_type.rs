@@ -37,6 +37,15 @@ pub enum ProviderType {
     Ollama,
 }
 
+impl ProviderType {
+    /// 是否支持自动注入 Anthropic prompt cache 标记。
+    ///
+    /// `AnthropicCompatible` 只表示请求协议兼容，不能等同于上游具备 Anthropic prompt caching 能力。
+    pub const fn supports_anthropic_prompt_cache(&self) -> bool {
+        matches!(self, Self::Claude | Self::ClaudeOAuth | Self::Anthropic)
+    }
+}
+
 impl std::fmt::Display for ProviderType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -225,5 +234,13 @@ mod tests {
             serde_json::from_str::<ProviderType>("\"openai\"").unwrap(),
             ProviderType::OpenAI
         );
+    }
+
+    #[test]
+    fn test_supports_anthropic_prompt_cache() {
+        assert!(ProviderType::Claude.supports_anthropic_prompt_cache());
+        assert!(ProviderType::Anthropic.supports_anthropic_prompt_cache());
+        assert!(!ProviderType::AnthropicCompatible.supports_anthropic_prompt_cache());
+        assert!(!ProviderType::OpenAI.supports_anthropic_prompt_cache());
     }
 }

@@ -40,9 +40,9 @@ export function useWorkspaceTeamSessionRuntime({
     [sessionId, topics],
   );
 
-  const hasRealTeamGraph =
+  const hasRuntimeSessions =
     childSubagentSessions.length > 0 || Boolean(subagentParentContext);
-  const showTeamWorkspaceBoard = subagentEnabled || hasRealTeamGraph;
+  const teamWorkspaceEnabled = subagentEnabled || hasRuntimeSessions;
 
   const currentSessionRuntimeStatus = useMemo(
     () =>
@@ -69,8 +69,8 @@ export function useWorkspaceTeamSessionRuntime({
 
   return {
     currentSessionTitle,
-    hasRealTeamGraph,
-    showTeamWorkspaceBoard,
+    hasRuntimeSessions,
+    teamWorkspaceEnabled,
     currentSessionRuntimeStatus,
     currentSessionLatestTurnStatus,
     ...liveTeamWorkspaceRuntime,

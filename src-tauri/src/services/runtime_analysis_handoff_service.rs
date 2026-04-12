@@ -1156,11 +1156,39 @@ mod tests {
         }
     }
 
+    fn write_request_telemetry_fixture(root: &Path) {
+        let request_logs_dir = root.join("request_logs");
+        fs::create_dir_all(&request_logs_dir).expect("create request logs dir");
+
+        let mut log = lime_infra::telemetry::RequestLog::new(
+            "req-analysis-1".to_string(),
+            lime_core::ProviderType::OpenAI,
+            "gpt-5.4".to_string(),
+            false,
+        );
+        log.session_id = Some("session-1".to_string());
+        log.thread_id = Some("thread-1".to_string());
+        log.turn_id = Some("turn-1".to_string());
+        log.pending_request_id = Some("req-1".to_string());
+        log.queued_turn_id = Some("queued-1".to_string());
+        log.mark_success(320, 200);
+
+        fs::write(
+            request_logs_dir.join("requests_2026-03-27.jsonl"),
+            format!(
+                "{}\n",
+                serde_json::to_string(&log).expect("serialize request log")
+            ),
+        )
+        .expect("write request log");
+    }
+
     #[test]
     fn should_export_runtime_analysis_handoff_to_workspace() {
         let temp_dir = TempDir::new().expect("temp dir");
         let detail = build_detail();
         let thread_read = build_thread_read();
+        write_request_telemetry_fixture(temp_dir.path());
 
         let result = export_runtime_analysis_handoff(&detail, &thread_read, temp_dir.path())
             .expect("export");
@@ -1189,7 +1217,8 @@ mod tests {
         assert!(brief.contains("外部分析交接简报"));
         assert!(brief.contains("pending request：1"));
         assert!(brief.contains("证据关联与可观测覆盖"));
-        assert!(brief.contains("requestTelemetry (unlinked)"));
+        assert!(brief.contains("requestTelemetry"));
+        assert!(!brief.contains("requestTelemetry (unlinked)"));
         assert!(brief.contains("/workspace/lime"));
 
         let context = fs::read_to_string(context_path).expect("context");
@@ -1199,6 +1228,7 @@ mod tests {
         assert!(context.contains("\"observability\""));
         assert!(context.contains("\"correlationKeys\""));
         assert!(context.contains("\"gapSignals\""));
+        assert!(context.contains("\"matchedRequestCount\": 1"));
         assert!(context.contains("/workspace/lime"));
         assert!(!context.contains(temp_dir.path().to_string_lossy().as_ref()));
     }

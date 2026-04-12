@@ -570,15 +570,6 @@ const posterMaterialGatewayCommandSelectors = [
     "海报素材相关后端命令请统一通过 `src/lib/api/posterMaterials.ts` 暴露的网关函数调用，避免在 Hook / 组件中继续直接拼接命令名。",
 }));
 
-const subAgentSchedulerCommandSelectors = [
-  "execute_subagent_tasks",
-  "cancel_subagent_tasks",
-].map((command) => ({
-  selector: `CallExpression[callee.name='safeInvoke'][arguments.0.value='${command}'], CallExpression[callee.name='invoke'][arguments.0.value='${command}']`,
-  message:
-    "SubAgent 调度相关后端命令请统一通过 `src/lib/api/subAgentScheduler.ts` 暴露的网关函数调用，避免在 Hook / 组件中继续直接拼接命令名。",
-}));
-
 const fileSystemCommandSelectors = [
   "reveal_in_finder",
   "open_with_default_app",
@@ -1084,7 +1075,6 @@ export default [
         ...personaGatewayCommandSelectors,
         ...brandPersonaGatewayCommandSelectors,
         ...posterMaterialGatewayCommandSelectors,
-        ...subAgentSchedulerCommandSelectors,
         ...fileSystemCommandSelectors,
         ...pluginGatewayCommandSelectors,
         ...fileBrowserCommandSelectors,

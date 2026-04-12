@@ -510,7 +510,7 @@ npm run verify:local
 
 - **Agent / Codex 主命令**：继续收敛到 `agent_runtime_*`
 - **子代理运行时主链**：继续收敛到 `agent_runtime_spawn_subagent`；当前 request surface 使用 `name / teamName / runInBackground / mode / isolation / cwd` 等字段，其中 `teamName` 需要与 `name` 搭配并依附现有 Team 上下文，`cwd` 必须是绝对目录，并稳定投影到 child session 的 `working_dir` 与 Team 成员展示；当前 runtime 仍会明确拒绝非空 `mode / isolation`
-- **Team runtime 工具主链**：当前协作工具面继续收敛到 `Agent / TeamCreate / TeamDelete / SendMessage / ListPeers`；`SubAgentTask` 仅保留兼容入口，不再作为新的多代理主路径
+- **Team runtime 工具主链**：当前协作工具面继续收敛到 `Agent / TeamCreate / TeamDelete / SendMessage / ListPeers`；不要把已删除的 `SubAgentTask` compat 工具重新接回新的多代理主路径
 - **用户可见消息工具主链**：继续收敛到 `SendUserMessage`，用于把回复、进度同步、主动提醒和附件送到用户主可见消息面；不要再把这类能力拆到其它平行工具名或旁路协议里
 - **会话状态回写主链**：继续收敛到 `agent_runtime_update_session`，用于名称、执行策略、session provider/model、`recent_access_mode`、`recent_preferences` 以及 `recent_team_selection` 的轻量持久化回写
 - **会话权限主链**：`agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy` 是正式 turn context 权限协议；`getSession` 返回的 `execution_runtime.recent_access_mode` 负责承接会话最近一次 accessMode。当前端已命中同一 steady-state 权限时，不应继续依赖 `harness.access_mode` 作为唯一事实源

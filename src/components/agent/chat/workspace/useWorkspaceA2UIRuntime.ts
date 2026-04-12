@@ -5,7 +5,6 @@ import {
   buildActionRequestA2UI,
   isActionRequestA2UICompatible,
 } from "../utils/actionRequestA2UI";
-import { buildCompatQuestionnaireA2UI } from "../utils/compatQuestionnaireA2UI";
 import {
   buildProgressiveA2UIStepForm,
   hasMeaningfulProgressiveA2UIAnswers,
@@ -23,7 +22,7 @@ type PendingA2UIResolution =
   | {
       form: A2UIResponse;
       source: PendingA2UISource & {
-        kind: "assistant_message" | "legacy_message";
+        kind: "assistant_message";
       };
     }
   | {
@@ -98,7 +97,6 @@ export function useWorkspaceA2UIRuntime({
   pendingA2UIForm: A2UIResponse | null;
   pendingA2UISource: PendingA2UISource | null;
   pendingActionRequest: ActionRequired | null;
-  pendingLegacyQuestionnaireA2UIForm: A2UIResponse | null;
   pendingPromotedA2UIActionRequest: ActionRequired | null;
   resolvePendingA2UISubmit: (
     formData: A2UIFormData,
@@ -186,46 +184,6 @@ export function useWorkspaceA2UIRuntime({
       return null;
     }, [messages, pendingMessageA2UIForm]);
 
-  const pendingLegacyQuestionnaireA2UI =
-    useMemo<PendingA2UIResolution | null>(() => {
-      if (pendingMessageA2UIForm || pendingActionRequest) {
-        return null;
-      }
-
-      for (let i = messages.length - 1; i >= 0; i -= 1) {
-        const message = messages[i];
-
-        if (message.role === "user") {
-          return null;
-        }
-
-        if (message.role !== "assistant") {
-          continue;
-        }
-
-        if ((message.actionRequests || []).length > 0) {
-          return null;
-        }
-
-        const form = buildCompatQuestionnaireA2UI(message.content || "");
-        if (!form) {
-          return null;
-        }
-
-        return {
-          form,
-          source: {
-            kind: "legacy_message",
-            messageId: message.id,
-          },
-        };
-      }
-
-      return null;
-    }, [messages, pendingActionRequest, pendingMessageA2UIForm]);
-  const pendingLegacyQuestionnaireA2UIForm =
-    pendingLegacyQuestionnaireA2UI?.form ?? null;
-
   const resolvedPendingA2UI = useMemo<PendingA2UIResolution | null>(() => {
     if (pendingMessageA2UI) {
       return pendingMessageA2UI;
@@ -246,12 +204,8 @@ export function useWorkspaceA2UIRuntime({
       };
     }
 
-    return pendingLegacyQuestionnaireA2UI;
-  }, [
-    pendingLegacyQuestionnaireA2UI,
-    pendingMessageA2UI,
-    pendingPromotedA2UIActionRequest,
-  ]);
+    return null;
+  }, [pendingMessageA2UI, pendingPromotedA2UIActionRequest]);
 
   const hasRecentA2UISubmission = useMemo(() => {
     if (resolvedPendingA2UI) {
@@ -277,13 +231,7 @@ export function useWorkspaceA2UIRuntime({
       if (message.role !== "user") {
         continue;
       }
-
-      const content = message.content.trim();
-      if (!content.startsWith("我的选择：")) {
-        return false;
-      }
-
-      return true;
+      return false;
     }
 
     return false;
@@ -451,7 +399,6 @@ export function useWorkspaceA2UIRuntime({
     pendingA2UIForm,
     pendingA2UISource,
     pendingActionRequest,
-    pendingLegacyQuestionnaireA2UIForm,
     pendingPromotedA2UIActionRequest,
     resolvePendingA2UISubmit,
   };

@@ -40,9 +40,22 @@ const UsageText = styled.span`
     "Courier New", monospace;
 `;
 
+const UsageMeta = styled.span`
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+`;
+
+export interface TokenUsagePromptCacheNotice {
+  label: string;
+  detail?: string;
+  source?: "configured_provider" | "selection_fallback";
+}
+
 interface TokenUsageDisplayProps {
   usage: TokenUsage;
   className?: string;
+  promptCacheNotice?: TokenUsagePromptCacheNotice | null;
 }
 
 function formatCompactTokenCount(value: number): string {
@@ -68,13 +81,28 @@ function formatCompactTokenCount(value: number): string {
 export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   usage,
   className,
+  promptCacheNotice,
 }) => {
   const total = usage.input_tokens + usage.output_tokens;
+  const cachedInput = Math.max(0, usage.cached_input_tokens ?? 0);
+  const missingPromptCacheNotice =
+    cachedInput > 0 ? null : (promptCacheNotice ?? null);
 
   return (
-    <UsageContainer className={className}>
+    <UsageContainer
+      className={className}
+      title={missingPromptCacheNotice?.detail}
+    >
       <UsageIcon />
       <UsageText>{formatCompactTokenCount(total)} tokens</UsageText>
+      {cachedInput > 0 ? (
+        <UsageMeta>{`· 命中缓存 ${formatCompactTokenCount(cachedInput)}`}</UsageMeta>
+      ) : null}
+      {missingPromptCacheNotice ? (
+        <UsageMeta data-testid="token-usage-prompt-cache-notice">
+          {`· ${missingPromptCacheNotice.label}`}
+        </UsageMeta>
+      ) : null}
     </UsageContainer>
   );
 };

@@ -366,7 +366,7 @@ export function InputbarWorkflowStatusPanel({
           <SummaryIcon $tone={summaryTone}>{renderToneIcon(summaryTone)}</SummaryIcon>
           <SummaryBody>
             <SummaryEyebrow>
-              任务进行时
+              任务视图
             </SummaryEyebrow>
             <SummaryTitle data-testid="workflow-current-title">
               {summaryTitle}

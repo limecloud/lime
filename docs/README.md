@@ -13,6 +13,7 @@
 
 - `content/`：对外文档站正文（产品介绍、用户指南、进阶能力）
 - `aiprompts/`：模块级工程文档（前后端组件、服务、命令、数据层）
+- `exec-plans/`：执行计划、进度日志、技术债追踪
 - `tech/`：跨模块技术蓝图与专题工程文档（当前已包含 Harness Engineering 指导文档）
 - `bussniss/`：商务合作与代理运营方案
 - `develop/`：开发流程与协作规范
@@ -21,6 +22,8 @@
 - `iteration-notes/`：迭代备忘与下版本建议（暂不进入当前发布范围的问题）
 - `images/`：文档图片资源
 - `TECH_SPEC.md`：技术规格文档
+- `exec-plans/README.md`：执行计划目录说明
+- `exec-plans/tech-debt-tracker.md`：技术债持续追踪表
 - `develop/execution-tracker-technical-plan.md`：统一执行追踪（Execution Tracker）专项技术规划
 - `develop/execution-tracker-deprecation-plan.md`：统一执行追踪旧路径退场计划（P0 收口）
 - `develop/execution-tracker-p0-acceptance-report.md`：统一执行追踪 P0 验收报告

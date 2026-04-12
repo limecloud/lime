@@ -55,7 +55,7 @@ describe("TeamMemoryShadowCard", () => {
     ).toBeNull();
   });
 
-  it("应展示 repo 作用域和关键 Team 记忆条目", () => {
+  it("应展示 repo 作用域和关键任务记忆条目", () => {
     const container = renderCard({
       repoScope: "/workspace/lime",
       entries: {
@@ -66,7 +66,7 @@ describe("TeamMemoryShadowCard", () => {
         },
         "team.subagents": {
           key: "team.subagents",
-          content: "子代理：\n- 研究代理 [running] explorer · 梳理主线风险",
+          content: "子任务：\n- 研究代理 [running] explorer · 梳理主线风险",
           updatedAt: 300,
         },
         "team.parent_context": {
@@ -80,13 +80,15 @@ describe("TeamMemoryShadowCard", () => {
     expect(
       container.querySelector('[data-testid="team-memory-shadow-card"]'),
     ).not.toBeNull();
-    expect(container.textContent).toContain("协作记忆影子");
+    expect(container.textContent).toContain("任务记忆影子");
     expect(container.textContent).toContain(
-      "当前仓库已缓存 3 条 Team 续接上下文",
+      "当前仓库已缓存 3 条任务续接上下文",
     );
     expect(container.textContent).toContain("/workspace/lime");
-    expect(container.textContent).toContain("当前 Team");
-    expect(container.textContent).toContain("子代理概览");
+    expect(container.textContent).toContain("当前任务方案");
+    expect(container.textContent).toContain("任务方案：研究双人组");
+    expect(container.textContent).toContain("子任务概览");
+    expect(container.textContent).toContain("子任务：");
     expect(container.textContent).toContain("父会话上下文");
     expect(container.textContent).toContain(
       "研究代理 [running] explorer · 梳理主线风险",

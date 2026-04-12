@@ -841,7 +841,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       {
         key: "agent-teams",
         eyebrow: "支撑能力",
-        title: "多代理",
+        title: "任务拆分",
         value: subagentEnabled
           ? "当前任务支持分工推进"
           : "复杂任务可拆分并行推进",
@@ -849,7 +849,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           "当一个目标需要调研、方案和执行同时推进时，可以拆成多个分工后统一回收结论。",
         icon: <Workflow className="h-5 w-5" />,
         imageSrc: capabilityAgentTeamsPlaceholder,
-        imageAlt: "多代理协作能力卡占位图",
+        imageAlt: "任务拆分能力卡占位图",
         tone: "lime",
       },
     ];

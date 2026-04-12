@@ -446,6 +446,9 @@ pub struct TokenUsage {
     pub input_tokens: u32,
     /// 输出 token 数
     pub output_tokens: u32,
+    /// 命中的缓存输入 token 数
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<u32>,
 }
 
 impl TokenUsage {
@@ -454,7 +457,13 @@ impl TokenUsage {
         Self {
             input_tokens,
             output_tokens,
+            cached_input_tokens: None,
         }
+    }
+
+    pub fn with_cached_input_tokens(mut self, cached_input_tokens: Option<u32>) -> Self {
+        self.cached_input_tokens = cached_input_tokens;
+        self
     }
 
     /// 计算总 token 数

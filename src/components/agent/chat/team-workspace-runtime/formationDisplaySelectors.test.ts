@@ -32,7 +32,7 @@ describe("formationDisplaySelectors", () => {
     ]);
   });
 
-  it("runtime formation 已就绪时，应产出状态、成员与参考分工", () => {
+  it("runtime formation 已就绪时，应产出状态、任务与参考分工", () => {
     const state = buildRuntimeFormationDisplayState({
       teamDispatchPreviewState: {
         requestId: "runtime-1",
@@ -66,9 +66,9 @@ describe("formationDisplaySelectors", () => {
     expect(state.hasRuntimeFormation).toBe(true);
     expect(state.hint).toContain("当前任务的分工已经准备好");
     expect(state.summaryBadges.map((badge) => badge.text)).toEqual([
-      "任务方案 · 修复 Team",
+      "任务方案 · 修复任务方案",
       "已就绪",
-      "1 位当前成员",
+      "1 项当前任务",
       "参考方案 · 代码排障团队",
     ]);
     expect(state.panelHeadline).toBe("任务分工已准备好");
@@ -81,6 +81,8 @@ describe("formationDisplaySelectors", () => {
       summary: "先定位问题与影响面。",
     });
     expect(state.noticeText).toContain("当前任务方案已就绪");
+    expect(state.noticeText).toContain("任务拆出后");
+    expect(state.noticeText).toContain("任务视图");
   });
 
   it("runtime formation 失败时，应优先使用失败原因", () => {
@@ -97,8 +99,8 @@ describe("formationDisplaySelectors", () => {
       },
     });
 
-    expect(state.panelDescription).toBe("Provider 认证失败，无法生成 Team。");
-    expect(state.emptyDetail).toBe("Provider 认证失败，无法生成 Team。");
-    expect(state.noticeText).toBe("Provider 认证失败，无法生成 Team。");
+    expect(state.panelDescription).toBe("Provider 认证失败，无法生成任务方案。");
+    expect(state.emptyDetail).toBe("Provider 认证失败，无法生成任务方案。");
+    expect(state.noticeText).toBe("Provider 认证失败，无法生成任务方案。");
   });
 });

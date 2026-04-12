@@ -3,8 +3,13 @@ import { StepProgress } from "@/lib/workspace/workbenchUi";
 import { ChatNavbar } from "../components/ChatNavbar";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { EmptyState } from "../components/EmptyState";
+import { TeamWorkspaceBoard } from "../components/TeamWorkspaceBoard";
 import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
-import type { TeamWorkbenchSurfaceProps } from "./teamWorkbenchPresentation";
+
+export type TeamWorkbenchSurfaceProps = Omit<
+  ComponentProps<typeof TeamWorkspaceBoard>,
+  "className" | "embedded" | "defaultShellExpanded"
+>;
 
 type ChatToolPreferences = {
   webSearch: boolean;

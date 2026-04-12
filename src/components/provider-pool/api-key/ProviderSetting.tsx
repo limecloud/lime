@@ -35,6 +35,7 @@ import {
 import { ProviderModelList } from "./ProviderModelList";
 import { getProviderTypeLabel } from "./ProviderConfigForm.utils";
 import { getProviderModelAutoFetchCapability } from "@/lib/model/providerModelFetchSupport";
+import { getProviderPromptCacheMode } from "@/lib/model/providerPromptCacheSupport";
 import { SectionInfoButton } from "./SectionInfoButton";
 import type {
   ChatTestResult,
@@ -235,6 +236,8 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
     : !hasResolvedLiveModelDirectory
       ? "读取真实模型目录前，不展示旧模型，避免把历史缓存误认为当前可用模型。"
       : null;
+  const showExplicitPromptCacheBadge =
+    getProviderPromptCacheMode(provider.type) === "explicit_only";
 
   // 处理启用/禁用切换
   const handleToggleEnabled = async (enabled: boolean) => {
@@ -290,6 +293,15 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
                     >
                       {provider.enabled ? "运行中" : "已停用"}
                     </Badge>
+                    {showExplicitPromptCacheBadge ? (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-200 bg-amber-50 text-amber-700"
+                        data-testid="provider-prompt-cache-badge"
+                      >
+                        显式缓存
+                      </Badge>
+                    ) : null}
                   </div>
                   <div
                     className="flex flex-wrap items-center gap-2 text-sm text-slate-500"

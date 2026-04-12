@@ -25,6 +25,10 @@ import { useProviderModels } from "@/hooks/useProviderModels";
 import { filterModelsByTheme } from "@/components/agent/chat/utils/modelThemePolicy";
 import { getProviderModelCompatibilityIssue } from "@/components/agent/chat/utils/providerModelCompatibility";
 import { getProviderLabel } from "@/lib/constants/providerMappings";
+import {
+  getProviderPromptCacheMode,
+  resolvePromptCacheSupportNotice,
+} from "@/lib/model/providerPromptCacheSupport";
 import { ModelCapabilityBadges } from "@/components/model/ModelCapabilityBadges";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { resolveOemLimeHubProviderName } from "@/lib/oemLimeHubProvider";
@@ -82,9 +86,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         return false;
       }
       return (
-        window.localStorage.getItem(
-          NO_PROVIDER_GUIDE_DISMISSED_STORAGE_KEY,
-        ) === "1"
+        window.localStorage.getItem(NO_PROVIDER_GUIDE_DISMISSED_STORAGE_KEY) ===
+        "1"
       );
     },
   );
@@ -198,6 +201,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         .filter((item) => !item.compatibilityIssue)
         .map((item) => item.id),
     [modelOptions],
+  );
+  const selectedPromptCacheNotice = useMemo(
+    () =>
+      resolvePromptCacheSupportNotice({
+        providerType,
+        configuredProviderType: selectedProvider?.type,
+      }),
+    [providerType, selectedProvider?.type],
   );
 
   const incompatibleModelCount = useMemo(
@@ -315,10 +326,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
   const handleDismissNoProviderGuide = () => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(
-        NO_PROVIDER_GUIDE_DISMISSED_STORAGE_KEY,
-        "1",
-      );
+      window.localStorage.setItem(NO_PROVIDER_GUIDE_DISMISSED_STORAGE_KEY, "1");
     }
     setNoProviderGuideDismissed(true);
   };
@@ -454,6 +462,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 当前按 {activeThemeLabel} 组织候选模型
               </div>
             ) : null}
+            {selectedPromptCacheNotice ? (
+              <div className="mt-1 text-xs text-amber-700">
+                当前 Provider 未声明自动 Prompt Cache，请使用显式 cache_control
+                标记
+              </div>
+            ) : null}
           </div>
 
           <div className="flex h-[336px]">
@@ -469,6 +483,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               ) : (
                 configuredProviders.map((provider) => {
                   const isSelected = selectedProvider?.key === provider.key;
+                  const providerPromptCacheMode = getProviderPromptCacheMode(
+                    provider.type,
+                  );
 
                   return (
                     <button
@@ -489,7 +506,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           fallbackText={provider.label}
                           size={15}
                         />
-                        <span className="truncate">{provider.label}</span>
+                        <span className="min-w-0 flex flex-col gap-1">
+                          <span className="truncate">{provider.label}</span>
+                          {providerPromptCacheMode === "explicit_only" ? (
+                            <span className="text-[10px] leading-4 text-amber-700">
+                              显式缓存
+                            </span>
+                          ) : null}
+                        </span>
                       </span>
                       {isSelected && (
                         <div className="h-1.5 w-1.5 rounded-full bg-slate-900" />

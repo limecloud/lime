@@ -59,6 +59,50 @@ struct ToolCallAccumulator {
     index: u32,
 }
 
+/// Anthropic 流式 usage 状态
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct AnthropicUsageState {
+    /// 输入 token
+    input_tokens: u64,
+    /// 输出 token
+    output_tokens: u64,
+    /// Cache read token
+    cache_read_input_tokens: u64,
+    /// Cache creation token
+    cache_creation_input_tokens: u64,
+}
+
+impl AnthropicUsageState {
+    fn apply_usage_object(&mut self, usage: &serde_json::Value) {
+        if let Some(input_tokens) = usage.get("input_tokens").and_then(|v| v.as_u64()) {
+            self.input_tokens = input_tokens;
+        }
+        if let Some(output_tokens) = usage.get("output_tokens").and_then(|v| v.as_u64()) {
+            self.output_tokens = output_tokens;
+        }
+        if let Some(cache_read_input_tokens) = usage
+            .get("cache_read_input_tokens")
+            .and_then(|v| v.as_u64())
+        {
+            self.cache_read_input_tokens = cache_read_input_tokens;
+        }
+        if let Some(cache_creation_input_tokens) = usage
+            .get("cache_creation_input_tokens")
+            .and_then(|v| v.as_u64())
+        {
+            self.cache_creation_input_tokens = cache_creation_input_tokens;
+        }
+    }
+
+    fn prompt_tokens(&self) -> u64 {
+        self.input_tokens + self.cache_read_input_tokens + self.cache_creation_input_tokens
+    }
+
+    fn total_tokens(&self) -> u64 {
+        self.prompt_tokens() + self.output_tokens
+    }
+}
+
 /// 部分 JSON 累积器
 ///
 /// 用于处理工具调用参数中的部分 JSON
@@ -159,6 +203,12 @@ pub struct StreamConverter {
     message_started: bool,
     /// 累积的内容（用于重建完整响应）
     accumulated_content: String,
+    /// Anthropic 流式 usage 状态
+    anthropic_usage: Option<AnthropicUsageState>,
+    /// Anthropic stop_reason 映射后的 OpenAI finish_reason
+    anthropic_finish_reason: Option<String>,
+    /// 是否已输出终止事件，避免 finish() 重复输出
+    terminal_event_emitted: bool,
 }
 
 impl StreamConverter {
@@ -181,6 +231,9 @@ impl StreamConverter {
             next_content_block_index: 0,
             message_started: false,
             accumulated_content: String::new(),
+            anthropic_usage: None,
+            anthropic_finish_reason: None,
+            terminal_event_emitted: false,
         }
     }
 
@@ -217,6 +270,9 @@ impl StreamConverter {
         self.next_content_block_index = 0;
         self.message_started = false;
         self.accumulated_content.clear();
+        self.anthropic_usage = None;
+        self.anthropic_finish_reason = None;
+        self.terminal_event_emitted = false;
     }
 
     /// 转换 chunk
@@ -473,6 +529,7 @@ impl StreamConverter {
         for line in data.lines() {
             if let Some(json_str) = line.strip_prefix("data: ") {
                 if json_str == "[DONE]" {
+                    self.terminal_event_emitted = true;
                     sse_events.push("data: [DONE]\n\n".to_string());
                     continue;
                 }
@@ -480,6 +537,12 @@ impl StreamConverter {
                 if let Ok(event) = serde_json::from_str::<serde_json::Value>(json_str) {
                     if let Some(event_type) = event.get("type").and_then(|t| t.as_str()) {
                         match event_type {
+                            "message_start" => {
+                                self.capture_anthropic_message_start_usage(&event);
+                            }
+                            "message_delta" => {
+                                self.capture_anthropic_message_delta_state(&event);
+                            }
                             "content_block_delta" => {
                                 if let Some(delta) = event.get("delta") {
                                     if let Some(text) = delta.get("text").and_then(|t| t.as_str()) {
@@ -550,8 +613,14 @@ impl StreamConverter {
                                 }
                             }
                             "message_stop" => {
-                                sse_events.push(self.create_openai_finish_chunk("stop"));
+                                let finish_reason =
+                                    self.anthropic_finish_reason.as_deref().unwrap_or("stop");
+                                sse_events.push(self.create_openai_finish_chunk(
+                                    finish_reason,
+                                    self.anthropic_openai_usage_json(),
+                                ));
                                 sse_events.push("data: [DONE]\n\n".to_string());
+                                self.terminal_event_emitted = true;
                             }
                             _ => {}
                         }
@@ -573,6 +642,10 @@ impl StreamConverter {
 
     /// 生成结束事件
     fn generate_end_events(&mut self) -> Vec<String> {
+        if self.terminal_event_emitted {
+            return vec![];
+        }
+
         match self.target_format {
             StreamFormat::AnthropicSse => {
                 vec![
@@ -587,7 +660,7 @@ impl StreamConverter {
                     "tool_calls"
                 };
                 vec![
-                    self.create_openai_finish_chunk(finish_reason),
+                    self.create_openai_finish_chunk(finish_reason, None),
                     "data: [DONE]\n\n".to_string(),
                 ]
             }
@@ -777,8 +850,12 @@ impl StreamConverter {
         format!("data: {chunk}\n\n")
     }
 
-    fn create_openai_finish_chunk(&self, finish_reason: &str) -> String {
-        let chunk = serde_json::json!({
+    fn create_openai_finish_chunk(
+        &self,
+        finish_reason: &str,
+        usage: Option<serde_json::Value>,
+    ) -> String {
+        let mut chunk = serde_json::json!({
             "id": self.response_id,
             "object": "chat.completion.chunk",
             "created": self.get_created_timestamp(),
@@ -789,13 +866,73 @@ impl StreamConverter {
                 "finish_reason": finish_reason
             }]
         });
+        if let Some(usage) = usage {
+            chunk["usage"] = usage;
+        }
         format!("data: {chunk}\n\n")
+    }
+
+    fn capture_anthropic_message_start_usage(&mut self, event: &serde_json::Value) {
+        let Some(usage) = event
+            .get("message")
+            .and_then(|message| message.get("usage"))
+        else {
+            return;
+        };
+
+        self.anthropic_usage
+            .get_or_insert_with(AnthropicUsageState::default)
+            .apply_usage_object(usage);
+    }
+
+    fn capture_anthropic_message_delta_state(&mut self, event: &serde_json::Value) {
+        if let Some(usage) = event.get("usage") {
+            self.anthropic_usage
+                .get_or_insert_with(AnthropicUsageState::default)
+                .apply_usage_object(usage);
+        }
+
+        if let Some(stop_reason) = event
+            .get("delta")
+            .and_then(|delta| delta.get("stop_reason"))
+            .and_then(|stop_reason| stop_reason.as_str())
+        {
+            self.anthropic_finish_reason = Some(map_anthropic_stop_reason(stop_reason).to_string());
+        }
+    }
+
+    fn anthropic_openai_usage_json(&self) -> Option<serde_json::Value> {
+        let usage = self.anthropic_usage.as_ref()?;
+        let prompt_tokens = usage.prompt_tokens();
+        let completion_tokens = usage.output_tokens;
+
+        let mut openai_usage = serde_json::json!({
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": usage.total_tokens()
+        });
+
+        if usage.cache_read_input_tokens > 0 {
+            openai_usage["prompt_tokens_details"] = serde_json::json!({
+                "cached_tokens": usage.cache_read_input_tokens
+            });
+        }
+
+        Some(openai_usage)
     }
 }
 
 // ============================================================================
 // 辅助函数
 // ============================================================================
+
+fn map_anthropic_stop_reason(stop_reason: &str) -> &'static str {
+    match stop_reason {
+        "max_tokens" => "length",
+        "tool_use" => "tool_calls",
+        _ => "stop",
+    }
+}
 
 /// 从 SSE 事件列表中提取所有文本内容
 pub fn extract_content_from_sse(events: &[String], format: StreamFormat) -> String {
@@ -930,6 +1067,14 @@ pub fn extract_tool_calls_from_sse(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn parse_openai_sse_payload(event: &str) -> serde_json::Value {
+        let json_str = event
+            .lines()
+            .find_map(|line| line.strip_prefix("data: "))
+            .expect("expected data line");
+        serde_json::from_str(json_str).expect("expected valid SSE json payload")
+    }
 
     #[test]
     fn test_converter_new() {
@@ -1159,6 +1304,81 @@ mod tests {
 
         let content = extract_content_from_sse(&events2, StreamFormat::OpenAiSse);
         assert_eq!(content, "test");
+    }
+
+    #[test]
+    fn test_anthropic_to_openai_finish_chunk_includes_cache_aware_usage() {
+        let mut converter = StreamConverter::with_model(
+            StreamFormat::AnthropicSse,
+            StreamFormat::OpenAiSse,
+            "claude-3-7-sonnet",
+        );
+
+        let start_events = converter.convert(
+            br#"event: message_start
+data: {"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","model":"claude-3-7-sonnet","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":120,"output_tokens":0,"cache_read_input_tokens":80,"cache_creation_input_tokens":16}}}
+
+"#,
+        );
+        assert!(start_events.is_empty());
+
+        let delta_events = converter.convert(
+            br#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":24}}
+
+"#,
+        );
+        assert!(delta_events.is_empty());
+
+        let stop_events = converter.convert(
+            br#"event: message_stop
+data: {"type":"message_stop"}
+
+"#,
+        );
+
+        assert_eq!(stop_events.len(), 2);
+        assert_eq!(stop_events[1], "data: [DONE]\n\n");
+
+        let finish_payload = parse_openai_sse_payload(&stop_events[0]);
+        assert_eq!(finish_payload["choices"][0]["finish_reason"], "stop");
+        assert_eq!(finish_payload["usage"]["prompt_tokens"], 216);
+        assert_eq!(finish_payload["usage"]["completion_tokens"], 24);
+        assert_eq!(finish_payload["usage"]["total_tokens"], 240);
+        assert_eq!(
+            finish_payload["usage"]["prompt_tokens_details"]["cached_tokens"],
+            80
+        );
+
+        assert!(converter.finish().is_empty());
+    }
+
+    #[test]
+    fn test_anthropic_to_openai_tool_use_finish_reason_maps_to_tool_calls() {
+        let mut converter = StreamConverter::with_model(
+            StreamFormat::AnthropicSse,
+            StreamFormat::OpenAiSse,
+            "claude-3-7-sonnet",
+        );
+
+        let delta_events = converter.convert(
+            br#"event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":7}}
+
+"#,
+        );
+        assert!(delta_events.is_empty());
+
+        let stop_events = converter.convert(
+            br#"event: message_stop
+data: {"type":"message_stop"}
+
+"#,
+        );
+
+        let finish_payload = parse_openai_sse_payload(&stop_events[0]);
+        assert_eq!(finish_payload["choices"][0]["finish_reason"], "tool_calls");
+        assert_eq!(finish_payload["usage"]["completion_tokens"], 7);
     }
 
     #[test]

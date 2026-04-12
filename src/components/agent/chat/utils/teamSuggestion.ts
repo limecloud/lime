@@ -237,7 +237,7 @@ export function getTeamSuggestion({
   if (explicitTeamIntent) {
     score += 0.52;
     reasons.push(
-      "你已经显式提到 Team、多代理或父子线程，这类任务应走协作运行时。",
+      "你已经显式提到任务拆分或父子线程，这类任务应走任务运行时。",
     );
   }
 
@@ -248,7 +248,7 @@ export function getTeamSuggestion({
   if (parallelSignals > 0) {
     score += parallelSignals > 1 ? 0.22 : 0.16;
     reasons.push(
-      "描述里出现并行拆分或多角色分工信号，适合让主线程编排多个子代理。",
+      "描述里出现并行拆分或多角色分工信号，适合让主线程编排多个子任务。",
     );
   }
 
@@ -256,7 +256,7 @@ export function getTeamSuggestion({
   if (multiStageCount >= 3) {
     score += 0.22;
     reasons.push(
-      "任务同时包含分析、执行、验证等多个阶段，拆成团队协作更容易收敛。",
+      "任务同时包含分析、执行、验证等多个阶段，拆成任务分工更容易收敛。",
     );
   } else if (multiStageCount === 2) {
     score += 0.12;

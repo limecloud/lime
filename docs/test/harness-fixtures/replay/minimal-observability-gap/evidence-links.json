@@ -1,0 +1,125 @@
+{
+  "replayCaseVersion": "v1",
+  "exportedAt": "2026-03-27T14:10:00Z",
+  "handoffBundle": {
+    "relativeRoot": ".lime/harness/sessions/fixture-session-observability-gap/handoff",
+    "absoluteRoot": "/workspace/lime/.lime/harness/sessions/fixture-session-observability-gap/handoff",
+    "artifacts": [
+      {
+        "kind": "plan",
+        "title": "执行计划",
+        "relativePath": ".lime/harness/sessions/fixture-session-observability-gap/handoff/plan.md"
+      },
+      {
+        "kind": "handoff",
+        "title": "交接摘要",
+        "relativePath": ".lime/harness/sessions/fixture-session-observability-gap/handoff/handoff.md"
+      }
+    ]
+  },
+  "evidencePack": {
+    "relativeRoot": ".lime/harness/sessions/fixture-session-observability-gap/evidence",
+    "absoluteRoot": "/workspace/lime/.lime/harness/sessions/fixture-session-observability-gap/evidence",
+    "knownGaps": [
+      "当前环境未找到可读取的 request telemetry 日志目录，Evidence Pack 无法导出会话级请求遥测。",
+      "当前检测到 1 个 ArtifactDocument 产物，但 validator outcome 尚未回挂到当前 evidence pack。"
+    ],
+    "artifacts": [
+      {
+        "kind": "summary",
+        "title": "证据摘要",
+        "relativePath": ".lime/harness/sessions/fixture-session-observability-gap/evidence/summary.md"
+      },
+      {
+        "kind": "runtime",
+        "title": "运行时快照",
+        "relativePath": ".lime/harness/sessions/fixture-session-observability-gap/evidence/runtime.json"
+      }
+    ]
+  },
+  "observabilitySummary": {
+    "schemaVersion": "v1",
+    "correlation": {
+      "correlationKeys": [
+        "session_id",
+        "thread_id",
+        "turn_id",
+        "pending_request_id",
+        "queued_turn_id",
+        "subagent_session_id"
+      ],
+      "sessionId": "fixture-session-observability-gap",
+      "threadId": "fixture-thread-observability-gap",
+      "activeTurnId": "turn-gap-001",
+      "pendingRequestIds": [],
+      "queuedTurnIds": [],
+      "subagentSessionIds": []
+    },
+    "counts": {
+      "turnCount": 1,
+      "itemCount": 2,
+      "pendingRequestCount": 0,
+      "queuedTurnCount": 0,
+      "warningCount": 0,
+      "failedToolCallCount": 0,
+      "failedCommandCount": 0,
+      "subagentCount": 0,
+      "recentArtifactCount": 2
+    },
+    "latest": {
+      "warning": null,
+      "failedTool": null,
+      "failedCommand": null
+    },
+    "requestTelemetry": {
+      "source": "lime_infra.telemetry.request_logs",
+      "searchedRoots": [],
+      "matchedRequestCount": 0,
+      "latestRequestAt": null,
+      "statusCounts": {},
+      "providers": [],
+      "models": [],
+      "requests": []
+    },
+    "signalCoverage": [
+      {
+        "signal": "correlation",
+        "status": "exported",
+        "source": "runtime thread identity",
+        "detail": "当前证据包已导出 session/thread/turn/pending request/subagent 关联键。"
+      },
+      {
+        "signal": "timeline",
+        "status": "exported",
+        "source": "timeline.json",
+        "detail": "当前证据包已导出最近 turn 与 item 时间线。"
+      },
+      {
+        "signal": "warnings",
+        "status": "exported",
+        "source": "thread.diagnostics",
+        "detail": "当前线程没有 diagnostics，但 warning 通道已保留在导出结构中。"
+      },
+      {
+        "signal": "requestTelemetry",
+        "status": "known_gap",
+        "source": "lime_infra.telemetry.request_logs",
+        "detail": "当前环境未找到可读取的 request telemetry 日志目录，Evidence Pack 无法导出会话级请求遥测。"
+      },
+      {
+        "signal": "artifactValidator",
+        "status": "known_gap",
+        "source": "artifact_document_validator",
+        "detail": "当前检测到 1 个 ArtifactDocument 产物，但 validator outcome 尚未回挂到当前 evidence pack。"
+      }
+    ],
+    "knownGaps": [
+      "当前环境未找到可读取的 request telemetry 日志目录，Evidence Pack 无法导出会话级请求遥测。",
+      "当前检测到 1 个 ArtifactDocument 产物，但 validator outcome 尚未回挂到当前 evidence pack。"
+    ]
+  },
+  "recentArtifacts": [
+    "docs/tech/harness/implementation-blueprint.md",
+    ".lime/artifacts/thread-gap/report.artifact.json"
+  ]
+}

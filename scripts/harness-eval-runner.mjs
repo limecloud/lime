@@ -22,16 +22,15 @@ const REVIEW_DECISION_RISK_LEVEL_SET = new Set([
   "high",
   "unknown",
 ]);
+const OBSERVABILITY_GAP_SUITE_TAG = "observability-gap";
 
 function parseArgs(argv) {
   const result = {
     format: "text",
     help: false,
-    historyRetain: 30,
     manifest: DEFAULT_MANIFEST_PATH,
     outputJson: "",
     outputMarkdown: "",
-    recordHistoryDir: "",
     strict: true,
     workspaceRoot: process.cwd(),
   };
@@ -69,18 +68,6 @@ function parseArgs(argv) {
       continue;
     }
 
-    if (arg === "--record-history-dir" && argv[index + 1]) {
-      result.recordHistoryDir = String(argv[index + 1]).trim();
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--history-retain" && argv[index + 1]) {
-      result.historyRetain = Number.parseInt(String(argv[index + 1]), 10);
-      index += 1;
-      continue;
-    }
-
     if (arg === "--no-strict") {
       result.strict = false;
       continue;
@@ -108,7 +95,6 @@ Lime Harness Eval Runner
   node scripts/harness-eval-runner.mjs --format json
   node scripts/harness-eval-runner.mjs --workspace-root "/path/to/workspace"
   node scripts/harness-eval-runner.mjs --output-json "./tmp/harness-eval-summary.json" --output-markdown "./tmp/harness-eval-summary.md"
-  node scripts/harness-eval-runner.mjs --record-history-dir "./artifacts/history"
 
 选项:
   --manifest PATH        指定 manifest，默认 docs/test/harness-evals.manifest.json
@@ -116,8 +102,6 @@ Lime Harness Eval Runner
   --format FMT           控制标准输出格式：text | json | markdown
   --output-json PATH     将 JSON 摘要写入指定路径
   --output-markdown PATH 将 Markdown 摘要写入指定路径
-  --record-history-dir PATH 将当前 summary 追加写入历史目录，供 trend/nightly 复用
-  --history-retain N     历史目录最多保留多少条 summary，默认 30
   --strict               严格模式（默认），发现 invalid case 时返回非 0
   --no-strict            非严格模式，只输出摘要，不因 invalid case 退出失败
   -h, --help             显示帮助
@@ -134,56 +118,6 @@ function resolvePath(baseDir, relativePath) {
 
 function ensureParentDirectory(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-}
-
-function ensureDirectory(dirPath) {
-  fs.mkdirSync(dirPath, { recursive: true });
-}
-
-function toHistoryTimestamp(generatedAt) {
-  const parsed = new Date(generatedAt);
-  const normalized = Number.isNaN(parsed.getTime())
-    ? new Date().toISOString()
-    : parsed.toISOString();
-  return normalized.replace(/[-:]/g, "").replace(/\.(\d{3})Z$/, "$1Z");
-}
-
-function trimHistoryDirectory(historyDir, retainCount) {
-  const normalizedRetainCount =
-    Number.isInteger(retainCount) && retainCount > 0 ? retainCount : 30;
-  const historyFiles = fs
-    .readdirSync(historyDir, { withFileTypes: true })
-    .filter(
-      (entry) =>
-        entry.isFile() &&
-        entry.name.endsWith("-harness-eval-summary.json"),
-    )
-    .map((entry) => path.join(historyDir, entry.name))
-    .sort((left, right) => right.localeCompare(left));
-
-  for (const staleFile of historyFiles.slice(normalizedRetainCount)) {
-    fs.rmSync(staleFile, { force: true });
-  }
-}
-
-function recordSummaryHistory(repoRoot, summary, options) {
-  if (!options.recordHistoryDir) {
-    return "";
-  }
-
-  const historyDir = resolvePath(repoRoot, options.recordHistoryDir);
-  ensureDirectory(historyDir);
-  const historyFilePath = path.join(
-    historyDir,
-    `${toHistoryTimestamp(summary.generatedAt)}-harness-eval-summary.json`,
-  );
-  fs.writeFileSync(
-    historyFilePath,
-    `${JSON.stringify(summary, null, 2)}\n`,
-    "utf8",
-  );
-  trimHistoryDirectory(historyDir, options.historyRetain);
-  return historyFilePath;
 }
 
 function normalizeStringList(value) {
@@ -211,6 +145,10 @@ function normalizeEnumString(value, allowedValues, fallback = "") {
     return normalized;
   }
   return fallback;
+}
+
+function isObject(value) {
+  return value != null && typeof value === "object" && !Array.isArray(value);
 }
 
 function createBreakdownEntry(name) {
@@ -253,6 +191,25 @@ function aggregateCaseBreakdown(cases, selector) {
     }
     return left.name.localeCompare(right.name);
   });
+}
+
+function isDegradedObservabilityGapCase(entry) {
+  return (
+    entry.observabilityGapCount > 0 &&
+    normalizeStringList(entry.tags).includes(OBSERVABILITY_GAP_SUITE_TAG)
+  );
+}
+
+function isCurrentObservabilityGapCase(entry) {
+  return entry.observabilityGapCount > 0 && !isDegradedObservabilityGapCase(entry);
+}
+
+function isDegradedObservabilityDiagnosticCase(entry) {
+  return normalizeStringList(entry?.tags).includes(OBSERVABILITY_GAP_SUITE_TAG);
+}
+
+function isCurrentObservabilityDiagnosticCase(entry) {
+  return !isDegradedObservabilityDiagnosticCase(entry);
 }
 
 function getValueByPath(target, dottedPath) {
@@ -388,19 +345,39 @@ function loadReviewDecisionForCase(caseDir, inlineReviewDecision) {
   };
 }
 
-function normalizeObservabilityCoverage(inputPayload, evidencePayload) {
-  const inlineSummary =
-    inputPayload?.observability &&
-    typeof inputPayload.observability === "object" &&
-    !Array.isArray(inputPayload.observability)
-      ? inputPayload.observability
-      : evidencePayload?.observabilitySummary &&
-          typeof evidencePayload.observabilitySummary === "object" &&
-          !Array.isArray(evidencePayload.observabilitySummary)
-        ? evidencePayload.observabilitySummary
-        : null;
+function resolveObservabilitySummary(inputPayload, evidencePayload) {
+  const inlineSummary = isObject(inputPayload?.observability)
+    ? inputPayload.observability
+    : null;
+  const evidenceSummary = isObject(evidencePayload?.observabilitySummary)
+    ? evidencePayload.observabilitySummary
+    : null;
 
-  if (!inlineSummary) {
+  if (!inlineSummary && !evidenceSummary) {
+    return null;
+  }
+
+  return {
+    signalCoverage: Array.isArray(inlineSummary?.signalCoverage)
+      ? inlineSummary.signalCoverage
+      : Array.isArray(evidenceSummary?.signalCoverage)
+        ? evidenceSummary.signalCoverage
+        : [],
+    verificationSummary: isObject(inlineSummary?.verificationSummary)
+      ? inlineSummary.verificationSummary
+      : isObject(evidenceSummary?.verificationSummary)
+        ? evidenceSummary.verificationSummary
+        : null,
+  };
+}
+
+function normalizeObservabilityCoverage(inputPayload, evidencePayload) {
+  const observabilitySummary = resolveObservabilitySummary(
+    inputPayload,
+    evidencePayload,
+  );
+
+  if (!observabilitySummary) {
     return [
       {
         signal: "observabilitySummary",
@@ -409,8 +386,8 @@ function normalizeObservabilityCoverage(inputPayload, evidencePayload) {
     ];
   }
 
-  const signalCoverage = Array.isArray(inlineSummary.signalCoverage)
-    ? inlineSummary.signalCoverage
+  const signalCoverage = Array.isArray(observabilitySummary.signalCoverage)
+    ? observabilitySummary.signalCoverage
     : [];
 
   if (signalCoverage.length === 0) {
@@ -459,6 +436,129 @@ function normalizeObservabilityCoverage(inputPayload, evidencePayload) {
   }
 
   return coverage;
+}
+
+function pushUniqueObservabilityVerificationOutcome(outcomes, seen, signal, outcome) {
+  const normalizedSignal = normalizeOptionalString(signal);
+  const normalizedOutcome = normalizeOptionalString(outcome);
+  if (!normalizedSignal || !normalizedOutcome) {
+    return;
+  }
+
+  const fingerprint = `${normalizedSignal}:${normalizedOutcome}`;
+  if (seen.has(fingerprint)) {
+    return;
+  }
+
+  seen.add(fingerprint);
+  outcomes.push({
+    signal: normalizedSignal,
+    outcome: normalizedOutcome,
+  });
+}
+
+function normalizeObservabilityVerificationSummary(inputPayload, evidencePayload) {
+  const observabilitySummary = resolveObservabilitySummary(
+    inputPayload,
+    evidencePayload,
+  );
+  const verificationSummary = isObject(observabilitySummary?.verificationSummary)
+    ? observabilitySummary.verificationSummary
+    : null;
+
+  if (!verificationSummary) {
+    return [];
+  }
+
+  const outcomes = [];
+  const seen = new Set();
+
+  const artifactValidator = isObject(verificationSummary.artifactValidator)
+    ? verificationSummary.artifactValidator
+    : null;
+  if (artifactValidator?.applicable === true) {
+    const recordCount = Number(artifactValidator.recordCount) || 0;
+    const issueCount = Number(artifactValidator.issueCount) || 0;
+    const repairedCount = Number(artifactValidator.repairedCount) || 0;
+    const fallbackUsedCount = Number(artifactValidator.fallbackUsedCount) || 0;
+
+    if (recordCount > 0 && issueCount === 0) {
+      pushUniqueObservabilityVerificationOutcome(
+        outcomes,
+        seen,
+        "artifactValidator",
+        "clean",
+      );
+    }
+    if (issueCount > 0) {
+      pushUniqueObservabilityVerificationOutcome(
+        outcomes,
+        seen,
+        "artifactValidator",
+        "issues_present",
+      );
+    }
+    if (repairedCount > 0) {
+      pushUniqueObservabilityVerificationOutcome(
+        outcomes,
+        seen,
+        "artifactValidator",
+        "repaired",
+      );
+    }
+    if (fallbackUsedCount > 0) {
+      pushUniqueObservabilityVerificationOutcome(
+        outcomes,
+        seen,
+        "artifactValidator",
+        "fallback_used",
+      );
+    }
+  }
+
+  const browserVerification = isObject(verificationSummary.browserVerification)
+    ? verificationSummary.browserVerification
+    : null;
+  if (browserVerification) {
+    if ((Number(browserVerification.successCount) || 0) > 0) {
+      pushUniqueObservabilityVerificationOutcome(
+        outcomes,
+        seen,
+        "browserVerification",
+        "success",
+      );
+    }
+    if ((Number(browserVerification.failureCount) || 0) > 0) {
+      pushUniqueObservabilityVerificationOutcome(
+        outcomes,
+        seen,
+        "browserVerification",
+        "failure",
+      );
+    }
+    if ((Number(browserVerification.unknownCount) || 0) > 0) {
+      pushUniqueObservabilityVerificationOutcome(
+        outcomes,
+        seen,
+        "browserVerification",
+        "unknown",
+      );
+    }
+  }
+
+  const guiSmoke = isObject(verificationSummary.guiSmoke)
+    ? verificationSummary.guiSmoke
+    : null;
+  if (guiSmoke && typeof guiSmoke.passed === "boolean") {
+    pushUniqueObservabilityVerificationOutcome(
+      outcomes,
+      seen,
+      "guiSmoke",
+      guiSmoke.passed ? "passed" : "failed",
+    );
+  }
+
+  return outcomes;
 }
 
 function validateCaseDirectory(caseDir, caseConfig, defaults, context) {
@@ -551,6 +651,12 @@ function validateCaseDirectory(caseDir, caseConfig, defaults, context) {
   const observabilityGapCount = observabilityCoverage.filter(
     (entry) => entry.status !== "exported",
   ).length;
+  const observabilityVerificationCoverage =
+    normalizeObservabilityVerificationSummary(inputPayload, evidencePayload);
+  const observabilityVerificationOutcomes =
+    observabilityVerificationCoverage.map(
+      (entry) => `${entry.signal}:${entry.outcome}`,
+    );
 
   const pendingRequestCount = Array.isArray(
     inputPayload?.runtimeContext?.pendingRequests,
@@ -606,6 +712,8 @@ function validateCaseDirectory(caseDir, caseConfig, defaults, context) {
     observabilityCoverage,
     observabilitySignals,
     observabilityGapCount,
+    observabilityVerificationCoverage,
+    observabilityVerificationOutcomes,
     preferredMode,
     status: issues.length === 0 ? "ready" : "invalid",
     issues,
@@ -675,6 +783,8 @@ function expandSuiteCases(suiteConfig, defaults, repoRoot, workspaceRoot) {
           ],
           observabilitySignals: ["observabilitySummary:missing"],
           observabilityGapCount: 1,
+          observabilityVerificationCoverage: [],
+          observabilityVerificationOutcomes: [],
           preferredMode: "",
           status: "invalid",
           issues: [
@@ -727,6 +837,8 @@ function expandSuiteCases(suiteConfig, defaults, repoRoot, workspaceRoot) {
       observabilityCoverage: [{ signal: "observabilitySummary", status: "missing" }],
       observabilitySignals: ["observabilitySummary:missing"],
       observabilityGapCount: 1,
+      observabilityVerificationCoverage: [],
+      observabilityVerificationOutcomes: [],
       preferredMode: "",
       status: "invalid",
       issues: [`不支持的 case source: ${source || "(empty)"}`],
@@ -773,6 +885,12 @@ function buildSummary(manifest, suites, options) {
   const observabilityGapCases = allCases.filter(
     (entry) => entry.observabilityGapCount > 0,
   );
+  const currentObservabilityGapCases = observabilityGapCases.filter((entry) =>
+    isCurrentObservabilityGapCase(entry),
+  );
+  const degradedObservabilityGapCases = observabilityGapCases.filter((entry) =>
+    isDegradedObservabilityGapCase(entry),
+  );
 
   return {
     manifestVersion: String(manifest.manifestVersion ?? "unknown"),
@@ -790,6 +908,8 @@ function buildSummary(manifest, suites, options) {
       pendingRequestCaseCount: pendingCases.length,
       reviewDecisionRecordedCount: recordedReviewDecisionCases.length,
       observabilityGapCaseCount: observabilityGapCases.length,
+      currentObservabilityGapCaseCount: currentObservabilityGapCases.length,
+      degradedObservabilityGapCaseCount: degradedObservabilityGapCases.length,
     },
     breakdowns: {
       suiteTags: aggregateCaseBreakdown(allCases, (entry) => entry.tags),
@@ -806,6 +926,18 @@ function buildSummary(manifest, suites, options) {
       observabilitySignals: aggregateCaseBreakdown(
         allCases,
         (entry) => entry.observabilitySignals,
+      ),
+      observabilityVerificationOutcomes: aggregateCaseBreakdown(
+        allCases,
+        (entry) => entry.observabilityVerificationOutcomes,
+      ),
+      currentObservabilityVerificationOutcomes: aggregateCaseBreakdown(
+        allCases.filter((entry) => isCurrentObservabilityDiagnosticCase(entry)),
+        (entry) => entry.observabilityVerificationOutcomes,
+      ),
+      degradedObservabilityVerificationOutcomes: aggregateCaseBreakdown(
+        allCases.filter((entry) => isDegradedObservabilityDiagnosticCase(entry)),
+        (entry) => entry.observabilityVerificationOutcomes,
       ),
     },
     suites,
@@ -824,6 +956,8 @@ function renderText(summary) {
     `[harness-eval] needs-review cases : ${summary.totals.needsHumanReviewCount}`,
     `[harness-eval] recorded review decisions: ${summary.totals.reviewDecisionRecordedCount}`,
     `[harness-eval] observability-gap cases: ${summary.totals.observabilityGapCaseCount}`,
+    `[harness-eval] current observability-gap cases: ${summary.totals.currentObservabilityGapCaseCount}`,
+    `[harness-eval] degraded observability-gap cases: ${summary.totals.degradedObservabilityGapCaseCount}`,
   ];
 
   const topFailureModes = summary.breakdowns.failureModes.slice(0, 5);
@@ -869,6 +1003,17 @@ function renderText(summary) {
     }
   }
 
+  const topVerificationOutcomes =
+    summary.breakdowns.observabilityVerificationOutcomes.slice(0, 5);
+  if (topVerificationOutcomes.length > 0) {
+    lines.push("[harness-eval] observability verification outcomes:");
+    for (const entry of topVerificationOutcomes) {
+      lines.push(
+        `  - ${entry.name}: case=${entry.caseCount}, ready=${entry.readyCount}, invalid=${entry.invalidCount}`,
+      );
+    }
+  }
+
   for (const suite of summary.suites) {
     lines.push(
       `[harness-eval] suite ${suite.id}: ready ${suite.stats.readyCount} / ${suite.stats.caseCount}`,
@@ -891,6 +1036,11 @@ function renderText(summary) {
       if (entry.observabilitySignals.length > 0) {
         lines.push(
           `    observability: ${entry.observabilitySignals.join(", ")}`,
+        );
+      }
+      if (entry.observabilityVerificationOutcomes.length > 0) {
+        lines.push(
+          `    verification: ${entry.observabilityVerificationOutcomes.join(", ")}`,
         );
       }
       for (const issue of entry.issues) {
@@ -917,6 +1067,8 @@ function renderMarkdown(summary) {
     `- needs review case：${summary.totals.needsHumanReviewCount}`,
     `- 已记录人工审核：${summary.totals.reviewDecisionRecordedCount}`,
     `- observability gap case：${summary.totals.observabilityGapCaseCount}`,
+    `- current observability gap case：${summary.totals.currentObservabilityGapCaseCount}`,
+    `- degraded observability gap case：${summary.totals.degradedObservabilityGapCaseCount}`,
     "",
   ];
 
@@ -987,6 +1139,19 @@ function renderMarkdown(summary) {
     lines.push("");
   }
 
+  if (summary.breakdowns.observabilityVerificationOutcomes.length > 0) {
+    lines.push("## Observability Verification Outcome 分布");
+    lines.push("");
+    lines.push("| Outcome | case | ready | invalid |");
+    lines.push("| --- | --- | --- | --- |");
+    for (const entry of summary.breakdowns.observabilityVerificationOutcomes) {
+      lines.push(
+        `| ${entry.name} | ${entry.caseCount} | ${entry.readyCount} | ${entry.invalidCount} |`,
+      );
+    }
+    lines.push("");
+  }
+
   for (const suite of summary.suites) {
     lines.push(`## ${suite.title}`);
     lines.push("");
@@ -1023,6 +1188,11 @@ function renderMarkdown(summary) {
       if (entry.observabilitySignals.length > 0) {
         classificationText.push(
           `observability: ${entry.observabilitySignals.join(", ")}`,
+        );
+      }
+      if (entry.observabilityVerificationOutcomes.length > 0) {
+        classificationText.push(
+          `verification: ${entry.observabilityVerificationOutcomes.join(", ")}`,
         );
       }
       const reviewText = entry.reviewDecisionStatus
@@ -1078,7 +1248,6 @@ function main() {
   const jsonOutput = `${JSON.stringify(summary, null, 2)}\n`;
   const markdownOutput = renderMarkdown(summary);
   const textOutput = renderText(summary);
-  const historyFilePath = recordSummaryHistory(repoRoot, summary, options);
 
   if (options.outputJson) {
     const outputPath = resolvePath(repoRoot, options.outputJson);
@@ -1098,11 +1267,6 @@ function main() {
     process.stdout.write(markdownOutput);
   } else {
     process.stdout.write(textOutput);
-    if (historyFilePath) {
-      process.stdout.write(
-        `[harness-eval] history snapshot: ${historyFilePath}\n`,
-      );
-    }
   }
 
   const exitCode = determineExitCode(summary, options);

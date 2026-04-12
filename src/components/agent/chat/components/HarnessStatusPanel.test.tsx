@@ -102,15 +102,6 @@ function renderPanel(
     root.render(
       <HarnessStatusPanel
         harnessState={createHarnessState()}
-        compatSubagentRuntime={{
-          isRunning: false,
-          progress: null,
-          result: null,
-          error: null,
-          summary: null,
-          recentActivity: [],
-          hasSignals: false,
-        }}
         environment={{
           skillsCount: 2,
           skillNames: ["read_file", "write_todos"],
@@ -1319,7 +1310,7 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("429 rate limit");
   });
 
-  it("存在 selectedTeam 时应在工作台展示当前协作设置", () => {
+  it("存在 selectedTeam 时应在工作台展示当前任务分工", () => {
     renderPanel({
       selectedTeamLabel: "前端联调团队",
       selectedTeamSummary: "分析、实现、验证三段式推进。",
@@ -1335,8 +1326,8 @@ describe("HarnessStatusPanel", () => {
       ],
     });
 
-    expect(document.body.textContent).toContain("协作设置");
-    expect(document.body.textContent).toContain("当前协作设置");
+    expect(document.body.textContent).toContain("任务分工");
+    expect(document.body.textContent).toContain("当前任务分工");
     expect(document.body.textContent).toContain("前端联调团队");
     expect(document.body.textContent).toContain("分析、实现、验证三段式推进。");
     expect(document.body.textContent).toContain("模板 code-explorer");
@@ -1344,7 +1335,7 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("repo-exploration");
   });
 
-  it("存在真实 child session 时应优先展示协作会话摘要，并将旧 scheduler 降级为兼容轨迹", () => {
+  it("存在真实 child session 时应优先展示子任务摘要", () => {
     renderPanel({
       childSubagentSessions: [
         {
@@ -1370,40 +1361,15 @@ describe("HarnessStatusPanel", () => {
           role_hint: "executor",
         },
       ],
-      compatSubagentRuntime: {
-        isRunning: true,
-        progress: {
-          total: 2,
-          completed: 1,
-          failed: 0,
-          running: 1,
-          pending: 0,
-          skipped: 0,
-          cancelled: false,
-          currentTasks: ["legacy-task-1"],
-          percentage: 50,
-        },
-        result: null,
-        error: null,
-        summary: "正在执行：legacy-task-1",
-        recentActivity: [
-          {
-            id: "compat:1:started",
-            summary: "开始调度 2 个子任务",
-          },
-        ],
-        hasSignals: true,
-      },
     });
 
     expect(document.body.textContent).toContain("任务进行中");
-    expect(document.body.textContent).toContain("协作会话");
-    expect(document.body.textContent).toContain("当前协作会话");
-    expect(document.body.textContent).toContain("实时协作会话");
-    expect(document.body.textContent).toContain("兼容模式");
-    expect(document.body.textContent).toContain("旧链路");
-    expect(document.body.textContent).not.toContain("兼容调度进度");
-    expect(document.body.textContent).not.toContain("兼容调度轨迹");
+    expect(document.body.textContent).toContain("子任务");
+    expect(document.body.textContent).toContain("当前子任务");
+    expect(document.body.textContent).toContain("实时子任务");
+    expect(document.body.textContent).toContain("类型：子任务");
+    expect(document.body.textContent).not.toContain("协作回退");
+    expect(document.body.textContent).not.toContain("回退链路");
     expect(document.body.textContent).toContain("研究代理");
     expect(document.body.textContent).toContain("实现代理");
   });

@@ -134,6 +134,16 @@ npm run harness:eval:trend
 npm run harness:eval:history:record
 ```
 
+默认会把完整 artifact 套件写到 `./.lime/harness/reports/`：
+
+- `harness-eval-summary.json`
+- `harness-eval-summary.md`
+- `harness-eval-trend.json`
+- `harness-eval-trend.md`
+- `harness-cleanup-report.json`
+- `harness-cleanup-report.md`
+- `harness-dashboard.html`
+
 ### 运行 Harness cleanup / slop 报告
 
 ```bash

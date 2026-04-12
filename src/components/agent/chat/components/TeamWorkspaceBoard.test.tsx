@@ -233,9 +233,10 @@ describe("TeamWorkspaceBoard", () => {
       childSubagentSessions: [],
     });
 
-    expect(container.textContent).toContain("任务协作");
-    expect(container.textContent).toContain("还没有成员接入");
-    expect(container.textContent).toContain("查看任务进行时");
+    expect(container.textContent).toContain("任务工作台");
+    expect(container.textContent).toContain("还没有任务接手");
+    expect(container.textContent).toContain("查看任务视图");
+    expect(container.textContent).not.toContain("任务进行时");
     expect(container.textContent).not.toContain("spawn_agent");
     expect(container.textContent).not.toContain("Explorer 槽位");
     expect(container.textContent).not.toContain("Executor 槽位");
@@ -256,8 +257,8 @@ describe("TeamWorkspaceBoard", () => {
       expandButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).toContain("需要时会自动接入协作成员");
-    expect(container.textContent).toContain("邀请协作成员");
+    expect(container.textContent).toContain("需要时会自动拆出任务");
+    expect(container.textContent).toContain("拆出任务");
     expect(container.textContent).toContain("收起细节");
   });
 
@@ -287,7 +288,7 @@ describe("TeamWorkspaceBoard", () => {
       ],
     });
 
-    expect(container.textContent).toContain("临时修复 Team");
+    expect(container.textContent).toContain("临时修复任务方案");
     expect(container.textContent).toContain("2 个计划分工");
 
     const expandButton = container.querySelector(
@@ -398,8 +399,10 @@ describe("TeamWorkspaceBoard", () => {
       ],
     });
 
-    expect(container.textContent).toContain("任务协作");
-    expect(container.textContent).toContain("2 位成员协作中");
+    expect(container.textContent).toContain("任务工作台");
+    expect(container.textContent).toContain(
+      "任务进行中 · 1 项处理中 / 1 项稍后开始",
+    );
     expect(container.textContent).toContain("研究员");
     expect(container.textContent).toContain("执行器");
     expect(container.textContent).toContain("代码分析员");
@@ -417,13 +420,25 @@ describe("TeamWorkspaceBoard", () => {
         ?.getAttribute("data-expanded"),
     ).toBe("false");
     expect(
-      container.querySelector('[data-testid="team-workspace-canvas-toolbar"]')
+      container.querySelector('[data-testid="team-workspace-compact-summary"]')
         ?.textContent,
-    ).toContain("焦点 研究员");
+    ).toContain("当前焦点");
+    expect(
+      container.querySelector('[data-testid="team-workspace-compact-summary"]')
+        ?.textContent,
+    ).toContain("当前焦点会优先落在正在处理的任务上。");
     expect(
       container.querySelector('[data-testid="team-workspace-canvas-toolbar"]')
         ?.textContent,
-    ).toContain("缩放 100%");
+    ).toContain("处理中");
+    expect(
+      container.querySelector('[data-testid="team-workspace-canvas-toolbar"]')
+        ?.textContent,
+    ).not.toContain("当前焦点 研究员");
+    expect(
+      container.querySelector('[data-testid="team-workspace-canvas-toolbar"]')
+        ?.textContent,
+    ).not.toContain("缩放 100%");
     expect(container.textContent).toContain("最近进展");
     expect(container.textContent).toContain(
       "回复：已完成竞品摘要与数据来源梳理。",
@@ -438,7 +453,7 @@ describe("TeamWorkspaceBoard", () => {
     const executorLane = container.querySelector(
       '[data-testid="team-workspace-member-lane-child-2"]',
     );
-    expect(researcherLane?.textContent).toContain("成员进展");
+    expect(researcherLane?.textContent).toContain("任务进展");
     expect(researcherLane?.textContent).toContain(
       "回复：已完成竞品摘要与数据来源梳理。",
     );
@@ -465,14 +480,14 @@ describe("TeamWorkspaceBoard", () => {
     expect(container.textContent).toContain("已对 3 个来源完成去重校验。");
 
     const openButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("打开对话"),
+      (element) => element.textContent?.includes("打开任务"),
     );
     await clickElement(openButton ?? null);
 
     expect(onOpenSubagentSession).toHaveBeenCalledWith("child-1");
   });
 
-  it("真实成员存在时应优先按蓝图角色顺序排列泳道", async () => {
+  it("真实任务存在时应优先把处理中任务排到前面，并在同优先级下保持蓝图顺序", async () => {
     const container = await renderBoard({
       childSubagentSessions: [
         {
@@ -513,21 +528,21 @@ describe("TeamWorkspaceBoard", () => {
         summary: "分析、执行协同推进。",
         members: [
           {
-            id: "runtime-explorer",
-            label: "分析",
-            summary: "先定位问题。",
-            roleKey: "explorer",
-            profileId: "code-explorer",
-            skillIds: ["repo-exploration"],
-            status: "planned",
-          },
-          {
             id: "runtime-executor",
             label: "执行",
             summary: "再提交修复。",
             roleKey: "executor",
             profileId: "code-executor",
             skillIds: ["bounded-implementation"],
+            status: "planned",
+          },
+          {
+            id: "runtime-explorer",
+            label: "分析",
+            summary: "先定位问题。",
+            roleKey: "explorer",
+            profileId: "code-explorer",
+            skillIds: ["repo-exploration"],
             status: "planned",
           },
         ],
@@ -654,13 +669,29 @@ describe("TeamWorkspaceBoard", () => {
       ),
     ).toBeFalsy();
     expect(
-      container.querySelector('[data-testid="team-workspace-canvas-toolbar"]')
+      container.querySelector('[data-testid="team-workspace-compact-summary"]')
         ?.textContent,
-    ).toContain("焦点 实现代理");
+    ).toContain("当前焦点");
+    expect(
+      container.querySelector('[data-testid="team-workspace-compact-summary"]')
+        ?.textContent,
+    ).toContain("并行任务会在各自面板里持续更新进展和结果");
     expect(
       container.querySelector('[data-testid="team-workspace-canvas-toolbar"]')
         ?.textContent,
-    ).toContain("缩放 100%");
+    ).toContain("处理中");
+    expect(
+      container.querySelector('[data-testid="team-workspace-canvas-toolbar"]')
+        ?.textContent,
+    ).toContain("当前任务");
+    expect(
+      container.querySelector('[data-testid="team-workspace-canvas-toolbar"]')
+        ?.textContent,
+    ).not.toContain("当前焦点 实现代理");
+    expect(
+      container.querySelector('[data-testid="team-workspace-canvas-toolbar"]')
+        ?.textContent,
+    ).not.toContain("缩放 100%");
     expect(container.textContent).toContain("最近进展");
     expect(container.textContent).toContain(
       "推理：先检查 team runtime 的控制面状态，再决定是否等待。",
@@ -672,7 +703,7 @@ describe("TeamWorkspaceBoard", () => {
     const siblingLane = container.querySelector(
       '[data-testid="team-workspace-member-lane-child-sibling-1"]',
     );
-    expect(currentLane?.textContent).toContain("成员进展");
+    expect(currentLane?.textContent).toContain("任务进展");
     expect(currentLane?.textContent).toContain(
       "推理：先检查 team runtime 的控制面状态，再决定是否等待。",
     );
@@ -682,7 +713,7 @@ describe("TeamWorkspaceBoard", () => {
     );
 
     const returnButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("返回主助手"),
+      (element) => element.textContent?.includes("返回主任务"),
     );
     expect(returnButton).toBeTruthy();
 
@@ -761,8 +792,9 @@ describe("TeamWorkspaceBoard", () => {
     expect(embeddedShell?.className).toContain("pointer-events-auto");
     expect(embeddedShell?.className).toContain("overflow-hidden");
     expect(embeddedShell?.className).toContain("flex-col");
-    expect(embeddedShell?.className).toContain("bg-transparent");
-    expect(embeddedShell?.className).toContain("border-0");
+    expect(embeddedShell?.className).toContain("rounded-[24px]");
+    expect(embeddedShell?.className).toContain("border-slate-200");
+    expect(embeddedShell?.className).toContain("bg-white");
     expect(embeddedShell?.className).not.toContain("backdrop-blur");
     expect(boardBody?.className).toContain("overflow-y-auto");
     expect(railList?.getAttribute("data-layout-kind")).toBe("free-canvas");
@@ -911,7 +943,7 @@ describe("TeamWorkspaceBoard", () => {
           {
             id: "status-child-live-1-running",
             title: "状态切换",
-            detail: "收到 team 状态事件，已切换为运行中。",
+            detail: "收到任务状态事件，已切换为运行中。",
             statusLabel: "运行中",
             badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
           },
@@ -1648,11 +1680,11 @@ describe("TeamWorkspaceBoard", () => {
       onWaitActiveTeamSessions,
     });
 
-    expect(container.textContent).toContain("等待任一成员结果");
-    expect(container.textContent).toContain("2 位处理中");
+    expect(container.textContent).toContain("等待任一任务结果");
+    expect(container.textContent).toContain("2 项处理中");
 
     const waitAnyButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("等待任一成员结果"),
+      (element) => element.textContent?.includes("等待任一任务结果"),
     );
     expect(waitAnyButton).toBeTruthy();
 
@@ -1705,9 +1737,14 @@ describe("TeamWorkspaceBoard", () => {
     const operations = container.querySelector(
       '[data-testid="team-workspace-team-operations"]',
     );
+    const operationList = container.querySelector(
+      '[data-testid="team-workspace-team-operations-list"]',
+    );
 
     expect(operations).toBeTruthy();
-    expect(operations?.className).toContain("overflow-x-auto");
+    expect(operations?.textContent).toContain("任务进展");
+    expect(operations?.textContent).toContain("最近 1 条");
+    expect(operationList).toBeTruthy();
     expect(operations?.textContent).toContain("收到结果");
     expect(operations?.textContent).toContain("刚才等到 执行器 返回了新结果");
     expect(operations?.textContent).toContain("当前状态为已完成");
@@ -1797,8 +1834,10 @@ describe("TeamWorkspaceBoard", () => {
     );
 
     expect(operations).toBeTruthy();
+    expect(operations?.textContent).toContain("任务进展");
+    expect(operations?.textContent).toContain("最近 1 条");
     expect(operations?.textContent).toContain("暂停处理");
-    expect(operations?.textContent).toContain("刚才已暂停 2 位协作成员的处理");
+    expect(operations?.textContent).toContain("刚才已暂停 2 项任务的处理");
   });
 
   it("点击 Team 轨迹项时应切换焦点到对应 agent", async () => {
@@ -1907,12 +1946,12 @@ describe("TeamWorkspaceBoard", () => {
       onCloseCompletedTeamSessions,
     });
 
-    expect(container.textContent).toContain("收起已完成成员");
-    expect(container.textContent).toContain("2 位已完成");
+    expect(container.textContent).toContain("收起已完成任务");
+    expect(container.textContent).toContain("2 项已完成");
 
     const closeCompletedButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((element) => element.textContent?.includes("收起已完成成员"));
+    ).find((element) => element.textContent?.includes("收起已完成任务"));
     expect(closeCompletedButton).toBeTruthy();
 
     await act(async () => {
@@ -2040,6 +2079,9 @@ describe("TeamWorkspaceBoard", () => {
     expect(header).toBeTruthy();
     expect(header?.className).toContain("sticky");
     expect(header?.className).toContain("top-0");
+    expect(header?.textContent).toContain("任务工作台");
+    expect(header?.textContent).toContain("任务进行中");
+    expect(header?.textContent).not.toContain("任务进行时");
   });
 
   it("本轮 Team 准备中时，应在空 shell 展示组建状态", async () => {
@@ -2062,7 +2104,7 @@ describe("TeamWorkspaceBoard", () => {
 
     expect(container.textContent).toContain("正在准备任务分工");
     expect(container.textContent).toContain("准备中");
-    expect(container.textContent).toContain("任务方案 · 排障 Team");
+    expect(container.textContent).toContain("任务方案 · 排障任务方案");
     expect(container.textContent).toContain("参考方案 · 代码排障团队");
   });
 
@@ -2142,7 +2184,7 @@ describe("TeamWorkspaceBoard", () => {
 
     expect(container.textContent).toContain("任务分工准备失败");
     expect(container.textContent).toContain(
-      "Provider 认证失败，无法生成 Team。",
+      "Provider 认证失败，无法生成任务方案。",
     );
   });
 });

@@ -41,9 +41,12 @@ export function isTeamRuntimeRecommendation(
 
   return (
     normalizedLabel.includes("team") ||
+    shortLabel.includes("任务拆分") ||
     shortLabel.includes("多代理") ||
     shortLabel.includes("父子线程") ||
     normalizedPrompt.includes("team runtime") ||
+    fullPrompt.includes("任务工作台") ||
+    fullPrompt.includes("任务拆分") ||
     fullPrompt.includes("父子线程联调") ||
     fullPrompt.includes("多代理") ||
     (fullPrompt.includes("子代理") &&
@@ -70,16 +73,16 @@ function buildTeamRecommendations(
   const subject = normalizeSubject(context.input);
   const teamSetupHint = context.subagentEnabled
     ? ""
-    : "如果当前多代理偏好未开启，请先开启输入框工具条里的“多代理”开关，再继续执行。";
+    : "如果当前任务拆分偏好未开启，请先开启输入框工具条里的“任务拆分”开关，再继续执行。";
 
   return [
     [
-      "Team 冒烟测试",
-      `请按 team runtime 方式处理“${subject}”：先在主线程拆成两个子任务，再创建 explorer 与 executor 两个子代理并行推进；至少等待一个子代理结束，必要时继续使用 SendMessage 追加说明，最后回到主线程汇总每个 agent 的状态、结论和下一步。${teamSetupHint}`,
+      "任务拆分冒烟测试",
+      `请按任务拆分方式处理“${subject}”：先在主线程拆成两个子任务，再创建 explorer 与 executor 两个子任务并行推进；至少等待一个子任务结束，必要时继续使用 SendMessage 追加说明，最后回到主线程汇总每项任务的状态、结论和下一步。${teamSetupHint}`,
     ],
     [
       "父子线程联调",
-      `请围绕“${subject}”做一次父子线程联调：主线程只负责分派、等待和汇总；子代理 A 负责整理事实与风险，子代理 B 负责给出落地步骤与验收标准；最终输出 team workspace 视角的协作总结。${teamSetupHint}`,
+      `请围绕“${subject}”做一次父子线程联调：主线程只负责分派、等待和汇总；子任务 A 负责整理事实与风险，子任务 B 负责给出落地步骤与验收标准；最终输出任务工作台视角的任务总结。${teamSetupHint}`,
     ],
   ];
 }

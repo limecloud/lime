@@ -90,7 +90,9 @@ export function useInputbarToolState({
             thinking: thinkingEnabled,
             subagent: nextSubagent,
           });
-          toast.info(`多代理${nextSubagent ? "偏好已开启" : "偏好已关闭"}`);
+          toast.info(
+            `任务拆分${nextSubagent ? "偏好已开启" : "偏好已关闭"}`,
+          );
           break;
         }
         case "attach":
@@ -124,7 +126,7 @@ export function useInputbarToolState({
         thinking: thinkingEnabled,
         subagent: enabled,
       });
-      toast.info(`多代理${enabled ? "偏好已开启" : "偏好已关闭"}`);
+      toast.info(`任务拆分${enabled ? "偏好已开启" : "偏好已关闭"}`);
     },
     [subagentEnabled, thinkingEnabled, updateToolStates, webSearchEnabled],
   );

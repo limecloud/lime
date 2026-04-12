@@ -17,12 +17,14 @@ import {
 import type { Dispatch, SetStateAction } from "react";
 import { toast } from "sonner";
 import { useAgentChatUnified } from "./hooks";
-import { type TaskStatusReason } from "./hooks/agentChatShared";
+import {
+  buildLiveTaskSnapshot,
+  type TaskStatusReason,
+} from "./hooks/agentChatShared";
 import {
   settleLiveArtifactAfterStreamStops,
   useArtifactDisplayState,
 } from "./hooks/useArtifactDisplayState";
-import { useCompatSubagentRuntime } from "./hooks/useCompatSubagentRuntime";
 import type { TopicBranchStatus } from "./hooks/useTopicBranchBoard";
 import { useSessionFiles } from "./hooks/useSessionFiles";
 import { useContentSync } from "./hooks/useContentSync";
@@ -84,6 +86,7 @@ import {
 
 import type {
   Message,
+  MessageImage,
   MessagePreviewTarget,
   SiteSavedContentTarget,
   WriteArtifactContext,
@@ -100,6 +103,7 @@ import {
 import { isHiddenInternalArtifactPath } from "./utils/internalArtifactVisibility";
 import { buildHarnessRequestMetadata } from "./utils/harnessRequestMetadata";
 import { deriveHarnessSessionState } from "./utils/harnessState";
+import { resolveWorkflowLayoutBottomSpacing } from "./utils/workflowLayout";
 import {
   alignChatToolPreferencesWithExecutionStrategy,
   loadChatToolPreferences,
@@ -110,10 +114,7 @@ import {
   createSessionRecentPreferencesFromChatToolPreferences,
   createSessionRecentTeamSelectionFromTeamDefinition,
 } from "./utils/sessionExecutionRuntime";
-import {
-  buildRealSubagentTimelineItems,
-  buildSyntheticSubagentTimelineItems,
-} from "./utils/subagentTimeline";
+import { buildRealSubagentTimelineItems } from "./utils/subagentTimeline";
 import {
   buildGeneralAgentSystemPrompt,
   resolveAgentChatMode,
@@ -148,14 +149,11 @@ import { useWorkspaceHarnessInventoryRuntime } from "./workspace/useWorkspaceHar
 import { useWorkspaceCanvasWorkflowActions } from "./workspace/useWorkspaceCanvasWorkflowActions";
 import { useWorkspaceCanvasSceneRuntime } from "./workspace/useWorkspaceCanvasSceneRuntime";
 import { useWorkspaceCanvasMessageSyncRuntime } from "./workspace/useWorkspaceCanvasMessageSyncRuntime";
-import { useWorkspaceConversationShellSceneRuntime } from "./workspace/useWorkspaceConversationShellSceneRuntime";
-import { useWorkspaceDisplayMessagesRuntime } from "./workspace/useWorkspaceDisplayMessagesRuntime";
+import { useWorkspaceConversationSceneRuntime } from "./workspace/useWorkspaceConversationSceneRuntime";
 import { useWorkspaceInputbarSceneRuntime } from "./workspace/useWorkspaceInputbarSceneRuntime";
 import { useWorkspaceNavigationActions } from "./workspace/useWorkspaceNavigationActions";
-import { useWorkspaceShellChromeRuntime } from "./workspace/useWorkspaceShellChromeRuntime";
 import { useWorkspaceWriteFileAction } from "./workspace/useWorkspaceWriteFileAction";
 import { useWorkspaceArtifactPreviewActions } from "./workspace/useWorkspaceArtifactPreviewActions";
-import { useWorkspaceWorkflowProgressSync } from "./workspace/useWorkspaceWorkflowProgressSync";
 import { useWorkspaceCanvasLayoutRuntime } from "./workspace/useWorkspaceCanvasLayoutRuntime";
 import { useWorkspaceCanvasTaskFileSync } from "./workspace/useWorkspaceCanvasTaskFileSync";
 import { useWorkspaceGeneralResourceSync } from "./workspace/useWorkspaceGeneralResourceSync";
@@ -169,26 +167,28 @@ import { buildImageSkillLaunchRequestMetadata } from "./workspace/imageSkillLaun
 import { useWorkspaceImageTaskPreviewRuntime } from "./workspace/useWorkspaceImageTaskPreviewRuntime";
 import { useWorkspaceVideoTaskPreviewRuntime } from "./workspace/useWorkspaceVideoTaskPreviewRuntime";
 import { useWorkspaceVideoTaskActionRuntime } from "./workspace/useWorkspaceVideoTaskActionRuntime";
-import { useWorkspaceRuntimeTeamDispatchPreviewRuntime } from "./workspace/useWorkspaceRuntimeTeamDispatchPreviewRuntime";
 import { useWorkspaceSessionRestore } from "./workspace/useWorkspaceSessionRestore";
 import { useWorkspaceResetRuntime } from "./workspace/useWorkspaceResetRuntime";
 import { useWorkspaceSendActions } from "./workspace/useWorkspaceSendActions";
 import { useWorkspaceTeamSessionControlRuntime } from "./workspace/useWorkspaceTeamSessionControlRuntime";
-import { useWorkspaceTeamWorkbenchAutoOpenRuntime } from "./workspace/useWorkspaceTeamWorkbenchAutoOpenRuntime";
 import { useWorkspaceGeneralWorkbenchScaffoldRuntime } from "./workspace/useWorkspaceGeneralWorkbenchScaffoldRuntime";
-import { useWorkspaceGeneralWorkbenchVersionStatusRuntime } from "./workspace/useWorkspaceGeneralWorkbenchVersionStatusRuntime";
 import { useWorkspaceTopicSwitch } from "./workspace/useWorkspaceTopicSwitch";
 import { useWorkspaceA2UIRuntime } from "./workspace/useWorkspaceA2UIRuntime";
 import { useWorkspaceSceneGateRuntime } from "./workspace/useWorkspaceSceneGateRuntime";
 import { useWorkspaceAutoGuideRuntime } from "./workspace/useWorkspaceAutoGuideRuntime";
 import { useWorkspaceGeneralWorkbenchSidebarRuntime } from "./workspace/useWorkspaceGeneralWorkbenchSidebarRuntime";
 import { useWorkspaceGeneralWorkbenchRuntime } from "./workspace/useWorkspaceGeneralWorkbenchRuntime";
-import { useWorkspaceGeneralWorkbenchShellRuntime } from "./workspace/useWorkspaceGeneralWorkbenchShellRuntime";
-import { useWorkspaceContextDetailActions } from "./workspace/useWorkspaceContextDetailActions";
 import { useWorkspaceTeamSessionRuntime } from "./workspace/useWorkspaceTeamSessionRuntime";
 import { useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime } from "./workspace/useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime";
 import { useWorkspaceServiceSkillEntryActions } from "./workspace/useWorkspaceServiceSkillEntryActions";
 import { useWorkspaceArtifactViewModeControl } from "./workspace/useWorkspaceArtifactViewModeControl";
+import { WorkspaceGeneralWorkbenchSidebar } from "./workspace/WorkspaceGeneralWorkbenchSidebar";
+import { GeneralWorkbenchHarnessDialogSection } from "./workspace/WorkspaceHarnessDialogs";
+import { WorkspaceShellScene } from "./workspace/WorkspaceShellScene";
+import {
+  TEAM_PRIMARY_CHAT_PANEL_MIN_WIDTH,
+  TEAM_PRIMARY_CHAT_PANEL_WIDTH,
+} from "./workspace/WorkspaceStyles";
 import { hasNamedGeneralCanvasFilePreview } from "./workspace/generalCanvasPreviewState";
 import { resolvePreferredServiceSkillResultFileTarget } from "./workspace/serviceSkillResultFileTarget";
 import {
@@ -1605,32 +1605,17 @@ export function AgentChatWorkspace({
     syncSessionRecentPreferences,
   ]);
 
-  const hasRealTeamGraph =
-    childSubagentSessions.length > 0 || Boolean(subagentParentContext);
   const {
     clearRuntimeTeamState: clearPreparedRuntimeTeamState,
     prepareRuntimeTeamBeforeSend,
   } = useRuntimeTeamFormation({
     projectId,
-    sessionId,
     selectedTeam,
     subagentEnabled: effectiveChatToolPreferences.subagent,
-    hasRealTeamGraph,
   });
-  const {
-    runtimeTeamDispatchPreview,
-    runtimeTeamPreviewState,
-    clearRuntimeTeamDispatchPreview,
-    setRuntimeTeamDispatchPreview,
-  } = useWorkspaceRuntimeTeamDispatchPreviewRuntime({
-    messagesLength: messages.length,
-    sessionId,
-  });
-  const teamDispatchPreviewState = runtimeTeamPreviewState;
   const clearRuntimeTeamState = useCallback(() => {
     clearPreparedRuntimeTeamState();
-    clearRuntimeTeamDispatchPreview();
-  }, [clearPreparedRuntimeTeamState, clearRuntimeTeamDispatchPreview]);
+  }, [clearPreparedRuntimeTeamState]);
   const localImageWorkbenchSessionKeyRef = useRef(
     `__local_image_workbench__:${Date.now().toString(36)}:${Math.random()
       .toString(36)
@@ -1746,17 +1731,13 @@ export function AgentChatWorkspace({
     liveRuntimeBySessionId: teamSessionRuntime.liveRuntimeBySessionId,
     stopSending,
   });
-  const {
-    teamWorkbenchAutoFocusToken,
-    dismissActiveTeamWorkbenchAutoOpen,
-    handleActivateTeamWorkbench,
-  } = useWorkspaceTeamWorkbenchAutoOpenRuntime({
-    hasRealTeamGraph: teamSessionRuntime.hasRealTeamGraph,
-    layoutMode,
-    runtimeTeamRequestId: runtimeTeamDispatchPreview?.key ?? null,
-    sessionId,
-    setLayoutMode,
-  });
+  const [teamWorkbenchAutoFocusToken, setTeamWorkbenchAutoFocusToken] =
+    useState(0);
+  const dismissActiveTeamWorkbenchAutoOpen = useCallback(() => {}, []);
+  const handleActivateTeamWorkbench = useCallback(() => {
+    setTeamWorkbenchAutoFocusToken((current) => current + 1);
+    setLayoutMode((current) => (current === "chat" ? "chat-canvas" : current));
+  }, [setLayoutMode]);
   useEffect(() => {
     logAgentDebug(
       "AgentChatPage",
@@ -2021,7 +2002,6 @@ export function AgentChatWorkspace({
     siteSkillExecutionState?.profileKey,
     siteSkillExecutionState?.targetId,
   ]);
-  const compatSubagentRuntime = useCompatSubagentRuntime(sessionId);
   const realSubagentTimelineItems = useMemo(
     () =>
       buildRealSubagentTimelineItems({
@@ -2031,25 +2011,9 @@ export function AgentChatWorkspace({
       }),
     [childSubagentSessions, sessionId, turns],
   );
-  const syntheticSubagentItems = useMemo(
-    () =>
-      buildSyntheticSubagentTimelineItems({
-        threadId: sessionId,
-        turnId: currentTurnId,
-        events: compatSubagentRuntime.events,
-      }),
-    [compatSubagentRuntime.events, currentTurnId, sessionId],
-  );
   const effectiveThreadItems = useMemo(
-    () =>
-      mergeThreadItems(
-        threadItems,
-        realSubagentTimelineItems,
-        realSubagentTimelineItems.length > 0
-          ? undefined
-          : syntheticSubagentItems,
-      ),
-    [realSubagentTimelineItems, syntheticSubagentItems, threadItems],
+    () => mergeThreadItems(threadItems, realSubagentTimelineItems),
+    [realSubagentTimelineItems, threadItems],
   );
   const harnessState = useMemo(
     () =>
@@ -2148,7 +2112,6 @@ export function AgentChatWorkspace({
     isSending,
     projectMemory,
     harnessState,
-    compatSubagentRuntime,
   });
   const {
     contextWorkspace,
@@ -2259,7 +2222,6 @@ export function AgentChatWorkspace({
     pendingA2UIForm,
     pendingA2UISource,
     pendingActionRequest,
-    pendingLegacyQuestionnaireA2UIForm,
     pendingPromotedA2UIActionRequest,
     resolvePendingA2UISubmit,
   } = useWorkspaceA2UIRuntime({
@@ -2315,9 +2277,51 @@ export function AgentChatWorkspace({
       historyPageSize: GENERAL_WORKBENCH_HISTORY_PAGE_SIZE,
     });
 
-  const { handleViewContextDetail } = useWorkspaceContextDetailActions({
-    contextWorkspace,
-  });
+  const handleViewContextDetail = useCallback(
+    (contextId: string) => {
+      const detail = contextWorkspace.getContextDetail(contextId);
+      if (!detail) {
+        toast.error("无法找到上下文详情");
+        return;
+      }
+
+      const sourceLabel =
+        detail.source === "material"
+          ? "素材库"
+          : detail.source === "content"
+            ? "历史内容"
+            : "搜索结果";
+
+      toast.info(
+        <div style={{ maxWidth: "500px" }}>
+          <div style={{ fontWeight: 600, marginBottom: "8px" }}>
+            {detail.name}
+          </div>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "hsl(var(--muted-foreground))",
+              marginBottom: "8px",
+            }}
+          >
+            来源: {sourceLabel} · 约 {detail.estimatedTokens} tokens
+          </div>
+          <div
+            style={{
+              fontSize: "13px",
+              lineHeight: "1.5",
+              maxHeight: "300px",
+              overflow: "auto",
+            }}
+          >
+            {detail.bodyText || detail.previewText}
+          </div>
+        </div>,
+        { duration: 10000 },
+      );
+    },
+    [contextWorkspace],
+  );
 
   const harnessRequestMetadata = useMemo(
     () =>
@@ -2384,13 +2388,50 @@ export function AgentChatWorkspace({
     harnessPendingCount,
   });
 
-  useWorkspaceGeneralWorkbenchVersionStatusRuntime({
-    isThemeWorkbench,
-    themeWorkbenchRunState,
+  useEffect(() => {
+    if (!isThemeWorkbench || themeWorkbenchRunState !== "idle") {
+      return;
+    }
+    if (!canvasState || canvasState.type !== "document") {
+      return;
+    }
+
+    const latestTerminal = themeWorkbenchBackendRunState?.latest_terminal ?? null;
+
+    setDocumentVersionStatusMap((previous) => {
+      if (latestTerminal) {
+        const terminalVersionId = latestTerminal.run_id;
+        const terminalVersionExists = canvasState.versions.some(
+          (version) => version.id === terminalVersionId,
+        );
+        if (terminalVersionExists) {
+          const terminalStatus: TopicBranchStatus =
+            latestTerminal.status === "success" ? "merged" : "candidate";
+          if (previous[terminalVersionId] !== terminalStatus) {
+            return {
+              ...previous,
+              [terminalVersionId]: terminalStatus,
+            };
+          }
+        }
+      }
+
+      const currentVersionId = canvasState.currentVersionId;
+      if (!currentVersionId || previous[currentVersionId] !== "in_progress") {
+        return previous;
+      }
+      return {
+        ...previous,
+        [currentVersionId]: "pending",
+      };
+    });
+  }, [
     canvasState,
-    latestTerminal: themeWorkbenchBackendRunState?.latest_terminal ?? null,
+    isThemeWorkbench,
     setDocumentVersionStatusMap,
-  });
+    themeWorkbenchBackendRunState?.latest_terminal,
+    themeWorkbenchRunState,
+  ]);
 
   // 会话文件持久化 hook
   const {
@@ -2622,7 +2663,8 @@ export function AgentChatWorkspace({
     handleSendRef,
     webSearchPreferenceRef,
     isPreparingSend,
-    submissionPreview,
+    displayMessages,
+    teamDispatchPreviewState,
   } = useWorkspaceSendActions({
     input,
     setInput,
@@ -2640,6 +2682,7 @@ export function AgentChatWorkspace({
       prepareActiveContextPrompt: contextWorkspace.prepareActiveContextPrompt,
     },
     projectId,
+    sessionId,
     executionStrategy,
     accessMode,
     preferredTeamPresetId,
@@ -2654,13 +2697,13 @@ export function AgentChatWorkspace({
     browserAssistPreferredBackend: browserAssistRequestPreferredBackend,
     browserAssistAutoLaunch: browserAssistRequestAutoLaunch,
     workspaceRequestMetadataBase: initialRequestMetadata,
-    messagesCount: messages.length,
+    messages,
+    bootstrapDispatchPreviewMessages,
     sendMessage,
     resolveSendBoundary,
     finalizeAfterSendSuccess,
     rollbackAfterSendFailure,
     prepareRuntimeTeamBeforeSend,
-    setRuntimeTeamDispatchPreview,
     ensureBrowserAssistCanvas,
     handleAutoLaunchMatchedSiteSkill:
       workspaceServiceSkillEntryActions.handleAutoLaunchMatchedSiteSkill,
@@ -2761,7 +2804,6 @@ export function AgentChatWorkspace({
   });
   const { handleInputbarA2UISubmit } = useWorkspaceA2UISubmitActions({
     handlePermissionResponse,
-    pendingLegacyQuestionnaireA2UIForm,
     pendingPromotedA2UIActionRequest,
     resolvePendingA2UISubmit,
     sendMessage,
@@ -2812,19 +2854,31 @@ export function AgentChatWorkspace({
     console.log("[AgentChatPage] 执行技能命令:", command);
     handleSend([], false, false, command);
   }, [pendingSkillKey, isThemeWorkbench, consumePendingSkill, handleSend]);
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
 
-  const { displayMessages } = useWorkspaceDisplayMessagesRuntime({
-    bootstrapDispatchPreviewMessages,
+    updateTopicSnapshot(
+      sessionId,
+      buildLiveTaskSnapshot({
+        messages: displayMessages,
+        isSending,
+        pendingActionCount: pendingActions.length,
+        queuedTurnCount: queuedTurns.length,
+        workspaceError: Boolean(workspacePathMissing || workspaceHealthError),
+      }),
+    );
+  }, [
+    displayMessages,
     isSending,
-    messages,
-    pendingActionCount: pendingActions.length,
-    queuedTurnCount: queuedTurns.length,
-    runtimeTeamDispatchPreview,
-    submissionPreview,
+    pendingActions.length,
+    queuedTurns.length,
     sessionId,
     updateTopicSnapshot,
-    workspaceError: Boolean(workspacePathMissing || workspaceHealthError),
-  });
+    workspaceHealthError,
+    workspacePathMissing,
+  ]);
   const latestAssistantMessageId = useMemo(
     () =>
       [...displayMessages]
@@ -2890,7 +2944,7 @@ export function AgentChatWorkspace({
     shouldBootstrapCanvasOnEntry,
     canvasState,
     generalCanvasState,
-    showTeamWorkspaceBoard: teamSessionRuntime.showTeamWorkspaceBoard,
+    teamWorkspaceEnabled: teamSessionRuntime.teamWorkspaceEnabled,
     hasCurrentCanvasArtifact: Boolean(currentCanvasArtifact),
     currentCanvasArtifactType: currentCanvasArtifact?.type,
     hasBrowserAssistArtifact,
@@ -3459,61 +3513,229 @@ export function AgentChatWorkspace({
     setChatMessages,
   });
 
-  const shellChromeRuntime = useWorkspaceShellChromeRuntime({
+  const shellChromeRuntime = useMemo(() => {
+    const hasUnconsumedInitialDispatch =
+      !shouldUseCompactGeneralWorkbench && isBootstrapDispatchPending;
+
+    const showChatLayout =
+      agentEntry === "claw" ||
+      hasDisplayMessages ||
+      hasPendingA2UIForm ||
+      isThemeWorkbench ||
+      hasUnconsumedInitialDispatch ||
+      isSending ||
+      queuedTurns.length > 0;
+
+    const shouldHideGeneralWorkbenchInputForTheme =
+      shouldUseCompactGeneralWorkbench;
+    const shouldShowGeneralWorkbenchFloatingInputOverlay =
+      isThemeWorkbench &&
+      showChatLayout &&
+      !shouldHideGeneralWorkbenchInputForTheme;
+    const isWorkspaceCompactChrome = topBarChrome === "workspace-compact";
+    const shouldRenderBrandedEmptyState = !showChatLayout;
+    const shouldRenderTopBar = !hideTopBar && !shouldRenderBrandedEmptyState;
+    const shouldRenderInlineA2UI = isSpecializedThemeMode;
+
+    const shouldUseTeamPrimaryChatPanelWidth =
+      layoutMode === "chat-canvas" &&
+      teamSessionRuntime.teamWorkspaceEnabled &&
+      (teamSessionRuntime.hasRuntimeSessions || Boolean(teamDispatchPreviewState));
+
+    return {
+      showChatLayout,
+      isWorkspaceCompactChrome,
+      workflowLayoutBottomSpacing: resolveWorkflowLayoutBottomSpacing({
+        contextWorkspaceEnabled: contextWorkspace.generalWorkbenchEnabled,
+        showFloatingInputOverlay:
+          shouldShowGeneralWorkbenchFloatingInputOverlay,
+        hasCanvasContent: layoutMode !== "chat",
+        workflowRunState: themeWorkbenchRunState,
+        gateStatus: currentGate.status,
+      }),
+      shouldHideGeneralWorkbenchInputForTheme,
+      shouldRenderTopBar,
+      layoutTransitionChatPanelWidth: shouldUseTeamPrimaryChatPanelWidth
+        ? TEAM_PRIMARY_CHAT_PANEL_WIDTH
+        : undefined,
+      layoutTransitionChatPanelMinWidth: shouldUseTeamPrimaryChatPanelWidth
+        ? TEAM_PRIMARY_CHAT_PANEL_MIN_WIDTH
+        : undefined,
+      shouldShowGeneralWorkbenchFloatingInputOverlay,
+      shouldRenderInlineA2UI,
+    };
+  }, [
     agentEntry,
-    contextWorkspaceEnabled: contextWorkspace.generalWorkbenchEnabled,
+    contextWorkspace.generalWorkbenchEnabled,
+    currentGate.status,
     hasDisplayMessages,
     hasPendingA2UIForm,
     hideTopBar,
     isBootstrapDispatchPending,
-    isSpecializedThemeMode,
     isSending,
+    isSpecializedThemeMode,
     isThemeWorkbench,
     layoutMode,
-    queuedTurnCount: queuedTurns.length,
+    queuedTurns.length,
     shouldUseCompactGeneralWorkbench,
-    showTeamWorkspaceBoard: teamSessionRuntime.showTeamWorkspaceBoard,
-    topBarChrome,
-    themeWorkbenchRunState,
-    currentGateStatus: currentGate.status,
-    hasRealTeamGraph: teamSessionRuntime.hasRealTeamGraph,
     teamDispatchPreviewState,
-  });
-  const generalWorkbenchShellRuntime = useWorkspaceGeneralWorkbenchShellRuntime(
-    {
-      showChatPanel: effectiveShowChatPanel,
-      showSidebar,
-      hasPendingA2UIForm,
-      contextHarnessRuntime,
-      generalWorkbenchScaffoldRuntime,
-      generalWorkbenchSidebarRuntime,
-      harnessInventoryRuntime,
-      handleCreateVersionSnapshot,
-      handleSwitchBranchVersion,
-      handleSetBranchStatus,
-      handleAddImage,
-      handleImportDocument,
-      handleViewContextDetail,
-      messages,
-      harnessState,
-      compatSubagentRuntime,
-      childSubagentSessions,
-      selectedTeamLabel,
-      selectedTeamSummary,
-      selectedTeamRoles: selectedTeam?.roles,
-      teamMemorySnapshot: resolvedTeamMemoryShadowSnapshot,
-      handleOpenSubagentSession,
-      handleHarnessLoadFilePreview,
-      handleFileClick: handleWorkspaceFileClick,
-    },
+    teamSessionRuntime.hasRuntimeSessions,
+    teamSessionRuntime.teamWorkspaceEnabled,
+    themeWorkbenchRunState,
+    topBarChrome,
+  ]);
+  const shouldShowGeneralWorkbenchSidebarForTheme =
+    !generalWorkbenchScaffoldRuntime.shouldUseCompactGeneralWorkbench;
+  const showGeneralWorkbenchSidebar =
+    effectiveShowChatPanel &&
+    showSidebar &&
+    !hasPendingA2UIForm &&
+    isThemeWorkbench &&
+    shouldShowGeneralWorkbenchSidebarForTheme &&
+    (!generalWorkbenchScaffoldRuntime.enableGeneralWorkbenchPanelCollapse ||
+      !generalWorkbenchScaffoldRuntime.generalWorkbenchSidebarCollapsed);
+  const showGeneralWorkbenchLeftExpandButton =
+    effectiveShowChatPanel &&
+    showSidebar &&
+    !hasPendingA2UIForm &&
+    isThemeWorkbench &&
+    shouldShowGeneralWorkbenchSidebarForTheme &&
+    generalWorkbenchScaffoldRuntime.enableGeneralWorkbenchPanelCollapse &&
+    generalWorkbenchScaffoldRuntime.generalWorkbenchSidebarCollapsed;
+  const handleDeleteGeneralWorkbenchVersion = useCallback(
+    () => undefined,
+    [],
+  );
+  const handleCollapseGeneralWorkbenchSidebar = useCallback(() => {
+    generalWorkbenchScaffoldRuntime.setGeneralWorkbenchSidebarCollapsed(true);
+  }, [generalWorkbenchScaffoldRuntime]);
+  const handleExpandGeneralWorkbenchSidebar = useCallback(() => {
+    generalWorkbenchScaffoldRuntime.setGeneralWorkbenchSidebarCollapsed(false);
+  }, [generalWorkbenchScaffoldRuntime]);
+  const generalWorkbenchHarnessDialog = (
+    <GeneralWorkbenchHarnessDialogSection
+      enabled={
+        contextHarnessRuntime.workbenchEnabled &&
+        contextHarnessRuntime.isThemeWorkbench
+      }
+      open={contextHarnessRuntime.harnessPanelVisible}
+      onOpenChange={contextHarnessRuntime.setHarnessPanelVisible}
+      harnessState={harnessState}
+      environment={contextHarnessRuntime.harnessEnvironment}
+      childSubagentSessions={childSubagentSessions}
+      selectedTeamLabel={selectedTeamLabel}
+      selectedTeamSummary={selectedTeamSummary}
+      selectedTeamRoles={selectedTeam?.roles}
+      teamMemorySnapshot={resolvedTeamMemoryShadowSnapshot}
+      toolInventory={harnessInventoryRuntime.toolInventory}
+      toolInventoryLoading={harnessInventoryRuntime.toolInventoryLoading}
+      toolInventoryError={harnessInventoryRuntime.toolInventoryError}
+      onRefreshToolInventory={harnessInventoryRuntime.refreshToolInventory}
+      onOpenSubagentSession={handleOpenSubagentSession}
+      onLoadFilePreview={handleHarnessLoadFilePreview}
+      onOpenFile={handleWorkspaceFileClick}
+    />
+  );
+  const generalWorkbenchSidebarNode = (
+    <WorkspaceGeneralWorkbenchSidebar
+      visible={showGeneralWorkbenchSidebar}
+      isThemeWorkbench={isThemeWorkbench}
+      enablePanelCollapse={
+        generalWorkbenchScaffoldRuntime.enableGeneralWorkbenchPanelCollapse
+      }
+      onRequestCollapse={handleCollapseGeneralWorkbenchSidebar}
+      generalWorkbenchHarnessSummary={
+        harnessInventoryRuntime.generalWorkbenchHarnessSummary
+      }
+      harnessPanelVisible={contextHarnessRuntime.harnessPanelVisible}
+      onToggleHarnessPanel={contextHarnessRuntime.handleToggleHarnessPanel}
+      workflow={{
+        branchItems: generalWorkbenchScaffoldRuntime.branchItems,
+        onCreateVersionSnapshot: handleCreateVersionSnapshot,
+        onSwitchBranchVersion: handleSwitchBranchVersion,
+        onDeleteTopic: handleDeleteGeneralWorkbenchVersion,
+        onSetBranchStatus: handleSetBranchStatus,
+        workflowSteps:
+          generalWorkbenchSidebarRuntime.generalWorkbenchWorkflowSteps,
+        onAddImage: handleAddImage,
+        onImportDocument: handleImportDocument,
+        activityLogs: generalWorkbenchSidebarRuntime.generalWorkbenchActivityLogs,
+        creationTaskEvents:
+          generalWorkbenchScaffoldRuntime.generalWorkbenchCreationTaskEvents,
+        onViewRunDetail:
+          generalWorkbenchSidebarRuntime.handleViewGeneralWorkbenchRunDetail,
+        activeRunDetail:
+          generalWorkbenchSidebarRuntime.selectedGeneralWorkbenchRunDetail,
+        activeRunDetailLoading:
+          generalWorkbenchSidebarRuntime.generalWorkbenchRunDetailLoading,
+      }}
+      contextWorkspace={contextHarnessRuntime.contextWorkspace}
+      onViewContextDetail={handleViewContextDetail}
+      history={{
+        hasMore: generalWorkbenchSidebarRuntime.generalWorkbenchHistoryHasMore,
+        loading: generalWorkbenchSidebarRuntime.generalWorkbenchHistoryLoading,
+        onLoadMore:
+          generalWorkbenchSidebarRuntime
+            .handleLoadMoreGeneralWorkbenchHistory,
+        skillDetailMap:
+          generalWorkbenchSidebarRuntime.generalWorkbenchSkillDetailMap,
+        messages,
+      }}
+    />
   );
 
-  useWorkspaceWorkflowProgressSync({
-    enabled: isSpecializedThemeMode && hasMessages && steps.length > 0,
+  const workflowProgressEnabled =
+    isSpecializedThemeMode && hasMessages && steps.length > 0;
+  const workflowProgressSignature = useMemo(() => {
+    if (!workflowProgressEnabled) {
+      return "hidden";
+    }
+
+    const stepSignature = steps
+      .map((step) => `${step.id}:${step.status}:${step.title}`)
+      .join("|");
+    return `${currentStepIndex}:${stepSignature}`;
+  }, [currentStepIndex, steps, workflowProgressEnabled]);
+  const lastWorkflowProgressSignatureRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!onWorkflowProgressChange) {
+      return;
+    }
+
+    if (
+      lastWorkflowProgressSignatureRef.current === workflowProgressSignature
+    ) {
+      return;
+    }
+    lastWorkflowProgressSignatureRef.current = workflowProgressSignature;
+
+    if (!workflowProgressEnabled) {
+      onWorkflowProgressChange(null);
+      return;
+    }
+
+    onWorkflowProgressChange({
+      currentIndex: currentStepIndex,
+      steps: steps.map((step) => ({
+        id: step.id,
+        title: step.title,
+        status: step.status,
+      })),
+    });
+  }, [
     currentStepIndex,
-    steps,
     onWorkflowProgressChange,
-  });
+    steps,
+    workflowProgressEnabled,
+    workflowProgressSignature,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      onWorkflowProgressChange?.(null);
+    };
+  }, [onWorkflowProgressChange]);
   const navigationActions = useWorkspaceNavigationActions({
     applyProjectSelection,
     compactSession,
@@ -3589,14 +3811,38 @@ export function AgentChatWorkspace({
     selectedTeamSummary,
     teamDispatchPreviewState,
     teamMemorySnapshot: resolvedTeamMemoryShadowSnapshot,
-    teamSessionRuntime,
-    teamSessionControlRuntime,
+    currentSessionTitle: teamSessionRuntime.currentSessionTitle,
+    currentSessionRuntimeStatus:
+      teamSessionRuntime.currentSessionRuntimeStatus,
+    currentSessionLatestTurnStatus:
+      teamSessionRuntime.currentSessionLatestTurnStatus,
+    liveRuntimeBySessionId: teamSessionRuntime.liveRuntimeBySessionId,
+    liveActivityBySessionId: teamSessionRuntime.liveActivityBySessionId,
+    activityRefreshVersionBySessionId:
+      teamSessionRuntime.activityRefreshVersionBySessionId,
+    handleSendSubagentInput:
+      teamSessionControlRuntime.handleSendSubagentInput,
+    handleWaitSubagentSession:
+      teamSessionControlRuntime.handleWaitSubagentSession,
+    handleWaitActiveTeamSessions:
+      teamSessionControlRuntime.handleWaitActiveTeamSessions,
+    handleCloseCompletedTeamSessions:
+      teamSessionControlRuntime.handleCloseCompletedTeamSessions,
+    handleCloseSubagentSession:
+      teamSessionControlRuntime.handleCloseSubagentSession,
+    handleResumeSubagentSession:
+      teamSessionControlRuntime.handleResumeSubagentSession,
+    teamWaitSummary: teamSessionControlRuntime.teamWaitSummary,
+    teamControlSummary: teamSessionControlRuntime.teamControlSummary,
+    handleStopSending: teamSessionControlRuntime.handleStopSending,
+    teamWorkspaceEnabled: teamSessionRuntime.teamWorkspaceEnabled,
     handleOpenSubagentSession,
     handleReturnToParentSession,
     input,
     setInput,
     currentGate,
-    generalWorkbenchSidebarRuntime,
+    generalWorkbenchWorkflowSteps:
+      generalWorkbenchSidebarRuntime.generalWorkbenchWorkflowSteps,
     steps,
     workflowRunState: themeWorkbenchRunState,
     handleSend,
@@ -3649,14 +3895,20 @@ export function AgentChatWorkspace({
     handleRestartGeneralWorkbenchEntryPrompt,
     handleContinueGeneralWorkbenchEntryPrompt,
     generalWorkbenchEnabled: workspaceHarnessEnabled && chatMode === "general",
-    contextHarnessRuntime,
+    harnessPanelVisible: contextHarnessRuntime.harnessPanelVisible,
+    setHarnessPanelVisible: contextHarnessRuntime.setHarnessPanelVisible,
     harnessState,
-    compatSubagentRuntime,
-    harnessInventoryRuntime,
+    harnessEnvironment: contextHarnessRuntime.harnessEnvironment,
+    toolInventory: harnessInventoryRuntime.toolInventory,
+    toolInventoryLoading: harnessInventoryRuntime.toolInventoryLoading,
+    toolInventoryError: harnessInventoryRuntime.toolInventoryError,
+    refreshToolInventory: harnessInventoryRuntime.refreshToolInventory,
     mappedTheme,
+    activeRuntimeStatusTitle: contextHarnessRuntime.activeRuntimeStatusTitle,
     handleHarnessLoadFilePreview,
     handleFileClick: handleWorkspaceFileClick,
-    shellChromeRuntime,
+    showGeneralWorkbenchFloatingInputOverlay:
+      shellChromeRuntime.shouldShowGeneralWorkbenchFloatingInputOverlay,
     handleActivateTeamWorkbench,
     chatToolPreferences: effectiveChatToolPreferences,
   });
@@ -3712,40 +3964,53 @@ export function AgentChatWorkspace({
     handleDocumentContentReviewRun,
     handleDocumentTextStylizeRun,
     preferContentReviewInRightRail,
-    teamSessionRuntime,
-    teamSessionControlRuntime,
+    teamWorkspaceEnabled: teamSessionRuntime.teamWorkspaceEnabled,
+    liveActivityBySessionId: teamSessionRuntime.liveActivityBySessionId,
+    teamWaitSummary: teamSessionControlRuntime.teamWaitSummary,
+    teamControlSummary: teamSessionControlRuntime.teamControlSummary,
     teamWorkbenchAutoFocusToken,
     teamDispatchPreviewState,
     teamMemorySnapshot: resolvedTeamMemoryShadowSnapshot,
   });
 
-  const workspaceShellSceneRuntime = useWorkspaceConversationShellSceneRuntime({
+  const handleSendFromEmptyState = useCallback(
+    (
+      text: string,
+      sendExecutionStrategy?: "react" | "code_orchestrated" | "auto",
+      images?: MessageImage[],
+    ) => {
+      void handleSend(
+        images || [],
+        effectiveChatToolPreferences.webSearch,
+        effectiveChatToolPreferences.thinking,
+        text,
+        sendExecutionStrategy,
+      );
+    },
+    [
+      effectiveChatToolPreferences.thinking,
+      effectiveChatToolPreferences.webSearch,
+      handleSend,
+    ],
+  );
+
+  const conversationSceneRuntime = useWorkspaceConversationSceneRuntime({
     messageListEmptyStateVariant:
       agentEntry === "claw" ? "task-center" : "default",
     navbarContextVariant: agentEntry === "claw" ? "task-center" : "default",
-    sidebarContextVariant: agentEntry === "claw" ? "task-center" : "default",
     navigationActions,
     inputbarScene,
     canvasScene,
+    handleSendFromEmptyState,
     shellChromeRuntime,
-    generalWorkbenchShellRuntime,
-    contextHarnessRuntime,
-    teamSessionRuntime,
-    currentImageWorkbenchState,
-    project,
-    projectId,
-    projectMemory,
-    handleSend,
-    generalCanvasState,
-    showSidebar,
-    topics,
-    switchTopic,
-    handleResumeSidebarTask,
-    deleteTopic,
-    renameTopic,
-    childSubagentSessions,
-    subagentParentContext,
-    handleReturnToParentSession,
+    generalWorkbenchHarnessDialog,
+    teamWorkspaceEnabled: teamSessionRuntime.teamWorkspaceEnabled,
+    currentImageWorkbenchActive: currentImageWorkbenchState.active,
+    projectId: projectId ?? null,
+    projectRootPath: project?.rootPath || null,
+    projectCharacters: projectMemory?.characters || [],
+    generalCanvasContent: generalCanvasState.content,
+    handleToggleHarnessPanel: contextHarnessRuntime.handleToggleHarnessPanel,
     entryBannerVisible,
     entryBannerMessage,
     serviceSkillExecutionCard,
@@ -3856,9 +4121,47 @@ export function AgentChatWorkspace({
     timelineFocusRequestKey,
   });
 
+  const shellPendingActions = pendingActions ?? [];
+  const shellQueuedTurns = queuedTurns ?? [];
+  const shellHandleBackHome = handleBackHome ?? (() => undefined);
+  const shellHandleOpenSubagentSession =
+    handleOpenSubagentSession ?? (() => undefined);
+  const shellDisplayMessages = displayMessages ?? [];
+  const shellIsSending = isSending ?? false;
+
   return (
     <>
-      {workspaceShellSceneRuntime.shellSceneNode}
+      <WorkspaceShellScene
+        compactChrome={shellChromeRuntime.isWorkspaceCompactChrome}
+        isThemeWorkbench={isThemeWorkbench}
+        generalWorkbenchSidebarNode={generalWorkbenchSidebarNode}
+        showChatPanel={effectiveShowChatPanel}
+        showSidebar={showSidebar}
+        sidebarContextVariant={
+          agentEntry === "claw" ? "task-center" : "default"
+        }
+        showGeneralWorkbenchLeftExpandButton={
+          showGeneralWorkbenchLeftExpandButton
+        }
+        onExpandGeneralWorkbenchSidebar={handleExpandGeneralWorkbenchSidebar}
+        mainAreaNode={conversationSceneRuntime.mainAreaNode}
+        currentTopicId={sessionId ?? null}
+        topics={topics}
+        onNewChat={shellHandleBackHome}
+        onSwitchTopic={switchTopic}
+        onResumeTask={handleResumeSidebarTask}
+        onDeleteTopic={deleteTopic}
+        onRenameTopic={renameTopic}
+        currentMessages={shellDisplayMessages}
+        isSending={shellIsSending}
+        pendingActionCount={shellPendingActions.length}
+        queuedTurnCount={shellQueuedTurns.length}
+        workspaceError={conversationSceneRuntime.workspaceAlertVisible}
+        childSubagentSessions={childSubagentSessions}
+        subagentParentContext={subagentParentContext}
+        onOpenSubagentSession={shellHandleOpenSubagentSession}
+        onReturnToParentSession={handleReturnToParentSession}
+      />
       <AutomationJobDialog
         open={workspaceServiceSkillEntryActions.automationDialogOpen}
         mode="create"

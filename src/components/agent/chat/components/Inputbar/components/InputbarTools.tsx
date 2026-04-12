@@ -51,10 +51,10 @@ export const InputbarTools: React.FC<InputbarToolsProps> = ({
                 onClick={() => onToolClick("subagent_mode")}
                 className={activeTools["subagent_mode"] ? "active" : ""}
                 aria-pressed={activeTools["subagent_mode"]}
-                title={`多代理偏好${activeTools["subagent_mode"] ? "已开启" : "已关闭"}`}
+                title={`任务拆分偏好${activeTools["subagent_mode"] ? "已开启" : "已关闭"}`}
               >
                 <Workflow />
-                <span>多代理</span>
+                <span>任务拆分</span>
               </ToolButton>
             </>
           ) : null}

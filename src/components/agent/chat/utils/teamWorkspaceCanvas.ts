@@ -164,29 +164,29 @@ export function buildCanvasStageHint(params: {
   } = params;
 
   if (hasRealTeamGraph) {
-    return "拖动画布空白处可平移，滚轮配合 Ctrl/Cmd 可缩放，拖动成员卡片可调整布局。";
+    return "当前任务会按状态持续刷新，焦点会优先落在正在处理的任务上；需要时可调整任务布局或缩放视图。";
   }
 
   if (teamDispatchPreviewState?.status === "forming") {
-    return "当前任务分工正在准备中，成员加入后会接手这些位置。";
+    return "当前任务分工正在准备中，任务拆出后会接手这些位置。";
   }
 
   if (teamDispatchPreviewState?.status === "formed") {
-    return "当前任务分工已经准备好，成员加入后会自动接手这些位置。";
+    return "当前任务分工已经准备好，任务拆出后会依次开始处理。";
   }
 
   if (teamDispatchPreviewState?.status === "failed") {
     return (
       teamDispatchPreviewState.errorMessage?.trim() ||
-      "当前任务分工准备失败，暂时无法生成成员画布。"
+      "当前任务分工准备失败，暂时无法生成任务视图。"
     );
   }
 
   if (hasRuntimeFormation || hasSelectedTeamPlan) {
-    return "当前画布会先展示计划分工，成员加入后会切换为独立的任务进行时面板。";
+    return "这里会先展示当前任务分工，任务拆出后会切换为独立的任务视图。";
   }
 
-  return "成员加入后，这里会展开成可拖拽、可缩放的任务进行时画布。";
+  return "任务拆出后，这里会切换成独立的任务视图。";
 }
 
 export function resolveCanvasLaneBounds(

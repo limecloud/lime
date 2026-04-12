@@ -1,4 +1,5 @@
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
+import { normalizeTeamWorkspaceDisplayValue } from "../utils/teamWorkspaceDisplay";
 import {
   TEAM_WORKSPACE_IDLE_STATUS_LABEL,
   TEAM_WORKSPACE_PLAN_LABEL,
@@ -60,31 +61,32 @@ export function buildRuntimeFormationHint(
 ) {
   switch (teamDispatchPreviewState?.status) {
     case "forming":
-      return "系统正在准备当前任务的分工，成员接入后会自动开始处理。";
+      return "系统正在准备当前任务的分工，任务拆出后会自动开始处理。";
     case "formed":
-      return "当前任务的分工已经准备好，成员加入后会继续接手处理。";
+      return "当前任务的分工已经准备好，任务拆出后会继续接手处理。";
     case "failed":
-      return "当前任务的分工准备失败，但你仍然可以继续在当前对话里推进。";
+      return "当前任务的分工准备失败，但你仍然可以继续在当前任务里推进。";
     default:
-      return "需要时这里会自动展开成任务协作面板。";
+      return "需要时这里会自动展开成任务面板。";
   }
 }
 
 export function buildRuntimeFormationEmptyDetail(
   teamDispatchPreviewState?: TeamWorkspaceRuntimeFormationState | null,
 ) {
+  const errorMessage = normalizeTeamWorkspaceDisplayValue(
+    teamDispatchPreviewState?.errorMessage,
+  );
+
   switch (teamDispatchPreviewState?.status) {
     case "forming":
-      return "系统正在根据当前任务准备分工。完成后，这里会先展示当前成员卡片，再接入真实处理进展。";
+      return "系统正在根据当前任务准备分工。完成后，这里会先展示任务卡片，再接入真实处理进展。";
     case "formed":
-      return "当前任务方案已经准备好。画布会先展示当前分工，等成员真正开始处理后，再自动切换为实时进展。";
+      return "当前任务方案已经准备好。画布会先展示当前分工，等任务真正开始处理后，再自动切换为任务视图。";
     case "failed":
-      return (
-        teamDispatchPreviewState.errorMessage?.trim() ||
-        "当前任务分工准备失败，暂时无法展示当前成员。"
-      );
+      return errorMessage || "当前任务分工准备失败，暂时无法展示当前任务。";
     default:
-      return `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，详情区会切换为成员摘要视图。`;
+      return `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，详情区会切换为任务摘要视图。`;
   }
 }
 
@@ -93,13 +95,19 @@ export function buildSelectedTeamPlanDisplayState(params: {
   selectedTeamSummary?: string | null;
   selectedTeamRoles?: TeamRoleDefinition[] | null;
 }): TeamWorkspaceSelectedTeamPlanDisplayState {
-  const label = params.selectedTeamLabel?.trim() || null;
-  const summary = params.selectedTeamSummary?.trim() || null;
+  const label = normalizeTeamWorkspaceDisplayValue(params.selectedTeamLabel);
+  const summary = normalizeTeamWorkspaceDisplayValue(params.selectedTeamSummary);
   const roleCards = (params.selectedTeamRoles ?? [])
-    .filter((role) => role.label.trim())
     .map((role) => ({
       id: role.id,
-      label: role.label,
+      label: normalizeTeamWorkspaceDisplayValue(role.label),
+      summary:
+        normalizeTeamWorkspaceDisplayValue(role.summary) || role.summary.trim(),
+    }))
+    .filter((role) => Boolean(role.label))
+    .map((role) => ({
+      id: role.id,
+      label: role.label || "",
       summary: role.summary,
     }));
 
@@ -141,41 +149,41 @@ export function buildRuntimeFormationDisplayState(params: {
 }): TeamWorkspaceRuntimeFormationDisplayState {
   const state = params.teamDispatchPreviewState ?? null;
   const meta = state ? resolveRuntimeFormationStatusMeta(state.status) : null;
-  const label =
-    state?.label?.trim() ||
-    state?.blueprint?.label?.trim() ||
-    params.fallbackLabel?.trim() ||
-    null;
-  const summary =
-    state?.summary?.trim() ||
-    state?.blueprint?.summary?.trim() ||
-    params.fallbackSummary?.trim() ||
-    null;
+  const label = normalizeTeamWorkspaceDisplayValue(
+    state?.label || state?.blueprint?.label || params.fallbackLabel,
+  );
+  const summary = normalizeTeamWorkspaceDisplayValue(
+    state?.summary || state?.blueprint?.summary || params.fallbackSummary,
+  );
+  const errorMessage = normalizeTeamWorkspaceDisplayValue(state?.errorMessage);
+  const referenceLabel = normalizeTeamWorkspaceDisplayValue(
+    state?.blueprint?.label,
+  );
   const memberCards = (state?.members ?? []).map((member) => {
     const memberMeta = resolveRuntimeMemberStatusMeta(member.status);
     return {
       id: member.id,
-      label: member.label,
-      summary: member.summary,
+      label: normalizeTeamWorkspaceDisplayValue(member.label) || member.label,
+      summary:
+        normalizeTeamWorkspaceDisplayValue(member.summary) || member.summary,
       badgeLabel: memberMeta.label,
       badgeClassName: memberMeta.badgeClassName,
     };
   });
   const blueprintRoleCards = (state?.blueprint?.roles ?? []).map((role) => ({
     id: role.id,
-    label: role.label,
-    summary: role.summary,
+    label: normalizeTeamWorkspaceDisplayValue(role.label) || role.label,
+    summary: normalizeTeamWorkspaceDisplayValue(role.summary) || role.summary,
   }));
 
   const noticeText =
     state?.status === "forming"
-      ? "系统正在准备当前任务分工，完成后会先展示成员卡片，后续再切换为独立的实时进展面板。"
+      ? "系统正在准备当前任务分工，完成后会先展示任务卡片，后续再切换为独立的任务视图。"
       : state?.status === "formed"
-        ? "当前任务方案已就绪。系统开始分工后，这里会从方案视图过渡到实时协作画布。"
+        ? "当前任务方案已就绪。任务拆出后，这里会从方案视图过渡到任务视图。"
         : state?.status === "failed"
-          ? state.errorMessage?.trim() ||
-            "当前任务分工准备失败，暂时还没有成员接入。"
-          : `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，这里会生成独立的成员进展画布。`;
+          ? errorMessage || "当前任务分工准备失败，暂时还没有任务接手。"
+          : `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，这里会生成独立的任务视图。`;
 
   return {
     hasRuntimeFormation: Boolean(state),
@@ -206,17 +214,17 @@ export function buildRuntimeFormationDisplayState(params: {
         ? [
             {
               key: "runtime-member-count",
-              text: `${memberCards.length} 位当前成员`,
+              text: `${memberCards.length} 项当前任务`,
               className:
                 "rounded-full border border-slate-200 bg-white px-2.5 py-1",
             },
           ]
         : []),
-      ...(state?.blueprint?.label
+      ...(referenceLabel
         ? [
             {
               key: "runtime-blueprint-label",
-              text: `参考方案 · ${state.blueprint.label}`,
+              text: `参考方案 · ${referenceLabel}`,
               className:
                 "rounded-full border border-slate-200 bg-white px-2.5 py-1",
             },
@@ -230,9 +238,9 @@ export function buildRuntimeFormationDisplayState(params: {
     panelHeadline: meta?.title || TEAM_WORKSPACE_WAITING_HEADLINE,
     panelDescription:
       state?.status === "failed"
-        ? state.errorMessage?.trim() || "当前任务分工准备失败，暂时无法展示更多内容。"
-        : summary || "这里会先展示当前任务方案，成员接入后再切换成实时进展。",
-    referenceLabel: state?.blueprint?.label?.trim() || null,
+        ? errorMessage || "当前任务分工准备失败，暂时无法展示更多内容。"
+        : summary || "这里会先展示当前任务方案，任务拆出后再切换成任务视图。",
+    referenceLabel,
     memberCards,
     blueprintRoleCards,
   };

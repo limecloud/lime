@@ -16,7 +16,7 @@ interface UseGeneralWorkbenchSidebarOrchestrationParams {
 }
 
 export interface GeneralWorkbenchSidebarOrchestration {
-  branchCount: number;
+  workflowCount: number;
   isVersionMode: boolean;
   activeContextCount: number;
   visibleExecLogCount: number;
@@ -31,6 +31,9 @@ export function useGeneralWorkbenchSidebarOrchestration({
 }: UseGeneralWorkbenchSidebarOrchestrationParams): GeneralWorkbenchSidebarOrchestration {
   const { isVersionMode, context, workflow, execLog } = input;
   const branchCount = workflow.branchItems.length;
+  const workflowCount = workflow.workflowSteps.filter(
+    (step) => step.status !== "completed" && step.status !== "skipped",
+  ).length;
   const runDetailSessionId =
     workflow.activeRunDetail?.session_id?.trim() || null;
   const { handleRevealArtifactInFinder, handleOpenArtifactWithDefaultApp } =
@@ -76,7 +79,7 @@ export function useGeneralWorkbenchSidebarOrchestration({
   });
 
   return {
-    branchCount,
+    workflowCount,
     isVersionMode,
     activeContextCount: contextPanelState.activeContextItems.length,
     visibleExecLogCount: execLogState.visibleExecLogEntries.length,

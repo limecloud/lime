@@ -54,6 +54,49 @@ describe("legacySurfaceCatalog", () => {
     });
   });
 
+  it("应记录已删除的旧 SubAgent scheduler Rust 模块路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "team-subagent-scheduler-rust-modules",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src-tauri/src/commands/subagent_cmd.rs",
+      "src-tauri/src/agent/subagent_scheduler.rs",
+    ]);
+  });
+
+  it("应将旧 SubAgent scheduler 命令与事件总线标记为已删除 surface", () => {
+    const commandMonitor = legacySurfaceCatalogJson.commands.find(
+      (entry) => entry.id === "team-subagent-scheduler-commands",
+    );
+    const frontendEventMonitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "frontend-subagent-scheduler-event-bus",
+    );
+    const rustEventMonitor = legacySurfaceCatalogJson.rustText.find(
+      (entry) => entry.id === "rust-subagent-scheduler-event-bus",
+    );
+
+    expect(commandMonitor).toBeTruthy();
+    expect(commandMonitor?.classification).toBe("dead-candidate");
+    expect(commandMonitor?.allowedPaths).toEqual([]);
+    expect(commandMonitor?.commands).toEqual([
+      "init_subagent_scheduler",
+      "execute_subagent_tasks",
+      "cancel_subagent_tasks",
+    ]);
+
+    expect(frontendEventMonitor).toBeTruthy();
+    expect(frontendEventMonitor?.classification).toBe("dead-candidate");
+    expect(frontendEventMonitor?.allowedPaths).toEqual([]);
+
+    expect(rustEventMonitor).toBeTruthy();
+    expect(rustEventMonitor?.classification).toBe("dead-candidate");
+    expect(rustEventMonitor?.allowedPaths).toEqual([]);
+  });
+
   it("应禁止 SkillSelectorPanel 旧面板路径重新回流", () => {
     const legacyPanelPath = `./${"SkillSelectorPanel"}`;
     const monitor = legacySurfaceCatalogJson.frontendText.find(
@@ -726,53 +769,52 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.targets).toEqual(["src/components/layout/PanelLayout.tsx"]);
   });
 
-  it("应收窄旧 SubAgent scheduler Hook 的 compat 白名单", () => {
+  it("应记录已删除的旧 SubAgent scheduler Hook 路径", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "team-subagent-scheduler-hook",
     );
 
     expect(monitor).toBeTruthy();
-    expect(monitor?.classification).toBe("compat");
-    expect(monitor?.allowedPaths).toEqual([
-      "src/components/agent/chat/hooks/useCompatSubagentRuntime.ts",
-    ]);
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
   });
 
-  it("应限制 compat subagent runtime 桥的引用边界", () => {
+  it("应记录已删除的旧 SubAgent scheduler 前端 API 路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "team-subagent-scheduler-api",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.targets).toEqual(["src/lib/api/subAgentScheduler.ts"]);
+    expect(monitor?.allowedPaths).toEqual([]);
+  });
+
+  it("应记录已删除的 compat subagent runtime 桥路径", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "team-subagent-runtime-compat-bridge",
     );
 
     expect(monitor).toBeTruthy();
-    expect(monitor?.classification).toBe("compat");
+    expect(monitor?.classification).toBe("dead-candidate");
     expect(monitor?.targets).toEqual([
       "src/components/agent/chat/hooks/useCompatSubagentRuntime.ts",
       "src/components/agent/chat/utils/compatSubagentRuntime.ts",
     ]);
-    expect(monitor?.allowedPaths).toEqual([
-      "src/components/agent/chat/AgentChatWorkspace.tsx",
-      "src/components/agent/chat/components/AgentRuntimeStrip.tsx",
-      "src/components/agent/chat/components/HarnessStatusPanel.tsx",
-      "src/components/agent/chat/hooks/useCompatSubagentRuntime.ts",
-      "src/components/agent/chat/utils/subagentTimeline.ts",
-    ]);
+    expect(monitor?.allowedPaths).toEqual([]);
   });
 
-  it("应限制旧问卷转 A2UI compat 桥的引用边界", () => {
+  it("应记录已删除的旧问卷转 A2UI compat 桥路径", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "legacy-questionnaire-a2ui-compat-bridge",
     );
 
     expect(monitor).toBeTruthy();
-    expect(monitor?.classification).toBe("compat");
+    expect(monitor?.classification).toBe("dead-candidate");
     expect(monitor?.targets).toEqual([
       "src/components/agent/chat/utils/compatQuestionnaireA2UI.ts",
     ]);
-    expect(monitor?.allowedPaths).toEqual([
-      "src/components/agent/chat/workspace/useWorkspaceDisplayMessagesRuntime.ts",
-      "src/components/agent/chat/workspace/useWorkspaceA2UIRuntime.ts",
-      "src/components/agent/chat/workspace/useWorkspaceA2UISubmitActions.ts",
-    ]);
+    expect(monitor?.allowedPaths).toEqual([]);
   });
 
   it("应记录已删除的首页 entry task prompt composer 入口", () => {

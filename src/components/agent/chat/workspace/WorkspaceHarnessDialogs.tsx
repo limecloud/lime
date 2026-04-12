@@ -8,7 +8,6 @@ import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 type HarnessPanelBaseProps = Pick<
   ComponentProps<typeof HarnessStatusPanel>,
   | "harnessState"
-  | "compatSubagentRuntime"
   | "environment"
   | "childSubagentSessions"
   | "selectedTeamLabel"
@@ -124,7 +123,7 @@ export function GeneralWorkbenchDialogSection({
         layout: "dialog",
         teamMemorySnapshot,
         title: "处理工作台",
-        description: "集中查看计划、待确认事项、协作成员、文件活动和处理结果。",
+        description: "集中查看计划、待确认事项、任务进展、文件活动和处理结果。",
         toggleLabel: "工作台详情",
         leadContent: (
           <div className="space-y-3">
@@ -133,7 +132,6 @@ export function GeneralWorkbenchDialogSection({
               toolPreferences={toolPreferences}
               harnessState={panelBaseProps.harnessState}
               childSubagentSessions={panelBaseProps.childSubagentSessions}
-              compatSubagentRuntime={panelBaseProps.compatSubagentRuntime}
               variant="embedded"
               isSending={isSending}
               executionRuntime={executionRuntime}

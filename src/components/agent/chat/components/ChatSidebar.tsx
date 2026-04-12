@@ -43,7 +43,7 @@ const RECENT_TASK_WINDOW_MS = 1000 * 60 * 60 * 24 * 3;
 const OLDER_TASKS_INITIAL_COUNT = 8;
 const TEAM_SECTION_INITIAL_CHILD_COUNT = 3;
 const TEAM_SECTION_INITIAL_SIBLING_COUNT = 2;
-const TEAM_SECTION_LABEL = "任务协作";
+const TEAM_SECTION_LABEL = "子任务";
 const PINNED_TASK_IDS_STORAGE_KEY = "lime_task_sidebar_pinned_ids";
 
 const STATUS_META: Record<
@@ -462,16 +462,67 @@ const TEAM_STATUS_SUMMARY_ORDER: Array<
   NonNullable<AsterSubagentSessionInfo["runtime_status"]> | "idle"
 > = ["running", "queued", "completed", "failed", "aborted", "closed", "idle"];
 
+const SUBAGENT_TASK_PRIORITY: Record<
+  NonNullable<AsterSubagentSessionInfo["runtime_status"]> | "idle",
+  number
+> = {
+  running: 0,
+  queued: 1,
+  failed: 2,
+  aborted: 2,
+  completed: 3,
+  closed: 4,
+  idle: 5,
+};
+
 function resolveSubagentStatusMeta(
   status?: AsterSubagentSessionInfo["runtime_status"],
 ) {
   return SUBAGENT_STATUS_META[status ?? "idle"];
 }
 
+function sortSubagentSessionsByPriority(
+  sessions: AsterSubagentSessionInfo[],
+): AsterSubagentSessionInfo[] {
+  return [...sessions].sort((left, right) => {
+    const leftPriority =
+      SUBAGENT_TASK_PRIORITY[left.runtime_status ?? "idle"] ??
+      SUBAGENT_TASK_PRIORITY.idle;
+    const rightPriority =
+      SUBAGENT_TASK_PRIORITY[right.runtime_status ?? "idle"] ??
+      SUBAGENT_TASK_PRIORITY.idle;
+
+    if (leftPriority !== rightPriority) {
+      return leftPriority - rightPriority;
+    }
+
+    if (left.updated_at !== right.updated_at) {
+      return right.updated_at - left.updated_at;
+    }
+
+    if (left.created_at !== right.created_at) {
+      return right.created_at - left.created_at;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+}
+
+function shouldMarkSubagentAsFocus(
+  session: AsterSubagentSessionInfo | undefined,
+): boolean {
+  if (!session) {
+    return false;
+  }
+
+  const status = session.runtime_status ?? "idle";
+  return status !== "completed" && status !== "closed";
+}
+
 function resolveSubagentSessionTypeLabel(value?: string) {
   switch (value) {
     case "sub_agent":
-      return "子代理";
+      return "子任务";
     case "fork":
       return "分支会话";
     case "user":
@@ -650,16 +701,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     Record<string, string>
   >({});
   const sortedChildSubagentSessions = useMemo(
-    () =>
-      [...childSubagentSessions].sort(
-        (left, right) => right.updated_at - left.updated_at,
-      ),
+    () => sortSubagentSessionsByPriority(childSubagentSessions),
     [childSubagentSessions],
   );
   const siblingSubagentSessions = useMemo(
     () =>
-      [...(subagentParentContext?.sibling_subagent_sessions ?? [])].sort(
-        (left, right) => right.updated_at - left.updated_at,
+      sortSubagentSessionsByPriority(
+        subagentParentContext?.sibling_subagent_sessions ?? [],
       ),
     [subagentParentContext?.sibling_subagent_sessions],
   );
@@ -710,8 +758,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
       buildCollapsedTeamSummary(
         teamSummarySessions,
         subagentParentContext
-          ? `${siblingSubagentSessions.length} 个同级子代理`
-          : `${sortedChildSubagentSessions.length} 个子代理`,
+          ? `${siblingSubagentSessions.length} 个并行子任务`
+          : `${sortedChildSubagentSessions.length} 个子任务`,
       ),
     [
       siblingSubagentSessions,
@@ -932,6 +980,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const renderSubagentSessionCard = (
     session: AsterSubagentSessionInfo,
     options?: {
+      focusLabel?: string;
       highlightCurrent?: boolean;
       subtitle?: string;
     },
@@ -944,6 +993,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
       <button
         key={session.id}
         type="button"
+        data-testid={`sidebar-subagent-session-${session.id}`}
         onClick={() => {
           if (!canOpen) {
             return;
@@ -952,7 +1002,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         }}
         className={cn(
           "w-full rounded-[20px] border px-3.5 py-3 text-left shadow-sm shadow-slate-950/5 transition",
-          options?.highlightCurrent
+          options?.highlightCurrent || options?.focusLabel
             ? "border-slate-300 bg-white/98 ring-1 ring-slate-100 dark:border-white/15 dark:bg-white/10"
             : "border-slate-200/80 bg-white/86 hover:border-slate-300 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10",
           !canOpen ? "cursor-default" : "",
@@ -966,8 +1016,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                {resolveSidebarDisplayTitle(session.name, "未命名子代理")}
+                {resolveSidebarDisplayTitle(session.name, "未命名子任务")}
               </div>
+              {options?.focusLabel ? (
+                <Badge className="border border-sky-200 bg-sky-50 text-sky-700">
+                  {options.focusLabel}
+                </Badge>
+              ) : null}
               <Badge className={statusMeta.badgeClassName}>
                 {statusMeta.label}
               </Badge>
@@ -1159,16 +1214,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                         {teamSectionCollapsed
                           ? collapsedTeamSummary
                           : subagentParentContext
-                            ? "当前线程来自主任务，可直接返回主任务并切换其他分工。"
-                            : "这里展示当前任务的协作成员、当前任务和任务节点。"}
+                            ? "当前线程来自主任务，可直接返回主任务并切换其他子任务；正在处理的任务会排在前面。"
+                            : "这里优先展示正在处理的子任务，再回到当前任务和后续节点。"}
                       </p>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge className="border border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/10 dark:text-slate-200">
                       {subagentParentContext
-                        ? "子线程"
-                        : `${sortedChildSubagentSessions.length} 个子代理`}
+                        ? "子任务线程"
+                        : `${sortedChildSubagentSessions.length} 个子任务`}
                     </Badge>
                     {hasAnyTasks ? (
                       <button
@@ -1235,7 +1290,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                             </Badge>
                           </div>
                           <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
-                            返回主线程，查看完整 team 视图和原始上下文。
+                            返回主线程，查看完整任务视图和原始上下文。
                           </p>
                         </div>
                       </div>
@@ -1243,14 +1298,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
                     <div className="rounded-[20px] border border-slate-200/80 bg-white/86 px-3.5 py-3 shadow-sm shadow-slate-950/5 dark:border-white/10 dark:bg-white/5">
                       <div className="flex items-center gap-2">
-                        <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                          {resolveSidebarDisplayTitle(
-                            currentTaskItem?.title,
-                            "当前子代理",
-                          )}
-                        </div>
+                          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            {resolveSidebarDisplayTitle(
+                              currentTaskItem?.title,
+                              "当前子任务",
+                            )}
+                          </div>
                         <Badge className="border border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900">
-                          当前子代理
+                          当前子任务
                         </Badge>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
@@ -1276,14 +1331,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                       <div className="space-y-2">
                         <div className="flex items-center justify-between px-1">
                           <div className="text-[11px] font-semibold tracking-[0.12em] text-slate-500">
-                            同级子代理
+                            并行子任务
                           </div>
                           <div className="text-[11px] text-slate-400">
                             {siblingSubagentSessions.length} 个
                           </div>
                         </div>
-                        {visibleSiblingSubagentSessions.map((session) =>
-                          renderSubagentSessionCard(session),
+                        {visibleSiblingSubagentSessions.map((session, index) =>
+                          renderSubagentSessionCard(session, {
+                            focusLabel:
+                              index === 0 && shouldMarkSubagentAsFocus(session)
+                                ? "当前焦点"
+                                : undefined,
+                          }),
                         )}
                         {hiddenSiblingSubagentCount > 0 ? (
                           <button
@@ -1291,7 +1351,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                             onClick={() => setShowAllSiblingSubagents(true)}
                             className="w-full rounded-2xl border border-dashed border-slate-200/80 bg-white/70 px-3 py-2 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100"
                           >
-                            展开剩余 {hiddenSiblingSubagentCount} 个同级子代理
+                            展开剩余 {hiddenSiblingSubagentCount} 个并行子任务
                           </button>
                         ) : null}
                         {showAllSiblingSubagents &&
@@ -1302,7 +1362,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                             onClick={() => setShowAllSiblingSubagents(false)}
                             className="w-full rounded-2xl border border-slate-200/80 bg-white/78 px-3 py-2 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100"
                           >
-                            收起同级子代理列表
+                            收起并行子任务列表
                           </button>
                         ) : null}
                       </div>
@@ -1312,6 +1372,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   <div className="mt-4 space-y-2">
                     {visibleChildSubagentSessions.map((session) =>
                       renderSubagentSessionCard(session, {
+                        focusLabel:
+                          session.id === sortedChildSubagentSessions[0]?.id &&
+                          shouldMarkSubagentAsFocus(session)
+                            ? "当前焦点"
+                            : undefined,
                         highlightCurrent: session.id === currentTopicId,
                       }),
                     )}
@@ -1321,7 +1386,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                         onClick={() => setShowAllChildSubagents(true)}
                         className="w-full rounded-2xl border border-dashed border-slate-200/80 bg-white/70 px-3 py-2 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100"
                       >
-                        展开剩余 {hiddenChildSubagentCount} 个子代理
+                        展开剩余 {hiddenChildSubagentCount} 个子任务
                       </button>
                     ) : null}
                     {showAllChildSubagents &&
@@ -1332,7 +1397,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                         onClick={() => setShowAllChildSubagents(false)}
                         className="w-full rounded-2xl border border-slate-200/80 bg-white/78 px-3 py-2 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100"
                       >
-                        收起子代理列表
+                        收起子任务列表
                       </button>
                     ) : null}
                   </div>

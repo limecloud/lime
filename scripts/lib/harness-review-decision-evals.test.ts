@@ -116,13 +116,36 @@ function createWorkspaceSessionArtifacts(tempRoot: string, sessionId: string) {
         },
         {
           signal: "requestTelemetry",
-          status: "unlinked",
+          status: "exported",
         },
         {
           signal: "artifactValidator",
           status: "known_gap",
         },
       ],
+      verificationSummary: {
+        artifactValidator: {
+          applicable: true,
+          recordCount: 1,
+          issueCount: 1,
+          repairedCount: 1,
+          fallbackUsedCount: 0,
+        },
+        browserVerification: {
+          recordCount: 1,
+          successCount: 1,
+          failureCount: 0,
+          unknownCount: 0,
+          latestUpdatedAt: "2026-03-27T11:22:00Z",
+        },
+        guiSmoke: {
+          status: "completed",
+          exitCode: 0,
+          passed: true,
+          updatedAt: "2026-03-27T11:23:30Z",
+          hasOutputPreview: true,
+        },
+      },
     },
     linkedArtifacts: {
       handoffBundle: {
@@ -325,6 +348,8 @@ describe("Harness review decision / eval integration", () => {
 
     expect(summary.totals.reviewDecisionRecordedCount).toBe(1);
     expect(summary.totals.observabilityGapCaseCount).toBe(1);
+    expect(summary.totals.currentObservabilityGapCaseCount).toBe(1);
+    expect(summary.totals.degradedObservabilityGapCaseCount).toBe(0);
     expect(summary.breakdowns.reviewDecisionStatuses).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -344,20 +369,53 @@ describe("Harness review decision / eval integration", () => {
     expect(summary.breakdowns.observabilitySignals).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: "requestTelemetry:unlinked",
-          caseCount: 1,
-        }),
-        expect.objectContaining({
           name: "artifactValidator:known_gap",
           caseCount: 1,
         }),
       ]),
     );
+    expect(summary.breakdowns.observabilityVerificationOutcomes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "artifactValidator:issues_present",
+          caseCount: 1,
+        }),
+        expect.objectContaining({
+          name: "artifactValidator:repaired",
+          caseCount: 1,
+        }),
+        expect.objectContaining({
+          name: "browserVerification:success",
+          caseCount: 1,
+        }),
+        expect.objectContaining({
+          name: "guiSmoke:passed",
+          caseCount: 1,
+        }),
+      ]),
+    );
+    expect(summary.breakdowns.currentObservabilityVerificationOutcomes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "browserVerification:success",
+          caseCount: 1,
+        }),
+      ]),
+    );
+    expect(summary.breakdowns.degradedObservabilityVerificationOutcomes).toEqual(
+      [],
+    );
     expect(summary.suites[0].cases[0]).toMatchObject({
       reviewDecisionStatus: "accepted",
       reviewRiskLevel: "high",
       reviewHumanReviewer: "Lime Maintainer",
-      observabilityGapCount: 2,
+      observabilityGapCount: 1,
+      observabilityVerificationOutcomes: expect.arrayContaining([
+        "artifactValidator:issues_present",
+        "artifactValidator:repaired",
+        "browserVerification:success",
+        "guiSmoke:passed",
+      ]),
     });
   });
 
@@ -376,6 +434,8 @@ describe("Harness review decision / eval integration", () => {
         pendingRequestCaseCount: 0,
         needsHumanReviewCount: 1,
         observabilityGapCaseCount: 1,
+        currentObservabilityGapCaseCount: 1,
+        degradedObservabilityGapCaseCount: 0,
       },
       breakdowns: {
         suiteTags: [],
@@ -400,9 +460,10 @@ describe("Harness review decision / eval integration", () => {
             needsHumanReviewCount: 1,
           },
         ],
-        observabilitySignals: [
+        observabilitySignals: [],
+        observabilityVerificationOutcomes: [
           {
-            name: "requestTelemetry:unlinked",
+            name: "browserVerification:unknown",
             caseCount: 1,
             readyCount: 1,
             invalidCount: 0,
@@ -410,6 +471,17 @@ describe("Harness review decision / eval integration", () => {
             needsHumanReviewCount: 1,
           },
         ],
+        currentObservabilityVerificationOutcomes: [
+          {
+            name: "browserVerification:unknown",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 1,
+          },
+        ],
+        degradedObservabilityVerificationOutcomes: [],
       },
       suites: [],
     });
@@ -424,6 +496,8 @@ describe("Harness review decision / eval integration", () => {
         pendingRequestCaseCount: 0,
         needsHumanReviewCount: 0,
         observabilityGapCaseCount: 1,
+        currentObservabilityGapCaseCount: 0,
+        degradedObservabilityGapCaseCount: 1,
       },
       breakdowns: {
         suiteTags: [],
@@ -451,6 +525,43 @@ describe("Harness review decision / eval integration", () => {
         observabilitySignals: [
           {
             name: "artifactValidator:known_gap",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+        ],
+        observabilityVerificationOutcomes: [
+          {
+            name: "browserVerification:failure",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+          {
+            name: "guiSmoke:failed",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+        ],
+        currentObservabilityVerificationOutcomes: [],
+        degradedObservabilityVerificationOutcomes: [
+          {
+            name: "browserVerification:failure",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+          {
+            name: "guiSmoke:failed",
             caseCount: 1,
             readyCount: 1,
             invalidCount: 0,
@@ -506,18 +617,241 @@ describe("Harness review decision / eval integration", () => {
     expect(report.classificationDeltas.observabilitySignals).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: "requestTelemetry:unlinked",
-          delta: expect.objectContaining({
-            caseCount: -1,
-          }),
-        }),
-        expect.objectContaining({
           name: "artifactValidator:known_gap",
           delta: expect.objectContaining({
             caseCount: 1,
           }),
         }),
       ]),
+    );
+    expect(
+      report.classificationDeltas.observabilitySignals.find(
+        (entry) => entry.name === "requestTelemetry:known_gap",
+        ),
+    ).toBeUndefined();
+    expect(report.classificationDeltas.observabilityVerificationOutcomes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "browserVerification:failure",
+          delta: expect.objectContaining({
+            caseCount: 1,
+          }),
+        }),
+        expect.objectContaining({
+          name: "browserVerification:unknown",
+          delta: expect.objectContaining({
+            caseCount: -1,
+          }),
+        }),
+        expect.objectContaining({
+          name: "guiSmoke:failed",
+          delta: expect.objectContaining({
+            caseCount: 1,
+          }),
+        }),
+      ]),
+    );
+    expect(
+      report.classificationDeltas.currentObservabilityVerificationOutcomes,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "browserVerification:unknown",
+          delta: expect.objectContaining({
+            caseCount: -1,
+          }),
+        }),
+      ]),
+    );
+    expect(
+      report.classificationDeltas.degradedObservabilityVerificationOutcomes,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "browserVerification:failure",
+          delta: expect.objectContaining({
+            caseCount: 1,
+          }),
+        }),
+        expect.objectContaining({
+          name: "guiSmoke:failed",
+          delta: expect.objectContaining({
+            caseCount: 1,
+          }),
+        }),
+      ]),
+    );
+    expect(report.delta.currentObservabilityGapCaseCount).toBe(-1);
+    expect(report.delta.degradedObservabilityGapCaseCount).toBe(1);
+    expect(report.latest.totals.currentObservabilityGapCaseCount).toBe(0);
+    expect(report.latest.totals.degradedObservabilityGapCaseCount).toBe(1);
+  });
+
+  it("harness-eval-trend-report 应暴露 current recovered baseline 的新增趋势", () => {
+    const tempRoot = createTempRoot();
+    const baselinePath = path.join(tempRoot, "baseline-recovered.json");
+    const latestPath = path.join(tempRoot, "latest-recovered.json");
+
+    writeJson(baselinePath, {
+      generatedAt: "2026-03-28T10:00:00Z",
+      totals: {
+        suiteCount: 1,
+        caseCount: 1,
+        readyCount: 1,
+        invalidCount: 0,
+        pendingRequestCaseCount: 0,
+        needsHumanReviewCount: 0,
+        observabilityGapCaseCount: 0,
+        currentObservabilityGapCaseCount: 0,
+        degradedObservabilityGapCaseCount: 0,
+      },
+      breakdowns: {
+        suiteTags: [],
+        failureModes: [],
+        reviewDecisionStatuses: [],
+        reviewRiskLevels: [],
+        observabilitySignals: [],
+        observabilityVerificationOutcomes: [
+          {
+            name: "browserVerification:success",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+        ],
+        currentObservabilityVerificationOutcomes: [
+          {
+            name: "browserVerification:success",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+        ],
+        degradedObservabilityVerificationOutcomes: [],
+      },
+      suites: [],
+    });
+
+    writeJson(latestPath, {
+      generatedAt: "2026-03-28T12:00:00Z",
+      totals: {
+        suiteCount: 1,
+        caseCount: 1,
+        readyCount: 1,
+        invalidCount: 0,
+        pendingRequestCaseCount: 0,
+        needsHumanReviewCount: 0,
+        observabilityGapCaseCount: 0,
+        currentObservabilityGapCaseCount: 0,
+        degradedObservabilityGapCaseCount: 0,
+      },
+      breakdowns: {
+        suiteTags: [],
+        failureModes: [],
+        reviewDecisionStatuses: [],
+        reviewRiskLevels: [],
+        observabilitySignals: [],
+        observabilityVerificationOutcomes: [
+          {
+            name: "artifactValidator:repaired",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+          {
+            name: "browserVerification:success",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+          {
+            name: "guiSmoke:passed",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+        ],
+        currentObservabilityVerificationOutcomes: [
+          {
+            name: "artifactValidator:repaired",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+          {
+            name: "browserVerification:success",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+          {
+            name: "guiSmoke:passed",
+            caseCount: 1,
+            readyCount: 1,
+            invalidCount: 0,
+            pendingRequestCaseCount: 0,
+            needsHumanReviewCount: 0,
+          },
+        ],
+        degradedObservabilityVerificationOutcomes: [],
+      },
+      suites: [],
+    });
+
+    const report = runNodeScript("scripts/harness-eval-trend-report.mjs", [
+      "--format",
+      "json",
+      "--input",
+      baselinePath,
+      "--input",
+      latestPath,
+    ]);
+
+    expect(report.latest.totals.currentRecoveredVerificationCaseCount).toBe(3);
+    expect(report.delta.currentRecoveredVerificationCaseCount).toBe(2);
+    expect(
+      report.classificationDeltas.currentRecoveredObservabilityVerificationOutcomes,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "artifactValidator:repaired",
+          delta: expect.objectContaining({
+            caseCount: 1,
+          }),
+        }),
+        expect.objectContaining({
+          name: "browserVerification:success",
+          delta: expect.objectContaining({
+            caseCount: 0,
+          }),
+        }),
+        expect.objectContaining({
+          name: "guiSmoke:passed",
+          delta: expect.objectContaining({
+            caseCount: 1,
+          }),
+        }),
+      ]),
+    );
+    expect(report.signals).toContain(
+      "current recovered verification baseline `artifactValidator:repaired` 新增 1，说明主线路径正在形成正向基线。",
+    );
+    expect(report.signals).toContain(
+      "current recovered verification baseline `guiSmoke:passed` 新增 1，说明主线路径正在形成正向基线。",
     );
   });
 });

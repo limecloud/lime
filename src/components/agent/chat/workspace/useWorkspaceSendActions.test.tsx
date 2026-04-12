@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
+import type { Message } from "../types";
 import {
   listMentionEntryUsage,
   recordMentionEntryUsage,
@@ -67,7 +68,6 @@ const mockRollbackAfterSendFailure = vi.fn();
 const mockSetInput = vi.fn();
 const mockSetMentionedCharacters = vi.fn();
 const mockSetChatToolPreferences = vi.fn();
-const mockSetRuntimeTeamDispatchPreview = vi.fn();
 const mockEnsureBrowserAssistCanvas = vi.fn(async () => true);
 const mockHandleAutoLaunchMatchedSiteSkill = vi.fn(async () => undefined);
 const mockOpenRuntimeSceneGate = vi.fn(async () => undefined);
@@ -307,6 +307,15 @@ function createTeamMemoryShadowSnapshot(): TeamMemorySnapshot {
   };
 }
 
+function createExistingMessages(count: number): Message[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `message-${index + 1}`,
+    role: index % 2 === 0 ? "user" : "assistant",
+    content: `历史消息 ${index + 1}`,
+    timestamp: new Date(1_710_000_000_000 + index),
+  }));
+}
+
 function mountHook(initialProps?: Partial<HookProps>): HookHarness {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -335,6 +344,7 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
       prepareActiveContextPrompt: async () => "",
     },
     projectId: "project-1",
+    sessionId: "session-1",
     executionStrategy: "react",
     accessMode: "current",
     preferredTeamPresetId: null,
@@ -345,7 +355,8 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
     themeWorkbenchActiveQueueTitle: undefined,
     contentId: null,
     workspaceRequestMetadataBase: undefined,
-    messagesCount: 0,
+    messages: [],
+    bootstrapDispatchPreviewMessages: [],
     sendMessage: mockSendMessage,
     resolveSendBoundary: (({ sourceText }) => ({
       sourceText,
@@ -359,8 +370,6 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
       mockRollbackAfterSendFailure as HookProps["rollbackAfterSendFailure"],
     prepareRuntimeTeamBeforeSend:
       mockPrepareRuntimeTeamBeforeSend as HookProps["prepareRuntimeTeamBeforeSend"],
-    setRuntimeTeamDispatchPreview:
-      mockSetRuntimeTeamDispatchPreview as HookProps["setRuntimeTeamDispatchPreview"],
     ensureBrowserAssistCanvas:
       mockEnsureBrowserAssistCanvas as HookProps["ensureBrowserAssistCanvas"],
     handleAutoLaunchMatchedSiteSkill:
@@ -463,6 +472,21 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("无真实消息时应透传 bootstrap 预览消息", () => {
+    const bootstrapPreviewMessages = createExistingMessages(2);
+    const harness = mountHook({
+      bootstrapDispatchPreviewMessages: bootstrapPreviewMessages,
+    });
+
+    try {
+      expect(harness.getValue().displayMessages).toEqual(
+        bootstrapPreviewMessages,
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("发送前如果准备出本地 team，应写入短生命周期 dispatch preview", async () => {
     mockPrepareRuntimeTeamBeforeSend.mockResolvedValueOnce(
       createPreparedRuntimeTeamState(),
@@ -475,7 +499,7 @@ describe("useWorkspaceSendActions", () => {
         task: false,
         subagent: true,
       },
-      messagesCount: 3,
+      messages: createExistingMessages(3),
     });
 
     try {
@@ -484,23 +508,22 @@ describe("useWorkspaceSendActions", () => {
         expect(started).toBe(true);
       });
 
-      expect(mockSetRuntimeTeamDispatchPreview).toHaveBeenNthCalledWith(
-        1,
-        null,
-      );
-      expect(mockSetRuntimeTeamDispatchPreview).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({
-          key: "runtime-team-preview-1",
-          prompt: "请拆解这个复杂需求，并安排多人协作推进",
-          baseMessageCount: 3,
-          status: "formed",
-          formationState: expect.objectContaining({
-            requestId: "runtime-team-preview-1",
-            label: "研究协作组",
-          }),
+      expect(harness.getValue().teamDispatchPreviewState).toMatchObject({
+        requestId: "runtime-team-preview-1",
+        status: "formed",
+        label: "研究协作组",
+      });
+      expect(harness.getValue().displayMessages).toHaveLength(5);
+      expect(harness.getValue().displayMessages[3]).toMatchObject({
+        role: "user",
+        content: "请拆解这个复杂需求，并安排多人协作推进",
+      });
+      expect(harness.getValue().displayMessages[4]).toMatchObject({
+        role: "assistant",
+        runtimeStatus: expect.objectContaining({
+          title: "任务分工已准备好",
         }),
-      );
+      });
     } finally {
       harness.unmount();
     }
@@ -521,8 +544,13 @@ describe("useWorkspaceSendActions", () => {
         await Promise.resolve();
       });
 
-      expect(harness.getValue().submissionPreview).toMatchObject({
-        prompt: "帮我找一下今天的新闻",
+      expect(harness.getValue().displayMessages).toHaveLength(2);
+      expect(harness.getValue().displayMessages[0]).toMatchObject({
+        role: "user",
+        content: "帮我找一下今天的新闻",
+      });
+      expect(harness.getValue().displayMessages[1]).toMatchObject({
+        role: "assistant",
         runtimeStatus: expect.objectContaining({
           title: "正在启动处理流程",
         }),
@@ -533,7 +561,7 @@ describe("useWorkspaceSendActions", () => {
         await sendPromise;
       });
 
-      expect(harness.getValue().submissionPreview).toBeNull();
+      expect(harness.getValue().displayMessages).toEqual([]);
     } finally {
       harness.unmount();
     }
@@ -560,8 +588,13 @@ describe("useWorkspaceSendActions", () => {
         await Promise.resolve();
       });
 
-      expect(harness.getValue().submissionPreview).toMatchObject({
-        prompt: "帮我整理一下今天的重要新闻",
+      expect(harness.getValue().displayMessages).toHaveLength(2);
+      expect(harness.getValue().displayMessages[0]).toMatchObject({
+        role: "user",
+        content: "帮我整理一下今天的重要新闻",
+      });
+      expect(harness.getValue().displayMessages[1]).toMatchObject({
+        role: "assistant",
         runtimeStatus: expect.objectContaining({
           title: "正在启动处理流程",
         }),
@@ -577,7 +610,7 @@ describe("useWorkspaceSendActions", () => {
         await sendPromise;
       });
 
-      expect(harness.getValue().submissionPreview).toBeNull();
+      expect(harness.getValue().displayMessages).toEqual([]);
     } finally {
       harness.unmount();
     }
@@ -593,7 +626,6 @@ describe("useWorkspaceSendActions", () => {
     mockSendMessage.mockImplementationOnce(async () => deferredSend.promise);
     const harness = mountHook({
       input: "帮我整理一下今天的重要新闻",
-      messagesCount: 0,
       contextWorkspace: {
         enabled: true,
         activeContextPrompt: "",
@@ -917,8 +949,13 @@ describe("useWorkspaceSendActions", () => {
         await Promise.resolve();
       });
 
-      expect(harness.getValue().submissionPreview).toMatchObject({
-        prompt: "@配图 生成 一张春日咖啡馆插画",
+      expect(harness.getValue().displayMessages).toHaveLength(2);
+      expect(harness.getValue().displayMessages[0]).toMatchObject({
+        role: "user",
+        content: "@配图 生成 一张春日咖啡馆插画",
+      });
+      expect(harness.getValue().displayMessages[1]).toMatchObject({
+        role: "assistant",
         runtimeStatus: expect.objectContaining({
           title: "正在启动处理流程",
         }),
@@ -949,7 +986,7 @@ describe("useWorkspaceSendActions", () => {
         await sendPromise;
       });
 
-      expect(harness.getValue().submissionPreview).toBeNull();
+      expect(harness.getValue().displayMessages).toEqual([]);
     } finally {
       harness.unmount();
     }

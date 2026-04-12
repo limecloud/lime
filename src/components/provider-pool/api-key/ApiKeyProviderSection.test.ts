@@ -64,6 +64,7 @@ const providerWithKeysArbitrary: fc.Arbitrary<ProviderWithKeysDisplay> =
       "openai",
       "openai-response",
       "anthropic",
+      "anthropic-compatible",
       "gemini",
       "azure-openai",
       "vertexai",

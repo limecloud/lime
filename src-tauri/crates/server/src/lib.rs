@@ -69,6 +69,19 @@ pub fn record_request_telemetry(
         ctx.resolved_model.clone(),
         ctx.is_stream,
     );
+    let metadata_string = |key: &str| {
+        ctx.get_metadata(key)
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string)
+    };
+    log.session_id = metadata_string("session_id");
+    log.thread_id = metadata_string("thread_id");
+    log.turn_id = metadata_string("turn_id");
+    log.pending_request_id = metadata_string("pending_request_id");
+    log.queued_turn_id = metadata_string("queued_turn_id");
+    log.subagent_session_id = metadata_string("subagent_session_id");
 
     // 设置状态和持续时间
     match status {

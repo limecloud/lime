@@ -5,6 +5,7 @@
 use crate::config::GlobalConfigManagerState;
 use crate::database::DbConnection;
 use crate::services::chat_history_service::{load_memory_source_candidates, MemorySourceCandidate};
+use lime_core::config::MemoryConfig;
 use lime_memory::extractor::{self, ExtractionContext};
 use lime_memory::gatekeeper::ChatMessage;
 use lime_memory::{MemoryCategory, MemoryMetadata, MemorySource, MemoryType, UnifiedMemory};
@@ -450,8 +451,30 @@ pub async fn unified_memory_analyze(
     }
 
     let memory_config = global_config.config().memory;
+    let candidates = {
+        let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
+        load_memory_candidates(&conn, from_timestamp, to_timestamp)?
+    };
+
+    analyze_unified_memory_candidates(&db, &memory_config, &candidates).await
+}
+
+pub(crate) async fn analyze_unified_memory_candidates(
+    db: &DbConnection,
+    memory_config: &MemoryConfig,
+    candidates: &[MemorySourceCandidate],
+) -> Result<MemoryAnalysisResult, String> {
     if !memory_config.enabled {
         info!("[Unified Memory] 记忆功能已关闭，跳过分析");
+        return Ok(MemoryAnalysisResult {
+            analyzed_sessions: 0,
+            analyzed_messages: 0,
+            generated_entries: 0,
+            deduplicated_entries: 0,
+        });
+    }
+
+    if candidates.is_empty() {
         return Ok(MemoryAnalysisResult {
             analyzed_sessions: 0,
             analyzed_messages: 0,
@@ -465,21 +488,6 @@ pub async fn unified_memory_analyze(
         .unwrap_or(MAX_GENERATED_PER_REQUEST as u32)
         .clamp(1, MAX_GENERATED_PER_REQUEST_CAP as u32)
         as usize;
-
-    let candidates = {
-        let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-        load_memory_candidates(&conn, from_timestamp, to_timestamp)?
-    };
-
-    if candidates.is_empty() {
-        return Ok(MemoryAnalysisResult {
-            analyzed_sessions: 0,
-            analyzed_messages: 0,
-            generated_entries: 0,
-            deduplicated_entries: 0,
-        });
-    }
-
     let analyzed_sessions = candidates
         .iter()
         .map(|item| item.session_id.clone())
@@ -493,7 +501,7 @@ pub async fn unified_memory_analyze(
     let llm_attempted = llm_api_key.is_some();
 
     if let Some(api_key) = llm_api_key {
-        match build_pending_from_llm(&db, &candidates, &api_key, max_generated_per_request).await {
+        match build_pending_from_llm(db, candidates, &api_key, max_generated_per_request).await {
             Ok((mut llm_pending, llm_dedup)) => {
                 deduplicated_entries += llm_dedup;
                 pending_memories.append(&mut llm_pending);
@@ -506,7 +514,7 @@ pub async fn unified_memory_analyze(
 
     if !llm_attempted || pending_memories.is_empty() {
         let (mut fallback_pending, fallback_dedup) =
-            build_pending_from_rules(&db, &candidates, max_generated_per_request)?;
+            build_pending_from_rules(db, candidates, max_generated_per_request)?;
         deduplicated_entries += fallback_dedup;
         pending_memories.append(&mut fallback_pending);
     }
@@ -540,7 +548,7 @@ pub async fn unified_memory_analyze(
 }
 
 fn build_pending_from_rules(
-    db: &State<'_, DbConnection>,
+    db: &DbConnection,
     candidates: &[MemorySourceCandidate],
     max_generated_per_request: usize,
 ) -> Result<(Vec<PendingMemory>, u32), String> {
@@ -606,7 +614,7 @@ fn build_pending_from_rules(
 }
 
 async fn build_pending_from_llm(
-    db: &State<'_, DbConnection>,
+    db: &DbConnection,
     candidates: &[MemorySourceCandidate],
     api_key: &str,
     max_generated_per_request: usize,

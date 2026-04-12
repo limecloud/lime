@@ -43,7 +43,7 @@ export function useGeneralWorkbenchWorkflowPanelState({
   activeRunMetadata,
 }: UseGeneralWorkbenchWorkflowPanelStateParams): GeneralWorkbenchWorkflowPanelState {
   const [showActivityLogs, setShowActivityLogs] = useState(false);
-  const [showCreationTasks, setShowCreationTasks] = useState(true);
+  const [showCreationTasks, setShowCreationTasks] = useState(false);
 
   const completedSteps = useMemo(
     () => workflowSteps.filter((step) => step.status === "completed").length,

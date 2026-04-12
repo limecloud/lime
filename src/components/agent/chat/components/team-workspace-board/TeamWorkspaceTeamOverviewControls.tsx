@@ -9,6 +9,7 @@ interface TeamWorkspaceStatusMeta {
 }
 
 interface TeamWorkspaceTeamActionButtonsProps {
+  buttonClassName?: string;
   canCloseCompletedTeamSessions: boolean;
   canWaitAnyActiveTeamSession: boolean;
   onCloseCompletedTeamSessions: () => void | Promise<void>;
@@ -17,6 +18,7 @@ interface TeamWorkspaceTeamActionButtonsProps {
 }
 
 export function TeamWorkspaceTeamActionButtons({
+  buttonClassName,
   canCloseCompletedTeamSessions,
   canWaitAnyActiveTeamSession,
   onCloseCompletedTeamSessions,
@@ -30,6 +32,7 @@ export function TeamWorkspaceTeamActionButtons({
           type="button"
           size="sm"
           variant="outline"
+          className={buttonClassName}
           disabled={pendingTeamAction === "wait_any"}
           onClick={() => void onWaitAnyActiveTeamSessions()}
           data-testid="team-workspace-wait-active-button"
@@ -39,7 +42,7 @@ export function TeamWorkspaceTeamActionButtons({
           ) : null}
           {pendingTeamAction === "wait_any"
             ? "等待中..."
-            : "等待任一成员结果"}
+            : "等待任一任务结果"}
         </Button>
       ) : null}
       {canCloseCompletedTeamSessions ? (
@@ -47,6 +50,7 @@ export function TeamWorkspaceTeamActionButtons({
           type="button"
           size="sm"
           variant="outline"
+          className={buttonClassName}
           disabled={pendingTeamAction === "close_completed"}
           onClick={() => void onCloseCompletedTeamSessions()}
           data-testid="team-workspace-close-completed-button"
@@ -56,7 +60,7 @@ export function TeamWorkspaceTeamActionButtons({
           ) : null}
           {pendingTeamAction === "close_completed"
             ? "收起中..."
-            : "收起已完成成员"}
+            : "收起已完成任务"}
         </Button>
       ) : null}
     </>
@@ -64,6 +68,8 @@ export function TeamWorkspaceTeamActionButtons({
 }
 
 interface TeamWorkspaceCanvasViewButtonsProps {
+  buttonClassName?: string;
+  includeZoomControls?: boolean;
   onAutoArrangeCanvas: () => void;
   onFitCanvasView: () => void;
   onZoomIn: () => void;
@@ -71,6 +77,8 @@ interface TeamWorkspaceCanvasViewButtonsProps {
 }
 
 export function TeamWorkspaceCanvasViewButtons({
+  buttonClassName,
+  includeZoomControls = true,
   onAutoArrangeCanvas,
   onFitCanvasView,
   onZoomIn,
@@ -82,20 +90,43 @@ export function TeamWorkspaceCanvasViewButtons({
         type="button"
         size="sm"
         variant="outline"
+        className={buttonClassName}
+        onClick={onFitCanvasView}
+      >
+        聚焦任务
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className={buttonClassName}
         onClick={onAutoArrangeCanvas}
         data-testid="team-workspace-auto-arrange-button"
       >
         整理布局
       </Button>
-      <Button type="button" size="sm" variant="outline" onClick={onZoomOut}>
-        缩小
-      </Button>
-      <Button type="button" size="sm" variant="outline" onClick={onZoomIn}>
-        放大
-      </Button>
-      <Button type="button" size="sm" variant="outline" onClick={onFitCanvasView}>
-        适应视图
-      </Button>
+      {includeZoomControls ? (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={buttonClassName}
+            onClick={onZoomOut}
+          >
+            缩小
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={buttonClassName}
+            onClick={onZoomIn}
+          >
+            放大
+          </Button>
+        </>
+      ) : null}
     </>
   );
 }

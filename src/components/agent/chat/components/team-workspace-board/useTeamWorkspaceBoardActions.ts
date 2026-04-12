@@ -1,16 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback } from "react";
 import type { TeamSessionCard } from "../../utils/teamWorkspaceSessions";
-
-export type TeamWorkspacePendingSessionAction =
-  | "close"
-  | "interrupt_send"
-  | "resume"
-  | "send"
-  | "wait";
-
-export type TeamWorkspacePendingTeamAction =
-  | "close_completed"
-  | "wait_any";
+import {
+  useTeamWorkspaceBoardActionUiState,
+} from "./useTeamWorkspaceBoardActionUiState";
 
 interface UseTeamWorkspaceBoardActionsParams {
   completedTeamSessionIds: string[];
@@ -47,26 +39,19 @@ export function useTeamWorkspaceBoardActions({
   waitTimeoutMs = 30_000,
   waitableTeamSessionIds,
 }: UseTeamWorkspaceBoardActionsParams) {
-  const [pendingSessionAction, setPendingSessionAction] = useState<{
-    sessionId: string;
-    action: TeamWorkspacePendingSessionAction;
-  } | null>(null);
-  const [pendingTeamAction, setPendingTeamAction] =
-    useState<TeamWorkspacePendingTeamAction | null>(null);
-  const [sessionInputDraftById, setSessionInputDraftById] = useState<
-    Record<string, string>
-  >({});
-
-  const selectedActionPending = Boolean(
-    selectedSession && pendingSessionAction?.sessionId === selectedSession.id,
-  );
-  const selectedSessionInputDraft = selectedSession
-    ? (sessionInputDraftById[selectedSession.id] ?? "")
-    : "";
-  const selectedSessionInputMessage = useMemo(
-    () => selectedSessionInputDraft.trim(),
-    [selectedSessionInputDraft],
-  );
+  const {
+    clearSelectedSessionInputDraft,
+    handleSelectedSessionInputDraftChange,
+    pendingSessionAction,
+    pendingTeamAction,
+    selectedActionPending,
+    selectedSessionInputDraft,
+    selectedSessionInputMessage,
+    setPendingSessionAction,
+    setPendingTeamAction,
+  } = useTeamWorkspaceBoardActionUiState({
+    selectedSession,
+  });
 
   const handleWaitAnyActiveTeamSessions = useCallback(async () => {
     if (!onWaitActiveTeamSessions || waitableTeamSessionIds.length <= 1) {
@@ -79,7 +64,12 @@ export function useTeamWorkspaceBoardActions({
     } finally {
       setPendingTeamAction(null);
     }
-  }, [onWaitActiveTeamSessions, waitTimeoutMs, waitableTeamSessionIds]);
+  }, [
+    onWaitActiveTeamSessions,
+    setPendingTeamAction,
+    waitTimeoutMs,
+    waitableTeamSessionIds,
+  ]);
 
   const handleCloseCompletedTeamSessions = useCallback(async () => {
     if (!onCloseCompletedTeamSessions || completedTeamSessionIds.length === 0) {
@@ -92,7 +82,11 @@ export function useTeamWorkspaceBoardActions({
     } finally {
       setPendingTeamAction(null);
     }
-  }, [completedTeamSessionIds, onCloseCompletedTeamSessions]);
+  }, [
+    completedTeamSessionIds,
+    onCloseCompletedTeamSessions,
+    setPendingTeamAction,
+  ]);
 
   const handleSelectedSessionAction = useCallback(
     async (action: "close" | "resume" | "wait") => {
@@ -122,27 +116,9 @@ export function useTeamWorkspaceBoardActions({
       onResumeSubagentSession,
       onWaitSubagentSession,
       selectedSession,
+      setPendingSessionAction,
       waitTimeoutMs,
     ],
-  );
-
-  const handleSelectedSessionInputDraftChange = useCallback(
-    (value: string) => {
-      if (!selectedSession) {
-        return;
-      }
-
-      setSessionInputDraftById((previous) => {
-        if (previous[selectedSession.id] === value) {
-          return previous;
-        }
-        return {
-          ...previous,
-          [selectedSession.id]: value,
-        };
-      });
-    },
-    [selectedSession],
   );
 
   const handleSelectedSessionSendInput = useCallback(
@@ -158,22 +134,20 @@ export function useTeamWorkspaceBoardActions({
         await onSendSubagentInput?.(sessionId, selectedSessionInputMessage, {
           interrupt,
         });
-        setSessionInputDraftById((previous) => {
-          if (!previous[sessionId]) {
-            return previous;
-          }
-          return {
-            ...previous,
-            [sessionId]: "",
-          };
-        });
+        clearSelectedSessionInputDraft(sessionId);
       } finally {
         setPendingSessionAction((current) =>
           current?.sessionId === sessionId ? null : current,
         );
       }
     },
-    [onSendSubagentInput, selectedSession, selectedSessionInputMessage],
+    [
+      clearSelectedSessionInputDraft,
+      onSendSubagentInput,
+      selectedSession,
+      selectedSessionInputMessage,
+      setPendingSessionAction,
+    ],
   );
 
   return {

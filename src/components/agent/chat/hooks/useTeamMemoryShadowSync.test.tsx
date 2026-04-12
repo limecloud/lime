@@ -153,6 +153,9 @@ describe("useTeamMemoryShadowSync", () => {
       );
       expect(snapshot?.entries["team.selection"]?.content).toContain("角色：");
       expect(snapshot?.entries["team.subagents"]?.content).toContain(
+        "子任务：",
+      );
+      expect(snapshot?.entries["team.subagents"]?.content).toContain(
         "研究代理 [running] explorer · 梳理主线风险",
       );
       expect(snapshot?.entries["team.parent_context"]?.content).toContain(

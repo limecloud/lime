@@ -20,11 +20,39 @@
   "evidencePack": {
     "relativeRoot": ".lime/harness/sessions/fixture-session-minimal-pending-request/evidence",
     "absoluteRoot": "/workspace/lime/.lime/harness/sessions/fixture-session-minimal-pending-request/evidence",
-    "knownGaps": [
-      "当前 Lime 虽然已有全局 RequestLog / token / retry / duration 遥测，但 RequestLog 尚未携带 session/thread/turn 关联键，Evidence Pack 只能导出 request telemetry coverage gap，不能给出精确的会话级摘要。",
-      "当前 Evidence Pack 尚未纳入 ArtifactDocument validator outcome 与修复问题摘要。",
-      "当前 Evidence Pack 尚未纳入 GUI smoke / browser 验证结果。"
-    ],
+    "knownGaps": [],
+    "verification": {
+      "artifactValidatorIssues": [
+        {
+          "path": ".lime/artifacts/thread-1/report.artifact.json",
+          "issues": [
+            "title 缺失或为空，已使用兜底标题。"
+          ],
+          "repaired": true,
+          "fallbackUsed": false
+        }
+      ],
+      "browserEvidence": [
+        {
+          "itemId": "browser-tool-fixture-001",
+          "turnId": "turn-fixture-001",
+          "toolName": "browser_snapshot",
+          "status": "completed",
+          "updatedAt": "2026-03-27T11:22:00Z"
+        }
+      ],
+      "guiSmoke": {
+        "itemId": "gui-smoke-fixture-001",
+        "turnId": "turn-fixture-001",
+        "status": "completed",
+        "command": "npm run verify:gui-smoke",
+        "cwd": "/workspace/lime",
+        "exitCode": 0,
+        "error": null,
+        "updatedAt": "2026-03-27T11:23:30Z",
+        "outputPreview": "GUI smoke finished successfully"
+      }
+    },
     "artifacts": [
       {
         "kind": "summary",
@@ -65,12 +93,24 @@
       "failedToolCallCount": 0,
       "failedCommandCount": 0,
       "subagentCount": 0,
-      "recentArtifactCount": 2
+      "recentArtifactCount": 3
     },
     "latest": {
       "warning": null,
       "failedTool": null,
       "failedCommand": null
+    },
+    "requestTelemetry": {
+      "source": "lime_infra.telemetry.request_logs",
+      "searchedRoots": [
+        "/workspace/lime/request_logs"
+      ],
+      "matchedRequestCount": 0,
+      "latestRequestAt": null,
+      "statusCounts": {},
+      "providers": [],
+      "models": [],
+      "requests": []
     },
     "signalCoverage": [
       {
@@ -93,37 +133,57 @@
       },
       {
         "signal": "requestTelemetry",
-        "status": "unlinked",
-        "source": "lime_infra.telemetry",
-        "detail": "Lime 已有 workspace 级 request telemetry，但当前 RequestLog 还未携带 session/thread/turn 元数据。"
+        "status": "exported",
+        "source": "lime_infra.telemetry.request_logs",
+        "detail": "当前证据包已扫描 request telemetry 日志目录，但当前会话未匹配到 provider request 记录。"
       },
       {
         "signal": "artifactValidator",
-        "status": "known_gap",
+        "status": "exported",
         "source": "artifact_document_validator",
-        "detail": "Artifact validator outcome 尚未回挂到当前 evidence pack。"
+        "detail": "当前证据包已为 1 个 ArtifactDocument 产物导出 validator outcome。"
       },
       {
         "signal": "browserVerification",
-        "status": "known_gap",
+        "status": "exported",
         "source": "browser runtime",
-        "detail": "浏览器截图、DOM 快照和交互验证结果尚未接入 evidence pack。"
+        "detail": "当前证据包已导出 1 条浏览器验证线索。"
       },
       {
         "signal": "guiSmoke",
-        "status": "known_gap",
+        "status": "exported",
         "source": "verify:gui-smoke",
-        "detail": "GUI smoke 结果尚未作为结构化证据回挂当前会话。"
+        "detail": "当前证据包已导出 GUI smoke 运行结果。"
       }
     ],
-    "knownGaps": [
-      "当前 Lime 虽然已有全局 RequestLog / token / retry / duration 遥测，但 RequestLog 尚未携带 session/thread/turn 关联键，Evidence Pack 只能导出 request telemetry coverage gap，不能给出精确的会话级摘要。",
-      "当前 Evidence Pack 尚未纳入 ArtifactDocument validator outcome 与修复问题摘要。",
-      "当前 Evidence Pack 尚未纳入 GUI smoke / browser 验证结果。"
-    ]
+    "verificationSummary": {
+      "artifactValidator": {
+        "applicable": true,
+        "recordCount": 1,
+        "issueCount": 1,
+        "repairedCount": 1,
+        "fallbackUsedCount": 0
+      },
+      "browserVerification": {
+        "recordCount": 1,
+        "successCount": 1,
+        "failureCount": 0,
+        "unknownCount": 0,
+        "latestUpdatedAt": "2026-03-27T11:22:00Z"
+      },
+      "guiSmoke": {
+        "status": "completed",
+        "exitCode": 0,
+        "passed": true,
+        "updatedAt": "2026-03-27T11:23:30Z",
+        "hasOutputPreview": true
+      }
+    },
+    "knownGaps": []
   },
   "recentArtifacts": [
     "docs/tech/harness/implementation-blueprint.md",
+    ".lime/artifacts/thread-1/report.artifact.json",
     ".lime/harness/sessions/fixture-session-minimal-pending-request/handoff/handoff.md"
   ]
 }

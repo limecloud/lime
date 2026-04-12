@@ -7,6 +7,7 @@ use std::path::PathBuf;
 pub struct CompactionSessionMetricsUpdate {
     pub schedule_id: Option<String>,
     pub current_window_tokens: i32,
+    pub cached_input_tokens: Option<i32>,
     pub accumulated_total_tokens: Option<i32>,
     pub accumulated_input_tokens: Option<i32>,
     pub accumulated_output_tokens: Option<i32>,
@@ -57,6 +58,7 @@ pub async fn persist_compaction_session_metrics_update(
         .total_tokens(Some(update.current_window_tokens))
         .input_tokens(Some(update.current_window_tokens))
         .output_tokens(Some(0))
+        .cached_input_tokens(update.cached_input_tokens)
         .accumulated_total_tokens(update.accumulated_total_tokens)
         .accumulated_input_tokens(update.accumulated_input_tokens)
         .accumulated_output_tokens(update.accumulated_output_tokens)

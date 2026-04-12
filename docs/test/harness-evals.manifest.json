@@ -47,6 +47,13 @@
           "source": "repo_fixture",
           "caseDir": "docs/test/harness-fixtures/replay/minimal-pending-request",
           "tags": ["conversation-runtime", "replay", "handoff", "evidence"]
+        },
+        {
+          "id": "fixture-minimal-observability-gap",
+          "title": "最小 observability gap Replay 样本",
+          "source": "repo_fixture",
+          "caseDir": "docs/test/harness-fixtures/replay/minimal-observability-gap",
+          "tags": ["conversation-runtime", "replay", "handoff", "evidence", "observability-gap"]
         }
       ]
     },

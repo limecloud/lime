@@ -34,15 +34,19 @@ Agent 聊天界面的 UI 组件集合。
 | `team-workspace-board/teamWorkspaceCanvasControllerState.ts` | Team 画布控制纯状态工具，统一承载视口更新、lane 布局写回与置顶规则 |
 | `team-workspace-board/useTeamWorkspaceActivityPreviewSync.ts` | Team 过程预览同步 hook，统一承载请求去重、选中成员轮询与 stale preview 预取 |
 | `team-workspace-board/useTeamWorkspaceActivityPreviews.ts` | Team 过程预览 hook，统一承载成员最近过程的预取、轮询与 stale preview 预热 |
+| `team-workspace-board/useTeamWorkspaceBoardActionUiState.ts` | Team Board action UI 状态 hook，统一承载选中成员输入草稿、pending 状态与派生文案输入值 |
 | `team-workspace-board/useTeamWorkspaceBoardActions.ts` | Team Board 操作控制 hook，统一承载成员发送/等待/关闭与 Team 级等待/收尾的 pending 状态 |
 | `team-workspace-board/useTeamWorkspaceBoardCanvasRuntime.ts` | Team Board 画布运行态组合 hook，统一承载 lane 拼装、stage hint 与自由画布控制接线 |
 | `team-workspace-board/useTeamWorkspaceBoardComposer.ts` | Team Board 高阶编排 hook，统一承载 runtime、activity、canvas、presentation 与 shell/empty-shell props 组合 |
 | `team-workspace-board/useTeamWorkspaceBoardFormationState.ts` | Team Board 分工展示前置 hook，统一承载 selected team 归一化与 runtime formation / plan display 组装 |
+| `team-workspace-board/useTeamWorkspaceBoardOperationState.ts` | Team Board 运行态派生 hook，统一承载 team operation、wait summary 与 session control 组装 |
 | `team-workspace-board/useTeamWorkspaceBoardRuntimeState.ts` | Team Board 运行态组合 hook，统一承载 team 轨迹、焦点成员、会话控制与交互 action 组装 |
+| `team-workspace-board/useTeamWorkspaceBoardSelectedSessionActionState.ts` | Team Board 当前选中成员 capability hook，统一承载 open/resume/send/wait/close 可用性派生 |
 | `team-workspace-board/useTeamWorkspaceBoardShellProps.ts` | Team Board 壳层 props 组合 hook，统一承载 empty shell / shell props 映射与当前选中成员 inline detail 装配 |
 | `team-workspace-board/useTeamWorkspaceBoardSessionGraph.ts` | Team Board 会话图组合 hook，统一承载 orchestrator/current child/visible/member canvas/rail 的派生组装 |
 | `team-workspace-board/useTeamWorkspaceBoardSelectedInlineDetail.tsx` | Team Board 当前选中成员详情组合 hook，统一承载 inline detail 条件渲染与 props 映射 |
 | `team-workspace-board/useTeamWorkspaceBoardPresentation.tsx` | Team Board 展示态 hook，统一承载 chrome 文案、详情展示与壳层样式拼装 |
+| `team-workspace-board/teamWorkspaceBoardPresentationSelectors.ts` | Team Board 展示态 selector，统一承载细节可见性、成员画布文案与壳层 className 派生 |
 | `team-workspace-board/useTeamWorkspaceCanvasController.ts` | Team Board 画布控制 hook，统一承载自由画布的布局状态、持久化、lane 布局派生与交互接线 |
 | `team-workspace-board/useTeamWorkspaceCanvasInteractionHandlers.ts` | Team 画布交互 hook，统一承载拖拽、resize、平移、缩放、自动布局、fit 与选中行为 |
 | `team-workspace-board/useTeamWorkspaceCanvasKeyboardShortcuts.ts` | Team 画布键盘快捷键 hook，统一承载 Space 手型、缩放、适应与方向键平移 |

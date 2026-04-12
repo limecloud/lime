@@ -123,6 +123,32 @@ describe("useWorkspaceA2UIRuntime", () => {
     expect(getValue().a2uiSubmissionNotice).toBeNull();
   });
 
+  it("历史问卷正文不应再生成 pending A2UI 表单", async () => {
+    const legacyQuestionnaireMessage = createAssistantMessage(
+      "assistant-legacy-questionnaire",
+      `为了继续推进，我需要你先补充以下信息：
+
+1. 目标与对象
+- 这次内容主要面向谁？（客户 / 上级 / 同事）
+- 这次最想达成的目标是什么？
+
+2. 风格与限制
+- 语气偏好：正式严谨 / 友好专业 / 直接高效
+- 是否需要加入明确行动号召？`,
+    );
+    const { render, getValue } = renderHook({
+      messages: [legacyQuestionnaireMessage],
+    });
+
+    await render({ messages: [legacyQuestionnaireMessage] });
+
+    expect(getValue().pendingA2UIForm).toBeNull();
+    expect(getValue().pendingA2UISource).toBeNull();
+    expect(getValue().pendingActionRequest).toBeNull();
+    expect(getValue().pendingPromotedA2UIActionRequest).toBeNull();
+    expect(getValue().a2uiSubmissionNotice).toBeNull();
+  });
+
   it("内联 A2UI 在消息内容短暂变成不完整 JSON 时应保留最后一份有效表单", async () => {
     const validA2UIMessage = createAssistantMessage(
       "assistant-a2ui",

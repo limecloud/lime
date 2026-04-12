@@ -32,6 +32,20 @@ function parseWorkspaceField(section, fieldName) {
   return pattern.test(section);
 }
 
+function readPackageJsonVersion(repoRoot) {
+  const packageJsonPath = path.join(repoRoot, "package.json");
+  if (!fs.existsSync(packageJsonPath)) {
+    return null;
+  }
+
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+    return typeof packageJson.version === "string" ? packageJson.version : null;
+  } catch {
+    return null;
+  }
+}
+
 export function readCargoVersions(cargoTomlPath) {
   const content = fs.readFileSync(cargoTomlPath, "utf8");
   const workspacePackageSection = extractSection(content, "workspace.package");
@@ -50,8 +64,11 @@ export function readCargoVersions(cargoTomlPath) {
 
 export function readWorkspaceAppVersion(repoRoot = process.cwd()) {
   const cargoTomlPath = path.join(repoRoot, "src-tauri", "Cargo.toml");
+  if (!fs.existsSync(cargoTomlPath)) {
+    return readPackageJsonVersion(repoRoot);
+  }
   const { workspaceVersion } = readCargoVersions(cargoTomlPath);
-  return workspaceVersion;
+  return workspaceVersion ?? readPackageJsonVersion(repoRoot);
 }
 
 const currentFilePath = fileURLToPath(import.meta.url);

@@ -193,7 +193,7 @@ export function TeamWorkspaceCanvasLaneCard({
           <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
             <div className="flex items-center gap-1.5 border-b border-slate-200 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               <PanelTop className="h-3 w-3" />
-              <span>成员进展</span>
+              <span>任务进展</span>
               <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
                 {lane.kind === "session" ? "最近进展" : "等待接入"}
               </span>

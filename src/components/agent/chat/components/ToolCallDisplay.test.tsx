@@ -755,7 +755,7 @@ describe("ToolCallDisplay", () => {
     mountedRoots.push({ container, root });
 
     expect(container.textContent).toContain("已打开 https://example.com/docs");
-    expect(container.textContent).toContain("协作中 修复登录页");
+    expect(container.textContent).toContain("子任务处理中 修复登录页");
     expect(container.textContent).toContain("已读取输出 video-task-1");
     expect(container.textContent).toContain("已加载技能 lime-governance");
     expect(container.textContent).toContain("已列出 src/**/*.tsx");

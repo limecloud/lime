@@ -356,7 +356,7 @@ describe("StreamingRenderer", () => {
       thinkingContent: "先检查滚动触发逻辑\n再确认输出展开时机",
       toolCalls: [
         {
-          id: "tool-process-group-legacy",
+          id: "tool-process-group-fallback",
           name: "functions.exec_command",
           arguments: JSON.stringify({ cmd: "rg -n scrollKey src" }),
           status: "completed",
@@ -431,7 +431,7 @@ describe("StreamingRenderer", () => {
       thinkingContent: "这段思考应由 timeline 承载",
       toolCalls: [
         {
-          id: "tool-suppressed-legacy",
+          id: "tool-suppressed-fallback",
           name: "functions.exec_command",
           arguments: JSON.stringify({ cmd: "rg -n duplicate src" }),
           status: "completed",
@@ -442,7 +442,7 @@ describe("StreamingRenderer", () => {
       ],
       actionRequests: [
         {
-          requestId: "req-suppressed-legacy",
+          requestId: "req-suppressed-fallback",
           actionType: "tool_confirmation",
           status: "pending",
           prompt: "请确认是否继续",

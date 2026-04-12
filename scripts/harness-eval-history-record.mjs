@@ -6,21 +6,34 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { renderHarnessDashboardHtml } from "./lib/harness-dashboard-core.mjs";
+
 const RUNNER_PATH = "scripts/harness-eval-runner.mjs";
 const TREND_PATH = "scripts/harness-eval-trend-report.mjs";
 const CLEANUP_PATH = "scripts/report-generated-slop.mjs";
+const RECOVERED_VERIFICATION_OUTCOMES = new Set([
+  "repaired",
+  "success",
+  "passed",
+  "clean",
+]);
 
 function parseArgs(argv) {
   const result = {
     cleanupJson: "",
     cleanupMarkdown: "",
+    dashboardHtml: "",
+    dashboardTitle: "Lime Harness Dashboard",
     format: "text",
     help: false,
     historyDir: "./.lime/harness/history",
+    manifest: "",
     outputJson: "",
     retain: 30,
     skipCleanup: false,
     skipTrend: false,
+    summaryJson: "",
+    summaryMarkdown: "",
     trendJson: "",
     trendMarkdown: "",
     workspaceRoot: process.cwd(),
@@ -41,6 +54,12 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === "--manifest" && argv[index + 1]) {
+      result.manifest = String(argv[index + 1]).trim();
+      index += 1;
+      continue;
+    }
+
     if (arg === "--retain" && argv[index + 1]) {
       result.retain = Number.parseInt(String(argv[index + 1]).trim(), 10);
       index += 1;
@@ -55,6 +74,18 @@ function parseArgs(argv) {
 
     if (arg === "--output-json" && argv[index + 1]) {
       result.outputJson = String(argv[index + 1]).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--summary-json" && argv[index + 1]) {
+      result.summaryJson = String(argv[index + 1]).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--summary-markdown" && argv[index + 1]) {
+      result.summaryMarkdown = String(argv[index + 1]).trim();
       index += 1;
       continue;
     }
@@ -79,6 +110,18 @@ function parseArgs(argv) {
 
     if (arg === "--cleanup-markdown" && argv[index + 1]) {
       result.cleanupMarkdown = String(argv[index + 1]).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--dashboard-html" && argv[index + 1]) {
+      result.dashboardHtml = String(argv[index + 1]).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--dashboard-title" && argv[index + 1]) {
+      result.dashboardTitle = String(argv[index + 1]).trim();
       index += 1;
       continue;
     }
@@ -113,11 +156,16 @@ Lime Harness Eval History Record
 选项:
   --history-dir PATH        summary 历史目录，默认 ./.lime/harness/history
   --workspace-root PATH     生成当前 summary 时使用的工作区根目录
+  --manifest PATH          透传给 harness eval runner，覆盖默认 manifest
   --retain N               历史窗口保留数量，默认 30
-  --trend-json PATH        trend JSON 输出路径
-  --trend-markdown PATH    trend Markdown 输出路径
-  --cleanup-json PATH      cleanup JSON 输出路径
-  --cleanup-markdown PATH  cleanup Markdown 输出路径
+  --summary-json PATH      summary JSON 输出路径，默认写入 reports/harness-eval-summary.json
+  --summary-markdown PATH  summary Markdown 输出路径，默认写入 reports/harness-eval-summary.md
+  --trend-json PATH        trend JSON 输出路径，默认写入 reports/harness-eval-trend.json
+  --trend-markdown PATH    trend Markdown 输出路径，默认写入 reports/harness-eval-trend.md
+  --cleanup-json PATH      cleanup JSON 输出路径，默认写入 reports/harness-cleanup-report.json
+  --cleanup-markdown PATH  cleanup Markdown 输出路径，默认写入 reports/harness-cleanup-report.md
+  --dashboard-html PATH    dashboard HTML 输出路径，依赖 summary / trend / cleanup；默认写入 reports/harness-dashboard.html
+  --dashboard-title TEXT   dashboard 页面标题
   --skip-trend             只记录 summary，不生成 trend
   --skip-cleanup           只记录 summary / trend，不生成 cleanup
   --format FMT             标准输出格式：text | json
@@ -134,8 +182,9 @@ function ensureParentDirectory(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
-function readJsonFile(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+function writeTextFile(filePath, contents) {
+  ensureParentDirectory(filePath);
+  fs.writeFileSync(filePath, contents, "utf8");
 }
 
 function timestampForFilename() {
@@ -154,18 +203,30 @@ function collectHistoryFiles(historyDir) {
     .sort((left, right) => left.localeCompare(right));
 }
 
-function buildCurrentSummary(repoRoot, workspaceRoot) {
+function runRunner(repoRoot, args) {
   const runnerPath = resolvePath(repoRoot, RUNNER_PATH);
-  const output = execFileSync(
-    process.execPath,
-    [runnerPath, "--format", "json", "--workspace-root", workspaceRoot],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "inherit"],
-    },
-  );
+  return execFileSync(process.execPath, [runnerPath, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+}
+
+function buildCurrentSummary(repoRoot, workspaceRoot, manifestPath) {
+  const args = ["--format", "json", "--workspace-root", workspaceRoot];
+  if (manifestPath) {
+    args.push("--manifest", manifestPath);
+  }
+  const output = runRunner(repoRoot, args);
   return JSON.parse(output);
+}
+
+function buildCurrentSummaryMarkdown(repoRoot, workspaceRoot, manifestPath) {
+  const args = ["--format", "markdown", "--workspace-root", workspaceRoot];
+  if (manifestPath) {
+    args.push("--manifest", manifestPath);
+  }
+  return runRunner(repoRoot, args);
 }
 
 function writeJsonFile(filePath, payload) {
@@ -214,11 +275,155 @@ function buildDefaultArtifactPaths(historyDir) {
       ? path.join(historyParent, "reports")
       : historyParent;
   return {
+    summaryJson: path.join(artifactsRoot, "harness-eval-summary.json"),
+    summaryMarkdown: path.join(artifactsRoot, "harness-eval-summary.md"),
     trendJson: path.join(artifactsRoot, "harness-eval-trend.json"),
     trendMarkdown: path.join(artifactsRoot, "harness-eval-trend.md"),
     cleanupJson: path.join(artifactsRoot, "harness-cleanup-report.json"),
     cleanupMarkdown: path.join(artifactsRoot, "harness-cleanup-report.md"),
+    dashboardHtml: path.join(artifactsRoot, "harness-dashboard.html"),
   };
+}
+
+function toVerificationFailureOutcomeFocus(cleanupReport) {
+  const currentEntries = Array.isArray(
+    cleanupReport?.focus?.currentObservabilityVerificationOutcomes,
+  )
+    ? cleanupReport.focus.currentObservabilityVerificationOutcomes
+    : [];
+  const fallbackEntries = Array.isArray(
+    cleanupReport?.focus?.observabilityVerificationOutcomes,
+  )
+    ? cleanupReport.focus.observabilityVerificationOutcomes
+    : [];
+  const entries =
+    currentEntries.length > 0 ? currentEntries : fallbackEntries;
+
+  return entries
+    .map((entry) => {
+      const signal = typeof entry?.signal === "string" ? entry.signal.trim() : "";
+      const outcome =
+        typeof entry?.outcome === "string" ? entry.outcome.trim() : "";
+      return signal && outcome ? `${signal}:${outcome}` : "";
+    })
+    .filter(Boolean);
+}
+
+function toCurrentRecoveredBaselineFocus(cleanupReport) {
+  const explicitRecoveredEntries = Array.isArray(
+    cleanupReport?.focus?.currentRecoveredObservabilityVerificationOutcomes,
+  )
+    ? cleanupReport.focus.currentRecoveredObservabilityVerificationOutcomes
+    : [];
+  const currentEntries = Array.isArray(
+    cleanupReport?.focus?.currentObservabilityVerificationOutcomes,
+  )
+    ? cleanupReport.focus.currentObservabilityVerificationOutcomes
+    : [];
+  const fallbackEntries = Array.isArray(
+    cleanupReport?.focus?.observabilityVerificationOutcomes,
+  )
+    ? cleanupReport.focus.observabilityVerificationOutcomes
+    : [];
+  const entries =
+    explicitRecoveredEntries.length > 0
+      ? explicitRecoveredEntries
+      : currentEntries.length > 0
+        ? currentEntries
+        : fallbackEntries;
+
+  return entries
+    .filter((entry) =>
+      RECOVERED_VERIFICATION_OUTCOMES.has(
+        typeof entry?.outcome === "string" ? entry.outcome.trim() : "",
+      ),
+    )
+    .map((entry) => {
+      const signal = typeof entry?.signal === "string" ? entry.signal.trim() : "";
+      const outcome =
+        typeof entry?.outcome === "string" ? entry.outcome.trim() : "";
+      return signal && outcome ? `${signal}:${outcome}` : "";
+    })
+    .filter(Boolean);
+}
+
+function toVerificationOutcomeCounts(cleanupReport) {
+  const summary =
+    cleanupReport &&
+    typeof cleanupReport === "object" &&
+    cleanupReport.summary &&
+    cleanupReport.summary.verificationOutcomes &&
+    typeof cleanupReport.summary.verificationOutcomes === "object"
+      ? cleanupReport.summary.verificationOutcomes
+      : {};
+  const currentSummary =
+    summary &&
+    typeof summary.current === "object" &&
+    !Array.isArray(summary.current)
+      ? summary.current
+      : {};
+  const degradedSummary =
+    summary &&
+    typeof summary.degraded === "object" &&
+    !Array.isArray(summary.degraded)
+      ? summary.degraded
+      : {};
+
+  return {
+    failureCaseCount:
+      typeof summary.failureCaseCount === "number" &&
+      Number.isFinite(summary.failureCaseCount)
+        ? summary.failureCaseCount
+        : 0,
+    blockingFailureCaseCount:
+      typeof currentSummary.blockingFailureCaseCount === "number" &&
+      Number.isFinite(currentSummary.blockingFailureCaseCount)
+        ? currentSummary.blockingFailureCaseCount
+        : 0,
+    advisoryFailureCaseCount:
+      typeof currentSummary.advisoryFailureCaseCount === "number" &&
+      Number.isFinite(currentSummary.advisoryFailureCaseCount)
+        ? currentSummary.advisoryFailureCaseCount
+        : 0,
+    recoveredCaseCount:
+      typeof summary.recoveredCaseCount === "number" &&
+      Number.isFinite(summary.recoveredCaseCount)
+        ? summary.recoveredCaseCount
+        : 0,
+    currentRecoveredCaseCount:
+      typeof currentSummary.recoveredCaseCount === "number" &&
+      Number.isFinite(currentSummary.recoveredCaseCount)
+        ? currentSummary.recoveredCaseCount
+        : 0,
+    degradedBlockingFailureCaseCount:
+      typeof degradedSummary.blockingFailureCaseCount === "number" &&
+      Number.isFinite(degradedSummary.blockingFailureCaseCount)
+        ? degradedSummary.blockingFailureCaseCount
+        : 0,
+  };
+}
+
+function toTrendCurrentRecoveredBaselineFocus(trendReport) {
+  const entries = Array.isArray(
+    trendReport?.classificationDeltas?.currentRecoveredObservabilityVerificationOutcomes,
+  )
+    ? trendReport.classificationDeltas.currentRecoveredObservabilityVerificationOutcomes
+    : [];
+
+  return entries
+    .filter((entry) => {
+      const latestCaseCount =
+        typeof entry?.latest?.caseCount === "number" &&
+        Number.isFinite(entry.latest.caseCount)
+          ? entry.latest.caseCount
+          : 0;
+      return latestCaseCount > 0;
+    })
+    .map((entry) =>
+      typeof entry?.name === "string" ? entry.name.trim() : "",
+    )
+    .filter(Boolean)
+    .slice(0, 3);
 }
 
 function renderOutput(result, format) {
@@ -234,8 +439,31 @@ function renderOutput(result, format) {
     `[lime] trimmed files: ${result.trimmedPaths.length}`,
   ];
 
+  if (result.summary) {
+    if (result.summary.outputJsonPath) {
+      lines.push(`[lime] summary json: ${result.summary.outputJsonPath}`);
+    }
+    if (result.summary.outputMarkdownPath) {
+      lines.push(`[lime] summary markdown: ${result.summary.outputMarkdownPath}`);
+    }
+  }
+
   if (result.trend) {
     lines.push(`[lime] trend sample count: ${result.trend.sampleCount}`);
+    lines.push(
+      `[lime] trend current observability gap cases: ${result.trend.currentObservabilityGapCaseCount}`,
+    );
+    lines.push(
+      `[lime] trend degraded observability gap cases: ${result.trend.degradedObservabilityGapCaseCount}`,
+    );
+    lines.push(
+      `[lime] trend current recovered baseline cases: ${result.trend.currentRecoveredVerificationCaseCount}`,
+    );
+    if (result.trend.currentRecoveredBaselineFocus.length > 0) {
+      lines.push(
+        `[lime] trend current recovered baseline: ${result.trend.currentRecoveredBaselineFocus.join(", ")}`,
+      );
+    }
     if (result.trend.outputJsonPath) {
       lines.push(`[lime] trend json: ${result.trend.outputJsonPath}`);
     }
@@ -245,9 +473,47 @@ function renderOutput(result, format) {
     lines.push(
       `[lime] cleanup trend samples: ${result.cleanup.trendSampleCount}`,
     );
+    lines.push(
+      `[lime] cleanup current observability gap cases: ${result.cleanup.currentObservabilityGapCaseCount}`,
+    );
+    lines.push(
+      `[lime] cleanup degraded observability gap cases: ${result.cleanup.degradedObservabilityGapCaseCount}`,
+    );
+    if (result.cleanup.verificationFailureOutcomeFocus.length > 0) {
+      lines.push(
+        `[lime] cleanup verification failure outcomes: ${result.cleanup.verificationFailureOutcomeFocus.join(", ")}`,
+      );
+    }
+    lines.push(
+      `[lime] cleanup verification failure cases: ${result.cleanup.verificationFailureCaseCount}`,
+    );
+    lines.push(
+      `[lime] cleanup verification blocking failure cases: ${result.cleanup.verificationBlockingFailureCaseCount}`,
+    );
+    lines.push(
+      `[lime] cleanup verification advisory failure cases: ${result.cleanup.verificationAdvisoryFailureCaseCount}`,
+    );
+    lines.push(
+      `[lime] cleanup degraded blocking verification failure cases: ${result.cleanup.verificationDegradedBlockingFailureCaseCount}`,
+    );
+    lines.push(
+      `[lime] cleanup verification recovered cases: ${result.cleanup.verificationRecoveredCaseCount}`,
+    );
+    lines.push(
+      `[lime] cleanup current recovered baseline cases: ${result.cleanup.currentVerificationRecoveredCaseCount}`,
+    );
+    if (result.cleanup.currentRecoveredBaselineFocus.length > 0) {
+      lines.push(
+        `[lime] cleanup current recovered baseline: ${result.cleanup.currentRecoveredBaselineFocus.join(", ")}`,
+      );
+    }
     if (result.cleanup.outputJsonPath) {
       lines.push(`[lime] cleanup json: ${result.cleanup.outputJsonPath}`);
     }
+  }
+
+  if (result.dashboard?.outputHtmlPath) {
+    lines.push(`[lime] dashboard html: ${result.dashboard.outputHtmlPath}`);
   }
 
   return `${lines.join("\n")}\n`;
@@ -260,11 +526,24 @@ function runHistoryRecordCli() {
     return;
   }
 
+  if (options.dashboardHtml && (options.skipTrend || options.skipCleanup)) {
+    throw new Error(
+      "生成 dashboard 需要同时启用 trend 与 cleanup，请移除 --skip-trend / --skip-cleanup。",
+    );
+  }
+
   const repoRoot = process.cwd();
   const historyDir = resolvePath(repoRoot, options.historyDir);
   fs.mkdirSync(historyDir, { recursive: true });
 
-  const summary = buildCurrentSummary(repoRoot, options.workspaceRoot);
+  const effectiveManifest = options.manifest
+    ? resolvePath(repoRoot, options.manifest)
+    : "";
+  const summary = buildCurrentSummary(
+    repoRoot,
+    options.workspaceRoot,
+    effectiveManifest,
+  );
   const summaryFilePath = writeUniqueHistorySummary(historyDir, summary);
   const trimmedPaths = trimHistoryFiles(historyDir, options.retain);
   const historyCount = collectHistoryFiles(historyDir).length;
@@ -276,8 +555,33 @@ function runHistoryRecordCli() {
     recordedSummaryPath: summaryFilePath,
     historyCount,
     trimmedPaths,
+    summary: null,
     trend: null,
     cleanup: null,
+    dashboard: null,
+  };
+  let trendReport = null;
+  let cleanupReport = null;
+
+  const summaryJsonPath = resolvePath(
+    repoRoot,
+    options.summaryJson || defaults.summaryJson,
+  );
+  const summaryMarkdownPath = resolvePath(
+    repoRoot,
+    options.summaryMarkdown || defaults.summaryMarkdown,
+  );
+
+  writeJsonFile(summaryJsonPath, summary);
+  const summaryMarkdown = buildCurrentSummaryMarkdown(
+    repoRoot,
+    options.workspaceRoot,
+    effectiveManifest,
+  );
+  writeTextFile(summaryMarkdownPath, summaryMarkdown);
+  result.summary = {
+    outputJsonPath: summaryJsonPath,
+    outputMarkdownPath: summaryMarkdownPath,
   };
 
   if (!options.skipTrend) {
@@ -309,9 +613,18 @@ function runHistoryRecordCli() {
         stdio: ["ignore", "pipe", "inherit"],
       },
     );
-    const trendReport = JSON.parse(trendOutput);
+    trendReport = JSON.parse(trendOutput);
+    const trendCurrentRecoveredBaselineFocus =
+      toTrendCurrentRecoveredBaselineFocus(trendReport);
     result.trend = {
       sampleCount: trendReport.sampleCount,
+      currentObservabilityGapCaseCount:
+        trendReport.latest?.totals?.currentObservabilityGapCaseCount ?? 0,
+      degradedObservabilityGapCaseCount:
+        trendReport.latest?.totals?.degradedObservabilityGapCaseCount ?? 0,
+      currentRecoveredVerificationCaseCount:
+        trendReport.latest?.totals?.currentRecoveredVerificationCaseCount ?? 0,
+      currentRecoveredBaselineFocus: trendCurrentRecoveredBaselineFocus,
       outputJsonPath: trendJsonPath,
       outputMarkdownPath: trendMarkdownPath,
     };
@@ -346,11 +659,54 @@ function runHistoryRecordCli() {
         stdio: ["ignore", "pipe", "inherit"],
       },
     );
-    const cleanupReport = JSON.parse(cleanupOutput);
+    cleanupReport = JSON.parse(cleanupOutput);
+    const verificationFailureOutcomeFocus =
+      toVerificationFailureOutcomeFocus(cleanupReport);
+    const currentRecoveredBaselineFocus =
+      toCurrentRecoveredBaselineFocus(cleanupReport);
+    const verificationOutcomeCounts =
+      toVerificationOutcomeCounts(cleanupReport);
     result.cleanup = {
       trendSampleCount: cleanupReport.summary?.trend?.sampleCount ?? 0,
+      currentObservabilityGapCaseCount:
+        cleanupReport.summary?.trend?.latestCurrentObservabilityGapCaseCount ?? 0,
+      degradedObservabilityGapCaseCount:
+        cleanupReport.summary?.trend?.latestDegradedObservabilityGapCaseCount ?? 0,
+      verificationFailureOutcomeFocus,
+      verificationFailureCaseCount:
+        verificationOutcomeCounts.failureCaseCount,
+      verificationBlockingFailureCaseCount:
+        verificationOutcomeCounts.blockingFailureCaseCount,
+      verificationAdvisoryFailureCaseCount:
+        verificationOutcomeCounts.advisoryFailureCaseCount,
+      verificationDegradedBlockingFailureCaseCount:
+        verificationOutcomeCounts.degradedBlockingFailureCaseCount,
+      verificationRecoveredCaseCount:
+        verificationOutcomeCounts.recoveredCaseCount,
+      currentVerificationRecoveredCaseCount:
+        verificationOutcomeCounts.currentRecoveredCaseCount,
+      currentRecoveredBaselineFocus,
       outputJsonPath: cleanupJsonPath,
       outputMarkdownPath: cleanupMarkdownPath,
+    };
+  }
+
+  const dashboardHtmlPath =
+    options.skipTrend || options.skipCleanup
+      ? ""
+      : resolvePath(repoRoot, options.dashboardHtml || defaults.dashboardHtml);
+
+  if (dashboardHtmlPath) {
+    const dashboardHtml = renderHarnessDashboardHtml({
+      summaryReport: summary,
+      trendReport,
+      cleanupReport,
+      title: options.dashboardTitle,
+    });
+    writeTextFile(dashboardHtmlPath, dashboardHtml);
+    result.dashboard = {
+      outputHtmlPath: dashboardHtmlPath,
+      title: options.dashboardTitle,
     };
   }
 

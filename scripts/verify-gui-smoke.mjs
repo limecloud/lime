@@ -1,18 +1,11 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-
-const DEFAULTS = {
-  appUrl: "http://127.0.0.1:1420/",
-  healthUrl: "http://127.0.0.1:3030/health",
-  timeoutMs: 600_000,
-  intervalMs: 1_000,
-  reuseRunning: false,
-  sampleProjectName: "Lime Smoke Workspace",
-};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,11 +13,95 @@ const rootDir = path.resolve(__dirname, "..");
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const LIME_SKIP_STARTUP_WINDOW_REVEAL = "LIME_SKIP_STARTUP_WINDOW_REVEAL";
 const LIME_DISABLE_SINGLE_INSTANCE = "LIME_DISABLE_SINGLE_INSTANCE";
+const LIME_WEB_BRIDGE_REUSE_EXISTING_ONLY =
+  "LIME_WEB_BRIDGE_REUSE_EXISTING_ONLY";
+const LIME_WEB_BRIDGE_URL = "LIME_WEB_BRIDGE_URL";
+const ROOT_MARKERS = ['<title>Lime</title>', '<div id="root"></div>'];
+const SHARED_TAURI_TARGET_DIR = path.join(rootDir, "src-tauri", "target");
+const ISOLATED_GUI_SMOKE_TARGET_DIR = path.join(
+  os.tmpdir(),
+  "lime-gui-smoke-target",
+);
+const GUI_SMOKE_TEMP_CONFIG_BASENAME_PREFIX = "lime-gui-smoke-tauri-";
+const GUI_SMOKE_COLD_TIMEOUT_MS = 1_800_000;
+const GUI_SMOKE_WARM_TIMEOUT_MS = 600_000;
+const GUI_SMOKE_BRIDGE_HEARTBEAT_MS = 30_000;
+const GUI_SMOKE_COMPILE_GRACE_MS = 900_000;
+const GUI_SMOKE_MAX_COMPILE_GRACE_EXTENSIONS = 2;
+const GUI_SMOKE_BOOT_GRACE_MS = 60_000;
+const HEADLESS_TAURI_CONFIG_PATH = path.join(
+  rootDir,
+  "src-tauri",
+  "tauri.conf.headless.json",
+);
+const tauriCommand =
+  process.platform === "win32"
+    ? path.join(rootDir, "node_modules", ".bin", "tauri.cmd")
+    : path.join(rootDir, "node_modules", ".bin", "tauri");
 
 const state = {
   child: null,
   cleanedUp: false,
+  tempConfigPath: null,
 };
+
+function resolveTargetBinaryPath(targetDir) {
+  const appBinaryName = process.platform === "win32" ? "lime.exe" : "lime";
+  return path.join(targetDir, "debug", appBinaryName);
+}
+
+function listTargetLockHolderCommands(targetDir) {
+  if (process.platform === "win32") {
+    return [];
+  }
+
+  const lockPath = path.join(targetDir, "debug", ".cargo-lock");
+  const pidOutput = runQuietCommand("lsof", ["-t", "--", lockPath]);
+  if (!pidOutput) {
+    return [];
+  }
+
+  const pids = [
+    ...new Set(
+      pidOutput
+        .split("\n")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
+
+  return pids
+    .map((pid) => runQuietCommand("ps", ["-p", pid, "-o", "command="]))
+    .filter(Boolean);
+}
+
+function resolvePreferredCargoTargetDir() {
+  const sharedTargetLockHolders = listTargetLockHolderCommands(
+    SHARED_TAURI_TARGET_DIR,
+  );
+  if (sharedTargetLockHolders.length === 0) {
+    return SHARED_TAURI_TARGET_DIR;
+  }
+
+  return ISOLATED_GUI_SMOKE_TARGET_DIR;
+}
+
+function resolveDefaultTimeoutMs(cargoTargetDir) {
+  const binaryPath = resolveTargetBinaryPath(cargoTargetDir);
+  return fs.existsSync(binaryPath)
+    ? GUI_SMOKE_WARM_TIMEOUT_MS
+    : GUI_SMOKE_COLD_TIMEOUT_MS;
+}
+
+const DEFAULTS = {
+  appUrl: "http://127.0.0.1:1420/",
+  healthUrl: "http://127.0.0.1:3030/health",
+  cargoTargetDir: resolvePreferredCargoTargetDir(),
+  intervalMs: 1_000,
+  reuseRunning: false,
+  sampleProjectName: "Lime Smoke Workspace",
+};
+DEFAULTS.timeoutMs = resolveDefaultTimeoutMs(DEFAULTS.cargoTargetDir);
 
 function printHelp() {
   console.log(`
@@ -41,9 +118,10 @@ Lime GUI 冒烟入口
 选项:
   --app-url <url>             前端地址，默认 http://127.0.0.1:1420/
   --health-url <url>          DevBridge 健康检查地址，默认 http://127.0.0.1:3030/health
-  --timeout-ms <ms>           等待 headless / bridge / smoke 的超时，默认 600000
+  --timeout-ms <ms>           等待 headless / bridge / smoke 的超时，默认冷启动 1800000 / 热启动 600000
   --interval-ms <ms>          轮询间隔，默认 1000
   --sample-project-name <s>   workspace 路径校验使用的示例项目名
+  --cargo-target-dir <dir>    指定 Cargo target 目录；默认优先复用 src-tauri/target，无锁时共享，否则回退独立 GUI smoke target
   --reuse-running             复用已启动的 headless Tauri，不主动拉起
   -h, --help                  显示帮助
 `);
@@ -85,6 +163,12 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === "--cargo-target-dir" && argv[index + 1]) {
+      options.cargoTargetDir = String(argv[index + 1]).trim();
+      index += 1;
+      continue;
+    }
+
     if (arg === "--reuse-running") {
       options.reuseRunning = true;
       continue;
@@ -116,6 +200,10 @@ function parseArgs(argv) {
     throw new Error("--sample-project-name 不能为空");
   }
 
+  if (!options.cargoTargetDir) {
+    throw new Error("--cargo-target-dir 不能为空");
+  }
+
   return options;
 }
 
@@ -129,8 +217,20 @@ function assert(condition, message) {
   }
 }
 
+function isLimeDevShell(html) {
+  return ROOT_MARKERS.some((marker) => html.includes(marker));
+}
+
 function formatCommand(command, args) {
   return [command, ...args].join(" ");
+}
+
+function trimTrailingSlash(value) {
+  return value.endsWith("/") ? value.slice(0, -1) : value;
+}
+
+function buildNoopBeforeDevCommand() {
+  return `"${process.execPath}" -e "process.exit(0)"`;
 }
 
 function runCommand(command, args, label, timeoutMs) {
@@ -160,66 +260,435 @@ function runCommand(command, args, label, timeoutMs) {
   }
 }
 
-function startHeadlessTauri() {
-  console.log("[verify:gui-smoke] 启动 headless Tauri 环境...");
-  state.child = spawn(npmCommand, ["run", "tauri:dev:headless"], {
-    cwd: rootDir,
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      [LIME_SKIP_STARTUP_WINDOW_REVEAL]: "1",
-      [LIME_DISABLE_SINGLE_INSTANCE]: "1",
-    },
-    detached: process.platform !== "win32",
-  });
-}
+function createHeadlessTauriConfig(options, startupMode) {
+  const rawConfig = fs.readFileSync(HEADLESS_TAURI_CONFIG_PATH, "utf8");
+  const config = JSON.parse(rawConfig);
 
-async function stopHeadlessTauri() {
-  const child = state.child;
-  if (!child || state.cleanedUp) {
-    return;
+  config.build = {
+    ...(config.build || {}),
+    devUrl: trimTrailingSlash(options.appUrl),
+  };
+
+  if (startupMode.reuseExistingAppShell) {
+    config.build.beforeDevCommand = buildNoopBeforeDevCommand();
   }
 
-  state.cleanedUp = true;
-  console.log("[verify:gui-smoke] 停止 headless Tauri 环境...");
+  const tempConfigPath = path.join(
+    os.tmpdir(),
+    `lime-gui-smoke-tauri-${process.pid}.json`,
+  );
+  fs.writeFileSync(tempConfigPath, JSON.stringify(config, null, 2));
+  state.tempConfigPath = tempConfigPath;
+  return tempConfigPath;
+}
 
-  if (typeof child.pid !== "number") {
+function resolveUrlPort(url) {
+  try {
+    return new URL(url).port || (url.startsWith("https:") ? "443" : "80");
+  } catch {
+    return "";
+  }
+}
+
+function runQuietCommand(command, args) {
+  try {
+    return spawnSync(command, args, {
+      cwd: rootDir,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env,
+      encoding: "utf8",
+    }).stdout.trim();
+  } catch {
+    return "";
+  }
+}
+
+function listProcessTable() {
+  if (process.platform === "win32") {
+    return [];
+  }
+
+  const output = runQuietCommand("ps", ["-axo", "pid=,ppid=,pgid=,command="]);
+  if (!output) {
+    return [];
+  }
+
+  return output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^(\d+)\s+(\d+)\s+(\d+)\s+(.*)$/);
+      if (!match) {
+        return null;
+      }
+
+      return {
+        pid: Number(match[1]),
+        ppid: Number(match[2]),
+        pgid: Number(match[3]),
+        command: match[4],
+      };
+    })
+    .filter(Boolean);
+}
+
+function listProcessStats() {
+  if (process.platform === "win32") {
+    return [];
+  }
+
+  const output = runQuietCommand("ps", [
+    "-axo",
+    "pid=,ppid=,pgid=,%cpu=,%mem=,etime=,stat=,command=",
+  ]);
+  if (!output) {
+    return [];
+  }
+
+  return output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(
+        /^(\d+)\s+(\d+)\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+(\S+)\s+(\S+)\s+(.*)$/,
+      );
+      if (!match) {
+        return null;
+      }
+
+      return {
+        pid: Number(match[1]),
+        ppid: Number(match[2]),
+        pgid: Number(match[3]),
+        cpu: Number(match[4]),
+        mem: Number(match[5]),
+        etime: match[6],
+        stat: match[7],
+        command: match[8],
+      };
+    })
+    .filter(Boolean);
+}
+
+function isGuiSmokeVerifierCommand(command) {
+  return (
+    command.includes("scripts/verify-gui-smoke.mjs") ||
+    command.includes("npm run verify:gui-smoke")
+  );
+}
+
+function isGuiSmokeTauriCommand(command) {
+  return (
+    command.includes("tauri dev") &&
+    command.includes(GUI_SMOKE_TEMP_CONFIG_BASENAME_PREFIX)
+  );
+}
+
+function summarizeGuiSmokeProcessCommand(command) {
+  if (command.includes("/bin/rustc")) {
+    return "rustc";
+  }
+
+  if (command.includes("cargo run --no-default-features")) {
+    return "cargo";
+  }
+
+  if (command.includes("tauri dev")) {
+    return "tauri";
+  }
+
+  if (command.includes("start-web-bridge-dev.mjs")) {
+    return "web-bridge";
+  }
+
+  if (command.includes("npm run dev:web-bridge")) {
+    return "npm:dev:web-bridge";
+  }
+
+  if (command.includes("npm exec vite") || command.includes("/bin/vite")) {
+    return "vite";
+  }
+
+  return command.split(/\s+/)[0]?.split("/").pop() || "process";
+}
+
+function resolveGuiSmokeProcessGroupId(startedByScript) {
+  if (startedByScript && typeof state.child?.pid === "number") {
+    return state.child.pid;
+  }
+
+  const snapshot = inspectGuiSmokeTauriProcesses();
+  const firstActive = snapshot.active[0];
+  return firstActive ? firstActive.pgid || firstActive.pid : null;
+}
+
+function listGuiSmokeGroupProcesses(startedByScript) {
+  const targetGroupId = resolveGuiSmokeProcessGroupId(startedByScript);
+  if (!Number.isInteger(targetGroupId) || targetGroupId < 1) {
+    return [];
+  }
+
+  return listProcessStats().filter((item) => item.pgid === targetGroupId);
+}
+
+function hasActiveGuiSmokeCompile(startedByScript) {
+  return listGuiSmokeGroupProcesses(startedByScript).some(
+    (item) =>
+      item.command.includes("/bin/rustc") ||
+      item.command.includes("cargo run --no-default-features"),
+  );
+}
+
+function describeGuiSmokeHeartbeat(startedByScript) {
+  const interestingProcesses = listGuiSmokeGroupProcesses(startedByScript)
+    .filter(
+      (item) =>
+        item.command.includes("tauri dev") ||
+        item.command.includes("cargo run --no-default-features") ||
+        item.command.includes("/bin/rustc") ||
+        item.command.includes("start-web-bridge-dev.mjs") ||
+        item.command.includes("npm run dev:web-bridge") ||
+        item.command.includes("npm exec vite") ||
+        item.command.includes("/bin/vite"),
+    )
+    .sort((left, right) => right.cpu - left.cpu || left.pid - right.pid)
+    .slice(0, 5);
+
+  if (interestingProcesses.length === 0) {
+    return "";
+  }
+
+  return interestingProcesses
+    .map((item) => {
+      const cpu = Number.isFinite(item.cpu) ? item.cpu.toFixed(1) : "0.0";
+      return `${summarizeGuiSmokeProcessCommand(item.command)} pid=${item.pid} etime=${item.etime} cpu=${cpu}% stat=${item.stat}`;
+    })
+    .join(" | ");
+}
+
+function inspectGuiSmokeTauriProcesses() {
+  const processTable = listProcessTable();
+  const processByPid = new Map(processTable.map((item) => [item.pid, item]));
+  const active = [];
+  const stale = [];
+
+  for (const item of processTable) {
+    if (!isGuiSmokeTauriCommand(item.command)) {
+      continue;
+    }
+
+    if (item.pid === process.pid) {
+      continue;
+    }
+
+    const parent = processByPid.get(item.ppid);
+    if (!parent || !isGuiSmokeVerifierCommand(parent.command)) {
+      stale.push(item);
+      continue;
+    }
+
+    active.push(item);
+  }
+
+  return { active, stale };
+}
+
+function isProcessAlive(pid) {
+  if (!Number.isInteger(pid) || pid < 1) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function signalProcessTree(pid, signal) {
+  if (!Number.isInteger(pid) || pid < 1) {
     return;
   }
 
   if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+    if (signal === "SIGKILL") {
+      spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+      });
+      return;
+    }
+
+    spawnSync("taskkill", ["/pid", String(pid), "/T"], {
       stdio: "ignore",
     });
     return;
   }
 
-  try {
-    process.kill(-child.pid, "SIGTERM");
-  } catch {
-    try {
-      child.kill("SIGTERM");
-    } catch {
-      return;
-    }
+  const target = `-${pid}`;
+  spawnSync("kill", [`-${signal}`, target], {
+    stdio: "ignore",
+  });
+}
+
+async function stopProcessTree(pid, label) {
+  if (!Number.isInteger(pid) || pid < 1) {
+    return;
   }
 
+  console.log(`[verify:gui-smoke] 清理残留 ${label} 进程组: ${pid}`);
+  signalProcessTree(pid, "SIGTERM");
+
   for (let attempt = 0; attempt < 25; attempt += 1) {
-    if (child.exitCode !== null || child.signalCode) {
+    if (!isProcessAlive(pid)) {
       return;
     }
     await sleep(200);
   }
 
-  try {
-    process.kill(-child.pid, "SIGKILL");
-  } catch {
-    try {
-      child.kill("SIGKILL");
-    } catch {
-      // ignore
+  signalProcessTree(pid, "SIGKILL");
+}
+
+async function cleanupStaleGuiSmokeProcesses() {
+  const snapshot = inspectGuiSmokeTauriProcesses();
+  if (snapshot.stale.length === 0) {
+    return 0;
+  }
+
+  for (const item of snapshot.stale) {
+    const groupPid = item.pgid || item.pid;
+    await stopProcessTree(groupPid, `GUI smoke Tauri(PID=${item.pid})`);
+  }
+
+  return snapshot.stale.length;
+}
+
+function listListeningCommandsForPort(port) {
+  if (!port || process.platform === "win32") {
+    return [];
+  }
+
+  const pidOutput = runQuietCommand("lsof", [
+    "-nP",
+    `-iTCP:${port}`,
+    "-sTCP:LISTEN",
+    "-t",
+  ]);
+  if (!pidOutput) {
+    return [];
+  }
+
+  const pids = [...new Set(pidOutput.split("\n").map((item) => item.trim()).filter(Boolean))];
+  return pids
+    .map((pid) => runQuietCommand("ps", ["-p", pid, "-o", "command="]))
+    .filter(Boolean);
+}
+
+function isLikelyLimeFrontendListener(command) {
+  return (
+    command.includes(rootDir) &&
+    (command.includes("vite") ||
+      command.includes("npm run dev") ||
+      command.includes("tauri dev"))
+  );
+}
+
+function startHeadlessTauri(options, startupMode) {
+  console.log("[verify:gui-smoke] 启动 headless Tauri 环境...");
+  runCommand(
+    npmCommand,
+    ["run", "generate:agent-runtime-clients"],
+    "generate:agent-runtime-clients",
+    options.timeoutMs,
+  );
+  runCommand(
+    npmCommand,
+    ["run", "generate:extension-site-adapters"],
+    "generate:extension-site-adapters",
+    options.timeoutMs,
+  );
+  const tauriConfigPath = createHeadlessTauriConfig(options, startupMode);
+
+  state.child = spawn(
+    tauriCommand,
+    ["dev", "--no-watch", "--config", tauriConfigPath],
+    {
+      cwd: rootDir,
+      stdio: "inherit",
+      env: {
+      ...process.env,
+      CARGO_TARGET_DIR: options.cargoTargetDir,
+      [LIME_SKIP_STARTUP_WINDOW_REVEAL]: "1",
+      [LIME_DISABLE_SINGLE_INSTANCE]: "1",
+      [LIME_WEB_BRIDGE_URL]: options.appUrl,
+      ...(startupMode.reuseExistingAppShell
+        ? {
+            [LIME_WEB_BRIDGE_REUSE_EXISTING_ONLY]: "1",
+          }
+        : {}),
+    },
+    detached: process.platform !== "win32",
+    },
+  );
+}
+
+async function stopHeadlessTauri() {
+  const child = state.child;
+  if (state.cleanedUp) {
+    return;
+  }
+
+  state.cleanedUp = true;
+  if (child) {
+    console.log("[verify:gui-smoke] 停止 headless Tauri 环境...");
+  }
+
+  if (typeof child?.pid === "number") {
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+      });
+    } else {
+      try {
+        process.kill(-child.pid, "SIGTERM");
+      } catch {
+        try {
+          child.kill("SIGTERM");
+        } catch {
+          // ignore
+        }
+      }
+
+      for (let attempt = 0; attempt < 25; attempt += 1) {
+        if (child.exitCode !== null || child.signalCode) {
+          break;
+        }
+        await sleep(200);
+      }
+
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          // ignore
+        }
+      }
     }
   }
+
+  try {
+    if (state.tempConfigPath) {
+      fs.unlinkSync(state.tempConfigPath);
+    }
+  } catch {
+    // ignore
+  }
+
+  state.tempConfigPath = null;
 }
 
 async function waitForAppShell(options) {
@@ -236,9 +705,7 @@ async function waitForAppShell(options) {
       }
 
       assert(
-        html.includes("<title>Lime</title>") ||
-          html.includes('<div id="root"></div>') ||
-          html.includes('<div id="root"></div'),
+        isLimeDevShell(html) || html.includes('<div id="root"></div'),
         "前端首页返回成功，但未检测到 Lime 根页面标记",
       );
 
@@ -273,19 +740,221 @@ async function isUrlReady(url, timeoutMs) {
   }
 }
 
+function describeChildExit(child) {
+  if (!child) {
+    return "unknown";
+  }
+
+  const parts = [];
+  if (typeof child.exitCode === "number") {
+    parts.push(`exitCode=${child.exitCode}`);
+  }
+  if (child.signalCode) {
+    parts.push(`signal=${child.signalCode}`);
+  }
+  return parts.length > 0 ? parts.join(" ") : "unknown";
+}
+
+async function waitForBridgeHealth(options, startedByScript) {
+  const startedAt = Date.now();
+  let deadlineAt = startedAt + options.timeoutMs;
+  let compileGraceCount = 0;
+  let bootGraceUsed = false;
+  let lastError = null;
+  let lastHeartbeatAt = startedAt;
+
+  console.log(`[bridge:health] 开始检查: ${options.healthUrl}`);
+
+  while (true) {
+    if (
+      startedByScript &&
+      state.child &&
+      (typeof state.child.exitCode === "number" || state.child.signalCode)
+    ) {
+      const exitDetail = describeChildExit(state.child);
+      const lastDetail =
+        lastError instanceof Error
+          ? `；最近一次健康检查错误: ${lastError.message}`
+          : "";
+      throw new Error(
+        `[verify:gui-smoke] headless Tauri 在 DevBridge 就绪前提前退出（${exitDetail}）${lastDetail}`,
+      );
+    }
+
+    try {
+      const response = await fetch(options.healthUrl, {
+        method: "GET",
+        signal: AbortSignal.timeout(Math.min(options.intervalMs, 1_500)),
+      });
+      const text = await response.text();
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      let payload = null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        payload = null;
+      }
+
+      const elapsed = Date.now() - startedAt;
+      const status =
+        payload && typeof payload === "object" ? payload.status : undefined;
+      console.log(
+        `[bridge:health] 就绪: ${options.healthUrl} (${elapsed}ms)${status ? ` status=${status}` : ""}`,
+      );
+      return;
+    } catch (error) {
+      lastError = error;
+      const heartbeatAt = Date.now();
+      if (heartbeatAt >= deadlineAt) {
+        const heartbeat = describeGuiSmokeHeartbeat(startedByScript);
+        if (
+          compileGraceCount < GUI_SMOKE_MAX_COMPILE_GRACE_EXTENSIONS &&
+          hasActiveGuiSmokeCompile(startedByScript)
+        ) {
+          compileGraceCount += 1;
+          deadlineAt = heartbeatAt + GUI_SMOKE_COMPILE_GRACE_MS;
+          console.log(
+            `[bridge:health] 检测到 GUI smoke 仍在编译，第 ${compileGraceCount} 次额外延长 ${GUI_SMOKE_COMPILE_GRACE_MS}ms 等待 DevBridge${heartbeat ? `；进程组: ${heartbeat}` : ""}`,
+          );
+          continue;
+        }
+
+        if (
+          !bootGraceUsed &&
+          startedByScript &&
+          state.child &&
+          state.child.exitCode === null &&
+          !state.child.signalCode
+        ) {
+          bootGraceUsed = true;
+          deadlineAt = heartbeatAt + GUI_SMOKE_BOOT_GRACE_MS;
+          console.log(
+            `[bridge:health] 编译链已结束，额外延长 ${GUI_SMOKE_BOOT_GRACE_MS}ms 等待 headless Tauri 拉起 DevBridge${heartbeat ? `；进程组: ${heartbeat}` : ""}`,
+          );
+          continue;
+        }
+
+        break;
+      }
+
+      if (heartbeatAt - lastHeartbeatAt >= GUI_SMOKE_BRIDGE_HEARTBEAT_MS) {
+        lastHeartbeatAt = heartbeatAt;
+        const detail =
+          error instanceof Error
+            ? error.message
+            : String(error || "unknown error");
+        const heartbeat = describeGuiSmokeHeartbeat(startedByScript);
+        console.log(
+          `[bridge:health] 等待中: ${options.healthUrl} (${heartbeatAt - startedAt}ms)；最近错误: ${detail}${heartbeat ? `；进程组: ${heartbeat}` : ""}`,
+        );
+      }
+      await sleep(options.intervalMs);
+    }
+  }
+
+  const detail =
+    lastError instanceof Error
+      ? lastError.message
+      : String(lastError || "unknown error");
+  throw new Error(
+    `[bridge:health] 超时未就绪: ${options.healthUrl}。最后错误: ${detail}`,
+  );
+}
+
+async function probeAppShell(url, timeoutMs) {
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const html = await response.text();
+
+    return {
+      reachable: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      isLimeDevShell: response.ok && isLimeDevShell(html),
+    };
+  } catch {
+    return {
+      reachable: false,
+      status: null,
+      statusText: "",
+      isLimeDevShell: false,
+    };
+  }
+}
+
 async function resolveStartupMode(options) {
   if (options.reuseRunning) {
     return {
       shouldStart: false,
       reusedExisting: true,
+      reuseExistingAppShell: false,
     };
   }
 
-  const existingAppShell = await isUrlReady(options.appUrl, 1_500);
-  if (!existingAppShell) {
+  const staleProcessCount = await cleanupStaleGuiSmokeProcesses();
+  if (staleProcessCount > 0) {
+    console.log(
+      `[verify:gui-smoke] 已清理 ${staleProcessCount} 条残留 GUI smoke headless 链路。`,
+    );
+  }
+
+  const guiSmokeProcesses = inspectGuiSmokeTauriProcesses();
+  const existingAppShell = await probeAppShell(options.appUrl, 1_500);
+  if (existingAppShell.reachable && !existingAppShell.isLimeDevShell) {
+    const statusLabel = `${existingAppShell.status || "unknown"} ${existingAppShell.statusText || ""}`.trim();
+    throw new Error(
+      `[verify:gui-smoke] ${options.appUrl} 已被其他服务占用，且返回内容不是 Lime 前端壳（${statusLabel}）。请先关闭占用进程后重试。`,
+    );
+  }
+
+  if (!existingAppShell.isLimeDevShell) {
+    const existingListeners = listListeningCommandsForPort(
+      resolveUrlPort(options.appUrl),
+    );
+    const hasLimeFrontendListener = existingListeners.some(
+      isLikelyLimeFrontendListener,
+    );
+
+    if (guiSmokeProcesses.active.length > 0) {
+      const pidList = guiSmokeProcesses.active.map((item) => item.pid).join(", ");
+      console.log(
+        `[verify:gui-smoke] 检测到已有 GUI smoke headless 进程正在启动（PID: ${pidList}）；本次将直接复用现有链路并等待 DevBridge。`,
+      );
+      return {
+        shouldStart: false,
+        reusedExisting: true,
+        reuseExistingAppShell: hasLimeFrontendListener,
+      };
+    }
+
+    if (hasLimeFrontendListener) {
+      console.log(
+        `[verify:gui-smoke] 检测到 ${options.appUrl} 已由当前仓库的前端启动链监听，但页面尚未完全就绪；将复用现有前端启动链，只拉起 headless Tauri 与 DevBridge。`,
+      );
+      return {
+        shouldStart: true,
+        reusedExisting: false,
+        reuseExistingAppShell: true,
+      };
+    }
+
+    if (existingListeners.length > 0) {
+      throw new Error(
+        `[verify:gui-smoke] ${options.appUrl} 已被其他进程占用，且当前无法确认为 Lime 前端壳。请先关闭占用进程后重试。`,
+      );
+    }
+
     return {
       shouldStart: true,
       reusedExisting: false,
+      reuseExistingAppShell: false,
     };
   }
 
@@ -297,6 +966,19 @@ async function resolveStartupMode(options) {
     return {
       shouldStart: false,
       reusedExisting: true,
+      reuseExistingAppShell: true,
+    };
+  }
+
+  if (guiSmokeProcesses.active.length > 0) {
+    const pidList = guiSmokeProcesses.active.map((item) => item.pid).join(", ");
+    console.log(
+      `[verify:gui-smoke] 检测到已有 GUI smoke headless 进程正在启动（PID: ${pidList}）；本次将直接复用现有前端与 headless 链路。`,
+    );
+    return {
+      shouldStart: false,
+      reusedExisting: true,
+      reuseExistingAppShell: true,
     };
   }
 
@@ -306,6 +988,7 @@ async function resolveStartupMode(options) {
   return {
     shouldStart: true,
     reusedExisting: false,
+    reuseExistingAppShell: true,
   };
 }
 
@@ -317,6 +1000,10 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const startupMode = await resolveStartupMode(options);
   const startedByScript = startupMode.shouldStart;
+
+  console.log(
+    `[verify:gui-smoke] Cargo target: ${options.cargoTargetDir}`,
+  );
 
   const handleSignal = async (signal) => {
     try {
@@ -335,28 +1022,13 @@ async function main() {
 
   try {
     if (startedByScript) {
-      startHeadlessTauri();
+      startHeadlessTauri(options, startupMode);
       await sleep(1_500);
     } else if (startupMode.reusedExisting) {
       console.log("[verify:gui-smoke] 复用已运行的 headless Tauri 环境。");
     }
 
-    runCommand(
-      npmCommand,
-      [
-        "run",
-        "bridge:health",
-        "--",
-        "--url",
-        options.healthUrl,
-        "--timeout-ms",
-        String(options.timeoutMs),
-        "--interval-ms",
-        String(options.intervalMs),
-      ],
-      "bridge:health",
-      options.timeoutMs + 5_000,
-    );
+    await waitForBridgeHealth(options, startedByScript);
 
     await waitForAppShell(options);
 

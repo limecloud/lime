@@ -27,7 +27,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 7;
+pub const CURRENT_SCHEMA_VERSION: i32 = 8;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 const AUTO_SESSION_NAME_PLACEHOLDERS: &[&str] = &[
@@ -96,6 +96,7 @@ pub struct Session {
     pub total_tokens: Option<i32>,
     pub input_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
+    pub cached_input_tokens: Option<i32>,
     pub accumulated_total_tokens: Option<i32>,
     pub accumulated_input_tokens: Option<i32>,
     pub accumulated_output_tokens: Option<i32>,
@@ -118,6 +119,7 @@ pub struct SessionUpdateBuilder {
     total_tokens: Option<Option<i32>>,
     input_tokens: Option<Option<i32>>,
     output_tokens: Option<Option<i32>>,
+    cached_input_tokens: Option<Option<i32>>,
     accumulated_total_tokens: Option<Option<i32>>,
     accumulated_input_tokens: Option<Option<i32>>,
     accumulated_output_tokens: Option<Option<i32>>,
@@ -147,6 +149,7 @@ impl SessionUpdateBuilder {
             total_tokens: None,
             input_tokens: None,
             output_tokens: None,
+            cached_input_tokens: None,
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
@@ -203,6 +206,11 @@ impl SessionUpdateBuilder {
 
     pub fn output_tokens(mut self, tokens: Option<i32>) -> Self {
         self.output_tokens = Some(tokens);
+        self
+    }
+
+    pub fn cached_input_tokens(mut self, tokens: Option<i32>) -> Self {
+        self.cached_input_tokens = Some(tokens);
         self
     }
 
@@ -478,6 +486,7 @@ impl SessionManager {
             total_tokens,
             input_tokens,
             output_tokens,
+            cached_input_tokens,
             accumulated_total_tokens,
             accumulated_input_tokens,
             accumulated_output_tokens,
@@ -503,6 +512,7 @@ impl SessionManager {
         if total_tokens.is_some()
             || input_tokens.is_some()
             || output_tokens.is_some()
+            || cached_input_tokens.is_some()
             || accumulated_total_tokens.is_some()
             || accumulated_input_tokens.is_some()
             || accumulated_output_tokens.is_some()
@@ -516,6 +526,7 @@ impl SessionManager {
                         total_tokens: total_tokens.flatten(),
                         input_tokens: input_tokens.flatten(),
                         output_tokens: output_tokens.flatten(),
+                        cached_input_tokens: cached_input_tokens.flatten(),
                         accumulated_total: accumulated_total_tokens.flatten(),
                         accumulated_input: accumulated_input_tokens.flatten(),
                         accumulated_output: accumulated_output_tokens.flatten(),
@@ -583,6 +594,7 @@ impl Default for Session {
             total_tokens: None,
             input_tokens: None,
             output_tokens: None,
+            cached_input_tokens: None,
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,
@@ -678,6 +690,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             total_tokens: row.try_get("total_tokens")?,
             input_tokens: row.try_get("input_tokens")?,
             output_tokens: row.try_get("output_tokens")?,
+            cached_input_tokens: row.try_get("cached_input_tokens").ok().flatten(),
             accumulated_total_tokens: row.try_get("accumulated_total_tokens")?,
             accumulated_input_tokens: row.try_get("accumulated_input_tokens")?,
             accumulated_output_tokens: row.try_get("accumulated_output_tokens")?,
@@ -770,6 +783,7 @@ impl SessionStorage {
                 total_tokens INTEGER,
                 input_tokens INTEGER,
                 output_tokens INTEGER,
+                cached_input_tokens INTEGER,
                 accumulated_total_tokens INTEGER,
                 accumulated_input_tokens INTEGER,
                 accumulated_output_tokens INTEGER,
@@ -1006,11 +1020,11 @@ impl SessionStorage {
             r#"
         INSERT INTO sessions (
             id, name, user_set_name, session_type, working_dir, created_at, updated_at, extension_data,
-            total_tokens, input_tokens, output_tokens,
+            total_tokens, input_tokens, output_tokens, cached_input_tokens,
             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
             schedule_id, recipe_json, user_recipe_values_json,
             provider_name, model_config_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         )
             .bind(&session.id)
@@ -1024,6 +1038,7 @@ impl SessionStorage {
             .bind(session.total_tokens)
             .bind(session.input_tokens)
             .bind(session.output_tokens)
+            .bind(session.cached_input_tokens)
             .bind(session.accumulated_total_tokens)
             .bind(session.accumulated_input_tokens)
             .bind(session.accumulated_output_tokens)
@@ -1319,6 +1334,15 @@ impl SessionStorage {
                 .execute(&self.pool)
                 .await?;
             }
+            8 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN cached_input_tokens INTEGER
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1371,7 +1395,7 @@ impl SessionStorage {
         let mut session = sqlx::query_as::<_, Session>(
             r#"
         SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
-               total_tokens, input_tokens, output_tokens,
+               total_tokens, input_tokens, output_tokens, cached_input_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
                schedule_id, recipe_json, user_recipe_values_json,
                provider_name, model_config_json
@@ -1426,6 +1450,7 @@ impl SessionStorage {
         add_update!(builder.total_tokens, "total_tokens");
         add_update!(builder.input_tokens, "input_tokens");
         add_update!(builder.output_tokens, "output_tokens");
+        add_update!(builder.cached_input_tokens, "cached_input_tokens");
         add_update!(builder.accumulated_total_tokens, "accumulated_total_tokens");
         add_update!(builder.accumulated_input_tokens, "accumulated_input_tokens");
         add_update!(
@@ -1470,6 +1495,9 @@ impl SessionStorage {
         }
         if let Some(ot) = builder.output_tokens {
             q = q.bind(ot);
+        }
+        if let Some(cit) = builder.cached_input_tokens {
+            q = q.bind(cit);
         }
         if let Some(att) = builder.accumulated_total_tokens {
             q = q.bind(att);
@@ -1614,7 +1642,7 @@ impl SessionStorage {
         let query = format!(
             r#"
             SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
-                   s.total_tokens, s.input_tokens, s.output_tokens,
+                   s.total_tokens, s.input_tokens, s.output_tokens, s.cached_input_tokens,
                    s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json,
@@ -1714,6 +1742,7 @@ impl SessionStorage {
             .total_tokens(import.total_tokens)
             .input_tokens(import.input_tokens)
             .output_tokens(import.output_tokens)
+            .cached_input_tokens(import.cached_input_tokens)
             .accumulated_total_tokens(import.accumulated_total_tokens)
             .accumulated_input_tokens(import.accumulated_input_tokens)
             .accumulated_output_tokens(import.accumulated_output_tokens)

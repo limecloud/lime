@@ -1,11 +1,16 @@
-import type { Dispatch, SetStateAction } from "react";
-import { useWorkspaceConversationScenePresentation } from "./useWorkspaceConversationScenePresentation";
-import { useWorkspaceConversationSendRuntime } from "./useWorkspaceConversationSendRuntime";
+import type {
+  ComponentProps,
+  Dispatch,
+  ReactNode,
+  SetStateAction,
+} from "react";
+import { StepProgress } from "@/lib/workspace/workbenchUi";
 import { useWorkspaceNavigationActions } from "./useWorkspaceNavigationActions";
 import { useWorkspaceInputbarSceneRuntime } from "./useWorkspaceInputbarSceneRuntime";
 import { useWorkspaceCanvasSceneRuntime } from "./useWorkspaceCanvasSceneRuntime";
-import { useWorkspaceShellChromeRuntime } from "./useWorkspaceShellChromeRuntime";
 import { CanvasSessionOverviewPanel } from "../components/CanvasSessionOverviewPanel";
+import { MessageList } from "../components/MessageList";
+import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
 import type {
   CanvasWorkbenchHeaderView,
   CanvasWorkbenchSessionView,
@@ -13,7 +18,7 @@ import type {
 } from "../components/CanvasWorkbenchLayout";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { CreationMode } from "../components/types";
-import type { WriteArtifactContext } from "../types";
+import type { MessageImage, WriteArtifactContext } from "../types";
 import type { PendingA2UISource } from "../types";
 import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
 import type { Artifact } from "@/lib/artifact/types";
@@ -21,17 +26,140 @@ import type { Character } from "@/lib/api/memory";
 import type { TaskFile } from "../components/TaskFiles";
 import type { WorkspacePathMissingState } from "../hooks/agentChatShared";
 import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
+import {
+  buildStepProgressProps,
+  buildTeamWorkspaceDockProps,
+  type TeamWorkbenchSurfaceProps,
+} from "./chatSurfaceProps";
+import { WorkspaceConversationScene } from "./WorkspaceConversationScene";
 
-type NavigationActions = ReturnType<typeof useWorkspaceNavigationActions>;
-type InputbarScene = ReturnType<typeof useWorkspaceInputbarSceneRuntime>;
-type CanvasScene = ReturnType<typeof useWorkspaceCanvasSceneRuntime>;
-type ConversationSendRuntime = ReturnType<
-  typeof useWorkspaceConversationSendRuntime
+type InputbarScene = Pick<
+  ReturnType<typeof useWorkspaceInputbarSceneRuntime>,
+  "inputbarNode" | "generalWorkbenchDialog" | "teamWorkbenchSurfaceProps"
 >;
-type ShellChromeRuntime = ReturnType<typeof useWorkspaceShellChromeRuntime>;
-type ConversationScenePresentationParams = Parameters<
-  typeof useWorkspaceConversationScenePresentation
->[0];
+type CanvasScene = Pick<
+  ReturnType<typeof useWorkspaceCanvasSceneRuntime>,
+  | "hasLiveCanvasPreviewContent"
+  | "liveCanvasPreview"
+  | "shouldShowCanvasLoadingState"
+  | "teamWorkbenchView"
+  | "canvasWorkbenchDefaultPreview"
+  | "handleOpenCanvasWorkbenchPath"
+  | "handleRevealCanvasWorkbenchPath"
+  | "renderCanvasWorkbenchPreview"
+>;
+type WorkspaceConversationSceneProps = ComponentProps<
+  typeof WorkspaceConversationScene
+>;
+type CanvasWorkbenchLayoutProps = NonNullable<
+  WorkspaceConversationSceneProps["canvasWorkbenchLayoutProps"]
+>;
+interface ConversationScenePresentationParams {
+  scene: Omit<
+    WorkspaceConversationSceneProps,
+    | "workspaceAlertVisible"
+    | "projectId"
+    | "canvasWorkbenchLayoutProps"
+    | "stepProgressProps"
+    | "teamWorkspaceDockProps"
+    | "messageListProps"
+  > & {
+    projectId: string | null | undefined;
+  };
+  stepProgress: {
+    hidden: boolean;
+    isSpecializedThemeMode: boolean;
+    hasMessages: boolean;
+    steps: ComponentProps<typeof StepProgress>["steps"];
+    currentIndex: ComponentProps<typeof StepProgress>["currentIndex"];
+    onStepClick: NonNullable<
+      ComponentProps<typeof StepProgress>["onStepClick"]
+    >;
+  };
+  messageList: ComponentProps<typeof MessageList>;
+  teamWorkspaceDock: {
+    enabled: boolean;
+    shouldShowFloatingInputOverlay: boolean;
+    layoutMode: "chat" | "chat-canvas";
+    onActivateWorkbench: NonNullable<
+      ComponentProps<typeof TeamWorkspaceDock>["onActivateWorkbench"]
+    >;
+    withBottomOverlay: boolean;
+    surfaceProps: TeamWorkbenchSurfaceProps;
+  };
+  workspaceAlert: {
+    workspacePathMissing: boolean;
+    workspaceHealthError: boolean;
+  };
+  canvasWorkbenchLayout: Omit<
+    CanvasWorkbenchLayoutProps,
+    "workspaceUnavailable"
+  >;
+}
+interface WorkspaceConversationScenePresentationResult {
+  workspaceAlertVisible: boolean;
+  mainAreaNode: ReactNode;
+}
+type NavigationActions = Pick<
+  ReturnType<typeof useWorkspaceNavigationActions>,
+  | "handleDismissEntryBanner"
+  | "handleWorkspaceAlertSelectDirectory"
+  | "handleDismissWorkspaceAlert"
+  | "handleManageProviders"
+  | "handleProjectChange"
+  | "handleOpenAppearanceSettings"
+  | "handleBackToResources"
+  | "handleCompactContext"
+>;
+interface ShellChromeRuntime {
+  showChatLayout: boolean;
+  isWorkspaceCompactChrome: boolean;
+  workflowLayoutBottomSpacing: {
+    shellBottomInset: string;
+    messageViewportBottomPadding: string;
+  };
+  shouldHideGeneralWorkbenchInputForTheme: boolean;
+  shouldRenderTopBar: boolean;
+  layoutTransitionChatPanelWidth?: string;
+  layoutTransitionChatPanelMinWidth?: string;
+  shouldShowGeneralWorkbenchFloatingInputOverlay: boolean;
+  shouldRenderInlineA2UI: boolean;
+}
+
+function renderWorkspaceConversationScene({
+  scene,
+  stepProgress,
+  messageList,
+  teamWorkspaceDock,
+  workspaceAlert,
+  canvasWorkbenchLayout,
+}: ConversationScenePresentationParams): WorkspaceConversationScenePresentationResult {
+  const stepProgressProps = buildStepProgressProps(stepProgress);
+  const teamWorkspaceDockProps = buildTeamWorkspaceDockProps(teamWorkspaceDock);
+  const workspaceAlertVisible = Boolean(
+    workspaceAlert.workspacePathMissing || workspaceAlert.workspaceHealthError,
+  );
+
+  const canvasWorkbenchLayoutProps: CanvasWorkbenchLayoutProps = {
+    ...canvasWorkbenchLayout,
+    workspaceUnavailable: workspaceAlertVisible,
+  };
+
+  return {
+    workspaceAlertVisible,
+    mainAreaNode: (
+      <WorkspaceConversationScene
+        {...scene}
+        stepProgressProps={stepProgressProps}
+        messageListProps={messageList}
+        teamWorkspaceDockProps={teamWorkspaceDockProps}
+        workspaceAlertVisible={workspaceAlertVisible}
+        projectId={scene.projectId ?? null}
+        canvasWorkbenchLayoutProps={canvasWorkbenchLayoutProps}
+      />
+    ),
+  };
+}
 
 function shortenSessionText(value?: string | null, maxLength = 120): string {
   const normalized = (value || "").trim().replace(/\s+/g, " ");
@@ -80,7 +208,11 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   navigationActions: NavigationActions;
   inputbarScene: InputbarScene;
   canvasScene: CanvasScene;
-  conversationSendRuntime: ConversationSendRuntime;
+  handleSendFromEmptyState: (
+    text: string,
+    sendExecutionStrategy?: "react" | "code_orchestrated" | "auto",
+    images?: MessageImage[],
+  ) => void;
   shellChromeRuntime: ShellChromeRuntime;
   generalWorkbenchHarnessDialog: ConversationScenePresentationParams["scene"]["generalWorkbenchHarnessDialog"];
   entryBannerVisible: ConversationScenePresentationParams["scene"]["entryBannerVisible"];
@@ -189,7 +321,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   shouldCollapseCodeBlocks: ConversationScenePresentationParams["messageList"]["collapseCodeBlocks"];
   shouldCollapseCodeBlockInChat: ConversationScenePresentationParams["messageList"]["shouldCollapseCodeBlock"];
   handleCodeBlockClick: ConversationScenePresentationParams["messageList"]["onCodeBlockClick"];
-  showTeamWorkspaceBoard: ConversationScenePresentationParams["teamWorkspaceDock"]["enabled"];
+  teamWorkspaceEnabled: ConversationScenePresentationParams["teamWorkspaceDock"]["enabled"];
   layoutMode: LayoutMode;
   handleActivateTeamWorkbench: ConversationScenePresentationParams["teamWorkspaceDock"]["onActivateWorkbench"];
   isThemeWorkbench: boolean;
@@ -211,7 +343,7 @@ export function useWorkspaceConversationSceneRuntime({
   navigationActions,
   inputbarScene,
   canvasScene,
-  conversationSendRuntime,
+  handleSendFromEmptyState,
   shellChromeRuntime,
   generalWorkbenchHarnessDialog,
   entryBannerVisible,
@@ -314,7 +446,7 @@ export function useWorkspaceConversationSceneRuntime({
   shouldCollapseCodeBlocks,
   shouldCollapseCodeBlockInChat,
   handleCodeBlockClick,
-  showTeamWorkspaceBoard,
+  teamWorkspaceEnabled,
   layoutMode,
   handleActivateTeamWorkbench,
   isThemeWorkbench,
@@ -552,7 +684,7 @@ export function useWorkspaceConversationSceneRuntime({
     },
   };
 
-  return useWorkspaceConversationScenePresentation({
+  return renderWorkspaceConversationScene({
     scene: {
       entryBannerVisible,
       entryBannerMessage,
@@ -572,7 +704,7 @@ export function useWorkspaceConversationSceneRuntime({
       inputbarNode: inputbarScene.inputbarNode,
       input,
       setInput,
-      onSendMessage: conversationSendRuntime.handleSendFromEmptyState,
+      onSendMessage: handleSendFromEmptyState,
       emptyStateIsLoading: isPreparingSend || isSending,
       emptyStateDisabled: isPreparingSend || isSending,
       providerType,
@@ -670,6 +802,7 @@ export function useWorkspaceConversationSceneRuntime({
     messageList: {
       messages: displayMessages,
       emptyStateVariant: messageListEmptyStateVariant,
+      providerType,
       turns,
       threadItems: effectiveThreadItems,
       currentTurnId,
@@ -707,7 +840,7 @@ export function useWorkspaceConversationSceneRuntime({
       timelineFocusRequestKey,
     },
     teamWorkspaceDock: {
-      enabled: showTeamWorkspaceBoard,
+      enabled: teamWorkspaceEnabled,
       shouldShowFloatingInputOverlay:
         shellChromeRuntime.shouldShowGeneralWorkbenchFloatingInputOverlay,
       layoutMode: teamWorkspaceDockLayoutMode,

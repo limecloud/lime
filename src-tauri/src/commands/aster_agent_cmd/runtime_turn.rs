@@ -3,6 +3,7 @@ use super::*;
 use aster::session::TurnContextOverride;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
 use lime_core::workspace::WorkspaceSettings;
+use tauri::Manager;
 
 const ARTIFACT_DOCUMENT_REPAIRED_WARNING_CODE: &str = "artifact_document_repaired";
 const ARTIFACT_DOCUMENT_FAILED_WARNING_CODE: &str = "artifact_document_failed";
@@ -13,6 +14,11 @@ const CONTEXT_COMPACTION_NOT_NEEDED_WARNING_CODE: &str = "context_compaction_not
 const TURN_MEMORY_PREFETCH_PROMPT_MARKER: &str = "【运行时记忆召回】";
 const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
 const LIME_RUNTIME_AUTO_COMPACT_KEY: &str = "auto_compact";
+const AUTO_RUNTIME_MEMORY_MIN_USER_CHARS: usize = 12;
+const AUTO_RUNTIME_MEMORY_MIN_ASSISTANT_CHARS: usize = 48;
+const AUTO_RUNTIME_MEMORY_MIN_TOTAL_CHARS: usize = 160;
+const AUTO_RUNTIME_MEMORY_SESSION_MESSAGE_LIMIT: usize = 8;
+const AUTO_RUNTIME_MEMORY_SESSION_MIN_MESSAGE_LENGTH: usize = 18;
 
 fn emit_runtime_events(app: &AppHandle, event_name: &str, events: Vec<RuntimeAgentEvent>) {
     for event in events {
@@ -45,6 +51,172 @@ fn merge_runtime_memory_prefetch_prompt(
         }
         None => Some(prefetch_prompt.to_string()),
     }
+}
+
+fn normalize_runtime_memory_capture_text(input: &str) -> String {
+    input.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn contains_runtime_memory_capture_signal(text: &str) -> bool {
+    [
+        "记住",
+        "偏好",
+        "喜欢",
+        "不喜欢",
+        "习惯",
+        "以后",
+        "规则",
+        "流程",
+        "workflow",
+        "prefer",
+        "always",
+        "never",
+        "计划",
+        "待办",
+        "todo",
+        "下一步",
+        "错误",
+        "失败",
+        "报错",
+        "修复",
+        "fix",
+        "bug",
+    ]
+    .iter()
+    .any(|keyword| text.contains(keyword))
+}
+
+fn should_auto_capture_runtime_memory_turn(user_message: &str, assistant_output: &str) -> bool {
+    let normalized_user = normalize_runtime_memory_capture_text(user_message);
+    let normalized_assistant = normalize_runtime_memory_capture_text(assistant_output);
+    let total_chars = normalized_user.chars().count() + normalized_assistant.chars().count();
+
+    if normalized_user.chars().count() >= AUTO_RUNTIME_MEMORY_MIN_USER_CHARS
+        && normalized_assistant.chars().count() >= AUTO_RUNTIME_MEMORY_MIN_ASSISTANT_CHARS
+        && total_chars >= AUTO_RUNTIME_MEMORY_MIN_TOTAL_CHARS
+    {
+        return true;
+    }
+
+    let signal_text = format!(
+        "{} {}",
+        normalized_user.to_lowercase(),
+        normalized_assistant.to_lowercase()
+    );
+    contains_runtime_memory_capture_signal(signal_text.as_str())
+}
+
+fn spawn_runtime_memory_capture_task(
+    app: &AppHandle,
+    db: &DbConnection,
+    memory_config: lime_core::config::MemoryConfig,
+    session_id: &str,
+    user_message: &str,
+    assistant_output: &str,
+) {
+    if !memory_config.enabled || !memory_config.auto.enabled {
+        return;
+    }
+
+    if !should_auto_capture_runtime_memory_turn(user_message, assistant_output) {
+        return;
+    }
+
+    let context_memory_service = app
+        .state::<crate::commands::context_memory::ContextMemoryServiceState>()
+        .inner()
+        .0
+        .clone();
+    let db = db.clone();
+    let session_id = session_id.to_string();
+
+    // 自动沉淀走后台任务，避免延长主回合完成时间。
+    tokio::spawn(async move {
+        let candidates = {
+            let conn = match db.lock() {
+                Ok(guard) => guard,
+                Err(error) => {
+                    tracing::warn!(
+                        "[AsterAgent] 后台自动记忆无法获取数据库锁: session_id={}, error={}",
+                        session_id,
+                        error
+                    );
+                    return;
+                }
+            };
+
+            match crate::services::chat_history_service::load_session_memory_source_candidates(
+                &conn,
+                &session_id,
+                AUTO_RUNTIME_MEMORY_SESSION_MESSAGE_LIMIT,
+                AUTO_RUNTIME_MEMORY_SESSION_MIN_MESSAGE_LENGTH,
+            ) {
+                Ok(candidates) => candidates,
+                Err(error) => {
+                    tracing::warn!(
+                        "[AsterAgent] 后台自动记忆读取候选失败: session_id={}, error={}",
+                        session_id,
+                        error
+                    );
+                    return;
+                }
+            }
+        };
+
+        if candidates.is_empty() {
+            return;
+        }
+
+        match crate::commands::memory_management_cmd::analyze_memory_candidates(
+            context_memory_service.as_ref(),
+            &memory_config,
+            &candidates,
+        ) {
+            Ok(result) => {
+                if result.generated_entries > 0 {
+                    tracing::info!(
+                        "[AsterAgent] 已自动沉淀工作记忆: session_id={}, generated={}, dedup={}",
+                        session_id,
+                        result.generated_entries,
+                        result.deduplicated_entries
+                    );
+                }
+            }
+            Err(error) => {
+                tracing::warn!(
+                    "[AsterAgent] 后台自动沉淀工作记忆失败: session_id={}, error={}",
+                    session_id,
+                    error
+                );
+            }
+        }
+
+        match crate::commands::unified_memory_cmd::analyze_unified_memory_candidates(
+            &db,
+            &memory_config,
+            &candidates,
+        )
+        .await
+        {
+            Ok(result) => {
+                if result.generated_entries > 0 {
+                    tracing::info!(
+                        "[AsterAgent] 已自动沉淀长期记忆: session_id={}, generated={}, dedup={}",
+                        session_id,
+                        result.generated_entries,
+                        result.deduplicated_entries
+                    );
+                }
+            }
+            Err(error) => {
+                tracing::warn!(
+                    "[AsterAgent] 后台自动沉淀长期记忆失败: session_id={}, error={}",
+                    session_id,
+                    error
+                );
+            }
+        }
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1222,6 +1394,7 @@ async fn execute_aster_chat_request(
         .as_ref()
         .map(|config| config.provider_continuation_capability())
         .unwrap_or(ProviderContinuationCapability::HistoryReplayOnly);
+    let runtime_memory_config = runtime_config.memory.clone();
     let configured_provider_continuation_state = effective_provider_config
         .as_ref()
         .map(|config| config.provider_continuation_state())
@@ -1597,6 +1770,14 @@ async fn execute_aster_chat_request(
                             request_metadata.as_ref(),
                             execution.text_output.as_str(),
                         );
+                        spawn_runtime_memory_capture_task(
+                            &app,
+                            db,
+                            runtime_memory_config.clone(),
+                            session_id,
+                            &request.message,
+                            execution.text_output.as_str(),
+                        );
                         Ok(())
                     }
                     Err(primary_error)
@@ -1688,6 +1869,14 @@ async fn execute_aster_chat_request(
                                 request_metadata.as_ref(),
                                 execution.text_output.as_str(),
                             );
+                            spawn_runtime_memory_capture_task(
+                                &app,
+                                db,
+                                runtime_memory_config.clone(),
+                                session_id,
+                                &request.message,
+                                execution.text_output.as_str(),
+                            );
                         })
                         .map_err(|fallback_err| fallback_err.message)
                     }
@@ -1763,8 +1952,11 @@ async fn execute_aster_chat_request(
             if let Ok(events) = terminal_events {
                 emit_runtime_events(app, &request.event_name, events);
             }
-            let usage = resolve_runtime_message_usage(session_id).await;
-            if let Some(ref usage) = usage {
+            let done_event = resolve_runtime_final_done_event(session_id).await;
+            if let RuntimeAgentEvent::FinalDone {
+                usage: Some(ref usage),
+            } = done_event
+            {
                 if let Err(error) = persist_latest_assistant_message_usage(db, session_id, usage) {
                     tracing::warn!(
                         "[AsterAgent] 持久化消息 usage 失败（已降级继续）: {}",
@@ -1772,7 +1964,6 @@ async fn execute_aster_chat_request(
                     );
                 }
             }
-            let done_event = RuntimeAgentEvent::FinalDone { usage };
             if let Err(e) = app.emit(&request.event_name, &done_event) {
                 tracing::error!("[AsterAgent] 发送完成事件失败: {}", e);
             }
@@ -1854,6 +2045,10 @@ fn resolve_runtime_message_usage_from_session(
             Some(lime_agent::AgentTokenUsage {
                 input_tokens: input_tokens as u32,
                 output_tokens: output_tokens as u32,
+                cached_input_tokens: session
+                    .cached_input_tokens
+                    .filter(|value| *value >= 0)
+                    .map(|value| value as u32),
             })
         }
         _ => None,
@@ -1865,6 +2060,12 @@ async fn resolve_runtime_message_usage(session_id: &str) -> Option<lime_agent::A
         .await
         .ok()?;
     resolve_runtime_message_usage_from_session(&session)
+}
+
+async fn resolve_runtime_final_done_event(session_id: &str) -> RuntimeAgentEvent {
+    RuntimeAgentEvent::FinalDone {
+        usage: resolve_runtime_message_usage(session_id).await,
+    }
 }
 
 fn persist_latest_assistant_message_usage(
@@ -1880,6 +2081,7 @@ fn persist_latest_assistant_message_usage(
         session_id,
         usage.input_tokens,
         usage.output_tokens,
+        usage.cached_input_tokens,
     )?;
     Ok(())
 }
@@ -1903,6 +2105,11 @@ fn build_compaction_session_metrics_update(
     let accumulated_input = accumulate(session.accumulated_input_tokens, usage.usage.input_tokens);
     let accumulated_output =
         accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
+    let cached_input_tokens = if usage.usage.output_tokens.is_some() {
+        usage.usage.cached_input_tokens
+    } else {
+        Some(0)
+    };
 
     let current_window_tokens = usage
         .usage
@@ -1913,6 +2120,7 @@ fn build_compaction_session_metrics_update(
     CompactionSessionMetricsUpdate {
         schedule_id,
         current_window_tokens,
+        cached_input_tokens,
         accumulated_total_tokens: accumulated_total,
         accumulated_input_tokens: accumulated_input,
         accumulated_output_tokens: accumulated_output,
@@ -2228,7 +2436,7 @@ async fn compact_runtime_session_with_trigger(
             if let Ok(events) = terminal_events {
                 emit_runtime_events(app, &event_name, events);
             }
-            let done_event = RuntimeAgentEvent::FinalDone { usage: None };
+            let done_event = resolve_runtime_final_done_event(&session_id).await;
             if let Err(error) = app.emit(&event_name, &done_event) {
                 tracing::error!("[AsterAgent] 发送压缩完成事件失败: {}", error);
             }
@@ -2916,6 +3124,39 @@ mod tests {
     }
 
     #[test]
+    fn should_auto_capture_runtime_memory_turn_for_long_turn_content() {
+        let user_message = "请记下这个团队的偏好：所有需求都先回到主线任务，再给出下一步明确行动。";
+        let assistant_output = "好的，我会把这条协作规则当作后续回合的默认执行约束，并在继续实现前先说明当前主线、当前阶段以及下一刀要推进的内容，同时避免把工作扩散到无关页面或额外配置面。";
+
+        assert!(should_auto_capture_runtime_memory_turn(
+            user_message,
+            assistant_output
+        ));
+    }
+
+    #[test]
+    fn should_auto_capture_runtime_memory_turn_for_memory_signal_keywords() {
+        let user_message = "记住：以后回复先给结论";
+        let assistant_output = "收到，我以后会先给结论。";
+
+        assert!(should_auto_capture_runtime_memory_turn(
+            user_message,
+            assistant_output
+        ));
+    }
+
+    #[test]
+    fn should_not_auto_capture_runtime_memory_turn_for_short_generic_turn() {
+        let user_message = "你好";
+        let assistant_output = "收到";
+
+        assert!(!should_auto_capture_runtime_memory_turn(
+            user_message,
+            assistant_output
+        ));
+    }
+
+    #[test]
     fn service_skill_launch_stage_should_preserve_simple_user_message_and_force_site_run_first() {
         let user_message = "请帮我使用 GitHub 查一下 AI Agent 项目";
         let metadata = json!({
@@ -3240,6 +3481,7 @@ mod tests {
             .total_tokens(Some(90))
             .input_tokens(Some(60))
             .output_tokens(Some(30))
+            .cached_input_tokens(Some(12))
             .accumulated_total_tokens(Some(300))
             .accumulated_input_tokens(Some(200))
             .accumulated_output_tokens(Some(100))
@@ -3252,7 +3494,7 @@ mod tests {
 
         let usage = ProviderUsage::new(
             "gpt-4.1".to_string(),
-            Usage::new(Some(120), Some(45), Some(165)),
+            Usage::new(Some(120), Some(45), Some(165)).with_cached_input_tokens(Some(90)),
         );
 
         update_compaction_session_metrics(&session_config, &usage)
@@ -3267,6 +3509,7 @@ mod tests {
         assert_eq!(updated.total_tokens, Some(45));
         assert_eq!(updated.input_tokens, Some(45));
         assert_eq!(updated.output_tokens, Some(0));
+        assert_eq!(updated.cached_input_tokens, Some(90));
         assert_eq!(updated.accumulated_total_tokens, Some(465));
         assert_eq!(updated.accumulated_input_tokens, Some(320));
         assert_eq!(updated.accumulated_output_tokens, Some(145));
@@ -3294,6 +3537,7 @@ mod tests {
             .total_tokens(Some(180))
             .input_tokens(Some(120))
             .output_tokens(Some(60))
+            .cached_input_tokens(Some(24))
             .accumulated_total_tokens(Some(700))
             .accumulated_input_tokens(Some(500))
             .accumulated_output_tokens(Some(200))
@@ -3318,6 +3562,7 @@ mod tests {
         assert_eq!(updated.total_tokens, Some(0));
         assert_eq!(updated.input_tokens, Some(0));
         assert_eq!(updated.output_tokens, Some(0));
+        assert_eq!(updated.cached_input_tokens, Some(0));
         assert_eq!(updated.accumulated_total_tokens, Some(700));
         assert_eq!(updated.accumulated_input_tokens, Some(500));
         assert_eq!(updated.accumulated_output_tokens, Some(200));
@@ -3345,6 +3590,7 @@ mod tests {
             .total_tokens(Some(20))
             .input_tokens(Some(10))
             .output_tokens(Some(10))
+            .cached_input_tokens(Some(6))
             .accumulated_total_tokens(Some(200))
             .accumulated_input_tokens(Some(120))
             .accumulated_output_tokens(Some(80))
@@ -3355,7 +3601,7 @@ mod tests {
         let session_config = SessionConfigBuilder::new(&session.id).build();
         let usage = ProviderUsage::new(
             "gpt-4.1".to_string(),
-            Usage::new(Some(30), Some(15), Some(45)),
+            Usage::new(Some(30), Some(15), Some(45)).with_cached_input_tokens(Some(18)),
         );
 
         update_compaction_session_metrics(&session_config, &usage)
@@ -3370,9 +3616,75 @@ mod tests {
         assert_eq!(updated.total_tokens, Some(15));
         assert_eq!(updated.input_tokens, Some(15));
         assert_eq!(updated.output_tokens, Some(0));
+        assert_eq!(updated.cached_input_tokens, Some(18));
         assert_eq!(updated.accumulated_total_tokens, Some(245));
         assert_eq!(updated.accumulated_input_tokens, Some(150));
         assert_eq!(updated.accumulated_output_tokens, Some(95));
+
+        SessionManager::delete_session(&session.id)
+            .await
+            .expect("清理测试会话失败");
+    }
+
+    #[tokio::test]
+    async fn resolve_runtime_final_done_event_should_include_usage_from_session() {
+        ensure_runtime_turn_test_session_manager().await;
+
+        let session = SessionManager::create_session(
+            PathBuf::from("."),
+            "final_done usage 测试".to_string(),
+            SessionType::User,
+        )
+        .await
+        .expect("创建测试会话失败");
+
+        SessionManager::update_session(&session.id)
+            .input_tokens(Some(204))
+            .output_tokens(Some(88))
+            .cached_input_tokens(Some(160))
+            .apply()
+            .await
+            .expect("写入 usage 失败");
+
+        let event = resolve_runtime_final_done_event(&session.id).await;
+        match event {
+            RuntimeAgentEvent::FinalDone { usage } => {
+                assert_eq!(
+                    usage.map(|value| (
+                        value.input_tokens,
+                        value.output_tokens,
+                        value.cached_input_tokens,
+                    )),
+                    Some((204, 88, Some(160)))
+                );
+            }
+            other => panic!("收到意外事件: {:?}", other),
+        }
+
+        SessionManager::delete_session(&session.id)
+            .await
+            .expect("清理测试会话失败");
+    }
+
+    #[tokio::test]
+    async fn resolve_runtime_final_done_event_should_fall_back_to_none_without_session_usage() {
+        ensure_runtime_turn_test_session_manager().await;
+
+        let session = SessionManager::create_session(
+            PathBuf::from("."),
+            "final_done 无 usage 测试".to_string(),
+            SessionType::User,
+        )
+        .await
+        .expect("创建测试会话失败");
+
+        let event = resolve_runtime_final_done_event(&session.id).await;
+        match event {
+            RuntimeAgentEvent::FinalDone { usage } => {
+                assert!(usage.is_none(), "未写入 usage 时应返回 None");
+            }
+            other => panic!("收到意外事件: {:?}", other),
+        }
 
         SessionManager::delete_session(&session.id)
             .await

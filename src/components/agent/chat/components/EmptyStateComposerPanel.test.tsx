@@ -458,7 +458,7 @@ describe("EmptyStateComposerPanel", () => {
       ),
     ).toBeNull();
     expect(
-      container.querySelector('button[title="多代理偏好已关闭"]'),
+      container.querySelector('button[title="任务拆分偏好已关闭"]'),
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="empty-state-advanced-toggle"]'),
@@ -510,7 +510,7 @@ describe("EmptyStateComposerPanel", () => {
 
     expect(enableButton).toBeNull();
     expect(
-      container.querySelector('button[title="多代理偏好已关闭"]'),
+      container.querySelector('button[title="任务拆分偏好已关闭"]'),
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="empty-state-advanced-toggle"]'),
@@ -537,7 +537,7 @@ describe("EmptyStateComposerPanel", () => {
     expandAdvancedControls(container);
 
     const enableButton = container.querySelector(
-      'button[title="多代理偏好已关闭"]',
+      'button[title="任务拆分偏好已关闭"]',
     ) as HTMLButtonElement | null;
 
     expect(enableButton).toBeTruthy();
@@ -574,7 +574,7 @@ describe("EmptyStateComposerPanel", () => {
     ).toBeTruthy();
 
     const toggleButton = container.querySelector(
-      'button[title="多代理偏好已开启"]',
+      'button[title="任务拆分偏好已开启"]',
     ) as HTMLButtonElement | null;
 
     expect(toggleButton).toBeTruthy();
@@ -591,7 +591,7 @@ describe("EmptyStateComposerPanel", () => {
       container.querySelector('[data-testid="empty-state-team-selector"]'),
     ).toBeNull();
     expect(
-      container.querySelector('button[title="多代理偏好已关闭"]'),
+      container.querySelector('button[title="任务拆分偏好已关闭"]'),
     ).toBeTruthy();
   });
 
@@ -612,7 +612,7 @@ describe("EmptyStateComposerPanel", () => {
       ),
     ).toBeNull();
     expect(
-      container.querySelector('button[title="多代理偏好已关闭"]'),
+      container.querySelector('button[title="任务拆分偏好已关闭"]'),
     ).toBeNull();
     expect(enableButton).toBeTruthy();
     expect(enableButton?.textContent).toContain("启用任务分工");

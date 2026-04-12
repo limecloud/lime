@@ -367,7 +367,7 @@ function resolveItemActivityDescriptor(item: AgentThreadItem): {
       };
     case "subagent_activity":
       return {
-        title: "协作进展",
+        title: "任务进展",
         detail: normalizeActivityText(
           item.summary || item.title || item.status_label,
         ),
@@ -418,7 +418,7 @@ function resolveExecutionSummaryStatusTitle(params: {
   if (runningSessionCount > 0) {
     if (queuedSessionCount > 0) {
       return totalSessionCount > 1
-        ? `任务进行中 · ${runningSessionCount} 位处理中 / ${queuedSessionCount} 位稍后开始`
+        ? `任务进行中 · ${runningSessionCount} 项处理中 / ${queuedSessionCount} 项稍后开始`
         : "任务进行中";
     }
     return totalSessionCount > 1
@@ -569,7 +569,7 @@ export function buildStatusEventActivityEntry(
   return {
     id: `status-${sessionId}-${normalizedStatus}-${Date.now()}`,
     title: "状态切换",
-    detail: `收到 team 状态事件，已切换为${statusMeta.label}。`,
+    detail: `收到任务状态事件，已切换为${statusMeta.label}。`,
     statusLabel: statusMeta.label,
     badgeClassName: statusMeta.badgeClassName,
   };

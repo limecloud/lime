@@ -44,7 +44,7 @@ export function SelectedSessionInlineCollaborationSection({
     <div className={inlineDetailSectionClassName}>
       <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
         <Clock3 className="h-3.5 w-3.5" />
-        <span>继续协作</span>
+        <span>继续处理</span>
         {canWaitSelectedSession ? (
           <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium tracking-normal text-slate-600 normal-case">
             可直接查看结果
@@ -68,7 +68,7 @@ export function SelectedSessionInlineCollaborationSection({
               : "等待结果 30 秒"}
           </Button>
           <span className="text-xs leading-5 text-slate-500">
-            仅在当前内容确实依赖这位成员结果时使用。
+            仅在当前内容确实依赖这项任务结果时使用。
           </span>
         </div>
       ) : null}
@@ -79,7 +79,7 @@ export function SelectedSessionInlineCollaborationSection({
             onChange={(event) =>
               onSelectedSessionInputDraftChange(event.target.value)
             }
-            placeholder="给这位协作成员补充说明、补充约束，或请它继续推进下一步。"
+            placeholder="给这项任务补充说明、补充约束，或请它继续推进下一步。"
             className="min-h-[96px] resize-y border-slate-200 bg-white text-sm text-slate-700 placeholder:text-slate-400"
             data-testid="team-workspace-send-input-textarea"
           />
@@ -112,7 +112,7 @@ export function SelectedSessionInlineCollaborationSection({
                 : "立即插入说明"}
             </Button>
             <span className="text-xs leading-5 text-slate-500">
-              这条说明只会发送给当前成员，不影响其他协作成员。
+              这条说明只会发送给当前任务，不影响其他并行任务。
             </span>
           </div>
         </div>

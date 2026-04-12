@@ -1,46 +1,286 @@
-import type { Dispatch, SetStateAction } from "react";
-import { useCallback } from "react";
-import { useWorkspaceContextHarnessRuntime } from "./useWorkspaceContextHarnessRuntime";
-import { useWorkspaceHarnessInventoryRuntime } from "./useWorkspaceHarnessInventoryRuntime";
-import { useWorkspaceInputbarScenePresentation } from "./useWorkspaceInputbarScenePresentation";
+import {
+  useCallback,
+  useMemo,
+  type ComponentProps,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
+import type { Character } from "@/lib/api/memory";
+import { GeneralWorkbenchEntryPromptAccessory } from "../components/GeneralWorkbenchEntryPromptAccessory";
+import { Inputbar } from "../components/Inputbar";
+import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
 import { useWorkspaceNavigationActions } from "./useWorkspaceNavigationActions";
-import { useWorkspaceShellChromeRuntime } from "./useWorkspaceShellChromeRuntime";
-import { useWorkspaceTeamSessionControlRuntime } from "./useWorkspaceTeamSessionControlRuntime";
-import { useWorkspaceTeamSessionRuntime } from "./useWorkspaceTeamSessionRuntime";
-import { useWorkspaceGeneralWorkbenchSidebarRuntime } from "./useWorkspaceGeneralWorkbenchSidebarRuntime";
 import type { Message } from "../types";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
+import type { TaskFile } from "../components/TaskFiles";
 import {
   DEFAULT_CHAT_TOOL_PREFERENCES,
   type ChatToolPreferences,
 } from "../utils/chatToolPreferences";
+import { resolveCanvasTaskFileTarget } from "../utils/taskFileCanvasSync";
+import { isRenderableTaskFile } from "./generalWorkbenchHelpers";
+import {
+  GeneralWorkbenchDialogSection,
+} from "./WorkspaceHarnessDialogs";
+import { WorkspaceInputbar } from "./WorkspaceInputbar";
+import type { TeamWorkbenchSurfaceProps } from "./chatSurfaceProps";
 
-type InputbarScenePresentationParams = Parameters<
-  typeof useWorkspaceInputbarScenePresentation
->[0];
+type WorkspaceInputbarBuilderParams = Omit<
+  ComponentProps<typeof Inputbar>,
+  "overlayAccessory"
+>;
+interface WorkspaceTeamWorkbenchSurfaceParams {
+  shellVisible: TeamWorkbenchSurfaceProps["shellVisible"];
+  currentSessionId: TeamWorkbenchSurfaceProps["currentSessionId"];
+  currentSessionName: TeamWorkbenchSurfaceProps["currentSessionName"];
+  currentSessionRuntimeStatus: TeamWorkbenchSurfaceProps["currentSessionRuntimeStatus"];
+  currentSessionLatestTurnStatus: TeamWorkbenchSurfaceProps["currentSessionLatestTurnStatus"];
+  currentSessionQueuedTurnCount: TeamWorkbenchSurfaceProps["currentSessionQueuedTurnCount"];
+  childSubagentSessions: TeamWorkbenchSurfaceProps["childSubagentSessions"];
+  subagentParentContext: TeamWorkbenchSurfaceProps["subagentParentContext"];
+  liveRuntimeBySessionId: TeamWorkbenchSurfaceProps["liveRuntimeBySessionId"];
+  liveActivityBySessionId: TeamWorkbenchSurfaceProps["liveActivityBySessionId"];
+  activityRefreshVersionBySessionId: TeamWorkbenchSurfaceProps["activityRefreshVersionBySessionId"];
+  onSendSubagentInput: TeamWorkbenchSurfaceProps["onSendSubagentInput"];
+  onWaitSubagentSession: TeamWorkbenchSurfaceProps["onWaitSubagentSession"];
+  onWaitActiveTeamSessions: TeamWorkbenchSurfaceProps["onWaitActiveTeamSessions"];
+  onCloseCompletedTeamSessions: TeamWorkbenchSurfaceProps["onCloseCompletedTeamSessions"];
+  onCloseSubagentSession: TeamWorkbenchSurfaceProps["onCloseSubagentSession"];
+  onResumeSubagentSession: TeamWorkbenchSurfaceProps["onResumeSubagentSession"];
+  onOpenSubagentSession: TeamWorkbenchSurfaceProps["onOpenSubagentSession"];
+  onReturnToParentSession: TeamWorkbenchSurfaceProps["onReturnToParentSession"];
+  teamWaitSummary: TeamWorkbenchSurfaceProps["teamWaitSummary"];
+  teamControlSummary: TeamWorkbenchSurfaceProps["teamControlSummary"];
+  selectedTeamLabel: TeamWorkbenchSurfaceProps["selectedTeamLabel"];
+  selectedTeamSummary: TeamWorkbenchSurfaceProps["selectedTeamSummary"];
+  selectedTeamRoles: TeamWorkbenchSurfaceProps["selectedTeamRoles"];
+  teamDispatchPreviewState: TeamWorkbenchSurfaceProps["teamDispatchPreviewState"];
+}
+interface FloatingTeamWorkspaceDockParams {
+  enabled: boolean;
+  layoutMode: "chat" | "chat-canvas";
+  showFloatingInputOverlay: boolean;
+  onActivateWorkbench: NonNullable<
+    ComponentProps<typeof TeamWorkspaceDock>["onActivateWorkbench"]
+  >;
+}
+
+interface UseWorkspaceInputbarScenePresentationRuntimeParams {
+  setMentionedCharacters: Dispatch<SetStateAction<Character[]>>;
+  taskFiles: TaskFile[];
+  taskFilesExpanded: boolean;
+  setTaskFilesExpanded: Dispatch<SetStateAction<boolean>>;
+  selectedFileId?: string;
+  isThemeWorkbench: boolean;
+  inputbarPresentation: {
+    teamWorkbench: WorkspaceTeamWorkbenchSurfaceParams;
+    inputbar: Omit<
+      WorkspaceInputbarBuilderParams,
+      | "taskFiles"
+      | "selectedFileId"
+      | "taskFilesExpanded"
+      | "onToggleTaskFiles"
+      | "onSelectCharacter"
+    >;
+    floatingTeamWorkspaceDock: FloatingTeamWorkspaceDockParams;
+    generalWorkbenchEntryPrompt:
+      | ComponentProps<typeof GeneralWorkbenchEntryPromptAccessory>["prompt"]
+      | null;
+    onRestartGeneralWorkbenchEntryPrompt: () => void;
+    onContinueGeneralWorkbenchEntryPrompt: () => Promise<void> | void;
+    generalWorkbenchDialog: ComponentProps<typeof GeneralWorkbenchDialogSection>;
+  };
+}
+interface WorkspaceInputbarScenePresentationRuntimeResult {
+  visibleTaskFiles: TaskFile[];
+  visibleSelectedFileId?: string;
+  activeCanvasTaskFile: TaskFile | null;
+  teamWorkbenchSurfaceProps: TeamWorkbenchSurfaceProps;
+  inputbarNode: ReactNode;
+  generalWorkbenchDialog: ReactNode;
+}
+type InputbarScenePresentationParams =
+  UseWorkspaceInputbarScenePresentationRuntimeParams;
 type InputbarPresentationParams =
   InputbarScenePresentationParams["inputbarPresentation"];
 type TeamWorkbenchParams = InputbarPresentationParams["teamWorkbench"];
 type InputbarParams = InputbarPresentationParams["inputbar"];
-type FloatingTeamWorkspaceDockParams =
-  InputbarPresentationParams["floatingTeamWorkspaceDock"];
 type GeneralWorkbenchDialogParams =
   InputbarPresentationParams["generalWorkbenchDialog"];
 type NavigationActions = ReturnType<typeof useWorkspaceNavigationActions>;
-type ContextHarnessRuntime = ReturnType<
-  typeof useWorkspaceContextHarnessRuntime
->;
-type HarnessInventoryRuntime = ReturnType<
-  typeof useWorkspaceHarnessInventoryRuntime
->;
-type ShellChromeRuntime = ReturnType<typeof useWorkspaceShellChromeRuntime>;
-type TeamSessionRuntime = ReturnType<typeof useWorkspaceTeamSessionRuntime>;
-type TeamSessionControlRuntime = ReturnType<
-  typeof useWorkspaceTeamSessionControlRuntime
->;
-type GeneralWorkbenchSidebarRuntime = ReturnType<
-  typeof useWorkspaceGeneralWorkbenchSidebarRuntime
->;
+
+function useWorkspaceInputbarScenePresentationRuntime({
+  setMentionedCharacters,
+  taskFiles,
+  taskFilesExpanded,
+  setTaskFilesExpanded,
+  selectedFileId,
+  isThemeWorkbench,
+  inputbarPresentation,
+}: UseWorkspaceInputbarScenePresentationRuntimeParams): WorkspaceInputbarScenePresentationRuntimeResult {
+  const handleSelectCharacter = useCallback(
+    (character: Character) => {
+      setMentionedCharacters((previous) => {
+        if (previous.find((item) => item.id === character.id)) {
+          return previous;
+        }
+        return [...previous, character];
+      });
+    },
+    [setMentionedCharacters],
+  );
+
+  const handleToggleTaskFiles = useCallback(() => {
+    setTaskFilesExpanded((previous) => !previous);
+  }, [setTaskFilesExpanded]);
+
+  const visibleTaskFiles = useMemo(
+    () =>
+      taskFiles.filter((file) => isRenderableTaskFile(file, isThemeWorkbench)),
+    [isThemeWorkbench, taskFiles],
+  );
+
+  const visibleSelectedFileId = useMemo(() => {
+    if (!selectedFileId) {
+      return undefined;
+    }
+    return visibleTaskFiles.some((file) => file.id === selectedFileId)
+      ? selectedFileId
+      : undefined;
+  }, [selectedFileId, visibleTaskFiles]);
+
+  const activeCanvasTaskFile = useMemo(
+    () =>
+      resolveCanvasTaskFileTarget(visibleTaskFiles, visibleSelectedFileId)
+        .targetFile,
+    [visibleSelectedFileId, visibleTaskFiles],
+  );
+
+  const teamWorkbenchSurfaceProps = useMemo<TeamWorkbenchSurfaceProps>(
+    () => ({
+      shellVisible: inputbarPresentation.teamWorkbench.shellVisible,
+      currentSessionId: inputbarPresentation.teamWorkbench.currentSessionId,
+      currentSessionName: inputbarPresentation.teamWorkbench.currentSessionName,
+      currentSessionRuntimeStatus:
+        inputbarPresentation.teamWorkbench.currentSessionRuntimeStatus,
+      currentSessionLatestTurnStatus:
+        inputbarPresentation.teamWorkbench.currentSessionLatestTurnStatus,
+      currentSessionQueuedTurnCount:
+        inputbarPresentation.teamWorkbench.currentSessionQueuedTurnCount,
+      childSubagentSessions:
+        inputbarPresentation.teamWorkbench.childSubagentSessions,
+      subagentParentContext:
+        inputbarPresentation.teamWorkbench.subagentParentContext,
+      liveRuntimeBySessionId:
+        inputbarPresentation.teamWorkbench.liveRuntimeBySessionId,
+      liveActivityBySessionId:
+        inputbarPresentation.teamWorkbench.liveActivityBySessionId,
+      activityRefreshVersionBySessionId:
+        inputbarPresentation.teamWorkbench.activityRefreshVersionBySessionId,
+      onSendSubagentInput:
+        inputbarPresentation.teamWorkbench.onSendSubagentInput,
+      onWaitSubagentSession:
+        inputbarPresentation.teamWorkbench.onWaitSubagentSession,
+      onWaitActiveTeamSessions:
+        inputbarPresentation.teamWorkbench.onWaitActiveTeamSessions,
+      onCloseCompletedTeamSessions:
+        inputbarPresentation.teamWorkbench.onCloseCompletedTeamSessions,
+      onCloseSubagentSession:
+        inputbarPresentation.teamWorkbench.onCloseSubagentSession,
+      onResumeSubagentSession:
+        inputbarPresentation.teamWorkbench.onResumeSubagentSession,
+      onOpenSubagentSession:
+        inputbarPresentation.teamWorkbench.onOpenSubagentSession,
+      onReturnToParentSession:
+        inputbarPresentation.teamWorkbench.onReturnToParentSession,
+      teamWaitSummary: inputbarPresentation.teamWorkbench.teamWaitSummary,
+      teamControlSummary: inputbarPresentation.teamWorkbench.teamControlSummary,
+      selectedTeamLabel: inputbarPresentation.teamWorkbench.selectedTeamLabel,
+      selectedTeamSummary:
+        inputbarPresentation.teamWorkbench.selectedTeamSummary,
+      selectedTeamRoles: inputbarPresentation.teamWorkbench.selectedTeamRoles,
+      teamDispatchPreviewState:
+        inputbarPresentation.teamWorkbench.teamDispatchPreviewState,
+    }),
+    [inputbarPresentation.teamWorkbench],
+  );
+
+  const generalWorkbenchEntryPromptAccessory = useMemo(
+    () =>
+      inputbarPresentation.generalWorkbenchEntryPrompt ? (
+        <GeneralWorkbenchEntryPromptAccessory
+          prompt={inputbarPresentation.generalWorkbenchEntryPrompt}
+          onRestart={inputbarPresentation.onRestartGeneralWorkbenchEntryPrompt}
+          onContinue={inputbarPresentation.onContinueGeneralWorkbenchEntryPrompt}
+        />
+      ) : null,
+    [
+      inputbarPresentation.generalWorkbenchEntryPrompt,
+      inputbarPresentation.onContinueGeneralWorkbenchEntryPrompt,
+      inputbarPresentation.onRestartGeneralWorkbenchEntryPrompt,
+    ],
+  );
+
+  const floatingTeamWorkspaceDockProps = useMemo<
+    ComponentProps<typeof TeamWorkspaceDock> | null
+  >(
+    () =>
+      !inputbarPresentation.floatingTeamWorkspaceDock.enabled ||
+      !inputbarPresentation.floatingTeamWorkspaceDock.showFloatingInputOverlay ||
+      inputbarPresentation.floatingTeamWorkspaceDock.layoutMode !== "chat"
+        ? null
+        : {
+            placement: "inline",
+            onActivateWorkbench:
+              inputbarPresentation.floatingTeamWorkspaceDock
+                .onActivateWorkbench,
+            ...teamWorkbenchSurfaceProps,
+          },
+    [inputbarPresentation.floatingTeamWorkspaceDock, teamWorkbenchSurfaceProps],
+  );
+
+  const workspaceInputbarProps = useMemo<WorkspaceInputbarBuilderParams>(
+    () => ({
+      ...inputbarPresentation.inputbar,
+      taskFiles: visibleTaskFiles,
+      selectedFileId: visibleSelectedFileId,
+      taskFilesExpanded,
+      onToggleTaskFiles: handleToggleTaskFiles,
+      onSelectCharacter: handleSelectCharacter,
+    }),
+    [
+      handleSelectCharacter,
+      handleToggleTaskFiles,
+      inputbarPresentation.inputbar,
+      taskFilesExpanded,
+      visibleSelectedFileId,
+      visibleTaskFiles,
+    ],
+  );
+
+  const inputbarNode = (
+    <WorkspaceInputbar
+      inputbarProps={workspaceInputbarProps}
+      accessory={generalWorkbenchEntryPromptAccessory}
+      teamWorkspaceDockProps={floatingTeamWorkspaceDockProps}
+    />
+  );
+  const generalWorkbenchDialog = (
+    <GeneralWorkbenchDialogSection
+      {...inputbarPresentation.generalWorkbenchDialog}
+    />
+  );
+
+  return {
+    visibleTaskFiles,
+    visibleSelectedFileId,
+    activeCanvasTaskFile,
+    teamWorkbenchSurfaceProps,
+    inputbarNode,
+    generalWorkbenchDialog,
+  };
+}
 
 interface UseWorkspaceInputbarSceneRuntimeParams {
   contextVariant?: "default" | "task-center";
@@ -57,14 +297,28 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   selectedTeamSummary: TeamWorkbenchParams["selectedTeamSummary"];
   teamDispatchPreviewState: TeamWorkbenchParams["teamDispatchPreviewState"];
   teamMemorySnapshot: GeneralWorkbenchDialogParams["teamMemorySnapshot"];
-  teamSessionRuntime: TeamSessionRuntime;
-  teamSessionControlRuntime: TeamSessionControlRuntime;
+  currentSessionTitle: TeamWorkbenchParams["currentSessionName"];
+  currentSessionRuntimeStatus: TeamWorkbenchParams["currentSessionRuntimeStatus"];
+  currentSessionLatestTurnStatus: TeamWorkbenchParams["currentSessionLatestTurnStatus"];
+  liveRuntimeBySessionId: TeamWorkbenchParams["liveRuntimeBySessionId"];
+  liveActivityBySessionId: TeamWorkbenchParams["liveActivityBySessionId"];
+  activityRefreshVersionBySessionId: TeamWorkbenchParams["activityRefreshVersionBySessionId"];
+  handleSendSubagentInput: TeamWorkbenchParams["onSendSubagentInput"];
+  handleWaitSubagentSession: TeamWorkbenchParams["onWaitSubagentSession"];
+  handleWaitActiveTeamSessions: TeamWorkbenchParams["onWaitActiveTeamSessions"];
+  handleCloseCompletedTeamSessions: TeamWorkbenchParams["onCloseCompletedTeamSessions"];
+  handleCloseSubagentSession: TeamWorkbenchParams["onCloseSubagentSession"];
+  handleResumeSubagentSession: TeamWorkbenchParams["onResumeSubagentSession"];
+  teamWaitSummary: TeamWorkbenchParams["teamWaitSummary"];
+  teamControlSummary: TeamWorkbenchParams["teamControlSummary"];
+  handleStopSending: InputbarParams["onStop"];
+  teamWorkspaceEnabled: FloatingTeamWorkspaceDockParams["enabled"];
   handleOpenSubagentSession: TeamWorkbenchParams["onOpenSubagentSession"];
   handleReturnToParentSession: TeamWorkbenchParams["onReturnToParentSession"];
   input: InputbarParams["input"];
   setInput: InputbarParams["setInput"];
   currentGate: InputbarParams["workflowGate"];
-  generalWorkbenchSidebarRuntime: GeneralWorkbenchSidebarRuntime;
+  generalWorkbenchWorkflowSteps: InputbarParams["workflowSteps"];
   steps: InputbarParams["workflowSteps"];
   workflowRunState: InputbarParams["workflowRunState"];
   handleSend: InputbarParams["onSend"];
@@ -122,14 +376,19 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   handleRestartGeneralWorkbenchEntryPrompt: InputbarPresentationParams["onRestartGeneralWorkbenchEntryPrompt"];
   handleContinueGeneralWorkbenchEntryPrompt: InputbarPresentationParams["onContinueGeneralWorkbenchEntryPrompt"];
   generalWorkbenchEnabled: boolean;
-  contextHarnessRuntime: ContextHarnessRuntime;
+  harnessPanelVisible: GeneralWorkbenchDialogParams["open"];
+  setHarnessPanelVisible: GeneralWorkbenchDialogParams["onOpenChange"];
   harnessState: GeneralWorkbenchDialogParams["harnessState"];
-  compatSubagentRuntime: GeneralWorkbenchDialogParams["compatSubagentRuntime"];
-  harnessInventoryRuntime: HarnessInventoryRuntime;
+  harnessEnvironment: GeneralWorkbenchDialogParams["environment"];
+  toolInventory: GeneralWorkbenchDialogParams["toolInventory"];
+  toolInventoryLoading: GeneralWorkbenchDialogParams["toolInventoryLoading"];
+  toolInventoryError: GeneralWorkbenchDialogParams["toolInventoryError"];
+  refreshToolInventory: GeneralWorkbenchDialogParams["onRefreshToolInventory"];
   mappedTheme: GeneralWorkbenchDialogParams["activeTheme"];
+  activeRuntimeStatusTitle: GeneralWorkbenchDialogParams["runtimeStatusTitle"];
   handleHarnessLoadFilePreview: GeneralWorkbenchDialogParams["onLoadFilePreview"];
   handleFileClick: GeneralWorkbenchDialogParams["onOpenFile"];
-  shellChromeRuntime: ShellChromeRuntime;
+  showGeneralWorkbenchFloatingInputOverlay: FloatingTeamWorkspaceDockParams["showFloatingInputOverlay"];
   handleActivateTeamWorkbench: FloatingTeamWorkspaceDockParams["onActivateWorkbench"];
   chatToolPreferences?: ChatToolPreferences;
 }
@@ -149,14 +408,28 @@ export function useWorkspaceInputbarSceneRuntime({
   selectedTeamSummary,
   teamDispatchPreviewState,
   teamMemorySnapshot,
-  teamSessionRuntime,
-  teamSessionControlRuntime,
+  currentSessionTitle,
+  currentSessionRuntimeStatus,
+  currentSessionLatestTurnStatus,
+  liveRuntimeBySessionId,
+  liveActivityBySessionId,
+  activityRefreshVersionBySessionId,
+  handleSendSubagentInput,
+  handleWaitSubagentSession,
+  handleWaitActiveTeamSessions,
+  handleCloseCompletedTeamSessions,
+  handleCloseSubagentSession,
+  handleResumeSubagentSession,
+  teamWaitSummary,
+  teamControlSummary,
+  handleStopSending,
+  teamWorkspaceEnabled,
   handleOpenSubagentSession,
   handleReturnToParentSession,
   input,
   setInput,
   currentGate,
-  generalWorkbenchSidebarRuntime,
+  generalWorkbenchWorkflowSteps,
   steps,
   workflowRunState,
   handleSend,
@@ -208,14 +481,19 @@ export function useWorkspaceInputbarSceneRuntime({
   handleRestartGeneralWorkbenchEntryPrompt,
   handleContinueGeneralWorkbenchEntryPrompt,
   generalWorkbenchEnabled,
-  contextHarnessRuntime,
+  harnessPanelVisible,
+  setHarnessPanelVisible,
   harnessState,
-  compatSubagentRuntime,
-  harnessInventoryRuntime,
+  harnessEnvironment,
+  toolInventory,
+  toolInventoryLoading,
+  toolInventoryError,
+  refreshToolInventory,
   mappedTheme,
+  activeRuntimeStatusTitle,
   handleHarnessLoadFilePreview,
   handleFileClick,
-  shellChromeRuntime,
+  showGeneralWorkbenchFloatingInputOverlay,
   handleActivateTeamWorkbench,
   chatToolPreferences,
 }: UseWorkspaceInputbarSceneRuntimeParams) {
@@ -243,7 +521,7 @@ export function useWorkspaceInputbarSceneRuntime({
     resolvedTurns[resolvedTurns.length - 1]?.prompt_text?.trim() ||
     "";
 
-  return useWorkspaceInputbarScenePresentation({
+  return useWorkspaceInputbarScenePresentationRuntime({
     setMentionedCharacters,
     taskFiles,
     taskFilesExpanded,
@@ -254,33 +532,25 @@ export function useWorkspaceInputbarSceneRuntime({
       teamWorkbench: {
         shellVisible: resolvedChatToolPreferences.subagent,
         currentSessionId: sessionId,
-        currentSessionName: teamSessionRuntime.currentSessionTitle,
-        currentSessionRuntimeStatus:
-          teamSessionRuntime.currentSessionRuntimeStatus,
-        currentSessionLatestTurnStatus:
-          teamSessionRuntime.currentSessionLatestTurnStatus,
+        currentSessionName: currentSessionTitle,
+        currentSessionRuntimeStatus,
+        currentSessionLatestTurnStatus,
         currentSessionQueuedTurnCount: resolvedQueuedTurns.length,
         childSubagentSessions,
         subagentParentContext,
-        liveRuntimeBySessionId: teamSessionRuntime.liveRuntimeBySessionId,
-        liveActivityBySessionId: teamSessionRuntime.liveActivityBySessionId,
-        activityRefreshVersionBySessionId:
-          teamSessionRuntime.activityRefreshVersionBySessionId,
-        onSendSubagentInput: teamSessionControlRuntime.handleSendSubagentInput,
-        onWaitSubagentSession:
-          teamSessionControlRuntime.handleWaitSubagentSession,
-        onWaitActiveTeamSessions:
-          teamSessionControlRuntime.handleWaitActiveTeamSessions,
-        onCloseCompletedTeamSessions:
-          teamSessionControlRuntime.handleCloseCompletedTeamSessions,
-        onCloseSubagentSession:
-          teamSessionControlRuntime.handleCloseSubagentSession,
-        onResumeSubagentSession:
-          teamSessionControlRuntime.handleResumeSubagentSession,
+        liveRuntimeBySessionId,
+        liveActivityBySessionId,
+        activityRefreshVersionBySessionId,
+        onSendSubagentInput: handleSendSubagentInput,
+        onWaitSubagentSession: handleWaitSubagentSession,
+        onWaitActiveTeamSessions: handleWaitActiveTeamSessions,
+        onCloseCompletedTeamSessions: handleCloseCompletedTeamSessions,
+        onCloseSubagentSession: handleCloseSubagentSession,
+        onResumeSubagentSession: handleResumeSubagentSession,
         onOpenSubagentSession: handleOpenSubagentSession,
         onReturnToParentSession: handleReturnToParentSession,
-        teamWaitSummary: teamSessionControlRuntime.teamWaitSummary,
-        teamControlSummary: teamSessionControlRuntime.teamControlSummary,
+        teamWaitSummary,
+        teamControlSummary,
         selectedTeamLabel,
         selectedTeamSummary,
         selectedTeamRoles: selectedTeam?.roles,
@@ -293,11 +563,11 @@ export function useWorkspaceInputbarSceneRuntime({
         variant: isThemeWorkbench ? "workspace" : "default",
         workflowGate: isThemeWorkbench ? currentGate : null,
         workflowSteps: isThemeWorkbench
-          ? generalWorkbenchSidebarRuntime.generalWorkbenchWorkflowSteps
+          ? generalWorkbenchWorkflowSteps
           : steps,
         workflowRunState,
         onSend: handleSend,
-        onStop: teamSessionControlRuntime.handleStopSending,
+        onStop: handleStopSending,
         isLoading: isSending || resolvedQueuedTurns.length > 0,
         providerType,
         setProviderType,
@@ -338,10 +608,9 @@ export function useWorkspaceInputbarSceneRuntime({
         onRemoveQueuedTurn: removeQueuedTurn,
       },
       floatingTeamWorkspaceDock: {
-        enabled: teamSessionRuntime.showTeamWorkspaceBoard,
+        enabled: teamWorkspaceEnabled,
         layoutMode: dockLayoutMode,
-        showFloatingInputOverlay:
-          shellChromeRuntime.shouldShowGeneralWorkbenchFloatingInputOverlay,
+        showFloatingInputOverlay: showGeneralWorkbenchFloatingInputOverlay,
         onActivateWorkbench: handleActivateTeamWorkbench,
       },
       generalWorkbenchEntryPrompt,
@@ -351,11 +620,10 @@ export function useWorkspaceInputbarSceneRuntime({
         handleContinueGeneralWorkbenchEntryPrompt,
       generalWorkbenchDialog: {
         enabled: generalWorkbenchEnabled && !isThemeWorkbench,
-        open: contextHarnessRuntime.harnessPanelVisible,
-        onOpenChange: contextHarnessRuntime.setHarnessPanelVisible,
+        open: harnessPanelVisible,
+        onOpenChange: setHarnessPanelVisible,
         harnessState,
-        compatSubagentRuntime,
-        environment: contextHarnessRuntime.harnessEnvironment,
+        environment: harnessEnvironment,
         childSubagentSessions,
         selectedTeamLabel,
         selectedTeamSummary,
@@ -370,7 +638,7 @@ export function useWorkspaceInputbarSceneRuntime({
         messages,
         queuedTurns: resolvedQueuedTurns,
         canInterrupt: isSending,
-        onInterruptCurrentTurn: teamSessionControlRuntime.handleStopSending,
+        onInterruptCurrentTurn: handleStopSending,
         onResumeThread: resumeThread,
         onReplayPendingRequest:
           latestAssistantMessageId && replayPendingAction
@@ -398,16 +666,16 @@ export function useWorkspaceInputbarSceneRuntime({
           activeTheme: activeTheme || null,
           selectedTeamLabel: selectedTeamLabel || null,
         },
-        toolInventory: harnessInventoryRuntime.toolInventory,
-        toolInventoryLoading: harnessInventoryRuntime.toolInventoryLoading,
-        toolInventoryError: harnessInventoryRuntime.toolInventoryError,
-        onRefreshToolInventory: harnessInventoryRuntime.refreshToolInventory,
+        toolInventory,
+        toolInventoryLoading,
+        toolInventoryError,
+        onRefreshToolInventory: refreshToolInventory,
         activeTheme: mappedTheme,
         toolPreferences: resolvedChatToolPreferences,
         isSending,
         executionRuntime: sessionExecutionRuntime,
         isExecutionRuntimeActive: Boolean(activeExecutionRuntime),
-        runtimeStatusTitle: contextHarnessRuntime.activeRuntimeStatusTitle,
+        runtimeStatusTitle: activeRuntimeStatusTitle,
         selectedTeamRoleCount: selectedTeam?.roles.length || 0,
         onOpenSubagentSession: handleOpenSubagentSession,
         onLoadFilePreview: handleHarnessLoadFilePreview,

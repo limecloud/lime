@@ -997,6 +997,10 @@ fn resolve_runtime_usage_from_aster_session(
             Some(crate::protocol::AgentTokenUsage {
                 input_tokens: input_tokens as u32,
                 output_tokens: output_tokens as u32,
+                cached_input_tokens: session
+                    .cached_input_tokens
+                    .filter(|value| *value >= 0)
+                    .map(|value| value as u32),
             })
         }
         _ => None,
@@ -1061,6 +1065,7 @@ pub async fn get_runtime_session_detail(
                             session_id,
                             usage.input_tokens,
                             usage.output_tokens,
+                            usage.cached_input_tokens,
                         )
                     {
                         tracing::warn!(
@@ -1373,6 +1378,7 @@ fn convert_agent_message(
             .map(|usage| crate::protocol::AgentTokenUsage {
                 input_tokens: usage.input_tokens,
                 output_tokens: usage.output_tokens,
+                cached_input_tokens: usage.cached_input_tokens,
             }),
     };
 
@@ -1983,6 +1989,7 @@ mod tests {
             usage: Some(crate::protocol::AgentTokenUsage {
                 input_tokens: 20_480,
                 output_tokens: 10_240,
+                cached_input_tokens: Some(8_192),
             }),
         }];
         let session = AsterSession {
@@ -1997,11 +2004,12 @@ mod tests {
 
         assert!(applied.is_none());
         assert_eq!(
-            messages[0]
-                .usage
-                .as_ref()
-                .map(|usage| (usage.input_tokens, usage.output_tokens)),
-            Some((20_480, 10_240))
+            messages[0].usage.as_ref().map(|usage| (
+                usage.input_tokens,
+                usage.output_tokens,
+                usage.cached_input_tokens,
+            )),
+            Some((20_480, 10_240, Some(8_192)))
         );
     }
 

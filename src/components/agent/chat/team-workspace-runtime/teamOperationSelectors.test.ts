@@ -80,6 +80,10 @@ describe("teamOperationSelectors", () => {
       "control-resume-1710000200000",
       "wait-1710000100000",
     ]);
+    expect(entries[0]?.detail).toBe("刚才已继续 研究员 的处理。");
+    expect(entries[1]?.detail).toBe(
+      "刚才等待结果时超时了，还有 1 项任务仍在处理中。",
+    );
     expect(formatOperationUpdatedAt()).toBe("刚刚");
   });
 

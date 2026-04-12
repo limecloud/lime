@@ -104,6 +104,7 @@ export interface AgentArtifactSignal {
 export interface AgentTokenUsage {
   input_tokens: number;
   output_tokens: number;
+  cached_input_tokens?: number;
 }
 
 export type AgentThreadTurnStatus =

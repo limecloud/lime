@@ -4,6 +4,7 @@ import type { ProviderPoolOverview } from "@/lib/api/providerPool";
 import {
   buildConfiguredProviders,
   findConfiguredProviderBySelection,
+  resolveConfiguredProviderPromptCacheSupportNotice,
 } from "./useConfiguredProviders";
 
 function createProviderPoolOverview(
@@ -162,6 +163,32 @@ describe("buildConfiguredProviders", () => {
       expect.objectContaining({
         key: "openai_api_key",
         providerId: "openai",
+      }),
+    );
+  });
+
+  it("应基于真实受管 Provider 解析 prompt cache 提示", () => {
+    const providers = buildConfiguredProviders(
+      [],
+      [
+        createApiKeyProvider({
+          id: "custom-provider-id",
+          name: "GLM Anthropic",
+          type: "anthropic-compatible",
+          api_key_count: 1,
+        }),
+      ],
+    );
+
+    const notice = resolveConfiguredProviderPromptCacheSupportNotice(
+      providers,
+      "custom-provider-id",
+    );
+
+    expect(notice).toEqual(
+      expect.objectContaining({
+        label: "未声明自动缓存",
+        source: "configured_provider",
       }),
     );
   });

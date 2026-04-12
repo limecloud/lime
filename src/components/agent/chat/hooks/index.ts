@@ -39,6 +39,5 @@ export function useAgentChatUnified(options: UseAgentChatUnifiedOptions) {
 export { useAsterAgentChat } from "./useAsterAgentChat";
 export { useRuntimeTeamFormation } from "./useRuntimeTeamFormation";
 export { useTeamWorkspaceRuntime } from "./useTeamWorkspaceRuntime";
-// compat subagent 适配仅允许内部直连，不继续从统一 hooks 入口扩散。
 export { useThemeContextWorkspace } from "./useThemeContextWorkspace";
 export { useTopicBranchBoard } from "./useTopicBranchBoard";

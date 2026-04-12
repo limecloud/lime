@@ -1,5 +1,5 @@
 use crate::network::should_bypass_system_proxy_for_url;
-use crate::session_context::SESSION_ID_HEADER;
+use crate::session_context::current_request_correlation_context;
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{
@@ -379,8 +379,8 @@ impl<'a> ApiRequestBuilder<'a> {
         let mut request = request_builder(url, &self.client.client);
         request = request.headers(self.headers.clone());
 
-        if let Some(session_id) = crate::session_context::current_session_id() {
-            request = request.header(SESSION_ID_HEADER, session_id);
+        for (header_name, header_value) in current_request_correlation_context().header_values() {
+            request = request.header(header_name, header_value);
         }
 
         request = match &self.client.auth {
@@ -416,6 +416,10 @@ impl fmt::Debug for ApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::session_context::{
+        PENDING_REQUEST_ID_HEADER, QUEUED_TURN_ID_HEADER, SESSION_ID_HEADER,
+        SUBAGENT_SESSION_ID_HEADER, THREAD_ID_HEADER, TURN_ID_HEADER,
+    };
 
     #[test]
     fn should_bypass_proxy_for_loopback_host() {
@@ -479,5 +483,83 @@ mod tests {
         let headers = request.build().unwrap().headers().clone();
 
         assert!(!headers.contains_key(SESSION_ID_HEADER));
+    }
+
+    #[tokio::test]
+    async fn test_request_correlation_headers_injection() {
+        let client = ApiClient::new(
+            "http://localhost:8080".to_string(),
+            AuthMethod::BearerToken("test-token".to_string()),
+        )
+        .unwrap();
+        let scope = crate::conversation::message::ActionRequiredScope {
+            session_id: Some("session-telemetry".to_string()),
+            thread_id: Some("thread-telemetry".to_string()),
+            turn_id: Some("turn-telemetry".to_string()),
+        };
+        let turn_context = crate::session::TurnContextOverride {
+            metadata: std::collections::HashMap::from([
+                (
+                    "pending_request_id".to_string(),
+                    serde_json::json!("pending-telemetry"),
+                ),
+                (
+                    "queuedTurnId".to_string(),
+                    serde_json::json!("queued-telemetry"),
+                ),
+                (
+                    "subagentSessionId".to_string(),
+                    serde_json::json!("subagent-telemetry"),
+                ),
+            ]),
+            ..crate::session::TurnContextOverride::default()
+        };
+
+        crate::session_context::with_runtime_scope(scope, Some(turn_context), async {
+            let builder = client.request("/test");
+            let request = builder
+                .send_request(|url, client| client.get(url))
+                .await
+                .unwrap();
+            let headers = request.build().unwrap().headers().clone();
+
+            assert_eq!(
+                headers.get(SESSION_ID_HEADER).unwrap().to_str().unwrap(),
+                "session-telemetry"
+            );
+            assert_eq!(
+                headers.get(THREAD_ID_HEADER).unwrap().to_str().unwrap(),
+                "thread-telemetry"
+            );
+            assert_eq!(
+                headers.get(TURN_ID_HEADER).unwrap().to_str().unwrap(),
+                "turn-telemetry"
+            );
+            assert_eq!(
+                headers
+                    .get(PENDING_REQUEST_ID_HEADER)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "pending-telemetry"
+            );
+            assert_eq!(
+                headers
+                    .get(QUEUED_TURN_ID_HEADER)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "queued-telemetry"
+            );
+            assert_eq!(
+                headers
+                    .get(SUBAGENT_SESSION_ID_HEADER)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "subagent-telemetry"
+            );
+        })
+        .await;
     }
 }

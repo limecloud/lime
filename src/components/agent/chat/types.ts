@@ -141,7 +141,7 @@ export interface SiteSavedContentTarget {
 
 export type PendingA2UISource =
   | {
-      kind: "assistant_message" | "legacy_message";
+      kind: "assistant_message";
       messageId: string;
     }
   | {
@@ -171,7 +171,7 @@ export interface ActionRequiredScope {
 
 export interface ActionRequestGovernanceMeta {
   strategy: "single_turn_single_question";
-  source: "runtime_action_required" | "legacy_questionnaire";
+  source: "runtime_action_required";
   originalQuestionCount?: number;
   originalFieldCount?: number;
   originalSectionCount?: number;

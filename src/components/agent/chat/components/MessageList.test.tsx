@@ -7,6 +7,77 @@ import type { Message } from "../types";
 
 const IMAGE_WORKBENCH_FOCUS_EVENT = "lime:image-workbench-focus";
 const VIDEO_WORKBENCH_TASK_ACTION_EVENT = "lime:video-workbench-task-action";
+type MockConfiguredProvider = {
+  key: string;
+  label?: string;
+  registryId?: string;
+  type?: string;
+  providerId?: string;
+};
+
+const mockUseConfiguredProviders = vi.fn((_options?: unknown) => ({
+  providers: [] as MockConfiguredProvider[],
+  loading: false,
+}));
+const mockFindConfiguredProviderBySelection = vi.fn(
+  (
+    _providers: MockConfiguredProvider[],
+    _selection?: string | null,
+  ): MockConfiguredProvider | null => null,
+);
+const mockTokenUsageDisplay = vi.fn(
+  ({
+    promptCacheNotice,
+  }: {
+    promptCacheNotice?: {
+      label?: string;
+    } | null;
+  }) => (
+    <div data-testid="token-usage-display">
+      {promptCacheNotice?.label || "token-usage-display"}
+    </div>
+  ),
+);
+
+vi.mock("@/hooks/useConfiguredProviders", () => ({
+  useConfiguredProviders: (options?: unknown) =>
+    mockUseConfiguredProviders(options),
+  findConfiguredProviderBySelection: (
+    providers: MockConfiguredProvider[],
+    selection?: string | null,
+  ) => mockFindConfiguredProviderBySelection(providers, selection),
+  resolveConfiguredProviderPromptCacheSupportNotice: (
+    providers: MockConfiguredProvider[],
+    selection?: string | null,
+  ) => {
+    const selectedProvider =
+      mockFindConfiguredProviderBySelection(providers, selection);
+    const normalizedConfiguredType = (
+      selectedProvider?.type || ""
+    ).trim().toLowerCase();
+    const normalizedSelection = (selection || "").trim().toLowerCase();
+
+    if (normalizedConfiguredType === "anthropic-compatible") {
+      return {
+        label: "未声明自动缓存",
+        detail:
+          "当前 Provider 未声明支持自动 Prompt Cache；如需复用前缀，请使用显式 cache_control 标记。",
+        source: "configured_provider" as const,
+      };
+    }
+
+    if (normalizedSelection === "anthropic-compatible") {
+      return {
+        label: "未声明自动缓存",
+        detail:
+          "当前 Provider 未声明支持自动 Prompt Cache；当前提示基于 Provider 选择器回退判断，如需复用前缀，请使用显式 cache_control 标记。",
+        source: "selection_fallback" as const,
+      };
+    }
+
+    return null;
+  },
+}));
 
 vi.mock("./MarkdownRenderer", () => ({
   MarkdownRenderer: ({ content }: { content: string }) => (
@@ -83,7 +154,11 @@ vi.mock("./StreamingRenderer", () => ({
 }));
 
 vi.mock("./TokenUsageDisplay", () => ({
-  TokenUsageDisplay: () => <div data-testid="token-usage-display" />,
+  TokenUsageDisplay: (props: {
+    promptCacheNotice?: {
+      label?: string;
+    } | null;
+  }) => mockTokenUsageDisplay(props),
 }));
 
 vi.mock("./AgentThreadTimeline", () => ({
@@ -121,6 +196,11 @@ afterEach(() => {
     mounted.container.remove();
   }
   vi.clearAllMocks();
+  mockUseConfiguredProviders.mockImplementation(() => ({
+    providers: [],
+    loading: false,
+  }));
+  mockFindConfiguredProviderBySelection.mockImplementation(() => null);
 });
 
 function render(
@@ -232,6 +312,58 @@ describe("MessageList", () => {
     render(messages, { renderA2UIInline: false });
     expect(mockStreamingRenderer).toHaveBeenLastCalledWith(
       expect.objectContaining({ renderA2UIInline: false }),
+    );
+  });
+
+  it("anthropic-compatible 自定义 Provider 无缓存命中时应透传自动缓存提示", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-usage",
+        role: "assistant",
+        content: "本轮已完成。",
+        timestamp: now,
+        usage: {
+          input_tokens: 1_500,
+          output_tokens: 500,
+          cached_input_tokens: 0,
+        },
+      },
+    ];
+
+    mockUseConfiguredProviders.mockImplementation(() => ({
+      providers: [
+        {
+          key: "custom-provider-id",
+          label: "GLM Anthropic",
+          registryId: "custom-provider-id",
+          type: "anthropic-compatible",
+          providerId: "custom-provider-id",
+        },
+      ],
+      loading: false,
+    }));
+    mockFindConfiguredProviderBySelection.mockImplementation(
+      (
+        providers: MockConfiguredProvider[],
+        selection?: string | null,
+      ): MockConfiguredProvider | null =>
+        Array.isArray(providers)
+          ? (providers.find((provider) => provider.key === selection) ?? null)
+          : null,
+    );
+
+    const container = render(messages, {
+      providerType: "custom-provider-id",
+    });
+
+    expect(container.textContent).toContain("未声明自动缓存");
+    expect(mockTokenUsageDisplay).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promptCacheNotice: expect.objectContaining({
+          label: "未声明自动缓存",
+        }),
+      }),
     );
   });
 

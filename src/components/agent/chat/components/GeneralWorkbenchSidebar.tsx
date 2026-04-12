@@ -27,7 +27,7 @@ function GeneralWorkbenchSidebarComponent({
     }),
   );
   const {
-    branchCount,
+    workflowCount,
     activeContextCount,
     visibleExecLogCount,
     contextPanelProps,
@@ -43,7 +43,7 @@ function GeneralWorkbenchSidebarComponent({
       activeTab={activeTab}
       isVersionMode={isVersionMode}
       activeContextCount={activeContextCount}
-      branchCount={branchCount}
+      workflowCount={workflowCount}
       visibleExecLogCount={visibleExecLogCount}
       onTabChange={setActiveTab}
       onRequestCollapse={onRequestCollapse}

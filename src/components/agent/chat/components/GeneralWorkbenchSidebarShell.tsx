@@ -8,7 +8,7 @@ interface GeneralWorkbenchSidebarShellProps {
   activeTab: GeneralWorkbenchSidebarTab;
   isVersionMode: boolean;
   activeContextCount: number;
-  branchCount: number;
+  workflowCount: number;
   visibleExecLogCount: number;
   onTabChange: (tab: GeneralWorkbenchSidebarTab) => void;
   onRequestCollapse?: () => void;
@@ -18,13 +18,13 @@ interface GeneralWorkbenchSidebarShellProps {
 }
 
 const SIDEBAR_CONTAINER_CLASSNAME =
-  "relative flex h-full w-[290px] min-w-[290px] flex-col border-r border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(241,245,249,0.84)_100%)]";
+  "relative flex h-full w-[290px] min-w-[290px] flex-col border-r border-slate-200 bg-slate-50";
 
 const SIDEBAR_COLLAPSE_HANDLE_CLASSNAME =
-  "absolute right-[-10px] top-1/2 z-[2] inline-flex h-[60px] w-4 -translate-y-1/2 items-center justify-center rounded-r-[10px] border border-l-0 border-slate-200/80 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900";
+  "absolute right-[-10px] top-1/2 z-[2] inline-flex h-[60px] w-4 -translate-y-1/2 items-center justify-center rounded-r-[10px] border border-l-0 border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900";
 
 const SIDEBAR_HEADER_CLASSNAME =
-  "border-b border-slate-200/80 bg-white/88 px-4 py-4 backdrop-blur-sm";
+  "border-b border-slate-200 bg-white px-4 py-4";
 
 const SIDEBAR_HEADER_META_ROW_CLASSNAME =
   "flex items-center justify-between gap-2.5";
@@ -33,7 +33,7 @@ const SIDEBAR_HEADER_ACTION_SLOT_CLASSNAME =
   "mt-[-2px] inline-flex shrink-0 items-center justify-center";
 
 const SIDEBAR_EYEBROW_CLASSNAME =
-  "text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500";
+  "text-[10px] font-semibold text-slate-500";
 
 const SIDEBAR_TITLE_CLASSNAME =
   "mt-2.5 text-base font-semibold leading-6 text-slate-900";
@@ -42,7 +42,7 @@ const SIDEBAR_DESCRIPTION_CLASSNAME =
   "mt-1.5 text-[12px] leading-5 text-slate-500";
 
 const SIDEBAR_TABS_CLASSNAME =
-  "mt-3 flex gap-1.5 rounded-[18px] border border-slate-200/80 bg-slate-50/80 p-1";
+  "mt-3 flex gap-1.5 rounded-[18px] border border-slate-200 bg-slate-100 p-1";
 
 const SIDEBAR_TAB_LABEL_CLASSNAME = "min-w-0 truncate";
 
@@ -56,7 +56,7 @@ function getSidebarTabButtonClassName(active: boolean) {
     "flex h-[38px] min-w-0 flex-1 items-center justify-center gap-1 rounded-xl border px-2 text-[11px] font-semibold leading-none transition-colors",
     active
       ? "border-slate-300 bg-white text-slate-900 shadow-sm shadow-slate-950/5"
-      : "border-transparent text-slate-500 hover:border-slate-200/90 hover:bg-white/80 hover:text-slate-900",
+      : "border-transparent text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-900",
   );
 }
 
@@ -75,7 +75,7 @@ function resolveSidebarTitle(
     return "上下文管理";
   }
   if (activeTab === "workflow") {
-    return "任务进行时";
+    return "任务视图";
   }
   return isVersionMode ? "版本记录" : "运行记录";
 }
@@ -89,8 +89,8 @@ function resolveSidebarDescription(
   }
   if (activeTab === "workflow") {
     return isVersionMode
-      ? "跟踪当前任务、后续节点与产物版本。"
-      : "跟踪当前任务、后续节点与分支进展。";
+      ? "聚焦当前任务、后续节点与相关版本。"
+      : "聚焦当前任务、后续节点与相关分支。";
   }
   return "查看技能调用、工具输出与运行记录。";
 }
@@ -99,7 +99,7 @@ export function GeneralWorkbenchSidebarShell({
   activeTab,
   isVersionMode,
   activeContextCount,
-  branchCount,
+  workflowCount,
   visibleExecLogCount,
   onTabChange,
   onRequestCollapse,
@@ -112,7 +112,10 @@ export function GeneralWorkbenchSidebarShell({
       className={SIDEBAR_CONTAINER_CLASSNAME}
       data-testid="general-workbench-sidebar"
     >
-      <div className={SIDEBAR_HEADER_CLASSNAME}>
+      <div
+        className={SIDEBAR_HEADER_CLASSNAME}
+        data-testid="general-workbench-sidebar-header"
+      >
         <div className={SIDEBAR_HEADER_META_ROW_CLASSNAME}>
           <div className={SIDEBAR_EYEBROW_CLASSNAME}>任务工作台</div>
           {headerActionSlot ? (
@@ -130,7 +133,10 @@ export function GeneralWorkbenchSidebarShell({
         <div className={SIDEBAR_DESCRIPTION_CLASSNAME}>
           {resolveSidebarDescription(activeTab, isVersionMode)}
         </div>
-        <div className={SIDEBAR_TABS_CLASSNAME}>
+        <div
+          className={SIDEBAR_TABS_CLASSNAME}
+          data-testid="general-workbench-sidebar-tabs"
+        >
           <button
             type="button"
             aria-label="打开上下文管理"
@@ -147,8 +153,8 @@ export function GeneralWorkbenchSidebarShell({
           </button>
           <button
             type="button"
-            aria-label="打开任务进行时面板"
-            title="任务进行时面板"
+            aria-label="打开任务视图"
+            title="任务视图"
             className={getSidebarTabButtonClassName(activeTab === "workflow")}
             onClick={() => onTabChange("workflow")}
           >
@@ -156,7 +162,7 @@ export function GeneralWorkbenchSidebarShell({
             <span
               className={getSidebarTabCountClassName(activeTab === "workflow")}
             >
-              {branchCount}
+              {workflowCount}
             </span>
           </button>
           <button

@@ -42,6 +42,8 @@ pub struct AgentArtifactSignal {
 pub struct AgentTokenUsage {
     pub input_tokens: u32,
     pub output_tokens: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

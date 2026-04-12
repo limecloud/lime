@@ -152,6 +152,13 @@ impl ApiProviderType {
             ProviderProtocolFamily::Anthropic
         )
     }
+
+    /// 是否支持自动注入 Anthropic prompt cache 标记。
+    ///
+    /// `AnthropicCompatible` 仅表示协议形状兼容，不代表上游实现了 Anthropic prompt caching。
+    pub const fn supports_anthropic_prompt_cache(&self) -> bool {
+        matches!(self, ApiProviderType::Anthropic)
+    }
 }
 
 impl std::fmt::Display for ApiProviderType {
@@ -198,6 +205,13 @@ mod tests {
         assert_eq!(spec.auth_header, "Authorization");
         assert_eq!(spec.auth_prefix, Some("Bearer"));
         assert_eq!(spec.default_api_host, "https://api.openai.com");
+    }
+
+    #[test]
+    fn test_supports_anthropic_prompt_cache() {
+        assert!(ApiProviderType::Anthropic.supports_anthropic_prompt_cache());
+        assert!(!ApiProviderType::AnthropicCompatible.supports_anthropic_prompt_cache());
+        assert!(!ApiProviderType::Openai.supports_anthropic_prompt_cache());
     }
 
     #[test]

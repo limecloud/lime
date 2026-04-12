@@ -23,7 +23,6 @@ const {
   mockUseThemeContextWorkspace,
   mockUseTopicBranchBoard,
   mockUseTeamWorkspaceRuntime,
-  mockUseCompatSubagentRuntime,
   mockUseSessionFiles,
   mockGetProject,
   mockGetDefaultProject,
@@ -68,7 +67,6 @@ const {
   mockUseThemeContextWorkspace: vi.fn(),
   mockUseTopicBranchBoard: vi.fn(),
   mockUseTeamWorkspaceRuntime: vi.fn(),
-  mockUseCompatSubagentRuntime: vi.fn(),
   mockUseSessionFiles: vi.fn(),
   mockGetProject: vi.fn(),
   mockGetDefaultProject: vi.fn(),
@@ -195,10 +193,6 @@ vi.mock("./hooks", () => ({
   useThemeContextWorkspace: mockUseThemeContextWorkspace,
   useTopicBranchBoard: mockUseTopicBranchBoard,
   useTeamWorkspaceRuntime: mockUseTeamWorkspaceRuntime,
-}));
-
-vi.mock("./hooks/useCompatSubagentRuntime", () => ({
-  useCompatSubagentRuntime: mockUseCompatSubagentRuntime,
 }));
 
 vi.mock("@/hooks/useDeveloperFeatureFlags", () => ({
@@ -476,7 +470,7 @@ vi.mock("./components/TeamWorkspaceDock", () => ({
             onActivateWorkbench();
           }}
         >
-          打开任务协作
+          打开任务工作台
         </button>
       ) : null}
     </div>
@@ -1237,15 +1231,6 @@ beforeEach(() => {
     liveActivityBySessionId: {},
     activityRefreshVersionBySessionId: {},
   });
-  mockUseCompatSubagentRuntime.mockReturnValue({
-    isRunning: false,
-    progress: null,
-    events: [],
-    result: null,
-    error: null,
-    recentActivity: [],
-    hasSignals: false,
-  });
   mockUseSessionFiles.mockReturnValue({
     saveFile: vi.fn(async () => undefined),
     files: [],
@@ -1897,6 +1882,9 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
 
     expect(document.body.textContent).toContain("处理工作台");
     expect(document.body.textContent).toContain("通用助手");
+    expect(document.body.textContent).toContain(
+      "集中查看计划、待确认事项、任务进展、文件活动和处理结果。",
+    );
   });
 
   it("处理工作台开关关闭时不应显示入口，也不应触发工具库存读取", async () => {
@@ -5883,8 +5871,8 @@ describe("AgentChatPage 服务技能 A2UI", () => {
   });
 });
 
-describe("AgentChatPage legacy 问卷 A2UI", () => {
-  it("工作区编排出现待补充 A2UI 时应保持聊天主区域，不展示左侧工作台侧栏", async () => {
+describe("AgentChatPage 当前 A2UI 事实源", () => {
+  it("历史问卷正文不应再提升为输入区 A2UI", async () => {
     mockUseThemeContextWorkspace.mockReturnValue(
       createMockThemeContextWorkspaceState({
         enabled: true,
@@ -5918,99 +5906,9 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
       }),
     );
 
-    const container = renderPage({
+    renderPage({
       projectId: "project-theme-a2ui",
       contentId: "content-theme-a2ui",
-      theme: "general",
-      lockTheme: true,
-    });
-    await flushEffects(10);
-
-    expect(
-      container
-        .querySelector('[data-testid="layout-transition"]')
-        ?.getAttribute("data-mode"),
-    ).toBe("chat");
-    expect(
-      container.querySelector('[data-testid="general-workbench-sidebar"]'),
-    ).toBeNull();
-
-    const latestPendingPanelProps =
-      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
-        | {
-            pendingA2UIForm?: {
-              data?: Record<string, unknown>;
-            } | null;
-          }
-        | undefined;
-
-    expect(latestPendingPanelProps?.pendingA2UIForm?.data).toMatchObject({
-      source: "legacy_questionnaire",
-      questionCount: 1,
-    });
-  });
-
-  it("应将结构化问卷提升到输入区浮层，并按字段标签提交摘要", async () => {
-    mockUseAgentChatUnified.mockImplementation(
-      ({ workspaceId }: { workspaceId: string }) => {
-        observedWorkspaceIds.push(workspaceId);
-        return {
-          providerType: "kiro",
-          setProviderType: vi.fn(),
-          model: "mock-model",
-          setModel: vi.fn(),
-          executionStrategy: "auto",
-          setExecutionStrategy: vi.fn(),
-          messages: [
-            {
-              id: "msg-legacy-user",
-              role: "user",
-              content: "帮我先梳理需求",
-              timestamp: new Date("2026-03-15T09:00:00.000Z"),
-            },
-            {
-              id: "msg-legacy-assistant",
-              role: "assistant",
-              content: `为了继续推进，我需要你先补充以下信息：
-
-1. 目标与对象
-- 这次内容主要面向谁？（客户 / 上级 / 同事）
-- 这次最想达成的目标是什么？
-
-2. 风格与限制
-- 语气偏好：正式严谨 / 友好专业 / 直接高效
-- 是否需要加入明确行动号召？`,
-              timestamp: new Date("2026-03-15T09:00:01.000Z"),
-            },
-          ],
-          isSending: false,
-          sendMessage: sharedSendMessageMock,
-          stopSending: vi.fn(async () => undefined),
-          clearMessages: vi.fn(),
-          deleteMessage: vi.fn(),
-          editMessage: vi.fn(),
-          handlePermissionResponse: vi.fn(),
-          triggerAIGuide: sharedTriggerAIGuideMock,
-          topics: [
-            {
-              id: "topic-a",
-              title: "话题 A",
-              updatedAt: Date.now(),
-            },
-          ],
-          sessionId: "session-1",
-          switchTopic: sharedSwitchTopicMock,
-          deleteTopic: vi.fn(),
-          renameTopic: vi.fn(),
-          workspacePathMissing: false,
-          fixWorkspacePathAndRetry: vi.fn(),
-          dismissWorkspacePathError: vi.fn(),
-        };
-      },
-    );
-
-    renderPage({
-      projectId: "project-legacy-a2ui",
       theme: "general",
       lockTheme: true,
     });
@@ -6021,127 +5919,43 @@ describe("AgentChatPage legacy 问卷 A2UI", () => {
           messages?: Array<Record<string, unknown>>;
         }
       | undefined;
-    expect(latestMessageListProps?.messages?.[1]?.content).toBe(
-      "已整理为补充信息表单，请在输入区完成填写。",
+    expect(latestMessageListProps?.messages?.[1]?.content).toContain(
+      "为了继续推进，我需要你先补充以下信息",
+    );
+    expect(latestMessageListProps?.messages?.[1]?.content).toContain(
+      "这次内容主要面向谁？",
     );
 
     const latestPendingPanelProps =
       mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
         | {
             pendingA2UIForm?: {
-              data?: Record<string, unknown>;
-              components?: Array<Record<string, unknown>>;
+              id?: string;
             } | null;
-            onA2UISubmit?: (formData: Record<string, unknown>) => void;
+            a2uiSubmissionNotice?: {
+              title?: string;
+              summary?: string;
+            } | null;
           }
         | undefined;
-
-    expect(latestPendingPanelProps?.pendingA2UIForm).toBeTruthy();
-    expect(latestPendingPanelProps?.pendingA2UIForm?.data).toMatchObject({
-      source: "legacy_questionnaire",
-      questionCount: 1,
-      governance: expect.objectContaining({
-        originalQuestionCount: 4,
-        deferredQuestionCount: 3,
-      }),
-    });
-    expect(latestPendingPanelProps?.pendingA2UIForm?.components || []).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          component: "ChoicePicker",
-          label: "这次内容主要面向谁？",
-        }),
-      ]),
-    );
-    expect(
-      latestPendingPanelProps?.pendingA2UIForm?.components || [],
-    ).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          label: "这次最想达成的目标是什么？",
-        }),
-        expect.objectContaining({
-          label: "语气偏好",
-        }),
-        expect.objectContaining({
-          label: "是否需要加入明确行动号召？",
-        }),
-      ]),
-    );
-
-    const componentIdByLabel = Object.fromEntries(
-      (latestPendingPanelProps?.pendingA2UIForm?.components || [])
-        .filter(
-          (component) =>
-            (component.component === "ChoicePicker" ||
-              component.component === "TextField") &&
-            typeof component.label === "string" &&
-            typeof component.id === "string",
-        )
-        .map((component) => [component.label, component.id]),
-    );
-
-    act(() => {
-      latestPendingPanelProps?.onA2UISubmit?.({
-        [componentIdByLabel["这次内容主要面向谁？"]]: ["客户"],
-      });
-    });
-
-    expect(sharedSendMessageMock).toHaveBeenCalledWith(
-      `我的选择：
-- 这次内容主要面向谁？: 客户`,
-      [],
-      false,
-      false,
-      false,
-      undefined,
-      undefined,
-      undefined,
-      expect.objectContaining({
-        requestMetadata: {
-          elicitation_context: expect.objectContaining({
-            source: "legacy_questionnaire",
-            mode: "compatibility_bridge",
-            question_count: 1,
-            governance: expect.objectContaining({
-              originalQuestionCount: 4,
-              deferredQuestionCount: 3,
-            }),
-            entries: expect.arrayContaining([
-              expect.objectContaining({
-                label: "这次内容主要面向谁？",
-                value: "客户",
-                summary: "客户",
-              }),
-            ]),
-          }),
-        },
-      }),
-    );
+    expect(latestPendingPanelProps?.pendingA2UIForm ?? null).toBeNull();
+    expect(latestPendingPanelProps?.a2uiSubmissionNotice ?? null).toBeNull();
   });
 
-  it("ask/tool_calls 残留问卷正文也应提升为输入区 A2UI，而不是原样展示", async () => {
-    mockUseAgentChatUnified.mockImplementation(
-      ({ workspaceId }: { workspaceId: string }) => {
-        observedWorkspaceIds.push(workspaceId);
-        return {
-          providerType: "kiro",
-          setProviderType: vi.fn(),
-          model: "mock-model",
-          setModel: vi.fn(),
-          executionStrategy: "auto",
-          setExecutionStrategy: vi.fn(),
-          messages: [
-            {
-              id: "msg-legacy-user",
-              role: "user",
-              content: "请先做网页研究简报",
-              timestamp: new Date("2026-03-15T09:00:00.000Z"),
-            },
-            {
-              id: "msg-legacy-assistant-compat-ask",
-              role: "assistant",
-              content: `我注意到您想让我做“网页研究简报”，但您没有指定具体的研究主题。
+  it("ask/tool_calls 残留问卷正文应原样显示且不生成 pending A2UI", async () => {
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        messages: [
+          {
+            id: "msg-legacy-user",
+            role: "user",
+            content: "请先做网页研究简报",
+            timestamp: new Date("2026-03-15T09:00:00.000Z"),
+          },
+          {
+            id: "msg-legacy-assistant-compat-ask",
+            role: "assistant",
+            content: `我注意到您想让我做“网页研究简报”，但您没有指定具体的研究主题。
 
 我注意到您想让我做“网页研究简报”，但您没有指定具体的研究主题。
 
@@ -6156,33 +5970,10 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
 - 其他您关心的主题
 
 另外，请告诉我该研究的主要目的是什么？</arg_value></tool_calls>`,
-              timestamp: new Date("2026-03-15T09:00:01.000Z"),
-            },
-          ],
-          isSending: false,
-          sendMessage: sharedSendMessageMock,
-          stopSending: vi.fn(async () => undefined),
-          clearMessages: vi.fn(),
-          deleteMessage: vi.fn(),
-          editMessage: vi.fn(),
-          handlePermissionResponse: vi.fn(),
-          triggerAIGuide: sharedTriggerAIGuideMock,
-          topics: [
-            {
-              id: "topic-a",
-              title: "话题 A",
-              updatedAt: Date.now(),
-            },
-          ],
-          sessionId: "session-1",
-          switchTopic: sharedSwitchTopicMock,
-          deleteTopic: vi.fn(),
-          renameTopic: vi.fn(),
-          workspacePathMissing: false,
-          fixWorkspacePathAndRetry: vi.fn(),
-          dismissWorkspacePathError: vi.fn(),
-        };
-      },
+            timestamp: new Date("2026-03-15T09:00:01.000Z"),
+          },
+        ],
+      }),
     );
 
     renderPage({
@@ -6197,185 +5988,38 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
           messages?: Array<Record<string, unknown>>;
         }
       | undefined;
-    expect(latestMessageListProps?.messages?.[1]?.content).toBe(
-      "已整理为补充信息表单，请在输入区完成填写。",
+    expect(latestMessageListProps?.messages?.[1]?.content).toContain(
+      "请提供您希望我研究的具体主题",
+    );
+    expect(latestMessageListProps?.messages?.[1]?.content).toContain(
+      "</tool_calls>",
     );
 
     const latestPendingPanelProps =
       mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
         | {
             pendingA2UIForm?: {
-              data?: Record<string, unknown>;
-              components?: Array<Record<string, unknown>>;
+              id?: string;
             } | null;
           }
         | undefined;
-
-    expect(latestPendingPanelProps?.pendingA2UIForm?.data).toMatchObject({
-      source: "legacy_questionnaire",
-      sectionCount: 1,
-      questionCount: 1,
-      governance: expect.objectContaining({
-        originalQuestionCount: 2,
-        deferredQuestionCount: 1,
-      }),
-    });
-    expect(
-      (latestPendingPanelProps?.pendingA2UIForm?.components || []).some(
-        (component) =>
-          component.component === "TextField" &&
-          component.label === "请提供您希望我研究的具体主题",
-      ),
-    ).toBe(true);
+    expect(latestPendingPanelProps?.pendingA2UIForm ?? null).toBeNull();
   });
 
-  it("普通中文澄清问题也应提升为输入区 A2UI，而不是继续停留在正文里", async () => {
-    mockUseAgentChatUnified.mockImplementation(
-      ({ workspaceId }: { workspaceId: string }) => {
-        observedWorkspaceIds.push(workspaceId);
-        return {
-          providerType: "kiro",
-          setProviderType: vi.fn(),
-          model: "mock-model",
-          setModel: vi.fn(),
-          executionStrategy: "auto",
-          setExecutionStrategy: vi.fn(),
-          messages: [
-            {
-              id: "msg-plain-legacy-user",
-              role: "user",
-              content: "围绕这个主题做研究",
-              timestamp: new Date("2026-03-15T09:00:00.000Z"),
-            },
-            {
-              id: "msg-plain-legacy-assistant",
-              role: "assistant",
-              content: `我需要先明确一下：您希望我研究哪个主题？您的消息中提到了“围绕这个主题”，但没有具体说明主题内容。请告诉我：
-
-- 具体的研究主题（例如：某个产品、技术、公司、市场趋势、政策、事件等）
-- 研究目的（例如：投资决策、技术选型、竞争分析、学习了解等）
-- 是否有特定关注点（例如：风险、机会、对比、最新动态等）
-
-一旦您明确了主题，我会：
-1. 使用联网搜索获取最新信息
-2. 整理关键来源和核心发现
-3. 识别风险点和待追踪问题
-4. 输出一版结构化的研究简报`,
-              timestamp: new Date("2026-03-15T09:00:01.000Z"),
-            },
-          ],
-          isSending: false,
-          sendMessage: sharedSendMessageMock,
-          stopSending: vi.fn(async () => undefined),
-          clearMessages: vi.fn(),
-          deleteMessage: vi.fn(),
-          editMessage: vi.fn(),
-          handlePermissionResponse: vi.fn(),
-          triggerAIGuide: sharedTriggerAIGuideMock,
-          topics: [
-            {
-              id: "topic-a",
-              title: "话题 A",
-              updatedAt: Date.now(),
-            },
-          ],
-          sessionId: "session-1",
-          switchTopic: sharedSwitchTopicMock,
-          deleteTopic: vi.fn(),
-          renameTopic: vi.fn(),
-          workspacePathMissing: false,
-          fixWorkspacePathAndRetry: vi.fn(),
-          dismissWorkspacePathError: vi.fn(),
-        };
-      },
-    );
-
-    renderPage({
-      projectId: "project-plain-legacy-a2ui",
-      theme: "general",
-      lockTheme: true,
-    });
-    await flushEffects(10);
-
-    const latestMessageListProps = mockMessageList.mock.calls.at(-1)?.[0] as
-      | {
-          messages?: Array<Record<string, unknown>>;
-        }
-      | undefined;
-    expect(latestMessageListProps?.messages?.[1]?.content).toBe(
-      "已整理为补充信息表单，请在输入区完成填写。",
-    );
-
-    const latestPendingPanelProps =
-      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
-        | {
-            pendingA2UIForm?: {
-              data?: Record<string, unknown>;
-              components?: Array<Record<string, unknown>>;
-            } | null;
-          }
-        | undefined;
-
-    expect(latestPendingPanelProps?.pendingA2UIForm?.data).toMatchObject({
-      source: "legacy_questionnaire",
-      sectionCount: 1,
-      questionCount: 1,
-      governance: expect.objectContaining({
-        originalQuestionCount: 3,
-        deferredQuestionCount: 2,
-      }),
-    });
-    expect(latestPendingPanelProps?.pendingA2UIForm?.components || []).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          component: "TextField",
-          label: "具体的研究主题",
-        }),
-      ]),
-    );
-    expect(
-      (latestPendingPanelProps?.pendingA2UIForm?.components || []).filter(
-        (component) => component.component === "TextField",
-      ),
-    ).toHaveLength(1);
-    expect(
-      latestPendingPanelProps?.pendingA2UIForm?.components || [],
-    ).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          component: "TextField",
-          label: "研究目的",
-        }),
-        expect.objectContaining({
-          component: "TextField",
-          label: "是否有特定关注点",
-        }),
-      ]),
-    );
-  });
-
-  it("问卷已提交后，消息区应折叠为简短确认而不是继续展示完整题面", async () => {
-    mockUseAgentChatUnified.mockImplementation(
-      ({ workspaceId }: { workspaceId: string }) => {
-        observedWorkspaceIds.push(workspaceId);
-        return {
-          providerType: "kiro",
-          setProviderType: vi.fn(),
-          model: "mock-model",
-          setModel: vi.fn(),
-          executionStrategy: "auto",
-          setExecutionStrategy: vi.fn(),
-          messages: [
-            {
-              id: "msg-legacy-user",
-              role: "user",
-              content: "帮我先梳理需求",
-              timestamp: new Date("2026-03-15T09:00:00.000Z"),
-            },
-            {
-              id: "msg-legacy-assistant",
-              role: "assistant",
-              content: `为了继续推进，我需要你先补充以下信息：
+  it("历史问卷已出现用户补充摘要时也不应折叠原正文", async () => {
+    installMockAgentChatUnifiedState(
+      createMockAgentChatUnifiedState({
+        messages: [
+          {
+            id: "msg-legacy-user",
+            role: "user",
+            content: "帮我先梳理需求",
+            timestamp: new Date("2026-03-15T09:00:00.000Z"),
+          },
+          {
+            id: "msg-legacy-assistant",
+            role: "assistant",
+            content: `为了继续推进，我需要你先补充以下信息：
 
 1. 目标与对象
 - 这次内容主要面向谁？（客户 / 上级 / 同事）
@@ -6384,41 +6028,18 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
 2. 风格与限制
 - 语气偏好：正式严谨 / 友好专业 / 直接高效
 - 是否需要加入明确行动号召？`,
-              timestamp: new Date("2026-03-15T09:00:01.000Z"),
-            },
-            {
-              id: "msg-legacy-summary",
-              role: "user",
-              content: `我的选择：
+            timestamp: new Date("2026-03-15T09:00:01.000Z"),
+          },
+          {
+            id: "msg-legacy-summary",
+            role: "user",
+            content: `我的选择：
 - 这次内容主要面向谁？: 客户
 - 这次最想达成的目标是什么？: 帮助市场团队统一宣传口径`,
-              timestamp: new Date("2026-03-15T09:01:00.000Z"),
-            },
-          ],
-          isSending: false,
-          sendMessage: sharedSendMessageMock,
-          stopSending: vi.fn(async () => undefined),
-          clearMessages: vi.fn(),
-          deleteMessage: vi.fn(),
-          editMessage: vi.fn(),
-          handlePermissionResponse: vi.fn(),
-          triggerAIGuide: sharedTriggerAIGuideMock,
-          topics: [
-            {
-              id: "topic-a",
-              title: "话题 A",
-              updatedAt: Date.now(),
-            },
-          ],
-          sessionId: "session-1",
-          switchTopic: sharedSwitchTopicMock,
-          deleteTopic: vi.fn(),
-          renameTopic: vi.fn(),
-          workspacePathMissing: false,
-          fixWorkspacePathAndRetry: vi.fn(),
-          dismissWorkspacePathError: vi.fn(),
-        };
-      },
+            timestamp: new Date("2026-03-15T09:01:00.000Z"),
+          },
+        ],
+      }),
     );
 
     renderPage({
@@ -6433,12 +6054,30 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
           messages?: Array<Record<string, unknown>>;
         }
       | undefined;
-    expect(latestMessageListProps?.messages?.[1]?.content).toBe(
+    expect(latestMessageListProps?.messages?.[1]?.content).toContain(
+      "为了继续推进，我需要你先补充以下信息",
+    );
+    expect(latestMessageListProps?.messages?.[1]?.content).not.toBe(
       "补充信息表单已提交。",
     );
+
+    const latestPendingPanelProps =
+      mockWorkspacePendingA2UIPanel.mock.calls.at(-1)?.[0] as
+        | {
+            pendingA2UIForm?: {
+              id?: string;
+            } | null;
+            a2uiSubmissionNotice?: {
+              title?: string;
+              summary?: string;
+            } | null;
+          }
+        | undefined;
+    expect(latestPendingPanelProps?.pendingA2UIForm ?? null).toBeNull();
+    expect(latestPendingPanelProps?.a2uiSubmissionNotice ?? null).toBeNull();
   });
 
-  it("真实 action_required 存在时，不应被 legacy 折叠逻辑覆盖", async () => {
+  it("真实 action_required 存在时，应优先提升当前 A2UI", async () => {
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
         observedWorkspaceIds.push(workspaceId);
@@ -6543,7 +6182,7 @@ ask<arg_key>question</arg_key><arg_key>arg_value>请提供您希望我研究的�
     );
   });
 
-  it("真实 action_required 已提交后，输入区应显示补充信息确认提示而不是继续停留在表单态", async () => {
+  it("真实 action_required 已提交后，不应残留表单或旧兼容提示", async () => {
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
         observedWorkspaceIds.push(workspaceId);

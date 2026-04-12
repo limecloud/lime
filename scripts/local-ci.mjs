@@ -10,6 +10,14 @@ const rootDir = process.cwd();
 
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const cargoCommand = process.platform === "win32" ? "cargo.exe" : "cargo";
+const BRIDGE_REASON_LABELS = {
+  bridge_contracts: "bridge/contracts",
+  bridge_runtime: "DevBridge / mock / bridge runtime",
+  fallback_full_suite: "兜底全量",
+  full_suite: "full 模式",
+  harness_cleanup_contract: "harness cleanup contract",
+  workflow_full_suite: "workflow 全量",
+};
 
 function parseArgs(argv) {
   const result = {
@@ -107,7 +115,16 @@ function printSummary(changedFiles, tasks) {
     console.log("[local-ci] - 前端校验");
   }
   if (tasks.bridge) {
-    console.log("[local-ci] - bridge 校验");
+    const bridgeReasonLabels = Array.isArray(tasks.bridgeReasons)
+      ? tasks.bridgeReasons
+          .map((reason) => BRIDGE_REASON_LABELS[reason] ?? reason)
+          .filter(Boolean)
+      : [];
+    console.log(
+      bridgeReasonLabels.length > 0
+        ? `[local-ci] - bridge 校验（${bridgeReasonLabels.join(" / ")}）`
+        : "[local-ci] - bridge 校验",
+    );
   }
   if (tasks.guiSmoke) {
     console.log("[local-ci] - GUI 冒烟");

@@ -1,9 +1,53 @@
 use crate::conversation::message::ActionRequiredScope;
 use crate::session::TurnContextOverride;
 use futures::{Stream, StreamExt};
+use serde_json::Value;
+use std::collections::HashMap;
 use tokio::task_local;
 
 pub const SESSION_ID_HEADER: &str = "aster-session-id";
+pub const THREAD_ID_HEADER: &str = "aster-thread-id";
+pub const TURN_ID_HEADER: &str = "aster-turn-id";
+pub const PENDING_REQUEST_ID_HEADER: &str = "aster-pending-request-id";
+pub const QUEUED_TURN_ID_HEADER: &str = "aster-queued-turn-id";
+pub const SUBAGENT_SESSION_ID_HEADER: &str = "aster-subagent-session-id";
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RequestCorrelationContext {
+    pub session_id: Option<String>,
+    pub thread_id: Option<String>,
+    pub turn_id: Option<String>,
+    pub pending_request_id: Option<String>,
+    pub queued_turn_id: Option<String>,
+    pub subagent_session_id: Option<String>,
+}
+
+impl RequestCorrelationContext {
+    pub fn header_values(&self) -> Vec<(&'static str, String)> {
+        let mut headers = Vec::new();
+
+        if let Some(value) = self.session_id.clone() {
+            headers.push((SESSION_ID_HEADER, value));
+        }
+        if let Some(value) = self.thread_id.clone() {
+            headers.push((THREAD_ID_HEADER, value));
+        }
+        if let Some(value) = self.turn_id.clone() {
+            headers.push((TURN_ID_HEADER, value));
+        }
+        if let Some(value) = self.pending_request_id.clone() {
+            headers.push((PENDING_REQUEST_ID_HEADER, value));
+        }
+        if let Some(value) = self.queued_turn_id.clone() {
+            headers.push((QUEUED_TURN_ID_HEADER, value));
+        }
+        if let Some(value) = self.subagent_session_id.clone() {
+            headers.push((SUBAGENT_SESSION_ID_HEADER, value));
+        }
+
+        headers
+    }
+}
 
 task_local! {
     pub static SESSION_ID: Option<String>;
@@ -73,6 +117,59 @@ pub fn current_turn_context() -> Option<TurnContextOverride> {
         .try_with(|turn_context| turn_context.clone())
         .ok()
         .flatten()
+}
+
+pub fn current_request_correlation_context() -> RequestCorrelationContext {
+    let action_scope = current_action_scope();
+    let turn_context = current_turn_context();
+    let metadata = turn_context.as_ref().map(|context| &context.metadata);
+
+    RequestCorrelationContext {
+        session_id: action_scope
+            .as_ref()
+            .and_then(|scope| scope.session_id.clone())
+            .or_else(current_session_id),
+        thread_id: action_scope
+            .as_ref()
+            .and_then(|scope| scope.thread_id.clone()),
+        turn_id: action_scope
+            .as_ref()
+            .and_then(|scope| scope.turn_id.clone()),
+        pending_request_id: metadata.and_then(|value| {
+            find_metadata_string(value, &["pending_request_id", "pendingRequestId"])
+        }),
+        queued_turn_id: metadata
+            .and_then(|value| find_metadata_string(value, &["queued_turn_id", "queuedTurnId"])),
+        subagent_session_id: metadata
+            .and_then(|value| {
+                find_metadata_string(value, &["subagent_session_id", "subagentSessionId"])
+            })
+            .or_else(|| metadata.and_then(find_subagent_session_id)),
+    }
+}
+
+fn find_metadata_string(metadata: &HashMap<String, Value>, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| metadata.get(*key))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn find_subagent_session_id(metadata: &HashMap<String, Value>) -> Option<String> {
+    metadata
+        .get("subagent")
+        .and_then(Value::as_object)
+        .and_then(|subagent| {
+            subagent
+                .get("session_id")
+                .or_else(|| subagent.get("sessionId"))
+        })
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
 }
 
 pub fn scope_stream<S>(
@@ -200,6 +297,40 @@ mod tests {
             assert_eq!(current_session_id(), Some("session-2".to_string()));
             assert_eq!(current_action_scope(), Some(scope));
             assert_eq!(current_turn_context(), Some(turn_context));
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_request_correlation_context_reads_scope_and_turn_metadata() {
+        let scope = ActionRequiredScope {
+            session_id: Some("session-corr".to_string()),
+            thread_id: Some("thread-corr".to_string()),
+            turn_id: Some("turn-corr".to_string()),
+        };
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            "pendingRequestId".to_string(),
+            serde_json::json!("pending-1"),
+        );
+        metadata.insert("queued_turn_id".to_string(), serde_json::json!("queued-1"));
+        metadata.insert(
+            "subagent".to_string(),
+            serde_json::json!({ "sessionId": "subagent-1" }),
+        );
+        let turn_context = TurnContextOverride {
+            metadata,
+            ..TurnContextOverride::default()
+        };
+
+        with_runtime_scope(scope, Some(turn_context), async {
+            let context = current_request_correlation_context();
+            assert_eq!(context.session_id.as_deref(), Some("session-corr"));
+            assert_eq!(context.thread_id.as_deref(), Some("thread-corr"));
+            assert_eq!(context.turn_id.as_deref(), Some("turn-corr"));
+            assert_eq!(context.pending_request_id.as_deref(), Some("pending-1"));
+            assert_eq!(context.queued_turn_id.as_deref(), Some("queued-1"));
+            assert_eq!(context.subagent_session_id.as_deref(), Some("subagent-1"));
         })
         .await;
     }

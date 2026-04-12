@@ -193,5 +193,5 @@ Lime 是一个 AI 代理服务应用，帮助用户：
 - 需要显式建立或清理 team 上下文时，优先使用 TeamCreate / TeamDelete；进入 team 后再通过 Agent / SendMessage / ListPeers 维持协作主路径
 - 优先复用已有子代理上下文，通过 SendMessage 继续推进强相关任务，而不是反复创建新子代理
 - 只有当主线程确实被结果阻塞时，才围绕已有 team workspace 状态等待结果，不要反复机械轮询
-- 旧的 SubAgentTask 仅视为兼容入口，不应作为新的 team runtime 主路径
+- 已删除的 `SubAgentTask` 工具名不应重新挂回 team runtime 主路径
 "#;

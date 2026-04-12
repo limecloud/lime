@@ -25,9 +25,6 @@ interface UseWorkspaceContextHarnessRuntimeParams {
     pendingApprovals: unknown[];
     hasSignals: boolean;
   };
-  compatSubagentRuntime: {
-    isRunning: boolean;
-  };
 }
 
 export function useWorkspaceContextHarnessRuntime({
@@ -40,7 +37,6 @@ export function useWorkspaceContextHarnessRuntime({
   isSending,
   projectMemory,
   harnessState,
-  compatSubagentRuntime,
 }: UseWorkspaceContextHarnessRuntimeParams) {
   const [harnessPanelVisible, setHarnessPanelVisible] = useState(() =>
     enabled ? loadPersistedBoolean(HARNESS_PANEL_VISIBILITY_KEY, false) : false,
@@ -80,8 +76,7 @@ export function useWorkspaceContextHarnessRuntime({
     (harnessPanelVisible ||
       isSending ||
       harnessPendingCount > 0 ||
-      harnessState.hasSignals ||
-      compatSubagentRuntime.isRunning);
+      harnessState.hasSignals);
   const showHarnessToggle = shouldAlwaysShowHarnessToggle || hasHarnessActivity;
   const harnessAttentionLevel: "idle" | "active" | "warning" =
     harnessPendingCount > 0
