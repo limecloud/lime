@@ -40,9 +40,12 @@ describe("hotkey catalog", () => {
       attention: 0,
       globalReady: 3,
     });
-    expect(
-      catalog.sections.find((section) => section.scene === "terminal"),
-    ).toBeUndefined();
+    expect(catalog.sections.map((section) => section.scene)).toEqual([
+      "global",
+      "workspace",
+      "document-editor",
+      "document-canvas",
+    ]);
   });
 
   it("应正确标记未启用、未配置与运行时异常状态", () => {
