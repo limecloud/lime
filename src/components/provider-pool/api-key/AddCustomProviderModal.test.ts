@@ -17,7 +17,10 @@ import {
   hasRequiredFields,
 } from "./AddCustomProviderModal";
 import { PROVIDER_TYPE_VALUES } from "./ProviderConfigForm.utils";
-import type { ProviderType } from "@/lib/types/provider";
+import type {
+  ProviderDeclaredPromptCacheMode,
+  ProviderType,
+} from "@/lib/types/provider";
 
 // ============================================================================
 // 测试数据生成器
@@ -32,6 +35,8 @@ const VALID_PROVIDER_TYPES: ProviderType[] = PROVIDER_TYPE_VALUES;
 const providerTypeArbitrary: fc.Arbitrary<ProviderType> = fc.constantFrom(
   ...VALID_PROVIDER_TYPES,
 );
+const promptCacheModeArbitrary: fc.Arbitrary<ProviderDeclaredPromptCacheMode> =
+  fc.constantFrom("explicit_only", "automatic");
 
 /**
  * 生成有效的 URL
@@ -85,6 +90,7 @@ const invalidUrlArbitrary: fc.Arbitrary<string> = fc.oneof(
 const validFormStateArbitrary = fc.record({
   name: nonEmptyStringArbitrary,
   type: providerTypeArbitrary,
+  promptCacheMode: promptCacheModeArbitrary,
   apiHost: validUrlArbitrary,
   apiKey: nonEmptyStringArbitrary,
   apiVersion: fc.string({ maxLength: 30 }),
@@ -99,6 +105,7 @@ const validFormStateArbitrary = fc.record({
 const formStateMissingNameArbitrary = fc.record({
   name: whitespaceStringArbitrary,
   type: providerTypeArbitrary,
+  promptCacheMode: promptCacheModeArbitrary,
   apiHost: validUrlArbitrary,
   apiKey: nonEmptyStringArbitrary,
   apiVersion: fc.string({ maxLength: 30 }),
@@ -113,6 +120,7 @@ const formStateMissingNameArbitrary = fc.record({
 const formStateMissingApiHostArbitrary = fc.record({
   name: nonEmptyStringArbitrary,
   type: providerTypeArbitrary,
+  promptCacheMode: promptCacheModeArbitrary,
   apiHost: whitespaceStringArbitrary,
   apiKey: nonEmptyStringArbitrary,
   apiVersion: fc.string({ maxLength: 30 }),
@@ -127,6 +135,7 @@ const formStateMissingApiHostArbitrary = fc.record({
 const formStateMissingApiKeyArbitrary = fc.record({
   name: nonEmptyStringArbitrary,
   type: providerTypeArbitrary,
+  promptCacheMode: promptCacheModeArbitrary,
   apiHost: validUrlArbitrary,
   apiKey: whitespaceStringArbitrary,
   apiVersion: fc.string({ maxLength: 30 }),
@@ -141,6 +150,7 @@ const formStateMissingApiKeyArbitrary = fc.record({
 const formStateInvalidApiHostArbitrary = fc.record({
   name: nonEmptyStringArbitrary,
   type: providerTypeArbitrary,
+  promptCacheMode: promptCacheModeArbitrary,
   apiHost: invalidUrlArbitrary,
   apiKey: nonEmptyStringArbitrary,
   apiVersion: fc.string({ maxLength: 30 }),
@@ -297,6 +307,7 @@ describe("Property 8: 自定义 Provider 表单验证", () => {
       const formState = {
         name: "a".repeat(51),
         type: "openai" as ProviderType,
+        promptCacheMode: "explicit_only" as ProviderDeclaredPromptCacheMode,
         apiHost: "https://api.example.com",
         apiKey: "sk-test-key",
         apiVersion: "",
@@ -314,6 +325,7 @@ describe("Property 8: 自定义 Provider 表单验证", () => {
       const formState = {
         name: "a".repeat(50),
         type: "openai" as ProviderType,
+        promptCacheMode: "explicit_only" as ProviderDeclaredPromptCacheMode,
         apiHost: "https://api.example.com",
         apiKey: "sk-test-key",
         apiVersion: "",
@@ -332,6 +344,7 @@ describe("Property 8: 自定义 Provider 表单验证", () => {
       const formState = {
         name: "",
         type: "openai" as ProviderType,
+        promptCacheMode: "explicit_only" as ProviderDeclaredPromptCacheMode,
         apiHost: "",
         apiKey: "",
         apiVersion: "",
@@ -351,6 +364,7 @@ describe("Property 8: 自定义 Provider 表单验证", () => {
       const formState = {
         name: "",
         type: "openai" as ProviderType,
+        promptCacheMode: "explicit_only" as ProviderDeclaredPromptCacheMode,
         apiHost: "",
         apiKey: "",
         apiVersion: "",

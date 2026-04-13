@@ -6,7 +6,7 @@
 //! **Validates: Requirements 9.1**
 
 use crate::database::dao::api_key_provider::{
-    ApiKeyEntry, ApiKeyProvider, ApiProviderType, ProviderWithKeys,
+    ApiKeyEntry, ApiKeyProvider, ApiProviderPromptCacheMode, ApiProviderType, ProviderWithKeys,
 };
 use crate::database::system_providers::get_system_providers;
 use crate::database::DbConnection;
@@ -35,6 +35,7 @@ pub struct AddCustomProviderRequest {
     pub project: Option<String>,
     pub location: Option<String>,
     pub region: Option<String>,
+    pub prompt_cache_mode: Option<String>,
 }
 
 /// 更新 Provider 请求
@@ -51,6 +52,7 @@ pub struct UpdateProviderRequest {
     pub project: Option<String>,
     pub location: Option<String>,
     pub region: Option<String>,
+    pub prompt_cache_mode: Option<String>,
     /// 自定义模型列表
     pub custom_models: Option<Vec<String>>,
 }
@@ -81,6 +83,8 @@ pub struct ProviderDisplay {
     pub region: Option<String>,
     /// 自定义模型列表
     pub custom_models: Vec<String>,
+    /// 当前 Provider 声明的 Prompt Cache 模式（前端优先使用该值，不再只按 type 猜）
+    pub prompt_cache_mode: Option<String>,
     pub api_key_count: usize,
     pub created_at: String,
     pub updated_at: String,
@@ -156,6 +160,9 @@ fn provider_to_display(provider: &ApiKeyProvider, api_key_count: usize) -> Provi
         location: provider.location.clone(),
         region: provider.region.clone(),
         custom_models: provider.custom_models.clone(),
+        prompt_cache_mode: provider
+            .effective_prompt_cache_mode()
+            .map(|mode| mode.to_string()),
         api_key_count,
         created_at: provider.created_at.to_rfc3339(),
         updated_at: provider.updated_at.to_rfc3339(),
@@ -306,6 +313,11 @@ pub fn add_custom_api_key_provider(
         request.project,
         request.location,
         request.region,
+        request
+            .prompt_cache_mode
+            .map(|mode| mode.parse::<ApiProviderPromptCacheMode>())
+            .transpose()
+            .map_err(|e: String| format!("无效的 Prompt Cache 模式: {e}"))?,
     )?;
 
     Ok(provider_to_display(&provider, 0))
@@ -338,6 +350,11 @@ pub fn update_api_key_provider(
         request.project,
         request.location,
         request.region,
+        request
+            .prompt_cache_mode
+            .map(|mode| mode.parse::<ApiProviderPromptCacheMode>())
+            .transpose()
+            .map_err(|e: String| format!("无效的 Prompt Cache 模式: {e}"))?,
         request.custom_models,
     )?;
 

@@ -10,6 +10,21 @@ const BRACKET_IMAGE_PLACEHOLDER_TEST_RE = /\[\s*Image\s*#\d+\s*\]/i;
 const BARE_IMAGE_PLACEHOLDER_TEST_RE =
   /(^|[\s,，;；])Image\s*#\d+(?=$|[\s,，;；])/i;
 const EXACT_IMAGE_TASK_LABEL_RE = /^\[?\s*Image\s*#(\d+)\s*\]?$/i;
+const TOOL_NARRATION_TOOL_NAME_RE =
+  /\b(?:ToolSearch|WebSearch|WebFetch|Read|Write|Edit|Glob|Grep|Bash|StructuredOutput|webReader)\b|(?:mcp__[\w-]+(?:__[\w-]+)?|lime_[\w-]+)/i;
+const TOOL_NARRATION_ACTION_RE =
+  /调用|使用|执行|检索|搜索|读取|抓取|访问|打开|分析|查找|扩搜|筛选|切换|转去|改为|尝试/i;
+const TOOL_NARRATION_SELF_PROCESS_RE =
+  /让我|我将|我会|接下来|现在|继续|直接|先|然后|随后|改为|转去|尝试|开始/i;
+const TOOL_NARRATION_SCHEDULING_RE =
+  /只返回了元数据|未命中|没有返回|改为|转去|切换到|直接调用/i;
+const TOOL_NARRATION_NAVIGATION_TARGET_RE =
+  /搜索页|结果页|网页|页面|链接|文件|目录|仓库|日志|结果/i;
+const TOOL_NARRATION_NAVIGATION_RE =
+  /已经打开|已打开|打开了|开始筛选|继续筛选|开始查看|继续查看|开始检索|继续检索|开始分析|继续分析|开始整理|继续整理/i;
+const TOOL_NARRATION_RESULT_RE =
+  /结果如下|结论|我发现|发现了|查到|查到了|显示|表明|说明|意味着|共有|共计|\d+\s*(?:个|条|项|篇|页|处)/i;
+const TOOL_NARRATION_MAX_LENGTH = 120;
 
 function collapseDisplayWhitespace(value: string): string {
   return value
@@ -29,6 +44,41 @@ function replaceImagePlaceholders(text: string, replacement: string): string {
   return withBracketPlaceholders.replace(
     BARE_IMAGE_PLACEHOLDER_RE,
     (_match, prefix: string) => `${prefix}${replacement}`,
+  );
+}
+
+function hasAdjacentToolUse(
+  parts: ContentPart[],
+  index: number,
+): boolean {
+  return (
+    parts[index - 1]?.type === "tool_use" || parts[index + 1]?.type === "tool_use"
+  );
+}
+
+function shouldStripAssistantToolNarration(text: string): boolean {
+  const normalized = collapseDisplayWhitespace(text);
+  if (!normalized || normalized.length > TOOL_NARRATION_MAX_LENGTH) {
+    return false;
+  }
+
+  if (TOOL_NARRATION_RESULT_RE.test(normalized)) {
+    return false;
+  }
+
+  const hasToolName = TOOL_NARRATION_TOOL_NAME_RE.test(normalized);
+  const hasAction = TOOL_NARRATION_ACTION_RE.test(normalized);
+  const hasSelfProcess = TOOL_NARRATION_SELF_PROCESS_RE.test(normalized);
+  const hasSchedulingCue = TOOL_NARRATION_SCHEDULING_RE.test(normalized);
+
+  if (hasToolName && hasAction && (hasSelfProcess || hasSchedulingCue)) {
+    return true;
+  }
+
+  return (
+    hasSelfProcess &&
+    TOOL_NARRATION_NAVIGATION_RE.test(normalized) &&
+    TOOL_NARRATION_NAVIGATION_TARGET_RE.test(normalized)
   );
 }
 
@@ -125,13 +175,21 @@ export function sanitizeContentPartsForDisplay(
     return parts;
   }
 
-  const sanitizedParts = parts.flatMap<ContentPart>((part) => {
+  const sanitizedParts = parts.flatMap<ContentPart>((part, index) => {
     if (part.type !== "text") {
       return [part];
     }
 
     const sanitizedText = sanitizeMessageTextForDisplay(part.text, options);
     if (!sanitizedText) {
+      return [];
+    }
+
+    if (
+      options.role === "assistant" &&
+      hasAdjacentToolUse(parts, index) &&
+      shouldStripAssistantToolNarration(sanitizedText)
+    ) {
       return [];
     }
 

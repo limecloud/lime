@@ -4,7 +4,11 @@
  * @module components/provider-pool/api-key/ProviderConfigForm.utils
  */
 
-import type { ProviderType } from "@/lib/types/provider";
+import type {
+  ProviderDeclaredPromptCacheMode,
+  ProviderType,
+} from "@/lib/types/provider";
+import { getProviderPromptCacheMode } from "@/lib/model/providerPromptCacheSupport";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 
 /** 支持的 Provider 类型列表 */
@@ -52,10 +56,29 @@ const SPECIAL_PROVIDER_PROTOCOL_HINTS: Partial<Record<ProviderType, string>> = {
   anthropic:
     "Anthropic 继续使用原生协议，不会被收敛到普通 OpenAI 兼容请求格式。",
   "anthropic-compatible":
-    "Anthropic 兼容用于接入实现 Anthropic wire format 的第三方服务，仍按 Anthropic 语义处理请求与模型映射。",
+    "Anthropic 兼容用于接入实现 Anthropic wire format 的第三方服务，会沿用 Anthropic 请求结构与模型映射。Lime 会自动识别已知官方 Anthropic 兼容端点（如 GLM / Kimi / MiniMax / MiMo）；未知端点默认回退为仅显式缓存。",
   gemini:
     "Gemini 保留原生协议能力与专属模型映射，不按普通 OpenAI 兼容 Provider 处理。",
 };
+
+export const PROMPT_CACHE_MODE_OPTIONS: Array<{
+  value: ProviderDeclaredPromptCacheMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "explicit_only",
+    label: "仅显式缓存",
+    description:
+      "默认选项。只有显式写入 cache_control 时才请求上游复用前缀。",
+  },
+  {
+    value: "automatic",
+    label: "已声明自动缓存",
+    description:
+      "仅在上游明确声明兼容 Anthropic Automatic Prompt Cache 时使用。",
+  },
+];
 
 export function isSupportedProviderType(
   providerType: string,
@@ -76,6 +99,39 @@ export function isSpecialProtocolProviderType(type: ProviderType): boolean {
 
 export function getSpecialProtocolHint(type: ProviderType): string | null {
   return SPECIAL_PROVIDER_PROTOCOL_HINTS[type] ?? null;
+}
+
+export function isPromptCacheModeConfigurableProviderType(
+  type: ProviderType,
+  apiHost?: string | null,
+): boolean {
+  return (
+    type === "anthropic-compatible" &&
+    getProviderPromptCacheMode(type, null, apiHost) === "explicit_only"
+  );
+}
+
+export function resolvePromptCacheModeFormValue(
+  promptCacheMode?: ProviderDeclaredPromptCacheMode | null,
+  providerType?: ProviderType,
+  apiHost?: string | null,
+): ProviderDeclaredPromptCacheMode {
+  return getProviderPromptCacheMode(providerType, promptCacheMode, apiHost) ===
+    "automatic"
+    ? "automatic"
+    : "explicit_only";
+}
+
+export function resolvePromptCacheModeRequestValue(
+  type: ProviderType,
+  promptCacheMode: ProviderDeclaredPromptCacheMode,
+  apiHost?: string | null,
+): ProviderDeclaredPromptCacheMode | null {
+  if (type !== "anthropic-compatible") {
+    return null;
+  }
+
+  return resolvePromptCacheModeFormValue(promptCacheMode, type, apiHost);
 }
 
 export function dedupeModelIds(modelIds: string[]): string[] {

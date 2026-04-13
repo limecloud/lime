@@ -77,6 +77,7 @@ impl SessionStore for TestSessionStore {
             input_tokens: None,
             output_tokens: None,
             cached_input_tokens: None,
+            cache_creation_input_tokens: None,
             accumulated_total_tokens: None,
             accumulated_input_tokens: None,
             accumulated_output_tokens: None,

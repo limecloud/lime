@@ -189,7 +189,7 @@ describe("AppearanceSettings", () => {
   it("切换底部入口时应保留 workspace_preferences 的其他配置", async () => {
     const { container } = await renderPage();
     const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("工具箱"),
+      (item) => item.textContent?.includes("插件中心"),
     );
 
     await act(async () => {
@@ -199,7 +199,7 @@ describe("AppearanceSettings", () => {
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual(["tools"]);
+    expect(savedConfig.navigation.enabled_items).toEqual(["plugins"]);
     expect(
       savedConfig.workspace_preferences.media_defaults.voice
         .preferredProviderId,
@@ -209,7 +209,7 @@ describe("AppearanceSettings", () => {
   it("切换底部入口时应保存完整的侧栏导航配置", async () => {
     const { container } = await renderPage();
     const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("工具箱"),
+      (item) => item.textContent?.includes("插件中心"),
     );
 
     await act(async () => {
@@ -219,7 +219,7 @@ describe("AppearanceSettings", () => {
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual(["tools"]);
+    expect(savedConfig.navigation.enabled_items).toEqual(["plugins"]);
   });
 
   it("缺少导航配置时应回退到底部默认入口", async () => {
@@ -232,7 +232,7 @@ describe("AppearanceSettings", () => {
 
     const { container } = await renderPage();
     const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("工具箱"),
+      (item) => item.textContent?.includes("插件中心"),
     );
 
     await act(async () => {
@@ -242,20 +242,20 @@ describe("AppearanceSettings", () => {
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual(["tools"]);
+    expect(savedConfig.navigation.enabled_items).toEqual(["plugins"]);
   });
 
   it("应允许把所有可选侧栏入口恢复为默认隐藏", async () => {
     mockGetConfig.mockResolvedValue({
       ...createMockConfig(),
       navigation: {
-        enabled_items: ["tools"],
+        enabled_items: ["plugins"],
       },
     });
 
     const { container } = await renderPage();
     const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("工具箱"),
+      (item) => item.textContent?.includes("插件中心"),
     );
 
     await act(async () => {

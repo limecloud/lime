@@ -76,6 +76,7 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             location TEXT,
             region TEXT,
             custom_models TEXT,
+            prompt_cache_mode TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )",
@@ -85,6 +86,10 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     // Migration: 添加 custom_models 列（如果不存在）
     let _ = conn.execute(
         "ALTER TABLE api_key_providers ADD COLUMN custom_models TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE api_key_providers ADD COLUMN prompt_cache_mode TEXT",
         [],
     );
 
@@ -539,6 +544,7 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             input_tokens INTEGER,
             output_tokens INTEGER,
             cached_input_tokens INTEGER,
+            cache_creation_input_tokens INTEGER,
             accumulated_total_tokens INTEGER,
             accumulated_input_tokens INTEGER,
             accumulated_output_tokens INTEGER,
@@ -591,6 +597,10 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     );
     let _ = conn.execute(
+        "ALTER TABLE agent_sessions ADD COLUMN cache_creation_input_tokens INTEGER",
+        [],
+    );
+    let _ = conn.execute(
         "ALTER TABLE agent_sessions ADD COLUMN accumulated_total_tokens INTEGER",
         [],
     );
@@ -632,6 +642,7 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
             input_tokens INTEGER,
             output_tokens INTEGER,
             cached_input_tokens INTEGER,
+            cache_creation_input_tokens INTEGER,
             FOREIGN KEY (session_id) REFERENCES agent_sessions(id) ON DELETE CASCADE
         )",
         [],
@@ -651,6 +662,10 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     );
     let _ = conn.execute(
         "ALTER TABLE agent_messages ADD COLUMN cached_input_tokens INTEGER",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE agent_messages ADD COLUMN cache_creation_input_tokens INTEGER",
         [],
     );
 

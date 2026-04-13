@@ -279,6 +279,7 @@ pub struct Usage {
     pub output_tokens: Option<i32>,
     pub total_tokens: Option<i32>,
     pub cached_input_tokens: Option<i32>,
+    pub cache_creation_input_tokens: Option<i32>,
 }
 
 fn sum_optionals<T>(a: Option<T>, b: Option<T>) -> Option<T>
@@ -305,6 +306,10 @@ impl Add for Usage {
         .with_cached_input_tokens(sum_optionals(
             self.cached_input_tokens,
             other.cached_input_tokens,
+        ))
+        .with_cache_creation_input_tokens(sum_optionals(
+            self.cache_creation_input_tokens,
+            other.cache_creation_input_tokens,
         ))
     }
 }
@@ -337,11 +342,20 @@ impl Usage {
             output_tokens,
             total_tokens: calculated_total,
             cached_input_tokens: None,
+            cache_creation_input_tokens: None,
         }
     }
 
     pub fn with_cached_input_tokens(mut self, cached_input_tokens: Option<i32>) -> Self {
         self.cached_input_tokens = cached_input_tokens;
+        self
+    }
+
+    pub fn with_cache_creation_input_tokens(
+        mut self,
+        cache_creation_input_tokens: Option<i32>,
+    ) -> Self {
+        self.cache_creation_input_tokens = cache_creation_input_tokens;
         self
     }
 }

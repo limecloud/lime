@@ -256,10 +256,8 @@ function buildNormalizedTotals(summary) {
   const rawTotals =
     summary?.totals && typeof summary.totals === "object" ? summary.totals : {};
   const gapTotals = buildObservabilityGapTotals(summary);
-  const currentVerificationOutcomeEntries = getBreakdownEntries(
-    summary,
-    "currentObservabilityVerificationOutcomes",
-  );
+  const currentRecoveredVerificationEntries =
+    getCurrentRecoveredVerificationEntries(summary);
   return {
     suiteCount: normalizeNumber(rawTotals.suiteCount),
     caseCount: normalizeNumber(rawTotals.caseCount),
@@ -274,11 +272,10 @@ function buildNormalizedTotals(summary) {
     currentObservabilityGapCaseCount: gapTotals.current,
     degradedObservabilityGapCaseCount: gapTotals.degraded,
     currentRecoveredVerificationCaseCount:
-      currentVerificationOutcomeEntries.length > 0
-        ? getBreakdownCaseCount(
-            summary,
-            "currentObservabilityVerificationOutcomes",
-            RECOVERED_VERIFICATION_OUTCOMES,
+      currentRecoveredVerificationEntries.length > 0
+        ? currentRecoveredVerificationEntries.reduce(
+            (total, entry) => total + normalizeNumber(entry?.caseCount),
+            0,
           )
         : normalizeNumber(rawTotals.currentRecoveredVerificationCaseCount),
   };
@@ -324,6 +321,21 @@ function getBreakdownMap(summary, key) {
       },
     ]),
   );
+}
+
+function getCurrentRecoveredVerificationEntries(summary) {
+  const explicitEntries = getBreakdownEntries(
+    summary,
+    "currentRecoveredObservabilityVerificationOutcomes",
+  );
+  if (explicitEntries.length > 0) {
+    return explicitEntries;
+  }
+
+  return getBreakdownEntries(
+    summary,
+    "currentObservabilityVerificationOutcomes",
+  ).filter((entry) => RECOVERED_VERIFICATION_OUTCOMES.has(entry.name));
 }
 
 function buildSuiteDeltas(baseline, latest) {
@@ -428,6 +440,32 @@ function buildFilteredBreakdownDeltas(baseline, latest, key, predicate) {
   );
 }
 
+function buildCurrentRecoveredVerificationDeltas(baseline, latest) {
+  const baselineExplicitEntries = getBreakdownEntries(
+    baseline,
+    "currentRecoveredObservabilityVerificationOutcomes",
+  );
+  const latestExplicitEntries = getBreakdownEntries(
+    latest,
+    "currentRecoveredObservabilityVerificationOutcomes",
+  );
+
+  if (baselineExplicitEntries.length > 0 || latestExplicitEntries.length > 0) {
+    return buildBreakdownDeltas(
+      baseline,
+      latest,
+      "currentRecoveredObservabilityVerificationOutcomes",
+    );
+  }
+
+  return buildFilteredBreakdownDeltas(
+    baseline,
+    latest,
+    "currentObservabilityVerificationOutcomes",
+    (entry) => RECOVERED_VERIFICATION_OUTCOMES.has(entry.name),
+  );
+}
+
 function buildStatusSignals(baseline, latest, sampleCount) {
   const signals = [];
 
@@ -507,12 +545,8 @@ function buildStatusSignals(baseline, latest, sampleCount) {
     );
   }
 
-  const currentRecoveredVerificationDeltas = buildFilteredBreakdownDeltas(
-    baseline,
-    latest,
-    "currentObservabilityVerificationOutcomes",
-    (entry) => RECOVERED_VERIFICATION_OUTCOMES.has(entry.name),
-  );
+  const currentRecoveredVerificationDeltas =
+    buildCurrentRecoveredVerificationDeltas(baseline, latest);
   for (const entry of currentRecoveredVerificationDeltas.filter(
     (candidate) => candidate.delta.caseCount < 0,
   )) {
@@ -631,12 +665,7 @@ function buildTrendReport(samples, repoRoot) {
         "observabilityVerificationOutcomes",
       ),
       currentRecoveredObservabilityVerificationOutcomes:
-        buildFilteredBreakdownDeltas(
-          baseline,
-          latest,
-          "currentObservabilityVerificationOutcomes",
-          (entry) => RECOVERED_VERIFICATION_OUTCOMES.has(entry.name),
-        ),
+        buildCurrentRecoveredVerificationDeltas(baseline, latest),
       currentObservabilityVerificationOutcomes: buildBreakdownDeltas(
         baseline,
         latest,

@@ -3,16 +3,12 @@ import {
   BrainCircuit,
   CalendarRange,
   Compass,
-  Image,
   Library,
   MessageSquare,
   Plus,
   Send,
   Settings,
   Sparkles,
-  Terminal,
-  Video,
-  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -71,11 +67,6 @@ const TASK_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   },
 ];
 
-const WORKSPACE_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
-  { id: "video", label: "视频", icon: Video, page: "video" },
-  { id: "image-gen", label: "插图", icon: Image, page: "image-gen" },
-];
-
 const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   {
     id: "skills",
@@ -122,8 +113,6 @@ const LIBRARY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
 ];
 
 const SYSTEM_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
-  { id: "terminal", label: "终端", icon: Terminal, page: "terminal" },
-  { id: "tools", label: "工具箱", icon: Wrench, page: "tools" },
   { id: "plugins", label: "插件中心", icon: Compass, page: "plugins" },
   {
     id: "openclaw",
@@ -165,7 +154,6 @@ const SYSTEM_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
 
 export const MAIN_SIDEBAR_NAV_SECTIONS: SidebarNavSectionDefinition[] = [
   { id: "tasks", title: "任务", items: TASK_SIDEBAR_NAV_ITEMS },
-  { id: "workspace", title: "工作台", items: WORKSPACE_SIDEBAR_NAV_ITEMS },
   { id: "capability", title: "能力", items: CAPABILITY_SIDEBAR_NAV_ITEMS },
   { id: "library", title: "资料", items: LIBRARY_SIDEBAR_NAV_ITEMS },
 ];

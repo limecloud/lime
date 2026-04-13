@@ -392,6 +392,68 @@ export interface AgentRuntimeEvidenceArtifact {
   bytes: number;
 }
 
+export type AgentRuntimeEvidenceVerificationOutcome =
+  | "success"
+  | "blocking_failure"
+  | "advisory_failure"
+  | "recovered";
+
+export interface AgentRuntimeEvidenceSignalCoverageEntry {
+  signal: string;
+  status: string;
+  source: string;
+  detail: string;
+}
+
+export interface AgentRuntimeArtifactValidatorVerificationSummary {
+  applicable: boolean;
+  record_count: number;
+  issue_count: number;
+  repaired_count: number;
+  fallback_used_count: number;
+  outcome?: AgentRuntimeEvidenceVerificationOutcome;
+}
+
+export interface AgentRuntimeBrowserVerificationSummary {
+  record_count: number;
+  success_count: number;
+  failure_count: number;
+  unknown_count: number;
+  latest_updated_at?: string;
+  outcome?: AgentRuntimeEvidenceVerificationOutcome;
+}
+
+export interface AgentRuntimeGuiSmokeVerificationSummary {
+  status?: string;
+  exit_code?: number;
+  passed: boolean;
+  updated_at?: string;
+  has_output_preview: boolean;
+  outcome?: AgentRuntimeEvidenceVerificationOutcome;
+}
+
+export interface AgentRuntimeEvidenceObservabilityVerificationOutcomes {
+  blocking_failure: string[];
+  advisory_failure: string[];
+  recovered: string[];
+}
+
+export interface AgentRuntimeEvidenceVerificationSummary {
+  artifact_validator?: AgentRuntimeArtifactValidatorVerificationSummary;
+  browser_verification?: AgentRuntimeBrowserVerificationSummary;
+  gui_smoke?: AgentRuntimeGuiSmokeVerificationSummary;
+  observability_verification_outcomes?: AgentRuntimeEvidenceObservabilityVerificationOutcomes;
+  focus_verification_failure_outcomes: string[];
+  focus_verification_recovered_outcomes: string[];
+}
+
+export interface AgentRuntimeEvidenceObservabilitySummary {
+  schema_version?: string;
+  known_gaps: string[];
+  signal_coverage: AgentRuntimeEvidenceSignalCoverageEntry[];
+  verification_summary?: AgentRuntimeEvidenceVerificationSummary;
+}
+
 export interface AgentRuntimeEvidencePack {
   session_id: string;
   thread_id: string;
@@ -408,6 +470,7 @@ export interface AgentRuntimeEvidencePack {
   queued_turn_count: number;
   recent_artifact_count: number;
   known_gaps: string[];
+  observability_summary?: AgentRuntimeEvidenceObservabilitySummary;
   artifacts: AgentRuntimeEvidenceArtifact[];
 }
 
@@ -539,6 +602,7 @@ export interface AgentRuntimeReviewDecisionTemplate {
   pending_request_count: number;
   queued_turn_count: number;
   default_decision_status: string;
+  verification_summary?: AgentRuntimeEvidenceVerificationSummary;
   decision: AgentRuntimeReviewDecision;
   decision_status_options: AgentRuntimeReviewDecisionStatus[];
   risk_level_options: AgentRuntimeReviewDecisionRiskLevel[];

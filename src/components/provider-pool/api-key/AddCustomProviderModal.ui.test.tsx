@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -30,22 +30,30 @@ interface MountedRoot {
 const mountedRoots: MountedRoot[] = [];
 
 function renderModal() {
+  return renderModalWithProps();
+}
+
+function renderModalWithProps(
+  props: Partial<ComponentProps<typeof AddCustomProviderModal>> = {},
+) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
 
+  const mergedProps: ComponentProps<typeof AddCustomProviderModal> = {
+    isOpen: true,
+    onClose: vi.fn(),
+    onAdd: vi.fn().mockResolvedValue({ id: "provider-001" }),
+    onAddApiKey: vi.fn().mockResolvedValue(undefined),
+    ...props,
+  };
+
   act(() => {
-    root.render(
-      <AddCustomProviderModal
-        isOpen
-        onClose={vi.fn()}
-        onAdd={vi.fn().mockResolvedValue({ id: "provider-001" })}
-        onAddApiKey={vi.fn().mockResolvedValue(undefined)}
-      />,
-    );
+    root.render(<AddCustomProviderModal {...mergedProps} />);
   });
 
   mountedRoots.push({ container, root });
+  return { container, props: mergedProps };
 }
 
 async function settleModal() {
@@ -73,6 +81,16 @@ function findDivByText(text: string): HTMLDivElement {
   }
 
   return target;
+}
+
+function setInputValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )?.set;
+
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 beforeEach(() => {
@@ -237,7 +255,7 @@ describe("AddCustomProviderModal", () => {
   });
 
   it("切换到 anthropic-compatible 时应展示显式 Prompt Cache 提示", async () => {
-    renderModal();
+    renderModalWithProps();
 
     await settleModal();
 
@@ -256,5 +274,79 @@ describe("AddCustomProviderModal", () => {
     );
     expect(notice.textContent ?? "").toContain("未声明支持自动 Prompt Cache");
     expect(notice.textContent ?? "").toContain("显式 cache_control");
+    expect(document.body.textContent ?? "").toContain(
+      "已知官方 Anthropic 兼容端点",
+    );
+    expect(
+      document.querySelector('[data-testid="prompt-cache-mode-select"]'),
+    ).not.toBeNull();
+  });
+
+  it("anthropic-compatible 切换到 automatic 后应隐藏 Prompt Cache 提示", async () => {
+    renderModal();
+
+    await settleModal();
+
+    await act(async () => {
+      findByTestId<HTMLElement>("provider-type-select").click();
+    });
+
+    await act(async () => {
+      findDivByText("Anthropic 兼容").click();
+    });
+
+    await act(async () => {
+      findByTestId<HTMLElement>("prompt-cache-mode-select").click();
+    });
+
+    await act(async () => {
+      findDivByText("已声明自动缓存").click();
+    });
+
+    expect(
+      document.querySelector('[data-testid="provider-prompt-cache-notice"]'),
+    ).toBeNull();
+  });
+
+  it("已知官方 Anthropic 兼容 Host 提交时应自动带上 automatic prompt_cache_mode", async () => {
+    const onAdd = vi.fn().mockResolvedValue({ id: "provider-automatic" });
+    renderModalWithProps({ onAdd });
+
+    await settleModal();
+
+    await act(async () => {
+      findByTestId<HTMLElement>("provider-type-select").click();
+    });
+
+    await act(async () => {
+      findDivByText("Anthropic 兼容").click();
+    });
+
+    await act(async () => {
+      setInputValue(findByTestId<HTMLInputElement>("provider-name-input"), "GLM");
+      setInputValue(
+        findByTestId<HTMLInputElement>("api-host-input"),
+        "https://open.bigmodel.cn/api/anthropic",
+      );
+      setInputValue(findByTestId<HTMLInputElement>("api-key-input"), "test-key");
+    });
+
+    expect(
+      document.querySelector('[data-testid="prompt-cache-mode-select"]'),
+    ).toBeNull();
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>("submit-button").click();
+      await Promise.resolve();
+    });
+
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "GLM",
+        type: "anthropic-compatible",
+        api_host: "https://open.bigmodel.cn/api/anthropic",
+        prompt_cache_mode: "automatic",
+      }),
+    );
   });
 });

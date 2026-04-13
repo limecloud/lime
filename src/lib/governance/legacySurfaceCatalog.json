@@ -82,6 +82,65 @@
       "allowedPaths": []
     },
     {
+      "id": "video-page-shell-entry",
+      "classification": "dead-candidate",
+      "description": "已下线的独立视频模块页面壳入口，视频能力应统一收口到 Claw 工作台与复用画布",
+      "targets": ["src/components/workspace/video/VideoPage.tsx"],
+      "allowedPaths": []
+    },
+    {
+      "id": "image-page-shell-entry",
+      "classification": "dead-candidate",
+      "description": "已下线的独立插图模块页面壳与旧搜图 surface，图片搜索应统一收口到 Claw @素材，AI 生图只允许在 Claw 工作台复用 runtime",
+      "targets": [
+        "src/components/image-gen/ImageGenPage.tsx",
+        "src/components/image-gen/ImageGenPage.test.tsx",
+        "src/components/image-gen/tabs/AiImageGenTab.tsx",
+        "src/components/image-gen/tabs/ImageSearchTab.tsx",
+        "src/components/image-gen/tabs/ImageSearchTab.test.tsx",
+        "src/components/image-gen/hooks/useImageSearch.ts",
+        "src/components/image-gen/hooks/useImageSearch.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "image-generation-runtime-barrel-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的 image-gen 目录级 barrel 入口，当前图片生成 runtime 只允许通过子路径直连，不再暴露统一模块导出",
+      "targets": ["src/components/image-gen/index.ts"],
+      "allowedPaths": []
+    },
+    {
+      "id": "tools-page-shell-entry",
+      "classification": "dead-candidate",
+      "description": "已下线的独立工具箱页面与图像分析工具面，tools/image-analysis 不再保留前端页面入口",
+      "targets": [
+        "src/components/tools/ToolsPage.tsx",
+        "src/components/tools/ToolCardContextMenu.tsx",
+        "src/components/tools/image-analysis/index.ts",
+        "src/components/tools/image-analysis/ImageAnalysisTool.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "terminal-page-shell-entry",
+      "classification": "dead-candidate",
+      "description": "已下线的独立终端页面壳与挂件 surface，terminal/sysinfo/files/web 页面不允许恢复，底层 terminal 能力只保留给复用运行时",
+      "targets": [
+        "src/components/terminal/index.ts",
+        "src/components/terminal/TerminalWorkspace.tsx",
+        "src/components/terminal/TerminalPanel.tsx",
+        "src/components/terminal/TerminalView.tsx",
+        "src/components/terminal/terminalPageHotkeys.ts",
+        "src/components/terminal/widgets/FileBrowserView.tsx",
+        "src/components/terminal/widgets/SysinfoView.tsx",
+        "src/components/terminal/widgets/WebView.tsx",
+        "src/components/terminal/ai/index.ts",
+        "src/components/terminal/ai/TerminalAIInput.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "claw-home-shell-skills-hook",
       "classification": "dead-candidate",
       "description": "已删除的旧 Claw 首页技能加载 Hook",
@@ -1747,6 +1806,32 @@
       ]
     },
     {
+      "id": "frontend-video-page-surface",
+      "classification": "dead-candidate",
+      "description": "前端不允许恢复独立 video 页面 surface，视频入口只允许继续向 Claw 工作台收敛",
+      "allowedPaths": [],
+      "patterns": [],
+      "regexPatterns": [
+        "\\bcurrentPage\\s*===\\s*[\"']video[\"']",
+        "\\bpage\\s*:\\s*[\"']video[\"']",
+        "\\brenderContent\\([\"']video[\"']"
+      ],
+      "includePathPrefixes": ["src"]
+    },
+    {
+      "id": "frontend-image-page-surface",
+      "classification": "dead-candidate",
+      "description": "前端不允许恢复独立插图页面 surface，图片入口只允许继续向 Claw @素材 与资料库图片视图收敛",
+      "allowedPaths": [],
+      "patterns": [],
+      "regexPatterns": [
+        "\\bcurrentPage\\s*===\\s*[\"']image-gen[\"']",
+        "\\bpage\\s*:\\s*[\"']image-gen[\"']",
+        "\\brenderContent\\([\"']image-gen[\"']"
+      ],
+      "includePathPrefixes": ["src"]
+    },
+    {
       "id": "frontend-subagent-scheduler-event-bus",
       "classification": "dead-candidate",
       "description": "已删除的旧 subagent scheduler 事件名",
@@ -2192,10 +2277,66 @@
         "src/components/agent/chat/components/Inputbar/components/BuiltinCommandBadge.tsx",
         "src/components/agent/chat/components/Inputbar/components/TeamSelector.tsx",
         "src/components/smart-input/ChatInput.tsx",
-        "src/components/workspace/video/PromptInput.tsx",
-        "src/components/image-gen/tabs/AiImageGenTab.tsx",
-        "src/components/terminal/ai/TerminalAIInput.tsx"
+        "src/components/workspace/video/PromptInput.tsx"
       ],
+      "allowedPaths": []
+    },
+    {
+      "id": "image-generation-runtime-entry-usage",
+      "classification": "dead-candidate",
+      "description": "AI 图片生成 runtime 不允许继续扩散新的 useImageGen 主入口，当前只允许 Claw 工作台复用",
+      "patterns": ["useImageGen({"],
+      "includePathPrefixes": ["src/components"],
+      "allowedPaths": ["src/components/agent/chat/AgentChatWorkspace.tsx"]
+    },
+    {
+      "id": "image-generation-runtime-barrel-imports",
+      "classification": "dead-candidate",
+      "description": "前端不允许恢复 @/components/image-gen 目录级 barrel 导入，图片生成 runtime 必须直连 useImageGen/types/test-utils 子路径",
+      "patterns": [
+        "from \"@/components/image-gen\"",
+        "from '@/components/image-gen'",
+        "import(\"@/components/image-gen\")",
+        "import('@/components/image-gen')",
+        "from \"@/components/image-gen/index\"",
+        "from '@/components/image-gen/index'",
+        "import(\"@/components/image-gen/index\")",
+        "import('@/components/image-gen/index')"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "frontend-tools-page-surface",
+      "classification": "dead-candidate",
+      "description": "前端不允许恢复独立 tools/image-analysis 页面 surface，相关能力不再保留独立工具箱入口",
+      "patterns": [],
+      "regexPatterns": [
+        "\\bcurrentPage\\s*===\\s*[\"']tools[\"']",
+        "\\bcurrentPage\\s*===\\s*[\"']image-analysis[\"']",
+        "\\bpage\\s*:\\s*[\"']tools[\"']",
+        "\\bpage\\s*:\\s*[\"']image-analysis[\"']",
+        "\\bonNavigate\\(\\s*[\"']tools[\"']",
+        "\\bonNavigate\\(\\s*[\"']image-analysis[\"']"
+      ],
+      "includePathPrefixes": ["src"],
+      "allowedPaths": []
+    },
+    {
+      "id": "frontend-terminal-page-surface",
+      "classification": "dead-candidate",
+      "description": "前端不允许恢复独立 terminal/sysinfo/files/web 页面 surface，相关能力只允许留在底层 terminal API 与复用运行时",
+      "patterns": [],
+      "regexPatterns": [
+        "\\bcurrentPage\\s*===\\s*[\"']terminal[\"']",
+        "\\bcurrentPage\\s*===\\s*[\"']sysinfo[\"']",
+        "\\bcurrentPage\\s*===\\s*[\"']files[\"']",
+        "\\bcurrentPage\\s*===\\s*[\"']web[\"']",
+        "\\bpage\\s*:\\s*[\"']terminal[\"']",
+        "\\bpage\\s*:\\s*[\"']sysinfo[\"']",
+        "\\bpage\\s*:\\s*[\"']files[\"']",
+        "\\bpage\\s*:\\s*[\"']web[\"']"
+      ],
+      "includePathPrefixes": ["src"],
       "allowedPaths": []
     },
     {

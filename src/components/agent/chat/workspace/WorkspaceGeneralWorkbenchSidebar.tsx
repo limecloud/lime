@@ -1,16 +1,38 @@
 import type { ComponentProps } from "react";
 import type { useThemeContextWorkspace } from "../hooks";
 import { GeneralWorkbenchHarnessCard } from "../components/GeneralWorkbenchHarnessCard";
-import { GeneralWorkbenchSidebarSection } from "./GeneralWorkbenchSidebarSection";
+import { GeneralWorkbenchSidebar } from "../components/GeneralWorkbenchSidebar";
+import type {
+  GeneralWorkbenchSidebarExecLogContract,
+  GeneralWorkbenchSidebarProps,
+} from "../components/generalWorkbenchSidebarContract";
+import type { SkillDetailInfo } from "@/lib/api/skill-execution";
+import type { Message } from "../types";
 
-type GeneralWorkbenchSidebarSectionProps = ComponentProps<
-  typeof GeneralWorkbenchSidebarSection
+type GeneralWorkbenchSidebarWorkflowProps = Pick<
+  GeneralWorkbenchSidebarProps,
+  | "branchMode"
+  | "onNewTopic"
+  | "onSwitchTopic"
+  | "onDeleteTopic"
+  | "branchItems"
+  | "onSetBranchStatus"
+  | "workflowSteps"
+  | "onAddImage"
+  | "onImportDocument"
+  | "activityLogs"
+  | "creationTaskEvents"
+  | "onViewRunDetail"
+  | "activeRunDetail"
+  | "activeRunDetailLoading"
 >;
-type GeneralWorkbenchSidebarWorkflowProps =
-  GeneralWorkbenchSidebarSectionProps["workflowProps"];
-type GeneralWorkbenchSidebarHistoryProps = NonNullable<
-  GeneralWorkbenchSidebarSectionProps["historyProps"]
->;
+type GeneralWorkbenchSidebarHistoryProps = {
+  hasMore?: boolean;
+  loading?: boolean;
+  onLoadMore?: GeneralWorkbenchSidebarExecLogContract["onLoadMoreHistory"];
+  skillDetailMap?: Record<string, SkillDetailInfo | null>;
+  messages?: Message[];
+};
 type GeneralWorkbenchHarnessSummary = Pick<
   ComponentProps<typeof GeneralWorkbenchHarnessCard>,
   | "runState"
@@ -27,7 +49,7 @@ interface WorkspaceGeneralWorkbenchSidebarProps {
   isThemeWorkbench: boolean;
   enablePanelCollapse: boolean;
   onRequestCollapse: NonNullable<
-    GeneralWorkbenchSidebarSectionProps["onRequestCollapse"]
+    GeneralWorkbenchSidebarProps["onRequestCollapse"]
   >;
   generalWorkbenchHarnessSummary: GeneralWorkbenchHarnessSummary | null;
   harnessPanelVisible: boolean;
@@ -50,7 +72,7 @@ interface WorkspaceGeneralWorkbenchSidebarProps {
     activeRunDetailLoading: GeneralWorkbenchSidebarWorkflowProps["activeRunDetailLoading"];
   };
   contextWorkspace: ReturnType<typeof useThemeContextWorkspace>;
-  onViewContextDetail?: GeneralWorkbenchSidebarSectionProps["onViewContextDetail"];
+  onViewContextDetail?: GeneralWorkbenchSidebarProps["onViewContextDetail"];
   history?: {
     hasMore?: GeneralWorkbenchSidebarHistoryProps["hasMore"];
     loading?: GeneralWorkbenchSidebarHistoryProps["loading"];
@@ -89,51 +111,48 @@ export function WorkspaceGeneralWorkbenchSidebar({
       />
     ) : null;
 
+  if (!visible) {
+    return null;
+  }
+
   return (
-    <GeneralWorkbenchSidebarSection
-      visible={visible}
-      workflowProps={{
-        branchMode: "version",
-        onNewTopic: workflow.onCreateVersionSnapshot,
-        onSwitchTopic: workflow.onSwitchBranchVersion,
-        onDeleteTopic: workflow.onDeleteTopic,
-        branchItems: workflow.branchItems,
-        onSetBranchStatus: workflow.onSetBranchStatus,
-        workflowSteps: workflow.workflowSteps,
-        onAddImage: workflow.onAddImage,
-        onImportDocument: workflow.onImportDocument,
-        activityLogs: workflow.activityLogs,
-        creationTaskEvents: workflow.creationTaskEvents,
-        onViewRunDetail: workflow.onViewRunDetail,
-        activeRunDetail: workflow.activeRunDetail,
-        activeRunDetailLoading: workflow.activeRunDetailLoading,
-      }}
-      contextWorkspace={{
-        contextSearchQuery: contextWorkspace.contextSearchQuery,
-        setContextSearchQuery: contextWorkspace.setContextSearchQuery,
-        contextSearchMode: contextWorkspace.contextSearchMode,
-        setContextSearchMode: contextWorkspace.setContextSearchMode,
-        contextSearchLoading: contextWorkspace.contextSearchLoading,
-        contextSearchError: contextWorkspace.contextSearchError,
-        contextSearchBlockedReason: contextWorkspace.contextSearchBlockedReason,
-        submitContextSearch: contextWorkspace.submitContextSearch,
-        addTextContext: contextWorkspace.addTextContext,
-        addLinkContext: contextWorkspace.addLinkContext,
-        addFileContext: contextWorkspace.addFileContext,
-        sidebarContextItems: contextWorkspace.sidebarContextItems,
-        toggleContextActive: contextWorkspace.toggleContextActive,
-        contextBudget: contextWorkspace.contextBudget,
-      }}
+    <GeneralWorkbenchSidebar
+      branchMode="version"
+      onNewTopic={workflow.onCreateVersionSnapshot}
+      onSwitchTopic={workflow.onSwitchBranchVersion}
+      onDeleteTopic={workflow.onDeleteTopic}
+      branchItems={workflow.branchItems}
+      onSetBranchStatus={workflow.onSetBranchStatus}
+      workflowSteps={workflow.workflowSteps}
+      onAddImage={workflow.onAddImage}
+      onImportDocument={workflow.onImportDocument}
+      activityLogs={workflow.activityLogs}
+      creationTaskEvents={workflow.creationTaskEvents}
+      onViewRunDetail={workflow.onViewRunDetail}
+      activeRunDetail={workflow.activeRunDetail}
+      activeRunDetailLoading={workflow.activeRunDetailLoading}
+      contextSearchQuery={contextWorkspace.contextSearchQuery}
+      onContextSearchQueryChange={contextWorkspace.setContextSearchQuery}
+      contextSearchMode={contextWorkspace.contextSearchMode}
+      onContextSearchModeChange={contextWorkspace.setContextSearchMode}
+      contextSearchLoading={contextWorkspace.contextSearchLoading}
+      contextSearchError={contextWorkspace.contextSearchError}
+      contextSearchBlockedReason={contextWorkspace.contextSearchBlockedReason}
+      onSubmitContextSearch={contextWorkspace.submitContextSearch}
+      onAddTextContext={contextWorkspace.addTextContext}
+      onAddLinkContext={contextWorkspace.addLinkContext}
+      onAddFileContext={contextWorkspace.addFileContext}
+      contextItems={contextWorkspace.sidebarContextItems}
+      onToggleContextActive={contextWorkspace.toggleContextActive}
       onViewContextDetail={onViewContextDetail}
+      contextBudget={contextWorkspace.contextBudget}
       onRequestCollapse={enablePanelCollapse ? onRequestCollapse : undefined}
       headerActionSlot={headerActionSlot}
-      historyProps={{
-        hasMore: history?.hasMore,
-        loading: history?.loading,
-        onLoadMore: history?.hasMore ? history.onLoadMore : undefined,
-        skillDetailMap: history?.skillDetailMap,
-        messages: history?.messages,
-      }}
+      historyHasMore={history?.hasMore}
+      historyLoading={history?.loading}
+      onLoadMoreHistory={history?.hasMore ? history.onLoadMore : undefined}
+      skillDetailMap={history?.skillDetailMap}
+      messages={history?.messages}
     />
   );
 }

@@ -10,7 +10,7 @@ import {
 } from "@/lib/artifact-protocol";
 import { extractFilesystemEventPathsFromValue } from "@/lib/filesystem-event-protocol";
 import type { ActionRequired, AgentRuntimeStatus, Message } from "../types";
-import { resolveToolDisplayLabel } from "./toolDisplayInfo";
+import { resolveUserFacingToolDisplayLabel } from "./toolDisplayInfo";
 import { isInternalRoutingTurnSummaryText } from "./turnSummaryPresentation";
 import {
   resolveArtifactPreviewText,
@@ -1305,7 +1305,7 @@ function deriveHarnessSessionStateFromItems(
           summary:
             artifactPath ||
             queryLabel ||
-            resolveToolDisplayLabel(item.tool_name),
+            resolveUserFacingToolDisplayLabel(item.tool_name),
           preview: buildTextPreview(item.output),
           content: maybeKeepTextContent(item.output),
           artifactPath,

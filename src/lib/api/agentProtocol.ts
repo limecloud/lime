@@ -105,6 +105,7 @@ export interface AgentTokenUsage {
   input_tokens: number;
   output_tokens: number;
   cached_input_tokens?: number;
+  cache_creation_input_tokens?: number;
 }
 
 export type AgentThreadTurnStatus =

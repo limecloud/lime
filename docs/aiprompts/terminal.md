@@ -1,8 +1,8 @@
-# 内置终端
+# 终端底层能力
 
 ## 概述
 
-内置终端模块提供 PTY 管理和会话管理功能。
+Lime 仍保留终端底层能力，用于复用运行时、诊断与会话管理；独立前端 `terminal / sysinfo / files / web` 页面已经下线，不再保留 `src/components/terminal/` 页面模块。
 
 ## 目录结构
 
@@ -13,9 +13,11 @@ src-tauri/src/terminal/
 ├── session.rs      # 会话管理
 └── commands.rs     # 终端命令
 
-src/components/terminal/
-├── Terminal.tsx    # 终端组件
-└── TerminalTabs.tsx # 多标签管理
+src/lib/api/terminal.ts
+src/lib/terminal/
+├── store/          # 终端状态与输入态
+├── stickers/       # 终端贴纸状态
+└── vdom/           # VDOM 状态与类型
 ```
 
 ## PTY 管理
@@ -49,35 +51,9 @@ impl PtyManager {
 }
 ```
 
-## 前端组件
+## 前端边界
 
-```tsx
-// src/components/terminal/Terminal.tsx
-export function Terminal({ sessionId }: { sessionId: string }) {
-    const termRef = useRef<HTMLDivElement>(null);
-    const xtermRef = useRef<XTerm>();
-    
-    useEffect(() => {
-        const xterm = new XTerm();
-        xterm.open(termRef.current!);
-        xtermRef.current = xterm;
-        
-        // 监听输出
-        listen(`terminal-output-${sessionId}`, (event) => {
-            xterm.write(event.payload);
-        });
-        
-        // 发送输入
-        xterm.onData((data) => {
-            invoke('terminal_write', { sessionId, data });
-        });
-        
-        return () => xterm.dispose();
-    }, [sessionId]);
-    
-    return <div ref={termRef} className="h-full" />;
-}
-```
+前端当前只允许通过 `src/lib/api/terminal.ts` 和 `src/lib/terminal/*` 复用终端会话、事件和状态能力，不再新增独立页面壳。
 
 ## Tauri 命令
 

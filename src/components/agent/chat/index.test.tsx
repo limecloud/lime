@@ -3859,6 +3859,40 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
     expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
   });
 
+  it("初始创作意图点击重新开始后应清空输入并消费待执行意图", async () => {
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
+    mockUseThemeContextWorkspace.mockReturnValue(
+      createMockThemeContextWorkspaceState({
+        enabled: true,
+      }),
+    );
+    const onInitialUserPromptConsumed = vi.fn();
+    const initialUserPrompt = "请先帮我写一篇社媒文案提纲。";
+
+    const container = renderPage({
+      projectId: "project-social-intent-restart",
+      contentId: "content-social-intent-restart",
+      theme: "general",
+      lockTheme: true,
+      initialUserPrompt,
+      onInitialUserPromptConsumed,
+    });
+    await flushEffects(12);
+
+    clickButton(container, "theme-workbench-entry-restart");
+    await flushEffects(12);
+
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
+    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
+      | { input?: string }
+      | undefined;
+    expect(latestInputbarProps?.input || "").toBe("");
+    expect(
+      container.querySelector('[data-testid="theme-workbench-entry-prompt"]'),
+    ).toBeNull();
+    expect(onInitialUserPromptConsumed).toHaveBeenCalledTimes(1);
+  });
+
   it("存在 initialRequestMetadata 时应把结构化回放透传到首发 requestMetadata", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(

@@ -22,6 +22,7 @@ import type {
 import type { SiteSavedContentTarget } from "../types";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { SearchResultPreviewList } from "./SearchResultPreviewList";
+import { ToolSearchSummaryPanel } from "./ToolSearchSummaryPanel";
 import {
   isUnifiedWebSearchToolName,
   resolveSearchResultPreviewItemsFromText,
@@ -29,18 +30,11 @@ import {
 import { extractLimeToolMetadataBlock } from "../hooks/agentChatToolResult";
 import {
   normalizeSiteToolResultSummary,
-  resolveSiteAdapterSourceLabel,
-  resolveSiteProjectSourceLabel,
+  resolveSiteProjectTargetLabel,
   resolveSiteSavedContentTargetFromMetadata,
 } from "../utils/siteToolResultSummary";
 import {
-  classifySearchQuerySemantic,
-  summarizeSearchQuerySemantics,
-} from "../utils/searchQueryGrouping";
-import {
   normalizeToolSearchResultSummary,
-  resolveToolSearchItemSourceLabel,
-  resolveToolSearchItemStatusLabel,
 } from "../utils/toolSearchResultSummary";
 import type { ToolCallArgumentValue } from "../utils/toolDisplayInfo";
 import {
@@ -49,7 +43,6 @@ import {
   buildToolHeadline as buildToolHeadlineFromInfo,
   extractSearchQueryLabel as extractSearchQueryLabelFromInfo,
   getToolDisplayInfo as getToolDisplayInfoFromInfo,
-  humanizeToolName as humanizeToolNameFromInfo,
   normalizeToolNameKey as normalizeToolNameKeyFromInfo,
   parseToolCallArguments as parseToolCallArgumentsFromInfo,
   resolveToolFilePath as resolveToolFilePathFromInfo,
@@ -170,6 +163,17 @@ const buildRenderedToolResultContent = (params: {
 
   return content;
 };
+
+function resolveUserFacingPathName(path: string | null | undefined): string | null {
+  const trimmed = path?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = trimmed.replace(/\\/g, "/");
+  const segments = normalized.split("/").filter(Boolean);
+  return segments.at(-1) || trimmed;
+}
 
 const isGroupableToolCall = (toolCall: ToolCallState): boolean => {
   if (isUnifiedWebSearchToolName(toolCall.name)) {
@@ -567,46 +571,21 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     if (!resultMetadata) return [];
 
     const items: string[] = [];
-    if (resultMetadata.lime_offloaded === true) {
-      items.push("完整输出已转存");
+    if (
+      resultMetadata.lime_offloaded === true ||
+      resultMetadata.output_truncated === true
+    ) {
+      items.push("内容较长，已省略部分文本");
     }
-    if (typeof resultMetadata.exit_code === "number") {
-      items.push(`退出码 ${resultMetadata.exit_code}`);
-    }
-    if (typeof resultMetadata.stdout_length === "number") {
-      items.push(`stdout ${resultMetadata.stdout_length}`);
-    }
-    if (typeof resultMetadata.stderr_length === "number") {
-      items.push(`stderr ${resultMetadata.stderr_length}`);
-    }
-    if (typeof resultMetadata.sandboxed === "boolean") {
-      items.push(resultMetadata.sandboxed ? "已隔离执行" : "普通执行");
-    }
-    if (resultMetadata.output_truncated === true) {
-      items.push("输出已截断");
-    }
-    if (typeof resultMetadata.offload_original_chars === "number") {
-      items.push(`原始 ${resultMetadata.offload_original_chars} 字符`);
-    }
-    if (typeof resultMetadata.offload_original_tokens === "number") {
-      items.push(`约 ${resultMetadata.offload_original_tokens} tokens`);
-    }
-    if (typeof resultMetadata.offload_trigger === "string") {
-      const triggerLabel =
-        resultMetadata.offload_trigger === "history_context_pressure"
-          ? "上下文压力触发"
-          : resultMetadata.offload_trigger === "token_limit_before_evict"
-            ? "token 阈值触发"
-            : resultMetadata.offload_trigger === "payload_bytes"
-              ? "字节阈值触发"
-              : resultMetadata.offload_trigger === "payload_chars"
-                ? "字符阈值触发"
-                : resultMetadata.offload_trigger;
-      items.push(triggerLabel);
+    if (
+      typeof resultMetadata.exit_code === "number" &&
+      (isFailed || resultMetadata.exit_code !== 0)
+    ) {
+      items.push("命令返回错误");
     }
 
     return items;
-  }, [resultMetadata]);
+  }, [isFailed, resultMetadata]);
   const siteResultNotices = useMemo(() => {
     if (!siteResultSummary) return [] as ToolResultNotice[];
 
@@ -614,17 +593,13 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     const savedProjectId =
       siteResultSummary.savedProjectId ||
       siteResultSummary.savedContent?.projectId;
-    const savedSourceLabel = resolveSiteProjectSourceLabel(
-      siteResultSummary.savedBy,
-    );
+    const savedProjectTarget = resolveSiteProjectTargetLabel({
+      source: siteResultSummary.savedBy,
+      projectId: savedProjectId,
+    });
 
     if (siteResultSummary.savedContent?.title) {
-      let text = `结果已自动保存${
-        savedProjectId ? `到项目 ${savedProjectId}` : ""
-      }：${siteResultSummary.savedContent.title}`;
-      if (savedSourceLabel) {
-        text = `${text} · ${savedSourceLabel}`;
-      }
+      const text = `结果已自动保存到${savedProjectTarget}：${siteResultSummary.savedContent.title}`;
       notices.push({
         key: "site-save-success",
         text,
@@ -632,44 +607,31 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
       });
     }
 
-    if (siteResultSummary.savedContent?.projectRootPath) {
-      notices.push({
-        key: "site-save-project-root",
-        text: `项目目录：${siteResultSummary.savedContent.projectRootPath}`,
-        tone: "neutral",
-      });
-    }
-
     if (siteResultSummary.savedContent?.markdownRelativePath) {
       notices.push({
         key: "site-save-markdown-path",
-        text: `Markdown 文件：${siteResultSummary.savedContent.markdownRelativePath}`,
+        text: "已导出 Markdown 文稿",
         tone: "neutral",
       });
     }
 
     if (typeof siteResultSummary.savedContent?.imageCount === "number") {
-      const imageDir = siteResultSummary.savedContent.imagesRelativeDir;
       notices.push({
         key: "site-save-images",
-        text: `图片资源：${siteResultSummary.savedContent.imageCount} 张${
-          imageDir ? ` · ${imageDir}` : ""
-        }`,
+        text: `附带图片 ${siteResultSummary.savedContent.imageCount} 张`,
         tone: "neutral",
       });
     }
 
     if (siteResultSummary.saveSkippedProjectId) {
-      let text =
+      const skippedProjectTarget = resolveSiteProjectTargetLabel({
+        source: siteResultSummary.saveSkippedBy,
+        projectId: siteResultSummary.saveSkippedProjectId,
+      });
+      const text =
         toolCall.status === "failed"
-          ? `执行失败，未保存到项目 ${siteResultSummary.saveSkippedProjectId}`
-          : `本次结果未保存到项目 ${siteResultSummary.saveSkippedProjectId}`;
-      const skippedSourceLabel = resolveSiteProjectSourceLabel(
-        siteResultSummary.saveSkippedBy,
-      );
-      if (skippedSourceLabel) {
-        text = `${text} · ${skippedSourceLabel}`;
-      }
+          ? `执行失败，未保存到${skippedProjectTarget}`
+          : `本次结果未保存到${skippedProjectTarget}`;
       notices.push({
         key: "site-save-skipped",
         text,
@@ -684,16 +646,6 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
         tone: "error",
       });
     }
-
-    const adapterSourceLabel = resolveSiteAdapterSourceLabel(siteResultSummary);
-    if (adapterSourceLabel) {
-      notices.push({
-        key: "site-adapter-source",
-        text: `脚本来源：${adapterSourceLabel}`,
-        tone: "neutral",
-      });
-    }
-
     return notices;
   }, [siteResultSummary, toolCall.status]);
   const resultPath = useMemo(() => {
@@ -702,24 +654,30 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
       typeof resultMetadata.offload_file === "string" &&
       resultMetadata.offload_file.trim()
     ) {
+      const fullPath = resultMetadata.offload_file.trim();
       return {
-        label: "转存文件",
-        value: resultMetadata.offload_file.trim(),
+        label: "结果文件",
+        value: fullPath,
+        displayValue: resolveUserFacingPathName(fullPath) || fullPath,
       };
     }
     if (
       typeof resultMetadata.output_file === "string" &&
       resultMetadata.output_file.trim()
     ) {
+      const fullPath = resultMetadata.output_file.trim();
       return {
-        label: "输出文件",
-        value: resultMetadata.output_file.trim(),
+        label: "结果文件",
+        value: fullPath,
+        displayValue: resolveUserFacingPathName(fullPath) || fullPath,
       };
     }
     if (typeof resultMetadata.path === "string" && resultMetadata.path.trim()) {
+      const fullPath = resultMetadata.path.trim();
       return {
-        label: "产物路径",
-        value: resultMetadata.path.trim(),
+        label: "结果文件",
+        value: fullPath,
+        displayValue: resolveUserFacingPathName(fullPath) || fullPath,
       };
     }
     return undefined;
@@ -751,12 +709,6 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     () => buildGroupedChildLineFromInfo(toolCall),
     [toolCall],
   );
-  const shouldShowRawToolName = useMemo(
-    () =>
-      toolDisplay.family === "generic" &&
-      toolDisplay.label !== humanizeToolNameFromInfo(toolCall.name),
-    [toolCall.name, toolDisplay.family, toolDisplay.label],
-  );
   const searchResultItems = useMemo(() => {
     if (!isUnifiedWebSearchToolName(toolCall.name)) {
       return [];
@@ -764,11 +716,6 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
 
     return resolveSearchResultPreviewItemsFromText(toolCall.result?.output);
   }, [toolCall.name, toolCall.result?.output]);
-  const searchSemantic = useMemo(
-    () =>
-      classifySearchQuerySemantic(extractSearchQueryLabelFromInfo(toolCall)),
-    [toolCall],
-  );
   const hasResultImages = resultImages.length > 0;
   const hasSearchResults = searchResultItems.length > 0;
   const isToolSearch = useMemo(
@@ -865,11 +812,6 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
             <div className="truncate text-sm text-slate-700">
               {groupedChildLine}
             </div>
-            {shouldShowRawToolName ? (
-              <div className="mt-0.5 truncate text-xs text-slate-500">
-                {humanizeToolNameFromInfo(toolCall.name)}
-              </div>
-            ) : null}
           </div>
           <div className="ml-auto flex items-center gap-1 pt-0.5">
             {openableFilePath && onFileClick && (
@@ -920,11 +862,6 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
             <div className="truncate text-sm text-slate-900">
               {toolHeadline}
             </div>
-            {shouldShowRawToolName ? (
-              <div className="mt-0.5 truncate text-xs text-slate-500">
-                {humanizeToolNameFromInfo(toolCall.name)}
-              </div>
-            ) : null}
           </div>
 
           <div className="ml-auto flex items-center gap-1 pt-0.5">
@@ -979,9 +916,6 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
 
       {hasSearchResults && isExpanded && (
         <div className="mb-2 ml-6 mt-1.5">
-          <div className="mb-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
-            <span>{searchSemantic.label}</span>
-          </div>
           <SearchResultPreviewList
             items={searchResultItems}
             onOpenUrl={handleOpenExternalUrl}
@@ -995,14 +929,14 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
                 className="rounded-md px-2 py-1 text-[11px] text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                 aria-label={
                   showRawSearchResultOutput
-                    ? "收起搜索原始输出"
-                    : "查看搜索原始输出"
+                    ? "收起搜索文本详情"
+                    : "查看搜索文本详情"
                 }
                 onClick={() =>
                   setShowRawSearchResultOutput((current) => !current)
                 }
               >
-                {showRawSearchResultOutput ? "收起原始输出" : "查看原始输出"}
+                {showRawSearchResultOutput ? "收起文本详情" : "查看文本详情"}
               </button>
             </div>
           ) : null}
@@ -1011,60 +945,10 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
 
       {toolSearchSummary && isExpanded ? (
         <div
-          className="mb-2 ml-6 mt-1.5 space-y-2"
+          className="mb-2 ml-6 mt-1.5"
           data-testid="tool-call-tool-search-result"
         >
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
-            <span>匹配工具：{toolSearchSummary.count} 个</span>
-            {toolSearchSummary.query ? (
-              <span className="break-all">查询：{toolSearchSummary.query}</span>
-            ) : null}
-            {typeof toolSearchSummary.totalDeferredTools === "number" ? (
-              <span>Deferred 总数：{toolSearchSummary.totalDeferredTools}</span>
-            ) : null}
-          </div>
-          {toolSearchSummary.notes.length > 0 ? (
-            <div className="space-y-1 text-[11px] text-amber-700">
-              {toolSearchSummary.notes.map((note, index) => (
-                <div key={`${note}-${index}`}>{note}</div>
-              ))}
-            </div>
-          ) : null}
-          {toolSearchSummary.tools.length > 0 ? (
-            <div className="space-y-2">
-              {toolSearchSummary.tools.map((item) => {
-                const sourceLabel = resolveToolSearchItemSourceLabel(item);
-                const statusLabel = resolveToolSearchItemStatusLabel(item);
-                return (
-                  <div
-                    key={item.name}
-                    className="rounded-[14px] border border-slate-200 bg-white p-3"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-slate-900">
-                        {item.name}
-                      </span>
-                      {sourceLabel ? (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
-                          {sourceLabel}
-                        </span>
-                      ) : null}
-                      {statusLabel ? (
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
-                          {statusLabel}
-                        </span>
-                      ) : null}
-                    </div>
-                    {item.description ? (
-                      <div className="mt-1 text-[11px] leading-5 text-slate-500">
-                        {item.description}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
+          <ToolSearchSummaryPanel summary={toolSearchSummary} />
         </div>
       ) : null}
 
@@ -1109,8 +993,11 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
             </div>
           ) : null}
           {resultPath ? (
-            <div className="break-all text-[11px] text-slate-500">
-              {resultPath.label}: {resultPath.value}
+            <div
+              className="break-all text-[11px] text-slate-500"
+              title={resultPath.value}
+            >
+              {resultPath.label}: {resultPath.displayValue}
             </div>
           ) : null}
           <div
@@ -1355,9 +1242,6 @@ function SearchToolCallGroup({
   onOpenSavedSiteContent?: (target: SiteSavedContentTarget) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const semanticSummaries = summarizeSearchQuerySemantics(
-    toolCalls.map(extractSearchQueryLabelFromInfo),
-  );
   const headline = buildToolGroupHeadlineFromInfo(toolCalls);
   const queryPreview = toolCalls
     .slice(0, 2)
@@ -1392,15 +1276,6 @@ function SearchToolCallGroup({
           )}
         />
       </button>
-      {semanticSummaries.length > 0 ? (
-        <div className="ml-6 flex flex-wrap gap-x-3 gap-y-1 pb-1 text-[11px] text-slate-500">
-          {semanticSummaries.map((item) => (
-            <span key={item.key}>
-              {item.label} {item.count}
-            </span>
-          ))}
-        </div>
-      ) : null}
       {expanded ? (
         <div className="ml-6 space-y-1">
           {toolCalls.map((toolCall, index) => (

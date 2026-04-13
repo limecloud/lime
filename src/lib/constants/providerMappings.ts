@@ -36,7 +36,12 @@ const ALIAS_CONFIG_MAPPING: Record<string, string> = {
 
 /**
  * Provider 类型到模型注册表 provider_id 的映射
- * 用于从模型注册表获取对应 Provider 的模型列表
+ * 用于从模型注册表获取对应 Provider 的模型列表。
+ *
+ * 注意：
+ * - 这里只做“模型目录 / 别名”层的归一化，不代表运行时能力等价；
+ * - 例如 `anthropic-compatible -> anthropic` 仅表示可复用 Anthropic 模型注册表，
+ *   Prompt Cache 等能力仍必须按真实 ProviderType 单独判断。
  */
 const PROVIDER_TYPE_TO_REGISTRY_ID: Record<string, string> = {
   // 主流 AI

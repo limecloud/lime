@@ -46,4 +46,31 @@ describe("protocolResidue", () => {
     expect(containsAssistantProtocolResidue(normal)).toBe(false);
     expect(stripAssistantProtocolResidue(normal)).toBe(normal);
   });
+
+  it("应清理 provider 泄露的 Built-in Tool 执行痕迹，但保留正常说明", () => {
+    const leaked = [
+      "让我们进行多组 WebSearch 检索，获取最新热点。 Z.ai Built-in Tool: webReader",
+      "",
+      "Input:",
+      "JSON",
+      '{"url":"https://example.com/search?q=ai","return_format":"text"}',
+      "",
+      'Executing on server... Output: webReader_result_summary: [{"text":"ok","type":"text"}]',
+      "",
+      "我会继续整理结果。",
+    ].join("\n");
+
+    expect(containsAssistantProtocolResidue(leaked)).toBe(true);
+    expect(stripAssistantProtocolResidue(leaked)).toBe(
+      "让我们进行多组 WebSearch 检索，获取最新热点。\n\n我会继续整理结果。",
+    );
+  });
+
+  it("正常解释 Input 与 Output 概念时不应误删", () => {
+    const normal =
+      "Input 是工具入参，Output 是执行结果，这里只是解释概念，不是运行时协议残留。";
+
+    expect(containsAssistantProtocolResidue(normal)).toBe(false);
+    expect(stripAssistantProtocolResidue(normal)).toBe(normal);
+  });
 });

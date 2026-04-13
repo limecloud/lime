@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { getProviderPromptCacheMode } from "@/lib/model/providerPromptCacheSupport";
 import {
   buildCatalogAliasMap,
   resolveRegistryProviderId,
@@ -97,5 +98,18 @@ describe("providerTypeMapping", () => {
     });
 
     expect(resolved).toBe("openai");
+  });
+
+  it("anthropic-compatible 复用 Anthropic 模型目录时不应被当成自动缓存能力", () => {
+    const resolved = resolveRegistryProviderId("custom-anthropic-gateway", {
+      providerType: "anthropic-compatible",
+      catalogAliasMap: null,
+      validRegistryProviders: ["openai", "anthropic"],
+    });
+
+    expect(resolved).toBe("anthropic");
+    expect(getProviderPromptCacheMode("anthropic-compatible")).toBe(
+      "explicit_only",
+    );
   });
 });

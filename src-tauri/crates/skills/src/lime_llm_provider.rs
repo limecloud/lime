@@ -132,7 +132,10 @@ impl LimeLlmProvider {
                 self.call_claude_api(
                     api_key,
                     base_url.as_deref(),
-                    if credential.provider_type.supports_anthropic_prompt_cache() {
+                    if matches!(
+                        credential.effective_prompt_cache_mode(),
+                        Some(lime_core::models::ProviderPromptCacheMode::Automatic)
+                    ) {
                         PromptCacheMode::Automatic
                     } else {
                         PromptCacheMode::ExplicitOnly
@@ -158,7 +161,10 @@ impl LimeLlmProvider {
                 self.call_claude_api(
                     api_key,
                     base_url.as_deref(),
-                    if credential.provider_type.supports_anthropic_prompt_cache() {
+                    if matches!(
+                        credential.effective_prompt_cache_mode(),
+                        Some(lime_core::models::ProviderPromptCacheMode::Automatic)
+                    ) {
                         PromptCacheMode::Automatic
                     } else {
                         PromptCacheMode::ExplicitOnly

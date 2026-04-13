@@ -3,6 +3,7 @@ import {
   normalizeToolSearchResultSummary,
   resolveToolSearchItemSourceLabel,
   resolveToolSearchItemStatusLabel,
+  resolveUserFacingToolSearchItemLabel,
 } from "./toolSearchResultSummary";
 
 describe("toolSearchResultSummary", () => {
@@ -96,5 +97,17 @@ describe("toolSearchResultSummary", () => {
         deferredLoading: true,
       }),
     ).toBe("待加载");
+  });
+
+  it("应把常见工具名转换成更自然的搜索展示文案", () => {
+    expect(resolveUserFacingToolSearchItemLabel("Read")).toBe("查看文件");
+    expect(resolveUserFacingToolSearchItemLabel("Write")).toBe("保存文件");
+    expect(resolveUserFacingToolSearchItemLabel("glob")).toBe("查找文件");
+    expect(resolveUserFacingToolSearchItemLabel("TaskOutput")).toBe(
+      "查看任务结果",
+    );
+    expect(resolveUserFacingToolSearchItemLabel("mcp__playwright__browser_click")).toBe(
+      "页面点击",
+    );
   });
 });

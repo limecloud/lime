@@ -263,7 +263,7 @@ export function ImageGallery({
                 暂无图片素材
               </p>
               <p className="text-sm">
-                可以先从图片搜索或本地上传添加素材，再回到这里筛选和插入。
+                可以先在 Claw 用 @素材 搜图，或到资料库上传本地图片，再回到这里筛选和插入。
               </p>
             </div>
           </div>

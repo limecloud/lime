@@ -1,3 +1,5 @@
+import { resolveUserFacingToolDisplayLabel } from "./toolDisplayInfo";
+
 export interface ToolSearchResultItemSummary {
   name: string;
   description?: string;
@@ -163,4 +165,8 @@ export function resolveToolSearchItemStatusLabel(
     return "始终可见";
   }
   return null;
+}
+
+export function resolveUserFacingToolSearchItemLabel(toolName: string): string {
+  return resolveUserFacingToolDisplayLabel(toolName);
 }

@@ -59,6 +59,7 @@ describe("Harness repo fixtures", () => {
     expect(summary.totals.observabilityGapCaseCount).toBe(1);
     expect(summary.totals.currentObservabilityGapCaseCount).toBe(0);
     expect(summary.totals.degradedObservabilityGapCaseCount).toBe(1);
+    expect(summary.totals.currentRecoveredVerificationCaseCount).toBe(3);
 
     const currentCase = repoFixtureSuite.cases.find(
       (entry: { caseId: string }) =>
@@ -146,6 +147,20 @@ describe("Harness repo fixtures", () => {
     );
     expect(currentVerificationOutcomeBreakdownNames).toContain(
       "browserVerification:success",
+    );
+
+    const currentRecoveredVerificationOutcomeBreakdownNames =
+      summary.breakdowns.currentRecoveredObservabilityVerificationOutcomes.map(
+        (entry: { name: string }) => entry.name,
+      );
+    expect(currentRecoveredVerificationOutcomeBreakdownNames).toContain(
+      "artifactValidator:repaired",
+    );
+    expect(currentRecoveredVerificationOutcomeBreakdownNames).toContain(
+      "browserVerification:success",
+    );
+    expect(currentRecoveredVerificationOutcomeBreakdownNames).toContain(
+      "guiSmoke:passed",
     );
 
     expect(summary.breakdowns.degradedObservabilityVerificationOutcomes).toEqual(

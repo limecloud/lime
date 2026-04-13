@@ -582,6 +582,50 @@ describe("HarnessStatusPanel", () => {
       known_gaps: [
         "当前 Evidence Pack 尚未纳入 GUI smoke / browser 验证结果。",
       ],
+      observability_summary: {
+        schema_version: "v1",
+        known_gaps: [
+          "当前 Evidence Pack 尚未纳入 GUI smoke / browser 验证结果。",
+        ],
+        signal_coverage: [
+          {
+            signal: "correlation",
+            status: "exported",
+            source: "runtime thread identity",
+            detail: "已导出关联键。",
+          },
+          {
+            signal: "artifactValidator",
+            status: "exported",
+            source: "artifact_document_validator",
+            detail: "已导出 Artifact 校验结果。",
+          },
+        ],
+        verification_summary: {
+          artifact_validator: {
+            applicable: true,
+            record_count: 1,
+            issue_count: 2,
+            repaired_count: 1,
+            fallback_used_count: 0,
+            outcome: "blocking_failure",
+          },
+          browser_verification: {
+            record_count: 2,
+            success_count: 1,
+            failure_count: 1,
+            unknown_count: 0,
+            outcome: "blocking_failure",
+          },
+          focus_verification_failure_outcomes: [
+            "Artifact 校验存在 2 条未恢复 issues。",
+            "浏览器验证存在 1 条失败线索。",
+          ],
+          focus_verification_recovered_outcomes: [
+            "Artifact 校验已恢复 1 个产物，fallback 0 次。",
+          ],
+        },
+      },
       artifacts: [
         {
           kind: "summary",
@@ -620,6 +664,10 @@ describe("HarnessStatusPanel", () => {
       "session-evidence-1",
     );
     expect(document.body.textContent).toContain("问题证据包");
+    expect(document.body.textContent).toContain("验证结果");
+    expect(document.body.textContent).toContain("阻塞失败");
+    expect(document.body.textContent).toContain("验证失败焦点");
+    expect(document.body.textContent).toContain("已恢复结果");
     expect(document.body.textContent).toContain("当前已知缺口");
     expect(document.body.textContent).toContain(
       ".lime/harness/sessions/session-evidence-1/evidence/summary.md",
@@ -875,6 +923,22 @@ describe("HarnessStatusPanel", () => {
       pending_request_count: 1,
       queued_turn_count: 0,
       default_decision_status: "pending_review",
+      verification_summary: {
+        artifact_validator: {
+          applicable: true,
+          record_count: 1,
+          issue_count: 2,
+          repaired_count: 1,
+          fallback_used_count: 0,
+          outcome: "blocking_failure",
+        },
+        focus_verification_failure_outcomes: [
+          "Artifact 校验存在 2 条未恢复 issues。",
+        ],
+        focus_verification_recovered_outcomes: [
+          "Artifact 校验已恢复 1 个产物，fallback 0 次。",
+        ],
+      },
       decision: {
         decision_status: "pending_review",
         decision_summary: "",
@@ -883,8 +947,14 @@ describe("HarnessStatusPanel", () => {
         risk_tags: [],
         human_reviewer: "",
         reviewed_at: undefined,
-        followup_actions: [],
-        regression_requirements: [],
+        followup_actions: [
+          "先对照 analysis-context.json / evidence/runtime.json 核对当前验证失败焦点，再决定是继续修复还是补证据。",
+          "复查 Artifact 校验相关产物，确认 issues / repaired / fallback 状态与最终结论一致。",
+        ],
+        regression_requirements: [
+          "按 replay case 复现问题并确认修复后行为与预期一致。",
+          "重新导出 evidence pack，确认 Artifact 校验摘要已更新。",
+        ],
         notes: "",
       },
       decision_status_options: [
@@ -967,6 +1037,17 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain(
       "确认最终决策由人工审核者填写。",
     );
+    expect(document.body.textContent).toContain("验证结果");
+    expect(document.body.textContent).toContain("阻塞失败");
+    expect(document.body.textContent).toContain(
+      "Artifact 校验存在 2 条未恢复 issues。",
+    );
+    expect(document.body.textContent).toContain(
+      "先对照 analysis-context.json / evidence/runtime.json 核对当前验证失败焦点",
+    );
+    expect(document.body.textContent).toContain(
+      "重新导出 evidence pack，确认 Artifact 校验摘要已更新。",
+    );
     expect(document.body.textContent).toContain("aster-rust");
     expect(mockToast.success).toHaveBeenCalledWith("已导出 2 个人工审核文件");
   });
@@ -996,6 +1077,20 @@ describe("HarnessStatusPanel", () => {
       pending_request_count: 1,
       queued_turn_count: 0,
       default_decision_status: "pending_review",
+      verification_summary: {
+        artifact_validator: {
+          applicable: true,
+          record_count: 1,
+          issue_count: 1,
+          repaired_count: 0,
+          fallback_used_count: 0,
+          outcome: "blocking_failure",
+        },
+        focus_verification_failure_outcomes: [
+          "Artifact 校验存在 1 条未恢复 issue。",
+        ],
+        focus_verification_recovered_outcomes: [],
+      },
       decision: {
         decision_status: "pending_review",
         decision_summary: "",
@@ -1064,6 +1159,20 @@ describe("HarnessStatusPanel", () => {
       pending_request_count: 1,
       queued_turn_count: 0,
       default_decision_status: "pending_review",
+      verification_summary: {
+        artifact_validator: {
+          applicable: true,
+          record_count: 1,
+          issue_count: 0,
+          repaired_count: 1,
+          fallback_used_count: 0,
+          outcome: "recovered",
+        },
+        focus_verification_failure_outcomes: [],
+        focus_verification_recovered_outcomes: [
+          "Artifact 校验已恢复 1 个产物，fallback 0 次。",
+        ],
+      },
       decision: {
         decision_status: "accepted",
         decision_summary: "确认最小修复可以接受。",
@@ -1130,6 +1239,16 @@ describe("HarnessStatusPanel", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+
+    const reviewDialog = document.body.querySelector(
+      '[role="dialog"]',
+    ) as HTMLDivElement | null;
+
+    expect(reviewDialog?.textContent).toContain("验证结果");
+    expect(reviewDialog?.textContent).toContain("阻塞失败");
+    expect(reviewDialog?.textContent).toContain(
+      "Artifact 校验存在 1 条未恢复 issue。",
+    );
 
     const statusSelect = document.body.querySelector(
       'select[aria-label="决策状态"]',

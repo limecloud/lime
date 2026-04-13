@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 
 const PROTOCOL_GUARD_DIRS = [
   join(process.cwd(), "src/components/agent/chat"),
-  join(process.cwd(), "src/components/terminal/ai"),
   join(process.cwd(), "src/components/smart-input"),
 ] as const;
 const API_PROTOCOL_GUARD_DIR = join(process.cwd(), "src/lib/api");

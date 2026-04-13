@@ -13,7 +13,6 @@ import {
 import type { AuditedHotkeyDefinition, HotkeyScene } from "@/lib/hotkeys/types";
 import { DOCUMENT_CANVAS_HOTKEYS } from "@/lib/workspace/workbenchCanvas";
 import { DOCUMENT_EDITOR_HOTKEYS } from "@/lib/workspace/workbenchCanvas";
-import { getTerminalPageHotkeys } from "@/components/terminal/terminalPageHotkeys";
 import { WORKBENCH_SIDEBAR_TOGGLE_HOTKEY } from "@/components/workspace/hooks/workbenchHotkeys";
 
 export type HotkeyStatusKind =
@@ -98,10 +97,6 @@ const SCENE_META: Record<HotkeyScene, { title: string; description: string }> =
     workspace: {
       title: "工作区",
       description: "用于主工作区导航与侧栏控制。",
-    },
-    terminal: {
-      title: "终端页面",
-      description: "只在终端页面里生效，用于搜索和字体调整。",
     },
     "document-editor": {
       title: "文档编辑器",
@@ -336,13 +331,6 @@ export function buildAuditedHotkeyCatalog({
       hotkeys: [
         createStaticHotkeyItem(WORKBENCH_SIDEBAR_TOGGLE_HOTKEY, platform),
       ],
-    },
-    {
-      scene: "terminal",
-      ...SCENE_META.terminal,
-      hotkeys: getTerminalPageHotkeys(platform).map((item) =>
-        createStaticHotkeyItem(item, platform),
-      ),
     },
     {
       scene: "document-editor",

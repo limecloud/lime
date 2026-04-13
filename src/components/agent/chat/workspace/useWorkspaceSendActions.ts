@@ -62,16 +62,18 @@ import {
   type ChatToolPreferences,
 } from "../utils/chatToolPreferences";
 import type { HandleSendOptions } from "../hooks/handleSendTypes";
-import type { GeneralWorkbenchSendBoundaryState } from "../hooks/useGeneralWorkbenchSendBoundary";
 import type { UseRuntimeTeamFormationResult } from "../hooks/useRuntimeTeamFormation";
 import type { SendMessageFn } from "../hooks/agentChatShared";
 import type { Message, MessageImage } from "../types";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import type { AgentAccessMode } from "../hooks/agentChatStorage";
 import {
+  buildInitialDispatchPreviewMessages,
   buildRuntimeTeamDispatchPreview,
   buildRuntimeTeamDispatchPreviewMessages,
   buildSubmissionPreviewMessages,
+  type GeneralWorkbenchSendBoundaryState,
+  type InitialDispatchPreviewSnapshot,
   resolveRuntimeTeamDispatchPreviewState,
   type RuntimeTeamDispatchPreviewSnapshot,
   createSubmissionPreviewSnapshot,
@@ -2323,7 +2325,7 @@ interface UseWorkspaceSendActionsParams {
   browserAssistAutoLaunch?: boolean | null;
   workspaceRequestMetadataBase?: Record<string, unknown>;
   messages: Message[];
-  bootstrapDispatchPreviewMessages: Message[];
+  bootstrapDispatchPreview?: InitialDispatchPreviewSnapshot | null;
   sendMessage: SendMessageFn;
   resolveSendBoundary: (input: {
     sourceText: string;
@@ -2430,7 +2432,7 @@ export function useWorkspaceSendActions({
   browserAssistAutoLaunch,
   workspaceRequestMetadataBase,
   messages,
-  bootstrapDispatchPreviewMessages,
+  bootstrapDispatchPreview,
   sendMessage,
   resolveSendBoundary,
   finalizeAfterSendSuccess,
@@ -2470,6 +2472,13 @@ export function useWorkspaceSendActions({
         ? buildSubmissionPreviewMessages(submissionPreview)
         : [],
     [messagesCount, submissionPreview],
+  );
+  const bootstrapDispatchPreviewMessages = useMemo(
+    () =>
+      bootstrapDispatchPreview
+        ? buildInitialDispatchPreviewMessages(bootstrapDispatchPreview)
+        : [],
+    [bootstrapDispatchPreview],
   );
   const displayMessages = useMemo(() => {
     if (runtimeTeamDispatchPreviewMessages.length > 0) {

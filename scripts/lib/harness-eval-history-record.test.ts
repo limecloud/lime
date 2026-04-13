@@ -4,6 +4,8 @@ import path from "node:path";
 import { execFile, execFileSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { deriveHistoryRecordVerificationFacts } from "../harness-eval-history-record.mjs";
+
 const repoRoot = process.cwd();
 const tempRoots: string[] = [];
 
@@ -59,6 +61,140 @@ afterEach(() => {
 });
 
 describe("harness-eval-history-record", () => {
+  it("应优先使用 summary 与 trend 的 verification facts，而不是 cleanup 反算结果", () => {
+    const summary = {
+      totals: {
+        currentRecoveredVerificationCaseCount: 2,
+      },
+      breakdowns: {
+        observabilityVerificationOutcomes: [
+          { name: "guiSmoke:failed", caseCount: 2 },
+          { name: "artifactValidator:issues_present", caseCount: 1 },
+          { name: "browserVerification:success", caseCount: 1 },
+          { name: "guiSmoke:passed", caseCount: 1 },
+        ],
+        currentObservabilityVerificationOutcomes: [
+          { name: "guiSmoke:failed", caseCount: 2 },
+          { name: "artifactValidator:issues_present", caseCount: 1 },
+          { name: "browserVerification:success", caseCount: 1 },
+          { name: "guiSmoke:passed", caseCount: 1 },
+        ],
+        currentRecoveredObservabilityVerificationOutcomes: [
+          { name: "browserVerification:success", caseCount: 1 },
+          { name: "guiSmoke:passed", caseCount: 1 },
+        ],
+        degradedObservabilityVerificationOutcomes: [
+          { name: "browserVerification:failure", caseCount: 1 },
+        ],
+      },
+    };
+    const trendReport = {
+      latest: {
+        totals: {
+          currentRecoveredVerificationCaseCount: 2,
+        },
+      },
+      classificationDeltas: {
+        observabilityVerificationOutcomes: [
+          {
+            name: "guiSmoke:failed",
+            latest: { caseCount: 2 },
+            delta: { caseCount: 2 },
+          },
+          {
+            name: "artifactValidator:issues_present",
+            latest: { caseCount: 1 },
+            delta: { caseCount: 1 },
+          },
+        ],
+        currentObservabilityVerificationOutcomes: [
+          {
+            name: "guiSmoke:failed",
+            latest: { caseCount: 2 },
+            delta: { caseCount: 2 },
+          },
+          {
+            name: "artifactValidator:issues_present",
+            latest: { caseCount: 1 },
+            delta: { caseCount: 1 },
+          },
+          {
+            name: "browserVerification:success",
+            latest: { caseCount: 1 },
+            delta: { caseCount: 1 },
+          },
+          {
+            name: "guiSmoke:passed",
+            latest: { caseCount: 1 },
+            delta: { caseCount: 1 },
+          },
+        ],
+        currentRecoveredObservabilityVerificationOutcomes: [
+          {
+            name: "browserVerification:success",
+            latest: { caseCount: 1 },
+            delta: { caseCount: 1 },
+          },
+          {
+            name: "guiSmoke:passed",
+            latest: { caseCount: 1 },
+            delta: { caseCount: 1 },
+          },
+        ],
+      },
+    };
+    const cleanupReport = {
+      summary: {
+        verificationOutcomes: {
+          failureCaseCount: 99,
+          recoveredCaseCount: 0,
+          current: {
+            blockingFailureCaseCount: 88,
+            advisoryFailureCaseCount: 77,
+            recoveredCaseCount: 0,
+          },
+          degraded: {
+            blockingFailureCaseCount: 66,
+          },
+        },
+      },
+      focus: {
+        observabilityVerificationOutcomes: [
+          { signal: "artifactValidator", outcome: "fallback_used" },
+        ],
+        currentObservabilityVerificationOutcomes: [
+          { signal: "artifactValidator", outcome: "fallback_used" },
+        ],
+        currentRecoveredObservabilityVerificationOutcomes: [
+          { signal: "artifactValidator", outcome: "repaired" },
+        ],
+      },
+    };
+
+    const result = deriveHistoryRecordVerificationFacts({
+      summary,
+      trendReport,
+      cleanupReport,
+    });
+
+    expect(result.verificationFailureOutcomeFocus).toEqual([
+      "guiSmoke:failed",
+      "artifactValidator:issues_present",
+    ]);
+    expect(result.currentRecoveredBaselineFocus).toEqual([
+      "browserVerification:success",
+      "guiSmoke:passed",
+    ]);
+    expect(result.verificationOutcomeCounts).toEqual({
+      failureCaseCount: 3,
+      blockingFailureCaseCount: 2,
+      advisoryFailureCaseCount: 1,
+      recoveredCaseCount: 2,
+      currentRecoveredCaseCount: 2,
+      degradedBlockingFailureCaseCount: 1,
+    });
+  });
+
   it("默认入口应产出完整 harness artifact 套件", () => {
     const tempRoot = createTempRoot();
     const historyDir = path.join(tempRoot, ".lime", "harness", "history");

@@ -17,21 +17,13 @@ export type Page =
   | "openclaw"
   | "agent"
   | "skills"
-  | "video"
-  | "image-gen"
   | "automation"
   | "channels"
   | "resources"
   | "browser-runtime"
-  | "tools"
   | "plugins"
   | "settings"
   | "memory"
-  | "terminal"
-  | "sysinfo"
-  | "files"
-  | "web"
-  | "image-analysis"
   | `plugin:${string}`;
 
 export type OpenClawSubpage =

@@ -163,6 +163,35 @@ fn format_shell_env_line(key: &str, value: &str, syntax: ShellConfigSyntax) -> S
     }
 }
 
+#[cfg(test)]
+fn parse_shell_env_line(line: &str) -> Option<(String, String)> {
+    let trimmed = line.trim();
+
+    if let Some(rest) = trimmed.strip_prefix("export ") {
+        let (key, value) = rest.split_once('=')?;
+        let unquoted = value
+            .trim()
+            .strip_prefix('"')?
+            .strip_suffix('"')?
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\");
+        return Some((key.trim().to_string(), unquoted));
+    }
+
+    if let Some(rest) = trimmed.strip_prefix("$env:") {
+        let (key, value) = rest.split_once('=')?;
+        let unquoted = value
+            .trim()
+            .strip_prefix('"')?
+            .strip_suffix('"')?
+            .replace("`\"", "\"")
+            .replace("``", "`");
+        return Some((key.trim().to_string(), unquoted));
+    }
+
+    None
+}
+
 /// 将环境变量写入 shell 配置文件
 /// 使用标记块管理，避免重复添加
 ///

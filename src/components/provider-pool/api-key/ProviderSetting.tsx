@@ -237,7 +237,11 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
       ? "读取真实模型目录前，不展示旧模型，避免把历史缓存误认为当前可用模型。"
       : null;
   const showExplicitPromptCacheBadge =
-    getProviderPromptCacheMode(provider.type) === "explicit_only";
+    getProviderPromptCacheMode(
+      provider.type,
+      provider.prompt_cache_mode,
+      provider.api_host,
+    ) === "explicit_only";
 
   // 处理启用/禁用切换
   const handleToggleEnabled = async (enabled: boolean) => {

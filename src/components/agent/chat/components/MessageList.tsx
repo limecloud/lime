@@ -163,6 +163,16 @@ interface MessageListProps {
   providerType?: string;
 }
 
+function resolvePromptCacheActivity(usage?: {
+  cached_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+}): number {
+  return (
+    Math.max(0, usage?.cached_input_tokens ?? 0) +
+    Math.max(0, usage?.cache_creation_input_tokens ?? 0)
+  );
+}
+
 function isDeferredTimelineItem(item: AgentThreadItem): boolean {
   return item.type === "file_artifact" || item.type === "turn_summary";
 }
@@ -426,7 +436,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
             msg.role === "assistant" &&
             !msg.isThinking &&
             msg.usage &&
-            (msg.usage.cached_input_tokens ?? 0) <= 0,
+            resolvePromptCacheActivity(msg.usage) <= 0,
         ),
       ),
     [messages, providerType],
@@ -886,7 +896,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
               <TokenUsageDisplay
                 usage={msg.usage}
                 promptCacheNotice={
-                  (msg.usage.cached_input_tokens ?? 0) <= 0
+                  resolvePromptCacheActivity(msg.usage) <= 0
                     ? promptCacheNotice
                     : undefined
                 }

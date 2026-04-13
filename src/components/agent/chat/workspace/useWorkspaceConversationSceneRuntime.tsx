@@ -25,6 +25,7 @@ import type { Artifact } from "@/lib/artifact/types";
 import type { Character } from "@/lib/api/memory";
 import type { TaskFile } from "../components/TaskFiles";
 import type { WorkspacePathMissingState } from "../hooks/agentChatShared";
+import type { SyncStatus } from "../hooks/useContentSync";
 import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
 import {
   buildStepProgressProps,
@@ -271,7 +272,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   harnessToggleLabel: ConversationScenePresentationParams["scene"]["harnessToggleLabel"];
   isAutoRestoringSession: boolean;
   sessionId: string | null | undefined;
-  syncStatus: ConversationScenePresentationParams["scene"]["syncStatus"];
+  syncStatus: SyncStatus;
   pendingA2UIForm: ConversationScenePresentationParams["scene"]["pendingA2UIForm"];
   pendingA2UISource: PendingA2UISource | null;
   a2uiSubmissionNotice: ConversationScenePresentationParams["scene"]["a2uiSubmissionNotice"];

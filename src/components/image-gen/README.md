@@ -1,41 +1,28 @@
 # 图片生成模块
 
-AI 图片生成功能，支持多个提供商和模型。
+这里现在只保留供现役链路复用的 AI 生图 runtime、插图浮层与测试辅助。
 
-## 功能特性
+## 当前事实源
 
-- 支持多个图片生成提供商（智谱、AiHubMix、硅基流动等）
-- 支持多种图片尺寸选择
-- 历史记录管理
-- 提供商配置管理
+- `useImageGen.ts`: AI 生图主 Hook，负责 provider、任务、保存与插图联动
+- `RecentImageInsertFloating.tsx`: 最近插图浮层
+- `types.ts`: 共享类型
+- `test-utils.ts`: 相关测试辅助
 
-## 文件结构
+## 导入约束
 
-| 文件 | 说明 |
-|------|------|
-| `ImageGenPage.tsx` | 主页面组件 |
-| `ProviderConfigModal.tsx` | 提供商配置弹窗 |
-| `useImageGen.ts` | 状态管理 Hook |
-| `types.ts` | 类型定义 |
-| `index.ts` | 模块导出 |
+- 不再保留 `@/components/image-gen` 目录级 barrel 导出
+- 现役代码必须直连子路径，例如 `@/components/image-gen/useImageGen`
+- 共享类型与测试辅助分别走 `@/components/image-gen/types`、`@/components/image-gen/test-utils`
 
-## 支持的提供商
+## 已收口的旧 surface
 
-- 智谱开放平台 (CogView-3-Flash, CogView-4)
-- AiHubMix (DALL-E 3)
-- 硅基流动 (FLUX.1-schnell)
-- DMXAPI (DALL-E 3)
-- TokenFlux (DALL-E 3)
-- New API (DALL-E 3)
-- CherryIN (DALL-E 3)
+- 独立“插图”页面已经下线，不再作为产品入口
+- 联网图片搜索已经迁到 Claw `@素材`
+- 本地图片与“我的图片库”已经迁到资料库图片视图
 
 ## 使用方式
 
-1. 点击左侧导航栏的"图片生成"图标
-2. 点击设置按钮添加提供商
-3. 选择提供商、模型和尺寸
-4. 输入描述文字，点击发送生成图片
-
-## API 接口
-
-使用 OpenAI 兼容的 `/v1/images/generations` 接口。
+1. 在 Claw 工作台触发 AI 生图能力
+2. 由 `useImageGen` 统一管理生成、保存与插图动作
+3. 本地图片上传与图库浏览统一走资料库

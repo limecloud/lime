@@ -132,6 +132,7 @@ impl Agent {
                         input_tokens: Some(0),
                         output_tokens: Some(0),
                         cached_input_tokens: Some(0),
+                        cache_creation_input_tokens: Some(0),
                         accumulated_total: None,
                         accumulated_input: None,
                         accumulated_output: None,
@@ -143,6 +144,7 @@ impl Agent {
                 .total_tokens(Some(0))
                 .input_tokens(Some(0))
                 .output_tokens(Some(0))
+                .cache_creation_input_tokens(Some(0))
                 .apply()
                 .await?;
         }

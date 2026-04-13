@@ -2049,6 +2049,10 @@ fn resolve_runtime_message_usage_from_session(
                     .cached_input_tokens
                     .filter(|value| *value >= 0)
                     .map(|value| value as u32),
+                cache_creation_input_tokens: session
+                    .cache_creation_input_tokens
+                    .filter(|value| *value >= 0)
+                    .map(|value| value as u32),
             })
         }
         _ => None,
@@ -2082,6 +2086,7 @@ fn persist_latest_assistant_message_usage(
         usage.input_tokens,
         usage.output_tokens,
         usage.cached_input_tokens,
+        usage.cache_creation_input_tokens,
     )?;
     Ok(())
 }
@@ -2110,6 +2115,11 @@ fn build_compaction_session_metrics_update(
     } else {
         Some(0)
     };
+    let cache_creation_input_tokens = if usage.usage.output_tokens.is_some() {
+        usage.usage.cache_creation_input_tokens
+    } else {
+        Some(0)
+    };
 
     let current_window_tokens = usage
         .usage
@@ -2121,6 +2131,7 @@ fn build_compaction_session_metrics_update(
         schedule_id,
         current_window_tokens,
         cached_input_tokens,
+        cache_creation_input_tokens,
         accumulated_total_tokens: accumulated_total,
         accumulated_input_tokens: accumulated_input,
         accumulated_output_tokens: accumulated_output,
@@ -3482,6 +3493,7 @@ mod tests {
             .input_tokens(Some(60))
             .output_tokens(Some(30))
             .cached_input_tokens(Some(12))
+            .cache_creation_input_tokens(Some(4))
             .accumulated_total_tokens(Some(300))
             .accumulated_input_tokens(Some(200))
             .accumulated_output_tokens(Some(100))
@@ -3494,7 +3506,9 @@ mod tests {
 
         let usage = ProviderUsage::new(
             "gpt-4.1".to_string(),
-            Usage::new(Some(120), Some(45), Some(165)).with_cached_input_tokens(Some(90)),
+            Usage::new(Some(120), Some(45), Some(165))
+                .with_cached_input_tokens(Some(90))
+                .with_cache_creation_input_tokens(Some(30)),
         );
 
         update_compaction_session_metrics(&session_config, &usage)
@@ -3510,6 +3524,7 @@ mod tests {
         assert_eq!(updated.input_tokens, Some(45));
         assert_eq!(updated.output_tokens, Some(0));
         assert_eq!(updated.cached_input_tokens, Some(90));
+        assert_eq!(updated.cache_creation_input_tokens, Some(30));
         assert_eq!(updated.accumulated_total_tokens, Some(465));
         assert_eq!(updated.accumulated_input_tokens, Some(320));
         assert_eq!(updated.accumulated_output_tokens, Some(145));
@@ -3538,6 +3553,7 @@ mod tests {
             .input_tokens(Some(120))
             .output_tokens(Some(60))
             .cached_input_tokens(Some(24))
+            .cache_creation_input_tokens(Some(8))
             .accumulated_total_tokens(Some(700))
             .accumulated_input_tokens(Some(500))
             .accumulated_output_tokens(Some(200))
@@ -3563,6 +3579,7 @@ mod tests {
         assert_eq!(updated.input_tokens, Some(0));
         assert_eq!(updated.output_tokens, Some(0));
         assert_eq!(updated.cached_input_tokens, Some(0));
+        assert_eq!(updated.cache_creation_input_tokens, Some(0));
         assert_eq!(updated.accumulated_total_tokens, Some(700));
         assert_eq!(updated.accumulated_input_tokens, Some(500));
         assert_eq!(updated.accumulated_output_tokens, Some(200));
@@ -3591,6 +3608,7 @@ mod tests {
             .input_tokens(Some(10))
             .output_tokens(Some(10))
             .cached_input_tokens(Some(6))
+            .cache_creation_input_tokens(Some(2))
             .accumulated_total_tokens(Some(200))
             .accumulated_input_tokens(Some(120))
             .accumulated_output_tokens(Some(80))
@@ -3601,7 +3619,9 @@ mod tests {
         let session_config = SessionConfigBuilder::new(&session.id).build();
         let usage = ProviderUsage::new(
             "gpt-4.1".to_string(),
-            Usage::new(Some(30), Some(15), Some(45)).with_cached_input_tokens(Some(18)),
+            Usage::new(Some(30), Some(15), Some(45))
+                .with_cached_input_tokens(Some(18))
+                .with_cache_creation_input_tokens(Some(6)),
         );
 
         update_compaction_session_metrics(&session_config, &usage)
@@ -3617,6 +3637,7 @@ mod tests {
         assert_eq!(updated.input_tokens, Some(15));
         assert_eq!(updated.output_tokens, Some(0));
         assert_eq!(updated.cached_input_tokens, Some(18));
+        assert_eq!(updated.cache_creation_input_tokens, Some(6));
         assert_eq!(updated.accumulated_total_tokens, Some(245));
         assert_eq!(updated.accumulated_input_tokens, Some(150));
         assert_eq!(updated.accumulated_output_tokens, Some(95));
@@ -3642,6 +3663,7 @@ mod tests {
             .input_tokens(Some(204))
             .output_tokens(Some(88))
             .cached_input_tokens(Some(160))
+            .cache_creation_input_tokens(Some(48))
             .apply()
             .await
             .expect("写入 usage 失败");
@@ -3654,8 +3676,9 @@ mod tests {
                         value.input_tokens,
                         value.output_tokens,
                         value.cached_input_tokens,
+                        value.cache_creation_input_tokens,
                     )),
-                    Some((204, 88, Some(160)))
+                    Some((204, 88, Some(160), Some(48)))
                 );
             }
             other => panic!("收到意外事件: {:?}", other),

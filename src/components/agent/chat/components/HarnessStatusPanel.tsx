@@ -112,6 +112,7 @@ import { resolveTeamWorkspaceStableProcessingLabel } from "../utils/teamWorkspac
 import type { TeamRoleDefinition } from "../utils/teamDefinitions";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import { AgentThreadReliabilityPanel } from "./AgentThreadReliabilityPanel";
+import { HarnessVerificationSummarySection } from "./HarnessVerificationSummarySection";
 import { RuntimeReviewDecisionDialog } from "./RuntimeReviewDecisionDialog";
 
 interface HarnessEnvironmentSummary {
@@ -2149,10 +2150,7 @@ export function HarnessStatusPanel({
     ) {
       sections.push({ key: "plan", label: "规划状态" });
     }
-    if (
-      realTeamSummary.total > 0 ||
-      harnessState.delegatedTasks.length > 0
-    ) {
+    if (realTeamSummary.total > 0 || harnessState.delegatedTasks.length > 0) {
       sections.push({ key: "delegation", label: "子任务" });
     }
     if (harnessState.latestContextTrace.length > 0) {
@@ -2787,7 +2785,8 @@ export function HarnessStatusPanel({
                         >
                           {runtimeTaskPresentation.stepStatus === "error" ? (
                             <AlertCircle className="h-4 w-4" />
-                          ) : runtimeTaskPresentation.stepStatus === "skipped" ? (
+                          ) : runtimeTaskPresentation.stepStatus ===
+                            "skipped" ? (
                             <Clock3 className="h-4 w-4" />
                           ) : (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -2905,7 +2904,9 @@ export function HarnessStatusPanel({
                                   </div>
                                   <Badge
                                     variant={
-                                      isCurrentCheckpoint ? "secondary" : "outline"
+                                      isCurrentCheckpoint
+                                        ? "secondary"
+                                        : "outline"
                                     }
                                   >
                                     {isCurrentCheckpoint ? "当前" : "已记录"}
@@ -3198,30 +3199,49 @@ export function HarnessStatusPanel({
 
                       {evidencePack ? (
                         <div className="mt-3 space-y-3">
-                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                            <InventoryStatCard
-                              title="线程状态"
-                              value={formatHandoffStatusLabel(
-                                evidencePack.thread_status,
-                              )}
-                              hint={`最近导出 ${formatIsoDateTime(evidencePack.exported_at)}`}
-                            />
-                            <InventoryStatCard
-                              title="时间线"
-                              value={`${evidencePack.turn_count} / ${evidencePack.item_count}`}
-                              hint="turns / items"
-                            />
-                            <InventoryStatCard
-                              title="阻塞线索"
-                              value={`${evidencePack.pending_request_count} / ${evidencePack.queued_turn_count}`}
-                              hint="pending request / queued turn"
-                            />
-                            <InventoryStatCard
-                              title="已知缺口"
-                              value={`${evidencePack.known_gaps.length}`}
-                              hint={`最近产物 ${evidencePack.recent_artifact_count} 个`}
-                            />
-                          </div>
+                          {(() => {
+                            const verificationSummary =
+                              evidencePack.observability_summary
+                                ?.verification_summary;
+                            const failureFocus =
+                              verificationSummary?.focus_verification_failure_outcomes ??
+                              [];
+                            const exportedSignals =
+                              evidencePack.observability_summary?.signal_coverage.filter(
+                                (entry) => entry.status === "exported",
+                              ).length ?? 0;
+
+                            return (
+                              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                                <InventoryStatCard
+                                  title="线程状态"
+                                  value={formatHandoffStatusLabel(
+                                    evidencePack.thread_status,
+                                  )}
+                                  hint={`最近导出 ${formatIsoDateTime(evidencePack.exported_at)}`}
+                                />
+                                <InventoryStatCard
+                                  title="时间线"
+                                  value={`${evidencePack.turn_count} / ${evidencePack.item_count}`}
+                                  hint="turns / items"
+                                />
+                                <InventoryStatCard
+                                  title="阻塞线索"
+                                  value={`${evidencePack.pending_request_count} / ${evidencePack.queued_turn_count}`}
+                                  hint="pending request / queued turn"
+                                />
+                                <InventoryStatCard
+                                  title="已知缺口"
+                                  value={`${evidencePack.known_gaps.length}`}
+                                  hint={
+                                    verificationSummary
+                                      ? `验证焦点 ${failureFocus.length} · 已导出信号 ${exportedSignals}`
+                                      : `最近产物 ${evidencePack.recent_artifact_count} 个`
+                                  }
+                                />
+                              </div>
+                            );
+                          })()}
 
                           <div className="rounded-xl border border-border bg-background p-3">
                             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -3245,6 +3265,16 @@ export function HarnessStatusPanel({
                               </div>
                             </div>
                           </div>
+
+                          {evidencePack.observability_summary
+                            ?.verification_summary ? (
+                            <HarnessVerificationSummarySection
+                              summary={
+                                evidencePack.observability_summary
+                                  .verification_summary
+                              }
+                            />
+                          ) : null}
 
                           {evidencePack.known_gaps.length > 0 ? (
                             <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3">
@@ -3644,8 +3674,8 @@ export function HarnessStatusPanel({
                             <span>外部分析交接</span>
                           </div>
                           <div className="mt-1 text-xs leading-5 text-muted-foreground">
-                            把 handoff / evidence / replay 主链重新包装成外部
-                            AI 可直接消费的分析交接；复制后可直接粘贴给 AI，
+                            把 handoff / evidence / replay 主链重新包装成外部 AI
+                            可直接消费的分析交接；复制后可直接粘贴给 AI，
                             不需要你再手写补充 prompt。
                           </div>
                         </div>
@@ -3907,8 +3937,9 @@ export function HarnessStatusPanel({
                             <span>人工审核记录</span>
                           </div>
                           <div className="mt-1 text-xs leading-5 text-muted-foreground">
-                            把外部 AI 的分析结论回挂为
-                            `review-decision.md/json` 模板，固定接受、延后、拒绝与回归要求；最终决策仍由开发者审核，不是 Lime 自动闭环。
+                            把外部 AI 的分析结论回挂为 `review-decision.md/json`
+                            模板，固定接受、延后、拒绝与回归要求；最终决策仍由开发者审核，不是
+                            Lime 自动闭环。
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -4033,6 +4064,14 @@ export function HarnessStatusPanel({
                               review decision。
                             </div>
                           </div>
+
+                          {reviewDecisionTemplate.verification_summary ? (
+                            <HarnessVerificationSummarySection
+                              summary={
+                                reviewDecisionTemplate.verification_summary
+                              }
+                            />
+                          ) : null}
 
                           <div className="rounded-xl border border-border bg-background p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">

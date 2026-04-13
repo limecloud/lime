@@ -967,9 +967,10 @@ impl AgentDao {
                 reasoning_content,
                 input_tokens,
                 output_tokens,
-                cached_input_tokens
+                cached_input_tokens,
+                cache_creation_input_tokens
             )
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 session_id,
                 message.role,
@@ -984,6 +985,10 @@ impl AgentDao {
                     .usage
                     .as_ref()
                     .and_then(|usage| usage.cached_input_tokens),
+                message
+                    .usage
+                    .as_ref()
+                    .and_then(|usage| usage.cache_creation_input_tokens),
             ],
         )?;
 
@@ -1003,7 +1008,7 @@ impl AgentDao {
     ) -> Result<Vec<AgentMessage>, rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT role, content_json, timestamp, tool_calls_json, tool_call_id, reasoning_content,
-                    input_tokens, output_tokens, cached_input_tokens
+                    input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens
              FROM agent_messages WHERE session_id = ? ORDER BY id ASC",
         )?;
 
@@ -1017,6 +1022,7 @@ impl AgentDao {
             let input_tokens: Option<u32> = row.get(6)?;
             let output_tokens: Option<u32> = row.get(7)?;
             let cached_input_tokens: Option<u32> = row.get(8)?;
+            let cache_creation_input_tokens: Option<u32> = row.get(9)?;
 
             // 解析 JSON - 支持多种格式
             // 1. Aster 格式: [{"Text":"..."}, {"Text":"..."}]
@@ -1036,7 +1042,8 @@ impl AgentDao {
                 usage: match (input_tokens, output_tokens) {
                     (Some(input_tokens), Some(output_tokens)) => Some(
                         crate::agent::types::TokenUsage::new(input_tokens, output_tokens)
-                            .with_cached_input_tokens(cached_input_tokens),
+                            .with_cached_input_tokens(cached_input_tokens)
+                            .with_cache_creation_input_tokens(cache_creation_input_tokens),
                     ),
                     _ => None,
                 },
@@ -1052,17 +1059,24 @@ impl AgentDao {
         input_tokens: u32,
         output_tokens: u32,
         cached_input_tokens: Option<u32>,
+        cache_creation_input_tokens: Option<u32>,
     ) -> Result<bool, rusqlite::Error> {
         let rows = conn.execute(
             "UPDATE agent_messages
-             SET input_tokens = ?1, output_tokens = ?2, cached_input_tokens = ?3
+             SET input_tokens = ?1, output_tokens = ?2, cached_input_tokens = ?3, cache_creation_input_tokens = ?4
              WHERE id = (
                  SELECT id FROM agent_messages
-                 WHERE session_id = ?4 AND role = 'assistant'
+                 WHERE session_id = ?5 AND role = 'assistant'
                  ORDER BY id DESC
                  LIMIT 1
              )",
-            params![input_tokens, output_tokens, cached_input_tokens, session_id],
+            params![
+                input_tokens,
+                output_tokens,
+                cached_input_tokens,
+                cache_creation_input_tokens,
+                session_id
+            ],
         )?;
 
         Ok(rows > 0)
@@ -1217,7 +1231,8 @@ mod tests {
                 reasoning_content TEXT,
                 input_tokens INTEGER,
                 output_tokens INTEGER,
-                cached_input_tokens INTEGER
+                cached_input_tokens INTEGER,
+                cache_creation_input_tokens INTEGER
             );
             ",
         )
@@ -1561,7 +1576,8 @@ mod tests {
                 reasoning_content: Some("先分析参数，再继续请求".to_string()),
                 usage: Some(
                     crate::agent::types::TokenUsage::new(1200, 300)
-                        .with_cached_input_tokens(Some(900)),
+                        .with_cached_input_tokens(Some(900))
+                        .with_cache_creation_input_tokens(Some(300)),
                 ),
             },
         )
@@ -1576,7 +1592,9 @@ mod tests {
         assert_eq!(
             messages[0].usage,
             Some(
-                crate::agent::types::TokenUsage::new(1200, 300).with_cached_input_tokens(Some(900)),
+                crate::agent::types::TokenUsage::new(1200, 300)
+                    .with_cached_input_tokens(Some(900))
+                    .with_cache_creation_input_tokens(Some(300)),
             )
         );
     }
@@ -1621,6 +1639,7 @@ mod tests {
             2048,
             512,
             Some(1536),
+            Some(256),
         )
         .unwrap();
         assert!(updated);
@@ -1632,7 +1651,8 @@ mod tests {
             messages[2].usage,
             Some(
                 crate::agent::types::TokenUsage::new(2048, 512)
-                    .with_cached_input_tokens(Some(1536)),
+                    .with_cached_input_tokens(Some(1536))
+                    .with_cache_creation_input_tokens(Some(256)),
             )
         );
     }

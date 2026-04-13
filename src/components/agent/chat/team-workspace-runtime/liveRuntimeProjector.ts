@@ -13,7 +13,7 @@ import {
   type TeamWorkspaceRuntimeSessionSnapshot,
   type TeamWorkspaceRuntimeStatus,
 } from "../teamWorkspaceRuntime";
-import { resolveToolDisplayLabel } from "../utils/toolDisplayInfo";
+import { resolveUserFacingToolDisplayLabel } from "../utils/toolDisplayInfo";
 import { resolveTeamWorkspaceDisplayRuntimeStatusLabel } from "../utils/teamWorkspaceCopy";
 
 const LIVE_ACTIVITY_ENTRY_LIMIT = 3;
@@ -210,7 +210,7 @@ function buildToolActivityEntry(params: {
 }) {
   const { sessionId, toolId, toolName, result } = params;
   const displayToolName = toolName?.trim()
-    ? resolveToolDisplayLabel(toolName)
+    ? resolveUserFacingToolDisplayLabel(toolName)
     : null;
   const title = displayToolName ? `处理中 · ${displayToolName}` : "处理中";
   const detail = result

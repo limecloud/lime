@@ -30,6 +30,23 @@ export type ProviderType =
   | "new-api" // New API 兼容格式
   | "gateway"; // Vercel AI Gateway 格式
 
+/**
+ * Provider 声明的 Prompt Cache 模式
+ * - `automatic`: 上游明确声明支持自动 Prompt Cache
+ * - `explicit_only`: 仅支持显式 `cache_control`
+ * - `not_applicable`: 当前 Provider 默认不参与这套提示语义
+ */
+export type ProviderPromptCacheMode =
+  | "automatic"
+  | "explicit_only"
+  | "not_applicable";
+
+/** 可由 Provider 显式声明的 Prompt Cache 模式 */
+export type ProviderDeclaredPromptCacheMode = Exclude<
+  ProviderPromptCacheMode,
+  "not_applicable"
+>;
+
 // ============================================================================
 // Provider 分组类型
 // ============================================================================

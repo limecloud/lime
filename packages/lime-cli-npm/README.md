@@ -112,7 +112,7 @@ npm run build:release -- \
 ```bash
 npm run build:release -- \
   --target-triple "aarch64-apple-darwin" \
-  --version "1.9.0" \
+  --version "1.10.0" \
   --out-dir "./dist"
 ```
 

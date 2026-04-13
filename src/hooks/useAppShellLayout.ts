@@ -21,8 +21,6 @@ export function getAppShellLayoutState(params: {
   const shouldShowAppSidebar =
     params.currentPage !== "settings" &&
     params.currentPage !== "memory" &&
-    params.currentPage !== "image-gen" &&
-    params.currentPage !== "tools" &&
     params.currentPage !== "plugins" &&
     params.currentPage !== "resources" &&
     !shouldHideSidebarForAgent;

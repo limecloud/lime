@@ -1,10 +1,14 @@
-import {
-  normalizeLegacyToolSurfaceName,
-} from "../agentTextNormalization";
+import { normalizeLegacyToolSurfaceName } from "../agentTextNormalization";
 import { normalizeQueuedTurnSnapshots } from "../queuedTurn";
 import type {
+  AgentRuntimeEvidenceArtifact,
+  AgentRuntimeEvidencePack,
+  AgentRuntimeHandoffArtifact,
+  AgentRuntimeHandoffBundle,
   AgentRuntimeAnalysisArtifact,
   AgentRuntimeAnalysisHandoff,
+  AgentRuntimeReplayArtifact,
+  AgentRuntimeReplayCase,
   AgentRuntimeReviewDecision,
   AgentRuntimeReviewDecisionArtifact,
   AgentRuntimeReviewDecisionRiskLevel,
@@ -46,6 +50,24 @@ function readNumberField(
   return typeof value === "number" ? value : 0;
 }
 
+function readOptionalNumberField(
+  record: Record<string, unknown>,
+  camelKey: string,
+  snakeKey?: string,
+): number | undefined {
+  const value = record[camelKey] ?? (snakeKey ? record[snakeKey] : undefined);
+  return typeof value === "number" ? value : undefined;
+}
+
+function readOptionalBooleanField(
+  record: Record<string, unknown>,
+  camelKey: string,
+  snakeKey?: string,
+): boolean | undefined {
+  const value = record[camelKey] ?? (snakeKey ? record[snakeKey] : undefined);
+  return typeof value === "boolean" ? value : undefined;
+}
+
 function readStringListField(
   record: Record<string, unknown>,
   camelKey: string,
@@ -55,6 +77,211 @@ function readStringListField(
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function readRecordField(
+  record: Record<string, unknown>,
+  camelKey: string,
+  snakeKey?: string,
+): Record<string, unknown> | undefined {
+  const value = record[camelKey] ?? (snakeKey ? record[snakeKey] : undefined);
+  return isRecord(value) ? value : undefined;
+}
+
+function normalizeEvidenceVerificationOutcome(
+  value?: string,
+):
+  | "success"
+  | "blocking_failure"
+  | "advisory_failure"
+  | "recovered"
+  | undefined {
+  switch (value) {
+    case "success":
+    case "blocking_failure":
+    case "advisory_failure":
+    case "recovered":
+      return value;
+    default:
+      return undefined;
+  }
+}
+
+function normalizeEvidenceSignalCoverageEntry(value: unknown) {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return {
+    signal: readStringField(value, "signal"),
+    status: readStringField(value, "status"),
+    source: readStringField(value, "source"),
+    detail: readStringField(value, "detail"),
+  };
+}
+
+function normalizeArtifactValidatorVerificationSummary(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    applicable: readOptionalBooleanField(value, "applicable") ?? false,
+    record_count: readNumberField(value, "recordCount", "record_count"),
+    issue_count: readNumberField(value, "issueCount", "issue_count"),
+    repaired_count: readNumberField(value, "repairedCount", "repaired_count"),
+    fallback_used_count: readNumberField(
+      value,
+      "fallbackUsedCount",
+      "fallback_used_count",
+    ),
+    outcome: normalizeEvidenceVerificationOutcome(
+      readOptionalStringField(value, "outcome"),
+    ),
+  };
+}
+
+function normalizeBrowserVerificationSummary(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    record_count: readNumberField(value, "recordCount", "record_count"),
+    success_count: readNumberField(value, "successCount", "success_count"),
+    failure_count: readNumberField(value, "failureCount", "failure_count"),
+    unknown_count: readNumberField(value, "unknownCount", "unknown_count"),
+    latest_updated_at: readOptionalStringField(
+      value,
+      "latestUpdatedAt",
+      "latest_updated_at",
+    ),
+    outcome: normalizeEvidenceVerificationOutcome(
+      readOptionalStringField(value, "outcome"),
+    ),
+  };
+}
+
+function normalizeGuiSmokeVerificationSummary(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    status: readOptionalStringField(value, "status"),
+    exit_code: readOptionalNumberField(value, "exitCode", "exit_code"),
+    passed: readOptionalBooleanField(value, "passed") ?? false,
+    updated_at: readOptionalStringField(value, "updatedAt", "updated_at"),
+    has_output_preview:
+      readOptionalBooleanField(
+        value,
+        "hasOutputPreview",
+        "has_output_preview",
+      ) ?? false,
+    outcome: normalizeEvidenceVerificationOutcome(
+      readOptionalStringField(value, "outcome"),
+    ),
+  };
+}
+
+function normalizeEvidenceObservabilityVerificationOutcomes(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    blocking_failure: readStringListField(
+      value,
+      "blockingFailure",
+      "blocking_failure",
+    ),
+    advisory_failure: readStringListField(
+      value,
+      "advisoryFailure",
+      "advisory_failure",
+    ),
+    recovered: readStringListField(value, "recovered"),
+  };
+}
+
+function normalizeEvidenceVerificationSummary(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    artifact_validator: normalizeArtifactValidatorVerificationSummary(
+      readRecordField(value, "artifactValidator", "artifact_validator"),
+    ),
+    browser_verification: normalizeBrowserVerificationSummary(
+      readRecordField(value, "browserVerification", "browser_verification"),
+    ),
+    gui_smoke: normalizeGuiSmokeVerificationSummary(
+      readRecordField(value, "guiSmoke", "gui_smoke"),
+    ),
+    observability_verification_outcomes:
+      normalizeEvidenceObservabilityVerificationOutcomes(
+        readRecordField(
+          value,
+          "observabilityVerificationOutcomes",
+          "observability_verification_outcomes",
+        ),
+      ),
+    focus_verification_failure_outcomes: readStringListField(
+      value,
+      "focusVerificationFailureOutcomes",
+      "focus_verification_failure_outcomes",
+    ),
+    focus_verification_recovered_outcomes: readStringListField(
+      value,
+      "focusVerificationRecoveredOutcomes",
+      "focus_verification_recovered_outcomes",
+    ),
+  };
+}
+
+function normalizeEvidenceObservabilitySummary(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const rawSignalCoverage = value.signalCoverage ?? value.signal_coverage;
+  const signalCoverage = Array.isArray(rawSignalCoverage)
+    ? rawSignalCoverage
+        .map((entry: unknown) => normalizeEvidenceSignalCoverageEntry(entry))
+        .filter(
+          (
+            entry,
+          ): entry is NonNullable<
+            ReturnType<typeof normalizeEvidenceSignalCoverageEntry>
+          > => entry !== null,
+        )
+    : [];
+  const verificationSummary = normalizeEvidenceVerificationSummary(
+    value.verificationSummary ?? value.verification_summary,
+  );
+  const schemaVersion = readOptionalStringField(
+    value,
+    "schemaVersion",
+    "schema_version",
+  );
+  const knownGaps = readStringListField(value, "knownGaps", "known_gaps");
+
+  if (
+    !schemaVersion &&
+    signalCoverage.length === 0 &&
+    knownGaps.length === 0 &&
+    !verificationSummary
+  ) {
+    return undefined;
+  }
+
+  return {
+    schema_version: schemaVersion,
+    known_gaps: knownGaps,
+    signal_coverage: signalCoverage,
+    verification_summary: verificationSummary,
+  };
 }
 
 function normalizeAnalysisArtifact(
@@ -69,6 +296,81 @@ function normalizeAnalysisArtifact(
       readStringField(value, "kind") === "analysis_context"
         ? "analysis_context"
         : "analysis_brief",
+    title: readStringField(value, "title"),
+    relative_path: readStringField(value, "relativePath", "relative_path"),
+    absolute_path: readStringField(value, "absolutePath", "absolute_path"),
+    bytes: readNumberField(value, "bytes"),
+  };
+}
+
+function normalizeHandoffArtifact(
+  value: unknown,
+): AgentRuntimeHandoffArtifact | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const kind = readStringField(value, "kind");
+
+  return {
+    kind:
+      kind === "progress"
+        ? "progress"
+        : kind === "handoff"
+          ? "handoff"
+          : kind === "review_summary"
+            ? "review_summary"
+            : "plan",
+    title: readStringField(value, "title"),
+    relative_path: readStringField(value, "relativePath", "relative_path"),
+    absolute_path: readStringField(value, "absolutePath", "absolute_path"),
+    bytes: readNumberField(value, "bytes"),
+  };
+}
+
+function normalizeEvidenceArtifact(
+  value: unknown,
+): AgentRuntimeEvidenceArtifact | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const kind = readStringField(value, "kind");
+
+  return {
+    kind:
+      kind === "runtime"
+        ? "runtime"
+        : kind === "timeline"
+          ? "timeline"
+          : kind === "artifacts"
+            ? "artifacts"
+            : "summary",
+    title: readStringField(value, "title"),
+    relative_path: readStringField(value, "relativePath", "relative_path"),
+    absolute_path: readStringField(value, "absolutePath", "absolute_path"),
+    bytes: readNumberField(value, "bytes"),
+  };
+}
+
+function normalizeReplayArtifact(
+  value: unknown,
+): AgentRuntimeReplayArtifact | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const kind = readStringField(value, "kind");
+
+  return {
+    kind:
+      kind === "expected"
+        ? "expected"
+        : kind === "grader"
+          ? "grader"
+          : kind === "evidence_links"
+            ? "evidence_links"
+            : "input",
     title: readStringField(value, "title"),
     relative_path: readStringField(value, "relativePath", "relative_path"),
     absolute_path: readStringField(value, "absolutePath", "absolute_path"),
@@ -256,6 +558,197 @@ export function normalizeAnalysisHandoff(
   };
 }
 
+export function normalizeHandoffBundle(
+  value: unknown,
+): AgentRuntimeHandoffBundle {
+  const record = isRecord(value) ? value : {};
+  const rawArtifacts = Array.isArray(record.artifacts) ? record.artifacts : [];
+
+  return {
+    session_id: readStringField(record, "sessionId", "session_id"),
+    thread_id: readStringField(record, "threadId", "thread_id"),
+    workspace_id: readOptionalStringField(
+      record,
+      "workspaceId",
+      "workspace_id",
+    ),
+    workspace_root: readStringField(record, "workspaceRoot", "workspace_root"),
+    bundle_relative_root: readStringField(
+      record,
+      "bundleRelativeRoot",
+      "bundle_relative_root",
+    ),
+    bundle_absolute_root: readStringField(
+      record,
+      "bundleAbsoluteRoot",
+      "bundle_absolute_root",
+    ),
+    exported_at: readStringField(record, "exportedAt", "exported_at"),
+    thread_status: readStringField(record, "threadStatus", "thread_status"),
+    latest_turn_status: readOptionalStringField(
+      record,
+      "latestTurnStatus",
+      "latest_turn_status",
+    ),
+    pending_request_count: readNumberField(
+      record,
+      "pendingRequestCount",
+      "pending_request_count",
+    ),
+    queued_turn_count: readNumberField(
+      record,
+      "queuedTurnCount",
+      "queued_turn_count",
+    ),
+    active_subagent_count: readNumberField(
+      record,
+      "activeSubagentCount",
+      "active_subagent_count",
+    ),
+    todo_total: readNumberField(record, "todoTotal", "todo_total"),
+    todo_pending: readNumberField(record, "todoPending", "todo_pending"),
+    todo_in_progress: readNumberField(
+      record,
+      "todoInProgress",
+      "todo_in_progress",
+    ),
+    todo_completed: readNumberField(record, "todoCompleted", "todo_completed"),
+    artifacts: rawArtifacts
+      .map((artifact) => normalizeHandoffArtifact(artifact))
+      .filter(Boolean) as AgentRuntimeHandoffArtifact[],
+  };
+}
+
+export function normalizeEvidencePack(
+  value: unknown,
+): AgentRuntimeEvidencePack {
+  const record = isRecord(value) ? value : {};
+  const rawArtifacts = Array.isArray(record.artifacts) ? record.artifacts : [];
+
+  return {
+    session_id: readStringField(record, "sessionId", "session_id"),
+    thread_id: readStringField(record, "threadId", "thread_id"),
+    workspace_id: readOptionalStringField(
+      record,
+      "workspaceId",
+      "workspace_id",
+    ),
+    workspace_root: readStringField(record, "workspaceRoot", "workspace_root"),
+    pack_relative_root: readStringField(
+      record,
+      "packRelativeRoot",
+      "pack_relative_root",
+    ),
+    pack_absolute_root: readStringField(
+      record,
+      "packAbsoluteRoot",
+      "pack_absolute_root",
+    ),
+    exported_at: readStringField(record, "exportedAt", "exported_at"),
+    thread_status: readStringField(record, "threadStatus", "thread_status"),
+    latest_turn_status: readOptionalStringField(
+      record,
+      "latestTurnStatus",
+      "latest_turn_status",
+    ),
+    turn_count: readNumberField(record, "turnCount", "turn_count"),
+    item_count: readNumberField(record, "itemCount", "item_count"),
+    pending_request_count: readNumberField(
+      record,
+      "pendingRequestCount",
+      "pending_request_count",
+    ),
+    queued_turn_count: readNumberField(
+      record,
+      "queuedTurnCount",
+      "queued_turn_count",
+    ),
+    recent_artifact_count: readNumberField(
+      record,
+      "recentArtifactCount",
+      "recent_artifact_count",
+    ),
+    known_gaps: readStringListField(record, "knownGaps", "known_gaps"),
+    observability_summary: normalizeEvidenceObservabilitySummary(
+      record.observabilitySummary ?? record.observability_summary,
+    ),
+    artifacts: rawArtifacts
+      .map((artifact) => normalizeEvidenceArtifact(artifact))
+      .filter(Boolean) as AgentRuntimeEvidenceArtifact[],
+  };
+}
+
+export function normalizeReplayCase(value: unknown): AgentRuntimeReplayCase {
+  const record = isRecord(value) ? value : {};
+  const rawArtifacts = Array.isArray(record.artifacts) ? record.artifacts : [];
+
+  return {
+    session_id: readStringField(record, "sessionId", "session_id"),
+    thread_id: readStringField(record, "threadId", "thread_id"),
+    workspace_id: readOptionalStringField(
+      record,
+      "workspaceId",
+      "workspace_id",
+    ),
+    workspace_root: readStringField(record, "workspaceRoot", "workspace_root"),
+    replay_relative_root: readStringField(
+      record,
+      "replayRelativeRoot",
+      "replay_relative_root",
+    ),
+    replay_absolute_root: readStringField(
+      record,
+      "replayAbsoluteRoot",
+      "replay_absolute_root",
+    ),
+    handoff_bundle_relative_root: readStringField(
+      record,
+      "handoffBundleRelativeRoot",
+      "handoff_bundle_relative_root",
+    ),
+    evidence_pack_relative_root: readStringField(
+      record,
+      "evidencePackRelativeRoot",
+      "evidence_pack_relative_root",
+    ),
+    exported_at: readStringField(record, "exportedAt", "exported_at"),
+    thread_status: readStringField(record, "threadStatus", "thread_status"),
+    latest_turn_status: readOptionalStringField(
+      record,
+      "latestTurnStatus",
+      "latest_turn_status",
+    ),
+    pending_request_count: readNumberField(
+      record,
+      "pendingRequestCount",
+      "pending_request_count",
+    ),
+    queued_turn_count: readNumberField(
+      record,
+      "queuedTurnCount",
+      "queued_turn_count",
+    ),
+    linked_handoff_artifact_count: readNumberField(
+      record,
+      "linkedHandoffArtifactCount",
+      "linked_handoff_artifact_count",
+    ),
+    linked_evidence_artifact_count: readNumberField(
+      record,
+      "linkedEvidenceArtifactCount",
+      "linked_evidence_artifact_count",
+    ),
+    recent_artifact_count: readNumberField(
+      record,
+      "recentArtifactCount",
+      "recent_artifact_count",
+    ),
+    artifacts: rawArtifacts
+      .map((artifact) => normalizeReplayArtifact(artifact))
+      .filter(Boolean) as AgentRuntimeReplayArtifact[],
+  };
+}
+
 export function normalizeReviewDecisionTemplate(
   value: unknown,
 ): AgentRuntimeReviewDecisionTemplate {
@@ -333,6 +826,9 @@ export function normalizeReviewDecisionTemplate(
       record,
       "defaultDecisionStatus",
       "default_decision_status",
+    ),
+    verification_summary: normalizeEvidenceVerificationSummary(
+      record.verificationSummary ?? record.verification_summary,
     ),
     decision: normalizeReviewDecision(record.decision),
     decision_status_options: readStringListField(

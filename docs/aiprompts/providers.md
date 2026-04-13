@@ -128,22 +128,29 @@ anthropic-version: 2023-06-01
 
 ## Prompt Cache 能力边界
 
-Lime 当前把 Prompt Cache 能力视为 **Provider 类型能力**，而不是“请求长得像哪家协议”：
+Lime 当前把 Prompt Cache 能力视为 **Provider 显式声明优先、类型默认兜底**，而不是“请求长得像哪家协议”：
 
-- `anthropic` / `claude` / `claude-oauth`：声明为 `automatic`
-- `anthropic-compatible`：声明为 `explicit_only`
+- `anthropic` / `claude` / `claude-oauth`：默认 `automatic`
+- `anthropic-compatible`：默认 `explicit_only`，但自定义 Provider 可显式声明为 `automatic`
 - 其它 Provider：默认 `not_applicable`
+
+前台提示层额外保留一个**已知官方 Host 例外**：
+
+- 对 `https://open.bigmodel.cn/api/anthropic` 这类智谱官方 Anthropic 兼容 Host，Lime 前台不再把它误报成“仅显式缓存”
+- 这只影响 UI 提示与 badge 收口，不代表 Lime 会把该 Host 直接等同于 Anthropic `cache_control` 自动注入语义
 
 这条事实源当前收敛在：
 
 - 前端：`src/lib/model/providerPromptCacheSupport.ts`
 - 后端：Provider 类型与运行时能力判断链
+- 模型注册表映射：只负责 provider/model 目录归一，不参与 Prompt Cache 能力推断
 
 需要特别注意：
 
 1. `anthropic-compatible` 只表示接入方兼容 Anthropic wire format，不等于上游已经实现 Anthropic Automatic Prompt Caching
 2. Lime 不会因为某个自定义渠道“长得像 Anthropic”就默认把它当成官方 Anthropic 自动缓存能力
-3. 对 `anthropic-compatible` 渠道，Lime 只保留显式 `cache_control` 语义；如果上游没有实现 Automatic Prompt Cache，`cached_input_tokens` 为空不能直接归因到 Lime 没发字段
+3. 对自定义 `anthropic-compatible` 渠道，只有在上游明确声明支持 Automatic Prompt Cache 时才应配置为 `automatic`
+4. 若未声明自动缓存，Lime 只保留显式 `cache_control` 语义；如果上游没有实现 Automatic Prompt Cache，`cached_input_tokens` 为空不能直接归因到 Lime 没发字段
 
 排查这类问题时，优先确认三件事：
 

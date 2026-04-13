@@ -367,6 +367,57 @@ describe("MessageList", () => {
     );
   });
 
+  it("anthropic-compatible 自定义 Provider 存在缓存写入时不应再透传自动缓存提示", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-cache-write",
+        role: "assistant",
+        content: "本轮已完成。",
+        timestamp: now,
+        usage: {
+          input_tokens: 1_500,
+          output_tokens: 500,
+          cached_input_tokens: 0,
+          cache_creation_input_tokens: 256,
+        },
+      },
+    ];
+
+    mockUseConfiguredProviders.mockImplementation(() => ({
+      providers: [
+        {
+          key: "custom-provider-id",
+          label: "Kimi Anthropic",
+          registryId: "custom-provider-id",
+          type: "anthropic-compatible",
+          providerId: "custom-provider-id",
+        },
+      ],
+      loading: false,
+    }));
+    mockFindConfiguredProviderBySelection.mockImplementation(
+      (
+        providers: MockConfiguredProvider[],
+        selection?: string | null,
+      ): MockConfiguredProvider | null =>
+        Array.isArray(providers)
+          ? (providers.find((provider) => provider.key === selection) ?? null)
+          : null,
+    );
+
+    const container = render(messages, {
+      providerType: "custom-provider-id",
+    });
+
+    expect(container.textContent).not.toContain("未声明自动缓存");
+    expect(mockTokenUsageDisplay).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promptCacheNotice: undefined,
+      }),
+    );
+  });
+
   it("图片任务消息卡应在聊天区渲染预览并支持展开图片画布", () => {
     const now = new Date();
     const messages: Message[] = [

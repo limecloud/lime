@@ -34,6 +34,7 @@ function createProvider(
     sort_order: 1,
     api_key_count: 1,
     custom_models: ["gpt-4.1"],
+    prompt_cache_mode: null,
     created_at: new Date("2026-03-15T00:00:00.000Z").toISOString(),
     updated_at: new Date("2026-03-15T00:00:00.000Z").toISOString(),
     api_keys: [],
@@ -184,5 +185,92 @@ describe("ProviderConfigForm", () => {
     );
     expect(notice?.textContent ?? "").toContain("未声明支持自动 Prompt Cache");
     expect(notice?.textContent ?? "").toContain("显式 cache_control");
+  });
+
+  it("显式声明 automatic 的 anthropic-compatible Provider 不应展示 Prompt Cache 提示", () => {
+    const provider = createProvider({
+      id: "custom-anthropic-compatible-automatic",
+      name: "Anthropic 兼容自动缓存渠道",
+      is_system: false,
+      type: "anthropic-compatible",
+      prompt_cache_mode: "automatic",
+      api_host: "https://example.com/anthropic",
+    });
+    const { container } = renderForm(provider);
+
+    expect(
+      container.querySelector('[data-testid="provider-prompt-cache-notice"]'),
+    ).toBeNull();
+  });
+
+  it("anthropic-compatible Provider 切换到 automatic 后应带上 prompt_cache_mode 保存", async () => {
+    const provider = createProvider({
+      id: "custom-anthropic-compatible",
+      name: "Anthropic 兼容渠道",
+      is_system: false,
+      type: "anthropic-compatible",
+      api_host: "https://example.com/anthropic",
+    });
+    const { container, onUpdate } = renderForm(provider);
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[data-testid="prompt-cache-mode-select"]',
+    );
+
+    expect(trigger).not.toBeNull();
+
+    await act(async () => {
+      trigger?.click();
+    });
+
+    await act(async () => {
+      findDivByText("已声明自动缓存").click();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+      await Promise.resolve();
+    });
+
+    expect(onUpdate).toHaveBeenCalledWith(
+      "custom-anthropic-compatible",
+      expect.objectContaining({
+        type: "anthropic-compatible",
+        prompt_cache_mode: "automatic",
+      }),
+    );
+    expect(
+      container.querySelector('[data-testid="provider-prompt-cache-notice"]'),
+    ).toBeNull();
+  });
+
+  it("anthropic-compatible Provider 的协议说明弹层应明确未默认声明自动 Prompt Cache", async () => {
+    const provider = createProvider({
+      id: "custom-anthropic-compatible",
+      name: "Anthropic 兼容渠道",
+      is_system: false,
+      type: "anthropic-compatible",
+      api_host: "https://example.com/anthropic",
+    });
+    const { container } = renderForm(provider);
+
+    const infoButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-config-info-button"]',
+    );
+
+    expect(infoButton).not.toBeNull();
+
+    await act(async () => {
+      infoButton?.click();
+    });
+
+    const specialHint = document.querySelector<HTMLElement>(
+      '[data-testid="protocol-special-hint"]',
+    );
+
+    expect(specialHint).not.toBeNull();
+    expect(specialHint?.textContent ?? "").toContain(
+      "已知官方 Anthropic 兼容端点",
+    );
   });
 });

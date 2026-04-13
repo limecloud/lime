@@ -1001,6 +1001,10 @@ fn resolve_runtime_usage_from_aster_session(
                     .cached_input_tokens
                     .filter(|value| *value >= 0)
                     .map(|value| value as u32),
+                cache_creation_input_tokens: session
+                    .cache_creation_input_tokens
+                    .filter(|value| *value >= 0)
+                    .map(|value| value as u32),
             })
         }
         _ => None,
@@ -1066,6 +1070,7 @@ pub async fn get_runtime_session_detail(
                             usage.input_tokens,
                             usage.output_tokens,
                             usage.cached_input_tokens,
+                            usage.cache_creation_input_tokens,
                         )
                     {
                         tracing::warn!(
@@ -1379,6 +1384,7 @@ fn convert_agent_message(
                 input_tokens: usage.input_tokens,
                 output_tokens: usage.output_tokens,
                 cached_input_tokens: usage.cached_input_tokens,
+                cache_creation_input_tokens: usage.cache_creation_input_tokens,
             }),
     };
 
@@ -1958,6 +1964,7 @@ mod tests {
             id: "session-usage-fallback".to_string(),
             input_tokens: Some(3_833),
             output_tokens: Some(615),
+            cache_creation_input_tokens: Some(144),
             ..AsterSession::default()
         };
 
@@ -1965,15 +1972,20 @@ mod tests {
             apply_runtime_usage_fallback_to_latest_assistant_message(&mut messages, &session);
 
         assert_eq!(
-            applied.map(|usage| (usage.input_tokens, usage.output_tokens)),
-            Some((3_833, 615))
+            applied.map(|usage| (
+                usage.input_tokens,
+                usage.output_tokens,
+                usage.cache_creation_input_tokens,
+            )),
+            Some((3_833, 615, Some(144)))
         );
         assert_eq!(
-            messages[1]
-                .usage
-                .as_ref()
-                .map(|usage| (usage.input_tokens, usage.output_tokens)),
-            Some((3_833, 615))
+            messages[1].usage.as_ref().map(|usage| (
+                usage.input_tokens,
+                usage.output_tokens,
+                usage.cache_creation_input_tokens,
+            )),
+            Some((3_833, 615, Some(144)))
         );
     }
 
@@ -1990,6 +2002,7 @@ mod tests {
                 input_tokens: 20_480,
                 output_tokens: 10_240,
                 cached_input_tokens: Some(8_192),
+                cache_creation_input_tokens: Some(1_024),
             }),
         }];
         let session = AsterSession {
@@ -2008,8 +2021,9 @@ mod tests {
                 usage.input_tokens,
                 usage.output_tokens,
                 usage.cached_input_tokens,
+                usage.cache_creation_input_tokens,
             )),
-            Some((20_480, 10_240, Some(8_192)))
+            Some((20_480, 10_240, Some(8_192), Some(1_024)))
         );
     }
 

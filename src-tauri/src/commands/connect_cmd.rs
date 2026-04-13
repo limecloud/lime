@@ -253,6 +253,7 @@ pub async fn save_relay_api_key(
                 None, // project
                 None, // location
                 None, // region
+                None, // prompt_cache_mode
             )
             .map_err(|e| ConnectError {
                 code: "CREATE_PROVIDER_FAILED".to_string(),

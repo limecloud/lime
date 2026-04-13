@@ -8,7 +8,6 @@ export type HotkeyScope = "global" | "local";
 export type HotkeyScene =
   | "global"
   | "workspace"
-  | "terminal"
   | "document-editor"
   | "document-canvas";
 

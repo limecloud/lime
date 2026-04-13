@@ -112,9 +112,9 @@ describe("agentThreadGrouping", () => {
       "artifact",
       "process",
     ]);
-    expect(model.groups[1]?.previewLines).toEqual(["产出了 wechat-draft.md"]);
+    expect(model.groups[1]?.previewLines).toEqual(["生成了 wechat-draft.md"]);
     expect(model.groups[2]?.previewLines).toContain(
-      "执行了 npm test -- AgentThreadTimeline",
+      "运行了 npm test -- AgentThreadTimeline",
     );
     expect(model.summaryChips).toEqual([
       { kind: "process", label: "执行过程", count: 3 },
@@ -139,7 +139,7 @@ describe("agentThreadGrouping", () => {
     const model = buildAgentThreadDisplayModel(items);
 
     expect(model.groups.map((group) => group.kind)).toEqual(["process"]);
-    expect(model.groups[0]?.previewLines).toEqual(["写了 nested-draft.md"]);
+    expect(model.groups[0]?.previewLines).toEqual(["保存了 nested-draft.md"]);
   });
 
   it("应通过 filesystem event protocol 识别目录与输出文件位置线索", () => {
@@ -166,8 +166,8 @@ describe("agentThreadGrouping", () => {
 
     expect(model.groups.map((group) => group.kind)).toEqual(["process"]);
     expect(model.groups[0]?.previewLines).toEqual([
-      "看了 reports",
-      "动了 run.log",
+      "查看了 reports",
+      "处理了 run.log",
     ]);
   });
 
@@ -223,6 +223,68 @@ describe("agentThreadGrouping", () => {
     expect(model.summaryText).toBe("请先确认以下选项：");
     expect(model.orderedBlocks[0]?.previewLines).toEqual([
       "请先确认以下选项：",
+    ]);
+  });
+
+  it("交互与任务结果预览应使用更直白的用户文案", () => {
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("question-1", 1),
+        type: "tool_call",
+        tool_name: "AskUserQuestion",
+        arguments: { question: "需要继续吗？" },
+      },
+      {
+        ...createBaseItem("task-output-1", 2),
+        type: "tool_call",
+        tool_name: "TaskOutput",
+        arguments: { task_id: "video-task-1" },
+      },
+      {
+        ...createBaseItem("list-peers-1", 3),
+        type: "tool_call",
+        tool_name: "ListPeers",
+        arguments: { team_name: "当前团队" },
+      },
+    ];
+
+    const model = buildAgentThreadDisplayModel(items);
+
+    expect(model.groups[0]?.previewLines).toEqual([
+      "等你确认：需要继续吗？",
+      "已查看结果 video-task-1",
+      "已查看 当前团队",
+    ]);
+  });
+
+  it("协作任务控制预览应直接表达查看、继续与暂停动作", () => {
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("wait-agent-1", 1),
+        type: "tool_call",
+        tool_name: "WaitAgent",
+        arguments: { id: "agent-1" },
+      },
+      {
+        ...createBaseItem("resume-agent-1", 2),
+        type: "tool_call",
+        tool_name: "ResumeAgent",
+        arguments: { id: "agent-1" },
+      },
+      {
+        ...createBaseItem("close-agent-1", 3),
+        type: "tool_call",
+        tool_name: "CloseAgent",
+        arguments: { id: "agent-1" },
+      },
+    ];
+
+    const model = buildAgentThreadDisplayModel(items);
+
+    expect(model.groups[0]?.previewLines).toEqual([
+      "已查看 agent-1",
+      "已继续 agent-1",
+      "已暂停 agent-1",
     ]);
   });
 

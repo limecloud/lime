@@ -1,19 +1,39 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { AlertTriangle, CheckCircle2, Info, Loader2 } from "lucide-react";
 import type { CanvasStateUnion } from "@/lib/workspace/workbenchCanvas";
+import { StepProgress } from "@/lib/workspace/workbenchUi";
+import type { A2UIFormData, A2UIResponse } from "@/lib/workspace/a2ui";
+import { CanvasWorkbenchLayout } from "../components/CanvasWorkbenchLayout";
 import { ChatNavbar } from "../components/ChatNavbar";
 import { EmptyState } from "../components/EmptyState";
-import { WorkspaceChatContent } from "./WorkspaceChatContent";
-import { WorkspaceMainScene } from "./WorkspaceMainScene";
+import { MessageList } from "../components/MessageList";
+import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
+import { WorkspaceMainArea } from "./WorkspaceMainArea";
+import { WorkspacePendingA2UIPanel } from "./WorkspacePendingA2UIPanel";
 import {
   buildWorkspaceEmptyStateProps,
   buildWorkspaceNavbarProps,
 } from "./chatSurfaceProps";
 import { isCanvasStateEmpty } from "./generalWorkbenchHelpers";
+import type { SyncStatus } from "../hooks/useContentSync";
+import type { A2UISubmissionNoticeData } from "./A2UISubmissionNotice";
+import {
+  ChatContainer,
+  ChatContainerInner,
+  ChatContent,
+  ChatInputSlot,
+  ContentSyncNotice,
+  ContentSyncNoticeText,
+  EntryBanner,
+  EntryBannerClose,
+  MessageViewport,
+} from "./WorkspaceStyles";
 
-type WorkspaceMainSceneProps = Omit<
-  ComponentProps<typeof WorkspaceMainScene>,
-  "chatContent" | "chatNavbarProps"
+type WorkspaceMainAreaProps = Omit<
+  ComponentProps<typeof WorkspaceMainArea>,
+  "navbarNode" | "contentSyncNoticeNode" | "forceCanvasMode" | "chatContent" | "canvasContent"
 >;
+type CanvasWorkbenchLayoutProps = ComponentProps<typeof CanvasWorkbenchLayout>;
 type ChatToolPreferences = {
   webSearch: boolean;
   thinking: boolean;
@@ -21,38 +41,186 @@ type ChatToolPreferences = {
   subagent: boolean;
 };
 type ChatToolPreferenceKey = keyof ChatToolPreferences;
+type StepProgressProps = ComponentProps<typeof StepProgress>;
+type MessageListProps = ComponentProps<typeof MessageList>;
+type TeamWorkspaceDockProps = ComponentProps<typeof TeamWorkspaceDock>;
+type EmptyStateProps = ComponentProps<typeof EmptyState>;
 
-interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
+interface WorkspaceChatContentParams {
   entryBannerVisible: boolean;
   entryBannerMessage?: string;
   onDismissEntryBanner: () => void;
-  serviceSkillExecutionCard?: ComponentProps<
-    typeof WorkspaceChatContent
-  >["serviceSkillExecutionCard"];
-  stepProgressProps?: ComponentProps<
-    typeof WorkspaceChatContent
-  >["stepProgressProps"];
+  serviceSkillExecutionCard?: ReactNode;
+  stepProgressProps?: StepProgressProps | null;
+  showChatLayout: boolean;
+  compactChrome: boolean;
+  contextWorkspaceEnabled: boolean;
+  generalWorkbenchMessageViewportBottomPadding?: string;
+  messageListProps: MessageListProps;
+  teamWorkspaceDockProps?: TeamWorkspaceDockProps | null;
+  emptyStateProps: EmptyStateProps;
+  showWorkspaceAlert: boolean;
+  onSelectWorkspaceDirectory: () => void;
+  onDismissWorkspaceAlert: () => void;
+  pendingA2UIForm?: A2UIResponse | null;
+  onPendingA2UISubmit?: (formData: A2UIFormData) => void;
+  a2uiSubmissionNotice?: A2UISubmissionNoticeData | null;
+  showInlineInputbar: boolean;
+  inputbarNode: ReactNode;
+}
+
+function resolveContentSyncNoticeMeta(status: Exclude<SyncStatus, "idle">): {
+  label: string;
+  Icon: typeof Loader2;
+  animated?: boolean;
+} {
+  switch (status) {
+    case "syncing":
+      return {
+        label: "正在同步到当前内容…",
+        Icon: Loader2,
+        animated: true,
+      };
+    case "success":
+      return {
+        label: "内容已同步",
+        Icon: CheckCircle2,
+      };
+    case "error":
+    default:
+      return {
+        label: "同步失败，将自动重试",
+        Icon: AlertTriangle,
+      };
+  }
+}
+
+function renderWorkspaceChatContent({
+  entryBannerVisible,
+  entryBannerMessage,
+  onDismissEntryBanner,
+  serviceSkillExecutionCard,
+  stepProgressProps,
+  showChatLayout,
+  compactChrome,
+  contextWorkspaceEnabled,
+  generalWorkbenchMessageViewportBottomPadding,
+  messageListProps,
+  teamWorkspaceDockProps,
+  emptyStateProps,
+  showWorkspaceAlert,
+  onSelectWorkspaceDirectory,
+  onDismissWorkspaceAlert,
+  pendingA2UIForm,
+  onPendingA2UISubmit,
+  a2uiSubmissionNotice,
+  showInlineInputbar,
+  inputbarNode,
+}: WorkspaceChatContentParams): ReactNode {
+  const messageListNode = (
+    <MessageList
+      {...messageListProps}
+      compactLeadingSpacing={contextWorkspaceEnabled}
+    />
+  );
+
+  return (
+    <ChatContainer>
+      <ChatContainerInner>
+        {entryBannerVisible && entryBannerMessage ? (
+          <EntryBanner>
+            <Info className="h-4 w-4 shrink-0" />
+            <span>{entryBannerMessage}</span>
+            <EntryBannerClose
+              type="button"
+              onClick={onDismissEntryBanner}
+              aria-label="关闭入口提示"
+            >
+              关闭
+            </EntryBannerClose>
+          </EntryBanner>
+        ) : null}
+
+        {stepProgressProps ? <StepProgress {...stepProgressProps} /> : null}
+        {serviceSkillExecutionCard}
+
+        {showChatLayout ? (
+          <ChatContent $compact={compactChrome}>
+            <>
+              {contextWorkspaceEnabled ? (
+                <MessageViewport
+                  $bottomPadding={generalWorkbenchMessageViewportBottomPadding}
+                >
+                  {messageListNode}
+                </MessageViewport>
+              ) : (
+                messageListNode
+              )}
+              {teamWorkspaceDockProps ? (
+                <TeamWorkspaceDock {...teamWorkspaceDockProps} />
+              ) : null}
+            </>
+          </ChatContent>
+        ) : (
+          <EmptyState {...emptyStateProps} />
+        )}
+
+        {showChatLayout ? (
+          <>
+            {showWorkspaceAlert ? (
+              <div className="mx-4 mb-2 flex items-center gap-2 rounded-[18px] border border-amber-200/90 bg-amber-50/86 px-3.5 py-2.5 text-sm text-amber-800 shadow-sm shadow-amber-950/5 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                <span className="flex-1">
+                  工作区目录不存在，请重新选择一个本地目录后继续
+                </span>
+                <button
+                  type="button"
+                  onClick={onSelectWorkspaceDirectory}
+                  className="shrink-0 rounded-xl border border-amber-200 bg-white/84 px-2.5 py-1 text-xs font-medium text-amber-900 transition hover:border-amber-300 hover:bg-white dark:bg-amber-800 dark:text-amber-100 dark:hover:bg-amber-700"
+                >
+                  重新选择目录
+                </button>
+                <button
+                  type="button"
+                  onClick={onDismissWorkspaceAlert}
+                  className="shrink-0 text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
+                  aria-label="关闭"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : null}
+            <WorkspacePendingA2UIPanel
+              pendingA2UIForm={pendingA2UIForm}
+              onA2UISubmit={onPendingA2UISubmit}
+              a2uiSubmissionNotice={a2uiSubmissionNotice}
+            />
+            {showInlineInputbar ? (
+              <ChatInputSlot>{inputbarNode}</ChatInputSlot>
+            ) : null}
+          </>
+        ) : null}
+      </ChatContainerInner>
+    </ChatContainer>
+  );
+}
+
+interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
+  entryBannerVisible: boolean;
+  entryBannerMessage?: string;
+  onDismissEntryBanner: () => void;
+  serviceSkillExecutionCard?: WorkspaceChatContentParams["serviceSkillExecutionCard"];
+  stepProgressProps?: WorkspaceChatContentParams["stepProgressProps"];
   showChatLayout: boolean;
   contextWorkspaceEnabled: boolean;
   generalWorkbenchMessageViewportBottomPadding?: string;
-  messageListProps: ComponentProps<
-    typeof WorkspaceChatContent
-  >["messageListProps"];
-  teamWorkspaceDockProps?: ComponentProps<
-    typeof WorkspaceChatContent
-  >["teamWorkspaceDockProps"];
+  messageListProps: WorkspaceChatContentParams["messageListProps"];
+  teamWorkspaceDockProps?: WorkspaceChatContentParams["teamWorkspaceDockProps"];
   workspaceAlertVisible: boolean;
   onSelectWorkspaceDirectory: () => void;
   onDismissWorkspaceAlert: () => void;
-  pendingA2UIForm?: ComponentProps<
-    typeof WorkspaceChatContent
-  >["pendingA2UIForm"];
-  onPendingA2UISubmit?: ComponentProps<
-    typeof WorkspaceChatContent
-  >["onPendingA2UISubmit"];
-  a2uiSubmissionNotice?: ComponentProps<
-    typeof WorkspaceChatContent
-  >["a2uiSubmissionNotice"];
+  pendingA2UIForm?: WorkspaceChatContentParams["pendingA2UIForm"];
+  onPendingA2UISubmit?: WorkspaceChatContentParams["onPendingA2UISubmit"];
+  a2uiSubmissionNotice?: WorkspaceChatContentParams["a2uiSubmissionNotice"];
   shouldHideGeneralWorkbenchInputForTheme: boolean;
   input: ComponentProps<typeof EmptyState>["input"];
   setInput: ComponentProps<typeof EmptyState>["setInput"];
@@ -148,6 +316,15 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainSceneProps {
     typeof ChatNavbar
   >["contextCompactionRunning"];
   onCompactContext?: ComponentProps<typeof ChatNavbar>["onCompactContext"];
+  isThemeWorkbench: boolean;
+  contentId?: string;
+  syncStatus: SyncStatus;
+  hasLiveCanvasPreviewContent: boolean;
+  liveCanvasPreview: ReactNode;
+  currentImageWorkbenchActive: boolean;
+  shouldShowCanvasLoadingState: boolean;
+  teamWorkbenchView: CanvasWorkbenchLayoutProps["teamView"];
+  canvasWorkbenchLayoutProps: Omit<CanvasWorkbenchLayoutProps, "teamView">;
 }
 
 export function WorkspaceConversationScene({
@@ -296,34 +473,29 @@ export function WorkspaceConversationScene({
     onOpenSettings,
   });
 
-  const chatContent = (
-    <WorkspaceChatContent
-      entryBannerVisible={entryBannerVisible}
-      entryBannerMessage={entryBannerMessage}
-      onDismissEntryBanner={onDismissEntryBanner}
-      serviceSkillExecutionCard={serviceSkillExecutionCard}
-      stepProgressProps={stepProgressProps}
-      showChatLayout={showChatLayout}
-      compactChrome={compactChrome}
-      contextWorkspaceEnabled={contextWorkspaceEnabled}
-      generalWorkbenchMessageViewportBottomPadding={
-        generalWorkbenchMessageViewportBottomPadding
-      }
-      messageListProps={messageListProps}
-      teamWorkspaceDockProps={teamWorkspaceDockProps}
-      emptyStateProps={emptyStateProps}
-      showWorkspaceAlert={workspaceAlertVisible}
-      onSelectWorkspaceDirectory={onSelectWorkspaceDirectory}
-      onDismissWorkspaceAlert={onDismissWorkspaceAlert}
-      pendingA2UIForm={pendingA2UIForm}
-      onPendingA2UISubmit={onPendingA2UISubmit}
-      a2uiSubmissionNotice={a2uiSubmissionNotice}
-      showInlineInputbar={
-        !contextWorkspaceEnabled && !shouldHideGeneralWorkbenchInputForTheme
-      }
-      inputbarNode={inputbarNode}
-    />
-  );
+  const chatContent = renderWorkspaceChatContent({
+    entryBannerVisible,
+    entryBannerMessage,
+    onDismissEntryBanner,
+    serviceSkillExecutionCard,
+    stepProgressProps,
+    showChatLayout,
+    compactChrome,
+    contextWorkspaceEnabled,
+    generalWorkbenchMessageViewportBottomPadding,
+    messageListProps,
+    teamWorkspaceDockProps,
+    emptyStateProps,
+    showWorkspaceAlert: workspaceAlertVisible,
+    onSelectWorkspaceDirectory,
+    onDismissWorkspaceAlert,
+    pendingA2UIForm,
+    onPendingA2UISubmit,
+    a2uiSubmissionNotice,
+    showInlineInputbar:
+      !contextWorkspaceEnabled && !shouldHideGeneralWorkbenchInputForTheme,
+    inputbarNode,
+  });
 
   const chatNavbarProps = buildWorkspaceNavbarProps({
     visible: navbarVisible,
@@ -353,22 +525,60 @@ export function WorkspaceConversationScene({
     onOpenSettings,
   });
 
+  const navbarNode = chatNavbarProps ? (
+    <ChatNavbar {...chatNavbarProps} />
+  ) : null;
+  const shouldShowContentSyncNotice =
+    !isThemeWorkbench &&
+    Boolean(contentId) &&
+    (syncStatus === "syncing" ||
+      syncStatus === "success" ||
+      syncStatus === "error");
+  const contentSyncNoticeNode =
+    shouldShowContentSyncNotice
+      ? (() => {
+          const notice = resolveContentSyncNoticeMeta(syncStatus);
+          const NoticeIcon = notice.Icon;
+
+          return (
+            <ContentSyncNotice $status={syncStatus}>
+              <NoticeIcon
+                className={
+                  notice.animated
+                    ? "h-3.5 w-3.5 animate-spin"
+                    : "h-3.5 w-3.5"
+                }
+              />
+              <ContentSyncNoticeText>{notice.label}</ContentSyncNoticeText>
+            </ContentSyncNotice>
+          );
+        })()
+      : null;
+  const canvasContent =
+    !liveCanvasPreview && !teamWorkbenchView ? null : currentImageWorkbenchActive ||
+        (!teamWorkbenchView && shouldShowCanvasLoadingState) ? (
+      liveCanvasPreview
+    ) : (
+      <CanvasWorkbenchLayout
+        {...canvasWorkbenchLayoutProps}
+        teamView={teamWorkbenchView}
+      />
+    );
+  const forceCanvasMode = Boolean(
+    isThemeWorkbench &&
+      (hasLiveCanvasPreviewContent || Boolean(teamWorkbenchView)),
+  );
+
   return (
-    <WorkspaceMainScene
-      chatNavbarProps={chatNavbarProps}
-      isThemeWorkbench={isThemeWorkbench}
-      contentId={contentId}
-      syncStatus={syncStatus}
-      hasLiveCanvasPreviewContent={hasLiveCanvasPreviewContent}
-      liveCanvasPreview={liveCanvasPreview}
-      currentImageWorkbenchActive={currentImageWorkbenchActive}
-      shouldShowCanvasLoadingState={shouldShowCanvasLoadingState}
-      teamWorkbenchView={teamWorkbenchView}
-      canvasWorkbenchLayoutProps={canvasWorkbenchLayoutProps}
+    <WorkspaceMainArea
       compactChrome={compactChrome}
+      navbarNode={navbarNode}
+      contentSyncNoticeNode={contentSyncNoticeNode}
       shellBottomInset={shellBottomInset}
       layoutMode={layoutMode}
+      forceCanvasMode={forceCanvasMode}
       chatContent={chatContent}
+      canvasContent={canvasContent}
       chatPanelWidth={chatPanelWidth}
       chatPanelMinWidth={chatPanelMinWidth}
       generalWorkbenchDialog={generalWorkbenchDialog}

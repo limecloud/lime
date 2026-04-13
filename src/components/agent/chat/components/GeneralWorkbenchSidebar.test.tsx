@@ -201,9 +201,11 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(container.textContent).toContain("任务工作台");
     expect(container.textContent).toContain("聚焦当前任务、后续节点与相关版本。");
     expect(container.textContent).toContain("任务视图");
-    expect(container.textContent).toContain("当前任务");
+    expect(container.textContent).toContain("当前焦点");
     expect(container.textContent).toContain("撰写主稿");
+    expect(container.textContent).toContain("后续任务");
     expect(container.textContent).toContain("已完成 1/4");
+    expect(container.textContent).toContain("已完成 1 项");
     expect(container.textContent).toMatch(/相关分支|相关版本/);
 
     const stepNodes = Array.from(
@@ -216,15 +218,15 @@ describe("GeneralWorkbenchSidebar", () => {
       '[data-testid="workflow-sidebar-branch-section"]',
     ) as HTMLElement | null;
 
-    expect(stepNodes).toHaveLength(4);
+    expect(stepNodes).toHaveLength(2);
     expect(stepNodes.map((node) => node.getAttribute("data-status"))).toEqual([
-      "active",
       "error",
       "pending",
-      "completed",
     ]);
     expect(taskSection).toBeTruthy();
     expect(branchSection).toBeTruthy();
+    expect(taskSection?.textContent).toContain("当前焦点");
+    expect(taskSection?.textContent).toContain("后续任务");
     const taskSectionOrder =
       taskSection && branchSection
         ? taskSection.compareDocumentPosition(branchSection) &
@@ -449,7 +451,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(container.textContent).toContain("1. 提炼内容主线");
     expect(container.textContent).toContain("2. 生成封面提示词");
     expect(container.textContent).toContain("允许工具");
-    expect(container.textContent).toContain("文件读取");
+    expect(container.textContent).toContain("查看文件");
     expect(container.textContent).toContain("图片生成");
     expect(container.textContent).toContain("适用场景");
     expect(container.textContent).toContain(
@@ -583,7 +585,7 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.textContent).toContain("文件读取");
+    expect(container.textContent).toContain("查看文件");
     expect(container.textContent).toContain("文件不存在");
     expect(container.textContent).not.toContain("执行技能 社媒主稿与封面");
   });
@@ -644,7 +646,7 @@ describe("GeneralWorkbenchSidebar", () => {
     }
 
     expect(container.textContent).toContain("页面打开");
-    expect(container.textContent).toContain("任务输出");
+    expect(container.textContent).toContain("查看任务结果");
     expect(container.textContent).toContain("用户确认");
     expect(container.textContent).not.toContain("网络检索");
     expect(container.textContent).not.toContain("执行命令");
@@ -766,6 +768,19 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
+    expect(container.querySelector("button[aria-label='切换相关记录']")).toBeTruthy();
+    expect(container.querySelector("button[aria-label='删除分支']")).toBeNull();
+    expect(container.textContent).toContain("当前焦点落在");
+
+    const branchToggle = container.querySelector(
+      "button[aria-label='切换相关记录']",
+    ) as HTMLButtonElement | null;
+    if (branchToggle) {
+      act(() => {
+        branchToggle.click();
+      });
+    }
+
     const mergeButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent === "采纳",
     );
@@ -796,6 +811,16 @@ describe("GeneralWorkbenchSidebar", () => {
 
     expect(container.textContent).toContain("相关版本");
     expect(container.textContent).toContain("新增版本");
+    expect(container.textContent).toContain("当前焦点落在");
+
+    const branchToggle = container.querySelector(
+      "button[aria-label='切换相关记录']",
+    ) as HTMLButtonElement | null;
+    if (branchToggle) {
+      act(() => {
+        branchToggle.click();
+      });
+    }
 
     const setMainButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent === "设为主稿",
@@ -820,6 +845,9 @@ describe("GeneralWorkbenchSidebar", () => {
         workflowTab.click();
       });
     }
+
+    expect(container.textContent).toContain("最近一组：content_post_with_cover");
+
     const activityToggle = container.querySelector(
       "button[aria-label='切换活动日志']",
     ) as HTMLButtonElement | null;
@@ -829,9 +857,10 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.textContent).toContain("闸门：写作闸门");
-    expect(container.textContent).toContain("来源：skill");
-    expect(container.textContent).toContain("运行：run-abcd…");
+    expect(container.textContent).toContain("过程记录");
+    expect(container.textContent).toContain("写作闸门");
+    expect(container.textContent).toContain("技能");
+    expect(container.textContent).toContain("查看运行 run-abcd…");
   });
 
   it("活动日志应按运行维度分组展示步骤", () => {
@@ -873,6 +902,7 @@ describe("GeneralWorkbenchSidebar", () => {
         workflowTab.click();
       });
     }
+    expect(container.textContent).toContain("最近一组：research_topic");
 
     const activityToggle = container.querySelector(
       "button[aria-label='切换活动日志']",
@@ -885,12 +915,17 @@ describe("GeneralWorkbenchSidebar", () => {
 
     expect(container.textContent).toContain("research_topic");
     expect(container.textContent).toContain("write_file");
-    expect(container.textContent).toContain("技能：research_topic");
-    expect(container.textContent).toContain("修改：content-posts/research.md");
-    expect(container.textContent).toContain('输入：{"topic":"AI"}');
-    expect(container.textContent).toContain("输出：已完成选题调研");
+    expect(container.textContent).toContain("技能");
+    expect(container.textContent).toContain("content-posts/research.md");
+    expect(container.textContent).toContain('{"topic":"AI"}');
+    expect(container.textContent).toContain("已完成选题调研");
+    expect(
+      container.querySelector(
+        'button[aria-label="定位活动产物路径-content-posts/research.md"]',
+      ),
+    ).toBeNull();
     const runButtons = Array.from(container.querySelectorAll("button")).filter(
-      (button) => button.textContent === "运行：rungrp01",
+      (button) => button.textContent === "查看运行 rungrp01",
     );
     expect(runButtons.length).toBe(1);
   });
@@ -917,7 +952,7 @@ describe("GeneralWorkbenchSidebar", () => {
     }
 
     const runButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("运行：run-abcd…"),
+      (button) => button.textContent?.includes("查看运行 run-abcd…"),
     );
     expect(runButton).toBeTruthy();
     if (runButton) {
@@ -966,12 +1001,12 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.textContent).toContain("运行详情");
-    expect(container.textContent).toContain("ID：run-detail-1");
-    expect(container.textContent).toContain("状态：处理中");
+    expect(container.textContent).toContain("当前查看运行");
+    expect(container.textContent).toContain("运行ID：run-detail-1");
+    expect(container.textContent).toContain("处理中");
   });
 
-  it("运行详情应支持复制运行ID与元数据", async () => {
+  it("运行详情应支持复制运行ID与原始记录", async () => {
     const { container } = renderSidebar({
       activeRunDetail: {
         id: "run-copy-1",
@@ -1012,7 +1047,7 @@ describe("GeneralWorkbenchSidebar", () => {
       "button[aria-label='复制运行ID']",
     ) as HTMLButtonElement | null;
     const copyMetadataButton = container.querySelector(
-      "button[aria-label='复制运行元数据']",
+      "button[aria-label='复制原始记录']",
     ) as HTMLButtonElement | null;
 
     expect(copyIdButton).toBeTruthy();
@@ -1084,12 +1119,10 @@ describe("GeneralWorkbenchSidebar", () => {
     }
 
     expect(container.textContent).toContain(
-      "工作流：social_content_pipeline_v1",
+      "工作流 social_content_pipeline_v1",
     );
-    expect(container.textContent).toContain("执行ID：exec-artifact-1");
-    expect(container.textContent).toContain("版本ID：ver-artifact-1");
     expect(container.textContent).toContain(
-      "阶段：选题闸门 → 写作闸门 → 发布闸门",
+      "选题闸门 → 写作闸门 → 发布闸门",
     );
     expect(container.textContent).toContain("content-posts/demo.md");
     expect(container.textContent).toContain(
@@ -1161,8 +1194,6 @@ describe("GeneralWorkbenchSidebar", () => {
           timeLabel: "11:20",
           applyTarget: "主稿内容",
           contextIds: ["material:1"],
-          runId: "run-artifact-group-1",
-          executionId: "exec-artifact-group-1",
           sessionId: "session-group",
           artifactPaths: ["content-posts/group.md"],
           gateKey: "write_mode",
@@ -1263,7 +1294,9 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.textContent).toContain("任务提交");
+    expect(container.textContent).toContain("任务记录");
+    expect(container.textContent).toContain("最近一次：排版优化");
+    expect(container.textContent).toContain("共 3 条任务记录，按 2 类归档。");
     const toggleCreationTasksButton = container.querySelector(
       "button[aria-label='切换任务提交记录']",
     ) as HTMLButtonElement | null;
@@ -1275,7 +1308,7 @@ describe("GeneralWorkbenchSidebar", () => {
     }
     expect(container.textContent).toContain("配图生成");
     expect(container.textContent).toContain("排版优化");
-    expect(container.textContent).toContain("本组 2 条");
+    expect(container.textContent).toContain("2 条记录");
 
     const copyAbsolutePathButton = container.querySelector(
       'button[aria-label="复制任务文件绝对路径-task-image-1"]',

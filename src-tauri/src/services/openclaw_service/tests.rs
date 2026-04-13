@@ -42,6 +42,7 @@ fn build_provider(provider_type: ApiProviderType, api_host: &str) -> ApiKeyProvi
         project: None,
         location: None,
         region: None,
+        prompt_cache_mode: None,
         custom_models: Vec::new(),
         created_at: Utc::now(),
         updated_at: Utc::now(),

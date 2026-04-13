@@ -153,6 +153,8 @@ struct AnalysisObservabilitySection {
     summary: Value,
     correlation_keys: Vec<String>,
     gap_signals: Vec<String>,
+    verification_failure_outcomes: Vec<String>,
+    verification_recovered_outcomes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -232,6 +234,14 @@ pub fn export_runtime_analysis_handoff(
     let observability_correlation_keys =
         collect_observability_correlation_keys(&observability_summary);
     let observability_gap_signals = collect_observability_gap_signals(&observability_summary);
+    let observability_verification_failure_outcomes = collect_observability_verification_outcomes(
+        &observability_summary,
+        "/verificationSummary/focusVerificationFailureOutcomes",
+    );
+    let observability_verification_recovered_outcomes = collect_observability_verification_outcomes(
+        &observability_summary,
+        "/verificationSummary/focusVerificationRecoveredOutcomes",
+    );
 
     let title = derive_title(&input_payload, session_id);
     let failure_modes = value_string_list(
@@ -406,6 +416,8 @@ pub fn export_runtime_analysis_handoff(
             summary: sanitize_value(observability_summary, workspace_root.as_path()),
             correlation_keys: observability_correlation_keys.clone(),
             gap_signals: observability_gap_signals.clone(),
+            verification_failure_outcomes: observability_verification_failure_outcomes.clone(),
+            verification_recovered_outcomes: observability_verification_recovered_outcomes.clone(),
         },
         reading_order: reading_order.clone(),
         external_analysis_contract: external_contract.clone(),
@@ -416,6 +428,7 @@ pub fn export_runtime_analysis_handoff(
         &title,
         &exported_at,
         &summary,
+        &analysis_context.observability.summary,
         &replay_refs,
         &handoff_refs,
         &evidence_refs,
@@ -426,6 +439,10 @@ pub fn export_runtime_analysis_handoff(
         &analysis_context.evidence.summary_excerpt,
         &analysis_context.observability.correlation_keys,
         &analysis_context.observability.gap_signals,
+        &analysis_context.observability.verification_failure_outcomes,
+        &analysis_context
+            .observability
+            .verification_recovered_outcomes,
     );
 
     let artifacts = vec![
@@ -489,6 +506,7 @@ fn build_analysis_brief(
     title: &str,
     exported_at: &str,
     summary: &AnalysisContextSummary,
+    observability_summary: &Value,
     replay_refs: &[AnalysisArtifactReference],
     handoff_refs: &[AnalysisArtifactReference],
     evidence_refs: &[AnalysisArtifactReference],
@@ -499,6 +517,8 @@ fn build_analysis_brief(
     evidence_excerpt: &str,
     observability_correlation_keys: &[String],
     observability_gap_signals: &[String],
+    verification_failure_outcomes: &[String],
+    verification_recovered_outcomes: &[String],
 ) -> String {
     let mut lines = vec![
         "# 外部分析交接简报".to_string(),
@@ -557,10 +577,26 @@ fn build_analysis_brief(
             "- 当前缺口：{}",
             join_or_fallback(observability_gap_signals, "无")
         ),
+        "- 结构化验证摘要：".to_string(),
+    ];
+    lines.extend(
+        render_observability_verification_summary_lines(observability_summary)
+            .into_iter()
+            .map(|line| format!("  {line}")),
+    );
+    lines.extend([
+        format!(
+            "- 验证失败焦点：{}",
+            join_or_fallback(verification_failure_outcomes, "无")
+        ),
+        format!(
+            "- 已恢复结果：{}",
+            join_or_fallback(verification_recovered_outcomes, "无")
+        ),
         String::new(),
         "## 推荐读取顺序".to_string(),
         String::new(),
-    ];
+    ]);
 
     for (index, item) in reading_order.iter().enumerate() {
         lines.push(format!("{}. {}", index + 1, item));
@@ -974,6 +1010,159 @@ fn collect_observability_gap_signals(summary: &Value) -> Vec<String> {
         .collect()
 }
 
+fn collect_observability_verification_outcomes(summary: &Value, pointer: &str) -> Vec<String> {
+    summary
+        .pointer(pointer)
+        .map(value_string_list)
+        .unwrap_or_default()
+}
+
+fn render_observability_verification_summary_lines(summary: &Value) -> Vec<String> {
+    let verification_summary = summary
+        .get("verificationSummary")
+        .or_else(|| summary.get("verification_summary"));
+    let Some(verification_summary) = verification_summary else {
+        return vec!["- 当前没有结构化验证摘要。".to_string()];
+    };
+
+    let mut lines = Vec::new();
+
+    if let Some(artifact_validator) = summary_object_field(
+        verification_summary,
+        "artifactValidator",
+        "artifact_validator",
+    ) {
+        lines.push(format!(
+            "- Artifact 校验：`{}`｜{}",
+            format_verification_outcome_label(summary_string_field(
+                artifact_validator,
+                "outcome",
+                "outcome",
+            )),
+            describe_artifact_validator_summary(artifact_validator),
+        ));
+    }
+
+    if let Some(browser_verification) = summary_object_field(
+        verification_summary,
+        "browserVerification",
+        "browser_verification",
+    ) {
+        lines.push(format!(
+            "- 浏览器验证：`{}`｜{}",
+            format_verification_outcome_label(summary_string_field(
+                browser_verification,
+                "outcome",
+                "outcome",
+            )),
+            describe_browser_verification_summary(browser_verification),
+        ));
+    }
+
+    if let Some(gui_smoke) = summary_object_field(verification_summary, "guiSmoke", "gui_smoke") {
+        lines.push(format!(
+            "- GUI Smoke：`{}`｜{}",
+            format_verification_outcome_label(summary_string_field(
+                gui_smoke, "outcome", "outcome",
+            )),
+            describe_gui_smoke_summary(gui_smoke),
+        ));
+    }
+
+    if lines.is_empty() {
+        vec!["- 当前没有结构化验证摘要。".to_string()]
+    } else {
+        lines
+    }
+}
+
+fn summary_object_field<'a>(
+    summary: &'a Value,
+    camel_case: &str,
+    snake_case: &str,
+) -> Option<&'a Value> {
+    summary
+        .get(camel_case)
+        .or_else(|| summary.get(snake_case))
+        .filter(|value| value.is_object())
+}
+
+fn summary_string_field<'a>(
+    summary: &'a Value,
+    camel_case: &str,
+    snake_case: &str,
+) -> Option<&'a str> {
+    summary
+        .get(camel_case)
+        .or_else(|| summary.get(snake_case))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn summary_u64_field(summary: &Value, camel_case: &str, snake_case: &str) -> Option<u64> {
+    summary
+        .get(camel_case)
+        .or_else(|| summary.get(snake_case))
+        .and_then(Value::as_u64)
+}
+
+fn summary_bool_field(summary: &Value, camel_case: &str, snake_case: &str) -> Option<bool> {
+    summary
+        .get(camel_case)
+        .or_else(|| summary.get(snake_case))
+        .and_then(Value::as_bool)
+}
+
+fn format_verification_outcome_label(value: Option<&str>) -> &'static str {
+    match value {
+        Some("success") => "通过",
+        Some("blocking_failure") => "阻塞失败",
+        Some("advisory_failure") => "提示失败",
+        Some("recovered") => "已恢复",
+        _ => "未定",
+    }
+}
+
+fn describe_artifact_validator_summary(summary: &Value) -> String {
+    if summary_bool_field(summary, "applicable", "applicable") == Some(false) {
+        return "当前没有适用的 Artifact 校验。".to_string();
+    }
+
+    format!(
+        "记录 {} · issues {} · repaired {} · fallback {}",
+        summary_u64_field(summary, "recordCount", "record_count").unwrap_or(0),
+        summary_u64_field(summary, "issueCount", "issue_count").unwrap_or(0),
+        summary_u64_field(summary, "repairedCount", "repaired_count").unwrap_or(0),
+        summary_u64_field(summary, "fallbackUsedCount", "fallback_used_count").unwrap_or(0),
+    )
+}
+
+fn describe_browser_verification_summary(summary: &Value) -> String {
+    format!(
+        "记录 {} · 成功 {} · 失败 {} · 未判定 {}",
+        summary_u64_field(summary, "recordCount", "record_count").unwrap_or(0),
+        summary_u64_field(summary, "successCount", "success_count").unwrap_or(0),
+        summary_u64_field(summary, "failureCount", "failure_count").unwrap_or(0),
+        summary_u64_field(summary, "unknownCount", "unknown_count").unwrap_or(0),
+    )
+}
+
+fn describe_gui_smoke_summary(summary: &Value) -> String {
+    let status = summary_string_field(summary, "status", "status").unwrap_or("未知");
+    let exit_code = summary_u64_field(summary, "exitCode", "exit_code")
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "未知".to_string());
+    let passed = summary_bool_field(summary, "passed", "passed").unwrap_or(false);
+
+    format!(
+        "状态 {} · exit {} · {}",
+        status,
+        exit_code,
+        if passed { "已通过" } else { "未通过" }
+    )
+}
+
 fn join_or_fallback(values: &[String], fallback: &str) -> String {
     if values.is_empty() {
         fallback.to_string()
@@ -1183,6 +1372,94 @@ mod tests {
         .expect("write request log");
     }
 
+    fn seed_recovered_verification(detail: &mut SessionDetail, root: &Path) {
+        let artifact_relative_path = ".lime/artifacts/thread-1/report.artifact.json";
+        let artifact_absolute_path =
+            root.join(artifact_relative_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+
+        fs::create_dir_all(
+            artifact_absolute_path
+                .parent()
+                .expect("artifact path should have parent"),
+        )
+        .expect("create artifact dir");
+        fs::write(
+            &artifact_absolute_path,
+            serde_json::to_string_pretty(&json!({
+                "schemaVersion": crate::services::artifact_document_validator::ARTIFACT_DOCUMENT_SCHEMA_VERSION,
+                "title": "Harness Evidence",
+                "kind": "analysis",
+                "status": "ready",
+                "blocks": [
+                    {
+                        "id": "block-1",
+                        "type": "rich_text",
+                        "content": "test"
+                    }
+                ],
+                "metadata": {
+                    "artifactValidationIssues": ["title 缺失或为空，已使用兜底标题。"],
+                    "artifactValidationRepaired": true,
+                    "artifactFallbackUsed": false
+                }
+            }))
+            .expect("serialize artifact document"),
+        )
+        .expect("write artifact document");
+
+        detail.items.push(AgentThreadItem {
+            id: "artifact-verification-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:30Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:30Z".to_string()),
+            updated_at: "2026-03-27T10:00:30Z".to_string(),
+            payload: AgentThreadItemPayload::FileArtifact {
+                path: artifact_relative_path.to_string(),
+                source: "artifact_snapshot".to_string(),
+                content: None,
+                metadata: None,
+            },
+        });
+        detail.items.push(AgentThreadItem {
+            id: "browser-tool-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 5,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:40Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:40Z".to_string()),
+            updated_at: "2026-03-27T10:00:40Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "browser_snapshot".to_string(),
+                arguments: None,
+                output: None,
+                success: Some(true),
+                error: None,
+                metadata: None,
+            },
+        });
+        detail.items.push(AgentThreadItem {
+            id: "gui-smoke-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 6,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-03-27T10:00:50Z".to_string(),
+            completed_at: Some("2026-03-27T10:00:50Z".to_string()),
+            updated_at: "2026-03-27T10:00:50Z".to_string(),
+            payload: AgentThreadItemPayload::CommandExecution {
+                command: "npm run verify:gui-smoke".to_string(),
+                cwd: root.to_string_lossy().to_string(),
+                aggregated_output: Some("GUI smoke finished successfully".to_string()),
+                exit_code: Some(0),
+                error: None,
+            },
+        });
+    }
+
     #[test]
     fn should_export_runtime_analysis_handoff_to_workspace() {
         let temp_dir = TempDir::new().expect("temp dir");
@@ -1218,6 +1495,10 @@ mod tests {
         assert!(brief.contains("pending request：1"));
         assert!(brief.contains("证据关联与可观测覆盖"));
         assert!(brief.contains("requestTelemetry"));
+        assert!(brief.contains("结构化验证摘要"));
+        assert!(brief.contains("当前没有结构化验证摘要"));
+        assert!(brief.contains("验证失败焦点：无"));
+        assert!(brief.contains("已恢复结果：无"));
         assert!(!brief.contains("requestTelemetry (unlinked)"));
         assert!(brief.contains("/workspace/lime"));
 
@@ -1228,8 +1509,41 @@ mod tests {
         assert!(context.contains("\"observability\""));
         assert!(context.contains("\"correlationKeys\""));
         assert!(context.contains("\"gapSignals\""));
+        assert!(context.contains("\"verificationFailureOutcomes\": []"));
+        assert!(context.contains("\"verificationRecoveredOutcomes\": []"));
         assert!(context.contains("\"matchedRequestCount\": 1"));
         assert!(context.contains("/workspace/lime"));
         assert!(!context.contains(temp_dir.path().to_string_lossy().as_ref()));
+    }
+
+    #[test]
+    fn should_include_structured_verification_summary_in_analysis_brief_when_available() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        let thread_read = build_thread_read();
+        write_request_telemetry_fixture(temp_dir.path());
+        seed_recovered_verification(&mut detail, temp_dir.path());
+
+        export_runtime_analysis_handoff(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let brief_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/analysis/analysis-brief.md");
+        let context_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/analysis/analysis-context.json");
+
+        let brief = fs::read_to_string(brief_path).expect("brief");
+        assert!(brief.contains("结构化验证摘要"));
+        assert!(brief.contains("Artifact 校验：`已恢复`"));
+        assert!(brief.contains("记录 1 · issues 1 · repaired 1 · fallback 0"));
+        assert!(brief.contains("浏览器验证：`通过`"));
+        assert!(brief.contains("GUI Smoke：`通过`"));
+        assert!(brief.contains("已恢复结果：Artifact 校验已恢复 1 个产物，fallback 0 次。"));
+
+        let context = fs::read_to_string(context_path).expect("context");
+        assert!(context.contains("\"verificationSummary\": {"));
+        assert!(context.contains("\"verificationRecoveredOutcomes\": ["));
+        assert!(context.contains("\"outcome\": \"recovered\""));
     }
 }

@@ -6,7 +6,6 @@ export type ResourceProjectChangeSource =
   | "resources"
   | "general-chat"
   | "browser-runtime"
-  | "image-gen-target"
   | "image-gen-save"
   | "unknown";
 

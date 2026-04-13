@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildGeneralWorkbenchSendBoundaryState,
+  buildGeneralWorkbenchResumePromptFromRunState,
+  buildInitialDispatchKey,
+  buildInitialDispatchPreviewMessages,
   buildRuntimeTeamDispatchPreviewMessages,
   buildSubmissionPreviewMessages,
   createSubmissionPreviewSnapshot,
@@ -7,6 +11,107 @@ import {
 } from "./workspaceSendHelpers";
 
 describe("workspaceSendHelpers runtime team preview", () => {
+  it("initialDispatchKey 应稳定编码首轮 prompt 与图片签名", () => {
+    expect(
+      buildInitialDispatchKey("写一篇文章", [
+        { data: "abcdef1234567890", mediaType: "image/png" },
+      ]),
+    ).toContain("写一篇文章");
+  });
+
+  it("bootstrap 预览消息应使用统一 initial-dispatch 结构", () => {
+    const messages = buildInitialDispatchPreviewMessages({
+      key: "initial-dispatch-1",
+      prompt: "请开始处理这个任务",
+      images: [],
+    });
+
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({
+      id: "initial-dispatch:initial-dispatch-1:user",
+      role: "user",
+      content: "请开始处理这个任务",
+    });
+    expect(messages[1]).toMatchObject({
+      id: "initial-dispatch:initial-dispatch-1:assistant",
+      role: "assistant",
+      content: "正在开始处理任务…",
+      isThinking: true,
+    });
+  });
+
+  it("工作区首条创作意图应包装成 current send boundary", () => {
+    const boundary = buildGeneralWorkbenchSendBoundaryState({
+      isThemeWorkbench: true,
+      contentId: "content-1",
+      initialDispatchKey: "dispatch-1",
+      consumedInitialPromptKey: null,
+      initialUserImages: [],
+      mappedTheme: "general",
+      socialArticleSkillKey: "content_post_with_cover",
+      sourceText: "请生成今天的社媒主稿",
+    });
+
+    expect(boundary).toMatchObject({
+      sourceText: "/content_post_with_cover 请生成今天的社媒主稿",
+      shouldConsumePendingGeneralWorkbenchInitialPrompt: true,
+      shouldDismissGeneralWorkbenchEntryPrompt: true,
+      browserRequirementMatch: null,
+    });
+  });
+
+  it("浏览器任务应在 current send boundary 中保留 requirement 检测", () => {
+    const boundary = buildGeneralWorkbenchSendBoundaryState({
+      isThemeWorkbench: true,
+      contentId: "content-1",
+      initialDispatchKey: "dispatch-1",
+      consumedInitialPromptKey: null,
+      initialUserImages: [],
+      mappedTheme: "general",
+      socialArticleSkillKey: "content_post_with_cover",
+      sourceText: "帮我把这篇文章发布到微信公众号后台",
+    });
+
+    expect(boundary.sourceText).toBe(
+      "/content_post_with_cover 帮我把这篇文章发布到微信公众号后台",
+    );
+    expect(boundary.browserRequirementMatch).toEqual(
+      expect.objectContaining({
+        requirement: "required_with_user_step",
+        launchUrl: "https://mp.weixin.qq.com/",
+        platformLabel: "微信公众号后台",
+      }),
+    );
+  });
+
+  it("run-state 应生成 resume prompt", () => {
+    const prompt = buildGeneralWorkbenchResumePromptFromRunState({
+      run_state: "auto_running",
+      current_gate_key: "write_mode",
+      queue_items: [
+        {
+          run_id: "run-1",
+          title: "撰写主稿",
+          gate_key: "write_mode",
+          status: "running",
+          source: "skill",
+          source_ref: null,
+          started_at: new Date().toISOString(),
+        },
+      ],
+      latest_terminal: null,
+      recent_terminals: [],
+      updated_at: new Date().toISOString(),
+    });
+
+    expect(prompt).toMatchObject({
+      kind: "resume",
+      title: "发现上次未完成任务",
+      actionLabel: "继续上次任务",
+      description: expect.stringContaining("撰写主稿"),
+    });
+  });
+
   it("应在失败预览中覆盖 formationState 的错误信息", () => {
     const state = resolveRuntimeTeamDispatchPreviewState({
       key: "runtime-team-failed",

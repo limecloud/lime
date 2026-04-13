@@ -1,7 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { ChevronDown, ExternalLink, FileText, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { SearchResultPreviewList } from "./SearchResultPreviewList";
+import { ToolSearchSummaryPanel } from "./ToolSearchSummaryPanel";
 import {
   extractLimeToolMetadataBlock,
   normalizeToolResultImages,
@@ -11,18 +14,26 @@ import type { SiteSavedContentTarget } from "../types";
 import {
   buildToolHeadline,
   getToolDisplayInfo,
-  humanizeToolName,
+  normalizeToolNameKey,
   parseToolCallArguments,
   resolveToolFilePath,
   resolveToolPrimarySubject,
 } from "../utils/toolDisplayInfo";
 import {
+  isUnifiedWebSearchToolName,
+  resolveSearchResultPreviewItemsFromText,
+} from "../utils/searchResultPreview";
+import {
   normalizeSiteToolResultSummary,
-  resolveSiteAdapterSourceLabel,
+  resolveSiteProjectTargetLabel,
+  resolveSiteSavedContentTargetDisplayName,
   resolveSiteSavedContentTargetRelativePath,
-  resolveSiteProjectSourceLabel,
   resolveSiteSavedContentTargetFromMetadata,
 } from "../utils/siteToolResultSummary";
+import {
+  normalizeToolSearchResultSummary,
+  resolveUserFacingToolSearchItemLabel,
+} from "../utils/toolSearchResultSummary";
 
 interface InlineToolProcessStepProps {
   toolCall: ToolCallState;
@@ -68,6 +79,34 @@ function summarizeResultText(value: string): string | null {
   return `${singleLine.slice(0, 180).trim()}...`;
 }
 
+function summarizeToolSearchPreview(value: ReturnType<
+  typeof normalizeToolSearchResultSummary
+>): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const toolNames = value.tools
+    .slice(0, 2)
+    .map((item) => resolveUserFacingToolSearchItemLabel(item.name))
+    .filter(Boolean);
+  const prefix = `找到工具 ${value.count} 个`;
+
+  if (toolNames.length === 0) {
+    return prefix;
+  }
+
+  return `${prefix} · ${toolNames.join(" · ")}`;
+}
+
+function summarizeSearchResultPreview(resultCount: number): string | null {
+  if (resultCount <= 0) {
+    return null;
+  }
+
+  return `找到 ${resultCount} 条搜索结果`;
+}
+
 function buildSiteNoticeLines(toolCall: ToolCallState): string[] {
   const summary = normalizeSiteToolResultSummary(toolCall.result?.metadata);
   if (!summary) {
@@ -77,50 +116,33 @@ function buildSiteNoticeLines(toolCall: ToolCallState): string[] {
   const lines: string[] = [];
   const savedProjectId =
     summary.savedProjectId || summary.savedContent?.projectId || "";
-  const savedSourceLabel = resolveSiteProjectSourceLabel(summary.savedBy || "");
+  const savedProjectTarget = resolveSiteProjectTargetLabel({
+    source: summary.savedBy,
+    projectId: savedProjectId || undefined,
+  });
 
   if (summary.savedContent?.title) {
-    let line = `已保存：${summary.savedContent.title}`;
-    if (savedProjectId) {
-      line += ` · 项目 ${savedProjectId}`;
-    }
-    if (savedSourceLabel) {
-      line += ` · ${savedSourceLabel}`;
-    }
-    lines.push(line);
+    lines.push(`已保存到${savedProjectTarget}：${summary.savedContent.title}`);
   }
 
   if (summary.savedContent?.markdownRelativePath) {
-    lines.push(`Markdown：${summary.savedContent.markdownRelativePath}`);
+    lines.push("已导出 Markdown 文稿");
   }
 
   if (typeof summary.savedContent?.imageCount === "number") {
-    const imageDir = summary.savedContent.imagesRelativeDir;
-    lines.push(
-      `图片：${summary.savedContent.imageCount} 张${
-        imageDir ? ` · ${imageDir}` : ""
-      }`,
-    );
+    lines.push(`附带图片 ${summary.savedContent.imageCount} 张`);
   }
 
   if (summary.saveSkippedProjectId) {
-    const skippedSourceLabel = resolveSiteProjectSourceLabel(
-      summary.saveSkippedBy || "",
-    );
-    let line = `未写入项目 ${summary.saveSkippedProjectId}`;
-    if (skippedSourceLabel) {
-      line += ` · ${skippedSourceLabel}`;
-    }
-    lines.push(line);
+    const skippedProjectTarget = resolveSiteProjectTargetLabel({
+      source: summary.saveSkippedBy,
+      projectId: summary.saveSkippedProjectId,
+    });
+    lines.push(`未保存到${skippedProjectTarget}`);
   }
 
   if (summary.saveErrorMessage) {
     lines.push(`自动保存失败：${summary.saveErrorMessage}`);
-  }
-
-  const adapterSourceLabel = resolveSiteAdapterSourceLabel(summary);
-  if (adapterSourceLabel) {
-    lines.push(`脚本来源：${adapterSourceLabel}`);
   }
 
   return lines;
@@ -167,15 +189,6 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
       }),
     [subject, toolCall.name, toolDisplay],
   );
-  const rawToolNameLabel = useMemo(() => {
-    if (
-      toolDisplay.family === "generic" &&
-      toolDisplay.label !== humanizeToolName(toolCall.name)
-    ) {
-      return humanizeToolName(toolCall.name);
-    }
-    return null;
-  }, [toolCall.name, toolDisplay.family, toolDisplay.label]);
   const resultText = useMemo(() => {
     const rawText = toolCall.result?.error || toolCall.result?.output || "";
     return extractLimeToolMetadataBlock(rawText).text.trim();
@@ -188,12 +201,38 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
     () => normalizeToolResultImages(toolCall.result?.images, resultText) || [],
     [resultText, toolCall.result?.images],
   );
+  const isToolSearch = useMemo(
+    () => normalizeToolNameKey(toolCall.name) === "toolsearch",
+    [toolCall.name],
+  );
+  const toolSearchSummary = useMemo(
+    () => (isToolSearch ? normalizeToolSearchResultSummary(resultText) : null),
+    [isToolSearch, resultText],
+  );
+  const searchResultItems = useMemo(() => {
+    if (!isUnifiedWebSearchToolName(toolCall.name)) {
+      return [];
+    }
+
+    return resolveSearchResultPreviewItemsFromText(resultText);
+  }, [resultText, toolCall.name]);
+  const structuredResultPreview = useMemo(() => {
+    if (toolSearchSummary) {
+      return summarizeToolSearchPreview(toolSearchSummary);
+    }
+    if (searchResultItems.length > 0) {
+      return summarizeSearchResultPreview(searchResultItems.length);
+    }
+    return resultPreview;
+  }, [resultPreview, searchResultItems.length, toolSearchSummary]);
   const savedSiteContentTarget = useMemo(
     () => resolveSiteSavedContentTargetFromMetadata(toolCall.result?.metadata),
     [toolCall.result?.metadata],
   );
-  const savedSiteContentRelativePath = useMemo(
-    () => resolveSiteSavedContentTargetRelativePath(savedSiteContentTarget),
+  const savedSiteContentDisplayName = useMemo(
+    () =>
+      resolveSiteSavedContentTargetDisplayName(savedSiteContentTarget) ||
+      resolveSiteSavedContentTargetRelativePath(savedSiteContentTarget),
     [savedSiteContentTarget],
   );
   const siteNoticeLines = useMemo(
@@ -209,31 +248,46 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
   const hasDetails =
     Boolean(resultText) ||
     resultImages.length > 0 ||
+    searchResultItems.length > 0 ||
+    Boolean(toolSearchSummary) ||
     siteNoticeLines.length > 0 ||
     Boolean(savedSiteContentTarget) ||
     Boolean(skillTitle && skillTitle !== subject);
 
+  const handleOpenExternalUrl = useCallback(async (url: string) => {
+    try {
+      await openExternal(url);
+    } catch {
+      if (typeof window !== "undefined" && typeof window.open === "function") {
+        window.open(url, "_blank");
+      }
+    }
+  }, []);
+
   useEffect(() => {
-    if (
-      toolCall.status === "running" ||
-      isMessageStreaming ||
-      siteNoticeLines.length > 0
-    ) {
+    if (toolCall.status === "running" || siteNoticeLines.length > 0) {
+      setExpanded(true);
+      return;
+    }
+
+    if (isMessageStreaming && !toolSearchSummary) {
       setExpanded(true);
     }
-  }, [isMessageStreaming, siteNoticeLines.length, toolCall.status]);
-
-  const statusLabel =
-    toolCall.status === "running"
-      ? "执行中"
-      : toolCall.status === "failed"
-        ? "执行失败"
-        : "执行完成";
+  }, [
+    isMessageStreaming,
+    siteNoticeLines.length,
+    toolCall.status,
+    toolSearchSummary,
+  ]);
 
   const detailBadges = [
     isPreload ? "系统预执行" : null,
     skillTitle && skillTitle !== subject ? `技能：${skillTitle}` : null,
-    statusLabel,
+    toolCall.status === "running"
+      ? "执行中"
+      : toolCall.status === "failed"
+        ? "执行失败"
+        : null,
   ].filter((value): value is string => Boolean(value));
 
   return (
@@ -287,14 +341,9 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
                   <span key={badge}>{badge}</span>
                 ))}
               </div>
-              {rawToolNameLabel ? (
-                <div className="mt-0.5 truncate text-[11px] leading-5 text-slate-400">
-                  {rawToolNameLabel}
-                </div>
-              ) : null}
-              {!expanded && resultPreview ? (
+              {!expanded && structuredResultPreview ? (
                 <div className="mt-1 text-xs leading-5 text-slate-600">
-                  {resultPreview}
+                  {structuredResultPreview}
                 </div>
               ) : null}
             </button>
@@ -361,9 +410,9 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
                           ? "在下方预览导出 Markdown"
                           : "打开已保存内容"}
                       </span>
-                      {savedSiteContentRelativePath ? (
+                      {savedSiteContentDisplayName ? (
                         <span className="block truncate text-[11px] leading-5 text-emerald-700/80">
-                          {savedSiteContentRelativePath}
+                          {savedSiteContentDisplayName}
                         </span>
                       ) : null}
                     </span>
@@ -372,7 +421,24 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
                 </div>
               ) : null}
 
-              {resultText ? (
+              {toolSearchSummary ? (
+                <ToolSearchSummaryPanel
+                  summary={toolSearchSummary}
+                  testId="inline-tool-process-tool-search-result"
+                />
+              ) : null}
+
+              {!toolSearchSummary && searchResultItems.length > 0 ? (
+                <SearchResultPreviewList
+                  items={searchResultItems}
+                  onOpenUrl={handleOpenExternalUrl}
+                  popoverSide="bottom"
+                  popoverAlign="start"
+                  className="max-w-2xl"
+                />
+              ) : null}
+
+              {!toolSearchSummary && searchResultItems.length === 0 && resultText ? (
                 <div className="text-sm leading-6 text-slate-700">
                   <MarkdownRenderer content={resultText} />
                 </div>

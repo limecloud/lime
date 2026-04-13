@@ -52,6 +52,7 @@ pub mod credential;
 
 // 请求处理器核心类型（context, error）
 pub mod processor;
+pub mod provider_prompt_cache_support;
 
 // WebSocket 核心类型
 pub mod websocket;

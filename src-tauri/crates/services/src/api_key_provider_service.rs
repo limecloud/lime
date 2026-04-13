@@ -9,12 +9,15 @@ use crate::provider_type_mapping::pool_provider_type_to_api_type;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
 use lime_core::database::dao::api_key_provider::{
-    ApiKeyEntry, ApiKeyProvider, ApiKeyProviderDao, ApiProviderType, ProviderGroup,
-    ProviderWithKeys,
+    ApiKeyEntry, ApiKeyProvider, ApiKeyProviderDao, ApiProviderPromptCacheMode, ApiProviderType,
+    ProviderGroup, ProviderWithKeys,
 };
 use lime_core::database::system_providers::{get_system_providers, to_api_key_provider};
 use lime_core::database::DbConnection;
-use lime_core::models::{CredentialData, CredentialSource, PoolProviderType, ProviderCredential};
+use lime_core::models::{
+    CredentialData, CredentialSource, PoolProviderType, ProviderCredential, ProviderPromptCacheMode,
+};
+use lime_core::provider_prompt_cache_support::is_known_automatic_anthropic_compatible_host;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -44,7 +47,9 @@ mod tests {
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
     use chrono::Utc;
     use lime_core::database::dao::api_key_provider::ApiProviderType;
-    use lime_core::database::dao::api_key_provider::{ApiKeyEntry, ApiKeyProviderDao};
+    use lime_core::database::dao::api_key_provider::{
+        ApiKeyEntry, ApiKeyProviderDao, ApiProviderPromptCacheMode,
+    };
     use lime_core::database::{init_database, migration, schema, DbConnection};
     use rusqlite::Connection;
     use rusqlite::OptionalExtension;
@@ -225,6 +230,7 @@ data: [DONE]\n";
                 None,
                 None,
                 None,
+                None,
             )
             .expect("更新系统 Provider 类型失败");
 
@@ -236,6 +242,88 @@ data: [DONE]\n";
             .expect("系统 Provider 应存在");
 
         assert_eq!(persisted.provider.provider_type, ApiProviderType::Openai);
+    }
+
+    #[test]
+    fn test_add_custom_provider_should_force_known_anthropic_compatible_host_to_automatic() {
+        let db = init_test_database();
+        let service = ApiKeyProviderService::new();
+
+        let provider = service
+            .add_custom_provider(
+                &db,
+                "MiMo Anthropic".to_string(),
+                ApiProviderType::AnthropicCompatible,
+                "https://token-plan-cn.xiaomimimo.com/anthropic".to_string(),
+                None,
+                None,
+                None,
+                None,
+                Some(ApiProviderPromptCacheMode::ExplicitOnly),
+            )
+            .expect("创建自定义 Provider 失败");
+
+        assert_eq!(
+            provider.prompt_cache_mode,
+            Some(ApiProviderPromptCacheMode::Automatic)
+        );
+
+        let conn = db.lock().expect("获取数据库锁失败");
+        let persisted = ApiKeyProviderDao::get_provider_by_id(&conn, &provider.id)
+            .expect("读取 Provider 失败")
+            .expect("Provider 应存在");
+        assert_eq!(
+            persisted.prompt_cache_mode,
+            Some(ApiProviderPromptCacheMode::Automatic)
+        );
+    }
+
+    #[test]
+    fn test_update_provider_should_force_known_anthropic_compatible_host_to_automatic() {
+        let db = init_test_database();
+        let service = ApiKeyProviderService::new();
+
+        let provider = service
+            .add_custom_provider(
+                &db,
+                "Unknown Anthropic".to_string(),
+                ApiProviderType::AnthropicCompatible,
+                "https://example.com/anthropic".to_string(),
+                None,
+                None,
+                None,
+                None,
+                Some(ApiProviderPromptCacheMode::ExplicitOnly),
+            )
+            .expect("创建初始 Provider 失败");
+
+        assert_eq!(
+            provider.prompt_cache_mode,
+            Some(ApiProviderPromptCacheMode::ExplicitOnly)
+        );
+
+        let updated = service
+            .update_provider(
+                &db,
+                &provider.id,
+                None,
+                None,
+                Some("https://api.minimaxi.com/anthropic".to_string()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(ApiProviderPromptCacheMode::ExplicitOnly),
+                None,
+            )
+            .expect("更新 Provider 失败");
+
+        assert_eq!(
+            updated.prompt_cache_mode,
+            Some(ApiProviderPromptCacheMode::Automatic)
+        );
     }
 
     #[test]
@@ -409,6 +497,7 @@ data: [DONE]\n";
                 None,
                 None,
                 None,
+                None,
             )
             .expect("创建 Provider 失败");
         service
@@ -458,6 +547,7 @@ data: [DONE]\n";
                 "OpenAI Responses Test".to_string(),
                 ApiProviderType::OpenaiResponse,
                 base_url,
+                None,
                 None,
                 None,
                 None,
@@ -717,6 +807,32 @@ impl ApiKeyProviderService {
         }
     }
 
+    fn normalize_custom_prompt_cache_mode(
+        provider_type: ApiProviderType,
+        api_host: &str,
+        prompt_cache_mode: Option<ApiProviderPromptCacheMode>,
+    ) -> Option<ApiProviderPromptCacheMode> {
+        match provider_type {
+            ApiProviderType::AnthropicCompatible => {
+                if is_known_automatic_anthropic_compatible_host(Some(api_host)) {
+                    Some(ApiProviderPromptCacheMode::Automatic)
+                } else {
+                    Some(prompt_cache_mode.unwrap_or(ApiProviderPromptCacheMode::ExplicitOnly))
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn to_credential_prompt_cache_mode(
+        mode: ApiProviderPromptCacheMode,
+    ) -> ProviderPromptCacheMode {
+        match mode {
+            ApiProviderPromptCacheMode::Automatic => ProviderPromptCacheMode::Automatic,
+            ApiProviderPromptCacheMode::ExplicitOnly => ProviderPromptCacheMode::ExplicitOnly,
+        }
+    }
+
     fn decrypt_api_key_entry_with_migration(
         &self,
         conn: &rusqlite::Connection,
@@ -842,7 +958,7 @@ impl ApiKeyProviderService {
                     &provider.api_host,
                     &test_model,
                     &prompt,
-                    provider.provider_type.supports_anthropic_prompt_cache(),
+                    provider.supports_automatic_prompt_cache(),
                 )
                 .await
             }
@@ -1374,9 +1490,12 @@ impl ApiKeyProviderService {
         project: Option<String>,
         location: Option<String>,
         region: Option<String>,
+        prompt_cache_mode: Option<ApiProviderPromptCacheMode>,
     ) -> Result<ApiKeyProvider, String> {
         let now = Utc::now();
         let id = format!("custom-{}", uuid::Uuid::new_v4());
+        let normalized_prompt_cache_mode =
+            Self::normalize_custom_prompt_cache_mode(provider_type, &api_host, prompt_cache_mode);
 
         let provider = ApiKeyProvider {
             id: id.clone(),
@@ -1392,6 +1511,7 @@ impl ApiKeyProviderService {
             location,
             region,
             custom_models: Vec::new(),
+            prompt_cache_mode: normalized_prompt_cache_mode,
             created_at: now,
             updated_at: now,
         };
@@ -1416,6 +1536,7 @@ impl ApiKeyProviderService {
         project: Option<String>,
         location: Option<String>,
         region: Option<String>,
+        prompt_cache_mode: Option<ApiProviderPromptCacheMode>,
         custom_models: Option<Vec<String>>,
     ) -> Result<ApiKeyProvider, String> {
         let conn = lime_core::database::lock_db(db)?;
@@ -1454,6 +1575,11 @@ impl ApiKeyProviderService {
         if let Some(models) = custom_models {
             provider.custom_models = models;
         }
+        provider.prompt_cache_mode = Self::normalize_custom_prompt_cache_mode(
+            provider.provider_type,
+            &provider.api_host,
+            prompt_cache_mode.or(provider.prompt_cache_mode),
+        );
         provider.updated_at = Utc::now();
 
         ApiKeyProviderDao::update_provider(&conn, &provider).map_err(|e| e.to_string())?;
@@ -2173,7 +2299,7 @@ impl ApiKeyProviderService {
                         .test_claude_key_compatibility(
                             &api_key,
                             &provider.api_host,
-                            provider.provider_type.supports_anthropic_prompt_cache(),
+                            provider.supports_automatic_prompt_cache(),
                         )
                         .await
                     {
@@ -2292,6 +2418,9 @@ impl ApiKeyProviderService {
             cached_token: None,
             source: CredentialSource::Imported,
             proxy_url: None,
+            prompt_cache_mode_override: provider
+                .effective_prompt_cache_mode()
+                .map(Self::to_credential_prompt_cache_mode),
         })
     }
 
@@ -2350,6 +2479,9 @@ impl ApiKeyProviderService {
             cached_token: None,
             source: CredentialSource::Imported, // 标记为导入来源
             proxy_url: None,
+            prompt_cache_mode_override: provider
+                .effective_prompt_cache_mode()
+                .map(Self::to_credential_prompt_cache_mode),
         })
     }
 
@@ -2418,7 +2550,7 @@ impl ApiKeyProviderService {
                         &api_key,
                         &provider.api_host,
                         &test_model,
-                        provider.provider_type.supports_anthropic_prompt_cache(),
+                        provider.supports_automatic_prompt_cache(),
                     )
                     .await
                 {

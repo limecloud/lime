@@ -224,9 +224,11 @@ jobs:
 
           FINAL_STATUS="success"
           FAILURE_REASON=""
+          NEXT_ACTION="No extra action required."
 
           if [[ "${DOCS_ONLY}" == 'true' ]]; then
             SUMMARY_NOTE="Only docs/markdown changes detected -> quality checks not required."
+            NEXT_ACTION="No action required for docs-only changes."
           else
             SUMMARY_NOTE="Quality checks evaluated against changed areas."
 
@@ -257,26 +259,58 @@ jobs:
                 FAILURE_REASON="gui smoke failed"
               fi
             fi
+
+            if [[ -n "${FAILURE_REASON}" ]]; then
+              if [[ "${FAILURE_REASON}" == "integrity failed" ]]; then
+                NEXT_ACTION='Run `npm run verify:app-version` and sync package / Cargo / Tauri version files.'
+              elif [[ "${FAILURE_REASON}" == "frontend failed" ]]; then
+                NEXT_ACTION='Run `npm run verify:local` (or `npm run lint && npm run typecheck && npm test`) to reproduce the frontend failure locally.'
+              elif [[ "${FAILURE_REASON}" == "bridge/contracts failed" ]]; then
+                if [[ ",${BRIDGE_REASONS}," == *",harness_cleanup_contract,"* ]]; then
+                  NEXT_ACTION='Run `npm run harness:cleanup-report:check` first, then `npm run test:contracts`.'
+                elif [[ ",${BRIDGE_REASONS}," == *",bridge_runtime,"* ]]; then
+                  NEXT_ACTION='Run `npm run test:bridge` first, then `npm run test:contracts`.'
+                else
+                  NEXT_ACTION='Run `npm run verify:local` or `npm run test:bridge && npm run test:contracts` to reproduce the bridge/contracts failure.'
+                fi
+              elif [[ "${FAILURE_REASON}" == "gui smoke failed" ]]; then
+                NEXT_ACTION='Run `npm run verify:gui-smoke -- --timeout-ms 480000` and inspect DevBridge / headless Tauri readiness.'
+              fi
+            fi
           fi
 
           {
             echo "## Quality Summary"
             echo
-            echo "| Item | Value |"
-            echo "| --- | --- |"
-            echo "| changed_count | ${CHANGED_COUNT} |"
-            echo "| docs_only | ${DOCS_ONLY} |"
-            echo "| bridge_reasons | ${BRIDGE_REASONS_DISPLAY} |"
-            echo "| integrity | ${INTEGRITY_RESULT} |"
-            echo "| frontend | ${FRONTEND_RESULT} |"
-            echo "| bridge_contracts | ${BRIDGE_RESULT} |"
-            echo "| gui_smoke | ${GUI_SMOKE_RESULT} |"
-            echo "| final_status | ${FINAL_STATUS} |"
+            echo "**Final status:** ${FINAL_STATUS}"
             echo
-            echo "${SUMMARY_NOTE}"
+            echo "### Scope"
+            echo
+            echo "- changed_count: ${CHANGED_COUNT}"
+            echo "- docs_only: ${DOCS_ONLY}"
+            echo "- bridge_reasons: ${BRIDGE_REASONS_DISPLAY}"
+            echo
+            echo "### Required Gates"
+            echo
+            echo "| Gate | Required | Result |"
+            echo "| --- | --- | --- |"
+            echo "| integrity | ${INTEGRITY_REQUIRED} | ${INTEGRITY_RESULT} |"
+            echo "| frontend | ${FRONTEND_REQUIRED} | ${FRONTEND_RESULT} |"
+            echo "| bridge_contracts | ${BRIDGE_REQUIRED} | ${BRIDGE_RESULT} |"
+            echo "| gui_smoke | ${GUI_SMOKE_REQUIRED} | ${GUI_SMOKE_RESULT} |"
+            echo
+            echo "### Notes"
+            echo
+            echo "- ${SUMMARY_NOTE}"
+            echo
+            echo "### Recommended Next Action"
+            echo
+            echo "- ${NEXT_ACTION}"
             if [[ -n "${FAILURE_REASON}" ]]; then
               echo
-              echo "Failure reason: ${FAILURE_REASON}"
+              echo "### Failure"
+              echo
+              echo "- ${FAILURE_REASON}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

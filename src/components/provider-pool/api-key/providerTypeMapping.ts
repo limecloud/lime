@@ -40,11 +40,16 @@ const LEGACY_PROVIDER_ID_TO_REGISTRY_ID: Record<string, string> = {
 
 /**
  * Provider 类型（API 协议）到 model_registry provider_id 的映射
- * 作为 Provider ID 映射的回退
+ * 作为 Provider ID 映射的回退。
+ *
+ * 注意：
+ * - 这里只负责把 Provider 类型归一到模型注册表 provider_id；
+ * - 该映射不能用于推断 Prompt Cache、工具能力等运行时语义；
+ * - 例如 `anthropic-compatible -> anthropic` 只表示模型目录复用，不等于官方 Anthropic 自动缓存能力。
  */
 const PROVIDER_TYPE_TO_REGISTRY_ID: Record<string, string> = {
   anthropic: "anthropic",
-  "anthropic-compatible": "anthropic", // Anthropic 兼容格式
+  "anthropic-compatible": "anthropic", // 仅复用 Anthropic 模型目录
   openai: "openai",
   "openai-response": "openai",
   codex: "codex",

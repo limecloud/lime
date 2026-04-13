@@ -342,6 +342,22 @@ export function resolveSiteProjectSourceLabel(source?: string): string | null {
   return null;
 }
 
+export function resolveSiteProjectTargetLabel(params: {
+  source?: string;
+  projectId?: string;
+}): string {
+  if (params.source === "context_project") {
+    return "当前项目";
+  }
+  if (params.source === "explicit_project") {
+    return "所选项目";
+  }
+  if (params.projectId?.trim()) {
+    return `项目 ${params.projectId.trim()}`;
+  }
+  return "项目";
+}
+
 export function resolveSiteAdapterSourceLabel(
   summary: SiteToolResultSummary,
 ): string | null {

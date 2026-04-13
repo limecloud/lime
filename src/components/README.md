@@ -19,8 +19,6 @@ React 组件层，包含 UI 组件和业务组件。
 - `smart-input/` - 截图/语音浮窗共享组件（当前仅保留快捷键设置）
 - `settings-v2/` - 设置页面组件（当前主实现）
 - `skills/` - 技能管理组件
-- `terminal/` - 内置终端组件（使用 Tauri Commands）
-- `tools/` - 工具页面组件
 - `widgets/` - 右侧小部件栏组件（移植自 Waveterm）
 - `ui/` - 通用 UI 组件（按钮、输入框等）
 - `websocket/` - WebSocket 管理组件

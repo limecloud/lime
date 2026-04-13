@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { HarnessVerificationSummarySection } from "./HarnessVerificationSummarySection";
 
 interface RuntimeReviewDecisionDialogProps {
   open: boolean;
@@ -194,6 +195,12 @@ export function RuntimeReviewDecisionDialog({
 
         {template && formState ? (
           <div className="max-h-[70vh] space-y-5 overflow-y-auto px-6 py-5">
+            {template.verification_summary ? (
+              <HarnessVerificationSummarySection
+                summary={template.verification_summary}
+              />
+            ) : null}
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label

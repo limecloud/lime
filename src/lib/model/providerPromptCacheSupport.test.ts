@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { getRegistryIdFromType } from "@/lib/constants/providerMappings";
 import {
   getProviderPromptCacheMode,
+  isKnownAutomaticAnthropicCompatibleHost,
   resolvePromptCacheSupportNotice,
 } from "./providerPromptCacheSupport";
 
@@ -26,6 +28,35 @@ describe("providerPromptCacheSupport", () => {
         configuredProviderType: "anthropic",
       }),
     ).toBeNull();
+  });
+
+  it("显式声明 automatic 的 anthropic-compatible Provider 不应展示提示", () => {
+    expect(
+      resolvePromptCacheSupportNotice({
+        providerType: "custom-provider-id",
+        configuredProviderType: "anthropic-compatible",
+        configuredPromptCacheMode: "automatic",
+      }),
+    ).toBeNull();
+  });
+
+  it.each([
+    "https://open.bigmodel.cn/api/anthropic",
+    "https://api.moonshot.cn/anthropic",
+    "https://api.minimaxi.com/anthropic",
+    "https://token-plan-cn.xiaomimimo.com/anthropic",
+  ])("已知官方 Anthropic 兼容 Host %s 不应误报显式缓存提示", (apiHost) => {
+    expect(isKnownAutomaticAnthropicCompatibleHost(apiHost)).toBe(true);
+    expect(
+      resolvePromptCacheSupportNotice({
+        providerType: "official-anthropic-compatible-provider",
+        configuredProviderType: "anthropic-compatible",
+        configuredApiHost: apiHost,
+      }),
+    ).toBeNull();
+    expect(
+      getProviderPromptCacheMode("anthropic-compatible", null, apiHost),
+    ).toBe("automatic");
   });
 
   it("仅有 anthropic-compatible 选择器时应回退提示", () => {
@@ -64,6 +95,16 @@ describe("providerPromptCacheSupport", () => {
     expect(getProviderPromptCacheMode("anthropic-compatible")).toBe(
       "explicit_only",
     );
+    expect(
+      getProviderPromptCacheMode("anthropic-compatible", "automatic"),
+    ).toBe("automatic");
     expect(getProviderPromptCacheMode("openai")).toBe("not_applicable");
+  });
+
+  it("模型注册表映射不应把 anthropic-compatible 推断成自动缓存", () => {
+    expect(getRegistryIdFromType("anthropic-compatible")).toBe("anthropic");
+    expect(getProviderPromptCacheMode("anthropic-compatible")).toBe(
+      "explicit_only",
+    );
   });
 });

@@ -1184,8 +1184,6 @@ describe("legacySurfaceCatalog", () => {
       "src/components/agent/chat/components/Inputbar/components/TeamSelector.tsx",
       "src/components/smart-input/ChatInput.tsx",
       "src/components/workspace/video/PromptInput.tsx",
-      "src/components/image-gen/tabs/AiImageGenTab.tsx",
-      "src/components/terminal/ai/TerminalAIInput.tsx",
     ]);
     expect(monitor?.patterns).toEqual(
       expect.arrayContaining([
@@ -1203,6 +1201,167 @@ describe("legacySurfaceCatalog", () => {
         "./useIdleModulePreload",
       ]),
     );
+  });
+
+  it("应记录已删除的独立终端页面与挂件 surface 文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "terminal-page-shell-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/terminal/index.ts",
+      "src/components/terminal/TerminalWorkspace.tsx",
+      "src/components/terminal/TerminalPanel.tsx",
+      "src/components/terminal/TerminalView.tsx",
+      "src/components/terminal/terminalPageHotkeys.ts",
+      "src/components/terminal/widgets/FileBrowserView.tsx",
+      "src/components/terminal/widgets/SysinfoView.tsx",
+      "src/components/terminal/widgets/WebView.tsx",
+      "src/components/terminal/ai/index.ts",
+      "src/components/terminal/ai/TerminalAIInput.tsx",
+    ]);
+  });
+
+  it("应记录已删除的工具箱页面与图像分析工具面文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "tools-page-shell-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/tools/ToolsPage.tsx",
+      "src/components/tools/ToolCardContextMenu.tsx",
+      "src/components/tools/image-analysis/index.ts",
+      "src/components/tools/image-analysis/ImageAnalysisTool.tsx",
+    ]);
+  });
+
+  it("应记录已删除的独立插图页面与旧搜图 surface 文件路径", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "image-page-shell-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual([
+      "src/components/image-gen/ImageGenPage.tsx",
+      "src/components/image-gen/ImageGenPage.test.tsx",
+      "src/components/image-gen/tabs/AiImageGenTab.tsx",
+      "src/components/image-gen/tabs/ImageSearchTab.tsx",
+      "src/components/image-gen/tabs/ImageSearchTab.test.tsx",
+      "src/components/image-gen/hooks/useImageSearch.ts",
+      "src/components/image-gen/hooks/useImageSearch.test.tsx",
+    ]);
+  });
+
+  it("应记录已删除的 image-gen 目录级 barrel 入口", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "image-generation-runtime-barrel-entry",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets).toEqual(["src/components/image-gen/index.ts"]);
+  });
+
+  it("应限制 AI 图片生成 runtime 入口继续扩散到 Claw 工作台之外", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "image-generation-runtime-entry-usage",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.patterns).toEqual(["useImageGen({"]);
+    expect(monitor?.includePathPrefixes).toEqual(["src/components"]);
+    expect(monitor?.allowedPaths).toEqual([
+      "src/components/agent/chat/AgentChatWorkspace.tsx",
+    ]);
+  });
+
+  it("应禁止前端恢复 image-gen 目录级 barrel 导入", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "image-generation-runtime-barrel-imports",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.patterns).toEqual([
+      "from \"@/components/image-gen\"",
+      "from '@/components/image-gen'",
+      "import(\"@/components/image-gen\")",
+      "import('@/components/image-gen')",
+      "from \"@/components/image-gen/index\"",
+      "from '@/components/image-gen/index'",
+      "import(\"@/components/image-gen/index\")",
+      "import('@/components/image-gen/index')",
+    ]);
+    expect(monitor?.allowedPaths).toEqual([]);
+  });
+
+  it("应禁止前端恢复独立工具箱页面 surface", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "frontend-tools-page-surface",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.patterns).toEqual([]);
+    expect(monitor?.regexPatterns).toEqual([
+      "\\bcurrentPage\\s*===\\s*[\"']tools[\"']",
+      "\\bcurrentPage\\s*===\\s*[\"']image-analysis[\"']",
+      "\\bpage\\s*:\\s*[\"']tools[\"']",
+      "\\bpage\\s*:\\s*[\"']image-analysis[\"']",
+      "\\bonNavigate\\(\\s*[\"']tools[\"']",
+      "\\bonNavigate\\(\\s*[\"']image-analysis[\"']",
+    ]);
+    expect(monitor?.includePathPrefixes).toEqual(["src"]);
+    expect(monitor?.allowedPaths).toEqual([]);
+  });
+
+  it("应禁止前端恢复独立终端页面 surface", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "frontend-terminal-page-surface",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.patterns).toEqual([]);
+    expect(monitor?.regexPatterns).toEqual([
+      "\\bcurrentPage\\s*===\\s*[\"']terminal[\"']",
+      "\\bcurrentPage\\s*===\\s*[\"']sysinfo[\"']",
+      "\\bcurrentPage\\s*===\\s*[\"']files[\"']",
+      "\\bcurrentPage\\s*===\\s*[\"']web[\"']",
+      "\\bpage\\s*:\\s*[\"']terminal[\"']",
+      "\\bpage\\s*:\\s*[\"']sysinfo[\"']",
+      "\\bpage\\s*:\\s*[\"']files[\"']",
+      "\\bpage\\s*:\\s*[\"']web[\"']",
+    ]);
+    expect(monitor?.includePathPrefixes).toEqual(["src"]);
+    expect(monitor?.allowedPaths).toEqual([]);
+  });
+
+  it("应禁止前端恢复独立插图页面 surface", () => {
+    const monitor = legacySurfaceCatalogJson.frontendText.find(
+      (entry) => entry.id === "frontend-image-page-surface",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.patterns).toEqual([]);
+    expect(monitor?.regexPatterns).toEqual([
+      "\\bcurrentPage\\s*===\\s*[\"']image-gen[\"']",
+      "\\bpage\\s*:\\s*[\"']image-gen[\"']",
+      "\\brenderContent\\([\"']image-gen[\"']",
+    ]);
+    expect(monitor?.includePathPrefixes).toEqual(["src"]);
+    expect(monitor?.allowedPaths).toEqual([]);
   });
 
   it("应禁止首页恢复旧 entry task 发送链", () => {

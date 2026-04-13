@@ -7,7 +7,7 @@ navigation: false
 # Lime 文档中心
 
 Lime 是创作类 AI Agent 平台。  
-你可以在同一个工作台里完成对话、创作、图片生成、项目沉淀与资源复用。
+你可以在同一个工作台里完成对话、创作、Claw 素材与图片任务、项目沉淀和资源复用。
 
 ## 从这里开始
 
@@ -34,7 +34,7 @@ Lime 是创作类 AI Agent 平台。
 - [首页与工作台](/user-guide/dashboard)
 - [资源库](/user-guide/resources)
 - [运行时 AGENTS 规则](/user-guide/runtime-agents)
-- [图片生成与编辑](/user-guide/image-generation)
+- [图片生成与素材链路](/user-guide/image-generation)
 - [设置](/user-guide/settings)
 - [插件中心](/user-guide/plugins)
 

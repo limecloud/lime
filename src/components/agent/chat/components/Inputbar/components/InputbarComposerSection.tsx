@@ -14,7 +14,6 @@ import type { BuiltinInputCommand } from "../../../skill-selection/builtinComman
 import { TeamSelector } from "./TeamSelector";
 import { InputbarWorkflowStatusPanel } from "./InputbarWorkflowStatusPanel";
 import { InputbarModelExtra } from "./InputbarModelExtra";
-import { InputbarPromptCacheNotice } from "./InputbarPromptCacheNotice";
 import { InputbarVisionCapabilityNotice } from "./InputbarVisionCapabilityNotice";
 import { InputbarExecutionStrategySelect } from "./InputbarExecutionStrategySelect";
 import { InputbarAccessModeSelect } from "./InputbarAccessModeSelect";
@@ -159,14 +158,10 @@ export const InputbarComposerSection: React.FC<
     currentPendingImages.length > 0 &&
     Boolean(resolvedProviderType?.trim()) &&
     Boolean(resolvedModel?.trim());
-  const shouldShowPromptCacheNotice = Boolean(resolvedProviderType?.trim());
   const resolvedTopExtra =
-    topExtra || shouldShowPromptCacheNotice || shouldShowVisionNotice ? (
+    topExtra || shouldShowVisionNotice ? (
       <>
         {topExtra}
-        {shouldShowPromptCacheNotice && resolvedProviderType ? (
-          <InputbarPromptCacheNotice providerType={resolvedProviderType} />
-        ) : null}
         {shouldShowVisionNotice && resolvedProviderType && resolvedModel ? (
           <InputbarVisionCapabilityNotice
             providerType={resolvedProviderType}

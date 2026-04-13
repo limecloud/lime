@@ -82,7 +82,7 @@ describe("ToolCallDisplay", () => {
     expect(
       container.querySelector('[data-testid="tool-call-rendered-result"]'),
     ).toBeNull();
-    expect(document.body.textContent).toContain("查看原始输出");
+    expect(document.body.textContent).toContain("查看文本详情");
 
     const firstSearchResult = document.body.querySelector(
       '[aria-label="预览搜索结果：Xinhua world news summary at 0030 GMT, March 13"]',
@@ -104,12 +104,12 @@ describe("ToolCallDisplay", () => {
 
     act(() => {
       const rawToggle = document.body.querySelector(
-        'button[aria-label="查看搜索原始输出"]',
+        'button[aria-label="查看搜索文本详情"]',
       ) as HTMLButtonElement | null;
       rawToggle?.click();
     });
 
-    expect(document.body.textContent).toContain("收起原始输出");
+    expect(document.body.textContent).toContain("收起文本详情");
     expect(
       container.querySelector('[data-testid="tool-call-rendered-result"]'),
     ).not.toBeNull();
@@ -167,7 +167,7 @@ describe("ToolCallDisplay", () => {
     expect(container.textContent).toContain(
       "本次检索未返回可解析链接，请稍后重试。",
     );
-    expect(container.textContent).not.toContain("查看原始输出");
+    expect(container.textContent).not.toContain("查看文本详情");
   });
 
   it("连续多次 WebSearch 应在对话区按搜索批次分组展示", () => {
@@ -214,8 +214,8 @@ describe("ToolCallDisplay", () => {
     expect(container.textContent).toContain(
       "搜索 March 13 2026 world headlines",
     );
-    expect(container.textContent).toContain("中文日期检索");
-    expect(container.textContent).toContain("头条检索");
+    expect(container.textContent).not.toContain("中文日期检索");
+    expect(container.textContent).not.toContain("头条检索");
   });
 
   it("连续完成的命令工具应聚合成一个 work group", () => {
@@ -256,7 +256,7 @@ describe("ToolCallDisplay", () => {
       '[data-testid="tool-call-work-group"]',
     );
     expect(groups).toHaveLength(1);
-    expect(container.textContent).toContain("已执行 2 条命令");
+    expect(container.textContent).toContain("已运行 2 条命令");
     expect(container.textContent).toContain("2");
     expect(container.textContent).toContain("pwd");
     expect(container.textContent).toContain("ls -la");
@@ -268,8 +268,8 @@ describe("ToolCallDisplay", () => {
       groupToggle?.click();
     });
 
-    expect(container.textContent).toContain("执行 pwd");
-    expect(container.textContent).toContain("执行 ls -la");
+    expect(container.textContent).toContain("运行 pwd");
+    expect(container.textContent).toContain("运行 ls -la");
     expect(container.textContent).not.toContain("pwd · ls -la");
   });
 
@@ -299,13 +299,71 @@ describe("ToolCallDisplay", () => {
       toggle?.click();
     });
 
-    expect(container.textContent).toContain("已执行 ls -la");
-    expect(container.textContent).not.toContain("已执行已执行");
+    expect(container.textContent).toContain("已运行 ls -la");
+    expect(container.textContent).not.toContain("已运行已运行");
+    expect(container.textContent).not.toContain("退出码 0");
+    expect(container.textContent).not.toContain("stdout 24");
+    expect(container.textContent).not.toContain("stderr 0");
     expect(
       container.querySelector('[data-testid="tool-call-rendered-result"]'),
     ).toBeTruthy();
     expect(container.textContent).toContain("text");
     expect(container.textContent).toContain("复制");
+  });
+
+  it("结果区应压缩内部元信息与长路径提示", () => {
+    const { container } = renderTool({
+      id: "tool-exec-render-2",
+      name: "bash",
+      arguments: JSON.stringify({ command: "generate-report" }),
+      status: "failed",
+      result: {
+        success: false,
+        output: "报告生成失败，请检查参数后重试。",
+        metadata: {
+          exit_code: 2,
+          lime_offloaded: true,
+          output_truncated: true,
+          output_file: "exports/reports/final-result.md",
+        },
+      },
+      startTime: new Date("2026-03-20T12:12:00.000Z"),
+      endTime: new Date("2026-03-20T12:12:01.000Z"),
+    });
+
+    act(() => {
+      const toggle = container.querySelector(
+        'button[title="查看结果"]',
+      ) as HTMLButtonElement | null;
+      toggle?.click();
+    });
+
+    expect(container.textContent).toContain("内容较长，已省略部分文本");
+    expect(container.textContent).toContain("命令返回错误");
+    expect(container.textContent).toContain("结果文件: final-result.md");
+    expect(container.textContent).not.toContain("完整输出已转存");
+    expect(container.textContent).not.toContain("输出已截断");
+    expect(container.textContent).not.toContain("输出文件:");
+    expect(container.textContent).not.toContain("退出码 2");
+    expect(container.textContent).not.toContain("exports/reports/final-result.md");
+  });
+
+  it("正式工具卡不应额外展示原始工具名", () => {
+    const { container } = renderTool({
+      id: "tool-ask-user-1",
+      name: "AskUserQuestion",
+      arguments: JSON.stringify({ question: "需要继续吗？" }),
+      status: "completed",
+      result: {
+        success: true,
+        output: "用户已确认继续。",
+      },
+      startTime: new Date("2026-04-13T10:31:00.000Z"),
+      endTime: new Date("2026-04-13T10:31:01.000Z"),
+    });
+
+    expect(container.textContent).toContain("已收集 需要继续吗？");
+    expect(container.textContent).not.toContain("Ask User Question");
   });
 
   it("站点能力工具结果应展示自动保存结果与脚本来源", () => {
@@ -357,20 +415,18 @@ describe("ToolCallDisplay", () => {
     });
 
     expect(container.textContent).toContain(
-      "结果已自动保存到项目 project-1：GitHub MCP 搜索结果 · 来自当前项目上下文",
+      "结果已自动保存到当前项目：GitHub MCP 搜索结果",
     );
     expect(container.textContent).toContain(
-      "项目目录：/Users/coso/Library/Application Support/lime/projects/project-1",
+      "已导出 Markdown 文稿",
     );
     expect(container.textContent).toContain(
-      "Markdown 文件：exports/x-article-export/github-mcp/index.md",
+      "附带图片 7 张",
     );
-    expect(container.textContent).toContain(
-      "图片资源：7 张 · exports/x-article-export/github-mcp/images",
-    );
-    expect(container.textContent).toContain(
-      "脚本来源：服务端脚本 · 2026-03-25",
-    );
+    expect(container.textContent).not.toContain("exports/x-article-export/github-mcp/index.md");
+    expect(container.textContent).not.toContain("exports/x-article-export/github-mcp/images");
+    expect(container.textContent).not.toContain("项目目录：");
+    expect(container.textContent).not.toContain("脚本来源：");
   });
 
   it("站点能力工具结果应支持直接打开已保存内容", () => {
@@ -544,11 +600,14 @@ describe("ToolCallDisplay", () => {
     expect(
       container.querySelector('[data-testid="tool-call-tool-search-result"]'),
     ).not.toBeNull();
-    expect(container.textContent).toContain("匹配工具：2 个");
-    expect(container.textContent).toContain("Read");
-    expect(container.textContent).toContain("Write");
-    expect(container.textContent).toContain("原生工具");
+    expect(container.textContent).toContain("找到工具：2 个");
+    expect(container.textContent).toContain("查看文件");
+    expect(container.textContent).toContain("保存文件");
+    expect(container.textContent).not.toContain("Read a file from disk");
     expect(container.textContent).not.toContain('"always_visible":true');
+    expect(container.textContent).not.toContain("查询：select:Read,Write");
+    expect(container.textContent).not.toContain("原生工具");
+    expect(container.textContent).not.toContain("默认可见");
     expect(
       container.querySelector('[data-testid="tool-call-rendered-result"]'),
     ).toBeNull();
@@ -589,7 +648,7 @@ describe("ToolCallDisplay", () => {
     expect(
       container.querySelector('[data-testid="tool-call-tool-search-result"]'),
     ).toBeNull();
-    expect(container.textContent).not.toContain("匹配工具：2 个");
+    expect(container.textContent).not.toContain("找到工具：2 个");
     expect(container.textContent).not.toContain("Read a file from disk");
   });
 
@@ -626,7 +685,7 @@ describe("ToolCallDisplay", () => {
     });
 
     expect(container.textContent).toContain(
-      "执行失败，未保存到项目 project-2 · 来自当前项目上下文",
+      "执行失败，未保存到当前项目",
     );
     expect(container.textContent).toContain("自动保存失败：数据库写入失败");
   });
@@ -756,13 +815,13 @@ describe("ToolCallDisplay", () => {
 
     expect(container.textContent).toContain("已打开 https://example.com/docs");
     expect(container.textContent).toContain("子任务处理中 修复登录页");
-    expect(container.textContent).toContain("已读取输出 video-task-1");
+    expect(container.textContent).toContain("已查看结果 video-task-1");
     expect(container.textContent).toContain("已加载技能 lime-governance");
-    expect(container.textContent).toContain("已列出 src/**/*.tsx");
+    expect(container.textContent).toContain("已找到 src/**/*.tsx");
     expect(container.textContent).toContain("等待输入 需要继续吗？");
     expect(container.textContent).toContain("已发送");
     expect(container.textContent).toContain("修复已完成");
-    expect(container.textContent).toContain("已列出 当前团队");
+    expect(container.textContent).toContain("已查看 当前团队");
     expect(container.textContent).toContain("已创建 当前团队");
     expect(container.textContent).toContain("已删除 当前团队");
     expect(container.textContent).toContain("已处理 remote-1");
@@ -787,6 +846,6 @@ describe("ToolCallDisplay", () => {
       endTime: new Date("2026-03-25T09:00:01.000Z"),
     });
 
-    expect(container.textContent).toContain("已写入 final.md");
+    expect(container.textContent).toContain("已保存 final.md");
   });
 });

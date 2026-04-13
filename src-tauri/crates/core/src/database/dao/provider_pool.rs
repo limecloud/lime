@@ -368,6 +368,7 @@ impl ProviderPoolDao {
             cached_token: None, // 从 get_token_cache 单独获取
             source,
             proxy_url,
+            prompt_cache_mode_override: None,
         })
     }
 

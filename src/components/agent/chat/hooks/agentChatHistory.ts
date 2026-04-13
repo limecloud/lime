@@ -76,6 +76,9 @@ const normalizeHistoryUsage = (usage: unknown): AgentTokenUsage | undefined => {
   const outputTokens = (usage as { output_tokens?: unknown }).output_tokens;
   const cachedInputTokens = (usage as { cached_input_tokens?: unknown })
     .cached_input_tokens;
+  const cacheCreationInputTokens = (
+    usage as { cache_creation_input_tokens?: unknown }
+  ).cache_creation_input_tokens;
   if (
     typeof inputTokens !== "number" ||
     typeof outputTokens !== "number" ||
@@ -95,6 +98,12 @@ const normalizeHistoryUsage = (usage: unknown): AgentTokenUsage | undefined => {
       Number.isFinite(cachedInputTokens) &&
       cachedInputTokens >= 0
         ? cachedInputTokens
+        : undefined,
+    cache_creation_input_tokens:
+      typeof cacheCreationInputTokens === "number" &&
+      Number.isFinite(cacheCreationInputTokens) &&
+      cacheCreationInputTokens >= 0
+        ? cacheCreationInputTokens
         : undefined,
   };
 };
@@ -904,7 +913,7 @@ const buildAssistantHydrationSignature = (message: Message): string => {
 
 const buildHistoryMessageSignature = (message: Message): string => {
   const usageSignature = message.usage
-    ? `${message.usage.input_tokens}:${message.usage.output_tokens}:${message.usage.cached_input_tokens ?? ""}`
+    ? `${message.usage.input_tokens}:${message.usage.output_tokens}:${message.usage.cached_input_tokens ?? ""}:${message.usage.cache_creation_input_tokens ?? ""}`
     : "";
   return [
     message.role,

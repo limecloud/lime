@@ -30,7 +30,10 @@ import {
   X,
 } from "lucide-react";
 import { useModelRegistry } from "@/hooks/useModelRegistry";
-import type { ProviderType } from "@/lib/types/provider";
+import type {
+  ProviderDeclaredPromptCacheMode,
+  ProviderType,
+} from "@/lib/types/provider";
 import { resolvePromptCacheSupportNotice } from "@/lib/model/providerPromptCacheSupport";
 import {
   apiKeyProviderApi,
@@ -41,8 +44,11 @@ import {
   getProviderTypeLabel,
   getSpecialProtocolHint,
   isSupportedProviderType,
+  isPromptCacheModeConfigurableProviderType,
+  PROMPT_CACHE_MODE_OPTIONS,
   PROVIDER_TYPE_FIELDS,
   PROVIDER_TYPE_OPTIONS,
+  resolvePromptCacheModeRequestValue,
 } from "./ProviderConfigForm.utils";
 
 // ============================================================================
@@ -288,6 +294,7 @@ export interface AddCustomProviderModalProps {
 interface FormState {
   name: string;
   type: ProviderType;
+  promptCacheMode: ProviderDeclaredPromptCacheMode;
   apiHost: string;
   apiKey: string;
   apiVersion: string;
@@ -311,6 +318,7 @@ interface FormErrors {
 const INITIAL_FORM_STATE: FormState = {
   name: "",
   type: "openai",
+  promptCacheMode: "explicit_only",
   apiHost: "",
   apiKey: "",
   apiVersion: "",
@@ -584,6 +592,11 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
         name: formState.name.trim(),
         type: formState.type,
         api_host: formState.apiHost.trim(),
+        prompt_cache_mode: resolvePromptCacheModeRequestValue(
+          formState.type,
+          formState.promptCacheMode,
+          formState.apiHost,
+        ),
       };
 
       // 添加额外字段
@@ -636,12 +649,19 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
     () => getSpecialProtocolHint(formState.type),
     [formState.type],
   );
+  const showPromptCacheModeField = useMemo(
+    () =>
+      isPromptCacheModeConfigurableProviderType(formState.type, formState.apiHost),
+    [formState.apiHost, formState.type],
+  );
   const promptCacheSupportNotice = useMemo(
     () =>
       resolvePromptCacheSupportNotice({
         configuredProviderType: formState.type,
+        configuredApiHost: formState.apiHost,
+        configuredPromptCacheMode: formState.promptCacheMode,
       }),
-    [formState.type],
+    [formState.apiHost, formState.promptCacheMode, formState.type],
   );
 
   const visibleProviders = useMemo(
@@ -1076,6 +1096,63 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
                     </p>
                   </div>
                 </div>
+
+                {showPromptCacheModeField ? (
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="prompt-cache-mode"
+                        className="text-sm font-medium"
+                      >
+                        Prompt Cache 模式
+                      </Label>
+                      <Select
+                        value={formState.promptCacheMode}
+                        onValueChange={(value) =>
+                          updateField(
+                            "promptCacheMode",
+                            value as ProviderDeclaredPromptCacheMode,
+                          )
+                        }
+                        disabled={isSubmitting}
+                      >
+                        <SelectTrigger
+                          id="prompt-cache-mode"
+                          className="border-slate-200 bg-white"
+                          data-testid="prompt-cache-mode-select"
+                        >
+                          <span>
+                            {PROMPT_CACHE_MODE_OPTIONS.find(
+                              (option) =>
+                                option.value === formState.promptCacheMode,
+                            )?.label ?? formState.promptCacheMode}
+                          </span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PROMPT_CACHE_MODE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="rounded-[20px] border border-slate-200/80 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-900">
+                        选择建议
+                      </p>
+                      <p className="mt-2 text-xs leading-6 text-slate-500">
+                        {
+                          PROMPT_CACHE_MODE_OPTIONS.find(
+                            (option) =>
+                              option.value === formState.promptCacheMode,
+                          )?.description
+                        }
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
 
                 {specialProtocolHint ? (
                   <div

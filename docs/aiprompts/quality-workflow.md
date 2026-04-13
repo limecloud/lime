@@ -96,6 +96,7 @@
 - 优先补现有 `*.test.tsx` 的关键文案、状态与交互断言
 - 如果目标区域已有 snapshot / 结构化快照机制，沿用现有机制
 - 不要因为“只是 UI”就跳过回归
+- 如果改动涉及 Provider 类型切换、Prompt Cache 提示或模型/协议能力认知，至少补到“列表扫描态、详情头部、创建/编辑入口、聊天发送前或结果解释”中的实际受影响落点，避免同一语义只在单点出现
 
 ### 4. 配置与依赖改动必须成组提交
 
@@ -198,6 +199,8 @@ node scripts/check-generated-slop-report.mjs --input "<cleanup-json>"
 同时，`scripts/report-generated-slop.mjs`、`scripts/check-generated-slop-report.mjs`、`scripts/harness-eval-history-record.mjs`、`scripts/harness-eval-trend-report.mjs`、`scripts/lib/generated-slop-report-core.mjs`、`scripts/lib/harness-dashboard-core.mjs` 这条 harness cleanup/report 主链，在 `verify:local` 的 smart 模式里默认也按 bridge/contracts 风险处理。
 本地 `verify:local` 输出里如果看到 `bridge 校验（harness cleanup contract）`，说明命中的就是这条 cleanup/report 契约门禁，而不是普通 DevBridge 变更。
 CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge_reasons`，并写入 `GITHUB_STEP_SUMMARY`，用于区分这次是 `harness_cleanup_contract`、`bridge_runtime`，还是 `workflow_full_suite` / `fallback_full_suite` 这类全量触发。
+结果摘要默认按 `Scope / Required Gates / Notes / Recommended Next Action / Failure` 分段，优先让人一眼看清“为什么触发”“哪些门禁必跑”“最终为什么失败”，以及失败后本地最应该先跑哪条命令。
+如果命中的是 `harness_cleanup_contract`，推荐动作应优先指向 `npm run harness:cleanup-report:check`，而不是只给一条泛化的 bridge 校验建议。
 
 作用：
 
@@ -459,6 +462,12 @@ CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge
 
 - 资源索引损坏时，GUI 会明确提示“模型真相源异常”
 - 不会再静默回退数据库或把错误伪装成空模型列表
+
+如果本轮修改了 Provider 类型与 Prompt Cache 能力边界，还应额外确认：
+
+- `anthropic-compatible` 不会再被 UI 或运行时误显示成“自动 Prompt Cache”
+- Provider Pool 的列表、详情、创建和编辑入口中，受影响落点会继续提示“显式 cache_control”
+- 聊天侧 `ModelSelector / Inputbar / MessageList / TokenUsageDisplay` 与 Provider Pool 的口径保持一致
 
 ### Layer 4：交互型 E2E
 

@@ -62,6 +62,7 @@ import {
   getOrCreateDefaultProject,
   type Project,
 } from "@/lib/api/project";
+import { executionRunGetGeneralWorkbenchState } from "@/lib/api/executionRun";
 import {
   cancelMediaTaskArtifact,
   createImageGenerationTaskArtifact,
@@ -127,11 +128,8 @@ import { useThemeScopedChatToolPreferences } from "./hooks/useThemeScopedChatToo
 import { useLimeSkills } from "./hooks/useLimeSkills";
 import { useServiceSkills } from "./service-skills/useServiceSkills";
 import { useWorkspaceProjectSelection } from "./hooks/useWorkspaceProjectSelection";
-import { useBootstrapDispatchPreview } from "./hooks/useBootstrapDispatchPreview";
+import type { HandleSendOptions } from "./hooks/handleSendTypes";
 import { useRuntimeTeamFormation } from "./hooks/useRuntimeTeamFormation";
-import { useGeneralWorkbenchEntryPrompt } from "./hooks/useGeneralWorkbenchEntryPrompt";
-import { useGeneralWorkbenchEntryPromptActions } from "./hooks/useGeneralWorkbenchEntryPromptActions";
-import { useGeneralWorkbenchSendBoundary } from "./hooks/useGeneralWorkbenchSendBoundary";
 import { mergeThreadItems } from "./utils/threadTimelineView";
 import { openCanvasForReason } from "./workspace/canvasOpenPolicy";
 import { useWorkbenchStore } from "@/stores/useWorkbenchStore";
@@ -170,12 +168,19 @@ import { useWorkspaceVideoTaskActionRuntime } from "./workspace/useWorkspaceVide
 import { useWorkspaceSessionRestore } from "./workspace/useWorkspaceSessionRestore";
 import { useWorkspaceResetRuntime } from "./workspace/useWorkspaceResetRuntime";
 import { useWorkspaceSendActions } from "./workspace/useWorkspaceSendActions";
+import {
+  buildGeneralWorkbenchSendBoundaryState,
+  buildGeneralWorkbenchResumePromptFromRunState,
+  buildInitialDispatchKey,
+  type GeneralWorkbenchEntryPromptState,
+  type GeneralWorkbenchSendBoundaryState,
+  type InitialDispatchPreviewSnapshot,
+} from "./workspace/workspaceSendHelpers";
 import { useWorkspaceTeamSessionControlRuntime } from "./workspace/useWorkspaceTeamSessionControlRuntime";
 import { useWorkspaceGeneralWorkbenchScaffoldRuntime } from "./workspace/useWorkspaceGeneralWorkbenchScaffoldRuntime";
 import { useWorkspaceTopicSwitch } from "./workspace/useWorkspaceTopicSwitch";
 import { useWorkspaceA2UIRuntime } from "./workspace/useWorkspaceA2UIRuntime";
 import { useWorkspaceSceneGateRuntime } from "./workspace/useWorkspaceSceneGateRuntime";
-import { useWorkspaceAutoGuideRuntime } from "./workspace/useWorkspaceAutoGuideRuntime";
 import { useWorkspaceGeneralWorkbenchSidebarRuntime } from "./workspace/useWorkspaceGeneralWorkbenchSidebarRuntime";
 import { useWorkspaceGeneralWorkbenchRuntime } from "./workspace/useWorkspaceGeneralWorkbenchRuntime";
 import { useWorkspaceTeamSessionRuntime } from "./workspace/useWorkspaceTeamSessionRuntime";
@@ -204,6 +209,7 @@ import { resolveSiteSavedContentTargetFromRunResult } from "./utils/siteToolResu
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
 import type { ArtifactTimelineOpenTarget } from "./utils/artifactTimelineNavigation";
 import { createUnifiedMemory } from "@/lib/api/unifiedMemory";
+import { getDefaultGuidePromptByTheme } from "./utils/defaultGuidePrompt";
 import {
   createInitialSessionImageWorkbenchState,
   type SessionImageWorkbenchState,
@@ -212,6 +218,7 @@ import {
   SOCIAL_ARTICLE_SKILL_KEY,
   GENERAL_WORKBENCH_HISTORY_PAGE_SIZE,
   applyBackendGeneralWorkbenchDocumentState,
+  isCanvasStateEmpty,
   isCorruptedGeneralWorkbenchDocumentContent,
   isSyncContentEmpty,
   readPersistedGeneralWorkbenchDocument,
@@ -2483,41 +2490,224 @@ export function AgentChatWorkspace({
   // 用于追踪是否已触发过 AI 引导
   const hasTriggeredGuide = useRef(false);
   const consumedInitialPromptRef = useRef<string | null>(null);
-  const {
+  const consumedInitialPromptKey = consumedInitialPromptRef.current;
+  const [bootstrapDispatchSnapshot, setBootstrapDispatchSnapshot] =
+    useState<InitialDispatchPreviewSnapshot | null>(null);
+  const [generalWorkbenchEntryPrompt, setGeneralWorkbenchEntryPrompt] =
+    useState<GeneralWorkbenchEntryPromptState | null>(null);
+  const [generalWorkbenchEntryCheckPending, setGeneralWorkbenchEntryCheckPending] =
+    useState(false);
+  const hydratedPromptSignatureRef = useRef<string | null>(null);
+  const dismissedPromptSignatureRef = useRef<string | null>(null);
+  const initialDispatchKey = useMemo(
+    () => buildInitialDispatchKey(initialUserPrompt, initialUserImages),
+    [initialUserImages, initialUserPrompt],
+  );
+
+  useEffect(() => {
+    if (!initialDispatchKey) {
+      return;
+    }
+
+    setBootstrapDispatchSnapshot({
+      key: initialDispatchKey,
+      prompt: initialUserPrompt,
+      images: initialUserImages || [],
+    });
+  }, [initialDispatchKey, initialUserImages, initialUserPrompt]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setBootstrapDispatchSnapshot(null);
+      return;
+    }
+
+    if (!initialDispatchKey && !isSending && queuedTurns.length === 0) {
+      setBootstrapDispatchSnapshot(null);
+    }
+  }, [initialDispatchKey, isSending, messages.length, queuedTurns.length]);
+
+  const activeBootstrapDispatch = useMemo(() => {
+    if (
+      initialDispatchKey &&
+      ((initialUserPrompt || "").trim() || (initialUserImages || []).length > 0)
+    ) {
+      return {
+        key: initialDispatchKey,
+        prompt: initialUserPrompt,
+        images: initialUserImages || [],
+      };
+    }
+
+    return bootstrapDispatchSnapshot;
+  }, [
+    bootstrapDispatchSnapshot,
     initialDispatchKey,
-    isBootstrapDispatchPending,
-    bootstrapDispatchPreviewMessages,
-  } = useBootstrapDispatchPreview({
-    initialUserPrompt,
     initialUserImages,
-    messagesCount: messages.length,
-    isSending,
-    queuedTurnCount: queuedTurns.length,
-    consumedInitialPromptKey: consumedInitialPromptRef.current,
-    shouldUseCompactGeneralWorkbench,
-  });
-  const {
-    generalWorkbenchEntryPrompt,
-    generalWorkbenchEntryCheckPending,
-    clearGeneralWorkbenchEntryPrompt,
-    dismissGeneralWorkbenchEntryPrompt,
-  } = useGeneralWorkbenchEntryPrompt({
-    activeTheme,
-    contentId: contentId ?? undefined,
-    sessionId: sessionId ?? undefined,
-    isThemeWorkbench,
+    initialUserPrompt,
+  ]);
+  const isBootstrapDispatchPending =
+    activeBootstrapDispatch !== null &&
+    consumedInitialPromptKey !== activeBootstrapDispatch.key;
+  const bootstrapDispatchPreview =
+    !shouldUseCompactGeneralWorkbench &&
+    activeBootstrapDispatch &&
+    messages.length === 0 &&
+    (isSending || queuedTurns.length > 0)
+      ? activeBootstrapDispatch
+      : null;
+  useEffect(() => {
+    hydratedPromptSignatureRef.current = null;
+    dismissedPromptSignatureRef.current = null;
+    setGeneralWorkbenchEntryPrompt(null);
+    setGeneralWorkbenchEntryCheckPending(false);
+  }, [activeTheme, contentId, initialDispatchKey]);
+
+  useEffect(() => {
+    if (shouldUseCompactGeneralWorkbench) {
+      return;
+    }
+
+    const pendingInitialPrompt = (initialUserPrompt || "").trim();
+    const pendingInitialImages = initialUserImages || [];
+    if (
+      !isThemeWorkbench ||
+      autoRunInitialPromptOnMount ||
+      !contentId ||
+      !initialDispatchKey ||
+      !pendingInitialPrompt ||
+      pendingInitialImages.length > 0 ||
+      messages.length > 0
+    ) {
+      return;
+    }
+
+    if (
+      consumedInitialPromptKey === initialDispatchKey ||
+      hydratedPromptSignatureRef.current === initialDispatchKey
+    ) {
+      return;
+    }
+
+    hydratedPromptSignatureRef.current = initialDispatchKey;
+    hasTriggeredGuide.current = true;
+    setInput((previous) => previous.trim() || pendingInitialPrompt);
+    setGeneralWorkbenchEntryPrompt({
+      kind: "initial_prompt",
+      signature: initialDispatchKey,
+      title: "已恢复待执行创作意图",
+      description: "进入页面后不会自动开始生成，确认后再继续。",
+      actionLabel: "继续生成",
+      prompt: pendingInitialPrompt,
+    });
+  }, [
     autoRunInitialPromptOnMount,
-    shouldUseCompactGeneralWorkbench,
-    messagesCount: messages.length,
+    consumedInitialPromptKey,
+    contentId,
     initialDispatchKey,
-    initialUserPrompt,
     initialUserImages,
-    consumedInitialPromptKey: consumedInitialPromptRef.current,
-    onHydrateInitialPrompt: useCallback((prompt: string) => {
-      hasTriggeredGuide.current = true;
-      setInput((previous) => previous.trim() || prompt);
-    }, []),
-  });
+    initialUserPrompt,
+    isThemeWorkbench,
+    messages.length,
+    setInput,
+    shouldUseCompactGeneralWorkbench,
+  ]);
+
+  useEffect(() => {
+    if (shouldUseCompactGeneralWorkbench) {
+      setGeneralWorkbenchEntryCheckPending(false);
+      return;
+    }
+
+    if (
+      !isThemeWorkbench ||
+      !contentId ||
+      !sessionId ||
+      messages.length > 0 ||
+      Boolean(initialDispatchKey)
+    ) {
+      setGeneralWorkbenchEntryCheckPending(false);
+      return;
+    }
+
+    let disposed = false;
+    setGeneralWorkbenchEntryCheckPending(true);
+
+    void (async () => {
+      try {
+        const backendState = await executionRunGetGeneralWorkbenchState(
+          sessionId,
+          3,
+        ).catch(() => null);
+
+        if (disposed) {
+          return;
+        }
+
+        const nextPrompt =
+          buildGeneralWorkbenchResumePromptFromRunState(backendState);
+        if (!nextPrompt) {
+          setGeneralWorkbenchEntryPrompt((current) =>
+            current?.kind === "resume" ? null : current,
+          );
+          return;
+        }
+
+        if (dismissedPromptSignatureRef.current === nextPrompt.signature) {
+          return;
+        }
+
+        setGeneralWorkbenchEntryPrompt((current) =>
+          current?.kind === "initial_prompt" ? current : nextPrompt,
+        );
+      } finally {
+        if (!disposed) {
+          setGeneralWorkbenchEntryCheckPending(false);
+        }
+      }
+    })();
+
+    return () => {
+      disposed = true;
+    };
+  }, [
+    contentId,
+    initialDispatchKey,
+    isThemeWorkbench,
+    messages.length,
+    sessionId,
+    shouldUseCompactGeneralWorkbench,
+  ]);
+
+  const clearGeneralWorkbenchEntryPrompt = useCallback(() => {
+    setGeneralWorkbenchEntryPrompt(null);
+  }, []);
+
+  const dismissGeneralWorkbenchEntryPrompt = useCallback(
+    (options?: {
+      consumeInitialPrompt?: boolean;
+      onConsumeInitialPrompt?: () => void;
+    }) => {
+      setGeneralWorkbenchEntryPrompt((current) => {
+        if (!current) {
+          return current;
+        }
+
+        if (
+          current.kind === "initial_prompt" &&
+          options?.consumeInitialPrompt &&
+          initialDispatchKey
+        ) {
+          options.onConsumeInitialPrompt?.();
+        } else {
+          dismissedPromptSignatureRef.current = current.signature;
+        }
+
+        return null;
+      });
+    },
+    [initialDispatchKey],
+  );
   const consumeInitialPrompt = useCallback(
     (dispatchKey: string | null) => {
       consumedInitialPromptRef.current = dispatchKey;
@@ -2532,22 +2722,57 @@ export function AgentChatWorkspace({
     hasTriggeredGuide.current = false;
     consumedInitialPromptRef.current = null;
   }, []);
-  const {
-    resolveSendBoundary,
-    finalizeAfterSendSuccess,
-    rollbackAfterSendFailure,
-  } = useGeneralWorkbenchSendBoundary({
-    isThemeWorkbench,
-    contentId,
-    initialDispatchKey,
-    consumedInitialPromptKey: consumedInitialPromptRef.current,
-    initialUserImages,
-    mappedTheme,
-    socialArticleSkillKey: SOCIAL_ARTICLE_SKILL_KEY,
-    onConsumeInitialPrompt: consumeInitialPrompt,
-    onResetConsumedInitialPrompt: resetConsumedInitialPrompt,
-    onClearEntryPrompt: clearGeneralWorkbenchEntryPrompt,
-  });
+  const resolveSendBoundary = useCallback(
+    ({
+      sourceText,
+      sendOptions,
+    }: {
+      sourceText: string;
+      sendOptions?: HandleSendOptions;
+    }): GeneralWorkbenchSendBoundaryState =>
+      buildGeneralWorkbenchSendBoundaryState({
+        isThemeWorkbench,
+        contentId,
+        initialDispatchKey,
+        consumedInitialPromptKey,
+        initialUserImages,
+        mappedTheme,
+        socialArticleSkillKey: SOCIAL_ARTICLE_SKILL_KEY,
+        sourceText,
+        sendOptions,
+      }),
+    [
+      contentId,
+      consumedInitialPromptKey,
+      initialDispatchKey,
+      initialUserImages,
+      isThemeWorkbench,
+      mappedTheme,
+    ],
+  );
+  const finalizeAfterSendSuccess = useCallback(
+    (boundary: GeneralWorkbenchSendBoundaryState) => {
+      if (
+        boundary.shouldConsumePendingGeneralWorkbenchInitialPrompt &&
+        initialDispatchKey
+      ) {
+        consumeInitialPrompt(initialDispatchKey);
+      }
+
+      if (boundary.shouldDismissGeneralWorkbenchEntryPrompt) {
+        clearGeneralWorkbenchEntryPrompt();
+      }
+    },
+    [clearGeneralWorkbenchEntryPrompt, consumeInitialPrompt, initialDispatchKey],
+  );
+  const rollbackAfterSendFailure = useCallback(
+    (boundary: GeneralWorkbenchSendBoundaryState) => {
+      if (boundary.shouldConsumePendingGeneralWorkbenchInitialPrompt) {
+        resetConsumedInitialPrompt();
+      }
+    },
+    [resetConsumedInitialPrompt],
+  );
   const { resetRestoredSessionState } = useWorkspaceSessionRestore({
     sessionId,
     sessionMeta,
@@ -2698,7 +2923,7 @@ export function AgentChatWorkspace({
     browserAssistAutoLaunch: browserAssistRequestAutoLaunch,
     workspaceRequestMetadataBase: initialRequestMetadata,
     messages,
-    bootstrapDispatchPreviewMessages,
+    bootstrapDispatchPreview,
     sendMessage,
     resolveSendBoundary,
     finalizeAfterSendSuccess,
@@ -2752,31 +2977,51 @@ export function AgentChatWorkspace({
   submitImageWorkbenchAgentCommandRef.current =
     submitImageWorkbenchAgentCommand;
 
-  const {
-    handleContinueGeneralWorkbenchEntryPrompt,
-    handleRestartGeneralWorkbenchEntryPrompt,
-  } = useGeneralWorkbenchEntryPromptActions({
-    generalWorkbenchEntryPrompt,
-    input,
-    initialDispatchKey,
-    onContinuePrompt: async (promptToSend) => {
-      await handleSendRef.current(
-        [],
-        webSearchPreferenceRef.current,
-        effectiveChatToolPreferences.thinking,
-        promptToSend,
-      );
-    },
-    dismissGeneralWorkbenchEntryPrompt,
-    onConsumeInitialPrompt: (dispatchKey) => {
-      consumedInitialPromptRef.current = dispatchKey;
-      onInitialUserPromptConsumed?.();
-    },
-    onInputChange: setInput,
-    onRequirePrompt: () => {
+  const handleContinueGeneralWorkbenchEntryPrompt = useCallback(async () => {
+    if (!generalWorkbenchEntryPrompt) {
+      return;
+    }
+
+    const promptToSend =
+      input.trim() || generalWorkbenchEntryPrompt.prompt.trim();
+    if (!promptToSend) {
       toast.info("请先补充要继续执行的内容");
-    },
-  });
+      return;
+    }
+
+    await handleSendRef.current(
+      [],
+      webSearchPreferenceRef.current,
+      effectiveChatToolPreferences.thinking,
+      promptToSend,
+    );
+  }, [
+    effectiveChatToolPreferences.thinking,
+    generalWorkbenchEntryPrompt,
+    handleSendRef,
+    input,
+    webSearchPreferenceRef,
+  ]);
+  const handleRestartGeneralWorkbenchEntryPrompt = useCallback(() => {
+    if (!generalWorkbenchEntryPrompt) {
+      return;
+    }
+
+    dismissGeneralWorkbenchEntryPrompt({
+      consumeInitialPrompt:
+        generalWorkbenchEntryPrompt.kind === "initial_prompt",
+      onConsumeInitialPrompt: () => {
+        consumeInitialPrompt(initialDispatchKey);
+      },
+    });
+    setInput("");
+  }, [
+    consumeInitialPrompt,
+    dismissGeneralWorkbenchEntryPrompt,
+    generalWorkbenchEntryPrompt,
+    initialDispatchKey,
+    setInput,
+  ]);
   const {
     handleDocumentThinkingEnabledChange,
     handleDocumentAutoContinueRun,
@@ -3446,35 +3691,211 @@ export function AgentChatWorkspace({
     setFocusedTimelineItemId(normalizedItemId);
     setTimelineFocusRequestKey((current) => current + 1);
   }, []);
+  const triggerAIGuideRef = useRef(triggerAIGuide);
+  triggerAIGuideRef.current = triggerAIGuide;
 
-  useWorkspaceAutoGuideRuntime({
-    contentId,
-    sessionId,
-    initialUserPrompt,
-    initialUserImages,
-    initialAutoSendRequestMetadata,
+  useEffect(() => {
+    if (shouldUseCompactGeneralWorkbench) {
+      return;
+    }
+
+    const canvasEmpty = isCanvasStateEmpty(canvasState);
+    const pendingInitialPrompt = (initialUserPrompt || "").trim();
+    const pendingInitialImages = initialUserImages || [];
+    const defaultGuidePrompt =
+      contentId && canvasEmpty && !isThemeWorkbench
+        ? getDefaultGuidePromptByTheme(mappedTheme)
+        : undefined;
+
+    if (
+      !contentId ||
+      messages.length > 0 ||
+      !project ||
+      !systemPrompt ||
+      isSending ||
+      !canvasEmpty
+    ) {
+      return;
+    }
+
+    if (!initialDispatchKey && generalWorkbenchEntryCheckPending) {
+      return;
+    }
+
+    if (initialDispatchKey) {
+      if (
+        isThemeWorkbench &&
+        pendingInitialImages.length === 0 &&
+        !autoRunInitialPromptOnMount
+      ) {
+        return;
+      }
+      if (consumedInitialPromptRef.current === initialDispatchKey) {
+        return;
+      }
+
+      let disposed = false;
+      consumedInitialPromptRef.current = initialDispatchKey;
+      hasTriggeredGuide.current = true;
+      if (import.meta.env.MODE !== "test") {
+        console.log("[AgentChatPage] 自动发送首条创作意图消息");
+      }
+
+      void (async () => {
+        const started = await handleSend(
+          pendingInitialImages,
+          effectiveChatToolPreferences.webSearch,
+          effectiveChatToolPreferences.thinking,
+          pendingInitialPrompt,
+          undefined,
+          undefined,
+          initialAutoSendRequestMetadata
+            ? {
+                requestMetadata: initialAutoSendRequestMetadata,
+              }
+            : undefined,
+        );
+        if (disposed) {
+          return;
+        }
+        if (!started) {
+          consumedInitialPromptRef.current = null;
+          return;
+        }
+        onInitialUserPromptConsumed?.();
+      })();
+
+      return () => {
+        disposed = true;
+      };
+    }
+
+    if (hasTriggeredGuide.current) {
+      return;
+    }
+
+    if (generalWorkbenchEntryPrompt?.kind === "resume") {
+      return;
+    }
+
+    if (defaultGuidePrompt) {
+      hasTriggeredGuide.current = true;
+      setInput((previous) => previous.trim() || defaultGuidePrompt);
+      return;
+    }
+
+    if (isThemeWorkbench) {
+      if (shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt) {
+        return;
+      }
+
+      hasTriggeredGuide.current = true;
+      if (import.meta.env.MODE !== "test") {
+        console.log("[AgentChatPage] 工作区上下文：触发 AI 引导");
+      }
+      triggerAIGuideRef.current();
+      return;
+    }
+
+    hasTriggeredGuide.current = true;
+    if (import.meta.env.MODE !== "test") {
+      console.log("[AgentChatPage] 自动触发 AI 创作引导");
+    }
+    triggerAIGuideRef.current();
+  }, [
     autoRunInitialPromptOnMount,
-    initialDispatchKey,
-    messagesCount: messages.length,
-    projectReady: Boolean(project),
-    systemPromptReady: Boolean(systemPrompt),
-    isSending,
     canvasState,
-    isThemeWorkbench,
-    mappedTheme,
-    shouldUseCompactGeneralWorkbench,
-    shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt:
-      shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt,
+    contentId,
     generalWorkbenchEntryCheckPending,
     generalWorkbenchEntryPrompt,
-    chatToolPreferences: effectiveChatToolPreferences,
-    setInput,
     handleSend,
-    triggerAIGuide,
+    initialAutoSendRequestMetadata,
+    initialDispatchKey,
+    initialUserImages,
+    initialUserPrompt,
+    isSending,
+    isThemeWorkbench,
+    mappedTheme,
+    messages.length,
     onInitialUserPromptConsumed,
-    hasTriggeredGuideRef: hasTriggeredGuide,
-    consumedInitialPromptRef,
-  });
+    project,
+    setInput,
+    shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt,
+    shouldUseCompactGeneralWorkbench,
+    systemPrompt,
+    effectiveChatToolPreferences.thinking,
+    effectiveChatToolPreferences.webSearch,
+  ]);
+
+  useEffect(() => {
+    const pendingInitialPrompt = (initialUserPrompt || "").trim();
+    const pendingInitialImages = initialUserImages || [];
+
+    if (
+      shouldUseCompactGeneralWorkbench ||
+      !initialDispatchKey ||
+      contentId ||
+      !sessionId ||
+      messages.length > 0 ||
+      isSending
+    ) {
+      return;
+    }
+
+    if (consumedInitialPromptRef.current === initialDispatchKey) {
+      return;
+    }
+
+    let disposed = false;
+    consumedInitialPromptRef.current = initialDispatchKey;
+
+    void (async () => {
+      const started = await handleSend(
+        pendingInitialImages,
+        effectiveChatToolPreferences.webSearch,
+        effectiveChatToolPreferences.thinking,
+        pendingInitialPrompt,
+        undefined,
+        undefined,
+        initialAutoSendRequestMetadata
+          ? {
+              requestMetadata: initialAutoSendRequestMetadata,
+            }
+          : undefined,
+      );
+      if (disposed) {
+        return;
+      }
+      if (!started) {
+        consumedInitialPromptRef.current = null;
+        return;
+      }
+      onInitialUserPromptConsumed?.();
+    })();
+
+    return () => {
+      disposed = true;
+    };
+  }, [
+    contentId,
+    handleSend,
+    initialAutoSendRequestMetadata,
+    initialDispatchKey,
+    initialUserImages,
+    initialUserPrompt,
+    isSending,
+    messages.length,
+    onInitialUserPromptConsumed,
+    sessionId,
+    shouldUseCompactGeneralWorkbench,
+    effectiveChatToolPreferences.thinking,
+    effectiveChatToolPreferences.webSearch,
+  ]);
+
+  useEffect(() => {
+    hasTriggeredGuide.current = false;
+    consumedInitialPromptRef.current = null;
+  }, [contentId]);
 
   useWorkspaceImageWorkbenchEventRuntime({
     canvasState,

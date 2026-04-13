@@ -57,7 +57,11 @@ export const ProviderListItem: React.FC<ProviderListItemProps> = ({
   const apiKeyCount = provider.api_keys?.length ?? 0;
   const isEnabled = provider.enabled;
   const showExplicitPromptCacheBadge =
-    getProviderPromptCacheMode(provider.type) === "explicit_only";
+    getProviderPromptCacheMode(
+      provider.type,
+      provider.prompt_cache_mode,
+      provider.api_host,
+    ) === "explicit_only";
 
   return (
     <div

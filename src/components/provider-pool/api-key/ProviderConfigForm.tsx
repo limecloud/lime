@@ -31,7 +31,10 @@ import type {
   ProviderWithKeysDisplay,
   UpdateProviderRequest,
 } from "@/lib/api/apiKeyProvider";
-import type { ProviderType } from "@/lib/types/provider";
+import type {
+  ProviderDeclaredPromptCacheMode,
+  ProviderType,
+} from "@/lib/types/provider";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 import type { ConfiguredProvider } from "@/hooks/useConfiguredProviders";
 import { useProviderModels } from "@/hooks/useProviderModels";
@@ -43,9 +46,13 @@ import {
   getSpecialProtocolHint,
   getLatestSelectableModel,
   getProviderTypeLabel,
+  isPromptCacheModeConfigurableProviderType,
   parseCustomModelsValue,
+  PROMPT_CACHE_MODE_OPTIONS,
   PROVIDER_TYPE_FIELDS,
   PROVIDER_TYPE_OPTIONS,
+  resolvePromptCacheModeFormValue,
+  resolvePromptCacheModeRequestValue,
   serializeCustomModels,
 } from "./ProviderConfigForm.utils";
 import { Plus, Save, Star, X } from "lucide-react";
@@ -105,6 +112,7 @@ export interface ProviderConfigFormRef {
 interface FormState {
   providerName: string;
   providerType: ProviderType;
+  promptCacheMode: ProviderDeclaredPromptCacheMode;
   apiHost: string;
   apiVersion: string;
   project: string;
@@ -160,6 +168,11 @@ export const ProviderConfigForm = forwardRef<
     const [formState, setFormState] = useState<FormState>({
       providerName: provider.name || "",
       providerType: (provider.type as ProviderType) || "openai",
+      promptCacheMode: resolvePromptCacheModeFormValue(
+        provider.prompt_cache_mode,
+        provider.type as ProviderType,
+        provider.api_host,
+      ),
       apiHost: provider.api_host || "",
       apiVersion: provider.api_version || "",
       project: provider.project || "",
@@ -197,10 +210,12 @@ export const ProviderConfigForm = forwardRef<
         type: formState.providerType,
         providerId: provider.id,
         apiHost: formState.apiHost,
+        promptCacheMode: formState.promptCacheMode,
         customModels: selectedModels,
       }),
       [
         formState.apiHost,
+        formState.promptCacheMode,
         formState.providerType,
         provider.id,
         provider.name,
@@ -317,6 +332,11 @@ export const ProviderConfigForm = forwardRef<
       setFormState({
         providerName: provider.name || "",
         providerType: (provider.type as ProviderType) || "openai",
+        promptCacheMode: resolvePromptCacheModeFormValue(
+          provider.prompt_cache_mode,
+          provider.type as ProviderType,
+          provider.api_host,
+        ),
         apiHost: provider.api_host || "",
         apiVersion: provider.api_version || "",
         project: provider.project || "",
@@ -330,6 +350,7 @@ export const ProviderConfigForm = forwardRef<
       provider.id,
       provider.name,
       provider.type,
+      provider.prompt_cache_mode,
       provider.api_host,
       provider.api_version,
       provider.project,
@@ -360,6 +381,11 @@ export const ProviderConfigForm = forwardRef<
             project: state.project,
             location: state.location,
             region: state.region,
+            prompt_cache_mode: resolvePromptCacheModeRequestValue(
+              state.providerType,
+              state.promptCacheMode,
+              state.apiHost,
+            ),
             custom_models: customModels,
           };
 
@@ -511,13 +537,19 @@ export const ProviderConfigForm = forwardRef<
     }, [onRecommendedLatestModelChange, recommendedLatestModel]);
 
     const extraFields = PROVIDER_TYPE_FIELDS[formState.providerType] || [];
+    const showPromptCacheModeField = isPromptCacheModeConfigurableProviderType(
+      formState.providerType,
+      formState.apiHost,
+    );
     const specialProtocolHint = getSpecialProtocolHint(formState.providerType);
     const promptCacheSupportNotice = useMemo(
       () =>
         resolvePromptCacheSupportNotice({
           configuredProviderType: formState.providerType,
+          configuredApiHost: formState.apiHost,
+          configuredPromptCacheMode: formState.promptCacheMode,
         }),
-      [formState.providerType],
+      [formState.apiHost, formState.promptCacheMode, formState.providerType],
     );
     const defaultModelId =
       visibleSelectedModels[0] ?? recommendedLatestModel?.id ?? null;
@@ -718,6 +750,53 @@ export const ProviderConfigForm = forwardRef<
               </div>
             );
           })}
+
+          {showPromptCacheModeField ? (
+            <div className="space-y-1.5 lg:col-span-2">
+              <Label
+                htmlFor="prompt-cache-mode"
+                className="text-sm font-medium"
+              >
+                Prompt Cache 模式
+              </Label>
+              <Select
+                value={formState.promptCacheMode}
+                onValueChange={(value) =>
+                  handleFieldChange(
+                    "promptCacheMode",
+                    value as ProviderDeclaredPromptCacheMode,
+                  )
+                }
+                disabled={loading || isSaving}
+              >
+                <SelectTrigger
+                  id="prompt-cache-mode"
+                  className="border-slate-200 bg-white"
+                  data-testid="prompt-cache-mode-select"
+                >
+                  <span>
+                    {PROMPT_CACHE_MODE_OPTIONS.find(
+                      (option) => option.value === formState.promptCacheMode,
+                    )?.label ?? formState.promptCacheMode}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  {PROMPT_CACHE_MODE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs leading-5 text-slate-500">
+                {
+                  PROMPT_CACHE_MODE_OPTIONS.find(
+                    (option) => option.value === formState.promptCacheMode,
+                  )?.description
+                }
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {promptCacheSupportNotice ? (

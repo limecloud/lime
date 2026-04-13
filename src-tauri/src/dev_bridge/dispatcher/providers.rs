@@ -60,6 +60,10 @@ fn api_key_provider_with_keys_to_display(
             location: provider_with_keys.provider.location.clone(),
             region: provider_with_keys.provider.region.clone(),
             custom_models: provider_with_keys.provider.custom_models.clone(),
+            prompt_cache_mode: provider_with_keys
+                .provider
+                .effective_prompt_cache_mode()
+                .map(|mode| mode.to_string()),
             api_key_count: provider_with_keys.api_keys.len(),
             created_at: provider_with_keys.provider.created_at.to_rfc3339(),
             updated_at: provider_with_keys.provider.updated_at.to_rfc3339(),

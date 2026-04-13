@@ -311,7 +311,7 @@ describe("ModelSelector", () => {
     expect(pageText).toContain("无多模态");
   });
 
-  it("anthropic-compatible Provider 应在选择器中展示显式缓存提示", () => {
+  it("未知 anthropic-compatible Provider 应在选择器中展示显式缓存提示", () => {
     mockUseConfiguredProviders.mockReturnValue({
       providers: [
         {
@@ -321,7 +321,7 @@ describe("ModelSelector", () => {
           fallbackRegistryId: "anthropic",
           type: "anthropic-compatible",
           providerId: "custom-anthropic-compatible",
-          apiHost: "https://open.bigmodel.cn/api/anthropic",
+          apiHost: "https://api.example.com/anthropic",
         },
       ],
       loading: false,
@@ -365,6 +365,138 @@ describe("ModelSelector", () => {
     expect(pageText).toContain("显式缓存");
     expect(pageText).toContain("未声明自动 Prompt Cache");
     expect(pageText).toContain("cache_control");
+  });
+
+  it.each([
+    {
+      label: "GLM Anthropic",
+      apiHost: "https://open.bigmodel.cn/api/anthropic",
+      model: "glm-5.1",
+    },
+    {
+      label: "Kimi Anthropic",
+      apiHost: "https://api.moonshot.cn/anthropic",
+      model: "kimi-k2.5",
+    },
+    {
+      label: "MiniMax Anthropic",
+      apiHost: "https://api.minimaxi.com/anthropic",
+      model: "minimax-m1",
+    },
+    {
+      label: "MiMo Anthropic",
+      apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
+      model: "mimo-v2-flash",
+    },
+  ])("$label 不应在选择器中误报显式缓存提示", ({ label, apiHost, model }) => {
+    mockUseConfiguredProviders.mockReturnValue({
+      providers: [
+        {
+          key: "custom-anthropic-compatible",
+          label,
+          registryId: "custom-anthropic-compatible",
+          fallbackRegistryId: "anthropic",
+          type: "anthropic-compatible",
+          providerId: "custom-anthropic-compatible",
+          apiHost,
+        },
+      ],
+      loading: false,
+    });
+    mockUseProviderModels.mockReturnValue({
+      modelIds: [model],
+      models: [
+        {
+          id: model,
+          capabilities: {
+            vision: true,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+          },
+        },
+      ],
+      loading: false,
+      error: null,
+    });
+
+    const { container } = renderModelSelector({
+      providerType: "custom-anthropic-compatible",
+      model,
+    });
+
+    const trigger = container.querySelector(
+      'button[role="combobox"]',
+    ) as HTMLButtonElement | null;
+    if (!trigger) {
+      throw new Error("未找到模型选择触发器");
+    }
+
+    act(() => {
+      trigger.click();
+    });
+
+    const pageText = document.body.textContent || "";
+    expect(pageText).not.toContain("显式缓存");
+    expect(pageText).not.toContain("未声明自动 Prompt Cache");
+  });
+
+  it("显式声明 automatic 的 anthropic-compatible Provider 不应在选择器中误报显式缓存提示", () => {
+    mockUseConfiguredProviders.mockReturnValue({
+      providers: [
+        {
+          key: "custom-anthropic-compatible",
+          label: "GLM Anthropic Automatic",
+          registryId: "custom-anthropic-compatible",
+          fallbackRegistryId: "anthropic",
+          type: "anthropic-compatible",
+          providerId: "custom-anthropic-compatible",
+          apiHost: "https://open.bigmodel.cn/api/anthropic",
+          promptCacheMode: "automatic",
+        },
+      ],
+      loading: false,
+    });
+    mockUseProviderModels.mockReturnValue({
+      modelIds: ["glm-5.1"],
+      models: [
+        {
+          id: "glm-5.1",
+          capabilities: {
+            vision: true,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+          },
+        },
+      ],
+      loading: false,
+      error: null,
+    });
+
+    const { container } = renderModelSelector({
+      providerType: "custom-anthropic-compatible",
+      model: "glm-5.1",
+    });
+
+    const trigger = container.querySelector(
+      'button[role="combobox"]',
+    ) as HTMLButtonElement | null;
+    if (!trigger) {
+      throw new Error("未找到模型选择触发器");
+    }
+
+    act(() => {
+      trigger.click();
+    });
+
+    const pageText = document.body.textContent || "";
+    expect(pageText).not.toContain("显式缓存");
+    expect(pageText).not.toContain("未声明自动 Prompt Cache");
   });
 
   it("无 Provider 引导关闭后应隐藏，并在重新挂载时保持关闭状态", () => {

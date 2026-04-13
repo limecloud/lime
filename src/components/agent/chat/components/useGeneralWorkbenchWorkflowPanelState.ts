@@ -31,8 +31,10 @@ export interface GeneralWorkbenchWorkflowPanelState {
   runMetadataText: string;
   runMetadataSummary: GeneralWorkbenchRunMetadataSummary;
   showActivityLogs: boolean;
+  showBranchRecords: boolean;
   showCreationTasks: boolean;
   toggleActivityLogs: () => void;
+  toggleBranchRecords: () => void;
   toggleCreationTasks: () => void;
 }
 
@@ -43,6 +45,7 @@ export function useGeneralWorkbenchWorkflowPanelState({
   activeRunMetadata,
 }: UseGeneralWorkbenchWorkflowPanelStateParams): GeneralWorkbenchWorkflowPanelState {
   const [showActivityLogs, setShowActivityLogs] = useState(false);
+  const [showBranchRecords, setShowBranchRecords] = useState(false);
   const [showCreationTasks, setShowCreationTasks] = useState(false);
 
   const completedSteps = useMemo(
@@ -84,6 +87,10 @@ export function useGeneralWorkbenchWorkflowPanelState({
     setShowActivityLogs((previous) => !previous);
   }, []);
 
+  const toggleBranchRecords = useCallback(() => {
+    setShowBranchRecords((previous) => !previous);
+  }, []);
+
   const toggleCreationTasks = useCallback(() => {
     setShowCreationTasks((previous) => !previous);
   }, []);
@@ -97,8 +104,10 @@ export function useGeneralWorkbenchWorkflowPanelState({
     runMetadataText,
     runMetadataSummary,
     showActivityLogs,
+    showBranchRecords,
     showCreationTasks,
     toggleActivityLogs,
+    toggleBranchRecords,
     toggleCreationTasks,
   };
 }

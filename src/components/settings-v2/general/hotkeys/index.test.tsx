@@ -192,10 +192,9 @@ describe("HotkeysSettings", () => {
     expect(text).toContain("查看已接入实现并完成审计的快捷键。");
     expect(text).toContain("全局运行中 2 / 3");
     expect(text).toContain("运行时状态已连接");
-    expect(text).toContain("已审计 18 项");
-    expect(text).toContain("终端页面");
-    expect(text).toContain("共 10 项");
-    expect(text).toContain("滚动到终端底部（macOS）");
+    expect(text).toContain("已审计 8 项");
+    expect(text).not.toContain("终端页面");
+    expect(text).toContain("共 2 项");
     expect(text).toContain("文档画布");
   });
 

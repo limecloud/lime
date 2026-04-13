@@ -1,5 +1,4 @@
-import type { FileEntry } from "@/components/terminal/widgets/types";
-import type { DirectoryListing } from "@/lib/api/fileBrowser";
+import type { DirectoryListing, FileEntry } from "@/lib/api/fileBrowser";
 
 const ROOT_HIDDEN_DIRECTORY_NAMES = new Set([".lime", "output"]);
 const GLOBAL_HIDDEN_ENTRY_NAMES = new Set([".DS_Store", "Thumbs.db"]);

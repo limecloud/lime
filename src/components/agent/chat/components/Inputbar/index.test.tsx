@@ -139,12 +139,6 @@ vi.mock("../ChatModelSelector", () => ({
   ChatModelSelector: () => <div data-testid="model-selector" />,
 }));
 
-vi.mock("./components/InputbarPromptCacheNotice", () => ({
-  InputbarPromptCacheNotice: (props: { providerType: string }) => (
-    <div data-testid="inputbar-prompt-cache-warning">{props.providerType}</div>
-  ),
-}));
-
 vi.mock("@/lib/dev-bridge", () => ({
   safeInvoke: vi.fn(async () => []),
 }));
@@ -828,7 +822,7 @@ describe("Inputbar", () => {
     expect(latestCall.leftExtra).toBeDefined();
   });
 
-  it("已选择 Provider 时应将 prompt cache 提示组件挂到输入区顶部", async () => {
+  it("已选择 Provider 时不应再将 prompt cache 提示组件常驻挂到输入区顶部", async () => {
     const { container } = renderInputbar({
       providerType: "custom-provider-id",
       setProviderType: vi.fn(),
@@ -843,8 +837,7 @@ describe("Inputbar", () => {
 
     expect(
       container.querySelector('[data-testid="inputbar-prompt-cache-warning"]'),
-    ).toBeTruthy();
-    expect(container.textContent).toContain("custom-provider-id");
+    ).toBeNull();
   });
 
   it("任务中心工作区应使用继续推进型输入提示", async () => {

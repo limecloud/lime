@@ -168,6 +168,40 @@ function createSavedSiteMetadata(): AgentToolResultMetadata {
 }
 
 describe("StreamingRenderer", () => {
+  it("交错内容应隐藏紧邻工具调用的调度自述", () => {
+    const { container } = renderHarness({
+      content: "",
+      contentParts: [
+        {
+          type: "text",
+          text: "ToolSearch 只返回了元数据，让我直接调用 WebSearch 进行多组检索。",
+        },
+        {
+          type: "tool_use",
+          toolCall: {
+            id: "tool-narration-hidden",
+            name: "WebSearch",
+            arguments: JSON.stringify({ query: "latest openai api" }),
+            status: "completed",
+            result: { success: true, output: "ok" },
+            startTime: new Date("2026-04-01T10:00:00.000Z"),
+            endTime: new Date("2026-04-01T10:00:01.000Z"),
+          },
+        },
+        {
+          type: "text",
+          text: "已经整理出 3 个可信来源。",
+        },
+      ],
+    });
+
+    expect(container.textContent).not.toContain("只返回了元数据");
+    expect(
+      container.querySelector('[data-testid="inline-tool-process-step"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("已经整理出 3 个可信来源。");
+  });
+
   it("应过滤 assistant 正文中的工具协议残留", () => {
     const { container } = renderHarness({
       content:

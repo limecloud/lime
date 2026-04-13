@@ -1,6 +1,9 @@
 import { AGENT_RUNTIME_COMMANDS } from "./commandManifest.generated";
 import {
   normalizeAnalysisHandoff,
+  normalizeEvidencePack,
+  normalizeHandoffBundle,
+  normalizeReplayCase,
   normalizeReviewDecisionTemplate,
 } from "./normalizers";
 import {
@@ -26,9 +29,10 @@ export function createExportClient({
   async function exportAgentRuntimeHandoffBundle(
     sessionId: string,
   ): Promise<AgentRuntimeHandoffBundle> {
-    return await invokeCommand<AgentRuntimeHandoffBundle>(
-      AGENT_RUNTIME_COMMANDS.exportHandoffBundle,
-      { sessionId },
+    return normalizeHandoffBundle(
+      await invokeCommand(AGENT_RUNTIME_COMMANDS.exportHandoffBundle, {
+        sessionId,
+      }),
     );
   }
 
@@ -68,18 +72,20 @@ export function createExportClient({
   async function exportAgentRuntimeEvidencePack(
     sessionId: string,
   ): Promise<AgentRuntimeEvidencePack> {
-    return await invokeCommand<AgentRuntimeEvidencePack>(
-      AGENT_RUNTIME_COMMANDS.exportEvidencePack,
-      { sessionId },
+    return normalizeEvidencePack(
+      await invokeCommand(AGENT_RUNTIME_COMMANDS.exportEvidencePack, {
+        sessionId,
+      }),
     );
   }
 
   async function exportAgentRuntimeReplayCase(
     sessionId: string,
   ): Promise<AgentRuntimeReplayCase> {
-    return await invokeCommand<AgentRuntimeReplayCase>(
-      AGENT_RUNTIME_COMMANDS.exportReplayCase,
-      { sessionId },
+    return normalizeReplayCase(
+      await invokeCommand(AGENT_RUNTIME_COMMANDS.exportReplayCase, {
+        sessionId,
+      }),
     );
   }
 

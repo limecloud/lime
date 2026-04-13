@@ -89,19 +89,19 @@ const TOOL_STATUS_ACTIONS = {
     running: "搜索中",
   },
   read: {
-    failed: "读取失败",
-    completed: "已读取",
-    running: "读取中",
+    failed: "查看失败",
+    completed: "已查看",
+    running: "查看中",
   },
   list: {
-    failed: "列出失败",
-    completed: "已列出",
-    running: "浏览中",
+    failed: "查看失败",
+    completed: "已查看",
+    running: "查看中",
   },
   write: {
-    failed: "写入失败",
-    completed: "已写入",
-    running: "写入中",
+    failed: "保存失败",
+    completed: "已保存",
+    running: "保存中",
   },
   edit: {
     failed: "编辑失败",
@@ -109,9 +109,9 @@ const TOOL_STATUS_ACTIONS = {
     running: "编辑中",
   },
   command: {
-    failed: "执行失败",
-    completed: "已执行",
-    running: "执行中",
+    failed: "运行失败",
+    completed: "已运行",
+    running: "运行中",
   },
   plan: {
     failed: "更新失败",
@@ -148,7 +148,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "read",
       label: "文件读取",
-      verb: "读取",
+      verb: "查看",
       icon: Eye,
       groupTitle: "探索",
       actionKey: "read",
@@ -159,7 +159,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "read",
       label: "文件读取",
-      verb: "读取",
+      verb: "查看",
       icon: Eye,
       groupTitle: "探索",
       actionKey: "read",
@@ -170,7 +170,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "read",
       label: "文档读取",
-      verb: "读取",
+      verb: "查看",
       icon: FileText,
       groupTitle: "探索",
       actionKey: "read",
@@ -181,7 +181,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "read",
       label: "资源读取",
-      verb: "读取",
+      verb: "查看",
       icon: FileText,
       groupTitle: "探索",
       actionKey: "read",
@@ -192,7 +192,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "write",
       label: "文件写入",
-      verb: "写入",
+      verb: "保存",
       icon: FilePlus,
       groupTitle: "写入",
       actionKey: "write",
@@ -203,7 +203,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "write",
       label: "文件写入",
-      verb: "写入",
+      verb: "保存",
       icon: FilePlus,
       groupTitle: "写入",
       actionKey: "write",
@@ -214,7 +214,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "write",
       label: "文件创建",
-      verb: "创建",
+      verb: "保存",
       icon: FilePlus,
       groupTitle: "写入",
       actionKey: "write",
@@ -280,10 +280,15 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "list",
       label: "文件匹配",
-      verb: "列出",
+      verb: "查找",
       icon: FolderOpen,
       groupTitle: "探索",
       actionKey: "list",
+      actions: {
+        failed: "查找失败",
+        completed: "已找到",
+        running: "查找中",
+      },
     },
   ],
   [
@@ -291,7 +296,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "list",
       label: "目录浏览",
-      verb: "列出",
+      verb: "查看",
       icon: FolderOpen,
       groupTitle: "探索",
       actionKey: "list",
@@ -302,7 +307,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "list",
       label: "目录浏览",
-      verb: "列出",
+      verb: "查看",
       icon: FolderOpen,
       groupTitle: "探索",
       actionKey: "list",
@@ -313,7 +318,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "list",
       label: "目录浏览",
-      verb: "列出",
+      verb: "查看",
       icon: FolderOpen,
       groupTitle: "探索",
       actionKey: "list",
@@ -324,7 +329,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "list",
       label: "目录浏览",
-      verb: "列出",
+      verb: "查看",
       icon: FolderOpen,
       groupTitle: "探索",
       actionKey: "list",
@@ -335,7 +340,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "list",
       label: "资源列表",
-      verb: "列出",
+      verb: "查看",
       icon: FolderOpen,
       groupTitle: "探索",
       actionKey: "list",
@@ -346,7 +351,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "list",
       label: "资源模板列表",
-      verb: "列出",
+      verb: "查看",
       icon: FolderOpen,
       groupTitle: "探索",
       actionKey: "list",
@@ -511,7 +516,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "command",
       label: "命令执行",
-      verb: "执行",
+      verb: "运行",
       icon: Terminal,
       groupTitle: "命令",
       actionKey: "command",
@@ -651,14 +656,14 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     {
       family: "task",
       label: "任务输出",
-      verb: "读取输出",
+      verb: "查看结果",
       icon: FileText,
       groupTitle: "任务",
       actionKey: "task",
       actions: {
-        failed: "读取失败",
-        completed: "已读取输出",
-        running: "读取中",
+        failed: "查看结果失败",
+        completed: "已查看结果",
+        running: "查看结果中",
       },
     },
   ],
@@ -1501,6 +1506,41 @@ const TOOL_NAME_KEY_ALIASES: Record<string, string> = {
   writetodos: "taskupdate",
 };
 
+const USER_FACING_TOOL_LABELS: Record<string, string> = {
+  文件读取: "查看文件",
+  文档读取: "查看文档",
+  资源读取: "查看内容",
+  文件写入: "保存文件",
+  文件创建: "保存文件",
+  文件编辑: "修改文件",
+  批量编辑: "修改文件",
+  笔记本编辑: "修改文件",
+  补丁应用: "修改文件",
+  文件匹配: "查找文件",
+  目录浏览: "查看文件夹",
+  资源列表: "查看资源",
+  资源模板列表: "查看资源模板",
+  内容检索: "查找内容",
+  工具搜索: "查找工具",
+  文档搜索: "查找文档",
+  文档查询: "查看文档",
+  网络搜索: "搜索网页",
+  图片搜索: "搜索图片",
+  联网搜图: "搜索图片",
+  命令执行: "运行命令",
+  技能执行: "使用技能",
+  技能列表: "查看技能",
+  技能加载: "加载技能",
+  任务输出: "查看任务结果",
+  工作区同步: "同步内容",
+  图像分析: "分析图片",
+  图片查看: "查看图片",
+  站点能力目录: "查看站点能力",
+  站点能力搜索: "搜索站点能力",
+  站点能力详情: "查看站点能力",
+  站点能力执行: "运行站点能力",
+};
+
 export const normalizeToolNameKey = (value: string): string => {
   const normalized = value
     .replace(/[\s_-]+/g, "")
@@ -1569,6 +1609,11 @@ export const resolveToolPrimarySubject = (
   filePath?: string | null,
 ): string | null => {
   const normalizedName = normalizeToolNameKey(toolName);
+  const searchQueryPreview = resolveToolArgumentPreview(args, [
+    "query",
+    "q",
+    "search_query",
+  ]);
 
   if (filePath) return getFileName(filePath);
 
@@ -1723,6 +1768,16 @@ export const resolveToolPrimarySubject = (
     return resolveToolArgumentPreview(args, ["query", "q"]) || "站点能力";
   }
 
+  if (normalizedName === "toolsearch") {
+    if (
+      searchQueryPreview &&
+      !/^(?:select|tool|tools|name|tag):/i.test(searchQueryPreview)
+    ) {
+      return searchQueryPreview;
+    }
+    return "可用工具";
+  }
+
   if (normalizedName === "askuserquestion") {
     return resolveToolArgumentPreview(args, [
       "question",
@@ -1867,7 +1922,7 @@ export const getToolDisplayInfo = (
       {
         family: "write",
         label: "文件写入",
-        verb: "写入",
+        verb: "保存",
         icon: FilePlus,
         groupTitle: "写入",
         actionKey: "write",
@@ -1881,7 +1936,7 @@ export const getToolDisplayInfo = (
       {
         family: "read",
         label: "文件读取",
-        verb: "读取",
+        verb: "查看",
         icon: Eye,
         groupTitle: "探索",
         actionKey: "read",
@@ -1899,7 +1954,7 @@ export const getToolDisplayInfo = (
       {
         family: "command",
         label: "命令执行",
-        verb: "执行",
+        verb: "运行",
         icon: Terminal,
         groupTitle: "命令",
         actionKey: "command",
@@ -1931,7 +1986,7 @@ export const getToolDisplayInfo = (
       {
         family: "list",
         label: "目录浏览",
-        verb: "列出",
+        verb: "查看",
         icon: FolderOpen,
         groupTitle: "探索",
         actionKey: "list",
@@ -1962,7 +2017,7 @@ export const buildToolHeadline = (params: {
   }
 
   if (toolDisplay.label !== humanizeToolName(toolName)) {
-    return `${toolDisplay.action} ${toolDisplay.label}`;
+    return toolDisplay.action;
   }
 
   return toolDisplay.label;
@@ -1970,6 +2025,14 @@ export const buildToolHeadline = (params: {
 
 export const resolveToolDisplayLabel = (toolName: string): string =>
   getToolDisplayInfo(toolName, "completed").label;
+
+export const toUserFacingToolDisplayLabel = (label: string): string => {
+  const normalized = label.trim();
+  return USER_FACING_TOOL_LABELS[normalized] || normalized;
+};
+
+export const resolveUserFacingToolDisplayLabel = (toolName: string): string =>
+  toUserFacingToolDisplayLabel(resolveToolDisplayLabel(toolName).trim() || toolName);
 
 export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
   const first = toolCalls[0]!;
@@ -1996,23 +2059,23 @@ export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
           ? "站点浏览失败"
           : "已浏览站点能力";
     }
-    return running ? "探索中" : failed ? "探索失败" : "已探索";
+    return running ? "查看中" : failed ? "查看失败" : "已查看";
   }
 
   if (info.family === "command") {
     return failed
-      ? `执行失败 ${toolCalls.length} 条命令`
+      ? `运行失败 ${toolCalls.length} 条命令`
       : running
-        ? `执行中 ${toolCalls.length} 条命令`
-        : `已执行 ${toolCalls.length} 条命令`;
+        ? `运行中 ${toolCalls.length} 条命令`
+        : `已运行 ${toolCalls.length} 条命令`;
   }
 
   if (info.family === "write") {
     return failed
-      ? `写入失败 ${toolCalls.length} 个文件`
+      ? `保存失败 ${toolCalls.length} 个文件`
       : running
-        ? `写入中 ${toolCalls.length} 个文件`
-        : `已写入 ${toolCalls.length} 个文件`;
+        ? `保存中 ${toolCalls.length} 个文件`
+        : `已保存 ${toolCalls.length} 个文件`;
   }
 
   if (info.family === "edit") {
@@ -2049,10 +2112,10 @@ export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
 
   if (info.family === "plan") {
     return failed
-      ? `计划更新失败 ${toolCalls.length} 次`
+      ? `安排处理失败 ${toolCalls.length} 项`
       : running
-        ? `计划更新中 ${toolCalls.length} 次`
-        : `已更新 ${toolCalls.length} 次计划`;
+        ? `安排处理中 ${toolCalls.length} 项`
+        : `已处理 ${toolCalls.length} 项安排`;
   }
 
   if (info.family === "skill") {

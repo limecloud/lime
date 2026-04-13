@@ -1,3 +1,8 @@
+import {
+  describeVerificationOutcome,
+  deriveVerificationDashboardPresentation,
+} from "./harness-verification-facts.mjs";
+
 function normalizeNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
@@ -141,49 +146,39 @@ function renderRecommendationList(recommendations) {
     .join("");
 }
 
-function describeVerificationOutcome(entry) {
-  const signal = normalizeString(entry?.signal, "unknown");
-  const outcome = normalizeString(entry?.outcome, "unknown");
-
-  if (signal === "artifactValidator" && outcome === "issues_present") {
-    return "当前 evidence 已记录 artifact 校验问题，优先回看 validator issue 明细。";
-  }
-  if (signal === "artifactValidator" && outcome === "fallback_used") {
-    return "当前 artifact 导出仍触发 fallback，说明产物结构或修复链未完全稳定。";
-  }
-  if (signal === "browserVerification" && outcome === "failure") {
-    return "浏览器验证已有明确失败结果，优先回挂到 replay 或 smoke 断言。";
-  }
-  if (signal === "browserVerification" && outcome === "unknown") {
-    return "浏览器验证结果仍不明确，需要先补 outcome 再继续扩分析。";
-  }
-  if (signal === "guiSmoke" && outcome === "failed") {
-    return "GUI smoke 已明确失败，应优先收敛到受影响主路径。";
-  }
-  if (signal === "guiSmoke" && outcome === "passed") {
-    return "GUI smoke 已通过，可继续把注意力放回 gap 与其它失败面。";
-  }
-  if (signal === "artifactValidator" && outcome === "repaired") {
-    return "artifact validator 已执行修复，可结合 issues/fallback 判断是否还需继续治理。";
-  }
-  if (signal === "browserVerification" && outcome === "success") {
-    return "浏览器验证已有成功样本，可作为 current 主线路径的正向基线。";
+function deriveTrendSummary(trendReport, cleanupReport) {
+  const cleanupTrendSummary =
+    cleanupReport &&
+    typeof cleanupReport === "object" &&
+    cleanupReport.summary &&
+    cleanupReport.summary.trend
+      ? cleanupReport.summary.trend
+      : null;
+  if (cleanupTrendSummary) {
+    return cleanupTrendSummary;
   }
 
-  return "当前 verification outcome 已进入 cleanup 主线，可直接据此定位先修哪层。";
-}
+  const latestTotals =
+    trendReport && typeof trendReport === "object" && trendReport.latest?.totals
+      ? trendReport.latest.totals
+      : {};
+  const delta = trendReport && typeof trendReport === "object" ? trendReport.delta : {};
 
-const RECOVERED_VERIFICATION_OUTCOMES = new Set([
-  "repaired",
-  "success",
-  "passed",
-  "clean",
-]);
-
-function isRecoveredVerificationOutcome(entry) {
-  return RECOVERED_VERIFICATION_OUTCOMES.has(
-    normalizeString(entry?.outcome, "unknown"),
-  );
+  return {
+    sampleCount: normalizeNumber(trendReport?.sampleCount),
+    latestCurrentObservabilityGapCaseCount: normalizeNumber(
+      latestTotals.currentObservabilityGapCaseCount,
+    ),
+    latestDegradedObservabilityGapCaseCount: normalizeNumber(
+      latestTotals.degradedObservabilityGapCaseCount,
+    ),
+    currentObservabilityGapCaseDelta: normalizeNumber(
+      delta?.currentObservabilityGapCaseCount,
+    ),
+    degradedObservabilityGapCaseDelta: normalizeNumber(
+      delta?.degradedObservabilityGapCaseCount,
+    ),
+  };
 }
 
 function renderFocusTable(title, entries, columns) {
@@ -240,13 +235,7 @@ export function renderHarnessDashboardHtml({
     summaryReport && typeof summaryReport === "object" && summaryReport.totals
       ? summaryReport.totals
       : {};
-  const trendSummary =
-    cleanupReport &&
-    typeof cleanupReport === "object" &&
-    cleanupReport.summary &&
-    cleanupReport.summary.trend
-      ? cleanupReport.summary.trend
-      : {};
+  const trendSummary = deriveTrendSummary(trendReport, cleanupReport);
   const governanceSummary =
     cleanupReport &&
     typeof cleanupReport === "object" &&
@@ -254,13 +243,12 @@ export function renderHarnessDashboardHtml({
     cleanupReport.summary.governance
       ? cleanupReport.summary.governance
       : {};
-  const verificationSummary =
-    cleanupReport &&
-    typeof cleanupReport === "object" &&
-    cleanupReport.summary &&
-    cleanupReport.summary.verificationOutcomes
-      ? cleanupReport.summary.verificationOutcomes
-      : {};
+  const verificationPresentation = deriveVerificationDashboardPresentation({
+    summaryReport,
+    trendReport,
+    cleanupReport,
+  });
+  const verificationSummary = verificationPresentation.verificationSummary;
   const currentVerificationSummary =
     verificationSummary &&
     typeof verificationSummary.current === "object" &&
@@ -281,64 +269,11 @@ export function renderHarnessDashboardHtml({
     ? cleanupReport.recommendations
     : [];
   const sampleRows = Array.isArray(trendReport?.samples) ? trendReport.samples : [];
-  const currentVerificationFocusRows = Array.isArray(
-    cleanupReport?.focus?.currentObservabilityVerificationOutcomes,
-  )
-    ? cleanupReport.focus.currentObservabilityVerificationOutcomes.map((entry) => ({
-        ...entry,
-        role: "current",
-      }))
-    : [];
-  const degradedVerificationFocusRows = Array.isArray(
-    cleanupReport?.focus?.degradedObservabilityVerificationOutcomes,
-  )
-    ? cleanupReport.focus.degradedObservabilityVerificationOutcomes.map(
-        (entry) => ({
-          ...entry,
-          role: "degraded",
-        }),
-      )
-    : [];
-  const fallbackVerificationFocusRows = Array.isArray(
-    cleanupReport?.focus?.observabilityVerificationOutcomes,
-  )
-    ? cleanupReport.focus.observabilityVerificationOutcomes.map((entry) => ({
-        ...entry,
-        role: "mixed",
-      }))
-    : [];
-  const explicitCurrentRecoveredVerificationRows = Array.isArray(
-    cleanupReport?.focus?.currentRecoveredObservabilityVerificationOutcomes,
-  )
-    ? cleanupReport.focus.currentRecoveredObservabilityVerificationOutcomes.map(
-        (entry) => ({
-          ...entry,
-          role: "current",
-        }),
-      )
-    : [];
-  const verificationFocusRows =
-    currentVerificationFocusRows.length > 0 ||
-    degradedVerificationFocusRows.length > 0
-      ? [...currentVerificationFocusRows, ...degradedVerificationFocusRows]
-      : fallbackVerificationFocusRows;
+  const verificationFocusRows = verificationPresentation.verificationFocusRows;
   const currentRecoveredVerificationRows =
-    explicitCurrentRecoveredVerificationRows.length > 0
-      ? explicitCurrentRecoveredVerificationRows
-      : currentVerificationFocusRows.length > 0
-      ? currentVerificationFocusRows.filter((entry) =>
-          isRecoveredVerificationOutcome(entry),
-        )
-      : fallbackVerificationFocusRows.filter((entry) =>
-          isRecoveredVerificationOutcome(entry),
-        );
-  const currentRecoveredVerificationSummary = currentRecoveredVerificationRows
-    .slice(0, 3)
-    .map(
-      (entry) =>
-        `${normalizeString(entry?.signal, "-")} (${normalizeString(entry?.outcome, "-")})`,
-    )
-    .join("、");
+    verificationPresentation.currentRecoveredRows;
+  const currentRecoveredVerificationSummary =
+    verificationPresentation.currentRecoveredSummaryLabel;
 
   return `<!doctype html>
 <html lang="zh-CN">

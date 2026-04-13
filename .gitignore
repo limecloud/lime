@@ -44,6 +44,9 @@ docs/roadmap/*
 !docs/roadmap/artifacts/architecture-blueprint.md
 !docs/roadmap/artifacts/framework-boundary.md
 !docs/roadmap/artifacts/system-prompt-and-schema-contract.md
+!docs/roadmap/harness-engine/
+!docs/roadmap/harness-engine/README.md
+!docs/roadmap/harness-engine/diagrams.md
 docs/gongzonghao/
 docs/bussniss/
 docs/oem/

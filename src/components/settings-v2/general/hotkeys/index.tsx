@@ -18,7 +18,6 @@ import {
   PanelsTopLeft,
   ScrollText,
   Sparkles,
-  TerminalSquare,
   type LucideIcon,
 } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
@@ -137,7 +136,6 @@ function HotkeyRow({ item }: { item: AuditedHotkeyItem }) {
 const SECTION_ICON_MAP: Record<AuditedHotkeySection["scene"], LucideIcon> = {
   global: Sparkles,
   workspace: PanelsTopLeft,
-  terminal: TerminalSquare,
   "document-editor": FileText,
   "document-canvas": ScrollText,
 };

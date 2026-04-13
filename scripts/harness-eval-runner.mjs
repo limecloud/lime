@@ -23,6 +23,12 @@ const REVIEW_DECISION_RISK_LEVEL_SET = new Set([
   "unknown",
 ]);
 const OBSERVABILITY_GAP_SUITE_TAG = "observability-gap";
+const RECOVERED_VERIFICATION_OUTCOMES = new Set([
+  "artifactValidator:repaired",
+  "browserVerification:success",
+  "guiSmoke:passed",
+  "guiSmoke:clean",
+]);
 
 function parseArgs(argv) {
   const result = {
@@ -191,6 +197,12 @@ function aggregateCaseBreakdown(cases, selector) {
     }
     return left.name.localeCompare(right.name);
   });
+}
+
+function collectRecoveredVerificationOutcomes(outcomes) {
+  return mergeUniqueStrings(outcomes).filter((entry) =>
+    RECOVERED_VERIFICATION_OUTCOMES.has(entry),
+  );
 }
 
 function isDegradedObservabilityGapCase(entry) {
@@ -891,6 +903,22 @@ function buildSummary(manifest, suites, options) {
   const degradedObservabilityGapCases = observabilityGapCases.filter((entry) =>
     isDegradedObservabilityGapCase(entry),
   );
+  const currentObservabilityDiagnosticCases = allCases.filter((entry) =>
+    isCurrentObservabilityDiagnosticCase(entry),
+  );
+  const currentRecoveredObservabilityVerificationOutcomes =
+    aggregateCaseBreakdown(
+      currentObservabilityDiagnosticCases,
+      (entry) =>
+        collectRecoveredVerificationOutcomes(
+          entry.observabilityVerificationOutcomes,
+        ),
+    );
+  const currentRecoveredVerificationCaseCount =
+    currentRecoveredObservabilityVerificationOutcomes.reduce(
+      (total, entry) => total + entry.caseCount,
+      0,
+    );
 
   return {
     manifestVersion: String(manifest.manifestVersion ?? "unknown"),
@@ -910,6 +938,7 @@ function buildSummary(manifest, suites, options) {
       observabilityGapCaseCount: observabilityGapCases.length,
       currentObservabilityGapCaseCount: currentObservabilityGapCases.length,
       degradedObservabilityGapCaseCount: degradedObservabilityGapCases.length,
+      currentRecoveredVerificationCaseCount,
     },
     breakdowns: {
       suiteTags: aggregateCaseBreakdown(allCases, (entry) => entry.tags),
@@ -932,9 +961,10 @@ function buildSummary(manifest, suites, options) {
         (entry) => entry.observabilityVerificationOutcomes,
       ),
       currentObservabilityVerificationOutcomes: aggregateCaseBreakdown(
-        allCases.filter((entry) => isCurrentObservabilityDiagnosticCase(entry)),
+        currentObservabilityDiagnosticCases,
         (entry) => entry.observabilityVerificationOutcomes,
       ),
+      currentRecoveredObservabilityVerificationOutcomes,
       degradedObservabilityVerificationOutcomes: aggregateCaseBreakdown(
         allCases.filter((entry) => isDegradedObservabilityDiagnosticCase(entry)),
         (entry) => entry.observabilityVerificationOutcomes,
@@ -958,6 +988,7 @@ function renderText(summary) {
     `[harness-eval] observability-gap cases: ${summary.totals.observabilityGapCaseCount}`,
     `[harness-eval] current observability-gap cases: ${summary.totals.currentObservabilityGapCaseCount}`,
     `[harness-eval] degraded observability-gap cases: ${summary.totals.degradedObservabilityGapCaseCount}`,
+    `[harness-eval] current recovered verification cases: ${summary.totals.currentRecoveredVerificationCaseCount}`,
   ];
 
   const topFailureModes = summary.breakdowns.failureModes.slice(0, 5);
@@ -1008,6 +1039,20 @@ function renderText(summary) {
   if (topVerificationOutcomes.length > 0) {
     lines.push("[harness-eval] observability verification outcomes:");
     for (const entry of topVerificationOutcomes) {
+      lines.push(
+        `  - ${entry.name}: case=${entry.caseCount}, ready=${entry.readyCount}, invalid=${entry.invalidCount}`,
+      );
+    }
+  }
+
+  const topCurrentRecoveredVerificationOutcomes =
+    summary.breakdowns.currentRecoveredObservabilityVerificationOutcomes.slice(
+      0,
+      5,
+    );
+  if (topCurrentRecoveredVerificationOutcomes.length > 0) {
+    lines.push("[harness-eval] current recovered verification outcomes:");
+    for (const entry of topCurrentRecoveredVerificationOutcomes) {
       lines.push(
         `  - ${entry.name}: case=${entry.caseCount}, ready=${entry.readyCount}, invalid=${entry.invalidCount}`,
       );
@@ -1069,6 +1114,7 @@ function renderMarkdown(summary) {
     `- observability gap case：${summary.totals.observabilityGapCaseCount}`,
     `- current observability gap case：${summary.totals.currentObservabilityGapCaseCount}`,
     `- degraded observability gap case：${summary.totals.degradedObservabilityGapCaseCount}`,
+    `- current recovered verification case：${summary.totals.currentRecoveredVerificationCaseCount}`,
     "",
   ];
 
@@ -1145,6 +1191,19 @@ function renderMarkdown(summary) {
     lines.push("| Outcome | case | ready | invalid |");
     lines.push("| --- | --- | --- | --- |");
     for (const entry of summary.breakdowns.observabilityVerificationOutcomes) {
+      lines.push(
+        `| ${entry.name} | ${entry.caseCount} | ${entry.readyCount} | ${entry.invalidCount} |`,
+      );
+    }
+    lines.push("");
+  }
+
+  if (summary.breakdowns.currentRecoveredObservabilityVerificationOutcomes.length > 0) {
+    lines.push("## Current Recovered Verification Outcome 分布");
+    lines.push("");
+    lines.push("| Outcome | case | ready | invalid |");
+    lines.push("| --- | --- | --- | --- |");
+    for (const entry of summary.breakdowns.currentRecoveredObservabilityVerificationOutcomes) {
       lines.push(
         `| ${entry.name} | ${entry.caseCount} | ${entry.readyCount} | ${entry.invalidCount} |`,
       );

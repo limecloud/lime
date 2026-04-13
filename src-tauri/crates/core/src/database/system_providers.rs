@@ -888,6 +888,7 @@ pub fn to_api_key_provider(def: &SystemProviderDef) -> ApiKeyProvider {
         location: None,
         region: None,
         custom_models: Vec::new(),
+        prompt_cache_mode: None,
         created_at: now,
         updated_at: now,
     }

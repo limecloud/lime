@@ -548,7 +548,10 @@ pub async fn call_provider_anthropic(
         CredentialData::ClaudeKey { api_key, base_url } => {
             // 打印 Claude 代理 URL 用于调试
             let actual_base_url = base_url.as_deref().unwrap_or("https://api.anthropic.com");
-            let prompt_cache_mode = if credential.provider_type.supports_anthropic_prompt_cache() {
+            let prompt_cache_mode = if matches!(
+                credential.effective_prompt_cache_mode(),
+                Some(lime_core::models::ProviderPromptCacheMode::Automatic)
+            ) {
                 PromptCacheMode::Automatic
             } else {
                 PromptCacheMode::ExplicitOnly
@@ -1680,7 +1683,10 @@ pub async fn call_provider_openai(
                 &credential.uuid[..8],
                 request.stream
             );
-            let prompt_cache_mode = if credential.provider_type.supports_anthropic_prompt_cache() {
+            let prompt_cache_mode = if matches!(
+                credential.effective_prompt_cache_mode(),
+                Some(lime_core::models::ProviderPromptCacheMode::Automatic)
+            ) {
                 PromptCacheMode::Automatic
             } else {
                 PromptCacheMode::ExplicitOnly

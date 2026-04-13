@@ -213,6 +213,7 @@ lime/
 ### 7. 多 Provider 与兼容层
 - OAuth 与 API Key Provider 并存
 - 凭证池、模型路由、协议兼容与 HTTP Server 作为底层支撑
+- Prompt Cache 等运行时能力按 ProviderType 判断；`anthropic-compatible` 只表示 Anthropic wire format 兼容，不等于自动 Prompt Cache 能力
 
 ### 8. 本地优先与可扩展
 - 桌面应用、本地工作区、插件与外部工具扩展

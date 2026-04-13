@@ -18,6 +18,7 @@ import {
   getProviderLabel,
 } from "@/lib/constants/providerMappings";
 import { resolvePromptCacheSupportNotice } from "@/lib/model/providerPromptCacheSupport";
+import type { ProviderDeclaredPromptCacheMode } from "@/lib/types/provider";
 
 // ============================================================================
 // 类型定义
@@ -43,6 +44,8 @@ export interface ConfiguredProvider {
   providerId?: string;
   /** Provider API Host */
   apiHost?: string;
+  /** Provider 声明的 Prompt Cache 模式 */
+  promptCacheMode?: ProviderDeclaredPromptCacheMode | null;
   /** 自定义模型列表（用于 API Key Provider） */
   customModels?: string[];
 }
@@ -138,6 +141,7 @@ export function buildConfiguredProviders(
         credentialType: `${provider.type}_key`,
         providerId: provider.id,
         apiHost: provider.api_host,
+        promptCacheMode: provider.prompt_cache_mode,
         customModels: provider.custom_models,
       });
     }
@@ -188,6 +192,8 @@ export function resolveConfiguredProviderPromptCacheSupportNotice(
   return resolvePromptCacheSupportNotice({
     providerType: selection,
     configuredProviderType: selectedProvider?.type,
+    configuredApiHost: selectedProvider?.apiHost,
+    configuredPromptCacheMode: selectedProvider?.promptCacheMode,
   });
 }
 

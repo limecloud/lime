@@ -1,0 +1,28 @@
+{
+  "automaticAnthropicCompatibleHosts": [
+    {
+      "provider": "zhipuai",
+      "contains": "bigmodel.cn/api/anthropic"
+    },
+    {
+      "provider": "moonshotai",
+      "contains": "moonshot.cn/anthropic"
+    },
+    {
+      "provider": "moonshotai",
+      "contains": "moonshot.ai/anthropic"
+    },
+    {
+      "provider": "minimax",
+      "contains": "minimaxi.com/anthropic"
+    },
+    {
+      "provider": "minimax",
+      "contains": "minimax.io/anthropic"
+    },
+    {
+      "provider": "mimo",
+      "contains": "token-plan-cn.xiaomimimo.com/anthropic"
+    }
+  ]
+}

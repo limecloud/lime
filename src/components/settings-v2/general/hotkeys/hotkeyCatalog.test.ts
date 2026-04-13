@@ -35,19 +35,14 @@ describe("hotkey catalog", () => {
     });
 
     expect(catalog.summary).toEqual({
-      total: 18,
-      ready: 18,
+      total: 8,
+      ready: 8,
       attention: 0,
       globalReady: 3,
     });
     expect(
-      catalog.sections.find((section) => section.scene === "terminal")?.hotkeys,
-    ).toHaveLength(10);
-    expect(
-      catalog.sections
-        .find((section) => section.scene === "terminal")
-        ?.hotkeys.some((item) => item.id === "terminal-scroll-bottom-mac"),
-    ).toBe(true);
+      catalog.sections.find((section) => section.scene === "terminal"),
+    ).toBeUndefined();
   });
 
   it("应正确标记未启用、未配置与运行时异常状态", () => {
@@ -105,6 +100,6 @@ describe("hotkey catalog", () => {
       }),
     );
     expect(catalog.summary.globalReady).toBe(0);
-    expect(catalog.summary.total).toBe(16);
+    expect(catalog.summary.total).toBe(8);
   });
 });

@@ -7,16 +7,13 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { renderHarnessDashboardHtml } from "./lib/harness-dashboard-core.mjs";
+import {
+  deriveVerificationHistoryRecordFacts as deriveSharedVerificationHistoryRecordFacts,
+} from "./lib/harness-verification-facts.mjs";
 
 const RUNNER_PATH = "scripts/harness-eval-runner.mjs";
 const TREND_PATH = "scripts/harness-eval-trend-report.mjs";
 const CLEANUP_PATH = "scripts/report-generated-slop.mjs";
-const RECOVERED_VERIFICATION_OUTCOMES = new Set([
-  "repaired",
-  "success",
-  "passed",
-  "clean",
-]);
 
 function parseArgs(argv) {
   const result = {
@@ -257,6 +254,14 @@ function writeUniqueHistorySummary(historyDir, payload) {
   throw new Error(`无法在历史目录中创建唯一 summary 文件: ${historyDir}`);
 }
 
+function normalizeString(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 function trimHistoryFiles(historyDir, retain) {
   const files = collectHistoryFiles(historyDir).sort((left, right) =>
     right.localeCompare(left),
@@ -285,145 +290,24 @@ function buildDefaultArtifactPaths(historyDir) {
   };
 }
 
-function toVerificationFailureOutcomeFocus(cleanupReport) {
-  const currentEntries = Array.isArray(
-    cleanupReport?.focus?.currentObservabilityVerificationOutcomes,
-  )
-    ? cleanupReport.focus.currentObservabilityVerificationOutcomes
-    : [];
-  const fallbackEntries = Array.isArray(
-    cleanupReport?.focus?.observabilityVerificationOutcomes,
-  )
-    ? cleanupReport.focus.observabilityVerificationOutcomes
-    : [];
-  const entries =
-    currentEntries.length > 0 ? currentEntries : fallbackEntries;
-
-  return entries
-    .map((entry) => {
-      const signal = typeof entry?.signal === "string" ? entry.signal.trim() : "";
-      const outcome =
-        typeof entry?.outcome === "string" ? entry.outcome.trim() : "";
-      return signal && outcome ? `${signal}:${outcome}` : "";
-    })
-    .filter(Boolean);
-}
-
-function toCurrentRecoveredBaselineFocus(cleanupReport) {
-  const explicitRecoveredEntries = Array.isArray(
-    cleanupReport?.focus?.currentRecoveredObservabilityVerificationOutcomes,
-  )
-    ? cleanupReport.focus.currentRecoveredObservabilityVerificationOutcomes
-    : [];
-  const currentEntries = Array.isArray(
-    cleanupReport?.focus?.currentObservabilityVerificationOutcomes,
-  )
-    ? cleanupReport.focus.currentObservabilityVerificationOutcomes
-    : [];
-  const fallbackEntries = Array.isArray(
-    cleanupReport?.focus?.observabilityVerificationOutcomes,
-  )
-    ? cleanupReport.focus.observabilityVerificationOutcomes
-    : [];
-  const entries =
-    explicitRecoveredEntries.length > 0
-      ? explicitRecoveredEntries
-      : currentEntries.length > 0
-        ? currentEntries
-        : fallbackEntries;
-
-  return entries
-    .filter((entry) =>
-      RECOVERED_VERIFICATION_OUTCOMES.has(
-        typeof entry?.outcome === "string" ? entry.outcome.trim() : "",
-      ),
-    )
-    .map((entry) => {
-      const signal = typeof entry?.signal === "string" ? entry.signal.trim() : "";
-      const outcome =
-        typeof entry?.outcome === "string" ? entry.outcome.trim() : "";
-      return signal && outcome ? `${signal}:${outcome}` : "";
-    })
-    .filter(Boolean);
-}
-
-function toVerificationOutcomeCounts(cleanupReport) {
-  const summary =
-    cleanupReport &&
-    typeof cleanupReport === "object" &&
-    cleanupReport.summary &&
-    cleanupReport.summary.verificationOutcomes &&
-    typeof cleanupReport.summary.verificationOutcomes === "object"
-      ? cleanupReport.summary.verificationOutcomes
-      : {};
-  const currentSummary =
-    summary &&
-    typeof summary.current === "object" &&
-    !Array.isArray(summary.current)
-      ? summary.current
-      : {};
-  const degradedSummary =
-    summary &&
-    typeof summary.degraded === "object" &&
-    !Array.isArray(summary.degraded)
-      ? summary.degraded
-      : {};
-
-  return {
-    failureCaseCount:
-      typeof summary.failureCaseCount === "number" &&
-      Number.isFinite(summary.failureCaseCount)
-        ? summary.failureCaseCount
-        : 0,
-    blockingFailureCaseCount:
-      typeof currentSummary.blockingFailureCaseCount === "number" &&
-      Number.isFinite(currentSummary.blockingFailureCaseCount)
-        ? currentSummary.blockingFailureCaseCount
-        : 0,
-    advisoryFailureCaseCount:
-      typeof currentSummary.advisoryFailureCaseCount === "number" &&
-      Number.isFinite(currentSummary.advisoryFailureCaseCount)
-        ? currentSummary.advisoryFailureCaseCount
-        : 0,
-    recoveredCaseCount:
-      typeof summary.recoveredCaseCount === "number" &&
-      Number.isFinite(summary.recoveredCaseCount)
-        ? summary.recoveredCaseCount
-        : 0,
-    currentRecoveredCaseCount:
-      typeof currentSummary.recoveredCaseCount === "number" &&
-      Number.isFinite(currentSummary.recoveredCaseCount)
-        ? currentSummary.recoveredCaseCount
-        : 0,
-    degradedBlockingFailureCaseCount:
-      typeof degradedSummary.blockingFailureCaseCount === "number" &&
-      Number.isFinite(degradedSummary.blockingFailureCaseCount)
-        ? degradedSummary.blockingFailureCaseCount
-        : 0,
-  };
-}
-
 function toTrendCurrentRecoveredBaselineFocus(trendReport) {
-  const entries = Array.isArray(
-    trendReport?.classificationDeltas?.currentRecoveredObservabilityVerificationOutcomes,
-  )
-    ? trendReport.classificationDeltas.currentRecoveredObservabilityVerificationOutcomes
-    : [];
+  return deriveSharedVerificationHistoryRecordFacts({
+    summary: null,
+    trendReport,
+    cleanupReport: null,
+  }).currentRecoveredBaselineFocus.slice(0, 3);
+}
 
-  return entries
-    .filter((entry) => {
-      const latestCaseCount =
-        typeof entry?.latest?.caseCount === "number" &&
-        Number.isFinite(entry.latest.caseCount)
-          ? entry.latest.caseCount
-          : 0;
-      return latestCaseCount > 0;
-    })
-    .map((entry) =>
-      typeof entry?.name === "string" ? entry.name.trim() : "",
-    )
-    .filter(Boolean)
-    .slice(0, 3);
+export function deriveHistoryRecordVerificationFacts({
+  summary,
+  trendReport,
+  cleanupReport,
+}) {
+  return deriveSharedVerificationHistoryRecordFacts({
+    summary,
+    trendReport,
+    cleanupReport,
+  });
 }
 
 function renderOutput(result, format) {
@@ -660,32 +544,33 @@ function runHistoryRecordCli() {
       },
     );
     cleanupReport = JSON.parse(cleanupOutput);
-    const verificationFailureOutcomeFocus =
-      toVerificationFailureOutcomeFocus(cleanupReport);
-    const currentRecoveredBaselineFocus =
-      toCurrentRecoveredBaselineFocus(cleanupReport);
-    const verificationOutcomeCounts =
-      toVerificationOutcomeCounts(cleanupReport);
+    const verificationFacts = deriveHistoryRecordVerificationFacts({
+      summary,
+      trendReport,
+      cleanupReport,
+    });
     result.cleanup = {
       trendSampleCount: cleanupReport.summary?.trend?.sampleCount ?? 0,
       currentObservabilityGapCaseCount:
         cleanupReport.summary?.trend?.latestCurrentObservabilityGapCaseCount ?? 0,
       degradedObservabilityGapCaseCount:
         cleanupReport.summary?.trend?.latestDegradedObservabilityGapCaseCount ?? 0,
-      verificationFailureOutcomeFocus,
+      verificationFailureOutcomeFocus:
+        verificationFacts.verificationFailureOutcomeFocus,
       verificationFailureCaseCount:
-        verificationOutcomeCounts.failureCaseCount,
+        verificationFacts.verificationOutcomeCounts.failureCaseCount,
       verificationBlockingFailureCaseCount:
-        verificationOutcomeCounts.blockingFailureCaseCount,
+        verificationFacts.verificationOutcomeCounts.blockingFailureCaseCount,
       verificationAdvisoryFailureCaseCount:
-        verificationOutcomeCounts.advisoryFailureCaseCount,
+        verificationFacts.verificationOutcomeCounts.advisoryFailureCaseCount,
       verificationDegradedBlockingFailureCaseCount:
-        verificationOutcomeCounts.degradedBlockingFailureCaseCount,
+        verificationFacts.verificationOutcomeCounts.degradedBlockingFailureCaseCount,
       verificationRecoveredCaseCount:
-        verificationOutcomeCounts.recoveredCaseCount,
+        verificationFacts.verificationOutcomeCounts.recoveredCaseCount,
       currentVerificationRecoveredCaseCount:
-        verificationOutcomeCounts.currentRecoveredCaseCount,
-      currentRecoveredBaselineFocus,
+        verificationFacts.verificationOutcomeCounts.currentRecoveredCaseCount,
+      currentRecoveredBaselineFocus:
+        verificationFacts.currentRecoveredBaselineFocus,
       outputJsonPath: cleanupJsonPath,
       outputMarkdownPath: cleanupMarkdownPath,
     };

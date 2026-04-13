@@ -3,6 +3,141 @@ import { describe, expect, it } from "vitest";
 import { renderHarnessDashboardHtml } from "./harness-dashboard-core.mjs";
 
 describe("harness-dashboard-core", () => {
+  it("应优先使用 trend 与 summary 的 verification facts，而不是 cleanup 渲染面", () => {
+    const html = renderHarnessDashboardHtml({
+      title: "Harness Engine Dashboard",
+      summaryReport: {
+        generatedAt: "2026-04-12T08:00:00.000Z",
+        totals: {
+          readyCount: 1,
+          invalidCount: 0,
+        },
+        breakdowns: {
+          observabilityVerificationOutcomes: [
+            { name: "guiSmoke:failed", caseCount: 1 },
+            { name: "browserVerification:success", caseCount: 1 },
+          ],
+          currentObservabilityVerificationOutcomes: [
+            { name: "guiSmoke:failed", caseCount: 1 },
+            { name: "browserVerification:success", caseCount: 1 },
+          ],
+          currentRecoveredObservabilityVerificationOutcomes: [
+            { name: "browserVerification:success", caseCount: 1 },
+          ],
+          degradedObservabilityVerificationOutcomes: [],
+        },
+      },
+      trendReport: {
+        generatedAt: "2026-04-12T08:01:00.000Z",
+        sampleCount: 2,
+        delta: {
+          currentObservabilityGapCaseCount: 0,
+          degradedObservabilityGapCaseCount: 0,
+        },
+        latest: {
+          totals: {
+            currentObservabilityGapCaseCount: 0,
+            degradedObservabilityGapCaseCount: 0,
+            currentRecoveredVerificationCaseCount: 1,
+          },
+        },
+        signals: ["current gap 保持为 0。"],
+        samples: [],
+        classificationDeltas: {
+          observabilityVerificationOutcomes: [
+            {
+              name: "guiSmoke:failed",
+              latest: { caseCount: 1 },
+              delta: { caseCount: 1 },
+            },
+            {
+              name: "browserVerification:success",
+              latest: { caseCount: 1 },
+              delta: { caseCount: 1 },
+            },
+          ],
+          currentObservabilityVerificationOutcomes: [
+            {
+              name: "guiSmoke:failed",
+              latest: { caseCount: 1 },
+              delta: { caseCount: 1 },
+            },
+            {
+              name: "browserVerification:success",
+              latest: { caseCount: 1 },
+              delta: { caseCount: 1 },
+            },
+          ],
+          currentRecoveredObservabilityVerificationOutcomes: [
+            {
+              name: "browserVerification:success",
+              latest: { caseCount: 1 },
+              delta: { caseCount: 1 },
+            },
+          ],
+          degradedObservabilityVerificationOutcomes: [],
+        },
+      },
+      cleanupReport: {
+        generatedAt: "2026-04-12T08:02:00.000Z",
+        signals: [],
+        recommendations: [],
+        focus: {
+          currentObservabilityVerificationOutcomes: [
+            {
+              signal: "artifactValidator",
+              outcome: "fallback_used",
+              state: "regressing",
+              latest: { caseCount: 2 },
+              delta: { caseCount: 2 },
+            },
+          ],
+          currentRecoveredObservabilityVerificationOutcomes: [
+            {
+              signal: "artifactValidator",
+              outcome: "repaired",
+              state: "expanding",
+              latest: { caseCount: 1 },
+              delta: { caseCount: 1 },
+            },
+          ],
+          degradedObservabilityVerificationOutcomes: [],
+        },
+        summary: {
+          trend: {
+            sampleCount: 2,
+            latestCurrentObservabilityGapCaseCount: 0,
+            latestDegradedObservabilityGapCaseCount: 0,
+            currentObservabilityGapCaseDelta: 0,
+            degradedObservabilityGapCaseDelta: 0,
+          },
+          verificationOutcomes: {
+            recoveredCaseCount: 0,
+            current: {
+              blockingFailureCaseCount: 0,
+              advisoryFailureCaseCount: 2,
+              recoveredCaseCount: 0,
+            },
+            degraded: {
+              blockingFailureCaseCount: 0,
+              advisoryFailureCaseCount: 0,
+            },
+          },
+          governance: {
+            violationCount: 0,
+          },
+        },
+      },
+    });
+
+    expect(html).toMatch(/Current Blocking<\/span>\s*<strong>1<\/strong>/);
+    expect(html).toMatch(/Current Recovered<\/span>\s*<strong>1<\/strong>/);
+    expect(html).toContain("browserVerification (success)");
+    expect(html).toContain("GUI smoke 已明确失败");
+    expect(html).not.toContain("artifactValidator (repaired)、");
+    expect(html).not.toContain("fallback_used");
+  });
+
   it("应把 summary、trend、cleanup 渲染成单一事实源 dashboard", () => {
     const html = renderHarnessDashboardHtml({
       title: "Harness Engine Dashboard",

@@ -2,6 +2,7 @@
 //!
 //! 支持多凭证池管理，包括健康检测、负载均衡、故障转移等功能。
 
+use crate::provider_prompt_cache_support::is_known_automatic_anthropic_compatible_host;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -28,6 +29,19 @@ pub enum CredentialSource {
 /// 为了向后兼容，PoolProviderType 是 crate::ProviderType 的类型别名。
 /// 所有 Provider 类型定义已统一到 lib.rs 中的 ProviderType。
 pub type PoolProviderType = super::provider_type::ProviderType;
+
+/// Provider 声明的 Prompt Cache 模式。
+///
+/// 说明：
+/// - 这是“上游已声明的缓存能力”，不是模型目录或协议族映射；
+/// - 对普通 Provider 可为空，运行时会按 ProviderType 走默认语义；
+/// - 对自定义 `anthropic-compatible` Provider，可用来覆盖默认的 `explicit_only`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderPromptCacheMode {
+    Automatic,
+    ExplicitOnly,
+}
 
 /// 凭证数据，根据 Provider 类型不同而不同
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -232,6 +246,9 @@ pub struct ProviderCredential {
     pub source: CredentialSource,
     /// 代理 URL（可覆盖全局代理设置）
     pub proxy_url: Option<String>,
+    /// Prompt Cache 模式覆盖（仅在上游显式声明时设置）
+    #[serde(default)]
+    pub prompt_cache_mode_override: Option<ProviderPromptCacheMode>,
 }
 
 fn default_true() -> bool {
@@ -265,7 +282,27 @@ impl ProviderCredential {
             cached_token: None,
             source: CredentialSource::Manual,
             proxy_url: None,
+            prompt_cache_mode_override: None,
         }
+    }
+
+    /// 解析当前凭证应采用的 Prompt Cache 模式。
+    pub fn effective_prompt_cache_mode(&self) -> Option<ProviderPromptCacheMode> {
+        self.prompt_cache_mode_override.or_else(|| {
+            if self.provider_type.supports_anthropic_prompt_cache() {
+                Some(ProviderPromptCacheMode::Automatic)
+            } else if matches!(self.provider_type, PoolProviderType::AnthropicCompatible)
+                && is_known_automatic_anthropic_compatible_host(
+                    get_base_url(&self.credential).as_deref(),
+                )
+            {
+                Some(ProviderPromptCacheMode::Automatic)
+            } else if matches!(self.provider_type, PoolProviderType::AnthropicCompatible) {
+                Some(ProviderPromptCacheMode::ExplicitOnly)
+            } else {
+                None
+            }
+        })
     }
 
     /// 创建带来源的新凭证
@@ -744,6 +781,43 @@ mod tests {
     }
 
     #[test]
+    fn test_effective_prompt_cache_mode_uses_known_official_host() {
+        let cred = ProviderCredential {
+            uuid: "test-uuid".to_string(),
+            provider_type: PoolProviderType::AnthropicCompatible,
+            credential: CredentialData::ClaudeKey {
+                api_key: "test-key".to_string(),
+                base_url: Some("https://token-plan-cn.xiaomimimo.com/anthropic".to_string()),
+            },
+            name: None,
+            is_healthy: true,
+            is_disabled: false,
+            check_health: true,
+            check_model_name: None,
+            not_supported_models: vec![],
+            supported_models: vec![],
+            usage_count: 0,
+            error_count: 0,
+            last_used: None,
+            last_error_time: None,
+            last_error_message: None,
+            last_health_check_time: None,
+            last_health_check_model: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            cached_token: None,
+            source: CredentialSource::Manual,
+            proxy_url: None,
+            prompt_cache_mode_override: None,
+        };
+
+        assert_eq!(
+            cred.effective_prompt_cache_mode(),
+            Some(ProviderPromptCacheMode::Automatic)
+        );
+    }
+
+    #[test]
     fn test_supports_model_not_supported_models() {
         let cred = ProviderCredential {
             uuid: "test-uuid".to_string(),
@@ -770,6 +844,7 @@ mod tests {
             cached_token: None,
             source: CredentialSource::Manual,
             proxy_url: None,
+            prompt_cache_mode_override: None,
         };
 
         assert!(!cred.supports_model("claude-opus"));
@@ -805,6 +880,7 @@ mod tests {
             cached_token: None,
             source: CredentialSource::Manual,
             proxy_url: None,
+            prompt_cache_mode_override: None,
         };
 
         // Exact match exclusion
@@ -842,6 +918,7 @@ mod tests {
             cached_token: None,
             source: CredentialSource::Manual,
             proxy_url: None,
+            prompt_cache_mode_override: None,
         };
 
         // Prefix wildcard exclusion
@@ -883,6 +960,7 @@ mod tests {
             cached_token: None,
             source: CredentialSource::Manual,
             proxy_url: None,
+            prompt_cache_mode_override: None,
         };
 
         // Contains wildcard exclusion
@@ -921,6 +999,7 @@ mod tests {
             cached_token: None,
             source: CredentialSource::Manual,
             proxy_url: None,
+            prompt_cache_mode_override: None,
         };
 
         // Excluded by not_supported_models (exact match)
@@ -960,6 +1039,7 @@ mod tests {
             cached_token: None,
             source: CredentialSource::Manual,
             proxy_url: None,
+            prompt_cache_mode_override: None,
         };
 
         // All models should be supported since not_supported_models is empty

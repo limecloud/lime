@@ -350,6 +350,7 @@ describe("Harness review decision / eval integration", () => {
     expect(summary.totals.observabilityGapCaseCount).toBe(1);
     expect(summary.totals.currentObservabilityGapCaseCount).toBe(1);
     expect(summary.totals.degradedObservabilityGapCaseCount).toBe(0);
+    expect(summary.totals.currentRecoveredVerificationCaseCount).toBe(3);
     expect(summary.breakdowns.reviewDecisionStatuses).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -398,6 +399,24 @@ describe("Harness review decision / eval integration", () => {
       expect.arrayContaining([
         expect.objectContaining({
           name: "browserVerification:success",
+          caseCount: 1,
+        }),
+      ]),
+    );
+    expect(
+      summary.breakdowns.currentRecoveredObservabilityVerificationOutcomes,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "artifactValidator:repaired",
+          caseCount: 1,
+        }),
+        expect.objectContaining({
+          name: "browserVerification:success",
+          caseCount: 1,
+        }),
+        expect.objectContaining({
+          name: "guiSmoke:passed",
           caseCount: 1,
         }),
       ]),

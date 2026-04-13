@@ -220,6 +220,7 @@ pub fn update_latest_assistant_message_usage(
     input_tokens: u32,
     output_tokens: u32,
     cached_input_tokens: Option<u32>,
+    cache_creation_input_tokens: Option<u32>,
 ) -> Result<bool, String> {
     AgentDao::update_latest_assistant_message_usage(
         conn,
@@ -227,6 +228,7 @@ pub fn update_latest_assistant_message_usage(
         input_tokens,
         output_tokens,
         cached_input_tokens,
+        cache_creation_input_tokens,
     )
     .map_err(|error| format!("更新最新 assistant 消息 usage 失败: {error}"))
 }

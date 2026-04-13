@@ -14,6 +14,7 @@ import * as fc from "fast-check";
 import {
   getLatestSelectableModel,
   getFieldsForProviderType,
+  getSpecialProtocolHint,
   parseCustomModelsValue,
   providerTypeRequiresField,
   PROVIDER_TYPE_FIELDS,
@@ -224,7 +225,7 @@ describe("Property 7: Provider 类型处理正确性", () => {
       expect(fields).toEqual(["apiHost"]);
     });
 
-    test("new-api 类型只需要 apiHost", () => {
+  test("new-api 类型只需要 apiHost", () => {
       const fields = getFieldsForProviderType("new-api");
       expect(fields).toEqual(["apiHost"]);
     });
@@ -232,6 +233,12 @@ describe("Property 7: Provider 类型处理正确性", () => {
     test("gateway 类型只需要 apiHost", () => {
       const fields = getFieldsForProviderType("gateway");
       expect(fields).toEqual(["apiHost"]);
+    });
+
+    test("anthropic-compatible 协议提示不应再暗示自动 Prompt Cache", () => {
+      expect(getSpecialProtocolHint("anthropic-compatible")).toContain(
+        "已知官方 Anthropic 兼容端点",
+      );
     });
   });
 

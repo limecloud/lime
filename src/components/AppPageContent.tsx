@@ -26,15 +26,6 @@ const PageWrapper = styled.div<{ $isActive: boolean }>`
   display: ${(props) => (props.$isActive ? "block" : "none")};
 `;
 
-const FullscreenWrapper = styled.div<{ $isActive: boolean }>`
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: ${(props) => (props.$isActive ? "flex" : "none")};
-  flex-direction: column;
-  position: relative;
-`;
-
 const columnPageStyle = {
   flex: 1,
   minHeight: 0,
@@ -42,11 +33,6 @@ const columnPageStyle = {
   flexDirection: "column",
 } as const;
 
-const ToolsPage = lazy(() =>
-  import("./tools/ToolsPage").then((module) => ({
-    default: module.ToolsPage,
-  })),
-);
 const ResourcesPage = lazy(() =>
   import("./resources").then((module) => ({
     default: module.ResourcesPage,
@@ -60,16 +46,6 @@ const MemoryPage = lazy(() =>
 const PluginsPage = lazy(() =>
   import("./plugins/PluginsPage").then((module) => ({
     default: module.PluginsPage,
-  })),
-);
-const ImageGenPage = lazy(() =>
-  import("./image-gen").then((module) => ({
-    default: module.ImageGenPage,
-  })),
-);
-const VideoPage = lazy(() =>
-  import("./workspace/video/VideoPage").then((module) => ({
-    default: module.VideoPage,
   })),
 );
 const AutomationPage = lazy(() =>
@@ -97,26 +73,6 @@ const BrowserRuntimeWorkspace = lazy(() =>
     default: module.BrowserRuntimeWorkspace,
   })),
 );
-const TerminalWorkspace = lazy(() =>
-  import("./terminal").then((module) => ({
-    default: module.TerminalWorkspace,
-  })),
-);
-const SysinfoView = lazy(() =>
-  import("./terminal").then((module) => ({
-    default: module.SysinfoView,
-  })),
-);
-const FileBrowserView = lazy(() =>
-  import("./terminal").then((module) => ({
-    default: module.FileBrowserView,
-  })),
-);
-const WebView = lazy(() =>
-  import("./terminal").then((module) => ({
-    default: module.WebView,
-  })),
-);
 const AgentChatPage = lazy(() =>
   import("./agent/chat").then((module) => ({
     default: module.AgentChatPage,
@@ -136,22 +92,6 @@ export function AppPageContent({
   onNavigate,
   onAgentHasMessagesChange,
 }: AppPageContentProps) {
-  if (currentPage === "image-gen") {
-    return (
-      <div style={columnPageStyle}>
-        <ImageGenPage onNavigate={onNavigate} />
-      </div>
-    );
-  }
-
-  if (currentPage === "video") {
-    return (
-      <div style={columnPageStyle}>
-        <VideoPage />
-      </div>
-    );
-  }
-
   if (currentPage === "automation") {
     return (
       <div style={columnPageStyle}>
@@ -215,51 +155,11 @@ export function AppPageContent({
     );
   }
 
-  if (currentPage === "terminal") {
-    return (
-      <div style={columnPageStyle}>
-        <TerminalWorkspace onNavigate={onNavigate} isActive />
-      </div>
-    );
-  }
-
-  if (currentPage === "sysinfo") {
-    return (
-      <FullscreenWrapper $isActive={true}>
-        <SysinfoView />
-      </FullscreenWrapper>
-    );
-  }
-
-  if (currentPage === "files") {
-    return (
-      <FullscreenWrapper $isActive={true}>
-        <FileBrowserView />
-      </FullscreenWrapper>
-    );
-  }
-
-  if (currentPage === "web") {
-    return (
-      <FullscreenWrapper $isActive={true}>
-        <WebView />
-      </FullscreenWrapper>
-    );
-  }
-
   if (currentPage === "resources") {
     return (
       <div style={columnPageStyle}>
         <ResourcesPage onNavigate={onNavigate} />
       </div>
-    );
-  }
-
-  if (currentPage === "tools") {
-    return (
-      <PageWrapper $isActive={true}>
-        <ToolsPage onNavigate={onNavigate} />
-      </PageWrapper>
     );
   }
 

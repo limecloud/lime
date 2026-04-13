@@ -6,7 +6,9 @@ import {
 } from "@/lib/filesystem-event-protocol";
 import type { AgentThreadItem, AgentThreadItemStatus } from "../types";
 import { resolveInternalImageTaskDisplayName } from "./internalImagePlaceholder";
-import { resolveToolDisplayLabel } from "./toolDisplayInfo";
+import {
+  resolveUserFacingToolDisplayLabel,
+} from "./toolDisplayInfo";
 import { isInternalRoutingTurnSummaryText } from "./turnSummaryPresentation";
 
 export type AgentThreadGroupKind =
@@ -456,7 +458,7 @@ function summarizeSearchItem(item: AgentThreadItem): string | null {
   const args = asRecord(item.arguments);
   return prefixAction(
     readString(args, ["query", "q", "pattern", "search", "url"]) ||
-      resolveToolDisplayLabel(item.tool_name),
+      resolveUserFacingToolDisplayLabel(item.tool_name),
     "搜了 ",
     ["搜了 ", "查了 ", "搜索了 ", "检索了 "],
   );
@@ -467,12 +469,13 @@ function summarizeFileItem(item: AgentThreadItem): string | null {
   const fileLabel = path ? fileNameFromPath(path) : null;
 
   if (item.type === "file_artifact") {
-    return prefixAction(fileLabel || item.path, "产出了 ", [
+    return prefixAction(fileLabel || item.path, "生成了 ", [
+      "生成了 ",
       "产出了 ",
-      "写了 ",
-      "改了 ",
-      "看了 ",
-      "动了 ",
+      "保存了 ",
+      "修改了 ",
+      "查看了 ",
+      "处理了 ",
     ]);
   }
 
@@ -487,9 +490,9 @@ function summarizeFileItem(item: AgentThreadItem): string | null {
       normalized.includes("list")
     ) {
       return prefixAction(
-        fileLabel || resolveToolDisplayLabel(item.tool_name),
-        "看了 ",
-        ["看了 ", "读了 ", "写了 ", "改了 ", "动了 ", "产出了 "],
+        fileLabel || resolveUserFacingToolDisplayLabel(item.tool_name),
+        "查看了 ",
+        ["查看了 ", "看了 ", "读了 ", "保存了 ", "修改了 ", "处理了 "],
       );
     }
 
@@ -500,9 +503,9 @@ function summarizeFileItem(item: AgentThreadItem): string | null {
       normalized.includes("save")
     ) {
       return prefixAction(
-        fileLabel || resolveToolDisplayLabel(item.tool_name),
-        "写了 ",
-        ["看了 ", "读了 ", "写了 ", "改了 ", "动了 ", "产出了 "],
+        fileLabel || resolveUserFacingToolDisplayLabel(item.tool_name),
+        "保存了 ",
+        ["保存了 ", "写了 ", "查看了 ", "修改了 ", "处理了 "],
       );
     }
 
@@ -513,16 +516,16 @@ function summarizeFileItem(item: AgentThreadItem): string | null {
       normalized.includes("update")
     ) {
       return prefixAction(
-        fileLabel || resolveToolDisplayLabel(item.tool_name),
-        "改了 ",
-        ["看了 ", "读了 ", "写了 ", "改了 ", "动了 ", "产出了 "],
+        fileLabel || resolveUserFacingToolDisplayLabel(item.tool_name),
+        "修改了 ",
+        ["修改了 ", "改了 ", "查看了 ", "保存了 ", "处理了 "],
       );
     }
 
     return prefixAction(
-      fileLabel || resolveToolDisplayLabel(item.tool_name),
-      "动了 ",
-      ["看了 ", "读了 ", "写了 ", "改了 ", "动了 ", "产出了 "],
+      fileLabel || resolveUserFacingToolDisplayLabel(item.tool_name),
+      "处理了 ",
+      ["处理了 ", "查看了 ", "保存了 ", "修改了 ", "生成了 "],
     );
   }
 
@@ -533,7 +536,7 @@ function summarizeCommandItem(item: AgentThreadItem): string | null {
   if (item.type === "command_execution") {
     return prefixAction(
       item.command,
-      "执行了 ",
+      "运行了 ",
       ["执行了 ", "跑了 ", "运行了 "],
       64,
     );
@@ -543,8 +546,8 @@ function summarizeCommandItem(item: AgentThreadItem): string | null {
     const args = asRecord(item.arguments);
     return prefixAction(
       readString(args, ["command", "cmd", "script"]) ||
-        resolveToolDisplayLabel(item.tool_name),
-      "执行了 ",
+        resolveUserFacingToolDisplayLabel(item.tool_name),
+      "运行了 ",
       ["执行了 ", "跑了 ", "运行了 "],
       64,
     );
@@ -609,21 +612,32 @@ function summarizeCollaborationItem(item: AgentThreadItem): string | null {
   if (normalized === "listpeers") {
     return prefixAction(
       readString(args, ["team_name", "teamName"]) || "当前团队",
-      "已列出 ",
-      ["已列出 ", "列出了 ", "查看了 "],
+      "已查看 ",
+      ["已查看 ", "查看了 ", "已列出 ", "列出了 "],
     );
   }
 
-  if (
-    normalized === "waitagent" ||
-    normalized === "resumeagent" ||
-    normalized === "closeagent"
-  ) {
+  if (normalized === "waitagent") {
     return prefixAction(
-      readString(args, ["id", "ids", "session_id"]) ||
-        resolveToolDisplayLabel(item.tool_name),
-      "处理了 ",
-      ["处理了 ", "继续了 ", "暂停了 ", "查看了 "],
+      readString(args, ["id", "ids", "session_id"]) || "任务进展",
+      "已查看 ",
+      ["已查看 ", "查看了 "],
+    );
+  }
+
+  if (normalized === "resumeagent") {
+    return prefixAction(
+      readString(args, ["id", "ids", "session_id"]) || "当前任务",
+      "已继续 ",
+      ["已继续 ", "继续了 "],
+    );
+  }
+
+  if (normalized === "closeagent") {
+    return prefixAction(
+      readString(args, ["id", "ids", "session_id"]) || "当前任务",
+      "已暂停 ",
+      ["已暂停 ", "暂停了 "],
     );
   }
 
@@ -665,20 +679,56 @@ function summarizeOtherItem(item: AgentThreadItem): string | null {
     const normalized = normalizeToolName(item.tool_name);
     const args = asRecord(item.arguments);
 
+    if (normalized === "askuserquestion") {
+      return prefixAction(
+        readString(args, ["question", "prompt", "header"]) || "等你确认这一步",
+        "等你确认：",
+        ["等你确认：", "等你补充："],
+      );
+    }
+
+    if (normalized === "taskoutput") {
+      return prefixAction(
+        readString(args, ["task_id", "taskId", "subject"]) || "任务结果",
+        "已查看结果 ",
+        ["已查看结果 ", "查看了 "],
+      );
+    }
+
+    if (normalized === "listskills") {
+      return "已查看技能列表";
+    }
+
+    if (normalized === "loadskill") {
+      return prefixAction(
+        readString(args, ["name", "skill", "path"]) || "技能",
+        "已加载 ",
+        ["已加载 ", "加载了 "],
+      );
+    }
+
+    if (normalized === "skill") {
+      return prefixAction(
+        readString(args, ["name", "skill", "path", "command"]) || "技能",
+        "已使用 ",
+        ["已使用 ", "用了 "],
+      );
+    }
+
     if (normalized === "sendusermessage" || normalized === "brief") {
       return prefixAction(
         readString(args, ["message"]) ||
-          resolveToolDisplayLabel(item.tool_name),
+          resolveUserFacingToolDisplayLabel(item.tool_name),
         "已发送 ",
         ["已发送 ", "发送了 "],
       );
     }
 
-    return prefixAction(resolveToolDisplayLabel(item.tool_name), "执行了 ", [
-      "执行了 ",
-      "跑了 ",
-      "运行了 ",
-    ]);
+    return prefixAction(
+      resolveUserFacingToolDisplayLabel(item.tool_name),
+      "处理了 ",
+      ["处理了 ", "执行了 ", "跑了 ", "运行了 "],
+    );
   }
   return null;
 }

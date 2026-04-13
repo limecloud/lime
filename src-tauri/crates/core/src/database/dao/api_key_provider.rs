@@ -5,6 +5,7 @@
 //! **Feature: provider-ui-refactor**
 //! **Validates: Requirements 9.1**
 
+use crate::provider_prompt_cache_support::is_known_automatic_anthropic_compatible_host;
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
@@ -32,6 +33,14 @@ pub enum ApiProviderType {
     Fal,
     NewApi,
     Gateway,
+}
+
+/// API Key Provider 声明的 Prompt Cache 模式。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiProviderPromptCacheMode {
+    Automatic,
+    ExplicitOnly,
 }
 
 /// Provider 协议族
@@ -159,6 +168,35 @@ impl ApiProviderType {
     pub const fn supports_anthropic_prompt_cache(&self) -> bool {
         matches!(self, ApiProviderType::Anthropic)
     }
+
+    pub const fn default_prompt_cache_mode(&self) -> Option<ApiProviderPromptCacheMode> {
+        match self {
+            ApiProviderType::Anthropic => Some(ApiProviderPromptCacheMode::Automatic),
+            ApiProviderType::AnthropicCompatible => Some(ApiProviderPromptCacheMode::ExplicitOnly),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for ApiProviderPromptCacheMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiProviderPromptCacheMode::Automatic => write!(f, "automatic"),
+            ApiProviderPromptCacheMode::ExplicitOnly => write!(f, "explicit_only"),
+        }
+    }
+}
+
+impl std::str::FromStr for ApiProviderPromptCacheMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "automatic" => Ok(Self::Automatic),
+            "explicit_only" | "explicit-only" => Ok(Self::ExplicitOnly),
+            _ => Err(format!("Unknown prompt cache mode: {s}")),
+        }
+    }
 }
 
 impl std::fmt::Display for ApiProviderType {
@@ -183,7 +221,11 @@ impl std::fmt::Display for ApiProviderType {
 
 #[cfg(test)]
 mod tests {
-    use super::{ApiProviderType, ProviderProtocolFamily};
+    use super::{
+        infer_managed_prompt_cache_mode, ApiKeyProvider, ApiProviderPromptCacheMode,
+        ApiProviderType, ProviderGroup, ProviderProtocolFamily,
+    };
+    use chrono::Utc;
 
     #[test]
     fn test_runtime_spec_anthropic_compatible() {
@@ -212,6 +254,64 @@ mod tests {
         assert!(ApiProviderType::Anthropic.supports_anthropic_prompt_cache());
         assert!(!ApiProviderType::AnthropicCompatible.supports_anthropic_prompt_cache());
         assert!(!ApiProviderType::Openai.supports_anthropic_prompt_cache());
+    }
+
+    #[test]
+    fn test_default_prompt_cache_mode() {
+        assert_eq!(
+            ApiProviderType::Anthropic.default_prompt_cache_mode(),
+            Some(ApiProviderPromptCacheMode::Automatic)
+        );
+        assert_eq!(
+            ApiProviderType::AnthropicCompatible.default_prompt_cache_mode(),
+            Some(ApiProviderPromptCacheMode::ExplicitOnly)
+        );
+        assert_eq!(ApiProviderType::Openai.default_prompt_cache_mode(), None);
+    }
+
+    #[test]
+    fn test_known_official_anthropic_compatible_hosts_default_to_automatic() {
+        let hosts = [
+            "https://open.bigmodel.cn/api/anthropic",
+            "https://api.moonshot.cn/anthropic",
+            "https://api.minimaxi.com/anthropic",
+            "https://token-plan-cn.xiaomimimo.com/anthropic",
+        ];
+
+        for host in hosts {
+            assert_eq!(
+                infer_managed_prompt_cache_mode(ApiProviderType::AnthropicCompatible, host),
+                Some(ApiProviderPromptCacheMode::Automatic),
+                "expected host to resolve automatic prompt cache: {host}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_effective_prompt_cache_mode_prefers_known_host_inference() {
+        let provider = ApiKeyProvider {
+            id: "custom-provider".to_string(),
+            name: "Official Anthropic-Compatible".to_string(),
+            provider_type: ApiProviderType::AnthropicCompatible,
+            api_host: "https://api.minimaxi.com/anthropic".to_string(),
+            is_system: false,
+            group: ProviderGroup::Custom,
+            enabled: true,
+            sort_order: 9999,
+            api_version: None,
+            project: None,
+            location: None,
+            region: None,
+            custom_models: Vec::new(),
+            prompt_cache_mode: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        assert_eq!(
+            provider.effective_prompt_cache_mode(),
+            Some(ApiProviderPromptCacheMode::Automatic)
+        );
     }
 
     #[test]
@@ -459,8 +559,48 @@ pub struct ApiKeyProvider {
     /// 用于不支持 /models 接口的 Provider（如智谱）
     #[serde(default)]
     pub custom_models: Vec<String>,
+    /// Provider 显式声明的 Prompt Cache 模式（仅在需要覆盖类型默认值时设置）
+    #[serde(default)]
+    pub prompt_cache_mode: Option<ApiProviderPromptCacheMode>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+fn infer_managed_prompt_cache_mode(
+    provider_type: ApiProviderType,
+    api_host: &str,
+) -> Option<ApiProviderPromptCacheMode> {
+    if provider_type == ApiProviderType::AnthropicCompatible
+        && is_known_automatic_anthropic_compatible_host(Some(api_host))
+    {
+        return Some(ApiProviderPromptCacheMode::Automatic);
+    }
+
+    None
+}
+
+impl ApiKeyProvider {
+    pub fn effective_prompt_cache_mode(&self) -> Option<ApiProviderPromptCacheMode> {
+        if let Some(managed_mode) =
+            infer_managed_prompt_cache_mode(self.provider_type, &self.api_host)
+        {
+            return Some(managed_mode);
+        }
+
+        match self.provider_type {
+            ApiProviderType::AnthropicCompatible => self
+                .prompt_cache_mode
+                .or_else(|| self.provider_type.default_prompt_cache_mode()),
+            _ => self.provider_type.default_prompt_cache_mode(),
+        }
+    }
+
+    pub fn supports_automatic_prompt_cache(&self) -> bool {
+        matches!(
+            self.effective_prompt_cache_mode(),
+            Some(ApiProviderPromptCacheMode::Automatic)
+        )
+    }
 }
 
 /// API Key 条目
@@ -499,7 +639,8 @@ impl ApiKeyProviderDao {
     pub fn get_all_providers(conn: &Connection) -> Result<Vec<ApiKeyProvider>, rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT id, name, type, api_host, is_system, group_name, enabled, sort_order,
-                    api_version, project, location, region, custom_models, created_at, updated_at
+                    api_version, project, location, region, custom_models, prompt_cache_mode,
+                    created_at, updated_at
              FROM api_key_providers
              ORDER BY sort_order ASC, created_at ASC",
         )?;
@@ -519,7 +660,8 @@ impl ApiKeyProviderDao {
     ) -> Result<Option<ApiKeyProvider>, rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT id, name, type, api_host, is_system, group_name, enabled, sort_order,
-                    api_version, project, location, region, custom_models, created_at, updated_at
+                    api_version, project, location, region, custom_models, prompt_cache_mode,
+                    created_at, updated_at
              FROM api_key_providers
              WHERE id = ?1",
         )?;
@@ -539,7 +681,8 @@ impl ApiKeyProviderDao {
     ) -> Result<Vec<ApiKeyProvider>, rusqlite::Error> {
         let mut stmt = conn.prepare(
             "SELECT id, name, type, api_host, is_system, group_name, enabled, sort_order,
-                    api_version, project, location, region, custom_models, created_at, updated_at
+                    api_version, project, location, region, custom_models, prompt_cache_mode,
+                    created_at, updated_at
              FROM api_key_providers
              WHERE group_name = ?1
              ORDER BY sort_order ASC, created_at ASC",
@@ -563,12 +706,13 @@ impl ApiKeyProviderDao {
         } else {
             Some(serde_json::to_string(&provider.custom_models).unwrap_or_default())
         };
+        let prompt_cache_mode = provider.prompt_cache_mode.map(|value| value.to_string());
 
         conn.execute(
             "INSERT INTO api_key_providers
              (id, name, type, api_host, is_system, group_name, enabled, sort_order,
-              api_version, project, location, region, custom_models, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+              api_version, project, location, region, custom_models, prompt_cache_mode, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             params![
                 provider.id,
                 provider.name,
@@ -583,6 +727,7 @@ impl ApiKeyProviderDao {
                 provider.location,
                 provider.region,
                 custom_models_json,
+                prompt_cache_mode,
                 provider.created_at.to_rfc3339(),
                 provider.updated_at.to_rfc3339(),
             ],
@@ -600,12 +745,13 @@ impl ApiKeyProviderDao {
         } else {
             Some(serde_json::to_string(&provider.custom_models).unwrap_or_default())
         };
+        let prompt_cache_mode = provider.prompt_cache_mode.map(|value| value.to_string());
 
         conn.execute(
             "UPDATE api_key_providers SET
              name = ?2, type = ?3, api_host = ?4, is_system = ?5, group_name = ?6,
              enabled = ?7, sort_order = ?8, api_version = ?9, project = ?10,
-             location = ?11, region = ?12, custom_models = ?13, updated_at = ?14
+             location = ?11, region = ?12, custom_models = ?13, prompt_cache_mode = ?14, updated_at = ?15
              WHERE id = ?1",
             params![
                 provider.id,
@@ -621,6 +767,7 @@ impl ApiKeyProviderDao {
                 provider.location,
                 provider.region,
                 custom_models_json,
+                prompt_cache_mode,
                 provider.updated_at.to_rfc3339(),
             ],
         )?;
@@ -659,8 +806,9 @@ impl ApiKeyProviderDao {
         let location: Option<String> = row.get(10)?;
         let region: Option<String> = row.get(11)?;
         let custom_models_json: Option<String> = row.get(12)?;
-        let created_at_str: String = row.get(13)?;
-        let updated_at_str: String = row.get(14)?;
+        let prompt_cache_mode_str: Option<String> = row.get(13)?;
+        let created_at_str: String = row.get(14)?;
+        let updated_at_str: String = row.get(15)?;
 
         let provider_type: ApiProviderType = type_str.parse().unwrap_or(ApiProviderType::Openai);
         let group: ProviderGroup = group_str.parse().unwrap_or(ProviderGroup::Custom);
@@ -676,6 +824,8 @@ impl ApiKeyProviderDao {
         let custom_models: Vec<String> = custom_models_json
             .and_then(|json| serde_json::from_str(&json).ok())
             .unwrap_or_default();
+        let prompt_cache_mode = prompt_cache_mode_str
+            .and_then(|value| value.parse::<ApiProviderPromptCacheMode>().ok());
 
         Ok(ApiKeyProvider {
             id,
@@ -691,6 +841,7 @@ impl ApiKeyProviderDao {
             location,
             region,
             custom_models,
+            prompt_cache_mode,
             created_at,
             updated_at,
         })
@@ -752,7 +903,7 @@ impl ApiKeyProviderDao {
                     k.usage_count, k.error_count, k.last_used_at, k.created_at,
                     p.id, p.name, p.type, p.api_host, p.is_system, p.group_name, p.enabled,
                     p.sort_order, p.api_version, p.project, p.location, p.region,
-                    p.custom_models, p.created_at, p.updated_at
+                    p.custom_models, p.prompt_cache_mode, p.created_at, p.updated_at
              FROM api_keys k
              JOIN api_key_providers p ON k.provider_id = p.id
              WHERE p.type = ?1 AND k.enabled = 1 AND p.enabled = 1
@@ -786,8 +937,9 @@ impl ApiKeyProviderDao {
 
             // 解析 Provider
             let custom_models_json: Option<String> = row.get(21)?;
-            let provider_created_at_str: String = row.get(22)?;
-            let provider_updated_at_str: String = row.get(23)?;
+            let prompt_cache_mode_str: Option<String> = row.get(22)?;
+            let provider_created_at_str: String = row.get(23)?;
+            let provider_updated_at_str: String = row.get(24)?;
             let provider_created_at = DateTime::parse_from_rfc3339(&provider_created_at_str)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now());
@@ -799,6 +951,8 @@ impl ApiKeyProviderDao {
             let custom_models: Vec<String> = custom_models_json
                 .and_then(|json| serde_json::from_str(&json).ok())
                 .unwrap_or_default();
+            let prompt_cache_mode = prompt_cache_mode_str
+                .and_then(|value| value.parse::<ApiProviderPromptCacheMode>().ok());
 
             let provider = ApiKeyProvider {
                 id: row.get(9)?,
@@ -820,6 +974,7 @@ impl ApiKeyProviderDao {
                 location: row.get(19)?,
                 region: row.get(20)?,
                 custom_models,
+                prompt_cache_mode,
                 created_at: provider_created_at,
                 updated_at: provider_updated_at,
             };

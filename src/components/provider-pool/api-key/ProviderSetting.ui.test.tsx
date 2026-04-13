@@ -166,4 +166,55 @@ describe("ProviderSetting", () => {
     expect(badge).not.toBeNull();
     expect(badge?.textContent ?? "").toContain("显式缓存");
   });
+
+  it("显式声明 automatic 的 anthropic-compatible Provider 不应在头部展示显式缓存标签", () => {
+    const container = renderSetting(
+      createProvider({
+        id: "anthropic-proxy-automatic",
+        name: "Anthropic Proxy Automatic",
+        type: "anthropic-compatible",
+        prompt_cache_mode: "automatic",
+      }),
+    );
+
+    expect(
+      container.querySelector('[data-testid="provider-prompt-cache-badge"]'),
+    ).toBeNull();
+  });
+
+  it.each([
+    {
+      id: "glm-anthropic",
+      name: "GLM Anthropic",
+      apiHost: "https://open.bigmodel.cn/api/anthropic",
+    },
+    {
+      id: "kimi-anthropic",
+      name: "Kimi Anthropic",
+      apiHost: "https://api.moonshot.cn/anthropic",
+    },
+    {
+      id: "minimax-anthropic",
+      name: "MiniMax Anthropic",
+      apiHost: "https://api.minimaxi.com/anthropic",
+    },
+    {
+      id: "mimo-anthropic",
+      name: "MiMo Anthropic",
+      apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
+    },
+  ])("$name 官方 Host 不应在头部展示显式缓存标签", ({ id, name, apiHost }) => {
+    const container = renderSetting(
+      createProvider({
+        id,
+        name,
+        type: "anthropic-compatible",
+        api_host: apiHost,
+      }),
+    );
+
+    expect(
+      container.querySelector('[data-testid="provider-prompt-cache-badge"]'),
+    ).toBeNull();
+  });
 });

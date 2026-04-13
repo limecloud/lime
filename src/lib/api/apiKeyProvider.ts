@@ -8,6 +8,7 @@
  */
 
 import { safeInvoke } from "@/lib/dev-bridge";
+import type { ProviderDeclaredPromptCacheMode } from "@/lib/types/provider";
 
 interface ProviderQueryOptions {
   forceRefresh?: boolean;
@@ -27,6 +28,7 @@ function cloneProviderList(
     custom_models: Array.isArray(provider.custom_models)
       ? [...provider.custom_models]
       : [],
+    prompt_cache_mode: provider.prompt_cache_mode ?? null,
   }));
 }
 
@@ -83,6 +85,7 @@ export interface AddCustomProviderRequest {
   project?: string;
   location?: string;
   region?: string;
+  prompt_cache_mode?: ProviderDeclaredPromptCacheMode | null;
 }
 
 /**
@@ -99,6 +102,7 @@ export interface UpdateProviderRequest {
   project?: string;
   location?: string;
   region?: string;
+  prompt_cache_mode?: ProviderDeclaredPromptCacheMode | null;
   /** 自定义模型列表 */
   custom_models?: string[];
 }
@@ -134,6 +138,8 @@ export interface ProviderDisplay {
   region?: string;
   /** 自定义模型列表 */
   custom_models?: string[];
+  /** Provider 当前生效的 Prompt Cache 模式（已包含官方兼容端点推断与类型回退） */
+  prompt_cache_mode?: ProviderDeclaredPromptCacheMode | null;
   api_key_count: number;
   created_at: string;
   updated_at: string;

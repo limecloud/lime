@@ -1,14 +1,21 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { PanelLeftOpen } from "lucide-react";
 import { ChatSidebar } from "../components/ChatSidebar";
 import { buildWorkspaceChatSidebarProps } from "./chatSurfaceProps";
-import { WorkspacePageShell } from "./WorkspacePageShell";
+import {
+  GeneralWorkbenchLeftExpandButton,
+  PageContainer,
+} from "./WorkspaceStyles";
 
-type WorkspacePageShellProps = Omit<
-  ComponentProps<typeof WorkspacePageShell>,
-  "chatSidebarProps"
->;
-
-interface WorkspaceShellSceneProps extends WorkspacePageShellProps {
+interface WorkspaceShellSceneProps {
+  compactChrome: boolean;
+  isThemeWorkbench: boolean;
+  generalWorkbenchSidebarNode: ReactNode;
+  showChatPanel: boolean;
+  showSidebar: boolean;
+  showGeneralWorkbenchLeftExpandButton: boolean;
+  onExpandGeneralWorkbenchSidebar: () => void;
+  mainAreaNode: ReactNode;
   sidebarContextVariant?: ComponentProps<typeof ChatSidebar>["contextVariant"];
   currentTopicId: ComponentProps<typeof ChatSidebar>["currentTopicId"];
   topics: ComponentProps<typeof ChatSidebar>["topics"];
@@ -87,18 +94,24 @@ export function WorkspaceShellScene({
       : null;
 
   return (
-    <WorkspacePageShell
-      compactChrome={compactChrome}
-      isThemeWorkbench={isThemeWorkbench}
-      generalWorkbenchSidebarNode={generalWorkbenchSidebarNode}
-      showChatPanel={showChatPanel}
-      showSidebar={showSidebar}
-      chatSidebarProps={chatSidebarProps}
-      showGeneralWorkbenchLeftExpandButton={
-        showGeneralWorkbenchLeftExpandButton
-      }
-      onExpandGeneralWorkbenchSidebar={onExpandGeneralWorkbenchSidebar}
-      mainAreaNode={mainAreaNode}
-    />
+    <PageContainer $compact={compactChrome}>
+      {isThemeWorkbench ? (
+        generalWorkbenchSidebarNode
+      ) : showChatPanel && showSidebar && chatSidebarProps ? (
+        <ChatSidebar {...chatSidebarProps} />
+      ) : null}
+      {showGeneralWorkbenchLeftExpandButton ? (
+        <GeneralWorkbenchLeftExpandButton
+          type="button"
+          aria-label="展开上下文侧栏"
+          onClick={onExpandGeneralWorkbenchSidebar}
+          title="展开上下文侧栏"
+        >
+          <PanelLeftOpen size={14} />
+        </GeneralWorkbenchLeftExpandButton>
+      ) : null}
+
+      {mainAreaNode}
+    </PageContainer>
   );
 }

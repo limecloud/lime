@@ -241,7 +241,9 @@ describe("WebSearchSettings", () => {
     expect(getBodyText()).toContain(
       "申请地址：https://www.pexels.com/api/new/",
     );
-    expect(getBodyText()).toContain("验证路径：插图 → 图片搜索 → 联网搜索。");
+    expect(getBodyText()).toContain(
+      "验证路径：Claw → @素材 → Pexels 图片候选。",
+    );
     await leaveTip(pexelsTip);
   });
 

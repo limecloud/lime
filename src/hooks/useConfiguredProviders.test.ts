@@ -38,6 +38,7 @@ function createApiKeyProvider(
     enabled: true,
     sort_order: 0,
     custom_models: [],
+    prompt_cache_mode: null,
     api_key_count: 0,
     api_keys: [],
     created_at: "2026-04-01T00:00:00Z",
@@ -68,6 +69,7 @@ describe("buildConfiguredProviders", () => {
           providerId: "ollama",
           type: "ollama",
           apiHost: "http://127.0.0.1:11434",
+          promptCacheMode: null,
         }),
       ]),
     );
@@ -191,5 +193,70 @@ describe("buildConfiguredProviders", () => {
         source: "configured_provider",
       }),
     );
+  });
+
+  it("显式声明 automatic 的 anthropic-compatible Provider 不应误报 prompt cache 提示", () => {
+    const providers = buildConfiguredProviders(
+      [],
+      [
+        createApiKeyProvider({
+          id: "glm-anthropic",
+          name: "GLM Anthropic",
+          type: "anthropic-compatible",
+          prompt_cache_mode: "automatic",
+          api_key_count: 1,
+        }),
+      ],
+    );
+
+    const notice = resolveConfiguredProviderPromptCacheSupportNotice(
+      providers,
+      "glm-anthropic",
+    );
+
+    expect(notice).toBeNull();
+  });
+
+  it.each([
+    {
+      id: "glm-anthropic",
+      name: "GLM Anthropic",
+      apiHost: "https://open.bigmodel.cn/api/anthropic",
+    },
+    {
+      id: "kimi-anthropic",
+      name: "Kimi Anthropic",
+      apiHost: "https://api.moonshot.cn/anthropic",
+    },
+    {
+      id: "minimax-anthropic",
+      name: "MiniMax Anthropic",
+      apiHost: "https://api.minimaxi.com/anthropic",
+    },
+    {
+      id: "mimo-anthropic",
+      name: "MiMo Anthropic",
+      apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
+    },
+  ])("$name 官方 Anthropic 兼容 Host 不应误报 prompt cache 提示", ({ id, name, apiHost }) => {
+    const providers = buildConfiguredProviders(
+      [],
+      [
+        createApiKeyProvider({
+          id,
+          name,
+          type: "anthropic-compatible",
+          api_host: apiHost,
+          api_key_count: 1,
+        }),
+      ],
+    );
+
+    const notice = resolveConfiguredProviderPromptCacheSupportNotice(
+      providers,
+      id,
+    );
+
+    expect(notice).toBeNull();
   });
 });

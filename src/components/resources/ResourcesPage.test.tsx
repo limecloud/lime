@@ -126,6 +126,12 @@ vi.mock("./services/resourceAdapter", () => ({
   fetchDocumentDetail: vi.fn(),
 }));
 
+vi.mock("./ResourcesImageWorkbench", () => ({
+  ResourcesImageWorkbench: () => (
+    <div data-testid="resources-image-workbench">图片工作台已挂载</div>
+  ),
+}));
+
 vi.mock("./store", () => ({
   resourcesSelectors: {
     visibleItems: (state: typeof resourcesState) => state.visibleItems,
@@ -201,5 +207,24 @@ describe("ResourcesPage", () => {
       "在目录浏览和跨目录分类视图之间切换，快速定位不同类型内容。",
     );
     await leaveTip(categoryTip);
+  });
+
+  it("切到图片分类后应挂载图片工作台", async () => {
+    const container = renderPage();
+    await flushEffects();
+
+    const imageCategoryButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("图片"));
+    expect(imageCategoryButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      imageCategoryButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await flushEffects();
+    });
+
+    expect(getBodyText()).toContain("图片工作台已挂载");
   });
 });

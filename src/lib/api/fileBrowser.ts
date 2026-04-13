@@ -1,5 +1,19 @@
 import { safeInvoke } from "@/lib/dev-bridge";
-import type { FileEntry } from "@/components/terminal/widgets/types";
+
+export interface FileEntry {
+  name: string;
+  path: string;
+  isDir: boolean;
+  size: number;
+  modifiedAt: number;
+  permissions?: string;
+  fileType?: string;
+  isHidden?: boolean;
+  modeStr?: string;
+  mode?: number;
+  mimeType?: string;
+  isSymlink?: boolean;
+}
 
 export interface DirectoryListing {
   path: string;

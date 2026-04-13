@@ -46,7 +46,7 @@ pub struct RuntimeEvidenceArtifact {
     pub bytes: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeEvidencePackExportResult {
     pub session_id: String,
@@ -64,7 +64,27 @@ pub struct RuntimeEvidencePackExportResult {
     pub queued_turn_count: usize,
     pub recent_artifact_count: usize,
     pub known_gaps: Vec<String>,
+    pub observability_summary: Value,
     pub artifacts: Vec<RuntimeEvidenceArtifact>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RuntimeVerificationOutcome {
+    Success,
+    BlockingFailure,
+    AdvisoryFailure,
+    Recovered,
+}
+
+impl RuntimeVerificationOutcome {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::BlockingFailure => "blocking_failure",
+            Self::AdvisoryFailure => "advisory_failure",
+            Self::Recovered => "recovered",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -240,6 +260,7 @@ pub fn export_runtime_evidence_pack(
         queued_turn_count: thread_read.queued_turns.len(),
         recent_artifact_count: recent_artifact_paths.len(),
         known_gaps,
+        observability_summary,
         artifacts,
     })
 }
@@ -1138,6 +1159,9 @@ fn build_observability_verification_summary_json(
     verification: &RuntimeEvidenceVerificationSummary,
 ) -> Option<Value> {
     let mut payload = Map::new();
+    let mut blocking_failure = Vec::new();
+    let mut advisory_failure = Vec::new();
+    let mut recovered = Vec::new();
 
     if verification.artifact_validator.applicable {
         let issue_count = verification
@@ -1174,15 +1198,41 @@ fn build_observability_verification_summary_json(
                     .unwrap_or(false)
             })
             .count();
+        let record_count = verification.artifact_validator.records.len();
+        let outcome = if issue_count == 0 {
+            if repaired_count > 0 || fallback_used_count > 0 {
+                RuntimeVerificationOutcome::Recovered
+            } else {
+                RuntimeVerificationOutcome::Success
+            }
+        } else if record_count > 0 && repaired_count == record_count {
+            RuntimeVerificationOutcome::Recovered
+        } else {
+            RuntimeVerificationOutcome::BlockingFailure
+        };
+
+        match outcome {
+            RuntimeVerificationOutcome::BlockingFailure => blocking_failure.push(format!(
+                "Artifact 校验存在 {} 条未恢复 issues。",
+                issue_count
+            )),
+            RuntimeVerificationOutcome::Recovered => recovered.push(format!(
+                "Artifact 校验已恢复 {} 个产物，fallback {} 次。",
+                repaired_count, fallback_used_count
+            )),
+            RuntimeVerificationOutcome::Success => {}
+            RuntimeVerificationOutcome::AdvisoryFailure => {}
+        }
 
         payload.insert(
             "artifactValidator".to_string(),
             json!({
                 "applicable": true,
-                "recordCount": verification.artifact_validator.records.len(),
+                "recordCount": record_count,
                 "issueCount": issue_count,
                 "repairedCount": repaired_count,
-                "fallbackUsedCount": fallback_used_count
+                "fallbackUsedCount": fallback_used_count,
+                "outcome": outcome.as_str()
             }),
         );
     }
@@ -1210,6 +1260,24 @@ fn build_observability_verification_summary_json(
                 None => unknown_count += 1,
             }
         }
+        let outcome = if failure_count > 0 {
+            RuntimeVerificationOutcome::BlockingFailure
+        } else if unknown_count > 0 {
+            RuntimeVerificationOutcome::AdvisoryFailure
+        } else {
+            RuntimeVerificationOutcome::Success
+        };
+
+        match outcome {
+            RuntimeVerificationOutcome::BlockingFailure => {
+                blocking_failure.push(format!("浏览器验证存在 {} 条失败线索。", failure_count))
+            }
+            RuntimeVerificationOutcome::AdvisoryFailure => {
+                advisory_failure.push(format!("浏览器验证仍有 {} 条未判定线索。", unknown_count))
+            }
+            RuntimeVerificationOutcome::Success => {}
+            RuntimeVerificationOutcome::Recovered => {}
+        }
 
         payload.insert(
             "browserVerification".to_string(),
@@ -1218,7 +1286,8 @@ fn build_observability_verification_summary_json(
                 "successCount": success_count,
                 "failureCount": failure_count,
                 "unknownCount": unknown_count,
-                "latestUpdatedAt": latest_updated_at
+                "latestUpdatedAt": latest_updated_at,
+                "outcome": outcome.as_str()
             }),
         );
     }
@@ -1231,6 +1300,18 @@ fn build_observability_verification_summary_json(
             .map(|value| !value.trim().is_empty())
             .unwrap_or(false);
         let passed = exit_code == Some(0) && !has_error;
+        let outcome = if passed {
+            RuntimeVerificationOutcome::Success
+        } else {
+            RuntimeVerificationOutcome::BlockingFailure
+        };
+
+        if !passed {
+            let exit_code_text = exit_code
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "未知".to_string());
+            blocking_failure.push(format!("GUI smoke 未通过，exit_code={}。", exit_code_text));
+        }
 
         payload.insert(
             "guiSmoke".to_string(),
@@ -1239,8 +1320,32 @@ fn build_observability_verification_summary_json(
                 "exitCode": exit_code,
                 "passed": passed,
                 "updatedAt": gui_smoke.get("updatedAt").cloned().unwrap_or(Value::Null),
-                "hasOutputPreview": gui_smoke.get("outputPreview").is_some()
+                "hasOutputPreview": gui_smoke.get("outputPreview").is_some(),
+                "outcome": outcome.as_str()
             }),
+        );
+    }
+
+    if !blocking_failure.is_empty() || !advisory_failure.is_empty() || !recovered.is_empty() {
+        payload.insert(
+            "observabilityVerificationOutcomes".to_string(),
+            json!({
+                "blockingFailure": blocking_failure,
+                "advisoryFailure": advisory_failure,
+                "recovered": recovered
+            }),
+        );
+        payload.insert(
+            "focusVerificationFailureOutcomes".to_string(),
+            json!(blocking_failure
+                .iter()
+                .chain(advisory_failure.iter())
+                .cloned()
+                .collect::<Vec<_>>()),
+        );
+        payload.insert(
+            "focusVerificationRecoveredOutcomes".to_string(),
+            json!(recovered),
         );
     }
 
@@ -1731,6 +1836,13 @@ mod tests {
         assert_eq!(result.queued_turn_count, 1);
         assert_eq!(result.recent_artifact_count, 1);
         assert!(result.known_gaps.is_empty());
+        assert_eq!(
+            result
+                .observability_summary
+                .get("schemaVersion")
+                .and_then(Value::as_str),
+            Some("v1")
+        );
 
         let summary_path = temp_dir
             .path()
@@ -1869,6 +1981,10 @@ mod tests {
             .known_gaps
             .iter()
             .all(|gap| !gap.contains("ArtifactDocument")));
+        assert!(result
+            .observability_summary
+            .get("verificationSummary")
+            .is_some());
 
         let runtime_path = temp_dir
             .path()
@@ -1888,6 +2004,9 @@ mod tests {
         assert!(runtime.contains("\"repairedCount\": 1"));
         assert!(runtime.contains("\"successCount\": 1"));
         assert!(runtime.contains("\"passed\": true"));
+        assert!(runtime.contains("\"outcome\": \"recovered\""));
+        assert!(runtime.contains("\"outcome\": \"success\""));
+        assert!(runtime.contains("\"focusVerificationRecoveredOutcomes\""));
 
         let artifacts = fs::read_to_string(artifacts_path).expect("artifacts");
         assert!(artifacts.contains("\"verification\""));

@@ -1117,7 +1117,7 @@ export function WebSearchSettings() {
           <SurfacePanel
             icon={ImageIcon}
             title="联网图片搜索"
-            description="配置插图页“图片搜索 → 联网搜索”使用的 Pexels 与 Pixabay API Key。"
+            description="配置 Claw `@素材` 在线搜图使用的 Pexels 与 Pixabay API Key。"
             aside={
               <>
                 <StatusPill
@@ -1172,7 +1172,7 @@ export function WebSearchSettings() {
                   <span>Pexels 接入说明已收纳</span>
                   <WorkbenchInfoTip
                     ariaLabel="Pexels 接入说明"
-                    content={`申请地址：${PEXELS_APPLY_URL}\n验证路径：插图 → 图片搜索 → 联网搜索。`}
+                    content={`申请地址：${PEXELS_APPLY_URL}\n验证路径：Claw → @素材 → Pexels 图片候选。`}
                     tone="slate"
                   />
                 </div>
@@ -1218,7 +1218,7 @@ export function WebSearchSettings() {
                   <span>Pixabay 接入说明已收纳</span>
                   <WorkbenchInfoTip
                     ariaLabel="Pixabay 接入说明"
-                    content={`申请地址：${PIXABAY_APPLY_URL}\n验证路径：插图 → 图片搜索 → Pixabay 图库。`}
+                    content={`申请地址：${PIXABAY_APPLY_URL}\n验证路径：Claw → @素材 → Pixabay 图片候选。`}
                     tone="slate"
                   />
                 </div>
@@ -1268,8 +1268,8 @@ export function WebSearchSettings() {
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
                   {pexelsKeyConfigured || pixabayKeyConfigured
-                    ? "插图页至少已有一个联网图片来源可用。"
-                    : "图片搜索 Key 仍未配置，插图页联网搜索会回退到环境变量或不可用状态。"}
+                    ? "Claw 图片素材搜索至少已有一个联网图片来源可用。"
+                    : "图片搜索 Key 仍未配置，Claw `@素材` 会回退到环境变量或不可用状态。"}
                 </p>
               </div>
             </div>

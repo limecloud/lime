@@ -34,20 +34,9 @@
 - 支持顶部/底部工具栏
 - 可配置工具栏项目
 
-## 使用示例
+## 当前状态
 
-```tsx
-import { TerminalView } from "@/components/terminal";
-
-// 启用 VDOM 模式切换
-<TerminalView
-  blockId="session-1"
-  tabId="tab-1"
-  showModeSwitch={true}
-  initialTermMode="term"
-  onModeChange={(mode) => console.log("模式切换:", mode)}
-/>
-```
+独立终端页面已经下线，这个模块现在只保留底层 VDOM 状态与类型，不再通过前端 `@/components/terminal` 暴露页面入口。
 
 ## 需求追溯
 

@@ -151,14 +151,14 @@ describe("appConfig API", () => {
 
     const nextConfig = {
       default_provider: "kiro",
-      navigation: { enabled_items: ["agent", "tools"] },
+      navigation: { enabled_items: ["agent", "plugins"] },
     } as never;
 
     await expect(saveConfig(nextConfig)).resolves.toBeUndefined();
     await expect(getConfig()).resolves.toEqual(
       expect.objectContaining({
         default_provider: "kiro",
-        navigation: { enabled_items: ["agent", "tools"] },
+        navigation: { enabled_items: ["agent", "plugins"] },
       }),
     );
 
@@ -191,7 +191,7 @@ describe("appConfig API", () => {
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
         default_provider: "openai",
-        navigation: { enabled_items: ["agent", "tools"] },
+        navigation: { enabled_items: ["agent", "plugins"] },
       });
 
     await getConfig();
@@ -199,7 +199,7 @@ describe("appConfig API", () => {
     await expect(getConfig()).resolves.toEqual(
       expect.objectContaining({
         default_provider: "openai",
-        navigation: { enabled_items: ["agent", "tools"] },
+        navigation: { enabled_items: ["agent", "plugins"] },
       }),
     );
 

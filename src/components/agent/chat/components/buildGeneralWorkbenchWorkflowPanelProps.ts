@@ -58,6 +58,8 @@ export function buildGeneralWorkbenchWorkflowPanelProps({
     onAddImage,
     onImportDocument,
     creationTaskEventsCount,
+    showBranchRecords: workflowPanelState.showBranchRecords,
+    onToggleBranchRecords: workflowPanelState.toggleBranchRecords,
     showCreationTasks: workflowPanelState.showCreationTasks,
     onToggleCreationTasks: workflowPanelState.toggleCreationTasks,
     groupedCreationTaskEvents: workflowPanelState.groupedCreationTaskEvents,

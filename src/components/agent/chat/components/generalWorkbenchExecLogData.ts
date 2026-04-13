@@ -4,7 +4,7 @@ import type {
   ExecLogEntry,
   ExecLogEntryDetail,
 } from "./GeneralWorkbenchExecLog";
-import { resolveToolDisplayLabel } from "../utils/toolDisplayInfo";
+import { resolveUserFacingToolDisplayLabel } from "../utils/toolDisplayInfo";
 import type {
   GeneralWorkbenchActivityLogGroup,
   GeneralWorkbenchCreationTaskGroup,
@@ -115,7 +115,7 @@ function buildToolCallEntry(
   return {
     id: `${messageId}-tc-${toolCall.id}-${index}`,
     type: "tool",
-    typeLabel: resolveToolDisplayLabel(toolCall.name),
+    typeLabel: resolveUserFacingToolDisplayLabel(toolCall.name),
     content: argsPreview || toolCall.name,
     meta: resultMeta,
     timestamp: toolCall.startTime || fallbackTimestamp,
@@ -141,7 +141,7 @@ function buildRunEntry(
     .map((step) => step.name?.trim() || step.id?.trim() || "")
     .filter((step): step is string => Boolean(step));
   const allowedTools = (skillDetail?.allowed_tools || [])
-    .map((toolName) => resolveToolDisplayLabel(toolName))
+    .map((toolName) => resolveUserFacingToolDisplayLabel(toolName))
     .filter((toolName): toolName is string => Boolean(toolName));
 
   const detail: ExecLogEntryDetail | undefined =

@@ -404,23 +404,23 @@ describe("Agent API 治理护栏", () => {
 
   it("exportAgentRuntimeReplayCase 应走统一 runtime replay case 命令", async () => {
     mockSafeInvoke.mockResolvedValueOnce({
-      session_id: "session-runtime-replay-case",
-      thread_id: "thread-runtime-replay-case",
-      replay_relative_root:
+      sessionId: "session-runtime-replay-case",
+      threadId: "thread-runtime-replay-case",
+      replayRelativeRoot:
         ".lime/harness/sessions/session-runtime-replay-case/replay",
-      replay_absolute_root:
+      replayAbsoluteRoot:
         "/tmp/workspace/.lime/harness/sessions/session-runtime-replay-case/replay",
-      handoff_bundle_relative_root:
+      handoffBundleRelativeRoot:
         ".lime/harness/sessions/session-runtime-replay-case",
-      evidence_pack_relative_root:
+      evidencePackRelativeRoot:
         ".lime/harness/sessions/session-runtime-replay-case/evidence",
-      exported_at: "2026-03-27T09:50:00.000Z",
-      thread_status: "waiting_request",
-      pending_request_count: 1,
-      queued_turn_count: 1,
-      linked_handoff_artifact_count: 4,
-      linked_evidence_artifact_count: 4,
-      recent_artifact_count: 2,
+      exportedAt: "2026-03-27T09:50:00.000Z",
+      threadStatus: "waiting_request",
+      pendingRequestCount: 1,
+      queuedTurnCount: 1,
+      linkedHandoffArtifactCount: 4,
+      linkedEvidenceArtifactCount: 4,
+      recentArtifactCount: 2,
       artifacts: [],
     });
 
@@ -725,28 +725,28 @@ describe("Agent API 治理护栏", () => {
 
   it("exportAgentRuntimeHandoffBundle 应走统一 runtime handoff 导出命令", async () => {
     mockSafeInvoke.mockResolvedValueOnce({
-      session_id: "session-runtime-3",
-      thread_id: "thread-runtime-3",
-      workspace_root: "/tmp/workspace-3",
-      bundle_relative_root: ".lime/harness/sessions/session-runtime-3",
-      bundle_absolute_root:
+      sessionId: "session-runtime-3",
+      threadId: "thread-runtime-3",
+      workspaceRoot: "/tmp/workspace-3",
+      bundleRelativeRoot: ".lime/harness/sessions/session-runtime-3",
+      bundleAbsoluteRoot:
         "/tmp/workspace-3/.lime/harness/sessions/session-runtime-3",
-      exported_at: "2026-03-27T10:00:00Z",
-      thread_status: "running",
-      latest_turn_status: "completed",
-      pending_request_count: 1,
-      queued_turn_count: 0,
-      active_subagent_count: 2,
-      todo_total: 3,
-      todo_pending: 1,
-      todo_in_progress: 1,
-      todo_completed: 1,
+      exportedAt: "2026-03-27T10:00:00Z",
+      threadStatus: "running",
+      latestTurnStatus: "completed",
+      pendingRequestCount: 1,
+      queuedTurnCount: 0,
+      activeSubagentCount: 2,
+      todoTotal: 3,
+      todoPending: 1,
+      todoInProgress: 1,
+      todoCompleted: 1,
       artifacts: [
         {
           kind: "handoff",
           title: "交接摘要",
-          relative_path: ".lime/harness/sessions/session-runtime-3/handoff.md",
-          absolute_path:
+          relativePath: ".lime/harness/sessions/session-runtime-3/handoff.md",
+          absolutePath:
             "/tmp/workspace-3/.lime/harness/sessions/session-runtime-3/handoff.md",
           bytes: 512,
         },
@@ -777,30 +777,58 @@ describe("Agent API 治理护栏", () => {
 
   it("exportAgentRuntimeEvidencePack 应走统一 runtime evidence 导出命令", async () => {
     mockSafeInvoke.mockResolvedValueOnce({
-      session_id: "session-runtime-4",
-      thread_id: "thread-runtime-4",
-      workspace_root: "/tmp/workspace-4",
-      pack_relative_root: ".lime/harness/sessions/session-runtime-4/evidence",
-      pack_absolute_root:
+      sessionId: "session-runtime-4",
+      threadId: "thread-runtime-4",
+      workspaceRoot: "/tmp/workspace-4",
+      packRelativeRoot: ".lime/harness/sessions/session-runtime-4/evidence",
+      packAbsoluteRoot:
         "/tmp/workspace-4/.lime/harness/sessions/session-runtime-4/evidence",
-      exported_at: "2026-03-27T10:05:00Z",
-      thread_status: "running",
-      latest_turn_status: "running",
-      turn_count: 2,
-      item_count: 6,
-      pending_request_count: 1,
-      queued_turn_count: 1,
-      recent_artifact_count: 2,
-      known_gaps: [
-        "当前 Evidence Pack 尚未纳入 GUI smoke / browser 验证结果。",
+      exportedAt: "2026-03-27T10:05:00Z",
+      threadStatus: "running",
+      latestTurnStatus: "running",
+      turnCount: 2,
+      itemCount: 6,
+      pendingRequestCount: 1,
+      queuedTurnCount: 1,
+      recentArtifactCount: 2,
+      knownGaps: [
+        "当前环境未找到可读取的 request telemetry 日志目录，Evidence Pack 无法导出会话级请求遥测。",
       ],
+      observabilitySummary: {
+        schemaVersion: "v1",
+        knownGaps: [
+          "当前环境未找到可读取的 request telemetry 日志目录，Evidence Pack 无法导出会话级请求遥测。",
+        ],
+        signalCoverage: [
+          {
+            signal: "correlation",
+            status: "exported",
+            source: "runtime thread identity",
+            detail: "已导出关联键。",
+          },
+        ],
+        verificationSummary: {
+          artifactValidator: {
+            applicable: true,
+            recordCount: 1,
+            issueCount: 0,
+            repairedCount: 1,
+            fallbackUsedCount: 0,
+            outcome: "recovered",
+          },
+          focusVerificationFailureOutcomes: [],
+          focusVerificationRecoveredOutcomes: [
+            "Artifact 校验已恢复 1 个产物，fallback 0 次。",
+          ],
+        },
+      },
       artifacts: [
         {
           kind: "summary",
           title: "问题摘要",
-          relative_path:
+          relativePath:
             ".lime/harness/sessions/session-runtime-4/evidence/summary.md",
-          absolute_path:
+          absolutePath:
             "/tmp/workspace-4/.lime/harness/sessions/session-runtime-4/evidence/summary.md",
           bytes: 256,
         },
@@ -813,6 +841,27 @@ describe("Agent API 治理护栏", () => {
       session_id: "session-runtime-4",
       thread_status: "running",
       turn_count: 2,
+      known_gaps: [
+        "当前环境未找到可读取的 request telemetry 日志目录，Evidence Pack 无法导出会话级请求遥测。",
+      ],
+      observability_summary: expect.objectContaining({
+        schema_version: "v1",
+        signal_coverage: [
+          expect.objectContaining({
+            signal: "correlation",
+            status: "exported",
+          }),
+        ],
+        verification_summary: expect.objectContaining({
+          artifact_validator: expect.objectContaining({
+            applicable: true,
+            outcome: "recovered",
+          }),
+          focus_verification_recovered_outcomes: [
+            "Artifact 校验已恢复 1 个产物，fallback 0 次。",
+          ],
+        }),
+      }),
       artifacts: [
         expect.objectContaining({
           kind: "summary",
@@ -912,6 +961,22 @@ describe("Agent API 治理护栏", () => {
       pendingRequestCount: 1,
       queuedTurnCount: 0,
       defaultDecisionStatus: "pending_review",
+      verificationSummary: {
+        artifactValidator: {
+          applicable: true,
+          recordCount: 1,
+          issueCount: 2,
+          repairedCount: 1,
+          fallbackUsedCount: 0,
+          outcome: "blocking_failure",
+        },
+        focusVerificationFailureOutcomes: [
+          "Artifact 校验存在 2 条未恢复 issues。",
+        ],
+        focusVerificationRecoveredOutcomes: [
+          "Artifact 校验已恢复 1 个产物，fallback 0 次。",
+        ],
+      },
       decision: {
         decisionStatus: "pending_review",
         decisionSummary: "",
@@ -920,8 +985,14 @@ describe("Agent API 治理护栏", () => {
         riskTags: [],
         humanReviewer: "",
         reviewedAt: null,
-        followupActions: [],
-        regressionRequirements: [],
+        followupActions: [
+          "先对照 analysis-context.json / evidence/runtime.json 核对当前验证失败焦点，再决定是继续修复还是补证据。",
+          "复查 Artifact 校验相关产物，确认 issues / repaired / fallback 状态与最终结论一致。",
+        ],
+        regressionRequirements: [
+          "按 replay case 复现问题并确认修复后行为与预期一致。",
+          "重新导出 evidence pack，确认 Artifact 校验摘要已更新。",
+        ],
         notes: "",
       },
       decisionStatusOptions: [
@@ -962,9 +1033,29 @@ describe("Agent API 治理护栏", () => {
     ).resolves.toMatchObject({
       session_id: "session-runtime-4b",
       default_decision_status: "pending_review",
+      verification_summary: expect.objectContaining({
+        artifact_validator: expect.objectContaining({
+          outcome: "blocking_failure",
+          issue_count: 2,
+        }),
+        focus_verification_failure_outcomes: [
+          "Artifact 校验存在 2 条未恢复 issues。",
+        ],
+        focus_verification_recovered_outcomes: [
+          "Artifact 校验已恢复 1 个产物，fallback 0 次。",
+        ],
+      }),
       decision: expect.objectContaining({
         decision_status: "pending_review",
         risk_level: "unknown",
+        followup_actions: [
+          "先对照 analysis-context.json / evidence/runtime.json 核对当前验证失败焦点，再决定是继续修复还是补证据。",
+          "复查 Artifact 校验相关产物，确认 issues / repaired / fallback 状态与最终结论一致。",
+        ],
+        regression_requirements: [
+          "按 replay case 复现问题并确认修复后行为与预期一致。",
+          "重新导出 evidence pack，确认 Artifact 校验摘要已更新。",
+        ],
       }),
       decision_status_options: expect.arrayContaining(["accepted"]),
       risk_level_options: expect.arrayContaining(["medium"]),
@@ -1017,6 +1108,20 @@ describe("Agent API 治理护栏", () => {
       pendingRequestCount: 1,
       queuedTurnCount: 0,
       defaultDecisionStatus: "pending_review",
+      verificationSummary: {
+        artifactValidator: {
+          applicable: true,
+          recordCount: 1,
+          issueCount: 0,
+          repairedCount: 1,
+          fallbackUsedCount: 0,
+          outcome: "recovered",
+        },
+        focusVerificationFailureOutcomes: [],
+        focusVerificationRecoveredOutcomes: [
+          "Artifact 校验已恢复 1 个产物，fallback 0 次。",
+        ],
+      },
       decision: {
         decisionStatus: "accepted",
         decisionSummary: "确认最小修复可接受。",
@@ -1078,6 +1183,12 @@ describe("Agent API 治理护栏", () => {
       }),
     ).resolves.toMatchObject({
       session_id: "session-runtime-4c",
+      verification_summary: expect.objectContaining({
+        artifact_validator: expect.objectContaining({
+          outcome: "recovered",
+          repaired_count: 1,
+        }),
+      }),
       decision: expect.objectContaining({
         decision_status: "accepted",
         risk_level: "medium",

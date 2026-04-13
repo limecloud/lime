@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
 import type { Message } from "../types";
+import type { InitialDispatchPreviewSnapshot } from "./workspaceSendHelpers";
 import {
   listMentionEntryUsage,
   recordMentionEntryUsage,
@@ -316,6 +317,16 @@ function createExistingMessages(count: number): Message[] {
   }));
 }
 
+function createBootstrapDispatchSnapshot(
+  prompt = "请开始处理这个任务",
+): InitialDispatchPreviewSnapshot {
+  return {
+    key: "bootstrap-dispatch-1",
+    prompt,
+    images: [],
+  };
+}
+
 function mountHook(initialProps?: Partial<HookProps>): HookHarness {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -356,7 +367,7 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
     contentId: null,
     workspaceRequestMetadataBase: undefined,
     messages: [],
-    bootstrapDispatchPreviewMessages: [],
+    bootstrapDispatchPreview: null,
     sendMessage: mockSendMessage,
     resolveSendBoundary: (({ sourceText }) => ({
       sourceText,
@@ -473,15 +484,21 @@ describe("useWorkspaceSendActions", () => {
   });
 
   it("无真实消息时应透传 bootstrap 预览消息", () => {
-    const bootstrapPreviewMessages = createExistingMessages(2);
     const harness = mountHook({
-      bootstrapDispatchPreviewMessages: bootstrapPreviewMessages,
+      bootstrapDispatchPreview: createBootstrapDispatchSnapshot(),
     });
 
     try {
-      expect(harness.getValue().displayMessages).toEqual(
-        bootstrapPreviewMessages,
-      );
+      expect(harness.getValue().displayMessages).toHaveLength(2);
+      expect(harness.getValue().displayMessages[0]).toMatchObject({
+        role: "user",
+        content: "请开始处理这个任务",
+      });
+      expect(harness.getValue().displayMessages[1]).toMatchObject({
+        role: "assistant",
+        content: "正在开始处理任务…",
+        isThinking: true,
+      });
     } finally {
       harness.unmount();
     }

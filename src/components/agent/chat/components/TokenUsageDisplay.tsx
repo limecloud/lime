@@ -73,6 +73,34 @@ function formatCompactTokenCount(value: number): string {
   return normalized.toLocaleString();
 }
 
+function resolvePromptCacheMetaText(usage: TokenUsage): string | null {
+  const hasCachedRead = Number.isFinite(usage.cached_input_tokens);
+  const hasCacheCreation = Number.isFinite(usage.cache_creation_input_tokens);
+
+  if (!hasCachedRead && !hasCacheCreation) {
+    return null;
+  }
+
+  const cachedRead = Math.max(0, usage.cached_input_tokens ?? 0);
+  const cacheCreation = Math.max(0, usage.cache_creation_input_tokens ?? 0);
+  const totalCached = cachedRead + cacheCreation;
+
+  if (totalCached <= 0) {
+    return "· 缓存 0";
+  }
+
+  if (hasCacheCreation) {
+    if (hasCachedRead) {
+      return `· 缓存 ${formatCompactTokenCount(totalCached)}（读 ${formatCompactTokenCount(
+        cachedRead,
+      )} / 写 ${formatCompactTokenCount(cacheCreation)}）`;
+    }
+    return `· 缓存写 ${formatCompactTokenCount(cacheCreation)}`;
+  }
+
+  return `· 缓存 ${formatCompactTokenCount(cachedRead)}`;
+}
+
 /**
  * Token 使用量显示组件
  *
@@ -84,9 +112,12 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   promptCacheNotice,
 }) => {
   const total = usage.input_tokens + usage.output_tokens;
-  const cachedInput = Math.max(0, usage.cached_input_tokens ?? 0);
+  const totalPromptCacheTokens =
+    Math.max(0, usage.cached_input_tokens ?? 0) +
+    Math.max(0, usage.cache_creation_input_tokens ?? 0);
+  const promptCacheMetaText = resolvePromptCacheMetaText(usage);
   const missingPromptCacheNotice =
-    cachedInput > 0 ? null : (promptCacheNotice ?? null);
+    totalPromptCacheTokens > 0 ? null : (promptCacheNotice ?? null);
 
   return (
     <UsageContainer
@@ -95,9 +126,7 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
     >
       <UsageIcon />
       <UsageText>{formatCompactTokenCount(total)} tokens</UsageText>
-      {cachedInput > 0 ? (
-        <UsageMeta>{`· 命中缓存 ${formatCompactTokenCount(cachedInput)}`}</UsageMeta>
-      ) : null}
+      {promptCacheMetaText ? <UsageMeta>{promptCacheMetaText}</UsageMeta> : null}
       {missingPromptCacheNotice ? (
         <UsageMeta data-testid="token-usage-prompt-cache-notice">
           {`· ${missingPromptCacheNotice.label}`}

@@ -1,5 +1,14 @@
 import { preheatBrowserAssistInBackground } from "../utils/browserAssistPreheat";
 import {
+  detectBrowserTaskRequirement,
+  type BrowserTaskRequirementMatch,
+} from "../utils/browserTaskRequirement";
+import type {
+  GeneralWorkbenchRunState,
+  GeneralWorkbenchRunTerminalItem,
+  GeneralWorkbenchRunTodoItem,
+} from "@/lib/api/executionRun";
+import {
   buildHarnessRequestMetadata,
   extractExistingHarnessMetadata,
 } from "../utils/harnessRequestMetadata";
@@ -52,6 +61,33 @@ export interface RuntimeTeamDispatchPreviewSnapshot {
   failureMessage?: string | null;
 }
 
+export interface InitialDispatchPreviewSnapshot {
+  key: string;
+  prompt?: string;
+  images: MessageImage[];
+}
+
+export function buildInitialDispatchKey(
+  prompt?: string,
+  images?: MessageImage[],
+): string | null {
+  const normalizedPrompt = (prompt || "").trim();
+  const normalizedImages = images || [];
+
+  if (!normalizedPrompt && normalizedImages.length === 0) {
+    return null;
+  }
+
+  const imageSignature = normalizedImages
+    .map(
+      (image, index) =>
+        `${index}:${image.mediaType}:${image.data.length}:${image.data.slice(0, 16)}`,
+    )
+    .join("|");
+
+  return `${normalizedPrompt}::${imageSignature}`;
+}
+
 export interface SubmissionPreviewSnapshot {
   key: string;
   prompt: string;
@@ -66,6 +102,34 @@ export interface ContextWorkspaceSummary {
   prepareActiveContextPrompt: () => Promise<string>;
 }
 
+export interface GeneralWorkbenchEntryPromptState {
+  kind: "initial_prompt" | "resume";
+  signature: string;
+  title: string;
+  description: string;
+  actionLabel: string;
+  prompt: string;
+}
+
+interface BuildGeneralWorkbenchSendBoundaryStateOptions {
+  isThemeWorkbench: boolean;
+  contentId?: string;
+  initialDispatchKey: string | null;
+  consumedInitialPromptKey: string | null;
+  initialUserImages?: MessageImage[];
+  mappedTheme: string;
+  socialArticleSkillKey: string;
+  sourceText: string;
+  sendOptions?: HandleSendOptions;
+}
+
+export interface GeneralWorkbenchSendBoundaryState {
+  sourceText: string;
+  browserRequirementMatch: BrowserTaskRequirementMatch | null;
+  shouldConsumePendingGeneralWorkbenchInitialPrompt: boolean;
+  shouldDismissGeneralWorkbenchEntryPrompt: boolean;
+}
+
 type PreparedActiveContextPromptResult =
   | {
       ok: true;
@@ -75,6 +139,71 @@ type PreparedActiveContextPromptResult =
       ok: false;
       error: unknown;
     };
+
+function resolveGeneralWorkbenchGateLabel(
+  gateKey?: GeneralWorkbenchRunTodoItem["gate_key"],
+): string | null {
+  switch (gateKey) {
+    case "topic_select":
+      return "选题确认";
+    case "write_mode":
+      return "写作推进";
+    case "publish_confirm":
+      return "发布确认";
+    case null:
+    case undefined:
+    default:
+      return null;
+  }
+}
+
+function resolveGeneralWorkbenchPendingRunCandidate(
+  state: GeneralWorkbenchRunState | null,
+): GeneralWorkbenchRunTodoItem | GeneralWorkbenchRunTerminalItem | null {
+  if (!state) {
+    return null;
+  }
+
+  const activeQueueItem = (state.queue_items || []).find((item) =>
+    ["queued", "running", "error", "timeout"].includes(item.status),
+  );
+  if (activeQueueItem) {
+    return activeQueueItem;
+  }
+
+  if (
+    state.latest_terminal &&
+    ["queued", "running", "error", "timeout"].includes(
+      state.latest_terminal.status,
+    )
+  ) {
+    return state.latest_terminal;
+  }
+
+  return null;
+}
+
+export function buildGeneralWorkbenchResumePromptFromRunState(
+  state: GeneralWorkbenchRunState | null,
+): GeneralWorkbenchEntryPromptState | null {
+  const pendingRun = resolveGeneralWorkbenchPendingRunCandidate(state);
+  if (!pendingRun) {
+    return null;
+  }
+
+  const runTitle = pendingRun.title?.trim() || "最近一次创作任务";
+  const gateLabel = resolveGeneralWorkbenchGateLabel(pendingRun.gate_key);
+  const stageSuffix = gateLabel ? `，当前停留在“${gateLabel}”附近` : "";
+
+  return {
+    kind: "resume",
+    signature: `run:${pendingRun.run_id}:${pendingRun.status}:${pendingRun.started_at}:${"finished_at" in pendingRun ? pendingRun.finished_at || "" : ""}`,
+    title: "发现上次未完成任务",
+    description: `最近一次任务“${runTitle}”尚未完成${stageSuffix}。`,
+    actionLabel: "继续上次任务",
+    prompt: `请基于当前文稿与最近一次未完成的运行继续推进。任务标题：${runTitle}。${gateLabel ? `优先衔接“${gateLabel}”阶段。` : ""}不要从头开始，先概括已有进度，再继续执行。`,
+  };
+}
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -203,6 +332,55 @@ function readExistingTeamMemoryShadow(
   return {
     repo_scope: repoScope,
     entries,
+  };
+}
+
+export function buildGeneralWorkbenchSendBoundaryState({
+  isThemeWorkbench,
+  contentId,
+  initialDispatchKey,
+  consumedInitialPromptKey,
+  initialUserImages,
+  mappedTheme,
+  socialArticleSkillKey,
+  sourceText,
+  sendOptions,
+}: BuildGeneralWorkbenchSendBoundaryStateOptions): GeneralWorkbenchSendBoundaryState {
+  const shouldConsumePendingGeneralWorkbenchInitialPrompt =
+    isThemeWorkbench &&
+    Boolean(contentId) &&
+    Boolean(initialDispatchKey) &&
+    consumedInitialPromptKey !== initialDispatchKey &&
+    (initialUserImages || []).length === 0 &&
+    !sendOptions?.purpose;
+  const shouldDismissGeneralWorkbenchEntryPrompt =
+    isThemeWorkbench && !sendOptions?.purpose;
+
+  const trimmedSourceText = sourceText.trim();
+  const shouldWrapWithGeneralWorkbenchSkill =
+    isThemeWorkbench &&
+    mappedTheme === "general" &&
+    !sendOptions?.purpose &&
+    trimmedSourceText.length > 0 &&
+    !trimmedSourceText.startsWith("/") &&
+    !trimmedSourceText.startsWith("@");
+  const nextSourceText = shouldWrapWithGeneralWorkbenchSkill
+    ? `/${socialArticleSkillKey} ${trimmedSourceText}`
+    : sourceText;
+  const browserRequirementSourceText = shouldWrapWithGeneralWorkbenchSkill
+    ? trimmedSourceText
+    : nextSourceText;
+
+  const browserRequirementMatch =
+    mappedTheme === "general" && !sendOptions?.purpose
+      ? detectBrowserTaskRequirement(browserRequirementSourceText)
+      : null;
+
+  return {
+    sourceText: nextSourceText,
+    browserRequirementMatch,
+    shouldConsumePendingGeneralWorkbenchInitialPrompt,
+    shouldDismissGeneralWorkbenchEntryPrompt,
   };
 }
 
@@ -780,6 +958,41 @@ export function buildRuntimeTeamDispatchPreviewMessages(
       timestamp: new Date(timestamp.getTime() + 1),
       isThinking: snapshot.status === "forming",
       runtimeStatus: assistantRuntimeStatus,
+    },
+  ];
+}
+
+export function buildInitialDispatchPreviewMessages(
+  snapshot: InitialDispatchPreviewSnapshot,
+  assistantPreviewText?: string,
+): Message[] {
+  const normalizedPrompt = (snapshot.prompt || "").trim();
+  const normalizedImages = snapshot.images || [];
+
+  if (!normalizedPrompt && normalizedImages.length === 0) {
+    return [];
+  }
+
+  const timestamp = new Date();
+  const normalizedAssistantPreviewText =
+    assistantPreviewText?.trim() || "正在开始处理任务…";
+  const isAssistantThinking =
+    normalizedAssistantPreviewText === "正在开始处理任务…";
+
+  return [
+    {
+      id: `initial-dispatch:${snapshot.key}:user`,
+      role: "user",
+      content: normalizedPrompt,
+      images: normalizedImages.length > 0 ? normalizedImages : undefined,
+      timestamp,
+    },
+    {
+      id: `initial-dispatch:${snapshot.key}:assistant`,
+      role: "assistant",
+      content: normalizedAssistantPreviewText,
+      timestamp: new Date(timestamp.getTime() + 1),
+      isThinking: isAssistantThinking,
     },
   ];
 }

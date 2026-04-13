@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildToolHeadline,
+  buildToolGroupHeadline,
   extractSearchQueryLabel,
+  getToolDisplayInfo,
   normalizeToolNameKey,
+  resolveUserFacingToolDisplayLabel,
   resolveToolDisplayLabel,
 } from "./toolDisplayInfo";
 
@@ -73,6 +77,17 @@ describe("toolDisplayInfo", () => {
     expect(resolveToolDisplayLabel("BashOutputTool")).toBe("任务输出");
   });
 
+  it("应为用户可见场景提供更自然的工具标签", () => {
+    expect(resolveUserFacingToolDisplayLabel("FileReadTool")).toBe("查看文件");
+    expect(resolveUserFacingToolDisplayLabel("write_file")).toBe("保存文件");
+    expect(resolveUserFacingToolDisplayLabel("TaskOutput")).toBe(
+      "查看任务结果",
+    );
+    expect(resolveUserFacingToolDisplayLabel("mcp__playwright__browser_click")).toBe(
+      "页面点击",
+    );
+  });
+
   it("应隐藏 ToolSearch 中的内部协议查询词", () => {
     expect(
       extractSearchQueryLabel({
@@ -83,5 +98,69 @@ describe("toolDisplayInfo", () => {
         startTime: new Date("2026-04-09T00:00:00.000Z"),
       }),
     ).toBe("内部流程");
+  });
+
+  it("无主体对象时应直接展示动作句，避免重复拼接工具类别", () => {
+    expect(
+      buildToolHeadline({
+        toolDisplay: getToolDisplayInfo("TaskList", "completed"),
+        toolName: "TaskList",
+      }),
+    ).toBe("已获取任务列表");
+
+    expect(
+      buildToolHeadline({
+        toolDisplay: getToolDisplayInfo("ListSkills", "completed"),
+        toolName: "ListSkills",
+      }),
+    ).toBe("已获取技能列表");
+  });
+
+  it("应为查看类与计划类批次生成更自然的标题", () => {
+    expect(
+      buildToolGroupHeadline([
+        {
+          id: "tool-read-1",
+          name: "Read",
+          arguments: JSON.stringify({ file_path: "docs/guide.md" }),
+          status: "completed",
+          result: { success: true, output: "ok" },
+          startTime: new Date("2026-04-13T00:00:00.000Z"),
+          endTime: new Date("2026-04-13T00:00:01.000Z"),
+        },
+        {
+          id: "tool-glob-1",
+          name: "glob",
+          arguments: JSON.stringify({ pattern: "src/**/*.tsx" }),
+          status: "completed",
+          result: { success: true, output: "ok" },
+          startTime: new Date("2026-04-13T00:00:02.000Z"),
+          endTime: new Date("2026-04-13T00:00:03.000Z"),
+        },
+      ]),
+    ).toBe("已查看");
+
+    expect(
+      buildToolGroupHeadline([
+        {
+          id: "tool-task-list-1",
+          name: "TaskList",
+          arguments: JSON.stringify({}),
+          status: "completed",
+          result: { success: true, output: "[]" },
+          startTime: new Date("2026-04-13T00:00:04.000Z"),
+          endTime: new Date("2026-04-13T00:00:05.000Z"),
+        },
+        {
+          id: "tool-task-update-1",
+          name: "TaskUpdate",
+          arguments: JSON.stringify({ task_id: "task-1" }),
+          status: "completed",
+          result: { success: true, output: "{}" },
+          startTime: new Date("2026-04-13T00:00:06.000Z"),
+          endTime: new Date("2026-04-13T00:00:07.000Z"),
+        },
+      ]),
+    ).toBe("已处理 2 项安排");
   });
 });

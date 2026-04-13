@@ -207,8 +207,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       resolvePromptCacheSupportNotice({
         providerType,
         configuredProviderType: selectedProvider?.type,
+        configuredApiHost: selectedProvider?.apiHost,
+        configuredPromptCacheMode: selectedProvider?.promptCacheMode,
       }),
-    [providerType, selectedProvider?.type],
+    [
+      providerType,
+      selectedProvider?.apiHost,
+      selectedProvider?.promptCacheMode,
+      selectedProvider?.type,
+    ],
   );
 
   const incompatibleModelCount = useMemo(
@@ -485,6 +492,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                   const isSelected = selectedProvider?.key === provider.key;
                   const providerPromptCacheMode = getProviderPromptCacheMode(
                     provider.type,
+                    provider.promptCacheMode,
+                    provider.apiHost,
                   );
 
                   return (

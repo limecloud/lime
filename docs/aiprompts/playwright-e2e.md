@@ -140,10 +140,13 @@ npm run test:contracts
 
 1. 进入 `设置 -> AI 服务商`
 2. 确认默认落在 `服务商设置`，左侧能看到 Provider 列表，右侧是当前 Provider 配置
-3. 确认首屏不会默认混入 OEM Offer、套餐或云端模型目录
-4. 点击 `云端服务`
-5. 确认 OEM 会话、Offer 卡片、默认来源和模型目录改为在该页单独展示
-6. 如当前环境故意破坏了 `models/index.json`，确认 Provider 模型区会提示“模型真相源异常”，而不是静默显示空态
+3. 如果列表中存在 `anthropic-compatible` Provider，确认左侧会展示 `显式缓存` badge，而不是暗示自动 Prompt Cache
+4. 点进该 Provider 后，确认右侧头部仍展示 `显式缓存` badge
+5. 进入编辑区后，确认 `Provider 类型 / API Host` 附近会提示“Anthropic 兼容不等于自动 Prompt Cache，需要显式 cache_control”
+6. 确认首屏不会默认混入 OEM Offer、套餐或云端模型目录
+7. 点击 `云端服务`
+8. 确认 OEM 会话、Offer 卡片、默认来源和模型目录改为在该页单独展示
+9. 如当前环境故意破坏了 `models/index.json`，确认 Provider 模型区会提示“模型真相源异常”，而不是静默显示空态
 
 ### 社媒内容工作流
 

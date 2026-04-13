@@ -67,6 +67,7 @@ import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
 import { cn } from "@/lib/utils";
 import type { Page, PageParams } from "@/types/page";
+import { ResourcesImageWorkbench } from "./ResourcesImageWorkbench";
 import { fetchDocumentDetail } from "./services/resourceAdapter";
 import type { ResourceItem } from "./services/types";
 import { resourcesSelectors, useResourcesStore } from "./store";
@@ -415,7 +416,6 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   useEffect(() => {
     return onResourceProjectChange((detail) => {
       if (
-        detail.source !== "image-gen-target" &&
         detail.source !== "image-gen-save" &&
         detail.source !== "general-chat" &&
         detail.source !== "browser-runtime"
@@ -530,6 +530,35 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
       directory: false,
       multiple: false,
       title: "选择上传文件",
+    });
+    if (!selected || Array.isArray(selected)) return;
+
+    await uploadFile(selected);
+  }, [projectId, uploadFile]);
+
+  const handleUploadImage = useCallback(async () => {
+    if (!projectId) return;
+
+    const selected = await open({
+      directory: false,
+      multiple: false,
+      title: "选择本地图片",
+      filters: [
+        {
+          name: "图片",
+          extensions: [
+            "jpg",
+            "jpeg",
+            "png",
+            "webp",
+            "gif",
+            "bmp",
+            "svg",
+            "ico",
+            "heic",
+          ],
+        },
+      ],
     });
     if (!selected || Array.isArray(selected)) return;
 
@@ -1315,6 +1344,14 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                 <div className="rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm">
                   {error || projectError}
                 </div>
+              )}
+
+              {viewCategory === "image" && (
+                <ResourcesImageWorkbench
+                  projectId={projectId}
+                  onNavigate={onNavigate}
+                  onUploadImage={handleUploadImage}
+                />
               )}
 
               <div className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-white/95 shadow-sm shadow-slate-950/5">

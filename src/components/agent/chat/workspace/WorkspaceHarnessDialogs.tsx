@@ -1,8 +1,8 @@
 import type { ComponentProps } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { AgentRuntimeStrip } from "../components/AgentRuntimeStrip";
 import { HarnessStatusPanel } from "../components/HarnessStatusPanel";
 import { TeamMemoryShadowCard } from "../components/TeamMemoryShadowCard";
-import { WorkspaceHarnessDialog } from "./WorkspaceHarnessDialog";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 
 type HarnessPanelBaseProps = Pick<
@@ -57,19 +57,25 @@ export function GeneralWorkbenchHarnessDialogSection({
   }
 
   return (
-    <WorkspaceHarnessDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      maxWidth="max-w-7xl"
-      panelProps={{
-        ...panelBaseProps,
-        layout: "dialog",
-        teamMemorySnapshot,
-        leadContent: teamMemorySnapshot ? (
-          <TeamMemoryShadowCard snapshot={teamMemorySnapshot} />
-        ) : undefined,
-      }}
-    />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        maxWidth="max-w-7xl"
+        className="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden p-0"
+        draggable={true}
+        dragHandleSelector='[data-harness-drag-handle="true"]'
+      >
+        <HarnessStatusPanel
+          {...panelBaseProps}
+          layout="dialog"
+          teamMemorySnapshot={teamMemorySnapshot}
+          leadContent={
+            teamMemorySnapshot ? (
+              <TeamMemoryShadowCard snapshot={teamMemorySnapshot} />
+            ) : undefined
+          }
+        />
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -114,39 +120,43 @@ export function GeneralWorkbenchDialogSection({
   }
 
   return (
-    <WorkspaceHarnessDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      maxWidth="max-w-6xl"
-      panelProps={{
-        ...panelBaseProps,
-        layout: "dialog",
-        teamMemorySnapshot,
-        title: "处理工作台",
-        description: "集中查看计划、待确认事项、任务进展、文件活动和处理结果。",
-        toggleLabel: "工作台详情",
-        leadContent: (
-          <div className="space-y-3">
-            <AgentRuntimeStrip
-              activeTheme={activeTheme}
-              toolPreferences={toolPreferences}
-              harnessState={panelBaseProps.harnessState}
-              childSubagentSessions={panelBaseProps.childSubagentSessions}
-              variant="embedded"
-              isSending={isSending}
-              executionRuntime={executionRuntime}
-              isExecutionRuntimeActive={isExecutionRuntimeActive}
-              runtimeStatusTitle={runtimeStatusTitle}
-              selectedTeamLabel={panelBaseProps.selectedTeamLabel}
-              selectedTeamSummary={panelBaseProps.selectedTeamSummary}
-              selectedTeamRoleCount={selectedTeamRoleCount}
-            />
-            {teamMemorySnapshot ? (
-              <TeamMemoryShadowCard snapshot={teamMemorySnapshot} />
-            ) : null}
-          </div>
-        ),
-      }}
-    />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        maxWidth="max-w-6xl"
+        className="flex h-[90vh] max-h-[90vh] flex-col overflow-hidden p-0"
+        draggable={true}
+        dragHandleSelector='[data-harness-drag-handle="true"]'
+      >
+        <HarnessStatusPanel
+          {...panelBaseProps}
+          layout="dialog"
+          teamMemorySnapshot={teamMemorySnapshot}
+          title="处理工作台"
+          description="集中查看计划、待确认事项、任务进展、文件活动和处理结果。"
+          toggleLabel="工作台详情"
+          leadContent={
+            <div className="space-y-3">
+              <AgentRuntimeStrip
+                activeTheme={activeTheme}
+                toolPreferences={toolPreferences}
+                harnessState={panelBaseProps.harnessState}
+                childSubagentSessions={panelBaseProps.childSubagentSessions}
+                variant="embedded"
+                isSending={isSending}
+                executionRuntime={executionRuntime}
+                isExecutionRuntimeActive={isExecutionRuntimeActive}
+                runtimeStatusTitle={runtimeStatusTitle}
+                selectedTeamLabel={panelBaseProps.selectedTeamLabel}
+                selectedTeamSummary={panelBaseProps.selectedTeamSummary}
+                selectedTeamRoleCount={selectedTeamRoleCount}
+              />
+              {teamMemorySnapshot ? (
+                <TeamMemoryShadowCard snapshot={teamMemorySnapshot} />
+              ) : null}
+            </div>
+          }
+        />
+      </DialogContent>
+    </Dialog>
   );
 }
