@@ -598,7 +598,7 @@ function createAlignedRuntimeToolInventory(): AgentRuntimeToolInventory {
         caller_allowed: true,
         visible_in_context: true,
       },
-      ...base.runtime_tools.filter((entry) => entry.name !== "Agent"),
+      ...(base.runtime_tools ?? []).filter((entry) => entry.name !== "Agent"),
     ],
   };
 }

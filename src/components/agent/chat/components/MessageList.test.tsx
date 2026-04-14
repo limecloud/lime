@@ -1653,7 +1653,7 @@ describe("MessageList", () => {
         content: "正在分析依赖关系。",
         timestamp: now,
         runtimeStatus: {
-          phase: "reasoning",
+          phase: "routing",
           title: "处理中",
           detail: "正在读取多个 crate 的依赖。",
         },

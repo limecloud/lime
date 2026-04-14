@@ -39,8 +39,8 @@ const CODE_BLOCK_BUTTON_HOVER_SURFACE = "rgba(248, 250, 252, 0.98)";
 
 // 收紧正文与代码块表面，让消息正文更接近单列执行流的阅读节奏。
 const MarkdownContainer = styled.div`
-  font-size: 14px;
-  line-height: 1.76;
+  font-size: inherit;
+  line-height: inherit;
   color: hsl(var(--foreground));
   overflow-wrap: break-word;
   word-break: break-word;
@@ -57,14 +57,8 @@ const MarkdownContainer = styled.div`
   p {
     margin: 0 0 0.95em;
     color: hsl(var(--foreground));
-  }
-
-  h1 + p,
-  h2 + p,
-  h3 + p {
-    color: hsl(var(--muted-foreground));
-    font-size: 1.02em;
-    line-height: 1.8;
+    font-size: 1em;
+    line-height: inherit;
   }
 
   h1,
@@ -74,9 +68,9 @@ const MarkdownContainer = styled.div`
   h5,
   h6 {
     font-weight: 700;
-    margin: 1.34em 0 0.58em;
-    line-height: 1.32;
-    letter-spacing: -0.01em;
+    margin: 1.08em 0 0.5em;
+    line-height: 1.42;
+    letter-spacing: 0;
     color: hsl(var(--foreground));
   }
 
@@ -87,21 +81,20 @@ const MarkdownContainer = styled.div`
   }
 
   h1 {
-    font-size: 1.54em;
+    font-size: 1.16em;
   }
   h2 {
-    font-size: 1.28em;
+    font-size: 1.1em;
   }
   h3 {
-    font-size: 1.12em;
+    font-size: 1.04em;
   }
   h4 {
-    font-size: 1.03em;
+    font-size: 1em;
   }
   h5,
   h6 {
-    font-size: 0.96em;
-    color: hsl(var(--muted-foreground));
+    font-size: 0.98em;
   }
 
   ul,

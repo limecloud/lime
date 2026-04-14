@@ -289,19 +289,19 @@ impl ProviderCredential {
     /// 解析当前凭证应采用的 Prompt Cache 模式。
     pub fn effective_prompt_cache_mode(&self) -> Option<ProviderPromptCacheMode> {
         self.prompt_cache_mode_override.or_else(|| {
-            if self.provider_type.supports_anthropic_prompt_cache() {
-                Some(ProviderPromptCacheMode::Automatic)
-            } else if matches!(self.provider_type, PoolProviderType::AnthropicCompatible)
-                && is_known_automatic_anthropic_compatible_host(
+            if matches!(self.provider_type, PoolProviderType::AnthropicCompatible) {
+                return if is_known_automatic_anthropic_compatible_host(
                     get_base_url(&self.credential).as_deref(),
-                )
-            {
-                Some(ProviderPromptCacheMode::Automatic)
-            } else if matches!(self.provider_type, PoolProviderType::AnthropicCompatible) {
-                Some(ProviderPromptCacheMode::ExplicitOnly)
-            } else {
-                None
+                ) {
+                    Some(ProviderPromptCacheMode::Automatic)
+                } else {
+                    Some(ProviderPromptCacheMode::ExplicitOnly)
+                };
             }
+
+            self.provider_type
+                .supports_anthropic_prompt_cache()
+                .then_some(ProviderPromptCacheMode::Automatic)
         })
     }
 

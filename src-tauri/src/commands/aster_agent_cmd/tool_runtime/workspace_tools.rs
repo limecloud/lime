@@ -144,10 +144,6 @@ impl WorkspaceSandboxedBashTool {
         }
     }
 
-    fn format_output(stdout: &str, stderr: &str, exit_code: i32) -> String {
-        Self::format_output_with_message(stdout, stderr, exit_code, None)
-    }
-
     fn format_output_with_message(
         stdout: &str,
         stderr: &str,

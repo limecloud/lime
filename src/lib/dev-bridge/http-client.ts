@@ -336,6 +336,7 @@ export async function listenViaHttpEvent<T = unknown>(
     let hasOpened = false;
     let settleOpen: ((value: void | PromiseLike<void>) => void) | null = null;
     let settleOpenError: ((reason?: unknown) => void) | null = null;
+    let reconnectWarningShown = false;
     const openPromise = new Promise<void>((resolve, reject) => {
       settleOpen = resolve;
       settleOpenError = reject;
@@ -354,6 +355,10 @@ export async function listenViaHttpEvent<T = unknown>(
     }, DEV_BRIDGE_EVENT_CONNECT_TIMEOUT_MS);
 
     source.onmessage = (messageEvent) => {
+      if (reconnectWarningShown) {
+        reconnectWarningShown = false;
+        markBridgeHealthy();
+      }
       const parsed = parseBridgeEventPayload<unknown>(messageEvent.data);
       if (!parsed) {
         return;
@@ -375,6 +380,7 @@ export async function listenViaHttpEvent<T = unknown>(
         return;
       }
       hasOpened = true;
+      reconnectWarningShown = false;
       markBridgeHealthy();
       window.clearTimeout(connectTimeout);
       settleOpen?.();
@@ -386,13 +392,17 @@ export async function listenViaHttpEvent<T = unknown>(
       if (!hubActive) {
         return;
       }
+      if (hasOpened) {
+        if (!reconnectWarningShown) {
+          reconnectWarningShown = true;
+          console.warn(`[DevBridge] 事件流异常: ${normalizedEvent}`, error);
+        }
+        return;
+      }
       console.warn(`[DevBridge] 事件流异常: ${normalizedEvent}`, error);
       hubActive = false;
       bridgeEventHubs.delete(normalizedEvent);
       source.close();
-      if (hasOpened) {
-        return;
-      }
       markBridgeUnavailable();
       window.clearTimeout(connectTimeout);
       settleOpenError?.(

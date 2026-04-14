@@ -36,10 +36,7 @@ import { WorkspaceConversationScene } from "./WorkspaceConversationScene";
 
 type InputbarScene = Pick<
   ReturnType<typeof useWorkspaceInputbarSceneRuntime>,
-  | "inputbarNode"
-  | "generalWorkbenchDialog"
-  | "teamWorkbenchSurfaceProps"
-  | "runtimeToolAvailability"
+  "inputbarNode" | "generalWorkbenchDialog" | "teamWorkbenchSurfaceProps"
 >;
 type CanvasScene = Pick<
   ReturnType<typeof useWorkspaceCanvasSceneRuntime>,
@@ -723,7 +720,6 @@ export function useWorkspaceConversationSceneRuntime({
       setAccessMode,
       onManageProviders: navigationActions.handleManageProviders,
       toolPreferences: chatToolPreferences,
-      runtimeToolAvailability: inputbarScene.runtimeToolAvailability,
       onToolPreferenceChange: (key, enabled) =>
         setChatToolPreferences((previous) => ({
           ...previous,

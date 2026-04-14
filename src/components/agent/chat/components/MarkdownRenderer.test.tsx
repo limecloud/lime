@@ -417,6 +417,36 @@ describe("MarkdownRenderer", () => {
     ).not.toBeNull();
   });
 
+  it("标题后的正文应保持聊天正文排版，不应缩小变灰", () => {
+    const container = document.createElement("div");
+    container.style.setProperty("--foreground", "17 24 39");
+    container.style.setProperty("--muted-foreground", "100 116 139");
+    container.style.fontSize = "15px";
+    container.style.lineHeight = "1.7";
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <MarkdownRenderer content={"## 小结\n\n这段正文应该和聊天正文保持同一字号与主色。"} />,
+      );
+    });
+
+    mountedRoots.push({ container, root });
+
+    const heading = container.querySelector(
+      'h2[data-markdown-heading-level="2"]',
+    );
+    const paragraph = container.querySelector("p");
+
+    expect(heading).not.toBeNull();
+    expect(paragraph).not.toBeNull();
+    expect(getComputedStyle(paragraph as Element).fontSize).toBe("1em");
+    expect(document.head.textContent).not.toContain("h1 + p");
+    expect(document.head.textContent).not.toContain("h2 + p");
+    expect(document.head.textContent).not.toContain("h3 + p");
+  });
+
   it("非流式时应保留 raw html 渲染能力", () => {
     const content = [
       "前置文本",

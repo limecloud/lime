@@ -14,7 +14,6 @@ import type {
   BaseSetupPackage,
   BaseSetupPolicyProfile,
   BaseSetupProjectionIndex,
-  BaseSetupScorecardProfile,
   BaseSetupSlotProfile,
 } from "../types";
 

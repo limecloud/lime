@@ -6,6 +6,7 @@ import {
   normalizeToolNameKey,
   parseToolCallArguments,
   resolveToolFilePath,
+  type ToolCallArgumentValue,
 } from "./toolDisplayInfo";
 
 export type ToolBatchKind = "exploration" | "browser";
@@ -39,10 +40,15 @@ interface ToolBatchAccumulator {
 
 interface ToolLikeDescriptor {
   toolName: string;
-  argumentsValue?: string | Record<string, unknown>;
+  argumentsValue?: string | Record<string, ToolCallArgumentValue>;
   command?: string | null;
   query?: string | null;
 }
+
+type ThreadProcessBatchItem = Extract<
+  AgentThreadItem,
+  { type: "tool_call" | "command_execution" | "web_search" }
+>;
 
 function shorten(value: string | null | undefined, maxLength = 72): string | null {
   const normalized = value?.trim();
@@ -55,7 +61,7 @@ function shorten(value: string | null | undefined, maxLength = 72): string | nul
   return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+function asRecord(value: unknown): Record<string, ToolCallArgumentValue> {
   if (!value) {
     return {};
   }
@@ -63,16 +69,26 @@ function asRecord(value: unknown): Record<string, unknown> {
   if (typeof value === "string") {
     const parsed = parseToolCallArguments(value);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
+      return parsed;
     }
     return {};
   }
 
   if (typeof value === "object" && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
+    return value as Record<string, ToolCallArgumentValue>;
   }
 
   return {};
+}
+
+function isThreadProcessBatchItem(
+  item: AgentThreadItem,
+): item is ThreadProcessBatchItem {
+  return (
+    item.type === "tool_call" ||
+    item.type === "command_execution" ||
+    item.type === "web_search"
+  );
 }
 
 function readString(
@@ -378,32 +394,32 @@ export function summarizeStreamingToolBatch(
 export function summarizeThreadProcessBatch(
   items: AgentThreadItem[],
 ): ToolBatchSummaryDescriptor | null {
-  if (
-    items.length < 2 ||
-    items.some(
-      (item) =>
-        item.type !== "tool_call" &&
-        item.type !== "command_execution" &&
-        item.type !== "web_search",
-    )
-  ) {
+  const processItems = items.filter(isThreadProcessBatchItem);
+  if (processItems.length < 2 || processItems.length !== items.length) {
     return null;
   }
 
-  const descriptors: ToolLikeDescriptor[] = items.map((item) => {
+  const descriptors: ToolLikeDescriptor[] = processItems.map((item) => {
     if (item.type === "command_execution") {
+      const argumentsValue: Record<string, ToolCallArgumentValue> = {
+        command: item.command,
+        cwd: item.cwd,
+      };
       return {
         toolName: "exec_command",
         command: item.command,
-        argumentsValue: { command: item.command, cwd: item.cwd },
+        argumentsValue,
       };
     }
 
     if (item.type === "web_search") {
+      const argumentsValue: Record<string, ToolCallArgumentValue> = {
+        query: item.query || item.action || "",
+      };
       return {
         toolName: item.action || "web_search",
         query: item.query || item.action || null,
-        argumentsValue: { query: item.query || item.action || "" },
+        argumentsValue,
       };
     }
 
@@ -411,7 +427,7 @@ export function summarizeThreadProcessBatch(
       toolName: item.tool_name,
       argumentsValue:
         item.arguments && typeof item.arguments === "object"
-          ? (item.arguments as Record<string, unknown>)
+          ? (item.arguments as Record<string, ToolCallArgumentValue>)
           : item.arguments === undefined
             ? undefined
             : String(item.arguments),

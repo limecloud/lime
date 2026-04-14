@@ -179,7 +179,7 @@ describe("http-client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("事件流在已建立连接后断开时应主动关闭并停止重复告警", async () => {
+  it("事件流在已建立连接后断开时应保留连接并停止重复告警", async () => {
     class MockEventSource {
       static instances: MockEventSource[] = [];
 
@@ -226,10 +226,15 @@ describe("http-client", () => {
     source.emitError();
     source.emitError();
 
-    expect(source.close).toHaveBeenCalledTimes(1);
+    const secondUnlisten = await listenViaHttpEvent("config-changed", vi.fn());
+
+    expect(MockEventSource.instances).toHaveLength(1);
+    expect(source.close).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledTimes(1);
 
     unlisten();
+    secondUnlisten();
+    expect(source.close).toHaveBeenCalledTimes(1);
   });
 
   it("事件流在建立后结束不应把整个桥接误标记为 unavailable", async () => {

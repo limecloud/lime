@@ -1,8 +1,13 @@
+import type { AgentRuntimeToolInventory } from "@/lib/api/agentRuntime";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   deriveRuntimeToolAvailability,
   RUNTIME_TOOL_AVAILABILITY_OVERRIDE_STORAGE_KEY,
 } from "./runtimeToolAvailability";
+
+function asToolInventory(value: unknown): AgentRuntimeToolInventory {
+  return value as AgentRuntimeToolInventory;
+}
 
 describe("runtime tool surface 派生", () => {
   beforeEach(() => {
@@ -14,24 +19,26 @@ describe("runtime tool surface 派生", () => {
   });
 
   it("runtime tool surface 应优先从 runtime_tools 派生 current capability", () => {
-    const availability = deriveRuntimeToolAvailability({
-      agent_initialized: true,
-      runtime_tools: [
-        { name: "WebSearch" },
-        { name: "Agent" },
-        { name: "SendMessage" },
-        { name: "TeamCreate" },
-        { name: "TeamDelete" },
-        { name: "ListPeers" },
-        { name: "TaskCreate" },
-        { name: "TaskGet" },
-        { name: "TaskList" },
-        { name: "TaskUpdate" },
-        { name: "TaskOutput" },
-        { name: "TaskStop" },
-      ],
-      registry_tools: [{ name: "registry-only" }],
-    } as Parameters<typeof deriveRuntimeToolAvailability>[0]);
+    const availability = deriveRuntimeToolAvailability(
+      asToolInventory({
+        agent_initialized: true,
+        runtime_tools: [
+          { name: "WebSearch" },
+          { name: "Agent" },
+          { name: "SendMessage" },
+          { name: "TeamCreate" },
+          { name: "TeamDelete" },
+          { name: "ListPeers" },
+          { name: "TaskCreate" },
+          { name: "TaskGet" },
+          { name: "TaskList" },
+          { name: "TaskUpdate" },
+          { name: "TaskOutput" },
+          { name: "TaskStop" },
+        ],
+        registry_tools: [],
+      }),
+    );
 
     expect(availability).toMatchObject({
       source: "runtime_tools",
@@ -62,11 +69,13 @@ describe("runtime tool surface 派生", () => {
       }),
     );
 
-    const availability = deriveRuntimeToolAvailability({
-      agent_initialized: true,
-      runtime_tools: [{ name: "WebSearch" }],
-      registry_tools: [],
-    } as Parameters<typeof deriveRuntimeToolAvailability>[0]);
+    const availability = deriveRuntimeToolAvailability(
+      asToolInventory({
+        agent_initialized: true,
+        runtime_tools: [{ name: "WebSearch" }],
+        registry_tools: [],
+      }),
+    );
 
     expect(availability).toMatchObject({
       source: "runtime_tools",

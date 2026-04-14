@@ -288,11 +288,19 @@ describe("agentStreamTurnEventBinding", () => {
       setIsSending: noopDispatch<boolean>(),
     });
 
-    streamHandler?.({
+    if (!streamHandler) {
+      throw new Error("expected stream handler to be registered");
+    }
+
+    const activeStreamHandler = streamHandler as (event: {
+      payload: unknown;
+    }) => void;
+
+    activeStreamHandler({
       payload: {
         type: "runtime_status",
         status: {
-          phase: "reasoning",
+          phase: "routing",
           title: "分析中",
           detail: "正在整理仓库结构",
         },

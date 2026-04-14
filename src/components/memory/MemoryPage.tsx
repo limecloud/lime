@@ -336,6 +336,17 @@ const MEMORY_SCOPE_CARD_META: Array<{
   },
 ];
 
+type MemoryAvailabilityStatus = "loaded" | "exists" | "missing";
+
+interface MemoryScopeCardView {
+  key: "user" | "project" | "local" | "auto" | "durable" | "team";
+  label: string;
+  description: string;
+  status: MemoryAvailabilityStatus;
+  detail: string;
+  helper: string;
+}
+
 const MEMORY_DO_NOT_SAVE = [
   "代码模式、约定、架构、文件路径或项目结构，这些应直接从当前仓库读取。",
   "Git 历史、最近改动、谁改了什么，`git log` 和 `git blame` 才是事实源。",
@@ -637,7 +648,7 @@ function buildCreationPrompt(
   return lines.join("\n");
 }
 
-function getMemoryAvailabilityBadge(status: "loaded" | "exists" | "missing"): {
+function getMemoryAvailabilityBadge(status: MemoryAvailabilityStatus): {
   label: string;
   className: string;
 } {
@@ -932,10 +943,11 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     [sourceBuckets],
   );
 
-  const memoryScopeCards = useMemo(() => {
+  const memoryScopeCards = useMemo<MemoryScopeCardView[]>(() => {
     return MEMORY_SCOPE_CARD_META.map((card) => {
       if (card.key === "team") {
-        const status = teamSnapshots.length > 0 ? "loaded" : "missing";
+        const status: MemoryAvailabilityStatus =
+          teamSnapshots.length > 0 ? "loaded" : "missing";
         return {
           ...card,
           status,
@@ -961,7 +973,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                 ? "durable"
                 : "user";
       const bucket = sourceBucketMap.get(bucketKey);
-      const status = bucket?.status || "missing";
+      const status: MemoryAvailabilityStatus = bucket?.status || "missing";
 
       if (card.key === "auto") {
         return {
