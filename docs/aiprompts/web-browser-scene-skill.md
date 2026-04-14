@@ -23,10 +23,11 @@
 
 ## 设计结论
 
-### 1. 外部 `web-access` 对 Lime 有帮助，但只应作为参考来源
+### 1. 外部 `web-access` / Agent Skills 对 Lime 有帮助，但不能直接替代 Lime 运行时
 
 可以借鉴的部分：
 
+- Agent Skills 包结构
 - Skill 作为 bundle 的组织方式
 - 前置检查、站点经验、工具选择策略
 - 针对动态页面的预热、滚动、媒体提取思路
@@ -37,7 +38,7 @@
 - 外部自带的 CDP proxy / daemon / HTTP API
 - 外部工具仓库定义的运行时协议
 - 外部环境变量约定和执行入口
-- 把外部 `SKILL.md` 直接当成 Lime 产品事实源
+- 把外部 `SKILL.md` 或 SkillToolset 直接当成 Lime 产品事实源
 
 ### 2. Lime 的长期真相仍然是 `Scene Skill`
 
@@ -178,6 +179,8 @@ skill/
 - 站点经验放 `references/site-patterns/`
 - 输出结构放 `templates/`
 - 产物校验可放 `scripts/`
+
+这里的 `SKILL.md` 应优先理解为 **Agent Skills 兼容包入口**，不是 Lime 最终运行时协议。
 
 ## 推荐流程主线
 

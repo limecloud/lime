@@ -367,6 +367,29 @@ describe("EmptyState", () => {
     ).toBeNull();
   });
 
+  it("runtime tool surface 告警不应再透传到首页空态输入区", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      webSearchEnabled: true,
+      subagentEnabled: true,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="empty-state-runtime-tool-warning"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("当前 runtime tool surface");
+    expect(container.textContent).not.toContain(
+      "联网搜索偏好本轮可能不会生效",
+    );
+    expect(container.textContent).not.toContain(
+      "任务拆分偏好本轮可能不会完全生效",
+    );
+  });
+
   it("有最近记录时应展示继续上次做法入口，并允许直接继续模板与方法", async () => {
     recordEntryRecommendedSolutionUsage("social-post-starter");
     const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();

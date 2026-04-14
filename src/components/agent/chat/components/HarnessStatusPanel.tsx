@@ -45,6 +45,7 @@ import type {
   AgentRuntimeToolInventory,
   AgentRuntimeToolInventoryCatalogEntry,
   AgentRuntimeToolInventoryRegistryEntry,
+  AgentRuntimeToolInventoryRuntimeEntry,
   AgentRuntimeThreadReadModel,
   AgentToolExecutionPolicySource,
   AsterSubagentSessionInfo,
@@ -103,6 +104,7 @@ import {
   normalizeToolNameKey,
   resolveToolDisplayLabel,
 } from "../utils/toolDisplayInfo";
+import { deriveRuntimeToolAvailability } from "../utils/runtimeToolAvailability";
 import {
   buildWorkflowSummaryText,
   getWorkflowStatusLabel,
@@ -1050,6 +1052,33 @@ function formatExtensionSourceKindLabel(value: string): string {
   }
 }
 
+function formatRuntimeToolSourceKindLabel(value: string): string {
+  switch (value) {
+    case "registry_native":
+      return "Registry";
+    case "current_surface":
+      return "当前工具面";
+    case "runtime_extension":
+      return "Extension";
+    case "mcp":
+      return "MCP";
+    default:
+      return value;
+  }
+}
+
+function formatRuntimeToolAvailabilitySourceLabel(value: string): string {
+  switch (value) {
+    case "runtime_tools":
+      return "runtime_tools";
+    case "registry_tools":
+      return "registry_tools";
+    case "none":
+    default:
+      return "未就绪";
+  }
+}
+
 function collectCatalogExecutionSources(
   entry: AgentRuntimeToolInventoryCatalogEntry,
 ): AgentToolExecutionPolicySource[] {
@@ -1068,6 +1097,17 @@ function collectRegistryExecutionSources(
     entry.catalog_execution_restriction_profile_source,
     entry.catalog_execution_sandbox_profile_source,
   ].filter((value): value is AgentToolExecutionPolicySource => Boolean(value));
+}
+
+function sortRuntimeToolsByVisibility(
+  tools: AgentRuntimeToolInventoryRuntimeEntry[],
+): AgentRuntimeToolInventoryRuntimeEntry[] {
+  return [...tools].sort((left, right) => {
+    if (left.visible_in_context !== right.visible_in_context) {
+      return left.visible_in_context ? -1 : 1;
+    }
+    return left.name.localeCompare(right.name);
+  });
 }
 
 function matchesCatalogToolInventoryFilter(
@@ -1945,10 +1985,65 @@ export function HarnessStatusPanel({
   const toolInventoryWarnings = toolInventory?.warnings || [];
   const toolInventoryCatalogTools = toolInventory?.catalog_tools || [];
   const toolInventoryRegistryTools = toolInventory?.registry_tools || [];
+  const toolInventoryRuntimeTools = useMemo(
+    () => sortRuntimeToolsByVisibility(toolInventory?.runtime_tools || []),
+    [toolInventory?.runtime_tools],
+  );
+  const runtimeToolAvailability = useMemo(
+    () => deriveRuntimeToolAvailability(toolInventory),
+    [toolInventory],
+  );
   const toolInventoryExtensionSurfaces =
     toolInventory?.extension_surfaces || [];
   const toolInventoryExtensionTools = toolInventory?.extension_tools || [];
   const toolInventoryMcpTools = toolInventory?.mcp_tools || [];
+  const runtimeToolTotal =
+    toolInventory?.counts.runtime_total ?? toolInventoryRuntimeTools.length;
+  const runtimeToolVisibleTotal =
+    toolInventory?.counts.runtime_visible_total ??
+    toolInventoryRuntimeTools.filter((entry) => entry.visible_in_context)
+      .length;
+  const runtimeToolCapabilityGaps = useMemo(() => {
+    if (!toolInventory || !runtimeToolAvailability.known) {
+      return [];
+    }
+
+    const gaps: Array<{ key: string; title: string; missing: string[] }> = [];
+
+    if (!runtimeToolAvailability.webSearch) {
+      gaps.push({
+        key: "web_search",
+        title: "WebSearch",
+        missing: ["WebSearch"],
+      });
+    }
+
+    if (!runtimeToolAvailability.subagentCore) {
+      gaps.push({
+        key: "subagent_core",
+        title: "子任务核心 tools",
+        missing: runtimeToolAvailability.missingSubagentCoreTools,
+      });
+    }
+
+    if (!runtimeToolAvailability.subagentTeamTools) {
+      gaps.push({
+        key: "subagent_team",
+        title: "Team current tools",
+        missing: runtimeToolAvailability.missingSubagentTeamTools,
+      });
+    }
+
+    if (!runtimeToolAvailability.taskRuntime) {
+      gaps.push({
+        key: "task_runtime",
+        title: "Task current tools",
+        missing: runtimeToolAvailability.missingTaskTools,
+      });
+    }
+
+    return gaps;
+  }, [runtimeToolAvailability, toolInventory]);
   const realTeamSummary = useMemo(
     () => summarizeChildSubagentSessions(childSubagentSessions),
     [childSubagentSessions],
@@ -2267,12 +2362,12 @@ export function HarnessStatusPanel({
         value: toolInventoryLoading
           ? "读取中"
           : toolInventory
-            ? `${toolInventory.counts.registry_visible_total}`
+            ? `${runtimeToolVisibleTotal}`
             : "异常",
         hint: toolInventoryError
           ? toolInventoryError
           : toolInventory
-            ? `catalog ${toolInventory.counts.catalog_total} · MCP 可见 ${toolInventory.counts.mcp_tool_visible_total}`
+            ? `runtime ${runtimeToolVisibleTotal}/${runtimeToolTotal} · registry ${toolInventory.counts.registry_visible_total}`
             : "等待拉取运行时库存",
         icon: Wrench,
       });
@@ -2351,6 +2446,8 @@ export function HarnessStatusPanel({
     toolInventory,
     toolInventoryError,
     toolInventoryLoading,
+    runtimeToolTotal,
+    runtimeToolVisibleTotal,
     threadReliabilityView.shouldRender,
     threadReliabilityView.statusLabel,
     threadReliabilityView.summary,
@@ -4702,7 +4799,7 @@ export function HarnessStatusPanel({
                     toolInventoryLoading
                       ? "读取中"
                       : toolInventory
-                        ? `catalog ${toolInventory.counts.catalog_total} / registry ${toolInventory.counts.registry_visible_total}`
+                        ? `runtime ${runtimeToolVisibleTotal}/${runtimeToolTotal}`
                         : toolInventoryError
                           ? "读取失败"
                           : "待同步"
@@ -4772,7 +4869,12 @@ export function HarnessStatusPanel({
 
                     {toolInventory ? (
                       <>
-                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                          <InventoryStatCard
+                            title="Runtime"
+                            value={`${runtimeToolVisibleTotal}`}
+                            hint={`可见 / 总数 ${runtimeToolVisibleTotal} / ${runtimeToolTotal}`}
+                          />
                           <InventoryStatCard
                             title="Catalog"
                             value={`${toolInventory.counts.catalog_total}`}
@@ -4824,6 +4926,207 @@ export function HarnessStatusPanel({
                             </div>
                           </div>
                         ) : null}
+
+                        {toolInventory ? (
+                          <div
+                            className="space-y-3"
+                            data-testid="harness-runtime-tool-capability-summary"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-sm font-medium text-foreground">
+                                Runtime 能力摘要
+                              </div>
+                              <Badge
+                                variant={
+                                  runtimeToolAvailability.known
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                                data-testid="harness-runtime-tool-capability-source"
+                              >
+                                {runtimeToolAvailability.known
+                                  ? `来源 ${formatRuntimeToolAvailabilitySourceLabel(
+                                      runtimeToolAvailability.source,
+                                    )}`
+                                  : "Runtime 工具面未就绪"}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge
+                                variant={
+                                  runtimeToolAvailability.webSearch
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                                data-testid="harness-runtime-tool-capability-web-search"
+                              >
+                                {runtimeToolAvailability.webSearch
+                                  ? "WebSearch 已接通"
+                                  : "WebSearch 未接通"}
+                              </Badge>
+                              <Badge
+                                variant={
+                                  runtimeToolAvailability.subagentCore
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                                data-testid="harness-runtime-tool-capability-subagent-core"
+                              >
+                                {runtimeToolAvailability.subagentCore
+                                  ? "子任务核心 tools 已接通"
+                                  : `子任务核心 tools 缺 ${runtimeToolAvailability.missingSubagentCoreTools.length} 项`}
+                              </Badge>
+                              <Badge
+                                variant={
+                                  runtimeToolAvailability.subagentTeamTools
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                                data-testid="harness-runtime-tool-capability-team"
+                              >
+                                {runtimeToolAvailability.subagentTeamTools
+                                  ? "Team current tools 已接通"
+                                  : `Team current tools 缺 ${runtimeToolAvailability.missingSubagentTeamTools.length} 项`}
+                              </Badge>
+                              <Badge
+                                variant={
+                                  runtimeToolAvailability.taskRuntime
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                                data-testid="harness-runtime-tool-capability-task"
+                              >
+                                {runtimeToolAvailability.taskRuntime
+                                  ? "Task current tools 已接通"
+                                  : `Task current tools 缺 ${runtimeToolAvailability.missingTaskTools.length} 项`}
+                              </Badge>
+                            </div>
+                            {runtimeToolAvailability.known ? (
+                              runtimeToolCapabilityGaps.length > 0 ? (
+                                <div className="rounded-xl border border-dashed border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+                                  <div className="font-medium text-foreground">
+                                    当前 runtime current surface 仍有缺口
+                                  </div>
+                                  <div className="mt-2 space-y-2">
+                                    {runtimeToolCapabilityGaps.map((gap) => (
+                                      <div key={gap.key}>
+                                        <span className="font-medium text-foreground">
+                                          {gap.title}
+                                        </span>
+                                        <span>：</span>
+                                        <span>{gap.missing.join(" / ")}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/60 p-3 text-sm text-emerald-900">
+                                  当前 runtime current surface 已覆盖
+                                  WebSearch、子任务、Team 与 Task 主链。
+                                </div>
+                              )
+                            ) : (
+                              <div className="rounded-xl border border-dashed border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+                                当前 inventory 尚未提供可用 runtime tool
+                                surface，暂时只能回看 registry/raw inventory。
+                              </div>
+                            )}
+                          </div>
+                        ) : null}
+
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="text-sm font-medium text-foreground">
+                              实际 Runtime 工具面
+                            </div>
+                            <Badge variant="secondary">
+                              {runtimeToolVisibleTotal} / {runtimeToolTotal}
+                            </Badge>
+                          </div>
+                          {toolInventoryRuntimeTools.length > 0 ? (
+                            toolInventoryRuntimeTools.map((entry) => (
+                              <div
+                                key={`${entry.source_kind}:${entry.name}`}
+                                className="rounded-xl border border-border bg-background p-3"
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-medium text-foreground">
+                                    {entry.name}
+                                  </span>
+                                  <Badge variant="outline">
+                                    {formatRuntimeToolSourceKindLabel(
+                                      entry.source_kind,
+                                    )}
+                                  </Badge>
+                                  {entry.source_label ? (
+                                    <Badge variant="outline">
+                                      {entry.source_label}
+                                    </Badge>
+                                  ) : null}
+                                  {entry.status ? (
+                                    <Badge variant="outline">
+                                      {entry.status}
+                                    </Badge>
+                                  ) : null}
+                                  {entry.visible_in_context ? (
+                                    <Badge variant="secondary">
+                                      上下文可见
+                                    </Badge>
+                                  ) : null}
+                                  {entry.deferred_loading ? (
+                                    <Badge variant="outline">Deferred</Badge>
+                                  ) : null}
+                                  {!entry.caller_allowed ? (
+                                    <Badge variant="destructive">
+                                      Caller 拒绝
+                                    </Badge>
+                                  ) : null}
+                                  {entry.catalog_entry_name ? (
+                                    <Badge variant="outline">
+                                      映射 {entry.catalog_entry_name}
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  {entry.description}
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                  {entry.allowed_callers.length > 0 ? (
+                                    <Badge variant="outline">
+                                      callers：
+                                      {entry.allowed_callers.join(", ")}
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline">
+                                      callers：全部
+                                    </Badge>
+                                  )}
+                                  {entry.always_visible ? (
+                                    <Badge variant="outline">
+                                      Always Visible
+                                    </Badge>
+                                  ) : null}
+                                  <Badge variant="outline">
+                                    input_examples：
+                                    {entry.input_examples_count}
+                                  </Badge>
+                                  {entry.tags.map((tag) => (
+                                    <Badge
+                                      key={`${entry.name}-${entry.source_kind}-${tag}`}
+                                      variant="outline"
+                                    >
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                              当前尚未构建统一 runtime 工具面。
+                            </div>
+                          )}
+                        </div>
 
                         <div className="space-y-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">

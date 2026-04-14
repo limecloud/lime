@@ -25,6 +25,8 @@ const TOOL_NARRATION_NAVIGATION_RE =
 const TOOL_NARRATION_RESULT_RE =
   /结果如下|结论|我发现|发现了|查到|查到了|显示|表明|说明|意味着|共有|共计|\d+\s*(?:个|条|项|篇|页|处)/i;
 const TOOL_NARRATION_MAX_LENGTH = 120;
+const ASSISTANT_PHASE_SUMMARY_HEADING_RE = /^\s{0,3}#{1,6}\s*阶段结论\s*$/;
+const ASSISTANT_PHASE_SUMMARY_INLINE_RE = /^\s*阶段结论[:：]\s*/;
 
 function collapseDisplayWhitespace(value: string): string {
   return value
@@ -82,6 +84,36 @@ function shouldStripAssistantToolNarration(text: string): boolean {
   );
 }
 
+function stripAssistantPhaseSummaryTitle(text: string): string {
+  const strippedLines: string[] = [];
+  const lines = text.split(/\r?\n/);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] || "";
+    const trimmed = line.trim();
+
+    if (ASSISTANT_PHASE_SUMMARY_HEADING_RE.test(trimmed) || trimmed === "阶段结论") {
+      while (index + 1 < lines.length && !(lines[index + 1] || "").trim()) {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (ASSISTANT_PHASE_SUMMARY_INLINE_RE.test(trimmed)) {
+      const stripped = line.replace(ASSISTANT_PHASE_SUMMARY_INLINE_RE, "");
+      if (!stripped.trim()) {
+        continue;
+      }
+      strippedLines.push(stripped);
+      continue;
+    }
+
+    strippedLines.push(line);
+  }
+
+  return strippedLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function containsInternalImagePlaceholder(text: string): boolean {
   return (
     BRACKET_IMAGE_PLACEHOLDER_TEST_RE.test(text) ||
@@ -121,7 +153,7 @@ export function sanitizeMessageTextForDisplay(
 ): string {
   const normalized =
     options.role === "assistant"
-      ? stripAssistantProtocolResidue(text)
+      ? stripAssistantPhaseSummaryTitle(stripAssistantProtocolResidue(text))
       : text.trim();
   if (!normalized) {
     return "";

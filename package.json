@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "private": true,
-  "version": "1.10.0",
+  "version": "1.11.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
@@ -23,9 +23,9 @@
     "build": "npm run generate:agent-runtime-clients && npm run generate:extension-site-adapters && npm run verify:app-version && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "npm run generate:agent-runtime-clients && npm run generate:extension-site-adapters && CARGO_TARGET_DIR=target tauri dev",
-    "tauri:dev:headless": "npm run generate:agent-runtime-clients && npm run generate:extension-site-adapters && CARGO_TARGET_DIR=target tauri dev --config src-tauri/tauri.conf.headless.json",
-    "tauri:dev:nowatch": "npm run generate:agent-runtime-clients && npm run generate:extension-site-adapters && CARGO_TARGET_DIR=target tauri dev --no-watch",
+    "tauri:dev": "npm run generate:agent-runtime-clients && npm run generate:extension-site-adapters && node scripts/run-tauri-dev.mjs",
+    "tauri:dev:headless": "npm run generate:agent-runtime-clients && npm run generate:extension-site-adapters && node scripts/run-tauri-dev.mjs --headless",
+    "tauri:dev:nowatch": "npm run generate:agent-runtime-clients && npm run generate:extension-site-adapters && node scripts/run-tauri-dev.mjs --no-watch",
     "tauri:dev:profile:trace": "node scripts/run-tauri-profile.mjs trace",
     "tauri:dev:profile:trace:devtools": "node scripts/run-tauri-profile.mjs trace --open-devtools",
     "tauri:dev:profile:trace:headless": "node scripts/run-tauri-profile.mjs trace --headless",
@@ -74,6 +74,7 @@
     "smoke:workspace-ready": "node scripts/workspace-ready-smoke.mjs",
     "smoke:browser-runtime": "node scripts/browser-runtime-smoke.mjs",
     "smoke:site-adapters": "node scripts/site-adapter-catalog-smoke.mjs",
+    "smoke:agent-runtime-tool-surface": "node scripts/agent-runtime-tool-surface-smoke.mjs",
     "smoke:agent-service-skill-entry": "node scripts/agent-service-skill-entry-smoke.mjs",
     "smoke:social-workbench": "node scripts/social-workbench-e2e-smoke.mjs",
     "dev:web-bridge": "node scripts/start-web-bridge-dev.mjs",

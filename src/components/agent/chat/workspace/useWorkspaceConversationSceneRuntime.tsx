@@ -36,7 +36,10 @@ import { WorkspaceConversationScene } from "./WorkspaceConversationScene";
 
 type InputbarScene = Pick<
   ReturnType<typeof useWorkspaceInputbarSceneRuntime>,
-  "inputbarNode" | "generalWorkbenchDialog" | "teamWorkbenchSurfaceProps"
+  | "inputbarNode"
+  | "generalWorkbenchDialog"
+  | "teamWorkbenchSurfaceProps"
+  | "runtimeToolAvailability"
 >;
 type CanvasScene = Pick<
   ReturnType<typeof useWorkspaceCanvasSceneRuntime>,
@@ -295,6 +298,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   pendingActions: ConversationScenePresentationParams["messageList"]["pendingActions"];
   submittedActionsInFlight: ConversationScenePresentationParams["messageList"]["submittedActionsInFlight"];
   queuedTurns: ConversationScenePresentationParams["messageList"]["queuedTurns"];
+  childSubagentSessions?: ConversationScenePresentationParams["messageList"]["childSubagentSessions"];
   isPreparingSend: boolean;
   isSending: ConversationScenePresentationParams["messageList"]["isSending"];
   stopSending: ConversationScenePresentationParams["messageList"]["onInterruptCurrentTurn"];
@@ -424,6 +428,7 @@ export function useWorkspaceConversationSceneRuntime({
   pendingActions = [],
   submittedActionsInFlight,
   queuedTurns = [],
+  childSubagentSessions = [],
   isPreparingSend,
   isSending,
   stopSending,
@@ -718,6 +723,7 @@ export function useWorkspaceConversationSceneRuntime({
       setAccessMode,
       onManageProviders: navigationActions.handleManageProviders,
       toolPreferences: chatToolPreferences,
+      runtimeToolAvailability: inputbarScene.runtimeToolAvailability,
       onToolPreferenceChange: (key, enabled) =>
         setChatToolPreferences((previous) => ({
           ...previous,
@@ -811,6 +817,7 @@ export function useWorkspaceConversationSceneRuntime({
       pendingActions,
       submittedActionsInFlight,
       queuedTurns,
+      childSubagentSessions,
       isRestoringSession: isAutoRestoringSession,
       isSending,
       onInterruptCurrentTurn: stopSending,

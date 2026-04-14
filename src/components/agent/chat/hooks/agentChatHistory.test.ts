@@ -189,6 +189,58 @@ describe("agentChatHistory", () => {
     });
   });
 
+  it("合并相邻 assistant 历史消息时也应保留最后一条 usage", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-adjacent-usage",
+      created_at: 1,
+      updated_at: 2,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1710000300,
+          content: [{ type: "text", text: "帮我分析这个仓库" } as never],
+        },
+        {
+          role: "assistant",
+          timestamp: 1710000301,
+          content: [
+            { type: "output_text", text: "我先做一次轻量侦查。" } as never,
+          ],
+        },
+        {
+          role: "assistant",
+          timestamp: 1710000302,
+          content: [
+            { type: "output_text", text: "## 阶段结论\n\n已经找到关键线索。" } as never,
+          ],
+          usage: {
+            input_tokens: 38483,
+            output_tokens: 2406,
+            cached_input_tokens: 36976,
+            cache_creation_input_tokens: 0,
+          },
+        },
+      ],
+    };
+
+    const messages = hydrateSessionDetailMessages(
+      detail,
+      "session-adjacent-usage",
+    );
+
+    expect(messages).toHaveLength(2);
+    expect(messages[1]?.role).toBe("assistant");
+    expect(messages[1]?.content).toContain("我先做一次轻量侦查。");
+    expect(messages[1]?.content).toContain("已经找到关键线索。");
+    expect(messages[1]?.content).not.toContain("阶段结论");
+    expect(messages[1]?.usage).toEqual({
+      input_tokens: 38483,
+      output_tokens: 2406,
+      cached_input_tokens: 36976,
+      cache_creation_input_tokens: 0,
+    });
+  });
+
   it("应从历史 tool_response 恢复图片任务预览，并保留同一任务的连续 assistant 轨迹", () => {
     const detail: AsterSessionDetail = {
       id: "session-history-image-task-preview",
@@ -552,15 +604,13 @@ describe("agentChatHistory", () => {
       hydratedMessages,
     );
 
-    expect(mergedMessages[1]?.thinkingContent).toBe(
-      "先打开页面，再抓取正文和图片。",
-    );
-    expect(
-      mergedMessages[1]?.contentParts?.some(
-        (part) =>
-          part.type === "tool_use" && part.toolCall.id === "tool-site-1",
-      ),
-    ).toBe(true);
+    expect(mergedMessages[1]?.thinkingContent).toBeUndefined();
+    expect(mergedMessages[1]?.contentParts).toEqual([
+      {
+        type: "text",
+        text: "内容已保存到项目目录。",
+      },
+    ]);
     expect(mergedMessages[1]?.toolCalls?.[0]).toMatchObject({
       id: "tool-site-1",
       status: "completed",

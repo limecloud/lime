@@ -70,6 +70,19 @@ afterEach(() => {
 });
 
 describe("InlineToolProcessStep", () => {
+  it("运行中的读取工具应展示前置意图摘要", () => {
+    const { container } = renderTool({
+      id: "tool-read-running-1",
+      name: "Read",
+      arguments: JSON.stringify({ file_path: "src/app.tsx" }),
+      status: "running",
+      startTime: new Date("2026-04-13T09:58:00.000Z"),
+    });
+
+    expect(container.textContent).toContain("先查看 app.tsx");
+    expect(container.textContent).not.toContain("执行完成");
+  });
+
   it("ToolSearch 在流式阶段应保持结构化预览，不自动展开原始 JSON", () => {
     const { container } = renderTool(
       {
@@ -92,7 +105,9 @@ describe("InlineToolProcessStep", () => {
       { isMessageStreaming: true },
     );
 
-    expect(container.textContent).toContain("找到工具 2 个");
+    expect(container.textContent).toContain("已确认可用工具 2 个");
+    expect(container.textContent).toContain("查看文件");
+    expect(container.textContent).toContain("保存文件");
     expect(container.textContent).not.toContain("查询：");
     expect(container.textContent).not.toContain("select:Read,Write");
     expect(
@@ -100,6 +115,78 @@ describe("InlineToolProcessStep", () => {
     ).toBeNull();
     expect(container.querySelector('[data-testid="markdown-renderer"]')).toBeNull();
     expect(container.textContent).not.toContain('"tools"');
+  });
+
+  it("超长工具结果在流式阶段应默认收起原始详情", () => {
+    const { container } = renderTool(
+      {
+        id: "tool-read-large-streaming-1",
+        name: "Read",
+        arguments: JSON.stringify({ file_path: "src/main.ts" }),
+        status: "completed",
+        result: {
+          success: true,
+          output: "A".repeat(1600),
+        },
+        startTime: new Date("2026-04-13T10:05:00.000Z"),
+        endTime: new Date("2026-04-13T10:05:01.000Z"),
+      },
+      { isMessageStreaming: true },
+    );
+
+    expect(container.textContent).toContain("已查看 main.ts");
+    expect(container.querySelector('[data-testid="markdown-renderer"]')).toBeNull();
+  });
+
+  it("工具详情遇到伪标签输出时应先转义再渲染", () => {
+    const { container } = renderTool({
+      id: "tool-bash-ink-tags-1",
+      name: "Bash",
+      arguments: JSON.stringify({ command: "echo demo" }),
+      status: "completed",
+      result: {
+        success: true,
+        output: "<text>正在整理</text>\n<spinner />",
+      },
+      startTime: new Date("2026-04-13T10:07:00.000Z"),
+      endTime: new Date("2026-04-13T10:07:01.000Z"),
+    });
+
+    act(() => {
+      const toggle = container.querySelector(
+        'button[title="展开过程详情"]',
+      ) as HTMLButtonElement | null;
+      toggle?.click();
+    });
+
+    expect(container.textContent).toContain("&lt;text&gt;正在整理&lt;/text&gt;");
+    expect(container.textContent).toContain("&lt;spinner /&gt;");
+  });
+
+  it("工具详情遇到 TypeScript 尖括号语法时也应转义再渲染", () => {
+    const { container } = renderTool({
+      id: "tool-read-typescript-tags-1",
+      name: "Read",
+      arguments: JSON.stringify({ file_path: "src/schema.ts" }),
+      status: "completed",
+      result: {
+        success: true,
+        output:
+          "type OutputSchema<T> = keyof T\ncontentBlockParam: ContentBlockParam<typeof schema>",
+      },
+      startTime: new Date("2026-04-13T10:08:00.000Z"),
+      endTime: new Date("2026-04-13T10:08:01.000Z"),
+    });
+
+    act(() => {
+      const toggle = container.querySelector(
+        'button[title="展开过程详情"]',
+      ) as HTMLButtonElement | null;
+      toggle?.click();
+    });
+
+    expect(container.textContent).toContain("&lt;T&gt;");
+    expect(container.textContent).toContain("&lt;typeof schema&gt;");
   });
 
   it("ToolSearch 展开后应展示结构化工具摘要，而不是原始 JSON", () => {
@@ -144,6 +231,7 @@ describe("InlineToolProcessStep", () => {
     expect(
       container.querySelector('[data-testid="inline-tool-process-tool-search-result"]'),
     ).not.toBeNull();
+    expect(container.textContent).toContain("已确认可用工具 2 个");
     expect(container.textContent).toContain("找到工具：2 个");
     expect(container.textContent).toContain("查看文件");
     expect(container.textContent).toContain("保存文件");

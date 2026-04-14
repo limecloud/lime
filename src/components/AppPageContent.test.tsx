@@ -17,6 +17,12 @@ const latestSkillsWorkspaceProps = vi.hoisted(
       value: null as Record<string, unknown> | null,
     }) as { value: Record<string, unknown> | null },
 );
+const latestMemoryPageProps = vi.hoisted(
+  () =>
+    ({
+      value: null as Record<string, unknown> | null,
+    }) as { value: Record<string, unknown> | null },
+);
 
 vi.mock("./agent/chat", () => ({
   AgentChatPage: (props: Record<string, unknown>) => {
@@ -37,6 +43,13 @@ vi.mock("./skills", () => ({
   SkillsWorkspacePage: (props: Record<string, unknown>) => {
     latestSkillsWorkspaceProps.value = props;
     return <div data-testid="skills-workspace-page" />;
+  },
+}));
+
+vi.mock("./memory", () => ({
+  MemoryPage: (props: Record<string, unknown>) => {
+    latestMemoryPageProps.value = props;
+    return <div data-testid="memory-page" />;
   },
 }));
 
@@ -82,6 +95,7 @@ describe("AppPageContent", () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     latestAgentChatProps.value = null;
     latestSkillsWorkspaceProps.value = null;
+    latestMemoryPageProps.value = null;
   });
 
   afterEach(() => {
@@ -246,5 +260,24 @@ describe("AppPageContent", () => {
         initialScaffoldRequestKey: 20260408,
       },
     });
+  });
+
+  it("memory 页面应把记忆页挂进可滚动容器", async () => {
+    const container = renderContent("memory", {
+      section: "home",
+    });
+    await flushEffects();
+
+    const memoryPage = container.querySelector('[data-testid="memory-page"]');
+
+    expect(memoryPage).not.toBeNull();
+    expect(latestMemoryPageProps.value).toMatchObject({
+      pageParams: {
+        section: "home",
+      },
+    });
+    expect(memoryPage?.parentElement?.className).toContain("overflow-auto");
+    expect(memoryPage?.parentElement?.className).toContain("min-h-0");
+    expect(memoryPage?.parentElement?.className).toContain("flex-1");
   });
 });

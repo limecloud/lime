@@ -3,6 +3,7 @@ use super::*;
 pub(crate) struct ToolSearchBridgeTool {
     registry: Arc<tokio::sync::RwLock<aster::tools::ToolRegistry>>,
     extension_manager: Option<Arc<aster::agents::extension_manager::ExtensionManager>>,
+    state: Option<AsterAgentState>,
 }
 
 impl ToolSearchBridgeTool {
@@ -13,6 +14,19 @@ impl ToolSearchBridgeTool {
         Self {
             registry,
             extension_manager,
+            state: None,
+        }
+    }
+
+    pub(crate) fn with_state(mut self, state: AsterAgentState) -> Self {
+        self.state = Some(state);
+        self
+    }
+
+    fn with_state_if_some(self, state: Option<AsterAgentState>) -> Self {
+        match state {
+            Some(state) => self.with_state(state),
+            None => self,
         }
     }
 
@@ -135,6 +149,29 @@ impl ToolSearchBridgeTool {
             "未命中任何工具。优先直接调用当前可见的原生工具，或补充更明确的产品域关键词；不要继续用 ToolSearch 反复改写同义词。".to_string(),
         ]
     }
+
+    async fn collect_runtime_definitions(&self) -> Vec<aster::tools::ToolDefinition> {
+        let mut definitions = {
+            let registry = self.registry.read().await;
+            registry.get_definitions()
+        };
+
+        let Some(state) = self.state.as_ref() else {
+            return definitions;
+        };
+
+        let existing_names = definitions
+            .iter()
+            .map(|definition| definition.name.clone())
+            .collect::<HashSet<_>>();
+        let current_surface_definitions = super::list_current_surface_tool_definitions(state).await;
+        definitions.extend(
+            current_surface_definitions
+                .into_iter()
+                .filter(|definition| !existing_names.contains(&definition.name)),
+        );
+        definitions
+    }
 }
 
 #[async_trait]
@@ -204,8 +241,7 @@ impl Tool for ToolSearchBridgeTool {
             .unwrap_or(10);
         let select_requested = Self::parse_select_query(&raw_query);
 
-        let registry = self.registry.read().await;
-        let definitions = registry.get_definitions();
+        let definitions = self.collect_runtime_definitions().await;
 
         let mut scored = definitions
             .into_iter()
@@ -267,8 +303,6 @@ impl Tool for ToolSearchBridgeTool {
                 Some((score, item))
             })
             .collect::<Vec<_>>();
-
-        drop(registry);
 
         if let Some(extension_manager) = self.extension_manager.as_ref() {
             let visible_extension_tools = extension_manager
@@ -377,13 +411,13 @@ pub(crate) fn register_tool_search_tool_to_registry(
     registry: &mut aster::tools::ToolRegistry,
     registry_arc: Arc<tokio::sync::RwLock<aster::tools::ToolRegistry>>,
     extension_manager: Option<Arc<aster::agents::extension_manager::ExtensionManager>>,
+    state: Option<AsterAgentState>,
 ) {
     // Lime runtime 里的 ToolSearch 事实源是 bridge 实现。
     // 这里始终重新注册，确保旧 aster ToolSearch 不会抢占当前 surface。
-    registry.register(Box::new(ToolSearchBridgeTool::new(
-        registry_arc,
-        extension_manager,
-    )));
+    registry.register(Box::new(
+        ToolSearchBridgeTool::new(registry_arc, extension_manager).with_state_if_some(state),
+    ));
 }
 
 pub(crate) async fn ensure_tool_search_tool_registered(
@@ -391,6 +425,11 @@ pub(crate) async fn ensure_tool_search_tool_registered(
 ) -> Result<(), String> {
     let (registry_arc, extension_manager) = resolve_agent_registry(state).await?;
     let mut registry = registry_arc.write().await;
-    register_tool_search_tool_to_registry(&mut registry, registry_arc.clone(), extension_manager);
+    register_tool_search_tool_to_registry(
+        &mut registry,
+        registry_arc.clone(),
+        extension_manager,
+        Some(state.clone()),
+    );
     Ok(())
 }

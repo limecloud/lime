@@ -10,6 +10,8 @@ import {
   resolveUserFacingToolDisplayLabel,
 } from "./toolDisplayInfo";
 import { isInternalRoutingTurnSummaryText } from "./turnSummaryPresentation";
+import { summarizeThreadProcessBatch } from "./toolBatchGrouping";
+import { resolveAgentThreadToolProcessPreview } from "./toolProcessSummary";
 
 export type AgentThreadGroupKind =
   | "process"
@@ -775,6 +777,16 @@ function summarizeGroupPreviewLine(
   switch (kind) {
     case "process":
       if (
+        item.type === "tool_call" ||
+        item.type === "command_execution" ||
+        item.type === "web_search"
+      ) {
+        const processPreview = resolveAgentThreadToolProcessPreview(item);
+        if (processPreview) {
+          return processPreview;
+        }
+      }
+      if (
         item.type === "plan" ||
         item.type === "reasoning" ||
         item.type === "turn_summary" ||
@@ -920,25 +932,34 @@ export function buildAgentThreadDisplayModel(
     }
 
     const status = mergeStatuses(current.items.map((entry) => entry.status));
+    const processBatchSummary =
+      current.kind === "process"
+        ? summarizeThreadProcessBatch(current.items)
+        : null;
     const startedAt =
       current.items[0]?.started_at || current.items[0]?.updated_at || "";
     const completedAt = current.items[current.items.length - 1]?.completed_at;
     const block: AgentThreadOrderedBlock = {
       id: current.items.map((entry) => entry.id).join(":"),
       kind: current.kind,
-      title: resolveBlockTitle(current.kind),
+      title: processBatchSummary?.title || resolveBlockTitle(current.kind),
       status,
       items: current.items,
-      previewLines: buildPreviewLines(current.kind, current.items),
-      countLabel: resolveCountLabel(current.kind, current.items.length),
+      previewLines:
+        processBatchSummary?.supportingLines ||
+        buildPreviewLines(current.kind, current.items),
+      countLabel:
+        processBatchSummary?.countLabel ||
+        resolveCountLabel(current.kind, current.items.length),
       rawDetailLabel:
-        current.kind === "approval"
+        processBatchSummary?.rawDetailLabel ||
+        (current.kind === "approval"
           ? "查看待处理项"
           : current.kind === "artifact"
             ? "查看产物"
             : current.kind === "subagent"
               ? "查看子任务详情"
-              : "查看执行过程",
+              : "查看执行过程"),
       defaultExpanded: shouldDefaultExpand(current.kind, status),
       startedAt,
       completedAt,

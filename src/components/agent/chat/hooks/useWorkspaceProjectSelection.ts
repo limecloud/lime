@@ -1,5 +1,8 @@
 import { useCallback, useRef, useState } from "react";
-import { normalizeProjectId } from "../utils/topicProjectResolution";
+import {
+  isLegacyDefaultProjectId,
+  normalizeProjectId,
+} from "../utils/topicProjectResolution";
 import {
   LAST_PROJECT_ID_KEY,
   loadPersistedProjectId,
@@ -26,9 +29,19 @@ export function useWorkspaceProjectSelection(
     newChatAt,
     storageKey = LAST_PROJECT_ID_KEY,
   } = options;
-  const normalizedExternalProjectId = normalizeProjectId(externalProjectId);
+  const normalizedExternalProjectId = isLegacyDefaultProjectId(
+    externalProjectId,
+  )
+    ? null
+    : normalizeProjectId(externalProjectId);
+  const loadRememberedProjectId = useCallback(() => {
+    const rememberedProjectId = loadPersistedProjectId(storageKey);
+    return isLegacyDefaultProjectId(rememberedProjectId)
+      ? null
+      : rememberedProjectId;
+  }, [storageKey]);
   const [internalProjectId, setInternalProjectId] = useState<string | null>(
-    null,
+    () => normalizedExternalProjectId ?? loadRememberedProjectId(),
   );
   const handledNewChatRequestRef = useRef<string | null>(null);
   const pendingTopicSwitchRef = useRef<PendingTopicSwitchState | null>(null);
@@ -153,8 +166,8 @@ export function useWorkspaceProjectSelection(
   );
 
   const getRememberedProjectId = useCallback(
-    () => loadPersistedProjectId(storageKey),
-    [storageKey],
+    () => loadRememberedProjectId(),
+    [loadRememberedProjectId],
   );
 
   return {

@@ -2,7 +2,7 @@
 
 > 状态：进行中，block renderer 映射、current-first 协议读取、Markdown / HTML / JSON 桌面导出主链已落地，完整导出态仍未完成  
 > 更新时间：2026-03-31  
-> 运行时边界：turn metadata、prompt 组装入口、runtime output schema 注入链以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准；本文只定义 `ArtifactDocument v1` 的产品层协议与校验映射  
+> 运行时边界：turn metadata、prompt 组装入口、runtime output schema 注入链以 `docs/aiprompts/query-loop.md`、`docs/aiprompts/state-history-telemetry.md` 与 `docs/exec-plans/upstream-runtime-alignment-plan.md` 为准；本文只定义 `ArtifactDocument v1` 的产品层协议与校验映射  
 > 依赖文档：`docs/roadmap/artifacts/roadmap.md`  
 > 架构蓝图：`docs/roadmap/artifacts/architecture-blueprint.md`  
 > 分层边界：`docs/roadmap/artifacts/framework-boundary.md`  
@@ -711,7 +711,7 @@ validator 失败时，不应直接放弃整份文档。
 - “turn metadata 如何归一化”
 - “output schema 在哪里注入”
 
-这些执行层问题仍以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准。
+这些执行层问题仍以上述 current 入口为准。
 
 系统提示词应增加以下硬约束：
 

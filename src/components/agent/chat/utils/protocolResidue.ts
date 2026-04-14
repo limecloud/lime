@@ -13,6 +13,9 @@ const INTERNAL_PROTOCOL_PARAGRAPH_PATTERNS = [
   /\bselect:\s*structuredoutput\b/i,
   /\bfinal[_\s-]*response\b.*\bsubmit\b.*\bresponse\b/i,
   /\boutput\b.*\bfinal\b.*\bdeliver\b.*\bartifact\b.*\bdocument\b/i,
+  /^(?:请继续[。.]?\s*)?你上一条回复没有输出任何内容[。.]?/,
+  /^(?:请继续[。.]?\s*)?你上一条回复还是中间过程结论，不是最终答复[。.]?/,
+  /^上一条回复已经是完整结论(?:了)?[，,]\s*不是中间过程(?:[。.,，]\s*我已经基于足够的(?:代码)?证据给出了[:：]?)?/,
 ] as const;
 const INTERNAL_PROTOCOL_LINE_PATTERNS = [
   /^structuredoutput$/i,
@@ -21,7 +24,19 @@ const INTERNAL_PROTOCOL_LINE_PATTERNS = [
   /^final output tool$/i,
   /^deliver artifact document$/i,
   /^output final deliver artifact document$/i,
+  /^请继续[。.]?$/,
+  /^你上一条回复没有输出任何内容[。.]?$/,
+  /^你上一条回复还是中间过程结论，不是最终答复[。.]?$/,
+  /^上一条回复已经是完整结论(?:了)?[，,]\s*不是中间过程[。.]?$/,
+  /^我已经基于足够的(?:代码)?证据给出了[:：]?$/,
 ] as const;
+const INTERNAL_PROTOCOL_PARAGRAPH_PREFIX_PATTERNS = [
+  /^(?:请继续[。.]?\s*)?你上一条回复没有输出任何内容[。.]?/,
+  /^(?:请继续[。.]?\s*)?你上一条回复还是中间过程结论，不是最终答复[。.]?/,
+  /^上一条回复已经是完整结论(?:了)?[，,]\s*不是中间过程(?:[。.,，]\s*我已经基于足够的(?:代码)?证据给出了[:：]?)?/,
+] as const;
+const INTERNAL_CONTINUATION_LIST_LINE_RE =
+  /^(?:[-*•]\s+|\d+[.)]\s+|项目概览$|\d+\s*个对标优化点$|\d+\s*阶段行动路线$)/;
 
 function isLikelyProviderTraceJsonLine(line: string): boolean {
   const normalized = line.trim();
@@ -90,6 +105,19 @@ function isAssistantProtocolResidueParagraph(paragraph: string): boolean {
     return false;
   }
 
+  const firstLine = normalized
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (
+    firstLine &&
+    INTERNAL_PROTOCOL_PARAGRAPH_PREFIX_PATTERNS.some((pattern) =>
+      pattern.test(firstLine),
+    )
+  ) {
+    return true;
+  }
+
   if (
     INTERNAL_PROTOCOL_PARAGRAPH_PATTERNS.some((pattern) =>
       pattern.test(normalized),
@@ -117,6 +145,47 @@ function normalizeProtocolStripWhitespace(text: string): string {
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function stripInternalContinuationResidue(text: string): string {
+  if (!text) {
+    return "";
+  }
+
+  const lines = text.split(/\r?\n/);
+  const keptLines: string[] = [];
+  let skippingContinuationBlock = false;
+
+  for (const line of lines) {
+    const normalized = line.trim();
+
+    if (
+      INTERNAL_PROTOCOL_PARAGRAPH_PREFIX_PATTERNS.some((pattern) =>
+        pattern.test(normalized),
+      )
+    ) {
+      skippingContinuationBlock = true;
+      continue;
+    }
+
+    if (!skippingContinuationBlock) {
+      keptLines.push(line);
+      continue;
+    }
+
+    if (
+      !normalized ||
+      INTERNAL_CONTINUATION_LIST_LINE_RE.test(normalized) ||
+      INTERNAL_PROTOCOL_LINE_PATTERNS.some((pattern) => pattern.test(normalized))
+    ) {
+      continue;
+    }
+
+    skippingContinuationBlock = false;
+    keptLines.push(line);
+  }
+
+  return normalizeProtocolStripWhitespace(keptLines.join("\n"));
 }
 
 function stripProviderTraceResidue(text: string): string {
@@ -219,7 +288,13 @@ export function stripAssistantProtocolResidue(text: string): string {
   }
 
   const withoutProviderTrace = stripProviderTraceResidue(text);
-  const withoutBlocks = withoutProviderTrace.replace(TOOL_PROTOCOL_BLOCK_RE, "\n");
+  const withoutInternalContinuation = stripInternalContinuationResidue(
+    withoutProviderTrace,
+  );
+  const withoutBlocks = withoutInternalContinuation.replace(
+    TOOL_PROTOCOL_BLOCK_RE,
+    "\n",
+  );
   const withoutTags = withoutBlocks.replace(TOOL_PROTOCOL_TAG_RE, "\n");
   const sanitizedParagraphs = withoutTags
     .split(/\n{2,}/)

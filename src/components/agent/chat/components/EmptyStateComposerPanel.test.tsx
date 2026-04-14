@@ -249,6 +249,25 @@ function expandAdvancedControls(container: HTMLDivElement) {
 }
 
 describe("EmptyStateComposerPanel", () => {
+  it("已开启的偏好若缺少 runtime current tools，也不应再显示页级告警", () => {
+    const container = renderPanel({
+      isGeneralTheme: true,
+      webSearchEnabled: true,
+      subagentEnabled: true,
+    });
+
+    expect(
+      container.querySelector('[data-testid="empty-state-runtime-tool-warning"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("当前 runtime tool surface");
+    expect(container.textContent).not.toContain(
+      "联网搜索偏好本轮可能不会生效",
+    );
+    expect(container.textContent).not.toContain(
+      "任务拆分偏好本轮可能不会完全生效",
+    );
+  });
+
   it("首页空态输入区默认隐藏技能入口，展开高级设置后与 @ 面板共用同一技能入口", () => {
     const container = renderPanel({
       isGeneralTheme: true,
@@ -387,8 +406,11 @@ describe("EmptyStateComposerPanel", () => {
       onSubagentEnabledChange,
     });
 
-    expect(container.textContent).toContain("当前任务更适合分工推进");
-    expect(container.textContent).toContain("建议角色：分析");
+    const suggestionBar = container.querySelector(
+      '[data-testid="team-suggestion-bar"]',
+    );
+    expect(suggestionBar).toBeTruthy();
+    expect(suggestionBar?.textContent).toContain("分工建议");
 
     const enableTeamButton = Array.from(
       container.querySelectorAll("button"),
@@ -423,7 +445,9 @@ describe("EmptyStateComposerPanel", () => {
       continueButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.textContent).not.toContain("当前任务更适合分工推进");
+    expect(
+      container.querySelector('[data-testid="team-suggestion-bar"]'),
+    ).toBeNull();
   });
 
   it("开启 Team mode 后应显示 TeamSelector", () => {
@@ -616,7 +640,11 @@ describe("EmptyStateComposerPanel", () => {
     ).toBeNull();
     expect(enableButton).toBeTruthy();
     expect(enableButton?.textContent).toContain("启用任务分工");
-    expect(container.textContent).toContain("当前任务更适合分工推进");
+    const suggestionBar = container.querySelector(
+      '[data-testid="team-suggestion-bar"]',
+    );
+    expect(suggestionBar).toBeTruthy();
+    expect(suggestionBar?.textContent).toContain("分工建议");
   });
 
   it("折叠态应保留当前模型轻提示，展开高级设置后再允许修改", () => {

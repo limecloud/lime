@@ -152,6 +152,35 @@ Lime 的命令体系固定按以下关系理解：
 
 ## 四种产品分型
 
+先固定一个边界：
+
+下面这四种分型回答的是：
+
+**这个能力在产品面属于什么类型。**
+
+它们不回答：
+
+**这个 skill / scene 内部是按 `Pipeline`、`Inversion`、`Generator`、`Tool Wrapper` 还是 `Reviewer` 组织的。**
+
+也就是说，后续新增命令或 SceneApp 时，至少要做三次分类：
+
+1. **产品分型**
+   - `Agent + Task`
+   - `Agent + ServiceSkill`
+   - `Agent + Workflow`
+   - `Agent + Prompt`
+2. **SceneApp 运行形态与基础设施画像**
+   - `sceneapp_type`
+   - `infra_profile`
+3. **编排模式分型**
+   - `Pipeline`
+   - `Inversion`
+   - `Generator`
+   - `Tool Wrapper`
+   - `Reviewer`
+
+同一个产品分型可以搭配不同的 `SceneApp` 运行形态、基础设施画像与模式组合。
+
 新增命令前，必须先判断它属于哪一种产品分型：
 
 ### 1. `Agent + Task`
@@ -173,6 +202,11 @@ Lime 的命令体系固定按以下关系理解：
 - 耗时
 - 可恢复
 - 有结构化结果
+
+常见模式组合：
+
+- `Pipeline + Generator`
+- `Pipeline + Tool Wrapper`
 
 其中图片类能力当前已经有额外运行时纪律：
 
@@ -205,6 +239,14 @@ Lime 的命令体系固定按以下关系理解：
 - 有 slot schema
 - 有 run / delivery / managed 语义
 
+常见模式组合：
+
+- 主模式优先用 `Pipeline`
+- 缺参或权限门禁叠加 `Inversion`
+- 结果要稳定落文稿时叠加 `Generator`
+- 依赖站点、浏览器、服务端能力时叠加 `Tool Wrapper`
+- 发布前复核或质量守门再按需叠加 `Reviewer`
+
 当前客户端第一刀收口规则：
 
 - `/scene-key` 不再直接落回本地 slash skill 预处理
@@ -227,6 +269,11 @@ Lime 的命令体系固定按以下关系理解：
 - 更像打开一个工作区或会话型工作流
 - 不一定需要独立异步任务协议
 
+常见模式组合：
+
+- `Pipeline`
+- `Pipeline + Inversion`
+
 ### 4. `Agent + Prompt`
 
 适合：
@@ -246,6 +293,12 @@ Lime 的命令体系固定按以下关系理解：
 - 保留真实 skills / tools timeline
 - 可以先不独立恢复
 - 后续可升级为更重的形态
+
+常见模式组合：
+
+- `Tool Wrapper`
+- `Reviewer`
+- `Inversion + Generator`
 
 当前 `@搜索` 已按这条主链收口：
 
@@ -367,7 +420,25 @@ Lime 的命令体系固定按以下关系理解：
 
 如果这一步说不清，禁止直接开始实现。
 
-### 2. 先判 binding family 和 executor kind
+### 2. 再补 SceneApp 设计卡
+
+至少要明确：
+
+- `sceneapp_type`
+- `pattern_primary`
+- `pattern_stack`
+- `infra_profile`
+- `execution_entity`
+- `delivery_contract`
+
+固定要求：
+
+- `sceneapp_type` 回答它主要是本地即时、本地 durable、浏览器依赖、云端托管还是混合型
+- `pattern_primary / pattern_stack` 回答它内部怎么组织逻辑
+- `infra_profile` 回答它到底用了浏览器、server skill、CLI、schedule、db、markdown 还是 json
+- 如果这一卡片写不出来，说明这个命令还没被真正设计清楚
+
+### 3. 再判 binding family 和 executor kind
 
 至少要明确：
 
@@ -376,7 +447,7 @@ Lime 的命令体系固定按以下关系理解：
 - 如果涉及 `skill`，背后是 CLI、API 还是 hybrid
 - 底层 truth source 是什么
 
-### 2.5 先判目录来源与兜底策略
+### 4. 再判目录来源与兜底策略
 
 至少要明确：
 
@@ -386,10 +457,11 @@ Lime 的命令体系固定按以下关系理解：
 - 服务端未返回该目录项时，客户端如何回退
 - 如果这项能力依赖新 render type，Lime 当前是否已经支持
 
-### 3. 先补方案包
+### 5. 再补方案包
 
 方案包至少要回答：
 
+- `SceneApp` 设计卡怎么填
 - Agent 如何判断
 - 如何补参
 - 目录项由谁下发，客户端如何兜底
@@ -400,7 +472,7 @@ Lime 的命令体系固定按以下关系理解：
 - Rust / Tauri 改哪里
 - 哪些路径是 current，哪些只是 compat
 
-### 4. 再进入实现
+### 6. 再进入实现
 
 实现时优先遵守：
 
@@ -409,7 +481,7 @@ Lime 的命令体系固定按以下关系理解：
 - viewer 只吃统一 snapshot
 - 结果卡与 viewer 语义保持一致
 
-### 5. 实现后回挂
+### 7. 实现后回挂
 
 实现完成后，要回写：
 

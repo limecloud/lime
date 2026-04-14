@@ -2,7 +2,9 @@ use super::{
     args_or_default, get_string_arg, workspace_manager, DynError, PathBuf, WorkspaceListItem,
 };
 use crate::dev_bridge::DevBridgeState;
-use crate::workspace_support::{get_workspace_projects_root_dir, sanitize_project_dir_name};
+use crate::workspace_support::{
+    get_current_default_project, get_workspace_projects_root_dir, sanitize_project_dir_name,
+};
 use serde_json::Value as JsonValue;
 
 pub(super) fn try_handle(
@@ -28,7 +30,9 @@ pub(super) fn try_handle(
         }
         "workspace_get_default" => {
             let manager = workspace_manager(state)?;
-            serde_json::to_value(manager.get_default()?.map(WorkspaceListItem::from))?
+            serde_json::to_value(
+                get_current_default_project(&manager)?.map(WorkspaceListItem::from),
+            )?
         }
         "workspace_get_by_path" => {
             let args = args_or_default(args);

@@ -15,7 +15,7 @@ use super::context::{ToolContext, ToolResult};
 use super::error::ToolError;
 use async_trait::async_trait;
 use lru::LruCache;
-use reqwest::Client;
+use reqwest::{redirect::Policy, Client};
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -30,12 +30,104 @@ const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024;
 const DEFAULT_WEB_FETCH_MAX_CHARS: usize = 100_000;
 const DEFAULT_DYNAMIC_FILTER_MAX_CHARS: usize = 20_000;
 const DEFAULT_DYNAMIC_FILTER_MAX_CHUNKS: usize = 8;
+const MAX_WEB_FETCH_REDIRECTS: usize = 10;
 
 /// WebFetch 缓存 TTL (15分钟)
 const WEB_FETCH_CACHE_TTL: Duration = Duration::from_secs(15 * 60);
 
 /// WebSearch 缓存 TTL (1小时)
 const WEB_SEARCH_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
+
+const WEB_FETCH_PREAPPROVED_HOSTS: &[&str] = &[
+    "platform.claude.com",
+    "code.claude.com",
+    "modelcontextprotocol.io",
+    "github.com/anthropics",
+    "agentskills.io",
+    "docs.python.org",
+    "en.cppreference.com",
+    "docs.oracle.com",
+    "learn.microsoft.com",
+    "developer.mozilla.org",
+    "go.dev",
+    "pkg.go.dev",
+    "www.php.net",
+    "docs.swift.org",
+    "kotlinlang.org",
+    "ruby-doc.org",
+    "doc.rust-lang.org",
+    "www.typescriptlang.org",
+    "react.dev",
+    "angular.io",
+    "vuejs.org",
+    "nextjs.org",
+    "expressjs.com",
+    "nodejs.org",
+    "bun.sh",
+    "jquery.com",
+    "getbootstrap.com",
+    "tailwindcss.com",
+    "d3js.org",
+    "threejs.org",
+    "redux.js.org",
+    "webpack.js.org",
+    "jestjs.io",
+    "reactrouter.com",
+    "docs.djangoproject.com",
+    "flask.palletsprojects.com",
+    "fastapi.tiangolo.com",
+    "pandas.pydata.org",
+    "numpy.org",
+    "www.tensorflow.org",
+    "pytorch.org",
+    "scikit-learn.org",
+    "matplotlib.org",
+    "requests.readthedocs.io",
+    "jupyter.org",
+    "laravel.com",
+    "symfony.com",
+    "wordpress.org",
+    "docs.spring.io",
+    "hibernate.org",
+    "tomcat.apache.org",
+    "gradle.org",
+    "maven.apache.org",
+    "asp.net",
+    "dotnet.microsoft.com",
+    "nuget.org",
+    "blazor.net",
+    "reactnative.dev",
+    "docs.flutter.dev",
+    "developer.apple.com",
+    "developer.android.com",
+    "keras.io",
+    "spark.apache.org",
+    "huggingface.co",
+    "www.kaggle.com",
+    "www.mongodb.com",
+    "redis.io",
+    "www.postgresql.org",
+    "dev.mysql.com",
+    "www.sqlite.org",
+    "graphql.org",
+    "prisma.io",
+    "docs.aws.amazon.com",
+    "cloud.google.com",
+    "kubernetes.io",
+    "www.docker.com",
+    "www.terraform.io",
+    "www.ansible.com",
+    "vercel.com/docs",
+    "docs.netlify.com",
+    "devcenter.heroku.com",
+    "cypress.io",
+    "selenium.dev",
+    "docs.unity.com",
+    "docs.unrealengine.com",
+    "git-scm.com",
+    "nginx.org",
+    "httpd.apache.org",
+];
 
 /// 缓存内容结构
 #[derive(Debug, Clone)]
@@ -542,6 +634,96 @@ pub struct WebSearchInput {
     pub blocked_domains: Option<Vec<String>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WebFetchOutput {
+    bytes: usize,
+    code: u16,
+    code_text: String,
+    result: String,
+    duration_ms: u64,
+    url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct WebSearchHit {
+    title: String,
+    url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct WebSearchResultBlock {
+    tool_use_id: String,
+    content: Vec<WebSearchHit>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+enum WebSearchOutputEntry {
+    Result(WebSearchResultBlock),
+    Text(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WebSearchOutput {
+    query: String,
+    results: Vec<WebSearchOutputEntry>,
+    duration_seconds: f64,
+}
+
+#[derive(Debug, Clone)]
+enum WebFetchResponse {
+    Content {
+        content: String,
+        content_type: String,
+        status_code: u16,
+    },
+    Redirect {
+        original_url: String,
+        redirect_url: String,
+        status_code: u16,
+    },
+}
+
+fn is_preapproved_web_fetch_host(hostname: &str, pathname: &str) -> bool {
+    for entry in WEB_FETCH_PREAPPROVED_HOSTS {
+        if let Some((host, path_prefix)) = entry.split_once('/') {
+            if hostname == host
+                && (pathname == format!("/{path_prefix}")
+                    || pathname.starts_with(&format!("/{path_prefix}/")))
+            {
+                return true;
+            }
+        } else if hostname == *entry {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn strip_www_prefix(hostname: &str) -> &str {
+    hostname.strip_prefix("www.").unwrap_or(hostname)
+}
+
+fn is_permitted_web_fetch_redirect(original_url: &Url, redirect_url: &Url) -> bool {
+    if redirect_url.scheme() != original_url.scheme() {
+        return false;
+    }
+
+    if redirect_url.port_or_known_default() != original_url.port_or_known_default() {
+        return false;
+    }
+
+    if !redirect_url.username().is_empty() || redirect_url.password().is_some() {
+        return false;
+    }
+
+    strip_www_prefix(redirect_url.host_str().unwrap_or_default())
+        == strip_www_prefix(original_url.host_str().unwrap_or_default())
+}
+
 /// Web 工具的共享缓存
 pub struct WebCache {
     fetch_cache: Arc<Mutex<LruCache<String, CachedContent>>>,
@@ -652,6 +834,7 @@ impl WebFetchTool {
     pub fn new() -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
+            .redirect(Policy::none())
             .user_agent("Mozilla/5.0 (compatible; AsterAgent/1.0)")
             .build()
             .unwrap_or_else(|_| Client::new());
@@ -666,6 +849,7 @@ impl WebFetchTool {
     pub fn with_cache(cache: Arc<WebCache>) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
+            .redirect(Policy::none())
             .user_agent("Mozilla/5.0 (compatible; AsterAgent/1.0)")
             .build()
             .unwrap_or_else(|_| Client::new());
@@ -710,6 +894,29 @@ impl WebFetchTool {
             return addr.is_private() || addr.is_loopback() || addr.is_link_local();
         }
         false
+    }
+
+    fn http_status_text(status_code: u16) -> &'static str {
+        match status_code {
+            200 => "OK",
+            201 => "Created",
+            202 => "Accepted",
+            204 => "No Content",
+            301 => "Moved Permanently",
+            302 => "Found",
+            307 => "Temporary Redirect",
+            308 => "Permanent Redirect",
+            400 => "Bad Request",
+            401 => "Unauthorized",
+            403 => "Forbidden",
+            404 => "Not Found",
+            429 => "Too Many Requests",
+            500 => "Internal Server Error",
+            502 => "Bad Gateway",
+            503 => "Service Unavailable",
+            504 => "Gateway Timeout",
+            _ => "Unknown",
+        }
     }
 
     /// HTML 转 Markdown
@@ -879,69 +1086,104 @@ impl WebFetchTool {
     }
 
     /// 实际的 URL 抓取逻辑
-    async fn fetch_url(&self, url: &str) -> Result<(String, String, u16), String> {
-        let parsed_url = Url::parse(url).map_err(|e| format!("无效的 URL: {}", e))?;
+    async fn fetch_url(&self, url: &str) -> Result<WebFetchResponse, String> {
+        let mut current_url = url.to_string();
 
-        // 域名安全检查
-        self.check_domain_safety(&parsed_url)?;
+        for _ in 0..=MAX_WEB_FETCH_REDIRECTS {
+            let parsed_url = Url::parse(&current_url).map_err(|e| format!("无效的 URL: {}", e))?;
 
-        let response = self
-            .client
-            .get(url)
-            .header("User-Agent", "Mozilla/5.0 (compatible; AsterAgent/1.0)")
-            .header(
-                "Accept",
-                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            )
-            .send()
-            .await
-            .map_err(|e| format!("请求失败: {}", e))?;
+            // 域名安全检查
+            self.check_domain_safety(&parsed_url)?;
 
-        let status_code = response.status().as_u16();
-        let content_type = response
-            .headers()
-            .get("content-type")
-            .and_then(|ct| ct.to_str().ok())
-            .unwrap_or("")
-            .to_string();
+            let response = self
+                .client
+                .get(current_url.clone())
+                .header("User-Agent", "Mozilla/5.0 (compatible; AsterAgent/1.0)")
+                .header(
+                    "Accept",
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                )
+                .send()
+                .await
+                .map_err(|e| format!("请求失败: {}", e))?;
 
-        // 检查响应体大小
-        if let Some(content_length) = response.content_length() {
-            if content_length > MAX_RESPONSE_SIZE as u64 {
+            let status_code = response.status().as_u16();
+
+            if matches!(status_code, 301 | 302 | 307 | 308) {
+                let location = response
+                    .headers()
+                    .get(reqwest::header::LOCATION)
+                    .and_then(|value| value.to_str().ok())
+                    .ok_or_else(|| "重定向响应缺少 Location 头".to_string())?;
+                let redirect_url = parsed_url
+                    .join(location)
+                    .map_err(|e| format!("解析重定向 URL 失败: {}", e))?;
+
+                if is_permitted_web_fetch_redirect(&parsed_url, &redirect_url) {
+                    current_url = redirect_url.to_string();
+                    continue;
+                }
+
+                return Ok(WebFetchResponse::Redirect {
+                    original_url: current_url,
+                    redirect_url: redirect_url.to_string(),
+                    status_code,
+                });
+            }
+
+            let content_type = response
+                .headers()
+                .get("content-type")
+                .and_then(|ct| ct.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+
+            // 检查响应体大小
+            if let Some(content_length) = response.content_length() {
+                if content_length > MAX_RESPONSE_SIZE as u64 {
+                    return Err(format!(
+                        "响应体大小 ({} 字节) 超过最大限制 ({} 字节)",
+                        content_length, MAX_RESPONSE_SIZE
+                    ));
+                }
+            }
+
+            let body = response
+                .text()
+                .await
+                .map_err(|e| format!("读取响应体失败: {}", e))?;
+
+            // 检查处理后内容的大小
+            if body.len() > MAX_RESPONSE_SIZE {
                 return Err(format!(
-                    "响应体大小 ({} 字节) 超过最大限制 ({} 字节)",
-                    content_length, MAX_RESPONSE_SIZE
+                    "内容大小 ({} 字节) 超过最大限制 ({} 字节)",
+                    body.len(),
+                    MAX_RESPONSE_SIZE
                 ));
             }
+
+            let processed_content = if content_type.contains("text/html") {
+                self.html_to_markdown(&body)
+            } else if content_type.contains("application/json") {
+                match serde_json::from_str::<serde_json::Value>(&body) {
+                    Ok(json) => serde_json::to_string_pretty(&json).unwrap_or(body),
+                    Err(_) => body,
+                }
+            } else {
+                body
+            };
+
+            return Ok(WebFetchResponse::Content {
+                content: processed_content,
+                content_type,
+                status_code,
+            });
         }
 
-        let body = response
-            .text()
-            .await
-            .map_err(|e| format!("读取响应体失败: {}", e))?;
-
-        // 检查处理后内容的大小
-        if body.len() > MAX_RESPONSE_SIZE {
-            return Err(format!(
-                "内容大小 ({} 字节) 超过最大限制 ({} 字节)",
-                body.len(),
-                MAX_RESPONSE_SIZE
-            ));
-        }
-
-        let processed_content = if content_type.contains("text/html") {
-            self.html_to_markdown(&body)
-        } else if content_type.contains("application/json") {
-            // 格式化 JSON
-            match serde_json::from_str::<serde_json::Value>(&body) {
-                Ok(json) => serde_json::to_string_pretty(&json).unwrap_or(body),
-                Err(_) => body,
-            }
-        } else {
-            body
-        };
-
-        Ok((processed_content, content_type, status_code))
+        Err(format!(
+            "重定向次数过多（超过 {} 次）",
+            MAX_WEB_FETCH_REDIRECTS
+        ))
     }
 }
 
@@ -996,10 +1238,27 @@ impl Tool for WebFetchTool {
 
     async fn check_permissions(
         &self,
-        _params: &serde_json::Value,
+        params: &serde_json::Value,
         _context: &ToolContext,
     ) -> PermissionCheckResult {
-        PermissionCheckResult::allow()
+        let parsed_url = serde_json::from_value::<WebFetchInput>(params.clone())
+            .ok()
+            .and_then(|input| Url::parse(&input.url).ok());
+
+        if let Some(url) = parsed_url.as_ref() {
+            if let Some(hostname) = url.host_str() {
+                if is_preapproved_web_fetch_host(hostname, url.path()) {
+                    return PermissionCheckResult::allow();
+                }
+            }
+        }
+
+        match parsed_url.and_then(|url| url.host_str().map(|host| host.to_string())) {
+            Some(hostname) => PermissionCheckResult::ask(format!(
+                "WebFetch 将访问远程站点 {hostname}，请确认后继续。"
+            )),
+            None => PermissionCheckResult::ask("WebFetch 将访问远程 URL，请确认后继续。"),
+        }
     }
 
     async fn execute(
@@ -1007,15 +1266,15 @@ impl Tool for WebFetchTool {
         params: serde_json::Value,
         _context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
+        let started_at = std::time::Instant::now();
         let input: WebFetchInput = serde_json::from_value(params)
             .map_err(|e| ToolError::execution_failed(format!("输入参数解析失败: {}", e)))?;
 
         let mut url = input.url.clone();
-        let prompt = input.prompt.clone();
 
         // URL 验证和规范化
         let parsed_url = Url::parse(&url)
-            .map_err(|e| ToolError::execution_failed(format!("无效的 URL: {}", e)))?;
+            .map_err(|e| ToolError::invalid_params(format!("无效的 URL: {}", e)))?;
 
         // HTTP 到 HTTPS 自动升级
         if parsed_url.scheme() == "http" {
@@ -1029,17 +1288,41 @@ impl Tool for WebFetchTool {
         // 检查缓存
         if let Some(cached) = self.cache.get_cached_content(&url) {
             let (content, filtered) = self.prepare_response_content(&cached.content, &input);
-            let filtered_suffix = if filtered { " (动态过滤)" } else { "" };
+            let mut result = content;
+            if filtered {
+                result = format!("{result}\n\n[dynamic_filter_applied]");
+            }
+            let output = WebFetchOutput {
+                bytes: cached.content.len(),
+                code: cached.status_code,
+                code_text: Self::http_status_text(cached.status_code).to_string(),
+                result,
+                duration_ms: started_at
+                    .elapsed()
+                    .as_millis()
+                    .try_into()
+                    .unwrap_or(u64::MAX),
+                url: url.clone(),
+            };
 
-            return Ok(ToolResult::success(format!(
-                "URL: {}\n提示词: {}\n\n--- 内容{} (缓存) ---\n{}",
-                url, prompt, filtered_suffix, content
-            )));
+            return Ok(
+                ToolResult::success(serde_json::to_string_pretty(&output).map_err(|error| {
+                    ToolError::execution_failed(format!("序列化 WebFetch 缓存结果失败: {error}"))
+                })?)
+                .with_metadata("url", serde_json::json!(url))
+                .with_metadata("code", serde_json::json!(cached.status_code))
+                .with_metadata("bytes", serde_json::json!(output.bytes))
+                .with_metadata("durationMs", serde_json::json!(output.duration_ms)),
+            );
         }
 
         // 获取内容
         match self.fetch_url(&url).await {
-            Ok((content, content_type, status_code)) => {
+            Ok(WebFetchResponse::Content {
+                content,
+                content_type,
+                status_code,
+            }) => {
                 if status_code >= 400 {
                     return Err(ToolError::execution_failed(format!(
                         "HTTP 错误: {} {}",
@@ -1054,7 +1337,10 @@ impl Tool for WebFetchTool {
                 }
 
                 let (display_content, filtered) = self.prepare_response_content(&content, &input);
-                let filtered_suffix = if filtered { " (动态过滤)" } else { "" };
+                let mut result = display_content;
+                if filtered {
+                    result = format!("{result}\n\n[dynamic_filter_applied]");
+                }
 
                 // 缓存结果
                 self.cache.cache_content(
@@ -1067,10 +1353,82 @@ impl Tool for WebFetchTool {
                     },
                 );
 
-                Ok(ToolResult::success(format!(
-                    "URL: {}\n提示词: {}\n\n--- 内容{} ---\n{}",
-                    url, prompt, filtered_suffix, display_content
-                )))
+                let output = WebFetchOutput {
+                    bytes: content.len(),
+                    code: status_code,
+                    code_text: Self::http_status_text(status_code).to_string(),
+                    result,
+                    duration_ms: started_at
+                        .elapsed()
+                        .as_millis()
+                        .try_into()
+                        .unwrap_or(u64::MAX),
+                    url: url.clone(),
+                };
+
+                Ok(
+                    ToolResult::success(serde_json::to_string_pretty(&output).map_err(
+                        |error| {
+                            ToolError::execution_failed(format!(
+                                "序列化 WebFetch 结果失败: {error}"
+                            ))
+                        },
+                    )?)
+                    .with_metadata("url", serde_json::json!(url))
+                    .with_metadata("code", serde_json::json!(status_code))
+                    .with_metadata("bytes", serde_json::json!(output.bytes))
+                    .with_metadata("durationMs", serde_json::json!(output.duration_ms)),
+                )
+            }
+            Ok(WebFetchResponse::Redirect {
+                original_url,
+                redirect_url,
+                status_code,
+            }) => {
+                let status_text = Self::http_status_text(status_code).to_string();
+                let message = format!(
+                    "REDIRECT DETECTED: The URL redirects to a different host.\n\nOriginal URL: {}\nRedirect URL: {}\nStatus: {} {}\n\nTo complete your request, call WebFetch again with:\n- url: \"{}\"\n- prompt: \"{}\"",
+                    original_url,
+                    redirect_url,
+                    status_code,
+                    status_text,
+                    redirect_url,
+                    input.prompt
+                );
+                let output = WebFetchOutput {
+                    bytes: message.len(),
+                    code: status_code,
+                    code_text: status_text,
+                    result: message,
+                    duration_ms: started_at
+                        .elapsed()
+                        .as_millis()
+                        .try_into()
+                        .unwrap_or(u64::MAX),
+                    url: url.clone(),
+                };
+
+                Ok(
+                    ToolResult::success(serde_json::to_string_pretty(&output).map_err(
+                        |error| {
+                            ToolError::execution_failed(format!(
+                                "序列化 WebFetch 重定向结果失败: {error}"
+                            ))
+                        },
+                    )?)
+                    .with_metadata("url", serde_json::json!(url))
+                    .with_metadata("code", serde_json::json!(status_code))
+                    .with_metadata("bytes", serde_json::json!(output.bytes))
+                    .with_metadata("durationMs", serde_json::json!(output.duration_ms))
+                    .with_metadata(
+                        "redirect",
+                        serde_json::json!({
+                            "originalUrl": original_url,
+                            "redirectUrl": redirect_url,
+                            "statusCode": status_code,
+                        }),
+                    ),
+                )
             }
             Err(e) => Err(ToolError::execution_failed(format!("获取失败: {}", e))),
         }
@@ -1822,7 +2180,7 @@ impl Tool for WebSearchTool {
         _params: &serde_json::Value,
         _context: &ToolContext,
     ) -> PermissionCheckResult {
-        PermissionCheckResult::allow()
+        PermissionCheckResult::ask("WebSearch 将联网搜索最新信息，请确认后继续。")
     }
 
     async fn execute(
@@ -1830,10 +2188,27 @@ impl Tool for WebSearchTool {
         params: serde_json::Value,
         _context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
+        let started_at = std::time::Instant::now();
         let input: WebSearchInput = serde_json::from_value(params)
             .map_err(|e| ToolError::execution_failed(format!("输入参数解析失败: {}", e)))?;
 
         let query = &input.query;
+        if query.trim().len() < 2 {
+            return Err(ToolError::invalid_params("query 至少需要 2 个非空白字符"));
+        }
+        if input
+            .allowed_domains
+            .as_ref()
+            .is_some_and(|domains| !domains.is_empty())
+            && input
+                .blocked_domains
+                .as_ref()
+                .is_some_and(|domains| !domains.is_empty())
+        {
+            return Err(ToolError::invalid_params(
+                "不能同时传 allowed_domains 和 blocked_domains",
+            ));
+        }
         let (allowed_domains, blocked_domains) =
             self.sanitize_domain_filters(query, input.allowed_domains, input.blocked_domains);
 
@@ -1856,15 +2231,47 @@ impl Tool for WebSearchTool {
                 cache_age
             );
 
-            return Ok(ToolResult::success(output).with_metadata(
-                "web_search",
-                serde_json::json!({
-                    "cache_hit": true,
-                    "cache_query": cached.query,
-                    "allowed_domains": cached.allowed_domains,
-                    "blocked_domains": cached.blocked_domains,
-                }),
-            ));
+            let structured = WebSearchOutput {
+                query: query.clone(),
+                results: vec![
+                    WebSearchOutputEntry::Result(WebSearchResultBlock {
+                        tool_use_id: "cached_web_search".to_string(),
+                        content: cached
+                            .results
+                            .iter()
+                            .map(|item| WebSearchHit {
+                                title: item.title.clone(),
+                                url: item.url.clone(),
+                            })
+                            .collect(),
+                    }),
+                    WebSearchOutputEntry::Text(output),
+                ],
+                duration_seconds: started_at.elapsed().as_secs_f64(),
+            };
+
+            return Ok(
+                ToolResult::success(serde_json::to_string_pretty(&structured).map_err(
+                    |error| {
+                        ToolError::execution_failed(format!(
+                            "序列化 WebSearch 缓存结果失败: {error}"
+                        ))
+                    },
+                )?)
+                .with_metadata(
+                    "durationSeconds",
+                    serde_json::json!(structured.duration_seconds),
+                )
+                .with_metadata(
+                    "web_search",
+                    serde_json::json!({
+                        "cache_hit": true,
+                        "cache_query": cached.query,
+                        "allowed_domains": cached.allowed_domains,
+                        "blocked_domains": cached.blocked_domains,
+                    }),
+                ),
+            );
         }
 
         // 执行搜索
@@ -1908,9 +2315,38 @@ impl Tool for WebSearchTool {
 
                 // 如果有真实结果，格式化并返回
                 if !filtered_results.is_empty() {
+                    let structured = WebSearchOutput {
+                        query: query.clone(),
+                        results: vec![
+                            WebSearchOutputEntry::Result(WebSearchResultBlock {
+                                tool_use_id: "web_search".to_string(),
+                                content: filtered_results
+                                    .iter()
+                                    .map(|item| WebSearchHit {
+                                        title: item.title.clone(),
+                                        url: item.url.clone(),
+                                    })
+                                    .collect(),
+                            }),
+                            WebSearchOutputEntry::Text(
+                                self.format_search_results(&filtered_results, query),
+                            ),
+                        ],
+                        duration_seconds: started_at.elapsed().as_secs_f64(),
+                    };
                     Ok(
-                        ToolResult::success(self.format_search_results(&filtered_results, query))
-                            .with_metadata("web_search", web_search_metadata),
+                        ToolResult::success(serde_json::to_string_pretty(&structured).map_err(
+                            |error| {
+                                ToolError::execution_failed(format!(
+                                    "序列化 WebSearch 结果失败: {error}"
+                                ))
+                            },
+                        )?)
+                        .with_metadata(
+                            "durationSeconds",
+                            serde_json::json!(structured.duration_seconds),
+                        )
+                        .with_metadata("web_search", web_search_metadata),
                     )
                 } else if !raw_results.is_empty() {
                     // 如果搜索返回了结果但被过滤器全部过滤掉了
@@ -1923,11 +2359,28 @@ impl Tool for WebSearchTool {
                         .map(|d: &Vec<String>| d.join(", "))
                         .unwrap_or_else(|| "无".to_string());
 
-                    Ok(ToolResult::success(format!(
-                        "网络搜索: \"{}\"\n\n应用域名过滤器后未找到结果。\n\n应用的过滤器:\n- 允许的域名: {}\n- 阻止的域名: {}\n\n尝试调整您的域名过滤器或搜索查询。",
-                        query, allowed_str, blocked_str
-                    ))
-                    .with_metadata("web_search", web_search_metadata))
+                    let structured = WebSearchOutput {
+                        query: query.clone(),
+                        results: vec![WebSearchOutputEntry::Text(format!(
+                            "应用域名过滤器后未找到结果。允许的域名: {}；阻止的域名: {}。",
+                            allowed_str, blocked_str
+                        ))],
+                        duration_seconds: started_at.elapsed().as_secs_f64(),
+                    };
+                    Ok(
+                        ToolResult::success(serde_json::to_string_pretty(&structured).map_err(
+                            |error| {
+                                ToolError::execution_failed(format!(
+                                    "序列化 WebSearch 过滤结果失败: {error}"
+                                ))
+                            },
+                        )?)
+                        .with_metadata(
+                            "durationSeconds",
+                            serde_json::json!(structured.duration_seconds),
+                        )
+                        .with_metadata("web_search", web_search_metadata),
+                    )
                 } else {
                     // 如果搜索 API 没有返回结果
                     let configured_chain = search_execution
@@ -1936,11 +2389,28 @@ impl Tool for WebSearchTool {
                         .map(|provider| provider.as_env_value())
                         .collect::<Vec<_>>()
                         .join(" -> ");
-                    Ok(ToolResult::success(format!(
-                        "网络搜索: \"{}\"\n\n未找到结果。这可能是由于:\n1. 搜索查询过于具体或不常见\n2. 上游搜索引擎返回空结果\n3. 网络或 API 问题\n\n建议:\n- 尝试不同的搜索查询\n- 检查搜索提供商配置与 API Key\n- 如果需要提高覆盖率，可启用 tavily 或 multi_search_engine\n\n当前搜索提供商链路: {}",
-                        query, configured_chain
-                    ))
-                    .with_metadata("web_search", web_search_metadata))
+                    let structured = WebSearchOutput {
+                        query: query.clone(),
+                        results: vec![WebSearchOutputEntry::Text(format!(
+                            "未找到结果。当前搜索提供商链路: {}",
+                            configured_chain
+                        ))],
+                        duration_seconds: started_at.elapsed().as_secs_f64(),
+                    };
+                    Ok(
+                        ToolResult::success(serde_json::to_string_pretty(&structured).map_err(
+                            |error| {
+                                ToolError::execution_failed(format!(
+                                    "序列化 WebSearch 空结果失败: {error}"
+                                ))
+                            },
+                        )?)
+                        .with_metadata(
+                            "durationSeconds",
+                            serde_json::json!(structured.duration_seconds),
+                        )
+                        .with_metadata("web_search", web_search_metadata),
+                    )
                 }
             }
             Err(e) => Err(ToolError::execution_failed(format!("搜索失败: {}", e))),
@@ -1971,6 +2441,7 @@ pub fn clear_web_caches(cache: &WebCache) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tools::base::PermissionBehavior;
     use std::collections::HashMap;
 
     #[tokio::test]
@@ -2127,6 +2598,111 @@ mod tests {
         assert!(!used_dynamic_filter);
         assert!(result.contains("Paragraph A."));
         assert!(result.contains("Paragraph B with random text."));
+    }
+
+    #[tokio::test]
+    async fn test_web_fetch_permissions_require_confirmation() {
+        let tool = WebFetchTool::new();
+        let result = tool
+            .check_permissions(
+                &serde_json::json!({
+                    "url": "https://example.com/docs",
+                    "prompt": "总结内容"
+                }),
+                &ToolContext::default(),
+            )
+            .await;
+
+        assert_eq!(result.behavior, PermissionBehavior::Ask);
+        assert_eq!(
+            result.message,
+            Some("WebFetch 将访问远程站点 example.com，请确认后继续。".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_web_fetch_permissions_allow_preapproved_host() {
+        let tool = WebFetchTool::new();
+        let result = tool
+            .check_permissions(
+                &serde_json::json!({
+                    "url": "https://react.dev/reference/react/useEffect",
+                    "prompt": "总结内容"
+                }),
+                &ToolContext::default(),
+            )
+            .await;
+
+        assert_eq!(result.behavior, PermissionBehavior::Allow);
+        assert!(result.message.is_none());
+    }
+
+    #[test]
+    fn test_web_fetch_preapproved_path_prefix_matches_exact_scope() {
+        assert!(is_preapproved_web_fetch_host(
+            "github.com",
+            "/anthropics/claude-code"
+        ));
+        assert!(!is_preapproved_web_fetch_host(
+            "github.com",
+            "/anthropics-evil/claude-code"
+        ));
+    }
+
+    #[test]
+    fn test_web_fetch_permitted_redirect_allows_same_host_or_www_changes() {
+        let original = Url::parse("https://example.com/docs").unwrap();
+        let same_host = Url::parse("https://example.com/docs/getting-started").unwrap();
+        let add_www = Url::parse("https://www.example.com/docs").unwrap();
+        let remove_www = Url::parse("https://example.com/docs").unwrap();
+        let original_www = Url::parse("https://www.example.com/docs").unwrap();
+
+        assert!(is_permitted_web_fetch_redirect(&original, &same_host));
+        assert!(is_permitted_web_fetch_redirect(&original, &add_www));
+        assert!(is_permitted_web_fetch_redirect(&original_www, &remove_www));
+    }
+
+    #[test]
+    fn test_web_fetch_permitted_redirect_rejects_cross_host() {
+        let original = Url::parse("https://example.com/docs").unwrap();
+        let redirect = Url::parse("https://evil.example.net/phish").unwrap();
+
+        assert!(!is_permitted_web_fetch_redirect(&original, &redirect));
+    }
+
+    #[tokio::test]
+    async fn test_web_search_permissions_require_confirmation() {
+        let tool = WebSearchTool::new();
+        let result = tool
+            .check_permissions(
+                &serde_json::json!({
+                    "query": "latest ai news"
+                }),
+                &ToolContext::default(),
+            )
+            .await;
+
+        assert_eq!(result.behavior, PermissionBehavior::Ask);
+        assert_eq!(
+            result.message,
+            Some("WebSearch 将联网搜索最新信息，请确认后继续。".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_web_search_rejects_short_query() {
+        let tool = WebSearchTool::new();
+        let error = tool
+            .execute(
+                serde_json::json!({
+                    "query": " "
+                }),
+                &ToolContext::default(),
+            )
+            .await
+            .expect_err("short query should be rejected");
+
+        assert!(error.to_string().contains("query 至少需要 2 个非空白字符"));
     }
 
     #[test]

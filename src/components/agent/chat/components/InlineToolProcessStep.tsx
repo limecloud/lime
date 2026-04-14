@@ -34,6 +34,7 @@ import {
   normalizeToolSearchResultSummary,
   resolveUserFacingToolSearchItemLabel,
 } from "../utils/toolSearchResultSummary";
+import { resolveToolProcessNarrative } from "../utils/toolProcessSummary";
 
 interface InlineToolProcessStepProps {
   toolCall: ToolCallState;
@@ -79,6 +80,11 @@ function summarizeResultText(value: string): string | null {
   return `${singleLine.slice(0, 180).trim()}...`;
 }
 
+const LARGE_RESULT_AUTO_COLLAPSE_CHARS = 1200;
+function sanitizeToolResultDetailMarkdown(value: string): string {
+  return value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function summarizeToolSearchPreview(value: ReturnType<
   typeof normalizeToolSearchResultSummary
 >): string | null {
@@ -105,6 +111,23 @@ function summarizeSearchResultPreview(resultCount: number): string | null {
   }
 
   return `找到 ${resultCount} 条搜索结果`;
+}
+
+function normalizeSummaryLine(
+  value: string | null,
+  headline: string,
+): string | null {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const normalizedHeadline = headline.trim();
+  if (normalized === normalizedHeadline) {
+    return null;
+  }
+
+  return normalized;
 }
 
 function buildSiteNoticeLines(toolCall: ToolCallState): string[] {
@@ -193,6 +216,10 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
     const rawText = toolCall.result?.error || toolCall.result?.output || "";
     return extractLimeToolMetadataBlock(rawText).text.trim();
   }, [toolCall.result?.error, toolCall.result?.output]);
+  const resultDetailMarkdown = useMemo(
+    () => sanitizeToolResultDetailMarkdown(resultText),
+    [resultText],
+  );
   const resultPreview = useMemo(
     () => summarizeResultText(resultText),
     [resultText],
@@ -225,6 +252,10 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
     }
     return resultPreview;
   }, [resultPreview, searchResultItems.length, toolSearchSummary]);
+  const processNarrative = useMemo(
+    () => resolveToolProcessNarrative(toolCall),
+    [toolCall],
+  );
   const savedSiteContentTarget = useMemo(
     () => resolveSiteSavedContentTargetFromMetadata(toolCall.result?.metadata),
     [toolCall.result?.metadata],
@@ -245,6 +276,25 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
   const isPreload =
     metadata?.execution_origin === "preload" || metadata?.preload === true;
   const hasOpenableFile = Boolean(filePath && onFileClick);
+  const processSummary = useMemo(() => {
+    const preferredSummary =
+      toolCall.status === "running"
+        ? processNarrative.preSummary
+        : processNarrative.postSource === "generic" && structuredResultPreview
+          ? structuredResultPreview
+          : processNarrative.postSummary ||
+            structuredResultPreview ||
+            processNarrative.preSummary;
+
+    return normalizeSummaryLine(preferredSummary, headline);
+  }, [
+    headline,
+    processNarrative.postSource,
+    processNarrative.postSummary,
+    processNarrative.preSummary,
+    structuredResultPreview,
+    toolCall.status,
+  ]);
   const hasDetails =
     Boolean(resultText) ||
     resultImages.length > 0 ||
@@ -271,10 +321,11 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
     }
 
     if (isMessageStreaming && !toolSearchSummary) {
-      setExpanded(true);
+      setExpanded(resultText.length <= LARGE_RESULT_AUTO_COLLAPSE_CHARS);
     }
   }, [
     isMessageStreaming,
+    resultText.length,
     siteNoticeLines.length,
     toolCall.status,
     toolSearchSummary,
@@ -341,7 +392,11 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
                   <span key={badge}>{badge}</span>
                 ))}
               </div>
-              {!expanded && structuredResultPreview ? (
+              {processSummary ? (
+                <div className="mt-1 text-xs leading-5 text-slate-600">
+                  {processSummary}
+                </div>
+              ) : !expanded && structuredResultPreview ? (
                 <div className="mt-1 text-xs leading-5 text-slate-600">
                   {structuredResultPreview}
                 </div>
@@ -440,7 +495,7 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
 
               {!toolSearchSummary && searchResultItems.length === 0 && resultText ? (
                 <div className="text-sm leading-6 text-slate-700">
-                  <MarkdownRenderer content={resultText} />
+                  <MarkdownRenderer content={resultDetailMarkdown} />
                 </div>
               ) : null}
 

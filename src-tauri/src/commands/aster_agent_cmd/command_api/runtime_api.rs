@@ -575,6 +575,7 @@ pub async fn agent_runtime_get_tool_inventory(
             mcp_server_names,
             mcp_tools,
             registry_definitions: Vec::new(),
+            current_surface_tool_names: Vec::new(),
             extension_configs: Vec::new(),
             visible_extension_tools: Vec::new(),
             searchable_extension_tools: Vec::new(),
@@ -583,8 +584,24 @@ pub async fn agent_runtime_get_tool_inventory(
 
     let registry_arc = agent.tool_registry().clone();
     let registry = registry_arc.read().await;
-    let registry_definitions = registry.get_definitions();
+    let mut registry_definitions = registry.get_definitions();
     drop(registry);
+
+    let existing_runtime_tool_names = registry_definitions
+        .iter()
+        .map(|definition| definition.name.clone())
+        .collect::<std::collections::HashSet<_>>();
+    let mut current_surface_tool_names = Vec::new();
+    for definition in crate::commands::aster_agent_cmd::tool_runtime::list_current_surface_tool_definitions_from_agent(agent)
+        .await
+    {
+        if existing_runtime_tool_names.contains(&definition.name) {
+            continue;
+        }
+
+        current_surface_tool_names.push(definition.name.clone());
+        registry_definitions.push(definition);
+    }
 
     let extension_configs = agent.get_extension_configs().await;
     let extension_manager = agent.extension_manager.clone();
@@ -626,6 +643,7 @@ pub async fn agent_runtime_get_tool_inventory(
         mcp_server_names,
         mcp_tools,
         registry_definitions,
+        current_surface_tool_names,
         extension_configs,
         visible_extension_tools,
         searchable_extension_tools,

@@ -106,7 +106,6 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   onRemoveQueuedTurn,
   showMetaTools = true,
 }) => {
-  const [isComposerExpanded, setIsComposerExpanded] = useState(false);
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const inputBarContainerRef = useRef<HTMLDivElement | null>(null);
   const fallbackTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -126,14 +125,14 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
     textareaRef: resolvedTextareaRef,
     disabled,
   });
+  const hasInlineComposerContent =
+    text.trim().length > 0 || pendingImages.length > 0 || queuedTurns.length > 0;
   const shouldCollapseFloatingTools =
     isFloatingVariant &&
     toolMode === "attach-only" &&
-    !isComposerExpanded &&
-    pendingImages.length === 0 &&
-    queuedTurns.length === 0;
+    !hasInlineComposerContent;
   const shouldUseCompactFloatingComposer =
-    shouldCollapseFloatingTools && !topExtra;
+    shouldCollapseFloatingTools && !topExtra && !isTextareaExpanded;
   const containerClassName = [
     isFullscreen ? "flex-1 flex flex-col" : "",
     isFloatingVariant ? "floating-composer" : "",
@@ -184,44 +183,6 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
         ? "开始语音输入"
         : "语音输入未启用";
 
-  const handleExpandComposer = useCallback(() => {
-    if (!isFloatingVariant || toolMode !== "attach-only") {
-      return;
-    }
-    setIsComposerExpanded(true);
-  }, [isFloatingVariant, toolMode]);
-
-  const handleCollapseComposer = useCallback(() => {
-    if (
-      !isFloatingVariant ||
-      toolMode !== "attach-only" ||
-      pendingImages.length > 0
-    ) {
-      return;
-    }
-    const activeElement = document.activeElement;
-    if (
-      activeElement &&
-      inputBarContainerRef.current?.contains(activeElement)
-    ) {
-      return;
-    }
-    setIsComposerExpanded(false);
-  }, [isFloatingVariant, pendingImages.length, toolMode]);
-
-  const handleBlurCapture = useCallback(() => {
-    if (!isFloatingVariant || toolMode !== "attach-only") {
-      return;
-    }
-    window.requestAnimationFrame(() => {
-      const nextActiveElement = document.activeElement;
-      if (inputBarContainerRef.current?.contains(nextActiveElement)) {
-        return;
-      }
-      setIsComposerExpanded(false);
-    });
-  }, [isFloatingVariant, toolMode]);
-
   const handleRemoveImageMouseDown = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
@@ -241,10 +202,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
 
   const handleToggleTextareaExpanded = useCallback(() => {
     setIsTextareaExpanded((previous) => !previous);
-    if (isFloatingVariant) {
-      setIsComposerExpanded(true);
-    }
-  }, [isFloatingVariant]);
+  }, []);
 
   return (
     <BaseComposer
@@ -274,7 +232,6 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
         const handleContainerMouseDownCapture = (
           event: React.MouseEvent<HTMLDivElement>,
         ) => {
-          handleExpandComposer();
           if (!isFloatingVariant || toolMode !== "attach-only") {
             return;
           }
@@ -292,10 +249,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
               ref={inputBarContainerRef}
               data-testid="inputbar-core-container"
               className={inputBarClassName}
-              onFocusCapture={handleExpandComposer}
               onMouseDownCapture={handleContainerMouseDownCapture}
-              onMouseLeave={handleCollapseComposer}
-              onBlurCapture={handleBlurCapture}
             >
               {!isFullscreen && showDragHandle && <DragHandle />}
 

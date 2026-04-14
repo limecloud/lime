@@ -518,9 +518,7 @@ describe("useAsterAgentChat 首页新会话", () => {
       await flushEffects();
 
       expect(mockGetDefaultProvider).toHaveBeenCalledTimes(1);
-      expect(
-        mockResolveClawWorkspaceProviderSelection,
-      ).toHaveBeenCalledWith({
+      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
         currentProviderType: "deepseek",
         currentModel: null,
         theme: "general",
@@ -947,7 +945,7 @@ describe("useAsterAgentChat 任务快照", () => {
               toolCall: {
                 id: "tool-site-tail-1",
                 name: "site_run_adapter",
-                arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+                arguments: '{"url":"https://x.com/example/article/2"}',
                 status: "completed",
                 startTime: "2026-04-08T10:00:01.000Z",
                 endTime: "2026-04-08T10:00:02.000Z",
@@ -966,7 +964,7 @@ describe("useAsterAgentChat 任务快照", () => {
             {
               id: "tool-site-tail-1",
               name: "site_run_adapter",
-              arguments: "{\"url\":\"https://x.com/example/article/2\"}",
+              arguments: '{"url":"https://x.com/example/article/2"}',
               status: "completed",
               startTime: "2026-04-08T10:00:01.000Z",
               endTime: "2026-04-08T10:00:02.000Z",
@@ -1015,8 +1013,7 @@ describe("useAsterAgentChat 任务快照", () => {
       expect(
         value.messages[1]?.contentParts?.some(
           (part) =>
-            part.type === "tool_use" &&
-            part.toolCall.id === "tool-site-tail-1",
+            part.type === "tool_use" && part.toolCall.id === "tool-site-tail-1",
         ),
       ).toBe(true);
     } finally {
@@ -2826,10 +2823,13 @@ describe("useAsterAgentChat runtime routing", () => {
         .find((msg) => msg.role === "assistant");
 
       expect(assistantMessage?.content).toContain(
-        "本轮执行已完成，详细过程与产物已保留在当前对话中。",
+        "执行失败：模型未输出最终答复，请重试",
       );
+      expect(assistantMessage?.runtimeStatus).toMatchObject({
+        phase: "failed",
+      });
       expect(mockToast.error).toHaveBeenCalledWith(
-        "已完成工具执行，但模型未输出最终答复，请重试",
+        "模型未输出最终答复，请重试",
       );
     } finally {
       harness.unmount();
@@ -2848,7 +2848,14 @@ describe("useAsterAgentChat runtime routing", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("请导出这篇文章并保存到项目", [], false, false, false, "react");
+          .sendMessage(
+            "请导出这篇文章并保存到项目",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       act(() => {
@@ -2891,14 +2898,14 @@ describe("useAsterAgentChat runtime routing", () => {
         "本轮执行已完成，详细过程与产物已保留在当前对话中。",
       );
       expect(mockToast.error).not.toHaveBeenCalledWith(
-        "已完成工具执行，但模型未输出最终答复，请重试",
+        "模型未输出最终答复，请重试",
       );
     } finally {
       harness.unmount();
     }
   });
 
-  it("final_done 无正文且刷新详情只返回用户消息时，也应保留本地 assistant 过程", async () => {
+  it("final_done 无正文且没有真实产物信号时，也应保留本地 assistant 过程并标记失败", async () => {
     const workspaceId = "ws-empty-final-refresh-user-only";
     const sessionId = "session-empty-final-refresh-user-only";
     seedSession(workspaceId, sessionId);
@@ -2955,8 +2962,11 @@ describe("useAsterAgentChat runtime routing", () => {
       expect(mockGetAgentRuntimeSession).toHaveBeenCalledWith(sessionId);
       expect(assistantMessage).toBeTruthy();
       expect(assistantMessage?.content).toContain(
-        "本轮执行已完成，详细过程与产物已保留在当前对话中。",
+        "执行失败：模型未输出最终答复，请重试",
       );
+      expect(assistantMessage?.runtimeStatus).toMatchObject({
+        phase: "failed",
+      });
       expect(
         assistantMessage?.contentParts?.some(
           (part) =>
@@ -2964,12 +2974,15 @@ describe("useAsterAgentChat runtime routing", () => {
             part.toolCall.id === "tool-site-refresh-1",
         ),
       ).toBe(true);
+      expect(mockToast.error).toHaveBeenCalledWith(
+        "模型未输出最终答复，请重试",
+      );
     } finally {
       harness.unmount();
     }
   });
 
-  it("stream error 命中空最终答复收尾时应降级为完成态而不是整轮失败", async () => {
+  it("stream error 命中空最终答复且没有真实产物信号时应落成失败态", async () => {
     const workspaceId = "ws-thread-empty-final-reply-soft-complete";
     seedSession(workspaceId, "session-thread-empty-final-reply-soft-complete");
     const harness = mountHook(workspaceId);
@@ -2981,7 +2994,14 @@ describe("useAsterAgentChat runtime routing", () => {
       await act(async () => {
         await harness
           .getValue()
-          .sendMessage("请继续导出并保存内容", [], false, false, false, "react");
+          .sendMessage(
+            "请继续导出并保存内容",
+            [],
+            false,
+            false,
+            false,
+            "react",
+          );
       });
 
       act(() => {
@@ -3027,7 +3047,7 @@ describe("useAsterAgentChat runtime routing", () => {
         stream.emit({
           type: "error",
           message:
-            "已完成当前回合的工具执行，但模型未输出最终答复。\n尝试记录: 无工具调用",
+            "已完成当前回合的工具执行，但模型未输出最终答复。\n尝试记录: 已执行非联网工具（tool_start=1, tool_end=1）",
         });
       });
 
@@ -3036,17 +3056,19 @@ describe("useAsterAgentChat runtime routing", () => {
         .find((msg) => msg.role === "assistant");
 
       expect(assistantMessage?.content).toContain(
-        "本轮执行已完成，详细过程与产物已保留在当前对话中。",
+        "执行失败：已完成当前回合的工具执行，但模型未输出最终答复。",
       );
-      expect(assistantMessage?.runtimeStatus).toBeUndefined();
+      expect(assistantMessage?.runtimeStatus).toMatchObject({
+        phase: "failed",
+      });
       expect(harness.getValue().turns).toEqual([
         expect.objectContaining({
           id: "turn-empty-final-reply-soft-complete-1",
           status: "completed",
         }),
       ]);
-      expect(mockToast.error).not.toHaveBeenCalledWith(
-        expect.stringContaining("模型未输出最终答复"),
+      expect(mockToast.error).toHaveBeenCalledWith(
+        "模型未输出最终答复，请重试",
       );
     } finally {
       harness.unmount();
@@ -5536,6 +5558,37 @@ describe("useAsterAgentChat 偏好持久化", () => {
     }
   });
 
+  it("legacy workspace-default 映射不应再触发旧会话恢复", async () => {
+    const workspaceId = "ws-current";
+    const sessionId = "session-legacy-workspace-default";
+    seedSession(workspaceId, sessionId);
+    localStorage.setItem(
+      `agent_session_workspace_${sessionId}`,
+      JSON.stringify("workspace-default"),
+    );
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+      await flushEffects();
+
+      expect(harness.getValue().sessionId).toBeNull();
+      let ensuredSessionId: string | null = null;
+      await act(async () => {
+        ensuredSessionId = await harness.getValue().ensureSession();
+      });
+      expect(ensuredSessionId).toBe("created-session");
+      expect(mockCreateAgentRuntimeSession).toHaveBeenCalledWith(
+        workspaceId,
+        undefined,
+        "react",
+      );
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("恢复候选会话时应先由 runtime 确认工作区归属", async () => {
     const consoleWarnSpy = vi
       .spyOn(console, "warn")
@@ -5853,7 +5906,7 @@ describe("useAsterAgentChat 偏好持久化", () => {
                 toolCall: {
                   id: "tool-topic-a-1",
                   name: "site_run_adapter",
-                  arguments: "{\"url\":\"https://x.com/example/article/a\"}",
+                  arguments: '{"url":"https://x.com/example/article/a"}',
                   status: "completed",
                   startTime: "2026-04-09T09:00:01.000Z",
                   endTime: "2026-04-09T09:00:02.000Z",
@@ -5872,7 +5925,7 @@ describe("useAsterAgentChat 偏好持久化", () => {
               {
                 id: "tool-topic-a-1",
                 name: "site_run_adapter",
-                arguments: "{\"url\":\"https://x.com/example/article/a\"}",
+                arguments: '{"url":"https://x.com/example/article/a"}',
                 status: "completed",
                 startTime: "2026-04-09T09:00:01.000Z",
                 endTime: "2026-04-09T09:00:02.000Z",
@@ -5965,16 +6018,14 @@ describe("useAsterAgentChat 偏好持久化", () => {
       const value = harness.getValue();
       expect(value.messages).toHaveLength(2);
       expect(value.messages[1]?.content).toBe("内容已保存到项目目录。");
-      expect(value.messages[1]?.thinkingContent).toBe(
-        "先恢复 topic-a 自己的本地执行轨迹。",
-      );
+      expect(value.messages[1]?.thinkingContent).toBeUndefined();
       expect(value.messages[1]?.toolCalls?.[0]?.id).toBe("tool-topic-a-1");
-      expect(
-        value.messages[1]?.contentParts?.some(
-          (part) =>
-            part.type === "tool_use" && part.toolCall.id === "tool-topic-a-1",
-        ),
-      ).toBe(true);
+      expect(value.messages[1]?.contentParts).toEqual([
+        {
+          type: "text",
+          text: "内容已保存到项目目录。",
+        },
+      ]);
       expect(
         value.messages.some((message) => message.content === "这是另一个话题"),
       ).toBe(false);
@@ -6854,9 +6905,7 @@ describe("useAsterAgentChat 兼容接口", () => {
       await flushEffects();
 
       expect(mockGetDefaultProvider).not.toHaveBeenCalled();
-      expect(
-        mockResolveClawWorkspaceProviderSelection,
-      ).toHaveBeenCalledWith({
+      expect(mockResolveClawWorkspaceProviderSelection).toHaveBeenCalledWith({
         currentProviderType: "anthropic",
         currentModel: "glm-5.1",
         theme: "general",

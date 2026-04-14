@@ -7,6 +7,7 @@ const APP_DATA_DIR_NAME: &str = "lime";
 const LEGACY_APP_DATA_DIR_NAME: &str = "proxycast";
 const LEGACY_HOME_DIR_NAME: &str = ".proxycast";
 const COMPAT_HOME_DIR_NAME: &str = ".lime";
+const ASTER_RUNTIME_OVERRIDE_ENV: &str = "LIME_ASTER_ROOT";
 const DATABASE_FILE_NAME: &str = "lime.db";
 const LEGACY_DATABASE_FILE_NAME: &str = "proxycast.db";
 const MIGRATION_MARKER_FILE: &str = ".migration_completed";
@@ -83,6 +84,11 @@ pub fn resolve_skills_dir() -> Result<PathBuf, String> {
 }
 
 pub fn resolve_aster_dir() -> Result<PathBuf, String> {
+    if let Some(root) = resolve_aster_dir_override() {
+        fs::create_dir_all(&root)
+            .map_err(|error| format!("无法创建 Aster 运行时目录 {}: {error}", root.display()))?;
+        return Ok(root);
+    }
     resolve_runtime_subdir("aster")
 }
 
@@ -208,6 +214,14 @@ fn resolve_runtime_subdir(subdir: &str) -> Result<PathBuf, String> {
 
 fn fallback_runtime_subdir(subdir: &str) -> PathBuf {
     fallback_app_data_dir().join(subdir)
+}
+
+fn resolve_aster_dir_override() -> Option<PathBuf> {
+    std::env::var(ASTER_RUNTIME_OVERRIDE_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
 }
 
 fn fallback_user_memory_path() -> PathBuf {

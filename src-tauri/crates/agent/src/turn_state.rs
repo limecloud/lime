@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::turn_input_envelope::TurnRequestToolPolicySnapshot;
+use crate::turn_input_envelope::{TurnExecutionProfile, TurnRequestToolPolicySnapshot};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TurnState {
@@ -8,6 +8,7 @@ pub struct TurnState {
     pub workspace_id: String,
     pub thread_id: String,
     pub turn_id: String,
+    pub execution_profile: TurnExecutionProfile,
     pub requested_execution_strategy: String,
     pub effective_execution_strategy: String,
     pub request_tool_policy: TurnRequestToolPolicySnapshot,
@@ -22,6 +23,7 @@ impl TurnState {
         workspace_id: impl Into<String>,
         thread_id: impl Into<String>,
         turn_id: impl Into<String>,
+        execution_profile: TurnExecutionProfile,
         requested_execution_strategy: impl Into<String>,
         effective_execution_strategy: impl Into<String>,
         request_tool_policy: TurnRequestToolPolicySnapshot,
@@ -33,6 +35,7 @@ impl TurnState {
             workspace_id: workspace_id.into(),
             thread_id: thread_id.into(),
             turn_id: turn_id.into(),
+            execution_profile,
             requested_execution_strategy: requested_execution_strategy.into(),
             effective_execution_strategy: effective_execution_strategy.into(),
             request_tool_policy,
@@ -45,7 +48,7 @@ impl TurnState {
 #[cfg(test)]
 mod tests {
     use super::TurnState;
-    use crate::turn_input_envelope::TurnRequestToolPolicySnapshot;
+    use crate::turn_input_envelope::{TurnExecutionProfile, TurnRequestToolPolicySnapshot};
 
     #[test]
     fn test_turn_state_is_serializable_and_complete() {
@@ -54,6 +57,7 @@ mod tests {
             "workspace-1",
             "thread-1",
             "turn-1",
+            TurnExecutionProfile::FastChat,
             "auto",
             "react",
             TurnRequestToolPolicySnapshot {
@@ -70,6 +74,7 @@ mod tests {
         let value = serde_json::to_value(&turn_state).expect("serialize turn state");
         assert_eq!(value["thread_id"], serde_json::json!("thread-1"));
         assert_eq!(value["turn_id"], serde_json::json!("turn-1"));
+        assert_eq!(value["execution_profile"], serde_json::json!("fast_chat"));
         assert_eq!(
             value["effective_execution_strategy"],
             serde_json::json!("react")

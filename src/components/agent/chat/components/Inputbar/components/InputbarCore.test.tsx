@@ -125,7 +125,7 @@ describe("InputbarCore", () => {
     expect(mockGetVoiceInputConfig).not.toHaveBeenCalled();
   });
 
-  it("主题工作台未聚焦时应使用单行紧凑态，点击展开，移出后收起", async () => {
+  it("主题工作台空输入时应保持单行紧凑态，聚焦后也不应放大", async () => {
     const container = await renderInputbarCore();
     const textarea = container.querySelector(
       "textarea",
@@ -145,42 +145,25 @@ describe("InputbarCore", () => {
       textarea?.focus();
     });
 
-    expect(textarea?.className).not.toContain("floating-collapsed");
-    expect(
-      container.querySelector('button[aria-label="添加图片"]'),
-    ).toBeTruthy();
-    expect(
-      container.querySelector('[data-testid="inputbar-tools"]'),
-    ).toBeNull();
-
-    act(() => {
-      inputBar?.dispatchEvent(
-        new MouseEvent("mouseout", {
-          bubbles: true,
-          relatedTarget: document.body,
-        }),
-      );
-    });
-
-    expect(textarea?.className).not.toContain("floating-collapsed");
-    expect(
-      container.querySelector('[data-testid="inputbar-tools"]'),
-    ).toBeNull();
-
-    act(() => {
-      textarea?.blur();
-      inputBar?.dispatchEvent(
-        new MouseEvent("mouseout", {
-          bubbles: true,
-          relatedTarget: document.body,
-        }),
-      );
-    });
-
     expect(textarea?.className).toContain("floating-collapsed");
     expect(
       container.querySelector('[data-testid="inputbar-tools"]'),
     ).toBeNull();
+  });
+
+  it("主题工作台有输入内容时应展开为常规编辑态", async () => {
+    const container = await renderInputbarCore({
+      text: "继续补充当前分析",
+    });
+    const textarea = container.querySelector(
+      "textarea",
+    ) as HTMLTextAreaElement | null;
+
+    expect(textarea).toBeTruthy();
+    expect(textarea?.className).not.toContain("floating-collapsed");
+    expect(
+      container.querySelector('button[aria-label="添加图片"]'),
+    ).toBeTruthy();
   });
 
   it("点击展开按钮应切换输入框展开态", async () => {

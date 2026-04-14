@@ -13,6 +13,8 @@ use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::any::{type_name, Any};
+use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::fs::File;
 use std::io;
@@ -478,11 +480,324 @@ pub struct RequestLog {
 }
 
 pub const LOGS_TO_KEEP: usize = 10;
+const REQUEST_LOG_KEY_SAMPLE_LIMIT: usize = 12;
+const REQUEST_LOG_TOOL_NAME_SAMPLE_LIMIT: usize = 8;
+const REQUEST_LOG_TEXT_PREVIEW_CHARS: usize = 160;
+
+#[derive(Default)]
+struct RequestLogContentStats {
+    block_count: usize,
+    text_chars: usize,
+    cache_control_blocks: usize,
+    type_counts: BTreeMap<String, usize>,
+    first_text_preview: Option<String>,
+}
+
+impl RequestLogContentStats {
+    fn ingest_block(&mut self, block: &Value) {
+        self.block_count += 1;
+        *self
+            .type_counts
+            .entry(request_log_value_type_hint(block))
+            .or_default() += 1;
+
+        if block.get("cache_control").is_some() {
+            self.cache_control_blocks += 1;
+        }
+
+        if let Some(text) = request_log_text_candidate(block) {
+            self.ingest_text_preview(text);
+        }
+    }
+
+    fn ingest_text_preview(&mut self, text: &str) {
+        let chars = text.chars().count();
+        self.text_chars += chars;
+        if self.first_text_preview.is_none() && !text.trim().is_empty() {
+            self.first_text_preview = Some(request_log_truncate_text(text));
+        }
+    }
+
+    fn into_json(self) -> Value {
+        let mut summary = serde_json::Map::new();
+        summary.insert("blocks".to_string(), json!(self.block_count));
+        summary.insert("type_counts".to_string(), json!(self.type_counts));
+
+        if self.text_chars > 0 {
+            summary.insert("text_chars".to_string(), json!(self.text_chars));
+        }
+        if self.cache_control_blocks > 0 {
+            summary.insert(
+                "cache_control_blocks".to_string(),
+                json!(self.cache_control_blocks),
+            );
+        }
+        if let Some(preview) = self.first_text_preview {
+            summary.insert("text_preview".to_string(), json!(preview));
+        }
+
+        Value::Object(summary)
+    }
+}
+
+fn request_log_truncate_text(text: &str) -> String {
+    let mut preview = text
+        .chars()
+        .take(REQUEST_LOG_TEXT_PREVIEW_CHARS)
+        .collect::<String>();
+    if text.chars().count() > REQUEST_LOG_TEXT_PREVIEW_CHARS {
+        preview.push_str("...");
+    }
+    preview
+}
+
+fn request_log_scalar_summary(value: &Value) -> Value {
+    match value {
+        Value::Null => json!({ "type": "null" }),
+        Value::Bool(boolean) => json!({ "type": "bool", "value": boolean }),
+        Value::Number(number) => json!({ "type": "number", "value": number }),
+        Value::String(text) => json!({
+            "type": "string",
+            "chars": text.chars().count(),
+            "preview": request_log_truncate_text(text),
+        }),
+        Value::Array(items) => json!({
+            "type": "array",
+            "len": items.len(),
+        }),
+        Value::Object(object) => json!({
+            "type": "object",
+            "keys": object
+                .keys()
+                .take(REQUEST_LOG_KEY_SAMPLE_LIMIT)
+                .cloned()
+                .collect::<Vec<_>>(),
+        }),
+    }
+}
+
+fn request_log_value_type_hint(value: &Value) -> String {
+    value
+        .get("type")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| match value {
+            Value::Null => "null".to_string(),
+            Value::Bool(_) => "bool".to_string(),
+            Value::Number(_) => "number".to_string(),
+            Value::String(_) => "string".to_string(),
+            Value::Array(_) => "array".to_string(),
+            Value::Object(_) => "object".to_string(),
+        })
+}
+
+fn request_log_text_candidate(value: &Value) -> Option<&str> {
+    ["text", "input_text", "content"]
+        .iter()
+        .find_map(|key| value.get(*key).and_then(Value::as_str))
+}
+
+fn summarize_request_log_messages(messages: &[Value]) -> Value {
+    let roles = messages
+        .iter()
+        .filter_map(|message| message.get("role").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+
+    let mut stats = RequestLogContentStats::default();
+    let mut last_user_preview = None;
+
+    for message in messages {
+        let role = message.get("role").and_then(Value::as_str);
+        match message.get("content") {
+            Some(Value::Array(blocks)) => {
+                for block in blocks {
+                    stats.ingest_block(block);
+                }
+                if role == Some("user") {
+                    last_user_preview = blocks
+                        .iter()
+                        .find_map(request_log_text_candidate)
+                        .map(request_log_truncate_text);
+                }
+            }
+            Some(Value::String(text)) => {
+                stats.ingest_text_preview(text);
+                if role == Some("user") {
+                    last_user_preview = Some(request_log_truncate_text(text));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut summary = serde_json::Map::new();
+    summary.insert("count".to_string(), json!(messages.len()));
+    if !roles.is_empty() {
+        summary.insert("roles".to_string(), json!(roles));
+    }
+    summary.insert("content".to_string(), stats.into_json());
+    if let Some(preview) = last_user_preview {
+        summary.insert("last_user_preview".to_string(), json!(preview));
+    }
+    Value::Object(summary)
+}
+
+fn summarize_request_log_tools(tools: &[Value]) -> Value {
+    let names = tools
+        .iter()
+        .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+        .take(REQUEST_LOG_TOOL_NAME_SAMPLE_LIMIT)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let cache_control_tools = tools
+        .iter()
+        .filter(|tool| tool.get("cache_control").is_some())
+        .count();
+
+    let mut summary = serde_json::Map::new();
+    summary.insert("count".to_string(), json!(tools.len()));
+    if !names.is_empty() {
+        summary.insert("names".to_string(), json!(names));
+    }
+    if cache_control_tools > 0 {
+        summary.insert(
+            "cache_control_tools".to_string(),
+            json!(cache_control_tools),
+        );
+    }
+    Value::Object(summary)
+}
+
+fn summarize_request_log_system(system: &Value) -> Value {
+    match system {
+        Value::Array(blocks) => {
+            let mut stats = RequestLogContentStats::default();
+            for block in blocks {
+                stats.ingest_block(block);
+            }
+            let mut summary = serde_json::Map::new();
+            summary.insert("format".to_string(), json!("blocks"));
+            summary.insert("content".to_string(), stats.into_json());
+            Value::Object(summary)
+        }
+        Value::String(text) => json!({
+            "format": "string",
+            "chars": text.chars().count(),
+            "preview": request_log_truncate_text(text),
+        }),
+        _ => request_log_scalar_summary(system),
+    }
+}
+
+fn summarize_request_log_input_items(items: &[Value]) -> Value {
+    let roles = items
+        .iter()
+        .filter_map(|item| item.get("role").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+
+    let mut stats = RequestLogContentStats::default();
+    for item in items {
+        match item.get("content") {
+            Some(Value::Array(content_items)) => {
+                for content_item in content_items {
+                    stats.ingest_block(content_item);
+                }
+            }
+            Some(Value::String(text)) => stats.ingest_text_preview(text),
+            _ => stats.ingest_block(item),
+        }
+    }
+
+    let mut summary = serde_json::Map::new();
+    summary.insert("count".to_string(), json!(items.len()));
+    if !roles.is_empty() {
+        summary.insert("roles".to_string(), json!(roles));
+    }
+    summary.insert("content".to_string(), stats.into_json());
+    Value::Object(summary)
+}
+
+fn summarize_request_log_json_payload(payload: &Value, payload_type: &'static str) -> Value {
+    let mut summary = serde_json::Map::new();
+    summary.insert("logging_mode".to_string(), json!("summary"));
+    summary.insert("payload_type".to_string(), json!(payload_type));
+
+    match payload {
+        Value::Object(object) => {
+            summary.insert("kind".to_string(), json!("object"));
+            summary.insert(
+                "keys".to_string(),
+                json!(object
+                    .keys()
+                    .take(REQUEST_LOG_KEY_SAMPLE_LIMIT)
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+
+            for key in ["model", "stream", "max_tokens", "temperature", "seed"] {
+                if let Some(value) = object.get(key) {
+                    summary.insert(key.to_string(), request_log_scalar_summary(value));
+                }
+            }
+
+            if let Some(messages) = object.get("messages").and_then(Value::as_array) {
+                summary.insert(
+                    "messages".to_string(),
+                    summarize_request_log_messages(messages),
+                );
+            }
+            if let Some(system) = object.get("system") {
+                summary.insert("system".to_string(), summarize_request_log_system(system));
+            }
+            if let Some(tools) = object.get("tools").and_then(Value::as_array) {
+                summary.insert("tools".to_string(), summarize_request_log_tools(tools));
+            }
+            if let Some(input) = object.get("input").and_then(Value::as_array) {
+                summary.insert(
+                    "input".to_string(),
+                    summarize_request_log_input_items(input),
+                );
+            }
+        }
+        Value::Array(items) => {
+            summary.insert("kind".to_string(), json!("array"));
+            summary.insert(
+                "items".to_string(),
+                summarize_request_log_input_items(items),
+            );
+        }
+        _ => {
+            summary.insert(
+                "kind".to_string(),
+                json!(request_log_value_type_hint(payload)),
+            );
+            summary.insert("value".to_string(), request_log_scalar_summary(payload));
+        }
+    }
+
+    Value::Object(summary)
+}
+
+fn summarize_request_log_input<Payload>(payload: &Payload) -> Value
+where
+    Payload: Any,
+{
+    if let Some(value) = (payload as &dyn Any).downcast_ref::<Value>() {
+        return summarize_request_log_json_payload(value, type_name::<Payload>());
+    }
+
+    json!({
+        "logging_mode": "summary",
+        "payload_type": type_name::<Payload>(),
+    })
+}
 
 impl RequestLog {
     pub fn start<Payload>(model_config: &ModelConfig, payload: &Payload) -> Result<Self>
     where
-        Payload: Serialize,
+        Payload: Any,
     {
         let logs_dir = Paths::in_state_dir("logs");
 
@@ -500,7 +815,7 @@ impl RequestLog {
 
         let data = serde_json::json!({
             "model_config": model_config,
-            "input": payload,
+            "input": summarize_request_log_input(payload),
         });
         writeln!(writer, "{}", serde_json::to_string(&data)?)?;
 
@@ -581,6 +896,154 @@ pub fn safely_parse_json(s: &str) -> Result<serde_json::Value, serde_json::Error
             serde_json::from_str(&escaped)
         }
     }
+}
+
+fn strip_wrapping_code_fence(s: &str) -> &str {
+    let trimmed = s.trim();
+    let Some(stripped_prefix) = trimmed.strip_prefix("```") else {
+        return trimmed;
+    };
+    let Some(first_newline) = stripped_prefix.find('\n') else {
+        return trimmed;
+    };
+    let fenced_body = &stripped_prefix[first_newline + 1..];
+    fenced_body
+        .trim_end()
+        .strip_suffix("```")
+        .map(str::trim)
+        .unwrap_or(trimmed)
+}
+
+fn tool_protocol_tag_regex() -> &'static Regex {
+    static TOOL_PROTOCOL_TAG_RE: OnceLock<Regex> = OnceLock::new();
+    TOOL_PROTOCOL_TAG_RE.get_or_init(|| {
+        Regex::new(
+            r#"(?is)</?(?:tool_call|tool_use|tool_result|function_call|function_calls)\b[^>]*>"#,
+        )
+        .expect("tool protocol tag regex should compile")
+    })
+}
+
+fn strip_tool_protocol_markup(s: &str) -> String {
+    tool_protocol_tag_regex().replace_all(s, " ").into_owned()
+}
+
+fn push_unique_candidate(candidates: &mut Vec<String>, candidate: &str) {
+    let trimmed = candidate.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    if !candidates.iter().any(|existing| existing == trimmed) {
+        candidates.push(trimmed.to_string());
+    }
+}
+
+fn find_outer_json_span(s: &str) -> Option<(usize, usize)> {
+    let mut start: Option<usize> = None;
+    let mut stack: Vec<char> = Vec::new();
+    let mut in_string = false;
+    let mut escaping = false;
+
+    for (index, ch) in s.char_indices() {
+        if start.is_none() {
+            match ch {
+                '{' => {
+                    start = Some(index);
+                    stack.push('}');
+                }
+                '[' => {
+                    start = Some(index);
+                    stack.push(']');
+                }
+                _ => {}
+            }
+            continue;
+        }
+
+        if in_string {
+            if escaping {
+                escaping = false;
+                continue;
+            }
+            match ch {
+                '\\' => escaping = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+
+        match ch {
+            '"' => in_string = true,
+            '{' => stack.push('}'),
+            '[' => stack.push(']'),
+            '}' | ']' => {
+                if stack.last().copied() != Some(ch) {
+                    return None;
+                }
+                stack.pop();
+                if stack.is_empty() {
+                    return start.map(|start_index| (start_index, index + ch.len_utf8()));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    None
+}
+
+fn build_tool_argument_candidates(raw: &str) -> Vec<String> {
+    let mut candidates = Vec::new();
+    push_unique_candidate(&mut candidates, raw);
+
+    let without_fence = strip_wrapping_code_fence(raw);
+    push_unique_candidate(&mut candidates, without_fence);
+
+    let without_markup = strip_tool_protocol_markup(without_fence);
+    push_unique_candidate(&mut candidates, &without_markup);
+
+    let seed_candidates = candidates.clone();
+    for candidate in seed_candidates {
+        if let Some((start, end)) = find_outer_json_span(&candidate) {
+            push_unique_candidate(&mut candidates, &candidate[start..end]);
+        }
+    }
+
+    candidates
+}
+
+fn parse_tool_arguments_candidate(candidate: &str, depth: usize) -> Option<serde_json::Value> {
+    let parsed = safely_parse_json(candidate).ok()?;
+    match parsed {
+        Value::Object(_) => Some(parsed),
+        Value::String(inner) if depth == 0 => {
+            for nested_candidate in build_tool_argument_candidates(&inner) {
+                if let Some(value) = parse_tool_arguments_candidate(&nested_candidate, depth + 1) {
+                    return Some(value);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+pub fn parse_tool_arguments_json_object(raw: &str) -> anyhow::Result<serde_json::Value> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(json!({}));
+    }
+
+    for candidate in build_tool_argument_candidates(trimmed) {
+        if let Some(parsed) = parse_tool_arguments_candidate(&candidate, 0) {
+            return Ok(parsed);
+        }
+    }
+
+    Err(anyhow!(
+        "Could not interpret tool use parameters as a JSON object"
+    ))
 }
 
 /// Helper to escape control characters in a string that is supposed to be a JSON document.
@@ -890,6 +1353,34 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_tool_arguments_json_object_with_tool_markup_suffix() {
+        let raw = r#"{"command":"ls /Users/coso/Documents/dev/js/claudecode"} </tool_call>"#;
+        let parsed = parse_tool_arguments_json_object(raw).unwrap();
+        assert_eq!(
+            parsed["command"],
+            "ls /Users/coso/Documents/dev/js/claudecode"
+        );
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_json_object_with_wrapping_tool_call_tag() {
+        let raw =
+            r#"<tool_call>{"command":"ls /Users/coso/Documents/dev/js/claudecode"}</tool_call>"#;
+        let parsed = parse_tool_arguments_json_object(raw).unwrap();
+        assert_eq!(
+            parsed["command"],
+            "ls /Users/coso/Documents/dev/js/claudecode"
+        );
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_json_object_with_stringified_object() {
+        let raw = r#""{\"command\":\"ls /tmp\"}""#;
+        let parsed = parse_tool_arguments_json_object(raw).unwrap();
+        assert_eq!(parsed["command"], "ls /tmp");
+    }
+
+    #[test]
     fn test_json_escape_control_chars_in_string() {
         // Test basic control character escaping
         assert_eq!(
@@ -956,5 +1447,69 @@ mod tests {
             parse_google_retry_delay(&payload),
             Some(Duration::from_secs(42))
         );
+    }
+
+    #[test]
+    fn test_summarize_request_log_json_payload_compacts_anthropic_request() {
+        let payload = json!({
+            "model": "glm-5.1",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "对比 Claude Code 与 Lime 的 task 调度差异",
+                            "cache_control": { "type": "ephemeral" }
+                        },
+                        {
+                            "type": "image",
+                            "source": { "type": "base64" }
+                        }
+                    ]
+                }
+            ],
+            "system": [
+                {
+                    "type": "text",
+                    "text": "你是一个代码助手",
+                    "cache_control": { "type": "ephemeral" }
+                }
+            ],
+            "tools": [
+                { "name": "Read", "input_schema": { "type": "object" } },
+                { "name": "Glob", "input_schema": { "type": "object" }, "cache_control": { "type": "ephemeral" } }
+            ],
+            "stream": true,
+            "max_tokens": 64000
+        });
+
+        let summary = summarize_request_log_json_payload(&payload, "serde_json::Value");
+
+        assert_eq!(summary["logging_mode"], "summary");
+        assert_eq!(summary["messages"]["count"], 1);
+        assert_eq!(summary["messages"]["content"]["type_counts"]["text"], 1);
+        assert_eq!(summary["messages"]["content"]["type_counts"]["image"], 1);
+        assert_eq!(summary["system"]["content"]["cache_control_blocks"], 1);
+        assert_eq!(summary["tools"]["count"], 2);
+        assert_eq!(summary["tools"]["cache_control_tools"], 1);
+        assert_eq!(summary["model"]["preview"], "glm-5.1");
+        assert!(summary.get("value").is_none());
+    }
+
+    #[test]
+    fn test_summarize_request_log_input_for_non_json_payload_keeps_type_only() {
+        #[derive(Serialize)]
+        struct ExamplePayload {
+            value: &'static str,
+        }
+
+        let summary = summarize_request_log_input(&ExamplePayload { value: "hello" });
+        assert_eq!(summary["logging_mode"], "summary");
+        assert!(summary["payload_type"]
+            .as_str()
+            .expect("payload_type should be a string")
+            .contains("ExamplePayload"));
+        assert!(summary.get("value").is_none());
     }
 }

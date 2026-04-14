@@ -226,6 +226,71 @@ describe("agentThreadGrouping", () => {
     ]);
   });
 
+  it("ToolSearch 结果预览应优先展示过程结论，而不是退回通用动词模板", () => {
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("tool-search-1", 1),
+        type: "tool_call",
+        tool_name: "ToolSearch",
+        arguments: {
+          query: "select:Read,Write",
+        },
+        output: JSON.stringify({
+          query: "select:Read,Write",
+          count: 2,
+          tools: [{ name: "Read" }, { name: "Write" }],
+        }),
+      },
+    ];
+
+    const model = buildAgentThreadDisplayModel(items);
+
+    expect(model.groups[0]?.previewLines).toEqual([
+      "已确认可用工具 2 个 · 查看文件 · 保存文件",
+    ]);
+  });
+
+  it("连续探索类工具应折叠成项目探索摘要", () => {
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("grep-1", 1),
+        type: "tool_call",
+        tool_name: "Grep",
+        arguments: {
+          pattern: "tool_use_summary",
+          path: "/workspace/src",
+        },
+      },
+      {
+        ...createBaseItem("read-1", 2),
+        type: "tool_call",
+        tool_name: "Read",
+        arguments: {
+          file_path: "/workspace/src/query.ts",
+        },
+      },
+      {
+        ...createBaseItem("read-2", 3),
+        type: "tool_call",
+        tool_name: "Read",
+        arguments: {
+          file_path: "/workspace/src/components/messages/CollapsedReadSearchContent.tsx",
+        },
+      },
+    ];
+
+    const model = buildAgentThreadDisplayModel(items);
+
+    expect(model.orderedBlocks).toHaveLength(1);
+    expect(model.orderedBlocks[0]?.title).toBe("已探索项目");
+    expect(model.orderedBlocks[0]?.previewLines).toEqual([
+      "查看了 2 个文件，搜索 1 次",
+      "最新线索：CollapsedReadSearchContent.tsx",
+    ]);
+    expect(model.orderedBlocks[0]?.countLabel).toBe("读 2 / 搜 1");
+    expect(model.orderedBlocks[0]?.rawDetailLabel).toBe("展开查看探索明细");
+  });
+
   it("交互与任务结果预览应使用更直白的用户文案", () => {
     const items: AgentThreadItem[] = [
       {

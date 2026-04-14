@@ -15,6 +15,7 @@ const BRIDGE_HEALTH_URL = "http://127.0.0.1:3030/health";
 const BRIDGE_EVENTS_URL = "http://127.0.0.1:3030/events";
 const DEV_BRIDGE_EVENT_CONNECT_TIMEOUT_MS = 1500;
 const DEV_BRIDGE_REQUEST_TIMEOUT_MS = 1800;
+const DEV_BRIDGE_AGENT_RUNTIME_TIMEOUT_MS = 10000;
 const DEV_BRIDGE_HEALTH_TIMEOUT_MS = 800;
 const DEV_BRIDGE_HEALTH_CACHE_MS = 10000;
 const DEV_BRIDGE_FAILURE_COOLDOWN_MS = 3000;
@@ -44,6 +45,13 @@ const bridgeEventHubs = new Map<string, DevBridgeEventHub>();
 let bridgeLastHealthyAt = 0;
 let bridgeConnectionBackoffUntil = 0;
 let bridgeHealthProbePromise: Promise<boolean> | null = null;
+
+function resolveBridgeRequestTimeoutMs(cmd: string): number {
+  if (cmd.startsWith("agent_runtime_")) {
+    return DEV_BRIDGE_AGENT_RUNTIME_TIMEOUT_MS;
+  }
+  return DEV_BRIDGE_REQUEST_TIMEOUT_MS;
+}
 
 function resolveEventSourceConstructor(): typeof EventSource | null {
   if (
@@ -324,6 +332,7 @@ export async function listenViaHttpEvent<T = unknown>(
       `${BRIDGE_EVENTS_URL}?event=${encodeURIComponent(normalizedEvent)}`,
     );
     const listeners = new Set<DevBridgeEventHandler<unknown>>();
+    let hubActive = true;
     let hasOpened = false;
     let settleOpen: ((value: void | PromiseLike<void>) => void) | null = null;
     let settleOpenError: ((reason?: unknown) => void) | null = null;
@@ -332,10 +341,11 @@ export async function listenViaHttpEvent<T = unknown>(
       settleOpenError = reject;
     });
     const connectTimeout = window.setTimeout(() => {
-      if (hasOpened) {
+      if (hasOpened || !hubActive) {
         return;
       }
       markBridgeUnavailable();
+      hubActive = false;
       bridgeEventHubs.delete(normalizedEvent);
       source.close();
       settleOpenError?.(
@@ -361,7 +371,11 @@ export async function listenViaHttpEvent<T = unknown>(
     };
 
     source.onopen = () => {
+      if (!hubActive) {
+        return;
+      }
       hasOpened = true;
+      markBridgeHealthy();
       window.clearTimeout(connectTimeout);
       settleOpen?.();
       settleOpen = null;
@@ -369,14 +383,18 @@ export async function listenViaHttpEvent<T = unknown>(
     };
 
     source.onerror = (error) => {
+      if (!hubActive) {
+        return;
+      }
       console.warn(`[DevBridge] 事件流异常: ${normalizedEvent}`, error);
+      hubActive = false;
+      bridgeEventHubs.delete(normalizedEvent);
+      source.close();
       if (hasOpened) {
         return;
       }
-      window.clearTimeout(connectTimeout);
       markBridgeUnavailable();
-      bridgeEventHubs.delete(normalizedEvent);
-      source.close();
+      window.clearTimeout(connectTimeout);
       settleOpenError?.(
         new Error(`[DevBridge] 事件流连接失败: ${normalizedEvent}`),
       );
@@ -423,6 +441,7 @@ export async function invokeViaHttp<T = unknown>(
   args?: unknown,
 ): Promise<T> {
   console.log(`[DevBridge] HTTP 调用: ${cmd}`, args);
+  const timeoutMs = resolveBridgeRequestTimeoutMs(cmd);
 
   try {
     await ensureBridgeReachable();
@@ -436,7 +455,7 @@ export async function invokeViaHttp<T = unknown>(
         },
         body: JSON.stringify({ cmd, args } satisfies InvokeRequest),
       },
-      DEV_BRIDGE_REQUEST_TIMEOUT_MS,
+      timeoutMs,
     );
 
     if (!response.ok) {
@@ -480,6 +499,10 @@ export function __resetDevBridgeHttpStateForTests(): void {
   bridgeLastHealthyAt = 0;
   bridgeConnectionBackoffUntil = 0;
   bridgeHealthProbePromise = null;
+  for (const hub of bridgeEventHubs.values()) {
+    hub.source.close();
+  }
+  bridgeEventHubs.clear();
 }
 
 /**

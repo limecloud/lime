@@ -17,6 +17,7 @@ pub use lime_agent::prompt;
 pub use lime_core::agent::types;
 pub use lime_core::agent::types::*;
 
+pub(crate) use aster_agent::build_auxiliary_session_config;
 pub use aster_agent::{AsterAgentWrapper, SessionDetail, SessionInfo};
 pub use aster_state::AsterAgentState;
 pub use credential_bridge::{

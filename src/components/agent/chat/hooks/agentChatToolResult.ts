@@ -345,6 +345,9 @@ export const isToolResultSuccessful = (
   if (metadata?.reported_success === false) {
     return false;
   }
+  if (metadata?.reported_success === true) {
+    return true;
+  }
   if (
     typeof metadata?.exit_code === "number" &&
     Number.isFinite(metadata.exit_code) &&

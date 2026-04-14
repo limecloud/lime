@@ -31,7 +31,7 @@ export function useWorkspaceHarnessInventoryRuntime({
   enabled,
   chatMode,
   mappedTheme,
-  harnessPanelVisible,
+  harnessPanelVisible: _harnessPanelVisible,
   harnessRequestMetadata,
   isThemeWorkbench,
   themeWorkbenchRunState,
@@ -103,12 +103,12 @@ export function useWorkspaceHarnessInventoryRuntime({
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled || !harnessPanelVisible) {
+    if (!enabled) {
       return;
     }
 
     void refreshToolInventory();
-  }, [enabled, harnessPanelVisible, refreshToolInventory]);
+  }, [enabled, refreshToolInventory]);
 
   const generalWorkbenchHarnessSummary = useMemo(() => {
     if (!enabled || !isThemeWorkbench) {

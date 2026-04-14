@@ -29,6 +29,7 @@ enum RemoteTriggerAction {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RemoteTriggerInput {
     action: RemoteTriggerAction,
     #[serde(default)]
@@ -275,6 +276,25 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.to_string().contains("requires body"));
+    }
+
+    #[tokio::test]
+    async fn remote_trigger_rejects_unknown_fields() {
+        let result = RemoteTriggerTool::new()
+            .execute(
+                json!({
+                    "action": "list",
+                    "unexpected": true
+                }),
+                &ToolContext::new(std::path::PathBuf::from(".")),
+            )
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(ToolError::InvalidParams(message))
+            if message.contains("unknown field `unexpected`, expected one of `action`, `trigger_id`, `body`")
+        ));
     }
 
     #[tokio::test]

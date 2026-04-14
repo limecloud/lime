@@ -27,6 +27,7 @@ pub struct StepResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillInputImage {
     pub data: String,
+    #[serde(alias = "mediaType")]
     pub media_type: String,
 }
 

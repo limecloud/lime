@@ -246,13 +246,13 @@ describe("MemoryPage", () => {
 
     const bodyText = document.body.textContent ?? "";
     expect(bodyText).toContain("记忆工作台");
-    expect(bodyText).toContain("规则");
-    expect(bodyText).toContain("工作记忆");
-    expect(bodyText).toContain("长期记忆");
-    expect(bodyText).toContain("Team 影子");
-    expect(bodyText).toContain("压缩边界");
-    expect(bodyText).toContain("五层总览");
-    expect(bodyText).toContain("项目资料附属层");
+    expect(bodyText).toContain("记忆来源");
+    expect(bodyText).toContain("会话记忆");
+    expect(bodyText).toContain("记忆类型");
+    expect(bodyText).toContain("Team Memory");
+    expect(bodyText).toContain("会话压缩");
+    expect(bodyText).toContain("Claude Code 记忆作用域");
+    expect(bodyText).toContain("不要写进记忆的内容");
   });
 
   it("应兼容旧的 durable category 深链，并支持带回创作输入", async () => {
@@ -260,7 +260,8 @@ describe("MemoryPage", () => {
     renderPage({ section: "identity", onNavigate });
     await flushPageEffects();
 
-    expect(document.body.textContent ?? "").toContain("长期结构化记忆");
+    expect(document.body.textContent ?? "").toContain("Claude Code 记忆类型");
+    expect(document.body.textContent ?? "").toContain("当前存量条目");
     expect(document.body.textContent ?? "").toContain("夏日短视频语气");
 
     const button = Array.from(document.body.querySelectorAll("button")).find(
@@ -303,12 +304,13 @@ describe("MemoryPage", () => {
         agentEntry: "new-task",
         projectId: "project-42",
         entryBannerMessage: "已从灵感库带入“风格”条目，可继续改写后发送。",
-        initialUserPrompt: expect.stringContaining("标签：小红书、口播、夏日氛围"),
+        initialUserPrompt:
+          expect.stringContaining("标签：小红书、口播、夏日氛围"),
       }),
     );
   });
 
-  it("应支持带着当前会话上下文打开运行时五层预演", async () => {
+  it("应支持带着当前会话上下文打开运行时记忆命中预演", async () => {
     window.localStorage.setItem(
       "lime:team-memory:/tmp/workspace",
       JSON.stringify({
@@ -368,7 +370,7 @@ describe("MemoryPage", () => {
     expect(bodyText).toContain("会话：session-runtime-1");
     expect(bodyText).toContain("工作区：/tmp/workspace");
     expect(bodyText).toContain("本回合记忆预取");
-    expect(bodyText).toContain("五层记忆预演");
+    expect(bodyText).toContain("记忆命中预演");
     expect(bodyText).toContain("研究输出格式偏好");
     expect(bodyText).toContain("研究协作队");
     expect(bodyText).toContain("【运行时记忆召回】");
@@ -464,17 +466,21 @@ describe("MemoryPage", () => {
     expect(bodyText).toContain("补强层：规则层、持久层。 摘要内容也有更新。");
     expect(bodyText).toContain("规则 +1");
     expect(bodyText).toContain("持久 +1");
-    expect(bodyText).toContain("工作摘录 【task_plan.md】旧版工作摘录。 -> 【task_plan.md】新版工作摘录。");
+    expect(bodyText).toContain(
+      "工作摘录 【task_plan.md】旧版工作摘录。 -> 【task_plan.md】新版工作摘录。",
+    );
     expect(bodyText).toContain("当前基线");
     expect(bodyText).toContain("设为对照基线");
 
-    const switchBaselineButton = Array.from(document.body.querySelectorAll("button")).find(
-      (element) => element.textContent?.trim() === "设为对照基线",
-    );
+    const switchBaselineButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((element) => element.textContent?.trim() === "设为对照基线");
     expect(switchBaselineButton).toBeTruthy();
 
     await act(async () => {
-      switchBaselineButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      switchBaselineButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       await Promise.resolve();
     });
 
@@ -492,10 +498,12 @@ describe("MemoryPage", () => {
     });
     await flushPageEffects();
 
-    const rulesButton = Array.from(document.body.querySelectorAll("button")).find(
+    const rulesButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find(
       (element) =>
-        element.textContent?.includes("规则") &&
-        !element.textContent?.includes("看规则"),
+        element.textContent?.includes("记忆来源") &&
+        !element.textContent?.includes("看来源链"),
     );
     expect(rulesButton).toBeTruthy();
 
@@ -594,7 +602,9 @@ describe("MemoryPage", () => {
 
     const bodyText = document.body.textContent ?? "";
     expect(bodyText).toContain("较上一条判断");
-    expect(bodyText).toContain("补强层：规则层、工作层、持久层、Team 层、压缩层。 摘要内容也有更新。");
+    expect(bodyText).toContain(
+      "补强层：规则层、工作层、持久层、Team 层、压缩层。 摘要内容也有更新。",
+    );
     expect(bodyText).toContain("规则 +1");
     expect(bodyText).toContain("工作 新命中");
     expect(bodyText).toContain("持久 +1");
@@ -702,9 +712,9 @@ describe("MemoryPage", () => {
 
     expect(document.body.textContent ?? "").toContain("其他工作区记录");
 
-    const sessionButton = Array.from(document.body.querySelectorAll("button")).find(
-      (element) => element.textContent?.trim() === "当前会话",
-    );
+    const sessionButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((element) => element.textContent?.trim() === "当前会话");
     expect(sessionButton).toBeTruthy();
 
     await act(async () => {
@@ -741,9 +751,9 @@ describe("MemoryPage", () => {
 
     expect(document.body.textContent ?? "").toContain("待清空记录");
 
-    const clearButton = Array.from(document.body.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("清空历史"),
-    );
+    const clearButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((element) => element.textContent?.includes("清空历史"));
     expect(clearButton).toBeTruthy();
 
     await act(async () => {

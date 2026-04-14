@@ -122,6 +122,17 @@ impl AnthropicProvider {
         Ok(request.api_post(payload).await?)
     }
 
+    async fn post_stream(&self, payload: &Value) -> Result<reqwest::Response, ProviderError> {
+        let mut request = self.api_client.request("v1/messages");
+
+        for (key, value) in self.get_conditional_headers() {
+            request = request.header(key, value)?;
+        }
+
+        let response = Box::pin(async move { request.response_post(payload).await }).await?;
+        Box::pin(async move { handle_status_openai_compat(response).await }).await
+    }
+
     fn anthropic_api_call_result(response: ApiResponse) -> Result<Value, ProviderError> {
         match response.status {
             StatusCode::OK => response.payload.ok_or_else(|| {
@@ -259,19 +270,17 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut request = self.api_client.request("v1/messages");
         let mut log = RequestLog::start(&self.model, &payload)?;
 
-        for (key, value) in self.get_conditional_headers() {
-            request = request.header(key, value)?;
-        }
-
-        let resp = request.response_post(&payload).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
-        let response = handle_status_openai_compat(resp).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
+        let response = self
+            .with_retry(|| {
+                let payload = payload.clone();
+                async move { self.post_stream(&payload).await }
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 

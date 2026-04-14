@@ -18,6 +18,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::agent::build_auxiliary_session_config;
 use crate::commands::aster_agent_cmd::ensure_browser_mcp_tools_registered;
 use crate::database::DbConnection;
 use crate::models::project_model::{CreatePersonaRequest, Persona, PersonaTemplate, PersonaUpdate};
@@ -355,9 +356,6 @@ pub async fn generate_persona(
     let cancel_token = agent_state.create_cancel_token(&session_id).await;
 
     let user_message = Message::user().with_text(&user_prompt);
-    let mut session_config_builder =
-        crate::agent::aster_state::SessionConfigBuilder::new(&session_id)
-            .include_context_trace(true);
     let base_runtime_prompt = merge_system_prompt_with_runtime_agents(None, None);
     let merged_prompt = if let Some(memory_prompt) =
         build_memory_prompt(&config_manager.config(), MemoryPromptContext::default())
@@ -369,10 +367,7 @@ pub async fn generate_persona(
     } else {
         base_runtime_prompt
     };
-    if let Some(prompt) = merged_prompt {
-        session_config_builder = session_config_builder.system_prompt(prompt);
-    }
-    let session_config = session_config_builder.build();
+    let session_config = build_auxiliary_session_config(&session_id, merged_prompt, true);
 
     // 获取 Agent 引用
     let agent_arc = agent_state.get_agent_arc();

@@ -14,12 +14,24 @@ use super::context::{ToolContext, ToolOptions, ToolResult};
 use super::error::ToolError;
 use super::task::TaskManager;
 
+const TASK_STOP_TOOL_ALIASES: &[&str] = &["TaskStopTool", "KillShell"];
+
 /// TaskStop 工具输入参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TaskStopInput {
     /// 要终止的后台任务 ID
     #[serde(alias = "shell_id")]
-    pub task_id: String,
+    pub task_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TaskStopPayload {
+    message: String,
+    task_id: String,
+    task_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    command: Option<String>,
 }
 
 /// 停止后台任务的新版工具
@@ -46,10 +58,19 @@ impl TaskStopTool {
     }
 }
 
+fn pretty_json<T: Serialize>(value: &T) -> Result<String, ToolError> {
+    serde_json::to_string_pretty(value)
+        .map_err(|error| ToolError::execution_failed(format!("序列化 TaskStop 结果失败: {error}")))
+}
+
 #[async_trait]
 impl Tool for TaskStopTool {
     fn name(&self) -> &str {
         "TaskStop"
+    }
+
+    fn aliases(&self) -> &'static [&'static str] {
+        TASK_STOP_TOOL_ALIASES
     }
 
     fn description(&self) -> &str {
@@ -69,7 +90,7 @@ impl Tool for TaskStopTool {
                     "description": "旧参数名兼容别名，请改用 task_id"
                 }
             },
-            "required": ["task_id"]
+            "additionalProperties": false
         })
     }
 
@@ -78,31 +99,50 @@ impl Tool for TaskStopTool {
         params: serde_json::Value,
         _context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
-        let task_id = params
-            .get("task_id")
-            .or_else(|| params.get("shell_id"))
-            .and_then(|value| value.as_str())
+        let input: TaskStopInput = serde_json::from_value(params)
+            .map_err(|error| ToolError::invalid_params(format!("TaskStop 参数无效: {error}")))?;
+        let task_id = input
+            .task_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
             .ok_or_else(|| ToolError::invalid_params("Missing required parameter: task_id"))?;
 
-        let existing_state = self.task_manager.get_status(task_id).await;
-        let existing_command = existing_state.as_ref().map(|state| state.command.clone());
+        let Some(existing_state) = self.task_manager.get_status(task_id).await else {
+            return Ok(
+                ToolResult::error(format!("No task found with ID: {}", task_id))
+                    .with_metadata("task_id", serde_json::json!(task_id)),
+            );
+        };
 
+        if !existing_state.status.is_running() {
+            return Ok(ToolResult::error(format!(
+                "Task {} is not running (status: {})",
+                task_id, existing_state.status
+            ))
+            .with_metadata("task_id", serde_json::json!(task_id))
+            .with_metadata("task_type", serde_json::json!("local_bash"))
+            .with_metadata(
+                "status",
+                serde_json::json!(existing_state.status.to_string()),
+            )
+            .with_metadata("command", serde_json::json!(existing_state.command)));
+        }
+
+        let command = existing_state.command.clone();
         match self.task_manager.kill(task_id).await {
             Ok(()) => {
-                let command = existing_command.unwrap_or_else(|| "unknown".to_string());
-                Ok(ToolResult::success(format!(
-                    "Successfully stopped task: {} ({})",
-                    task_id, command
-                ))
-                .with_metadata("task_id", serde_json::json!(task_id))
-                .with_metadata("task_type", serde_json::json!("background_task"))
-                .with_metadata("command", serde_json::json!(command)))
+                let output = TaskStopPayload {
+                    message: format!("Successfully stopped task: {} ({})", task_id, command),
+                    task_id: task_id.to_string(),
+                    task_type: "local_bash".to_string(),
+                    command: Some(command.clone()),
+                };
+                Ok(ToolResult::success(pretty_json(&output)?)
+                    .with_metadata("task_id", serde_json::json!(task_id))
+                    .with_metadata("task_type", serde_json::json!("local_bash"))
+                    .with_metadata("command", serde_json::json!(command)))
             }
-            Err(ToolError::NotFound(_)) => Ok(ToolResult::error(format!(
-                "No task found with ID: {}",
-                task_id
-            ))
-            .with_metadata("task_id", serde_json::json!(task_id))),
             Err(error) => Ok(ToolResult::error(format!(
                 "Failed to stop task {}: {}",
                 task_id, error
@@ -165,10 +205,8 @@ mod tests {
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["task_id"].is_object());
         assert!(schema["properties"]["shell_id"].is_object());
-        assert!(schema["required"]
-            .as_array()
-            .unwrap()
-            .contains(&serde_json::json!("task_id")));
+        assert_eq!(schema["additionalProperties"], serde_json::json!(false));
+        assert!(schema["required"].is_null());
     }
 
     #[test]
@@ -230,9 +268,66 @@ mod tests {
             .expect("execute should succeed");
 
         assert!(result.success);
+        let output = result.output.as_ref().unwrap();
+        assert!(output.contains("\"task_type\": \"local_bash\""));
+        assert!(output.contains("\"message\": \"Successfully stopped task:"));
         assert_eq!(
             result.metadata["task_type"],
-            serde_json::json!("background_task")
+            serde_json::json!("local_bash")
         );
+    }
+
+    #[tokio::test]
+    async fn test_execute_accepts_shell_id_alias() {
+        let temp_dir = TempDir::new().unwrap();
+        let task_manager =
+            Arc::new(TaskManager::new().with_output_directory(temp_dir.path().to_path_buf()));
+        let tool = TaskStopTool::with_task_manager(task_manager.clone());
+        let context = create_test_context();
+
+        let task_id = task_manager
+            .start("sleep 5", &context)
+            .await
+            .expect("task should start");
+
+        let result = tool
+            .execute(serde_json::json!({ "shell_id": task_id }), &context)
+            .await
+            .expect("execute should succeed");
+
+        assert!(result.success);
+        assert_eq!(
+            result.metadata["task_type"],
+            serde_json::json!("local_bash")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_execute_rejects_completed_task() {
+        let temp_dir = TempDir::new().unwrap();
+        let task_manager =
+            Arc::new(TaskManager::new().with_output_directory(temp_dir.path().to_path_buf()));
+        let tool = TaskStopTool::with_task_manager(task_manager.clone());
+        let context = create_test_context();
+
+        let task_id = task_manager
+            .start("echo done", &context)
+            .await
+            .expect("task should start");
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        let result = tool
+            .execute(serde_json::json!({ "task_id": task_id }), &context)
+            .await
+            .expect("execute should return a structured error result");
+
+        assert!(!result.success);
+        let expected_error = format!("Task {} is not running (status: completed)", task_id);
+        assert_eq!(result.error.as_deref(), Some(expected_error.as_str()));
+        assert_eq!(
+            result.metadata["task_type"],
+            serde_json::json!("local_bash")
+        );
+        assert_eq!(result.metadata["status"], serde_json::json!("completed"));
     }
 }

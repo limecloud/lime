@@ -20,6 +20,7 @@ const VALID_WORKTREE_SEGMENT_CHARS: &str =
 const MAX_WORKTREE_SLUG_LENGTH: usize = 64;
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct EnterWorktreeInput {
     #[serde(default)]
     name: Option<String>,
@@ -42,6 +43,7 @@ enum ExitWorktreeAction {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ExitWorktreeInput {
     action: ExitWorktreeAction,
     #[serde(default, alias = "discardChanges")]
@@ -62,8 +64,6 @@ struct ExitWorktreeOutput {
     discarded_files: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     discarded_commits: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    noop: Option<bool>,
     message: String,
 }
 
@@ -188,7 +188,7 @@ impl Tool for EnterWorktreeTool {
             worktree_path: worktree_path.display().to_string(),
             worktree_branch: Some(worktree_branch.clone()),
             message: format!(
-                "Created worktree at {} on branch {}. The session is now working in the worktree. Use ExitWorktree to leave mid-session.",
+                "Created worktree at {} on branch {}. The session is now working in the worktree. Use ExitWorktree to leave mid-session, or exit the session to be prompted.",
                 worktree_path.display(),
                 worktree_branch
             ),
@@ -275,21 +275,9 @@ impl Tool for ExitWorktreeTool {
             .map_err(|error| ToolError::execution_failed(format!("读取 session 失败: {error}")))?;
 
         let Some(state) = WorktreeSessionState::from_extension_data(&session.extension_data) else {
-            let output = ExitWorktreeOutput {
-                action: input.action,
-                original_cwd: None,
-                worktree_path: None,
-                worktree_branch: None,
-                discarded_files: None,
-                discarded_commits: None,
-                noop: Some(true),
-                message: "No-op: there is no active EnterWorktree session to exit. No filesystem changes were made.".to_string(),
-            };
-
-            return Ok(ToolResult::success(pretty_json(&output)?)
-                .with_metadata("action", json!(output.action))
-                .with_metadata("noop", json!(true))
-                .with_metadata("message", json!(output.message)));
+            return Err(ToolError::execution_failed(
+                "No-op: there is no active EnterWorktree session to exit. This tool only operates on worktrees created by EnterWorktree in the current session. It will not touch worktrees created manually or in a previous session. No filesystem changes were made.",
+            ));
         };
 
         let change_summary = count_worktree_changes(
@@ -370,7 +358,6 @@ impl Tool for ExitWorktreeTool {
                     worktree_branch: worktree_branch.clone(),
                     discarded_files: None,
                     discarded_commits: None,
-                    noop: None,
                     message: format!(
                         "Exited worktree. Your work is preserved at {}{}. Session is now back in {}.",
                         worktree_path,
@@ -418,7 +405,6 @@ impl Tool for ExitWorktreeTool {
                     worktree_branch: worktree_branch.clone(),
                     discarded_files: Some(summary.changed_files),
                     discarded_commits: Some(summary.commits),
-                    noop: None,
                     message: format!(
                         "Exited and removed worktree at {}.{} Session is now back in {}.",
                         worktree_path, discard_note, original_cwd
@@ -902,16 +888,13 @@ mod tests {
         let context =
             ToolContext::new(repo.path().to_path_buf()).with_session_id(session.id.clone());
 
-        let result = ExitWorktreeTool::new()
+        let error = ExitWorktreeTool::new()
             .execute(json!({ "action": "keep" }), &context)
-            .await?;
-
-        assert!(result.success);
-        assert!(result
-            .output
-            .as_deref()
-            .unwrap_or_default()
-            .contains("No-op"));
+            .await
+            .expect_err("missing EnterWorktree session should error");
+        assert!(error
+            .to_string()
+            .contains("no active EnterWorktree session"));
 
         Ok(())
     }

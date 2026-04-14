@@ -7,7 +7,7 @@
       "requestType": "AgentRuntimeSubmitTurnRequest",
       "responseType": "void",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.thread"
     },
     {
@@ -16,7 +16,7 @@
       "requestType": "AgentRuntimeInterruptTurnRequest",
       "responseType": "boolean",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.thread"
     },
     {
@@ -79,7 +79,7 @@
       "requestType": "AgentRuntimeRespondActionRequest",
       "responseType": "void",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.thread"
     },
     {
@@ -88,7 +88,7 @@
       "requestType": "{ workspaceId: string; name?: string; executionStrategy?: AsterExecutionStrategy }",
       "responseType": "string",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.session"
     },
     {
@@ -97,7 +97,7 @@
       "requestType": "void",
       "responseType": "AsterSessionInfo[]",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.session"
     },
     {
@@ -106,7 +106,7 @@
       "requestType": "{ sessionId: string }",
       "responseType": "AsterSessionDetail",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.session"
     },
     {
@@ -115,7 +115,7 @@
       "requestType": "AgentRuntimeUpdateSessionRequest",
       "responseType": "void",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.session"
     },
     {
@@ -124,7 +124,7 @@
       "requestType": "{ sessionId: string }",
       "responseType": "void",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.session"
     },
     {
@@ -187,7 +187,7 @@
       "requestType": "AgentRuntimeToolInventoryRequest",
       "responseType": "AgentRuntimeToolInventory",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.inventory"
     },
     {
@@ -196,7 +196,7 @@
       "requestType": "AgentRuntimeSpawnSubagentRequest",
       "responseType": "AgentRuntimeSpawnSubagentResponse",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.subagent"
     },
     {
@@ -205,7 +205,7 @@
       "requestType": "AgentRuntimeSendSubagentInputRequest",
       "responseType": "AgentRuntimeSendSubagentInputResponse",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.subagent"
     },
     {
@@ -214,7 +214,7 @@
       "requestType": "AgentRuntimeWaitSubagentsRequest",
       "responseType": "AgentRuntimeWaitSubagentsResponse",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.subagent"
     },
     {
@@ -223,7 +223,7 @@
       "requestType": "AgentRuntimeResumeSubagentRequest",
       "responseType": "AgentRuntimeResumeSubagentResponse",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.subagent"
     },
     {
@@ -232,7 +232,7 @@
       "requestType": "AgentRuntimeCloseSubagentRequest",
       "responseType": "AgentRuntimeCloseSubagentResponse",
       "lifecycle": "current",
-      "mockStrategy": "default-mock",
+      "mockStrategy": "bridge-only",
       "docsSection": "agent-runtime.subagent"
     }
   ]

@@ -3,6 +3,7 @@ use super::{
     get_string_arg, workspace_manager, DynError,
 };
 use crate::dev_bridge::DevBridgeState;
+use crate::workspace_support::get_current_default_project;
 use serde_json::Value as JsonValue;
 
 pub(super) fn try_handle(
@@ -26,7 +27,7 @@ pub(super) fn try_handle(
         }
         "workspace_ensure_default_ready" => {
             let manager = workspace_manager(state)?;
-            let Some(workspace) = manager.get_default()? else {
+            let Some(workspace) = get_current_default_project(&manager)? else {
                 return Ok(Some(serde_json::json!(null)));
             };
             let result = build_ensure_result(

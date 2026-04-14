@@ -26,7 +26,7 @@ import {
   type Topic,
 } from "./agentChatShared";
 import {
-  loadPersistedSessionWorkspaceId,
+  loadStoredSessionWorkspaceIdRaw,
   savePersistedSessionWorkspaceId,
 } from "./agentProjectStorage";
 import { normalizeHistoryMessages } from "./agentChatHistory";
@@ -51,7 +51,10 @@ import {
   createSessionAccessModeFromExecutionRuntime,
   createSessionModelPreferenceFromExecutionRuntime,
 } from "../utils/sessionExecutionRuntime";
-import { normalizeProjectId } from "../utils/topicProjectResolution";
+import {
+  isLegacyDefaultProjectId,
+  normalizeProjectId,
+} from "../utils/topicProjectResolution";
 import {
   buildHydratedAgentSessionSnapshot,
   createEmptyAgentSessionSnapshot,
@@ -148,17 +151,52 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     () => getAgentSessionScopedKeys(workspaceId),
     [workspaceId],
   );
+  const sanitizeRestoreCandidateSessionId = useCallback(
+    (candidateSessionId: string | null | undefined): string | null => {
+      const normalizedCandidate = candidateSessionId?.trim();
+      if (!normalizedCandidate) {
+        return null;
+      }
+
+      const resolvedWorkspaceId = normalizeProjectId(workspaceId);
+      const mappedWorkspaceId =
+        loadStoredSessionWorkspaceIdRaw(normalizedCandidate);
+      if (!mappedWorkspaceId) {
+        return normalizedCandidate;
+      }
+
+      if (
+        isLegacyDefaultProjectId(mappedWorkspaceId) ||
+        (resolvedWorkspaceId && mappedWorkspaceId !== resolvedWorkspaceId)
+      ) {
+        logAgentDebug("useAgentSession", "restoreCandidate.rejected", {
+          candidateSessionId: normalizedCandidate,
+          mappedWorkspaceId,
+          workspaceId: resolvedWorkspaceId,
+        });
+        return null;
+      }
+
+      return normalizedCandidate;
+    },
+    [workspaceId],
+  );
 
   const loadScopedSessionRestoreCandidate = useCallback(() => {
     if (disableSessionRestore || !workspaceId?.trim()) {
       return null;
     }
 
-    return (
+    return sanitizeRestoreCandidateSessionId(
       loadTransient<string | null>(scopedKeys.currentSessionKey, null) ??
-      loadPersisted<string | null>(scopedKeys.persistedSessionKey, null)
+        loadPersisted<string | null>(scopedKeys.persistedSessionKey, null),
     );
-  }, [disableSessionRestore, scopedKeys, workspaceId]);
+  }, [
+    disableSessionRestore,
+    sanitizeRestoreCandidateSessionId,
+    scopedKeys,
+    workspaceId,
+  ]);
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>(() =>
@@ -293,6 +331,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       if (
         existingWorkspaceId &&
         existingWorkspaceId !== "__invalid__" &&
+        !isLegacyDefaultProjectId(existingWorkspaceId) &&
         existingWorkspaceId !== resolvedWorkspaceId
       ) {
         console.warn("[AsterChat] 检测到会话与工作区映射冲突，跳过覆盖", {
@@ -835,10 +874,16 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         );
         const runtimeWorkspaceId = normalizeProjectId(detail.workspace_id);
         const selectedTopic = topics.find((topic) => topic.id === topicId);
-        const shadowWorkspaceId = loadPersistedSessionWorkspaceId(topicId);
+        const shadowWorkspaceId = loadStoredSessionWorkspaceIdRaw(topicId);
         const resolvedWorkspaceId = normalizeProjectId(workspaceId);
         const knownWorkspaceId =
-          runtimeWorkspaceId || selectedTopic?.workspaceId || shadowWorkspaceId;
+          runtimeWorkspaceId ||
+          (isLegacyDefaultProjectId(selectedTopic?.workspaceId)
+            ? null
+            : selectedTopic?.workspaceId) ||
+          (isLegacyDefaultProjectId(shadowWorkspaceId)
+            ? null
+            : shadowWorkspaceId);
         if (
           resolvedWorkspaceId &&
           knownWorkspaceId &&

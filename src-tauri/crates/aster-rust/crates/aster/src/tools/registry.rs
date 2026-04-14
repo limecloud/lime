@@ -109,6 +109,8 @@ impl Tool for McpToolWrapper {
 pub struct ToolRegistry {
     /// Native tools (high priority)
     native_tools: HashMap<String, Box<dyn Tool>>,
+    /// Compatibility aliases that resolve to canonical native tool names
+    native_aliases: HashMap<String, String>,
     /// MCP tools (low priority)
     mcp_tools: HashMap<String, McpToolWrapper>,
     /// Permission manager for checking tool permissions
@@ -128,6 +130,7 @@ impl ToolRegistry {
     pub fn new() -> Self {
         Self {
             native_tools: HashMap::new(),
+            native_aliases: HashMap::new(),
             mcp_tools: HashMap::new(),
             permission_manager: None,
             audit_logger: None,
@@ -141,6 +144,7 @@ impl ToolRegistry {
     ) -> Self {
         Self {
             native_tools: HashMap::new(),
+            native_aliases: HashMap::new(),
             mcp_tools: HashMap::new(),
             permission_manager: Some(permission_manager),
             audit_logger: Some(audit_logger),
@@ -173,10 +177,61 @@ impl ToolRegistry {
 // =============================================================================
 
 impl ToolRegistry {
+    fn default_native_aliases(name: &str) -> &'static [&'static str] {
+        match name {
+            "Agent" => &["AgentTool"],
+            "AskUserQuestion" => &["AskUserQuestionTool"],
+            "Bash" => &["BashTool"],
+            "Config" => &["ConfigTool"],
+            "Edit" => &["FileEditTool"],
+            "Read" => &["FileReadTool"],
+            "Write" => &["FileWriteTool"],
+            "EnterPlanMode" => &["EnterPlanModeTool"],
+            "ExitPlanMode" => &["ExitPlanModeTool"],
+            "EnterWorktree" => &["EnterWorktreeTool"],
+            "ExitWorktree" => &["ExitWorktreeTool"],
+            "Glob" => &["GlobTool"],
+            "Grep" => &["GrepTool"],
+            "LSP" => &["LSPTool"],
+            "NotebookEdit" => &["NotebookEditTool"],
+            "PowerShell" => &["PowerShellTool"],
+            "RemoteTrigger" => &["RemoteTriggerTool"],
+            "SendUserMessage" => &["BriefTool"],
+            "Skill" => &["SkillTool"],
+            "Sleep" => &["SleepTool"],
+            "ToolSearch" => &["ToolSearchTool"],
+            "WebFetch" => &["WebFetchTool"],
+            "WebSearch" => &["WebSearchTool"],
+            _ => &[],
+        }
+    }
+
     fn find_native_key(&self, name: &str) -> Option<&String> {
         self.native_tools
             .keys()
             .find(|registered| registered.eq_ignore_ascii_case(name))
+    }
+
+    fn find_native_alias_key(&self, name: &str) -> Option<&String> {
+        self.native_aliases
+            .keys()
+            .find(|registered| registered.eq_ignore_ascii_case(name))
+    }
+
+    fn resolve_native_key(&self, name: &str) -> Option<&String> {
+        if let Some(registered) = self.find_native_key(name) {
+            return Some(registered);
+        }
+
+        let canonical_name = self
+            .find_native_alias_key(name)
+            .and_then(|alias| self.native_aliases.get(alias))?;
+        self.find_native_key(canonical_name)
+    }
+
+    fn remove_native_aliases_for(&mut self, canonical_name: &str) {
+        self.native_aliases
+            .retain(|_, target| !target.eq_ignore_ascii_case(canonical_name));
     }
 
     fn find_mcp_key(&self, name: &str) -> Option<&String> {
@@ -196,10 +251,36 @@ impl ToolRegistry {
     /// Requirements: 2.1
     pub fn register(&mut self, tool: Box<dyn Tool>) {
         let name = tool.name().to_string();
+        let aliases = tool
+            .aliases()
+            .iter()
+            .copied()
+            .chain(Self::default_native_aliases(&name).iter().copied())
+            .collect::<Vec<_>>();
         if let Some(existing_name) = self.find_native_key(&name).cloned() {
+            self.remove_native_aliases_for(&existing_name);
             self.native_tools.remove(&existing_name);
         }
-        self.native_tools.insert(name, tool);
+        if let Some(existing_alias_name) = self.find_native_alias_key(&name).cloned() {
+            self.native_aliases.remove(&existing_alias_name);
+        }
+
+        self.native_tools.insert(name.clone(), tool);
+        self.remove_native_aliases_for(&name);
+
+        for alias in aliases {
+            let alias = alias.trim();
+            if alias.is_empty() || alias.eq_ignore_ascii_case(&name) {
+                continue;
+            }
+            if self.find_native_key(alias).is_some() {
+                continue;
+            }
+            if let Some(existing_alias_name) = self.find_native_alias_key(alias).cloned() {
+                self.native_aliases.remove(&existing_alias_name);
+            }
+            self.native_aliases.insert(alias.to_string(), name.clone());
+        }
     }
 
     /// Register an MCP tool
@@ -228,6 +309,7 @@ impl ToolRegistry {
     /// The unregistered tool if it existed
     pub fn unregister(&mut self, name: &str) -> Option<Box<dyn Tool>> {
         let key = self.find_native_key(name).cloned()?;
+        self.remove_native_aliases_for(&key);
         self.native_tools.remove(&key)
     }
 
@@ -251,12 +333,12 @@ impl ToolRegistry {
     /// # Returns
     /// `true` if the tool is registered
     pub fn contains(&self, name: &str) -> bool {
-        self.find_native_key(name).is_some() || self.find_mcp_key(name).is_some()
+        self.resolve_native_key(name).is_some() || self.find_mcp_key(name).is_some()
     }
 
     /// Check if a native tool is registered
     pub fn contains_native(&self, name: &str) -> bool {
-        self.find_native_key(name).is_some()
+        self.resolve_native_key(name).is_some()
     }
 
     /// Check if an MCP tool is registered
@@ -303,7 +385,7 @@ impl ToolRegistry {
     pub fn get(&self, name: &str) -> Option<&dyn Tool> {
         // Native tools have priority over MCP tools
         if let Some(tool) = self
-            .find_native_key(name)
+            .resolve_native_key(name)
             .and_then(|registered| self.native_tools.get(registered))
         {
             return Some(tool.as_ref());
@@ -384,7 +466,7 @@ impl ToolRegistry {
 
     /// Check if a tool is a native tool
     pub fn is_native(&self, name: &str) -> bool {
-        self.find_native_key(name).is_some()
+        self.resolve_native_key(name).is_some()
     }
 
     /// Check if a tool is an MCP tool (and not shadowed by a native tool)
@@ -625,6 +707,7 @@ mod tests {
         name: String,
         should_fail: bool,
         permission_behavior: PermissionBehavior,
+        aliases: &'static [&'static str],
     }
 
     impl TestTool {
@@ -633,6 +716,7 @@ mod tests {
                 name: name.to_string(),
                 should_fail: false,
                 permission_behavior: PermissionBehavior::Allow,
+                aliases: &[],
             }
         }
 
@@ -641,6 +725,7 @@ mod tests {
                 name: name.to_string(),
                 should_fail: true,
                 permission_behavior: PermissionBehavior::Allow,
+                aliases: &[],
             }
         }
 
@@ -649,6 +734,16 @@ mod tests {
                 name: name.to_string(),
                 should_fail: false,
                 permission_behavior: behavior,
+                aliases: &[],
+            }
+        }
+
+        fn with_aliases(name: &str, aliases: &'static [&'static str]) -> Self {
+            Self {
+                name: name.to_string(),
+                should_fail: false,
+                permission_behavior: PermissionBehavior::Allow,
+                aliases,
             }
         }
     }
@@ -671,6 +766,10 @@ mod tests {
                 },
                 "required": ["input"]
             })
+        }
+
+        fn aliases(&self) -> &'static [&'static str] {
+            self.aliases
         }
 
         async fn execute(
@@ -737,6 +836,50 @@ mod tests {
         assert!(registry.contains("bash"));
         assert!(registry.contains_native("bash"));
         assert!(registry.get("bash").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_registry_resolves_native_aliases_during_lookup_and_execution() {
+        let mut registry = ToolRegistry::new();
+        registry.register(Box::new(TestTool::with_aliases(
+            "TaskStop",
+            &["TaskStopTool", "KillShell"],
+        )));
+
+        assert!(registry.contains("TaskStopTool"));
+        assert!(registry.contains_native("killshell"));
+        assert!(registry.is_native("KillShell"));
+        assert!(registry.get("TaskStopTool").is_some());
+
+        let definitions = registry.get_definitions();
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].name, "TaskStop");
+
+        let context = create_test_context();
+        let result = registry
+            .execute(
+                "KillShell",
+                serde_json::json!({ "input": "hello" }),
+                &context,
+                None,
+            )
+            .await
+            .expect("alias should resolve to native tool");
+        assert_eq!(result.output.as_deref(), Some("Processed: hello"));
+    }
+
+    #[test]
+    fn test_registry_unregister_clears_native_aliases() {
+        let mut registry = ToolRegistry::new();
+        registry.register(Box::new(TestTool::with_aliases(
+            "TaskOutput",
+            &["TaskOutputTool"],
+        )));
+
+        assert!(registry.contains("TaskOutputTool"));
+        let removed = registry.unregister("TaskOutput");
+        assert!(removed.is_some());
+        assert!(!registry.contains("TaskOutputTool"));
     }
 
     #[test]

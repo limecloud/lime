@@ -95,6 +95,7 @@ impl Extension {
 pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
     loaded_deferred_tools: Mutex<HashSet<String>>,
+    pending_extensions: Mutex<HashSet<String>>,
     context: Mutex<PlatformExtensionContext>,
     provider: SharedProvider,
 }
@@ -447,6 +448,7 @@ impl ExtensionManager {
         Self {
             extensions: Mutex::new(HashMap::new()),
             loaded_deferred_tools: Mutex::new(HashSet::new()),
+            pending_extensions: Mutex::new(HashSet::new()),
             context: Mutex::new(PlatformExtensionContext {
                 session_id: None,
                 extension_manager: None,
@@ -479,125 +481,144 @@ impl ExtensionManager {
     pub async fn add_extension(&self, config: ExtensionConfig) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(config_name.clone());
+        let pending_name = pending_extension_display_name(&config);
 
         if self.extensions.lock().await.contains_key(&sanitized_name) {
             return Ok(());
         }
 
-        let mut temp_dir = None;
-
-        let client: Box<dyn McpClientTrait> = match &config {
-            ExtensionConfig::Sse { .. } => {
-                return Err(ExtensionError::ConfigError(
-                    "SSE is unsupported, migrate to streamable_http".to_string(),
-                ));
+        {
+            let mut pending_extensions = self.pending_extensions.lock().await;
+            if pending_extensions.contains(&pending_name) {
+                return Ok(());
             }
-            ExtensionConfig::StreamableHttp {
-                uri,
-                timeout,
-                headers,
-                name,
-                envs,
-                env_keys,
-                ..
-            } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                create_streamable_http_client(
+            pending_extensions.insert(pending_name.clone());
+        }
+
+        let result = async {
+            let mut temp_dir = None;
+
+            let client: Box<dyn McpClientTrait> = match &config {
+                ExtensionConfig::Sse { .. } => {
+                    return Err(ExtensionError::ConfigError(
+                        "SSE is unsupported, migrate to streamable_http".to_string(),
+                    ));
+                }
+                ExtensionConfig::StreamableHttp {
                     uri,
-                    *timeout,
+                    timeout,
                     headers,
                     name,
-                    &all_envs,
-                    self.provider.clone(),
-                )
-                .await?
-            }
-            ExtensionConfig::Stdio {
-                cmd,
-                args,
-                envs,
-                env_keys,
-                timeout,
-                ..
-            } => {
-                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                create_stdio_client(cmd, args, all_envs, timeout, self.provider.clone()).await?
-            }
-            ExtensionConfig::Builtin { name, timeout, .. } => {
-                let cmd = std::env::current_exe()
-                    .and_then(|path| {
-                        path.to_str().map(|s| s.to_string()).ok_or_else(|| {
-                            std::io::Error::new(
-                                std::io::ErrorKind::InvalidData,
-                                "Invalid UTF-8 in executable path",
-                            )
+                    envs,
+                    env_keys,
+                    ..
+                } => {
+                    let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                    create_streamable_http_client(
+                        uri,
+                        *timeout,
+                        headers,
+                        name,
+                        &all_envs,
+                        self.provider.clone(),
+                    )
+                    .await?
+                }
+                ExtensionConfig::Stdio {
+                    cmd,
+                    args,
+                    envs,
+                    env_keys,
+                    timeout,
+                    ..
+                } => {
+                    let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                    create_stdio_client(cmd, args, all_envs, timeout, self.provider.clone())
+                        .await?
+                }
+                ExtensionConfig::Builtin { name, timeout, .. } => {
+                    let cmd = std::env::current_exe()
+                        .and_then(|path| {
+                            path.to_str().map(|s| s.to_string()).ok_or_else(|| {
+                                std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    "Invalid UTF-8 in executable path",
+                                )
+                            })
                         })
-                    })
-                    .map_err(|e| {
-                        ExtensionError::ConfigError(format!(
-                            "Failed to resolve executable path: {}",
-                            e
-                        ))
-                    })?;
-                let command = Command::new(cmd).configure(|command| {
-                    command.arg("mcp").arg(name);
-                });
-                Box::new(child_process_client(command, timeout, self.provider.clone()).await?)
-            }
-            ExtensionConfig::Platform { name, .. } => {
-                let normalized_key = normalize(name.clone());
-                let def = PLATFORM_EXTENSIONS
-                    .get(normalized_key.as_str())
-                    .ok_or_else(|| {
-                        ExtensionError::ConfigError(format!("Unknown platform extension: {}", name))
-                    })?;
-                let context = self.get_context().await;
-                (def.client_factory)(context)
-            }
-            ExtensionConfig::InlinePython {
-                name,
-                code,
-                timeout,
-                dependencies,
-                ..
-            } => {
-                let dir = tempdir()?;
-                let file_path = dir.path().join(format!("{}.py", name));
-                temp_dir = Some(dir);
-                std::fs::write(&file_path, code)?;
-
-                let command = Command::new("uvx").configure(|command| {
-                    command.arg("--with").arg("mcp");
-                    dependencies.iter().flatten().for_each(|dep| {
-                        command.arg("--with").arg(dep);
+                        .map_err(|e| {
+                            ExtensionError::ConfigError(format!(
+                                "Failed to resolve executable path: {}",
+                                e
+                            ))
+                        })?;
+                    let command = Command::new(cmd).configure(|command| {
+                        command.arg("mcp").arg(name);
                     });
-                    command.arg("python").arg(file_path.to_str().unwrap());
-                });
+                    Box::new(child_process_client(command, timeout, self.provider.clone()).await?)
+                }
+                ExtensionConfig::Platform { name, .. } => {
+                    let normalized_key = normalize(name.clone());
+                    let def = PLATFORM_EXTENSIONS
+                        .get(normalized_key.as_str())
+                        .ok_or_else(|| {
+                            ExtensionError::ConfigError(format!(
+                                "Unknown platform extension: {}",
+                                name
+                            ))
+                        })?;
+                    let context = self.get_context().await;
+                    (def.client_factory)(context)
+                }
+                ExtensionConfig::InlinePython {
+                    name,
+                    code,
+                    timeout,
+                    dependencies,
+                    ..
+                } => {
+                    let dir = tempdir()?;
+                    let file_path = dir.path().join(format!("{}.py", name));
+                    temp_dir = Some(dir);
+                    std::fs::write(&file_path, code)?;
 
-                Box::new(child_process_client(command, timeout, self.provider.clone()).await?)
-            }
-            ExtensionConfig::Frontend { .. } => {
-                return Err(ExtensionError::ConfigError(
-                    "Invalid extension type: Frontend extensions cannot be added as server extensions".to_string()
-                ));
-            }
-        };
+                    let command = Command::new("uvx").configure(|command| {
+                        command.arg("--with").arg("mcp");
+                        dependencies.iter().flatten().for_each(|dep| {
+                            command.arg("--with").arg(dep);
+                        });
+                        command.arg("python").arg(file_path.to_str().unwrap());
+                    });
 
-        let server_info = client.get_info().cloned();
+                    Box::new(child_process_client(command, timeout, self.provider.clone()).await?)
+                }
+                ExtensionConfig::Frontend { .. } => {
+                    return Err(ExtensionError::ConfigError(
+                        "Invalid extension type: Frontend extensions cannot be added as server extensions".to_string()
+                    ));
+                }
+            };
 
-        // Only generate name from server info when config has no name (e.g., CLI --with-*-extension args)
-        let mut extensions = self.extensions.lock().await;
-        let final_name = if sanitized_name.is_empty() {
-            generate_extension_name(server_info.as_ref(), |n| extensions.contains_key(n))
-        } else {
-            sanitized_name
-        };
-        extensions.insert(
-            final_name,
-            Extension::new(config, Arc::new(Mutex::new(client)), server_info, temp_dir),
-        );
+            let server_info = client.get_info().cloned();
 
-        Ok(())
+            // Only generate name from server info when config has no name (e.g., CLI --with-*-extension args)
+            let mut extensions = self.extensions.lock().await;
+            let final_name = if sanitized_name.is_empty() {
+                generate_extension_name(server_info.as_ref(), |n| extensions.contains_key(n))
+            } else {
+                sanitized_name
+            };
+            extensions.insert(
+                final_name,
+                Extension::new(config, Arc::new(Mutex::new(client)), server_info, temp_dir),
+            );
+
+            Ok(())
+        }
+        .await;
+
+        self.pending_extensions.lock().await.remove(&pending_name);
+        result
     }
 
     pub async fn add_client(
@@ -651,6 +672,18 @@ impl ExtensionManager {
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
         Ok(self.extensions.lock().await.keys().cloned().collect())
+    }
+
+    pub async fn list_pending_extensions(&self) -> Vec<String> {
+        let mut pending = self
+            .pending_extensions
+            .lock()
+            .await
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        pending.sort();
+        pending
     }
 
     pub async fn is_extension_enabled(&self, name: &str) -> bool {
@@ -1560,6 +1593,22 @@ impl ExtensionManager {
     }
 }
 
+fn pending_extension_display_name(config: &ExtensionConfig) -> String {
+    let name = config.name();
+    let trimmed = name.trim();
+    if !trimmed.is_empty() {
+        return trimmed.to_string();
+    }
+
+    let key = config.key();
+    let trimmed_key = key.trim();
+    if !trimmed_key.is_empty() {
+        return trimmed_key.to_string();
+    }
+
+    "unnamed".to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2222,6 +2271,21 @@ mod tests {
         let after = extension_manager.get_prefixed_tools(None).await.unwrap();
         let names: Vec<String> = after.iter().map(|tool| tool.name.to_string()).collect();
         assert!(names.iter().any(|name| name == "test_extension__tool"));
+    }
+
+    #[tokio::test]
+    async fn test_list_pending_extensions_returns_sorted_names() {
+        let extension_manager = ExtensionManager::new_without_provider();
+        {
+            let mut pending = extension_manager.pending_extensions.lock().await;
+            pending.insert("zeta".to_string());
+            pending.insert("alpha".to_string());
+        }
+
+        assert_eq!(
+            extension_manager.list_pending_extensions().await,
+            vec!["alpha".to_string(), "zeta".to_string()]
+        );
     }
 
     #[tokio::test]

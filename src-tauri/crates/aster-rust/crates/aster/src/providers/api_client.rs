@@ -358,7 +358,9 @@ impl<'a> ApiRequestBuilder<'a> {
         );
 
         let request = self.send_request(|url, client| client.post(url)).await?;
-        Ok(request.json(payload).send().await?)
+        Box::pin(async move { request.json(payload).send().await })
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn api_get(self) -> Result<ApiResponse> {

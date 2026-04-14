@@ -164,7 +164,7 @@ describe("agentSessionState", () => {
     ]);
   });
 
-  it("同会话 hydrate 时远端缺失过程字段也应保留本地 assistant 执行过程", () => {
+  it("同会话 hydrate 时远端已有最终正文应收敛旧 assistant 执行过程到元数据", () => {
     const now = new Date("2026-04-08T10:00:00.000Z");
     const currentMessages = [
       createMessage({
@@ -250,15 +250,13 @@ describe("agentSessionState", () => {
       topics: [],
     });
 
-    expect(result.snapshot.messages[1]?.thinkingContent).toBe(
-      "先抓正文，再下载图片。",
-    );
-    expect(
-      result.snapshot.messages[1]?.contentParts?.some(
-        (part) =>
-          part.type === "tool_use" && part.toolCall.id === "tool-site-1",
-      ),
-    ).toBe(true);
+    expect(result.snapshot.messages[1]?.thinkingContent).toBeUndefined();
+    expect(result.snapshot.messages[1]?.contentParts).toEqual([
+      {
+        type: "text",
+        text: "内容已保存到项目目录。",
+      },
+    ]);
     expect(result.snapshot.messages[1]?.toolCalls?.[0]).toMatchObject({
       id: "tool-site-1",
       status: "completed",
@@ -517,9 +515,16 @@ describe("agentSessionState", () => {
 
     expect(result.snapshot.messages).toHaveLength(2);
     expect(result.snapshot.messages[1]?.content).toBe("内容已保存到项目目录。");
+    expect(result.snapshot.messages[1]?.thinkingContent).toBeUndefined();
     expect(result.snapshot.messages[1]?.toolCalls?.[0]?.id).toBe(
       "tool-site-target",
     );
+    expect(result.snapshot.messages[1]?.contentParts).toEqual([
+      {
+        type: "text",
+        text: "内容已保存到项目目录。",
+      },
+    ]);
     expect(result.snapshot.messages[1]?.content).not.toContain(
       "这是另一个会话",
     );

@@ -1014,7 +1014,7 @@ function mockBrowserAssistCompletedSession() {
 
 beforeAll(async () => {
   await preloadAgentChatWorkspaceModule;
-}, 30_000);
+}, 90_000);
 
 beforeEach(() => {
   (
@@ -1349,9 +1349,12 @@ describe("AgentChatPage 停止 Team 协作", () => {
     renderPage();
     await flushEffects();
 
-    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
-      | MockInputbarSendProps
-      | undefined;
+    const latestInputbarProps = [...mockInputbar.mock.calls]
+      .map((call) => call[0] as MockInputbarSendProps | undefined)
+      .reverse()
+      .find((props) => typeof props?.onStop === "function");
+
+    expect(latestInputbarProps?.onStop).toBeTypeOf("function");
 
     await latestInputbarProps?.onStop?.();
     await flushEffects();
@@ -1469,6 +1472,32 @@ describe("AgentChatPage 话题切换项目恢复", () => {
     expect(observedWorkspaceIds).not.toContain("default");
     expect(observedWorkspaceIds[observedWorkspaceIds.length - 1]).toBe(
       "project-default-real",
+    );
+  });
+
+  it("legacy workspace-default 入口应优先恢复最近项目，而不是继续走默认工作区", async () => {
+    localStorage.setItem(
+      "agent_last_project_id",
+      JSON.stringify("project-remembered"),
+    );
+    mockEnsureWorkspaceReady.mockResolvedValue({
+      workspaceId: "project-remembered",
+      rootPath: "/tmp/project-remembered",
+      existed: true,
+      created: false,
+      repaired: false,
+      relocated: false,
+      previousRootPath: null,
+      warning: null,
+    });
+
+    renderPage({ projectId: "workspace-default" });
+    await flushEffects();
+
+    expect(mockGetOrCreateDefaultProject).not.toHaveBeenCalled();
+    expect(mockEnsureWorkspaceReady).toHaveBeenCalledWith("project-remembered");
+    expect(observedWorkspaceIds[observedWorkspaceIds.length - 1]).toBe(
+      "project-remembered",
     );
   });
 

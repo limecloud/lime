@@ -16,6 +16,7 @@ use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
+use crate::session_context::current_turn_context;
 
 use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
 use crate::agents::subagent_tool::AGENT_TOOL_NAME;
@@ -23,6 +24,14 @@ use crate::agents::subagent_tool::AGENT_TOOL_NAME;
 use crate::session::SessionType;
 use crate::session::{SessionManager, SessionStore, TokenStatsUpdate};
 use rmcp::model::Tool;
+
+const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
+const LIME_RUNTIME_TOOL_SURFACE_KEY: &str = "tool_surface";
+const TURN_TOOL_SURFACE_DIRECT_ANSWER: &str = "direct_answer";
+const TURN_TOOL_SURFACE_LOCAL_WORKSPACE: &str = "local_workspace";
+const LOCAL_WORKSPACE_TOOL_NAMES: &[&str] = &["Bash", "Read", "Write", "Edit", "Glob", "Grep"];
+const DIRECT_ANSWER_TURN_GUIDANCE: &str = "【当前回合执行约束】本回合应优先直接回答。除非信息明显不足或用户明确要求，否则不要调用工具，也不要把简单回复扩展成多阶段流程。";
+const LOCAL_WORKSPACE_TURN_GUIDANCE: &str = "【当前回合执行约束】本回合只允许使用本地工作区工具。先用最少的侦查动作定位关键文件，优先小范围目录/文件列表与精确搜索；通常先控制在 3 到 6 次工具调用内拿到关键证据，只有前一步明确暴露新线索时再继续深入。若需要连续侦查，请把相互独立的读取/搜索收敛成一批，并在同一条回复里一起发起 2 到 4 个彼此独立的只读工具调用，让运行时并行执行；先完成这一批，再直接输出 1 到 2 句用户可见的结论正文，说明已经确认了什么、还缺什么、为什么还要继续，不要额外输出“阶段结论”标题，再决定是否继续下一批。如果用户消息里已经点名绝对路径、仓库根或具体文件，就把这些显式路径当作本回合唯一优先入口；第一批只围绕这些路径展开，不要先扫描当前默认工作区或无关目录。读取文件时聚焦与问题直接相关的入口、注册表、配置和代码片段，避免重复枚举大目录、避免一次性展开超长目录或整文件全文，也不要把大段原文直接抄回最终回答，改用结论加文件路径。";
 
 fn coerce_value(s: &str, schema: &Value) -> Value {
     let type_str = schema.get("type");
@@ -71,6 +80,52 @@ fn try_coerce_boolean(s: &str) -> Value {
         "true" => json!(true),
         "false" => json!(false),
         _ => Value::String(s.to_string()),
+    }
+}
+
+fn resolve_turn_tool_surface_mode() -> Option<String> {
+    current_turn_context()?
+        .metadata
+        .get(LIME_RUNTIME_METADATA_KEY)
+        .and_then(|value| value.get(LIME_RUNTIME_TOOL_SURFACE_KEY))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn is_local_workspace_tool(tool_name: &str) -> bool {
+    LOCAL_WORKSPACE_TOOL_NAMES
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(tool_name))
+}
+
+fn filter_tools_for_turn_surface(
+    mut tools: Vec<Tool>,
+    tool_surface_mode: Option<&str>,
+) -> Vec<Tool> {
+    match tool_surface_mode {
+        Some(TURN_TOOL_SURFACE_DIRECT_ANSWER) => Vec::new(),
+        Some(TURN_TOOL_SURFACE_LOCAL_WORKSPACE) => {
+            tools.retain(|tool| is_local_workspace_tool(&tool.name));
+            tools
+        }
+        _ => tools,
+    }
+}
+
+fn should_strip_extension_prompt_context(tool_surface_mode: Option<&str>) -> bool {
+    matches!(
+        tool_surface_mode,
+        Some(TURN_TOOL_SURFACE_DIRECT_ANSWER | TURN_TOOL_SURFACE_LOCAL_WORKSPACE)
+    )
+}
+
+fn turn_surface_prompt_guidance(tool_surface_mode: Option<&str>) -> Option<&'static str> {
+    match tool_surface_mode {
+        Some(TURN_TOOL_SURFACE_DIRECT_ANSWER) => Some(DIRECT_ANSWER_TURN_GUIDANCE),
+        Some(TURN_TOOL_SURFACE_LOCAL_WORKSPACE) => Some(LOCAL_WORKSPACE_TURN_GUIDANCE),
+        _ => None,
     }
 }
 
@@ -164,15 +219,22 @@ impl Agent {
             tools.retain(|tool| tool.name.starts_with(&code_exec_prefix));
         }
 
+        let turn_tool_surface_mode = resolve_turn_tool_surface_mode();
+        tools = filter_tools_for_turn_surface(tools, turn_tool_surface_mode.as_deref());
         let subagents_enabled = tools.iter().any(|tool| tool.name == AGENT_TOOL_NAME);
 
         // Stable tool ordering is important for multi session prompt caching.
         tools.sort_by(|a, b| a.name.cmp(&b.name));
 
         // Prepare system prompt
-        let extensions_info = self.extension_manager.get_extensions_info().await;
-        let (extension_count, tool_count) =
+        let mut extensions_info = self.extension_manager.get_extensions_info().await;
+        let (mut extension_count, mut tool_count) =
             self.extension_manager.get_extension_and_tool_counts().await;
+        if should_strip_extension_prompt_context(turn_tool_surface_mode.as_deref()) {
+            extensions_info.clear();
+            extension_count = 0;
+            tool_count = tools.len();
+        }
 
         let final_output_instruction = self
             .final_output_tool
@@ -193,6 +255,10 @@ impl Agent {
             .with_enable_subagents(subagents_enabled)
             .with_session_prompt(session_prompt.map(|s| s.to_string()))
             .build();
+        if let Some(guidance) = turn_surface_prompt_guidance(turn_tool_surface_mode.as_deref()) {
+            system_prompt.push_str("\n\n");
+            system_prompt.push_str(guidance);
+        }
 
         // Handle toolshim if enabled
         let mut toolshim_tools = vec![];
@@ -277,7 +343,8 @@ impl Agent {
         };
 
         Ok(Box::pin(try_stream! {
-            while let Some(Ok((mut message, usage))) = stream.next().await {
+            while let Some(next) = stream.next().await {
+                let (mut message, usage) = next?;
                 // Store the model information in the global store
                 if let Some(usage) = usage.as_ref() {
                     crate::providers::base::set_current_model(&usage.model);
@@ -494,10 +561,11 @@ mod tests {
     use crate::providers::errors::ProviderError;
     use crate::scheduler::{ScheduledJob, SchedulerError};
     use crate::scheduler_trait::SchedulerTrait;
-    use crate::session::Session;
+    use crate::session::{Session, TurnContextOverride};
     use async_trait::async_trait;
     use chrono::{DateTime, Utc};
     use rmcp::object;
+    use std::collections::HashMap;
     use std::path::PathBuf;
 
     #[derive(Clone)]
@@ -717,6 +785,109 @@ mod tests {
         Ok(())
     }
 
+    fn build_turn_context_with_tool_surface(mode: &str) -> TurnContextOverride {
+        let mut runtime_metadata = serde_json::Map::new();
+        runtime_metadata.insert(
+            LIME_RUNTIME_TOOL_SURFACE_KEY.to_string(),
+            Value::String(mode.to_string()),
+        );
+
+        let mut metadata = HashMap::new();
+        metadata.insert(
+            LIME_RUNTIME_METADATA_KEY.to_string(),
+            Value::Object(runtime_metadata),
+        );
+
+        TurnContextOverride {
+            metadata,
+            ..TurnContextOverride::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn prepare_tools_and_prompt_hides_all_tools_for_direct_answer_turn_surface(
+    ) -> anyhow::Result<()> {
+        let agent = crate::agents::Agent::new();
+
+        let session = SessionManager::create_session(
+            std::path::PathBuf::default(),
+            "test-direct-answer-tool-surface".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
+
+        let model_config = ModelConfig::new("test-model").unwrap();
+        let provider = std::sync::Arc::new(MockProvider {
+            model_config,
+            observed_models: None,
+        });
+        agent.update_provider(provider, &session.id).await?;
+
+        let working_dir = std::env::current_dir()?;
+        let (tools, _toolshim_tools, _system_prompt) = crate::session_context::with_turn_context(
+            Some(build_turn_context_with_tool_surface(
+                TURN_TOOL_SURFACE_DIRECT_ANSWER,
+            )),
+            async {
+                agent
+                    .prepare_tools_and_prompt(
+                        &working_dir,
+                        None,
+                        &ModelConfig::new("test-model").unwrap(),
+                    )
+                    .await
+            },
+        )
+        .await?;
+
+        assert!(tools.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn prepare_tools_and_prompt_keeps_only_local_workspace_tools_for_local_workspace_turn_surface(
+    ) -> anyhow::Result<()> {
+        let agent = crate::agents::Agent::new();
+        agent
+            .set_scheduler(std::sync::Arc::new(MockScheduler))
+            .await;
+
+        let session = SessionManager::create_session(
+            std::path::PathBuf::default(),
+            "test-local-workspace-tool-surface".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
+
+        let model_config = ModelConfig::new("test-model").unwrap();
+        let provider = std::sync::Arc::new(MockProvider {
+            model_config,
+            observed_models: None,
+        });
+        agent.update_provider(provider, &session.id).await?;
+
+        let working_dir = std::env::current_dir()?;
+        let (tools, _toolshim_tools, _system_prompt) = crate::session_context::with_turn_context(
+            Some(build_turn_context_with_tool_surface(
+                TURN_TOOL_SURFACE_LOCAL_WORKSPACE,
+            )),
+            async {
+                agent
+                    .prepare_tools_and_prompt(
+                        &working_dir,
+                        None,
+                        &ModelConfig::new("test-model").unwrap(),
+                    )
+                    .await
+            },
+        )
+        .await?;
+
+        assert!(!tools.is_empty());
+        assert!(tools.iter().all(|tool| is_local_workspace_tool(&tool.name)));
+        Ok(())
+    }
+
     #[tokio::test]
     async fn stream_response_from_provider_uses_explicit_model_config() -> anyhow::Result<()> {
         let observed_models = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -746,6 +917,91 @@ mod tests {
                 .expect("read observed model")
                 .as_slice(),
             ["override-model"]
+        );
+        Ok(())
+    }
+
+    #[derive(Clone)]
+    struct MockStreamingErrorProvider {
+        model_config: ModelConfig,
+    }
+
+    #[async_trait]
+    impl Provider for MockStreamingErrorProvider {
+        fn metadata() -> crate::providers::base::ProviderMetadata {
+            crate::providers::base::ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "mock-streaming-error"
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+
+        fn supports_streaming(&self) -> bool {
+            true
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+            unreachable!("streaming path should be used in this test");
+        }
+
+        async fn stream(
+            &self,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> anyhow::Result<MessageStream, ProviderError> {
+            let usage = ProviderUsage::new(self.model_config.model_name.clone(), Usage::default());
+            Ok(Box::pin(futures::stream::iter(vec![
+                Ok((Some(Message::assistant().with_text("partial")), Some(usage))),
+                Err(ProviderError::RequestFailed("stream exploded".to_string())),
+            ])))
+        }
+    }
+
+    #[tokio::test]
+    async fn stream_response_from_provider_propagates_stream_errors() -> anyhow::Result<()> {
+        let provider = std::sync::Arc::new(MockStreamingErrorProvider {
+            model_config: ModelConfig::new("test-model").unwrap(),
+        });
+        let messages = vec![Message::user().with_text("hello")];
+
+        let mut stream = Agent::stream_response_from_provider(
+            provider,
+            &ModelConfig::new("test-model").unwrap(),
+            "",
+            &messages,
+            &[],
+            &[],
+        )
+        .await?;
+
+        let first = stream
+            .next()
+            .await
+            .expect("first stream item should exist")?;
+        assert_eq!(
+            first.0.expect("message should exist").as_concat_text(),
+            "partial"
+        );
+
+        let error = stream
+            .next()
+            .await
+            .expect("second stream item should exist")
+            .expect_err("stream error should be propagated");
+        assert_eq!(
+            error,
+            ProviderError::RequestFailed("stream exploded".to_string())
         );
         Ok(())
     }

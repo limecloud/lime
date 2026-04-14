@@ -17,6 +17,7 @@ export interface ToolSearchResultSummary {
   notes: string[];
   tools: ToolSearchResultItemSummary[];
   totalDeferredTools?: number;
+  pendingMcpServers?: string[];
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -35,7 +36,9 @@ function readBoolean(value: unknown): boolean | undefined {
 }
 
 function readFiniteNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 function readStringArray(value: unknown): string[] {
@@ -64,21 +67,45 @@ function normalizeToolRecord(
     return null;
   }
 
-  return {
-    name,
-    description: readString(record.description),
-    source: readString(record.source),
-    extensionName: readString(
-      record.extension_name ?? record.extensionName,
-    ),
-    status: readString(record.status),
-    deferredLoading: readBoolean(
-      record.deferred_loading ?? record.deferredLoading,
-    ),
-    alwaysVisible: readBoolean(
-      record.always_visible ?? record.alwaysVisible,
-    ),
-  };
+  const summary: ToolSearchResultItemSummary = { name };
+
+  const description = readString(record.description);
+  if (description) {
+    summary.description = description;
+  }
+
+  const source = readString(record.source);
+  if (source) {
+    summary.source = source;
+  }
+
+  const extensionName = readString(
+    record.extension_name ?? record.extensionName,
+  );
+  if (extensionName) {
+    summary.extensionName = extensionName;
+  }
+
+  const status = readString(record.status);
+  if (status) {
+    summary.status = status;
+  }
+
+  const deferredLoading = readBoolean(
+    record.deferred_loading ?? record.deferredLoading,
+  );
+  if (deferredLoading !== undefined) {
+    summary.deferredLoading = deferredLoading;
+  }
+
+  const alwaysVisible = readBoolean(
+    record.always_visible ?? record.alwaysVisible,
+  );
+  if (alwaysVisible !== undefined) {
+    summary.alwaysVisible = alwaysVisible;
+  }
+
+  return summary;
 }
 
 export function normalizeToolSearchResultSummary(
@@ -119,19 +146,40 @@ export function normalizeToolSearchResultSummary(
   const totalDeferredTools = readFiniteNumber(
     record.total_deferred_tools ?? record.totalDeferredTools,
   );
+  const pendingMcpServers = readStringArray(
+    record.pending_mcp_servers ?? record.pendingMcpServers,
+  );
 
-  if (!query && tools.length === 0 && notes.length === 0 && count === 0) {
+  if (
+    !query &&
+    tools.length === 0 &&
+    notes.length === 0 &&
+    pendingMcpServers.length === 0 &&
+    count === 0
+  ) {
     return null;
   }
 
-  return {
-    query,
-    caller,
+  const summary: ToolSearchResultSummary = {
     count,
     notes,
     tools,
-    totalDeferredTools,
   };
+
+  if (query) {
+    summary.query = query;
+  }
+  if (caller) {
+    summary.caller = caller;
+  }
+  if (totalDeferredTools !== undefined) {
+    summary.totalDeferredTools = totalDeferredTools;
+  }
+  if (pendingMcpServers.length > 0) {
+    summary.pendingMcpServers = pendingMcpServers;
+  }
+
+  return summary;
 }
 
 export function resolveToolSearchItemSourceLabel(

@@ -62,6 +62,20 @@ describe("getAppShellLayoutState", () => {
     });
   });
 
+  it("memory 页应显示 sidebar 且不追加 agent 间距", () => {
+    expect(
+      getAppShellLayoutState({
+        currentPage: "memory",
+        pageParams: {},
+        agentHasMessages: false,
+      }),
+    ).toEqual({
+      shouldHideSidebarForAgent: false,
+      shouldShowAppSidebar: true,
+      shouldAddMainContentGap: false,
+    });
+  });
+
   it("skills 页应显示 sidebar 且不追加 agent 间距", () => {
     expect(
       getAppShellLayoutState({

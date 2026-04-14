@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 pub const SEND_USER_MESSAGE_TOOL_NAME: &str = "SendUserMessage";
@@ -21,6 +22,7 @@ enum SendUserMessageStatus {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SendUserMessageInput {
     message: String,
     #[serde(default)]
@@ -152,24 +154,13 @@ fn resolve_attachments(
     attachments
         .iter()
         .map(|raw_path| {
-            let trimmed = raw_path.trim();
-            if trimmed.is_empty() {
-                return Err(ToolError::invalid_params(
-                    "attachments 里不能包含空路径".to_string(),
-                ));
-            }
-
-            let resolved_path = resolve_attachment_path(working_directory, trimmed);
+            let resolved_path = resolve_attachment_path(working_directory, raw_path);
             let metadata = std::fs::metadata(&resolved_path).map_err(|error| {
-                ToolError::execution_failed(format!(
-                    "读取附件失败 ({}): {error}",
-                    resolved_path.display()
-                ))
+                map_attachment_metadata_error(raw_path, working_directory, error)
             })?;
             if !metadata.is_file() {
                 return Err(ToolError::invalid_params(format!(
-                    "附件必须是文件: {}",
-                    resolved_path.display()
+                    "Attachment \"{raw_path}\" is not a regular file."
                 )));
             }
 
@@ -184,11 +175,45 @@ fn resolve_attachments(
 }
 
 fn resolve_attachment_path(working_directory: &Path, raw_path: &str) -> PathBuf {
-    let path = PathBuf::from(raw_path);
+    let trimmed = raw_path.trim();
+    if trimmed == "~" {
+        if let Some(home_dir) = dirs::home_dir() {
+            return home_dir;
+        }
+    }
+    if let Some(home_relative) = trimmed
+        .strip_prefix("~/")
+        .or_else(|| trimmed.strip_prefix("~\\"))
+    {
+        if let Some(home_dir) = dirs::home_dir() {
+            return home_dir.join(home_relative);
+        }
+    }
+
+    let path = PathBuf::from(trimmed);
     if path.is_absolute() {
         path
     } else {
         working_directory.join(path)
+    }
+}
+
+fn map_attachment_metadata_error(
+    raw_path: &str,
+    working_directory: &Path,
+    error: std::io::Error,
+) -> ToolError {
+    match error.kind() {
+        ErrorKind::NotFound => ToolError::invalid_params(format!(
+            "Attachment \"{raw_path}\" does not exist. Current working directory: {}.",
+            working_directory.display()
+        )),
+        ErrorKind::PermissionDenied => ToolError::invalid_params(format!(
+            "Attachment \"{raw_path}\" is not accessible (permission denied)."
+        )),
+        _ => ToolError::execution_failed(format!(
+            "Failed to read attachment \"{raw_path}\": {error}"
+        )),
     }
 }
 
@@ -227,6 +252,7 @@ fn is_image_path(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -290,6 +316,68 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let error = resolve_attachments(temp_dir.path(), &["missing.txt".to_string()])
             .expect_err("missing attachment should fail");
-        assert!(error.to_string().contains("读取附件失败"));
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "Invalid parameters: Attachment \"missing.txt\" does not exist. Current working directory: {}.",
+                temp_dir.path().display()
+            )
+        );
+    }
+
+    #[test]
+    fn resolve_attachments_rejects_non_regular_files() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::create_dir(temp_dir.path().join("nested")).unwrap();
+
+        let error = resolve_attachments(temp_dir.path(), &["nested".to_string()])
+            .expect_err("directory attachment should fail");
+
+        assert_eq!(
+            error.to_string(),
+            "Invalid parameters: Attachment \"nested\" is not a regular file."
+        );
+    }
+
+    #[tokio::test]
+    async fn send_user_message_rejects_unknown_fields() {
+        let temp_dir = TempDir::new().unwrap();
+        let error = SendUserMessageTool::new()
+            .execute(
+                json!({
+                    "message": "处理完成",
+                    "status": "normal",
+                    "unexpected": true
+                }),
+                &ToolContext::new(temp_dir.path().to_path_buf()),
+            )
+            .await
+            .expect_err("unknown fields should be rejected");
+
+        assert!(error.to_string().contains(
+            "unknown field `unexpected`, expected one of `message`, `attachments`, `status`"
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_attachments_rejects_permission_denied_paths() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = TempDir::new().unwrap();
+        let locked_dir = temp_dir.path().join("locked");
+        fs::create_dir(&locked_dir).unwrap();
+        fs::write(locked_dir.join("secret.txt"), "secret").unwrap();
+
+        let original_permissions = fs::metadata(&locked_dir).unwrap().permissions();
+        fs::set_permissions(&locked_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let result = resolve_attachments(temp_dir.path(), &["locked/secret.txt".to_string()]);
+        fs::set_permissions(&locked_dir, original_permissions).unwrap();
+
+        let error = result.expect_err("permission denied attachment should fail");
+        assert_eq!(
+            error.to_string(),
+            "Invalid parameters: Attachment \"locked/secret.txt\" is not accessible (permission denied)."
+        );
     }
 }

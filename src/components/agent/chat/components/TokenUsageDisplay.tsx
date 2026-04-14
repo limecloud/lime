@@ -56,6 +56,7 @@ interface TokenUsageDisplayProps {
   usage: TokenUsage;
   className?: string;
   promptCacheNotice?: TokenUsagePromptCacheNotice | null;
+  inline?: boolean;
 }
 
 function formatCompactTokenCount(value: number): string {
@@ -110,6 +111,7 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   usage,
   className,
   promptCacheNotice,
+  inline = false,
 }) => {
   const total = usage.input_tokens + usage.output_tokens;
   const totalPromptCacheTokens =
@@ -122,6 +124,7 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   return (
     <UsageContainer
       className={className}
+      style={inline ? { marginTop: 0 } : undefined}
       title={missingPromptCacheNotice?.detail}
     >
       <UsageIcon />

@@ -3,8 +3,8 @@ use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::formats::tool_description_with_examples;
 use crate::providers::utils::{
-    convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
-    sanitize_function_name, ImageFormat,
+    convert_image, detect_image_path, is_valid_function_name, load_image_file,
+    parse_tool_arguments_json_object, safely_parse_json, sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
@@ -582,7 +582,7 @@ where
                         let parsed = if arguments.is_empty() {
                             Ok(json!({}))
                         } else {
-                            serde_json::from_str::<Value>(arguments)
+                            parse_tool_arguments_json_object(arguments)
                         };
 
                         let content = match parsed {

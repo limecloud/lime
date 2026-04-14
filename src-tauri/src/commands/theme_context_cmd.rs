@@ -3,7 +3,7 @@
 //! 为左侧栏“搜索上下文”提供真正的后端检索能力，
 //! 统一复用 Aster Agent + WebSearch 策略，并返回结构化结果。
 
-use crate::agent::{AsterAgentState, AsterAgentWrapper};
+use crate::agent::{build_auxiliary_session_config, AsterAgentState, AsterAgentWrapper};
 use crate::config::GlobalConfigManagerState;
 use crate::database::DbConnection;
 use crate::services::memory_profile_prompt_service::{
@@ -15,7 +15,7 @@ use crate::services::workspace_health_service::ensure_workspace_ready_with_auto_
 use crate::workspace::WorkspaceManager;
 use lime_agent::{
     merge_system_prompt_with_runtime_agents, resolve_request_tool_policy_with_mode,
-    stream_reply_with_policy, RequestToolPolicyMode, SessionConfigBuilder,
+    stream_reply_with_policy, RequestToolPolicyMode,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -414,17 +414,11 @@ pub async fn aster_agent_theme_context_search(
             .as_ref()
             .ok_or_else(|| "Agent not initialized".to_string())?;
 
-        let mut session_config_builder = SessionConfigBuilder::new(&session_id);
-        session_config_builder = session_config_builder.include_context_trace(false);
-        if let Some(prompt) = system_prompt {
-            session_config_builder = session_config_builder.system_prompt(prompt);
-        }
-
         stream_reply_with_policy(
             agent,
             &build_context_search_prompt(&query, request.mode),
             Some(Path::new(&workspace_root)),
-            session_config_builder.build(),
+            build_auxiliary_session_config(&session_id, system_prompt, false),
             Some(cancel_token.clone()),
             &request_tool_policy,
             |_| {},

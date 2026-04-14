@@ -9,10 +9,12 @@ import type {
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import type { HarnessSessionState } from "../utils/harnessState";
 import { getOutputSchemaRuntimeLabel } from "../utils/sessionExecutionRuntime";
+import type { RuntimeToolAvailability } from "../utils/runtimeToolAvailability";
 
 interface AgentRuntimeStripProps {
   activeTheme?: string;
   toolPreferences: ChatToolPreferences;
+  runtimeToolAvailability?: RuntimeToolAvailability | null;
   harnessState: HarnessSessionState;
   childSubagentSessions?: AsterSubagentSessionInfo[];
   variant?: "standalone" | "embedded";
@@ -44,6 +46,7 @@ interface StatusItem {
 export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
   activeTheme,
   toolPreferences,
+  runtimeToolAvailability = null,
   harnessState,
   childSubagentSessions = [],
   variant = "standalone",
@@ -67,15 +70,23 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
       {
         key: "web_search",
         label: "联网搜索",
-        enabled: toolPreferences.webSearch,
+        enabled:
+          toolPreferences.webSearch &&
+          runtimeToolAvailability?.webSearch !== false,
       },
       {
         key: "subagent",
         label: "任务拆分",
-        enabled: toolPreferences.subagent,
+        enabled:
+          toolPreferences.subagent &&
+          runtimeToolAvailability?.subagentRuntime !== false,
       },
     ],
-    [toolPreferences],
+    [
+      runtimeToolAvailability?.subagentRuntime,
+      runtimeToolAvailability?.webSearch,
+      toolPreferences,
+    ],
   );
 
   const statusItems = useMemo<StatusItem[]>(() => {
@@ -111,6 +122,46 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
         label: `结构化输出 ${outputSchemaLabel}`,
         tone: isExecutionRuntimeActive ? "secondary" : "outline",
       });
+    }
+
+    if (runtimeToolAvailability?.known) {
+      nextItems.push({
+        key: "runtime_surface",
+        label: `Runtime 工具面 ${runtimeToolAvailability.availableToolCount} 项`,
+        tone: "outline",
+      });
+
+      if (!runtimeToolAvailability.taskRuntime) {
+        nextItems.push({
+          key: "task_runtime_gap",
+          label: `任务工具缺 ${runtimeToolAvailability.missingTaskTools.length}`,
+          tone: "outline",
+        });
+      }
+
+      if (toolPreferences.webSearch && !runtimeToolAvailability.webSearch) {
+        nextItems.push({
+          key: "web_search_gap",
+          label: "联网搜索偏好已开，但 Runtime 未接通 WebSearch",
+          tone: "secondary",
+        });
+      }
+
+      if (
+        toolPreferences.subagent &&
+        !runtimeToolAvailability.subagentRuntime
+      ) {
+        nextItems.push({
+          key: "subagent_runtime_gap",
+          label: `任务拆分缺 ${
+            [
+              ...runtimeToolAvailability.missingSubagentCoreTools,
+              ...runtimeToolAvailability.missingSubagentTeamTools,
+            ].length
+          } 个 current tools`,
+          tone: "secondary",
+        });
+      }
     }
 
     if (harnessState.plan.phase === "planning") {
@@ -186,11 +237,15 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
     harnessState,
     isExecutionRuntimeActive,
     isSending,
+    runtimeToolAvailability,
     runtimeStatusTitle,
+    toolPreferences.subagent,
+    toolPreferences.webSearch,
   ]);
 
   return (
     <div
+      data-testid="agent-runtime-strip"
       className={
         variant === "embedded"
           ? "rounded-xl border border-border/70 bg-[linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)/0.35))] px-4 py-3"
@@ -238,7 +293,11 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
       ) : null}
       <div className="flex flex-wrap gap-2">
         {statusItems.map((item) => (
-          <Badge key={item.key} variant={item.tone || "outline"}>
+          <Badge
+            key={item.key}
+            variant={item.tone || "outline"}
+            data-testid={`agent-runtime-strip-status-${item.key}`}
+          >
             {item.label}
           </Badge>
         ))}

@@ -6,6 +6,7 @@ import {
   extractSearchQueryLabel,
   getToolDisplayInfo,
   normalizeToolNameKey,
+  resolveToolPrimarySubject,
   resolveUserFacingToolDisplayLabel,
   resolveToolDisplayLabel,
 } from "./toolDisplayInfo";
@@ -27,9 +28,12 @@ const REFERENCE_JS_TOOL_NAME_MAPPINGS = [
   ["GrepTool", "grep"],
   ["LSPTool", "lsp"],
   ["ListMcpResourcesTool", "listmcpresources"],
+  ["MCPTool", "mcp"],
+  ["McpAuthTool", "mcpauth"],
   ["NotebookEditTool", "notebookedit"],
   ["PowerShellTool", "powershell"],
   ["ReadMcpResourceTool", "readmcpresource"],
+  ["REPLTool", "repl"],
   ["RemoteTriggerTool", "remotetrigger"],
   ["ScheduleCronTool", "croncreate"],
   ["SendMessageTool", "sendmessage"],
@@ -66,6 +70,14 @@ describe("toolDisplayInfo", () => {
     expect(resolveToolDisplayLabel("AskUserQuestionTool")).toBe("用户确认");
     expect(resolveToolDisplayLabel("BriefTool")).toBe("用户消息");
     expect(resolveToolDisplayLabel("FileReadTool")).toBe("文件读取");
+    expect(resolveToolDisplayLabel("ConfigTool")).toBe("运行配置");
+    expect(resolveToolDisplayLabel("PowerShellTool")).toBe("PowerShell");
+    expect(resolveToolDisplayLabel("WorkflowTool")).toBe("工作流执行");
+    expect(resolveToolDisplayLabel("MCPTool")).toBe("MCP 工具");
+    expect(resolveToolDisplayLabel("McpAuthTool")).toBe("MCP 授权");
+    expect(resolveToolDisplayLabel("REPLTool")).toBe("REPL 执行");
+    expect(resolveToolDisplayLabel("EnterWorktreeTool")).toBe("进入工作树");
+    expect(resolveToolDisplayLabel("ExitWorktreeTool")).toBe("退出工作树");
     expect(resolveToolDisplayLabel("lime_search_web_images")).toBe("联网搜图");
     expect(resolveToolDisplayLabel("AgentTool")).toBe("创建子任务");
     expect(resolveToolDisplayLabel("SendMessageTool")).toBe("补充说明");
@@ -75,16 +87,85 @@ describe("toolDisplayInfo", () => {
     expect(resolveToolDisplayLabel("SyntheticOutputTool")).toBe("最终答复");
     expect(resolveToolDisplayLabel("AgentOutputTool")).toBe("任务输出");
     expect(resolveToolDisplayLabel("BashOutputTool")).toBe("任务输出");
+    expect(resolveToolDisplayLabel("lime_create_transcription_task")).toBe(
+      "转写任务",
+    );
+    expect(
+      resolveToolDisplayLabel("lime_create_modal_resource_search_task"),
+    ).toBe("素材检索任务");
+    expect(resolveToolDisplayLabel("lime_run_service_skill")).toBe(
+      "服务技能执行",
+    );
+    expect(resolveToolDisplayLabel("lime_site_recommend")).toBe(
+      "站点能力推荐",
+    );
+    expect(resolveToolDisplayLabel("mcp__github__search_code")).toBe(
+      "MCP 搜索",
+    );
+    expect(resolveToolDisplayLabel("mcp__github__get_file_contents")).toBe(
+      "MCP 读取",
+    );
   });
 
   it("应为用户可见场景提供更自然的工具标签", () => {
     expect(resolveUserFacingToolDisplayLabel("FileReadTool")).toBe("查看文件");
     expect(resolveUserFacingToolDisplayLabel("write_file")).toBe("保存文件");
+    expect(resolveUserFacingToolDisplayLabel("LSPTool")).toBe("分析代码");
+    expect(resolveUserFacingToolDisplayLabel("ConfigTool")).toBe("查看配置");
+    expect(resolveUserFacingToolDisplayLabel("PowerShellTool")).toBe(
+      "运行命令",
+    );
+    expect(resolveUserFacingToolDisplayLabel("WorkflowTool")).toBe(
+      "运行工作流",
+    );
+    expect(resolveUserFacingToolDisplayLabel("MCPTool")).toBe("调用 MCP 工具");
+    expect(resolveUserFacingToolDisplayLabel("McpAuthTool")).toBe(
+      "完成 MCP 授权",
+    );
+    expect(resolveUserFacingToolDisplayLabel("REPLTool")).toBe("运行命令");
+    expect(
+      resolveUserFacingToolDisplayLabel("lime_run_service_skill"),
+    ).toBe("运行服务技能");
+    expect(resolveUserFacingToolDisplayLabel("lime_site_recommend")).toBe(
+      "推荐站点能力",
+    );
+    expect(resolveUserFacingToolDisplayLabel("mcp__github__search_code")).toBe(
+      "搜索内容",
+    );
+    expect(
+      resolveUserFacingToolDisplayLabel("mcp__github__get_file_contents"),
+    ).toBe("查看内容");
+    expect(resolveUserFacingToolDisplayLabel("EnterWorktreeTool")).toBe(
+      "进入工作树",
+    );
     expect(resolveUserFacingToolDisplayLabel("TaskOutput")).toBe(
       "查看任务结果",
     );
-    expect(resolveUserFacingToolDisplayLabel("mcp__playwright__browser_click")).toBe(
-      "页面点击",
+    expect(
+      resolveUserFacingToolDisplayLabel("mcp__playwright__browser_click"),
+    ).toBe("页面点击");
+  });
+
+  it("应为站点与任务工具提取更贴近主链的主体对象", () => {
+    expect(
+      resolveToolPrimarySubject(
+        "lime_create_transcription_task",
+        { sourceUrl: "https://example.com/interview.mp4" },
+        null,
+      ),
+    ).toBe("https://example.com/interview.mp4");
+    expect(
+      resolveToolPrimarySubject(
+        "lime_create_modal_resource_search_task",
+        { query: "科技播客 BGM" },
+        null,
+      ),
+    ).toBe("科技播客 BGM");
+    expect(resolveToolPrimarySubject("lime_site_list", {}, null)).toBe(
+      "站点能力目录",
+    );
+    expect(getToolDisplayInfo("lime_create_typesetting_task", "running").family).toBe(
+      "task",
     );
   });
 

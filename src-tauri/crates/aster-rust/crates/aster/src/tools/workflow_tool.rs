@@ -21,7 +21,7 @@ use crate::tools::error::ToolError;
 const WORKFLOW_TOOL_NAME: &str = "Workflow";
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct WorkflowInput {
     workflow: String,
     #[serde(default)]

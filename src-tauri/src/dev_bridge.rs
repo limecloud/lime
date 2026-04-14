@@ -178,9 +178,10 @@ impl DevBridgeServer {
 
         // 直接运行服务器（不使用 graceful_shutdown）
         // 服务器将持续运行直到应用退出
-        tokio::spawn(async move {
-            if let Err(error) = axum::serve(listener, app).await {
-                tracing::error!("[DevBridge] 运行失败: {}", error);
+        tauri::async_runtime::spawn(async move {
+            match axum::serve(listener, app).await {
+                Ok(()) => tracing::warn!("[DevBridge] 服务循环已退出"),
+                Err(error) => tracing::error!("[DevBridge] 运行失败: {}", error),
             }
         });
 

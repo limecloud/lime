@@ -15,6 +15,13 @@ interface AgentThreadMemoryPrefetchPreviewProps {
   className?: string;
 }
 
+const EMERALD_PANEL_CLASS_NAME = "border-emerald-200 bg-emerald-50/60";
+const EMERALD_TITLE_CLASS_NAME = "text-emerald-900";
+const EMERALD_OUTLINE_BADGE_CLASS_NAME =
+  "border-emerald-200 bg-white text-emerald-700";
+const SLATE_PANEL_CLASS_NAME = "border-slate-200/80 bg-white";
+const SLATE_TITLE_CLASS_NAME = "text-slate-700";
+
 const DURABLE_CATEGORY_LABELS: Record<string, string> = {
   identity: "风格",
   context: "参考",
@@ -88,11 +95,15 @@ function DetailPanel(props: {
   children?: ReactNode;
 }) {
   return (
-    <article className="rounded-xl border border-sky-200/80 bg-white px-3 py-3">
-      <div className="text-xs font-medium text-sky-700">{props.title}</div>
+    <article className={cn("rounded-xl border px-3 py-3", SLATE_PANEL_CLASS_NAME)}>
+      <div className={cn("text-xs font-medium", SLATE_TITLE_CLASS_NAME)}>
+        {props.title}
+      </div>
       <div className="mt-2 text-sm leading-6 text-slate-700">
         {props.children || (
-          <div className="text-sm leading-6 text-slate-500">{props.emptyText}</div>
+          <div className="text-sm leading-6 text-slate-500">
+            {props.emptyText}
+          </div>
         )}
       </div>
     </article>
@@ -110,7 +121,9 @@ export function AgentThreadMemoryPrefetchPreview({
     <div
       className={cn(
         "mt-4 rounded-2xl border px-4 py-3",
-        status === "error" ? "border-amber-200 bg-amber-50" : "border-sky-200 bg-sky-50",
+        status === "error"
+          ? "border-amber-200 bg-amber-50"
+          : EMERALD_PANEL_CLASS_NAME,
         className,
       )}
       data-testid="agent-thread-reliability-memory-prefetch"
@@ -120,7 +133,7 @@ export function AgentThreadMemoryPrefetchPreview({
           <div
             className={cn(
               "text-sm font-medium",
-              status === "error" ? "text-amber-900" : "text-sky-900",
+              status === "error" ? "text-amber-900" : EMERALD_TITLE_CLASS_NAME,
             )}
           >
             本回合记忆预取
@@ -131,29 +144,31 @@ export function AgentThreadMemoryPrefetchPreview({
               className={cn(
                 status === "error"
                   ? "border-amber-300 bg-white text-amber-700"
-                  : "border-sky-300 bg-white text-sky-700",
+                  : EMERALD_OUTLINE_BADGE_CLASS_NAME,
               )}
             >
               {status === "loading"
                 ? "加载中"
                 : status === "ready"
-                  ? "五层记忆预演"
+                  ? "记忆命中预演"
                   : status === "error"
                     ? "暂不可用"
                     : "待预取"}
             </Badge>
           </div>
         </div>
-        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? (
+          <div className="flex flex-wrap items-center gap-2">{actions}</div>
+        ) : null}
       </div>
       <div
         className={cn(
           "mt-2 text-sm leading-6",
-          status === "error" ? "text-amber-900" : "text-sky-950",
+          status === "error" ? "text-amber-900" : "text-slate-700",
         )}
       >
         {status === "loading"
-          ? "正在按最新回合 prompt 预演规则 / 工作 / 持久 / 任务影子 / 压缩五层记忆命中。"
+          ? "正在按最新回合 prompt 预演来源链 / 会话记忆 / 持久记忆 / Team Memory / 会话压缩的命中情况。"
           : status === "error"
             ? error
             : "下面展示的是当前这轮真实会用到的记忆命中预演，不会改写会话，只帮助判断续接质量。"}
@@ -162,23 +177,47 @@ export function AgentThreadMemoryPrefetchPreview({
       {result ? (
         <>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Badge variant="outline" className="border-sky-200 bg-white text-sky-700">
-              {formatMemoryLayerStatusLabel("规则", result.rules_source_paths.length)}
-            </Badge>
-            <Badge variant="outline" className="border-sky-200 bg-white text-sky-700">
+            <Badge
+              variant="outline"
+              className={EMERALD_OUTLINE_BADGE_CLASS_NAME}
+            >
               {formatMemoryLayerStatusLabel(
-                "工作",
+                "规则",
+                result.rules_source_paths.length,
+              )}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={EMERALD_OUTLINE_BADGE_CLASS_NAME}
+            >
+              {formatMemoryLayerStatusLabel(
+                "会话",
                 null,
                 Boolean(result.working_memory_excerpt),
               )}
             </Badge>
-            <Badge variant="outline" className="border-sky-200 bg-white text-sky-700">
-              {formatMemoryLayerStatusLabel("持久", result.durable_memories.length)}
+            <Badge
+              variant="outline"
+              className={EMERALD_OUTLINE_BADGE_CLASS_NAME}
+            >
+              {formatMemoryLayerStatusLabel(
+                "持久",
+                result.durable_memories.length,
+              )}
             </Badge>
-            <Badge variant="outline" className="border-sky-200 bg-white text-sky-700">
-              {formatMemoryLayerStatusLabel("任务影子", result.team_memory_entries.length)}
+            <Badge
+              variant="outline"
+              className={EMERALD_OUTLINE_BADGE_CLASS_NAME}
+            >
+              {formatMemoryLayerStatusLabel(
+                "Team Memory",
+                result.team_memory_entries.length,
+              )}
             </Badge>
-            <Badge variant="outline" className="border-sky-200 bg-white text-sky-700">
+            <Badge
+              variant="outline"
+              className={EMERALD_OUTLINE_BADGE_CLASS_NAME}
+            >
               {formatMemoryLayerStatusLabel(
                 "压缩",
                 null,
@@ -208,7 +247,10 @@ export function AgentThreadMemoryPrefetchPreview({
               ) : null}
             </DetailPanel>
 
-            <DetailPanel title="工作记忆摘录" emptyText="当前回合没有命中工作记忆摘录。">
+            <DetailPanel
+              title="会话记忆摘录"
+              emptyText="当前回合没有命中会话记忆摘录。"
+            >
               {result.working_memory_excerpt ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-700">
                   {truncateText(result.working_memory_excerpt, 320)}
@@ -216,7 +258,10 @@ export function AgentThreadMemoryPrefetchPreview({
               ) : null}
             </DetailPanel>
 
-            <DetailPanel title="持久记忆命中" emptyText="当前没有命中的长期记忆。">
+            <DetailPanel
+              title="持久记忆命中"
+              emptyText="当前没有命中的持久记忆。"
+            >
               {result.durable_memories.length > 0 ? (
                 <div className="space-y-2">
                   {result.durable_memories.slice(0, 3).map((entry) => (
@@ -250,14 +295,18 @@ export function AgentThreadMemoryPrefetchPreview({
                   ))}
                   {result.durable_memories.length > 3 ? (
                     <div className="text-xs text-slate-500">
-                      另有 {result.durable_memories.length - 3} 条长期记忆未展开。
+                      另有 {result.durable_memories.length - 3}{" "}
+                      条持久记忆未展开。
                     </div>
                   ) : null}
                 </div>
               ) : null}
             </DetailPanel>
 
-            <DetailPanel title="任务影子明细" emptyText="当前没有命中的任务影子。">
+            <DetailPanel
+              title="Team Memory 明细"
+              emptyText="当前没有命中的 Team Memory。"
+            >
               {result.team_memory_entries.length > 0 ? (
                 <div className="space-y-2">
                   {result.team_memory_entries.slice(0, 3).map((entry) => (
@@ -285,14 +334,18 @@ export function AgentThreadMemoryPrefetchPreview({
                   ))}
                   {result.team_memory_entries.length > 3 ? (
                     <div className="text-xs text-slate-500">
-                      另有 {result.team_memory_entries.length - 3} 条任务影子未展开。
+                      另有 {result.team_memory_entries.length - 3} 条 Team
+                      Memory 未展开。
                     </div>
                   ) : null}
                 </div>
               ) : null}
             </DetailPanel>
 
-            <DetailPanel title="压缩续接摘要" emptyText="当前没有命中的压缩边界。">
+            <DetailPanel
+              title="会话压缩摘要"
+              emptyText="当前没有命中的会话压缩摘要。"
+            >
               {result.latest_compaction ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                   <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -300,16 +353,22 @@ export function AgentThreadMemoryPrefetchPreview({
                       <span>触发原因：{result.latest_compaction.trigger}</span>
                     ) : null}
                     {typeof result.latest_compaction.turn_count === "number" ? (
-                      <span>覆盖回合：{result.latest_compaction.turn_count}</span>
+                      <span>
+                        覆盖回合：{result.latest_compaction.turn_count}
+                      </span>
                     ) : null}
                     {formatDateTime(result.latest_compaction.created_at) ? (
                       <span>
-                        生成于 {formatDateTime(result.latest_compaction.created_at)}
+                        生成于{" "}
+                        {formatDateTime(result.latest_compaction.created_at)}
                       </span>
                     ) : null}
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-700">
-                    {truncateText(result.latest_compaction.summary_preview, 260)}
+                    {truncateText(
+                      result.latest_compaction.summary_preview,
+                      260,
+                    )}
                   </div>
                 </div>
               ) : null}

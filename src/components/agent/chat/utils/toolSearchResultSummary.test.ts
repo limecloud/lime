@@ -76,6 +76,25 @@ describe("toolSearchResultSummary", () => {
     });
   });
 
+  it("应解析 pending_mcp_servers 字段", () => {
+    const summary = normalizeToolSearchResultSummary(
+      JSON.stringify({
+        query: "slack send",
+        matches: [],
+        notes: [],
+        pending_mcp_servers: ["slack", "playwright"],
+      }),
+    );
+
+    expect(summary).toEqual({
+      query: "slack send",
+      count: 0,
+      notes: [],
+      tools: [],
+      pendingMcpServers: ["slack", "playwright"],
+    });
+  });
+
   it("应生成来源与状态标签", () => {
     expect(
       resolveToolSearchItemSourceLabel({
@@ -106,8 +125,8 @@ describe("toolSearchResultSummary", () => {
     expect(resolveUserFacingToolSearchItemLabel("TaskOutput")).toBe(
       "查看任务结果",
     );
-    expect(resolveUserFacingToolSearchItemLabel("mcp__playwright__browser_click")).toBe(
-      "页面点击",
-    );
+    expect(
+      resolveUserFacingToolSearchItemLabel("mcp__playwright__browser_click"),
+    ).toBe("页面点击");
   });
 });

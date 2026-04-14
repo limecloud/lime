@@ -11,12 +11,14 @@
 // - 计划持久化存储
 // - 用户权限确认机制
 
+use crate::session::{resolve_team_context, SessionManager, SessionType};
 use crate::tools::{
     base::{PermissionCheckResult, Tool},
     context::{ToolContext, ToolOptions, ToolResult},
     error::ToolError,
 };
 use async_trait::async_trait;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs;
@@ -24,6 +26,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
+
+use super::agent_control::{SendInputCallback, SendInputRequest};
 
 // =============================================================================
 // 计划模式状态管理
@@ -141,6 +145,18 @@ lazy_static::lazy_static! {
 
 pub(crate) fn current_plan_mode_active() -> bool {
     GLOBAL_STATE.is_plan_mode_active()
+}
+
+async fn session_is_subagent_context(context: &ToolContext) -> bool {
+    let session_id = context.session_id.trim();
+    if session_id.is_empty() {
+        return false;
+    }
+
+    SessionManager::get_session(session_id, false)
+        .await
+        .map(|session| matches!(session.session_type, SessionType::SubAgent))
+        .unwrap_or(false)
 }
 
 // =============================================================================
@@ -397,7 +413,8 @@ User: "What files handle routing?"
         json!({
             "type": "object",
             "properties": {},
-            "required": []
+            "required": [],
+            "additionalProperties": false
         })
     }
 
@@ -410,8 +427,13 @@ User: "What files handle routing?"
     async fn check_permissions(
         &self,
         _params: &Value,
-        _context: &ToolContext,
+        context: &ToolContext,
     ) -> PermissionCheckResult {
+        if session_is_subagent_context(context).await {
+            return PermissionCheckResult::deny(
+                "EnterPlanMode tool cannot be used in agent contexts",
+            );
+        }
         PermissionCheckResult::ask("Enter plan mode?")
     }
 
@@ -420,6 +442,12 @@ User: "What files handle routing?"
         _params: Value,
         context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
+        if session_is_subagent_context(context).await {
+            return Err(ToolError::execution_failed(
+                "EnterPlanMode tool cannot be used in agent contexts",
+            ));
+        }
+
         // 检查是否已经在计划模式中
         if GLOBAL_STATE.is_plan_mode_active() {
             return Ok(ToolResult::error(
@@ -539,17 +567,55 @@ Focus on understanding the problem before proposing solutions."#,
 
 /// 退出计划模式工具输入
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ExitPlanModeInput {}
+#[serde(rename_all = "camelCase")]
+pub struct ExitPlanModeInput {
+    #[serde(default)]
+    pub allowed_prompts: Option<Vec<AllowedPrompt>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AllowedPrompt {
+    pub tool: String,
+    pub prompt: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExitPlanModeOutput {
+    plan: Option<String>,
+    is_agent: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    file_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    has_task_tool: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    plan_was_edited: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    awaiting_leader_approval: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    request_id: Option<String>,
+}
 
 /// 退出计划模式工具
 ///
 /// 对齐当前工具面的 ExitPlanModeTool 语义
 /// 用于完成计划并等待用户批准
-pub struct ExitPlanModeTool;
+#[derive(Clone)]
+pub struct ExitPlanModeTool {
+    send_input_callback: Option<SendInputCallback>,
+}
 
 impl ExitPlanModeTool {
     pub fn new() -> Self {
-        Self
+        Self {
+            send_input_callback: None,
+        }
+    }
+
+    pub fn with_send_input_callback(mut self, callback: SendInputCallback) -> Self {
+        self.send_input_callback = Some(callback);
+        self
     }
 
     /// 解析计划内容为 SavedPlan 结构
@@ -751,6 +817,16 @@ impl Default for ExitPlanModeTool {
     }
 }
 
+fn generate_plan_approval_request_id() -> String {
+    let short = Uuid::new_v4()
+        .simple()
+        .to_string()
+        .chars()
+        .take(12)
+        .collect::<String>();
+    format!("plan_approval-{short}")
+}
+
 #[async_trait]
 impl Tool for ExitPlanModeTool {
     fn name(&self) -> &str {
@@ -787,8 +863,23 @@ Before using this tool, ensure your plan is clear and unambiguous. If there are 
     fn input_schema(&self) -> Value {
         json!({
             "type": "object",
-            "properties": {},
-            "required": []
+            "properties": {
+                "allowedPrompts": {
+                    "type": "array",
+                    "description": "计划阶段推导出的语义权限提示，当前 runtime 会保留到 metadata 供后续实现阶段参考。",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "tool": { "type": "string" },
+                            "prompt": { "type": "string" }
+                        },
+                        "required": ["tool", "prompt"],
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "required": [],
+            "additionalProperties": true
         })
     }
 
@@ -801,16 +892,34 @@ Before using this tool, ensure your plan is clear and unambiguous. If there are 
     async fn check_permissions(
         &self,
         _params: &Value,
-        _context: &ToolContext,
+        context: &ToolContext,
     ) -> PermissionCheckResult {
+        if !GLOBAL_STATE.is_plan_mode_active() {
+            return PermissionCheckResult::deny(
+                "You are not in plan mode. This tool is only for exiting plan mode after writing a plan.",
+            );
+        }
+
+        if session_is_subagent_context(context).await {
+            return PermissionCheckResult::allow();
+        }
+
+        let teammate_requires_lead_approval = resolve_team_context(&context.session_id)
+            .await
+            .ok()
+            .flatten()
+            .is_some_and(|team_context| !team_context.is_lead);
+        if teammate_requires_lead_approval {
+            return PermissionCheckResult::allow();
+        }
+
         PermissionCheckResult::ask("Exit plan mode?")
     }
 
-    async fn execute(
-        &self,
-        _params: Value,
-        _context: &ToolContext,
-    ) -> Result<ToolResult, ToolError> {
+    async fn execute(&self, params: Value, context: &ToolContext) -> Result<ToolResult, ToolError> {
+        let input: ExitPlanModeInput = serde_json::from_value(params).map_err(|error| {
+            ToolError::invalid_params(format!("ExitPlanMode 参数无效: {error}"))
+        })?;
         // 检查是否在计划模式中
         if !GLOBAL_STATE.is_plan_mode_active() {
             return Ok(ToolResult::error(
@@ -847,53 +956,123 @@ Before using this tool, ensure your plan is clear and unambiguous. If there are 
             }
         }
 
+        let is_agent = session_is_subagent_context(context).await;
+        let team_context = resolve_team_context(&context.session_id)
+            .await
+            .map_err(|error| ToolError::execution_failed(format!("读取 team 状态失败: {error}")))?;
+
+        let mut awaiting_leader_approval = None;
+        let mut request_id = None;
+        let mut approval_delivery = None;
+        let mut approval_request = None;
+
+        if let Some(team_context) = team_context
+            .as_ref()
+            .filter(|team_context| !team_context.is_lead)
+        {
+            let file_path = plan_file.clone().ok_or_else(|| {
+                ToolError::execution_failed(
+                    "No plan file found for ExitPlanMode approval request. Please write your plan before requesting leader approval.",
+                )
+            })?;
+            if plan_content.trim().is_empty() {
+                return Err(ToolError::execution_failed(format!(
+                    "No plan file found at {file_path}. Please write your plan before requesting leader approval."
+                )));
+            }
+
+            let callback = self.send_input_callback.clone().ok_or_else(|| {
+                ToolError::execution_failed(
+                    "当前 runtime 未配置计划审批消息路由，无法把计划提交给 team lead",
+                )
+            })?;
+            let generated_request_id = generate_plan_approval_request_id();
+            let payload = json!({
+                "type": "plan_approval_request",
+                "from": team_context.current_member_name.clone(),
+                "timestamp": Utc::now().to_rfc3339(),
+                "planFilePath": file_path,
+                "planContent": plan_content.clone(),
+                "requestId": generated_request_id,
+            });
+            let request_message = serde_json::to_string(&payload).map_err(|error| {
+                ToolError::execution_failed(format!("序列化计划审批请求失败: {error}"))
+            })?;
+            let response = (callback)(SendInputRequest {
+                id: team_context.lead_session_id.clone(),
+                message: request_message,
+                interrupt: false,
+            })
+            .await
+            .map_err(|error| {
+                ToolError::execution_failed(format!("发送计划审批请求失败: {error}"))
+            })?;
+
+            awaiting_leader_approval = Some(true);
+            request_id = Some(generated_request_id.clone());
+            approval_request = Some(payload);
+            approval_delivery = Some(json!({
+                "target": team_context.lead_session_id.clone(),
+                "submissionId": response.submission_id,
+                "extra": response.extra,
+            }));
+        }
+
         // 更新全局状态：退出计划模式
         GLOBAL_STATE.set_plan_mode(false, None, None);
-
-        let output = if let Some(ref plan_file_path) = plan_file {
-            format!(
-                r#"Exited plan mode.
-
-Your plan has been saved to:
-- Working file: {}{}
-{}
-
-Awaiting user approval to proceed with implementation.
-
-## Approved Plan:
-{}"#,
-                plan_file_path,
-                saved_plan_path
-                    .as_ref()
-                    .map(|p| format!("\n- Persistent storage: {}", p))
-                    .unwrap_or_default(),
-                plan_id
-                    .as_ref()
-                    .map(|id| format!("\nPlan ID: {}", id))
-                    .unwrap_or_default(),
-                plan_content
-            )
-        } else {
-            "Exited plan mode. Awaiting user approval to proceed with implementation.".to_string()
+        let output = ExitPlanModeOutput {
+            plan: if plan_content.is_empty() {
+                None
+            } else {
+                Some(plan_content.clone())
+            },
+            is_agent,
+            file_path: plan_file.clone(),
+            has_task_tool: None,
+            plan_was_edited: None,
+            awaiting_leader_approval,
+            request_id,
         };
 
-        Ok(ToolResult::success(output)
+        let mut result =
+            ToolResult::success(serde_json::to_string_pretty(&output).map_err(|error| {
+                ToolError::execution_failed(format!("序列化 ExitPlanMode 结果失败: {error}"))
+            })?)
             .with_metadata("plan_id", json!(plan_id))
             .with_metadata("plan_file", json!(plan_file))
             .with_metadata("saved_plan_path", json!(saved_plan_path))
-            .with_metadata("mode", json!("normal")))
+            .with_metadata("allowed_prompts", json!(input.allowed_prompts))
+            .with_metadata("mode", json!("normal"));
+
+        if let Some(approval_request) = approval_request {
+            result = result.with_metadata("plan_approval_request", approval_request);
+        }
+        if let Some(approval_delivery) = approval_delivery {
+            result = result.with_metadata("plan_approval_delivery", approval_delivery);
+        }
+        if let Some(request_id) = output.request_id.clone() {
+            result = result.with_metadata("pending_request_id", json!(request_id));
+        }
+
+        Ok(result)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tools::{context::ToolContext, PermissionBehavior};
-    use serde_json::json;
+    use crate::session::{
+        save_team_membership, save_team_state, SessionManager, SessionType, TeamMember,
+        TeamMembershipState, TeamSessionState,
+    };
+    use crate::tools::{context::ToolContext, PermissionBehavior, SendInputResponse};
+    use serde_json::{json, Value};
     use serial_test::serial;
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
+    use std::sync::{Arc, Mutex};
     use tempfile::TempDir;
     use tokio;
+    use uuid::Uuid;
 
     fn create_test_context() -> ToolContext {
         ToolContext {
@@ -904,6 +1083,69 @@ mod tests {
             cancellation_token: None,
             provider: None,
         }
+    }
+
+    async fn create_session_context(session_type: SessionType) -> anyhow::Result<ToolContext> {
+        let working_directory = std::env::current_dir().unwrap();
+        let session = SessionManager::create_session(
+            working_directory.clone(),
+            format!("plan-mode-test-{}", Uuid::new_v4()),
+            session_type,
+        )
+        .await?;
+
+        Ok(ToolContext::new(working_directory).with_session_id(session.id))
+    }
+
+    async fn create_teammate_context(teammate_name: &str) -> anyhow::Result<(String, ToolContext)> {
+        let working_directory = std::env::current_dir().unwrap();
+        let lead = SessionManager::create_session(
+            working_directory.clone(),
+            format!("plan-mode-lead-{}", Uuid::new_v4()),
+            SessionType::Hidden,
+        )
+        .await?;
+        let teammate = SessionManager::create_session(
+            working_directory.clone(),
+            format!("plan-mode-teammate-{}", Uuid::new_v4()),
+            SessionType::SubAgent,
+        )
+        .await?;
+        let team_name = format!("team-{}", Uuid::new_v4().simple());
+
+        save_team_state(
+            &lead.id,
+            Some(TeamSessionState {
+                team_name: team_name.clone(),
+                description: Some("测试 team".to_string()),
+                lead_session_id: lead.id.clone(),
+                members: vec![
+                    TeamMember::lead(lead.id.clone(), Some("lead".to_string())),
+                    TeamMember::teammate(
+                        teammate.id.clone(),
+                        teammate_name.to_string(),
+                        Some("worker".to_string()),
+                    ),
+                ],
+            }),
+        )
+        .await?;
+        save_team_membership(
+            &teammate.id,
+            Some(TeamMembershipState {
+                team_name,
+                lead_session_id: lead.id.clone(),
+                agent_id: teammate.id.clone(),
+                name: teammate_name.to_string(),
+                agent_type: Some("worker".to_string()),
+            }),
+        )
+        .await?;
+
+        Ok((
+            lead.id,
+            ToolContext::new(working_directory).with_session_id(teammate.id),
+        ))
     }
 
     #[test]
@@ -1005,14 +1247,70 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_enter_plan_mode_permissions_reject_subagent_context() -> anyhow::Result<()> {
+        let tool = EnterPlanModeTool::new();
+        let context = create_session_context(SessionType::SubAgent).await?;
+        let input = json!({});
+
+        let result = tool.check_permissions(&input, &context).await;
+        assert!(matches!(result.behavior, PermissionBehavior::Deny));
+        assert_eq!(
+            result.message,
+            Some("EnterPlanMode tool cannot be used in agent contexts".to_string())
+        );
+
+        let _ = SessionManager::delete_session(&context.session_id).await;
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_exit_plan_mode_permissions() {
         let tool = ExitPlanModeTool::new();
         let context = create_test_context();
         let input = json!({});
 
+        GLOBAL_STATE.set_plan_mode(true, None, None);
         let result = tool.check_permissions(&input, &context).await;
         assert!(matches!(result.behavior, PermissionBehavior::Ask));
         assert_eq!(result.message, Some("Exit plan mode?".to_string()));
+        GLOBAL_STATE.set_plan_mode(false, None, None);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_exit_plan_mode_permissions_reject_when_not_in_plan_mode() {
+        let tool = ExitPlanModeTool::new();
+        let context = create_test_context();
+        let input = json!({});
+
+        GLOBAL_STATE.set_plan_mode(false, None, None);
+
+        let result = tool.check_permissions(&input, &context).await;
+        assert!(matches!(result.behavior, PermissionBehavior::Deny));
+        assert_eq!(
+            result.message,
+            Some(
+                "You are not in plan mode. This tool is only for exiting plan mode after writing a plan."
+                    .to_string()
+            )
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_exit_plan_mode_permissions_allow_subagent_context() -> anyhow::Result<()> {
+        let tool = ExitPlanModeTool::new();
+        let context = create_session_context(SessionType::SubAgent).await?;
+        let input = json!({});
+
+        GLOBAL_STATE.set_plan_mode(true, None, None);
+
+        let result = tool.check_permissions(&input, &context).await;
+        assert!(matches!(result.behavior, PermissionBehavior::Allow));
+
+        GLOBAL_STATE.set_plan_mode(false, None, None);
+        let _ = SessionManager::delete_session(&context.session_id).await;
+        Ok(())
     }
 
     #[tokio::test]
@@ -1040,6 +1338,26 @@ mod tests {
 
         // 清理全局状态，避免影响并发测试
         GLOBAL_STATE.set_plan_mode(false, None, None);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_enter_plan_mode_execution_rejects_subagent_context() -> anyhow::Result<()> {
+        let tool = EnterPlanModeTool::new();
+        let context = create_session_context(SessionType::SubAgent).await?;
+
+        GLOBAL_STATE.set_plan_mode(false, None, None);
+
+        let error = tool
+            .execute(json!({}), &context)
+            .await
+            .expect_err("subagent context should be rejected");
+        assert!(error
+            .to_string()
+            .contains("EnterPlanMode tool cannot be used in agent contexts"));
+
+        let _ = SessionManager::delete_session(&context.session_id).await;
+        Ok(())
     }
 
     #[tokio::test]
@@ -1075,10 +1393,113 @@ mod tests {
         let result = tool.execute(input, &context).await.unwrap();
         assert!(result.success);
         assert!(result.output.is_some());
-        assert!(result.output.as_ref().unwrap().contains("Exited plan mode"));
+        let output: serde_json::Value =
+            serde_json::from_str(result.output.as_ref().unwrap()).expect("valid exit plan output");
+        assert_eq!(output["isAgent"], json!(false));
 
         // 验证状态已更新
         assert!(!GLOBAL_STATE.is_plan_mode_active());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_exit_plan_mode_marks_subagent_context_as_agent() -> anyhow::Result<()> {
+        let tool = ExitPlanModeTool::new();
+        let context = create_session_context(SessionType::SubAgent).await?;
+
+        GLOBAL_STATE.set_plan_mode(
+            true,
+            Some("test-subagent.md".to_string()),
+            Some("test-subagent-id".to_string()),
+        );
+
+        let result = tool.execute(json!({}), &context).await?;
+        let output: serde_json::Value =
+            serde_json::from_str(result.output.as_ref().unwrap()).expect("valid exit plan output");
+        assert_eq!(output["isAgent"], json!(true));
+
+        let _ = SessionManager::delete_session(&context.session_id).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_exit_plan_mode_teammate_submits_plan_approval_request() -> anyhow::Result<()> {
+        let temp_dir = TempDir::new()?;
+        let plan_path = temp_dir.path().join("PLAN.md");
+        let plan_content = r#"# 审批计划
+
+## Summary
+
+等待 team lead 审批后再进入实现阶段。
+"#;
+        fs::write(&plan_path, plan_content)?;
+
+        let (lead_session_id, context) = create_teammate_context("researcher").await?;
+        let captured_request = Arc::new(Mutex::new(None::<SendInputRequest>));
+        let captured_request_handle = Arc::clone(&captured_request);
+        let tool = ExitPlanModeTool::new().with_send_input_callback(Arc::new(move |request| {
+            let captured_request = Arc::clone(&captured_request_handle);
+            Box::pin(async move {
+                *captured_request.lock().unwrap() = Some(request.clone());
+                Ok(SendInputResponse {
+                    submission_id: "submission-plan-approval-1".to_string(),
+                    extra: BTreeMap::new(),
+                })
+            })
+        }));
+
+        GLOBAL_STATE.set_plan_mode(
+            true,
+            Some(plan_path.to_string_lossy().to_string()),
+            Some("plan-approval-id".to_string()),
+        );
+
+        let result = tool.execute(json!({}), &context).await?;
+        let output: Value =
+            serde_json::from_str(result.output.as_deref().unwrap()).expect("valid output json");
+        let request_id = output["requestId"]
+            .as_str()
+            .expect("requestId should be present")
+            .to_string();
+
+        assert_eq!(output["awaitingLeaderApproval"], json!(true));
+        assert_eq!(output["isAgent"], json!(true));
+        assert_eq!(
+            output["filePath"],
+            json!(plan_path.to_string_lossy().to_string())
+        );
+        assert!(request_id.starts_with("plan_approval-"));
+        assert!(!GLOBAL_STATE.is_plan_mode_active());
+
+        let sent_request = captured_request
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("approval request should be sent");
+        assert_eq!(sent_request.id, lead_session_id);
+        assert!(!sent_request.interrupt);
+
+        let payload: Value =
+            serde_json::from_str(&sent_request.message).expect("valid approval request json");
+        assert_eq!(payload["type"], json!("plan_approval_request"));
+        assert_eq!(payload["from"], json!("researcher"));
+        assert_eq!(
+            payload["planFilePath"],
+            json!(plan_path.to_string_lossy().to_string())
+        );
+        assert_eq!(payload["planContent"], json!(plan_content));
+        assert_eq!(payload["requestId"], json!(request_id));
+
+        assert_eq!(
+            result.metadata["plan_approval_delivery"]["submissionId"],
+            json!("submission-plan-approval-1")
+        );
+        assert_eq!(result.metadata["pending_request_id"], json!(request_id));
+
+        let _ = SessionManager::delete_session(&context.session_id).await;
+        let _ = SessionManager::delete_session(&lead_session_id).await;
+        Ok(())
     }
 
     #[test]

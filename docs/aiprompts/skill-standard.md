@@ -4,9 +4,9 @@
 
 本文件定义 Lime 仓库里 `skill` 能力的统一工程标准，主要回答：
 
-- Lime 自己认可的 skill 标准长什么样
+- Lime 在 Agent Skills 之上认可的技能包标准与运行时 profile 长什么样
 - `skill`、`adapter`、`runtime binding` 的边界分别是什么
-- 为什么外部 `SKILL.md` 仓库只能作为说明层参考，不能直接成为 Lime 的正式标准
+- 为什么 Agent Skills 应该成为 Lime 的包格式标准，但不能直接等同于 Lime 的运行时协议
 - 以后新增 Claw 业务技能、站点技能、提示词技能时，应该如何保持一致
 
 它是 **Lime 技能能力的总标准文档**。
@@ -19,7 +19,7 @@
 
 ## 第一原则
 
-**Lime 有自己的 skills 标准。来源可以多个，但标准只能有一个。**
+**Agent Skills 是 Lime 唯一对齐的技能包格式标准；Lime 只在这个标准之上定义自己的运行时与产品 profile。**
 
 对 Lime 来说，可以同时存在：
 
@@ -27,14 +27,15 @@
 - 仓库内 seeded 技能目录
 - 外部项目提供的 `SKILL.md` / YAML / adapter 来源
 
-但 Lime 内部继续演进的标准只能有一套。
+但“技能包格式标准”只能有一套。
 
-从现在开始，技能能力的唯一长期事实源应收敛到：
+从现在开始，技能包格式的唯一长期事实源应收敛到：
 
-> `Lime Skill Spec`
+> `Agent Skills Specification`
 
 外部仓库只能提供：
 
+- 标准包结构
 - 说明层模板
 - 来源层原料
 - 触发语义参考
@@ -45,6 +46,11 @@
 - Lime 的分发协议
 - Lime 的 UI 表达标准
 - Lime 的自动化与浏览器行为边界
+
+换句话说：
+
+- `Agent Skills` 负责回答“技能包长什么样”
+- `Lime` 负责回答“技能包进入产品后怎么分发、怎么补参、怎么执行、怎么交付”
 
 ## 什么时候先读
 
@@ -68,7 +74,7 @@
 - 定义另一套浏览器 runtime
 - 让外部 `SKILL.md` 直接成为 Lime 运行时协议
 - 把 adapter 当成 skill 本体
-- 为了兼容来源而长期维护第二套 skill 协议
+- 为了兼容来源而长期维护第二套技能包协议
 - 在第一阶段把所有既有实现一次性重命名重构完
 
 尤其不要把“支持更多技能”误解成：
@@ -98,6 +104,20 @@ Lime 在工程上必须明确接受这一点：
 - 长期记忆
 
 如果一个 Skill 只有一段说明文字，没有任何额外知识、资产、脚本、验证或渐进披露结构，那么它更接近提示词说明，而不是强 Skill。
+
+## 第三原则
+
+**Lime 不直接执行 `SKILL.md`，而是把 Agent Skills 包编译成自己的目录投影与运行时绑定。**
+
+这也是为什么 Lime 可以兼容 Agent Skills，但不需要把产品层降级成“SkillToolset 产品”：
+
+`Agent Skill Bundle -> 标准解析 / 校验 -> SkillBundle 摘要层 -> ServiceSkillCatalog / SkillCatalog / SceneCatalog 投影 -> Runtime Binding 执行`
+
+固定结论：
+
+1. `SKILL.md` 不是 Lime 的最终产品对象。
+2. `ServiceSkill` / `Scene` 也不是新的包格式标准。
+3. `ServiceSkill` / `Scene` 是 Lime 在 Agent Skills 之上的产品投影层。
 
 ## 设计原则补充
 
@@ -152,9 +172,35 @@ Skill 最有价值的内容，是把模型从默认思路里“推出来”。
 
 ## 标准分层
 
-Lime 的技能标准必须分成四层：
+Lime 的技能标准必须分成五层：
 
-### 1. 说明层
+### 1. 包标准层
+
+作用：
+
+- 定义一个 Skill 包在磁盘或远程仓库里长什么样
+- 明确前置字段、资源目录、兼容校验与渐进加载边界
+
+当前固定对齐：
+
+- `Agent Skills Specification`
+
+标准字段优先包括：
+
+- `name`
+- `description`
+- `license`
+- `compatibility`
+- `metadata`
+- `allowed-tools`
+
+固定规则：
+
+1. 不再新造第二种 Skill 包格式。
+2. Lime 私有字段统一进入 `metadata.Lime_*`，不新增顶层私有 frontmatter。
+3. 包标准层只回答“技能包长什么样”，不回答“在 Lime 里怎么执行”。
+
+### 2. 说明层
 
 作用：
 
@@ -171,27 +217,30 @@ Lime 的技能标准必须分成四层：
 
 但说明层不是 Lime 的运行时事实源。
 
-### 2. 输入层
+### 3. 输入与产品投影层
 
 作用：
 
-- 定义技能参数、默认值、校验和补参表单
+- 把标准 Skill 包投影成 Lime 可消费的输入、展示和产品对象
 
 当前主承载结构是：
 
 - `src/lib/api/serviceSkills.ts` 里的 `ServiceSkillItem`
 - `slotSchema`
 - `readinessRequirements`
+- `sceneBinding`
+- `skillBundle`
 
 新增技能时，优先补结构化输入字段，不要继续把参数要求散落在 prompt 和按钮文案里。
 
 固定边界：
 
 - `slotSchema` / `readinessRequirements` 是技能补参真相
+- `ServiceSkillItem` 是 Lime 客户端产品投影，不是 Agent Skills 原始包
 - `a2ui` 只允许作为 GUI 渲染层，把缺失信息映射成表单
 - 不要把 `a2ui` 结构直接写进 skill catalog、runtime metadata 或协议字段
 
-### 3. 运行时层
+### 4. 运行时层
 
 作用：
 
@@ -207,7 +256,7 @@ Lime 的技能标准必须分成四层：
 
 运行时层回答的是“怎么执行”，不是“对用户如何命名”。
 
-### 4. 分发层
+### 5. 分发层
 
 作用：
 
@@ -223,14 +272,19 @@ Lime 的技能标准必须分成四层：
 
 ## 统一对象关系
 
-Lime 技能能力必须明确区分三个对象：
+Lime 技能能力必须明确区分四个对象：
 
-### 1. Skill
+### 1. Skill Bundle
 
 作用：
 
-- 面向用户和产品表达业务入口
-- 解决“为什么用、何时触发、输出去哪”
+- 作为标准能力包与内容载体
+- 解决“这个能力包里有哪些说明、参考资料、模板、脚本和元数据”
+
+不是谁：
+
+- 不是最终产品入口
+- 不直接等于 `ServiceSkill / Scene`
 
 ### 2. Adapter / Tool
 
@@ -253,8 +307,15 @@ Lime 技能能力必须明确区分三个对象：
 - 把产品型 slash scene 组织成可复用的技能流程
 - 解决“为了达成一个目标，需要按什么步骤驱动 skill / adapter / runtime”
 
+不是谁：
+
+- 不是原始 `SKILL.md`
+- 不等于 `SceneApp`
+- 更接近 `Scene / ServiceSkill` 背后的流程层与产品投影层
+
 固定规则：
 
+- `Skill Bundle` 是包标准层，`ServiceSkill / Scene` 才是产品对象层
 - `/scene` 的长期真相是 `Scene Skill`，不是前端 if/else，不是单站点特判
 - `site-adapter` 只能作为 `Scene Skill` 某一步的执行提供者，不能反客为主变成 scene runtime 本体
 - 缺失信息时，优先由 `Scene Skill` 产出结构化 gate request，再由 GUI 层映射成 `a2ui`
@@ -269,6 +330,60 @@ Lime 技能能力必须明确区分三个对象：
 - 封装站点 / CDP / 浏览器能力用 `Tool Wrapper`
 - 只有在确实需要产物复核时再叠加 `Reviewer`
 
+这些模式回答的是：
+
+**skill / scene skill 内部怎么组织逻辑。**
+
+它们不回答：
+
+- 这个场景是本地还是云端
+- 这个场景是不是 `ServiceSkill`
+- 这个场景最终走哪条 runtime binding
+
+### Skill / Scene Skill 内容设计模式
+
+| 模式 | 回答什么 | 什么时候优先用 | 常用目录 | 常见运行时搭配 |
+|------|------|------|------|------|
+| `Tool Wrapper` | 如何把某个库、站点、协议、规范封装成专家上下文 | 封装 framework、site adapter、browser protocol、内部规范 | `references/`、`scripts/` | `browser_assist`、`native_skill`、`agent_turn` |
+| `Generator` | 如何稳定地产出结构化结果 | 输出模板固定、格式不能漂移 | `assets/`、`references/` | `agent_turn`、`cloud_scene`、Artifact |
+| `Reviewer` | 如何按 checklist 打分、归类严重性、提出修复建议 | QA、合规、发布前复核、代码审查 | `references/checklist*.md` | `agent_turn`、review/evidence |
+| `Inversion` | 如何先提问、补参、过 gate，再继续执行 | 需求不完整、项目/权限/账号/审批门禁 | 问题清单、gate template | `slotSchema`、`scene gate`、`a2ui` |
+| `Pipeline` | 如何强制按顺序执行多步流程，并在 checkpoint 处停住 | 多步任务、外部依赖多、不能跳步 | `references/`、`assets/`、`scripts/` 全部都可能 | `agent_turn`、`browser_assist`、`automation_job`、`cloud_scene` |
+
+固定规则：
+
+1. 一个 skill 应只有一个 `主模式`。
+2. 一个 skill 可以有多个 `辅助模式`。
+3. `Pipeline` 常常是复杂 `Scene Skill` 的主模式。
+4. `Tool Wrapper` 更适合做某一步的能力封装，不适合直接冒充产品对象。
+5. `Reviewer` 只有在“复核本身是产品价值”时才应显式叠加，不要默认所有场景都加。
+
+推荐组合：
+
+| 组合 | 适合什么 |
+|------|------|
+| `Pipeline + Inversion` | 先补参，再执行严格多步流程 |
+| `Pipeline + Generator` | 多步流程后输出固定结构 Artifact |
+| `Pipeline + Tool Wrapper` | 流程中某一步依赖站点、浏览器、协议专家上下文 |
+| `Pipeline + Reviewer` | 产物生成后还要显式质量检查 |
+| `Inversion + Generator` | 先采访用户，再生成结构化结果 |
+| `Tool Wrapper + Reviewer` | 以内部规范或站点规则为准做审查 |
+
+如果后续需要把这些模式暴露给 Lime 的产品投影层，优先把原始包信息放在：
+
+- `metadata.Lime_pattern_primary`
+- `metadata.Lime_pattern_stack`
+- `metadata.Lime_interaction_mode`
+- `metadata.Lime_checkpoint_policy`
+
+不要新增新的顶层 frontmatter 字段。
+
+补充边界：
+
+- `patternPrimary / patternStack` 可以来自 Skill Bundle 编译结果
+- `infra_profile` 不属于原始 Skill Bundle 的强制字段，它属于上层 `SceneApp` 装配声明
+- 不要把“这个 skill 是 `Pipeline` 型”误写成“这个场景就是云端 / 浏览器 / 本地 durable”
+
 必须遵守：
 
 - adapter 不是 skill
@@ -276,7 +391,11 @@ Lime 技能能力必须明确区分三个对象：
 - 一个 skill 只能有一个主执行绑定
 - 多 adapter 编排不属于普通 site skill，属于后续 scene / orchestration 范畴
 
-## Lime Skill Spec v1
+## Lime Runtime Profile v1
+
+这一节定义的不是新的包格式，而是：
+
+**一个 Agent Skills 兼容包进入 Lime 之后，最少需要被编译成哪些产品投影与运行时字段。**
 
 ### 1. 技能分类
 
@@ -306,6 +425,11 @@ Lime 技能能力必须明确区分三个对象：
 - `version`
 - `source`
 
+说明：
+
+- 这些字段可以来自远端目录或本地编译结果
+- 不要求直接写在 `SKILL.md` 顶层 frontmatter
+
 #### 展示字段
 
 - `title`
@@ -331,6 +455,19 @@ Lime 技能能力必须明确区分三个对象：
 - `default values`
 - `validation`
 
+#### 编排字段
+
+- `patternPrimary`
+- `patternStack`
+- `interactionMode`
+- `checkpointPolicy`
+
+说明：
+
+- 这组字段回答的是“skill 内部怎么组织逻辑”，不是“最终走哪种 runtime binding”。
+- 如果原始包要携带这些信息，优先通过 `metadata.Lime_*` 命名空间进入编译层。
+- `ServiceSkill / Scene` 的产品投影如果需要展示“这是一个 `Pipeline` 型场景，还是 `Reviewer` 型场景”，应消费这里，而不是重新猜测 prompt 内容。
+
 #### 执行字段
 
 - `defaultExecutorBinding`
@@ -342,6 +479,7 @@ Lime 技能能力必须明确区分三个对象：
 - `siteCapabilityBinding`
 - `promptTemplateKey`
 - 未来可扩展的 `toolHubBinding`
+- 未来可扩展的 `additionalTools`
 
 #### 产物字段
 
@@ -364,6 +502,61 @@ Lime 技能能力必须明确区分三个对象：
 
 - 这些字段可以先由服务端模板或说明文档承接
 - 长期目标是结构化，而不是永久只写在 README / prompt 里
+
+## Google ADK 与 ClaudeCode 借鉴边界
+
+Google ADK 对 Lime 最值得借鉴的，不是“再做一个 ADK SkillToolset”，而是它的分层方式。
+
+可直接借鉴的点：
+
+1. **轻发现、重加载**
+   - 列表阶段只读 frontmatter
+   - 命中后再加载正文和 `references/assets/scripts`
+2. **严格 validator**
+   - 目录名与 `name` 一致
+   - 未知顶层字段报错
+   - `allowed-tools` / `allowed_tools` alias 正规化
+3. **显式 skill 工具面**
+   - `list_skills`
+   - `load_skill`
+   - `load_skill_resource`
+   - `run_skill_script`
+4. **激活后再开放额外工具**
+   - ADK 用 `metadata.adk_additional_tools`
+   - Lime 可借鉴为 `metadata.Lime_additional_tools`
+5. **脚本前资源物化**
+   - 在临时工作目录里重建 skill bundle，再执行脚本
+
+ClaudeCode 对 Lime 最值得借鉴的，不是“再做一个 ClaudeCode skills 系统”，而是它把 skills 当成宿主治理对象来处理。
+
+可直接借鉴的点：
+
+1. **多 root 扫描与优先级**
+   - managed / user / project / additional dirs 并行加载
+   - 不同 root 的覆盖顺序明确且可解释
+2. **严格目录约定与 legacy compat 分离**
+   - `/skills/` 只接受 `skill-name/SKILL.md`
+   - `/commands/` 单独作为兼容层，而不是继续污染主标准
+3. **按真实文件身份去重**
+   - 用 `realpath` 规避软链接和重复父目录带来的重复加载
+4. **条件技能激活**
+   - `paths` 命中的 skill 先进入待激活池
+   - 只有用户实际触碰相关文件时才进入动态技能集
+5. **动态发现嵌套技能目录**
+   - 随文件操作向上发现子目录下的 `.claude/skills`
+   - 深层目录优先于浅层目录
+6. **内置技能、磁盘技能、MCP 技能分层**
+   - bundled skills 是宿主内建能力
+   - file-based skills 是外部技能包
+   - MCP skills 是远端技能来源
+
+不应直接照搬的点：
+
+1. 不把 `SkillToolset` 当成 Lime 最终产品形态。
+2. 不把已激活 skill 直接等同于 `ServiceSkill` / `Scene`。
+3. 不把 Skill 包原文直接当成 `service_scene_launch`、`browser_assist`、`automation_job` 等运行时协议。
+4. 不把 ClaudeCode 的 `.claude/skills`、`/commands/`、plugin-only policy、bare mode 直接当成 Lime 的产品事实源。
+5. 不把 ClaudeCode 的 bundled skill 注册机制，误当成开放技能包标准。
 
 ## 执行绑定标准
 
@@ -519,13 +712,14 @@ Agent / Claw 主路径里的 skill 补参与启动，统一承载在当前对话
 
 ## 外部 `SKILL.md` 参考边界
 
-外部 `SKILL.md` 仓库对 Lime 只有三类帮助：
+外部 `SKILL.md` 仓库对 Lime 的帮助不只在“说明书结构”，还包括：
 
-- 触发语义怎么写更清楚
-- `when to use / setup / examples` 怎么组织更清楚
-- 说明层如何让人和模型都容易理解
+1. 标准包结构
+2. 触发语义与说明组织
+3. `references/assets/scripts` 的渐进加载组织方式
+4. 最小 validator 与标准状态表达
 
-它不能直接成为：
+但它仍不能直接成为：
 
 - Lime 的目录协议
 - Lime 的执行绑定协议
@@ -534,7 +728,7 @@ Agent / Claw 主路径里的 skill 补参与启动，统一承载在当前对话
 
 一句话：
 
-> 外部 `SKILL.md` 只可借“说明书结构”，不可借“产品标准定义权”。
+> 外部 `SKILL.md` 可以是 Lime 的技能包标准来源，但不能直接拿走 Lime 的运行时与产品定义权。
 
 ## 新增技能的最低检查单
 

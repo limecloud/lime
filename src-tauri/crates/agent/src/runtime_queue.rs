@@ -13,6 +13,8 @@ use futures::future::BoxFuture;
 use serde_json::Value;
 use std::sync::Arc;
 
+const RUNTIME_TURN_THREAD_STACK_SIZE: usize = 8 * 1024 * 1024;
+
 pub type RuntimeQueueExecutor<C> =
     Arc<dyn Fn(C, Value) -> BoxFuture<'static, Result<(), String>> + Send + Sync>;
 
@@ -35,22 +37,53 @@ fn spawn_runtime_turn_task<C>(
 ) where
     C: Clone + Send + Sync + 'static,
 {
-    tokio::spawn(async move {
-        let result = executor(context.clone(), payload).await;
-        if let Err(error) = continue_runtime_queue_after_turn(
-            session_id,
-            context.clone(),
-            executor.clone(),
-            emitter.clone(),
-        )
-        .await
-        {
-            tracing::warn!("[AsterAgent][Queue] 调度下一条排队 turn 失败: {}", error);
-        }
-        if let Err(error) = result {
-            tracing::warn!("[AsterAgent][Queue] 队列任务执行失败: {}", error);
-        }
-    });
+    let thread_name = format!("lime-runtime-turn-{}", session_id);
+    let spawn_result = std::thread::Builder::new()
+        .name(thread_name)
+        .stack_size(RUNTIME_TURN_THREAD_STACK_SIZE)
+        .spawn(move || {
+            let runtime = match tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .thread_name("lime-runtime-turn-worker")
+                .thread_stack_size(RUNTIME_TURN_THREAD_STACK_SIZE)
+                .enable_io()
+                .enable_time()
+                .build()
+            {
+                Ok(runtime) => runtime,
+                Err(error) => {
+                    tracing::error!(
+                        "[AsterAgent][Queue] 创建 runtime turn 专用运行时失败: {}",
+                        error
+                    );
+                    return;
+                }
+            };
+
+            runtime.block_on(async move {
+                let result = executor(context.clone(), payload).await;
+                if let Err(error) = continue_runtime_queue_after_turn(
+                    session_id,
+                    context.clone(),
+                    executor.clone(),
+                    emitter.clone(),
+                )
+                .await
+                {
+                    tracing::warn!("[AsterAgent][Queue] 调度下一条排队 turn 失败: {}", error);
+                }
+                if let Err(error) = result {
+                    tracing::warn!("[AsterAgent][Queue] 队列任务执行失败: {}", error);
+                }
+            });
+        });
+
+    if let Err(error) = spawn_result {
+        tracing::error!(
+            "[AsterAgent][Queue] 启动 runtime turn 专用线程失败: {}",
+            error
+        );
+    }
 }
 
 async fn continue_runtime_queue_after_turn<C>(

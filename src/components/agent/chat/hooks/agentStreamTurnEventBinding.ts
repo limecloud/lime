@@ -1,6 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import {
   parseAgentEvent,
+  type AgentEvent,
   type AgentThreadItem,
   type AgentThreadTurn,
 } from "@/lib/api/agentProtocol";
@@ -18,6 +19,12 @@ import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import type { StreamRequestState } from "./agentStreamSubmissionLifecycle";
 
 type MessageParts = NonNullable<Message["contentParts"]>;
+const STREAM_FIRST_EVENT_TIMEOUT_MS = 12_000;
+const STREAM_FIRST_EVENT_TIMEOUT_MESSAGE =
+  "执行已中断：运行时未返回任何进度事件，请重试。";
+const STREAM_INACTIVITY_TIMEOUT_MS = 45_000;
+const STREAM_INACTIVITY_TIMEOUT_MESSAGE =
+  "执行已中断：运行时长时间没有返回新进度，请重试。";
 
 interface StreamObserver {
   onTextDelta?: (delta: string, accumulated: string) => void;
@@ -148,12 +155,115 @@ export async function registerAgentStreamTurnEventBinding(
     },
   });
 
-  return runtime.listenToTurnEvents(
+  let firstEventReceived = false;
+  let inactivityWatchdogId: ReturnType<typeof setTimeout> | null = null;
+  const clearInactivityWatchdog = () => {
+    if (inactivityWatchdogId) {
+      clearTimeout(inactivityWatchdogId);
+      inactivityWatchdogId = null;
+    }
+  };
+  let firstEventWatchdogId: ReturnType<typeof setTimeout> | null =
+    globalThis.setTimeout(() => {
+      firstEventWatchdogId = null;
+      if (firstEventReceived || requestState.requestFinished) {
+        return;
+      }
+      firstEventReceived = true;
+      dispatchSyntheticError(STREAM_FIRST_EVENT_TIMEOUT_MESSAGE);
+    }, STREAM_FIRST_EVENT_TIMEOUT_MS);
+
+  const clearFirstEventWatchdog = () => {
+    if (firstEventWatchdogId) {
+      clearTimeout(firstEventWatchdogId);
+      firstEventWatchdogId = null;
+    }
+  };
+  const disposeListenerWithWatchdogs = () => {
+    clearFirstEventWatchdog();
+    clearInactivityWatchdog();
+    callbacks.disposeListener();
+  };
+  const dispatchSyntheticError = (message: string) => {
+    handleTurnStreamEvent({
+      data: {
+        type: "error",
+        message,
+      } as AgentEvent,
+      requestState,
+      callbacks: {
+        activateStream: () =>
+          callbacks.activateStream(
+            activeSessionId,
+            effectiveWaitingRuntimeStatus,
+          ),
+        isStreamActivated: callbacks.isStreamActivated,
+        clearOptimisticItem: callbacks.clearOptimisticItem,
+        clearOptimisticTurn: callbacks.clearOptimisticTurn,
+        disposeListener: disposeListenerWithWatchdogs,
+        removeQueuedDraftMessages: callbacks.removeQueuedDraftMessages,
+        clearActiveStreamIfMatch: callbacks.clearActiveStreamIfMatch,
+        upsertQueuedTurn: callbacks.upsertQueuedTurn,
+        removeQueuedTurnState: callbacks.removeQueuedTurnState,
+        playToolcallSound: sounds.playToolcallSound,
+        playTypewriterSound: sounds.playTypewriterSound,
+        appendThinkingToParts,
+      },
+      observer,
+      eventName,
+      pendingTurnKey,
+      pendingItemKey,
+      assistantMsgId,
+      activeSessionId,
+      resolvedWorkspaceId,
+      effectiveExecutionStrategy,
+      content,
+      runtime,
+      webSearch,
+      warnedKeysRef,
+      actionLoggedKeys,
+      toolLogIdByToolId,
+      toolStartedAtByToolId,
+      toolNameByToolId,
+      onWriteFile,
+      setMessages,
+      setPendingActions,
+      setThreadItems,
+      setThreadTurns,
+      setCurrentTurnId,
+      setExecutionRuntime,
+      setIsSending,
+    });
+  };
+  const scheduleInactivityWatchdog = () => {
+    clearInactivityWatchdog();
+    if (
+      !firstEventReceived ||
+      requestState.requestFinished ||
+      !callbacks.isStreamActivated()
+    ) {
+      return;
+    }
+
+    inactivityWatchdogId = globalThis.setTimeout(() => {
+      inactivityWatchdogId = null;
+      if (requestState.requestFinished || !callbacks.isStreamActivated()) {
+        return;
+      }
+      dispatchSyntheticError(STREAM_INACTIVITY_TIMEOUT_MESSAGE);
+    }, STREAM_INACTIVITY_TIMEOUT_MS);
+  };
+
+  const unlisten = await runtime.listenToTurnEvents(
     eventName,
     (event: { payload: unknown }) => {
       const data = parseAgentEvent(event.payload);
       if (!data) {
         return;
+      }
+      if (!firstEventReceived) {
+        firstEventReceived = true;
+        clearFirstEventWatchdog();
       }
 
       handleTurnStreamEvent({
@@ -168,7 +278,7 @@ export async function registerAgentStreamTurnEventBinding(
           isStreamActivated: callbacks.isStreamActivated,
           clearOptimisticItem: callbacks.clearOptimisticItem,
           clearOptimisticTurn: callbacks.clearOptimisticTurn,
-          disposeListener: callbacks.disposeListener,
+          disposeListener: disposeListenerWithWatchdogs,
           removeQueuedDraftMessages: callbacks.removeQueuedDraftMessages,
           clearActiveStreamIfMatch: callbacks.clearActiveStreamIfMatch,
           upsertQueuedTurn: callbacks.upsertQueuedTurn,
@@ -202,6 +312,13 @@ export async function registerAgentStreamTurnEventBinding(
         setExecutionRuntime,
         setIsSending,
       });
+      scheduleInactivityWatchdog();
     },
   );
+
+  return () => {
+    clearFirstEventWatchdog();
+    clearInactivityWatchdog();
+    unlisten();
+  };
 }

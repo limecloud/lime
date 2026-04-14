@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useState,
   useRef,
   useEffect,
@@ -6,6 +7,7 @@ import React, {
   useLayoutEffect,
 } from "react";
 import {
+  AlertTriangle,
   Copy,
   Quote,
   Check,
@@ -14,6 +16,7 @@ import {
   ExternalLink,
   Sparkles,
   BookmarkPlus,
+  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -36,6 +39,7 @@ import { TokenUsageDisplay } from "./TokenUsageDisplay";
 import { AgentThreadTimeline } from "./AgentThreadTimeline";
 import { ImageWorkbenchMessagePreview } from "./ImageWorkbenchMessagePreview";
 import { TaskMessagePreview } from "./TaskMessagePreview";
+import { InputbarRuntimeStatusLine } from "./Inputbar/components/InputbarRuntimeStatusLine";
 import {
   formatArtifactWritePhaseLabel,
   resolveArtifactPreviewText,
@@ -47,10 +51,12 @@ import {
   sanitizeMessageTextForDisplay,
 } from "../utils/internalImagePlaceholder";
 import { isHiddenConversationArtifactPath } from "../utils/internalArtifactVisibility";
+import { buildInputbarRuntimeStatusLineModel } from "../utils/inputbarRuntimeStatusLine";
 import { isInternalRoutingTurnSummaryText } from "../utils/turnSummaryPresentation";
 import {
   Message,
   type ActionRequired,
+  type AgentRuntimeStatus,
   type AgentThreadItem,
   type AgentThreadTurn,
   type MessagePreviewTarget,
@@ -61,10 +67,13 @@ import {
 import type { A2UIFormData } from "@/lib/workspace/a2ui";
 import type { ConfirmResponse } from "../types";
 import type {
+  AsterSubagentSessionInfo,
   AgentRuntimeThreadReadModel,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
-import { buildMessageTurnTimeline } from "../utils/threadTimelineView";
+import {
+  buildMessageTurnTimeline,
+} from "../utils/threadTimelineView";
 import { buildMessageTurnGroups } from "../utils/messageTurnGrouping";
 import { resolveLatestProjectFileSavedSiteContentTargetFromMessage } from "../utils/latestSavedSiteContentTarget";
 import {
@@ -84,6 +93,7 @@ interface MessageListProps {
   pendingActions?: ActionRequired[];
   submittedActionsInFlight?: ActionRequired[];
   queuedTurns?: QueuedTurnSnapshot[];
+  childSubagentSessions?: AsterSubagentSessionInfo[];
   isSending?: boolean;
   assistantLabel?: string;
   onDeleteMessage?: (id: string) => void;
@@ -173,6 +183,57 @@ function resolvePromptCacheActivity(usage?: {
   );
 }
 
+function normalizeRuntimeStatusMetaText(value?: string | null): string {
+  return (value || "").trim().replace(/\s+/g, " ");
+}
+
+const MessageRuntimeStatusPill: React.FC<{
+  status: AgentRuntimeStatus;
+}> = ({ status }) => {
+  const failed = status.phase === "failed";
+  const cancelled = status.phase === "cancelled";
+  const ToneIcon = failed ? AlertTriangle : cancelled ? Square : Loader2;
+  const titleText = normalizeRuntimeStatusMetaText(status.title);
+  const detailText = normalizeRuntimeStatusMetaText(status.detail);
+  const checkpointsText = (status.checkpoints || [])
+    .map((item) => normalizeRuntimeStatusMetaText(item))
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" · ");
+  const tooltip = [titleText, detailText, checkpointsText]
+    .filter((item, index, array) => Boolean(item) && array.indexOf(item) === index)
+    .join("\n");
+
+  return (
+    <div
+      data-testid="message-runtime-status-pill"
+      className={[
+        "inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] leading-none",
+        failed
+          ? "border-rose-200 bg-rose-50 text-rose-700"
+          : cancelled
+            ? "border-slate-200 bg-slate-50 text-slate-600"
+            : "border-sky-200 bg-sky-50 text-sky-700",
+      ].join(" ")}
+      title={tooltip || undefined}
+    >
+      <ToneIcon
+        className={[
+          "h-3.5 w-3.5 shrink-0",
+          failed || cancelled ? "" : "animate-spin",
+        ].join(" ")}
+      />
+      <span className="truncate">{titleText || "处理中"}</span>
+    </div>
+  );
+};
+
+function shouldRenderRuntimeStatusPill(
+  status?: AgentRuntimeStatus | null,
+): boolean {
+  return status?.phase === "failed" || status?.phase === "cancelled";
+}
+
 function isDeferredTimelineItem(item: AgentThreadItem): boolean {
   return item.type === "file_artifact" || item.type === "turn_summary";
 }
@@ -238,16 +299,16 @@ function shouldRenderConversationTimelineItem(
     return true;
   }
 
+  if (isInternalRoutingTurnSummaryText(item.text)) {
+    return false;
+  }
+
   if (item.status === "in_progress" && options?.hasInlineRuntimeStatus) {
     return false;
   }
 
   if (item.status !== "completed") {
     return true;
-  }
-
-  if (isInternalRoutingTurnSummaryText(item.text)) {
-    return false;
   }
 
   return !timelineItems.some(
@@ -330,10 +391,12 @@ function resolveInlineProcessCoverage(params: {
   actionRequests?: Message["actionRequests"];
 }): InlineProcessCoverage {
   const contentParts = params.contentParts || [];
+  const toolNameCounts = new Map<string, number>();
+  const actionRequestCounts = new Map<string, number>();
+  let thinking = false;
+
   if (contentParts.length > 0) {
-    const toolNameCounts = new Map<string, number>();
-    const actionRequestCounts = new Map<string, number>();
-    const thinking = contentParts.some(
+    thinking = contentParts.some(
       (part) => part.type === "thinking" && part.text.trim().length > 0,
     );
     contentParts.forEach((part) => {
@@ -351,29 +414,21 @@ function resolveInlineProcessCoverage(params: {
         );
       }
     });
-    return {
-      hasInlineProcessEntries:
-        thinking || toolNameCounts.size > 0 || actionRequestCounts.size > 0,
-      thinking,
-      toolNameCounts,
-      actionRequestCounts,
-    };
+  } else {
+    thinking = Boolean(params.thinkingContent?.trim());
+    (params.toolCalls || []).forEach((toolCall) => {
+      incrementInlineCoverageCount(
+        toolNameCounts,
+        normalizeInlineCoverageKey(toolCall.name),
+      );
+    });
   }
 
-  const toolNameCounts = new Map<string, number>();
-  const actionRequestCounts = new Map<string, number>();
-  const thinking = Boolean(params.thinkingContent?.trim());
-  (params.toolCalls || []).forEach((toolCall) => {
-    incrementInlineCoverageCount(
-      toolNameCounts,
-      normalizeInlineCoverageKey(toolCall.name),
-    );
-  });
   (params.actionRequests || []).forEach((actionRequest) => {
-    incrementInlineCoverageCount(
-      actionRequestCounts,
-      normalizeInlineCoverageKey(actionRequest.requestId),
-    );
+    const actionKey = normalizeInlineCoverageKey(actionRequest.requestId);
+    if (actionKey && !actionRequestCounts.has(actionKey)) {
+      incrementInlineCoverageCount(actionRequestCounts, actionKey);
+    }
   });
 
   return {
@@ -385,6 +440,31 @@ function resolveInlineProcessCoverage(params: {
   };
 }
 
+function filterConversationDisplayContentParts(
+  parts: Message["contentParts"] | undefined,
+  options: {
+    includeProcessFlow: boolean;
+    preserveToolUseParts: boolean;
+  },
+): Message["contentParts"] | undefined {
+  if (!parts || parts.length === 0 || options.includeProcessFlow) {
+    return parts;
+  }
+
+  const filtered = parts.filter((part) => {
+    if (part.type === "thinking") {
+      return false;
+    }
+
+    if (part.type === "tool_use") {
+      return options.preserveToolUseParts;
+    }
+
+    return true;
+  });
+  return filtered.length > 0 ? filtered : undefined;
+}
+
 const MessageListInner: React.FC<MessageListProps> = ({
   messages,
   emptyStateVariant = "default",
@@ -392,6 +472,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
   threadItems = [],
   currentTurnId = null,
   threadRead = null,
+  pendingActions = [],
+  queuedTurns = [],
+  childSubagentSessions = [],
+  isSending = false,
   assistantLabel = "Lime",
   onQuoteMessage,
   onA2UISubmit,
@@ -413,6 +497,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   onCodeBlockClick,
   promoteActionRequestsToA2UI = false,
   isRestoringSession = false,
+  onInterruptCurrentTurn,
   compactLeadingSpacing = false,
   focusedTimelineItemId = null,
   timelineFocusRequestKey = 0,
@@ -475,6 +560,34 @@ const MessageListInner: React.FC<MessageListProps> = ({
         .find((message) => message.role === "assistant")?.id ?? null,
     [visibleMessages],
   );
+  const tailRuntimeStatusLine = useMemo(() => {
+    if (!lastAssistantMessageId) {
+      return null;
+    }
+
+    return buildInputbarRuntimeStatusLineModel({
+      messages: visibleMessages,
+      turns,
+      threadItems,
+      currentTurnId,
+      threadRead,
+      pendingActions,
+      queuedTurns,
+      childSubagentSessions,
+      isSending,
+    });
+  }, [
+    childSubagentSessions,
+    currentTurnId,
+    isSending,
+    lastAssistantMessageId,
+    pendingActions,
+    queuedTurns,
+    threadItems,
+    threadRead,
+    turns,
+    visibleMessages,
+  ]);
   const currentTurnTimeline = useMemo(() => {
     if (!currentTurnId || !lastAssistantMessageId) {
       return null;
@@ -494,6 +607,76 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const messageGroups = useMemo(
     () => buildMessageTurnGroups(visibleMessages),
     [visibleMessages],
+  );
+  const renderGroups = useMemo(
+    () =>
+      messageGroups.map((group) => {
+        const lastAssistantId =
+          group.assistantMessages[group.assistantMessages.length - 1]?.id ?? null;
+        const mappedTimeline =
+          group.assistantMessages
+            .map((message) => timelineByMessageId.get(message.id))
+            .find(Boolean) ?? null;
+        const isActiveGroup =
+          Boolean(lastAssistantId) && lastAssistantId === lastAssistantMessageId;
+        const timeline =
+          isActiveGroup && currentTurnTimeline
+            ? currentTurnTimeline
+            : mappedTimeline;
+
+        return {
+          ...group,
+          lastAssistantId,
+          timeline,
+          isActiveGroup,
+        };
+      }),
+    [
+      currentTurnTimeline,
+      lastAssistantMessageId,
+      messageGroups,
+      timelineByMessageId,
+    ],
+  );
+  const shouldKeepInlineProcessForActiveAssistant = useCallback(
+    (message: Message, isConversationTailAssistant: boolean): boolean => {
+      if (message.role !== "assistant") {
+        return false;
+      }
+
+      if (message.isThinking) {
+        return true;
+      }
+
+      if (!isConversationTailAssistant) {
+        return false;
+      }
+
+      const hasRunningToolCall =
+        (message.toolCalls || []).some((toolCall) => toolCall.status === "running") ||
+        (message.contentParts || []).some(
+          (part) =>
+            part.type === "tool_use" && part.toolCall.status === "running",
+        );
+      const hasPendingActionRequest =
+        (message.actionRequests || []).some(
+          (request) => request.status !== "submitted",
+        ) ||
+        (message.contentParts || []).some(
+          (part) =>
+            part.type === "action_required" &&
+            part.actionRequired.status !== "submitted",
+        );
+      const hasActiveRuntimeStatus =
+        Boolean(message.runtimeStatus) &&
+        message.runtimeStatus?.phase !== "failed" &&
+        message.runtimeStatus?.phase !== "cancelled";
+
+      return (
+        hasRunningToolCall || hasPendingActionRequest || hasActiveRuntimeStatus
+      );
+    },
+    [],
   );
 
   // 检测用户是否在手动滚动
@@ -559,7 +742,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
     }
   };
 
-  const renderMessageItem = (msg: Message) => {
+  const renderMessageItem = (
+    msg: Message,
+    group: (typeof renderGroups)[number],
+  ) => {
     const hasImages = Array.isArray(msg.images) && msg.images.length > 0;
     const displayContent = sanitizeMessageTextForDisplay(msg.content || "", {
       role: msg.role,
@@ -572,21 +758,50 @@ const MessageListInner: React.FC<MessageListProps> = ({
         hasImages,
       },
     );
-    const inlineProcessCoverage = resolveInlineProcessCoverage({
-      contentParts: displayContentParts,
-      thinkingContent: msg.thinkingContent,
-      toolCalls: msg.toolCalls,
-      actionRequests: msg.actionRequests,
-    });
-    const mappedTimeline = timelineByMessageId.get(msg.id);
+    const isConversationTailAssistant =
+      msg.role === "assistant" && msg.id === group.lastAssistantId;
     const timeline =
       msg.role !== "assistant"
         ? null
-        : msg.id === lastAssistantMessageId
-          ? currentTurnTimeline || mappedTimeline || null
-          : mappedTimeline?.turn.id === currentTurnTimeline?.turn.id
-            ? null
-            : mappedTimeline || null;
+        : isConversationTailAssistant
+          ? group.timeline
+          : null;
+    const hasProcessTimelineItems = Boolean(
+      timeline?.items.some(
+        (item) =>
+          item.type === "reasoning" ||
+          item.type === "tool_call" ||
+          item.type === "command_execution" ||
+          item.type === "web_search",
+      ),
+    );
+    const includeInlineProcessFlow =
+      msg.role === "assistant" &&
+      shouldKeepInlineProcessForActiveAssistant(
+        msg,
+        isConversationTailAssistant,
+      );
+    const conversationContentParts =
+      msg.role === "assistant"
+        ? filterConversationDisplayContentParts(displayContentParts, {
+            includeProcessFlow: includeInlineProcessFlow,
+            preserveToolUseParts: !hasProcessTimelineItems,
+          })
+        : displayContentParts;
+    const conversationThinkingContent =
+      msg.role === "assistant" && includeInlineProcessFlow
+        ? msg.thinkingContent
+        : undefined;
+    const conversationToolCalls =
+      msg.role === "assistant" && includeInlineProcessFlow
+        ? msg.toolCalls
+        : undefined;
+    const inlineProcessCoverage = resolveInlineProcessCoverage({
+      contentParts: conversationContentParts,
+      thinkingContent: conversationThinkingContent,
+      toolCalls: conversationToolCalls,
+      actionRequests: msg.actionRequests,
+    });
     const timelineConversationItems = timeline
       ? timeline.items.filter((item) =>
           shouldRenderConversationTimelineItem(item, timeline.items, {
@@ -692,6 +907,19 @@ const MessageListInner: React.FC<MessageListProps> = ({
       onOpenSavedSiteContent &&
       !hasTrailingArtifactTimelineItems,
     );
+    const shouldRenderTailRuntimeStatusLine =
+      msg.role === "assistant" &&
+      msg.id === lastAssistantMessageId &&
+      isConversationTailAssistant &&
+      Boolean(tailRuntimeStatusLine);
+    const shouldRenderUsageFooter =
+      isConversationTailAssistant &&
+      !shouldRenderTailRuntimeStatusLine &&
+      !msg.isThinking &&
+      Boolean(msg.usage);
+    const shouldRenderStatusPill =
+      !shouldRenderTailRuntimeStatusLine &&
+      shouldRenderRuntimeStatusPill(msg.runtimeStatus);
     const messageCanvasShortcutTitle = messageSavedSiteContentTarget
       ? resolveSiteSavedContentTargetDisplayName(
           messageSavedSiteContentTarget,
@@ -735,11 +963,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
                 <StreamingRenderer
                   content={displayContent}
                   isStreaming={msg.isThinking}
-                  toolCalls={msg.toolCalls}
+                  toolCalls={conversationToolCalls}
                   showCursor={msg.isThinking && !displayContent}
-                  thinkingContent={msg.thinkingContent}
+                  thinkingContent={conversationThinkingContent}
                   runtimeStatus={msg.runtimeStatus}
-                  contentParts={displayContentParts}
+                  contentParts={conversationContentParts}
                   actionRequests={msg.actionRequests}
                   onA2UISubmit={
                     onA2UISubmit
@@ -892,40 +1120,37 @@ const MessageListInner: React.FC<MessageListProps> = ({
               />
             ) : null}
 
-            {msg.role === "assistant" && !msg.isThinking && msg.usage && (
-              <TokenUsageDisplay
-                usage={msg.usage}
-                promptCacheNotice={
-                  resolvePromptCacheActivity(msg.usage) <= 0
-                    ? promptCacheNotice
-                    : undefined
-                }
-              />
-            )}
-
             {msg.role === "assistant" &&
-              !msg.isThinking &&
-              msg.contextTrace &&
-              msg.contextTrace.length > 0 && (
-                <details className="rounded border border-border/60 bg-muted/20">
-                  <summary className="cursor-pointer px-3 py-2 text-xs text-muted-foreground hover:text-foreground">
-                    上下文轨迹 ({msg.contextTrace.length})
-                  </summary>
-                  <div className="border-t border-border/60 px-3 py-2 space-y-1.5">
-                    {msg.contextTrace.map((step, index) => (
-                      <div key={`${step.stage}-${index}`} className="text-xs">
-                        <span className="font-medium text-foreground/90">
-                          {step.stage}
-                        </span>
-                        <span className="text-muted-foreground">: </span>
-                        <span className="text-muted-foreground">
-                          {step.detail}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
+            (shouldRenderTailRuntimeStatusLine ||
+              shouldRenderStatusPill ||
+              shouldRenderUsageFooter) ? (
+              <div
+                className="mt-2 flex flex-wrap items-center gap-2"
+                data-testid="assistant-message-meta-footer"
+              >
+                {shouldRenderTailRuntimeStatusLine ? (
+                  <InputbarRuntimeStatusLine
+                    runtime={tailRuntimeStatusLine || null}
+                    providerType={providerType}
+                    canStop={Boolean(onInterruptCurrentTurn)}
+                  />
+                ) : null}
+                {shouldRenderStatusPill && msg.runtimeStatus ? (
+                  <MessageRuntimeStatusPill status={msg.runtimeStatus} />
+                ) : null}
+                {shouldRenderUsageFooter ? (
+                  <TokenUsageDisplay
+                    usage={msg.usage!}
+                    inline={true}
+                    promptCacheNotice={
+                      resolvePromptCacheActivity(msg.usage!) <= 0
+                        ? promptCacheNotice
+                        : undefined
+                    }
+                  />
+                ) : null}
+              </div>
+            ) : null}
 
             {showMessageActions ? (
               <MessageActions className="message-actions">
@@ -1157,7 +1382,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
             </div>
           ))}
 
-        {messageGroups.map((group, groupIndex) => {
+        {renderGroups.map((group, groupIndex) => {
           return (
             <section
               key={group.id}
@@ -1166,7 +1391,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
               className="py-2"
             >
               <div className="space-y-1">
-                {group.messages.map((msg) => renderMessageItem(msg))}
+                {group.messages.map((msg) => renderMessageItem(msg, group))}
               </div>
             </section>
           );

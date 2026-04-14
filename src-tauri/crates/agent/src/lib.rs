@@ -158,9 +158,9 @@ pub use team_runtime_governor::{
 };
 pub use tools::{BrowserAction, BrowserTool, BrowserToolError, BrowserToolResult};
 pub use turn_input_envelope::{
-    TurnDiagnosticsSnapshot, TurnInputEnvelope, TurnInputEnvelopeBuilder, TurnMessageHistorySource,
-    TurnPromptAugmentationStage, TurnPromptAugmentationStageKind, TurnProviderRoutingSnapshot,
-    TurnRequestToolPolicySnapshot, TurnSystemPromptSource,
+    TurnDiagnosticsSnapshot, TurnExecutionProfile, TurnInputEnvelope, TurnInputEnvelopeBuilder,
+    TurnMessageHistorySource, TurnPromptAugmentationStage, TurnPromptAugmentationStageKind,
+    TurnProviderRoutingSnapshot, TurnRequestToolPolicySnapshot, TurnSystemPromptSource,
 };
 pub use turn_state::TurnState;
 pub use write_artifact_events::{build_write_tool_artifact_events, WriteArtifactEventEmitter};

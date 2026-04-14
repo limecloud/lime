@@ -79,7 +79,9 @@ describe("ToolSearchSummaryPanel", () => {
     expect(container.textContent).toContain("搜索网页");
     expect(container.textContent).toContain("没有找到更多匹配工具");
     expect(container.textContent).not.toContain("Read");
-    expect(container.textContent).not.toContain("mcp__playwright__browser_click");
+    expect(container.textContent).not.toContain(
+      "mcp__playwright__browser_click",
+    );
     expect(container.textContent).not.toContain("WebSearch");
     expect(container.textContent).not.toContain("来源：");
     expect(container.textContent).not.toContain("状态：");
@@ -101,5 +103,19 @@ describe("ToolSearchSummaryPanel", () => {
     expect(container.textContent).toContain("找到工具：2 个");
     expect(container.textContent).not.toContain("查询：");
     expect(container.textContent).not.toContain("select:Read,Write");
+  });
+
+  it("应展示仍在连接中的 MCP 服务", () => {
+    const { container } = renderPanel({
+      query: "slack send",
+      count: 0,
+      notes: [],
+      tools: [],
+      pendingMcpServers: ["slack", "playwright"],
+    });
+
+    expect(container.textContent).toContain(
+      "以下 MCP 服务仍在连接中：slack、playwright",
+    );
   });
 });

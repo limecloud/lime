@@ -1,8 +1,11 @@
 use super::service_skill_launch::build_service_skill_preload_tool_projection;
 use super::*;
 use aster::session::TurnContextOverride;
+use aster::tools::ConfigTool;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
 use lime_core::workspace::WorkspaceSettings;
+use regex::Regex;
+use std::sync::{Arc, OnceLock};
 use tauri::Manager;
 
 const ARTIFACT_DOCUMENT_REPAIRED_WARNING_CODE: &str = "artifact_document_repaired";
@@ -12,8 +15,12 @@ const AUTO_CONTEXT_COMPACTION_EVENT_PREFIX: &str = "agent_context_compaction_aut
 const AUTO_CONTEXT_COMPACTION_FAILED_WARNING_CODE: &str = "context_compaction_auto_failed";
 const CONTEXT_COMPACTION_NOT_NEEDED_WARNING_CODE: &str = "context_compaction_not_needed";
 const TURN_MEMORY_PREFETCH_PROMPT_MARKER: &str = "【运行时记忆召回】";
+const TURN_LOCAL_PATH_FOCUS_PROMPT_MARKER: &str = "【本回合本地路径焦点】";
 const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
 const LIME_RUNTIME_AUTO_COMPACT_KEY: &str = "auto_compact";
+const LIME_RUNTIME_TOOL_SURFACE_KEY: &str = "tool_surface";
+const FAST_CHAT_TOOL_SURFACE_DIRECT_ANSWER: &str = "direct_answer";
+const FAST_CHAT_TOOL_SURFACE_LOCAL_WORKSPACE: &str = "local_workspace";
 const AUTO_RUNTIME_MEMORY_MIN_USER_CHARS: usize = 12;
 const AUTO_RUNTIME_MEMORY_MIN_ASSISTANT_CHARS: usize = 48;
 const AUTO_RUNTIME_MEMORY_MIN_TOTAL_CHARS: usize = 160;
@@ -26,6 +33,47 @@ fn emit_runtime_events(app: &AppHandle, event_name: &str, events: Vec<RuntimeAge
             tracing::error!("[AsterAgent] 发送运行时事件失败: {}", error);
         }
     }
+}
+
+async fn ensure_host_backed_config_tool_registered(
+    app: &AppHandle,
+    state: &AsterAgentState,
+) -> Result<(), String> {
+    let agent_arc = state.get_agent_arc();
+    let guard = agent_arc.read().await;
+    let agent = guard
+        .as_ref()
+        .ok_or_else(|| "Agent not initialized".to_string())?;
+    let registry_arc = agent.tool_registry().clone();
+    drop(guard);
+
+    let mut registry = registry_arc.write().await;
+    if !registry.contains_native("Config") {
+        return Ok(());
+    }
+
+    let read_app = app.clone();
+    let write_app = app.clone();
+    registry.register(Box::new(ConfigTool::new().with_voice_enabled_callbacks(
+        Arc::new(move || {
+            let _read_app = read_app.clone();
+            Box::pin(async move {
+                let config = crate::voice::commands::get_voice_input_config().await?;
+                Ok(config.enabled)
+            })
+        }),
+        Arc::new(move |enabled| {
+            let write_app = write_app.clone();
+            Box::pin(async move {
+                let mut config = crate::voice::commands::get_voice_input_config().await?;
+                config.enabled = enabled;
+                crate::voice::commands::save_voice_input_config(write_app, config.clone()).await?;
+                Ok(config.enabled)
+            })
+        }),
+    )));
+
+    Ok(())
 }
 
 fn merge_runtime_memory_prefetch_prompt(
@@ -50,6 +98,156 @@ fn merge_runtime_memory_prefetch_prompt(
             }
         }
         None => Some(prefetch_prompt.to_string()),
+    }
+}
+
+fn quoted_absolute_path_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r#"["'“”‘’](?P<path>(?:/|[A-Za-z]:\\)[^"'“”‘’\r\n]+)["'“”‘’]"#)
+            .expect("quoted absolute path regex should compile")
+    })
+}
+
+fn unix_absolute_path_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r#"(?P<path>/[^\s"'“”‘’,;:(){}\[\]<>]+)"#)
+            .expect("unix absolute path regex should compile")
+    })
+}
+
+fn windows_absolute_path_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r#"(?P<path>[A-Za-z]:\\[^\s"'“”‘’,;:(){}\[\]<>]+)"#)
+            .expect("windows absolute path regex should compile")
+    })
+}
+
+fn normalize_explicit_local_path_candidate(candidate: &str) -> Option<String> {
+    let trimmed = candidate
+        .trim()
+        .trim_end_matches(|ch: char| {
+            matches!(
+                ch,
+                '.' | ','
+                    | ';'
+                    | ':'
+                    | '。'
+                    | '，'
+                    | '；'
+                    | '：'
+                    | ')'
+                    | '）'
+                    | ']'
+                    | '】'
+                    | '}'
+                    | '>'
+            )
+        })
+        .trim();
+
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let path = Path::new(trimmed);
+    if !path.is_absolute() || !path.exists() {
+        return None;
+    }
+
+    Some(
+        path.canonicalize()
+            .unwrap_or_else(|_| path.to_path_buf())
+            .to_string_lossy()
+            .to_string(),
+    )
+}
+
+fn push_unique_focus_path(paths: &mut Vec<String>, candidate: &str) {
+    let Some(normalized) = normalize_explicit_local_path_candidate(candidate) else {
+        return;
+    };
+
+    if paths.iter().any(|existing| existing == &normalized) {
+        return;
+    }
+
+    paths.push(normalized);
+}
+
+fn extract_explicit_local_focus_paths_from_message(message: &str) -> Vec<String> {
+    let mut paths = Vec::new();
+
+    for captures in quoted_absolute_path_regex().captures_iter(message) {
+        if let Some(path) = captures.name("path") {
+            push_unique_focus_path(&mut paths, path.as_str());
+        }
+    }
+
+    for captures in unix_absolute_path_regex().captures_iter(message) {
+        if let Some(path) = captures.name("path") {
+            push_unique_focus_path(&mut paths, path.as_str());
+        }
+    }
+
+    for captures in windows_absolute_path_regex().captures_iter(message) {
+        if let Some(path) = captures.name("path") {
+            push_unique_focus_path(&mut paths, path.as_str());
+        }
+    }
+
+    paths
+}
+
+fn merge_system_prompt_with_explicit_local_path_focus(
+    base_prompt: Option<String>,
+    user_message: &str,
+    workspace_root: &str,
+) -> Option<String> {
+    let focus_paths = extract_explicit_local_focus_paths_from_message(user_message);
+    if focus_paths.is_empty() {
+        return base_prompt;
+    }
+
+    let workspace_root = workspace_root.trim();
+    let should_warn_about_workspace =
+        !workspace_root.is_empty() && focus_paths.iter().all(|path| path != workspace_root);
+
+    let mut lines = vec![
+        TURN_LOCAL_PATH_FOCUS_PROMPT_MARKER.to_string(),
+        "本回合用户已经明确给出本地路径；这些路径是当前侦查与读取的第一优先级。".to_string(),
+    ];
+    for path in focus_paths.iter().take(3) {
+        lines.push(format!("- 优先路径: {path}"));
+    }
+    lines.push(
+        "- 第一批只围绕这些显式路径做 2 到 4 个只读工具调用，优先精确搜索和读取关键文件。"
+            .to_string(),
+    );
+    if should_warn_about_workspace {
+        lines.push(format!(
+            "- 不要先扫描当前默认工作目录 {workspace_root} 或其它无关目录，除非这些显式路径证据不足，或用户明确要求比较当前工作区。"
+        ));
+    }
+    lines.push(
+        "- 如果这些显式路径不存在、无法读取，或必须回退到其它路径，先在用户可见结论正文里说明原因，再继续下一批。"
+            .to_string(),
+    );
+    let focus_prompt = lines.join("\n");
+
+    match base_prompt {
+        Some(base) => {
+            if base.contains(TURN_LOCAL_PATH_FOCUS_PROMPT_MARKER) {
+                Some(base)
+            } else if base.trim().is_empty() {
+                Some(focus_prompt)
+            } else {
+                Some(format!("{base}\n\n{focus_prompt}"))
+            }
+        }
+        None => Some(focus_prompt),
     }
 }
 
@@ -250,6 +448,73 @@ fn resolve_provider_config_apply_mode(
     ProviderConfigApplyMode::CredentialPool
 }
 
+async fn apply_runtime_turn_provider_config(
+    state: &AsterAgentState,
+    db: &DbConnection,
+    session_id: &str,
+    provider_config: Option<&ConfigureProviderRequest>,
+) -> Result<(), String> {
+    let Some(provider_config) = provider_config else {
+        return Ok(());
+    };
+
+    tracing::info!(
+        "[AsterAgent] 收到 provider_config: provider_id={:?}, provider_name={}, model_name={}, has_api_key={}, base_url={:?}",
+        provider_config.provider_id,
+        provider_config.provider_name,
+        provider_config.model_name,
+        provider_config.api_key.is_some(),
+        provider_config.base_url
+    );
+    let apply_mode = resolve_provider_config_apply_mode(provider_config);
+    let config = ProviderConfig {
+        provider_name: provider_config.provider_name.clone(),
+        provider_selector: provider_config
+            .provider_id
+            .clone()
+            .or_else(|| Some(provider_config.provider_name.clone())),
+        model_name: provider_config.model_name.clone(),
+        api_key: provider_config.api_key.clone(),
+        base_url: provider_config.base_url.clone(),
+        credential_uuid: None,
+        force_responses_api: false,
+        credential_path: None,
+        toolshim: matches!(
+            provider_config.tool_call_strategy,
+            Some(RuntimeToolCallStrategy::ToolShim)
+        ),
+        toolshim_model: provider_config.toolshim_model.clone(),
+    };
+    let provider_selector = provider_config
+        .provider_id
+        .as_deref()
+        .unwrap_or(&provider_config.provider_name);
+    tracing::info!(
+        "[AsterAgent] provider_config 应用策略: provider_selector={}, mode={:?}, tool_call_strategy={:?}, toolshim_model={:?}",
+        provider_selector,
+        apply_mode,
+        provider_config.tool_call_strategy,
+        provider_config.toolshim_model
+    );
+
+    match apply_mode {
+        ProviderConfigApplyMode::Direct => {
+            state.configure_provider(config, session_id, db).await?;
+        }
+        ProviderConfigApplyMode::CredentialPool => {
+            state
+                .configure_provider_from_pool(
+                    db,
+                    provider_selector,
+                    &provider_config.model_name,
+                    session_id,
+                )
+                .await?;
+        }
+    }
+    persist_session_provider_routing(session_id, provider_selector).await
+}
+
 fn emit_runtime_side_event(
     app: &AppHandle,
     event_name: &str,
@@ -379,6 +644,1726 @@ pub(crate) fn merge_turn_context_with_workspace_auto_compaction(
     Some(turn_context)
 }
 
+fn build_runtime_turn_context_override(
+    turn_context: Option<TurnContextOverride>,
+    request_metadata: Option<&serde_json::Value>,
+    workspace_settings: &WorkspaceSettings,
+) -> Option<TurnContextOverride> {
+    merge_turn_context_with_workspace_auto_compaction(
+        merge_turn_context_with_artifact_output_schema(turn_context, request_metadata),
+        workspace_settings,
+    )
+}
+
+pub(crate) fn build_runtime_turn_context_snapshot(
+    request_metadata: Option<&serde_json::Value>,
+    workspace_settings: &WorkspaceSettings,
+) -> TurnContextOverride {
+    let seed_turn_context =
+        request_metadata
+            .and_then(serde_json::Value::as_object)
+            .map(|metadata| TurnContextOverride {
+                metadata: metadata.clone().into_iter().collect(),
+                ..TurnContextOverride::default()
+            });
+
+    build_runtime_turn_context_override(seed_turn_context, request_metadata, workspace_settings)
+        .unwrap_or_default()
+}
+
+fn build_runtime_turn_context_metadata_value(
+    turn_context: &TurnContextOverride,
+) -> Option<serde_json::Value> {
+    if turn_context.metadata.is_empty() {
+        None
+    } else {
+        Some(serde_json::Value::Object(
+            turn_context.metadata.clone().into_iter().collect(),
+        ))
+    }
+}
+
+fn build_runtime_session_config(
+    session_id: &str,
+    thread_id: &str,
+    turn_id: &str,
+    system_prompt: Option<&str>,
+    include_context_trace: Option<bool>,
+    turn_context: Option<TurnContextOverride>,
+) -> aster::agents::types::SessionConfig {
+    let mut session_config_builder = SessionConfigBuilder::new(session_id)
+        .thread_id(thread_id.to_string())
+        .turn_id(turn_id.to_string());
+    if let Some(system_prompt) = system_prompt {
+        session_config_builder = session_config_builder.system_prompt(system_prompt.to_string());
+    }
+    if let Some(include_context_trace) = include_context_trace {
+        session_config_builder =
+            session_config_builder.include_context_trace(include_context_trace);
+    }
+    if let Some(turn_context) = turn_context {
+        session_config_builder = session_config_builder.turn_context(turn_context);
+    }
+    session_config_builder.build()
+}
+
+fn insert_serialized_run_metadata<T: serde::Serialize>(
+    metadata: &mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    value: &T,
+) {
+    if let Ok(serialized) = serde_json::to_value(value) {
+        metadata.insert(key.to_string(), serialized);
+    }
+}
+
+fn build_runtime_run_start_metadata(
+    request: &AsterChatRequest,
+    workspace_id: &str,
+    effective_strategy: AsterExecutionStrategy,
+    request_tool_policy: &RequestToolPolicy,
+    auto_continue_enabled: bool,
+    auto_continue_metadata: Option<&AutoContinuePayload>,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+    session_state_snapshot: &SessionStateSnapshot,
+    runtime_projection_snapshot: &RuntimeProjectionSnapshot,
+    turn_state: &TurnState,
+    turn_input_diagnostics: &lime_agent::TurnDiagnosticsSnapshot,
+    service_skill_preload: Option<&ServiceSkillLaunchPreloadExecution>,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut metadata = build_chat_run_metadata_base(
+        request,
+        workspace_id,
+        effective_strategy,
+        request_tool_policy,
+        auto_continue_enabled,
+        auto_continue_metadata,
+        session_recent_preferences,
+    );
+    insert_serialized_run_metadata(&mut metadata, "session_state", session_state_snapshot);
+    insert_serialized_run_metadata(
+        &mut metadata,
+        "runtime_projection",
+        runtime_projection_snapshot,
+    );
+    insert_serialized_run_metadata(&mut metadata, "turn_state", turn_state);
+    insert_serialized_run_metadata(&mut metadata, "turn_input", turn_input_diagnostics);
+
+    if let Some(preload) = service_skill_preload {
+        metadata.insert(
+            "service_skill_launch_preload".to_string(),
+            serde_json::json!({
+                "executed": true,
+                "adapter_name": preload.request.adapter_name,
+                "ok": preload.result.ok,
+                "error_code": preload.result.error_code,
+                "saved_content_id": preload
+                    .result
+                    .saved_content
+                    .as_ref()
+                    .map(|content| content.content_id.clone()),
+            }),
+        );
+    }
+
+    metadata
+}
+
+#[derive(Clone)]
+struct RuntimeTurnStreamSessionConfigState {
+    session_id: String,
+    thread_id: String,
+    turn_id: String,
+    system_prompt: Option<String>,
+    include_context_trace: bool,
+    turn_context_override: Option<TurnContextOverride>,
+}
+
+impl RuntimeTurnStreamSessionConfigState {
+    fn build(&self) -> aster::agents::types::SessionConfig {
+        build_runtime_session_config(
+            &self.session_id,
+            &self.thread_id,
+            &self.turn_id,
+            self.system_prompt.as_deref(),
+            Some(self.include_context_trace),
+            self.turn_context_override.clone(),
+        )
+    }
+}
+
+struct RuntimeTurnExecutionContext {
+    run_start_metadata: serde_json::Map<String, serde_json::Value>,
+    run_observation: Arc<Mutex<ChatRunObservation>>,
+    timeline_recorder: Arc<Mutex<AgentTimelineRecorder>>,
+    runtime_status_session_config: aster::agents::types::SessionConfig,
+    stream_session_config_state: RuntimeTurnStreamSessionConfigState,
+}
+
+impl RuntimeTurnExecutionContext {
+    fn build_run_finish_decision(&self, result: &Result<(), String>) -> RunFinishDecision {
+        build_runtime_run_finish_decision(result, &self.run_start_metadata, &self.run_observation)
+    }
+
+    async fn execute_and_finalize(
+        &self,
+        tracker: &ExecutionTracker,
+        agent: &Agent,
+        app: &AppHandle,
+        db: &DbConnection,
+        request: &AsterChatRequest,
+        runtime_memory_config: &lime_core::config::MemoryConfig,
+        session_id: &str,
+        workspace_root: &str,
+        workspace_id: &str,
+        thread_id: &str,
+        turn_id: &str,
+        execution_profile: TurnExecutionProfile,
+        request_metadata: Option<&serde_json::Value>,
+        provider_continuation_capability: ProviderContinuationCapability,
+        cancel_token: CancellationToken,
+        request_tool_policy: &RequestToolPolicy,
+        effective_strategy: AsterExecutionStrategy,
+    ) -> Result<(), String> {
+        let run_start_metadata = self.run_start_metadata.clone();
+        let run_observation = self.run_observation.clone();
+        let timeline_recorder = self.timeline_recorder.clone();
+        let runtime_status_session_config = self.runtime_status_session_config.clone();
+        let stream_session_config_state = self.stream_session_config_state.clone();
+
+        let final_result = tracker
+            .with_run_custom(
+                RunSource::Chat,
+                Some("agent_runtime_submit_turn".to_string()),
+                Some(session_id.to_string()),
+                Some(serde_json::Value::Object(run_start_metadata)),
+                async move {
+                    execute_runtime_stream_with_strategy(
+                        agent,
+                        app,
+                        db,
+                        request,
+                        &timeline_recorder,
+                        &run_observation,
+                        runtime_memory_config,
+                        session_id,
+                        workspace_root,
+                        workspace_id,
+                        thread_id,
+                        turn_id,
+                        execution_profile,
+                        request_metadata,
+                        provider_continuation_capability,
+                        cancel_token,
+                        request_tool_policy,
+                        effective_strategy,
+                        || stream_session_config_state.build(),
+                    )
+                    .await
+                },
+                move |result| self.build_run_finish_decision(result),
+            )
+            .await;
+
+        finalize_runtime_turn_result(
+            agent,
+            app,
+            db,
+            &request.event_name,
+            &self.timeline_recorder,
+            workspace_root,
+            &runtime_status_session_config,
+            session_id,
+            final_result,
+        )
+        .await
+    }
+}
+
+struct RuntimeTurnBuildArtifacts {
+    runtime_projection_snapshot: RuntimeProjectionSnapshot,
+    turn_state: TurnState,
+    turn_input_envelope: lime_agent::TurnInputEnvelope,
+    turn_input_diagnostics: lime_agent::TurnDiagnosticsSnapshot,
+}
+
+struct RuntimeTurnPreparedExecution {
+    service_skill_preload: Option<ServiceSkillLaunchPreloadExecution>,
+    runtime_turn_artifacts: RuntimeTurnBuildArtifacts,
+    runtime_turn_execution_context: RuntimeTurnExecutionContext,
+}
+
+struct RuntimeTurnSubmitBootstrap {
+    request_metadata: Option<serde_json::Value>,
+    runtime_memory_config: lime_core::config::MemoryConfig,
+    provider_continuation_capability: ProviderContinuationCapability,
+    tracker: ExecutionTracker,
+    model_skill_tool_enabled: bool,
+}
+
+struct RuntimeTurnPromptStrategy {
+    system_prompt: Option<String>,
+    requested_strategy: AsterExecutionStrategy,
+    effective_strategy: AsterExecutionStrategy,
+    system_prompt_source: TurnSystemPromptSource,
+}
+
+struct RuntimeTurnSessionPreparation {
+    auto_continue_config: Option<AutoContinuePayload>,
+    auto_continue_enabled: bool,
+    session_state_snapshot: SessionStateSnapshot,
+    session_recent_preferences: Option<lime_agent::SessionExecutionRuntimePreferences>,
+    session_recent_team_selection: Option<lime_agent::SessionExecutionRuntimeRecentTeamSelection>,
+}
+
+struct RuntimeTurnIngressContext {
+    owned_session_id: String,
+    workspace_id: String,
+    workspace_root: String,
+    workspace_settings: WorkspaceSettings,
+    resolved_turn_id: String,
+    runtime_config: lime_core::config::Config,
+    session_recent_harness_context: SessionRecentHarnessContext,
+    workspace_repaired: bool,
+    workspace_warning: Option<String>,
+}
+
+struct RuntimeTurnSubmitPreparation {
+    auto_continue_config: Option<AutoContinuePayload>,
+    auto_continue_enabled: bool,
+    session_state_snapshot: SessionStateSnapshot,
+    session_recent_preferences: Option<lime_agent::SessionExecutionRuntimePreferences>,
+    runtime_chat_mode: RuntimeChatMode,
+    include_context_trace: bool,
+    turn_input_builder: TurnInputEnvelopeBuilder,
+    request_tool_policy: RequestToolPolicy,
+    execution_profile: TurnExecutionProfile,
+    requested_strategy: AsterExecutionStrategy,
+    effective_strategy: AsterExecutionStrategy,
+    system_prompt: Option<String>,
+    system_prompt_source: TurnSystemPromptSource,
+    submit_bootstrap: RuntimeTurnSubmitBootstrap,
+}
+
+struct RuntimeTurnRequestPreparation {
+    runtime_chat_mode: RuntimeChatMode,
+    include_context_trace: bool,
+    turn_input_builder: TurnInputEnvelopeBuilder,
+}
+
+struct RuntimeTurnPolicyPreparation {
+    request_tool_policy: RequestToolPolicy,
+    execution_profile: TurnExecutionProfile,
+}
+
+impl RuntimeTurnPreparedExecution {
+    fn thread_id(&self) -> &str {
+        self.runtime_turn_artifacts.turn_state.thread_id.as_str()
+    }
+
+    fn turn_id(&self) -> &str {
+        self.runtime_turn_artifacts.turn_state.turn_id.as_str()
+    }
+
+    async fn emit_prelude(
+        &self,
+        agent: &Agent,
+        app: &AppHandle,
+        request: &AsterChatRequest,
+        workspace_root: &str,
+        effective_strategy: AsterExecutionStrategy,
+        request_tool_policy: &RequestToolPolicy,
+        model_name: Option<&str>,
+        session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+    ) -> Result<(), String> {
+        prepare_runtime_turn_prelude(
+            agent,
+            app,
+            request,
+            &self.runtime_turn_execution_context.timeline_recorder,
+            workspace_root,
+            &self
+                .runtime_turn_execution_context
+                .runtime_status_session_config,
+            effective_strategy,
+            request_tool_policy,
+            model_name,
+            session_recent_preferences,
+            self.service_skill_preload.as_ref(),
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn emit_prelude_and_execute(
+        &self,
+        agent: &Agent,
+        tracker: &ExecutionTracker,
+        app: &AppHandle,
+        db: &DbConnection,
+        request: &AsterChatRequest,
+        runtime_memory_config: &lime_core::config::MemoryConfig,
+        session_id: &str,
+        workspace_root: &str,
+        workspace_id: &str,
+        execution_profile: TurnExecutionProfile,
+        request_metadata: Option<&serde_json::Value>,
+        provider_continuation_capability: ProviderContinuationCapability,
+        cancel_token: CancellationToken,
+        effective_strategy: AsterExecutionStrategy,
+        request_tool_policy: &RequestToolPolicy,
+        model_name: Option<&str>,
+        session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+    ) -> Result<(), String> {
+        self.emit_prelude(
+            agent,
+            app,
+            request,
+            workspace_root,
+            effective_strategy,
+            request_tool_policy,
+            model_name,
+            session_recent_preferences,
+        )
+        .await?;
+
+        self.runtime_turn_execution_context
+            .execute_and_finalize(
+                tracker,
+                agent,
+                app,
+                db,
+                request,
+                runtime_memory_config,
+                session_id,
+                workspace_root,
+                workspace_id,
+                self.thread_id(),
+                self.turn_id(),
+                execution_profile,
+                request_metadata,
+                provider_continuation_capability,
+                cancel_token,
+                request_tool_policy,
+                effective_strategy,
+            )
+            .await
+    }
+}
+
+impl RuntimeTurnSubmitPreparation {
+    fn model_skill_tool_enabled(&self) -> bool {
+        self.submit_bootstrap.model_skill_tool_enabled
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn prepare_runtime_turn_submit_bootstrap(
+    app: &AppHandle,
+    state: &AsterAgentState,
+    db: &DbConnection,
+    api_key_provider_service: &ApiKeyProviderServiceState,
+    logs: &LogState,
+    config_manager: &GlobalConfigManagerState,
+    mcp_manager: &McpManagerState,
+    automation_state: &AutomationServiceState,
+    request: &AsterChatRequest,
+    session_id: &str,
+    workspace_root: &str,
+    workspace_settings: &WorkspaceSettings,
+    runtime_config: &lime_core::config::Config,
+    runtime_chat_mode: RuntimeChatMode,
+    execution_profile: TurnExecutionProfile,
+    requested_strategy: AsterExecutionStrategy,
+    request_tool_policy: &RequestToolPolicy,
+    turn_input_builder: &mut TurnInputEnvelopeBuilder,
+) -> Result<RuntimeTurnSubmitBootstrap, String> {
+    if !state.is_provider_configured().await {
+        return Err("Provider 未配置，请先调用 aster_agent_configure_provider".to_string());
+    }
+
+    maybe_auto_compact_runtime_session_before_turn(
+        app,
+        state,
+        db,
+        session_id,
+        &request.event_name,
+        workspace_settings,
+    )
+    .await?;
+
+    let effective_provider_config = state.get_provider_config().await;
+    let provider_routing_snapshot =
+        effective_provider_config
+            .as_ref()
+            .map(|config| TurnProviderRoutingSnapshot {
+                provider_name: config.provider_name.clone(),
+                provider_selector: config.provider_selector.clone(),
+                model_name: config.model_name.clone(),
+                credential_uuid: config.credential_uuid.clone(),
+                configured_from_request: request.provider_config.is_some(),
+                used_inline_api_key: request
+                    .provider_config
+                    .as_ref()
+                    .and_then(|config| config.api_key.as_ref())
+                    .is_some(),
+            });
+    turn_input_builder.set_provider_routing(provider_routing_snapshot.clone());
+
+    let provider_continuation_capability = effective_provider_config
+        .as_ref()
+        .map(|config| config.provider_continuation_capability())
+        .unwrap_or(ProviderContinuationCapability::HistoryReplayOnly);
+    let configured_provider_continuation_state = effective_provider_config
+        .as_ref()
+        .map(|config| config.provider_continuation_state())
+        .unwrap_or_else(ProviderContinuationState::history_replay_only);
+    let restored_provider_continuation_state = load_previous_provider_continuation_state(
+        db,
+        session_id,
+        provider_routing_snapshot.as_ref(),
+        provider_continuation_capability,
+    );
+    let provider_continuation_state = if matches!(
+        restored_provider_continuation_state,
+        ProviderContinuationState::HistoryReplayOnly
+    ) {
+        configured_provider_continuation_state
+    } else {
+        tracing::info!(
+            "[AsterAgent] 恢复上一条 terminal run 的 provider continuation: session_id={}, kind={}",
+            session_id,
+            restored_provider_continuation_state.kind()
+        );
+        restored_provider_continuation_state
+    };
+    turn_input_builder
+        .set_provider_continuation_capability(provider_continuation_capability)
+        .set_provider_continuation(provider_continuation_state);
+
+    let request_metadata = request.metadata.clone();
+    let sandbox_outcome = apply_workspace_sandbox_permissions(
+        state,
+        config_manager,
+        db,
+        api_key_provider_service,
+        logs,
+        mcp_manager,
+        automation_state,
+        app,
+        session_id,
+        request_metadata.as_ref(),
+        workspace_root,
+        runtime_chat_mode,
+        execution_profile,
+        request_tool_policy,
+        requested_strategy,
+    )
+    .await
+    .map_err(|error| format!("注入 workspace 安全策略失败: {error}"))?;
+
+    match sandbox_outcome {
+        WorkspaceSandboxApplyOutcome::Applied { sandbox_type } => {
+            tracing::info!(
+                "[AsterAgent] 已启用 workspace 本地 sandbox: root={}, type={}",
+                workspace_root,
+                sandbox_type
+            );
+        }
+        WorkspaceSandboxApplyOutcome::DisabledByConfig => {
+            tracing::info!(
+                "[AsterAgent] workspace 本地 sandbox 已关闭，继续使用普通执行模式: root={}",
+                workspace_root
+            );
+        }
+        WorkspaceSandboxApplyOutcome::UnavailableFallback {
+            warning_message,
+            notify_user,
+        } => {
+            tracing::warn!(
+                "[AsterAgent] workspace 本地 sandbox 不可用，已降级为普通执行: root={}, warning={}",
+                workspace_root,
+                warning_message
+            );
+            if notify_user {
+                let warning_event = RuntimeAgentEvent::Warning {
+                    code: Some(WORKSPACE_SANDBOX_FALLBACK_WARNING_CODE.to_string()),
+                    message: warning_message,
+                };
+                if let Err(error) = app.emit(&request.event_name, &warning_event) {
+                    tracing::error!("[AsterAgent] 发送 sandbox 降级提醒失败: {}", error);
+                }
+            }
+        }
+    }
+
+    Ok(RuntimeTurnSubmitBootstrap {
+        model_skill_tool_enabled: matches!(execution_profile, TurnExecutionProfile::FullRuntime)
+            && should_enable_model_skill_tool(request_metadata.as_ref()),
+        request_metadata,
+        runtime_memory_config: runtime_config.memory.clone(),
+        provider_continuation_capability,
+        tracker: ExecutionTracker::new(db.clone()),
+    })
+}
+
+async fn prepare_runtime_turn_session(
+    app: &AppHandle,
+    logs: &LogState,
+    db: &DbConnection,
+    request: &AsterChatRequest,
+    session_id: &str,
+    workspace_root: &str,
+    workspace_repaired: bool,
+    workspace_warning: Option<String>,
+) -> Result<RuntimeTurnSessionPreparation, String> {
+    let auto_continue_config = request
+        .auto_continue
+        .clone()
+        .map(AutoContinuePayload::normalized);
+    let auto_continue_enabled = auto_continue_config
+        .as_ref()
+        .map(|config| config.enabled)
+        .unwrap_or(false);
+    if let Some(config) = auto_continue_config
+        .as_ref()
+        .filter(|config| config.enabled)
+    {
+        tracing::info!(
+            "[AsterAgent] 自动续写策略已启用: source={:?}, fast_mode={}, continuation_length={}, sensitivity={}",
+            config.source,
+            config.fast_mode_enabled,
+            config.continuation_length,
+            config.sensitivity
+        );
+    }
+
+    if workspace_repaired {
+        let warning_message = workspace_warning.unwrap_or_else(|| {
+            format!(
+                "检测到工作区目录缺失，已自动创建并继续执行: {}",
+                workspace_root
+            )
+        });
+        logs.write()
+            .await
+            .add("warn", &format!("[AsterAgent] {}", warning_message));
+        let warning_event = RuntimeAgentEvent::Warning {
+            code: Some(WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE.to_string()),
+            message: warning_message,
+        };
+        if let Err(error) = app.emit(&request.event_name, &warning_event) {
+            tracing::error!("[AsterAgent] 发送工作区自动恢复提醒失败: {}", error);
+        }
+    }
+
+    let mut session_state_snapshot = SessionStateSnapshot::from_persisted_metadata(
+        session_id,
+        AsterAgentWrapper::get_persisted_session_metadata_sync(db, session_id)?,
+    );
+
+    if session_state_snapshot.needs_working_dir_update(workspace_root) {
+        tracing::info!(
+            "[AsterAgent] workspace 变更，自动更新 session working_dir: {} -> {}",
+            session_state_snapshot.working_dir().unwrap_or_default(),
+            workspace_root
+        );
+        AsterAgentWrapper::update_session_working_dir_sync(db, session_id, workspace_root)?;
+        session_state_snapshot =
+            session_state_snapshot.with_working_dir(Some(workspace_root.to_string()));
+    }
+
+    let SessionRecentRuntimeContext {
+        preferences: session_recent_preferences,
+        team_selection: session_recent_team_selection,
+    } = resolve_session_recent_runtime_context(session_id).await?;
+
+    Ok(RuntimeTurnSessionPreparation {
+        auto_continue_config,
+        auto_continue_enabled,
+        session_state_snapshot,
+        session_recent_preferences,
+        session_recent_team_selection,
+    })
+}
+
+fn prepare_runtime_turn_policy(
+    request: &AsterChatRequest,
+    session_id: &str,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+    auto_continue_enabled: bool,
+) -> RuntimeTurnPolicyPreparation {
+    let runtime_chat_mode = resolve_runtime_chat_mode(request.metadata.as_ref());
+    let mode_default_web_search = default_web_search_enabled_for_chat_mode(runtime_chat_mode);
+    let resolved_request_web_search = resolve_request_web_search_preference_from_sources(
+        request.web_search,
+        request.metadata.as_ref(),
+        session_recent_preferences,
+    );
+    let (request_web_search, request_search_mode) =
+        apply_browser_requirement_to_request_tool_policy(
+            request.metadata.as_ref(),
+            resolved_request_web_search,
+            request.search_mode,
+        );
+
+    let request_tool_policy = resolve_request_tool_policy_with_mode(
+        request_web_search,
+        request_search_mode,
+        mode_default_web_search,
+    );
+    tracing::info!(
+        "[AsterAgent][WebSearchGuard] session={}, chat_mode={:?}, request_web_search={:?}, request_search_mode={:?}, effective_request_web_search={:?}, effective_request_search_mode={:?}, mode_default_web_search={}, effective_web_search={}, search_mode={}",
+        session_id,
+        runtime_chat_mode,
+        request.web_search,
+        request.search_mode,
+        request_web_search,
+        request_search_mode,
+        mode_default_web_search,
+        request_tool_policy.effective_web_search,
+        request_tool_policy.search_mode.as_str()
+    );
+
+    let execution_profile = resolve_turn_execution_profile(
+        request,
+        runtime_chat_mode,
+        &request_tool_policy,
+        auto_continue_enabled,
+    );
+
+    RuntimeTurnPolicyPreparation {
+        request_tool_policy,
+        execution_profile,
+    }
+}
+
+async fn prepare_runtime_turn_request(
+    state: &AsterAgentState,
+    db: &DbConnection,
+    mcp_manager: &McpManagerState,
+    request: &mut AsterChatRequest,
+    session_id: &str,
+    workspace_id: &str,
+    workspace_root: &str,
+    resolved_turn_id: &str,
+    runtime_config: &lime_core::config::Config,
+    workspace_settings: &WorkspaceSettings,
+    request_tool_policy: &RequestToolPolicy,
+    execution_profile: TurnExecutionProfile,
+    session_state_snapshot: &SessionStateSnapshot,
+    session_recent_harness_context: &SessionRecentHarnessContext,
+) -> RuntimeTurnRequestPreparation {
+    request.metadata = merge_runtime_turn_tool_surface_metadata(
+        request.metadata.take(),
+        resolve_fast_chat_tool_surface_mode(request, execution_profile, request_tool_policy),
+    );
+    let runtime_chat_mode = resolve_runtime_chat_mode(request.metadata.as_ref());
+
+    if matches!(execution_profile, TurnExecutionProfile::FullRuntime) {
+        let (_start_ok, start_fail) = ensure_lime_mcp_servers_running(db, mcp_manager).await;
+        let (_mcp_ok, mcp_fail) = inject_mcp_extensions(state, mcp_manager).await;
+
+        if start_fail > 0 {
+            tracing::warn!(
+                "[AsterAgent] 部分 MCP server 自动启动失败 ({} 失败)，后续可用工具可能不完整",
+                start_fail
+            );
+        }
+        if mcp_fail > 0 {
+            tracing::warn!(
+                "[AsterAgent] 部分 MCP extension 注入失败 ({} 失败)，Agent 可能无法使用某些 MCP 工具",
+                mcp_fail
+            );
+        }
+    } else {
+        tracing::info!(
+            "[AsterAgent] FastChat 跳过 MCP runtime 预热: session={}, search_mode={}, chat_mode={:?}",
+            session_id,
+            request_tool_policy.search_mode.as_str(),
+            runtime_chat_mode
+        );
+    }
+
+    if matches!(execution_profile, TurnExecutionProfile::FullRuntime) {
+        request.metadata = prepare_image_skill_launch_request_metadata(
+            Path::new(workspace_root),
+            session_id,
+            resolved_turn_id,
+            request.metadata.as_ref(),
+            request.images.as_deref(),
+        );
+        request.metadata =
+            prepare_broadcast_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata =
+            prepare_resource_search_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata =
+            prepare_research_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata = prepare_report_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata =
+            prepare_deep_search_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata =
+            prepare_site_search_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata =
+            prepare_pdf_read_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata =
+            prepare_presentation_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata = prepare_form_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata = prepare_summary_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata =
+            prepare_translation_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata =
+            prepare_analysis_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata =
+            prepare_typesetting_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata = prepare_webpage_skill_launch_request_metadata(request.metadata.as_ref());
+        request.metadata = prepare_service_scene_launch_request_metadata(request.metadata.as_ref());
+        normalize_runtime_turn_request_metadata(
+            request,
+            session_recent_harness_context.theme.as_deref(),
+            session_recent_harness_context.session_mode.as_deref(),
+            session_recent_harness_context.gate_key.as_deref(),
+            session_recent_harness_context.run_title.as_deref(),
+            session_recent_harness_context.content_id.as_deref(),
+            true,
+        );
+    }
+
+    let runtime_chat_mode = resolve_runtime_chat_mode(request.metadata.as_ref());
+    // `context_trace` 主要服务诊断面板；真实 GUI 回放里这条事件链会在主回复流中触发栈溢出。
+    // 默认先关闭，只有显式打开调试开关时才继续发射，优先保证主聊天链稳定可交付。
+    let include_context_trace =
+        runtime_config.memory.enabled && std::env::var("LIME_ENABLE_CONTEXT_TRACE").is_ok();
+    tracing::info!(
+        "[AsterAgent] session_state_snapshot={}",
+        serde_json::to_string(&session_state_snapshot).unwrap_or_else(|_| "{}".to_string())
+    );
+    let turn_context_snapshot =
+        build_runtime_turn_context_snapshot(request.metadata.as_ref(), workspace_settings);
+    let turn_context_metadata = build_runtime_turn_context_metadata_value(&turn_context_snapshot);
+
+    let mut turn_input_builder = TurnInputEnvelopeBuilder::new(session_id, workspace_id);
+    turn_input_builder
+        .set_project_id(request.project_id.clone())
+        .set_execution_profile(execution_profile)
+        .set_has_persisted_session(session_state_snapshot.has_persisted_session())
+        .set_request_tool_policy(Some(TurnRequestToolPolicySnapshot::from(
+            request_tool_policy,
+        )))
+        .set_working_dir(Some(workspace_root.to_string()))
+        .set_effective_user_message(request.message.clone())
+        .set_include_context_trace(include_context_trace)
+        .set_approval_policy(request.approval_policy.clone())
+        .set_sandbox_policy(request.sandbox_policy.clone())
+        .set_turn_output_schema(
+            turn_context_snapshot.output_schema.clone(),
+            turn_context_snapshot.output_schema_source,
+        )
+        .set_turn_context_metadata_from_value(turn_context_metadata.as_ref());
+
+    RuntimeTurnRequestPreparation {
+        runtime_chat_mode,
+        include_context_trace,
+        turn_input_builder,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_runtime_turn_prompt_strategy(
+    db: &DbConnection,
+    request: &AsterChatRequest,
+    session_id: &str,
+    workspace_root: &str,
+    execution_profile: TurnExecutionProfile,
+    runtime_config: &lime_core::config::Config,
+    request_tool_policy: &RequestToolPolicy,
+    session_state_snapshot: &SessionStateSnapshot,
+    session_recent_team_selection: Option<&lime_agent::SessionExecutionRuntimeRecentTeamSelection>,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+    auto_continue_config: Option<&AutoContinuePayload>,
+    turn_input_builder: &mut TurnInputEnvelopeBuilder,
+) -> RuntimeTurnPromptStrategy {
+    let persisted_strategy =
+        AsterExecutionStrategy::from_db_value(session_state_snapshot.execution_strategy());
+    let session_prompt = if let Some(prompt) = session_state_snapshot.system_prompt() {
+        tracing::debug!(
+            "[AsterAgent] 找到 session，system_prompt: {:?}",
+            Some(prompt.len())
+        );
+        Some(prompt.to_string())
+    } else {
+        if !session_state_snapshot.has_persisted_session() {
+            tracing::debug!("[AsterAgent] Lime 数据库中未找到 session: {}", session_id);
+        }
+        None
+    };
+
+    let project_prompt = if let Some(ref project_id) = request.project_id {
+        match AsterAgentState::build_project_system_prompt(db, project_id) {
+            Ok(prompt) => {
+                tracing::info!(
+                    "[AsterAgent] 已加载项目上下文: project_id={}, prompt_len={}",
+                    project_id,
+                    prompt.len()
+                );
+                Some(prompt)
+            }
+            Err(error) => {
+                tracing::warn!(
+                    "[AsterAgent] 加载项目上下文失败: {}, 继续使用 session prompt",
+                    error
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let (resolved_prompt, system_prompt_source) = if let Some(project_prompt) = project_prompt {
+        (Some(project_prompt), TurnSystemPromptSource::Project)
+    } else if let Some(session_prompt) = session_prompt {
+        (Some(session_prompt), TurnSystemPromptSource::Session)
+    } else if let Some(ref frontend_prompt) = request.system_prompt {
+        if !frontend_prompt.trim().is_empty() {
+            tracing::info!(
+                "[AsterAgent] 使用前端传入的 system_prompt, len={}",
+                frontend_prompt.len()
+            );
+            (
+                Some(frontend_prompt.clone()),
+                TurnSystemPromptSource::Frontend,
+            )
+        } else {
+            (None, TurnSystemPromptSource::None)
+        }
+    } else {
+        (None, TurnSystemPromptSource::None)
+    };
+    turn_input_builder.set_base_system_prompt(system_prompt_source, resolved_prompt.clone());
+
+    let prompt_with_runtime_agents =
+        merge_system_prompt_with_runtime_agents(resolved_prompt, Some(Path::new(workspace_root)));
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::RuntimeAgents,
+        prompt_with_runtime_agents.clone(),
+    );
+    let prompt_with_local_path_focus = apply_turn_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::ExplicitLocalPathFocus,
+        prompt_with_runtime_agents,
+        |prompt| {
+            merge_system_prompt_with_explicit_local_path_focus(
+                prompt,
+                request.message.as_str(),
+                workspace_root,
+            )
+        },
+    );
+
+    let system_prompt = if matches!(execution_profile, TurnExecutionProfile::FullRuntime) {
+        build_full_runtime_system_prompt(
+            turn_input_builder,
+            prompt_with_local_path_focus,
+            runtime_config,
+            db,
+            session_id,
+            workspace_root,
+            request,
+            request_tool_policy,
+            session_recent_team_selection,
+            session_recent_preferences,
+            auto_continue_config,
+        )
+    } else {
+        build_fast_chat_system_prompt(
+            turn_input_builder,
+            prompt_with_local_path_focus,
+            request_tool_policy,
+        )
+    };
+
+    let requested_strategy = request.execution_strategy.unwrap_or(persisted_strategy);
+    let effective_strategy = requested_strategy.effective_for_message(&request.message);
+    turn_input_builder
+        .set_requested_execution_strategy(Some(requested_strategy.as_db_value().to_string()))
+        .set_effective_execution_strategy(Some(effective_strategy.as_db_value().to_string()));
+
+    if let Some(explicit_strategy) = request.execution_strategy {
+        if session_state_snapshot.has_persisted_session() {
+            if let Err(error) = AsterAgentWrapper::update_session_execution_strategy_sync(
+                db,
+                session_id,
+                explicit_strategy.as_db_value(),
+            ) {
+                tracing::warn!(
+                    "[AsterAgent] 更新会话执行策略失败: session={}, strategy={}, error={}",
+                    session_id,
+                    explicit_strategy.as_db_value(),
+                    error
+                );
+            }
+        }
+    }
+
+    tracing::info!(
+        "[AsterAgent] 执行策略: requested={:?}, effective={:?}",
+        requested_strategy,
+        effective_strategy
+    );
+
+    RuntimeTurnPromptStrategy {
+        system_prompt,
+        requested_strategy,
+        effective_strategy,
+        system_prompt_source,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn prepare_runtime_turn_submit_preparation(
+    app: &AppHandle,
+    state: &AsterAgentState,
+    db: &DbConnection,
+    api_key_provider_service: &ApiKeyProviderServiceState,
+    logs: &LogState,
+    config_manager: &GlobalConfigManagerState,
+    mcp_manager: &McpManagerState,
+    automation_state: &AutomationServiceState,
+    request: &mut AsterChatRequest,
+    session_id: &str,
+    workspace_id: &str,
+    workspace_root: &str,
+    resolved_turn_id: &str,
+    workspace_settings: &WorkspaceSettings,
+    runtime_config: &lime_core::config::Config,
+    workspace_repaired: bool,
+    workspace_warning: Option<String>,
+    session_recent_harness_context: &SessionRecentHarnessContext,
+) -> Result<RuntimeTurnSubmitPreparation, String> {
+    let RuntimeTurnSessionPreparation {
+        auto_continue_config,
+        auto_continue_enabled,
+        session_state_snapshot,
+        session_recent_preferences,
+        session_recent_team_selection,
+    } = prepare_runtime_turn_session(
+        app,
+        logs,
+        db,
+        request,
+        session_id,
+        workspace_root,
+        workspace_repaired,
+        workspace_warning,
+    )
+    .await?;
+
+    let RuntimeTurnPolicyPreparation {
+        request_tool_policy,
+        execution_profile,
+    } = prepare_runtime_turn_policy(
+        request,
+        session_id,
+        session_recent_preferences.as_ref(),
+        auto_continue_enabled,
+    );
+
+    let RuntimeTurnRequestPreparation {
+        runtime_chat_mode,
+        include_context_trace,
+        mut turn_input_builder,
+    } = prepare_runtime_turn_request(
+        state,
+        db,
+        mcp_manager,
+        request,
+        session_id,
+        workspace_id,
+        workspace_root,
+        resolved_turn_id,
+        runtime_config,
+        workspace_settings,
+        &request_tool_policy,
+        execution_profile,
+        &session_state_snapshot,
+        session_recent_harness_context,
+    )
+    .await;
+
+    let RuntimeTurnPromptStrategy {
+        system_prompt,
+        requested_strategy,
+        effective_strategy,
+        system_prompt_source,
+    } = prepare_runtime_turn_prompt_strategy(
+        db,
+        request,
+        session_id,
+        workspace_root,
+        execution_profile,
+        runtime_config,
+        &request_tool_policy,
+        &session_state_snapshot,
+        session_recent_team_selection.as_ref(),
+        session_recent_preferences.as_ref(),
+        auto_continue_config.as_ref(),
+        &mut turn_input_builder,
+    );
+
+    apply_runtime_turn_provider_config(state, db, session_id, request.provider_config.as_ref())
+        .await?;
+
+    let submit_bootstrap = prepare_runtime_turn_submit_bootstrap(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+        request,
+        session_id,
+        workspace_root,
+        workspace_settings,
+        runtime_config,
+        runtime_chat_mode,
+        execution_profile,
+        requested_strategy,
+        &request_tool_policy,
+        &mut turn_input_builder,
+    )
+    .await?;
+
+    Ok(RuntimeTurnSubmitPreparation {
+        auto_continue_config,
+        auto_continue_enabled,
+        session_state_snapshot,
+        session_recent_preferences,
+        runtime_chat_mode,
+        include_context_trace,
+        turn_input_builder,
+        request_tool_policy,
+        execution_profile,
+        requested_strategy,
+        effective_strategy,
+        system_prompt,
+        system_prompt_source,
+        submit_bootstrap,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn build_runtime_turn_artifacts(
+    agent_arc: &Arc<tokio::sync::RwLock<Option<Agent>>>,
+    session_id: &str,
+    workspace_id: &str,
+    resolved_turn_id: &str,
+    execution_profile: TurnExecutionProfile,
+    requested_strategy: AsterExecutionStrategy,
+    effective_strategy: AsterExecutionStrategy,
+    request_tool_policy: &RequestToolPolicy,
+    include_context_trace: bool,
+    runtime_chat_mode: RuntimeChatMode,
+    system_prompt_source: TurnSystemPromptSource,
+    mut turn_input_builder: TurnInputEnvelopeBuilder,
+) -> Result<RuntimeTurnBuildArtifacts, String> {
+    let runtime_snapshot = {
+        let guard = agent_arc.read().await;
+        let agent = guard.as_ref().ok_or("Agent not initialized")?;
+        match agent.runtime_snapshot(session_id).await {
+            Ok(snapshot) => Some(snapshot),
+            Err(error) => {
+                tracing::warn!(
+                    "[AsterAgent] 提交 turn 前读取 runtime snapshot 失败: session_id={}, error={}",
+                    session_id,
+                    error
+                );
+                None
+            }
+        }
+    };
+    let runtime_projection_snapshot =
+        RuntimeProjectionSnapshot::from_snapshot(session_id, runtime_snapshot.as_ref());
+    if matches!(execution_profile, TurnExecutionProfile::FullRuntime) {
+        tracing::info!(
+            "[AsterAgent] runtime_projection_snapshot={}",
+            serde_json::to_string(&runtime_projection_snapshot)
+                .unwrap_or_else(|_| "{}".to_string())
+        );
+    }
+    let resolved_thread_id = runtime_projection_snapshot
+        .primary_thread_id()
+        .map(str::to_string)
+        .unwrap_or_else(|| session_id.to_string());
+    let turn_state = TurnState::new(
+        session_id,
+        workspace_id,
+        resolved_thread_id,
+        resolved_turn_id,
+        execution_profile,
+        requested_strategy.as_db_value(),
+        effective_strategy.as_db_value(),
+        TurnRequestToolPolicySnapshot::from(request_tool_policy),
+        include_context_trace,
+        runtime_chat_mode_label(runtime_chat_mode),
+    );
+    turn_input_builder
+        .set_thread_id(turn_state.thread_id.clone())
+        .set_turn_id(turn_state.turn_id.clone());
+    let turn_input_envelope = turn_input_builder.build();
+    let turn_input_diagnostics = turn_input_envelope.diagnostics_snapshot();
+    if matches!(execution_profile, TurnExecutionProfile::FullRuntime) {
+        tracing::info!(
+            "[AsterAgent] turn_state={}",
+            serde_json::to_string(&turn_state).unwrap_or_else(|_| "{}".to_string())
+        );
+        tracing::info!(
+            "[AsterAgent] turn_input_envelope={}",
+            serde_json::to_string(&turn_input_diagnostics).unwrap_or_else(|_| "{}".to_string())
+        );
+    } else {
+        tracing::info!(
+            "[AsterAgent] fast_turn_summary={}",
+            serde_json::json!({
+                "session_id": session_id,
+                "workspace_id": workspace_id,
+                "thread_id": turn_state.thread_id.clone(),
+                "turn_id": turn_state.turn_id.clone(),
+                "execution_profile": execution_profile,
+                "requested_execution_strategy": requested_strategy.as_db_value(),
+                "effective_execution_strategy": effective_strategy.as_db_value(),
+                "system_prompt_source": system_prompt_source,
+                "final_system_prompt_len": turn_input_diagnostics.final_system_prompt_len,
+                "has_turn_context_metadata": turn_input_diagnostics.has_turn_context_metadata,
+            })
+        );
+    }
+
+    Ok(RuntimeTurnBuildArtifacts {
+        runtime_projection_snapshot,
+        turn_state,
+        turn_input_envelope,
+        turn_input_diagnostics,
+    })
+}
+
+fn build_runtime_turn_execution_context(
+    db: &DbConnection,
+    request: &AsterChatRequest,
+    session_id: &str,
+    workspace_id: &str,
+    effective_strategy: AsterExecutionStrategy,
+    request_tool_policy: &RequestToolPolicy,
+    auto_continue_enabled: bool,
+    auto_continue_metadata: Option<&AutoContinuePayload>,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+    session_state_snapshot: &SessionStateSnapshot,
+    runtime_projection_snapshot: &RuntimeProjectionSnapshot,
+    turn_state: &TurnState,
+    turn_input_system_prompt: Option<String>,
+    turn_input_include_context_trace: bool,
+    turn_input_turn_context_override: Option<TurnContextOverride>,
+    turn_input_diagnostics: &lime_agent::TurnDiagnosticsSnapshot,
+    service_skill_preload: Option<&ServiceSkillLaunchPreloadExecution>,
+) -> Result<RuntimeTurnExecutionContext, String> {
+    let run_start_metadata = build_runtime_run_start_metadata(
+        request,
+        workspace_id,
+        effective_strategy,
+        request_tool_policy,
+        auto_continue_enabled,
+        auto_continue_metadata,
+        session_recent_preferences,
+        session_state_snapshot,
+        runtime_projection_snapshot,
+        turn_state,
+        turn_input_diagnostics,
+        service_skill_preload,
+    );
+    let timeline_recorder = Arc::new(Mutex::new(AgentTimelineRecorder::create(
+        db.clone(),
+        turn_state.thread_id.clone(),
+        turn_state.turn_id.clone(),
+        request.message.clone(),
+    )?));
+    let runtime_status_session_config = build_runtime_session_config(
+        session_id,
+        &turn_state.thread_id,
+        &turn_state.turn_id,
+        None,
+        None,
+        turn_input_turn_context_override.clone(),
+    );
+
+    Ok(RuntimeTurnExecutionContext {
+        run_start_metadata,
+        run_observation: Arc::new(Mutex::new(ChatRunObservation::default())),
+        timeline_recorder,
+        runtime_status_session_config,
+        stream_session_config_state: RuntimeTurnStreamSessionConfigState {
+            session_id: session_id.to_string(),
+            thread_id: turn_state.thread_id.clone(),
+            turn_id: turn_state.turn_id.clone(),
+            system_prompt: turn_input_system_prompt,
+            include_context_trace: turn_input_include_context_trace,
+            turn_context_override: turn_input_turn_context_override,
+        },
+    })
+}
+
+fn apply_service_skill_preload_prompt_stage(
+    turn_input_builder: &mut TurnInputEnvelopeBuilder,
+    execution_profile: TurnExecutionProfile,
+    system_prompt: Option<String>,
+    service_skill_preload: Option<&ServiceSkillLaunchPreloadExecution>,
+) {
+    if !matches!(execution_profile, TurnExecutionProfile::FullRuntime) {
+        return;
+    }
+
+    let system_prompt =
+        merge_system_prompt_with_service_skill_launch_preload(system_prompt, service_skill_preload);
+    turn_input_builder.apply_prompt_stage(
+        TurnPromptAugmentationStageKind::ServiceSkillLaunchPreload,
+        system_prompt,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn prepare_runtime_turn_execution(
+    agent_arc: &Arc<tokio::sync::RwLock<Option<Agent>>>,
+    db: &DbConnection,
+    request: &AsterChatRequest,
+    session_id: &str,
+    workspace_id: &str,
+    resolved_turn_id: &str,
+    execution_profile: TurnExecutionProfile,
+    requested_strategy: AsterExecutionStrategy,
+    effective_strategy: AsterExecutionStrategy,
+    request_tool_policy: &RequestToolPolicy,
+    include_context_trace: bool,
+    runtime_chat_mode: RuntimeChatMode,
+    system_prompt_source: TurnSystemPromptSource,
+    system_prompt: Option<String>,
+    mut turn_input_builder: TurnInputEnvelopeBuilder,
+    auto_continue_enabled: bool,
+    auto_continue_metadata: Option<&AutoContinuePayload>,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+    session_state_snapshot: &SessionStateSnapshot,
+    request_metadata: Option<&serde_json::Value>,
+) -> Result<RuntimeTurnPreparedExecution, String> {
+    let service_skill_preload = if matches!(execution_profile, TurnExecutionProfile::FullRuntime) {
+        preload_service_skill_launch_execution(db, request_metadata)
+            .await
+            .map_err(|error| format!("站点技能预执行失败: {error}"))?
+    } else {
+        None
+    };
+    apply_service_skill_preload_prompt_stage(
+        &mut turn_input_builder,
+        execution_profile,
+        system_prompt,
+        service_skill_preload.as_ref(),
+    );
+
+    let runtime_turn_artifacts = build_runtime_turn_artifacts(
+        agent_arc,
+        session_id,
+        workspace_id,
+        resolved_turn_id,
+        execution_profile,
+        requested_strategy,
+        effective_strategy,
+        request_tool_policy,
+        include_context_trace,
+        runtime_chat_mode,
+        system_prompt_source,
+        turn_input_builder,
+    )
+    .await?;
+
+    let runtime_turn_execution_context = build_runtime_turn_execution_context(
+        db,
+        request,
+        session_id,
+        workspace_id,
+        effective_strategy,
+        request_tool_policy,
+        auto_continue_enabled,
+        auto_continue_metadata,
+        session_recent_preferences,
+        session_state_snapshot,
+        &runtime_turn_artifacts.runtime_projection_snapshot,
+        &runtime_turn_artifacts.turn_state,
+        runtime_turn_artifacts
+            .turn_input_envelope
+            .system_prompt()
+            .map(str::to_string),
+        runtime_turn_artifacts
+            .turn_input_envelope
+            .include_context_trace(),
+        runtime_turn_artifacts
+            .turn_input_envelope
+            .turn_context_override(),
+        &runtime_turn_artifacts.turn_input_diagnostics,
+        service_skill_preload.as_ref(),
+    )?;
+
+    Ok(RuntimeTurnPreparedExecution {
+        service_skill_preload,
+        runtime_turn_artifacts,
+        runtime_turn_execution_context,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn execute_runtime_turn_submit(
+    app: &AppHandle,
+    state: &AsterAgentState,
+    db: &DbConnection,
+    request: &AsterChatRequest,
+    session_id: &str,
+    workspace_id: &str,
+    workspace_root: &str,
+    resolved_turn_id: &str,
+    submit_preparation: RuntimeTurnSubmitPreparation,
+    cancel_token: CancellationToken,
+) -> Result<(), String> {
+    let RuntimeTurnSubmitPreparation {
+        auto_continue_config,
+        auto_continue_enabled,
+        session_state_snapshot,
+        session_recent_preferences,
+        runtime_chat_mode,
+        include_context_trace,
+        turn_input_builder,
+        request_tool_policy,
+        execution_profile,
+        requested_strategy,
+        effective_strategy,
+        system_prompt,
+        system_prompt_source,
+        submit_bootstrap,
+    } = submit_preparation;
+
+    sync_browser_assist_runtime_hint(session_id, submit_bootstrap.request_metadata.as_ref()).await;
+
+    let agent_arc = state.get_agent_arc();
+    let provider_model_name = request
+        .provider_config
+        .as_ref()
+        .map(|config| config.model_name.as_str());
+    let auto_continue_metadata = auto_continue_config.clone();
+    let runtime_turn_prepared_execution = prepare_runtime_turn_execution(
+        &agent_arc,
+        db,
+        request,
+        session_id,
+        workspace_id,
+        resolved_turn_id,
+        execution_profile,
+        requested_strategy,
+        effective_strategy,
+        &request_tool_policy,
+        include_context_trace,
+        runtime_chat_mode,
+        system_prompt_source,
+        system_prompt,
+        turn_input_builder,
+        auto_continue_enabled,
+        auto_continue_metadata.as_ref(),
+        session_recent_preferences.as_ref(),
+        &session_state_snapshot,
+        submit_bootstrap.request_metadata.as_ref(),
+    )
+    .await?;
+
+    let guard = agent_arc.read().await;
+    let agent = guard.as_ref().ok_or("Agent not initialized")?;
+    runtime_turn_prepared_execution
+        .emit_prelude_and_execute(
+            agent,
+            &submit_bootstrap.tracker,
+            app,
+            db,
+            request,
+            &submit_bootstrap.runtime_memory_config,
+            session_id,
+            workspace_root,
+            workspace_id,
+            execution_profile,
+            submit_bootstrap.request_metadata.as_ref(),
+            submit_bootstrap.provider_continuation_capability,
+            cancel_token,
+            effective_strategy,
+            &request_tool_policy,
+            provider_model_name,
+            session_recent_preferences.as_ref(),
+        )
+        .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn execute_runtime_turn_with_session_scope(
+    app: &AppHandle,
+    state: &AsterAgentState,
+    db: &DbConnection,
+    request: &AsterChatRequest,
+    session_id: &str,
+    workspace_id: &str,
+    workspace_root: &str,
+    resolved_turn_id: &str,
+    submit_preparation: RuntimeTurnSubmitPreparation,
+) -> Result<(), String> {
+    let model_skill_tool_enabled = submit_preparation.model_skill_tool_enabled();
+    with_runtime_turn_session_scope(
+        state,
+        session_id,
+        model_skill_tool_enabled,
+        move |cancel_token| async move {
+            execute_runtime_turn_submit(
+                app,
+                state,
+                db,
+                request,
+                session_id,
+                workspace_id,
+                workspace_root,
+                resolved_turn_id,
+                submit_preparation,
+                cancel_token,
+            )
+            .await
+        },
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn execute_runtime_turn_pipeline(
+    app: &AppHandle,
+    state: &AsterAgentState,
+    db: &DbConnection,
+    api_key_provider_service: &ApiKeyProviderServiceState,
+    logs: &LogState,
+    config_manager: &GlobalConfigManagerState,
+    mcp_manager: &McpManagerState,
+    automation_state: &AutomationServiceState,
+    mut request: AsterChatRequest,
+) -> Result<(), String> {
+    prepare_runtime_turn_entry(app, state, db, mcp_manager).await?;
+    let RuntimeTurnIngressContext {
+        owned_session_id,
+        workspace_id,
+        workspace_root,
+        workspace_settings,
+        resolved_turn_id,
+        runtime_config,
+        session_recent_harness_context,
+        workspace_repaired,
+        workspace_warning,
+    } = prepare_runtime_turn_ingress_context(
+        app,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        &mut request,
+    )
+    .await?;
+
+    let session_id = owned_session_id.as_str();
+    let submit_preparation = prepare_runtime_turn_submit_preparation(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+        &mut request,
+        session_id,
+        workspace_id.as_str(),
+        workspace_root.as_str(),
+        resolved_turn_id.as_str(),
+        &workspace_settings,
+        &runtime_config,
+        workspace_repaired,
+        workspace_warning,
+        &session_recent_harness_context,
+    )
+    .await?;
+
+    execute_runtime_turn_with_session_scope(
+        app,
+        state,
+        db,
+        &request,
+        session_id,
+        workspace_id.as_str(),
+        workspace_root.as_str(),
+        resolved_turn_id.as_str(),
+        submit_preparation,
+    )
+    .await
+}
+
+async fn prepare_runtime_turn_entry(
+    app: &AppHandle,
+    state: &AsterAgentState,
+    db: &DbConnection,
+    mcp_manager: &McpManagerState,
+) -> Result<(), String> {
+    let is_init = state.is_initialized().await;
+    tracing::warn!("[AsterAgent] Agent 初始化状态: {}", is_init);
+    if !is_init {
+        tracing::warn!("[AsterAgent] Agent 未初始化，开始初始化...");
+        state.init_agent_with_db(db).await?;
+        tracing::warn!("[AsterAgent] Agent 初始化完成");
+    } else {
+        tracing::warn!("[AsterAgent] Agent 已初始化，检查 session_store...");
+        let agent_arc = state.get_agent_arc();
+        let guard = agent_arc.read().await;
+        if let Some(agent) = guard.as_ref() {
+            let has_store = agent.session_store().is_some();
+            tracing::warn!("[AsterAgent] session_store 存在: {}", has_store);
+        }
+    }
+
+    ensure_host_backed_config_tool_registered(app, state).await?;
+    ensure_runtime_support_tools_registered(state, mcp_manager).await
+}
+
+async fn prepare_runtime_turn_ingress_context(
+    app: &AppHandle,
+    db: &DbConnection,
+    api_key_provider_service: &ApiKeyProviderServiceState,
+    logs: &LogState,
+    config_manager: &GlobalConfigManagerState,
+    request: &mut AsterChatRequest,
+) -> Result<RuntimeTurnIngressContext, String> {
+    let should_resolve_session_recent_harness_context = extract_harness_string(
+        request.metadata.as_ref(),
+        &["theme", "harness_theme", "harnessTheme"],
+    )
+    .is_none()
+        || extract_harness_string(request.metadata.as_ref(), &["session_mode", "sessionMode"])
+            .is_none()
+        || extract_harness_string(request.metadata.as_ref(), &["gate_key", "gateKey"]).is_none()
+        || extract_harness_string(
+            request.metadata.as_ref(),
+            &["run_title", "runTitle", "title"],
+        )
+        .is_none()
+        || extract_harness_string(request.metadata.as_ref(), &["content_id", "contentId"])
+            .is_none();
+    let provider_config_future =
+        resolve_runtime_request_provider_config(app, db, api_key_provider_service, request);
+    let session_recent_harness_context_future = async {
+        if should_resolve_session_recent_harness_context {
+            resolve_session_recent_harness_context(&request.session_id).await
+        } else {
+            Ok(SessionRecentHarnessContext::default())
+        }
+    };
+    let (resolved_provider_config, session_recent_harness_context) = tokio::try_join!(
+        provider_config_future,
+        session_recent_harness_context_future
+    )?;
+
+    if let Some(resolved_provider_config) = resolved_provider_config {
+        request.provider_config = Some(resolved_provider_config);
+    }
+    if let Some(provider_config) = request.provider_config.as_mut() {
+        ensure_provider_runtime_ready(provider_config).await?;
+        let runtime_tool_call_decision =
+            enrich_provider_config_with_runtime_tool_strategy(provider_config).await;
+        tracing::info!(
+            "[AsterAgent] provider_config 运行时工具策略: provider_id={:?}, provider_name={}, model_name={}, strategy={:?}, toolshim_model={:?}, tools={}, function_calling={}, reasoning={}",
+            provider_config.provider_id,
+            provider_config.provider_name,
+            provider_config.model_name,
+            runtime_tool_call_decision.strategy,
+            runtime_tool_call_decision.toolshim_model,
+            runtime_tool_call_decision.capabilities.tools,
+            runtime_tool_call_decision.capabilities.function_calling,
+            runtime_tool_call_decision.capabilities.reasoning
+        );
+    }
+
+    normalize_runtime_turn_request_metadata(
+        request,
+        session_recent_harness_context.theme.as_deref(),
+        session_recent_harness_context.session_mode.as_deref(),
+        session_recent_harness_context.gate_key.as_deref(),
+        session_recent_harness_context.run_title.as_deref(),
+        session_recent_harness_context.content_id.as_deref(),
+        false,
+    );
+    backfill_runtime_access_policies(request);
+
+    let owned_session_id = request.session_id.clone();
+
+    let workspace_id = match resolve_runtime_turn_workspace_id(db, request) {
+        Ok(workspace_id) => workspace_id,
+        Err(message) => {
+            logs.write()
+                .await
+                .add("error", &format!("[AsterAgent] {}", message));
+            return Err(message);
+        }
+    };
+
+    let manager = WorkspaceManager::new(db.clone());
+    let workspace = match manager.get(&workspace_id) {
+        Ok(Some(workspace)) => workspace,
+        Ok(None) => {
+            let message = format!("Workspace 不存在: {workspace_id}");
+            logs.write()
+                .await
+                .add("error", &format!("[AsterAgent] {}", message));
+            return Err(message);
+        }
+        Err(error) => {
+            let message = format!("读取 workspace 失败: {error}");
+            logs.write()
+                .await
+                .add("error", &format!("[AsterAgent] {}", message));
+            return Err(message);
+        }
+    };
+    let ensured = match ensure_workspace_ready_with_auto_relocate(&manager, &workspace) {
+        Ok(result) => result,
+        Err(message) => {
+            logs.write()
+                .await
+                .add("error", &format!("[AsterAgent] {}", message));
+            return Err(message);
+        }
+    };
+
+    let runtime_config = config_manager.config();
+    apply_web_search_runtime_env(&runtime_config);
+
+    Ok(RuntimeTurnIngressContext {
+        owned_session_id,
+        workspace_id,
+        workspace_root: ensured.root_path.to_string_lossy().to_string(),
+        workspace_settings: workspace.settings.clone(),
+        resolved_turn_id: request
+            .turn_id
+            .clone()
+            .unwrap_or_else(|| Uuid::new_v4().to_string()),
+        runtime_config,
+        session_recent_harness_context,
+        workspace_repaired: ensured.repaired,
+        workspace_warning: ensured.warning,
+    })
+}
+
 fn normalize_runtime_turn_request_metadata(
     request: &mut AsterChatRequest,
     session_recent_theme: Option<&str>,
@@ -386,16 +2371,558 @@ fn normalize_runtime_turn_request_metadata(
     session_recent_gate_key: Option<&str>,
     session_recent_run_title: Option<&str>,
     session_recent_content_id: Option<&str>,
+    enable_artifact_defaults: bool,
 ) {
     request.metadata = crate::services::artifact_request_metadata_service::
-        normalize_request_metadata_with_artifact_defaults(
+        normalize_request_metadata_with_artifact_options(
             request.metadata.take(),
             session_recent_theme,
             session_recent_session_mode,
             session_recent_gate_key,
             session_recent_run_title,
             session_recent_content_id,
+            crate::services::artifact_request_metadata_service::
+                ArtifactRequestMetadataNormalizationOptions {
+                    enable_artifact_defaults,
+                },
         );
+}
+
+fn apply_turn_prompt_stage<F>(
+    turn_input_builder: &mut TurnInputEnvelopeBuilder,
+    stage: TurnPromptAugmentationStageKind,
+    prompt: Option<String>,
+    apply: F,
+) -> Option<String>
+where
+    F: FnOnce(Option<String>) -> Option<String>,
+{
+    let prompt = apply(prompt);
+    turn_input_builder.apply_prompt_stage(stage, prompt.clone());
+    prompt
+}
+
+fn apply_turn_metadata_prompt_stage<F>(
+    turn_input_builder: &mut TurnInputEnvelopeBuilder,
+    stage: TurnPromptAugmentationStageKind,
+    prompt: Option<String>,
+    request_metadata: Option<&serde_json::Value>,
+    apply: F,
+) -> Option<String>
+where
+    F: FnOnce(Option<String>, Option<&serde_json::Value>) -> Option<String>,
+{
+    apply_turn_prompt_stage(turn_input_builder, stage, prompt, |prompt| {
+        apply(prompt, request_metadata)
+    })
+}
+
+fn merge_system_prompt_with_turn_memory_prefetch(
+    prompt: Option<String>,
+    runtime_config: &lime_core::config::Config,
+    db: &DbConnection,
+    session_id: &str,
+    workspace_root: &str,
+    request: &AsterChatRequest,
+) -> Option<String> {
+    if !runtime_config.memory.enabled {
+        return prompt;
+    }
+
+    let prefetch_request = crate::commands::memory_management_cmd::TurnMemoryPrefetchRequest {
+        session_id: session_id.to_string(),
+        working_dir: Some(workspace_root.to_string()),
+        user_message: request.message.clone(),
+        request_metadata: request.metadata.clone(),
+        max_durable_entries: None,
+        max_working_chars: None,
+    };
+
+    match db.lock() {
+        Ok(conn) => {
+            match crate::commands::memory_management_cmd::build_turn_memory_prefetch_result(
+                runtime_config,
+                &conn,
+                Path::new(workspace_root),
+                &prefetch_request,
+            ) {
+                Ok(prefetch) => {
+                    merge_runtime_memory_prefetch_prompt(prompt, prefetch.prompt.as_deref())
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        "[AsterAgent] 单回合记忆预取失败，已降级继续: session_id={}, error={}",
+                        session_id,
+                        error
+                    );
+                    prompt
+                }
+            }
+        }
+        Err(error) => {
+            tracing::warn!(
+                "[AsterAgent] 记忆预取无法获取数据库锁，已降级继续: session_id={}, error={}",
+                session_id,
+                error
+            );
+            prompt
+        }
+    }
+}
+
+fn build_full_runtime_system_prompt(
+    turn_input_builder: &mut TurnInputEnvelopeBuilder,
+    prompt_with_local_path_focus: Option<String>,
+    runtime_config: &lime_core::config::Config,
+    db: &DbConnection,
+    session_id: &str,
+    workspace_root: &str,
+    request: &AsterChatRequest,
+    request_tool_policy: &RequestToolPolicy,
+    session_recent_team_selection: Option<&lime_agent::SessionExecutionRuntimeRecentTeamSelection>,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+    auto_continue_config: Option<&AutoContinuePayload>,
+) -> Option<String> {
+    let request_metadata = request.metadata.as_ref();
+    let mut prompt = apply_turn_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::Memory,
+        prompt_with_local_path_focus,
+        |prompt| {
+            let prompt = merge_system_prompt_with_memory_context(
+                prompt,
+                runtime_config,
+                MemoryPromptContext::with_working_dir(Path::new(workspace_root)),
+            );
+            merge_system_prompt_with_turn_memory_prefetch(
+                prompt,
+                runtime_config,
+                db,
+                session_id,
+                workspace_root,
+                request,
+            )
+        },
+    );
+
+    prompt = apply_turn_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::WebSearch,
+        prompt,
+        |prompt| merge_system_prompt_with_web_search(prompt, runtime_config),
+    );
+    prompt = apply_turn_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::RequestToolPolicy,
+        prompt,
+        |prompt| merge_system_prompt_with_request_tool_policy(prompt, request_tool_policy),
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::Artifact,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_artifact_context,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::ImageSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_image_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::CoverSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_cover_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::VideoSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_video_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::BroadcastSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_broadcast_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::ResourceSearchSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_resource_search_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::ResearchSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_research_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::ReportSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_report_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::DeepSearchSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_deep_search_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::SiteSearchSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_site_search_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::PdfReadSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_pdf_read_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::PresentationSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_presentation_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::FormSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_form_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::SummarySkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_summary_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::TranslationSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_translation_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::AnalysisSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_analysis_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::TranscriptionSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_transcription_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::UrlParseSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_url_parse_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::TypesettingSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_typesetting_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::WebpageSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_webpage_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::ServiceSkillLaunch,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_service_skill_launch,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::Elicitation,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_elicitation_context,
+    );
+
+    let subagent_mode_enabled = resolve_recent_preference_from_sources(
+        request_metadata,
+        &["subagent_mode_enabled", "subagentModeEnabled"],
+        session_recent_preferences.map(|preferences| preferences.subagent),
+    )
+    .unwrap_or(false);
+    prompt = apply_turn_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::TeamPreference,
+        prompt,
+        |prompt| {
+            merge_system_prompt_with_team_preference(
+                prompt,
+                request_metadata,
+                session_recent_team_selection,
+                subagent_mode_enabled,
+            )
+        },
+    );
+
+    apply_turn_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::AutoContinue,
+        prompt,
+        |prompt| merge_system_prompt_with_auto_continue(prompt, auto_continue_config),
+    )
+}
+
+fn build_fast_chat_system_prompt(
+    turn_input_builder: &mut TurnInputEnvelopeBuilder,
+    prompt_with_local_path_focus: Option<String>,
+    request_tool_policy: &RequestToolPolicy,
+) -> Option<String> {
+    apply_turn_prompt_stage(
+        turn_input_builder,
+        TurnPromptAugmentationStageKind::RequestToolPolicy,
+        prompt_with_local_path_focus,
+        |prompt| merge_system_prompt_with_request_tool_policy(prompt, request_tool_policy),
+    )
+}
+
+fn has_root_object_key(request_metadata: Option<&serde_json::Value>, key: &str) -> bool {
+    request_metadata
+        .and_then(serde_json::Value::as_object)
+        .and_then(|object| object.get(key))
+        .and_then(serde_json::Value::as_object)
+        .is_some()
+}
+
+fn request_metadata_contains_full_runtime_context(
+    request_metadata: Option<&serde_json::Value>,
+) -> bool {
+    const FULL_RUNTIME_HARNESS_OBJECT_KEYS: [(&str, &str); 18] = [
+        ("image_skill_launch", "imageSkillLaunch"),
+        ("service_skill_launch", "serviceSkillLaunch"),
+        ("service_scene_launch", "serviceSceneLaunch"),
+        ("cover_skill_launch", "coverSkillLaunch"),
+        ("video_skill_launch", "videoSkillLaunch"),
+        ("broadcast_skill_launch", "broadcastSkillLaunch"),
+        ("resource_search_skill_launch", "resourceSearchSkillLaunch"),
+        ("research_skill_launch", "researchSkillLaunch"),
+        ("report_skill_launch", "reportSkillLaunch"),
+        ("deep_search_skill_launch", "deepSearchSkillLaunch"),
+        ("site_search_skill_launch", "siteSearchSkillLaunch"),
+        ("pdf_read_skill_launch", "pdfReadSkillLaunch"),
+        ("presentation_skill_launch", "presentationSkillLaunch"),
+        ("form_skill_launch", "formSkillLaunch"),
+        ("summary_skill_launch", "summarySkillLaunch"),
+        ("translation_skill_launch", "translationSkillLaunch"),
+        ("analysis_skill_launch", "analysisSkillLaunch"),
+        ("team_memory_shadow", "teamMemoryShadow"),
+    ];
+    const FULL_RUNTIME_HARNESS_OBJECT_KEYS_EXTRA: [(&str, &str); 4] = [
+        ("transcription_skill_launch", "transcriptionSkillLaunch"),
+        ("url_parse_skill_launch", "urlParseSkillLaunch"),
+        ("typesetting_skill_launch", "typesettingSkillLaunch"),
+        ("webpage_skill_launch", "webpageSkillLaunch"),
+    ];
+
+    if has_root_object_key(request_metadata, "artifact")
+        || has_root_object_key(request_metadata, "elicitation_context")
+    {
+        return true;
+    }
+
+    if FULL_RUNTIME_HARNESS_OBJECT_KEYS
+        .iter()
+        .chain(FULL_RUNTIME_HARNESS_OBJECT_KEYS_EXTRA.iter())
+        .any(|(snake_case, camel_case)| {
+            extract_harness_nested_object(request_metadata, &[*snake_case, *camel_case]).is_some()
+        })
+    {
+        return true;
+    }
+
+    extract_harness_string(
+        request_metadata,
+        &[
+            "content_id",
+            "contentId",
+            "turn_purpose",
+            "turnPurpose",
+            "purpose",
+        ],
+    )
+    .is_some()
+        || extract_harness_string(
+            request_metadata,
+            &[
+                "preferred_team_preset_id",
+                "preferredTeamPresetId",
+                "selected_team_id",
+                "selectedTeamId",
+            ],
+        )
+        .is_some()
+        || extract_harness_string(
+            request_metadata,
+            &["browser_requirement", "browserRequirement"],
+        )
+        .is_some()
+        || extract_harness_bool(request_metadata, &["task_mode_enabled", "taskModeEnabled"])
+            .unwrap_or(false)
+        || extract_harness_bool(
+            request_metadata,
+            &["subagent_mode_enabled", "subagentModeEnabled"],
+        )
+        .unwrap_or(false)
+}
+
+fn message_suggests_local_workspace_tooling(message: &str) -> bool {
+    let trimmed = message.trim();
+    if trimmed.contains('/')
+        || trimmed.contains('\\')
+        || trimmed.contains(".rs")
+        || trimmed.contains(".ts")
+        || trimmed.contains(".tsx")
+        || trimmed.contains(".js")
+        || trimmed.contains(".json")
+        || trimmed.contains("AGENTS.md")
+        || trimmed.contains("Cargo.toml")
+        || trimmed.contains("package.json")
+    {
+        return true;
+    }
+
+    let normalized = trimmed.to_ascii_lowercase();
+    [
+        "项目",
+        "代码",
+        "仓库",
+        "目录",
+        "文件",
+        "路径",
+        "读一下",
+        "读取",
+        "分析代码",
+        "修复",
+        "报错",
+        "repo",
+        "repository",
+        "project",
+        "codebase",
+        "source tree",
+        "read ",
+        "grep",
+        "cargo",
+        "npm",
+        "bug",
+        "fix",
+        "path",
+        "workspace",
+    ]
+    .iter()
+    .any(|keyword| normalized.contains(keyword))
+}
+
+fn resolve_fast_chat_tool_surface_mode(
+    request: &AsterChatRequest,
+    execution_profile: TurnExecutionProfile,
+    request_tool_policy: &RequestToolPolicy,
+) -> Option<&'static str> {
+    if !matches!(execution_profile, TurnExecutionProfile::FastChat)
+        || request_tool_policy.allows_web_search()
+    {
+        return None;
+    }
+
+    if message_suggests_local_workspace_tooling(&request.message) {
+        Some(FAST_CHAT_TOOL_SURFACE_LOCAL_WORKSPACE)
+    } else {
+        Some(FAST_CHAT_TOOL_SURFACE_DIRECT_ANSWER)
+    }
+}
+
+fn merge_runtime_turn_tool_surface_metadata(
+    request_metadata: Option<serde_json::Value>,
+    tool_surface_mode: Option<&str>,
+) -> Option<serde_json::Value> {
+    let Some(tool_surface_mode) = tool_surface_mode
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return request_metadata;
+    };
+
+    let mut root = match request_metadata {
+        Some(serde_json::Value::Object(object)) => object,
+        Some(_) | None => serde_json::Map::new(),
+    };
+    let runtime_entry = root
+        .entry(LIME_RUNTIME_METADATA_KEY.to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let runtime_object = runtime_entry
+        .as_object_mut()
+        .expect("lime_runtime metadata should be an object");
+    runtime_object.insert(
+        LIME_RUNTIME_TOOL_SURFACE_KEY.to_string(),
+        serde_json::Value::String(tool_surface_mode.to_string()),
+    );
+
+    Some(serde_json::Value::Object(root))
+}
+
+fn resolve_turn_execution_profile(
+    request: &AsterChatRequest,
+    runtime_chat_mode: RuntimeChatMode,
+    request_tool_policy: &RequestToolPolicy,
+    auto_continue_enabled: bool,
+) -> TurnExecutionProfile {
+    let has_images = request
+        .images
+        .as_ref()
+        .is_some_and(|images| !images.is_empty());
+
+    if has_images
+        || request.project_id.is_some()
+        || auto_continue_enabled
+        || request_tool_policy.effective_web_search
+        || !matches!(runtime_chat_mode, RuntimeChatMode::General)
+        || request_metadata_contains_full_runtime_context(request.metadata.as_ref())
+        || extract_harness_bool(
+            request.metadata.as_ref(),
+            &["allow_model_skills", "allowModelSkills"],
+        )
+        .unwrap_or(false)
+    {
+        TurnExecutionProfile::FullRuntime
+    } else {
+        TurnExecutionProfile::FastChat
+    }
 }
 
 pub(crate) fn resolve_workspace_id_from_sources(
@@ -481,6 +3008,60 @@ fn should_skip_artifact_document_autopersist(
     !observation.artifact_paths.is_empty()
 }
 
+fn request_metadata_has_explicit_artifact_intent(
+    request_metadata: Option<&serde_json::Value>,
+) -> bool {
+    let Some(root) = request_metadata.and_then(serde_json::Value::as_object) else {
+        return false;
+    };
+
+    if root
+        .get("artifact")
+        .and_then(serde_json::Value::as_object)
+        .is_some_and(|artifact| !artifact.is_empty())
+    {
+        return true;
+    }
+
+    [
+        "artifact_mode",
+        "artifactMode",
+        "artifact_stage",
+        "artifactStage",
+        "artifact_kind",
+        "artifactKind",
+        "artifact_request_id",
+        "artifactRequestId",
+    ]
+    .iter()
+    .any(|key| {
+        root.get(*key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .is_some_and(|value| !value.is_empty())
+    })
+}
+
+fn should_skip_default_fast_chat_artifact_autopersist(
+    execution_profile: TurnExecutionProfile,
+    request_metadata: Option<&serde_json::Value>,
+) -> bool {
+    if !matches!(execution_profile, TurnExecutionProfile::FastChat) {
+        return false;
+    }
+
+    if request_metadata_has_explicit_artifact_intent(request_metadata)
+        || extract_harness_string(request_metadata, &["content_id", "contentId"]).is_some()
+    {
+        return false;
+    }
+
+    !matches!(
+        extract_harness_string(request_metadata, &["session_mode", "sessionMode"]).as_deref(),
+        Some("general_workbench")
+    )
+}
+
 fn maybe_persist_artifact_document_after_stream(
     app: &AppHandle,
     db: &DbConnection,
@@ -491,9 +3072,13 @@ fn maybe_persist_artifact_document_after_stream(
     workspace_id: &str,
     thread_id: &str,
     turn_id: &str,
+    execution_profile: TurnExecutionProfile,
     request_metadata: Option<&serde_json::Value>,
     final_text_output: &str,
 ) {
+    if should_skip_default_fast_chat_artifact_autopersist(execution_profile, request_metadata) {
+        return;
+    }
     if !crate::services::artifact_document_service::should_attempt_artifact_document_autopersist(
         request_metadata,
     ) {
@@ -603,1042 +3188,268 @@ fn maybe_persist_artifact_document_after_stream(
     }
 }
 
-async fn execute_aster_chat_request(
+fn finalize_runtime_stream_success(
     app: &AppHandle,
-    state: &AsterAgentState,
     db: &DbConnection,
-    api_key_provider_service: &ApiKeyProviderServiceState,
-    logs: &LogState,
-    config_manager: &GlobalConfigManagerState,
-    mcp_manager: &McpManagerState,
-    automation_state: &AutomationServiceState,
-    mut request: AsterChatRequest,
-) -> Result<(), String> {
-    tracing::info!(
-        "[AsterAgent] 发送流式消息: session={}, event={}",
-        request.session_id,
-        request.event_name
-    );
-
-    // 确保 Agent 已初始化（使用带数据库的版本，注入 SessionStore）
-    let is_init = state.is_initialized().await;
-    tracing::warn!("[AsterAgent] Agent 初始化状态: {}", is_init);
-    if !is_init {
-        tracing::warn!("[AsterAgent] Agent 未初始化，开始初始化...");
-        state.init_agent_with_db(db).await?;
-        tracing::warn!("[AsterAgent] Agent 初始化完成");
-    } else {
-        tracing::warn!("[AsterAgent] Agent 已初始化，检查 session_store...");
-        // 检查 session_store 是否存在
-        let agent_arc = state.get_agent_arc();
-        let guard = agent_arc.read().await;
-        if let Some(agent) = guard.as_ref() {
-            let has_store = agent.session_store().is_some();
-            tracing::warn!("[AsterAgent] session_store 存在: {}", has_store);
-        }
-    }
-    ensure_runtime_support_tools_registered(state, mcp_manager).await?;
-    let request_session_id = request.session_id.clone();
-    let mcp_runtime_prepare_future = async {
-        let (_start_ok, start_fail) = ensure_lime_mcp_servers_running(db, mcp_manager).await;
-        let (_mcp_ok, mcp_fail) = inject_mcp_extensions(state, mcp_manager).await;
-        (start_fail, mcp_fail)
-    };
-    let session_recent_runtime_context_future =
-        resolve_session_recent_runtime_context(&request_session_id);
-
-    let should_resolve_session_recent_harness_context = extract_harness_string(
-        request.metadata.as_ref(),
-        &["theme", "harness_theme", "harnessTheme"],
-    )
-    .is_none()
-        || extract_harness_string(request.metadata.as_ref(), &["session_mode", "sessionMode"])
-            .is_none()
-        || extract_harness_string(request.metadata.as_ref(), &["gate_key", "gateKey"]).is_none()
-        || extract_harness_string(
-            request.metadata.as_ref(),
-            &["run_title", "runTitle", "title"],
-        )
-        .is_none()
-        || extract_harness_string(request.metadata.as_ref(), &["content_id", "contentId"])
-            .is_none();
-    let provider_config_future =
-        resolve_runtime_request_provider_config(app, db, api_key_provider_service, &request);
-    let session_recent_harness_context_future = async {
-        if should_resolve_session_recent_harness_context {
-            resolve_session_recent_harness_context(&request.session_id).await
-        } else {
-            Ok(SessionRecentHarnessContext::default())
-        }
-    };
-    let (resolved_provider_config, session_recent_harness_context) = tokio::try_join!(
-        provider_config_future,
-        session_recent_harness_context_future
-    )?;
-    if let Some(resolved_provider_config) = resolved_provider_config {
-        request.provider_config = Some(resolved_provider_config);
-    }
-    if let Some(provider_config) = request.provider_config.as_mut() {
-        ensure_provider_runtime_ready(provider_config).await?;
-        let runtime_tool_call_decision =
-            enrich_provider_config_with_runtime_tool_strategy(provider_config).await;
-        tracing::info!(
-            "[AsterAgent] provider_config 运行时工具策略: provider_id={:?}, provider_name={}, model_name={}, strategy={:?}, toolshim_model={:?}, tools={}, function_calling={}, reasoning={}",
-            provider_config.provider_id,
-            provider_config.provider_name,
-            provider_config.model_name,
-            runtime_tool_call_decision.strategy,
-            runtime_tool_call_decision.toolshim_model,
-            runtime_tool_call_decision.capabilities.tools,
-            runtime_tool_call_decision.capabilities.function_calling,
-            runtime_tool_call_decision.capabilities.reasoning
-        );
-    }
-    normalize_runtime_turn_request_metadata(
-        &mut request,
-        session_recent_harness_context.theme.as_deref(),
-        session_recent_harness_context.session_mode.as_deref(),
-        session_recent_harness_context.gate_key.as_deref(),
-        session_recent_harness_context.run_title.as_deref(),
-        session_recent_harness_context.content_id.as_deref(),
-    );
-    backfill_runtime_access_policies(&mut request);
-
-    // 直接使用前端传递的 session_id
-    // LimeSessionStore 会在 add_message 时自动创建不存在的 session
-    // 同时 get_session 也会自动创建不存在的 session
-    let session_id = &request.session_id;
-
-    let workspace_id = match resolve_runtime_turn_workspace_id(db, &request) {
-        Ok(workspace_id) => workspace_id,
-        Err(message) => {
-            logs.write()
-                .await
-                .add("error", &format!("[AsterAgent] {}", message));
-            return Err(message);
-        }
-    };
-
-    let manager = WorkspaceManager::new(db.clone());
-    let workspace = match manager.get(&workspace_id) {
-        Ok(Some(workspace)) => workspace,
-        Ok(None) => {
-            let message = format!("Workspace 不存在: {workspace_id}");
-            logs.write()
-                .await
-                .add("error", &format!("[AsterAgent] {}", message));
-            return Err(message);
-        }
-        Err(error) => {
-            let message = format!("读取 workspace 失败: {error}");
-            logs.write()
-                .await
-                .add("error", &format!("[AsterAgent] {}", message));
-            return Err(message);
-        }
-    };
-    let ensured = match ensure_workspace_ready_with_auto_relocate(&manager, &workspace) {
-        Ok(result) => result,
-        Err(message) => {
-            logs.write()
-                .await
-                .add("error", &format!("[AsterAgent] {}", message));
-            return Err(message);
-        }
-    };
-    let workspace_root = ensured.root_path.to_string_lossy().to_string();
-    let resolved_turn_id = request
-        .turn_id
-        .clone()
-        .unwrap_or_else(|| Uuid::new_v4().to_string());
-    request.metadata = prepare_image_skill_launch_request_metadata(
-        Path::new(&workspace_root),
-        session_id,
-        &resolved_turn_id,
-        request.metadata.as_ref(),
-        request.images.as_deref(),
-    );
-    request.metadata = prepare_broadcast_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata =
-        prepare_resource_search_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_research_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_report_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_deep_search_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_site_search_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_pdf_read_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata =
-        prepare_presentation_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_form_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_summary_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_translation_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_analysis_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_typesetting_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_webpage_skill_launch_request_metadata(request.metadata.as_ref());
-    request.metadata = prepare_service_scene_launch_request_metadata(request.metadata.as_ref());
-    let runtime_config = config_manager.config();
-    apply_web_search_runtime_env(&runtime_config);
-    let auto_continue_config = request
-        .auto_continue
-        .clone()
-        .map(AutoContinuePayload::normalized);
-    let auto_continue_enabled = auto_continue_config
-        .as_ref()
-        .map(|config| config.enabled)
-        .unwrap_or(false);
-    if let Some(config) = auto_continue_config
-        .as_ref()
-        .filter(|config| config.enabled)
-    {
-        tracing::info!(
-            "[AsterAgent] 自动续写策略已启用: source={:?}, fast_mode={}, continuation_length={}, sensitivity={}",
-            config.source,
-            config.fast_mode_enabled,
-            config.continuation_length,
-            config.sensitivity
-        );
-    }
-
-    if ensured.repaired {
-        let warning_message = ensured.warning.unwrap_or_else(|| {
-            format!(
-                "检测到工作区目录缺失，已自动创建并继续执行: {}",
-                workspace_root
-            )
-        });
-        logs.write()
-            .await
-            .add("warn", &format!("[AsterAgent] {}", warning_message));
-        let warning_event = RuntimeAgentEvent::Warning {
-            code: Some(WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE.to_string()),
-            message: warning_message,
-        };
-        if let Err(error) = app.emit(&request.event_name, &warning_event) {
-            tracing::error!("[AsterAgent] 发送工作区自动恢复提醒失败: {}", error);
-        }
-    }
-
-    let mut session_state_snapshot = SessionStateSnapshot::from_persisted_metadata(
-        session_id,
-        AsterAgentWrapper::get_persisted_session_metadata_sync(db, session_id)?,
-    );
-
-    if session_state_snapshot.needs_working_dir_update(&workspace_root) {
-        tracing::info!(
-            "[AsterAgent] workspace 变更，自动更新 session working_dir: {} -> {}",
-            session_state_snapshot.working_dir().unwrap_or_default(),
-            workspace_root
-        );
-        AsterAgentWrapper::update_session_working_dir_sync(db, session_id, &workspace_root)?;
-        session_state_snapshot =
-            session_state_snapshot.with_working_dir(Some(workspace_root.clone()));
-    }
-
-    let ((start_fail, mcp_fail), session_recent_runtime_context) = tokio::join!(
-        mcp_runtime_prepare_future,
-        session_recent_runtime_context_future
-    );
-
-    if start_fail > 0 {
-        tracing::warn!(
-            "[AsterAgent] 部分 MCP server 自动启动失败 ({} 失败)，后续可用工具可能不完整",
-            start_fail
-        );
-    }
-    if mcp_fail > 0 {
-        tracing::warn!(
-            "[AsterAgent] 部分 MCP extension 注入失败 ({} 失败)，Agent 可能无法使用某些 MCP 工具",
-            mcp_fail
-        );
-    }
-
-    let SessionRecentRuntimeContext {
-        preferences: session_recent_preferences,
-        team_selection: session_recent_team_selection,
-    } = session_recent_runtime_context?;
-    let runtime_chat_mode = resolve_runtime_chat_mode(request.metadata.as_ref());
-    let mode_default_web_search = default_web_search_enabled_for_chat_mode(runtime_chat_mode);
-    let resolved_request_web_search = resolve_request_web_search_preference_from_sources(
-        request.web_search,
-        request.metadata.as_ref(),
-        session_recent_preferences.as_ref(),
-    );
-    let (request_web_search, request_search_mode) =
-        apply_browser_requirement_to_request_tool_policy(
-            request.metadata.as_ref(),
-            resolved_request_web_search,
-            request.search_mode,
-        );
-
-    // 构建请求级工具策略：
-    // - web_search=true 默认只表示“允许搜索”
-    // - 仅显式 search_mode=required 时才强制预搜索
-    let request_tool_policy = resolve_request_tool_policy_with_mode(
-        request_web_search,
-        request_search_mode,
-        mode_default_web_search,
-    );
-    tracing::info!(
-        "[AsterAgent][WebSearchGuard] session={}, chat_mode={:?}, request_web_search={:?}, request_search_mode={:?}, effective_request_web_search={:?}, effective_request_search_mode={:?}, mode_default_web_search={}, effective_web_search={}, search_mode={}",
-        session_id,
-        runtime_chat_mode,
-        request.web_search,
-        request.search_mode,
-        request_web_search,
-        request_search_mode,
-        mode_default_web_search,
-        request_tool_policy.effective_web_search,
-        request_tool_policy.search_mode.as_str()
-    );
-
-    let include_context_trace = runtime_config.memory.enabled;
-    let has_persisted_session = session_state_snapshot.has_persisted_session();
-    tracing::info!(
-        "[AsterAgent] session_state_snapshot={}",
-        serde_json::to_string(&session_state_snapshot).unwrap_or_else(|_| "{}".to_string())
-    );
-    let mut turn_input_builder = TurnInputEnvelopeBuilder::new(session_id, workspace_id.as_str());
-    turn_input_builder
-        .set_project_id(request.project_id.clone())
-        .set_has_persisted_session(has_persisted_session)
-        .set_request_tool_policy(Some(TurnRequestToolPolicySnapshot::from(
-            &request_tool_policy,
-        )))
-        .set_working_dir(Some(workspace_root.clone()))
-        .set_effective_user_message(request.message.clone())
-        .set_include_context_trace(include_context_trace)
-        .set_approval_policy(request.approval_policy.clone())
-        .set_sandbox_policy(request.sandbox_policy.clone())
-        .set_turn_context_metadata_from_value(request.metadata.as_ref());
-
-    // 构建 system_prompt：优先使用项目上下文，其次使用 session 的 system_prompt
-    // 同时读取会话已持久化的 execution_strategy
-    let persisted_strategy =
-        AsterExecutionStrategy::from_db_value(session_state_snapshot.execution_strategy());
-    let session_prompt = if let Some(prompt) = session_state_snapshot.system_prompt() {
-        tracing::debug!(
-            "[AsterAgent] 找到 session，system_prompt: {:?}",
-            Some(prompt.len())
-        );
-        Some(prompt.to_string())
-    } else {
-        if !session_state_snapshot.has_persisted_session() {
-            tracing::debug!("[AsterAgent] Lime 数据库中未找到 session: {}", session_id);
-        }
-        None
-    };
-
-    let project_prompt = if let Some(ref project_id) = request.project_id {
-        match AsterAgentState::build_project_system_prompt(db, project_id) {
-            Ok(prompt) => {
-                tracing::info!(
-                    "[AsterAgent] 已加载项目上下文: project_id={}, prompt_len={}",
-                    project_id,
-                    prompt.len()
-                );
-                Some(prompt)
-            }
-            Err(e) => {
-                tracing::warn!(
-                    "[AsterAgent] 加载项目上下文失败: {}, 继续使用 session prompt",
-                    e
-                );
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    let (resolved_prompt, system_prompt_source) = if let Some(project_prompt) = project_prompt {
-        (Some(project_prompt), TurnSystemPromptSource::Project)
-    } else if let Some(session_prompt) = session_prompt {
-        (Some(session_prompt), TurnSystemPromptSource::Session)
-    } else if let Some(ref frontend_prompt) = request.system_prompt {
-        if !frontend_prompt.trim().is_empty() {
-            tracing::info!(
-                "[AsterAgent] 使用前端传入的 system_prompt, len={}",
-                frontend_prompt.len()
-            );
-            (
-                Some(frontend_prompt.clone()),
-                TurnSystemPromptSource::Frontend,
-            )
-        } else {
-            (None, TurnSystemPromptSource::None)
-        }
-    } else {
-        (None, TurnSystemPromptSource::None)
-    };
-    turn_input_builder.set_base_system_prompt(system_prompt_source, resolved_prompt.clone());
-
-    let prompt_with_runtime_agents =
-        merge_system_prompt_with_runtime_agents(resolved_prompt, Some(Path::new(&workspace_root)));
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::RuntimeAgents,
-        prompt_with_runtime_agents.clone(),
-    );
-
-    let prompt_with_memory = merge_system_prompt_with_memory_context(
-        prompt_with_runtime_agents,
-        &runtime_config,
-        MemoryPromptContext::with_working_dir(Path::new(&workspace_root)),
-    );
-    let prompt_with_memory = if runtime_config.memory.enabled {
-        let prefetch_request = crate::commands::memory_management_cmd::TurnMemoryPrefetchRequest {
-            session_id: session_id.to_string(),
-            working_dir: Some(workspace_root.clone()),
-            user_message: request.message.clone(),
-            request_metadata: request.metadata.clone(),
-            max_durable_entries: None,
-            max_working_chars: None,
-        };
-
-        match db.lock() {
-            Ok(conn) => {
-                match crate::commands::memory_management_cmd::build_turn_memory_prefetch_result(
-                    &runtime_config,
-                    &conn,
-                    Path::new(&workspace_root),
-                    &prefetch_request,
-                ) {
-                    Ok(prefetch) => merge_runtime_memory_prefetch_prompt(
-                        prompt_with_memory,
-                        prefetch.prompt.as_deref(),
-                    ),
-                    Err(error) => {
-                        tracing::warn!(
-                            "[AsterAgent] 单回合记忆预取失败，已降级继续: session_id={}, error={}",
-                            session_id,
-                            error
-                        );
-                        prompt_with_memory
-                    }
-                }
-            }
-            Err(error) => {
-                tracing::warn!(
-                    "[AsterAgent] 记忆预取无法获取数据库锁，已降级继续: session_id={}, error={}",
-                    session_id,
-                    error
-                );
-                prompt_with_memory
-            }
-        }
-    } else {
-        prompt_with_memory
-    };
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::Memory,
-        prompt_with_memory.clone(),
-    );
-
-    let prompt_with_web_search =
-        merge_system_prompt_with_web_search(prompt_with_memory, &runtime_config);
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::WebSearch,
-        prompt_with_web_search.clone(),
-    );
-
-    let prompt_with_request_policy =
-        merge_system_prompt_with_request_tool_policy(prompt_with_web_search, &request_tool_policy);
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::RequestToolPolicy,
-        prompt_with_request_policy.clone(),
-    );
-
-    let prompt_with_artifact = merge_system_prompt_with_artifact_context(
-        prompt_with_request_policy,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::Artifact,
-        prompt_with_artifact.clone(),
-    );
-
-    let prompt_with_image_skill_launch = merge_system_prompt_with_image_skill_launch(
-        prompt_with_artifact,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::ImageSkillLaunch,
-        prompt_with_image_skill_launch.clone(),
-    );
-
-    let prompt_with_cover_skill_launch = merge_system_prompt_with_cover_skill_launch(
-        prompt_with_image_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::CoverSkillLaunch,
-        prompt_with_cover_skill_launch.clone(),
-    );
-
-    let prompt_with_video_skill_launch = merge_system_prompt_with_video_skill_launch(
-        prompt_with_cover_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::VideoSkillLaunch,
-        prompt_with_video_skill_launch.clone(),
-    );
-
-    let prompt_with_broadcast_skill_launch = merge_system_prompt_with_broadcast_skill_launch(
-        prompt_with_video_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::BroadcastSkillLaunch,
-        prompt_with_broadcast_skill_launch.clone(),
-    );
-
-    let prompt_with_resource_search_skill_launch =
-        merge_system_prompt_with_resource_search_skill_launch(
-            prompt_with_broadcast_skill_launch,
-            request.metadata.as_ref(),
-        );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::ResourceSearchSkillLaunch,
-        prompt_with_resource_search_skill_launch.clone(),
-    );
-
-    let prompt_with_research_skill_launch = merge_system_prompt_with_research_skill_launch(
-        prompt_with_resource_search_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::ResearchSkillLaunch,
-        prompt_with_research_skill_launch.clone(),
-    );
-
-    let prompt_with_report_skill_launch = merge_system_prompt_with_report_skill_launch(
-        prompt_with_research_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::ReportSkillLaunch,
-        prompt_with_report_skill_launch.clone(),
-    );
-
-    let prompt_with_deep_search_skill_launch = merge_system_prompt_with_deep_search_skill_launch(
-        prompt_with_report_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::DeepSearchSkillLaunch,
-        prompt_with_deep_search_skill_launch.clone(),
-    );
-
-    let prompt_with_site_search_skill_launch = merge_system_prompt_with_site_search_skill_launch(
-        prompt_with_deep_search_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::SiteSearchSkillLaunch,
-        prompt_with_site_search_skill_launch.clone(),
-    );
-
-    let prompt_with_pdf_read_skill_launch = merge_system_prompt_with_pdf_read_skill_launch(
-        prompt_with_site_search_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::PdfReadSkillLaunch,
-        prompt_with_pdf_read_skill_launch.clone(),
-    );
-
-    let prompt_with_presentation_skill_launch = merge_system_prompt_with_presentation_skill_launch(
-        prompt_with_pdf_read_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::PresentationSkillLaunch,
-        prompt_with_presentation_skill_launch.clone(),
-    );
-
-    let prompt_with_form_skill_launch = merge_system_prompt_with_form_skill_launch(
-        prompt_with_presentation_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::FormSkillLaunch,
-        prompt_with_form_skill_launch.clone(),
-    );
-
-    let prompt_with_summary_skill_launch = merge_system_prompt_with_summary_skill_launch(
-        prompt_with_form_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::SummarySkillLaunch,
-        prompt_with_summary_skill_launch.clone(),
-    );
-
-    let prompt_with_translation_skill_launch = merge_system_prompt_with_translation_skill_launch(
-        prompt_with_summary_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::TranslationSkillLaunch,
-        prompt_with_translation_skill_launch.clone(),
-    );
-
-    let prompt_with_analysis_skill_launch = merge_system_prompt_with_analysis_skill_launch(
-        prompt_with_translation_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::AnalysisSkillLaunch,
-        prompt_with_analysis_skill_launch.clone(),
-    );
-
-    let prompt_with_transcription_skill_launch =
-        merge_system_prompt_with_transcription_skill_launch(
-            prompt_with_analysis_skill_launch,
-            request.metadata.as_ref(),
-        );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::TranscriptionSkillLaunch,
-        prompt_with_transcription_skill_launch.clone(),
-    );
-
-    let prompt_with_url_parse_skill_launch = merge_system_prompt_with_url_parse_skill_launch(
-        prompt_with_transcription_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::UrlParseSkillLaunch,
-        prompt_with_url_parse_skill_launch.clone(),
-    );
-
-    let prompt_with_typesetting_skill_launch = merge_system_prompt_with_typesetting_skill_launch(
-        prompt_with_url_parse_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::TypesettingSkillLaunch,
-        prompt_with_typesetting_skill_launch.clone(),
-    );
-
-    let prompt_with_webpage_skill_launch = merge_system_prompt_with_webpage_skill_launch(
-        prompt_with_typesetting_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::WebpageSkillLaunch,
-        prompt_with_webpage_skill_launch.clone(),
-    );
-
-    let prompt_with_service_skill_launch = merge_system_prompt_with_service_skill_launch(
-        prompt_with_webpage_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::ServiceSkillLaunch,
-        prompt_with_service_skill_launch.clone(),
-    );
-
-    let prompt_with_elicitation = merge_system_prompt_with_elicitation_context(
-        prompt_with_service_skill_launch,
-        request.metadata.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::Elicitation,
-        prompt_with_elicitation.clone(),
-    );
-
-    let prompt_with_team_preference = merge_system_prompt_with_team_preference(
-        prompt_with_elicitation,
-        request.metadata.as_ref(),
-        session_recent_team_selection.as_ref(),
-        resolve_recent_preference_from_sources(
-            request.metadata.as_ref(),
-            &["subagent_mode_enabled", "subagentModeEnabled"],
-            session_recent_preferences
-                .as_ref()
-                .map(|preferences| preferences.subagent),
-        )
-        .unwrap_or(false),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::TeamPreference,
-        prompt_with_team_preference.clone(),
-    );
-
-    let system_prompt = merge_system_prompt_with_auto_continue(
-        prompt_with_team_preference,
-        auto_continue_config.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::AutoContinue,
-        system_prompt.clone(),
-    );
-
-    let requested_strategy = request.execution_strategy.unwrap_or(persisted_strategy);
-    let effective_strategy = requested_strategy.effective_for_message(&request.message);
-    turn_input_builder
-        .set_requested_execution_strategy(Some(requested_strategy.as_db_value().to_string()))
-        .set_effective_execution_strategy(Some(effective_strategy.as_db_value().to_string()));
-
-    if let Some(explicit_strategy) = request.execution_strategy {
-        if has_persisted_session {
-            if let Err(error) = AsterAgentWrapper::update_session_execution_strategy_sync(
-                db,
-                session_id,
-                explicit_strategy.as_db_value(),
-            ) {
-                tracing::warn!(
-                    "[AsterAgent] 更新会话执行策略失败: session={}, strategy={}, error={}",
-                    session_id,
-                    explicit_strategy.as_db_value(),
-                    error
-                );
-            }
-        }
-    }
-
-    tracing::info!(
-        "[AsterAgent] 执行策略: requested={:?}, effective={:?}",
-        requested_strategy,
-        effective_strategy
-    );
-
-    // 如果提供了 Provider 配置，则配置 Provider
-    if let Some(provider_config) = &request.provider_config {
-        tracing::info!(
-            "[AsterAgent] 收到 provider_config: provider_id={:?}, provider_name={}, model_name={}, has_api_key={}, base_url={:?}",
-            provider_config.provider_id,
-            provider_config.provider_name,
-            provider_config.model_name,
-            provider_config.api_key.is_some(),
-            provider_config.base_url
-        );
-        let apply_mode = resolve_provider_config_apply_mode(provider_config);
-        let config = ProviderConfig {
-            provider_name: provider_config.provider_name.clone(),
-            provider_selector: provider_config
-                .provider_id
-                .clone()
-                .or_else(|| Some(provider_config.provider_name.clone())),
-            model_name: provider_config.model_name.clone(),
-            api_key: provider_config.api_key.clone(),
-            base_url: provider_config.base_url.clone(),
-            credential_uuid: None,
-            force_responses_api: false,
-            credential_path: None,
-            toolshim: matches!(
-                provider_config.tool_call_strategy,
-                Some(RuntimeToolCallStrategy::ToolShim)
-            ),
-            toolshim_model: provider_config.toolshim_model.clone(),
-        };
-        let provider_selector = provider_config
-            .provider_id
-            .as_deref()
-            .unwrap_or(&provider_config.provider_name);
-        tracing::info!(
-            "[AsterAgent] provider_config 应用策略: provider_selector={}, mode={:?}, tool_call_strategy={:?}, toolshim_model={:?}",
-            provider_selector,
-            apply_mode,
-            provider_config.tool_call_strategy,
-            provider_config.toolshim_model
-        );
-        match apply_mode {
-            ProviderConfigApplyMode::Direct => {
-                state.configure_provider(config, session_id, db).await?;
-            }
-            ProviderConfigApplyMode::CredentialPool => {
-                state
-                    .configure_provider_from_pool(
-                        db,
-                        provider_selector,
-                        &provider_config.model_name,
-                        session_id,
-                    )
-                    .await?;
-            }
-        }
-        persist_session_provider_routing(session_id, provider_selector).await?;
-    }
-
-    // 检查 Provider 是否已配置
-    if !state.is_provider_configured().await {
-        return Err("Provider 未配置，请先调用 aster_agent_configure_provider".to_string());
-    }
-    maybe_auto_compact_runtime_session_before_turn(
+    event_name: &str,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    run_observation: &Arc<Mutex<ChatRunObservation>>,
+    runtime_memory_config: &lime_core::config::MemoryConfig,
+    session_id: &str,
+    user_message: &str,
+    workspace_root: &str,
+    workspace_id: &str,
+    thread_id: &str,
+    turn_id: &str,
+    execution_profile: TurnExecutionProfile,
+    request_metadata: Option<&serde_json::Value>,
+    execution: &lime_agent::request_tool_policy::StreamReplyExecution,
+) {
+    maybe_persist_artifact_document_after_stream(
         app,
-        state,
         db,
+        event_name,
+        timeline_recorder,
+        run_observation,
+        workspace_root,
+        workspace_id,
+        thread_id,
+        turn_id,
+        execution_profile,
+        request_metadata,
+        execution.text_output.as_str(),
+    );
+    spawn_runtime_memory_capture_task(
+        app,
+        db,
+        runtime_memory_config.clone(),
         session_id,
+        user_message,
+        execution.text_output.as_str(),
+    );
+}
+
+async fn execute_runtime_stream_attempt(
+    agent: &Agent,
+    app: &AppHandle,
+    db: &DbConnection,
+    request: &AsterChatRequest,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    run_observation: &Arc<Mutex<ChatRunObservation>>,
+    runtime_memory_config: &lime_core::config::MemoryConfig,
+    session_id: &str,
+    workspace_root: &str,
+    workspace_id: &str,
+    thread_id: &str,
+    turn_id: &str,
+    execution_profile: TurnExecutionProfile,
+    request_metadata: Option<&serde_json::Value>,
+    provider_continuation_capability: ProviderContinuationCapability,
+    session_config: aster::agents::types::SessionConfig,
+    cancel_token: CancellationToken,
+    request_tool_policy: &RequestToolPolicy,
+) -> Result<(), ReplyAttemptError> {
+    let execution = stream_reply_once(
+        agent,
+        app,
         &request.event_name,
-        &workspace.settings,
+        build_runtime_user_message(&request.message, request.images.as_deref()),
+        Some(Path::new(workspace_root)),
+        session_config,
+        cancel_token,
+        request_tool_policy,
+        {
+            let run_observation = run_observation.clone();
+            let app = app.clone();
+            let event_name = request.event_name.clone();
+            let timeline_recorder = timeline_recorder.clone();
+            move |event| {
+                record_runtime_stream_event(
+                    &run_observation,
+                    &app,
+                    &event_name,
+                    &timeline_recorder,
+                    workspace_root,
+                    request_metadata,
+                    provider_continuation_capability,
+                    event,
+                );
+            }
+        },
     )
     .await?;
-    let effective_provider_config = state.get_provider_config().await;
-    let provider_routing_snapshot =
-        effective_provider_config
-            .as_ref()
-            .map(|config| TurnProviderRoutingSnapshot {
-                provider_name: config.provider_name.clone(),
-                provider_selector: config.provider_selector.clone(),
-                model_name: config.model_name.clone(),
-                credential_uuid: config.credential_uuid.clone(),
-                configured_from_request: request.provider_config.is_some(),
-                used_inline_api_key: request
-                    .provider_config
-                    .as_ref()
-                    .and_then(|config| config.api_key.as_ref())
-                    .is_some(),
-            });
-    turn_input_builder.set_provider_routing(provider_routing_snapshot.clone());
-    let provider_continuation_capability = effective_provider_config
-        .as_ref()
-        .map(|config| config.provider_continuation_capability())
-        .unwrap_or(ProviderContinuationCapability::HistoryReplayOnly);
-    let runtime_memory_config = runtime_config.memory.clone();
-    let configured_provider_continuation_state = effective_provider_config
-        .as_ref()
-        .map(|config| config.provider_continuation_state())
-        .unwrap_or_else(ProviderContinuationState::history_replay_only);
-    let restored_provider_continuation_state = load_previous_provider_continuation_state(
-        db,
-        session_id,
-        provider_routing_snapshot.as_ref(),
-        provider_continuation_capability,
-    );
-    let provider_continuation_state = if matches!(
-        restored_provider_continuation_state,
-        ProviderContinuationState::HistoryReplayOnly
-    ) {
-        configured_provider_continuation_state
-    } else {
-        tracing::info!(
-            "[AsterAgent] 恢复上一条 terminal run 的 provider continuation: session_id={}, kind={}",
-            session_id,
-            restored_provider_continuation_state.kind()
-        );
-        restored_provider_continuation_state
-    };
-    turn_input_builder
-        .set_provider_continuation_capability(provider_continuation_capability)
-        .set_provider_continuation(provider_continuation_state);
 
-    let sandbox_outcome = apply_workspace_sandbox_permissions(
-        state,
-        config_manager,
-        db,
-        api_key_provider_service,
-        logs,
-        mcp_manager,
-        automation_state,
+    finalize_runtime_stream_success(
         app,
+        db,
+        &request.event_name,
+        timeline_recorder,
+        run_observation,
+        runtime_memory_config,
         session_id,
-        request.metadata.as_ref(),
-        &workspace_root,
-        runtime_chat_mode,
-        requested_strategy,
+        &request.message,
+        workspace_root,
+        workspace_id,
+        thread_id,
+        turn_id,
+        execution_profile,
+        request_metadata,
+        &execution,
+    );
+
+    Ok(())
+}
+
+async fn remove_code_execution_extension_if_added(
+    agent: &Agent,
+    added_code_execution: &mut bool,
+    warning_message: &str,
+) {
+    if !*added_code_execution {
+        return;
+    }
+
+    if let Err(error) = agent.remove_extension(CODE_EXECUTION_EXTENSION_NAME).await {
+        tracing::warn!("[AsterAgent] {}: {}", warning_message, error);
+    }
+    *added_code_execution = false;
+}
+
+async fn execute_runtime_stream_with_strategy<F>(
+    agent: &Agent,
+    app: &AppHandle,
+    db: &DbConnection,
+    request: &AsterChatRequest,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    run_observation: &Arc<Mutex<ChatRunObservation>>,
+    runtime_memory_config: &lime_core::config::MemoryConfig,
+    session_id: &str,
+    workspace_root: &str,
+    workspace_id: &str,
+    thread_id: &str,
+    turn_id: &str,
+    execution_profile: TurnExecutionProfile,
+    request_metadata: Option<&serde_json::Value>,
+    provider_continuation_capability: ProviderContinuationCapability,
+    cancel_token: CancellationToken,
+    request_tool_policy: &RequestToolPolicy,
+    effective_strategy: AsterExecutionStrategy,
+    build_session_config: F,
+) -> Result<(), String>
+where
+    F: Fn() -> aster::agents::types::SessionConfig,
+{
+    let mut added_code_execution = false;
+    if effective_strategy == AsterExecutionStrategy::CodeOrchestrated {
+        added_code_execution = ensure_code_execution_extension_enabled(agent).await?;
+    }
+
+    let primary_result = execute_runtime_stream_attempt(
+        agent,
+        app,
+        db,
+        request,
+        timeline_recorder,
+        run_observation,
+        runtime_memory_config,
+        session_id,
+        workspace_root,
+        workspace_id,
+        thread_id,
+        turn_id,
+        execution_profile,
+        request_metadata,
+        provider_continuation_capability,
+        build_session_config(),
+        cancel_token.clone(),
+        request_tool_policy,
     )
-    .await
-    .map_err(|e| format!("注入 workspace 安全策略失败: {e}"))?;
+    .await;
 
-    match sandbox_outcome {
-        WorkspaceSandboxApplyOutcome::Applied { sandbox_type } => {
-            tracing::info!(
-                "[AsterAgent] 已启用 workspace 本地 sandbox: root={}, type={}",
-                workspace_root,
-                sandbox_type
-            );
-        }
-        WorkspaceSandboxApplyOutcome::DisabledByConfig => {
-            tracing::info!(
-                "[AsterAgent] workspace 本地 sandbox 已关闭，继续使用普通执行模式: root={}",
-                workspace_root
-            );
-        }
-        WorkspaceSandboxApplyOutcome::UnavailableFallback {
-            warning_message,
-            notify_user,
-        } => {
-            tracing::warn!(
-                "[AsterAgent] workspace 本地 sandbox 不可用，已降级为普通执行: root={}, warning={}",
-                workspace_root,
-                warning_message
-            );
-            if notify_user {
-                let warning_event = RuntimeAgentEvent::Warning {
-                    code: Some(WORKSPACE_SANDBOX_FALLBACK_WARNING_CODE.to_string()),
-                    message: warning_message,
-                };
-                if let Err(e) = app.emit(&request.event_name, &warning_event) {
-                    tracing::error!("[AsterAgent] 发送 sandbox 降级提醒失败: {}", e);
-                }
-            }
-        }
-    }
-
-    let tracker = ExecutionTracker::new(db.clone());
-    let cancel_token = state.create_cancel_token(session_id).await;
-    let auto_continue_metadata = auto_continue_config.clone();
-    let request_metadata = request.metadata.clone();
-    sync_browser_assist_runtime_hint(session_id, request_metadata.as_ref()).await;
-    let service_skill_preload =
-        preload_service_skill_launch_execution(db, request_metadata.as_ref())
-            .await
-            .map_err(|error| format!("站点技能预执行失败: {error}"))?;
-    let system_prompt = merge_system_prompt_with_service_skill_launch_preload(
-        system_prompt,
-        service_skill_preload.as_ref(),
-    );
-    turn_input_builder.apply_prompt_stage(
-        TurnPromptAugmentationStageKind::ServiceSkillLaunchPreload,
-        system_prompt.clone(),
-    );
-    let model_skill_tool_enabled = should_enable_model_skill_tool(request_metadata.as_ref());
-    let run_observation = Arc::new(Mutex::new(ChatRunObservation::default()));
-    let run_observation_for_finalize = run_observation.clone();
-
-    let agent_arc = state.get_agent_arc();
-    let runtime_snapshot = {
-        let guard = agent_arc.read().await;
-        let agent = guard.as_ref().ok_or("Agent not initialized")?;
-        match agent.runtime_snapshot(session_id).await {
-            Ok(snapshot) => Some(snapshot),
-            Err(error) => {
-                tracing::warn!(
-                    "[AsterAgent] 提交 turn 前读取 runtime snapshot 失败: session_id={}, error={}",
-                    session_id,
-                    error
-                );
-                None
-            }
-        }
-    };
-    let runtime_projection_snapshot =
-        RuntimeProjectionSnapshot::from_snapshot(session_id, runtime_snapshot.as_ref());
-    tracing::info!(
-        "[AsterAgent] runtime_projection_snapshot={}",
-        serde_json::to_string(&runtime_projection_snapshot).unwrap_or_else(|_| "{}".to_string())
-    );
-    let resolved_thread_id = runtime_projection_snapshot
-        .primary_thread_id()
-        .map(str::to_string)
-        .unwrap_or_else(|| session_id.to_string());
-    let turn_state = TurnState::new(
-        session_id,
-        workspace_id.as_str(),
-        resolved_thread_id.clone(),
-        resolved_turn_id.clone(),
-        requested_strategy.as_db_value(),
-        effective_strategy.as_db_value(),
-        TurnRequestToolPolicySnapshot::from(&request_tool_policy),
-        include_context_trace,
-        runtime_chat_mode_label(runtime_chat_mode),
-    );
-    tracing::info!(
-        "[AsterAgent] turn_state={}",
-        serde_json::to_string(&turn_state).unwrap_or_else(|_| "{}".to_string())
-    );
-    turn_input_builder
-        .set_thread_id(turn_state.thread_id.clone())
-        .set_turn_id(turn_state.turn_id.clone());
-    let turn_input_envelope = turn_input_builder.build();
-    let turn_input_diagnostics = turn_input_envelope.diagnostics_snapshot();
-    tracing::info!(
-        "[AsterAgent] turn_input_envelope={}",
-        serde_json::to_string(&turn_input_diagnostics).unwrap_or_else(|_| "{}".to_string())
-    );
-
-    let mut run_start_metadata = build_chat_run_metadata_base(
-        &request,
-        workspace_id.as_str(),
-        effective_strategy,
-        &request_tool_policy,
-        auto_continue_enabled,
-        auto_continue_metadata.as_ref(),
-        session_recent_preferences.as_ref(),
-    );
-    if let Ok(session_state_value) = serde_json::to_value(&session_state_snapshot) {
-        run_start_metadata.insert("session_state".to_string(), session_state_value);
-    }
-    if let Ok(runtime_projection_value) = serde_json::to_value(&runtime_projection_snapshot) {
-        run_start_metadata.insert("runtime_projection".to_string(), runtime_projection_value);
-    }
-    if let Ok(turn_state_value) = serde_json::to_value(&turn_state) {
-        run_start_metadata.insert("turn_state".to_string(), turn_state_value);
-    }
-    if let Ok(turn_input_value) = serde_json::to_value(&turn_input_diagnostics) {
-        run_start_metadata.insert("turn_input".to_string(), turn_input_value);
-    }
-    if let Some(preload) = service_skill_preload.as_ref() {
-        run_start_metadata.insert(
-            "service_skill_launch_preload".to_string(),
-            serde_json::json!({
-                "executed": true,
-                "adapter_name": preload.request.adapter_name,
-                "ok": preload.result.ok,
-                "error_code": preload.result.error_code,
-                "saved_content_id": preload
-                    .result
-                    .saved_content
-                    .as_ref()
-                    .map(|content| content.content_id.clone()),
-            }),
-        );
-    }
-    let run_start_metadata_for_finalize = run_start_metadata.clone();
-    let timeline_recorder = Arc::new(Mutex::new(AgentTimelineRecorder::create(
-        db.clone(),
-        turn_state.thread_id.clone(),
-        turn_state.turn_id.clone(),
-        request.message.clone(),
-    )?));
-    let workspace_settings = workspace.settings.clone();
-    let runtime_status_session_config = {
-        let mut session_config_builder = SessionConfigBuilder::new(session_id)
-            .thread_id(turn_state.thread_id.clone())
-            .turn_id(turn_state.turn_id.clone());
-        let turn_context = merge_turn_context_with_workspace_auto_compaction(
-            merge_turn_context_with_artifact_output_schema(
-                turn_input_envelope.turn_context_override(),
-                request_metadata.as_ref(),
-            ),
-            &workspace_settings,
-        );
-        if let Some(turn_context) = turn_context {
-            session_config_builder = session_config_builder.turn_context(turn_context);
-        }
-        session_config_builder.build()
-    };
-
-    {
-        let guard = agent_arc.read().await;
-        let agent = guard.as_ref().ok_or("Agent not initialized")?;
-        if let Err(error) = agent
-            .ensure_runtime_turn_initialized(
-                &runtime_status_session_config,
-                Some(request.message.clone()),
-            )
-            .await
+    let run_result = match primary_result {
+        Ok(()) => Ok(()),
+        Err(primary_error)
+            if effective_strategy == AsterExecutionStrategy::CodeOrchestrated
+                && should_fallback_to_react_from_code_orchestrated(&primary_error) =>
         {
             tracing::warn!(
-                "[AsterAgent] 初始化 runtime turn 失败，后续降级继续: {}",
-                error
+                "[AsterAgent] 编排模式执行失败，自动降级到 ReAct: {}",
+                primary_error.message
             );
+            remove_code_execution_extension_if_added(
+                agent,
+                &mut added_code_execution,
+                "降级前移除 code_execution 扩展失败",
+            )
+            .await;
+            execute_runtime_stream_attempt(
+                agent,
+                app,
+                db,
+                request,
+                timeline_recorder,
+                run_observation,
+                runtime_memory_config,
+                session_id,
+                workspace_root,
+                workspace_id,
+                thread_id,
+                turn_id,
+                execution_profile,
+                request_metadata,
+                provider_continuation_capability,
+                build_session_config(),
+                cancel_token,
+                request_tool_policy,
+            )
+            .await
+            .map_err(|fallback_err| fallback_err.message)
         }
+        Err(primary_error) => Err(primary_error.message),
+    };
+
+    remove_code_execution_extension_if_added(
+        agent,
+        &mut added_code_execution,
+        "移除 code_execution 扩展失败，后续会话可能继续保留编排模式",
+    )
+    .await;
+
+    run_result
+}
+
+async fn prepare_runtime_turn_prelude(
+    agent: &Agent,
+    app: &AppHandle,
+    request: &AsterChatRequest,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    workspace_root: &str,
+    runtime_status_session_config: &aster::agents::types::SessionConfig,
+    effective_strategy: AsterExecutionStrategy,
+    request_tool_policy: &RequestToolPolicy,
+    model_name: Option<&str>,
+    session_recent_preferences: Option<&lime_agent::SessionExecutionRuntimePreferences>,
+    service_skill_preload: Option<&ServiceSkillLaunchPreloadExecution>,
+) -> Result<(), String> {
+    if let Err(error) = agent
+        .ensure_runtime_turn_initialized(
+            runtime_status_session_config,
+            Some(request.message.clone()),
+        )
+        .await
+    {
+        tracing::warn!(
+            "[AsterAgent] 初始化 runtime turn 失败，后续降级继续: {}",
+            error
+        );
     }
 
-    // 获取 Agent Arc 并保持 guard 在整个流处理期间存活
-    let guard = agent_arc.read().await;
-    let agent = guard.as_ref().ok_or("Agent not initialized")?;
-
     let (initial_runtime_status, decided_runtime_status) = build_turn_runtime_statuses(
-        &request,
+        request,
         effective_strategy,
-        &request_tool_policy,
-        request
-            .provider_config
-            .as_ref()
-            .map(|config| config.model_name.as_str()),
-        session_recent_preferences.as_ref(),
+        request_tool_policy,
+        model_name,
+        session_recent_preferences,
     )
     .await?;
     for status in [initial_runtime_status, decided_runtime_status] {
@@ -1646,313 +3457,154 @@ async fn execute_aster_chat_request(
             agent,
             app,
             &request.event_name,
-            &timeline_recorder,
-            workspace_root.as_str(),
-            &runtime_status_session_config,
+            timeline_recorder,
+            workspace_root,
+            runtime_status_session_config,
             status,
         )
         .await;
     }
-    if let Some(preload) = service_skill_preload.as_ref() {
+
+    if let Some(preload) = service_skill_preload {
         emit_service_skill_preload_runtime_events(
             app,
             &request.event_name,
-            &timeline_recorder,
-            workspace_root.as_str(),
+            timeline_recorder,
+            workspace_root,
             preload,
         );
     }
-    let resolved_thread_id_for_session = turn_state.thread_id.clone();
-    let resolved_turn_id_for_session = turn_state.turn_id.clone();
-    let turn_input_envelope_for_session = turn_input_envelope.clone();
-    let request_metadata_for_session = request_metadata.clone();
 
-    let build_session_config = || {
-        let mut session_config_builder = SessionConfigBuilder::new(session_id)
-            .thread_id(resolved_thread_id_for_session.clone())
-            .turn_id(resolved_turn_id_for_session.clone());
-        if let Some(prompt) = turn_input_envelope_for_session.system_prompt() {
-            session_config_builder = session_config_builder.system_prompt(prompt.to_string());
-        }
-        let turn_context = merge_turn_context_with_workspace_auto_compaction(
-            merge_turn_context_with_artifact_output_schema(
-                turn_input_envelope_for_session.turn_context_override(),
-                request_metadata_for_session.as_ref(),
-            ),
-            &workspace_settings,
-        );
-        if let Some(turn_context) = turn_context {
-            session_config_builder = session_config_builder.turn_context(turn_context);
-        }
-        session_config_builder = session_config_builder
-            .include_context_trace(turn_input_envelope_for_session.include_context_trace());
-        session_config_builder.build()
-    };
+    Ok(())
+}
 
-    lime_agent::tools::set_skill_tool_session_access(session_id, model_skill_tool_enabled);
-    let final_result = tracker
-        .with_run_custom(
-            RunSource::Chat,
-            Some("agent_runtime_submit_turn".to_string()),
-            Some(session_id.to_string()),
-            Some(serde_json::Value::Object(run_start_metadata.clone())),
-            async {
-                let mut added_code_execution = false;
-                if effective_strategy == AsterExecutionStrategy::CodeOrchestrated {
-                    added_code_execution = ensure_code_execution_extension_enabled(agent).await?;
-                }
+async fn with_runtime_turn_session_scope<F, Fut>(
+    state: &AsterAgentState,
+    session_id: &str,
+    skill_tool_access_enabled: bool,
+    run: F,
+) -> Result<(), String>
+where
+    F: FnOnce(CancellationToken) -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
+    let cancel_token = state.create_cancel_token(session_id).await;
+    lime_agent::tools::set_skill_tool_session_access(session_id, skill_tool_access_enabled);
 
-                let primary_result = stream_reply_once(
-                    agent,
-                    app,
-                    &request.event_name,
-                    build_runtime_user_message(&request.message, request.images.as_deref()),
-                    Some(Path::new(&workspace_root)),
-                    build_session_config(),
-                    cancel_token.clone(),
-                    &request_tool_policy,
-                    {
-                        let run_observation = run_observation.clone();
-                        let app = app.clone();
-                        let event_name = request.event_name.clone();
-                        let timeline_recorder = timeline_recorder.clone();
-                        let workspace_root = workspace_root.clone();
-                        let request_metadata = request_metadata.clone();
-                        let provider_continuation_capability = provider_continuation_capability;
-                        move |event| {
-                            let mut observation = match run_observation.lock() {
-                                Ok(guard) => guard,
-                                Err(error) => {
-                                    tracing::warn!(
-                                        "[AsterAgent] run observation lock poisoned，继续复用内部状态"
-                                    );
-                                    error.into_inner()
-                                }
-                            };
-                            observation.record_event(
-                                event,
-                                workspace_root.as_str(),
-                                request_metadata.as_ref(),
-                                provider_continuation_capability,
-                            );
-                            let mut recorder = match timeline_recorder.lock() {
-                                Ok(guard) => guard,
-                                Err(error) => error.into_inner(),
-                            };
-                            if let Err(error) = recorder.record_runtime_event(
-                                &app,
-                                &event_name,
-                                event,
-                                workspace_root.as_str(),
-                            ) {
-                                tracing::warn!(
-                                    "[AsterAgent] 记录时间线事件失败（已降级继续）: {}",
-                                    error
-                                );
-                            }
-                        }
-                    },
-                )
-                .await;
+    let result = run(cancel_token).await;
 
-                let run_result: Result<(), String> = match primary_result {
-                    Ok(execution) => {
-                        maybe_persist_artifact_document_after_stream(
-                            &app,
-                            db,
-                            &request.event_name,
-                            &timeline_recorder,
-                            &run_observation,
-                            workspace_root.as_str(),
-                            workspace_id.as_str(),
-                            turn_state.thread_id.as_str(),
-                            turn_state.turn_id.as_str(),
-                            request_metadata.as_ref(),
-                            execution.text_output.as_str(),
-                        );
-                        spawn_runtime_memory_capture_task(
-                            &app,
-                            db,
-                            runtime_memory_config.clone(),
-                            session_id,
-                            &request.message,
-                            execution.text_output.as_str(),
-                        );
-                        Ok(())
-                    }
-                    Err(primary_error)
-                        if effective_strategy == AsterExecutionStrategy::CodeOrchestrated
-                            && should_fallback_to_react_from_code_orchestrated(&primary_error) =>
-                    {
-                        tracing::warn!(
-                            "[AsterAgent] 编排模式执行失败，自动降级到 ReAct: {}",
-                            primary_error.message
-                        );
-                        if added_code_execution {
-                            if let Err(e) =
-                                agent.remove_extension(CODE_EXECUTION_EXTENSION_NAME).await
-                            {
-                                tracing::warn!(
-                                    "[AsterAgent] 降级前移除 code_execution 扩展失败: {}",
-                                    e
-                                );
-                            }
-                            added_code_execution = false;
-                        }
-                        stream_reply_once(
-                            agent,
-                            &app,
-                            &request.event_name,
-                            build_runtime_user_message(
-                                &request.message,
-                                request.images.as_deref(),
-                            ),
-                            Some(Path::new(&workspace_root)),
-                            build_session_config(),
-                            cancel_token.clone(),
-                            &request_tool_policy,
-                            {
-                                let run_observation = run_observation.clone();
-                                let app = app.clone();
-                                let event_name = request.event_name.clone();
-                                let timeline_recorder = timeline_recorder.clone();
-                                let workspace_root = workspace_root.clone();
-                                let request_metadata = request_metadata.clone();
-                                let provider_continuation_capability =
-                                    provider_continuation_capability;
-                                move |event| {
-                                    let mut observation = match run_observation.lock() {
-                                        Ok(guard) => guard,
-                                        Err(error) => {
-                                            tracing::warn!(
-                                                "[AsterAgent] run observation lock poisoned，继续复用内部状态"
-                                            );
-                                            error.into_inner()
-                                        }
-                                    };
-                                    observation.record_event(
-                                        event,
-                                        workspace_root.as_str(),
-                                        request_metadata.as_ref(),
-                                        provider_continuation_capability,
-                                    );
-                                    let mut recorder = match timeline_recorder.lock() {
-                                        Ok(guard) => guard,
-                                        Err(error) => error.into_inner(),
-                                    };
-                                    if let Err(error) = recorder.record_runtime_event(
-                                        &app,
-                                        &event_name,
-                                        event,
-                                        workspace_root.as_str(),
-                                    ) {
-                                        tracing::warn!(
-                                            "[AsterAgent] 记录时间线事件失败（已降级继续）: {}",
-                                            error
-                                        );
-                                    }
-                                }
-                            },
-                        )
-                        .await
-                        .map(|execution| {
-                            maybe_persist_artifact_document_after_stream(
-                                &app,
-                                db,
-                                &request.event_name,
-                                &timeline_recorder,
-                                &run_observation,
-                                workspace_root.as_str(),
-                                workspace_id.as_str(),
-                                turn_state.thread_id.as_str(),
-                                turn_state.turn_id.as_str(),
-                                request_metadata.as_ref(),
-                                execution.text_output.as_str(),
-                            );
-                            spawn_runtime_memory_capture_task(
-                                &app,
-                                db,
-                                runtime_memory_config.clone(),
-                                session_id,
-                                &request.message,
-                                execution.text_output.as_str(),
-                            );
-                        })
-                        .map_err(|fallback_err| fallback_err.message)
-                    }
-                    Err(primary_error) => Err(primary_error.message),
-                };
-
-                if added_code_execution {
-                    if let Err(e) = agent.remove_extension(CODE_EXECUTION_EXTENSION_NAME).await {
-                        tracing::warn!(
-                            "[AsterAgent] 移除 code_execution 扩展失败，后续会话可能继续保留编排模式: {}",
-                            e
-                        );
-                    }
-                }
-
-                run_result
-            },
-            move |result| {
-                let observation = match run_observation_for_finalize.lock() {
-                    Ok(guard) => guard.clone(),
-                    Err(error) => {
-                        tracing::warn!(
-                            "[AsterAgent] finalize run metadata 时 observation lock 已 poisoned"
-                        );
-                        error.into_inner().clone()
-                    }
-                };
-                let metadata =
-                    build_chat_run_finish_metadata(&run_start_metadata_for_finalize, &observation);
-
-                match result {
-                    Ok(_) => RunFinishDecision {
-                        status: lime_core::database::dao::agent_run::AgentRunStatus::Success,
-                        error_code: None,
-                        error_message: None,
-                        metadata: Some(metadata),
-                    },
-                    Err(err) => RunFinishDecision {
-                        status: lime_core::database::dao::agent_run::AgentRunStatus::Error,
-                        error_code: Some("chat_stream_failed".to_string()),
-                        error_message: Some(err.clone()),
-                        metadata: Some(metadata),
-                    },
-                }
-            },
-        )
-        .await;
     lime_agent::tools::clear_skill_tool_session_access(session_id);
+    state.remove_cancel_token(session_id).await;
+    result
+}
 
-    match final_result {
+fn record_runtime_stream_event(
+    run_observation: &Arc<Mutex<ChatRunObservation>>,
+    app: &AppHandle,
+    event_name: &str,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    workspace_root: &str,
+    request_metadata: Option<&serde_json::Value>,
+    provider_continuation_capability: ProviderContinuationCapability,
+    event: &RuntimeAgentEvent,
+) {
+    let mut observation = match run_observation.lock() {
+        Ok(guard) => guard,
+        Err(error) => {
+            tracing::warn!("[AsterAgent] run observation lock poisoned，继续复用内部状态");
+            error.into_inner()
+        }
+    };
+    observation.record_event(
+        event,
+        workspace_root,
+        request_metadata,
+        provider_continuation_capability,
+    );
+    let mut recorder = match timeline_recorder.lock() {
+        Ok(guard) => guard,
+        Err(error) => error.into_inner(),
+    };
+    if let Err(error) = recorder.record_runtime_event(app, event_name, event, workspace_root) {
+        tracing::warn!("[AsterAgent] 记录时间线事件失败（已降级继续）: {}", error);
+    }
+}
+
+fn build_runtime_run_finish_decision(
+    result: &Result<(), String>,
+    run_start_metadata: &serde_json::Map<String, serde_json::Value>,
+    run_observation: &Arc<Mutex<ChatRunObservation>>,
+) -> RunFinishDecision {
+    let observation = match run_observation.lock() {
+        Ok(guard) => guard.clone(),
+        Err(error) => {
+            tracing::warn!("[AsterAgent] finalize run metadata 时 observation lock 已 poisoned");
+            error.into_inner().clone()
+        }
+    };
+    let metadata = build_chat_run_finish_metadata(run_start_metadata, &observation);
+
+    match result {
+        Ok(_) => RunFinishDecision {
+            status: lime_core::database::dao::agent_run::AgentRunStatus::Success,
+            error_code: None,
+            error_message: None,
+            metadata: Some(metadata),
+        },
+        Err(error) => RunFinishDecision {
+            status: lime_core::database::dao::agent_run::AgentRunStatus::Error,
+            error_code: Some("chat_stream_failed".to_string()),
+            error_message: Some(error.clone()),
+            metadata: Some(metadata),
+        },
+    }
+}
+
+async fn finalize_runtime_turn_result(
+    agent: &Agent,
+    app: &AppHandle,
+    db: &DbConnection,
+    event_name: &str,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    workspace_root: &str,
+    runtime_status_session_config: &aster::agents::types::SessionConfig,
+    session_id: &str,
+    result: Result<(), String>,
+) -> Result<(), String> {
+    complete_runtime_status_projection(
+        agent,
+        app,
+        event_name,
+        timeline_recorder,
+        workspace_root,
+        runtime_status_session_config,
+    )
+    .await;
+
+    let terminal_events = {
+        let mut recorder = match timeline_recorder.lock() {
+            Ok(guard) => guard,
+            Err(error) => error.into_inner(),
+        };
+        match result.as_ref() {
+            Ok(()) => recorder.complete_turn_success(),
+            Err(error) => recorder.fail_turn(error),
+        }
+    };
+    if let Err(error) = &terminal_events {
+        let message = match result.as_ref() {
+            Ok(()) => "完成 turn 时间线失败",
+            Err(_) => "记录失败 turn 时间线失败",
+        };
+        tracing::warn!("[AsterAgent] {}（已降级继续）: {}", message, error);
+    }
+    if let Ok(events) = terminal_events {
+        emit_runtime_events(app, event_name, events);
+    }
+
+    match result {
         Ok(()) => {
-            complete_runtime_status_projection(
-                agent,
-                app,
-                &request.event_name,
-                &timeline_recorder,
-                workspace_root.as_str(),
-                &runtime_status_session_config,
-            )
-            .await;
-            let terminal_events = {
-                let mut recorder = match timeline_recorder.lock() {
-                    Ok(guard) => guard,
-                    Err(error) => error.into_inner(),
-                };
-                recorder.complete_turn_success()
-            };
-            {
-                if let Err(error) = &terminal_events {
-                    tracing::warn!("[AsterAgent] 完成 turn 时间线失败（已降级继续）: {}", error);
-                }
-            }
-            if let Ok(events) = terminal_events {
-                emit_runtime_events(app, &request.event_name, events);
-            }
-            let done_event = resolve_runtime_final_done_event(session_id).await;
+            let done_event = resolve_runtime_final_done_event(session_id, Some(db)).await;
             if let RuntimeAgentEvent::FinalDone {
                 usage: Some(ref usage),
             } = done_event
@@ -1964,53 +3616,54 @@ async fn execute_aster_chat_request(
                     );
                 }
             }
-            if let Err(e) = app.emit(&request.event_name, &done_event) {
-                tracing::error!("[AsterAgent] 发送完成事件失败: {}", e);
+            if let Err(error) = app.emit(event_name, &done_event) {
+                tracing::error!("[AsterAgent] 发送完成事件失败: {}", error);
             }
             emit_subagent_status_changed_events(app, session_id).await;
+            Ok(())
         }
-        Err(e) => {
-            complete_runtime_status_projection(
-                agent,
-                app,
-                &request.event_name,
-                &timeline_recorder,
-                workspace_root.as_str(),
-                &runtime_status_session_config,
-            )
-            .await;
-            let terminal_events = {
-                let mut recorder = match timeline_recorder.lock() {
-                    Ok(guard) => guard,
-                    Err(error) => error.into_inner(),
-                };
-                recorder.fail_turn(&e)
+        Err(error) => {
+            let error_event = RuntimeAgentEvent::Error {
+                message: error.clone(),
             };
-            {
-                if let Err(timeline_error) = &terminal_events {
-                    tracing::warn!(
-                        "[AsterAgent] 记录失败 turn 时间线失败（已降级继续）: {}",
-                        timeline_error
-                    );
-                }
-            }
-            if let Ok(events) = terminal_events {
-                emit_runtime_events(app, &request.event_name, events);
-            }
-            let error_event = RuntimeAgentEvent::Error { message: e.clone() };
-            if let Err(emit_err) = app.emit(&request.event_name, &error_event) {
-                tracing::error!("[AsterAgent] 发送错误事件失败: {}", emit_err);
+            if let Err(emit_error) = app.emit(event_name, &error_event) {
+                tracing::error!("[AsterAgent] 发送错误事件失败: {}", emit_error);
             }
             emit_subagent_status_changed_events(app, session_id).await;
-            state.remove_cancel_token(session_id).await;
-            return Err(e);
+            Err(error)
         }
     }
+}
 
-    // 清理取消令牌
-    state.remove_cancel_token(session_id).await;
+async fn execute_aster_chat_request(
+    app: &AppHandle,
+    state: &AsterAgentState,
+    db: &DbConnection,
+    api_key_provider_service: &ApiKeyProviderServiceState,
+    logs: &LogState,
+    config_manager: &GlobalConfigManagerState,
+    mcp_manager: &McpManagerState,
+    automation_state: &AutomationServiceState,
+    request: AsterChatRequest,
+) -> Result<(), String> {
+    tracing::info!(
+        "[AsterAgent] 发送流式消息: session={}, event={}",
+        request.session_id,
+        request.event_name
+    );
 
-    Ok(())
+    execute_runtime_turn_pipeline(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+        request,
+    )
+    .await
 }
 
 fn build_queued_turn_preview(message: &str) -> String {
@@ -2059,16 +3712,78 @@ fn resolve_runtime_message_usage_from_session(
     }
 }
 
-async fn resolve_runtime_message_usage(session_id: &str) -> Option<lime_agent::AgentTokenUsage> {
-    let session = read_session(session_id, false, "读取会话 token 统计失败")
-        .await
-        .ok()?;
-    resolve_runtime_message_usage_from_session(&session)
+fn resolve_runtime_message_usage_from_persisted_values(
+    input_tokens: Option<i64>,
+    output_tokens: Option<i64>,
+    cached_input_tokens: Option<i64>,
+    cache_creation_input_tokens: Option<i64>,
+) -> Option<lime_agent::AgentTokenUsage> {
+    match (input_tokens, output_tokens) {
+        (Some(input_tokens), Some(output_tokens)) if input_tokens >= 0 && output_tokens >= 0 => {
+            Some(lime_agent::AgentTokenUsage {
+                input_tokens: input_tokens as u32,
+                output_tokens: output_tokens as u32,
+                cached_input_tokens: cached_input_tokens
+                    .filter(|value| *value >= 0)
+                    .map(|value| value as u32),
+                cache_creation_input_tokens: cache_creation_input_tokens
+                    .filter(|value| *value >= 0)
+                    .map(|value| value as u32),
+            })
+        }
+        _ => None,
+    }
 }
 
-async fn resolve_runtime_final_done_event(session_id: &str) -> RuntimeAgentEvent {
+fn resolve_runtime_message_usage_from_persisted_session(
+    db: &DbConnection,
+    session_id: &str,
+) -> Option<lime_agent::AgentTokenUsage> {
+    let conn = db.lock().ok()?;
+    let usage_row = conn
+        .query_row(
+            "SELECT input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens
+             FROM agent_sessions
+             WHERE id = ?1",
+            [session_id],
+            |row| {
+                Ok((
+                    row.get::<_, Option<i64>>(0)?,
+                    row.get::<_, Option<i64>>(1)?,
+                    row.get::<_, Option<i64>>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
+                ))
+            },
+        )
+        .ok()?;
+
+    resolve_runtime_message_usage_from_persisted_values(
+        usage_row.0,
+        usage_row.1,
+        usage_row.2,
+        usage_row.3,
+    )
+}
+
+async fn resolve_runtime_message_usage(
+    session_id: &str,
+    db: Option<&DbConnection>,
+) -> Option<lime_agent::AgentTokenUsage> {
+    if let Ok(session) = read_session(session_id, false, "读取会话 token 统计失败").await {
+        if let Some(usage) = resolve_runtime_message_usage_from_session(&session) {
+            return Some(usage);
+        }
+    }
+
+    db.and_then(|value| resolve_runtime_message_usage_from_persisted_session(value, session_id))
+}
+
+async fn resolve_runtime_final_done_event(
+    session_id: &str,
+    db: Option<&DbConnection>,
+) -> RuntimeAgentEvent {
     RuntimeAgentEvent::FinalDone {
-        usage: resolve_runtime_message_usage(session_id).await,
+        usage: resolve_runtime_message_usage(session_id, db).await,
     }
 }
 
@@ -2209,6 +3924,19 @@ fn emit_context_compaction_skip(app: &AppHandle, event_name: &str, message: &str
     }
 }
 
+fn build_runtime_compaction_session_config(
+    session_id: &str,
+    thread_id: &str,
+    turn_id: &str,
+) -> aster::agents::types::SessionConfig {
+    // 压缩控制回合只需要稳定 thread/turn 锚点来写时间线和 session metrics；
+    // 它不会走常规 turn prompt / tool / turn_context 组包链，避免再造第二份输入真相。
+    SessionConfigBuilder::new(session_id)
+        .thread_id(thread_id.to_string())
+        .turn_id(turn_id.to_string())
+        .build()
+}
+
 async fn should_auto_compact_runtime_session(
     provider: &dyn aster::providers::base::Provider,
     session: &aster::session::Session,
@@ -2335,10 +4063,11 @@ async fn compact_runtime_session_with_trigger(
         resolved_turn_id.clone(),
         "压缩上下文",
     )?));
-    let session_config = SessionConfigBuilder::new(&session_id)
-        .thread_id(resolved_thread_id)
-        .turn_id(resolved_turn_id)
-        .build();
+    let session_config = build_runtime_compaction_session_config(
+        &session_id,
+        &resolved_thread_id,
+        &resolved_turn_id,
+    );
 
     let final_result: Result<(), String> = {
         let guard = agent_arc.read().await;
@@ -2447,7 +4176,7 @@ async fn compact_runtime_session_with_trigger(
             if let Ok(events) = terminal_events {
                 emit_runtime_events(app, &event_name, events);
             }
-            let done_event = resolve_runtime_final_done_event(&session_id).await;
+            let done_event = resolve_runtime_final_done_event(&session_id, None).await;
             if let Err(error) = app.emit(&event_name, &done_event) {
                 tracing::error!("[AsterAgent] 发送压缩完成事件失败: {}", error);
             }
@@ -2920,6 +4649,7 @@ pub(crate) fn build_runtime_queue_executor() -> RuntimeQueueExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::runtime_test_support::shared_aster_runtime_test_root;
     use aster::conversation::message::Message;
     use aster::model::ModelConfig;
     use aster::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -2929,6 +4659,7 @@ mod tests {
         SessionType,
     };
     use async_trait::async_trait;
+    use chrono::Utc;
     use lime_core::database::schema::create_tables;
     use lime_services::aster_session_store::LimeSessionStore;
     use rmcp::model::Tool;
@@ -2948,8 +4679,7 @@ mod tests {
             let conn = Connection::open_in_memory().expect("创建内存数据库失败");
             create_tables(&conn).expect("初始化表结构失败");
 
-            let runtime_root =
-                std::env::temp_dir().join(format!("lime-runtime-turn-tests-{}", Uuid::new_v4()));
+            let runtime_root = shared_aster_runtime_test_root();
             fs::create_dir_all(&runtime_root).expect("创建 runtime 测试目录失败");
 
             let session_store = Arc::new(LimeSessionStore::new(Arc::new(Mutex::new(conn))));
@@ -2958,6 +4688,32 @@ mod tests {
                 .expect("初始化测试 session manager 失败");
         })
         .await;
+    }
+
+    fn build_runtime_turn_test_request(message: &str, metadata: Option<Value>) -> AsterChatRequest {
+        AsterChatRequest {
+            message: message.to_string(),
+            session_id: "session-test".to_string(),
+            event_name: "agent_stream".to_string(),
+            images: None,
+            provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
+            approval_policy: None,
+            sandbox_policy: None,
+            project_id: None,
+            workspace_id: "workspace-test".to_string(),
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt: None,
+            metadata,
+            turn_id: None,
+            queue_if_busy: None,
+            queued_turn_id: None,
+        }
     }
 
     #[derive(Clone)]
@@ -3029,6 +4785,199 @@ mod tests {
     }
 
     #[test]
+    fn resolve_turn_execution_profile_should_use_fast_chat_for_plain_general_message() {
+        let request = build_runtime_turn_test_request(
+            "你好",
+            Some(json!({
+                "harness": {
+                    "theme": "general",
+                    "chat_mode": "general",
+                    "session_mode": "general_workbench"
+                }
+            })),
+        );
+        let policy = lime_agent::resolve_request_tool_policy(Some(false), false);
+
+        assert_eq!(
+            resolve_turn_execution_profile(&request, RuntimeChatMode::General, &policy, false,),
+            TurnExecutionProfile::FastChat
+        );
+    }
+
+    #[test]
+    fn resolve_turn_execution_profile_should_keep_fast_chat_for_default_browser_assist_hint() {
+        let request = build_runtime_turn_test_request(
+            "你好",
+            Some(json!({
+                "harness": {
+                    "theme": "general",
+                    "chat_mode": "general",
+                    "browser_assist": {
+                        "enabled": true,
+                        "profile_key": "general_browser_assist",
+                        "auto_launch": true,
+                        "stream_mode": "both"
+                    }
+                }
+            })),
+        );
+        let policy = lime_agent::resolve_request_tool_policy(Some(false), false);
+
+        assert_eq!(
+            resolve_turn_execution_profile(&request, RuntimeChatMode::General, &policy, false,),
+            TurnExecutionProfile::FastChat
+        );
+    }
+
+    #[test]
+    fn resolve_turn_execution_profile_should_use_full_runtime_for_service_skill_launch() {
+        let request = build_runtime_turn_test_request(
+            "请帮我抓取站点内容",
+            Some(json!({
+                "harness": {
+                    "theme": "general",
+                    "chat_mode": "general",
+                    "service_skill_launch": {
+                        "adapter_name": "github/search"
+                    }
+                }
+            })),
+        );
+        let policy = lime_agent::resolve_request_tool_policy(Some(false), false);
+
+        assert_eq!(
+            resolve_turn_execution_profile(&request, RuntimeChatMode::General, &policy, false,),
+            TurnExecutionProfile::FullRuntime
+        );
+    }
+
+    #[test]
+    fn resolve_turn_execution_profile_should_use_full_runtime_for_image_skill_launch_without_model_skill_flag(
+    ) {
+        let request = build_runtime_turn_test_request(
+            "@配图 生成 一张春日咖啡馆插画",
+            Some(json!({
+                "harness": {
+                    "theme": "general",
+                    "chat_mode": "general",
+                    "image_skill_launch": {
+                        "image_task": {
+                            "mode": "generate",
+                            "prompt": "一张春日咖啡馆插画"
+                        }
+                    }
+                }
+            })),
+        );
+        let policy = lime_agent::resolve_request_tool_policy(Some(false), false);
+
+        assert_eq!(
+            resolve_turn_execution_profile(&request, RuntimeChatMode::General, &policy, false,),
+            TurnExecutionProfile::FullRuntime
+        );
+    }
+
+    #[test]
+    fn resolve_turn_execution_profile_should_use_full_runtime_for_explicit_web_search() {
+        let mut request = build_runtime_turn_test_request("帮我搜今天的新闻", None);
+        request.web_search = Some(true);
+        let policy = lime_agent::resolve_request_tool_policy(Some(true), false);
+
+        assert_eq!(
+            resolve_turn_execution_profile(&request, RuntimeChatMode::General, &policy, false,),
+            TurnExecutionProfile::FullRuntime
+        );
+    }
+
+    #[test]
+    fn resolve_fast_chat_tool_surface_mode_should_use_direct_answer_for_greeting() {
+        let request = build_runtime_turn_test_request("你好", None);
+        let policy = lime_agent::resolve_request_tool_policy(Some(false), false);
+
+        assert_eq!(
+            resolve_fast_chat_tool_surface_mode(&request, TurnExecutionProfile::FastChat, &policy,),
+            Some(FAST_CHAT_TOOL_SURFACE_DIRECT_ANSWER)
+        );
+    }
+
+    #[test]
+    fn resolve_fast_chat_tool_surface_mode_should_use_local_workspace_for_repo_analysis() {
+        let request = build_runtime_turn_test_request(
+            "请读取并分析项目 /Users/coso/Documents/dev/js/claudecode",
+            None,
+        );
+        let policy = lime_agent::resolve_request_tool_policy(Some(false), false);
+
+        assert_eq!(
+            resolve_fast_chat_tool_surface_mode(&request, TurnExecutionProfile::FastChat, &policy,),
+            Some(FAST_CHAT_TOOL_SURFACE_LOCAL_WORKSPACE)
+        );
+    }
+
+    #[test]
+    fn extract_explicit_local_focus_paths_from_message_should_keep_existing_absolute_paths() {
+        let temp_dir = tempfile::TempDir::new().expect("create temp dir");
+        let quoted_dir = temp_dir.path().join("quoted repo");
+        let plain_dir = temp_dir.path().join("plain-repo");
+        std::fs::create_dir_all(&quoted_dir).expect("create quoted dir");
+        std::fs::create_dir_all(&plain_dir).expect("create plain dir");
+
+        let message = format!(
+            "先看 \"{}\"，再对比 {}。",
+            quoted_dir.display(),
+            plain_dir.display()
+        );
+
+        let paths = extract_explicit_local_focus_paths_from_message(&message);
+        let quoted_expected = quoted_dir
+            .canonicalize()
+            .expect("canonicalize quoted dir")
+            .to_string_lossy()
+            .to_string();
+        let plain_expected = plain_dir
+            .canonicalize()
+            .expect("canonicalize plain dir")
+            .to_string_lossy()
+            .to_string();
+
+        assert!(paths.contains(&quoted_expected));
+        assert!(paths.contains(&plain_expected));
+    }
+
+    #[test]
+    fn merge_system_prompt_with_explicit_local_path_focus_should_append_focus_guidance() {
+        let temp_dir = tempfile::TempDir::new().expect("create temp dir");
+        let repo_dir = temp_dir.path().join("claudecode");
+        std::fs::create_dir_all(&repo_dir).expect("create repo dir");
+        let user_message = format!("请只分析 {}", repo_dir.display());
+
+        let merged = merge_system_prompt_with_explicit_local_path_focus(
+            Some("基础系统提示".to_string()),
+            &user_message,
+            "/tmp/lime/workspaces/default",
+        )
+        .expect("merged prompt");
+
+        assert!(merged.contains(TURN_LOCAL_PATH_FOCUS_PROMPT_MARKER));
+        assert!(merged.contains(&repo_dir.to_string_lossy().to_string()));
+        assert!(merged.contains("不要先扫描当前默认工作目录 /tmp/lime/workspaces/default"));
+    }
+
+    #[test]
+    fn merge_runtime_turn_tool_surface_metadata_should_inject_runtime_hint() {
+        let metadata = merge_runtime_turn_tool_surface_metadata(None, Some("direct_answer"))
+            .expect("should inject metadata");
+
+        assert_eq!(
+            metadata
+                .get(LIME_RUNTIME_METADATA_KEY)
+                .and_then(|value| value.get(LIME_RUNTIME_TOOL_SURFACE_KEY))
+                .and_then(serde_json::Value::as_str),
+            Some("direct_answer")
+        );
+    }
+
+    #[test]
     fn normalize_runtime_turn_request_metadata_should_enable_artifact_prompt_before_turn_build() {
         let mut request = AsterChatRequest {
             message: "请基于目标先生成一版演示提纲".to_string(),
@@ -3067,7 +5016,7 @@ mod tests {
         .expect("raw prompt");
         assert!(!raw_prompt.contains("【Artifact 交付策略】"));
 
-        normalize_runtime_turn_request_metadata(&mut request, None, None, None, None, None);
+        normalize_runtime_turn_request_metadata(&mut request, None, None, None, None, None, true);
 
         let normalized_metadata = request.metadata.as_ref().expect("normalized metadata");
         assert_eq!(
@@ -3289,6 +5238,7 @@ mod tests {
             None,
             None,
             Some("content-from-session"),
+            true,
         );
 
         let normalized_metadata = request.metadata.as_ref().expect("normalized metadata");
@@ -3356,6 +5306,7 @@ mod tests {
             None,
             None,
             Some("content-from-session"),
+            true,
         );
 
         let normalized_metadata = request.metadata.as_ref().expect("normalized metadata");
@@ -3419,6 +5370,7 @@ mod tests {
             Some("write_mode"),
             Some("社媒初稿"),
             Some("content-social-1"),
+            true,
         );
 
         let normalized_metadata = request.metadata.as_ref().expect("normalized metadata");
@@ -3668,7 +5620,7 @@ mod tests {
             .await
             .expect("写入 usage 失败");
 
-        let event = resolve_runtime_final_done_event(&session.id).await;
+        let event = resolve_runtime_final_done_event(&session.id, None).await;
         match event {
             RuntimeAgentEvent::FinalDone { usage } => {
                 assert_eq!(
@@ -3701,7 +5653,7 @@ mod tests {
         .await
         .expect("创建测试会话失败");
 
-        let event = resolve_runtime_final_done_event(&session.id).await;
+        let event = resolve_runtime_final_done_event(&session.id, None).await;
         match event {
             RuntimeAgentEvent::FinalDone { usage } => {
                 assert!(usage.is_none(), "未写入 usage 时应返回 None");
@@ -3712,6 +5664,58 @@ mod tests {
         SessionManager::delete_session(&session.id)
             .await
             .expect("清理测试会话失败");
+    }
+
+    #[tokio::test]
+    async fn resolve_runtime_final_done_event_should_fall_back_to_persisted_session_usage() {
+        ensure_runtime_turn_test_session_manager().await;
+
+        let conn = Connection::open_in_memory().expect("创建持久化回退数据库失败");
+        create_tables(&conn).expect("初始化持久化回退表结构失败");
+        let now = Utc::now().to_rfc3339();
+        let session_id = format!("persisted-usage-{}", Uuid::new_v4());
+        conn.execute(
+            "INSERT INTO agent_sessions (
+                id, model, system_prompt, title, created_at, updated_at, working_dir,
+                execution_strategy, session_type, user_set_name, extension_data_json,
+                input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            rusqlite::params![
+                session_id,
+                "glm-4.5",
+                Option::<String>::None,
+                "persisted usage",
+                now,
+                now,
+                ".",
+                "react",
+                "user",
+                false,
+                "{}",
+                321i64,
+                123i64,
+                222i64,
+                18i64
+            ],
+        )
+        .expect("写入持久化 usage 会话失败");
+        let db = Arc::new(Mutex::new(conn));
+
+        let event = resolve_runtime_final_done_event(&session_id, Some(&db)).await;
+        match event {
+            RuntimeAgentEvent::FinalDone { usage } => {
+                assert_eq!(
+                    usage.map(|value| (
+                        value.input_tokens,
+                        value.output_tokens,
+                        value.cached_input_tokens,
+                        value.cache_creation_input_tokens,
+                    )),
+                    Some((321, 123, Some(222), Some(18)))
+                );
+            }
+            other => panic!("收到意外事件: {:?}", other),
+        }
     }
 
     #[tokio::test]
@@ -3795,6 +5799,64 @@ mod tests {
     }
 
     #[test]
+    fn build_runtime_turn_context_snapshot_should_capture_final_turn_context_inputs() {
+        let metadata = json!({
+            "artifact": {
+                "artifact_mode": "draft",
+                "artifact_stage": "stage2",
+                "artifact_kind": "analysis"
+            },
+            "harness": {
+                "theme": "analysis"
+            }
+        });
+        let workspace_settings = WorkspaceSettings {
+            auto_compact: false,
+            ..WorkspaceSettings::default()
+        };
+
+        let snapshot = build_runtime_turn_context_snapshot(Some(&metadata), &workspace_settings);
+        let snapshot_metadata =
+            build_runtime_turn_context_metadata_value(&snapshot).expect("snapshot metadata");
+
+        assert_eq!(
+            snapshot.output_schema_source,
+            Some(aster::session::TurnOutputSchemaSource::Turn)
+        );
+        assert!(snapshot.output_schema.is_some());
+        assert_eq!(
+            snapshot_metadata
+                .get(LIME_RUNTIME_METADATA_KEY)
+                .and_then(|value| value.get(LIME_RUNTIME_AUTO_COMPACT_KEY))
+                .and_then(Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            snapshot_metadata
+                .get("harness")
+                .and_then(|value| value.get("theme"))
+                .and_then(Value::as_str),
+            Some("analysis")
+        );
+    }
+
+    #[test]
+    fn build_runtime_compaction_session_config_should_keep_minimal_control_turn_context() {
+        let session_config = build_runtime_compaction_session_config(
+            "session-compact",
+            "thread-compact",
+            "turn-compact",
+        );
+
+        assert_eq!(session_config.id, "session-compact");
+        assert_eq!(session_config.thread_id.as_deref(), Some("thread-compact"));
+        assert_eq!(session_config.turn_id.as_deref(), Some("turn-compact"));
+        assert_eq!(session_config.system_prompt, None);
+        assert_eq!(session_config.include_context_trace, None);
+        assert!(session_config.turn_context.is_none());
+    }
+
+    #[test]
     fn should_skip_artifact_document_autopersist_when_output_is_empty() {
         let observation = Arc::new(Mutex::new(ChatRunObservation::default()));
 
@@ -3825,6 +5887,44 @@ mod tests {
         assert!(!should_skip_artifact_document_autopersist(
             &observation,
             "<write_file path=\"content-posts/demo.md\">内容</write_file>"
+        ));
+    }
+
+    #[test]
+    fn should_skip_default_fast_chat_artifact_autopersist_for_plain_chat() {
+        assert!(should_skip_default_fast_chat_artifact_autopersist(
+            TurnExecutionProfile::FastChat,
+            Some(&json!({
+                "harness": {
+                    "theme": "general",
+                    "session_mode": "default"
+                }
+            })),
+        ));
+    }
+
+    #[test]
+    fn should_not_skip_default_fast_chat_artifact_autopersist_for_workbench_content() {
+        assert!(!should_skip_default_fast_chat_artifact_autopersist(
+            TurnExecutionProfile::FastChat,
+            Some(&json!({
+                "harness": {
+                    "theme": "general",
+                    "session_mode": "general_workbench",
+                    "content_id": "content-1"
+                }
+            })),
+        ));
+    }
+
+    #[test]
+    fn should_not_skip_default_fast_chat_artifact_autopersist_for_explicit_artifact_request() {
+        assert!(!should_skip_default_fast_chat_artifact_autopersist(
+            TurnExecutionProfile::FastChat,
+            Some(&json!({
+                "artifact_mode": "draft",
+                "artifact_stage": "stage2"
+            })),
         ));
     }
 }

@@ -31,6 +31,19 @@ function normalizeLineForMatch(value: string): string {
     .trim();
 }
 
+function isLocalWorkspaceBatchSummary(text: string): boolean {
+  const compact = normalizeTurnSummaryDisplayText(text).replace(/\s+/g, "");
+  if (!compact) {
+    return false;
+  }
+
+  return (
+    compact.includes("已完成一批本地分析") ||
+    (compact.includes("已完成这一批本地仓库的") &&
+      compact.includes("正在整理这一批结果并判断是否还需要继续取证"))
+  );
+}
+
 export function normalizeTurnSummaryDisplayText(text?: string | null): string {
   return (text || "").trim();
 }
@@ -45,6 +58,10 @@ export function extractTurnSummaryLines(text?: string | null): string[] {
 export function isInternalRoutingTurnSummaryText(
   text?: string | null,
 ): boolean {
+  if (isLocalWorkspaceBatchSummary(text || "")) {
+    return true;
+  }
+
   const lines = extractTurnSummaryLines(text);
   if (lines.length === 0) {
     return false;

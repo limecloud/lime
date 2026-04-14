@@ -271,6 +271,7 @@ pub enum AgentEvent {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AgentImageAttachment {
     pub data: String,
+    #[serde(alias = "mediaType")]
     pub media_type: String,
 }
 
@@ -410,6 +411,17 @@ mod tests {
                 turn_id: Some("turn-2".to_string()),
             }
         );
+    }
+
+    #[test]
+    fn agent_image_attachment_deserializes_media_type_alias() {
+        let attachment: AgentImageAttachment = serde_json::from_value(serde_json::json!({
+            "data": "aGVsbG8=",
+            "mediaType": "image/png"
+        }))
+        .expect("deserialize image attachment");
+
+        assert_eq!(attachment.media_type, "image/png");
     }
 
     #[test]

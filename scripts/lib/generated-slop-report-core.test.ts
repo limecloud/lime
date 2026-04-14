@@ -1456,6 +1456,116 @@ describe("generated-slop-report-core", () => {
     ).toBe("P1");
   });
 
+  it("应把旧 requestTelemetry:unlinked 样本折叠成 known_gap", () => {
+    const report = buildGeneratedSlopReport({
+      repoRoot: "/tmp/lime",
+      trendReport: {
+        sampleCount: 2,
+        delta: {
+          invalidCount: 0,
+          pendingRequestCaseCount: 0,
+          needsHumanReviewCount: 0,
+          reviewDecisionRecordedCount: 0,
+          observabilityGapCaseCount: 1,
+          currentObservabilityGapCaseCount: 1,
+          degradedObservabilityGapCaseCount: 0,
+          readyRate: 0,
+        },
+        signals: ["request telemetry 仍有旧样本待清理。"],
+        baseline: {
+          totals: {
+            needsHumanReviewCount: 0,
+            reviewDecisionRecordedCount: 0,
+            observabilityGapCaseCount: 0,
+            currentObservabilityGapCaseCount: 0,
+            degradedObservabilityGapCaseCount: 0,
+          },
+        },
+        latest: {
+          totals: {
+            needsHumanReviewCount: 0,
+            reviewDecisionRecordedCount: 0,
+            observabilityGapCaseCount: 1,
+            currentObservabilityGapCaseCount: 1,
+            degradedObservabilityGapCaseCount: 0,
+          },
+        },
+        classificationDeltas: {
+          failureModes: [],
+          suiteTags: [],
+          reviewDecisionStatuses: [],
+          reviewRiskLevels: [],
+          observabilitySignals: [
+            {
+              name: "requestTelemetry:unlinked",
+              baseline: {
+                caseCount: 0,
+                readyCount: 0,
+                invalidCount: 0,
+                pendingRequestCaseCount: 0,
+                needsHumanReviewCount: 0,
+              },
+              latest: {
+                caseCount: 1,
+                readyCount: 1,
+                invalidCount: 0,
+                pendingRequestCaseCount: 0,
+                needsHumanReviewCount: 0,
+              },
+              delta: {
+                caseCount: 1,
+                readyCount: 1,
+                invalidCount: 0,
+                pendingRequestCaseCount: 0,
+                needsHumanReviewCount: 0,
+              },
+            },
+          ],
+          observabilityVerificationOutcomes: [],
+          currentObservabilityVerificationOutcomes: [],
+          degradedObservabilityVerificationOutcomes: [],
+          currentRecoveredObservabilityVerificationOutcomes: [],
+        },
+      },
+      docFreshnessReport: {
+        summary: {
+          monitoredDocumentCount: 0,
+          existingDocumentCount: 0,
+          issueCount: 0,
+          missingDocumentCount: 0,
+          missingRequiredReferenceCount: 0,
+          brokenMarkdownLinkCount: 0,
+          brokenCodePathReferenceCount: 0,
+          deletedSurfaceReferenceCount: 0,
+        },
+        issues: [],
+      },
+      governanceReport: {
+        summary: {
+          compatibilityCount: 0,
+        },
+      },
+    });
+
+    expect(report.focus.observabilitySignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "requestTelemetry:known_gap",
+          signal: "requestTelemetry",
+          status: "known_gap",
+        }),
+      ]),
+    );
+    expect(report.recommendations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "observability-evidence-follow-up",
+          priority: "P1",
+        }),
+      ]),
+    );
+  });
+
   it("应拒绝 recommendation 回流旧 verification outcome 字段", () => {
     expect(() =>
       assertGeneratedSlopReportContract({

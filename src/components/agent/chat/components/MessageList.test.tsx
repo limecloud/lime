@@ -28,12 +28,14 @@ const mockFindConfiguredProviderBySelection = vi.fn(
 const mockTokenUsageDisplay = vi.fn(
   ({
     promptCacheNotice,
+    inline,
   }: {
     promptCacheNotice?: {
       label?: string;
     } | null;
+    inline?: boolean;
   }) => (
-    <div data-testid="token-usage-display">
+    <div data-testid="token-usage-display" data-inline={inline ? "yes" : "no"}>
       {promptCacheNotice?.label || "token-usage-display"}
     </div>
   ),
@@ -88,6 +90,9 @@ vi.mock("./MarkdownRenderer", () => ({
 const mockStreamingRenderer = vi.fn(
   ({
     content,
+    contentParts,
+    thinkingContent,
+    toolCalls,
     onOpenSavedSiteContent,
     suppressProcessFlow,
     showRuntimeStatusInline,
@@ -96,6 +101,9 @@ const mockStreamingRenderer = vi.fn(
     onQuoteContent,
   }: {
     content: string;
+    contentParts?: unknown[];
+    thinkingContent?: string;
+    toolCalls?: unknown[];
     renderA2UIInline?: boolean;
     suppressedActionRequestId?: string | null;
     suppressProcessFlow?: boolean;
@@ -111,6 +119,9 @@ const mockStreamingRenderer = vi.fn(
   }) => (
     <div
       data-testid="streaming-renderer"
+      data-content-parts={contentParts?.length ?? 0}
+      data-tool-calls={toolCalls?.length ?? 0}
+      data-has-thinking-content={thinkingContent ? "yes" : "no"}
       data-has-open-saved-site-content={onOpenSavedSiteContent ? "yes" : "no"}
       data-suppress-process-flow={suppressProcessFlow ? "yes" : "no"}
       data-show-runtime-status-inline={showRuntimeStatusInline ? "yes" : "no"}
@@ -158,6 +169,7 @@ vi.mock("./TokenUsageDisplay", () => ({
     promptCacheNotice?: {
       label?: string;
     } | null;
+    inline?: boolean;
   }) => mockTokenUsageDisplay(props),
 }));
 
@@ -315,6 +327,31 @@ describe("MessageList", () => {
     );
   });
 
+  it("assistant 消息带 contextTrace 时不应在聊天主线渲染上下文轨迹块", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-context-trace",
+        role: "assistant",
+        content: "我已经处理完成。",
+        timestamp: now,
+        contextTrace: [
+          {
+            stage: "memory_injection",
+            detail: "query_len=8,injected=2",
+          },
+        ],
+      },
+    ];
+
+    const container = render(messages);
+
+    expect(container.textContent).toContain("我已经处理完成。");
+    expect(container.textContent).not.toContain("上下文轨迹");
+    expect(container.textContent).not.toContain("memory_injection");
+    expect(container.textContent).not.toContain("query_len=8,injected=2");
+  });
+
   it("anthropic-compatible 自定义 Provider 无缓存命中时应透传自动缓存提示", () => {
     const now = new Date();
     const messages: Message[] = [
@@ -415,6 +452,273 @@ describe("MessageList", () => {
       expect.objectContaining({
         promptCacheNotice: undefined,
       }),
+    );
+  });
+
+  it("复杂任务完成后应把运行状态、耗时与 token 结算收口到最后一条 assistant 消息尾部", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-user-task-card",
+        role: "user",
+        content: "分析 claudecode 项目为什么没有 task 视图",
+        timestamp: now,
+      },
+      {
+        id: "msg-assistant-task-card",
+        role: "assistant",
+        content: "已经定位到主聊天区没有任务投影层。",
+        timestamp: now,
+        usage: {
+          input_tokens: 1_800,
+          output_tokens: 640,
+          cached_input_tokens: 0,
+        },
+      },
+    ];
+
+    mockUseConfiguredProviders.mockImplementation(() => ({
+      providers: [
+        {
+          key: "custom-provider-id",
+          label: "GLM Anthropic",
+          registryId: "custom-provider-id",
+          type: "anthropic-compatible",
+          providerId: "custom-provider-id",
+        },
+      ],
+      loading: false,
+    }));
+    mockFindConfiguredProviderBySelection.mockImplementation(
+      (
+        providers: MockConfiguredProvider[],
+        selection?: string | null,
+      ): MockConfiguredProvider | null =>
+        Array.isArray(providers)
+          ? (providers.find((provider) => provider.key === selection) ?? null)
+          : null,
+    );
+
+    const container = render(messages, {
+      providerType: "custom-provider-id",
+      turns: [
+        {
+          id: "turn-task-card",
+          thread_id: "thread-task-card",
+          prompt_text: "分析 claudecode 项目为什么没有 task 视图",
+          status: "completed",
+          started_at: "2026-04-14T10:00:00Z",
+          completed_at: "2026-04-14T10:00:06Z",
+          created_at: "2026-04-14T10:00:00Z",
+          updated_at: "2026-04-14T10:00:06Z",
+        },
+      ],
+      currentTurnId: "turn-task-card",
+      threadRead: {
+        thread_id: "thread-task-card",
+        status: "completed",
+      },
+      threadItems: [
+        {
+          id: "tool-read-task-card",
+          type: "tool_call",
+          thread_id: "thread-task-card",
+          turn_id: "turn-task-card",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-04-14T10:00:01Z",
+          completed_at: "2026-04-14T10:00:02Z",
+          updated_at: "2026-04-14T10:00:02Z",
+          tool_name: "Read",
+          arguments: { file_path: "/repo/src/main.tsx" },
+        },
+        {
+          id: "tool-list-task-card",
+          type: "command_execution",
+          thread_id: "thread-task-card",
+          turn_id: "turn-task-card",
+          sequence: 2,
+          status: "completed",
+          started_at: "2026-04-14T10:00:02Z",
+          completed_at: "2026-04-14T10:00:03Z",
+          updated_at: "2026-04-14T10:00:03Z",
+          command: "ls /repo/src",
+          cwd: "/repo",
+        },
+      ],
+      childSubagentSessions: [
+        {
+          id: "sub-task-card-1",
+          name: "子任务 1",
+          created_at: now.getTime(),
+          updated_at: now.getTime(),
+          session_type: "subagent",
+          runtime_status: "completed",
+        },
+      ],
+    });
+
+    expect(container.querySelector('[data-testid="agent-task-strip"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="assistant-message-meta-footer"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("已完成");
+    expect(container.textContent).toContain("00:06");
+    expect(container.textContent).toContain("工具 读 1 / 列 1");
+    expect(container.textContent).toContain("任务 0/1");
+    expect(container.textContent).toContain("输入 1.8K / 输出 640");
+    expect(container.textContent).toContain("Prompt Cache 未声明自动缓存");
+    expect(
+      container.querySelector('[data-testid="token-usage-display"]'),
+    ).toBeNull();
+  });
+
+  it("流式运行态不应再在消息底部重复渲染阶段 pill", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-runtime-footer",
+        role: "assistant",
+        content: "我先查看项目结构。",
+        timestamp: now,
+        isThinking: true,
+        runtimeStatus: {
+          phase: "context",
+          title: "正在整理相关信息",
+          detail: "已开始聚焦当前仓库。",
+          checkpoints: ["首批只读工具待执行"],
+        },
+      },
+    ];
+
+    const container = render(messages);
+
+    expect(
+      container.querySelector('[data-testid="message-runtime-status-pill"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="assistant-message-meta-footer"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("正在整理相关信息");
+  });
+
+  it("assistant 消息结算区应以内联模式承载 token usage", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-inline-usage",
+        role: "assistant",
+        content: "本轮已完成。",
+        timestamp: now,
+        usage: {
+          input_tokens: 1_200,
+          output_tokens: 300,
+          cached_input_tokens: 0,
+        },
+      },
+    ];
+
+    render(messages);
+
+    expect(mockTokenUsageDisplay).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inline: true,
+      }),
+    );
+  });
+
+  it("第二轮开始后，上一轮 assistant 的工具调用块不应被从正文投影中剥离", () => {
+    const firstTurnTime = new Date("2026-04-15T09:00:00.000Z");
+    const secondTurnTime = new Date("2026-04-15T09:00:10.000Z");
+    const completedToolCall = {
+      id: "tool-read-1",
+      name: "Read",
+      arguments: '{"file_path":"/repo/src/index.ts"}',
+      status: "completed" as const,
+      startTime: new Date("2026-04-15T09:00:01.000Z"),
+      endTime: new Date("2026-04-15T09:00:02.000Z"),
+      result: {
+        success: true,
+        output: "export const answer = 42;",
+      },
+    };
+    const messages: Message[] = [
+      {
+        id: "msg-user-first-turn",
+        role: "user",
+        content: "先分析项目结构",
+        timestamp: firstTurnTime,
+      },
+      {
+        id: "msg-assistant-first-turn",
+        role: "assistant",
+        content: "已经整理完第一轮分析。",
+        timestamp: new Date("2026-04-15T09:00:03.000Z"),
+        toolCalls: [completedToolCall],
+        contentParts: [
+          {
+            type: "tool_use",
+            toolCall: completedToolCall,
+          },
+          {
+            type: "text",
+            text: "已经整理完第一轮分析。",
+          },
+        ],
+      },
+      {
+        id: "msg-user-second-turn",
+        role: "user",
+        content: "继续追问第二轮",
+        timestamp: secondTurnTime,
+      },
+      {
+        id: "msg-assistant-second-turn",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-15T09:00:11.000Z"),
+        isThinking: true,
+        contentParts: [
+          {
+            type: "thinking",
+            text: "准备继续查看模块边界。",
+          },
+        ],
+        runtimeStatus: {
+          phase: "preparing",
+          title: "准备继续分析",
+          detail: "正在建立第二轮上下文。",
+          checkpoints: ["等待下一步工具调用"],
+        },
+      },
+    ];
+
+    render(messages);
+
+    const firstAssistantCall = mockStreamingRenderer.mock.calls.find(
+      ([props]) => props.content === "已经整理完第一轮分析。",
+    )?.[0];
+    const secondAssistantCall = mockStreamingRenderer.mock.calls.find(
+      ([props]) => props.content === "",
+    )?.[0];
+
+    expect(firstAssistantCall?.contentParts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "tool_use",
+        }),
+      ]),
+    );
+    expect(firstAssistantCall?.thinkingContent).toBeUndefined();
+    expect(secondAssistantCall?.contentParts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "thinking",
+        }),
+      ]),
     );
   });
 
@@ -1134,7 +1438,7 @@ describe("MessageList", () => {
     );
   });
 
-  it("存在主执行轨迹时不应再默认压掉正文过程流", () => {
+  it("已完成 assistant 消息应只向正文传递可见正文片段", () => {
     const now = new Date();
     const messages: Message[] = [
       {
@@ -1142,6 +1446,40 @@ describe("MessageList", () => {
         role: "assistant",
         content: "最终说明",
         timestamp: now,
+        thinkingContent: "这段思考应只留在执行轨迹中。",
+        contentParts: [
+          {
+            type: "thinking",
+            text: "这段思考应只留在执行轨迹中。",
+          },
+          {
+            type: "tool_use",
+            toolCall: {
+              id: "tool-process-suppressed-1",
+              name: "functions.exec_command",
+              arguments: JSON.stringify({ cmd: "rg -n process src" }),
+              status: "completed",
+              result: { success: true, output: "ok" },
+              startTime: now,
+              endTime: now,
+            },
+          },
+          {
+            type: "text",
+            text: "最终说明",
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-process-suppressed-1",
+            name: "functions.exec_command",
+            arguments: JSON.stringify({ cmd: "rg -n process src" }),
+            status: "completed",
+            result: { success: true, output: "ok" },
+            startTime: now,
+            endTime: now,
+          },
+        ],
       },
     ];
 
@@ -1178,9 +1516,60 @@ describe("MessageList", () => {
     expect(mockStreamingRenderer).not.toHaveBeenCalledWith(
       expect.objectContaining({ suppressProcessFlow: true }),
     );
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinkingContent: undefined,
+        toolCalls: undefined,
+        contentParts: [{ type: "text", text: "最终说明" }],
+      }),
+    );
   });
 
-  it("正文已承载工具调用时，不应再把执行轨迹提前到消息顶部", () => {
+  it("流式 assistant 消息仍应向正文传递当前过程状态", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-streaming-process",
+        role: "assistant",
+        content: "",
+        timestamp: now,
+        isThinking: true,
+        thinkingContent: "先读取当前实现。",
+        contentParts: [
+          {
+            type: "thinking",
+            text: "先读取当前实现。",
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-streaming-process-1",
+            name: "Read",
+            arguments: JSON.stringify({ file_path: "src/app.tsx" }),
+            status: "running",
+            startTime: now,
+          },
+        ],
+      },
+    ];
+
+    render(messages);
+
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinkingContent: "先读取当前实现。",
+        toolCalls: [
+          expect.objectContaining({
+            id: "tool-streaming-process-1",
+            status: "running",
+          }),
+        ],
+        contentParts: [{ type: "thinking", text: "先读取当前实现。" }],
+      }),
+    );
+  });
+
+  it("已完成工具调用应回到消息顶部执行轨迹展示，不再占用正文主视觉", () => {
     const now = new Date();
     const messages: Message[] = [
       {
@@ -1241,14 +1630,101 @@ describe("MessageList", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
-    ).toBeNull();
-    expect(
       container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
     ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:leading"]'),
+    ).not.toBeNull();
     expect(mockStreamingRenderer).toHaveBeenCalledWith(
       expect.objectContaining({
-        renderProposedPlanBlocks: true,
+        renderProposedPlanBlocks: false,
+        toolCalls: undefined,
+        contentParts: [{ type: "text", text: "已经定位到问题根因。" }],
+      }),
+    );
+  });
+
+  it("当前回合仍在运行时，即使 assistant 非 streaming 占位也应继续透传工具调用", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-active-turn",
+        role: "assistant",
+        content: "正在分析依赖关系。",
+        timestamp: now,
+        runtimeStatus: {
+          phase: "reasoning",
+          title: "处理中",
+          detail: "正在读取多个 crate 的依赖。",
+        },
+        contentParts: [
+          {
+            type: "tool_use",
+            toolCall: {
+              id: "tool-active-turn-1",
+              name: "functions.exec_command",
+              arguments: JSON.stringify({
+                cmd: "sed -n '1,120p' Cargo.toml",
+              }),
+              status: "running",
+              startTime: now,
+            },
+          },
+          {
+            type: "text",
+            text: "正在分析依赖关系。",
+          },
+        ],
+        toolCalls: [
+          {
+            id: "tool-active-turn-1",
+            name: "functions.exec_command",
+            arguments: JSON.stringify({
+              cmd: "sed -n '1,120p' Cargo.toml",
+            }),
+            status: "running",
+            startTime: now,
+          },
+        ],
+      },
+    ];
+
+    render(messages, {
+      currentTurnId: "turn-active-turn",
+      turns: [
+        {
+          id: "turn-active-turn",
+          thread_id: "thread-active-turn",
+          prompt_text: "继续分析",
+          status: "running",
+          started_at: "2026-04-15T10:00:00Z",
+          created_at: "2026-04-15T10:00:00Z",
+          updated_at: "2026-04-15T10:00:03Z",
+        },
+      ],
+      threadRead: {
+        thread_id: "thread-active-turn",
+        status: "running",
+      },
+    });
+
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolCalls: [
+          expect.objectContaining({
+            id: "tool-active-turn-1",
+            status: "running",
+          }),
+        ],
+        contentParts: [
+          expect.objectContaining({
+            type: "tool_use",
+          }),
+          {
+            type: "text",
+            text: "正在分析依赖关系。",
+          },
+        ],
       }),
     );
   });
@@ -1331,7 +1807,7 @@ describe("MessageList", () => {
     ).not.toBeNull();
   });
 
-  it("正文已承载过程流时，未被正文承载的计划信息仍应保留在消息前序", () => {
+  it("完成态 process 不再占正文时，计划信息应回到消息前序执行轨迹", () => {
     const now = new Date();
     const messages: Message[] = [
       {
@@ -1390,7 +1866,9 @@ describe("MessageList", () => {
     ).toBeNull();
     expect(mockStreamingRenderer).toHaveBeenCalledWith(
       expect.objectContaining({
-        renderProposedPlanBlocks: true,
+        renderProposedPlanBlocks: false,
+        thinkingContent: undefined,
+        contentParts: [{ type: "text", text: "已经整理完执行思路。" }],
       }),
     );
   });
@@ -1726,6 +2204,52 @@ describe("MessageList", () => {
         showRuntimeStatusInline: true,
       }),
     );
+  });
+
+  it("本地工具批次的阶段结论不应再进入主消息流时间线", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-local-batch",
+        role: "assistant",
+        content: "",
+        timestamp: now,
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-local-batch",
+      turns: [
+        {
+          id: "turn-local-batch",
+          thread_id: "thread-1",
+          prompt_text: "分析本地仓库",
+          status: "running",
+          started_at: "2026-04-14T10:00:00Z",
+          created_at: "2026-04-14T10:00:00Z",
+          updated_at: "2026-04-14T10:00:10Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "summary-local-batch-1",
+          thread_id: "thread-1",
+          turn_id: "turn-local-batch",
+          sequence: 1,
+          status: "in_progress",
+          started_at: "2026-04-14T10:00:00Z",
+          updated_at: "2026-04-14T10:00:10Z",
+          type: "turn_summary",
+          text: "已完成一批本地分析\n已完成这一批本地仓库的文件读取，正在整理这一批结果并判断是否还需要继续取证。",
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("已完成一批本地分析");
+    expect(container.textContent).not.toContain("正在整理这一批结果");
   });
 
   it("已完成且已有真实过程项的 turn_summary 不应再单独占用消息头部或尾部", () => {

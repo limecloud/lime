@@ -199,6 +199,7 @@ export function EmptyStateComposerPanel({
 
         {shouldShowTeamSuggestion ? (
           <TeamSuggestionBar
+            compact
             score={teamSuggestion.score}
             reasons={teamSuggestion.reasons}
             suggestedRoles={teamSuggestion.suggestedRoles}

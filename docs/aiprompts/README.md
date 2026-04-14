@@ -15,6 +15,12 @@
 ### 架构与治理
 
 - `overview.md` - 项目架构总览与模块分层
+- `query-loop.md` - 运行时 Query Loop current 主链、提交入口与执行边界
+- `prompt-foundation.md` - 基础 Prompt current 主链、system prompt 组装顺序与 current/compat 分类
+- `task-agent-taxonomy.md` - Task / Agent / Coordinator current taxonomy、current/compat 分类与协调边界
+- `remote-runtime.md` - Remote runtime current 主链、远程入口 current/compat 分类与控制面归属
+- `memory-compaction.md` - Memory / Compaction current 主链、来源链/持久记忆/压缩边界与 current/compat 分类
+- `state-history-telemetry.md` - State / History / Telemetry current 主链、session/thread/request/evidence/history 边界与 current/compat 分类
 - `governance.md` - 新旧并存治理、迁移收口、禁止回流
 - `harness-engine-governance.md` - Harness Engine 事实源、evidence pack、replay / analysis / review 治理规范
 - `quality-workflow.md` - 本地校验、GUI smoke、契约检查、CI 门禁
@@ -56,6 +62,12 @@
 ## 常见入口建议
 
 - **改 UI / 页面结构**：先读 `design-language.md`，再看 `quality-workflow.md`
+- **改 system prompt / subagent prompt / plan prompt / prompt_context / augmentation 顺序**：先读 `prompt-foundation.md`，再回看 `query-loop.md`
+- **改 turn 提交 / prompt 组包 / queue / compaction / evidence 主链**：先读 `query-loop.md`
+- **改 subagent / automation / execution tracker / scheduler taxonomy**：先读 `task-agent-taxonomy.md`
+- **改 channels / browser connector / DevBridge / OpenClaw remote runtime**：先读 `remote-runtime.md`
+- **改记忆来源链 / working memory / durable memory / Team Memory / compaction**：先读 `memory-compaction.md`
+- **改 session detail / thread read / requestTelemetry / evidence / history-record**：先读 `state-history-telemetry.md`
 - **改 Tauri 命令 / Bridge / mock**：先读 `commands.md`，再看 `quality-workflow.md`
 - **改 `@` / `/` / 轻卡 / viewer / ServiceSkill 场景**：先读 `command-runtime.md`
 - **改 Claw 技能 / Service Skill / 统一 Skills 标准**：先读 `skill-standard.md`
@@ -63,7 +75,7 @@
 - **做网页登录态访问 / 网页导出 / Markdown 落盘场景**：先读 `web-browser-scene-skill.md`
 - **改 Workspace / GUI 壳 / 主路径**：先读 `workspace.md`、`quality-workflow.md`、`playwright-e2e.md`
 - **做迁移 / 收口 / 去兼容层**：先读 `governance.md`
-- **改 handoff / evidence pack / replay / review / HarnessStatusPanel**：先读 `harness-engine-governance.md`，再回看 `governance.md`
+- **改 handoff / evidence pack / replay / review / HarnessStatusPanel**：先读 `state-history-telemetry.md`，再看 `harness-engine-governance.md` 与 `governance.md`
 - **改 Provider / 凭证加载 / Token 刷新**：先读 `providers.md`、`credential-pool.md`
 - **做跨仓库联动**：先读 `limecore-collaboration-entry.md`
 

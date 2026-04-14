@@ -17,6 +17,7 @@ function noopDispatch<T>() {
 
 describe("agentStreamTurnEventBinding", () => {
   afterEach(() => {
+    vi.useRealTimers();
     activityLogger.clear();
   });
 
@@ -83,7 +84,7 @@ describe("agentStreamTurnEventBinding", () => {
       setIsSending: noopDispatch<boolean>(),
     });
 
-    expect(result).toBe(unlisten);
+    expect(typeof result).toBe("function");
     expect(runtime.listenToTurnEvents).toHaveBeenCalledWith(
       "event-1",
       expect.any(Function),
@@ -103,5 +104,209 @@ describe("agentStreamTurnEventBinding", () => {
         }),
       ]),
     );
+
+    result();
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("首个运行时事件超时未到达时，应把助手消息收口为失败态", async () => {
+    vi.useFakeTimers();
+
+    let messages: Message[] = [
+      {
+        id: "assistant-timeout",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-14T10:00:00.000Z"),
+        isThinking: true,
+      },
+    ];
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+    const clearActiveStreamIfMatch = vi.fn(() => true);
+    const disposeListener = vi.fn();
+    const unlisten = vi.fn();
+    const runtime = {
+      listenToTurnEvents: vi.fn(async () => unlisten),
+    } as unknown as AgentRuntimeAdapter;
+    const requestState: StreamRequestState = {
+      accumulatedContent: "",
+      requestLogId: null,
+      requestStartedAt: 0,
+      requestFinished: false,
+      queuedTurnId: null,
+    };
+
+    await registerAgentStreamTurnEventBinding({
+      runtime,
+      eventName: "event-timeout",
+      requestState,
+      skipUserMessage: false,
+      effectiveProviderType: "anthropic",
+      effectiveModel: "glm-5.1",
+      effectiveExecutionStrategy: "react",
+      content: "帮我分析当前仓库",
+      expectingQueue: false,
+      activeSessionId: "session-timeout",
+      resolvedWorkspaceId: "workspace-timeout",
+      assistantMsgId: "assistant-timeout",
+      pendingTurnKey: "pending-turn-timeout",
+      pendingItemKey: "pending-item-timeout",
+      effectiveWaitingRuntimeStatus: {
+        phase: "preparing",
+        title: "处理中",
+        detail: "正在准备执行上下文",
+      },
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      callbacks: {
+        activateStream: () => {},
+        isStreamActivated: () => true,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener,
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch,
+        upsertQueuedTurn: (_queuedTurn: QueuedTurnSnapshot) => {},
+        removeQueuedTurnState: () => {},
+      },
+      sounds: {
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+      },
+      appendThinkingToParts: (parts) => parts,
+      setMessages: setMessages as never,
+      setPendingActions: noopDispatch<ActionRequired[]>(),
+      setThreadItems: noopDispatch<AgentThreadItem[]>(),
+      setThreadTurns: noopDispatch<AgentThreadTurn[]>(),
+      setCurrentTurnId: noopDispatch<string | null>(),
+      setExecutionRuntime: noopDispatch<AsterSessionExecutionRuntime | null>(),
+      setIsSending: noopDispatch<boolean>(),
+    });
+
+    await vi.advanceTimersByTimeAsync(12_100);
+
+    expect(messages[0]?.content).toContain("执行失败：执行已中断");
+    expect(messages[0]?.runtimeStatus).toMatchObject({
+      phase: "failed",
+      title: "当前处理失败",
+    });
+    expect(clearActiveStreamIfMatch).toHaveBeenCalledWith("event-timeout");
+    expect(disposeListener).toHaveBeenCalled();
+  });
+
+  it("首包后长时间没有新事件时，应把助手消息收口为失败态", async () => {
+    vi.useFakeTimers();
+
+    let messages: Message[] = [
+      {
+        id: "assistant-inactivity",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-14T10:00:00.000Z"),
+        isThinking: true,
+      },
+    ];
+    let streamActivated = false;
+    let streamHandler: ((event: { payload: unknown }) => void) | null = null;
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+    const clearActiveStreamIfMatch = vi.fn(() => true);
+    const disposeListener = vi.fn();
+    const runtime = {
+      listenToTurnEvents: vi.fn(async (_eventName, handler) => {
+        streamHandler = handler;
+        return vi.fn();
+      }),
+    } as unknown as AgentRuntimeAdapter;
+    const requestState: StreamRequestState = {
+      accumulatedContent: "",
+      requestLogId: null,
+      requestStartedAt: 0,
+      requestFinished: false,
+      queuedTurnId: null,
+    };
+
+    await registerAgentStreamTurnEventBinding({
+      runtime,
+      eventName: "event-inactivity",
+      requestState,
+      skipUserMessage: false,
+      effectiveProviderType: "anthropic",
+      effectiveModel: "glm-5.1",
+      effectiveExecutionStrategy: "react",
+      content: "继续分析当前仓库",
+      expectingQueue: false,
+      activeSessionId: "session-inactivity",
+      resolvedWorkspaceId: "workspace-inactivity",
+      assistantMsgId: "assistant-inactivity",
+      pendingTurnKey: "pending-turn-inactivity",
+      pendingItemKey: "pending-item-inactivity",
+      effectiveWaitingRuntimeStatus: {
+        phase: "preparing",
+        title: "处理中",
+        detail: "正在准备执行上下文",
+      },
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      callbacks: {
+        activateStream: () => {
+          streamActivated = true;
+        },
+        isStreamActivated: () => streamActivated,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener,
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch,
+        upsertQueuedTurn: (_queuedTurn: QueuedTurnSnapshot) => {},
+        removeQueuedTurnState: () => {},
+      },
+      sounds: {
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+      },
+      appendThinkingToParts: (parts) => parts,
+      setMessages: setMessages as never,
+      setPendingActions: noopDispatch<ActionRequired[]>(),
+      setThreadItems: noopDispatch<AgentThreadItem[]>(),
+      setThreadTurns: noopDispatch<AgentThreadTurn[]>(),
+      setCurrentTurnId: noopDispatch<string | null>(),
+      setExecutionRuntime: noopDispatch<AsterSessionExecutionRuntime | null>(),
+      setIsSending: noopDispatch<boolean>(),
+    });
+
+    streamHandler?.({
+      payload: {
+        type: "runtime_status",
+        status: {
+          phase: "reasoning",
+          title: "分析中",
+          detail: "正在整理仓库结构",
+        },
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(45_100);
+
+    expect(messages[0]?.content).toContain("执行失败：执行已中断");
+    expect(messages[0]?.runtimeStatus).toMatchObject({
+      phase: "failed",
+      title: "当前处理失败",
+    });
+    expect(clearActiveStreamIfMatch).toHaveBeenCalledWith("event-inactivity");
+    expect(disposeListener).toHaveBeenCalled();
   });
 });

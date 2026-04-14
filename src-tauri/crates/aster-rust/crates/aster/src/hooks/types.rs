@@ -8,6 +8,10 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum HookEvent {
+    /// 任务创建
+    TaskCreated,
+    /// 任务完成
+    TaskCompleted,
     /// 工具执行前
     PreToolUse,
     /// 工具执行后
@@ -52,6 +56,8 @@ pub enum HookEvent {
 impl std::fmt::Display for HookEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            HookEvent::TaskCreated => write!(f, "TaskCreated"),
+            HookEvent::TaskCompleted => write!(f, "TaskCompleted"),
             HookEvent::PreToolUse => write!(f, "PreToolUse"),
             HookEvent::PostToolUse => write!(f, "PostToolUse"),
             HookEvent::PostToolUseFailure => write!(f, "PostToolUseFailure"),
@@ -296,6 +302,21 @@ pub enum CompactTrigger {
 pub struct HookInput {
     /// 事件类型
     pub event: Option<HookEvent>,
+    /// 任务 ID
+    #[serde(default)]
+    pub task_id: Option<String>,
+    /// 任务标题
+    #[serde(default)]
+    pub task_subject: Option<String>,
+    /// 任务描述
+    #[serde(default)]
+    pub task_description: Option<String>,
+    /// 触发任务事件的 teammate 名称
+    #[serde(default)]
+    pub teammate_name: Option<String>,
+    /// 关联 team 名称
+    #[serde(default)]
+    pub team_name: Option<String>,
     /// 工具名称
     #[serde(default)]
     pub tool_name: Option<String>,

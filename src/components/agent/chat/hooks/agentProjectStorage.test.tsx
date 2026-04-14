@@ -6,6 +6,7 @@ import {
   getSessionWorkspaceStorageKey,
   loadPersistedProjectId,
   loadPersistedSessionWorkspaceId,
+  loadStoredSessionWorkspaceIdRaw,
   savePersistedProjectId,
   savePersistedSessionWorkspaceId,
   usePersistedProjectId,
@@ -85,6 +86,18 @@ describe("agentProjectStorage", () => {
       "agent_session_workspace_session-a",
     );
     expect(loadPersistedSessionWorkspaceId("session-a")).toBe("project-a");
+  });
+
+  it("legacy 会话工作区影子缓存应保留原始值供治理判断，但 current 读取应归一为空", () => {
+    localStorage.setItem(
+      "agent_session_workspace_session-legacy",
+      JSON.stringify("workspace-default"),
+    );
+
+    expect(loadStoredSessionWorkspaceIdRaw("session-legacy")).toBe(
+      "workspace-default",
+    );
+    expect(loadPersistedSessionWorkspaceId("session-legacy")).toBeNull();
   });
 
   it("hook 应优先使用 externalProjectId，否则回退最近项目", () => {

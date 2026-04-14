@@ -4,6 +4,8 @@ use super::*;
 
 #[test]
 fn test_hook_event_display() {
+    assert_eq!(HookEvent::TaskCreated.to_string(), "TaskCreated");
+    assert_eq!(HookEvent::TaskCompleted.to_string(), "TaskCompleted");
     assert_eq!(HookEvent::PreToolUse.to_string(), "PreToolUse");
     assert_eq!(HookEvent::PostToolUse.to_string(), "PostToolUse");
     assert_eq!(HookEvent::SessionStart.to_string(), "SessionStart");
@@ -133,6 +135,10 @@ fn test_hook_config_serialization() {
 fn test_hook_input_serialization() {
     let input = HookInput {
         event: Some(HookEvent::PreToolUse),
+        task_id: Some("1".to_string()),
+        task_subject: Some("整理任务板".to_string()),
+        teammate_name: Some("researcher".to_string()),
+        team_name: Some("alpha".to_string()),
         tool_name: Some("Bash".to_string()),
         tool_input: Some(serde_json::json!({"command": "ls"})),
         session_id: Some("session-123".to_string()),
@@ -143,6 +149,7 @@ fn test_hook_input_serialization() {
     let parsed: HookInput = serde_json::from_str(&json).unwrap();
 
     assert_eq!(parsed.event, Some(HookEvent::PreToolUse));
+    assert_eq!(parsed.task_id, Some("1".to_string()));
     assert_eq!(parsed.tool_name, Some("Bash".to_string()));
 }
 

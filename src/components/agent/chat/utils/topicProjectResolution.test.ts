@@ -15,6 +15,7 @@ describe("normalizeProjectId", () => {
     expect(normalizeProjectId("[object Promise]")).toBeNull();
     expect(normalizeProjectId("default")).toBeNull();
     expect(normalizeProjectId(" Default ")).toBeNull();
+    expect(normalizeProjectId("workspace-default")).toBeNull();
   });
 
   it("应返回合法项目 ID", () => {

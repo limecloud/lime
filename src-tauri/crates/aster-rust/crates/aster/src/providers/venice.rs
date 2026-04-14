@@ -8,12 +8,13 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::map_http_error_to_provider_error;
+use super::utils::{map_http_error_to_provider_error, parse_tool_arguments_json_object};
 use crate::conversation::message::{Message, MessageContent};
 
 use crate::mcp_utils::ToolResult;
 use crate::model::ModelConfig;
-use rmcp::model::{object, CallToolRequestParam, Role, Tool};
+use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, Role, Tool};
+use std::borrow::Cow;
 
 // ---------- Capability Flags ----------
 #[derive(Debug)]
@@ -464,21 +465,45 @@ impl Provider for VeniceProvider {
                     let function = tool_call["function"].clone();
                     let name = function["name"].as_str().unwrap_or("unknown").to_string();
 
-                    // Parse arguments string to Value if it's a string
-                    let arguments = if let Some(args_str) = function["arguments"].as_str() {
-                        serde_json::from_str::<Value>(args_str)
-                            .unwrap_or(function["arguments"].clone())
+                    let tool_request = if let Some(args_str) = function["arguments"].as_str() {
+                        match parse_tool_arguments_json_object(args_str) {
+                            Ok(arguments) => MessageContent::tool_request(
+                                id,
+                                ToolResult::Ok(CallToolRequestParam {
+                                    name: name.into(),
+                                    arguments: Some(object(arguments)),
+                                }),
+                            ),
+                            Err(error) => MessageContent::tool_request(
+                                id,
+                                ToolResult::Err(ErrorData {
+                                    code: ErrorCode::INVALID_PARAMS,
+                                    message: Cow::from(format!(
+                                        "Could not interpret tool use parameters: {}. Raw arguments: '{}'",
+                                        error, args_str
+                                    )),
+                                    data: None,
+                                }),
+                            ),
+                        }
+                    } else if function["arguments"].is_object() {
+                        MessageContent::tool_request(
+                            id,
+                            ToolResult::Ok(CallToolRequestParam {
+                                name: name.into(),
+                                arguments: Some(object(function["arguments"].clone())),
+                            }),
+                        )
                     } else {
-                        function["arguments"].clone()
+                        MessageContent::tool_request(
+                            id,
+                            ToolResult::Err(ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from("Could not interpret tool use parameters"),
+                                data: None,
+                            }),
+                        )
                     };
-
-                    let tool_call = CallToolRequestParam {
-                        name: name.into(),
-                        arguments: Some(object(arguments)),
-                    };
-
-                    // Create a ToolRequest MessageContent
-                    let tool_request = MessageContent::tool_request(id, ToolResult::Ok(tool_call));
 
                     content.push(tool_request);
                 }

@@ -3,10 +3,12 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::tool_description_with_examples;
+use crate::providers::utils::parse_tool_arguments_json_object;
 use anyhow::{anyhow, Result};
-use rmcp::model::{object, CallToolRequestParam, Role, Tool};
+use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, Role, Tool};
 use rmcp::object;
 use serde_json::{json, Value};
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 /// Convert internal Message format to Snowflake's API message specification
@@ -183,13 +185,28 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
     // Add tool use if complete
     if let Some((id, name)) = tool_use_id.zip(tool_name) {
         if !tool_input.is_empty() {
-            let input_value = serde_json::from_str::<Value>(&tool_input)
-                .unwrap_or_else(|_| Value::String(tool_input.clone()));
-            let tool_call = CallToolRequestParam {
-                name: name.into(),
-                arguments: Some(object(input_value)),
-            };
-            message = message.with_tool_request(&id, Ok(tool_call));
+            match parse_tool_arguments_json_object(&tool_input) {
+                Ok(input_value) => {
+                    let tool_call = CallToolRequestParam {
+                        name: name.into(),
+                        arguments: Some(object(input_value)),
+                    };
+                    message = message.with_tool_request(&id, Ok(tool_call));
+                }
+                Err(error) => {
+                    message = message.with_tool_request(
+                        &id,
+                        Err(ErrorData {
+                            code: ErrorCode::INVALID_PARAMS,
+                            message: Cow::from(format!(
+                                "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
+                                id, error, tool_input
+                            )),
+                            data: None,
+                        }),
+                    );
+                }
+            }
         } else {
             // Tool with no input - use empty object
             let tool_call = CallToolRequestParam {

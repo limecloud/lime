@@ -370,7 +370,7 @@ export function MemorySettings() {
         }),
       );
     } catch (error) {
-      console.error("加载五层记忆状态失败:", error);
+      console.error("加载记忆命中层状态失败:", error);
     } finally {
       setLoadingLayerMetrics(false);
     }
@@ -661,12 +661,12 @@ export function MemorySettings() {
                 </h1>
                 <WorkbenchInfoTip
                   ariaLabel="记忆设置说明"
-                  content="管理用户画像、五层记忆来源与自动记忆入口，让代理在长期使用里更稳定地续接规则、上下文与协作状态。"
+                  content="管理用户画像、来源链与自动记忆入口，让代理在长期使用里更稳定地续接规则、会话与协作状态。"
                   tone="mint"
                 />
               </div>
               <p className="text-sm text-slate-500">
-                管理用户画像、来源策略与自动记忆入口。
+                管理用户画像、来源链策略与自动记忆入口。
               </p>
             </div>
 
@@ -675,7 +675,7 @@ export function MemorySettings() {
                 画像完成度：{profileCompletionPercent}%
               </span>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-                五层可用：{readyLayerLabel}
+                命中层可用：{readyLayerLabel}
               </span>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
                 来源命中：{sourceHitLabel}
@@ -813,8 +813,8 @@ export function MemorySettings() {
         <div className="space-y-6">
           <MemoryPanel
             icon={Layers3}
-            title="五层记忆可用性"
-            description="持续检查规则、工作记忆、长期记忆、Team 影子与压缩边界的参与情况。"
+            title="记忆命中层可用性"
+            description="持续检查来源链、会话记忆、持久记忆、Team Memory 与会话压缩的参与情况。"
             aside={
               <button
                 type="button"
@@ -876,14 +876,16 @@ export function MemorySettings() {
                 </p>
               </div>
             ) : (
-              <p className="text-sm text-slate-500">正在加载五层状态...</p>
+              <p className="text-sm text-slate-500">
+                正在加载记忆命中层状态...
+              </p>
             )}
           </MemoryPanel>
 
           <MemoryPanel
             icon={FolderTree}
-            title="来源状态总览"
-            description="快速查看当前记忆解析策略和来源命中状态。"
+            title="来源链状态总览"
+            description="快速查看当前来源链解析策略和命中状态。"
             aside={
               <button
                 type="button"
@@ -951,8 +953,8 @@ export function MemorySettings() {
 
       <MemoryPanel
         icon={Database}
-        title="记忆来源策略"
-        description="统一管理组织策略、项目规则目录和额外仓库记忆加载规则。"
+        title="来源链策略"
+        description="统一管理组织策略、项目规则目录和额外仓库记忆的加载规则。"
       >
         <div className="space-y-4">
           <div className="grid gap-4 xl:grid-cols-2">
@@ -1388,8 +1390,8 @@ export function MemorySettings() {
 
       <MemoryPanel
         icon={Files}
-        title="记忆来源命中详情"
-        description="逐项查看来源是否命中、是否已加载，以及实际预览内容。"
+        title="来源链命中详情"
+        description="逐项查看来源链是否命中、是否已加载，以及实际预览内容。"
         aside={
           <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
             {effectiveSources

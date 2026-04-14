@@ -9,6 +9,8 @@ use super::error::ToolError;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::config::{AsterMode, Config, ConfigError};
@@ -16,15 +18,67 @@ use crate::model::ModelConfig;
 
 const CONFIG_TOOL_NAME: &str = "Config";
 const CONFIG_TOOL_DESCRIPTION: &str = "Get or set supported runtime configuration settings.";
+
+const THEME_SETTING_KEY: &str = "theme";
+const EDITOR_MODE_SETTING_KEY: &str = "editorMode";
+const VERBOSE_SETTING_KEY: &str = "verbose";
+const PREFERRED_NOTIF_CHANNEL_SETTING_KEY: &str = "preferredNotifChannel";
+const AUTO_COMPACT_ENABLED_SETTING_KEY: &str = "autoCompactEnabled";
+const AUTO_MEMORY_ENABLED_SETTING_KEY: &str = "autoMemoryEnabled";
+const AUTO_DREAM_ENABLED_SETTING_KEY: &str = "autoDreamEnabled";
+const FILE_CHECKPOINTING_ENABLED_SETTING_KEY: &str = "fileCheckpointingEnabled";
+const SHOW_TURN_DURATION_SETTING_KEY: &str = "showTurnDuration";
+const TERMINAL_PROGRESS_BAR_ENABLED_SETTING_KEY: &str = "terminalProgressBarEnabled";
+const TASK_TRACKING_ENABLED_SETTING_KEY: &str = "taskTrackingEnabled";
 const MODEL_SETTING_KEY: &str = "model";
+const ALWAYS_THINKING_ENABLED_SETTING_KEY: &str = "alwaysThinkingEnabled";
 const PERMISSION_MODE_SETTING_KEY: &str = "permissions.defaultMode";
+const LANGUAGE_SETTING_KEY: &str = "language";
+const TEAMMATE_MODE_SETTING_KEY: &str = "teammateMode";
+const CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY: &str = "classifierPermissionsEnabled";
+const VOICE_ENABLED_SETTING_KEY: &str = "voiceEnabled";
+const REMOTE_CONTROL_AT_STARTUP_SETTING_KEY: &str = "remoteControlAtStartup";
+const TASK_COMPLETE_NOTIF_ENABLED_SETTING_KEY: &str = "taskCompleteNotifEnabled";
+const INPUT_NEEDED_NOTIF_ENABLED_SETTING_KEY: &str = "inputNeededNotifEnabled";
+const AGENT_PUSH_NOTIF_ENABLED_SETTING_KEY: &str = "agentPushNotifEnabled";
+
 const MODEL_DEFAULT_VALUE: &str = "default";
+const THEME_DEFAULT_VALUE: &str = "auto";
+const TEAMMATE_MODE_DEFAULT_VALUE: &str = "auto";
 const PERMISSION_MODE_DEFAULT_VALUE: &str = "default";
 const PERMISSION_MODE_ACCEPT_EDITS_VALUE: &str = "acceptEdits";
 const PERMISSION_MODE_AUTO_VALUE: &str = "auto";
+const PERMISSION_MODE_APPROVE_VALUE: &str = "approve";
+const PERMISSION_MODE_CHAT_VALUE: &str = "chat";
+const PERMISSION_MODE_PLAN_VALUE: &str = "plan";
+const PERMISSION_MODE_DONT_ASK_VALUE: &str = "dontAsk";
+
+const EDITOR_MODE_OPTIONS: &[&str] = &["normal", "vim"];
+const NOTIFICATION_CHANNEL_OPTIONS: &[&str] = &[
+    "auto",
+    "iterm2",
+    "iterm2_with_bell",
+    "terminal_bell",
+    "kitty",
+    "ghostty",
+    "notifications_disabled",
+];
+const TEAMMATE_MODE_OPTIONS: &[&str] = &["auto", "tmux", "in-process"];
+const PERMISSION_MODE_SUPPORTED_VALUES: &[&str] = &[
+    PERMISSION_MODE_DEFAULT_VALUE,
+    PERMISSION_MODE_ACCEPT_EDITS_VALUE,
+    PERMISSION_MODE_AUTO_VALUE,
+    PERMISSION_MODE_APPROVE_VALUE,
+    PERMISSION_MODE_CHAT_VALUE,
+];
+
+type BoolSettingFuture = Pin<Box<dyn Future<Output = Result<bool, String>> + Send>>;
+
+pub type VoiceEnabledReadCallback = Arc<dyn Fn() -> BoolSettingFuture + Send + Sync>;
+pub type VoiceEnabledWriteCallback = Arc<dyn Fn(bool) -> BoolSettingFuture + Send + Sync>;
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct ConfigToolInput {
     setting: String,
     #[serde(default)]
@@ -92,33 +146,205 @@ impl ConfigToolOutput {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SupportedSetting {
-    Model,
-    PermissionsDefaultMode,
+enum SettingValueType {
+    Boolean,
+    String,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SupportedSetting {
+    Theme,
+    EditorMode,
+    Verbose,
+    PreferredNotifChannel,
+    AutoCompactEnabled,
+    AutoMemoryEnabled,
+    AutoDreamEnabled,
+    FileCheckpointingEnabled,
+    ShowTurnDuration,
+    TerminalProgressBarEnabled,
+    TaskTrackingEnabled,
+    Model,
+    AlwaysThinkingEnabled,
+    PermissionsDefaultMode,
+    Language,
+    TeammateMode,
+    ClassifierPermissionsEnabled,
+    VoiceEnabled,
+    RemoteControlAtStartup,
+    TaskCompleteNotifEnabled,
+    InputNeededNotifEnabled,
+    AgentPushNotifEnabled,
+}
+
+const SUPPORTED_SETTINGS: &[SupportedSetting] = &[
+    SupportedSetting::Theme,
+    SupportedSetting::EditorMode,
+    SupportedSetting::Verbose,
+    SupportedSetting::PreferredNotifChannel,
+    SupportedSetting::AutoCompactEnabled,
+    SupportedSetting::AutoMemoryEnabled,
+    SupportedSetting::AutoDreamEnabled,
+    SupportedSetting::FileCheckpointingEnabled,
+    SupportedSetting::ShowTurnDuration,
+    SupportedSetting::TerminalProgressBarEnabled,
+    SupportedSetting::TaskTrackingEnabled,
+    SupportedSetting::Model,
+    SupportedSetting::AlwaysThinkingEnabled,
+    SupportedSetting::PermissionsDefaultMode,
+    SupportedSetting::Language,
+    SupportedSetting::TeammateMode,
+    SupportedSetting::ClassifierPermissionsEnabled,
+    SupportedSetting::VoiceEnabled,
+    SupportedSetting::RemoteControlAtStartup,
+    SupportedSetting::TaskCompleteNotifEnabled,
+    SupportedSetting::InputNeededNotifEnabled,
+    SupportedSetting::AgentPushNotifEnabled,
+];
 
 impl SupportedSetting {
     fn parse(raw: &str) -> Option<Self> {
-        match raw.trim() {
-            MODEL_SETTING_KEY => Some(Self::Model),
-            PERMISSION_MODE_SETTING_KEY => Some(Self::PermissionsDefaultMode),
-            _ => None,
-        }
+        SUPPORTED_SETTINGS
+            .iter()
+            .copied()
+            .find(|setting| setting.key() == raw.trim())
     }
 
     fn key(self) -> &'static str {
         match self {
+            Self::Theme => THEME_SETTING_KEY,
+            Self::EditorMode => EDITOR_MODE_SETTING_KEY,
+            Self::Verbose => VERBOSE_SETTING_KEY,
+            Self::PreferredNotifChannel => PREFERRED_NOTIF_CHANNEL_SETTING_KEY,
+            Self::AutoCompactEnabled => AUTO_COMPACT_ENABLED_SETTING_KEY,
+            Self::AutoMemoryEnabled => AUTO_MEMORY_ENABLED_SETTING_KEY,
+            Self::AutoDreamEnabled => AUTO_DREAM_ENABLED_SETTING_KEY,
+            Self::FileCheckpointingEnabled => FILE_CHECKPOINTING_ENABLED_SETTING_KEY,
+            Self::ShowTurnDuration => SHOW_TURN_DURATION_SETTING_KEY,
+            Self::TerminalProgressBarEnabled => TERMINAL_PROGRESS_BAR_ENABLED_SETTING_KEY,
+            Self::TaskTrackingEnabled => TASK_TRACKING_ENABLED_SETTING_KEY,
             Self::Model => MODEL_SETTING_KEY,
+            Self::AlwaysThinkingEnabled => ALWAYS_THINKING_ENABLED_SETTING_KEY,
             Self::PermissionsDefaultMode => PERMISSION_MODE_SETTING_KEY,
+            Self::Language => LANGUAGE_SETTING_KEY,
+            Self::TeammateMode => TEAMMATE_MODE_SETTING_KEY,
+            Self::ClassifierPermissionsEnabled => CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY,
+            Self::VoiceEnabled => VOICE_ENABLED_SETTING_KEY,
+            Self::RemoteControlAtStartup => REMOTE_CONTROL_AT_STARTUP_SETTING_KEY,
+            Self::TaskCompleteNotifEnabled => TASK_COMPLETE_NOTIF_ENABLED_SETTING_KEY,
+            Self::InputNeededNotifEnabled => INPUT_NEEDED_NOTIF_ENABLED_SETTING_KEY,
+            Self::AgentPushNotifEnabled => AGENT_PUSH_NOTIF_ENABLED_SETTING_KEY,
         }
     }
 
     fn description(self) -> &'static str {
         match self {
-            Self::Model => "Override the default runtime model. Use \"default\" to clear the override.",
-            Self::PermissionsDefaultMode => {
-                "Default permission mode for tool execution. Supported values in the current runtime: \"default\", \"acceptEdits\", \"auto\"."
+            Self::Theme => "Color theme for the UI.",
+            Self::EditorMode => "Key binding mode.",
+            Self::Verbose => "Show detailed debug output.",
+            Self::PreferredNotifChannel => "Preferred notification channel.",
+            Self::AutoCompactEnabled => "Auto-compact when context is full.",
+            Self::AutoMemoryEnabled => "Enable auto-memory.",
+            Self::AutoDreamEnabled => "Enable background memory consolidation.",
+            Self::FileCheckpointingEnabled => "Enable file checkpointing for code rewind.",
+            Self::ShowTurnDuration => {
+                "Show turn duration message after responses (for example: \"Cooked for 1m 6s\")."
             }
+            Self::TerminalProgressBarEnabled => {
+                "Show OSC 9;4 progress indicator in supported terminals."
+            }
+            Self::TaskTrackingEnabled => "Enable task tracking.",
+            Self::Model => {
+                "Override the default runtime model. Use \"default\" to clear the override."
+            }
+            Self::AlwaysThinkingEnabled => "Enable extended thinking.",
+            Self::PermissionsDefaultMode => {
+                "Default permission mode for tool execution. Current Lime runtime supports \"default\", \"acceptEdits\", \"auto\", \"approve\", and \"chat\". Upstream aliases \"plan\" and \"dontAsk\" are not implemented yet."
+            }
+            Self::Language => {
+                "Preferred language for assistant responses and related features."
+            }
+            Self::TeammateMode => {
+                "How to spawn teammates: \"auto\", \"tmux\", or \"in-process\"."
+            }
+            Self::ClassifierPermissionsEnabled => {
+                "Enable AI-based classification for Bash permission rules."
+            }
+            Self::VoiceEnabled => "Enable voice dictation (hold-to-talk).",
+            Self::RemoteControlAtStartup => {
+                "Enable Remote Control for all sessions at startup."
+            }
+            Self::TaskCompleteNotifEnabled => {
+                "Push to your mobile device when idle after the agent finishes."
+            }
+            Self::InputNeededNotifEnabled => {
+                "Push to your mobile device when a permission prompt or question is waiting."
+            }
+            Self::AgentPushNotifEnabled => {
+                "Allow the agent to proactively push to your mobile device."
+            }
+        }
+    }
+
+    fn value_type(self) -> SettingValueType {
+        match self {
+            Self::Verbose
+            | Self::AutoCompactEnabled
+            | Self::AutoMemoryEnabled
+            | Self::AutoDreamEnabled
+            | Self::FileCheckpointingEnabled
+            | Self::ShowTurnDuration
+            | Self::TerminalProgressBarEnabled
+            | Self::TaskTrackingEnabled
+            | Self::AlwaysThinkingEnabled
+            | Self::ClassifierPermissionsEnabled
+            | Self::VoiceEnabled
+            | Self::RemoteControlAtStartup
+            | Self::TaskCompleteNotifEnabled
+            | Self::InputNeededNotifEnabled
+            | Self::AgentPushNotifEnabled => SettingValueType::Boolean,
+            _ => SettingValueType::String,
+        }
+    }
+
+    fn unsupported_message(self) -> Option<&'static str> {
+        match self {
+            Self::ClassifierPermissionsEnabled => Some(
+                "Known upstream setting, but the current Lime runtime does not expose transcript-classifier permission toggles through Config yet.",
+            ),
+            Self::VoiceEnabled => Some(
+                "Known upstream setting, but the current Lime runtime needs a host-backed callback to keep persisted voice config and global shortcut registration in sync.",
+            ),
+            Self::RemoteControlAtStartup => Some(
+                "Known upstream setting, but Lime only exposes OS auto-launch today; that is not the same as upstream remote-control-at-startup semantics.",
+            ),
+            Self::TaskCompleteNotifEnabled => Some(
+                "Known upstream setting, but the current Lime runtime does not expose task-complete mobile notification toggles through Config yet.",
+            ),
+            Self::InputNeededNotifEnabled => Some(
+                "Known upstream setting, but the current Lime runtime does not expose input-needed mobile notification toggles through Config yet.",
+            ),
+            Self::AgentPushNotifEnabled => Some(
+                "Known upstream setting, but the current Lime runtime does not expose agent-push mobile notification toggles through Config yet.",
+            ),
+            _ => None,
+        }
+    }
+
+    fn options(self) -> &'static [&'static str] {
+        match self {
+            Self::EditorMode => EDITOR_MODE_OPTIONS,
+            Self::PreferredNotifChannel => NOTIFICATION_CHANNEL_OPTIONS,
+            Self::TeammateMode => TEAMMATE_MODE_OPTIONS,
+            _ => &[],
+        }
+    }
+
+    fn default_read_value(self) -> Option<Value> {
+        match self {
+            Self::Theme => Some(Value::String(THEME_DEFAULT_VALUE.to_string())),
+            Self::TeammateMode => Some(Value::String(TEAMMATE_MODE_DEFAULT_VALUE.to_string())),
+            _ => None,
         }
     }
 
@@ -134,13 +360,24 @@ impl SupportedSetting {
                 Ok(AsterMode::SmartApprove) => Ok(Value::String(
                     PERMISSION_MODE_ACCEPT_EDITS_VALUE.to_string(),
                 )),
-                Ok(AsterMode::Approve) => Ok(Value::String("approve".to_string())),
-                Ok(AsterMode::Chat) => Ok(Value::String("chat".to_string())),
+                Ok(AsterMode::Approve) => {
+                    Ok(Value::String(PERMISSION_MODE_APPROVE_VALUE.to_string()))
+                }
+                Ok(AsterMode::Chat) => Ok(Value::String(PERMISSION_MODE_CHAT_VALUE.to_string())),
                 Err(ConfigError::NotFound(_)) => {
                     Ok(Value::String(PERMISSION_MODE_DEFAULT_VALUE.to_string()))
                 }
                 Err(error) => Err(map_config_error("读取", self.key(), error)),
             },
+            _ => self.read_generic_value(config),
+        }
+    }
+
+    fn read_generic_value(self, config: &Config) -> Result<Value, ToolError> {
+        match config.get_param::<Value>(self.key()) {
+            Ok(value) => Ok(value),
+            Err(ConfigError::NotFound(_)) => Ok(self.default_read_value().unwrap_or(Value::Null)),
+            Err(error) => Err(map_config_error("读取", self.key(), error)),
         }
     }
 
@@ -148,7 +385,51 @@ impl SupportedSetting {
         match self {
             Self::Model => self.write_model_value(config, value),
             Self::PermissionsDefaultMode => self.write_permission_mode_value(config, value),
+            _ => self.write_generic_value(config, value),
         }
+    }
+
+    fn write_generic_value(
+        self,
+        config: &Config,
+        value: Value,
+    ) -> Result<Value, SettingWriteError> {
+        match self.value_type() {
+            SettingValueType::Boolean => {
+                let enabled = expect_boolean_value(self.key(), value)?;
+                config.set_param(self.key(), enabled).map_err(|error| {
+                    SettingWriteError::system(map_config_error("更新", self.key(), error))
+                })?;
+                Ok(Value::Bool(enabled))
+            }
+            SettingValueType::String => {
+                let raw = expect_string_value(self.key(), value)?;
+                let resolved = match self.canonical_string_option(&raw) {
+                    Some(option) => option.to_string(),
+                    None if self.options().is_empty() => raw,
+                    None => {
+                        return Err(SettingWriteError::validation(format!(
+                            "Invalid value \"{raw}\". Options: {}",
+                            self.options().join(", ")
+                        )))
+                    }
+                };
+
+                config
+                    .set_param(self.key(), resolved.as_str())
+                    .map_err(|error| {
+                        SettingWriteError::system(map_config_error("更新", self.key(), error))
+                    })?;
+                Ok(Value::String(resolved))
+            }
+        }
+    }
+
+    fn canonical_string_option(self, raw: &str) -> Option<&'static str> {
+        self.options()
+            .iter()
+            .copied()
+            .find(|candidate| candidate.eq_ignore_ascii_case(raw.trim()))
     }
 
     fn write_model_value(self, config: &Config, value: Value) -> Result<Value, SettingWriteError> {
@@ -199,12 +480,35 @@ impl SupportedSetting {
                 })?;
                 Value::String(PERMISSION_MODE_AUTO_VALUE.to_string())
             }
+            PERMISSION_MODE_APPROVE_VALUE => {
+                config.set_aster_mode(AsterMode::Approve).map_err(|error| {
+                    SettingWriteError::system(map_config_error("更新", self.key(), error))
+                })?;
+                Value::String(PERMISSION_MODE_APPROVE_VALUE.to_string())
+            }
+            PERMISSION_MODE_CHAT_VALUE => {
+                config.set_aster_mode(AsterMode::Chat).map_err(|error| {
+                    SettingWriteError::system(map_config_error("更新", self.key(), error))
+                })?;
+                Value::String(PERMISSION_MODE_CHAT_VALUE.to_string())
+            }
+            "plan" | "dontask" => {
+                return Err(SettingWriteError::validation(format!(
+                    "Unsupported value for {}: \"{}\". Upstream values \"{}\" and \"{}\" are not implemented in the current Lime runtime. Supported values: {}.",
+                    self.key(),
+                    raw_mode,
+                    PERMISSION_MODE_PLAN_VALUE,
+                    PERMISSION_MODE_DONT_ASK_VALUE,
+                    PERMISSION_MODE_SUPPORTED_VALUES.join(", ")
+                )))
+            }
             _ => {
                 return Err(SettingWriteError::validation(format!(
-                "Unsupported value for {}: \"{}\". Supported values: default, acceptEdits, auto.",
-                self.key(),
-                raw_mode
-            )))
+                    "Unsupported value for {}: \"{}\". Supported values: {}.",
+                    self.key(),
+                    raw_mode,
+                    PERMISSION_MODE_SUPPORTED_VALUES.join(", ")
+                )))
             }
         };
 
@@ -228,19 +532,40 @@ impl SettingWriteError {
     }
 }
 
+#[derive(Clone, Default)]
+struct ConfigToolHostCallbacks {
+    voice_enabled_read: Option<VoiceEnabledReadCallback>,
+    voice_enabled_write: Option<VoiceEnabledWriteCallback>,
+}
+
 pub struct ConfigTool {
     config: Option<Arc<Config>>,
+    host_callbacks: ConfigToolHostCallbacks,
 }
 
 impl ConfigTool {
     pub fn new() -> Self {
-        Self { config: None }
+        Self {
+            config: None,
+            host_callbacks: ConfigToolHostCallbacks::default(),
+        }
+    }
+
+    pub fn with_voice_enabled_callbacks(
+        mut self,
+        read_callback: VoiceEnabledReadCallback,
+        write_callback: VoiceEnabledWriteCallback,
+    ) -> Self {
+        self.host_callbacks.voice_enabled_read = Some(read_callback);
+        self.host_callbacks.voice_enabled_write = Some(write_callback);
+        self
     }
 
     #[cfg(test)]
     fn with_config(config: Arc<Config>) -> Self {
         Self {
             config: Some(config),
+            host_callbacks: ConfigToolHostCallbacks::default(),
         }
     }
 
@@ -249,6 +574,82 @@ impl ConfigTool {
             Some(config) => config.as_ref(),
             None => Config::global(),
         }
+    }
+
+    fn supports_host_backed_setting(&self, setting: SupportedSetting) -> bool {
+        match setting {
+            SupportedSetting::VoiceEnabled => {
+                self.host_callbacks.voice_enabled_read.is_some()
+                    && self.host_callbacks.voice_enabled_write.is_some()
+            }
+            _ => false,
+        }
+    }
+
+    fn unsupported_message(&self, setting: SupportedSetting) -> Option<&'static str> {
+        if self.supports_host_backed_setting(setting) {
+            None
+        } else {
+            setting.unsupported_message()
+        }
+    }
+
+    async fn execute_host_backed_setting(
+        &self,
+        setting: SupportedSetting,
+        next_value: Option<Value>,
+    ) -> Result<Option<ConfigToolOutput>, ToolError> {
+        match setting {
+            SupportedSetting::VoiceEnabled => self.execute_voice_enabled(next_value).await,
+            _ => Ok(None),
+        }
+    }
+
+    async fn execute_voice_enabled(
+        &self,
+        next_value: Option<Value>,
+    ) -> Result<Option<ConfigToolOutput>, ToolError> {
+        let Some(read_callback) = self.host_callbacks.voice_enabled_read.as_ref() else {
+            return Ok(None);
+        };
+        let Some(write_callback) = self.host_callbacks.voice_enabled_write.as_ref() else {
+            return Ok(None);
+        };
+
+        let setting_key = VOICE_ENABLED_SETTING_KEY;
+        let current_value = match read_callback().await {
+            Ok(enabled) => Value::Bool(enabled),
+            Err(message) => {
+                let operation = if next_value.is_some() { "set" } else { "get" };
+                return Ok(Some(ConfigToolOutput::failure(
+                    operation,
+                    setting_key,
+                    message,
+                )));
+            }
+        };
+
+        if let Some(value) = next_value {
+            let enabled = match expect_boolean_value(setting_key, value) {
+                Ok(enabled) => enabled,
+                Err(SettingWriteError::Validation(message)) => {
+                    return Ok(Some(ConfigToolOutput::failure("set", setting_key, message)));
+                }
+                Err(SettingWriteError::System(error)) => return Err(error),
+            };
+
+            return Ok(Some(match write_callback(enabled).await {
+                Ok(resolved) => {
+                    ConfigToolOutput::set_success(setting_key, current_value, Value::Bool(resolved))
+                }
+                Err(message) => ConfigToolOutput::failure("set", setting_key, message),
+            }));
+        }
+
+        Ok(Some(ConfigToolOutput::get_success(
+            setting_key,
+            current_value,
+        )))
     }
 }
 
@@ -290,6 +691,24 @@ fn expect_string_value(setting: &str, value: Value) -> Result<String, SettingWri
     }
 }
 
+fn expect_boolean_value(setting: &str, value: Value) -> Result<bool, SettingWriteError> {
+    match value {
+        Value::Bool(boolean) => Ok(boolean),
+        Value::String(text) => match text.trim().to_ascii_lowercase().as_str() {
+            "true" => Ok(true),
+            "false" => Ok(false),
+            _ => Err(SettingWriteError::validation(format!(
+                "{} requires true or false.",
+                setting
+            ))),
+        },
+        _ => Err(SettingWriteError::validation(format!(
+            "{} requires true or false.",
+            setting
+        ))),
+    }
+}
+
 fn pretty_json<T: Serialize>(value: &T) -> Result<String, ToolError> {
     serde_json::to_string_pretty(value)
         .map_err(|error| ToolError::execution_failed(format!("序列化 Config 结果失败: {error}")))
@@ -321,8 +740,41 @@ fn tool_result_from_output(output: ConfigToolOutput) -> Result<ToolResult, ToolE
     Ok(result)
 }
 
-fn dynamic_description() -> String {
-    [
+fn supported_settings_line(tool: &ConfigTool, setting: SupportedSetting) -> String {
+    let kind = match setting.value_type() {
+        SettingValueType::Boolean => "boolean",
+        SettingValueType::String => "string",
+    };
+    let options = if setting.options().is_empty() {
+        String::new()
+    } else {
+        format!(" Options: {}.", setting.options().join(", "))
+    };
+    let availability = tool
+        .unsupported_message(setting)
+        .map(|message| format!(" Current Lime runtime: {}.", message))
+        .unwrap_or_default();
+
+    format!(
+        "- {} ({}) - {}{}{}",
+        setting.key(),
+        kind,
+        setting.description(),
+        options,
+        availability
+    )
+}
+
+fn supported_setting_keys() -> String {
+    SUPPORTED_SETTINGS
+        .iter()
+        .map(|setting| setting.key())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn dynamic_description(tool: &ConfigTool) -> String {
+    let mut lines = vec![
         CONFIG_TOOL_DESCRIPTION.to_string(),
         String::new(),
         "Usage:".to_string(),
@@ -330,22 +782,23 @@ fn dynamic_description() -> String {
         "- Provide `value` to update the setting.".to_string(),
         String::new(),
         "Supported settings:".to_string(),
-        format!(
-            "- {} - {}",
-            MODEL_SETTING_KEY,
-            SupportedSetting::Model.description()
-        ),
-        format!(
-            "- {}: \"{}\", \"{}\", \"{}\" - {}",
-            PERMISSION_MODE_SETTING_KEY,
-            PERMISSION_MODE_DEFAULT_VALUE,
-            PERMISSION_MODE_ACCEPT_EDITS_VALUE,
-            PERMISSION_MODE_AUTO_VALUE,
-            SupportedSetting::PermissionsDefaultMode.description()
-        ),
+    ];
+
+    lines.extend(
+        SUPPORTED_SETTINGS
+            .iter()
+            .copied()
+            .map(|setting| supported_settings_line(tool, setting)),
+    );
+
+    lines.extend([
         String::new(),
         "Examples:".to_string(),
-        format!("- {{ \"setting\": \"{}\" }}", MODEL_SETTING_KEY),
+        format!("- {{ \"setting\": \"{}\" }}", THEME_SETTING_KEY),
+        format!(
+            "- {{ \"setting\": \"{}\", \"value\": true }}",
+            VERBOSE_SETTING_KEY
+        ),
         format!(
             "- {{ \"setting\": \"{}\", \"value\": \"gpt-5.4\" }}",
             MODEL_SETTING_KEY
@@ -354,8 +807,9 @@ fn dynamic_description() -> String {
             "- {{ \"setting\": \"{}\", \"value\": \"acceptEdits\" }}",
             PERMISSION_MODE_SETTING_KEY
         ),
-    ]
-    .join("\n")
+    ]);
+
+    lines.join("\n")
 }
 
 #[async_trait]
@@ -369,7 +823,7 @@ impl Tool for ConfigTool {
     }
 
     fn dynamic_description(&self) -> Option<String> {
-        Some(dynamic_description())
+        Some(dynamic_description(self))
     }
 
     fn input_schema(&self) -> Value {
@@ -379,7 +833,7 @@ impl Tool for ConfigTool {
             "properties": {
                 "setting": {
                     "type": "string",
-                    "description": "The setting key (for example: \"model\" or \"permissions.defaultMode\")"
+                    "description": "The setting key (for example: \"theme\", \"model\", or \"permissions.defaultMode\")"
                 },
                 "value": {
                     "description": "The new value. Omit this field to read the current value.",
@@ -431,13 +885,27 @@ impl Tool for ConfigTool {
                 if input.value.is_some() { "set" } else { "get" },
                 setting_name,
                 format!(
-                    "Unknown setting: \"{}\". Supported settings: {}, {}.",
+                    "Unknown setting: \"{}\". Supported settings: {}.",
                     input.setting.trim(),
-                    MODEL_SETTING_KEY,
-                    PERMISSION_MODE_SETTING_KEY
+                    supported_setting_keys()
                 ),
             ));
         };
+
+        if let Some(output) = self
+            .execute_host_backed_setting(setting, input.value.clone())
+            .await?
+        {
+            return tool_result_from_output(output);
+        }
+
+        if let Some(message) = self.unsupported_message(setting) {
+            return tool_result_from_output(ConfigToolOutput::failure(
+                if input.value.is_some() { "set" } else { "get" },
+                setting.key(),
+                message,
+            ));
+        }
 
         let config = self.config();
 
@@ -493,6 +961,8 @@ mod tests {
 
         assert_eq!(definition.name, CONFIG_TOOL_NAME);
         assert!(definition.description.contains("Supported settings"));
+        assert!(definition.description.contains(THEME_SETTING_KEY));
+        assert!(definition.description.contains(TEAMMATE_MODE_SETTING_KEY));
         assert_eq!(
             definition
                 .input_schema
@@ -522,6 +992,29 @@ mod tests {
             ConfigToolOutput::get_success(
                 MODEL_SETTING_KEY,
                 Value::String(MODEL_DEFAULT_VALUE.to_string())
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_get_theme_defaults_to_auto() {
+        let _guard = lock_env([("THEME", None::<&str>)]);
+        let tool = create_test_tool();
+
+        let result = tool
+            .execute(
+                json!({ "setting": THEME_SETTING_KEY }),
+                &ToolContext::default(),
+            )
+            .await
+            .expect("tool should succeed");
+        let output = parse_output(result);
+
+        assert_eq!(
+            output,
+            ConfigToolOutput::get_success(
+                THEME_SETTING_KEY,
+                Value::String(THEME_DEFAULT_VALUE.to_string())
             )
         );
     }
@@ -557,6 +1050,129 @@ mod tests {
         assert_eq!(
             get_output,
             ConfigToolOutput::get_success(MODEL_SETTING_KEY, Value::String("gpt-5.4".to_string()))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_set_boolean_setting_round_trip() {
+        let _guard = lock_env([("VERBOSE", None::<&str>)]);
+        let tool = create_test_tool();
+        let context = ToolContext::default();
+
+        let set_result = tool
+            .execute(
+                json!({ "setting": VERBOSE_SETTING_KEY, "value": true }),
+                &context,
+            )
+            .await
+            .expect("set verbose should succeed");
+        let set_output = parse_output(set_result);
+        assert!(set_output.success);
+        assert_eq!(set_output.operation.as_deref(), Some("set"));
+        assert_eq!(set_output.setting.as_deref(), Some(VERBOSE_SETTING_KEY));
+        assert_eq!(set_output.value, Some(Value::Bool(true)));
+        assert_eq!(set_output.previous_value, None);
+        assert_eq!(set_output.new_value, Some(Value::Bool(true)));
+
+        let get_result = tool
+            .execute(json!({ "setting": VERBOSE_SETTING_KEY }), &context)
+            .await
+            .expect("get verbose should succeed");
+        let get_output = parse_output(get_result);
+        assert_eq!(
+            get_output,
+            ConfigToolOutput::get_success(VERBOSE_SETTING_KEY, Value::Bool(true))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_boolean_setting_accepts_string_booleans() {
+        let _guard = lock_env([("TASKTRACKINGENABLED", None::<&str>)]);
+        let tool = create_test_tool();
+
+        let result = tool
+            .execute(
+                json!({
+                    "setting": TASK_TRACKING_ENABLED_SETTING_KEY,
+                    "value": "false"
+                }),
+                &ToolContext::default(),
+            )
+            .await
+            .expect("string boolean should be accepted");
+        let output = parse_output(result);
+
+        assert!(output.success);
+        assert_eq!(output.operation.as_deref(), Some("set"));
+        assert_eq!(
+            output.setting.as_deref(),
+            Some(TASK_TRACKING_ENABLED_SETTING_KEY)
+        );
+        assert_eq!(output.value, Some(Value::Bool(false)));
+        assert_eq!(output.previous_value, None);
+        assert_eq!(output.new_value, Some(Value::Bool(false)));
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_set_teammate_mode_round_trip() {
+        let _guard = lock_env([("TEAMMATEMODE", None::<&str>)]);
+        let tool = create_test_tool();
+        let context = ToolContext::default();
+
+        let set_result = tool
+            .execute(
+                json!({ "setting": TEAMMATE_MODE_SETTING_KEY, "value": "tmux" }),
+                &context,
+            )
+            .await
+            .expect("set teammate mode should succeed");
+        let set_output = parse_output(set_result);
+        assert_eq!(
+            set_output,
+            ConfigToolOutput::set_success(
+                TEAMMATE_MODE_SETTING_KEY,
+                Value::String(TEAMMATE_MODE_DEFAULT_VALUE.to_string()),
+                Value::String("tmux".to_string())
+            )
+        );
+
+        let get_result = tool
+            .execute(json!({ "setting": TEAMMATE_MODE_SETTING_KEY }), &context)
+            .await
+            .expect("get teammate mode should succeed");
+        let get_output = parse_output(get_result);
+        assert_eq!(
+            get_output,
+            ConfigToolOutput::get_success(
+                TEAMMATE_MODE_SETTING_KEY,
+                Value::String("tmux".to_string())
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_rejects_invalid_option_value() {
+        let _guard = lock_env([("TEAMMATEMODE", None::<&str>)]);
+        let tool = create_test_tool();
+
+        let result = tool
+            .execute(
+                json!({
+                    "setting": TEAMMATE_MODE_SETTING_KEY,
+                    "value": "fork"
+                }),
+                &ToolContext::default(),
+            )
+            .await
+            .expect("tool should return structured failure");
+        let output = parse_output(result);
+
+        assert!(!output.success);
+        assert_eq!(output.operation, Some("set".to_string()));
+        assert_eq!(output.setting.as_deref(), Some(TEAMMATE_MODE_SETTING_KEY));
+        assert_eq!(
+            output.error.as_deref(),
+            Some("Invalid value \"fork\". Options: auto, tmux, in-process")
         );
     }
 
@@ -601,15 +1217,55 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_config_tool_rejects_unsupported_permission_value() {
-        let _guard = lock_env([("ASTER_MODEL", None::<&str>), ("ASTER_MODE", None::<&str>)]);
+    async fn test_config_tool_supports_runtime_permission_aliases() {
+        let _guard = lock_env([("ASTER_MODE", None::<&str>)]);
+        let tool = create_test_tool();
+        let context = ToolContext::default();
+
+        let set_result = tool
+            .execute(
+                json!({
+                    "setting": PERMISSION_MODE_SETTING_KEY,
+                    "value": PERMISSION_MODE_APPROVE_VALUE
+                }),
+                &context,
+            )
+            .await
+            .expect("set approve mode should succeed");
+        let set_output = parse_output(set_result);
+        assert_eq!(
+            set_output,
+            ConfigToolOutput::set_success(
+                PERMISSION_MODE_SETTING_KEY,
+                Value::String(PERMISSION_MODE_DEFAULT_VALUE.to_string()),
+                Value::String(PERMISSION_MODE_APPROVE_VALUE.to_string())
+            )
+        );
+
+        let get_result = tool
+            .execute(json!({ "setting": PERMISSION_MODE_SETTING_KEY }), &context)
+            .await
+            .expect("get approve mode should succeed");
+        let get_output = parse_output(get_result);
+        assert_eq!(
+            get_output,
+            ConfigToolOutput::get_success(
+                PERMISSION_MODE_SETTING_KEY,
+                Value::String(PERMISSION_MODE_APPROVE_VALUE.to_string())
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_rejects_unimplemented_upstream_permission_modes() {
+        let _guard = lock_env([("ASTER_MODE", None::<&str>)]);
         let tool = create_test_tool();
 
         let result = tool
             .execute(
                 json!({
                     "setting": PERMISSION_MODE_SETTING_KEY,
-                    "value": "plan"
+                    "value": PERMISSION_MODE_PLAN_VALUE
                 }),
                 &ToolContext::default(),
             )
@@ -624,7 +1280,113 @@ mod tests {
             .error
             .as_deref()
             .expect("error message")
-            .contains("Unsupported value"));
+            .contains("not implemented in the current Lime runtime"));
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_reports_known_but_unimplemented_setting_on_get() {
+        let tool = create_test_tool();
+
+        let result = tool
+            .execute(
+                json!({ "setting": VOICE_ENABLED_SETTING_KEY }),
+                &ToolContext::default(),
+            )
+            .await
+            .expect("tool should return structured failure");
+        let output = parse_output(result);
+
+        assert!(!output.success);
+        assert_eq!(output.operation.as_deref(), Some("get"));
+        assert_eq!(output.setting.as_deref(), Some(VOICE_ENABLED_SETTING_KEY));
+        assert!(output
+            .error
+            .as_deref()
+            .expect("error message")
+            .contains("Known upstream setting"));
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_supports_host_backed_voice_enabled_setting() {
+        let voice_enabled = Arc::new(tokio::sync::Mutex::new(false));
+        let read_state = voice_enabled.clone();
+        let write_state = voice_enabled.clone();
+        let tool = ConfigTool::new().with_voice_enabled_callbacks(
+            Arc::new(move || {
+                let read_state = read_state.clone();
+                Box::pin(async move { Ok(*read_state.lock().await) })
+            }),
+            Arc::new(move |enabled| {
+                let write_state = write_state.clone();
+                Box::pin(async move {
+                    *write_state.lock().await = enabled;
+                    Ok(enabled)
+                })
+            }),
+        );
+        let context = ToolContext::default();
+
+        let definition = tool.get_definition();
+        assert!(definition.description.contains(VOICE_ENABLED_SETTING_KEY));
+        assert!(!definition
+            .description
+            .contains("needs a host-backed callback"));
+
+        let get_result = tool
+            .execute(json!({ "setting": VOICE_ENABLED_SETTING_KEY }), &context)
+            .await
+            .expect("host-backed get should succeed");
+        let get_output = parse_output(get_result);
+        assert_eq!(
+            get_output,
+            ConfigToolOutput::get_success(VOICE_ENABLED_SETTING_KEY, Value::Bool(false))
+        );
+
+        let set_result = tool
+            .execute(
+                json!({ "setting": VOICE_ENABLED_SETTING_KEY, "value": "true" }),
+                &context,
+            )
+            .await
+            .expect("host-backed set should succeed");
+        let set_output = parse_output(set_result);
+        assert_eq!(
+            set_output,
+            ConfigToolOutput::set_success(
+                VOICE_ENABLED_SETTING_KEY,
+                Value::Bool(false),
+                Value::Bool(true)
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_reports_known_but_unimplemented_setting_on_set() {
+        let tool = create_test_tool();
+
+        let result = tool
+            .execute(
+                json!({
+                    "setting": TASK_COMPLETE_NOTIF_ENABLED_SETTING_KEY,
+                    "value": true
+                }),
+                &ToolContext::default(),
+            )
+            .await
+            .expect("tool should return structured failure");
+        let output = parse_output(result);
+
+        assert!(!output.success);
+        assert_eq!(output.operation.as_deref(), Some("set"));
+        assert_eq!(
+            output.setting.as_deref(),
+            Some(TASK_COMPLETE_NOTIF_ENABLED_SETTING_KEY)
+        );
+        assert!(output
+            .error
+            .as_deref()
+            .expect("error message")
+            .contains("Known upstream setting"));
     }
 
     #[tokio::test]

@@ -15,6 +15,10 @@ pub const TOOL_GUIDELINES: &str = r#"# Tool usage policy
 - When doing file search or codebase exploration, prefer Glob, Grep, and Read before falling back to bash.
 - Use specialized tools instead of bash commands when possible, as this provides a better user experience.
 - NEVER use bash echo or other command-line tools to communicate thoughts, explanations, or instructions to the user.
+- Before the first tool batch, briefly tell the user what you are about to check instead of going silent.
+- If the user explicitly names absolute local paths, repo roots, or concrete files, treat them as the primary exploration roots for this turn. Keep the first batch inside those explicit paths instead of scanning the default working directory or unrelated folders.
+- When independent read-only tool calls have no dependency on each other, emit them together in one response so the runtime can execute them in parallel. For local codebase exploration, prefer batches of 2 to 4 independent Read / Glob / Grep / read-only Bash calls instead of long single-step chains.
+- After each tool batch, if you still need another batch, first give a short process conclusion that explains what you confirmed, what is still missing, and why you need to continue. Do not emit an extra `阶段结论` title.
 - Use TaskCreate, TaskList, TaskGet, and TaskUpdate to track progress on multi-step work.
 - Use ToolSearch only for deferred extension/MCP tools, and use exact names such as `select:Read,Edit,Grep` or `select:mcp__playwright__browser_click` when you need to load or confirm a tool. Do not use ToolSearch for already-visible native tools like Read, Write, Edit, Glob, Grep, Bash, WebFetch, or WebSearch.
 - Do not search for native tools via aliases like `read_file`, `write_file`, `edit_file`, or `system`; call the actual tool names directly.

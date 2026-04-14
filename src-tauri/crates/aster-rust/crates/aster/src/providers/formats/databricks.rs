@@ -3,8 +3,8 @@ use crate::model::ModelConfig;
 use crate::providers::formats::google as gemini_schema;
 use crate::providers::formats::tool_description_with_examples;
 use crate::providers::utils::{
-    convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
-    sanitize_function_name, ImageFormat,
+    convert_image, detect_image_path, is_valid_function_name, load_image_file,
+    parse_tool_arguments_json_object, sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
 use rmcp::model::{
@@ -337,7 +337,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     };
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
-                    match safely_parse_json(&arguments_str) {
+                    match parse_tool_arguments_json_object(&arguments_str) {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,

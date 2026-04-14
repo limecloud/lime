@@ -71,17 +71,18 @@ lime/
 |------|------|
 | `src/features/browser-runtime/` | 浏览器协助运行时与调试工作区 |
 | `src-tauri/src/terminal/` | 内置终端与 PTY 会话 |
-| `src-tauri/src/services/heartbeat_service/` | 异步调度、周期任务与投递 |
+| `src-tauri/src/services/automation_service/` + `src-tauri/src/app/scheduler_service.rs` | 自动化任务、后台轮询与兼容调度触发壳 |
 | `src-tauri/src/plugin/` | 插件系统 |
 | `src-tauri/src/services/mcp_service.rs` | MCP 服务器与工具管理 |
-| `src-tauri/src/commands/gateway_channel_cmd.rs` | Telegram / Feishu / Discord Claw 渠道运行时 |
-| `src-tauri/src/commands/telegram_remote_cmd.rs` | Telegram 远程触发入口 |
+| `src-tauri/src/commands/gateway_channel_cmd.rs` | 多渠道远程入口、Webhook/Tunnel 与渠道运行时 |
+| `src-tauri/src/commands/browser_connector_cmd.rs` + `src-tauri/src/commands/webview_cmd.rs` | 浏览器连接器、ChromeBridge 与远程浏览器接入 |
+| `src-tauri/src/commands/telegram_remote_cmd.rs` + `src-tauri/src/dev_bridge.rs` + `src-tauri/src/services/openclaw_service/*` | 单通道旧入口、开发桥与本地 Gateway 兼容支撑 |
 
 ### 基础设施层
 
 | 模块 | 说明 |
 |------|------|
-| `src-tauri/src/agent/` | Aster Agent 集成、会话、工具注册与流式桥接 |
+| `src-tauri/src/agent/` | Aster Agent 集成、会话历史、线程读模型、工具注册与流式桥接 |
 | `providers/` | LLM Provider 认证和 API 实现 |
 | `services/` | 业务服务层 |
 | `converter/` | 协议转换与兼容层 |
@@ -96,7 +97,7 @@ lime/
 
 | 模块 | 说明 |
 |------|------|
-| `agent/` | Aster Agent 运行时桥接与会话管理 |
+| `agent/` | Aster Agent 运行时桥接、会话管理与状态读模型装配 |
 | `skills/` | Skills 标准集成、动态加载与执行回调 |
 | `providers/` | 多 Provider 认证与请求发送 |
 | `services/` | 心跳、OpenClaw、浏览器窗口、MCP 等业务服务 |
@@ -223,6 +224,8 @@ lime/
 
 ### 产品与工作台
 - [workspace.md](workspace.md) - Workspace 边界与工作区设计
+- [memory-compaction.md](memory-compaction.md) - 记忆来源链、会话记忆、持久记忆与会话压缩主链
+- [state-history-telemetry.md](state-history-telemetry.md) - session/thread/request/evidence/history 的状态读模型主链
 - [skill-standard.md](skill-standard.md) - 统一技能标准、目录与运行边界
 - [../../src-tauri/src/skills/README.md](../../src-tauri/src/skills/README.md) - Skills 标准与集成
 - [terminal.md](terminal.md) - 终端能力

@@ -128,4 +128,24 @@ describe("internalImagePlaceholder", () => {
       }),
     ).toBe(text);
   });
+
+  it("应去掉 assistant 消息里的 markdown 阶段结论标题", () => {
+    const text = "## 阶段结论\n\n已经找到关键线索。";
+
+    expect(
+      sanitizeMessageTextForDisplay(text, {
+        role: "assistant",
+      }),
+    ).toBe("已经找到关键线索。");
+  });
+
+  it("应去掉 assistant 消息里的行内阶段结论文案", () => {
+    const text = "阶段结论：已经找到关键线索。";
+
+    expect(
+      sanitizeMessageTextForDisplay(text, {
+        role: "assistant",
+      }),
+    ).toBe("已经找到关键线索。");
+  });
 });

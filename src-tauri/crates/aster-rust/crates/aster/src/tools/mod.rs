@@ -28,12 +28,14 @@ mod agent_control;
 mod analyze_image;
 pub mod ask;
 pub mod bash;
+pub mod command_semantics;
 pub mod config_tool;
 pub mod cron_tools;
 pub mod file;
 pub mod lsp;
 pub mod mcp_resource_tools;
 pub mod notebook_edit_tool;
+pub mod path_guard;
 pub mod plan_mode_tool;
 pub mod powershell_tool;
 pub mod remote_trigger_tool;
@@ -80,7 +82,13 @@ pub use task::{
 };
 
 // Tool implementations
-pub use bash::{BashTool, SafetyCheckResult, SandboxConfig, MAX_OUTPUT_LENGTH};
+pub use bash::{
+    is_bash_command_concurrency_safe, preflight_bash_read_targets, BashTool, SafetyCheckResult,
+    SandboxConfig, MAX_OUTPUT_LENGTH,
+};
+pub use command_semantics::{
+    interpret_bash_command_result, interpret_powershell_command_result, CommandInterpretation,
+};
 pub use config_tool::ConfigTool;
 pub use cron_tools::{CronCreateTool, CronDeleteTool, CronListTool};
 pub use sleep_tool::SleepTool;
@@ -120,7 +128,9 @@ pub use crate::skills::SkillTool;
 // Task tools
 pub use notebook_edit_tool::{NotebookCell, NotebookContent, NotebookEditInput, NotebookEditTool};
 pub use plan_mode_tool::{EnterPlanModeTool, ExitPlanModeTool, PlanModeState, SavedPlan};
-pub use powershell_tool::PowerShellTool;
+pub use powershell_tool::{
+    is_powershell_command_concurrency_safe, preflight_powershell_read_targets, PowerShellTool,
+};
 pub use remote_trigger_tool::{RemoteTriggerTool, REMOTE_TRIGGER_GATE_ENV};
 pub use send_user_message_tool::{SendUserMessageTool, SEND_USER_MESSAGE_TOOL_NAME};
 pub use task_list_tools::{
@@ -456,7 +466,15 @@ pub fn register_all_tools(
 
     // Register Plan Mode tools
     registry.register(Box::new(EnterPlanModeTool::new()));
-    registry.register(Box::new(ExitPlanModeTool::new()));
+    let mut exit_plan_mode_tool = ExitPlanModeTool::new();
+    if let Some(send_input_callback) = config
+        .agent_control_tools
+        .as_ref()
+        .and_then(|agent_control_tools| agent_control_tools.send_input.clone())
+    {
+        exit_plan_mode_tool = exit_plan_mode_tool.with_send_input_callback(send_input_callback);
+    }
+    registry.register(Box::new(exit_plan_mode_tool));
 
     if let Some(agent_control_tools) = config.agent_control_tools.as_ref() {
         register_agent_control_tools(registry, agent_control_tools);
@@ -590,18 +608,33 @@ mod tests {
 
             // Verify core tools are registered
             assert!(registry.contains("Bash"));
+            assert!(registry.contains("BashTool"));
             assert!(registry.contains("Read"));
+            assert!(registry.contains("FileReadTool"));
             assert!(registry.contains("Write"));
+            assert!(registry.contains("FileWriteTool"));
             assert!(registry.contains("Edit"));
+            assert!(registry.contains("FileEditTool"));
             assert!(registry.contains("Glob"));
+            assert!(registry.contains("GlobTool"));
             assert!(registry.contains("Grep"));
+            assert!(registry.contains("GrepTool"));
             assert_eq!(
                 registry.contains("Config"),
                 should_register_current_surface_tool("Config", tool_gates)
             );
+            assert_eq!(
+                registry.contains("ConfigTool"),
+                should_register_current_surface_tool("Config", tool_gates)
+            );
             assert!(registry.contains("SendUserMessage"));
+            assert!(registry.contains("BriefTool"));
             assert_eq!(
                 registry.contains("Sleep"),
+                should_register_current_surface_tool("Sleep", tool_gates)
+            );
+            assert_eq!(
+                registry.contains("SleepTool"),
                 should_register_current_surface_tool("Sleep", tool_gates)
             );
             assert_eq!(
@@ -609,7 +642,13 @@ mod tests {
                 should_register_current_surface_tool("PowerShell", tool_gates)
                     && PowerShellTool::is_runtime_available()
             );
+            assert_eq!(
+                registry.contains("PowerShellTool"),
+                should_register_current_surface_tool("PowerShell", tool_gates)
+                    && PowerShellTool::is_runtime_available()
+            );
             assert!(registry.contains("Skill"));
+            assert!(registry.contains("SkillTool"));
             assert_eq!(
                 registry.contains("Workflow"),
                 should_register_current_surface_tool("Workflow", tool_gates)
@@ -620,17 +659,33 @@ mod tests {
             assert!(registry.contains("TaskUpdate"));
             assert!(registry.contains("TaskOutput"));
             assert!(registry.contains("TaskStop"));
+            assert!(registry.contains("TaskCreateTool"));
+            assert!(registry.contains("TaskListTool"));
+            assert!(registry.contains("TaskGetTool"));
+            assert!(registry.contains("TaskUpdateTool"));
+            assert!(registry.contains("TaskOutputTool"));
+            assert!(registry.contains("AgentOutputTool"));
+            assert!(registry.contains("BashOutputTool"));
+            assert!(registry.contains("TaskStopTool"));
+            assert!(registry.contains("KillShell"));
             assert!(registry.contains("NotebookEdit"));
+            assert!(registry.contains("NotebookEditTool"));
             assert!(!registry.contains("CronCreate"));
             assert!(!registry.contains("CronList"));
             assert!(!registry.contains("CronDelete"));
             assert!(!registry.contains("RemoteTrigger"));
             assert!(registry.contains("EnterWorktree"));
+            assert!(registry.contains("EnterWorktreeTool"));
             assert!(registry.contains("ExitWorktree"));
+            assert!(registry.contains("ExitWorktreeTool"));
             assert!(registry.contains("EnterPlanMode"));
+            assert!(registry.contains("EnterPlanModeTool"));
             assert!(registry.contains("ExitPlanMode"));
+            assert!(registry.contains("ExitPlanModeTool"));
             assert!(registry.contains("WebFetch"));
+            assert!(registry.contains("WebFetchTool"));
             assert!(registry.contains("WebSearch"));
+            assert!(registry.contains("WebSearchTool"));
             assert!(!registry.contains("ToolSearch"));
             assert!(!registry.contains("spawn_agent"));
             assert!(!registry.contains("Agent"));
@@ -690,28 +745,51 @@ mod tests {
 
             // Verify all tools are registered
             assert!(registry.contains("Bash"));
+            assert!(registry.contains("BashTool"));
             assert!(registry.contains("Read"));
+            assert!(registry.contains("FileReadTool"));
             assert!(registry.contains("Write"));
+            assert!(registry.contains("FileWriteTool"));
             assert!(registry.contains("Edit"));
+            assert!(registry.contains("FileEditTool"));
             assert!(registry.contains("Glob"));
+            assert!(registry.contains("GlobTool"));
             assert!(registry.contains("Grep"));
+            assert!(registry.contains("GrepTool"));
             assert_eq!(
                 registry.contains("Config"),
+                should_register_current_surface_tool("Config", tool_gates)
+            );
+            assert_eq!(
+                registry.contains("ConfigTool"),
                 should_register_current_surface_tool("Config", tool_gates)
             );
             assert_eq!(
                 registry.contains("Sleep"),
                 should_register_current_surface_tool("Sleep", tool_gates)
             );
+            assert_eq!(
+                registry.contains("SleepTool"),
+                should_register_current_surface_tool("Sleep", tool_gates)
+            );
             assert!(registry.contains("SendUserMessage"));
+            assert!(registry.contains("BriefTool"));
             assert_eq!(
                 registry.contains("PowerShell"),
                 should_register_current_surface_tool("PowerShell", tool_gates)
                     && PowerShellTool::is_runtime_available()
             );
+            assert_eq!(
+                registry.contains("PowerShellTool"),
+                should_register_current_surface_tool("PowerShell", tool_gates)
+                    && PowerShellTool::is_runtime_available()
+            );
             assert!(registry.contains("AskUserQuestion"));
+            assert!(registry.contains("AskUserQuestionTool"));
             assert!(registry.contains("LSP"));
+            assert!(registry.contains("LSPTool"));
             assert!(registry.contains("Skill"));
+            assert!(registry.contains("SkillTool"));
             assert_eq!(
                 registry.contains("Workflow"),
                 should_register_current_surface_tool("Workflow", tool_gates)
@@ -723,18 +801,26 @@ mod tests {
             assert!(registry.contains("TaskOutput"));
             assert!(registry.contains("TaskStop"));
             assert!(registry.contains("NotebookEdit"));
+            assert!(registry.contains("NotebookEditTool"));
             assert!(!registry.contains("CronCreate"));
             assert!(!registry.contains("CronList"));
             assert!(!registry.contains("CronDelete"));
             assert!(!registry.contains("RemoteTrigger"));
             assert!(registry.contains("EnterWorktree"));
+            assert!(registry.contains("EnterWorktreeTool"));
             assert!(registry.contains("ExitWorktree"));
+            assert!(registry.contains("ExitWorktreeTool"));
             assert!(registry.contains("EnterPlanMode"));
+            assert!(registry.contains("EnterPlanModeTool"));
             assert!(registry.contains("ExitPlanMode"));
+            assert!(registry.contains("ExitPlanModeTool"));
             assert!(registry.contains("WebFetch"));
+            assert!(registry.contains("WebFetchTool"));
             assert!(registry.contains("WebSearch"));
+            assert!(registry.contains("WebSearchTool"));
             assert!(!registry.contains("spawn_agent"));
             assert!(registry.contains("Agent"));
+            assert!(registry.contains("AgentTool"));
             assert!(!registry.contains("SendMessage"));
             assert!(!registry.contains("TeamCreate"));
             assert!(!registry.contains("TeamDelete"));
@@ -903,5 +989,11 @@ mod tests {
         assert!(registry.contains("TeamCreate"));
         assert!(registry.contains("TeamDelete"));
         assert!(registry.contains("ListPeers"));
+        assert!(registry.contains("SendMessageTool"));
+        assert!(registry.contains("SendInput"));
+        assert!(registry.contains("SendInputTool"));
+        assert!(registry.contains("TeamCreateTool"));
+        assert!(registry.contains("TeamDeleteTool"));
+        assert!(registry.contains("ListPeersTool"));
     }
 }

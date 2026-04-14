@@ -15,7 +15,7 @@ import type {
   WorkspacePathMissingState,
 } from "./agentChatShared";
 import {
-  loadPersistedSessionWorkspaceId,
+  loadStoredSessionWorkspaceIdRaw,
   savePersistedSessionWorkspaceId,
 } from "./agentProjectStorage";
 import {
@@ -32,7 +32,10 @@ import {
   savePersisted,
   type AgentAccessMode,
 } from "./agentChatStorage";
-import { normalizeProjectId } from "../utils/topicProjectResolution";
+import {
+  isLegacyDefaultProjectId,
+  normalizeProjectId,
+} from "../utils/topicProjectResolution";
 import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
 import { useWechatRuntimeModelSync } from "./useWechatRuntimeModelSync";
 
@@ -321,10 +324,14 @@ export function useAgentContext(options: UseAgentContextOptions) {
           return runtimeWorkspaceId === resolvedWorkspaceId;
         }
 
-        const mappedWorkspaceId = loadPersistedSessionWorkspaceId(session.id);
+        const mappedWorkspaceId = loadStoredSessionWorkspaceIdRaw(session.id);
 
         if (!mappedWorkspaceId) {
           return true;
+        }
+
+        if (isLegacyDefaultProjectId(mappedWorkspaceId)) {
+          return false;
         }
 
         return mappedWorkspaceId === resolvedWorkspaceId;

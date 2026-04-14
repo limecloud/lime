@@ -15,6 +15,7 @@ import { normalizeLegacyThreadItems } from "@/lib/api/agentTextNormalization";
 import {
   hydrateSessionDetailMessages,
   mergeHydratedMessagesWithLocalState,
+  normalizeHistoricalTopicSnapshotMessages,
 } from "./agentChatHistory";
 import {
   filterConversationThreadItems,
@@ -135,7 +136,9 @@ export function buildHydratedAgentSessionSnapshot(
   const effectiveCurrentSessionId =
     localSnapshotOverride?.sessionId ?? currentSessionId;
   const effectiveCurrentMessages =
-    localSnapshotOverride?.messages ?? currentMessages;
+    localSnapshotOverride
+      ? normalizeHistoricalTopicSnapshotMessages(localSnapshotOverride.messages)
+      : currentMessages;
   const effectiveCurrentThreadTurns =
     localSnapshotOverride?.threadTurns ?? currentThreadTurns;
   const effectiveCurrentThreadItems =

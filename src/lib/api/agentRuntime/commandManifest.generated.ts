@@ -57,7 +57,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "AgentRuntimeSubmitTurnRequest",
     responseType: "void",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.thread",
   },
   {
@@ -67,7 +67,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "AgentRuntimeInterruptTurnRequest",
     responseType: "boolean",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.thread",
   },
   {
@@ -137,7 +137,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "AgentRuntimeRespondActionRequest",
     responseType: "void",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.thread",
   },
   {
@@ -147,7 +147,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "{ workspaceId: string; name?: string; executionStrategy?: AsterExecutionStrategy }",
     responseType: "string",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.session",
   },
   {
@@ -157,7 +157,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "void",
     responseType: "AsterSessionInfo[]",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.session",
   },
   {
@@ -167,7 +167,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "{ sessionId: string }",
     responseType: "AsterSessionDetail",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.session",
   },
   {
@@ -177,7 +177,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "AgentRuntimeUpdateSessionRequest",
     responseType: "void",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.session",
   },
   {
@@ -187,7 +187,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "{ sessionId: string }",
     responseType: "void",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.session",
   },
   {
@@ -257,7 +257,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "AgentRuntimeToolInventoryRequest",
     responseType: "AgentRuntimeToolInventory",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.inventory",
   },
   {
@@ -267,7 +267,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "AgentRuntimeSpawnSubagentRequest",
     responseType: "AgentRuntimeSpawnSubagentResponse",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.subagent",
   },
   {
@@ -277,7 +277,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "AgentRuntimeSendSubagentInputRequest",
     responseType: "AgentRuntimeSendSubagentInputResponse",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.subagent",
   },
   {
@@ -287,7 +287,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "AgentRuntimeWaitSubagentsRequest",
     responseType: "AgentRuntimeWaitSubagentsResponse",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.subagent",
   },
   {
@@ -297,7 +297,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "AgentRuntimeResumeSubagentRequest",
     responseType: "AgentRuntimeResumeSubagentResponse",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.subagent",
   },
   {
@@ -307,7 +307,7 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     requestType: "AgentRuntimeCloseSubagentRequest",
     responseType: "AgentRuntimeCloseSubagentResponse",
     lifecycle: "current",
-    mockStrategy: "default-mock",
+    mockStrategy: "bridge-only",
     docsSection: "agent-runtime.subagent",
   },
 ] as const satisfies readonly AgentRuntimeCommandDescriptor[];

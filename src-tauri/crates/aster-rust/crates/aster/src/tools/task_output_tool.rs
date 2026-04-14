@@ -7,9 +7,11 @@ use super::context::{ToolContext, ToolResult};
 use super::error::ToolError;
 use super::task::TaskManager;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
+
+const TASK_OUTPUT_TOOL_ALIASES: &[&str] = &["TaskOutputTool", "AgentOutputTool", "BashOutputTool"];
 
 /// TaskOutputTool 输入参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,9 +20,34 @@ pub struct TaskOutputInput {
     /// 任务 ID
     pub task_id: String,
     /// 是否阻塞等待任务完成
+    #[serde(default, deserialize_with = "deserialize_optional_semantic_bool")]
     pub block: Option<bool>,
     /// 等待超时时间（毫秒）
     pub timeout: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum SemanticBoolInput {
+    Bool(bool),
+    String(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TaskOutputPayload {
+    task_id: String,
+    task_type: String,
+    status: String,
+    description: String,
+    output: String,
+    #[serde(rename = "exitCode", skip_serializing_if = "Option::is_none")]
+    exit_code: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TaskOutputResponse {
+    retrieval_status: String,
+    task: Option<TaskOutputPayload>,
 }
 
 /// TaskOutputTool - 查询任务输出和状态
@@ -51,10 +78,39 @@ impl Default for TaskOutputTool {
     }
 }
 
+fn pretty_json<T: Serialize>(value: &T) -> Result<String, ToolError> {
+    serde_json::to_string_pretty(value).map_err(|error| {
+        ToolError::execution_failed(format!("序列化 TaskOutput 结果失败: {error}"))
+    })
+}
+
+fn deserialize_optional_semantic_bool<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<SemanticBoolInput>::deserialize(deserializer)?;
+    match value {
+        None => Ok(None),
+        Some(SemanticBoolInput::Bool(value)) => Ok(Some(value)),
+        Some(SemanticBoolInput::String(raw)) => match raw.trim().to_ascii_lowercase().as_str() {
+            "true" => Ok(Some(true)),
+            "false" => Ok(Some(false)),
+            _ => Err(de::Error::invalid_value(
+                de::Unexpected::Str(&raw),
+                &"a boolean or the string \"true\"/\"false\"",
+            )),
+        },
+    }
+}
+
 #[async_trait]
 impl Tool for TaskOutputTool {
     fn name(&self) -> &str {
         "TaskOutput"
+    }
+
+    fn aliases(&self) -> &'static [&'static str] {
+        TASK_OUTPUT_TOOL_ALIASES
     }
 
     fn description(&self) -> &str {
@@ -83,7 +139,9 @@ TaskOutput 用于按 `task_id` 查询后台执行状态与日志。
                 },
                 "timeout": {
                     "type": "number",
-                    "description": "等待超时时间（毫秒，默认 30000）"
+                    "minimum": 0,
+                    "maximum": 600000,
+                    "description": "等待超时时间（毫秒，默认 30000，最大 600000）"
                 }
             },
             "required": ["task_id"],
@@ -101,6 +159,9 @@ TaskOutput 用于按 `task_id` 查询后台执行状态与日志。
 
         let block = input.block.unwrap_or(true);
         let timeout_ms = input.timeout.unwrap_or(30000);
+        if timeout_ms > 600000 {
+            return Err(ToolError::invalid_params("timeout 不能超过 600000 毫秒"));
+        }
 
         // 检查任务是否存在
         if !self.task_manager.task_exists(&input.task_id).await {
@@ -147,78 +208,26 @@ TaskOutput 用于按 `task_id` 查询后台执行状态与日志。
         };
         let output_file = state.output_file.display().to_string();
 
-        // 构建输出信息
-        let mut output = Vec::new();
-        output.push(
-            "兼容提示: 新链路优先使用 read 工具读取任务输出文件，TaskOutput 仅作为旧 task_id 查询兜底。"
-                .to_string(),
-        );
-        output.push(format!("=== 任务 {} ===", input.task_id));
-        output.push(format!("命令: {}", state.command));
-        output.push(format!("状态: {}", state.status));
-        output.push(format!("开始时间: {}", format_instant(state.start_time)));
-
         let duration = state.duration();
-        if let Some(end_time) = state.end_time {
-            output.push(format!("结束时间: {}", format_instant(end_time)));
-            output.push(format!("执行时间: {:.2}秒", duration.as_secs_f64()));
-        } else {
-            output.push(format!("运行时间: {:.2}秒", duration.as_secs_f64()));
-        }
+        let task_output = match self.task_manager.get_output(&input.task_id, None).await {
+            Ok(task_output) => task_output,
+            Err(error) => format!("输出获取失败: {error}"),
+        };
+        let response = TaskOutputResponse {
+            retrieval_status: retrieval_status.to_string(),
+            task: Some(TaskOutputPayload {
+                task_id: input.task_id.clone(),
+                task_type: "local_bash".to_string(),
+                status: state.status.to_string(),
+                description: state.command.clone(),
+                output: task_output,
+                exit_code: state.exit_code,
+            }),
+        };
 
-        if let Some(exit_code) = state.exit_code {
-            output.push(format!("退出码: {}", exit_code));
-        }
-
-        output.push(format!("工作目录: {}", state.working_directory.display()));
-        output.push(format!("输出文件: {}", output_file));
-        output.push(format!("会话 ID: {}", state.session_id));
-
-        // 获取任务输出
-        match self.task_manager.get_output(&input.task_id, None).await {
-            Ok(task_output) => {
-                output.push("\n=== 任务输出 ===".to_string());
-                if task_output.trim().is_empty() {
-                    output.push("（暂无输出）".to_string());
-                } else {
-                    output.push(task_output);
-                }
-            }
-            Err(e) => {
-                output.push("\n=== 输出获取失败 ===".to_string());
-                output.push(format!("错误: {}", e));
-            }
-        }
-
-        // 根据任务状态添加状态说明
-        match state.status {
-            super::task::TaskStatus::Running => {
-                output.push("\n=== 状态说明 ===".to_string());
-                output.push(
-                    "任务仍在运行中。优先直接读取输出文件；如需继续等待，可使用 block=true。"
-                        .to_string(),
-                );
-            }
-            super::task::TaskStatus::Completed => {
-                output.push("\n=== 状态说明 ===".to_string());
-                output.push("任务已成功完成。".to_string());
-            }
-            super::task::TaskStatus::Failed => {
-                output.push("\n=== 状态说明 ===".to_string());
-                output.push("任务执行失败。请检查命令和输出错误信息。".to_string());
-            }
-            super::task::TaskStatus::TimedOut => {
-                output.push("\n=== 状态说明 ===".to_string());
-                output.push("任务因超时被终止。".to_string());
-            }
-            super::task::TaskStatus::Killed => {
-                output.push("\n=== 状态说明 ===".to_string());
-                output.push("任务被用户终止。".to_string());
-            }
-        }
-
-        Ok(ToolResult::success(output.join("\n"))
+        Ok(ToolResult::success(pretty_json(&response)?)
             .with_metadata("task_id", serde_json::json!(input.task_id))
+            .with_metadata("task_type", serde_json::json!("local_bash"))
             .with_metadata("status", serde_json::json!(state.status.to_string()))
             .with_metadata("duration", serde_json::json!(duration.as_secs_f64()))
             .with_metadata("exit_code", serde_json::json!(state.exit_code))
@@ -234,13 +243,6 @@ TaskOutput 用于按 `task_id` 查询后台执行状态与日志。
         // 查询任务输出是只读操作
         PermissionCheckResult::allow()
     }
-}
-
-/// 格式化 Instant 为可读字符串
-/// 注意：Instant 不能直接转换为绝对时间，这里只显示相对时间
-fn format_instant(instant: std::time::Instant) -> String {
-    let elapsed = instant.elapsed();
-    format!("{:.2}秒前", elapsed.as_secs_f64())
 }
 
 #[cfg(test)]
@@ -317,13 +319,88 @@ mod tests {
 
         let tool_result = result.unwrap();
         assert!(tool_result.success);
-        assert!(tool_result.output.as_ref().unwrap().contains(&task_id));
+        let output = tool_result.output.as_ref().unwrap();
+        assert!(output.contains(&task_id));
+        assert!(output.contains("\"task_type\": \"local_bash\""));
         assert!(tool_result.metadata.contains_key("status"));
         assert_eq!(
             tool_result.metadata.get("retrieval_status"),
             Some(&serde_json::json!("success"))
         );
         assert!(tool_result.metadata.contains_key("output_file"));
+    }
+
+    #[tokio::test]
+    async fn test_task_output_tool_non_blocking_running_task_returns_not_ready() {
+        let temp_dir = TempDir::new().unwrap();
+        let task_manager = Arc::new(
+            TaskManager::new()
+                .with_output_directory(temp_dir.path().to_path_buf())
+                .with_max_concurrent(5),
+        );
+        let tool = TaskOutputTool::with_manager(task_manager.clone());
+        let context = create_test_context();
+
+        let task_id = task_manager.start("sleep 2", &context).await.unwrap();
+
+        let result = tool
+            .execute(
+                serde_json::json!({
+                    "task_id": task_id,
+                    "block": false
+                }),
+                &context,
+            )
+            .await
+            .unwrap();
+
+        assert!(result.success);
+        assert_eq!(
+            result.metadata["retrieval_status"],
+            serde_json::json!("not_ready")
+        );
+        assert_eq!(
+            result.metadata["task_type"],
+            serde_json::json!("local_bash")
+        );
+        let output = result.output.as_ref().unwrap();
+        assert!(output.contains("\"retrieval_status\": \"not_ready\""));
+        assert!(output.contains("\"task_type\": \"local_bash\""));
+    }
+
+    #[tokio::test]
+    async fn test_task_output_tool_blocking_timeout_returns_timeout() {
+        let temp_dir = TempDir::new().unwrap();
+        let task_manager = Arc::new(
+            TaskManager::new()
+                .with_output_directory(temp_dir.path().to_path_buf())
+                .with_max_concurrent(5),
+        );
+        let tool = TaskOutputTool::with_manager(task_manager.clone());
+        let context = create_test_context();
+
+        let task_id = task_manager.start("sleep 2", &context).await.unwrap();
+
+        let result = tool
+            .execute(
+                serde_json::json!({
+                    "task_id": task_id,
+                    "block": true,
+                    "timeout": 100
+                }),
+                &context,
+            )
+            .await
+            .unwrap();
+
+        assert!(result.success);
+        assert_eq!(
+            result.metadata["retrieval_status"],
+            serde_json::json!("timeout")
+        );
+        let output = result.output.as_ref().unwrap();
+        assert!(output.contains("\"retrieval_status\": \"timeout\""));
+        assert!(output.contains("\"task_type\": \"local_bash\""));
     }
 
     #[tokio::test]
@@ -355,9 +432,9 @@ mod tests {
 
         let tool_result = result.unwrap();
         assert!(tool_result.success);
-        // 应该包含任务输出
         let output = tool_result.output.as_ref().unwrap();
-        assert!(output.contains("blocking test") || output.contains("已完成"));
+        assert!(output.contains("blocking test"));
+        assert!(output.contains("\"retrieval_status\": \"success\""));
     }
 
     #[tokio::test]
@@ -371,6 +448,36 @@ mod tests {
 
         let result = tool.execute(params, &context).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_task_output_tool_accepts_string_block_flag() {
+        let temp_dir = TempDir::new().unwrap();
+        let task_manager = Arc::new(
+            TaskManager::new()
+                .with_output_directory(temp_dir.path().to_path_buf())
+                .with_max_concurrent(5),
+        );
+        let tool = TaskOutputTool::with_manager(task_manager.clone());
+        let context = create_test_context();
+
+        let task_id = task_manager.start("sleep 1", &context).await.unwrap();
+
+        let result = tool
+            .execute(
+                serde_json::json!({
+                    "task_id": task_id,
+                    "block": "false"
+                }),
+                &context,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            result.metadata["retrieval_status"],
+            serde_json::json!("not_ready")
+        );
     }
 
     #[tokio::test]

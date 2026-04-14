@@ -21,7 +21,7 @@ AI Agent 集成模块，基于 aster-rust 框架实现。
 | `mod.rs` | 模块入口，导出公共类型 |
 | `types.rs` | Agent 相关类型定义 |
 | `aster_state.rs` | Aster Agent 状态管理（主状态桥接；会话配置/项目上下文/身份配置/Skills 加载辅助逻辑委托 `crates/agent/src/aster_state_support.rs`） |
-| `aster_agent.rs` | Aster Agent 包装器（流式桥接，会话存储逻辑委托 `crates/agent/src/session_store.rs`） |
+| `aster_agent.rs` | Aster Agent 包装器（会话存储桥接与专用一次性会话 helper） |
 | `event_converter.rs` | Aster 事件到 Tauri 事件转换 |
 | `credential_bridge.rs` | 重导出层（纯逻辑已迁移到 `crates/agent/src/credential_bridge.rs`） |
 | `mcp_bridge.rs` | MCP 服务桥接 |
@@ -54,6 +54,18 @@ AsterAgentState::reload_lime_skills();
 
 ## 使用方式
 
+### current / compat 边界
+
+- `current`：产品级主链、Tauri 命令、GUI 提交入口统一走 `agent_runtime_submit_turn` / `agent_runtime_respond_action`
+- `compat`：`src/agent/*` 只保留底层状态桥接、会话存储桥接、专用一次性会话 helper 与调试说明
+- `deprecated`：不要再新增任何“直接 `agent.reply(...)` 就能完成业务提交”的 README 示例、服务入口或新命令
+
+如果你在实现产品逻辑、自动化任务、工作区提交或工具确认恢复：
+
+- 先看 `docs/aiprompts/query-loop.md`
+- 再看 `docs/aiprompts/prompt-foundation.md`
+- 不要从本页示例反推新的 Tauri 主路径
+
 ### 从凭证池配置（推荐）
 
 ```rust
@@ -85,11 +97,20 @@ state.configure_provider(config, &session_id, &db).await?;
 
 ### 发送消息
 
+仅限底层 crate 调试或受控 `compat` 一次性命令示例。Tauri 命令、自动化任务、GUI 提交与工具确认恢复都必须优先走 `agent_runtime_submit_turn` / `agent_runtime_respond_action`，不要继续新增原始 `agent.reply(...)` 产品旁路。
+
 ```rust
 let user_message = Message::user().with_text("Hello");
-let session_config = SessionConfigBuilder::new(&session_id).build();
+let session_config = build_auxiliary_session_config(&session_id, None, false);
 let stream = agent.reply(user_message, session_config, Some(cancel_token)).await?;
 ```
+
+上面这个 helper 只适用于：
+
+- 底层 crate 调试
+- 已明确归类为 `compat` 的专用一次性命令
+
+它不携带 Query Loop 的 `thread / turn / turn context snapshot` 真相，不能当成新的 current 提交入口。
 
 ## Tauri 命令
 

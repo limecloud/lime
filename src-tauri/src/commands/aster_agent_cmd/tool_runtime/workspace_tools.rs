@@ -145,6 +145,15 @@ impl WorkspaceSandboxedBashTool {
     }
 
     fn format_output(stdout: &str, stderr: &str, exit_code: i32) -> String {
+        Self::format_output_with_message(stdout, stderr, exit_code, None)
+    }
+
+    fn format_output_with_message(
+        stdout: &str,
+        stderr: &str,
+        exit_code: i32,
+        fallback_message: Option<&str>,
+    ) -> String {
         let mut output = String::new();
 
         if !stdout.is_empty() {
@@ -161,8 +170,12 @@ impl WorkspaceSandboxedBashTool {
             output.push_str(stderr);
         }
 
-        if exit_code != 0 && output.is_empty() {
-            output = format!("Command exited with code {exit_code}");
+        if output.is_empty() {
+            if let Some(message) = fallback_message {
+                output = message.to_string();
+            } else if exit_code != 0 {
+                output = format!("Command exited with code {exit_code}");
+            }
         }
 
         if output.len() <= MAX_OUTPUT_LENGTH {
@@ -612,6 +625,17 @@ impl Tool for WorkspaceSandboxedBashTool {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::invalid_params("Missing required parameter: command"))?;
 
+        if let Some(preflight_result) = if cfg!(target_os = "windows") {
+            aster::tools::powershell_tool::preflight_powershell_read_targets(
+                command,
+                &context.working_directory,
+            )
+        } else {
+            aster::tools::bash::preflight_bash_read_targets(command, &context.working_directory)
+        } {
+            return Ok(preflight_result);
+        }
+
         let background = normalized_params
             .get("background")
             .and_then(|v| v.as_bool())
@@ -639,15 +663,36 @@ impl Tool for WorkspaceSandboxedBashTool {
         .map_err(|_| ToolError::timeout(Duration::from_secs(timeout_secs)))?
         .map_err(|e| ToolError::execution_failed(format!("sandbox 执行失败: {e}")))?;
 
+        let interpretation = if cfg!(target_os = "windows") {
+            aster::tools::interpret_powershell_command_result(
+                command,
+                execution.exit_code,
+                &execution.stdout,
+                &execution.stderr,
+            )
+        } else {
+            aster::tools::interpret_bash_command_result(
+                command,
+                execution.exit_code,
+                &execution.stdout,
+                &execution.stderr,
+            )
+        };
+
         let output = append_workspace_bash_summary(
-            Self::format_output(&execution.stdout, &execution.stderr, execution.exit_code),
+            Self::format_output_with_message(
+                &execution.stdout,
+                &execution.stderr,
+                execution.exit_code,
+                interpretation.message.as_deref(),
+            ),
             execution.exit_code,
             execution.stdout.len(),
             execution.stderr.len(),
             execution.sandboxed,
             &format!("{:?}", execution.sandbox_type),
         );
-        if execution.exit_code == 0 {
+        if interpretation.is_error {
             let result = ToolResult::success(output)
                 .with_metadata("exit_code", serde_json::json!(execution.exit_code))
                 .with_metadata("stdout_length", serde_json::json!(execution.stdout.len()))
@@ -656,7 +701,8 @@ impl Tool for WorkspaceSandboxedBashTool {
                 .with_metadata(
                     "sandbox_type",
                     serde_json::json!(format!("{:?}", execution.sandbox_type)),
-                );
+                )
+                .with_metadata("reported_success", serde_json::json!(false));
             Ok(media_cli_bridge::enrich_tool_result_from_media_cli_output(
                 result,
                 &execution.stdout,
@@ -671,8 +717,12 @@ impl Tool for WorkspaceSandboxedBashTool {
                 .with_metadata(
                     "sandbox_type",
                     serde_json::json!(format!("{:?}", execution.sandbox_type)),
-                )
-                .with_metadata("reported_success", serde_json::json!(false));
+                );
+            let result = if execution.exit_code != 0 {
+                result.with_metadata("reported_success", serde_json::json!(true))
+            } else {
+                result
+            };
             Ok(media_cli_bridge::enrich_tool_result_from_media_cli_output(
                 result,
                 &execution.stdout,
@@ -742,6 +792,19 @@ impl Tool for WorkspaceBashTool {
         let mut normalized_params = normalize_shell_command_params(&params);
         if let Some(object) = normalized_params.as_object_mut() {
             if let Some(command) = object.get("command").and_then(|value| value.as_str()) {
+                if let Some(preflight_result) = if cfg!(target_os = "windows") {
+                    aster::tools::powershell_tool::preflight_powershell_read_targets(
+                        command,
+                        &context.working_directory,
+                    )
+                } else {
+                    aster::tools::bash::preflight_bash_read_targets(
+                        command,
+                        &context.working_directory,
+                    )
+                } {
+                    return Ok(preflight_result);
+                }
                 object.insert(
                     "command".to_string(),
                     serde_json::Value::String(

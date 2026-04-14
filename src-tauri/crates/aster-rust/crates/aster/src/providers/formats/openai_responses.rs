@@ -2,13 +2,15 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::formats::tool_description_with_examples;
+use crate::providers::utils::parse_tool_arguments_json_object;
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
-use rmcp::model::{object, CallToolRequestParam, RawContent, Role, Tool};
+use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, RawContent, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::borrow::Cow;
 use std::ops::Deref;
 
 fn convert_image_to_input_image(mime_type: &str, data: &str) -> Value {
@@ -522,18 +524,34 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
             } => {
                 tracing::debug!("Received FunctionCall with id: {}, name: {}", id, name);
                 let parsed_args = if arguments.is_empty() {
-                    json!({})
+                    Ok(json!({}))
                 } else {
-                    serde_json::from_str(arguments).unwrap_or_else(|_| json!({}))
+                    parse_tool_arguments_json_object(arguments)
                 };
-
-                content.push(MessageContent::tool_request(
-                    id.clone(),
-                    Ok(CallToolRequestParam {
-                        name: name.clone().into(),
-                        arguments: Some(object(parsed_args)),
-                    }),
-                ));
+                match parsed_args {
+                    Ok(parsed_args) => {
+                        content.push(MessageContent::tool_request(
+                            id.clone(),
+                            Ok(CallToolRequestParam {
+                                name: name.clone().into(),
+                                arguments: Some(object(parsed_args)),
+                            }),
+                        ));
+                    }
+                    Err(error) => {
+                        content.push(MessageContent::tool_request(
+                            id.clone(),
+                            Err(ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from(format!(
+                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
+                                    id, error, arguments
+                                )),
+                                data: None,
+                            }),
+                        ));
+                    }
+                }
             }
         }
     }
@@ -587,18 +605,34 @@ fn process_streaming_output_items(
                             arguments,
                         } => {
                             let parsed_args = if arguments.is_empty() {
-                                json!({})
+                                Ok(json!({}))
                             } else {
-                                serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                                parse_tool_arguments_json_object(&arguments)
                             };
-
-                            content.push(MessageContent::tool_request(
-                                id,
-                                Ok(CallToolRequestParam {
-                                    name: name.into(),
-                                    arguments: Some(object(parsed_args)),
-                                }),
-                            ));
+                            match parsed_args {
+                                Ok(parsed_args) => {
+                                    content.push(MessageContent::tool_request(
+                                        id,
+                                        Ok(CallToolRequestParam {
+                                            name: name.into(),
+                                            arguments: Some(object(parsed_args)),
+                                        }),
+                                    ));
+                                }
+                                Err(error) => {
+                                    content.push(MessageContent::tool_request(
+                                        id.clone(),
+                                        Err(ErrorData {
+                                            code: ErrorCode::INVALID_PARAMS,
+                                            message: Cow::from(format!(
+                                                "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
+                                                id, error, arguments
+                                            )),
+                                            data: None,
+                                        }),
+                                    ));
+                                }
+                            }
                         }
                     }
                 }
@@ -610,18 +644,34 @@ fn process_streaming_output_items(
                 ..
             } => {
                 let parsed_args = if arguments.is_empty() {
-                    json!({})
+                    Ok(json!({}))
                 } else {
-                    serde_json::from_str(&arguments).unwrap_or_else(|_| json!({}))
+                    parse_tool_arguments_json_object(&arguments)
                 };
-
-                content.push(MessageContent::tool_request(
-                    call_id,
-                    Ok(CallToolRequestParam {
-                        name: name.into(),
-                        arguments: Some(object(parsed_args)),
-                    }),
-                ));
+                match parsed_args {
+                    Ok(parsed_args) => {
+                        content.push(MessageContent::tool_request(
+                            call_id,
+                            Ok(CallToolRequestParam {
+                                name: name.into(),
+                                arguments: Some(object(parsed_args)),
+                            }),
+                        ));
+                    }
+                    Err(error) => {
+                        content.push(MessageContent::tool_request(
+                            call_id.clone(),
+                            Err(ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from(format!(
+                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
+                                    call_id, error, arguments
+                                )),
+                                data: None,
+                            }),
+                        ));
+                    }
+                }
             }
         }
     }

@@ -31,7 +31,11 @@ import {
 
 type WorkspaceMainAreaProps = Omit<
   ComponentProps<typeof WorkspaceMainArea>,
-  "navbarNode" | "contentSyncNoticeNode" | "forceCanvasMode" | "chatContent" | "canvasContent"
+  | "navbarNode"
+  | "contentSyncNoticeNode"
+  | "forceCanvasMode"
+  | "chatContent"
+  | "canvasContent"
 >;
 type CanvasWorkbenchLayoutProps = ComponentProps<typeof CanvasWorkbenchLayout>;
 type ChatToolPreferences = {
@@ -266,7 +270,9 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
   >["onRecommendationClick"];
   characters: NonNullable<ComponentProps<typeof EmptyState>["characters"]>;
   skills: NonNullable<ComponentProps<typeof EmptyState>["skills"]>;
-  serviceSkills: NonNullable<ComponentProps<typeof EmptyState>["serviceSkills"]>;
+  serviceSkills: NonNullable<
+    ComponentProps<typeof EmptyState>["serviceSkills"]
+  >;
   serviceSkillGroups: NonNullable<
     ComponentProps<typeof EmptyState>["serviceSkillGroups"]
   >;
@@ -534,29 +540,27 @@ export function WorkspaceConversationScene({
     (syncStatus === "syncing" ||
       syncStatus === "success" ||
       syncStatus === "error");
-  const contentSyncNoticeNode =
-    shouldShowContentSyncNotice
-      ? (() => {
-          const notice = resolveContentSyncNoticeMeta(syncStatus);
-          const NoticeIcon = notice.Icon;
+  const contentSyncNoticeNode = shouldShowContentSyncNotice
+    ? (() => {
+        const notice = resolveContentSyncNoticeMeta(syncStatus);
+        const NoticeIcon = notice.Icon;
 
-          return (
-            <ContentSyncNotice $status={syncStatus}>
-              <NoticeIcon
-                className={
-                  notice.animated
-                    ? "h-3.5 w-3.5 animate-spin"
-                    : "h-3.5 w-3.5"
-                }
-              />
-              <ContentSyncNoticeText>{notice.label}</ContentSyncNoticeText>
-            </ContentSyncNotice>
-          );
-        })()
-      : null;
+        return (
+          <ContentSyncNotice $status={syncStatus}>
+            <NoticeIcon
+              className={
+                notice.animated ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"
+              }
+            />
+            <ContentSyncNoticeText>{notice.label}</ContentSyncNoticeText>
+          </ContentSyncNotice>
+        );
+      })()
+    : null;
   const canvasContent =
-    !liveCanvasPreview && !teamWorkbenchView ? null : currentImageWorkbenchActive ||
-        (!teamWorkbenchView && shouldShowCanvasLoadingState) ? (
+    !liveCanvasPreview &&
+    !teamWorkbenchView ? null : currentImageWorkbenchActive ||
+      (!teamWorkbenchView && shouldShowCanvasLoadingState) ? (
       liveCanvasPreview
     ) : (
       <CanvasWorkbenchLayout
@@ -566,7 +570,7 @@ export function WorkspaceConversationScene({
     );
   const forceCanvasMode = Boolean(
     isThemeWorkbench &&
-      (hasLiveCanvasPreviewContent || Boolean(teamWorkbenchView)),
+    (hasLiveCanvasPreviewContent || Boolean(teamWorkbenchView)),
   );
 
   return (

@@ -2,7 +2,7 @@
 
 > 状态：提案  
 > 更新时间：2026-03-24  
-> 运行时边界：凡涉及发送边界、runtime metadata、Team 委派、Op/Event 收口、状态同步，均以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准；本文只定义长期框架分层原则与远期边界  
+> 运行时边界：凡涉及发送边界、runtime metadata、Team 委派、Op/Event 收口、状态同步，均以 `docs/aiprompts/query-loop.md`、`docs/aiprompts/task-agent-taxonomy.md`、`docs/aiprompts/state-history-telemetry.md` 与 `docs/exec-plans/upstream-runtime-alignment-plan.md` 为准；本文只定义长期框架分层原则与远期边界  
 > 关联文档：
 > - `docs/roadmap/artifacts/roadmap.md`
 > - `docs/roadmap/artifacts/architecture-blueprint.md`
@@ -264,7 +264,7 @@ Artifact Workbench 要控制的是：
 
 - 本节描述的是 **Aster 框架层的目标形状参考**
 - 不是 Lime 当前仓库的直接实施主计划
-- 如果与 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 的当前迁移顺序、协议收口方式冲突，以后者为准
+- 如果与上述 current 文档的当前迁移顺序、协议收口方式冲突，以 current 文档为准
 
 建议在 `aster-rust` 中，把通用 agent runtime 从 `blueprint` 旁边独立出来，而不是继续把所有能力堆进 `blueprint/`。
 

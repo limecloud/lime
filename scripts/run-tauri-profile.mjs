@@ -30,6 +30,7 @@ const supportedModes = new Map([
   ["console", ["console"]],
   ["trace-console", ["trace", "console"]],
 ]);
+const defaultCargoTargetDir = path.join(rootDir, "src-tauri", "target");
 
 const profileModes = supportedModes.get(mode);
 
@@ -40,7 +41,7 @@ if (!profileModes) {
 
 const env = {
   ...process.env,
-  CARGO_TARGET_DIR: process.env.CARGO_TARGET_DIR || "target",
+  CARGO_TARGET_DIR: process.env.CARGO_TARGET_DIR || defaultCargoTargetDir,
   LIME_PROFILE: profileModes.join(","),
   RUST_BACKTRACE: process.env.RUST_BACKTRACE || "1",
   RUST_LOG: process.env.RUST_LOG || "info",

@@ -25,13 +25,14 @@ fn parse_message_content(content_json: &str) -> MessageContent {
 
     // 尝试按 JSON 值解析并提取可展示内容
     if let Ok(value) = serde_json::from_str::<serde_json::Value>(content_json) {
-        let parts = parse_content_parts_from_json(&value);
+        let content_value = value.get("content").unwrap_or(&value);
+        let parts = parse_content_parts_from_json(content_value);
         if !parts.is_empty() {
             return MessageContent::Parts(parts);
         }
 
         // 兼容历史 toolResponse 协议，将工具输出提取为文本用于后续 tool_response 恢复。
-        if let Some(tool_output) = extract_tool_response_text(&value) {
+        if let Some(tool_output) = extract_tool_response_text(content_value) {
             return MessageContent::Text(tool_output);
         }
 
@@ -1317,6 +1318,20 @@ mod tests {
         let tool_response = r#"[{"type":"toolResponse","id":"call_2","toolResult":{"status":"error","error":"-32603: Tool not found"}}]"#;
         let parsed = parse_message_content(tool_response);
         assert_eq!(parsed.as_text(), "-32603: Tool not found");
+    }
+
+    #[test]
+    fn parse_message_content_should_extract_text_from_persisted_visibility_envelope() {
+        let envelope = serde_json::json!({
+            "content": [
+                { "type": "text", "text": "阶段结论" }
+            ],
+            "userVisible": false,
+            "agentVisible": true
+        });
+
+        let parsed = parse_message_content(&envelope.to_string());
+        assert_eq!(parsed.as_text(), "阶段结论");
     }
 
     #[test]

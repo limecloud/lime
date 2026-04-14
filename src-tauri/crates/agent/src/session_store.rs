@@ -927,17 +927,51 @@ pub fn list_title_preview_messages_sync(
     limit: usize,
 ) -> Result<Vec<SessionTitlePreviewMessage>, String> {
     let conn = db.lock().map_err(|e| format!("数据库锁定失败: {e}"))?;
-    let messages = agent_session_repository::list_title_preview_messages(&conn, session_id, limit)?;
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
 
-    Ok(messages
-        .into_iter()
-        .map(
-            |msg: SessionRecordPreviewMessage| SessionTitlePreviewMessage {
-                role: msg.role,
-                content: msg.content,
-            },
-        )
-        .collect())
+    match LimeSessionStore::load_conversation_from_conn(&conn, session_id) {
+        Ok(conversation) => Ok(conversation
+            .messages()
+            .iter()
+            .filter(|message| message.is_user_visible())
+            .filter_map(|message| {
+                let content = message.as_concat_text().trim().to_string();
+                if content.is_empty() {
+                    return None;
+                }
+
+                let role = if message.role == rmcp::model::Role::Assistant {
+                    "assistant".to_string()
+                } else {
+                    "user".to_string()
+                };
+
+                Some(SessionTitlePreviewMessage { role, content })
+            })
+            .take(limit)
+            .collect()),
+        Err(error) => {
+            tracing::warn!(
+                "[SessionStore] 标题预览读取可见性对话失败，已回退仓储消息: session_id={}, error={}",
+                session_id,
+                error
+            );
+            let messages =
+                agent_session_repository::list_title_preview_messages(&conn, session_id, limit)?;
+
+            Ok(messages
+                .into_iter()
+                .map(
+                    |msg: SessionRecordPreviewMessage| SessionTitlePreviewMessage {
+                        role: msg.role,
+                        content: msg.content,
+                    },
+                )
+                .collect())
+        }
+    }
 }
 
 /// 获取会话详情
@@ -957,7 +991,21 @@ pub fn get_session_sync(db: &DbConnection, session_id: &str) -> Result<SessionDe
     let working_dir = session.working_dir.clone();
     let todo_items = load_session_todo_items_from_conn(&conn, session_id);
 
-    let tauri_messages = convert_agent_messages(&session.messages, Some(session.model.as_str()));
+    let tauri_messages = match LimeSessionStore::load_conversation_from_conn(&conn, session_id) {
+        Ok(conversation) => convert_user_visible_agent_messages(
+            &session.messages,
+            conversation.messages(),
+            Some(session.model.as_str()),
+        ),
+        Err(error) => {
+            tracing::warn!(
+                "[SessionStore] 读取可见性对话失败，已回退旧消息转换: session_id={}, error={}",
+                session_id,
+                error
+            );
+            convert_agent_messages(&session.messages, Some(session.model.as_str()))
+        }
+    };
 
     tracing::debug!(
         "[SessionStore] 会话消息转换完成: session_id={}, messages_count={}",
@@ -1286,6 +1334,29 @@ fn convert_agent_messages(
         .iter()
         .map(|message| convert_agent_message(message, &eviction_plan))
         .collect()
+}
+
+fn convert_user_visible_agent_messages(
+    messages: &[AgentMessage],
+    persisted_messages: &[aster::conversation::message::Message],
+    model_name: Option<&str>,
+) -> Vec<RuntimeAgentMessage> {
+    if messages.len() != persisted_messages.len() {
+        tracing::warn!(
+            "[SessionStore] user_visible 过滤失败，消息条数不一致: core={}, aster={}",
+            messages.len(),
+            persisted_messages.len()
+        );
+        return convert_agent_messages(messages, model_name);
+    }
+
+    let filtered = messages
+        .iter()
+        .zip(persisted_messages.iter())
+        .filter_map(|(message, persisted)| persisted.is_user_visible().then_some(message.clone()))
+        .collect::<Vec<_>>();
+
+    convert_agent_messages(&filtered, model_name)
 }
 
 fn convert_agent_message(
@@ -1936,6 +2007,46 @@ mod tests {
                     if id == "call-1" && output == "写入成功"
             )
         }));
+    }
+
+    #[test]
+    fn convert_user_visible_agent_messages_should_skip_agent_only_history() {
+        let messages = vec![
+            AgentMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("用户消息".to_string()),
+                timestamp: "2026-02-19T13:00:00Z".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+                reasoning_content: None,
+                usage: None,
+            },
+            AgentMessage {
+                role: "user".to_string(),
+                content: MessageContent::Text("内部续跑提示".to_string()),
+                timestamp: "2026-02-19T13:00:01Z".to_string(),
+                tool_calls: None,
+                tool_call_id: None,
+                reasoning_content: None,
+                usage: None,
+            },
+        ];
+        let persisted_messages = vec![
+            aster::conversation::message::Message::user().with_text("用户消息"),
+            aster::conversation::message::Message::user()
+                .with_text("内部续跑提示")
+                .agent_only(),
+        ];
+
+        let converted =
+            convert_user_visible_agent_messages(&messages, &persisted_messages, Some("gpt-4.1"));
+
+        assert_eq!(converted.len(), 1);
+        assert_eq!(converted[0].role, "user");
+        assert!(matches!(
+            converted[0].content.as_slice(),
+            [RuntimeAgentMessageContent::Text { text }] if text == "用户消息"
+        ));
     }
 
     #[test]

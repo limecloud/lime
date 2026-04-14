@@ -29,7 +29,7 @@ const CRON_DELETE_TOOL_NAME: &str = "CronDelete";
 const MAX_CRON_JOBS: usize = 50;
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct CronCreateInput {
     cron: String,
     prompt: String,
@@ -66,7 +66,7 @@ struct CronListOutput {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct CronDeleteInput {
     id: String,
 }

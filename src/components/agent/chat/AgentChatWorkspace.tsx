@@ -99,6 +99,7 @@ import {
 } from "@/lib/workspace/workbenchContract";
 import {
   isDefaultProjectIdAlias,
+  isLegacyDefaultProjectId,
   normalizeProjectId,
 } from "./utils/topicProjectResolution";
 import { isHiddenInternalArtifactPath } from "./utils/internalArtifactVisibility";
@@ -536,7 +537,10 @@ export function AgentChatWorkspace({
   ]);
 
   useEffect(() => {
-    if (!isDefaultProjectIdAlias(externalProjectId) || projectId) {
+    const shouldResolveLegacyDefaultProject =
+      isDefaultProjectIdAlias(externalProjectId) ||
+      isLegacyDefaultProjectId(externalProjectId);
+    if (!shouldResolveLegacyDefaultProject || projectId) {
       return;
     }
 
@@ -548,6 +552,56 @@ export function AgentChatWorkspace({
 
     void (async () => {
       try {
+        const rememberedProjectId = getRememberedProjectId();
+        if (rememberedProjectId) {
+          const rememberedProject = await getProject(rememberedProjectId);
+          if (rememberedProject && !rememberedProject.isArchived) {
+            let resolvedRootPath = rememberedProject.rootPath;
+
+            try {
+              const ensuredWorkspace = await ensureWorkspaceReady(
+                rememberedProject.id,
+              );
+              resolvedRootPath = ensuredWorkspace.rootPath || resolvedRootPath;
+            } catch (error) {
+              logAgentDebug(
+                "AgentChatPage",
+                "resolveDefaultProjectAlias.ensureRememberedWorkspaceReadyError",
+                {
+                  error,
+                  projectId: rememberedProject.id,
+                },
+                { level: "warn" },
+              );
+            }
+
+            if (cancelled) {
+              return;
+            }
+
+            applyProjectSelection(rememberedProject.id);
+            setProject((current) =>
+              current?.id === rememberedProject.id &&
+              current.rootPath === resolvedRootPath
+                ? current
+                : {
+                    ...rememberedProject,
+                    rootPath: resolvedRootPath,
+                  },
+            );
+            logAgentDebug(
+              "AgentChatPage",
+              "resolveDefaultProjectAlias.fromRememberedProject",
+              {
+                durationMs: Date.now() - startedAt,
+                projectId: rememberedProject.id,
+                rootPath: resolvedRootPath,
+              },
+            );
+            return;
+          }
+        }
+
         const defaultProject = await getOrCreateDefaultProject();
         let resolvedRootPath = defaultProject.rootPath;
 
@@ -609,7 +663,12 @@ export function AgentChatWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [applyProjectSelection, externalProjectId, projectId]);
+  }, [
+    applyProjectSelection,
+    externalProjectId,
+    getRememberedProjectId,
+    projectId,
+  ]);
 
   // 画布状态（支持多种画布类型）
   const [canvasState, setCanvasState] = useState<CanvasStateUnion | null>(

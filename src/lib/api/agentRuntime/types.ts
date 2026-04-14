@@ -947,6 +947,12 @@ export type AgentRuntimeExtensionSourceKind =
   | "mcp_bridge"
   | "runtime_extension";
 
+export type AgentRuntimeToolInventoryRuntimeSourceKind =
+  | "registry_native"
+  | "current_surface"
+  | "runtime_extension"
+  | "mcp";
+
 export interface AgentRuntimeToolInventoryRequest {
   caller?: string;
   workbench?: boolean;
@@ -1022,6 +1028,26 @@ export interface AgentRuntimeToolInventoryExtensionToolEntry {
   visible_in_context: boolean;
 }
 
+export interface AgentRuntimeToolInventoryRuntimeEntry {
+  name: string;
+  description: string;
+  source_kind: AgentRuntimeToolInventoryRuntimeSourceKind;
+  source_label?: string;
+  status?: string;
+  catalog_entry_name?: string;
+  catalog_source?: AgentToolSourceKind;
+  catalog_lifecycle?: AgentToolLifecycle;
+  catalog_permission_plane?: AgentToolPermissionPlane;
+  catalog_workspace_default_allow?: boolean;
+  deferred_loading: boolean;
+  always_visible: boolean;
+  allowed_callers: string[];
+  tags: string[];
+  input_examples_count: number;
+  caller_allowed: boolean;
+  visible_in_context: boolean;
+}
+
 export interface AgentRuntimeToolInventoryMcpEntry {
   server_name: string;
   name: string;
@@ -1041,6 +1067,8 @@ export interface AgentRuntimeToolInventoryCounts {
   catalog_compat_total: number;
   catalog_deprecated_total: number;
   default_allowed_total: number;
+  runtime_total?: number;
+  runtime_visible_total?: number;
   registry_total: number;
   registry_visible_total: number;
   registry_catalog_unmapped_total: number;
@@ -1066,6 +1094,7 @@ export interface AgentRuntimeToolInventory {
   counts: AgentRuntimeToolInventoryCounts;
   catalog_tools: AgentRuntimeToolInventoryCatalogEntry[];
   registry_tools: AgentRuntimeToolInventoryRegistryEntry[];
+  runtime_tools?: AgentRuntimeToolInventoryRuntimeEntry[];
   extension_surfaces: AgentRuntimeToolInventoryExtensionSurfaceEntry[];
   extension_tools: AgentRuntimeToolInventoryExtensionToolEntry[];
   mcp_tools: AgentRuntimeToolInventoryMcpEntry[];

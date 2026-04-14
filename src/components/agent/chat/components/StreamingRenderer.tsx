@@ -8,12 +8,9 @@
 import React, { memo, useMemo, useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import {
-  AlertTriangle,
   ChevronDown,
   ExternalLink,
   FileText,
-  Loader2,
-  Square,
 } from "lucide-react";
 import { useDebouncedValue } from "@/lib/artifact/hooks/useDebouncedValue";
 import { MarkdownRenderer } from "./MarkdownRenderer";
@@ -47,6 +44,11 @@ import {
   sanitizeContentPartsForDisplay,
   sanitizeMessageTextForDisplay,
 } from "../utils/internalImagePlaceholder";
+import {
+  summarizeStreamingToolBatch,
+  type ToolBatchSummaryDescriptor,
+} from "../utils/toolBatchGrouping";
+import { resolveToolProcessNarrative } from "../utils/toolProcessSummary";
 
 const STRUCTURED_CONTENT_HINT_RE = /<a2ui|```\s*a2ui|<write_file|<document/i;
 const STRUCTURED_PARSE_CACHE_LIMIT = 64;
@@ -696,14 +698,78 @@ type StreamingProcessEntry =
 
 function buildStreamingProcessSummary(
   entries: StreamingProcessEntry[],
-): string {
+): {
+  summaryText: string;
+  descriptor: ToolBatchSummaryDescriptor | null;
+} {
+  const toolEntries = entries.filter(
+    (entry): entry is Extract<StreamingProcessEntry, { kind: "tool" }> =>
+      entry.kind === "tool",
+  );
+  const batchDescriptor =
+    toolEntries.length === entries.length
+      ? summarizeStreamingToolBatch(toolEntries.map((entry) => entry.toolCall))
+      : null;
+  if (batchDescriptor) {
+    return {
+      summaryText: batchDescriptor.title,
+      descriptor: batchDescriptor,
+    };
+  }
+
   const toolCount = entries.filter((entry) => entry.kind === "tool").length;
   const messageCount = entries.length - toolCount;
-  const summaryParts = [`${toolCount} 个工具调用`];
-  if (messageCount > 0) {
-    summaryParts.push(`${messageCount} 条过程消息`);
+  const primarySummary = (() => {
+    for (const entry of entries) {
+      if (entry.kind === "thinking") {
+        const preview = resolveThinkingDisplayParts(entry.text, false).preview;
+        if (preview) {
+          return preview;
+        }
+        continue;
+      }
+
+      if (entry.kind === "tool") {
+        const narrative = resolveToolProcessNarrative(entry.toolCall);
+        if (narrative.preSummary || narrative.summary) {
+          return narrative.preSummary || narrative.summary;
+        }
+        continue;
+      }
+
+      const prompt = entry.actionRequired.prompt?.trim();
+      if (prompt) {
+        return prompt.length <= 72 ? prompt : `${prompt.slice(0, 71).trimEnd()}…`;
+      }
+    }
+
+    return null;
+  })();
+
+  if (!primarySummary) {
+    const summaryParts = [`${toolCount} 个工具调用`];
+    if (messageCount > 0) {
+      summaryParts.push(`${messageCount} 条过程消息`);
+    }
+    return {
+      summaryText: summaryParts.join("，"),
+      descriptor: null,
+    };
   }
-  return summaryParts.join("，");
+
+  if (toolCount === 0) {
+    return {
+      summaryText: primarySummary,
+      descriptor: null,
+    };
+  }
+
+  const countLabel = `${toolCount} 个工具调用`;
+  return {
+    summaryText:
+      entries.length > 1 ? `${primarySummary} · ${countLabel}` : primarySummary,
+    descriptor: null,
+  };
 }
 
 const GroupedProcessShell: React.FC<{
@@ -728,7 +794,7 @@ const StreamingProcessGroup: React.FC<{
   ) => React.ReactNode;
 }> = ({ entries, defaultExpanded = true, renderEntry }) => {
   const [expanded, setExpanded] = React.useState(defaultExpanded);
-  const summaryText = useMemo(
+  const { summaryText, descriptor } = useMemo(
     () => buildStreamingProcessSummary(entries),
     [entries],
   );
@@ -754,7 +820,19 @@ const StreamingProcessGroup: React.FC<{
           )}
         />
         <span className="min-w-0 flex-1 text-sm font-medium leading-6 text-slate-700">
-          {summaryText}
+          <span>{summaryText}</span>
+          {descriptor?.supportingLines?.length ? (
+            <span className="mt-0.5 block space-y-0.5">
+              {descriptor.supportingLines.slice(0, 2).map((line) => (
+                <span
+                  key={line}
+                  className="block text-xs font-normal leading-5 text-slate-500"
+                >
+                  {line}
+                </span>
+              ))}
+            </span>
+          ) : null}
         </span>
       </button>
       {expanded ? (
@@ -828,139 +906,6 @@ interface StreamingRendererProps {
   onQuoteContent?: (content: string) => void;
 }
 
-const RUNTIME_PHASE_LABELS: Record<AgentRuntimeStatus["phase"], string> = {
-  preparing: "准备中",
-  routing: "处理中",
-  context: "整理信息中",
-  failed: "需要处理",
-  cancelled: "已取消",
-};
-
-function normalizeRuntimeStatusLine(value?: string | null): string {
-  return (value || "").trim().replace(/\s+/g, " ");
-}
-
-function buildRuntimeStatusSupportingLines(
-  status: AgentRuntimeStatus,
-): string[] {
-  const lines: string[] = [];
-  const normalizedTitle = normalizeRuntimeStatusLine(status.title);
-  const normalizedDetail = normalizeRuntimeStatusLine(status.detail);
-
-  if (normalizedDetail && normalizedDetail !== normalizedTitle) {
-    lines.push(normalizedDetail);
-  }
-
-  const checkpointText = (status.checkpoints || [])
-    .map((item) => normalizeRuntimeStatusLine(item))
-    .filter(Boolean)
-    .filter((item, index, array) => array.indexOf(item) === index)
-    .filter((item) => item !== normalizedTitle && item !== normalizedDetail)
-    .slice(0, 2)
-    .join(" · ");
-
-  if (checkpointText) {
-    lines.push(checkpointText);
-  }
-
-  return lines;
-}
-
-const AgentRuntimeStatusBlock: React.FC<{ status: AgentRuntimeStatus }> = ({
-  status,
-}) => {
-  const failed = status.phase === "failed";
-  const cancelled = status.phase === "cancelled";
-  const sequentialProtection =
-    !failed &&
-    !cancelled &&
-    status.metadata?.concurrency_scope === "provider_global" &&
-    status.metadata?.retryable_overload;
-  const supportingLines = buildRuntimeStatusSupportingLines(status);
-  const ToneIcon = failed ? AlertTriangle : cancelled ? Square : Loader2;
-
-  return (
-    <div
-      data-testid="agent-runtime-status"
-      className={cn(
-        "rounded-xl border px-3.5 py-2.5",
-        failed
-          ? "border-rose-200 bg-rose-50/80"
-          : cancelled
-            ? "border-slate-200 bg-slate-50"
-            : "border-border/60 bg-slate-50",
-      )}
-    >
-      <div className="flex items-start gap-2.5">
-        <div className="flex h-5 w-5 shrink-0 items-center justify-center">
-          <ToneIcon
-            className={cn(
-              "h-4 w-4",
-              failed
-                ? "text-rose-600"
-                : cancelled
-                  ? "text-slate-500"
-                  : "animate-spin text-sky-600",
-            )}
-          />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className={cn(
-                "min-w-0 text-sm font-medium leading-6",
-                failed
-                  ? "text-rose-900"
-                  : cancelled
-                    ? "text-slate-700"
-                    : "text-slate-800",
-              )}
-            >
-              {status.title}
-            </div>
-            <div
-              className={cn(
-                "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] leading-none",
-                failed
-                  ? "border-rose-200 bg-white text-rose-700"
-                  : cancelled
-                    ? "border-slate-200 bg-white text-slate-600"
-                    : "border-slate-200 bg-white text-slate-500",
-              )}
-            >
-              {RUNTIME_PHASE_LABELS[status.phase]}
-            </div>
-            {sequentialProtection ? (
-              <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] leading-none text-amber-700">
-                稳妥处理
-              </div>
-            ) : null}
-          </div>
-          {supportingLines.length > 0 ? (
-            <div className="mt-0.5 space-y-0.5">
-              {supportingLines.map((line) => (
-                <div
-                  key={line}
-                  className={cn(
-                    "text-xs leading-5",
-                    failed
-                      ? "text-rose-700"
-                      : cancelled
-                        ? "text-slate-600"
-                        : "text-slate-500",
-                  )}
-                >
-                  {line}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 /**
  * 流式消息渲染组件
  *
@@ -992,8 +937,6 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     collapseCodeBlocks,
     shouldCollapseCodeBlock,
     onCodeBlockClick,
-    runtimeStatus,
-    showRuntimeStatusInline = false,
     promoteActionRequestsToA2UI = false,
     renderProposedPlanBlocks = true,
     suppressedActionRequestId = null,
@@ -1307,11 +1250,21 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
           (entry) => entry.kind === "tool",
         ).length;
         if (toolCount > 0 && entries.length > 1) {
+          const batchDescriptor =
+            entries.every((entry) => entry.kind === "tool")
+              ? summarizeStreamingToolBatch(
+                  entries.map(
+                    (entry) =>
+                      (entry as Extract<StreamingProcessEntry, { kind: "tool" }>)
+                        .toolCall,
+                  ),
+                )
+              : null;
           return (
             <StreamingProcessGroup
               key={key}
               entries={entries}
-              defaultExpanded={true}
+              defaultExpanded={!batchDescriptor}
               renderEntry={renderProcessEntry}
             />
           );
@@ -1512,8 +1465,6 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
     if (useInterleavedMode) {
       const nodes: React.ReactNode[] = [];
       let processBuffer: StreamingProcessEntry[] = [];
-      const shouldShowRuntimeStatus =
-        showRuntimeStatusInline && Boolean(runtimeStatus) && isStreaming;
 
       const flushProcessBuffer = (keySuffix: string) => {
         if (processBuffer.length === 0) {
@@ -1584,9 +1535,6 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
 
       return (
         <div className="flex flex-col gap-2">
-          {shouldShowRuntimeStatus && runtimeStatus ? (
-            <AgentRuntimeStatusBlock status={runtimeStatus} />
-          ) : null}
           {nodes}
 
           {/* 如果没有内容但正在流式输出，显示光标 */}
@@ -1626,14 +1574,9 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
         actionRequired: request,
       });
     }
-    const shouldShowRuntimeStatus =
-      showRuntimeStatusInline && Boolean(runtimeStatus) && isStreaming;
 
     return (
       <div className="flex flex-col gap-2">
-        {shouldShowRuntimeStatus && runtimeStatus ? (
-          <AgentRuntimeStatusBlock status={runtimeStatus} />
-        ) : null}
         {fallbackProcessEntries.length > 0
           ? renderProcessRun(fallbackProcessEntries, "fallback-process")
           : null}
@@ -1649,7 +1592,6 @@ export const StreamingRenderer: React.FC<StreamingRendererProps> = memo(
         {!hasVisibleContent &&
           isStreaming &&
           showCursor &&
-          !runtimeStatus &&
           !hasRunningTools && (
             <div>
               <StreamingCursor />

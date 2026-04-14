@@ -137,7 +137,9 @@ function parseDiagnosticDate(value?: string | number | null): Date | null {
   return null;
 }
 
-function formatDiagnosticDateTime(value?: string | number | null): string | null {
+function formatDiagnosticDateTime(
+  value?: string | number | null,
+): string | null {
   const date = parseDiagnosticDate(value);
   if (!date) {
     return null;
@@ -355,10 +357,10 @@ function buildMemoryPrefetchDiagnosticLines(
     const prefetch = memoryPrefetchState.result;
     const sections = [
       `- 规则层：${prefetch.rules_source_paths.length} 个来源`,
-      `- 工作层：${prefetch.working_memory_excerpt ? "已命中" : "未命中"}`,
+      `- 会话层：${prefetch.working_memory_excerpt ? "已命中" : "未命中"}`,
       `- 持久层：${prefetch.durable_memories.length} 条`,
-      `- 任务影子层：${prefetch.team_memory_entries.length} 条`,
-      `- 压缩层：${prefetch.latest_compaction ? "已命中" : "未命中"}`,
+      `- Team Memory 层：${prefetch.team_memory_entries.length} 条`,
+      `- 会话压缩层：${prefetch.latest_compaction ? "已命中" : "未命中"}`,
     ];
 
     if (prefetch.rules_source_paths.length > 0) {
@@ -371,7 +373,7 @@ function buildMemoryPrefetchDiagnosticLines(
     }
     if (prefetch.working_memory_excerpt) {
       sections.push(
-        `- 工作记忆摘录：${truncateDiagnosticText(prefetch.working_memory_excerpt, 220)}`,
+        `- 会话记忆摘录：${truncateDiagnosticText(prefetch.working_memory_excerpt, 220)}`,
       );
     }
     if (prefetch.durable_memories.length > 0) {
@@ -393,13 +395,13 @@ function buildMemoryPrefetchDiagnosticLines(
     }
     if (prefetch.team_memory_entries.length > 0) {
       sections.push(
-        `- 任务影子键：${prefetch.team_memory_entries
+        `- Team Memory 键：${prefetch.team_memory_entries
           .slice(0, 3)
           .map((entry) => entry.key)
           .join("｜")}`,
       );
       sections.push(
-        `- 任务影子详情：${prefetch.team_memory_entries
+        `- Team Memory 详情：${prefetch.team_memory_entries
           .slice(0, 3)
           .map(
             (entry) =>
@@ -410,10 +412,10 @@ function buildMemoryPrefetchDiagnosticLines(
     }
     if (prefetch.latest_compaction) {
       sections.push(
-        `- 压缩命中摘要：${truncateDiagnosticText(prefetch.latest_compaction.summary_preview, 180)}`,
+        `- 会话压缩摘要：${truncateDiagnosticText(prefetch.latest_compaction.summary_preview, 180)}`,
       );
       sections.push(
-        `- 压缩命中元数据：触发=${prefetch.latest_compaction.trigger || "未知"}｜覆盖回合=${prefetch.latest_compaction.turn_count ?? "未知"}`,
+        `- 会话压缩元数据：触发=${prefetch.latest_compaction.trigger || "未知"}｜覆盖回合=${prefetch.latest_compaction.turn_count ?? "未知"}`,
       );
     }
     if (prefetch.prompt) {
@@ -426,7 +428,9 @@ function buildMemoryPrefetchDiagnosticLines(
   }
 
   if (memoryPrefetchState?.status === "loading") {
-    return ["- 正在按当前回合最新 prompt 预演五层记忆命中"];
+    return [
+      "- 正在按当前回合最新 prompt 预演来源链 / 会话记忆 / 持久记忆 / Team Memory / 会话压缩命中",
+    ];
   }
 
   if (memoryPrefetchState?.error) {
@@ -451,9 +455,9 @@ function resolveMemoryPrefetchPreviewChangeLabel(
     case "working":
       return `工作摘录 ${change.previous || "无"} -> ${change.current || "无"}`;
     case "durable":
-      return `长期记忆 ${change.previous || "无"} -> ${change.current || "无"}`;
+      return `持久记忆 ${change.previous || "无"} -> ${change.current || "无"}`;
     case "team":
-      return `任务影子 ${change.previous || "无"} -> ${change.current || "无"}`;
+      return `Team Memory ${change.previous || "无"} -> ${change.current || "无"}`;
     case "compaction":
       return `压缩摘要 ${change.previous || "无"} -> ${change.current || "无"}`;
     case "user_message":
@@ -472,7 +476,7 @@ function resolveMemoryPrefetchAssessmentBadgeClassName(
     case "weaker":
       return "border-amber-200 bg-white text-amber-700";
     case "mixed":
-      return "border-sky-200 bg-white text-sky-700";
+      return "border-slate-200 bg-white text-slate-700";
     case "same":
     default:
       return "border-slate-200 bg-white text-slate-700";
@@ -492,8 +496,10 @@ function resolveMemoryPrefetchComparison(
     };
   }
 
-  const normalizedCurrentWorkingDir =
-    currentWorkingDir.trim().replace(/\\/g, "/").replace(/\/+$/u, "");
+  const normalizedCurrentWorkingDir = currentWorkingDir
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/\/+$/u, "");
   const candidates = entries.slice(1);
   const baselineEntry =
     candidates.find((entry) => entry.sessionId === currentEntry.sessionId) ||
@@ -696,9 +702,7 @@ function buildReliabilityDiagnosticText(params: {
     sections.push(`- 生成时间：${boundary.created_at || "未知"}`);
     sections.push(`- 覆盖回合数：${boundary.turn_count ?? "未知"}`);
     sections.push(`- 触发原因：${boundary.trigger || "未知"}`);
-    sections.push(
-      `- 边界摘要：${boundary.summary_preview || "无摘要预览"}`,
-    );
+    sections.push(`- 边界摘要：${boundary.summary_preview || "无摘要预览"}`);
     sections.push(`- 压缩备注：${boundary.detail || "无"}`);
   } else {
     sections.push("- 无");
@@ -708,7 +712,10 @@ function buildReliabilityDiagnosticText(params: {
   sections.push(...buildMemoryPrefetchDiagnosticLines(memoryPrefetchState));
 
   sections.push("", "### 相对最近基线的记忆变化");
-  if (memoryPrefetchComparison?.baselineEntry && memoryPrefetchComparison.diff) {
+  if (
+    memoryPrefetchComparison?.baselineEntry &&
+    memoryPrefetchComparison.diff
+  ) {
     sections.push(
       `- 基线来源：${resolveMemoryPrefetchHistorySourceLabel(memoryPrefetchComparison.baselineEntry.source)}`,
     );
@@ -716,14 +723,17 @@ function buildReliabilityDiagnosticText(params: {
       `- 基线输入：${memoryPrefetchComparison.baselineEntry.userMessage || "无"}`,
     );
     sections.push(
-      `- 基线摘要：${truncateDiagnosticText(
-        memoryPrefetchComparison.baselineEntry.preview.durableTitle ||
-          memoryPrefetchComparison.baselineEntry.preview.workingExcerpt ||
-          memoryPrefetchComparison.baselineEntry.preview.compactionSummary ||
-          memoryPrefetchComparison.baselineEntry.preview.firstRuleSourcePath ||
-          memoryPrefetchComparison.baselineEntry.preview.teamKey,
-        180,
-      ) || "无"}`,
+      `- 基线摘要：${
+        truncateDiagnosticText(
+          memoryPrefetchComparison.baselineEntry.preview.durableTitle ||
+            memoryPrefetchComparison.baselineEntry.preview.workingExcerpt ||
+            memoryPrefetchComparison.baselineEntry.preview.compactionSummary ||
+            memoryPrefetchComparison.baselineEntry.preview
+              .firstRuleSourcePath ||
+            memoryPrefetchComparison.baselineEntry.preview.teamKey,
+          180,
+        ) || "无"
+      }`,
     );
     if (memoryPrefetchComparison.assessment) {
       sections.push(
@@ -735,7 +745,7 @@ function buildReliabilityDiagnosticText(params: {
     }
     if (memoryPrefetchComparison.diff.changed) {
       sections.push(
-        `- 层变化：规则 ${memoryPrefetchComparison.diff.layerChanges.rulesDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.rulesDelta}｜工作 ${memoryPrefetchComparison.diff.layerChanges.workingChanged}｜持久 ${memoryPrefetchComparison.diff.layerChanges.durableDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.durableDelta}｜任务影子 ${memoryPrefetchComparison.diff.layerChanges.teamDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.teamDelta}｜压缩 ${memoryPrefetchComparison.diff.layerChanges.compactionChanged}`,
+        `- 层变化：规则 ${memoryPrefetchComparison.diff.layerChanges.rulesDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.rulesDelta}｜会话 ${memoryPrefetchComparison.diff.layerChanges.workingChanged}｜持久 ${memoryPrefetchComparison.diff.layerChanges.durableDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.durableDelta}｜Team Memory ${memoryPrefetchComparison.diff.layerChanges.teamDelta >= 0 ? "+" : ""}${memoryPrefetchComparison.diff.layerChanges.teamDelta}｜压缩 ${memoryPrefetchComparison.diff.layerChanges.compactionChanged}`,
       );
       if (memoryPrefetchComparison.diff.previewChanges.length > 0) {
         sections.push(
@@ -966,7 +976,8 @@ export const AgentThreadReliabilityPanel: React.FC<
   const summary = isInterrupting
     ? "正在请求停止当前执行，等待运行时确认最新线程状态。"
     : view.summary;
-  const latestCompactionBoundary = threadRead?.latest_compaction_boundary || null;
+  const latestCompactionBoundary =
+    threadRead?.latest_compaction_boundary || null;
   const latestCompactionCreatedLabel = formatDiagnosticDateTime(
     latestCompactionBoundary?.created_at,
   );
@@ -978,7 +989,8 @@ export const AgentThreadReliabilityPanel: React.FC<
     latestCompactionBoundary?.summary_preview || "已生成压缩摘要预览";
   const latestTurnPrompt = useMemo(() => {
     const activeTurn =
-      turns.find((turn) => turn.id === currentTurnId) || turns[turns.length - 1];
+      turns.find((turn) => turn.id === currentTurnId) ||
+      turns[turns.length - 1];
     return activeTurn?.prompt_text?.trim() || "";
   }, [currentTurnId, turns]);
   const teamMemoryShadowMetadata = useMemo(
@@ -997,7 +1009,8 @@ export const AgentThreadReliabilityPanel: React.FC<
     ].join("|");
   }, [teamMemoryShadowMetadata]);
   const diagnosticSessionId = diagnosticRuntimeContext?.sessionId?.trim() || "";
-  const diagnosticWorkingDir = diagnosticRuntimeContext?.workingDir?.trim() || "";
+  const diagnosticWorkingDir =
+    diagnosticRuntimeContext?.workingDir?.trim() || "";
 
   useEffect(() => {
     if (!diagnosticSessionId) {
@@ -1069,9 +1082,7 @@ export const AgentThreadReliabilityPanel: React.FC<
           status: "error",
           result: null,
           error:
-            error instanceof Error
-              ? error.message
-              : "记忆预取失败，请稍后重试",
+            error instanceof Error ? error.message : "记忆预取失败，请稍后重试",
         });
         setMemoryPrefetchComparison({
           baselineEntry: null,
@@ -1295,8 +1306,8 @@ export const AgentThreadReliabilityPanel: React.FC<
       </div>
       <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-[11px] leading-5 text-amber-900">
         当前入口只覆盖当前 thread 的运行信号。正式交给外部模型分析时，
-        请优先使用工作台“交接制品 → 外部分析交接”的
-        `analysis-brief.md / analysis-context.json` 主链；这里的“快速复制给
+        请优先使用工作台“交接制品 → 外部分析交接”的 `analysis-brief.md /
+        analysis-context.json` 主链；这里的“快速复制给
         AI”只适合临时排障，“复制原始 JSON（debug）”适合程序化分析、
         存档或二次处理。
       </div>
@@ -1584,7 +1595,7 @@ export const AgentThreadReliabilityPanel: React.FC<
                 variant="outline"
                 size="sm"
                 onClick={onOpenMemoryWorkbench}
-                className="h-8 rounded-full border-sky-300 bg-white text-sky-700 hover:bg-sky-50"
+                className="h-8 rounded-full border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50"
               >
                 在记忆工作台查看
               </Button>
@@ -1596,27 +1607,28 @@ export const AgentThreadReliabilityPanel: React.FC<
       {memoryPrefetchState.status === "ready" &&
       memoryPrefetchComparison.baselineEntry &&
       memoryPrefetchComparison.diff ? (
-        <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+        <div
+          className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3"
+          data-testid="agent-thread-reliability-memory-prefetch-baseline"
+        >
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-sm font-medium text-sky-900">
-              相对最近基线
-            </div>
+            <div className="text-sm font-medium text-emerald-900">相对最近基线</div>
             <Badge
               variant="outline"
-              className="border-sky-200 bg-white text-sky-700"
+              className="border-slate-200 bg-white text-slate-700"
             >
               {resolveMemoryPrefetchHistorySourceLabel(
                 memoryPrefetchComparison.baselineEntry.source,
               )}
             </Badge>
-            <span className="text-xs text-sky-800">
+            <span className="text-xs text-slate-600">
               {formatDiagnosticDateTime(
                 memoryPrefetchComparison.baselineEntry.capturedAt,
               ) || "未知时间"}
             </span>
           </div>
           {memoryPrefetchComparison.baselineEntry.userMessage ? (
-            <div className="mt-2 text-sm leading-6 text-sky-950">
+            <div className="mt-2 text-sm leading-6 text-slate-700">
               基线输入：{memoryPrefetchComparison.baselineEntry.userMessage}
             </div>
           ) : null}
@@ -1633,7 +1645,7 @@ export const AgentThreadReliabilityPanel: React.FC<
                     memoryPrefetchComparison.assessment.status,
                   )}
                 </Badge>
-                <span className="text-sm leading-6 text-sky-950">
+                <span className="text-sm leading-6 text-slate-700">
                   {describeRuntimeMemoryPrefetchHistoryDiffAssessment(
                     memoryPrefetchComparison.assessment,
                   )}
@@ -1643,65 +1655,76 @@ export const AgentThreadReliabilityPanel: React.FC<
           ) : null}
           {memoryPrefetchComparison.diff.changed ? (
             <>
-              <div className="mt-3 text-xs font-medium text-sky-700">
+              <div className="mt-3 text-xs font-medium text-emerald-700">
                 具体变化
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {memoryPrefetchComparison.diff.layerChanges.rulesDelta !== 0 ? (
                   <Badge
                     variant="outline"
-                    className="border-sky-200 bg-white text-sky-700"
+                    className="border-emerald-200 bg-white text-emerald-700"
                   >
                     规则{" "}
-                    {memoryPrefetchComparison.diff.layerChanges.rulesDelta > 0 ? "+" : ""}
+                    {memoryPrefetchComparison.diff.layerChanges.rulesDelta > 0
+                      ? "+"
+                      : ""}
                     {memoryPrefetchComparison.diff.layerChanges.rulesDelta}
                   </Badge>
                 ) : null}
-                {memoryPrefetchComparison.diff.layerChanges.workingChanged !== "same" ? (
+                {memoryPrefetchComparison.diff.layerChanges.workingChanged !==
+                "same" ? (
                   <Badge
                     variant="outline"
-                    className="border-sky-200 bg-white text-sky-700"
+                    className="border-emerald-200 bg-white text-emerald-700"
                   >
                     工作
-                    {memoryPrefetchComparison.diff.layerChanges.workingChanged === "added"
+                    {memoryPrefetchComparison.diff.layerChanges
+                      .workingChanged === "added"
                       ? " 新命中"
                       : " 取消命中"}
                   </Badge>
                 ) : null}
-                {memoryPrefetchComparison.diff.layerChanges.durableDelta !== 0 ? (
+                {memoryPrefetchComparison.diff.layerChanges.durableDelta !==
+                0 ? (
                   <Badge
                     variant="outline"
-                    className="border-sky-200 bg-white text-sky-700"
+                    className="border-emerald-200 bg-white text-emerald-700"
                   >
                     持久{" "}
-                    {memoryPrefetchComparison.diff.layerChanges.durableDelta > 0 ? "+" : ""}
+                    {memoryPrefetchComparison.diff.layerChanges.durableDelta > 0
+                      ? "+"
+                      : ""}
                     {memoryPrefetchComparison.diff.layerChanges.durableDelta}
                   </Badge>
                 ) : null}
                 {memoryPrefetchComparison.diff.layerChanges.teamDelta !== 0 ? (
                   <Badge
                     variant="outline"
-                    className="border-sky-200 bg-white text-sky-700"
+                    className="border-emerald-200 bg-white text-emerald-700"
                   >
-                    任务影子{" "}
-                    {memoryPrefetchComparison.diff.layerChanges.teamDelta > 0 ? "+" : ""}
+                    Team Memory{" "}
+                    {memoryPrefetchComparison.diff.layerChanges.teamDelta > 0
+                      ? "+"
+                      : ""}
                     {memoryPrefetchComparison.diff.layerChanges.teamDelta}
                   </Badge>
                 ) : null}
-                {memoryPrefetchComparison.diff.layerChanges.compactionChanged !== "same" ? (
+                {memoryPrefetchComparison.diff.layerChanges
+                  .compactionChanged !== "same" ? (
                   <Badge
                     variant="outline"
-                    className="border-sky-200 bg-white text-sky-700"
+                    className="border-emerald-200 bg-white text-emerald-700"
                   >
                     压缩
-                    {memoryPrefetchComparison.diff.layerChanges.compactionChanged === "added"
+                    {memoryPrefetchComparison.diff.layerChanges
+                      .compactionChanged === "added"
                       ? " 新命中"
                       : " 取消命中"}
                   </Badge>
                 ) : null}
               </div>
               {memoryPrefetchComparison.diff.previewChanges.length > 0 ? (
-                <div className="mt-3 space-y-1.5 text-sm leading-6 text-sky-950">
+                <div className="mt-3 space-y-1.5 text-sm leading-6 text-slate-700">
                   {memoryPrefetchComparison.diff.previewChanges
                     .slice(0, 3)
                     .map((change, index) => (
@@ -1713,7 +1736,7 @@ export const AgentThreadReliabilityPanel: React.FC<
               ) : null}
             </>
           ) : (
-            <div className="mt-2 text-sm leading-6 text-sky-950">
+            <div className="mt-2 text-sm leading-6 text-slate-700">
               当前回合与最近基线相比没有明显变化。
             </div>
           )}

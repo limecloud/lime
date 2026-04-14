@@ -560,6 +560,7 @@ pub(crate) async fn ensure_browser_mcp_tools_registered(
         &mut registry,
         registry_arc.clone(),
         extension_manager,
+        Some(state.clone()),
     );
     Ok(())
 }

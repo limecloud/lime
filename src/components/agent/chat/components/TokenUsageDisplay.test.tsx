@@ -202,4 +202,27 @@ describe("TokenUsageDisplay", () => {
       "未声明支持自动 Prompt Cache",
     );
   });
+
+  it("inline 模式不应阻断 token 文案展示", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ container, root });
+
+    act(() => {
+      root.render(
+        <TokenUsageDisplay
+          inline={true}
+          usage={{
+            input_tokens: 12_000,
+            output_tokens: 19_000,
+            cached_input_tokens: 8_000,
+          }}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("31.0K tokens");
+    expect(container.textContent).toContain("缓存 8.0K");
+  });
 });

@@ -138,6 +138,14 @@ pub trait Tool: Send + Sync {
     /// - Providing parameter information to the LLM
     fn input_schema(&self) -> serde_json::Value;
 
+    /// Returns compatibility aliases for runtime lookup.
+    ///
+    /// 这些别名不会额外暴露到模型可见的 tool definition 列表，
+    /// 只用于兼容上游或历史 transcript 中的旧工具名。
+    fn aliases(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     /// Execute the tool with the given parameters and context
     ///
     /// This is the main entry point for tool execution.

@@ -289,6 +289,44 @@ describe("StreamingRenderer", () => {
     expect(parseAIResponseMock).toHaveBeenCalledTimes(1);
   });
 
+  it("连续探索工具应默认折叠成批次摘要", () => {
+    const { container } = renderHarness({
+      content: "",
+      toolCalls: [
+        {
+          id: "tool-search-1",
+          name: "Grep",
+          arguments: JSON.stringify({
+            pattern: "tool_use_summary",
+            path: "/workspace/src",
+          }),
+          status: "completed",
+          result: { success: true, output: "found" },
+          startTime: new Date("2026-04-01T10:00:00.000Z"),
+          endTime: new Date("2026-04-01T10:00:01.000Z"),
+        },
+        {
+          id: "tool-read-1",
+          name: "Read",
+          arguments: JSON.stringify({
+            file_path: "/workspace/src/query.ts",
+          }),
+          status: "completed",
+          result: { success: true, output: "file contents" },
+          startTime: new Date("2026-04-01T10:00:02.000Z"),
+          endTime: new Date("2026-04-01T10:00:03.000Z"),
+        },
+      ],
+    });
+
+    expect(container.textContent).toContain("已探索项目");
+    expect(container.textContent).toContain("查看了 1 个文件，搜索 1 次");
+    expect(container.textContent).toContain("最新线索：query.ts");
+    expect(
+      container.querySelector('[data-testid="inline-tool-process-step"]'),
+    ).toBeNull();
+  });
+
   it("普通工具列表应透传已保存站点内容打开回调", () => {
     const onOpenSavedSiteContent = vi.fn();
     const { container } = renderHarness({
@@ -401,7 +439,7 @@ describe("StreamingRenderer", () => {
       ],
     });
 
-    expect(container.textContent).toContain("1 个工具调用，1 条过程消息");
+    expect(container.textContent).toContain("先检查滚动触发逻辑 · 1 个工具调用");
     expect(
       container.querySelector('[data-testid="streaming-process-group"]'),
     ).toBeTruthy();
@@ -447,7 +485,9 @@ describe("StreamingRenderer", () => {
       isStreaming: false,
     });
 
-    expect(container.textContent).toContain("1 个工具调用，2 条过程消息");
+    expect(container.textContent).toContain(
+      "先检查 auto-scroll 触发条件 · 1 个工具调用",
+    );
     expect(
       container.querySelector('[data-testid="streaming-process-group"]'),
     ).toBeTruthy();
@@ -621,7 +661,7 @@ describe("StreamingRenderer", () => {
     expect(container.textContent).toContain("然后开始执行");
   });
 
-  it("等待首个事件时应渲染 agent 运行状态卡", () => {
+  it("等待首个事件时不应再把 agent 运行状态插入正文顶部", () => {
     const { container } = renderHarness({
       content: "",
       isStreaming: true,
@@ -634,12 +674,13 @@ describe("StreamingRenderer", () => {
       showRuntimeStatusInline: true,
     });
 
-    expect(container.textContent).toContain("正在准备处理");
-    expect(container.textContent).toContain("正在理解请求并准备当前阶段。");
-    expect(container.textContent).toContain("等待首个事件");
+    expect(
+      container.querySelector('[data-testid="agent-runtime-status"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("正在准备处理");
   });
 
-  it("高风险服务进入稳妥顺序处理时，应显示稳妥处理提示", () => {
+  it("高风险服务进入稳妥顺序处理时，正文顶部不应再出现运行态卡", () => {
     const { container } = renderHarness({
       content: "",
       isStreaming: true,
@@ -658,11 +699,12 @@ describe("StreamingRenderer", () => {
       showRuntimeStatusInline: true,
     });
 
-    expect(container.textContent).toContain("当前服务较忙，稍后开始处理");
-    expect(container.textContent).toContain("稳妥处理");
+    expect(
+      container.querySelector('[data-testid="agent-runtime-status"]'),
+    ).toBeNull();
   });
 
-  it("正文已经开始输出后，仍应继续显示轻量运行状态", () => {
+  it("正文已经开始输出后，不应再在正文区域重复渲染运行态", () => {
     const { container } = renderHarness({
       content: "我来帮你先打开 GitHub 搜索页。",
       isStreaming: true,
@@ -677,15 +719,10 @@ describe("StreamingRenderer", () => {
 
     expect(
       container.querySelector('[data-testid="agent-runtime-status"]'),
-    ).toBeTruthy();
-    expect(container.textContent).toContain("正在搜索 GitHub");
-    expect(container.textContent).toContain(
-      "已经打开搜索页，准备补充筛选条件。",
-    );
-    expect(container.textContent).toContain("浏览器已就绪");
+    ).toBeNull();
   });
 
-  it("交错内容模式下也应继续显示轻量运行状态", () => {
+  it("交错内容模式下也不应在正文区域渲染运行态卡", () => {
     const { container } = renderHarness({
       content: "",
       isStreaming: true,
@@ -717,12 +754,10 @@ describe("StreamingRenderer", () => {
 
     expect(
       container.querySelector('[data-testid="agent-runtime-status"]'),
-    ).toBeTruthy();
-    expect(container.textContent).toContain("正在整理搜索结果");
-    expect(container.textContent).toContain("页面内容已获取");
+    ).toBeNull();
   });
 
-  it("已取消的运行状态应显示中性文案，而不是失败态文案", () => {
+  it("已取消的运行状态也不应在正文顶部额外渲染状态卡", () => {
     const { container } = renderHarness({
       content: "",
       isStreaming: true,
@@ -735,13 +770,9 @@ describe("StreamingRenderer", () => {
       showRuntimeStatusInline: true,
     });
 
-    const statusBlock = container.querySelector(
-      '[data-testid="agent-runtime-status"]',
-    );
-    expect(statusBlock).toBeTruthy();
-    expect(statusBlock?.textContent).toContain("已取消");
-    expect(statusBlock?.textContent).toContain("图片任务已取消");
-    expect(statusBlock?.textContent).not.toContain("需要处理");
+    expect(
+      container.querySelector('[data-testid="agent-runtime-status"]'),
+    ).toBeNull();
   });
 
   it("思考内容进入流式阶段后应自动展开", () => {

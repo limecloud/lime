@@ -39,6 +39,7 @@ export const InputbarTools: React.FC<InputbarToolsProps> = ({
             className={activeTools["web_search"] ? "active" : ""}
             aria-pressed={activeTools["web_search"]}
             title={`联网搜索${activeTools["web_search"] ? "已开启" : "已关闭"}`}
+            data-testid="toggle-web-search"
           >
             <Globe />
             <span>搜索</span>
@@ -52,6 +53,7 @@ export const InputbarTools: React.FC<InputbarToolsProps> = ({
                 className={activeTools["subagent_mode"] ? "active" : ""}
                 aria-pressed={activeTools["subagent_mode"]}
                 title={`任务拆分偏好${activeTools["subagent_mode"] ? "已开启" : "已关闭"}`}
+                data-testid="toggle-subagent-mode"
               >
                 <Workflow />
                 <span>任务拆分</span>

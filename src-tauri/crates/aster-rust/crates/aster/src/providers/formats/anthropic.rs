@@ -3,7 +3,7 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::tool_input_examples;
-use crate::providers::utils::{convert_image, ImageFormat};
+use crate::providers::utils::{convert_image, parse_tool_arguments_json_object, ImageFormat};
 use anyhow::{anyhow, Result};
 use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
@@ -507,7 +507,6 @@ where
         let mut current_tool_id: Option<String> = None;
         let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
         let mut message_id: Option<String> = None;
-
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
 
@@ -607,7 +606,7 @@ where
                             let parsed_args = if args.is_empty() {
                                 json!({})
                             } else {
-                                match serde_json::from_str::<Value>(&args) {
+                                match parse_tool_arguments_json_object(&args) {
                                     Ok(parsed) => parsed,
                                     Err(_) => {
                                         // If parsing fails, create an error tool request

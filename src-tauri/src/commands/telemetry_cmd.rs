@@ -1,6 +1,8 @@
 //! 遥测命令模块
 //!
-//! 提供请求日志、统计数据和 Token 追踪的 Tauri 命令
+//! 提供请求日志、统计数据和 Token 追踪的 Tauri 命令。
+//! 这些命令只暴露原始 `RequestLog` 与聚合统计，不负责定义 session / thread 的 current 状态真相；
+//! 当前线程稳定状态应统一走 `agent_runtime_get_thread_read` 与 `agent_runtime_export_*` 主链。
 
 use crate::telemetry::{
     ModelStats, ModelTokenStats, ProviderStats, ProviderTokenStats, RequestLog, RequestLogger,
@@ -72,7 +74,10 @@ impl Default for TelemetryState {
 
 // ========== 请求日志命令 ==========
 
-/// 获取请求日志列表
+/// 获取请求日志列表。
+///
+/// 这里只返回原始 `RequestLog` 浏览结果，便于排查 provider / model / status / token 等底层事实；
+/// 不应把它当成 session / thread current 状态的唯一读取入口。
 #[tauri::command]
 pub async fn get_request_logs(
     state: tauri::State<'_, TelemetryState>,
@@ -118,7 +123,9 @@ pub async fn get_request_logs(
     Ok(logs)
 }
 
-/// 获取单个请求日志详情
+/// 获取单个请求日志详情。
+///
+/// 该命令只返回单条原始 request 记录，不承担 thread read、incident 或 evidence 事实源职责。
 #[tauri::command]
 pub async fn get_request_log_detail(
     state: tauri::State<'_, TelemetryState>,
@@ -127,7 +134,9 @@ pub async fn get_request_log_detail(
     Ok(state.logger.get_by_id(&id))
 }
 
-/// 清空请求日志
+/// 清空请求日志。
+///
+/// 这只影响原始 request log 浏览面，不应被解释为会话、线程或 evidence 历史被删除。
 #[tauri::command]
 pub async fn clear_request_logs(state: tauri::State<'_, TelemetryState>) -> Result<(), String> {
     state.logger.clear();

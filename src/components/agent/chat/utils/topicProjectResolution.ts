@@ -6,11 +6,19 @@ export interface ResolveTopicProjectIdOptions {
 
 const INVALID_PROJECT_IDS = new Set(["__invalid__", "[object Promise]"]);
 const DEFAULT_PROJECT_ID_ALIAS = "default";
+const LEGACY_DEFAULT_PROJECT_IDS = new Set(["workspace-default"]);
 
 export function isDefaultProjectIdAlias(projectId: unknown): boolean {
   return (
     typeof projectId === "string" &&
     projectId.trim().toLowerCase() === DEFAULT_PROJECT_ID_ALIAS
+  );
+}
+
+export function isLegacyDefaultProjectId(projectId: unknown): boolean {
+  return (
+    typeof projectId === "string" &&
+    LEGACY_DEFAULT_PROJECT_IDS.has(projectId.trim().toLowerCase())
   );
 }
 
@@ -23,7 +31,8 @@ export function normalizeProjectId(projectId: unknown): string | null {
   if (
     !normalized ||
     INVALID_PROJECT_IDS.has(normalized) ||
-    isDefaultProjectIdAlias(normalized)
+    isDefaultProjectIdAlias(normalized) ||
+    isLegacyDefaultProjectId(normalized)
   ) {
     return null;
   }

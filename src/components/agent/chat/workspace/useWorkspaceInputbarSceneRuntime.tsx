@@ -19,11 +19,13 @@ import {
   DEFAULT_CHAT_TOOL_PREFERENCES,
   type ChatToolPreferences,
 } from "../utils/chatToolPreferences";
+import {
+  deriveRuntimeToolAvailability,
+  type RuntimeToolAvailability,
+} from "../utils/runtimeToolAvailability";
 import { resolveCanvasTaskFileTarget } from "../utils/taskFileCanvasSync";
 import { isRenderableTaskFile } from "./generalWorkbenchHelpers";
-import {
-  GeneralWorkbenchDialogSection,
-} from "./WorkspaceHarnessDialogs";
+import { GeneralWorkbenchDialogSection } from "./WorkspaceHarnessDialogs";
 import type { TeamWorkbenchSurfaceProps } from "./chatSurfaceProps";
 import type { GeneralWorkbenchEntryPromptState } from "./workspaceSendHelpers";
 
@@ -222,7 +224,9 @@ interface UseWorkspaceInputbarScenePresentationRuntimeParams {
     generalWorkbenchEntryPrompt: GeneralWorkbenchEntryPromptState | null;
     onRestartGeneralWorkbenchEntryPrompt: () => void;
     onContinueGeneralWorkbenchEntryPrompt: () => Promise<void> | void;
-    generalWorkbenchDialog: ComponentProps<typeof GeneralWorkbenchDialogSection>;
+    generalWorkbenchDialog: ComponentProps<
+      typeof GeneralWorkbenchDialogSection
+    >;
   };
 }
 interface WorkspaceInputbarScenePresentationRuntimeResult {
@@ -232,6 +236,7 @@ interface WorkspaceInputbarScenePresentationRuntimeResult {
   teamWorkbenchSurfaceProps: TeamWorkbenchSurfaceProps;
   inputbarNode: ReactNode;
   generalWorkbenchDialog: ReactNode;
+  runtimeToolAvailability: RuntimeToolAvailability | null | undefined;
 }
 type InputbarScenePresentationParams =
   UseWorkspaceInputbarScenePresentationRuntimeParams;
@@ -341,14 +346,15 @@ function useWorkspaceInputbarScenePresentationRuntime({
 
   const generalWorkbenchEntryPromptAccessory = useMemo(
     () =>
-      inputbarPresentation.generalWorkbenchEntryPrompt ? (
-        renderGeneralWorkbenchEntryPromptAccessory({
-          prompt: inputbarPresentation.generalWorkbenchEntryPrompt,
-          onRestart: inputbarPresentation.onRestartGeneralWorkbenchEntryPrompt,
-          onContinue:
-            inputbarPresentation.onContinueGeneralWorkbenchEntryPrompt,
-        })
-      ) : null,
+      inputbarPresentation.generalWorkbenchEntryPrompt
+        ? renderGeneralWorkbenchEntryPromptAccessory({
+            prompt: inputbarPresentation.generalWorkbenchEntryPrompt,
+            onRestart:
+              inputbarPresentation.onRestartGeneralWorkbenchEntryPrompt,
+            onContinue:
+              inputbarPresentation.onContinueGeneralWorkbenchEntryPrompt,
+          })
+        : null,
     [
       inputbarPresentation.generalWorkbenchEntryPrompt,
       inputbarPresentation.onContinueGeneralWorkbenchEntryPrompt,
@@ -356,12 +362,13 @@ function useWorkspaceInputbarScenePresentationRuntime({
     ],
   );
 
-  const floatingTeamWorkspaceDockProps = useMemo<
-    ComponentProps<typeof TeamWorkspaceDock> | null
-  >(
+  const floatingTeamWorkspaceDockProps = useMemo<ComponentProps<
+    typeof TeamWorkspaceDock
+  > | null>(
     () =>
       !inputbarPresentation.floatingTeamWorkspaceDock.enabled ||
-      !inputbarPresentation.floatingTeamWorkspaceDock.showFloatingInputOverlay ||
+      !inputbarPresentation.floatingTeamWorkspaceDock
+        .showFloatingInputOverlay ||
       inputbarPresentation.floatingTeamWorkspaceDock.layoutMode !== "chat"
         ? null
         : {
@@ -403,10 +410,7 @@ function useWorkspaceInputbarScenePresentationRuntime({
       </>
     ) : undefined;
   const inputbarNode = (
-    <Inputbar
-      {...workspaceInputbarProps}
-      overlayAccessory={overlayAccessory}
-    />
+    <Inputbar {...workspaceInputbarProps} overlayAccessory={overlayAccessory} />
   );
   const generalWorkbenchDialog = (
     <GeneralWorkbenchDialogSection
@@ -421,6 +425,8 @@ function useWorkspaceInputbarScenePresentationRuntime({
     teamWorkbenchSurfaceProps,
     inputbarNode,
     generalWorkbenchDialog,
+    runtimeToolAvailability:
+      inputbarPresentation.generalWorkbenchDialog.runtimeToolAvailability,
   };
 }
 
@@ -639,9 +645,13 @@ export function useWorkspaceInputbarSceneRuntime({
   handleActivateTeamWorkbench,
   chatToolPreferences,
 }: UseWorkspaceInputbarSceneRuntimeParams) {
-  const resolvedQueuedTurns = queuedTurns ?? [];
+  const resolvedQueuedTurns = useMemo(() => queuedTurns ?? [], [queuedTurns]);
   const resolvedChatToolPreferences =
     chatToolPreferences ?? DEFAULT_CHAT_TOOL_PREFERENCES;
+  const runtimeToolAvailability = useMemo(
+    () => deriveRuntimeToolAvailability(toolInventory),
+    [toolInventory],
+  );
   const handleInputbarToolStatesChange = useCallback(
     (
       nextToolStates: Pick<
@@ -657,9 +667,11 @@ export function useWorkspaceInputbarSceneRuntime({
     [setChatToolPreferences],
   );
   const dockLayoutMode = layoutMode === "chat" ? "chat" : "chat-canvas";
-  const resolvedTurns = turns ?? [];
+  const resolvedTurns = useMemo(() => turns ?? [], [turns]);
   const latestTurnPrompt =
-    resolvedTurns.find((turn) => turn.id === currentTurnId)?.prompt_text?.trim() ||
+    resolvedTurns
+      .find((turn) => turn.id === currentTurnId)
+      ?.prompt_text?.trim() ||
     resolvedTurns[resolvedTurns.length - 1]?.prompt_text?.trim() ||
     "";
 
@@ -704,9 +716,7 @@ export function useWorkspaceInputbarSceneRuntime({
         contextVariant,
         variant: isThemeWorkbench ? "workspace" : "default",
         workflowGate: isThemeWorkbench ? currentGate : null,
-        workflowSteps: isThemeWorkbench
-          ? generalWorkbenchWorkflowSteps
-          : steps,
+        workflowSteps: isThemeWorkbench ? generalWorkbenchWorkflowSteps : steps,
         workflowRunState,
         onSend: handleSend,
         onStop: handleStopSending,
@@ -814,6 +824,7 @@ export function useWorkspaceInputbarSceneRuntime({
         onRefreshToolInventory: refreshToolInventory,
         activeTheme: mappedTheme,
         toolPreferences: resolvedChatToolPreferences,
+        runtimeToolAvailability,
         isSending,
         executionRuntime: sessionExecutionRuntime,
         isExecutionRuntimeActive: Boolean(activeExecutionRuntime),

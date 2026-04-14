@@ -171,12 +171,11 @@ pub(crate) fn build_runtime_action_session_config(
     if let Some(prompt) = merge_system_prompt_with_elicitation_context(None, request_metadata) {
         session_config_builder = session_config_builder.system_prompt(prompt);
     }
-    if let Some(turn_context) =
-        super::runtime_turn::merge_turn_context_with_workspace_auto_compaction(
-            None,
-            workspace_settings,
-        )
-    {
+    let turn_context = super::runtime_turn::build_runtime_turn_context_snapshot(
+        request_metadata,
+        workspace_settings,
+    );
+    if turn_context.output_schema.is_some() || !turn_context.metadata.is_empty() {
         session_config_builder = session_config_builder.turn_context(turn_context);
     }
     session_config_builder.build()

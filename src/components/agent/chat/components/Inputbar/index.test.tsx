@@ -378,6 +378,20 @@ describe("Inputbar", () => {
       container.querySelector('[data-testid="inputbar-secondary-controls"]'),
     ).toBeNull();
   });
+
+  it("主线程任务状态不应再在输入区单独渲染 task strip", async () => {
+    const { container } = renderInputbar({
+      input: "分析 claudecode 项目结构并继续执行",
+      activeTheme: "general",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-testid="agent-task-strip"]')).toBeNull();
+  });
+
   it("工作区输入区默认隐藏技能入口，展开高级设置后与 @ 面板共用同一技能数据源", async () => {
     const { container } = renderInputbar({
       activeTheme: "general",
@@ -563,7 +577,11 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("当前任务更适合分工推进");
+    const suggestionBar = container.querySelector(
+      '[data-testid="team-suggestion-bar"]',
+    );
+    expect(suggestionBar).toBeTruthy();
+    expect(suggestionBar?.textContent).toContain("分工建议");
 
     const enableTeamButton = Array.from(
       container.querySelectorAll("button"),
@@ -729,7 +747,11 @@ describe("Inputbar", () => {
       container.querySelector('[data-testid="toggle-subagent-mode"]'),
     ).toBeNull();
     expect(recommendationButton).toBeTruthy();
-    expect(container.textContent).toContain("当前任务更适合分工推进");
+    const suggestionBar = container.querySelector(
+      '[data-testid="team-suggestion-bar"]',
+    );
+    expect(suggestionBar).toBeTruthy();
+    expect(suggestionBar?.textContent).toContain("分工建议");
   });
 
   it("内容主题默认发送时不应再注入旧 skill 前缀", async () => {

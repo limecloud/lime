@@ -2,7 +2,7 @@
 
 > 状态：进行中，核心合同已落地，P3 产品闭环已落地，rewrite typed patch 与 current incremental 合同已落地  
 > 更新时间：2026-03-31  
-> 运行时边界：prompt 组装入口、turn metadata 主合同、runtime output schema 注入链以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准；本文只细化 Artifact 相关合同  
+> 运行时边界：prompt 组装入口、turn metadata 主合同、runtime output schema 注入链以 `docs/aiprompts/query-loop.md`、`docs/aiprompts/state-history-telemetry.md` 与 `docs/exec-plans/upstream-runtime-alignment-plan.md` 为准；本文只细化 Artifact 相关合同  
 > 关联文档：
 > - `docs/roadmap/artifacts/architecture-blueprint.md`
 > - `docs/roadmap/artifacts/artifact-document-v1.md`
@@ -164,7 +164,7 @@ flowchart TD
 
 这里的 `ArtifactTurnMetadata` 只表达 Artifact 领域的意图模型，不直接等于 Lime 当前仓库的请求 wire format。
 
-当前实际发送边界、`harness` 结构、metadata 归一化与兼容收口，统一以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准。
+当前实际发送边界、`harness` 结构、metadata 归一化与兼容收口，统一以上述 current 入口为准。
 
 建议长期保留以下 Artifact turn intent：
 

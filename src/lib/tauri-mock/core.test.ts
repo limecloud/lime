@@ -61,14 +61,14 @@ describe("tauri-mock/core invoke", () => {
       .mockImplementation(() => {});
 
     try {
-      await expect(
-        invoke("agent_runtime_get_tool_inventory", {
-          request: {
-            caller: "assistant",
-            browserAssist: true,
-          },
-        }),
-      ).resolves.toEqual(
+      const result = await invoke("agent_runtime_get_tool_inventory", {
+        request: {
+          caller: "assistant",
+          browserAssist: true,
+        },
+      });
+
+      expect(result).toEqual(
         expect.objectContaining({
           request: expect.objectContaining({
             caller: "assistant",
@@ -80,36 +80,78 @@ describe("tauri-mock/core invoke", () => {
             "ToolSearch",
             "ListMcpResourcesTool",
             "ReadMcpResourceTool",
-            "Bash",
             "WebSearch",
-            "WebFetch",
             "AskUserQuestion",
             "SendUserMessage",
+            "Agent",
             "SendMessage",
             "TeamCreate",
             "TeamDelete",
             "ListPeers",
-            "RemoteTrigger",
             "TaskCreate",
             "Workflow",
+            "lime_site_recommend",
+            "lime_site_run",
           ]),
           counts: expect.objectContaining({
-            catalog_total: expect.any(Number),
+            catalog_total: 46,
             registry_visible_total: expect.any(Number),
+            extension_tool_total: 20,
+            extension_tool_visible_total: 1,
+            mcp_tool_total: 20,
+            mcp_tool_visible_total: 1,
           }),
           catalog_tools: expect.arrayContaining([
             expect.objectContaining({ name: "ToolSearch" }),
             expect.objectContaining({ name: "ListMcpResourcesTool" }),
-            expect.objectContaining({ name: "Bash" }),
+            expect.objectContaining({
+              name: "Bash",
+              permission_plane: "parameter_restricted",
+              workspace_default_allow: false,
+            }),
             expect.objectContaining({ name: "WebSearch" }),
-            expect.objectContaining({ name: "WebFetch" }),
+            expect.objectContaining({
+              name: "WebFetch",
+              permission_plane: "parameter_restricted",
+              workspace_default_allow: false,
+            }),
             expect.objectContaining({ name: "SendUserMessage" }),
+            expect.objectContaining({
+              name: "StructuredOutput",
+              permission_plane: "session_allowlist",
+              workspace_default_allow: false,
+            }),
             expect.objectContaining({ name: "RemoteTrigger" }),
             expect.objectContaining({ name: "CronCreate" }),
+            expect.objectContaining({ name: "lime_site_list" }),
+            expect.objectContaining({ name: "lime_site_run" }),
+            expect.objectContaining({
+              name: "mcp__lime-browser__",
+              source: "browser_compatibility",
+              permission_plane: "caller_filtered",
+              workspace_default_allow: false,
+            }),
+          ]),
+          extension_surfaces: expect.arrayContaining([
+            expect.objectContaining({
+              extension_name: "mcp__lime-browser",
+              available_tools: expect.arrayContaining([
+                "navigate",
+                "click",
+                "read_page",
+                "get_page_text",
+              ]),
+              loaded_tools: ["mcp__lime-browser__navigate"],
+              searchable_tools: expect.arrayContaining([
+                "mcp__lime-browser__navigate",
+                "mcp__lime-browser__click",
+              ]),
+            }),
           ]),
           registry_tools: expect.arrayContaining([
             expect.objectContaining({ name: "AskUserQuestion" }),
             expect.objectContaining({ name: "SendUserMessage" }),
+            expect.objectContaining({ name: "StructuredOutput" }),
             expect.objectContaining({ name: "ReadMcpResourceTool" }),
             expect.objectContaining({ name: "EnterPlanMode" }),
             expect.objectContaining({ name: "SendMessage" }),
@@ -119,11 +161,99 @@ describe("tauri-mock/core invoke", () => {
             expect.objectContaining({ name: "CronList" }),
             expect.objectContaining({ name: "TaskOutput" }),
             expect.objectContaining({ name: "ExitWorktree" }),
+            expect.objectContaining({ name: "lime_site_search" }),
+          ]),
+          extension_tools: expect.arrayContaining([
+            expect.objectContaining({
+              name: "mcp__lime-browser__navigate",
+              status: "loaded",
+              visible_in_context: true,
+            }),
+            expect.objectContaining({
+              name: "mcp__lime-browser__click",
+              status: "deferred",
+              visible_in_context: false,
+            }),
           ]),
           mcp_tools: expect.arrayContaining([
-            expect.objectContaining({ name: "mcp__lime-browser__navigate" }),
+            expect.objectContaining({
+              name: "mcp__lime-browser__navigate",
+              always_visible: true,
+              visible_in_context: true,
+              tags: ["browser", "write"],
+            }),
+            expect.objectContaining({
+              name: "mcp__lime-browser__click",
+              deferred_loading: true,
+              visible_in_context: false,
+              tags: ["browser", "write"],
+            }),
           ]),
         }),
+      );
+      expect(result.default_allowed_tools).not.toContain("StructuredOutput");
+    } finally {
+      consoleWarnSpy.mockRestore();
+    }
+  });
+
+  it("工具库存 fallback mock 应按 workbench + browser surface 补齐当前工具面", async () => {
+    mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+
+    try {
+      const result = await invoke("agent_runtime_get_tool_inventory", {
+        request: {
+          caller: "assistant",
+          workbench: true,
+          browserAssist: true,
+        },
+      });
+
+      expect(result.request.surface).toEqual(
+        expect.objectContaining({
+          workbench: true,
+          browser_assist: true,
+        }),
+      );
+      expect(result.counts.catalog_total).toBe(57);
+      expect(result.default_allowed_tools).toEqual(
+        expect.arrayContaining([
+          "social_generate_cover_image",
+          "lime_create_image_generation_task",
+          "lime_create_transcription_task",
+          "lime_run_service_skill",
+          "lime_site_recommend",
+          "lime_site_run",
+        ]),
+      );
+      expect(result.default_allowed_tools).not.toContain("mcp__lime-browser__");
+      expect(result.catalog_tools).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "social_generate_cover_image" }),
+          expect.objectContaining({ name: "lime_create_image_generation_task" }),
+          expect.objectContaining({ name: "lime_run_service_skill" }),
+          expect.objectContaining({ name: "lime_site_recommend" }),
+          expect.objectContaining({ name: "mcp__lime-browser__" }),
+        ]),
+      );
+      expect(result.registry_tools).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "social_generate_cover_image" }),
+          expect.objectContaining({ name: "lime_search_web_images" }),
+          expect.objectContaining({ name: "lime_create_typesetting_task" }),
+          expect.objectContaining({ name: "lime_site_info" }),
+        ]),
+      );
+      expect(result.counts.mcp_tool_total).toBe(20);
+      expect(result.mcp_tools).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "mcp__lime-browser__navigate" }),
+          expect.objectContaining({ name: "mcp__lime-browser__read_page" }),
+          expect.objectContaining({ name: "mcp__lime-browser__click" }),
+        ]),
       );
     } finally {
       consoleWarnSpy.mockRestore();

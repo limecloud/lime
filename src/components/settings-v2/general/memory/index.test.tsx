@@ -53,7 +53,7 @@ vi.mock("@/components/memory/memoryLayerMetrics", () => ({
     cards: [
       {
         key: "rules",
-        title: "规则层",
+        title: "来源链",
         value: 1,
         unit: "源",
         available: true,
@@ -61,7 +61,7 @@ vi.mock("@/components/memory/memoryLayerMetrics", () => ({
       },
       {
         key: "working",
-        title: "工作记忆",
+        title: "会话记忆",
         value: 0,
         unit: "条",
         available: false,
@@ -69,7 +69,7 @@ vi.mock("@/components/memory/memoryLayerMetrics", () => ({
       },
       {
         key: "durable",
-        title: "长期记忆",
+        title: "持久记忆",
         value: 0,
         unit: "条",
         available: false,
@@ -77,7 +77,7 @@ vi.mock("@/components/memory/memoryLayerMetrics", () => ({
       },
       {
         key: "team",
-        title: "Team 影子",
+        title: "Team Memory",
         value: 0,
         unit: "份",
         available: false,
@@ -85,7 +85,7 @@ vi.mock("@/components/memory/memoryLayerMetrics", () => ({
       },
       {
         key: "compaction",
-        title: "压缩边界",
+        title: "会话压缩",
         value: 0,
         unit: "次",
         available: false,
@@ -274,7 +274,7 @@ describe("MemorySettings", () => {
     await flushEffects();
 
     expect(getBodyText()).not.toContain(
-      "管理用户画像、五层记忆来源与自动记忆入口，让代理在长期使用里更稳定地续接规则、上下文与协作状态。",
+      "管理用户画像、来源链与自动记忆入口，让代理在长期使用里更稳定地续接规则、会话与协作状态。",
     );
     expect(getBodyText()).not.toContain(
       "单选，用于帮助代理判断你的知识密度和上下文称呼。",
@@ -282,7 +282,7 @@ describe("MemorySettings", () => {
 
     const heroTip = await hoverTip("记忆设置说明");
     expect(getBodyText()).toContain(
-      "管理用户画像、五层记忆来源与自动记忆入口，让代理在长期使用里更稳定地续接规则、上下文与协作状态。",
+      "管理用户画像、来源链与自动记忆入口，让代理在长期使用里更稳定地续接规则、会话与协作状态。",
     );
     await leaveTip(heroTip);
 
@@ -300,11 +300,11 @@ describe("MemorySettings", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("记忆");
-    expect(text).toContain("管理用户画像、来源策略与自动记忆入口。");
+    expect(text).toContain("管理用户画像、来源链策略与自动记忆入口。");
     expect(text).toContain("记忆总开关");
     expect(text).toContain("偏好画像");
-    expect(text).toContain("五层记忆可用性");
-    expect(text).toContain("记忆来源策略");
+    expect(text).toContain("记忆命中层可用性");
+    expect(text).toContain("来源链策略");
     expect(text).toContain("自动记忆（Auto Memory）");
   });
 

@@ -163,6 +163,8 @@ function createToolInventory(): AgentRuntimeToolInventory {
       catalog_compat_total: 0,
       catalog_deprecated_total: 0,
       default_allowed_total: 2,
+      runtime_total: 4,
+      runtime_visible_total: 3,
       registry_total: 2,
       registry_visible_total: 1,
       registry_catalog_unmapped_total: 0,
@@ -268,6 +270,73 @@ function createToolInventory(): AgentRuntimeToolInventory {
         visible_in_context: false,
       },
     ],
+    runtime_tools: [
+      {
+        name: "Agent",
+        description: "创建或调度子任务",
+        source_kind: "current_surface",
+        catalog_entry_name: "Agent",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: [],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "bash",
+        description: "执行工作区命令",
+        source_kind: "registry_native",
+        catalog_entry_name: "bash",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "parameter_restricted",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: ["assistant"],
+        tags: ["shell"],
+        input_examples_count: 2,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "mcp__lime-browser__navigate",
+        description: "打开网页",
+        source_kind: "runtime_extension",
+        source_label: "mcp__lime-browser",
+        status: "loaded",
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: ["assistant"],
+        tags: [],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "ToolSearch",
+        description: "搜索工具目录",
+        source_kind: "registry_native",
+        catalog_entry_name: "ToolSearch",
+        catalog_source: "lime_injected",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: true,
+        deferred_loading: true,
+        always_visible: true,
+        allowed_callers: [],
+        tags: ["search"],
+        input_examples_count: 1,
+        caller_allowed: false,
+        visible_in_context: false,
+      },
+    ],
     extension_surfaces: [
       {
         extension_name: "mcp__lime-browser",
@@ -310,6 +379,226 @@ function createToolInventory(): AgentRuntimeToolInventory {
         caller_allowed: true,
         visible_in_context: true,
       },
+    ],
+  };
+}
+
+function createAlignedRuntimeToolInventory(): AgentRuntimeToolInventory {
+  const base = createToolInventory();
+
+  return {
+    ...base,
+    counts: {
+      ...base.counts,
+      runtime_total: 15,
+      runtime_visible_total: 14,
+    },
+    runtime_tools: [
+      {
+        name: "Agent",
+        description: "创建或调度子任务",
+        source_kind: "current_surface",
+        catalog_entry_name: "Agent",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: [],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "SendMessage",
+        description: "向子任务追加输入",
+        source_kind: "current_surface",
+        catalog_entry_name: "SendMessage",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["team"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "TeamCreate",
+        description: "创建协作团队",
+        source_kind: "current_surface",
+        catalog_entry_name: "TeamCreate",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["team"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "TeamDelete",
+        description: "删除协作团队",
+        source_kind: "current_surface",
+        catalog_entry_name: "TeamDelete",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["team"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "ListPeers",
+        description: "列出当前团队成员",
+        source_kind: "current_surface",
+        catalog_entry_name: "ListPeers",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["team"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "TaskCreate",
+        description: "创建任务",
+        source_kind: "current_surface",
+        catalog_entry_name: "TaskCreate",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["task"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "TaskGet",
+        description: "查看任务详情",
+        source_kind: "current_surface",
+        catalog_entry_name: "TaskGet",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["task"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "TaskList",
+        description: "列出任务",
+        source_kind: "current_surface",
+        catalog_entry_name: "TaskList",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["task"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "TaskUpdate",
+        description: "更新任务",
+        source_kind: "current_surface",
+        catalog_entry_name: "TaskUpdate",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["task"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "TaskOutput",
+        description: "读取任务输出",
+        source_kind: "current_surface",
+        catalog_entry_name: "TaskOutput",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["task"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "TaskStop",
+        description: "终止任务",
+        source_kind: "current_surface",
+        catalog_entry_name: "TaskStop",
+        catalog_source: "aster_builtin",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: false,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["task"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      {
+        name: "WebSearch",
+        description: "执行联网检索",
+        source_kind: "current_surface",
+        catalog_entry_name: "WebSearch",
+        catalog_source: "lime_injected",
+        catalog_lifecycle: "current",
+        catalog_permission_plane: "session_allowlist",
+        catalog_workspace_default_allow: true,
+        deferred_loading: false,
+        always_visible: false,
+        allowed_callers: [],
+        tags: ["search"],
+        input_examples_count: 0,
+        caller_allowed: true,
+        visible_in_context: true,
+      },
+      ...base.runtime_tools.filter((entry) => entry.name !== "Agent"),
     ],
   };
 }
@@ -2163,7 +2452,49 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("运行时覆盖");
     expect(document.body.textContent).toContain("持久化覆盖");
     expect(document.body.textContent).toContain("默认策略");
+    expect(document.body.textContent).toContain("实际 Runtime 工具面");
     expect(document.body.textContent).toContain("Catalog 工具");
+  });
+
+  it("runtime tool surface 应在工具库存中展示 team/task current gaps", () => {
+    renderPanel({
+      toolInventory: createToolInventory(),
+    });
+
+    const summary = document.body.querySelector(
+      '[data-testid="harness-runtime-tool-capability-summary"]',
+    ) as HTMLElement | null;
+
+    expect(summary?.textContent).toContain("Runtime 能力摘要");
+    expect(summary?.textContent).toContain("来源 runtime_tools");
+    expect(summary?.textContent).toContain("WebSearch 未接通");
+    expect(summary?.textContent).toContain("子任务核心 tools 缺 1 项");
+    expect(summary?.textContent).toContain("Team current tools 缺 3 项");
+    expect(summary?.textContent).toContain("Task current tools 缺 6 项");
+    expect(summary?.textContent).toContain("SendMessage");
+    expect(summary?.textContent).toContain("TeamCreate / TeamDelete / ListPeers");
+    expect(summary?.textContent).toContain(
+      "TaskCreate / TaskGet / TaskList / TaskUpdate / TaskOutput / TaskStop",
+    );
+  });
+
+  it("runtime tool surface 应在工具库存中展示已接通的 team/task current surface", () => {
+    renderPanel({
+      toolInventory: createAlignedRuntimeToolInventory(),
+    });
+
+    const summary = document.body.querySelector(
+      '[data-testid="harness-runtime-tool-capability-summary"]',
+    ) as HTMLElement | null;
+
+    expect(summary?.textContent).toContain("来源 runtime_tools");
+    expect(summary?.textContent).toContain("WebSearch 已接通");
+    expect(summary?.textContent).toContain("子任务核心 tools 已接通");
+    expect(summary?.textContent).toContain("Team current tools 已接通");
+    expect(summary?.textContent).toContain("Task current tools 已接通");
+    expect(summary?.textContent).toContain(
+      "当前 runtime current surface 已覆盖 WebSearch、子任务、Team 与 Task 主链。",
+    );
   });
 
   it("工具库存应支持按来源筛选 catalog 条目", () => {

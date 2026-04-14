@@ -47,9 +47,7 @@ import {
   stripAssistantProtocolResidue,
 } from "../utils/protocolResidue";
 import { normalizeIncomingToolResult } from "./agentChatToolResult";
-import {
-  hasMeaningfulSiteToolResultSignal,
-} from "../utils/siteToolResultSummary";
+import { hasMeaningfulSiteToolResultSignal } from "../utils/siteToolResultSummary";
 import {
   buildImageTaskPreviewFromToolResult,
   buildTaskPreviewFromToolResult,
@@ -75,6 +73,7 @@ interface StreamRequestState {
 }
 
 const EMPTY_FINAL_REPLY_ERROR_HINT = "模型未输出最终答复";
+const EMPTY_FINAL_REPLY_ERROR_MESSAGE = "模型未输出最终答复，请重试";
 const EMPTY_FINAL_REPLY_FALLBACK_CONTENT =
   "本轮执行已完成，详细过程与产物已保留在当前对话中。";
 const QUEUED_DRAFT_CLEANUP_GRACE_MS = 1800;
@@ -186,8 +185,8 @@ function hasMeaningfulCompletionSignalFromToolResult(params: {
 
   return Boolean(
     buildImageTaskPreviewFromToolResult(previewParams) ||
-      buildTaskPreviewFromToolResult(previewParams) ||
-      buildToolResultArtifactFromToolResult(previewParams),
+    buildTaskPreviewFromToolResult(previewParams) ||
+    buildToolResultArtifactFromToolResult(previewParams),
   );
 }
 
@@ -313,6 +312,42 @@ export function handleTurnStreamEvent({
         : "") ||
       EMPTY_FINAL_REPLY_FALLBACK_CONTENT
     );
+  };
+
+  const finalizeMissingFinalReplyFailure = (
+    errorMessage: string,
+    usage?: Message["usage"],
+  ) => {
+    markFailedTimelineState(errorMessage);
+    removeQueuedTurnState(
+      requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
+    );
+    finishRequestLog(requestState, {
+      eventType: "chat_request_error",
+      status: "error",
+      error: errorMessage,
+    });
+    observer?.onError?.(errorMessage);
+    const failedRuntimeStatus = buildFailedAgentRuntimeStatus(errorMessage);
+    toast.error(EMPTY_FINAL_REPLY_ERROR_MESSAGE);
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === assistantMsgId
+          ? {
+              ...updateMessageArtifactsStatus(msg, "error"),
+              isThinking: false,
+              content: buildFailedAgentMessageContent(
+                errorMessage,
+                requestState.accumulatedContent || msg.content,
+              ),
+              runtimeStatus: failedRuntimeStatus,
+              usage: usage ?? msg.usage,
+            }
+          : msg,
+      ),
+    );
+    clearActiveStreamIfMatch(eventName);
+    disposeListener();
   };
 
   const markQueuedDraftState = (queuedMessageText?: string | null) => {
@@ -626,14 +661,6 @@ export function handleTurnStreamEvent({
       clearQueuedDraftCleanupTimer();
       clearOptimisticItem();
       clearOptimisticTurn();
-      removeQueuedTurnState(
-        requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
-      );
-      finishRequestLog(requestState, {
-        eventType: "chat_request_complete",
-        status: "success",
-        description: `请求完成，工具调用 ${toolLogIdByToolId.size} 次`,
-      });
       const rawFinalContent = requestState.accumulatedContent.trim();
       const cleanedFinalContent = stripAssistantProtocolResidue(
         requestState.accumulatedContent,
@@ -642,9 +669,23 @@ export function handleTurnStreamEvent({
         !cleanedFinalContent &&
         (containsAssistantProtocolResidue(requestState.accumulatedContent) ||
           !rawFinalContent);
+      if (missingFinalReply && !requestState.hasMeaningfulCompletionSignal) {
+        finalizeMissingFinalReplyFailure(
+          EMPTY_FINAL_REPLY_ERROR_MESSAGE,
+          data.usage,
+        );
+        break;
+      }
+
+      removeQueuedTurnState(
+        requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
+      );
+      finishRequestLog(requestState, {
+        eventType: "chat_request_complete",
+        status: "success",
+        description: `请求完成，工具调用 ${toolLogIdByToolId.size} 次`,
+      });
       const finalContent = resolveGracefulCompletionContent();
-      const shouldWarnMissingFinalReply =
-        missingFinalReply && !requestState.hasMeaningfulCompletionSignal;
       observer?.onComplete?.(finalContent);
       setMessages((prev) =>
         prev.map((msg) => {
@@ -661,9 +702,6 @@ export function handleTurnStreamEvent({
           };
         }),
       );
-      if (shouldWarnMissingFinalReply) {
-        toast.error("已完成工具执行，但模型未输出最终答复，请重试");
-      }
       clearActiveStreamIfMatch(eventName);
       disposeListener();
       break;
@@ -674,6 +712,10 @@ export function handleTurnStreamEvent({
       if (data.message.includes(EMPTY_FINAL_REPLY_ERROR_HINT)) {
         clearOptimisticItem();
         clearOptimisticTurn();
+        if (!requestState.hasMeaningfulCompletionSignal) {
+          finalizeMissingFinalReplyFailure(data.message);
+          break;
+        }
         removeQueuedTurnState(
           requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
         );

@@ -10,19 +10,26 @@
 //!
 //! Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9
 
+use std::path::Path;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 use tracing::{debug, warn};
 
 use super::base::{PermissionCheckResult, Tool};
+use super::command_semantics::interpret_bash_command_result;
 use super::context::{ToolContext, ToolOptions, ToolResult};
 use super::error::ToolError;
+use super::path_guard::{
+    evaluate_path_mutations, resolve_static_path_candidate, summarize_paths, summarize_raw_paths,
+    PathGuardFinding, PathMutationCandidate, PathMutationKind,
+};
 use super::task::TaskManager;
 
 /// Maximum output length before truncation (128KB)
@@ -33,6 +40,24 @@ pub const DEFAULT_TIMEOUT_SECS: u64 = 300;
 
 /// Maximum timeout allowed (30 minutes)
 pub const MAX_TIMEOUT_SECS: u64 = 1800;
+
+static SHELL_ENV_ASSIGN_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[A-Za-z_]\w*=").expect("valid env assign regex"));
+static BASH_WRITE_REDIRECTION_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?x)
+        (?:^|[\s;(])
+        (?:\d+|&)?(?:>>?|>\|)
+        \s*
+        (?P<target>'[^']*'|"[^"]*"|[^\s;&|()]+)
+    "#,
+    )
+    .expect("valid bash write redirection regex")
+});
+static BASH_SED_IN_PLACE_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)\bsed\b[^\n;|&]*(?:\s--in-place(?:=\S+)?|\s-[A-Za-z]*i[A-Za-z]*)")
+        .expect("valid sed in-place regex")
+});
 
 /// Safety check result for command validation
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -268,12 +293,20 @@ impl BashTool {
             );
         }
 
+        if let Some(reason) = self.detect_high_risk_command_reason(command_trimmed) {
+            return SafetyCheckResult::unsafe_with_reason(reason);
+        }
+
         // Check against warning patterns
         let mut warnings = Vec::new();
         for pattern in &self.warning_patterns {
             if pattern.is_match(command_trimmed) {
                 warnings.push(format!("Matches warning pattern: {}", pattern.as_str()));
             }
+        }
+
+        if let Some(warning) = self.detect_mutating_command_warning(command_trimmed) {
+            warnings.push(warning);
         }
 
         if !warnings.is_empty() {
@@ -329,6 +362,89 @@ impl BashTool {
         false
     }
 
+    fn detect_high_risk_command_reason(&self, command: &str) -> Option<String> {
+        for segment in split_shell_segments(command) {
+            let words = extract_bash_command_words(segment);
+            if words.is_empty() {
+                continue;
+            }
+
+            if words[0] != "git" {
+                continue;
+            }
+
+            let subcommand = words.get(1).map(String::as_str).unwrap_or("");
+            match subcommand {
+                "reset" if words.iter().any(|word| word == "--hard") => {
+                    return Some(
+                        "Blocked: `git reset --hard` is a destructive repository operation."
+                            .to_string(),
+                    );
+                }
+                "clean" if is_forced_git_clean(&words) => {
+                    return Some(
+                        "Blocked: forced `git clean` may permanently remove untracked files."
+                            .to_string(),
+                    );
+                }
+                "push" if words.iter().any(|word| word == "--force" || word == "-f") => {
+                    return Some(
+                        "Blocked: force-pushing git history requires explicit manual confirmation."
+                            .to_string(),
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        None
+    }
+
+    fn detect_mutating_command_warning(&self, command: &str) -> Option<String> {
+        if has_bash_write_redirection(command) {
+            return Some("Command writes to files via shell redirection".to_string());
+        }
+
+        for segment in split_shell_segments(command) {
+            let words = extract_bash_command_words(segment);
+            if words.is_empty() {
+                continue;
+            }
+
+            let command_name = words[0].as_str();
+            if command_name == "sed" && segment_has_sed_in_place(segment) {
+                return Some("Command performs in-place edits via `sed -i`".to_string());
+            }
+
+            if command_name == "tee" && tee_writes_to_file(&words) {
+                return Some("Command writes to files via `tee`".to_string());
+            }
+
+            if command_name == "dd"
+                && words
+                    .iter()
+                    .any(|word| word.to_ascii_lowercase().starts_with("of="))
+            {
+                return Some("Command writes to files via `dd of=...`".to_string());
+            }
+
+            if is_mutating_shell_command(command_name) {
+                return Some(format!("Command may modify files via `{command_name}`"));
+            }
+
+            if command_name == "git" {
+                let subcommand = words.get(1).map(String::as_str).unwrap_or("");
+                if is_mutating_git_subcommand(subcommand) {
+                    return Some(format!(
+                        "Command modifies repository state via `git {subcommand}`"
+                    ));
+                }
+            }
+        }
+
+        None
+    }
+
     /// Check if a command is in the dangerous commands list
     pub fn is_dangerous_command(&self, command: &str) -> bool {
         !self.check_command_safety(command).safe
@@ -338,6 +454,523 @@ impl BashTool {
     pub fn has_warning(&self, command: &str) -> bool {
         self.check_command_safety(command).warning.is_some()
     }
+}
+
+fn split_shell_segments(command: &str) -> Vec<&str> {
+    let mut segments = Vec::new();
+    let mut start = 0usize;
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut chars = command.char_indices().peekable();
+
+    while let Some((index, ch)) = chars.next() {
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            ';' | '\n' if !in_single && !in_double => {
+                let segment = command[start..index].trim();
+                if !segment.is_empty() {
+                    segments.push(segment);
+                }
+                start = index + ch.len_utf8();
+            }
+            '&' if !in_single && !in_double => {
+                if let Some((next_index, next_char)) = chars.peek().copied() {
+                    if next_char == '&' {
+                        let segment = command[start..index].trim();
+                        if !segment.is_empty() {
+                            segments.push(segment);
+                        }
+                        let _ = chars.next();
+                        start = next_index + next_char.len_utf8();
+                    }
+                }
+            }
+            '|' if !in_single && !in_double => {
+                let segment = command[start..index].trim();
+                if !segment.is_empty() {
+                    segments.push(segment);
+                }
+                if let Some((next_index, next_char)) = chars.peek().copied() {
+                    if next_char == '|' {
+                        let _ = chars.next();
+                        start = next_index + next_char.len_utf8();
+                    } else {
+                        start = index + ch.len_utf8();
+                    }
+                } else {
+                    start = index + ch.len_utf8();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let rest = command[start..].trim();
+    if !rest.is_empty() {
+        segments.push(rest);
+    }
+
+    segments
+}
+
+fn normalize_shell_word(word: &str) -> String {
+    word.trim_matches(|ch| matches!(ch, '"' | '\'' | '`' | '(' | ')' | ','))
+        .to_ascii_lowercase()
+}
+
+fn skip_shell_command_prefix(raw_words: &[String]) -> usize {
+    let mut index = 0usize;
+    while index < raw_words.len() {
+        let normalized = normalize_shell_word(&raw_words[index]);
+        if SHELL_ENV_ASSIGN_RE.is_match(&normalized) || is_shell_wrapper_command(&normalized) {
+            index += 1;
+            continue;
+        }
+        break;
+    }
+    index
+}
+
+fn extract_bash_command_words(segment: &str) -> Vec<String> {
+    let raw_words = segment
+        .split_whitespace()
+        .map(normalize_shell_word)
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>();
+    let start_index = skip_shell_command_prefix(&raw_words);
+
+    raw_words.into_iter().skip(start_index).collect()
+}
+
+fn is_shell_wrapper_command(word: &str) -> bool {
+    matches!(
+        word,
+        "sudo" | "env" | "command" | "builtin" | "nohup" | "nice" | "stdbuf" | "timeout" | "time"
+    )
+}
+
+fn has_bash_write_redirection(command: &str) -> bool {
+    BASH_WRITE_REDIRECTION_RE
+        .captures_iter(command)
+        .any(|captures| {
+            let Some(target) = captures.name("target") else {
+                return false;
+            };
+            !is_safe_shell_sink(target.as_str())
+        })
+}
+
+fn is_safe_shell_sink(target: &str) -> bool {
+    let normalized = normalize_shell_word(target);
+    matches!(
+        normalized.as_str(),
+        "&1" | "&2" | "/dev/null" | "/dev/stdout" | "/dev/stderr" | "/dev/tty" | "nul"
+    )
+}
+
+fn segment_has_sed_in_place(segment: &str) -> bool {
+    BASH_SED_IN_PLACE_RE.is_match(segment)
+}
+
+fn tee_writes_to_file(words: &[String]) -> bool {
+    words
+        .iter()
+        .skip(1)
+        .filter(|word| !word.starts_with('-'))
+        .any(|word| !is_safe_shell_sink(word))
+}
+
+fn is_mutating_shell_command(command_name: &str) -> bool {
+    matches!(
+        command_name,
+        "rm" | "rmdir"
+            | "mv"
+            | "cp"
+            | "install"
+            | "mkdir"
+            | "touch"
+            | "chmod"
+            | "chown"
+            | "chgrp"
+            | "ln"
+            | "unlink"
+            | "truncate"
+    )
+}
+
+fn is_mutating_git_subcommand(subcommand: &str) -> bool {
+    matches!(
+        subcommand,
+        "add"
+            | "am"
+            | "apply"
+            | "branch"
+            | "checkout"
+            | "cherry-pick"
+            | "clean"
+            | "commit"
+            | "merge"
+            | "mv"
+            | "pull"
+            | "push"
+            | "rebase"
+            | "reset"
+            | "restore"
+            | "revert"
+            | "rm"
+            | "stash"
+            | "switch"
+            | "tag"
+    )
+}
+
+fn is_forced_git_clean(words: &[String]) -> bool {
+    let has_force = words
+        .iter()
+        .any(|word| word.starts_with('-') && word.contains('f'));
+    let has_scope = words.iter().any(|word| {
+        word.starts_with('-') && (word.contains('d') || word.contains('x') || word.contains('X'))
+    });
+    has_force && has_scope
+}
+
+fn validate_bash_command_paths(command: &str, cwd: &Path) -> Option<PermissionCheckResult> {
+    let candidates = collect_bash_path_candidates(command);
+    match evaluate_path_mutations(&candidates, cwd)? {
+        PathGuardFinding::ProtectedPaths(paths) => Some(PermissionCheckResult::deny(format!(
+            "Blocked: command targets protected path(s): {}",
+            summarize_paths(&paths)
+        ))),
+        PathGuardFinding::OutsideWorkspace(paths) => Some(PermissionCheckResult::ask(format!(
+            "Command modifies path(s) outside the current working directory: {}. Do you want to proceed?",
+            summarize_paths(&paths)
+        ))),
+        PathGuardFinding::DynamicPaths(paths) => Some(PermissionCheckResult::ask(format!(
+            "Command uses path expression(s) that cannot be validated safely: {}. Do you want to proceed?",
+            summarize_raw_paths(&paths)
+        ))),
+    }
+}
+
+fn collect_bash_path_candidates(command: &str) -> Vec<PathMutationCandidate> {
+    let mut candidates = BASH_WRITE_REDIRECTION_RE
+        .captures_iter(command)
+        .filter_map(|captures| captures.name("target"))
+        .map(|target| PathMutationCandidate::new(target.as_str(), PathMutationKind::Write))
+        .collect::<Vec<_>>();
+
+    for segment in split_shell_segments(command) {
+        let raw_words = tokenize_shell_words(segment);
+        if raw_words.is_empty() {
+            continue;
+        }
+        let normalized_words = normalize_command_words(&raw_words);
+        let command_name = normalized_words[0].as_str();
+
+        match command_name {
+            "rm" | "rmdir" => {
+                for target in extract_rm_targets(&raw_words) {
+                    candidates.push(PathMutationCandidate::new(target, PathMutationKind::Remove));
+                }
+            }
+            "tee" => {
+                for target in extract_tee_targets(&raw_words) {
+                    candidates.push(PathMutationCandidate::new(target, PathMutationKind::Write));
+                }
+            }
+            "dd" => {
+                for target in extract_dd_output_targets(&raw_words) {
+                    candidates.push(PathMutationCandidate::new(target, PathMutationKind::Write));
+                }
+            }
+            "sed" if segment_has_sed_in_place(segment) => {
+                for target in extract_sed_in_place_targets(&raw_words) {
+                    candidates.push(PathMutationCandidate::new(target, PathMutationKind::Write));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    candidates
+}
+
+fn extract_bash_read_targets(raw_words: &[String], command_name: &str) -> Vec<String> {
+    let start_index = skip_shell_command_prefix(raw_words);
+    if raw_words.len() <= start_index + 1 {
+        return Vec::new();
+    }
+
+    let mut positional_targets = Vec::new();
+    let mut after_double_dash = false;
+
+    for word in raw_words.iter().skip(start_index + 1) {
+        if !after_double_dash && word == "--" {
+            after_double_dash = true;
+            continue;
+        }
+
+        let normalized = normalize_shell_word(word);
+        if !after_double_dash && normalized.starts_with('-') {
+            continue;
+        }
+
+        positional_targets.push(word.clone());
+    }
+
+    match command_name {
+        "cat" | "bat" | "head" | "tail" | "wc" | "ls" | "dir" | "tree" => {
+            positional_targets.into_iter().rev().take(1).collect()
+        }
+        "rg" | "grep" | "findstr" if positional_targets.len() >= 2 => {
+            positional_targets.into_iter().rev().take(1).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn collect_bash_read_path_candidates(command: &str) -> Vec<String> {
+    let mut candidates = Vec::new();
+
+    for segment in split_shell_segments(command) {
+        let raw_words = tokenize_shell_words(segment);
+        if raw_words.is_empty() {
+            continue;
+        }
+
+        let normalized_words = normalize_command_words(&raw_words);
+        if normalized_words.is_empty() {
+            continue;
+        }
+
+        let command_name = normalized_words[0].as_str();
+        candidates.extend(extract_bash_read_targets(&raw_words, command_name));
+    }
+
+    candidates
+}
+
+fn is_known_read_only_bash_command(command_name: &str, words: &[String]) -> bool {
+    match command_name {
+        "cat" | "bat" | "head" | "tail" | "wc" | "ls" | "dir" | "tree" | "rg" | "grep"
+        | "findstr" | "find" | "pwd" | "realpath" | "readlink" | "stat" | "file" | "du"
+        | "which" | "cut" | "sort" | "uniq" | "tr" | "awk" | "jq" | "basename" | "dirname"
+        | "test" | "[" => true,
+        "sed" => true,
+        "git" => matches!(
+            words.get(1).map(String::as_str).unwrap_or(""),
+            "status" | "diff" | "show" | "log" | "rev-parse" | "ls-files" | "grep" | "blame"
+        ),
+        _ => false,
+    }
+}
+
+pub fn is_bash_command_concurrency_safe(command: &str) -> bool {
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    if has_bash_write_redirection(trimmed) {
+        return false;
+    }
+
+    let mut saw_segment = false;
+    for segment in split_shell_segments(trimmed) {
+        let words = extract_bash_command_words(segment);
+        if words.is_empty() {
+            continue;
+        }
+        saw_segment = true;
+
+        let command_name = words[0].as_str();
+        if command_name == "sed" && segment_has_sed_in_place(segment) {
+            return false;
+        }
+        if command_name == "tee" && tee_writes_to_file(&words) {
+            return false;
+        }
+        if command_name == "dd"
+            && words
+                .iter()
+                .any(|word| word.to_ascii_lowercase().starts_with("of="))
+        {
+            return false;
+        }
+        if is_mutating_shell_command(command_name) {
+            return false;
+        }
+        if command_name == "git"
+            && is_mutating_git_subcommand(words.get(1).map(String::as_str).unwrap_or(""))
+        {
+            return false;
+        }
+        if !is_known_read_only_bash_command(command_name, &words) {
+            return false;
+        }
+    }
+
+    saw_segment
+}
+
+fn build_missing_read_target_result(paths: &[std::path::PathBuf]) -> ToolResult {
+    let path_values = paths
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect::<Vec<_>>();
+    let message = if path_values.len() == 1 {
+        format!(
+            "路径不存在：{}。请先确认父目录，或先列目录再继续读取。",
+            path_values[0]
+        )
+    } else {
+        format!(
+            "以下路径不存在：{}。请先确认父目录，或先列目录再继续读取。",
+            path_values.join(", ")
+        )
+    };
+
+    ToolResult::error(message)
+        .with_metadata("preflight_check", serde_json::json!("missing_read_target"))
+        .with_metadata("missing_paths", serde_json::json!(path_values))
+}
+
+pub fn preflight_bash_read_targets(command: &str, cwd: &Path) -> Option<ToolResult> {
+    let mut missing_paths = Vec::new();
+
+    for raw_path in collect_bash_read_path_candidates(command) {
+        let Some(resolved_path) = resolve_static_path_candidate(&raw_path, cwd) else {
+            continue;
+        };
+        if resolved_path.exists() || missing_paths.contains(&resolved_path) {
+            continue;
+        }
+        missing_paths.push(resolved_path);
+    }
+
+    (!missing_paths.is_empty()).then(|| build_missing_read_target_result(&missing_paths))
+}
+
+fn tokenize_shell_words(segment: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut current = String::new();
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut escaped = false;
+
+    for ch in segment.chars() {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+
+        match ch {
+            '\\' if !in_single => {
+                escaped = true;
+            }
+            '\'' if !in_double => {
+                in_single = !in_single;
+            }
+            '"' if !in_single => {
+                in_double = !in_double;
+            }
+            ch if ch.is_whitespace() && !in_single && !in_double => {
+                if !current.is_empty() {
+                    words.push(std::mem::take(&mut current));
+                }
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    if !current.is_empty() {
+        words.push(current);
+    }
+
+    words
+}
+
+fn normalize_command_words(raw_words: &[String]) -> Vec<String> {
+    let words = raw_words
+        .iter()
+        .map(|word| normalize_shell_word(word))
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>();
+    let start_index = skip_shell_command_prefix(raw_words);
+    words.into_iter().skip(start_index).collect()
+}
+
+fn extract_rm_targets(raw_words: &[String]) -> Vec<String> {
+    if raw_words.len() <= 1 {
+        return Vec::new();
+    }
+
+    let mut targets = Vec::new();
+    let mut after_double_dash = false;
+
+    for word in raw_words.iter().skip(1) {
+        if after_double_dash {
+            targets.push(word.clone());
+            continue;
+        }
+        if word == "--" {
+            after_double_dash = true;
+            continue;
+        }
+        if word.starts_with('-') {
+            continue;
+        }
+        targets.push(word.clone());
+    }
+
+    targets
+}
+
+fn extract_tee_targets(raw_words: &[String]) -> Vec<String> {
+    raw_words
+        .iter()
+        .skip(1)
+        .filter(|word| word.as_str() != "--")
+        .filter(|word| !word.starts_with('-'))
+        .filter(|word| !is_safe_shell_sink(word))
+        .cloned()
+        .collect()
+}
+
+fn extract_dd_output_targets(raw_words: &[String]) -> Vec<String> {
+    raw_words
+        .iter()
+        .skip(1)
+        .filter_map(|word| word.strip_prefix("of=").map(ToOwned::to_owned))
+        .collect()
+}
+
+fn extract_sed_in_place_targets(raw_words: &[String]) -> Vec<String> {
+    if raw_words.len() <= 1 {
+        return Vec::new();
+    }
+
+    let mut non_flag_words = Vec::new();
+    let mut after_double_dash = false;
+
+    for word in raw_words.iter().skip(1) {
+        if after_double_dash {
+            non_flag_words.push(word.clone());
+            continue;
+        }
+        if word == "--" {
+            after_double_dash = true;
+            continue;
+        }
+        if word.starts_with('-') {
+            continue;
+        }
+        non_flag_words.push(word.clone());
+    }
+
+    non_flag_words.into_iter().skip(1).collect()
 }
 
 // =============================================================================
@@ -406,20 +1039,32 @@ impl BashTool {
                     stderr.len()
                 );
 
+                let interpretation =
+                    interpret_bash_command_result(command, exit_code, &stdout, &stderr);
+
                 // Combine and truncate output
-                let combined_output = self.format_output(&stdout, &stderr, exit_code);
+                let combined_output = self.format_output_with_message(
+                    &stdout,
+                    &stderr,
+                    exit_code,
+                    interpretation.message.as_deref(),
+                );
                 let truncated_output = self.truncate_output(&combined_output);
 
-                if output.status.success() {
-                    Ok(ToolResult::success(truncated_output)
-                        .with_metadata("exit_code", serde_json::json!(exit_code))
-                        .with_metadata("stdout_length", serde_json::json!(stdout.len()))
-                        .with_metadata("stderr_length", serde_json::json!(stderr.len())))
-                } else {
+                if interpretation.is_error {
                     Ok(ToolResult::error(truncated_output)
                         .with_metadata("exit_code", serde_json::json!(exit_code))
                         .with_metadata("stdout_length", serde_json::json!(stdout.len()))
                         .with_metadata("stderr_length", serde_json::json!(stderr.len())))
+                } else {
+                    let mut result = ToolResult::success(truncated_output)
+                        .with_metadata("exit_code", serde_json::json!(exit_code))
+                        .with_metadata("stdout_length", serde_json::json!(stdout.len()))
+                        .with_metadata("stderr_length", serde_json::json!(stderr.len()));
+                    if exit_code != 0 {
+                        result = result.with_metadata("reported_success", serde_json::json!(true));
+                    }
+                    Ok(result)
                 }
             }
             Ok(Err(e)) => {
@@ -471,6 +1116,16 @@ impl BashTool {
 
     /// Format command output combining stdout and stderr
     fn format_output(&self, stdout: &str, stderr: &str, exit_code: i32) -> String {
+        self.format_output_with_message(stdout, stderr, exit_code, None)
+    }
+
+    fn format_output_with_message(
+        &self,
+        stdout: &str,
+        stderr: &str,
+        exit_code: i32,
+        fallback_message: Option<&str>,
+    ) -> String {
         let mut output = String::new();
 
         if !stdout.is_empty() {
@@ -487,8 +1142,12 @@ impl BashTool {
             output.push_str(stderr);
         }
 
-        if exit_code != 0 && output.is_empty() {
-            output = format!("Command exited with code {}", exit_code);
+        if output.is_empty() {
+            if let Some(message) = fallback_message {
+                output = message.to_string();
+            } else if exit_code != 0 {
+                output = format!("Command exited with code {}", exit_code);
+            }
         }
 
         output
@@ -556,6 +1215,18 @@ impl Tool for BashTool {
          Use 'background: true' parameter for long-running commands."
     }
 
+    fn dynamic_description(&self) -> Option<String> {
+        Some(
+            [
+                self.description().to_string(),
+                String::new(),
+                "IMPORTANT: Prefer Read / Glob / Grep for file inspection before reaching for shell commands.".to_string(),
+                "Do not guess file paths. If you are not sure whether a target exists, list or search the parent directory first.".to_string(),
+            ]
+            .join("\n"),
+        )
+    }
+
     /// Returns the JSON Schema for input parameters
     fn input_schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -609,6 +1280,14 @@ impl Tool for BashTool {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
+        if !background {
+            if let Some(preflight_result) =
+                preflight_bash_read_targets(command, &context.working_directory)
+            {
+                return Ok(preflight_result);
+            }
+        }
+
         // Execute based on mode
         if background {
             self.execute_background(command, context).await
@@ -625,7 +1304,7 @@ impl Tool for BashTool {
     async fn check_permissions(
         &self,
         params: &serde_json::Value,
-        _context: &ToolContext,
+        context: &ToolContext,
     ) -> PermissionCheckResult {
         // Extract command for safety check
         let command = match params.get("command").and_then(|v| v.as_str()) {
@@ -635,6 +1314,11 @@ impl Tool for BashTool {
 
         // Perform safety check
         let safety_result = self.check_command_safety(command);
+
+        if let Some(path_result) = validate_bash_command_paths(command, &context.working_directory)
+        {
+            return path_result;
+        }
 
         if !safety_result.safe {
             let reason = safety_result
@@ -846,6 +1530,13 @@ mod tests {
     }
 
     #[test]
+    fn test_tool_definition_mentions_path_guidance() {
+        let tool = BashTool::new();
+        let definition = tool.get_definition();
+        assert!(definition.description.contains("Do not guess file paths"));
+    }
+
+    #[test]
     fn test_tool_input_schema() {
         let tool = BashTool::new();
         let schema = tool.input_schema();
@@ -896,6 +1587,76 @@ mod tests {
 
         let result = tool.check_permissions(&params, &context).await;
         assert!(result.requires_confirmation());
+    }
+
+    #[tokio::test]
+    async fn test_check_permissions_write_redirection_requires_confirmation() {
+        let tool = BashTool::new();
+        let context = create_test_context();
+        let params = serde_json::json!({"command": "echo hello > note.txt"});
+
+        let result = tool.check_permissions(&params, &context).await;
+        assert!(result.requires_confirmation());
+    }
+
+    #[tokio::test]
+    async fn test_check_permissions_write_outside_workspace_mentions_path_scope() {
+        let tool = BashTool::new();
+        let context = ToolContext::new(PathBuf::from("/tmp/project"));
+        let params = serde_json::json!({"command": "echo hello > ../note.txt"});
+
+        let result = tool.check_permissions(&params, &context).await;
+        assert!(result.requires_confirmation());
+        assert!(result
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("outside the current working directory"));
+    }
+
+    #[tokio::test]
+    async fn test_check_permissions_sed_in_place_requires_confirmation() {
+        let tool = BashTool::new();
+        let context = create_test_context();
+        let params = serde_json::json!({"command": "sed -i 's/a/b/' file.txt"});
+
+        let result = tool.check_permissions(&params, &context).await;
+        assert!(result.requires_confirmation());
+    }
+
+    #[tokio::test]
+    async fn test_check_permissions_git_reset_hard_is_denied() {
+        let tool = BashTool::new();
+        let context = create_test_context();
+        let params = serde_json::json!({"command": "git reset --hard HEAD~1"});
+
+        let result = tool.check_permissions(&params, &context).await;
+        assert!(result.is_denied());
+    }
+
+    #[tokio::test]
+    async fn test_check_permissions_relative_root_removal_is_denied() {
+        let tool = BashTool::new();
+        let context = ToolContext::new(PathBuf::from("/tmp/project"));
+        let params = serde_json::json!({"command": "rm -rf ../../"});
+
+        let result = tool.check_permissions(&params, &context).await;
+        assert!(result.is_denied());
+        assert!(result
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("protected path"));
+    }
+
+    #[tokio::test]
+    async fn test_check_permissions_dev_null_redirection_stays_allowed() {
+        let tool = BashTool::new();
+        let context = create_test_context();
+        let params = serde_json::json!({"command": "grep foo file.txt >/dev/null"});
+
+        let result = tool.check_permissions(&params, &context).await;
+        assert!(result.is_allowed());
     }
 
     #[tokio::test]
@@ -997,6 +1758,40 @@ mod tests {
         let _ = task_manager.kill_all().await;
     }
 
+    #[tokio::test]
+    async fn test_execute_preflights_missing_head_target() {
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let missing_path = temp_dir.path().join("missing.txt");
+        let tool = BashTool::new();
+        let context = ToolContext::new(temp_dir.path().to_path_buf());
+        let params = serde_json::json!({
+            "command": format!("head -20 {}", missing_path.display())
+        });
+
+        let result = tool.execute(params, &context).await.unwrap();
+        assert!(result.is_error());
+        assert!(result.message().unwrap_or_default().contains("路径不存在"));
+        assert_eq!(
+            result.metadata.get("preflight_check"),
+            Some(&serde_json::json!("missing_read_target"))
+        );
+    }
+
+    #[test]
+    fn test_is_bash_command_concurrency_safe_for_read_only_pipeline() {
+        assert!(is_bash_command_concurrency_safe(
+            "rg \"Agent\" src | head -n 5"
+        ));
+    }
+
+    #[test]
+    fn test_is_bash_command_concurrency_safe_rejects_mutation() {
+        assert!(!is_bash_command_concurrency_safe("mkdir tmp-output"));
+        assert!(!is_bash_command_concurrency_safe("git checkout main"));
+    }
+
     // Builder Tests
 
     #[test]
@@ -1061,6 +1856,13 @@ mod tests {
         let tool = BashTool::new();
         let result = tool.format_output("", "", 1);
         assert!(result.contains("exited with code 1"));
+    }
+
+    #[test]
+    fn test_format_output_empty_with_semantic_message() {
+        let tool = BashTool::new();
+        let result = tool.format_output_with_message("", "", 1, Some("No matches found"));
+        assert_eq!(result, "No matches found");
     }
 
     // Safety Check Result Tests

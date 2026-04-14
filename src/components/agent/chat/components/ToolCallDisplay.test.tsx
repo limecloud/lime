@@ -345,7 +345,40 @@ describe("ToolCallDisplay", () => {
     expect(container.textContent).not.toContain("输出已截断");
     expect(container.textContent).not.toContain("输出文件:");
     expect(container.textContent).not.toContain("退出码 2");
-    expect(container.textContent).not.toContain("exports/reports/final-result.md");
+    expect(container.textContent).not.toContain(
+      "exports/reports/final-result.md",
+    );
+  });
+
+  it("语义成功的非零退出码不应继续显示命令错误提示", () => {
+    const { container } = renderTool({
+      id: "tool-exec-render-3",
+      name: "bash",
+      arguments: JSON.stringify({ command: "rg missing src" }),
+      status: "completed",
+      result: {
+        success: true,
+        output: "No matches found",
+        metadata: {
+          exit_code: 1,
+          stdout_length: 0,
+          stderr_length: 0,
+          reported_success: true,
+        },
+      },
+      startTime: new Date("2026-04-14T10:00:00.000Z"),
+      endTime: new Date("2026-04-14T10:00:01.000Z"),
+    });
+
+    act(() => {
+      const toggle = container.querySelector(
+        'button[title="查看结果"]',
+      ) as HTMLButtonElement | null;
+      toggle?.click();
+    });
+
+    expect(container.textContent).toContain("No matches found");
+    expect(container.textContent).not.toContain("命令返回错误");
   });
 
   it("正式工具卡不应额外展示原始工具名", () => {
@@ -417,14 +450,14 @@ describe("ToolCallDisplay", () => {
     expect(container.textContent).toContain(
       "结果已自动保存到当前项目：GitHub MCP 搜索结果",
     );
-    expect(container.textContent).toContain(
-      "已导出 Markdown 文稿",
+    expect(container.textContent).toContain("已导出 Markdown 文稿");
+    expect(container.textContent).toContain("附带图片 7 张");
+    expect(container.textContent).not.toContain(
+      "exports/x-article-export/github-mcp/index.md",
     );
-    expect(container.textContent).toContain(
-      "附带图片 7 张",
+    expect(container.textContent).not.toContain(
+      "exports/x-article-export/github-mcp/images",
     );
-    expect(container.textContent).not.toContain("exports/x-article-export/github-mcp/index.md");
-    expect(container.textContent).not.toContain("exports/x-article-export/github-mcp/images");
     expect(container.textContent).not.toContain("项目目录：");
     expect(container.textContent).not.toContain("脚本来源：");
   });
@@ -684,9 +717,7 @@ describe("ToolCallDisplay", () => {
       toggle?.click();
     });
 
-    expect(container.textContent).toContain(
-      "执行失败，未保存到当前项目",
-    );
+    expect(container.textContent).toContain("执行失败，未保存到当前项目");
     expect(container.textContent).toContain("自动保存失败：数据库写入失败");
   });
 

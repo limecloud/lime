@@ -20,7 +20,7 @@ use crate::workspace::{
     Workspace, WorkspaceManager, WorkspaceSettings, WorkspaceType, WorkspaceUpdate,
 };
 use crate::workspace_support::{
-    get_or_create_default_project as load_or_create_default_project,
+    get_current_default_project, get_or_create_default_project as load_or_create_default_project,
     get_workspace_projects_root_dir, sanitize_project_dir_name,
 };
 use lime_core::database::lock_db;
@@ -246,7 +246,7 @@ pub async fn workspace_get_default(
     db: State<'_, DbConnection>,
 ) -> Result<Option<WorkspaceListItem>, String> {
     let manager = WorkspaceManager::new(db.inner().clone());
-    let workspace = manager.get_default()?;
+    let workspace = get_current_default_project(&manager)?;
     Ok(workspace.map(|ws| ws.into()))
 }
 
@@ -294,7 +294,7 @@ pub async fn workspace_ensure_default_ready(
     db: State<'_, DbConnection>,
 ) -> Result<Option<WorkspaceEnsureResult>, String> {
     let manager = WorkspaceManager::new(db.inner().clone());
-    let Some(workspace) = manager.get_default()? else {
+    let Some(workspace) = get_current_default_project(&manager)? else {
         return Ok(None);
     };
     let ensured = ensure_workspace_ready_with_auto_relocate(&manager, &workspace)?;

@@ -108,8 +108,9 @@ use lime_agent::{
     RuntimeProjectionSnapshot, SessionStateSnapshot, SubagentControlState,
     SubagentCustomizationState, SubagentRuntimeStatus, SubagentRuntimeStatusKind,
     SubagentSkillPromptBlock, SubagentSkillSummary, TeamRuntimeGovernorSnapshot,
-    TurnInputEnvelopeBuilder, TurnPromptAugmentationStageKind, TurnProviderRoutingSnapshot,
-    TurnRequestToolPolicySnapshot, TurnState, TurnSystemPromptSource, DURABLE_MEMORY_VIRTUAL_ROOT,
+    TurnExecutionProfile, TurnInputEnvelopeBuilder, TurnPromptAugmentationStageKind,
+    TurnProviderRoutingSnapshot, TurnRequestToolPolicySnapshot, TurnState, TurnSystemPromptSource,
+    DURABLE_MEMORY_VIRTUAL_ROOT,
 };
 use lime_services::api_key_provider_service::ApiKeyProviderService;
 use lime_services::mcp_service::McpService;

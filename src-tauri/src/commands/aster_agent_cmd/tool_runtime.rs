@@ -72,9 +72,104 @@ async fn resolve_agent_registry(
     Ok((registry_arc, Some(extension_manager)))
 }
 
+pub(crate) async fn list_current_surface_tool_definitions_from_agent(
+    agent: &aster::agents::Agent,
+) -> Vec<aster::tools::ToolDefinition> {
+    agent
+        .list_tools(None)
+        .await
+        .into_iter()
+        .filter(|tool| matches!(tool.name.as_ref(), "Agent" | "StructuredOutput"))
+        .map(|tool| {
+            aster::tools::ToolDefinition::new(
+                tool.name,
+                tool.description.unwrap_or_default(),
+                serde_json::Value::Object(tool.input_schema.as_ref().clone()),
+            )
+        })
+        .collect()
+}
+
+pub(crate) async fn list_current_surface_tool_definitions(
+    state: &AsterAgentState,
+) -> Vec<aster::tools::ToolDefinition> {
+    let agent_arc = state.get_agent_arc();
+    let guard = agent_arc.read().await;
+    let Some(agent) = guard.as_ref() else {
+        return Vec::new();
+    };
+
+    list_current_surface_tool_definitions_from_agent(agent).await
+}
+
 fn unregister_named_tools(registry: &mut aster::tools::ToolRegistry, tool_names: &[&str]) {
     for tool_name in tool_names {
         registry.unregister(tool_name);
+    }
+}
+
+const FAST_CHAT_DISABLED_WEB_TOOL_PATTERNS: &[&str] =
+    &["WebSearch", "web_search", "WebFetch", "web_fetch"];
+
+fn build_tool_runtime_session_scoped_permission_conditions(
+    session_id: &str,
+) -> Vec<PermissionCondition> {
+    let session_id = session_id.trim();
+    if session_id.is_empty() {
+        return Vec::new();
+    }
+
+    vec![PermissionCondition {
+        condition_type: ConditionType::Session,
+        field: Some("session_id".to_string()),
+        operator: ConditionOperator::Equals,
+        value: serde_json::json!(session_id),
+        validator: None,
+        description: Some("仅对当前聊天会话生效".to_string()),
+    }]
+}
+
+fn should_hide_fast_chat_web_tools(
+    execution_profile: TurnExecutionProfile,
+    request_tool_policy: &RequestToolPolicy,
+) -> bool {
+    matches!(execution_profile, TurnExecutionProfile::FastChat)
+        && !request_tool_policy.allows_web_search()
+}
+
+pub(crate) fn append_fast_chat_request_tool_policy_session_permissions(
+    permissions: &mut Vec<ToolPermission>,
+    session_id: &str,
+    execution_profile: TurnExecutionProfile,
+    request_tool_policy: &RequestToolPolicy,
+) {
+    if !should_hide_fast_chat_web_tools(execution_profile, request_tool_policy) {
+        return;
+    }
+
+    let conditions = build_tool_runtime_session_scoped_permission_conditions(session_id);
+    for tool_name in FAST_CHAT_DISABLED_WEB_TOOL_PATTERNS {
+        permissions.push(ToolPermission {
+            tool: (*tool_name).to_string(),
+            allowed: false,
+            priority: 1236,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some("FastChat 未开启联网搜索，隐藏通用网页检索工具".to_string()),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+    }
+}
+
+pub(crate) fn prune_fast_chat_request_tool_policy_tools_from_registry(
+    registry: &mut aster::tools::ToolRegistry,
+    execution_profile: TurnExecutionProfile,
+    request_tool_policy: &RequestToolPolicy,
+) {
+    if should_hide_fast_chat_web_tools(execution_profile, request_tool_policy) {
+        unregister_named_tools(registry, FAST_CHAT_DISABLED_WEB_TOOL_PATTERNS);
     }
 }
 
@@ -128,6 +223,8 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
     request_metadata: Option<&serde_json::Value>,
     workspace_root: &str,
     runtime_chat_mode: RuntimeChatMode,
+    execution_profile: TurnExecutionProfile,
+    request_tool_policy: &RequestToolPolicy,
     execution_strategy: AsterExecutionStrategy,
 ) -> Result<WorkspaceSandboxApplyOutcome, String> {
     let workspace_root = workspace_root.trim();
@@ -201,6 +298,12 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
     }
 
     append_browser_assist_session_permissions(&mut permissions, session_id, request_metadata);
+    append_fast_chat_request_tool_policy_session_permissions(
+        &mut permissions,
+        session_id,
+        execution_profile,
+        request_tool_policy,
+    );
     append_image_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
     append_cover_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
     append_video_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
@@ -308,6 +411,11 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
         config_manager.0.clone(),
     );
     workspace_tools::wrap_registry_native_tools_for_workspace_runtime(&mut registry);
+    prune_fast_chat_request_tool_policy_tools_from_registry(
+        &mut registry,
+        execution_profile,
+        request_tool_policy,
+    );
     prune_image_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
     prune_cover_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
     prune_video_skill_launch_detour_tools_from_registry(&mut registry, request_metadata);
@@ -345,5 +453,6 @@ pub(crate) async fn ensure_runtime_support_tools_registered(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageInput {
     pub data: String,
+    #[serde(alias = "mediaType")]
     pub media_type: String,
 }

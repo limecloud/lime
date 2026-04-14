@@ -2,7 +2,7 @@
 
 > 状态：提案  
 > 更新时间：2026-03-24  
-> 运行时边界：凡涉及发送边界、runtime metadata、Team 委派、Op/Event 收口，均以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准；本文只细化 Artifact Workbench 架构  
+> 运行时边界：凡涉及发送边界、runtime metadata、Team 委派、Op/Event 收口，均以 `docs/aiprompts/query-loop.md`、`docs/aiprompts/task-agent-taxonomy.md`、`docs/aiprompts/state-history-telemetry.md` 与 `docs/exec-plans/upstream-runtime-alignment-plan.md` 为准；本文只细化 Artifact Workbench 架构  
 > 依赖文档：
 > - `docs/roadmap/artifacts/roadmap.md`
 > - `docs/roadmap/artifacts/artifact-document-v1.md`
@@ -254,7 +254,7 @@ flowchart TD
 
 以下时序图只表达产品层与运行时层的职责分工，不单独定义 Lime 当前仓库的 on-wire 字段名、命令名或 metadata 归一化细节。
 
-这些当前实施细节统一以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准。
+这些当前实施细节统一以上述 current 入口为准。
 
 ## 5.1 生成时序图
 

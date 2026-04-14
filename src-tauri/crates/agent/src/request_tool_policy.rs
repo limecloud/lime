@@ -25,6 +25,8 @@ pub const REQUEST_TOOL_POLICY_MARKER: &str = "【请求级工具策略】";
 pub const WEB_SEARCH_PREFETCH_CONTEXT_MARKER: &str = "【联网预检索上下文】";
 pub const WEB_SEARCH_SYNTHESIS_MARKER: &str = "【预检索后输出要求】";
 
+const EMPTY_REPLY_DIRECT_ANSWER_RETRY_PROMPT: &str = "请继续。你上一条回复没有输出任何内容。不要重复调用工具，直接基于当前上下文给出最终答复；如果当前确实无法继续，请明确说明原因。";
+const INCOMPLETE_TOOL_BATCH_CONTINUE_PROMPT: &str = "请继续。你上一条回复还是中间过程结论，不是最终答复。若仍缺关键证据，请立刻继续下一批必要工具调用；证据足够后直接给出完整结论。不要停在“还需要继续查看/读取/确认”的中间态，也不要重复上一批已经完成的工具。";
 const DEFAULT_REQUIRED_TOOLS: &[&str] = &["WebSearch"];
 const DEFAULT_ALLOWED_TOOLS: &[&str] = &["WebSearch", "WebFetch"];
 const WEB_SEARCH_REQUIRED_TOOLS_ENV_KEYS: &[&str] = &[
@@ -372,6 +374,14 @@ pub struct StreamReplyExecution {
     pub attempts_summary: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReplyRetryMode {
+    None,
+    WebSearchSynthesis,
+    DirectAnswer,
+    IntermediateConclusion,
+}
+
 fn build_empty_final_reply_fallback(
     diagnostics: &StreamEventDiagnostics,
     emitted_any: bool,
@@ -380,11 +390,7 @@ fn build_empty_final_reply_fallback(
         return None;
     }
 
-    if diagnostics.tool_start_count > 0 || diagnostics.tool_end_count > 0 {
-        return Some("本轮执行已完成，详细过程与产物已保留在当前对话中。".to_string());
-    }
-
-    Some("本轮执行已结束，过程记录已保留在当前对话中。".to_string())
+    build_output_preserved_reply_fallback(diagnostics)
 }
 
 fn read_lookup_string<'a, F>(keys: &[&str], mut lookup: F) -> Option<String>
@@ -455,7 +461,7 @@ fn should_downgrade_provider_tail_failure(
             .trim()
             .to_ascii_lowercase()
             .starts_with("agent provider execution failed:")
-        && (diagnostics.saved_site_content_count > 0 || diagnostics.persisted_artifact_count > 0)
+        && build_output_preserved_reply_fallback(diagnostics).is_some()
 }
 
 fn build_output_preserved_reply_fallback(diagnostics: &StreamEventDiagnostics) -> Option<String> {
@@ -623,20 +629,26 @@ pub fn resolve_request_tool_policy_with_mode(
         _ => RequestToolPolicyMode::Disabled,
     };
     let effective_web_search = search_mode.enables_web_search();
-    let required_tools =
-        parse_tool_list_env(WEB_SEARCH_REQUIRED_TOOLS_ENV_KEYS, DEFAULT_REQUIRED_TOOLS);
-    let mut allowed_tools =
-        parse_tool_list_env(WEB_SEARCH_ALLOWED_TOOLS_ENV_KEYS, DEFAULT_ALLOWED_TOOLS);
     let disallowed_tools = parse_tool_list_env(WEB_SEARCH_DISALLOWED_TOOLS_ENV_KEYS, &[]);
+    let (required_tools, allowed_tools) = if effective_web_search {
+        let required_tools =
+            parse_tool_list_env(WEB_SEARCH_REQUIRED_TOOLS_ENV_KEYS, DEFAULT_REQUIRED_TOOLS);
+        let mut allowed_tools =
+            parse_tool_list_env(WEB_SEARCH_ALLOWED_TOOLS_ENV_KEYS, DEFAULT_ALLOWED_TOOLS);
 
-    for required in &required_tools {
-        if !allowed_tools
-            .iter()
-            .any(|candidate| is_same_tool(candidate, required))
-        {
-            allowed_tools.push(required.clone());
+        for required in &required_tools {
+            if !allowed_tools
+                .iter()
+                .any(|candidate| is_same_tool(candidate, required))
+            {
+                allowed_tools.push(required.clone());
+            }
         }
-    }
+
+        (required_tools, allowed_tools)
+    } else {
+        (Vec::new(), Vec::new())
+    };
 
     RequestToolPolicy {
         search_mode,
@@ -1210,6 +1222,36 @@ fn merge_system_prompt_with_web_search_synthesis_instruction(
     }
 }
 
+fn build_empty_reply_retry_runtime_status() -> AgentRuntimeStatus {
+    AgentRuntimeStatus {
+        phase: "retrying".to_string(),
+        title: "正在重试生成答复".to_string(),
+        detail: "模型上一轮没有输出任何内容，正在基于当前上下文补发最终答复，不重复执行工具。"
+            .to_string(),
+        checkpoints: vec![
+            "首轮流式回复未产出正文".to_string(),
+            "当前轮次未检测到真实工具产物".to_string(),
+            "正在直接补发最终答复".to_string(),
+        ],
+        metadata: None,
+    }
+}
+
+fn build_incomplete_tool_batch_continue_runtime_status() -> AgentRuntimeStatus {
+    AgentRuntimeStatus {
+        phase: "continuing".to_string(),
+        title: "正在补齐剩余证据".to_string(),
+        detail: "检测到上一轮只给出了中间过程结论，正在继续推进下一批必要工具或整理最终结论。"
+            .to_string(),
+        checkpoints: vec![
+            "已完成上一批工具调用".to_string(),
+            "当前答复仍停留在中间过程结论".to_string(),
+            "继续推进直到形成完整答复".to_string(),
+        ],
+        metadata: None,
+    }
+}
+
 fn build_web_search_synthesis_runtime_status(coverage_summary: Option<&str>) -> AgentRuntimeStatus {
     let mut checkpoints = vec![
         "已完成 WebSearch 预检索".to_string(),
@@ -1282,18 +1324,146 @@ async fn emit_runtime_status_with_projection<F>(
     on_event(&event);
 }
 
-fn should_retry_after_empty_reply(
-    preflight_execution: &PreflightToolExecution,
-    current_text_output: &str,
-    tracker: &WebSearchExecutionTracker,
-) -> bool {
-    if !current_text_output.trim().is_empty() {
+fn looks_like_incomplete_tool_batch_summary(text: &str) -> bool {
+    let normalized = text.trim();
+    if normalized.is_empty() {
         return false;
     }
 
-    preflight_execution.system_prompt_appendix.is_some()
+    let normalized = normalized.replace("\r\n", "\n");
+    let paragraphs = normalized
+        .split("\n\n")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    let detection_window = if paragraphs.is_empty() {
+        normalized
+    } else {
+        let start = paragraphs.len().saturating_sub(2);
+        paragraphs[start..].join("\n\n")
+    };
+    let detection_window = {
+        let char_count = detection_window.chars().count();
+        if char_count <= 320 {
+            detection_window
+        } else {
+            detection_window
+                .chars()
+                .skip(char_count - 320)
+                .collect::<String>()
+        }
+    };
+    let normalized = detection_window.trim();
+    if normalized.is_empty() {
+        return false;
+    }
+
+    let strong_markers = [
+        "还需要",
+        "现在需要",
+        "下一步需要",
+        "接下来需要",
+        "仍需",
+        "还缺",
+        "仍缺",
+        "继续读取",
+        "继续查看",
+        "继续检查",
+        "继续对比",
+        "继续确认",
+    ];
+    if strong_markers
+        .iter()
+        .any(|marker| normalized.contains(marker))
+    {
+        return true;
+    }
+
+    normalized.contains("才能")
+        && [
+            "读取",
+            "查看",
+            "检查",
+            "对比",
+            "确认",
+            "补齐",
+            "补一个证据点",
+        ]
+        .iter()
+        .any(|marker| normalized.contains(marker))
+}
+
+fn resolve_reply_retry_mode(
+    preflight_execution: &PreflightToolExecution,
+    current_text_output: &str,
+    tracker: &WebSearchExecutionTracker,
+    diagnostics: &StreamEventDiagnostics,
+    event_errors: &[String],
+) -> ReplyRetryMode {
+    if !event_errors.is_empty() {
+        return ReplyRetryMode::None;
+    }
+
+    let trimmed_text_output = current_text_output.trim();
+    if !trimmed_text_output.is_empty()
+        && diagnostics.tool_start_count > 0
+        && diagnostics.tool_end_count > 0
+        && looks_like_incomplete_tool_batch_summary(trimmed_text_output)
+    {
+        return ReplyRetryMode::IntermediateConclusion;
+    }
+
+    if !trimmed_text_output.is_empty() {
+        return ReplyRetryMode::None;
+    }
+
+    if preflight_execution.system_prompt_appendix.is_some()
         || preflight_execution.expanded_news_search
         || !tracker.ordered_tool_ids.is_empty()
+    {
+        return ReplyRetryMode::WebSearchSynthesis;
+    }
+
+    if diagnostics.tool_start_count == 0
+        && diagnostics.tool_end_count == 0
+        && diagnostics.saved_site_content_count == 0
+        && diagnostics.persisted_artifact_count == 0
+    {
+        return ReplyRetryMode::DirectAnswer;
+    }
+
+    ReplyRetryMode::None
+}
+
+fn build_empty_final_reply_attempts_summary(
+    diagnostics: &StreamEventDiagnostics,
+    tracker: &WebSearchExecutionTracker,
+) -> String {
+    if !tracker.ordered_tool_ids.is_empty() {
+        return tracker.format_attempts();
+    }
+
+    if diagnostics.tool_start_count > 0 || diagnostics.tool_end_count > 0 {
+        return format!(
+            "已执行非联网工具（tool_start={}, tool_end={}）",
+            diagnostics.tool_start_count, diagnostics.tool_end_count
+        );
+    }
+
+    "无工具调用".to_string()
+}
+
+fn build_empty_final_reply_error_message(
+    diagnostics: &StreamEventDiagnostics,
+    tracker: &WebSearchExecutionTracker,
+) -> String {
+    let attempts_summary = build_empty_final_reply_attempts_summary(diagnostics, tracker);
+
+    if diagnostics.tool_start_count == 0 && diagnostics.tool_end_count == 0 {
+        format!("模型未输出最终答复，且未执行任何工具。\n尝试记录: {attempts_summary}")
+    } else {
+        format!("已完成当前回合的工具执行，但模型未输出最终答复。\n尝试记录: {attempts_summary}")
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1690,9 +1860,10 @@ where
             let fallback_text = text_chunks.join("").trim().to_string();
             return Ok(StreamReplyExecution {
                 text_output: if fallback_text.is_empty() {
-                    build_output_preserved_reply_fallback(&diagnostics).unwrap_or_else(|| {
-                        "本轮执行已完成，详细过程与产物已保留在当前对话中。".to_string()
-                    })
+                    match build_output_preserved_reply_fallback(&diagnostics) {
+                        Some(output) => output,
+                        None => return Err(error),
+                    }
                 } else {
                     fallback_text
                 },
@@ -1705,63 +1876,178 @@ where
     }
 
     let current_text_output = text_chunks.join("");
-    if should_retry_after_empty_reply(
+    match resolve_reply_retry_mode(
         &preflight_execution,
         &current_text_output,
         &web_search_tracker,
+        &diagnostics,
+        &event_errors,
     ) {
-        tracing::warn!(
-            "[AsterAgent][WebSearchPrefetch] empty final text after preflight, retrying synthesis: session={}, attempts={}",
-            session_config.id,
-            web_search_tracker.format_attempts()
-        );
-        emit_runtime_status_with_projection(
-            agent,
-            &session_config,
-            build_web_search_synthesis_runtime_status(
-                preflight_execution.coverage_summary.as_deref(),
-            ),
-            &mut on_event,
-        )
-        .await;
-        session_config.system_prompt = merge_system_prompt_with_web_search_synthesis_instruction(
-            session_config.system_prompt.take(),
-        );
-        let retry_attempt = stream_agent_reply_once(
-            agent,
-            Message::user().with_text(WEB_SEARCH_EMPTY_REPLY_RETRY_PROMPT),
-            duplicate_session_config(&session_config),
-            cancel_token,
-            request_tool_policy,
-            &mut web_search_tracker,
-            &mut write_artifact_emitter,
-            &mut emitted_any,
-            &mut text_chunks,
-            &mut event_errors,
-            &mut diagnostics,
-            &mut on_event,
-        )
-        .await;
-        if let Err(error) = retry_attempt {
-            if should_downgrade_provider_tail_failure(&error.message, &diagnostics, emitted_any) {
-                tracing::warn!(
-                    "[AsterAgent][ReplyPolicy] provider tail failure downgraded after retry with persisted output: tools={}, artifacts={}, saved_site={}",
-                    diagnostics.tool_end_count,
-                    diagnostics.persisted_artifact_count,
-                    diagnostics.saved_site_content_count
+        ReplyRetryMode::WebSearchSynthesis => {
+            tracing::warn!(
+                "[AsterAgent][WebSearchPrefetch] empty final text after preflight, retrying synthesis: session={}, attempts={}",
+                session_config.id,
+                web_search_tracker.format_attempts()
+            );
+            emit_runtime_status_with_projection(
+                agent,
+                &session_config,
+                build_web_search_synthesis_runtime_status(
+                    preflight_execution.coverage_summary.as_deref(),
+                ),
+                &mut on_event,
+            )
+            .await;
+            session_config.system_prompt =
+                merge_system_prompt_with_web_search_synthesis_instruction(
+                    session_config.system_prompt.take(),
                 );
-                return Ok(StreamReplyExecution {
-                    text_output: build_output_preserved_reply_fallback(&diagnostics)
-                        .unwrap_or_else(|| {
-                            "本轮执行已完成，详细过程与产物已保留在当前对话中。".to_string()
-                        }),
-                    event_errors,
-                    emitted_any,
-                    attempts_summary: web_search_tracker.format_attempts(),
-                });
+            let retry_attempt = stream_agent_reply_once(
+                agent,
+                Message::user()
+                    .with_text(WEB_SEARCH_EMPTY_REPLY_RETRY_PROMPT)
+                    .agent_only(),
+                duplicate_session_config(&session_config),
+                cancel_token,
+                request_tool_policy,
+                &mut web_search_tracker,
+                &mut write_artifact_emitter,
+                &mut emitted_any,
+                &mut text_chunks,
+                &mut event_errors,
+                &mut diagnostics,
+                &mut on_event,
+            )
+            .await;
+            if let Err(error) = retry_attempt {
+                if should_downgrade_provider_tail_failure(&error.message, &diagnostics, emitted_any)
+                {
+                    tracing::warn!(
+                        "[AsterAgent][ReplyPolicy] provider tail failure downgraded after retry with persisted output: tools={}, artifacts={}, saved_site={}",
+                        diagnostics.tool_end_count,
+                        diagnostics.persisted_artifact_count,
+                        diagnostics.saved_site_content_count
+                    );
+                    let Some(fallback_text) = build_output_preserved_reply_fallback(&diagnostics)
+                    else {
+                        return Err(error);
+                    };
+                    return Ok(StreamReplyExecution {
+                        text_output: fallback_text,
+                        event_errors,
+                        emitted_any,
+                        attempts_summary: web_search_tracker.format_attempts(),
+                    });
+                }
+                return Err(error);
             }
-            return Err(error);
         }
+        ReplyRetryMode::DirectAnswer => {
+            tracing::warn!(
+                "[AsterAgent][ReplyPolicy] empty final text without tool activity, retrying direct answer: session={}",
+                session_config.id
+            );
+            emit_runtime_status_with_projection(
+                agent,
+                &session_config,
+                build_empty_reply_retry_runtime_status(),
+                &mut on_event,
+            )
+            .await;
+            let retry_attempt = stream_agent_reply_once(
+                agent,
+                Message::user()
+                    .with_text(EMPTY_REPLY_DIRECT_ANSWER_RETRY_PROMPT)
+                    .agent_only(),
+                duplicate_session_config(&session_config),
+                cancel_token,
+                request_tool_policy,
+                &mut web_search_tracker,
+                &mut write_artifact_emitter,
+                &mut emitted_any,
+                &mut text_chunks,
+                &mut event_errors,
+                &mut diagnostics,
+                &mut on_event,
+            )
+            .await;
+            if let Err(error) = retry_attempt {
+                if should_downgrade_provider_tail_failure(&error.message, &diagnostics, emitted_any)
+                {
+                    tracing::warn!(
+                        "[AsterAgent][ReplyPolicy] provider tail failure downgraded after empty-reply retry with persisted output: tools={}, artifacts={}, saved_site={}",
+                        diagnostics.tool_end_count,
+                        diagnostics.persisted_artifact_count,
+                        diagnostics.saved_site_content_count
+                    );
+                    let Some(fallback_text) = build_output_preserved_reply_fallback(&diagnostics)
+                    else {
+                        return Err(error);
+                    };
+                    return Ok(StreamReplyExecution {
+                        text_output: fallback_text,
+                        event_errors,
+                        emitted_any,
+                        attempts_summary: web_search_tracker.format_attempts(),
+                    });
+                }
+                return Err(error);
+            }
+        }
+        ReplyRetryMode::IntermediateConclusion => {
+            tracing::warn!(
+                "[AsterAgent][ReplyPolicy] tool batch ended with intermediate conclusion, retrying continuation: session={}, tools={}",
+                session_config.id,
+                diagnostics.tool_end_count
+            );
+            emit_runtime_status_with_projection(
+                agent,
+                &session_config,
+                build_incomplete_tool_batch_continue_runtime_status(),
+                &mut on_event,
+            )
+            .await;
+            let retry_attempt = stream_agent_reply_once(
+                agent,
+                Message::user()
+                    .with_text(INCOMPLETE_TOOL_BATCH_CONTINUE_PROMPT)
+                    .agent_only(),
+                duplicate_session_config(&session_config),
+                cancel_token,
+                request_tool_policy,
+                &mut web_search_tracker,
+                &mut write_artifact_emitter,
+                &mut emitted_any,
+                &mut text_chunks,
+                &mut event_errors,
+                &mut diagnostics,
+                &mut on_event,
+            )
+            .await;
+            if let Err(error) = retry_attempt {
+                if should_downgrade_provider_tail_failure(&error.message, &diagnostics, emitted_any)
+                {
+                    tracing::warn!(
+                        "[AsterAgent][ReplyPolicy] provider tail failure downgraded after intermediate-conclusion retry with persisted output: tools={}, artifacts={}, saved_site={}",
+                        diagnostics.tool_end_count,
+                        diagnostics.persisted_artifact_count,
+                        diagnostics.saved_site_content_count
+                    );
+                    let Some(fallback_text) = build_output_preserved_reply_fallback(&diagnostics)
+                    else {
+                        return Err(error);
+                    };
+                    return Ok(StreamReplyExecution {
+                        text_output: fallback_text,
+                        event_errors,
+                        emitted_any,
+                        attempts_summary: web_search_tracker.format_attempts(),
+                    });
+                }
+                return Err(error);
+            }
+        }
+        ReplyRetryMode::None => {}
     }
 
     if let Err(validation_error) =
@@ -1809,10 +2095,7 @@ where
             });
         }
         return Err(ReplyAttemptError {
-            message: format!(
-                "已完成当前回合的工具执行，但模型未输出最终答复。\n尝试记录: {}",
-                web_search_tracker.format_attempts()
-            ),
+            message: build_empty_final_reply_error_message(&diagnostics, &web_search_tracker),
             emitted_any,
         });
     }
@@ -1855,12 +2138,13 @@ fn derive_preflight_query(message_text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aster::providers::base::{Provider, ProviderMetadata, ProviderUsage};
+    use aster::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use aster::providers::errors::ProviderError;
     use aster::session::{SessionManager, SessionType, TurnContextOverride};
     use async_trait::async_trait;
     use std::collections::HashMap;
     use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
     struct ContextLengthExceededProvider;
@@ -1895,6 +2179,48 @@ mod tests {
         }
     }
 
+    struct EmptyReplyThenTextProvider {
+        attempts: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl Provider for EmptyReplyThenTextProvider {
+        fn metadata() -> ProviderMetadata
+        where
+            Self: Sized,
+        {
+            ProviderMetadata::empty()
+        }
+
+        fn get_name(&self) -> &str {
+            "empty-reply-then-text-provider"
+        }
+
+        async fn complete_with_model(
+            &self,
+            _model_config: &aster::model::ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            let attempt = self.attempts.fetch_add(1, Ordering::SeqCst);
+            let message = if attempt == 0 {
+                Message::assistant()
+            } else {
+                Message::assistant().with_text("这是补发的最终答复。")
+            };
+
+            Ok((
+                message,
+                ProviderUsage::new("gpt-5.3-codex".to_string(), Usage::default()),
+            ))
+        }
+
+        fn get_model_config(&self) -> aster::model::ModelConfig {
+            aster::model::ModelConfig::new("gpt-5.3-codex").expect("test model config")
+        }
+    }
+
     fn build_auto_compaction_disabled_turn_context() -> TurnContextOverride {
         let mut metadata = HashMap::new();
         metadata.insert(
@@ -1914,10 +2240,69 @@ mod tests {
         let policy = resolve_request_tool_policy(Some(false), true);
         assert!(!policy.effective_web_search);
         assert_eq!(policy.search_mode, RequestToolPolicyMode::Disabled);
+        assert!(policy.required_tools.is_empty());
+        assert!(policy.allowed_tools.is_empty());
 
         let policy = resolve_request_tool_policy(Some(true), false);
         assert!(policy.effective_web_search);
         assert_eq!(policy.search_mode, RequestToolPolicyMode::Allowed);
+    }
+
+    #[test]
+    fn detects_incomplete_tool_batch_summary_text() {
+        assert!(looks_like_incomplete_tool_batch_summary(
+            "已确认 claudecode/src/tasks 下有 7 种 Task 类型。现在需要读取核心类型定义、调度框架和几个关键子 Task 的入口，才能和 Lime 的 task 系统做准确对比。"
+        ));
+        assert!(looks_like_incomplete_tool_batch_summary(
+            "当前已经定位主入口，但还需要继续查看 task 调度和状态映射。"
+        ));
+        assert!(looks_like_incomplete_tool_batch_summary(
+            "已确认主入口，但还需要继续查看 task 调度和状态映射。\n\n如果你希望我继续，我可以马上深入这两个模块。"
+        ));
+        assert!(!looks_like_incomplete_tool_batch_summary(
+            "我已经完成对比。Claude Code 的任务面板更轻量，Lime 当前主要差异集中在任务展示位置、批次工具摘要和继续策略。"
+        ));
+        assert!(!looks_like_incomplete_tool_batch_summary(
+            "已获得完整文件树，这是一个很大的 Claude Code CLI 项目。接下来需要看核心入口文件和关键模块来理解架构，才能对比 Lime 的优化点。\n\n## 一、Claude Code 项目概览\n这是 Claude Code CLI 的源码，主循环、工具注册、Task 系统与 compact 都已经识别清楚。\n\n## 二、Lime 当前还能继续对标优化的点\n优先补自动 compact、任务 runtime 和权限边界，然后再做长链路体验优化。"
+        ));
+    }
+
+    #[test]
+    fn resolves_retry_mode_for_incomplete_tool_batch_summary() {
+        let diagnostics = StreamEventDiagnostics {
+            tool_start_count: 2,
+            tool_end_count: 2,
+            ..StreamEventDiagnostics::default()
+        };
+
+        let mode = resolve_reply_retry_mode(
+            &PreflightToolExecution::none(),
+            "已确认 claudecode/src/tasks 下有 7 种 Task 类型。现在需要读取核心类型定义，才能和 Lime 的 task 系统做准确对比。",
+            &WebSearchExecutionTracker::default(),
+            &diagnostics,
+            &[],
+        );
+
+        assert_eq!(mode, ReplyRetryMode::IntermediateConclusion);
+    }
+
+    #[test]
+    fn does_not_retry_when_final_answer_follows_intermediate_process_summary() {
+        let diagnostics = StreamEventDiagnostics {
+            tool_start_count: 4,
+            tool_end_count: 4,
+            ..StreamEventDiagnostics::default()
+        };
+
+        let mode = resolve_reply_retry_mode(
+            &PreflightToolExecution::none(),
+            "已获得完整文件树，这是一个非常大的 Claude Code CLI 项目。接下来需要看核心入口文件和关键模块来理解架构，才能对比 Lime 的优化点。\n\n## 一、Claude Code 项目概览\n这是 Anthropic 官方的 Claude Code CLI 源码，主循环、工具体系、Task 系统和 compact 模块都已经识别清楚。\n\n## 二、Lime 当前还能继续对标优化的点\n优先补自动 compact、权限规则引擎和统一任务 runtime，再继续补子代理隔离与长链路体验。",
+            &WebSearchExecutionTracker::default(),
+            &diagnostics,
+            &[],
+        );
+
+        assert_eq!(mode, ReplyRetryMode::None);
     }
 
     #[test]
@@ -1940,6 +2325,24 @@ mod tests {
         );
         assert!(policy.effective_web_search);
         assert!(policy.requires_web_search());
+        assert!(policy.matches_any_required_tool("WebSearch"));
+        assert!(policy.matches_any_allowed_tool("WebFetch"));
+    }
+
+    #[test]
+    fn disabled_mode_should_not_expose_web_search_tool_surface() {
+        let policy = resolve_request_tool_policy_with_mode(
+            None,
+            Some(RequestToolPolicyMode::Disabled),
+            true,
+        );
+
+        assert_eq!(policy.search_mode, RequestToolPolicyMode::Disabled);
+        assert!(!policy.effective_web_search);
+        assert!(policy.required_tools.is_empty());
+        assert!(policy.allowed_tools.is_empty());
+        assert!(!policy.matches_any_required_tool("WebSearch"));
+        assert!(!policy.matches_any_allowed_tool("WebFetch"));
     }
 
     #[test]
@@ -2027,17 +2430,14 @@ mod tests {
     }
 
     #[test]
-    fn empty_final_reply_with_tool_events_should_use_fallback_text() {
+    fn empty_final_reply_with_only_tool_events_should_not_fallback() {
         let diagnostics = StreamEventDiagnostics {
             tool_start_count: 1,
             tool_end_count: 1,
             ..Default::default()
         };
 
-        assert_eq!(
-            build_empty_final_reply_fallback(&diagnostics, true).as_deref(),
-            Some("本轮执行已完成，详细过程与产物已保留在当前对话中。")
-        );
+        assert_eq!(build_empty_final_reply_fallback(&diagnostics, true), None);
     }
 
     #[test]
@@ -2045,6 +2445,48 @@ mod tests {
         let diagnostics = StreamEventDiagnostics::default();
 
         assert_eq!(build_empty_final_reply_fallback(&diagnostics, false), None);
+    }
+
+    #[test]
+    fn empty_final_reply_with_saved_site_output_should_use_preserved_output_fallback() {
+        let diagnostics = StreamEventDiagnostics {
+            saved_site_content_count: 1,
+            last_saved_markdown_path: Some("exports/x-article-export/article/index.md".to_string()),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            build_empty_final_reply_fallback(&diagnostics, true).as_deref(),
+            Some(
+                "本轮站点内容已成功保存到项目文件中（Markdown：exports/x-article-export/article/index.md）。由于模型通道暂时不可用，未能补充最终总结；详细过程与产物已保留在当前对话中。"
+            )
+        );
+    }
+
+    #[test]
+    fn empty_final_reply_without_tool_activity_should_report_precise_error() {
+        let diagnostics = StreamEventDiagnostics::default();
+        let tracker = WebSearchExecutionTracker::default();
+
+        assert_eq!(
+            build_empty_final_reply_error_message(&diagnostics, &tracker),
+            "模型未输出最终答复，且未执行任何工具。\n尝试记录: 无工具调用"
+        );
+    }
+
+    #[test]
+    fn empty_final_reply_with_non_web_tools_should_not_claim_no_tool_calls() {
+        let diagnostics = StreamEventDiagnostics {
+            tool_start_count: 1,
+            tool_end_count: 1,
+            ..Default::default()
+        };
+        let tracker = WebSearchExecutionTracker::default();
+
+        assert_eq!(
+            build_empty_final_reply_error_message(&diagnostics, &tracker),
+            "已完成当前回合的工具执行，但模型未输出最终答复。\n尝试记录: 已执行非联网工具（tool_start=1, tool_end=1）"
+        );
     }
 
     #[test]
@@ -2309,6 +2751,65 @@ mod tests {
                 .iter()
                 .any(|event| matches!(event, RuntimeAgentEvent::ContextCompactionCompleted { .. })),
             "禁用自动压缩后，不应再投影 compaction completed"
+        );
+    }
+
+    #[tokio::test]
+    async fn stream_message_reply_with_policy_should_retry_empty_reply_without_tool_activity() {
+        let session = SessionManager::create_session(
+            PathBuf::default(),
+            "lime-empty-reply-retry".to_string(),
+            SessionType::Hidden,
+        )
+        .await
+        .expect("应创建测试 session");
+        let agent = Agent::new();
+        let attempts = Arc::new(AtomicUsize::new(0));
+        agent
+            .update_provider(
+                Arc::new(EmptyReplyThenTextProvider {
+                    attempts: attempts.clone(),
+                }),
+                &session.id,
+            )
+            .await
+            .expect("应配置测试 provider");
+
+        let session_config = aster::agents::SessionConfig {
+            id: session.id.clone(),
+            thread_id: None,
+            turn_id: Some("turn-empty-reply-retry".to_string()),
+            schedule_id: None,
+            max_turns: None,
+            retry_config: None,
+            system_prompt: None,
+            include_context_trace: None,
+            turn_context: None,
+        };
+        let policy = resolve_request_tool_policy(Some(false), false);
+        let mut runtime_events = Vec::new();
+
+        let reply = stream_message_reply_with_policy(
+            &agent,
+            Message::user().with_text("帮我总结一下这个项目"),
+            None,
+            session_config,
+            None,
+            &policy,
+            |event| runtime_events.push(event.clone()),
+        )
+        .await
+        .expect("空答复后应自动重试并成功");
+
+        assert_eq!(reply.text_output, "这是补发的最终答复。");
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        assert!(
+            runtime_events.iter().any(|event| matches!(
+                event,
+                RuntimeAgentEvent::RuntimeStatus { status }
+                    if status.title == "正在重试生成答复"
+            )),
+            "应向前端投影空答复重试状态"
         );
     }
 }

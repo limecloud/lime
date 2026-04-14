@@ -279,6 +279,53 @@ function mergeHydratedContentParts(
   return remote;
 }
 
+function hasRenderableAssistantTextContent(message: Message): boolean {
+  if (message.role !== "assistant") {
+    return false;
+  }
+
+  if (message.content.trim().length > 0) {
+    return true;
+  }
+
+  return (message.contentParts || []).some(
+    (part) => part.type === "text" && part.text.trim().length > 0,
+  );
+}
+
+export function normalizeHistoricalTopicSnapshotMessage(
+  message: Message,
+): Message {
+  if (
+    message.role !== "assistant" ||
+    message.isThinking ||
+    !hasRenderableAssistantTextContent(message)
+  ) {
+    return message;
+  }
+
+  const visibleContentParts = (message.contentParts || []).filter(
+    (part) => part.type === "text" || part.type === "action_required",
+  );
+  const contentText = message.content.trim();
+  const contentParts =
+    visibleContentParts.length > 0
+      ? visibleContentParts
+      : contentText
+        ? [{ type: "text", text: contentText } satisfies ContentPart]
+        : undefined;
+
+  return {
+    ...message,
+    thinkingContent: undefined,
+    contentParts,
+  };
+}
+
+export const normalizeHistoricalTopicSnapshotMessages = (
+  messages: Message[],
+): Message[] => messages.map(normalizeHistoricalTopicSnapshotMessage);
+
 function normalizePreviewSignatureValue(value: unknown): string {
   if (typeof value === "string") {
     return normalizeSignatureText(value);
@@ -486,6 +533,7 @@ export const mergeAdjacentAssistantMessages = (
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       contextTrace: contextTrace.length > 0 ? contextTrace : undefined,
       artifacts: artifacts.length > 0 ? artifacts : undefined,
+      usage: current.usage ?? previous.usage,
       imageWorkbenchPreview,
       taskPreview,
       timestamp: current.timestamp,
@@ -686,10 +734,14 @@ export const mergeHydratedMessagesWithLocalState = (
         return message;
       }
 
-      const contentParts = mergeHydratedContentParts(
-        localAssistantMessage?.contentParts,
-        message.contentParts,
-      );
+      const shouldRetainLocalProcessState =
+        !hasRenderableAssistantTextContent(message);
+      const contentParts = shouldRetainLocalProcessState
+        ? mergeHydratedContentParts(
+            localAssistantMessage?.contentParts,
+            message.contentParts,
+          )
+        : message.contentParts;
       const toolCalls = mergeByKey(
         localAssistantMessage?.toolCalls,
         message.toolCalls,
@@ -719,7 +771,9 @@ export const mergeHydratedMessagesWithLocalState = (
       })();
       const thinkingContent =
         message.thinkingContent ??
-        localAssistantMessage?.thinkingContent ??
+        (shouldRetainLocalProcessState
+          ? localAssistantMessage?.thinkingContent
+          : undefined) ??
         extractThinkingContentFromParts(contentParts);
 
       return {

@@ -468,8 +468,18 @@ function splitObservabilitySignalName(name) {
   const separatorIndex = normalized.indexOf(":");
   return {
     signal: normalized.slice(0, separatorIndex),
-    status: normalized.slice(separatorIndex + 1),
+    status: normalizeObservabilityStatus(normalized.slice(separatorIndex + 1)),
   };
+}
+
+function normalizeObservabilityStatus(status) {
+  const normalized = normalizeString(status);
+  switch (normalized) {
+    case "unlinked":
+      return "known_gap";
+    default:
+      return normalized;
+  }
 }
 
 function getObservabilityStatusWeight(status) {
@@ -478,8 +488,6 @@ function getObservabilityStatusWeight(status) {
       return 120;
     case "missing_signal_coverage":
       return 110;
-    case "unlinked":
-      return 95;
     case "known_gap":
       return 85;
     case "partial":
@@ -498,6 +506,9 @@ function buildObservabilityFocusEntries(entries, sampleCount) {
       const delta = isObject(entry?.delta) ? entry.delta : {};
       const baseline = isObject(entry?.baseline) ? entry.baseline : {};
       const parsed = splitObservabilitySignalName(entry?.name);
+      const signal = parsed.signal || normalizeString(entry?.name, "(unknown)");
+      const status = parsed.status || "unknown";
+      const canonicalName = parsed.status ? `${signal}:${parsed.status}` : signal;
       const positiveDeltaCase = Math.max(0, normalizeNumber(delta.caseCount));
       const latestCase = normalizeNumber(latest.caseCount);
       const score =
@@ -514,9 +525,9 @@ function buildObservabilityFocusEntries(entries, sampleCount) {
       }
 
       return {
-        name: normalizeString(entry?.name, "(unknown)"),
-        signal: parsed.signal || "(unknown)",
-        status: parsed.status || "unknown",
+        name: canonicalName,
+        signal,
+        status,
         baseline: {
           caseCount: normalizeNumber(baseline.caseCount),
           readyCount: normalizeNumber(baseline.readyCount),

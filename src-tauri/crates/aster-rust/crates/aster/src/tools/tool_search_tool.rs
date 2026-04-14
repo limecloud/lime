@@ -10,7 +10,7 @@ use super::registry::ToolRegistry;
 use async_trait::async_trait;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Weak};
 
@@ -38,6 +38,7 @@ const BUILTIN_VISIBLE_NATIVE_TOOLS: &[(&str, &str)] = &[
 ];
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ToolSearchInput {
     query: String,
     #[serde(default = "default_max_results", alias = "maxResults")]
@@ -49,6 +50,8 @@ struct ToolSearchOutput {
     matches: Vec<String>,
     query: String,
     total_deferred_tools: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pending_mcp_servers: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     notes: Vec<String>,
 }
@@ -269,6 +272,30 @@ fn native_tool_search_aliases(name: &str) -> &'static [&'static str] {
             "run command",
             "command execution",
         ],
+        "taskcreate" | "taskcreatetool" => &["create task", "new task", "task board", "task list"],
+        "taskget" | "taskgettool" => &["get task", "task details", "read task"],
+        "tasklist" | "tasklisttool" => &["list tasks", "task list", "todo list"],
+        "taskupdate" | "taskupdatetool" => {
+            &["update task", "complete task", "mark task", "task status"]
+        }
+        "taskoutput" | "taskoutputtool" => &[
+            "agent output",
+            "bash output",
+            "task output",
+            "task logs",
+            "read task output",
+        ],
+        "taskstop" | "taskstoptool" => {
+            &["kill shell", "stop task", "cancel task", "terminate task"]
+        }
+        "teamcreate" | "teamcreatetool" => &["create team", "create swarm", "swarm team"],
+        "teamdelete" | "teamdeletetool" => &["delete team", "cleanup team", "disband swarm"],
+        "listpeers" | "listpeerstool" => &[
+            "list peers",
+            "peer discovery",
+            "swarm peers",
+            "message peers",
+        ],
         "webfetch" | "webfetchtool" => &["fetch url", "fetch page", "read url", "web reader"],
         "websearch" | "websearchtool" => &["search web", "internet search", "web search"],
         "structuredoutput" | "syntheticoutputtool" => &[
@@ -377,7 +404,15 @@ fn tool_search_exact_match(name: &str, query: &str) -> bool {
     }
 
     let query_key = tool_search_lookup_key(&query_lower);
-    if !query_key.is_empty() && tool_search_lookup_key(name) == query_key {
+    let name_key = tool_search_lookup_key(name);
+    if !query_key.is_empty() && name_key == query_key {
+        return true;
+    }
+
+    if query_key
+        .strip_suffix("tool")
+        .is_some_and(|stripped| !stripped.is_empty() && stripped == name_key)
+    {
         return true;
     }
 
@@ -424,8 +459,16 @@ fn select_match_rank(name: &str, query: &str) -> Option<i32> {
     }
 
     let query_key = tool_search_lookup_key(&query_lower);
-    if !query_key.is_empty() && tool_search_lookup_key(name) == query_key {
+    let name_key = tool_search_lookup_key(name);
+    if !query_key.is_empty() && name_key == query_key {
         return Some(450);
+    }
+
+    if query_key
+        .strip_suffix("tool")
+        .is_some_and(|stripped| !stripped.is_empty() && stripped == name_key)
+    {
+        return Some(430);
     }
 
     let parsed = parse_tool_name(name);
@@ -650,8 +693,25 @@ fn build_tool_search_result(
         .with_metadata("matches", json!(&output.matches))
         .with_metadata("query", json!(&output.query))
         .with_metadata("total_deferred_tools", json!(output.total_deferred_tools))
+        .with_metadata("pending_mcp_servers", json!(&output.pending_mcp_servers))
         .with_metadata("notes", json!(&output.notes))
         .with_metadata(TOOL_SURFACE_UPDATED_KEY, json!(tool_surface_updated)))
+}
+
+async fn pending_mcp_servers_for_empty_result(
+    extension_manager: &ExtensionManager,
+    matches: &[String],
+) -> Option<Vec<String>> {
+    if !matches.is_empty() {
+        return None;
+    }
+
+    let pending = extension_manager.list_pending_extensions().await;
+    if pending.is_empty() {
+        None
+    } else {
+        Some(pending)
+    }
 }
 
 #[async_trait]
@@ -677,13 +737,14 @@ impl Tool for ToolSearchTool {
                     "description": "Maximum number of results to return for keyword search (default: 5)"
                 }
             },
-            "required": ["query"]
+            "required": ["query"],
+            "additionalProperties": false
         })
     }
 
     async fn execute(
         &self,
-        params: serde_json::Value,
+        params: Value,
         _context: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
         let input: ToolSearchInput = serde_json::from_value(params)
@@ -732,8 +793,11 @@ impl Tool for ToolSearchTool {
                 total_deferred_tools = state_after.deferred_tools.len();
             }
 
+            let pending_mcp_servers =
+                pending_mcp_servers_for_empty_result(extension_manager.as_ref(), &matches).await;
             return build_tool_search_result(
                 &ToolSearchOutput {
+                    pending_mcp_servers,
                     notes: build_tool_search_notes(query, &matches),
                     matches,
                     query: query.to_string(),
@@ -748,9 +812,12 @@ impl Tool for ToolSearchTool {
                 .into_iter()
                 .take(max_results)
                 .collect::<Vec<_>>();
+        let pending_mcp_servers =
+            pending_mcp_servers_for_empty_result(extension_manager.as_ref(), &matches).await;
 
         build_tool_search_result(
             &ToolSearchOutput {
+                pending_mcp_servers,
                 notes: build_tool_search_notes(query, &matches),
                 matches,
                 query: query.to_string(),
@@ -843,6 +910,26 @@ mod tests {
         let matches = resolve_selected_tools(&["system".to_string()], &deferred, &all);
 
         assert_eq!(matches, vec!["Bash".to_string()]);
+    }
+
+    #[test]
+    fn test_resolve_selected_tools_matches_reference_alias_for_list_peers() {
+        let deferred = Vec::new();
+        let all = vec![searchable("ListPeers", "list available peers")];
+
+        let matches = resolve_selected_tools(&["ListPeersTool".to_string()], &deferred, &all);
+
+        assert_eq!(matches, vec!["ListPeers".to_string()]);
+    }
+
+    #[test]
+    fn test_resolve_selected_tools_matches_reference_alias_for_task_stop() {
+        let deferred = Vec::new();
+        let all = vec![searchable("TaskStop", "stop a background task")];
+
+        let matches = resolve_selected_tools(&["kill shell".to_string()], &deferred, &all);
+
+        assert_eq!(matches, vec!["TaskStop".to_string()]);
     }
 
     #[test]
@@ -991,6 +1078,7 @@ mod tests {
             matches: vec!["alpha__tool".to_string()],
             query: "select:alpha__tool".to_string(),
             total_deferred_tools: 3,
+            pending_mcp_servers: None,
             notes: Vec::new(),
         };
 
@@ -1000,6 +1088,39 @@ mod tests {
             result.metadata.get(TOOL_SURFACE_UPDATED_KEY),
             Some(&json!(true))
         );
+    }
+
+    #[test]
+    fn test_build_tool_search_result_preserves_pending_mcp_servers() {
+        let output = ToolSearchOutput {
+            matches: Vec::new(),
+            query: "browser".to_string(),
+            total_deferred_tools: 2,
+            pending_mcp_servers: Some(vec!["playwright".to_string(), "slack".to_string()]),
+            notes: vec!["未命中任何 deferred 工具".to_string()],
+        };
+
+        let result = build_tool_search_result(&output, false).unwrap();
+
+        assert_eq!(
+            result.metadata.get("pending_mcp_servers"),
+            Some(&json!(["playwright", "slack"]))
+        );
+        assert!(result
+            .output
+            .as_deref()
+            .unwrap_or_default()
+            .contains("\"pending_mcp_servers\""));
+    }
+
+    #[test]
+    fn test_tool_search_input_schema_is_strict_object() {
+        let tool = ToolSearchTool::new(Weak::new());
+        let schema = tool.input_schema();
+
+        assert_eq!(schema["type"], "object");
+        assert_eq!(schema["additionalProperties"], json!(false));
+        assert_eq!(schema["required"], json!(["query"]));
     }
 
     #[test]
@@ -1047,5 +1168,33 @@ mod tests {
         );
 
         assert_eq!(matches, vec!["StructuredOutput".to_string()]);
+    }
+
+    #[test]
+    fn test_score_query_match_can_resolve_task_output_alias() {
+        let matches = score_query_match(
+            "agent output",
+            &[],
+            &[searchable(
+                "TaskOutput",
+                "read output from a background task",
+            )],
+        );
+
+        assert_eq!(matches, vec!["TaskOutput".to_string()]);
+    }
+
+    #[test]
+    fn test_score_query_match_can_resolve_list_peers_alias() {
+        let matches = score_query_match(
+            "message peers",
+            &[],
+            &[searchable(
+                "ListPeers",
+                "list peers available for messaging",
+            )],
+        );
+
+        assert_eq!(matches, vec!["ListPeers".to_string()]);
     }
 }

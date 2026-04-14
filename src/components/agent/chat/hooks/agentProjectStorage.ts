@@ -17,6 +17,14 @@ export function getSessionWorkspaceStorageKey(
 
 export function loadPersistedProjectId(key: string): string | null {
   try {
+    return normalizeProjectId(loadStoredProjectIdRaw(key));
+  } catch {
+    return null;
+  }
+}
+
+export function loadStoredProjectIdRaw(key: string): string | null {
+  try {
     const stored = localStorage.getItem(key);
     if (!stored) {
       return null;
@@ -24,9 +32,12 @@ export function loadPersistedProjectId(key: string): string | null {
 
     try {
       const parsed = JSON.parse(stored);
-      return normalizeProjectId(typeof parsed === "string" ? parsed : stored);
+      const normalized =
+        typeof parsed === "string" ? parsed.trim() : String(stored).trim();
+      return normalized || null;
     } catch {
-      return normalizeProjectId(stored);
+      const normalized = stored.trim();
+      return normalized || null;
     }
   } catch {
     return null;
@@ -55,6 +66,17 @@ export function loadPersistedSessionWorkspaceId(
   }
 
   return loadPersistedProjectId(key);
+}
+
+export function loadStoredSessionWorkspaceIdRaw(
+  sessionId: string,
+): string | null {
+  const key = getSessionWorkspaceStorageKey(sessionId);
+  if (!key) {
+    return null;
+  }
+
+  return loadStoredProjectIdRaw(key);
 }
 
 export function savePersistedSessionWorkspaceId(

@@ -524,10 +524,13 @@ describe("AgentThreadReliabilityPanel", () => {
     expect(onReplayPendingRequest).toHaveBeenCalledWith("req-replay-1");
   });
 
-  it("应展示本回合五层记忆预取，帮助判断五层续接是否命中", async () => {
+  it("应展示本回合记忆命中预取，帮助判断当前续接是否命中", async () => {
     mockPrefetchContextMemoryForTurn.mockResolvedValue({
       session_id: "session-memory-1",
-      rules_source_paths: ["/workspace/AGENTS.md", "/workspace/.memory/rules.md"],
+      rules_source_paths: [
+        "/workspace/AGENTS.md",
+        "/workspace/.memory/rules.md",
+      ],
       working_memory_excerpt: "【task_plan.md】继续整理风险点与来源摘要。",
       durable_memories: [
         {
@@ -608,24 +611,29 @@ describe("AgentThreadReliabilityPanel", () => {
         '[data-testid="agent-thread-reliability-memory-prefetch"]',
       ),
     ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="agent-thread-reliability-memory-prefetch"]',
+      )?.className,
+    ).toContain("border-emerald-200");
     expect(container.textContent).toContain("本回合记忆预取");
-    expect(container.textContent).toContain("五层记忆预演");
+    expect(container.textContent).toContain("记忆命中预演");
     expect(container.textContent).toContain("规则 2");
-    expect(container.textContent).toContain("工作 已命中");
+    expect(container.textContent).toContain("会话 已命中");
     expect(container.textContent).toContain("持久 1");
-    expect(container.textContent).toContain("任务影子 1");
+    expect(container.textContent).toContain("Team Memory 1");
     expect(container.textContent).toContain("压缩 已命中");
-    expect(container.textContent).toContain("工作记忆摘录");
+    expect(container.textContent).toContain("会话记忆摘录");
     expect(container.textContent).toContain("继续整理风险点与来源摘要");
     expect(container.textContent).toContain("规则来源");
     expect(container.textContent).toContain("/workspace/AGENTS.md");
     expect(container.textContent).toContain("持久记忆命中");
     expect(container.textContent).toContain("研究简报输出偏好");
     expect(container.textContent).toContain("优先给风险与证据链");
-    expect(container.textContent).toContain("任务影子明细");
+    expect(container.textContent).toContain("Team Memory 明细");
     expect(container.textContent).toContain("team.selection");
     expect(container.textContent).toContain("研究协作队");
-    expect(container.textContent).toContain("压缩续接摘要");
+    expect(container.textContent).toContain("会话压缩摘要");
     expect(container.textContent).toContain("保留研究目标与来源摘要");
     expect(container.textContent).toContain("运行时记忆片段");
     expect(container.textContent).toContain("【运行时记忆召回】");
@@ -651,7 +659,10 @@ describe("AgentThreadReliabilityPanel", () => {
 
     mockPrefetchContextMemoryForTurn.mockResolvedValue({
       session_id: "session-memory-compare-1",
-      rules_source_paths: ["/workspace/AGENTS.md", "/workspace/.memory/rules.md"],
+      rules_source_paths: [
+        "/workspace/AGENTS.md",
+        "/workspace/.memory/rules.md",
+      ],
       working_memory_excerpt: "【task_plan.md】补上新版风险结论。",
       durable_memories: [
         {
@@ -694,9 +705,16 @@ describe("AgentThreadReliabilityPanel", () => {
     });
 
     expect(container.textContent).toContain("相对最近基线");
+    expect(
+      container.querySelector(
+        '[data-testid="agent-thread-reliability-memory-prefetch-baseline"]',
+      )?.className,
+    ).toContain("border-emerald-200");
     expect(container.textContent).toContain("基线输入：继续输出旧版简报");
     expect(container.textContent).toContain("补强");
-    expect(container.textContent).toContain("补强层：规则层、工作层、持久层。 摘要内容也有更新。");
+    expect(container.textContent).toContain(
+      "补强层：规则层、工作层、持久层。 摘要内容也有更新。",
+    );
     expect(container.textContent).toContain("具体变化");
     expect(container.textContent).toContain("规则 +1");
     expect(container.textContent).toContain("工作 新命中");
@@ -773,8 +791,12 @@ describe("AgentThreadReliabilityPanel", () => {
     expect(container.textContent).toContain("最近压缩边界");
     expect(container.textContent).toContain("token_budget");
     expect(container.textContent).toContain("覆盖 8 回合");
-    expect(container.textContent).toContain("保留研究目标、已确认来源和待输出风险点");
-    expect(container.textContent).toContain("压缩备注 压缩后保留研究目标与来源摘要");
+    expect(container.textContent).toContain(
+      "保留研究目标、已确认来源和待输出风险点",
+    );
+    expect(container.textContent).toContain(
+      "压缩备注 压缩后保留研究目标与来源摘要",
+    );
   });
 
   it("应支持复制给 AI 的可靠性诊断包", async () => {
@@ -1032,19 +1054,21 @@ describe("AgentThreadReliabilityPanel", () => {
       expect.stringContaining("规则层：1 个来源"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining("任务影子层：1 条"),
+      expect.stringContaining("Team Memory 层：1 条"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining("规则来源：/workspace/AGENTS.md"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining("持久记忆详情：研究输出格式偏好｜先给结论，再列风险"),
+      expect.stringContaining(
+        "持久记忆详情：研究输出格式偏好｜先给结论，再列风险",
+      ),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining("任务影子详情：team.selection｜研究协作队"),
+      expect.stringContaining("Team Memory 详情：team.selection｜研究协作队"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining("压缩命中摘要：保留研究目标与最近来源摘要。"),
+      expect.stringContaining("会话压缩摘要：保留研究目标与最近来源摘要。"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining("运行时记忆片段：【运行时记忆召回】"),
@@ -1053,7 +1077,9 @@ describe("AgentThreadReliabilityPanel", () => {
       expect.stringContaining("覆盖回合数：6"),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining("边界摘要：保留研究目标、最近来源摘要和待输出风险点"),
+      expect.stringContaining(
+        "边界摘要：保留研究目标、最近来源摘要和待输出风险点",
+      ),
     );
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining("### 后端诊断聚合"),

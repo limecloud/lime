@@ -73,4 +73,21 @@ describe("protocolResidue", () => {
     expect(containsAssistantProtocolResidue(normal)).toBe(false);
     expect(stripAssistantProtocolResidue(normal)).toBe(normal);
   });
+
+  it("应清理内部续跑提示泄露的中文残留", () => {
+    const leaked = [
+      "请继续。你上一条回复还是中间过程结论，不是最终答复。",
+      "",
+      "上一条回复已经是完整结论了，不是中间过程。我已经基于足够的代码证据给出了：",
+      "- 项目概览",
+      "- 16 个对标优化点",
+      "",
+      "如果你希望我继续深挖某个方向，再告诉我即可。",
+    ].join("\n");
+
+    expect(containsAssistantProtocolResidue(leaked)).toBe(true);
+    expect(stripAssistantProtocolResidue(leaked)).toBe(
+      "如果你希望我继续深挖某个方向，再告诉我即可。",
+    );
+  });
 });

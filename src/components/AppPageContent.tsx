@@ -199,10 +199,12 @@ export function AppPageContent({
   if (currentPage === "memory") {
     return (
       <div style={columnPageStyle}>
-        <MemoryPage
-          onNavigate={onNavigate}
-          pageParams={pageParams as MemoryPageParams}
-        />
+        <div className="flex-1 min-h-0 overflow-auto">
+          <MemoryPage
+            onNavigate={onNavigate}
+            pageParams={pageParams as MemoryPageParams}
+          />
+        </div>
       </div>
     );
   }

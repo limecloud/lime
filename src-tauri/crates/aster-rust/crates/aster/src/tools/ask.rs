@@ -6,7 +6,7 @@
 //! Requirements: 6.1, 6.2, 6.3, 6.4, 6.5
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::future::Future;
@@ -310,15 +310,32 @@ impl Default for AskTool {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone)]
 enum AskOptionInput {
     String(String),
     Object(AskOptionObject),
 }
 
+impl<'de> Deserialize<'de> for AskOptionInput {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = Value::deserialize(deserializer)?;
+        match value {
+            Value::String(value) => Ok(Self::String(value)),
+            Value::Object(_) => serde_json::from_value::<AskOptionObject>(value)
+                .map(Self::Object)
+                .map_err(serde::de::Error::custom),
+            _ => Err(serde::de::Error::custom(
+                "ask option must be a string or object",
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct AskOptionObject {
     value: Option<String>,
     label: Option<String>,
@@ -355,7 +372,7 @@ impl TryFrom<AskOptionInput> for AskOption {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct AskQuestionInput {
     question: String,
     header: Option<String>,
@@ -387,7 +404,7 @@ impl TryFrom<AskQuestionInput> for AskQuestion {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct AskToolInput {
     questions: Option<Vec<AskQuestionInput>>,
 }
@@ -781,6 +798,7 @@ impl Tool for AskTool {
     fn input_schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
+            "additionalProperties": false,
             "properties": {
                 "questions": {
                     "type": "array",
@@ -789,6 +807,7 @@ impl Tool for AskTool {
                     "maxItems": 4,
                     "items": {
                         "type": "object",
+                        "additionalProperties": false,
                         "properties": {
                             "question": {
                                 "type": "string",
@@ -805,6 +824,7 @@ impl Tool for AskTool {
                                 "maxItems": 4,
                                 "items": {
                                     "type": "object",
+                                    "additionalProperties": false,
                                     "properties": {
                                         "label": {
                                             "type": "string",
@@ -1206,8 +1226,18 @@ mod tests {
         let schema = tool.input_schema();
 
         assert_eq!(schema["type"], "object");
+        assert_eq!(schema["additionalProperties"], serde_json::json!(false));
         assert!(schema["properties"]["questions"].is_object());
         assert_eq!(schema["required"], serde_json::json!(["questions"]));
+        assert_eq!(
+            schema["properties"]["questions"]["items"]["additionalProperties"],
+            serde_json::json!(false)
+        );
+        assert_eq!(
+            schema["properties"]["questions"]["items"]["properties"]["options"]["items"]
+                ["additionalProperties"],
+            serde_json::json!(false)
+        );
         assert!(!schema["properties"]
             .as_object()
             .unwrap()
@@ -1341,6 +1371,89 @@ mod tests {
         let result = tool.execute(params, &context).await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ToolError::InvalidParams(_)));
+    }
+
+    #[tokio::test]
+    async fn test_ask_tool_rejects_unknown_top_level_field() {
+        let callback = mock_callback(Some(serde_json::json!("test")));
+        let tool = AskTool::new().with_callback(callback);
+        let context = ToolContext::new(PathBuf::from("/tmp"));
+
+        let params = serde_json::json!({
+            "questions": [
+                {
+                    "question": "Continue?",
+                    "header": "Approval",
+                    "options": [
+                        { "label": "Yes", "description": "Proceed" },
+                        { "label": "No", "description": "Stop" }
+                    ]
+                }
+            ],
+            "extra": true
+        });
+
+        let result = tool.execute(params, &context).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("unknown field `extra`"));
+    }
+
+    #[tokio::test]
+    async fn test_ask_tool_rejects_unknown_question_field() {
+        let callback = mock_callback(Some(serde_json::json!("test")));
+        let tool = AskTool::new().with_callback(callback);
+        let context = ToolContext::new(PathBuf::from("/tmp"));
+
+        let params = serde_json::json!({
+            "questions": [
+                {
+                    "question": "Continue?",
+                    "header": "Approval",
+                    "options": [
+                        { "label": "Yes", "description": "Proceed" },
+                        { "label": "No", "description": "Stop" }
+                    ],
+                    "extra": "field"
+                }
+            ]
+        });
+
+        let result = tool.execute(params, &context).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("unknown field `extra`"));
+    }
+
+    #[tokio::test]
+    async fn test_ask_tool_rejects_unknown_option_field() {
+        let callback = mock_callback(Some(serde_json::json!("test")));
+        let tool = AskTool::new().with_callback(callback);
+        let context = ToolContext::new(PathBuf::from("/tmp"));
+
+        let params = serde_json::json!({
+            "questions": [
+                {
+                    "question": "Continue?",
+                    "header": "Approval",
+                    "options": [
+                        { "label": "Yes", "description": "Proceed", "extra": 1 },
+                        { "label": "No", "description": "Stop" }
+                    ]
+                }
+            ]
+        });
+
+        let result = tool.execute(params, &context).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("unknown field `extra`"));
     }
 
     #[tokio::test]

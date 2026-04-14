@@ -221,6 +221,19 @@ fn backfill_harness_string_if_missing(
     request_metadata
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ArtifactRequestMetadataNormalizationOptions {
+    pub enable_artifact_defaults: bool,
+}
+
+impl Default for ArtifactRequestMetadataNormalizationOptions {
+    fn default() -> Self {
+        Self {
+            enable_artifact_defaults: true,
+        }
+    }
+}
+
 pub fn normalize_request_metadata_with_artifact_defaults(
     request_metadata: Option<Value>,
     theme_fallback: Option<&str>,
@@ -228,6 +241,26 @@ pub fn normalize_request_metadata_with_artifact_defaults(
     gate_key_fallback: Option<&str>,
     run_title_fallback: Option<&str>,
     content_id_fallback: Option<&str>,
+) -> Option<Value> {
+    normalize_request_metadata_with_artifact_options(
+        request_metadata,
+        theme_fallback,
+        session_mode_fallback,
+        gate_key_fallback,
+        run_title_fallback,
+        content_id_fallback,
+        ArtifactRequestMetadataNormalizationOptions::default(),
+    )
+}
+
+pub fn normalize_request_metadata_with_artifact_options(
+    request_metadata: Option<Value>,
+    theme_fallback: Option<&str>,
+    session_mode_fallback: Option<&str>,
+    gate_key_fallback: Option<&str>,
+    run_title_fallback: Option<&str>,
+    content_id_fallback: Option<&str>,
+    options: ArtifactRequestMetadataNormalizationOptions,
 ) -> Option<Value> {
     let request_metadata = request_metadata?;
     let request_metadata = normalize_harness_session_mode_field(request_metadata);
@@ -268,7 +301,8 @@ pub fn normalize_request_metadata_with_artifact_defaults(
     .as_deref()
     .and_then(infer_artifact_kind)
     .map(str::to_string);
-    let should_enable_draft = should_enable_artifact_draft(request_metadata_ref);
+    let should_enable_draft =
+        options.enable_artifact_defaults && should_enable_artifact_draft(request_metadata_ref);
     let content_id = extract_harness_string(request_metadata_ref, &["content_id", "contentId"]);
 
     let mut artifact = extract_existing_artifact_object(request_metadata_ref).unwrap_or_default();
@@ -420,6 +454,38 @@ mod tests {
         )
         .expect("normalized metadata");
 
+        assert!(normalized.get("artifact").is_none());
+    }
+
+    #[test]
+    fn should_allow_backfill_without_infering_artifact_defaults() {
+        let metadata = json!({
+            "harness": {
+                "theme": "general",
+                "session_mode": "general_workbench",
+                "content_id": "content-1"
+            }
+        });
+
+        let normalized = normalize_request_metadata_with_artifact_options(
+            Some(metadata),
+            None,
+            None,
+            None,
+            None,
+            None,
+            ArtifactRequestMetadataNormalizationOptions {
+                enable_artifact_defaults: false,
+            },
+        )
+        .expect("normalized metadata");
+
+        assert_eq!(
+            normalized
+                .pointer("/harness/content_id")
+                .and_then(Value::as_str),
+            Some("content-1")
+        );
         assert!(normalized.get("artifact").is_none());
     }
 

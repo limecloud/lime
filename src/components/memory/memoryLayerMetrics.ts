@@ -27,58 +27,58 @@ export function buildLayerMetrics(
   const cards: LayerCard[] = [
     {
       key: "rules",
-      title: "规则层",
+      title: "来源链",
       value: input.rulesSourceCount,
       unit: "源",
       available: input.rulesSourceCount > 0,
       description:
         input.rulesSourceCount > 0
-          ? "运行时已检测到可加载的规则与来源文件。"
-          : "当前还没有加载到有效规则来源。",
+          ? "当前已解析到可注入的规则与记忆来源文件。"
+          : "当前还没有加载到有效来源链文件。",
     },
     {
       key: "working",
-      title: "工作记忆",
+      title: "会话记忆",
       value: input.workingEntryCount,
       unit: "条",
       available: input.workingEntryCount > 0,
       description:
         input.workingEntryCount > 0
-          ? "会话工作记忆文件已经开始沉淀。"
-          : "当前还没有工作记忆条目。",
+          ? "当前会话的 plan、摘录和工作文件正在沉淀。"
+          : "当前还没有会话记忆条目。",
     },
     {
       key: "durable",
-      title: "长期记忆",
+      title: "持久记忆",
       value: input.durableEntryCount,
       unit: "条",
       available: input.durableEntryCount > 0,
       description:
         input.durableEntryCount > 0
-          ? "统一记忆库中已有可复用的结构化沉淀。"
-          : "长期记忆库暂时为空。",
+          ? "跨会话可复用的结构化沉淀已进入 durable memory 视图。"
+          : "当前还没有可复用的持久记忆。",
     },
     {
       key: "team",
-      title: "Team 影子",
+      title: "Team Memory",
       value: input.teamSnapshotCount,
       unit: "份",
       available: input.teamSnapshotCount > 0,
       description:
         input.teamSnapshotCount > 0
-          ? "本地已缓存 repo 作用域 Team 协作影子。"
-          : "当前仓库还没有 Team shadow 快照。",
+          ? "repo 作用域的 Team memory 快照可用于补足协作上下文。"
+          : "当前仓库还没有 Team Memory 快照。",
     },
     {
       key: "compaction",
-      title: "压缩边界",
+      title: "会话压缩",
       value: input.compactionCount,
       unit: "次",
       available: input.compactionCount > 0,
       description:
         input.compactionCount > 0
-          ? "最近已有上下文压缩摘要可供续接。"
-          : "还没有可复用的上下文压缩摘要。",
+          ? "长会话压缩摘要可用于后续续接。"
+          : "当前还没有可复用的会话压缩摘要。",
     },
   ];
 

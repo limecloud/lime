@@ -8,6 +8,7 @@
 
 - `src/components/workspace/**` 与 `src/lib/workspace/**` 是现役 `current` runtime，后续能力只允许继续向这里收敛
 - 文档导航、实现判断与后续扩展应优先参考 `workspace.md`，不要再把本文件当成现役入口
+- 基础 Prompt、system prompt 组装顺序、subagent / plan prompt 与 augmentation 主链应优先参考 `prompt-foundation.md`；本文件里的历史工作台叙事不再定义基础 Prompt 事实源
 - 不要再直接恢复 `src/components/content-creator/**` 旧路径；若需要共享能力，统一经 `src/lib/workspace/*` 网关访问
 - 已删除的根级旧入口如 `src/hooks/usePosterWorkflow.ts`、`src/hooks/useMultiPlatformExport.ts` 不应回流
 - 已删除的海报 workflow 孤岛 `src/components/content-creator/workflows/poster/**`、`src/lib/workspace/workbenchPoster.ts` 不应回流
@@ -214,7 +215,7 @@ const handleWriteFile = useWorkspaceWriteFileAction(...);
 
 ### Aster 框架限制
 
-Aster 框架的 `SessionConfig` 不支持 session 级别的 system prompt，因此现役主链采用**消息注入**方案：
+Aster 框架当前现役主链会把 Lime 组装好的 session prompt 通过 `SessionConfig.system_prompt` 传给 Aster `PromptManager`，再包成最终 provider prompt；这里保留的“首条消息注入”描述只用于解释历史工作台时期的画布联动背景，不再代表仓库当前基础 Prompt 主链：
 
 - 在第一条用户消息前注入 systemPrompt
 - 后续消息不再注入（避免重复）

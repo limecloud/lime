@@ -27,15 +27,16 @@ import {
   isUnifiedWebSearchToolName,
   resolveSearchResultPreviewItemsFromText,
 } from "../utils/searchResultPreview";
-import { extractLimeToolMetadataBlock } from "../hooks/agentChatToolResult";
+import {
+  extractLimeToolMetadataBlock,
+  isToolResultSuccessful,
+} from "../hooks/agentChatToolResult";
 import {
   normalizeSiteToolResultSummary,
   resolveSiteProjectTargetLabel,
   resolveSiteSavedContentTargetFromMetadata,
 } from "../utils/siteToolResultSummary";
-import {
-  normalizeToolSearchResultSummary,
-} from "../utils/toolSearchResultSummary";
+import { normalizeToolSearchResultSummary } from "../utils/toolSearchResultSummary";
 import type { ToolCallArgumentValue } from "../utils/toolDisplayInfo";
 import {
   buildGroupedChildLine as buildGroupedChildLineFromInfo,
@@ -164,7 +165,9 @@ const buildRenderedToolResultContent = (params: {
   return content;
 };
 
-function resolveUserFacingPathName(path: string | null | undefined): string | null {
+function resolveUserFacingPathName(
+  path: string | null | undefined,
+): string | null {
   const trimmed = path?.trim();
   if (!trimmed) {
     return null;
@@ -567,6 +570,13 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     const normalized = extractLimeToolMetadataBlock(rawText).text;
     return normalized || "(无输出)";
   }, [toolCall.result?.error, toolCall.result?.output]);
+  const isResultFailure = useMemo(() => {
+    if (!toolCall.result) return isFailed;
+    return !isToolResultSuccessful({
+      success: toolCall.result.success,
+      metadata: resultMetadata,
+    });
+  }, [isFailed, resultMetadata, toolCall.result]);
   const resultMetaItems = useMemo(() => {
     if (!resultMetadata) return [];
 
@@ -577,15 +587,12 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     ) {
       items.push("内容较长，已省略部分文本");
     }
-    if (
-      typeof resultMetadata.exit_code === "number" &&
-      (isFailed || resultMetadata.exit_code !== 0)
-    ) {
+    if (typeof resultMetadata.exit_code === "number" && isResultFailure) {
       items.push("命令返回错误");
     }
 
     return items;
-  }, [isFailed, resultMetadata]);
+  }, [isResultFailure, resultMetadata]);
   const siteResultNotices = useMemo(() => {
     if (!siteResultSummary) return [] as ToolResultNotice[];
 
@@ -1003,7 +1010,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
           <div
             className={cn(
               "max-h-64 overflow-y-auto rounded-[14px] border border-slate-200 bg-white p-3",
-              isFailed && "border-rose-200",
+              isResultFailure && "border-rose-200",
             )}
             data-testid="tool-call-rendered-result"
           >

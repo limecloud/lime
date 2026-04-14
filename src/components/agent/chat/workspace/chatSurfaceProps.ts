@@ -124,7 +124,9 @@ interface BuildWorkspaceEmptyStatePropsParams {
   >["onRecommendationClick"];
   characters: NonNullable<ComponentProps<typeof EmptyState>["characters"]>;
   skills: NonNullable<ComponentProps<typeof EmptyState>["skills"]>;
-  serviceSkills: NonNullable<ComponentProps<typeof EmptyState>["serviceSkills"]>;
+  serviceSkills: NonNullable<
+    ComponentProps<typeof EmptyState>["serviceSkills"]
+  >;
   serviceSkillGroups: NonNullable<
     ComponentProps<typeof EmptyState>["serviceSkillGroups"]
   >;

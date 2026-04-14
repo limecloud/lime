@@ -118,6 +118,21 @@ describe("useWorkspaceProjectSelection", () => {
     }
   });
 
+  it("不应再把 legacy workspace-default 写回当前项目选择", () => {
+    const harness = mountHook();
+
+    try {
+      act(() => {
+        harness.getValue().applyProjectSelection("workspace-default");
+      });
+
+      expect(harness.getValue().projectId).toBeUndefined();
+      expect(harness.getValue().getRememberedProjectId()).toBeNull();
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("应在项目切换完成后恢复待执行的任务切换", () => {
     const harness = mountHook();
 

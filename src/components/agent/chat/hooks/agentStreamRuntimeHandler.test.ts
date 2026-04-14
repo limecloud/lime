@@ -177,7 +177,7 @@ describe("agentStreamRuntimeHandler", () => {
     expect(messages[0]?.content).toBe("已保存到项目目录。");
   });
 
-  it("收到空 final_done 时应保留温和兜底正文而不是错误文案", () => {
+  it("收到空 final_done 且没有真实产物信号时应落成失败态", () => {
     let messages: Message[] = [
       {
         id: "assistant-3",
@@ -242,9 +242,12 @@ describe("agentStreamRuntimeHandler", () => {
       setIsSending: vi.fn() as never,
     });
 
-    expect(messages[0]?.content).toBe(
-      "本轮执行已完成，详细过程与产物已保留在当前对话中。",
-    );
+    expect(messages[0]?.content).toBe("执行失败：模型未输出最终答复，请重试");
+    expect(messages[0]?.runtimeStatus).toMatchObject({
+      phase: "failed",
+      title: "当前处理失败",
+    });
+    expect(mockToast.error).toHaveBeenCalledWith("模型未输出最终答复，请重试");
   });
 
   it("站点导出在 tool_end 已登记结果时，空 final_done 不应误报缺少最终答复", () => {
@@ -377,7 +380,84 @@ describe("agentStreamRuntimeHandler", () => {
       "本轮执行已完成，详细过程与产物已保留在当前对话中。",
     );
     expect(mockToast.error).not.toHaveBeenCalledWith(
-      "已完成工具执行，但模型未输出最终答复，请重试",
+      "模型未输出最终答复，请重试",
+    );
+  });
+
+  it("命中空最终答复错误但已有真实产物信号时仍应软完成", () => {
+    let messages: Message[] = [
+      {
+        id: "assistant-site-export-error",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-07T10:00:00.000Z"),
+        isThinking: true,
+      },
+    ];
+
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+
+    handleTurnStreamEvent({
+      data: {
+        type: "error",
+        message:
+          "已完成当前回合的工具执行，但模型未输出最终答复。\n尝试记录: site_run_adapter#tool-site-export-2:success",
+      } as AgentEvent,
+      requestState: {
+        accumulatedContent: "",
+        hasMeaningfulCompletionSignal: true,
+        queuedTurnId: null,
+        requestLogId: null,
+        requestStartedAt: 0,
+        requestFinished: false,
+      },
+      callbacks: {
+        activateStream: () => {},
+        isStreamActivated: () => true,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener: () => {},
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch: () => true,
+        upsertQueuedTurn: () => {},
+        removeQueuedTurnState: () => {},
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+        appendThinkingToParts: (parts) => parts,
+      },
+      eventName: "agent-runtime-test",
+      pendingTurnKey: "pending-turn",
+      pendingItemKey: "pending-item",
+      assistantMsgId: "assistant-site-export-error",
+      activeSessionId: "session-1",
+      resolvedWorkspaceId: "workspace-1",
+      effectiveExecutionStrategy: "react",
+      content: "",
+      runtime: {} as never,
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      setMessages: setMessages as never,
+      setPendingActions: vi.fn() as never,
+      setThreadItems: vi.fn() as never,
+      setThreadTurns: vi.fn() as never,
+      setCurrentTurnId: vi.fn() as never,
+      setExecutionRuntime: vi.fn() as never,
+      setIsSending: vi.fn() as never,
+    });
+
+    expect(messages[0]?.content).toBe(
+      "本轮执行已完成，详细过程与产物已保留在当前对话中。",
+    );
+    expect(messages[0]?.runtimeStatus).toBeUndefined();
+    expect(mockToast.error).not.toHaveBeenCalledWith(
+      "模型未输出最终答复，请重试",
     );
   });
 

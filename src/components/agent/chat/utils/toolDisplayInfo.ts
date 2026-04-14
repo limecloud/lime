@@ -36,6 +36,11 @@ export type ToolCallFamily =
   | "vision"
   | "generic";
 
+export type McpToolOperationKind = Extract<
+  ToolCallFamily,
+  "search" | "list" | "read" | "browser"
+>;
+
 export type ToolCallArgumentValue =
   | string
   | number
@@ -141,6 +146,15 @@ const TOOL_STATUS_ACTIONS = {
 } as const;
 
 type ToolStatusActionKey = keyof typeof TOOL_STATUS_ACTIONS;
+
+const MCP_MUTATION_ACTION_RE =
+  /(?:^|_)(?:create|update|delete|remove|add|set|send|write|edit|patch|run|execute|submit|publish|approve|reject|reply|comment)(?:_|$)/;
+const MCP_BROWSER_ACTION_RE =
+  /(?:^|_)(?:navigate|goto|click|hover|fill|type|select|press|snapshot|screenshot|drag|upload|wait|tabs?|page|browser|runtime|evaluate)(?:_|$)/;
+const MCP_SEARCH_ACTION_RE =
+  /(?:^|_)(?:search|find|lookup|query)(?:_|$)/;
+const MCP_LIST_ACTION_RE = /(?:^|_)list(?:_|$)/;
+const MCP_READ_ACTION_RE = /(?:^|_)(?:get|read|fetch|open)(?:_|$)/;
 
 const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
   [
@@ -358,6 +372,49 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
+    "mcp",
+    {
+      family: "generic",
+      label: "MCP 工具",
+      verb: "调用",
+      icon: Wrench,
+      groupTitle: "MCP",
+      actionKey: "generic",
+      actions: {
+        failed: "调用失败",
+        completed: "已调用 MCP 工具",
+        running: "调用中",
+      },
+    },
+  ],
+  [
+    "mcpauth",
+    {
+      family: "generic",
+      label: "MCP 授权",
+      verb: "授权",
+      icon: Wrench,
+      groupTitle: "MCP",
+      actionKey: "generic",
+      actions: {
+        failed: "授权失败",
+        completed: "已完成 MCP 授权",
+        running: "授权中",
+      },
+    },
+  ],
+  [
+    "repl",
+    {
+      family: "command",
+      label: "REPL 执行",
+      verb: "运行",
+      icon: Terminal,
+      groupTitle: "命令",
+      actionKey: "command",
+    },
+  ],
+  [
     "grep",
     {
       family: "search",
@@ -545,6 +602,65 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
+    "config",
+    {
+      family: "generic",
+      label: "运行配置",
+      verb: "调整",
+      icon: Settings,
+      groupTitle: "配置",
+      actionKey: "generic",
+      actions: {
+        failed: "调整失败",
+        completed: "已调整配置",
+        running: "调整中",
+      },
+    },
+  ],
+  [
+    "workflow",
+    {
+      family: "generic",
+      label: "工作流执行",
+      verb: "执行",
+      icon: Settings,
+      groupTitle: "工作流",
+      actionKey: "generic",
+      actions: {
+        failed: "执行失败",
+        completed: "已执行工作流",
+        running: "执行中",
+      },
+    },
+  ],
+  [
+    "sleep",
+    {
+      family: "generic",
+      label: "等待",
+      verb: "等待",
+      icon: Settings,
+      groupTitle: "执行",
+      actionKey: "generic",
+      actions: {
+        failed: "等待失败",
+        completed: "已完成等待",
+        running: "等待中",
+      },
+    },
+  ],
+  [
+    "powershell",
+    {
+      family: "command",
+      label: "PowerShell",
+      verb: "运行",
+      icon: Terminal,
+      groupTitle: "命令",
+      actionKey: "command",
+    },
+  ],
+  [
     "skill",
     {
       family: "skill",
@@ -703,6 +819,38 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
       icon: FileText,
       groupTitle: "计划",
       actionKey: "plan",
+    },
+  ],
+  [
+    "enterworktree",
+    {
+      family: "generic",
+      label: "进入工作树",
+      verb: "进入",
+      icon: FolderOpen,
+      groupTitle: "工作树",
+      actionKey: "generic",
+      actions: {
+        failed: "进入失败",
+        completed: "已进入工作树",
+        running: "进入中",
+      },
+    },
+  ],
+  [
+    "exitworktree",
+    {
+      family: "generic",
+      label: "退出工作树",
+      verb: "退出",
+      icon: FolderOpen,
+      groupTitle: "工作树",
+      actionKey: "generic",
+      actions: {
+        failed: "退出失败",
+        completed: "已退出工作树",
+        running: "退出中",
+      },
     },
   ],
   [
@@ -992,6 +1140,17 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
+    "limecreatetranscriptiontask",
+    {
+      family: "task",
+      label: "转写任务",
+      verb: "创建任务",
+      icon: FilePlus,
+      groupTitle: "任务",
+      actionKey: "task",
+    },
+  ],
+  [
     "limecreatebroadcastgenerationtask",
     {
       family: "task",
@@ -1015,6 +1174,17 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
   ],
   [
     "limecreateresourcesearchtask",
+    {
+      family: "task",
+      label: "素材检索任务",
+      verb: "创建任务",
+      icon: FilePlus,
+      groupTitle: "任务",
+      actionKey: "task",
+    },
+  ],
+  [
+    "limecreatemodalresourcesearchtask",
     {
       family: "task",
       label: "素材检索任务",
@@ -1058,6 +1228,22 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
   [
+    "limerunserviceskill",
+    {
+      family: "generic",
+      label: "服务技能执行",
+      verb: "执行",
+      icon: Globe,
+      groupTitle: "服务技能",
+      actionKey: "generic",
+      actions: {
+        failed: "执行失败",
+        completed: "已执行",
+        running: "执行中",
+      },
+    },
+  ],
+  [
     "limesitelist",
     {
       family: "list",
@@ -1070,6 +1256,22 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
         failed: "浏览失败",
         completed: "已浏览",
         running: "浏览中",
+      },
+    },
+  ],
+  [
+    "limesiterecommend",
+    {
+      family: "search",
+      label: "站点能力推荐",
+      verb: "推荐",
+      icon: Globe,
+      groupTitle: "站点",
+      actionKey: "search",
+      actions: {
+        failed: "推荐失败",
+        completed: "已推荐",
+        running: "推荐中",
       },
     },
   ],
@@ -1122,6 +1324,42 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     },
   ],
 ]);
+
+const MCP_OPERATION_TOOL_CONFIGS: Record<McpToolOperationKind, ToolDisplayConfig> =
+  {
+    search: {
+      family: "search",
+      label: "MCP 搜索",
+      verb: "搜索",
+      icon: Search,
+      groupTitle: "MCP",
+      actionKey: "search",
+    },
+    list: {
+      family: "list",
+      label: "MCP 列表",
+      verb: "查看",
+      icon: FolderOpen,
+      groupTitle: "MCP",
+      actionKey: "list",
+    },
+    read: {
+      family: "read",
+      label: "MCP 读取",
+      verb: "查看",
+      icon: FileText,
+      groupTitle: "MCP",
+      actionKey: "read",
+    },
+    browser: {
+      family: "browser",
+      label: "MCP 浏览器",
+      verb: "操作",
+      icon: Globe,
+      groupTitle: "MCP",
+      actionKey: "browser",
+    },
+  };
 
 const BROWSER_TOOL_MATCHERS: Array<{
   match: (name: string) => boolean;
@@ -1453,6 +1691,9 @@ const TOOL_NAME_KEY_ALIASES: Record<string, string> = {
   askuserquestiontool: "askuserquestion",
   brief: "sendusermessage",
   brieftool: "sendusermessage",
+  mcptool: "mcp",
+  mcpauthtool: "mcpauth",
+  repltool: "repl",
   sendusermessage: "sendusermessage",
   sendusermessagetool: "sendusermessage",
   spawnagent: "agent",
@@ -1486,6 +1727,7 @@ const TOOL_NAME_KEY_ALIASES: Record<string, string> = {
   crondeletetool: "crondelete",
   skilltool: "skill",
   sleeptool: "sleep",
+  workflowtool: "workflow",
   syntheticoutputtool: "structuredoutput",
   taskcreatetool: "taskcreate",
   taskgettool: "taskget",
@@ -1510,6 +1752,12 @@ const USER_FACING_TOOL_LABELS: Record<string, string> = {
   文件读取: "查看文件",
   文档读取: "查看文档",
   资源读取: "查看内容",
+  "MCP 搜索": "搜索内容",
+  "MCP 列表": "查看内容",
+  "MCP 读取": "查看内容",
+  "MCP 浏览器": "操作页面",
+  "MCP 工具": "调用 MCP 工具",
+  "MCP 授权": "完成 MCP 授权",
   文件写入: "保存文件",
   文件创建: "保存文件",
   文件编辑: "修改文件",
@@ -1525,20 +1773,38 @@ const USER_FACING_TOOL_LABELS: Record<string, string> = {
   文档搜索: "查找文档",
   文档查询: "查看文档",
   网络搜索: "搜索网页",
+  代码分析: "分析代码",
   图片搜索: "搜索图片",
   联网搜图: "搜索图片",
   命令执行: "运行命令",
+  "REPL 执行": "运行命令",
+  PowerShell: "运行命令",
   技能执行: "使用技能",
   技能列表: "查看技能",
   技能加载: "加载技能",
+  运行配置: "查看配置",
+  工作流执行: "运行工作流",
+  等待: "等待执行",
+  任务创建: "创建任务",
+  任务列表: "查看任务",
+  任务详情: "查看任务",
+  任务更新: "更新任务",
+  进入计划模式: "进入计划",
+  退出计划模式: "退出计划",
+  进入工作树: "进入工作树",
+  退出工作树: "退出工作树",
+  创建团队: "创建团队",
+  删除团队: "删除团队",
   任务输出: "查看任务结果",
   工作区同步: "同步内容",
   图像分析: "分析图片",
   图片查看: "查看图片",
   站点能力目录: "查看站点能力",
+  站点能力推荐: "推荐站点能力",
   站点能力搜索: "搜索站点能力",
   站点能力详情: "查看站点能力",
   站点能力执行: "运行站点能力",
+  服务技能执行: "运行服务技能",
 };
 
 export const normalizeToolNameKey = (value: string): string => {
@@ -1556,6 +1822,79 @@ export const humanizeToolName = (toolName: string): string =>
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")
     .trim() || "工具调用";
+
+export interface ParsedMcpToolName {
+  serverName: string;
+  innerToolName: string;
+  normalizedInnerToolName: string;
+}
+
+export const parseMcpToolName = (
+  toolName: string,
+): ParsedMcpToolName | null => {
+  if (!toolName.startsWith("mcp__")) {
+    return null;
+  }
+
+  const segments = toolName.split("__");
+  if (segments.length < 3) {
+    return null;
+  }
+
+  const [, serverName, ...innerParts] = segments;
+  const innerToolName = innerParts.join("__").trim();
+  if (!serverName || !innerToolName) {
+    return null;
+  }
+
+  return {
+    serverName,
+    innerToolName,
+    normalizedInnerToolName: innerToolName
+      .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+      .replace(/-/g, "_")
+      .toLowerCase(),
+  };
+};
+
+export const classifyMcpToolOperationKind = (
+  toolName: string,
+): McpToolOperationKind | null => {
+  const parsed = parseMcpToolName(toolName);
+  if (!parsed) {
+    return null;
+  }
+
+  const { serverName, normalizedInnerToolName } = parsed;
+  const normalizedServerName = serverName.toLowerCase();
+
+  if (MCP_MUTATION_ACTION_RE.test(normalizedInnerToolName)) {
+    return null;
+  }
+
+  if (
+    normalizedServerName.includes("browser") ||
+    normalizedServerName.includes("playwright") ||
+    normalizedServerName.includes("chrome") ||
+    MCP_BROWSER_ACTION_RE.test(normalizedInnerToolName)
+  ) {
+    return "browser";
+  }
+
+  if (MCP_SEARCH_ACTION_RE.test(normalizedInnerToolName)) {
+    return "search";
+  }
+
+  if (MCP_LIST_ACTION_RE.test(normalizedInnerToolName)) {
+    return "list";
+  }
+
+  if (MCP_READ_ACTION_RE.test(normalizedInnerToolName)) {
+    return "read";
+  }
+
+  return null;
+};
 
 export const parseToolCallArguments = (
   value?: string,
@@ -1596,7 +1935,6 @@ export const isBrowserToolName = (name: string): boolean =>
     "tabs",
     "open",
     "presskey",
-    "type",
     "selectoption",
     "drag",
     "evaluate",
@@ -1707,6 +2045,28 @@ export const resolveToolPrimarySubject = (
     );
   }
 
+  if (classifyMcpToolOperationKind(toolName)) {
+    return resolveToolArgumentPreview(args, [
+      "query",
+      "q",
+      "pattern",
+      "path",
+      "file_path",
+      "url",
+      "uri",
+      "resource_uri",
+      "resource",
+      "name",
+      "id",
+      "repo",
+      "repository",
+      "owner",
+      "ref",
+      "key",
+      "slug",
+    ]);
+  }
+
   if (
     normalizedName === "webfetch" ||
     normalizedName === "open" ||
@@ -1739,15 +2099,47 @@ export const resolveToolPrimarySubject = (
   ) {
     return resolveToolArgumentPreview(args, [
       "subject",
-      "taskId",
       "title",
       "topic",
+      "query",
+      "q",
       "keyword",
       "prompt",
       "description",
-      "task_id",
+      "source_url",
+      "sourceUrl",
+      "source_path",
+      "sourcePath",
       "url",
+      "resource_type",
+      "resourceType",
+      "target_platform",
+      "targetPlatform",
+      "extract_goal",
+      "extractGoal",
+      "content",
+      "taskId",
+      "task_id",
     ]);
+  }
+
+  if (normalizedName === "limerunserviceskill") {
+    return (
+      resolveToolArgumentPreview(args, [
+        "skill_title",
+        "skillTitle",
+        "service_skill_id",
+        "serviceSkillId",
+        "scene_key",
+        "sceneKey",
+        "adapter_name",
+        "name",
+      ]) || "服务技能"
+    );
+  }
+
+  if (normalizedName === "limesitelist") {
+    return "站点能力目录";
   }
 
   if (normalizedName === "limesiterun" || normalizedName === "limesiteinfo") {
@@ -1757,15 +2149,28 @@ export const resolveToolPrimarySubject = (
         "skillTitle",
         "adapter_name",
         "name",
+        "save_title",
+        "saveTitle",
         "query",
         "repo",
         "url",
+        "profile_key",
+        "profileKey",
+        "target_id",
+        "targetId",
       ]) || "站点适配器"
     );
   }
 
+  if (normalizedName === "limesiterecommend") {
+    return resolveToolArgumentPreview(args, ["query", "q", "goal"]) || "站点能力";
+  }
+
   if (normalizedName === "limesitesearch") {
-    return resolveToolArgumentPreview(args, ["query", "q"]) || "站点能力";
+    return (
+      resolveToolArgumentPreview(args, ["query", "q", "adapter_name", "name"]) ||
+      "站点能力"
+    );
   }
 
   if (normalizedName === "toolsearch") {
@@ -1865,6 +2270,14 @@ export const getToolDisplayInfo = (
     if (browserMatcher) {
       return toToolDisplayDescriptor(browserMatcher.config, status);
     }
+  }
+
+  const mcpOperationKind = classifyMcpToolOperationKind(toolName);
+  if (mcpOperationKind) {
+    return toToolDisplayDescriptor(
+      MCP_OPERATION_TOOL_CONFIGS[mcpOperationKind],
+      status,
+    );
   }
 
   if (
@@ -2032,7 +2445,9 @@ export const toUserFacingToolDisplayLabel = (label: string): string => {
 };
 
 export const resolveUserFacingToolDisplayLabel = (toolName: string): string =>
-  toUserFacingToolDisplayLabel(resolveToolDisplayLabel(toolName).trim() || toolName);
+  toUserFacingToolDisplayLabel(
+    resolveToolDisplayLabel(toolName).trim() || toolName,
+  );
 
 export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
   const first = toolCalls[0]!;

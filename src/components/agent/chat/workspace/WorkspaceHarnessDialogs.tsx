@@ -85,6 +85,9 @@ interface GeneralWorkbenchDialogSectionProps extends HarnessPanelBaseProps {
   onOpenChange: (open: boolean) => void;
   activeTheme: ComponentProps<typeof AgentRuntimeStrip>["activeTheme"];
   toolPreferences: ComponentProps<typeof AgentRuntimeStrip>["toolPreferences"];
+  runtimeToolAvailability: ComponentProps<
+    typeof AgentRuntimeStrip
+  >["runtimeToolAvailability"];
   isSending: ComponentProps<typeof AgentRuntimeStrip>["isSending"];
   executionRuntime: ComponentProps<
     typeof AgentRuntimeStrip
@@ -107,6 +110,7 @@ export function GeneralWorkbenchDialogSection({
   onOpenChange,
   activeTheme,
   toolPreferences,
+  runtimeToolAvailability,
   isSending,
   executionRuntime,
   isExecutionRuntimeActive,
@@ -139,6 +143,7 @@ export function GeneralWorkbenchDialogSection({
               <AgentRuntimeStrip
                 activeTheme={activeTheme}
                 toolPreferences={toolPreferences}
+                runtimeToolAvailability={runtimeToolAvailability}
                 harnessState={panelBaseProps.harnessState}
                 childSubagentSessions={panelBaseProps.childSubagentSessions}
                 variant="embedded"

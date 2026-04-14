@@ -1,4 +1,4 @@
-use aster::session::TurnContextOverride;
+use aster::session::{TurnContextOverride, TurnOutputSchemaSource};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -58,10 +58,19 @@ pub enum TurnSystemPromptSource {
     Project,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TurnExecutionProfile {
+    FastChat,
+    #[default]
+    FullRuntime,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TurnPromptAugmentationStageKind {
     RuntimeAgents,
+    ExplicitLocalPathFocus,
     Memory,
     WebSearch,
     RequestToolPolicy,
@@ -146,6 +155,7 @@ pub struct TurnDiagnosticsSnapshot {
     pub project_id: Option<String>,
     pub thread_id: Option<String>,
     pub turn_id: Option<String>,
+    pub execution_profile: TurnExecutionProfile,
     pub has_persisted_session: bool,
     pub system_prompt_source: TurnSystemPromptSource,
     pub base_system_prompt_len: Option<usize>,
@@ -161,6 +171,8 @@ pub struct TurnDiagnosticsSnapshot {
     pub working_dir_set: bool,
     pub effective_user_message_len: usize,
     pub include_context_trace: bool,
+    pub has_turn_output_schema: bool,
+    pub turn_output_schema_source: Option<TurnOutputSchemaSource>,
     pub has_turn_context_metadata: bool,
     pub turn_context_metadata_keys: Vec<String>,
 }
@@ -172,6 +184,7 @@ pub struct TurnInputEnvelope {
     project_id: Option<String>,
     thread_id: Option<String>,
     turn_id: Option<String>,
+    execution_profile: TurnExecutionProfile,
     has_persisted_session: bool,
     system_prompt_source: TurnSystemPromptSource,
     base_system_prompt: Option<String>,
@@ -187,6 +200,8 @@ pub struct TurnInputEnvelope {
     working_dir: Option<String>,
     effective_user_message: String,
     include_context_trace: bool,
+    turn_output_schema: Option<Value>,
+    turn_output_schema_source: Option<TurnOutputSchemaSource>,
     approval_policy: Option<String>,
     sandbox_policy: Option<String>,
     turn_context_metadata: Option<Map<String, Value>>,
@@ -220,13 +235,19 @@ impl TurnInputEnvelope {
 
     pub fn turn_context_override(&self) -> Option<TurnContextOverride> {
         let metadata = self.merged_turn_context_metadata();
-        if metadata.is_none() && self.approval_policy.is_none() && self.sandbox_policy.is_none() {
+        if metadata.is_none()
+            && self.approval_policy.is_none()
+            && self.sandbox_policy.is_none()
+            && self.turn_output_schema.is_none()
+        {
             return None;
         }
 
         Some(TurnContextOverride {
             approval_policy: self.approval_policy.clone(),
             sandbox_policy: self.sandbox_policy.clone(),
+            output_schema: self.turn_output_schema.clone(),
+            output_schema_source: self.turn_output_schema_source,
             metadata: metadata.unwrap_or_default().into_iter().collect(),
             ..TurnContextOverride::default()
         })
@@ -246,6 +267,7 @@ impl TurnInputEnvelope {
             project_id: self.project_id.clone(),
             thread_id: self.thread_id.clone(),
             turn_id: self.turn_id.clone(),
+            execution_profile: self.execution_profile,
             has_persisted_session: self.has_persisted_session,
             system_prompt_source: self.system_prompt_source,
             base_system_prompt_len: prompt_len(&self.base_system_prompt),
@@ -261,6 +283,8 @@ impl TurnInputEnvelope {
             working_dir_set: self.working_dir.is_some(),
             effective_user_message_len: self.effective_user_message.chars().count(),
             include_context_trace: self.include_context_trace,
+            has_turn_output_schema: self.turn_output_schema.is_some(),
+            turn_output_schema_source: self.turn_output_schema_source,
             has_turn_context_metadata: self.merged_turn_context_metadata().is_some(),
             turn_context_metadata_keys,
         }
@@ -280,6 +304,7 @@ impl TurnInputEnvelopeBuilder {
                 project_id: None,
                 thread_id: None,
                 turn_id: None,
+                execution_profile: TurnExecutionProfile::default(),
                 has_persisted_session: false,
                 system_prompt_source: TurnSystemPromptSource::None,
                 base_system_prompt: None,
@@ -295,6 +320,8 @@ impl TurnInputEnvelopeBuilder {
                 working_dir: None,
                 effective_user_message: String::new(),
                 include_context_trace: false,
+                turn_output_schema: None,
+                turn_output_schema_source: None,
                 approval_policy: None,
                 sandbox_policy: None,
                 turn_context_metadata: None,
@@ -319,6 +346,11 @@ impl TurnInputEnvelopeBuilder {
 
     pub fn set_has_persisted_session(&mut self, has_persisted_session: bool) -> &mut Self {
         self.envelope.has_persisted_session = has_persisted_session;
+        self
+    }
+
+    pub fn set_execution_profile(&mut self, execution_profile: TurnExecutionProfile) -> &mut Self {
+        self.envelope.execution_profile = execution_profile;
         self
     }
 
@@ -373,6 +405,20 @@ impl TurnInputEnvelopeBuilder {
 
     pub fn set_include_context_trace(&mut self, include_context_trace: bool) -> &mut Self {
         self.envelope.include_context_trace = include_context_trace;
+        self
+    }
+
+    pub fn set_turn_output_schema(
+        &mut self,
+        output_schema: Option<Value>,
+        output_schema_source: Option<TurnOutputSchemaSource>,
+    ) -> &mut Self {
+        self.envelope.turn_output_schema = output_schema;
+        self.envelope.turn_output_schema_source = if self.envelope.turn_output_schema.is_some() {
+            output_schema_source
+        } else {
+            None
+        };
         self
     }
 
@@ -439,12 +485,13 @@ impl TurnInputEnvelopeBuilder {
 #[cfg(test)]
 mod tests {
     use super::{
-        TurnInputEnvelopeBuilder, TurnPromptAugmentationStageKind, TurnProviderRoutingSnapshot,
-        TurnRequestToolPolicySnapshot, TurnSystemPromptSource,
+        TurnExecutionProfile, TurnInputEnvelopeBuilder, TurnPromptAugmentationStageKind,
+        TurnProviderRoutingSnapshot, TurnRequestToolPolicySnapshot, TurnSystemPromptSource,
     };
     use crate::provider_continuation_state::{
         ProviderContinuationCapability, ProviderContinuationState,
     };
+    use aster::session::TurnOutputSchemaSource;
     use serde_json::json;
 
     #[test]
@@ -453,6 +500,7 @@ mod tests {
         builder
             .set_project_id(Some("project-1".to_string()))
             .set_has_persisted_session(true)
+            .set_execution_profile(TurnExecutionProfile::FastChat)
             .set_base_system_prompt(TurnSystemPromptSource::Session, Some("base".to_string()))
             .apply_prompt_stage(
                 TurnPromptAugmentationStageKind::RuntimeAgents,
@@ -500,6 +548,10 @@ mod tests {
             diagnostics.system_prompt_source,
             TurnSystemPromptSource::Session
         );
+        assert_eq!(
+            diagnostics.execution_profile,
+            TurnExecutionProfile::FastChat
+        );
         assert_eq!(diagnostics.base_system_prompt_len, Some(4));
         assert_eq!(diagnostics.final_system_prompt_len, Some(12));
         assert!(diagnostics.working_dir_set);
@@ -519,6 +571,8 @@ mod tests {
             diagnostics.provider_continuation_capability,
             ProviderContinuationCapability::PreviousResponseId
         );
+        assert!(!diagnostics.has_turn_output_schema);
+        assert_eq!(diagnostics.turn_output_schema_source, None);
         assert_eq!(diagnostics.prompt_augmentation_stages.len(), 2);
         assert!(diagnostics.prompt_augmentation_stages[0].changed);
         assert!(!diagnostics.prompt_augmentation_stages[1].changed);
@@ -564,9 +618,56 @@ mod tests {
             diagnostics.system_prompt_source,
             TurnSystemPromptSource::None
         );
+        assert_eq!(
+            diagnostics.execution_profile,
+            TurnExecutionProfile::FullRuntime
+        );
         assert_eq!(diagnostics.base_system_prompt_len, None);
         assert_eq!(diagnostics.final_system_prompt_len, Some(12));
         assert_eq!(envelope.system_prompt(), Some("runtime-only"));
+    }
+
+    #[test]
+    fn test_turn_input_envelope_exposes_turn_output_schema() {
+        let mut builder = TurnInputEnvelopeBuilder::new("session-schema", "workspace-schema");
+        builder
+            .set_turn_output_schema(
+                Some(json!({
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string"
+                        }
+                    }
+                })),
+                Some(TurnOutputSchemaSource::Turn),
+            )
+            .set_effective_user_message("生成结构化输出");
+
+        let envelope = builder.build();
+        let diagnostics = envelope.diagnostics_snapshot();
+        let turn_context = envelope.turn_context_override().expect("turn context");
+
+        assert!(diagnostics.has_turn_output_schema);
+        assert_eq!(
+            diagnostics.turn_output_schema_source,
+            Some(TurnOutputSchemaSource::Turn)
+        );
+        assert_eq!(
+            turn_context.output_schema,
+            Some(json!({
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    }
+                }
+            }))
+        );
+        assert_eq!(
+            turn_context.output_schema_source,
+            Some(TurnOutputSchemaSource::Turn)
+        );
     }
 
     #[test]

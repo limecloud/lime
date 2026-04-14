@@ -6,7 +6,7 @@
 //! 这是应用层接管框架层存储的关键桥接模块。
 
 use anyhow::{anyhow, Result};
-use aster::conversation::message::{Message, MessageContent};
+use aster::conversation::message::{Message, MessageContent, MessageMetadata};
 use aster::conversation::Conversation;
 use aster::model::ModelConfig;
 use aster::recipe::Recipe;
@@ -32,6 +32,44 @@ use std::sync::Mutex as StdMutex;
 pub struct LimeSessionStore {
     db: DbConnection,
     metadata_cache: StdMutex<HashMap<String, Session>>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedConversationMessageRecord {
+    content: Vec<MessageContent>,
+    #[serde(default = "persisted_visibility_default_true")]
+    user_visible: bool,
+    #[serde(default = "persisted_visibility_default_true")]
+    agent_visible: bool,
+}
+
+fn persisted_visibility_default_true() -> bool {
+    true
+}
+
+fn serialize_persisted_message_content(message: &Message) -> Result<String> {
+    serde_json::to_string(&PersistedConversationMessageRecord {
+        content: message.content.clone(),
+        user_visible: message.metadata.user_visible,
+        agent_visible: message.metadata.agent_visible,
+    })
+    .map_err(|e| anyhow!("序列化消息内容失败: {e}"))
+}
+
+fn deserialize_persisted_message_content(
+    content_json: &str,
+) -> Option<PersistedConversationMessageRecord> {
+    if let Ok(record) = serde_json::from_str::<PersistedConversationMessageRecord>(content_json) {
+        return Some(record);
+    }
+
+    let content: Vec<MessageContent> = serde_json::from_str(content_json).ok()?;
+    Some(PersistedConversationMessageRecord {
+        content,
+        user_visible: true,
+        agent_visible: true,
+    })
 }
 
 impl LimeSessionStore {
@@ -379,7 +417,7 @@ impl SessionStore for LimeSessionStore {
         let working_dir = Self::parse_session_working_dir(&conn, db_working_dir);
 
         let conversation = if include_messages {
-            Some(self.load_conversation(&conn, &id)?)
+            Some(Self::load_conversation_from_conn(&conn, &id)?)
         } else {
             None
         };
@@ -431,8 +469,7 @@ impl SessionStore for LimeSessionStore {
         Self::ensure_session_row(&conn, session_id)?;
 
         let role = Self::message_role_to_string(message);
-        let content_json = serde_json::to_string(&message.content)
-            .map_err(|e| anyhow!("序列化消息内容失败: {e}"))?;
+        let content_json = serialize_persisted_message_content(message)?;
         let timestamp = Utc::now().to_rfc3339();
 
         // 从 content 中提取 tool_calls（ToolRequest 类型）
@@ -500,7 +537,7 @@ impl SessionStore for LimeSessionStore {
 
         for message in conversation.messages() {
             let role = Self::message_role_to_string(message);
-            let content_json = serde_json::to_string(&message.content)?;
+            let content_json = serialize_persisted_message_content(message)?;
             let timestamp = Utc::now().to_rfc3339();
 
             let tool_requests: Vec<_> = message
@@ -1154,8 +1191,7 @@ impl SessionStore for LimeSessionStore {
 
 impl LimeSessionStore {
     /// 加载会话的对话历史
-    fn load_conversation(
-        &self,
+    pub fn load_conversation_from_conn(
         conn: &rusqlite::Connection,
         session_id: &str,
     ) -> Result<Conversation> {
@@ -1176,8 +1212,7 @@ impl LimeSessionStore {
             })?
             .filter_map(|r| r.ok())
             .filter_map(|(role, content_json)| {
-                // 尝试解析消息内容
-                let content: Vec<MessageContent> = serde_json::from_str(&content_json).ok()?;
+                let persisted = deserialize_persisted_message_content(&content_json)?;
 
                 // 根据角色创建消息
                 let mut message = if role == "assistant" {
@@ -1187,9 +1222,14 @@ impl LimeSessionStore {
                 };
 
                 // 添加所有内容
-                for c in content {
+                for c in persisted.content {
                     message = message.with_content(c);
                 }
+
+                message = message.with_metadata(MessageMetadata {
+                    user_visible: persisted.user_visible,
+                    agent_visible: persisted.agent_visible,
+                });
 
                 Some(message)
             })
@@ -1534,6 +1574,43 @@ mod tests {
             .await
             .expect("读取缓存会话失败");
         assert_eq!(refreshed.message_count, 1);
+    }
+
+    #[tokio::test]
+    async fn persisted_conversation_should_roundtrip_agent_only_visibility() {
+        let store = setup_test_store();
+        let session = store
+            .create_session(
+                PathBuf::from("."),
+                "可见性回写测试".to_string(),
+                SessionType::User,
+            )
+            .await
+            .expect("创建会话失败");
+
+        store
+            .replace_conversation(
+                &session.id,
+                &Conversation::new_unvalidated(vec![
+                    Message::user().with_text("用户可见"),
+                    Message::user().with_text("仅供智能体续跑").agent_only(),
+                ]),
+            )
+            .await
+            .expect("替换对话失败");
+
+        let loaded = store
+            .get_session(&session.id, true)
+            .await
+            .expect("读取会话失败");
+        let conversation = loaded.conversation.expect("应包含对话");
+        let messages = conversation.messages();
+
+        assert_eq!(messages.len(), 2);
+        assert!(messages[0].is_user_visible());
+        assert!(!messages[1].is_user_visible());
+        assert!(messages[1].is_agent_visible());
+        assert_eq!(messages[1].as_concat_text(), "仅供智能体续跑");
     }
 
     #[tokio::test]

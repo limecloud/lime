@@ -2,7 +2,7 @@
 
 > 状态：进行中，P1 / P2 已落地，P3 已闭环，rewrite typed patch 与 current incremental 合同已落地  
 > 更新时间：2026-03-31  
-> 运行时边界：发送边界、runtime metadata、Team 委派、协议瘦身以 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 为准；本文只定义 Artifact 产品层与 Workbench 主线  
+> 运行时边界：发送边界、prompt 组装、turn metadata、Team 委派与协议瘦身以 `docs/aiprompts/query-loop.md`、`docs/aiprompts/task-agent-taxonomy.md`、`docs/aiprompts/state-history-telemetry.md` 与 `docs/exec-plans/upstream-runtime-alignment-plan.md` 为准；本文只定义 Artifact 产品层与 Workbench 主线  
 > 目标：把 Lime 从“能显示文件/画布的聊天工作台”升级为“交付物优先的 Artifact Workbench”，让回复不再只是普通 Markdown，而是可扫描、可编辑、可版本化、可复用的正式产物
 >
 > 配套文档：
@@ -845,7 +845,7 @@ src-tauri/crates/aster-rust/crates/aster/src/runtime/
 
 ## 12.4 运行时迁移原则
 
-本节只表达 Artifact 产品侧对 runtime 的依赖顺序，不替代 `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 已锁定的 P1 / P2 / P3 / P4 执行顺序。
+本节只表达 Artifact 产品侧对 runtime 的依赖顺序，不替代上述 current 文档已经锁定的发送边界、Team 委派、状态模型与统一排期。
 
 1. 先把 `system prompt + output schema + validator` 的控制链建立起来。
 2. 再把 Stage 1 / Stage 2 生成链升级为标准 turn。

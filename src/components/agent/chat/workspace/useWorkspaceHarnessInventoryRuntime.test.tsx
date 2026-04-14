@@ -190,6 +190,45 @@ describe("useWorkspaceHarnessInventoryRuntime", () => {
     }
   });
 
+  it("主界面启用后即使详情面板未展开，也应预取工具库存", async () => {
+    mockGetAgentRuntimeToolInventory.mockResolvedValueOnce({
+      agent_initialized: true,
+      runtime_tools: [
+        { name: "WebSearch" },
+        { name: "Agent" },
+        { name: "SendMessage" },
+        { name: "TeamCreate" },
+        { name: "TeamDelete" },
+        { name: "ListPeers" },
+        { name: "TaskCreate" },
+        { name: "TaskGet" },
+        { name: "TaskList" },
+        { name: "TaskUpdate" },
+        { name: "TaskOutput" },
+        { name: "TaskStop" },
+      ],
+      registry_tools: [],
+    });
+
+    const harness = mountHook({
+      enabled: true,
+      harnessPanelVisible: false,
+    });
+
+    try {
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(mockGetAgentRuntimeToolInventory).toHaveBeenCalledTimes(1);
+      expect(harness.getValue().toolInventory).toMatchObject({
+        agent_initialized: true,
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("开关关闭时不应继续读取工具库存，也不应生成工作台摘要", async () => {
     const harness = mountHook({
       enabled: false,

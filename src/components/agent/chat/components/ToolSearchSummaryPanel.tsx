@@ -42,6 +42,10 @@ export function ToolSearchSummaryPanel({
   summary,
   testId,
 }: ToolSearchSummaryPanelProps) {
+  const pendingServersText =
+    summary.pendingMcpServers && summary.pendingMcpServers.length > 0
+      ? `以下 MCP 服务仍在连接中：${summary.pendingMcpServers.join("、")}`
+      : null;
   const userFacingNotes = summary.notes
     .map((note) => resolveUserFacingToolSearchNote(note))
     .filter((note): note is string => Boolean(note));
@@ -54,6 +58,12 @@ export function ToolSearchSummaryPanel({
           <span className="break-all">查询：{summary.query}</span>
         ) : null}
       </div>
+
+      {pendingServersText ? (
+        <div className="space-y-1 text-[11px] text-sky-700">
+          <div>{pendingServersText}</div>
+        </div>
+      ) : null}
 
       {userFacingNotes.length > 0 ? (
         <div className="space-y-1 text-[11px] text-amber-700">

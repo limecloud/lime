@@ -6,9 +6,14 @@ mod tests {
     };
     use crate::commands::aster_agent_cmd::dto::AgentRuntimeActionScope;
     use crate::commands::aster_agent_cmd::service_skill_launch::build_service_skill_preload_tool_projection;
+    use crate::commands::aster_agent_cmd::tool_runtime::{
+        append_fast_chat_request_tool_policy_session_permissions,
+        prune_fast_chat_request_tool_policy_tools_from_registry,
+    };
     use crate::services::site_capability_service::{
         RunSiteAdapterRequest, SavedSiteAdapterContent, SiteAdapterDefinition, SiteAdapterRunResult,
     };
+    use crate::tests::runtime_test_support::shared_aster_runtime_test_root;
     use async_trait::async_trait;
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     use lime_agent::request_tool_policy::resolve_request_tool_policy;
@@ -16,8 +21,9 @@ mod tests {
     use regex::Regex;
     use std::collections::HashSet;
     use std::ffi::OsString;
+    use std::fs;
     use std::path::{Path, PathBuf};
-    use std::sync::{Mutex, OnceLock};
+    use std::sync::{Arc, Mutex, OnceLock};
     use tempfile::TempDir;
 
     struct DummyTool {
@@ -62,6 +68,36 @@ mod tests {
     fn durable_memory_test_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn collect_rust_files(root: &Path, files: &mut Vec<PathBuf>) {
+        let entries = fs::read_dir(root).expect("应能读取目录");
+        for entry in entries {
+            let path = entry.expect("应能读取目录项").path();
+            if path.is_dir() {
+                collect_rust_files(&path, files);
+                continue;
+            }
+            if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+                files.push(path);
+            }
+        }
+    }
+
+    fn collect_markdown_files(root: &Path, files: &mut Vec<PathBuf>) {
+        let entries = fs::read_dir(root).expect("应能读取目录");
+        for entry in entries {
+            let path = entry.expect("应能读取目录项").path();
+            if path.is_dir() {
+                collect_markdown_files(&path, files);
+                continue;
+            }
+            let extension = path.extension().and_then(|ext| ext.to_str());
+            let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+            if extension == Some("md") || file_name.starts_with("README") {
+                files.push(path);
+            }
+        }
     }
 
     struct DurableMemoryEnvGuard {
@@ -685,6 +721,127 @@ mod tests {
         assert!(!deny_rule.allowed);
         assert_eq!(deny_rule.priority, 1200);
         assert_eq!(deny_rule.conditions, allow_rule.conditions);
+    }
+
+    #[test]
+    fn test_append_fast_chat_request_tool_policy_session_permissions_blocks_web_tools_when_disabled(
+    ) {
+        let policy = resolve_request_tool_policy(Some(false), false);
+        let mut permissions = Vec::new();
+
+        append_fast_chat_request_tool_policy_session_permissions(
+            &mut permissions,
+            "session-fast-chat-1",
+            TurnExecutionProfile::FastChat,
+            &policy,
+        );
+
+        let web_search_rule = permissions
+            .iter()
+            .find(|permission| permission.tool == "WebSearch")
+            .expect("should add fast chat web search deny rule");
+        assert!(!web_search_rule.allowed);
+        assert_eq!(web_search_rule.priority, 1236);
+        assert_eq!(web_search_rule.conditions.len(), 1);
+        assert_eq!(
+            web_search_rule.conditions[0].field.as_deref(),
+            Some("session_id")
+        );
+        assert_eq!(
+            web_search_rule.conditions[0].value,
+            serde_json::json!("session-fast-chat-1")
+        );
+        assert!(permissions
+            .iter()
+            .any(|permission| permission.tool == "WebFetch" && !permission.allowed));
+    }
+
+    #[test]
+    fn test_append_fast_chat_request_tool_policy_session_permissions_only_applies_to_disabled_fast_chat(
+    ) {
+        let disabled_policy = resolve_request_tool_policy(Some(false), false);
+        let allowed_policy = resolve_request_tool_policy(Some(true), false);
+        let mut permissions = Vec::new();
+
+        append_fast_chat_request_tool_policy_session_permissions(
+            &mut permissions,
+            "session-fast-chat-2",
+            TurnExecutionProfile::FullRuntime,
+            &disabled_policy,
+        );
+        append_fast_chat_request_tool_policy_session_permissions(
+            &mut permissions,
+            "session-fast-chat-2",
+            TurnExecutionProfile::FastChat,
+            &allowed_policy,
+        );
+
+        assert!(permissions.is_empty());
+    }
+
+    #[test]
+    fn test_prune_fast_chat_request_tool_policy_tools_from_registry_hides_web_tools_when_disabled()
+    {
+        let policy = resolve_request_tool_policy(Some(false), false);
+        let mut registry = aster::tools::ToolRegistry::new();
+        registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "WebFetch",
+            "Web fetch",
+            serde_json::json!({"type": "object"}),
+        )));
+        registry.register(Box::new(DummyTool::new(
+            "Read",
+            "Read file",
+            serde_json::json!({"type": "object"}),
+        )));
+
+        prune_fast_chat_request_tool_policy_tools_from_registry(
+            &mut registry,
+            TurnExecutionProfile::FastChat,
+            &policy,
+        );
+
+        assert!(!registry.contains("WebSearch"));
+        assert!(!registry.contains("WebFetch"));
+        assert!(registry.contains("Read"));
+    }
+
+    #[test]
+    fn test_prune_fast_chat_request_tool_policy_tools_from_registry_keeps_web_tools_for_non_fast_chat_or_enabled_search(
+    ) {
+        let disabled_policy = resolve_request_tool_policy(Some(false), false);
+        let allowed_policy = resolve_request_tool_policy(Some(true), false);
+
+        let mut full_runtime_registry = aster::tools::ToolRegistry::new();
+        full_runtime_registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        prune_fast_chat_request_tool_policy_tools_from_registry(
+            &mut full_runtime_registry,
+            TurnExecutionProfile::FullRuntime,
+            &disabled_policy,
+        );
+        assert!(full_runtime_registry.contains("WebSearch"));
+
+        let mut allowed_registry = aster::tools::ToolRegistry::new();
+        allowed_registry.register(Box::new(DummyTool::new(
+            "WebSearch",
+            "Web search",
+            serde_json::json!({"type": "object"}),
+        )));
+        prune_fast_chat_request_tool_policy_tools_from_registry(
+            &mut allowed_registry,
+            TurnExecutionProfile::FastChat,
+            &allowed_policy,
+        );
+        assert!(allowed_registry.contains("WebSearch"));
     }
 
     #[test]
@@ -2904,6 +3061,40 @@ mod tests {
         );
 
         assert!(session_config.turn_context.is_none());
+    }
+
+    #[test]
+    fn test_build_runtime_action_session_config_reuses_turn_context_snapshot() {
+        let metadata = serde_json::json!({
+            "artifact": {
+                "artifact_mode": "draft",
+                "artifact_stage": "stage2",
+                "artifact_kind": "analysis"
+            },
+            "harness": {
+                "theme": "analysis"
+            }
+        });
+        let session_config = build_runtime_action_session_config(
+            "session-1",
+            Some(&metadata),
+            &lime_core::workspace::WorkspaceSettings::default(),
+        );
+        let turn_context = session_config.turn_context.as_ref().expect("turn context");
+
+        assert_eq!(
+            turn_context
+                .metadata
+                .get("harness")
+                .and_then(|value| value.get("theme"))
+                .and_then(serde_json::Value::as_str),
+            Some("analysis")
+        );
+        assert!(turn_context.output_schema.is_some());
+        assert_eq!(
+            turn_context.output_schema_source,
+            Some(aster::session::TurnOutputSchemaSource::Turn)
+        );
     }
 
     #[test]
@@ -5341,9 +5532,8 @@ mod tests {
         assert!(merged.contains("请先连接并停留在 github.com。"));
     }
 
-    #[test]
-    fn test_merge_system_prompt_with_service_skill_launch_preload_appends_result_context() {
-        let execution = ServiceSkillLaunchPreloadExecution {
+    fn sample_service_skill_launch_preload_execution() -> ServiceSkillLaunchPreloadExecution {
+        ServiceSkillLaunchPreloadExecution {
             request: RunSiteAdapterRequest {
                 adapter_name: "github/search".to_string(),
                 args: serde_json::json!({
@@ -5399,7 +5589,106 @@ mod tests {
                 save_skipped_by: None,
                 save_error_message: None,
             },
-        };
+        }
+    }
+
+    #[test]
+    fn test_runtime_turn_source_keeps_prompt_strategy_entry_order_contract() {
+        let source = runtime_turn_source();
+        let strategy_slice = source_slice(
+            &source,
+            "turn_input_builder.set_base_system_prompt(system_prompt_source, resolved_prompt.clone());",
+            "let requested_strategy = request.execution_strategy.unwrap_or(persisted_strategy);",
+        );
+
+        assert_markers_in_order(
+            strategy_slice,
+            &[
+                "TurnPromptAugmentationStageKind::RuntimeAgents",
+                "TurnPromptAugmentationStageKind::ExplicitLocalPathFocus",
+                "build_full_runtime_system_prompt(",
+                "build_fast_chat_system_prompt(",
+            ],
+        );
+    }
+
+    #[test]
+    fn test_runtime_turn_source_keeps_full_runtime_prompt_stage_order_contract() {
+        let source = runtime_turn_source();
+        let full_runtime_slice = source_slice(
+            &source,
+            "fn build_full_runtime_system_prompt(",
+            "fn build_fast_chat_system_prompt(",
+        );
+
+        assert_markers_in_order(
+            full_runtime_slice,
+            &[
+                "TurnPromptAugmentationStageKind::Memory",
+                "TurnPromptAugmentationStageKind::WebSearch",
+                "TurnPromptAugmentationStageKind::RequestToolPolicy",
+                "TurnPromptAugmentationStageKind::Artifact",
+                "TurnPromptAugmentationStageKind::ImageSkillLaunch",
+                "TurnPromptAugmentationStageKind::CoverSkillLaunch",
+                "TurnPromptAugmentationStageKind::VideoSkillLaunch",
+                "TurnPromptAugmentationStageKind::BroadcastSkillLaunch",
+                "TurnPromptAugmentationStageKind::ResourceSearchSkillLaunch",
+                "TurnPromptAugmentationStageKind::ResearchSkillLaunch",
+                "TurnPromptAugmentationStageKind::ReportSkillLaunch",
+                "TurnPromptAugmentationStageKind::DeepSearchSkillLaunch",
+                "TurnPromptAugmentationStageKind::SiteSearchSkillLaunch",
+                "TurnPromptAugmentationStageKind::PdfReadSkillLaunch",
+                "TurnPromptAugmentationStageKind::PresentationSkillLaunch",
+                "TurnPromptAugmentationStageKind::FormSkillLaunch",
+                "TurnPromptAugmentationStageKind::SummarySkillLaunch",
+                "TurnPromptAugmentationStageKind::TranslationSkillLaunch",
+                "TurnPromptAugmentationStageKind::AnalysisSkillLaunch",
+                "TurnPromptAugmentationStageKind::TranscriptionSkillLaunch",
+                "TurnPromptAugmentationStageKind::UrlParseSkillLaunch",
+                "TurnPromptAugmentationStageKind::TypesettingSkillLaunch",
+                "TurnPromptAugmentationStageKind::WebpageSkillLaunch",
+                "TurnPromptAugmentationStageKind::ServiceSkillLaunch",
+                "TurnPromptAugmentationStageKind::Elicitation",
+                "TurnPromptAugmentationStageKind::TeamPreference",
+                "TurnPromptAugmentationStageKind::AutoContinue",
+            ],
+        );
+    }
+
+    #[test]
+    fn test_runtime_turn_source_keeps_service_skill_preload_as_full_runtime_tail_stage() {
+        let source = runtime_turn_source();
+        let preload_stage_slice = source_slice(
+            &source,
+            "fn apply_service_skill_preload_prompt_stage(",
+            "#[allow(clippy::too_many_arguments)]",
+        );
+        let prepare_slice = source_slice(
+            &source,
+            "let service_skill_preload = if matches!(execution_profile, TurnExecutionProfile::FullRuntime) {",
+            "let runtime_turn_artifacts = build_runtime_turn_artifacts(",
+        );
+
+        assert_markers_in_order(
+            preload_stage_slice,
+            &[
+                "if !matches!(execution_profile, TurnExecutionProfile::FullRuntime) {",
+                "merge_system_prompt_with_service_skill_launch_preload",
+                "TurnPromptAugmentationStageKind::ServiceSkillLaunchPreload",
+            ],
+        );
+        assert_markers_in_order(
+            prepare_slice,
+            &[
+                "preload_service_skill_launch_execution",
+                "apply_service_skill_preload_prompt_stage(",
+            ],
+        );
+    }
+
+    #[test]
+    fn test_merge_system_prompt_with_service_skill_launch_preload_appends_result_context() {
+        let execution = sample_service_skill_launch_preload_execution();
 
         let merged = merge_system_prompt_with_service_skill_launch_preload(
             Some("你是助手".to_string()),
@@ -5414,6 +5703,35 @@ mod tests {
         assert!(merged.contains("WebSearch"));
         assert!(merged.contains("microsoft/autogen"));
         assert!(merged.contains("\"require_attached_session\":true"));
+    }
+
+    fn runtime_turn_source() -> String {
+        fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src/commands/aster_agent_cmd/runtime_turn.rs"),
+        )
+        .expect("应能读取 runtime_turn.rs")
+    }
+
+    fn source_slice<'a>(source: &'a str, start_marker: &str, end_marker: &str) -> &'a str {
+        let start = source
+            .find(start_marker)
+            .unwrap_or_else(|| panic!("未找到起始标记: {start_marker}"));
+        let end = source[start..]
+            .find(end_marker)
+            .map(|offset| start + offset)
+            .unwrap_or_else(|| panic!("未找到结束标记: {end_marker}"));
+        &source[start..end]
+    }
+
+    fn assert_markers_in_order(source: &str, markers: &[&str]) {
+        let mut cursor = 0usize;
+        for marker in markers {
+            let offset = source[cursor..]
+                .find(marker)
+                .unwrap_or_else(|| panic!("未按顺序找到标记: {marker}"));
+            cursor += offset + marker.len();
+        }
     }
 
     #[test]
@@ -5775,6 +6093,121 @@ mod tests {
         assert!(regex.is_match("python -m pip install playwright"));
         assert!(regex.is_match("npm install && npm run build"));
         assert!(regex.is_match("python3 <<'EOF'\nprint('hello')\nEOF"));
+    }
+
+    #[test]
+    fn test_command_layer_raw_execution_surfaces_are_explicitly_bounded() {
+        let commands_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/commands");
+        let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let expected: HashSet<String> = [
+            "src/commands/aster_agent_cmd/action_runtime.rs",
+            "src/commands/persona_cmd.rs",
+            "src/commands/theme_context_cmd.rs",
+        ]
+        .into_iter()
+        .map(ToString::to_string)
+        .collect();
+
+        let mut rust_files = Vec::new();
+        collect_rust_files(&commands_root, &mut rust_files);
+
+        let actual: HashSet<String> = rust_files
+            .into_iter()
+            .filter_map(|path| {
+                let content = fs::read_to_string(&path).expect("应能读取源码");
+                let relative_path = path
+                    .strip_prefix(crate_root)
+                    .expect("commands 文件应位于 crate 根下")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                if relative_path.ends_with("/tests.rs") {
+                    return None;
+                }
+                if content.contains(".reply(") || content.contains("stream_reply_with_policy(") {
+                    Some(
+                        relative_path,
+                    )
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        assert_eq!(
+            actual, expected,
+            "Tauri 命令层新增了未分类的原始执行旁路，请先完成 current/compat/deprecated 归类"
+        );
+    }
+
+    #[test]
+    fn test_non_command_rust_raw_execution_surfaces_remain_empty() {
+        let src_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+        let mut rust_files = Vec::new();
+        collect_rust_files(&src_root, &mut rust_files);
+
+        let actual: HashSet<String> = rust_files
+            .into_iter()
+            .filter_map(|path| {
+                let content = fs::read_to_string(&path).expect("应能读取源码");
+                let relative_path = path
+                    .strip_prefix(crate_root)
+                    .expect("src 文件应位于 crate 根下")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                if relative_path.starts_with("src/commands/") || relative_path.ends_with("/tests.rs")
+                {
+                    return None;
+                }
+                if content.contains(".reply(") || content.contains("stream_reply_with_policy(") {
+                    Some(relative_path)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        assert!(
+            actual.is_empty(),
+            "非命令层 Rust 源码新增了原始执行旁路，请先完成 current/compat/deprecated 归类: {actual:?}"
+        );
+    }
+
+    #[test]
+    fn test_non_command_readme_raw_execution_examples_are_explicitly_bounded() {
+        let src_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let expected: HashSet<String> = ["src/agent/README.md"]
+            .into_iter()
+            .map(ToString::to_string)
+            .collect();
+
+        let mut markdown_files = Vec::new();
+        collect_markdown_files(&src_root, &mut markdown_files);
+
+        let actual: HashSet<String> = markdown_files
+            .into_iter()
+            .filter_map(|path| {
+                let content = fs::read_to_string(&path).expect("应能读取文档");
+                let relative_path = path
+                    .strip_prefix(crate_root)
+                    .expect("markdown 文件应位于 crate 根下")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                if content.contains("agent.reply(") || content.contains("stream_reply_with_policy(")
+                {
+                    Some(relative_path)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        assert_eq!(
+            actual, expected,
+            "README/示例面新增了未分类的原始执行示例，请先完成 current/compat/deprecated 归类"
+        );
     }
 
     #[test]
@@ -6659,15 +7092,106 @@ mod tests {
             &mut guard,
             registry.clone(),
             None,
+            None,
         );
 
         let tool = guard
             .get("ToolSearch")
             .expect("bridge ToolSearch should replace legacy implementation");
         assert!(tool.description().contains("统一搜索当前会话工具面"));
-        assert!(tool
-            .input_schema()["properties"]
-            .get("caller")
-            .is_some());
+        assert!(tool.input_schema()["properties"].get("caller").is_some());
+    }
+
+    #[test]
+    fn test_list_current_surface_tool_definitions_includes_agent_tool() {
+        let db: DbConnection = Arc::new(Mutex::new(
+            rusqlite::Connection::open_in_memory().expect("open in-memory db"),
+        ));
+        {
+            let conn = db.lock().expect("db lock");
+            lime_core::database::schema::create_tables(&conn).expect("create schema");
+        }
+        std::env::set_var(
+            "LIME_ASTER_ROOT",
+            shared_aster_runtime_test_root()
+                .to_string_lossy()
+                .to_string(),
+        );
+        lime_agent::initialize_aster_runtime(db.clone()).expect("runtime dirs should initialize");
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build tokio runtime");
+        runtime.block_on(async {
+            let state = AsterAgentState::new();
+            state
+                .init_agent_with_db(&db)
+                .await
+                .expect("agent state should initialize");
+
+            let definitions =
+                super::tool_runtime::list_current_surface_tool_definitions(&state).await;
+
+            assert!(definitions
+                .iter()
+                .any(|definition| definition.name == "Agent"));
+        });
+    }
+
+    #[test]
+    fn test_tool_search_bridge_includes_current_surface_agent_tool() {
+        let db: DbConnection = Arc::new(Mutex::new(
+            rusqlite::Connection::open_in_memory().expect("open in-memory db"),
+        ));
+        {
+            let conn = db.lock().expect("db lock");
+            lime_core::database::schema::create_tables(&conn).expect("create schema");
+        }
+        std::env::set_var(
+            "LIME_ASTER_ROOT",
+            shared_aster_runtime_test_root()
+                .to_string_lossy()
+                .to_string(),
+        );
+        lime_agent::initialize_aster_runtime(db.clone()).expect("runtime dirs should initialize");
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build tokio runtime");
+        runtime.block_on(async {
+            let state = AsterAgentState::new();
+            state
+                .init_agent_with_db(&db)
+                .await
+                .expect("agent state should initialize");
+
+            let agent_arc = state.get_agent_arc();
+            let guard = agent_arc.read().await;
+            let agent = guard.as_ref().expect("agent should exist");
+            let registry = agent.tool_registry().clone();
+            drop(guard);
+
+            let tool = ToolSearchBridgeTool::new(registry, None).with_state(state.clone());
+            let result = tool
+                .execute(
+                    serde_json::json!({
+                        "query": "agent",
+                        "caller": "assistant",
+                        "include_deferred": true,
+                        "include_schema": false
+                    }),
+                    &ToolContext::new(PathBuf::from(".")),
+                )
+                .await
+                .expect("ToolSearch should succeed");
+            let output = result.output.expect("ToolSearch output");
+            let payload: serde_json::Value =
+                serde_json::from_str(&output).expect("parse ToolSearch output");
+            let tools = payload["tools"].as_array().expect("tools should be array");
+
+            assert!(tools.iter().any(|tool| tool["name"] == "Agent"));
+        });
     }
 }

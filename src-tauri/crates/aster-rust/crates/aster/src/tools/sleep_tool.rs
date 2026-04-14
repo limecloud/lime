@@ -16,7 +16,7 @@ const SLEEP_TOOL_DESCRIPTION: &str = "Wait for a specified duration";
 const SLEEP_TOOL_BASE_TIMEOUT_SECS: u64 = 24 * 60 * 60;
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct SleepToolInput {
     duration_ms: u64,
 }

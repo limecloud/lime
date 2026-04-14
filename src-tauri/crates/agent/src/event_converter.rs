@@ -30,11 +30,11 @@ use crate::tool_io_offload::{maybe_offload_tool_arguments, maybe_offload_tool_re
 const JSON_RECURSION_LIMIT: usize = 50;
 const JSON_TRAVERSAL_NODE_LIMIT: usize = 4_096;
 const TOOL_RESULT_MAX_TEXT_PARTS: usize = 256;
-const TOOL_RESULT_MAX_OUTPUT_CHARS: usize = 16_000;
+const TOOL_RESULT_MAX_OUTPUT_CHARS: usize = 4_000;
 const TOOL_RESULT_MAX_IMAGES: usize = 12;
 const TOOL_RESULT_TRUNCATED_NOTICE: &str = "\n\n[event_converter] 工具输出已截断";
 const TOOL_RESULT_DIAG_WARN_JSON_BYTES: usize = 64 * 1024;
-const TOOL_RESULT_DIAG_WARN_OUTPUT_CHARS: usize = 8_000;
+const TOOL_RESULT_DIAG_WARN_OUTPUT_CHARS: usize = 4_000;
 const TOOL_RESULT_DIAG_WARN_IMAGE_COUNT: usize = 4;
 const ASK_USER_QUESTIONS_SCHEMA_KEY: &str = "x-lime-ask-user-questions";
 

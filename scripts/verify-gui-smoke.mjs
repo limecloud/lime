@@ -16,7 +16,7 @@ const LIME_DISABLE_SINGLE_INSTANCE = "LIME_DISABLE_SINGLE_INSTANCE";
 const LIME_WEB_BRIDGE_REUSE_EXISTING_ONLY =
   "LIME_WEB_BRIDGE_REUSE_EXISTING_ONLY";
 const LIME_WEB_BRIDGE_URL = "LIME_WEB_BRIDGE_URL";
-const ROOT_MARKERS = ['<title>Lime</title>', '<div id="root"></div>'];
+const ROOT_MARKERS = ["<title>Lime</title>", '<div id="root"></div>'];
 const SHARED_TAURI_TARGET_DIR = path.join(rootDir, "src-tauri", "target");
 const ISOLATED_GUI_SMOKE_TARGET_DIR = path.join(
   os.tmpdir(),
@@ -580,7 +580,14 @@ function listListeningCommandsForPort(port) {
     return [];
   }
 
-  const pids = [...new Set(pidOutput.split("\n").map((item) => item.trim()).filter(Boolean))];
+  const pids = [
+    ...new Set(
+      pidOutput
+        .split("\n")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
   return pids
     .map((pid) => runQuietCommand("ps", ["-p", pid, "-o", "command="]))
     .filter(Boolean);
@@ -618,18 +625,18 @@ function startHeadlessTauri(options, startupMode) {
       cwd: rootDir,
       stdio: "inherit",
       env: {
-      ...process.env,
-      CARGO_TARGET_DIR: options.cargoTargetDir,
-      [LIME_SKIP_STARTUP_WINDOW_REVEAL]: "1",
-      [LIME_DISABLE_SINGLE_INSTANCE]: "1",
-      [LIME_WEB_BRIDGE_URL]: options.appUrl,
-      ...(startupMode.reuseExistingAppShell
-        ? {
-            [LIME_WEB_BRIDGE_REUSE_EXISTING_ONLY]: "1",
-          }
-        : {}),
-    },
-    detached: process.platform !== "win32",
+        ...process.env,
+        CARGO_TARGET_DIR: options.cargoTargetDir,
+        [LIME_SKIP_STARTUP_WINDOW_REVEAL]: "1",
+        [LIME_DISABLE_SINGLE_INSTANCE]: "1",
+        [LIME_WEB_BRIDGE_URL]: options.appUrl,
+        ...(startupMode.reuseExistingAppShell
+          ? {
+              [LIME_WEB_BRIDGE_REUSE_EXISTING_ONLY]: "1",
+            }
+          : {}),
+      },
+      detached: process.platform !== "win32",
     },
   );
 }
@@ -908,7 +915,8 @@ async function resolveStartupMode(options) {
   const guiSmokeProcesses = inspectGuiSmokeTauriProcesses();
   const existingAppShell = await probeAppShell(options.appUrl, 1_500);
   if (existingAppShell.reachable && !existingAppShell.isLimeDevShell) {
-    const statusLabel = `${existingAppShell.status || "unknown"} ${existingAppShell.statusText || ""}`.trim();
+    const statusLabel =
+      `${existingAppShell.status || "unknown"} ${existingAppShell.statusText || ""}`.trim();
     throw new Error(
       `[verify:gui-smoke] ${options.appUrl} 已被其他服务占用，且返回内容不是 Lime 前端壳（${statusLabel}）。请先关闭占用进程后重试。`,
     );
@@ -923,7 +931,9 @@ async function resolveStartupMode(options) {
     );
 
     if (guiSmokeProcesses.active.length > 0) {
-      const pidList = guiSmokeProcesses.active.map((item) => item.pid).join(", ");
+      const pidList = guiSmokeProcesses.active
+        .map((item) => item.pid)
+        .join(", ");
       console.log(
         `[verify:gui-smoke] 检测到已有 GUI smoke headless 进程正在启动（PID: ${pidList}）；本次将直接复用现有链路并等待 DevBridge。`,
       );
@@ -1001,9 +1011,7 @@ async function main() {
   const startupMode = await resolveStartupMode(options);
   const startedByScript = startupMode.shouldStart;
 
-  console.log(
-    `[verify:gui-smoke] Cargo target: ${options.cargoTargetDir}`,
-  );
+  console.log(`[verify:gui-smoke] Cargo target: ${options.cargoTargetDir}`);
 
   const handleSignal = async (signal) => {
     try {
@@ -1084,6 +1092,13 @@ async function main() {
       npmCommand,
       ["run", "smoke:agent-service-skill-entry"],
       "smoke:agent-service-skill-entry",
+      options.timeoutMs + 30_000,
+    );
+
+    runCommand(
+      npmCommand,
+      ["run", "smoke:agent-runtime-tool-surface"],
+      "smoke:agent-runtime-tool-surface",
       options.timeoutMs + 30_000,
     );
 

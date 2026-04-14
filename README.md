@@ -178,8 +178,8 @@ npm run tauri:dev
 npm run tauri build
 ```
 
-说明：开发脚本统一使用 `CARGO_TARGET_DIR=target`（在 `src-tauri/` 下），避免生成分散的 `target_*` 目录。
-请务必在仓库根目录执行上述命令；若在 `src-tauri/` 子目录执行，会误生成 `src-tauri/src-tauri/target`。
+说明：开发脚本默认使用仓库根绝对路径下的 `src-tauri/target` 作为 `CARGO_TARGET_DIR`，避免生成分散的 `target_*` 目录或误写到 `src-tauri/src-tauri/target`；如需并行跑 GUI 续测和 Rust 编译，也可以临时覆盖，例如 `CARGO_TARGET_DIR=/tmp/lime-headless-target npm run tauri:dev:headless`。
+请务必在仓库根目录执行上述命令；若在 `src-tauri/` 子目录直接运行 Tauri 命令，容易误生成额外的 `target` 目录。
 
 ---
 
