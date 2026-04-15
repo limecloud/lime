@@ -31,7 +31,72 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  prepare_release:
+    name: Prepare GitHub release
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.source_ref || github.ref }}
+
+      - name: Ensure GitHub release exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          TARGET_REF="${{ github.event.inputs.source_ref || github.sha }}"
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+
+          if [[ "$TAG" == *-* ]]; then
+            IS_PRERELEASE="true"
+          else
+            IS_PRERELEASE="false"
+          fi
+
+          if [ -f RELEASE_NOTES.md ]; then
+            cp RELEASE_NOTES.md "$NOTES_FILE"
+          else
+            PREV_TAG="$(git tag --sort=-v:refname | grep -v "^${TAG}$" | head -n 1)"
+            if [ -z "$PREV_TAG" ]; then
+              CHANGELOG="$(git log --pretty=format:"- %s (%h)" "${TAG}" 2>/dev/null || git log --pretty=format:"- %s (%h)")"
+            else
+              CHANGELOG="$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..${TAG}" 2>/dev/null || git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD")"
+            fi
+
+            {
+              echo "## Lime ${TAG}"
+              echo
+              echo "### Changes"
+              echo "${CHANGELOG}"
+            } > "$NOTES_FILE"
+          fi
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists"
+            exit 0
+          fi
+
+          create_args=(
+            release create "$TAG"
+            --repo "$GITHUB_REPOSITORY"
+            --target "$TARGET_REF"
+            --title "Lime $TAG"
+            --notes-file "$NOTES_FILE"
+          )
+
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            create_args+=(--prerelease)
+          fi
+
+          gh "${create_args[@]}" || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
+
   build:
+    needs: prepare_release
     strategy:
       fail-fast: false
       matrix:
@@ -178,38 +243,6 @@ jobs:
             } >> "$GITHUB_ENV"
           fi
 
-      - name: Ensure GitHub release exists
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${{ github.event.inputs.version || github.ref_name }}"
-          TARGET_REF="${{ github.event.inputs.source_ref || github.sha }}"
-          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
-          IS_PRERELEASE="${{ steps.release_meta.outputs.is_prerelease }}"
-
-          printf '%s\n' "$RELEASE_BODY" > "$NOTES_FILE"
-
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $TAG already exists"
-            exit 0
-          fi
-
-          create_args=(
-            release create "$TAG"
-            --repo "$GITHUB_REPOSITORY"
-            --target "$TARGET_REF"
-            --title "Lime $TAG"
-            --notes-file "$NOTES_FILE"
-          )
-
-          if [ "$IS_PRERELEASE" = "true" ]; then
-            create_args+=(--prerelease)
-          fi
-
-          gh "${create_args[@]}" || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null
-
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
@@ -338,8 +371,8 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
-      - name: Build Tauri app (Windows offline)
-        if: matrix.platform == 'windows-2022'
+      - name: Build Tauri app (Windows offline, direct release upload)
+        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -364,8 +397,86 @@ jobs:
           # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
           args: --target ${{ matrix.target }} --config tauri.windows.conf.json
 
-      - name: Build Tauri app (Windows online)
-        if: matrix.platform == 'windows-2022'
+      - name: Build Tauri app (Windows offline, stage only)
+        id: build_windows_offline_stage
+        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'false'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          # 禁用 LTO 加速编译（正式发布可改为 thin）
+          CARGO_PROFILE_RELEASE_LTO: "off"
+          # 增加并行编译单元
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 32
+          CARGO_INCREMENTAL: 0
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache
+        with:
+          tauriScript: npx tauri
+          projectPath: src-tauri
+          # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
+          args: --target ${{ matrix.target }} --config tauri.windows.conf.json
+
+      - name: Stage Windows offline release asset
+        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'false'
+        shell: bash
+        env:
+          ARTIFACT_PATHS_JSON: ${{ steps.build_windows_offline_stage.outputs.artifactPaths }}
+          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+          TARGET_TRIPLE: ${{ matrix.target }}
+          STAGING_DIR: release-assets/${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const raw = (process.env.ARTIFACT_PATHS_JSON || '').trim();
+          if (!raw) {
+            throw new Error('Windows offline artifactPaths 输出为空');
+          }
+
+          let artifacts;
+          try {
+            artifacts = JSON.parse(raw);
+          } catch (error) {
+            throw new Error(`Windows offline artifactPaths 不是合法 JSON: ${raw}\n${error}`);
+          }
+
+          if (!Array.isArray(artifacts) || artifacts.length === 0) {
+            throw new Error(`Windows offline artifactPaths 为空数组: ${raw}`);
+          }
+
+          const installerPath = artifacts.find(
+            (item) => typeof item === 'string' && item.toLowerCase().endsWith('.exe')
+          );
+          if (!installerPath) {
+            throw new Error(`Windows offline 构建未找到 .exe 安装包: ${raw}`);
+          }
+
+          const version = (process.env.RELEASE_TAG || '').replace(/^v/, '');
+          if (!version) {
+            throw new Error('RELEASE_TAG 为空，无法生成 Windows release 文件名');
+          }
+
+          const targetTriple = process.env.TARGET_TRIPLE || '';
+          const archLabel =
+            targetTriple.startsWith('x86_64-') ? 'x64' :
+            targetTriple.startsWith('aarch64-') ? 'aarch64' :
+            targetTriple.replace(/[^A-Za-z0-9._-]+/g, '-');
+
+          const stagingDir = process.env.STAGING_DIR;
+          fs.mkdirSync(stagingDir, { recursive: true });
+
+          const stagedPath = path.join(
+            stagingDir,
+            `Lime_${version}_${archLabel}-offline-setup.exe`
+          );
+
+          fs.copyFileSync(installerPath, stagedPath);
+          console.log(`Staged Windows offline installer: ${installerPath} -> ${stagedPath}`);
+          NODE
+
+      - name: Build Tauri app (Windows online, direct release upload)
+        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -389,6 +500,84 @@ jobs:
           assetNamePattern: "[name]_[version]_[arch]-online[setup][ext]"
           # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
           args: --target ${{ matrix.target }} --config tauri.windows.online.conf.json
+
+      - name: Build Tauri app (Windows online, stage only)
+        id: build_windows_online_stage
+        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'false'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          # 禁用 LTO 加速编译（正式发布可改为 thin）
+          CARGO_PROFILE_RELEASE_LTO: "off"
+          # 增加并行编译单元
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 32
+          CARGO_INCREMENTAL: 0
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: sccache
+        with:
+          tauriScript: npx tauri
+          projectPath: src-tauri
+          # 默认不启用 voice feature（包含 whisper-rs，编译很慢）
+          args: --target ${{ matrix.target }} --config tauri.windows.online.conf.json
+
+      - name: Stage Windows online release asset
+        if: matrix.platform == 'windows-2022' && steps.updater_mode.outputs.enabled == 'false'
+        shell: bash
+        env:
+          ARTIFACT_PATHS_JSON: ${{ steps.build_windows_online_stage.outputs.artifactPaths }}
+          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+          TARGET_TRIPLE: ${{ matrix.target }}
+          STAGING_DIR: release-assets/${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const raw = (process.env.ARTIFACT_PATHS_JSON || '').trim();
+          if (!raw) {
+            throw new Error('Windows online artifactPaths 输出为空');
+          }
+
+          let artifacts;
+          try {
+            artifacts = JSON.parse(raw);
+          } catch (error) {
+            throw new Error(`Windows online artifactPaths 不是合法 JSON: ${raw}\n${error}`);
+          }
+
+          if (!Array.isArray(artifacts) || artifacts.length === 0) {
+            throw new Error(`Windows online artifactPaths 为空数组: ${raw}`);
+          }
+
+          const installerPath = artifacts.find(
+            (item) => typeof item === 'string' && item.toLowerCase().endsWith('.exe')
+          );
+          if (!installerPath) {
+            throw new Error(`Windows online 构建未找到 .exe 安装包: ${raw}`);
+          }
+
+          const version = (process.env.RELEASE_TAG || '').replace(/^v/, '');
+          if (!version) {
+            throw new Error('RELEASE_TAG 为空，无法生成 Windows release 文件名');
+          }
+
+          const targetTriple = process.env.TARGET_TRIPLE || '';
+          const archLabel =
+            targetTriple.startsWith('x86_64-') ? 'x64' :
+            targetTriple.startsWith('aarch64-') ? 'aarch64' :
+            targetTriple.replace(/[^A-Za-z0-9._-]+/g, '-');
+
+          const stagingDir = process.env.STAGING_DIR;
+          fs.mkdirSync(stagingDir, { recursive: true });
+
+          const stagedPath = path.join(
+            stagingDir,
+            `Lime_${version}_${archLabel}-online-setup.exe`
+          );
+
+          fs.copyFileSync(installerPath, stagedPath);
+          console.log(`Staged Windows online installer: ${installerPath} -> ${stagedPath}`);
+          NODE
 
       - name: Build macOS app (attempt 1, verbose)
         id: build_macos_primary
@@ -563,15 +752,13 @@ jobs:
             echo "Bundle dir missing: $BUNDLE_DIR"
           fi
 
-      - name: Upload macOS release assets
+      - name: Stage macOS release assets
         if: startsWith(matrix.platform, 'macos') && (steps.build_macos_primary.outcome == 'success' || steps.build_macos_retry.outcome == 'success' || steps.build_macos_fallback.outcome == 'success')
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${{ github.event.inputs.version || github.ref_name }}"
           BUNDLE_DIR="${{ steps.resolve_macos_bundle_dir.outputs.bundle_dir }}"
+          STAGING_DIR="release-assets/${{ matrix.target }}"
 
           if [ -z "$BUNDLE_DIR" ] || [ ! -d "$BUNDLE_DIR" ]; then
             echo "Expected bundle dir missing: $BUNDLE_DIR" >&2
@@ -594,12 +781,15 @@ jobs:
             exit 1
           fi
 
-          printf 'Uploading macOS assets:\n'
+          mkdir -p "$STAGING_DIR"
+          printf 'Staging macOS assets:\n'
           printf ' - %s\n' "${assets[@]}"
+          for asset in "${assets[@]}"; do
+            cp "$asset" "$STAGING_DIR/$(basename "$asset")"
+          done
 
-          gh release upload "$TAG" "${assets[@]}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber
+          printf 'Staged macOS assets under %s:\n' "$STAGING_DIR"
+          find "$STAGING_DIR" -maxdepth 1 -type f | sort
 
       - name: Build lime-cli release binary
         if: matrix.build_cli && (matrix.platform == 'windows-2022' || matrix.platform == 'ubuntu-22.04' || (startsWith(matrix.platform, 'macos') && (steps.build_macos_primary.outcome == 'success' || steps.build_macos_retry.outcome == 'success' || steps.build_macos_fallback.outcome == 'success')))
@@ -636,24 +826,39 @@ jobs:
           asset_path="$(node -e 'const data = JSON.parse(process.argv[1]); process.stdout.write(data.archivePath);' "$metadata")"
           echo "asset_path=$asset_path" >> "$GITHUB_OUTPUT"
 
-      - name: Upload lime-cli release asset
+      - name: Stage lime-cli release asset
         if: matrix.build_cli && (matrix.platform == 'windows-2022' || matrix.platform == 'ubuntu-22.04' || (startsWith(matrix.platform, 'macos') && (steps.build_macos_primary.outcome == 'success' || steps.build_macos_retry.outcome == 'success' || steps.build_macos_fallback.outcome == 'success')))
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euxo pipefail
-          TAG="${{ github.event.inputs.version || github.ref_name }}"
           ASSET_PATH="${{ steps.package_lime_cli.outputs.asset_path }}"
+          STAGING_DIR="release-assets/${{ matrix.target }}"
 
           if [ -z "$ASSET_PATH" ] || [ ! -f "$ASSET_PATH" ]; then
             echo "lime-cli asset missing: $ASSET_PATH" >&2
             exit 1
           fi
 
-          gh release upload "$TAG" "$ASSET_PATH" \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const src = process.argv[1];
+            const destDir = process.argv[2];
+            fs.mkdirSync(destDir, { recursive: true });
+            const dest = path.join(destDir, path.basename(src));
+            fs.copyFileSync(src, dest);
+            process.stdout.write(dest);
+          " "$ASSET_PATH" "$STAGING_DIR"
+          echo
+
+      - name: Upload staged release assets artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.target }}
+          path: release-assets
+          if-no-files-found: ignore
+          retention-days: 7
 
       # 注意：移除了 Post-build cleanup 步骤
       # 之前的清理会删除 deps/build/incremental 目录，导致缓存无法复用
@@ -667,3 +872,66 @@ jobs:
         if: startsWith(matrix.platform, 'macos') && always()
         run: |
           security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
+
+  publish_release_assets:
+    name: Publish staged release assets
+    needs: build
+    if: needs.build.result == 'success'
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Download staged release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Inspect staged release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -d "release-assets" ]; then
+            echo "release-assets directory is missing" >&2
+            exit 1
+          fi
+
+          assets=()
+          while IFS= read -r asset; do
+            [ -n "$asset" ] || continue
+            assets+=("$asset")
+          done < <(find "release-assets" -type f | sort)
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No staged release assets found" >&2
+            exit 1
+          fi
+
+          printf 'Downloaded staged release assets:\n'
+          printf ' - %s\n' "${assets[@]}"
+
+      - name: Upload staged release assets to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.version || github.ref_name }}"
+
+          assets=()
+          while IFS= read -r asset; do
+            [ -n "$asset" ] || continue
+            assets+=("$asset")
+          done < <(find "release-assets" -type f | sort)
+
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No staged release assets found" >&2
+            exit 1
+          fi
+
+          printf 'Uploading staged release assets:\n'
+          printf ' - %s\n' "${assets[@]}"
+
+          gh release upload "$TAG" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
