@@ -181,6 +181,11 @@ pub(super) async fn try_handle(
                 .get("topic")
                 .and_then(|value| value.as_str())
                 .map(ToString::to_string);
+            let memory_type = args
+                .get("memoryType")
+                .cloned()
+                .map(serde_json::from_value)
+                .transpose()?;
             let global_config = app_handle.state::<crate::config::GlobalConfigManagerState>();
             serde_json::to_value(
                 crate::commands::memory_management_cmd::memory_update_auto_note(
@@ -188,9 +193,46 @@ pub(super) async fn try_handle(
                     working_dir,
                     note,
                     topic,
+                    memory_type,
                 )
                 .await
                 .map_err(|e| format!("更新自动记忆失败: {e}"))?,
+            )?
+        }
+        "memory_cleanup_memdir" => {
+            let app_handle = require_app_handle(state)?;
+            let args = args_or_default(args);
+            let working_dir = args
+                .get("workingDir")
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let global_config = app_handle.state::<crate::config::GlobalConfigManagerState>();
+            serde_json::to_value(
+                crate::commands::memory_management_cmd::memory_cleanup_memdir(
+                    global_config,
+                    working_dir,
+                )
+                .await
+                .map_err(|e| format!("整理 memdir 失败: {e}"))?,
+            )?
+        }
+        "memory_scaffold_memdir" => {
+            let app_handle = require_app_handle(state)?;
+            let args = args_or_default(args);
+            let working_dir = args
+                .get("workingDir")
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let overwrite = args.get("overwrite").and_then(|value| value.as_bool());
+            let global_config = app_handle.state::<crate::config::GlobalConfigManagerState>();
+            serde_json::to_value(
+                crate::commands::memory_management_cmd::memory_scaffold_memdir(
+                    global_config,
+                    working_dir,
+                    overwrite,
+                )
+                .await
+                .map_err(|e| format!("初始化 memdir 失败: {e}"))?,
             )?
         }
         "memory_scaffold_runtime_agents_template" => {

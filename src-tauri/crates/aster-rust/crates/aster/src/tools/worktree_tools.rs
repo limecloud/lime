@@ -1,4 +1,6 @@
-use crate::session::{ExtensionState, SessionManager, WorktreeSessionState};
+use crate::session::{apply_session_update, query_session, ExtensionState, WorktreeSessionState};
+#[cfg(test)]
+use crate::session::{create_managed_session, SessionManager};
 use crate::tools::{
     base::{PermissionCheckResult, Tool},
     context::{ToolContext, ToolResult},
@@ -129,7 +131,7 @@ impl Tool for EnterWorktreeTool {
             ToolError::invalid_params(format!("EnterWorktree 参数无效: {error}"))
         })?;
         let session_id = require_session_id(context)?;
-        let mut session = SessionManager::get_session(&session_id, false)
+        let mut session = query_session(&session_id, false)
             .await
             .map_err(|error| ToolError::execution_failed(format!("读取 session 失败: {error}")))?;
 
@@ -175,14 +177,15 @@ impl Tool for EnterWorktreeTool {
             .to_extension_data(&mut session.extension_data)
             .map_err(|error| ToolError::execution_failed(format!("保存工作树状态失败: {error}")))?;
 
-        SessionManager::update_session(&session_id)
-            .working_dir(worktree_path.clone())
-            .extension_data(session.extension_data)
-            .apply()
-            .await
-            .map_err(|error| {
-                ToolError::execution_failed(format!("更新 session 工作目录失败: {error}"))
-            })?;
+        apply_session_update(&session_id, |update| {
+            update
+                .working_dir(worktree_path.clone())
+                .extension_data(session.extension_data)
+        })
+        .await
+        .map_err(|error| {
+            ToolError::execution_failed(format!("更新 session 工作目录失败: {error}"))
+        })?;
 
         let output = EnterWorktreeOutput {
             worktree_path: worktree_path.display().to_string(),
@@ -249,7 +252,7 @@ impl Tool for ExitWorktreeTool {
             );
         };
 
-        match SessionManager::get_session(&session_id, false).await {
+        match query_session(&session_id, false).await {
             Ok(session) => {
                 if WorktreeSessionState::from_extension_data(&session.extension_data).is_some() {
                     PermissionCheckResult::ask(
@@ -270,7 +273,7 @@ impl Tool for ExitWorktreeTool {
             ToolError::invalid_params(format!("ExitWorktree 参数无效: {error}"))
         })?;
         let session_id = require_session_id(context)?;
-        let mut session = SessionManager::get_session(&session_id, false)
+        let mut session = query_session(&session_id, false)
             .await
             .map_err(|error| ToolError::execution_failed(format!("读取 session 失败: {error}")))?;
 
@@ -342,14 +345,15 @@ impl Tool for ExitWorktreeTool {
 
         match input.action {
             ExitWorktreeAction::Keep => {
-                SessionManager::update_session(&session_id)
-                    .working_dir(PathBuf::from(&original_cwd))
-                    .extension_data(session.extension_data)
-                    .apply()
-                    .await
-                    .map_err(|error| {
-                        ToolError::execution_failed(format!("恢复 session 工作目录失败: {error}"))
-                    })?;
+                apply_session_update(&session_id, |update| {
+                    update
+                        .working_dir(PathBuf::from(&original_cwd))
+                        .extension_data(session.extension_data)
+                })
+                .await
+                .map_err(|error| {
+                    ToolError::execution_failed(format!("恢复 session 工作目录失败: {error}"))
+                })?;
 
                 let output = ExitWorktreeOutput {
                     action: ExitWorktreeAction::Keep,
@@ -388,14 +392,15 @@ impl Tool for ExitWorktreeTool {
                 )
                 .await?;
 
-                SessionManager::update_session(&session_id)
-                    .working_dir(PathBuf::from(&original_cwd))
-                    .extension_data(session.extension_data)
-                    .apply()
-                    .await
-                    .map_err(|error| {
-                        ToolError::execution_failed(format!("恢复 session 工作目录失败: {error}"))
-                    })?;
+                apply_session_update(&session_id, |update| {
+                    update
+                        .working_dir(PathBuf::from(&original_cwd))
+                        .extension_data(session.extension_data)
+                })
+                .await
+                .map_err(|error| {
+                    ToolError::execution_failed(format!("恢复 session 工作目录失败: {error}"))
+                })?;
 
                 let discard_note = build_discard_note(summary);
                 let output = ExitWorktreeOutput {
@@ -762,7 +767,7 @@ mod tests {
 
         assert!(result.success);
 
-        let updated = SessionManager::get_session(&session.id, false).await?;
+        let updated = query_session(&session.id, false).await?;
         let state = WorktreeSessionState::from_extension_data(&updated.extension_data)
             .expect("worktree state should exist");
 
@@ -791,7 +796,7 @@ mod tests {
             .execute(json!({ "name": "keep/demo" }), &context)
             .await?;
 
-        let after_enter = SessionManager::get_session(&session.id, false).await?;
+        let after_enter = query_session(&session.id, false).await?;
         let state = WorktreeSessionState::from_extension_data(&after_enter.extension_data)
             .expect("worktree state should exist");
 
@@ -805,7 +810,7 @@ mod tests {
             git_local_branch_exists(Path::new(&state.git_root), "aster/worktree/keep+demo").await?
         );
 
-        let restored = SessionManager::get_session(&session.id, false).await?;
+        let restored = query_session(&session.id, false).await?;
         assert_eq!(restored.working_dir, repo.path());
         assert!(WorktreeSessionState::from_extension_data(&restored.extension_data).is_none());
 
@@ -824,7 +829,7 @@ mod tests {
             .execute(json!({ "name": "dirty/demo" }), &context)
             .await?;
 
-        let updated = SessionManager::get_session(&session.id, false).await?;
+        let updated = query_session(&session.id, false).await?;
         let state = WorktreeSessionState::from_extension_data(&updated.extension_data)
             .expect("worktree state should exist");
         let dirty_file = Path::new(&state.worktree_path).join("dirty.txt");
@@ -838,7 +843,7 @@ mod tests {
         assert!(error.to_string().contains("discard_changes: true"));
         assert!(Path::new(&state.worktree_path).exists());
 
-        let after_error = SessionManager::get_session(&session.id, false).await?;
+        let after_error = query_session(&session.id, false).await?;
         assert!(WorktreeSessionState::from_extension_data(&after_error.extension_data).is_some());
 
         Ok(())
@@ -856,7 +861,7 @@ mod tests {
             .execute(json!({ "name": "remove/demo" }), &context)
             .await?;
 
-        let updated = SessionManager::get_session(&session.id, false).await?;
+        let updated = query_session(&session.id, false).await?;
         let state = WorktreeSessionState::from_extension_data(&updated.extension_data)
             .expect("worktree state should exist");
 
@@ -874,7 +879,7 @@ mod tests {
                 .await?
         );
 
-        let restored = SessionManager::get_session(&session.id, false).await?;
+        let restored = query_session(&session.id, false).await?;
         assert_eq!(restored.working_dir, repo.path());
         assert!(WorktreeSessionState::from_extension_data(&restored.extension_data).is_none());
 
@@ -915,7 +920,7 @@ mod tests {
     }
 
     async fn create_hidden_session(working_dir: &Path) -> anyhow::Result<crate::session::Session> {
-        SessionManager::create_session(
+        create_managed_session(
             working_dir.to_path_buf(),
             format!("worktree-test-{}", Uuid::new_v4()),
             SessionType::Hidden,

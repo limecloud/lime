@@ -1,7 +1,8 @@
 use crate::session::{
-    require_shared_session_runtime_queue_service, resolve_team_context, save_team_membership,
-    save_team_state, ExtensionState, SessionManager, SessionRuntimeQueueService, SessionType,
-    TeamMember, TeamMembershipState, TeamSessionState, TEAM_LEAD_NAME,
+    apply_session_update, query_session, require_shared_session_runtime_queue_service,
+    resolve_team_context, save_team_membership, save_team_state, ExtensionState, SessionManager,
+    SessionRuntimeQueueService, SessionType, TeamMember, TeamMembershipState, TeamSessionState,
+    TEAM_LEAD_NAME,
 };
 use crate::tools::{
     base::Tool,
@@ -216,7 +217,7 @@ impl Tool for TeamCreateTool {
             .map_err(|error| ToolError::invalid_params(format!("TeamCreate 参数无效: {error}")))?;
         let session_id = require_session_id(context)?;
         let team_name = normalize_required_text(&input.team_name, "team_name")?;
-        let mut session = SessionManager::get_session(&session_id, false)
+        let mut session = query_session(&session_id, false)
             .await
             .map_err(|error| ToolError::execution_failed(format!("读取 session 失败: {error}")))?;
 
@@ -240,11 +241,11 @@ impl Tool for TeamCreateTool {
         team_state
             .to_extension_data(&mut session.extension_data)
             .map_err(|error| ToolError::execution_failed(format!("保存 team 状态失败: {error}")))?;
-        SessionManager::update_session(&session.id)
-            .extension_data(session.extension_data)
-            .apply()
-            .await
-            .map_err(|error| ToolError::execution_failed(format!("更新 session 失败: {error}")))?;
+        apply_session_update(&session.id, |update| {
+            update.extension_data(session.extension_data)
+        })
+        .await
+        .map_err(|error| ToolError::execution_failed(format!("更新 session 失败: {error}")))?;
 
         let output = TeamCreateOutput {
             team_name: team_name.clone(),
@@ -532,7 +533,7 @@ async fn resolve_team_member_state(
     team_state: &TeamSessionState,
     runtime_queue_service: Option<&SessionRuntimeQueueService>,
 ) -> Result<Option<ResolvedTeamMemberState>, ToolError> {
-    let session = match SessionManager::get_session(&member.agent_id, false).await {
+    let session = match query_session(&member.agent_id, false).await {
         Ok(session) => session,
         Err(_) => return Ok(None),
     };
@@ -594,7 +595,7 @@ async fn resolve_team_member_state(
 mod tests {
     use super::*;
     use crate::session::{
-        initialize_shared_thread_runtime_store, require_shared_session_runtime_queue_service,
+        initialize_session_runtime_store, require_shared_session_runtime_queue_service,
         save_team_membership, InMemoryThreadRuntimeStore, QueuedTurnRuntime, SessionType,
         TeamMember, TEAM_LEAD_NAME,
     };
@@ -653,7 +654,7 @@ mod tests {
             "/teams/{}/config.json",
             sanitize_team_name(&team_name)
         )));
-        let updated = SessionManager::get_session(&session.id, false).await?;
+        let updated = query_session(&session.id, false).await?;
         let team_state = TeamSessionState::from_extension_data(&updated.extension_data)
             .expect("team state should exist");
         assert_eq!(team_state.team_name, team_name);
@@ -725,7 +726,7 @@ mod tests {
             )
             .await?;
 
-        let updated = SessionManager::get_session(&session.id, false).await?;
+        let updated = query_session(&session.id, false).await?;
         let team_state = TeamSessionState::from_extension_data(&updated.extension_data)
             .expect("team state should exist");
         assert_eq!(
@@ -738,7 +739,7 @@ mod tests {
     #[tokio::test]
     async fn team_delete_refuses_when_members_remain() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
         let lead = SessionManager::create_session(
             temp_dir.path().to_path_buf(),
             format!("team-delete-{}", Uuid::new_v4()),
@@ -801,7 +802,7 @@ mod tests {
     async fn team_delete_succeeds_when_members_are_idle_and_clears_membership() -> anyhow::Result<()>
     {
         let temp_dir = tempdir()?;
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
         let lead = SessionManager::create_session(
             temp_dir.path().to_path_buf(),
             format!("team-delete-idle-{}", Uuid::new_v4()),
@@ -850,10 +851,10 @@ mod tests {
         assert!(result.success);
         assert_eq!(result.metadata["success"], json!(true));
 
-        let updated_lead = SessionManager::get_session(&lead.id, false).await?;
+        let updated_lead = query_session(&lead.id, false).await?;
         assert!(TeamSessionState::from_extension_data(&updated_lead.extension_data).is_none());
 
-        let updated_child = SessionManager::get_session(&child.id, false).await?;
+        let updated_child = query_session(&child.id, false).await?;
         assert!(TeamMembershipState::from_extension_data(&updated_child.extension_data).is_none());
         Ok(())
     }

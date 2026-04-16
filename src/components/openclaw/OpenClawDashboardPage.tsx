@@ -292,5 +292,3 @@ export function OpenClawDashboardPage({
     </div>
   );
 }
-
-export default OpenClawDashboardPage;

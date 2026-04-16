@@ -206,6 +206,7 @@ export const ProviderConfigForm = forwardRef<
         registryId: provider.id,
         fallbackRegistryId: resolveRegistryProviderId(provider.id, {
           providerType: formState.providerType,
+          apiHost: formState.apiHost,
         }),
         type: formState.providerType,
         providerId: provider.id,
@@ -287,6 +288,19 @@ export const ProviderConfigForm = forwardRef<
       localCandidateModels,
       localModelsLoading,
     ]);
+    const hasSelectedModelInLiveDirectory = useMemo(() => {
+      if (!requiresLiveModelTruth || localCandidateModels.length === 0) {
+        return false;
+      }
+
+      const liveDirectoryModelIds = new Set(
+        localCandidateModels.map((model) => model.id.toLowerCase()),
+      );
+
+      return selectedModels.some((modelId) =>
+        liveDirectoryModelIds.has(modelId.toLowerCase()),
+      );
+    }, [localCandidateModels, requiresLiveModelTruth, selectedModels]);
     const modelTruthNotice = useMemo(() => {
       if (!requiresLiveModelTruth) {
         return null;
@@ -524,6 +538,28 @@ export const ProviderConfigForm = forwardRef<
     }, [
       applyCustomModels,
       recommendedLatestModel,
+      selectedModels.length,
+      shouldLockModelEditor,
+    ]);
+
+    useEffect(() => {
+      if (
+        !requiresLiveModelTruth ||
+        selectedModels.length === 0 ||
+        !recommendedLatestModel ||
+        shouldLockModelEditor ||
+        hasSelectedModelInLiveDirectory
+      ) {
+        return;
+      }
+
+      // 修正历史兜底写入的错误模型名，避免继续拿错厂商模型做默认值。
+      applyCustomModels([recommendedLatestModel.id]);
+    }, [
+      applyCustomModels,
+      hasSelectedModelInLiveDirectory,
+      recommendedLatestModel,
+      requiresLiveModelTruth,
       selectedModels.length,
       shouldLockModelEditor,
     ]);
@@ -806,8 +842,8 @@ export const ProviderConfigForm = forwardRef<
           >
             <p className="font-semibold">Prompt Cache 提示</p>
             <p className="mt-1 leading-6">
-              Anthropic 兼容只表示请求格式兼容，不等于上游已声明自动
-              Prompt Cache。
+              Anthropic 兼容只表示请求格式兼容，不等于上游已声明自动 Prompt
+              Cache。
             </p>
             <p className="mt-1 leading-6">{promptCacheSupportNotice.detail}</p>
           </div>

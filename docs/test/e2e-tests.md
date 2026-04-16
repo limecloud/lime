@@ -13,7 +13,8 @@
 - `npm run smoke:workspace-ready`：当前自包含 smoke，覆盖 DevBridge 就绪与默认 workspace 基础链路
 - `npm run smoke:browser-runtime`：当前自包含 smoke，覆盖 browser runtime 的启动、状态读取、最小动作与审计关联键
 - `npm run smoke:site-adapters`：当前自包含 smoke，覆盖站点适配器目录状态、列表、推荐与检索主链
-- `npm run smoke:agent-runtime-tool-surface`：当前自包含 smoke，覆盖 runtime inventory 到主界面提示、Runtime strip 与 HarnessStatusPanel 的 team/task current surface 透传
+- `npm run smoke:agent-runtime-tool-surface`：当前自包含 smoke，覆盖 runtime inventory 到应用层透传、Runtime strip 与 HarnessStatusPanel 的 team/task current surface 派生
+- `npm run smoke:agent-runtime-tool-surface-page`：当前真实页面 smoke，覆盖 onboarding 跳过、最小发送、工作台 `Runtime 能力摘要`，并确认旧页级黄提示不再回到主路径
 
 ### supplement
 
@@ -82,7 +83,7 @@ npm run bridge:health -- --timeout-ms 120000
 1. 首页可加载，主导航可见
 2. 社媒内容工作流可进入
 3. 页面交互后控制台不新增关键 error
-4. runtime inventory、Runtime strip、空态提示与 HarnessStatusPanel 对 team/task current tools 的展示保持一致
+4. runtime inventory、Runtime strip、工作台 `Runtime 能力摘要` 与应用层透传对 team/task current tools 的展示保持一致，且旧页级黄提示不回流
 
 详细点击路径、控制台检查要求、交接格式，以 `docs/aiprompts/playwright-e2e.md` 为准。
 
@@ -96,7 +97,8 @@ npm run bridge:health -- --timeout-ms 120000
 | Workspace 自包含 smoke | `npm run smoke:workspace-ready`                | current    | 验证 DevBridge、默认 workspace、路径回查链路    |
 | Browser Runtime smoke  | `npm run smoke:browser-runtime`                | current    | 验证 browser runtime 最短主链与审计关联键       |
 | Site Adapter smoke     | `npm run smoke:site-adapters`                  | current    | 验证站点适配器目录、推荐与检索最短主链          |
-| Runtime Tool Surface smoke | `npm run smoke:agent-runtime-tool-surface` | current    | 验证 runtime inventory 到 EmptyState / Runtime strip / HarnessStatusPanel 的 current surface 透传 |
+| Runtime Tool Surface smoke | `npm run smoke:agent-runtime-tool-surface` | current    | 验证 runtime inventory 到应用层透传 / Runtime strip / HarnessStatusPanel 的 current surface 派生 |
+| Runtime Tool Surface page smoke | `npm run smoke:agent-runtime-tool-surface-page` | current    | 验证真实页面最小发送后工作台 `Runtime 能力摘要` 的缺口诊断，并确认旧页级黄提示已删除 |
 | 校验跨层命令契约       | `npm run test:contracts`                       | current    | 检查前端命令、Rust 注册、catalog、mock 集合漂移 |
 | 浏览器续测细则         | `docs/aiprompts/playwright-e2e.md`             | current    | Playwright MCP 唯一详细事实源                   |
 | 专项 bridge 排障       | `npm run bridge:e2e`                           | supplement | 适合排障，不是统一门禁                          |

@@ -26,6 +26,14 @@ pub(in crate::commands::aster_agent_cmd) struct ChatRunObservation {
         Option<SocialRunArtifactDescriptor>,
     pub(in crate::commands::aster_agent_cmd) provider_continuation:
         Option<ProviderContinuationState>,
+    pub(in crate::commands::aster_agent_cmd) browser_runtime_ref: Option<ObservedBrowserRuntimeRef>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(in crate::commands::aster_agent_cmd) struct ObservedBrowserRuntimeRef {
+    pub(in crate::commands::aster_agent_cmd) profile_key: Option<String>,
+    pub(in crate::commands::aster_agent_cmd) session_id: Option<String>,
+    pub(in crate::commands::aster_agent_cmd) target_id: Option<String>,
 }
 
 impl ChatRunObservation {
@@ -57,6 +65,11 @@ impl ChatRunObservation {
                         provider_continuation_capability,
                     ) {
                         self.record_provider_continuation(provider_continuation);
+                    }
+                    if let Some(browser_runtime_ref) =
+                        extract_browser_runtime_ref_from_tool_result_metadata(metadata)
+                    {
+                        self.record_browser_runtime_ref(browser_runtime_ref);
                     }
                     for path in
                         extract_artifact_paths_from_tool_result_metadata(metadata, workspace_root)
@@ -92,6 +105,22 @@ impl ChatRunObservation {
             return;
         }
         self.provider_continuation = Some(provider_continuation);
+    }
+
+    fn record_browser_runtime_ref(&mut self, browser_runtime_ref: ObservedBrowserRuntimeRef) {
+        let current = self.browser_runtime_ref.clone().unwrap_or_default();
+        let merged = ObservedBrowserRuntimeRef {
+            profile_key: browser_runtime_ref.profile_key.or(current.profile_key),
+            session_id: browser_runtime_ref.session_id.or(current.session_id),
+            target_id: browser_runtime_ref.target_id.or(current.target_id),
+        };
+
+        if merged.profile_key.is_none() && merged.session_id.is_none() && merged.target_id.is_none()
+        {
+            return;
+        }
+
+        self.browser_runtime_ref = Some(merged);
     }
 
     pub(in crate::commands::aster_agent_cmd) fn record_artifact_path(
@@ -253,6 +282,75 @@ fn extract_artifact_paths_from_tool_result_metadata(
     }
 
     paths
+}
+
+fn extract_nested_value<'a>(
+    value: &'a serde_json::Value,
+    path: &[&str],
+) -> Option<&'a serde_json::Value> {
+    let mut current = value;
+    for segment in path {
+        current = current.get(*segment)?;
+    }
+    Some(current)
+}
+
+fn read_first_string_from_value_objects(
+    candidates: &[Option<&serde_json::Value>],
+    keys: &[&str],
+) -> Option<String> {
+    candidates.iter().find_map(|candidate| {
+        let object = candidate.and_then(serde_json::Value::as_object)?;
+        keys.iter().find_map(|key| {
+            object
+                .get(*key)
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        })
+    })
+}
+
+fn extract_browser_runtime_ref_from_tool_result_metadata(
+    metadata: &HashMap<String, serde_json::Value>,
+) -> Option<ObservedBrowserRuntimeRef> {
+    let candidates = [
+        metadata.get("browser_runtime_ref"),
+        metadata.get("browserRuntimeRef"),
+        metadata.get("browser_session"),
+        metadata.get("browserSession"),
+        metadata.get("session"),
+        metadata.get("result"),
+        metadata
+            .get("result")
+            .and_then(|value| value.get("browser_session")),
+        metadata
+            .get("result")
+            .and_then(|value| value.get("browserSession")),
+        metadata
+            .get("result")
+            .and_then(|value| extract_nested_value(value, &["data", "browser_session"])),
+        metadata
+            .get("result")
+            .and_then(|value| extract_nested_value(value, &["data", "browserSession"])),
+    ];
+
+    let profile_key =
+        read_first_string_from_value_objects(&candidates, &["profile_key", "profileKey"]);
+    let session_id =
+        read_first_string_from_value_objects(&candidates, &["session_id", "sessionId"]);
+    let target_id = read_first_string_from_value_objects(&candidates, &["target_id", "targetId"]);
+
+    if profile_key.is_none() && session_id.is_none() && target_id.is_none() {
+        return None;
+    }
+
+    Some(ObservedBrowserRuntimeRef {
+        profile_key,
+        session_id,
+        target_id,
+    })
 }
 
 fn should_track_social_artifact(request_metadata: Option<&serde_json::Value>, path: &str) -> bool {
@@ -542,6 +640,17 @@ pub(in crate::commands::aster_agent_cmd) fn build_chat_run_finish_metadata(
             &mut metadata,
             "provider_continuation_kind",
             Some(provider_continuation.kind()),
+        );
+    }
+
+    if let Some(browser_runtime_ref) = observation.browser_runtime_ref.as_ref() {
+        metadata.insert(
+            "browser_runtime_ref".to_string(),
+            serde_json::json!({
+                "profile_key": browser_runtime_ref.profile_key,
+                "session_id": browser_runtime_ref.session_id,
+                "target_id": browser_runtime_ref.target_id,
+            }),
         );
     }
 

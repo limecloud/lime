@@ -50,7 +50,7 @@ describe("buildLayerMetrics", () => {
     expect(result.cards.find((card) => card.key === "team")?.available).toBe(true);
   });
 
-  it("仅 Team Memory 层有数据时也应判定为可用", () => {
+  it("仅团队记忆层有数据时也应判定为可用", () => {
     const result = buildLayerMetrics({
       rulesSourceCount: 0,
       workingEntryCount: 0,
@@ -60,7 +60,7 @@ describe("buildLayerMetrics", () => {
     });
 
     expect(result.cards.find((card) => card.key === "team")?.available).toBe(true);
-    expect(result.cards.find((card) => card.key === "team")?.title).toBe("Team Memory");
+    expect(result.cards.find((card) => card.key === "team")?.title).toBe("团队记忆");
     expect(result.cards.find((card) => card.key === "team")?.value).toBe(1);
     expect(result.readyLayers).toBe(1);
   });

@@ -4,6 +4,8 @@ import { buildLiveTaskSnapshot } from "./agentChatShared";
 import type { Message } from "../types";
 import type { Topic } from "./agentChatShared";
 
+const TOPIC_PREVIEW_UPDATE_THROTTLE_MS = 600;
+
 interface UseAgentTopicSnapshotOptions {
   sessionId: string | null;
   hasActiveTopic: boolean;
@@ -43,9 +45,79 @@ export function useAgentTopicSnapshot(options: UseAgentTopicSnapshotOptions) {
     topicsCount,
     updateTopicSnapshot,
   } = options;
-  const lastTopicSnapshotKeyRef = useRef<string | null>(null);
+  const lastCommittedSnapshotKeyRef = useRef<string | null>(null);
+  const lastCommittedStructureKeyRef = useRef<string | null>(null);
+  const pendingPreviewFlushTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const pendingPreviewPayloadRef = useRef<{
+    sessionId: string;
+    snapshot: Partial<
+      Pick<
+        Topic,
+        | "updatedAt"
+        | "messagesCount"
+        | "status"
+        | "statusReason"
+        | "lastPreview"
+        | "hasUnread"
+      >
+    >;
+    snapshotKey: string;
+    structureKey: string;
+  } | null>(null);
+
+  useEffect(
+    () => () => {
+      if (pendingPreviewFlushTimerRef.current) {
+        clearTimeout(pendingPreviewFlushTimerRef.current);
+        pendingPreviewFlushTimerRef.current = null;
+      }
+      pendingPreviewPayloadRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
+    const clearPendingPreviewFlush = () => {
+      if (pendingPreviewFlushTimerRef.current) {
+        clearTimeout(pendingPreviewFlushTimerRef.current);
+        pendingPreviewFlushTimerRef.current = null;
+      }
+      pendingPreviewPayloadRef.current = null;
+    };
+
+    const commitSnapshot = (
+      targetSessionId: string,
+      snapshot: Partial<
+        Pick<
+          Topic,
+          | "updatedAt"
+          | "messagesCount"
+          | "status"
+          | "statusReason"
+          | "lastPreview"
+          | "hasUnread"
+        >
+      >,
+      snapshotKey: string,
+      structureKey: string,
+      reason: "apply" | "flushPreview",
+    ) => {
+      clearPendingPreviewFlush();
+      lastCommittedSnapshotKeyRef.current = snapshotKey;
+      lastCommittedStructureKeyRef.current = structureKey;
+      logAgentDebug("useAgentTopicSnapshot", reason, {
+        activeSessionId: targetSessionId,
+        hasUnread: snapshot.hasUnread,
+        messagesCount: snapshot.messagesCount,
+        status: snapshot.status,
+        statusReason: snapshot.statusReason ?? null,
+        updatedAt: snapshot.updatedAt?.toISOString() ?? null,
+      });
+      updateTopicSnapshot(targetSessionId, snapshot);
+    };
+
     if (!sessionId || !hasActiveTopic) {
       if (sessionId && !hasActiveTopic) {
         logAgentDebug(
@@ -59,7 +131,9 @@ export function useAgentTopicSnapshot(options: UseAgentTopicSnapshotOptions) {
           { level: "warn", throttleMs: 1000 },
         );
       }
-      lastTopicSnapshotKeyRef.current = null;
+      clearPendingPreviewFlush();
+      lastCommittedSnapshotKeyRef.current = null;
+      lastCommittedStructureKeyRef.current = null;
       return;
     }
 
@@ -80,8 +154,16 @@ export function useAgentTopicSnapshot(options: UseAgentTopicSnapshotOptions) {
       lastPreview: snapshot.lastPreview,
       hasUnread: snapshot.hasUnread,
     });
+    const structureKey = JSON.stringify({
+      sessionId,
+      updatedAt: snapshot.updatedAt?.getTime() ?? null,
+      messagesCount: snapshot.messagesCount,
+      status: snapshot.status,
+      statusReason: snapshot.statusReason ?? null,
+      hasUnread: snapshot.hasUnread,
+    });
 
-    if (lastTopicSnapshotKeyRef.current === snapshotKey) {
+    if (lastCommittedSnapshotKeyRef.current === snapshotKey) {
       logAgentDebug(
         "useAgentTopicSnapshot",
         "skipDuplicate",
@@ -94,16 +176,35 @@ export function useAgentTopicSnapshot(options: UseAgentTopicSnapshotOptions) {
       return;
     }
 
-    lastTopicSnapshotKeyRef.current = snapshotKey;
-    logAgentDebug("useAgentTopicSnapshot", "apply", {
-      activeSessionId: sessionId,
-      hasUnread: snapshot.hasUnread,
-      messagesCount: snapshot.messagesCount,
-      status: snapshot.status,
-      statusReason: snapshot.statusReason ?? null,
-      updatedAt: snapshot.updatedAt?.toISOString() ?? null,
-    });
-    updateTopicSnapshot(sessionId, snapshot);
+    const structureChanged =
+      lastCommittedStructureKeyRef.current !== structureKey;
+    if (structureChanged || !isSending) {
+      commitSnapshot(sessionId, snapshot, snapshotKey, structureKey, "apply");
+      return;
+    }
+
+    pendingPreviewPayloadRef.current = {
+      sessionId,
+      snapshot,
+      snapshotKey,
+      structureKey,
+    };
+    if (pendingPreviewFlushTimerRef.current) {
+      clearTimeout(pendingPreviewFlushTimerRef.current);
+    }
+    pendingPreviewFlushTimerRef.current = setTimeout(() => {
+      const payload = pendingPreviewPayloadRef.current;
+      if (!payload) {
+        return;
+      }
+      commitSnapshot(
+        payload.sessionId,
+        payload.snapshot,
+        payload.snapshotKey,
+        payload.structureKey,
+        "flushPreview",
+      );
+    }, TOPIC_PREVIEW_UPDATE_THROTTLE_MS);
   }, [
     hasActiveTopic,
     isSending,

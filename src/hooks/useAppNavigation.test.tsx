@@ -111,4 +111,21 @@ describe("useAppNavigation", () => {
     expect(latestNavigation?.currentPage).toBe("skills");
     expect(latestNavigation?.pageParams).toEqual({});
   });
+
+  it("sceneapps 跳转应保留目录页参数", async () => {
+    await renderProbe();
+
+    await act(async () => {
+      latestNavigation?.handleNavigate("sceneapps", {
+        sceneappId: "story-video-suite",
+        projectId: "project-sceneapps",
+      });
+    });
+
+    expect(latestNavigation?.currentPage).toBe("sceneapps");
+    expect(latestNavigation?.pageParams).toEqual({
+      sceneappId: "story-video-suite",
+      projectId: "project-sceneapps",
+    });
+  });
 });

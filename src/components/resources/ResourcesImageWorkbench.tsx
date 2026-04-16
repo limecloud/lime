@@ -328,5 +328,3 @@ export function ResourcesImageWorkbench({
     </section>
   );
 }
-
-export default ResourcesImageWorkbench;

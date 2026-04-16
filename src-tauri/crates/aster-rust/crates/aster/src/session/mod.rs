@@ -9,8 +9,8 @@
 //!
 //! ### 方式 1: 使用默认 SQLite 存储（向后兼容）
 //! ```ignore
-//! use aster::session::SessionManager;
-//! let session = SessionManager::create_session(dir, name, session_type).await?;
+//! use aster::session::create_managed_session;
+//! let session = create_managed_session(dir, name, session_type).await?;
 //! ```
 //!
 //! ### 方式 2: 注入自定义存储（推荐）
@@ -37,6 +37,7 @@ mod memory_extractor;
 mod memory_pipeline;
 mod memory_repository;
 mod memory_retriever;
+mod query;
 pub mod resume;
 mod runtime_queue;
 mod runtime_store;
@@ -45,15 +46,16 @@ mod statistics;
 mod store;
 mod subagent;
 mod team;
+mod update;
 mod worktree;
 
 // 导出存储抽象
 pub use bootstrap::{
-    initialize_shared_session_runtime_with_root, load_shared_session_runtime_snapshot,
-    require_shared_session_runtime_store,
+    initialize_shared_session_runtime_with_root, load_managed_session_runtime_snapshot,
+    load_shared_session_runtime_snapshot, require_shared_session_runtime_store,
 };
 pub use store::{
-    get_global_session_store, is_global_session_store_set, set_global_session_store,
+    get_global_session_store, install_global_session_store, is_global_session_store_set,
     ChatHistoryMatch, NoopSessionStore, SessionStore, TokenStatsUpdate,
 };
 
@@ -82,6 +84,12 @@ pub use memory::{
     CommitOptions, CommitReport, MemoryCategory, MemoryHealth, MemoryRecord, MemorySearchResult,
     MemoryStats,
 };
+pub use query::{
+    collect_subagent_cascade_session_ids, query_all_subagent_sessions_with_metadata,
+    query_child_subagent_sessions, query_session, query_subagent_cascade_session_ids,
+    query_subagent_parent_session_id, query_subagent_session,
+    query_subagent_status_scope_session_ids,
+};
 pub use resume::{
     build_resume_message, delete_summary, has_summary, list_summaries, load_summary,
     load_summary_data, save_summary, SummaryCacheData,
@@ -91,16 +99,18 @@ pub use runtime_queue::{
     SessionRuntimeQueueService,
 };
 pub use runtime_store::{
-    delete_shared_thread_runtime_session, initialize_default_shared_sqlite_thread_runtime_store,
-    initialize_shared_sqlite_thread_runtime_store, initialize_shared_thread_runtime_store,
-    load_session_runtime_snapshot, require_shared_thread_runtime_store, InMemoryThreadRuntimeStore,
+    delete_session_runtime_state, initialize_default_sqlite_session_runtime_store,
+    initialize_session_runtime_store, initialize_sqlite_session_runtime_store,
+    load_runtime_snapshot_from_store, require_session_runtime_store, InMemoryThreadRuntimeStore,
     ItemRuntime, ItemRuntimePayload, ItemStatus, NoopThreadRuntimeStore, QueuedTurnRuntime,
     SessionExecutionGate, SessionRuntimeSnapshot, SqliteThreadRuntimeStore, ThreadRuntime,
     ThreadRuntimeSnapshot, ThreadRuntimeStore, ThreadStatus, TurnContextOverride,
     TurnOutputSchemaRuntime, TurnOutputSchemaSource, TurnOutputSchemaStrategy, TurnRuntime,
     TurnStatus, RUNTIME_DB_NAME,
 };
-pub use session_manager::{Session, SessionInsights, SessionManager, SessionType};
+pub use session_manager::{
+    Session, SessionInsights, SessionManager, SessionType, SessionUpdateBuilder,
+};
 pub use statistics::{
     calculate_statistics, generate_report, get_all_statistics, SessionStatistics, SessionSummary,
 };
@@ -112,5 +122,9 @@ pub use subagent::{
 pub use team::{
     resolve_team_context, resolve_team_task_list_id, save_team_membership, save_team_state,
     ResolvedTeamContext, TeamMember, TeamMembershipState, TeamSessionState, TEAM_LEAD_NAME,
+};
+pub use update::{
+    apply_session_update, create_managed_session, create_subagent_session, delete_managed_session,
+    persist_session_extension_data, replace_session_conversation,
 };
 pub use worktree::WorktreeSessionState;

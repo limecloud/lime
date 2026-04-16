@@ -109,6 +109,7 @@ npm run smoke:workspace-ready
 npm run smoke:browser-runtime
 npm run smoke:site-adapters
 npm run smoke:agent-runtime-tool-surface
+npm run smoke:agent-runtime-tool-surface-page
 ```
 
 ### 运行 Harness eval 摘要

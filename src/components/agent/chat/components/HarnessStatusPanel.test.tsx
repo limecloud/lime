@@ -1799,6 +1799,22 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("规划状态");
   });
 
+  it("内部路由型 runtimeStatus 不应单独占据工作台主视觉", () => {
+    renderPanel({
+      harnessState: createHarnessState({
+        runtimeStatus: {
+          phase: "routing",
+          title: "直接回答优先",
+          detail: "当前请求无需默认升级为搜索或任务。",
+          checkpoints: ["默认保持直接回答"],
+        },
+      }),
+    });
+
+    expect(document.body.textContent).not.toContain("任务进行中");
+    expect(document.body.textContent).not.toContain("直接回答优先");
+  });
+
   it("存在 activeFileWrites 时应在工作台中展示当前文件写入", () => {
     renderPanel({
       harnessState: createHarnessState({

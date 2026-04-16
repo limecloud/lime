@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
+use lime_core::database::dao::api_key_provider::ApiProviderType;
 use lime_core::database::DbConnection;
 use lime_core::models::anthropic::AnthropicMessagesRequest;
 #[cfg(test)]
@@ -132,6 +133,7 @@ impl LimeLlmProvider {
                 self.call_claude_api(
                     api_key,
                     base_url.as_deref(),
+                    ApiProviderType::AnthropicCompatible,
                     if matches!(
                         credential.effective_prompt_cache_mode(),
                         Some(lime_core::models::ProviderPromptCacheMode::Automatic)
@@ -161,6 +163,7 @@ impl LimeLlmProvider {
                 self.call_claude_api(
                     api_key,
                     base_url.as_deref(),
+                    ApiProviderType::Anthropic,
                     if matches!(
                         credential.effective_prompt_cache_mode(),
                         Some(lime_core::models::ProviderPromptCacheMode::Automatic)
@@ -253,6 +256,7 @@ impl LimeLlmProvider {
         &self,
         api_key: &str,
         base_url: Option<&str>,
+        provider_type: ApiProviderType,
         prompt_cache_mode: PromptCacheMode,
         system_prompt: &str,
         user_message: &str,
@@ -260,9 +264,10 @@ impl LimeLlmProvider {
     ) -> Result<String, SkillError> {
         use lime_core::models::anthropic::AnthropicMessage;
 
-        let claude = ClaudeCustomProvider::with_prompt_cache_mode(
+        let claude = ClaudeCustomProvider::with_provider_type_and_prompt_cache_mode(
             api_key.to_string(),
             base_url.map(|s| s.to_string()),
+            provider_type,
             prompt_cache_mode,
         );
 

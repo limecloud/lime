@@ -24,6 +24,7 @@ import { ProviderSetting } from "./ProviderSetting";
 import { DeleteProviderDialog } from "./DeleteProviderDialog";
 import { ImportExportDialog } from "./ImportExportDialog";
 import type { ConnectionTestResult } from "./ConnectionTestButton";
+import { resolveProviderTestModel } from "./ApiKeyProviderSection.helpers";
 
 // ============================================================================
 // 类型定义
@@ -100,6 +101,15 @@ export const ApiKeyProviderSection = forwardRef<
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   // 导入导出对话框状态
   const [showImportExportDialog, setShowImportExportDialog] = useState(false);
+  const resolveCurrentTestModel = useCallback(() => {
+    const input = document.getElementById(
+      "custom-models",
+    ) as HTMLInputElement | null;
+    return resolveProviderTestModel(
+      selectedProvider?.custom_models,
+      input?.value ?? "",
+    );
+  }, [selectedProvider?.custom_models]);
 
   // ===== 包装回调函数以匹配 ProviderSetting 的类型要求 =====
 
@@ -138,27 +148,7 @@ export const ApiKeyProviderSection = forwardRef<
           };
         }
 
-        // 如果 Provider 配置了自定义模型，使用第一个模型进行测试
-        let modelName =
-          provider.custom_models && provider.custom_models.length > 0
-            ? provider.custom_models[0]
-            : undefined;
-
-        // 兜底：自定义模型可能还在防抖保存中（provider.custom_models 还未更新）
-        // 直接从输入框读取当前值，确保连接测试可用
-        if (!modelName) {
-          const input = document.getElementById(
-            "custom-models",
-          ) as HTMLInputElement | null;
-          const raw = input?.value ?? "";
-          const parsed = raw
-            .split(",")
-            .map((m) => m.trim())
-            .filter((m) => m.length > 0);
-          if (parsed.length > 0) {
-            modelName = parsed[0];
-          }
-        }
+        const modelName = resolveCurrentTestModel();
 
         // 调用后端连接测试 API
         const result = await apiKeyProviderApi.testConnection(
@@ -179,7 +169,7 @@ export const ApiKeyProviderSection = forwardRef<
         };
       }
     },
-    [selectedProvider],
+    [resolveCurrentTestModel, selectedProvider],
   );
 
   const handleTestChat = useCallback(
@@ -192,24 +182,7 @@ export const ApiKeyProviderSection = forwardRef<
         };
       }
 
-      let modelName =
-        provider.custom_models && provider.custom_models.length > 0
-          ? provider.custom_models[0]
-          : undefined;
-
-      if (!modelName) {
-        const input = document.getElementById(
-          "custom-models",
-        ) as HTMLInputElement | null;
-        const raw = input?.value ?? "";
-        const parsed = raw
-          .split(",")
-          .map((m) => m.trim())
-          .filter((m) => m.length > 0);
-        if (parsed.length > 0) {
-          modelName = parsed[0];
-        }
-      }
+      const modelName = resolveCurrentTestModel();
 
       try {
         return await apiKeyProviderApi.testChat(providerId, modelName, prompt);
@@ -226,7 +199,7 @@ export const ApiKeyProviderSection = forwardRef<
         };
       }
     },
-    [selectedProvider],
+    [resolveCurrentTestModel, selectedProvider],
   );
 
   // ===== 删除 Provider =====
@@ -306,48 +279,5 @@ ApiKeyProviderSection.displayName = "ApiKeyProviderSection";
 // ============================================================================
 // 辅助函数（用于测试）
 // ============================================================================
-
-/**
- * 验证 Provider 选择同步
- * 用于属性测试验证 Requirements 1.4
- *
- * @param selectedId 当前选中的 Provider ID
- * @param displayedProviderId 设置面板显示的 Provider ID
- * @returns 是否同步
- */
-export function verifyProviderSelectionSync(
-  selectedId: string | null,
-  displayedProviderId: string | null,
-): boolean {
-  // 如果没有选中任何 Provider，设置面板应该显示空状态
-  if (selectedId === null) {
-    return displayedProviderId === null;
-  }
-  // 如果选中了 Provider，设置面板应该显示相同的 Provider
-  return selectedId === displayedProviderId;
-}
-
-/**
- * 从组件状态中提取选择同步信息
- * 用于属性测试
- */
-export function extractSelectionState(
-  selectedProviderId: string | null,
-  selectedProvider: { id: string } | null,
-): {
-  listSelectedId: string | null;
-  settingProviderId: string | null;
-  isSynced: boolean;
-} {
-  const settingProviderId = selectedProvider?.id ?? null;
-  return {
-    listSelectedId: selectedProviderId,
-    settingProviderId,
-    isSynced: verifyProviderSelectionSync(
-      selectedProviderId,
-      settingProviderId,
-    ),
-  };
-}
 
 export default ApiKeyProviderSection;

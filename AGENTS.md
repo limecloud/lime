@@ -53,6 +53,7 @@
 - **任务 / 子代理 taxonomy**：`docs/aiprompts/task-agent-taxonomy.md`
 - **远程运行时**：`docs/aiprompts/remote-runtime.md`
 - **记忆 / 压缩主链**：`docs/aiprompts/memory-compaction.md`
+- **文件持久化主链**：`docs/aiprompts/persistence-map.md`
 - **状态 / 历史 / 遥测主链**：`docs/aiprompts/state-history-telemetry.md`
 - **治理与收口**：`docs/aiprompts/governance.md`
 - **Harness Engine 治理**：`docs/aiprompts/harness-engine-governance.md`

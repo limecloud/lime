@@ -1190,6 +1190,7 @@ export default [
       "src/lib/api/providerRuntime.ts",
       "src/lib/api/serverTools.ts",
       "src/lib/api/voiceTools.ts",
+      "src/lib/api/sceneapp.ts",
     ],
     rules: {
       "no-restricted-syntax": "off",

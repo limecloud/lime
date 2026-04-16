@@ -21,6 +21,32 @@ fn extract_object_string(
         .map(str::to_string)
 }
 
+fn extract_object_bool(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Option<bool> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(serde_json::Value::as_bool)
+}
+
+fn extract_object_string_array(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> Vec<String> {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(|value| value.as_array().cloned())
+        .map(|items| {
+            items
+                .into_iter()
+                .filter_map(|item| item.as_str().map(str::trim).map(str::to_string))
+                .filter(|item| !item.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
 fn ensure_harness_workbench_chat_mode(value: &mut serde_json::Value, launch_keys: &[&str]) {
     let Some(root) = value.as_object_mut() else {
         return;
@@ -190,6 +216,15 @@ fn build_analysis_skill_launch_system_prompt(
     let focus = extract_object_string(analysis_request, &["focus"]);
     let style = extract_object_string(analysis_request, &["style"]);
     let output_format = extract_object_string(analysis_request, &["output_format", "outputFormat"]);
+    let analysis_mode = extract_object_string(analysis_request, &["analysis_mode", "analysisMode"]);
+    let explicit_paths = extract_object_string_array(analysis_request, &["paths"]);
+    let require_fresh_read = extract_object_bool(
+        analysis_request,
+        &["require_fresh_read", "requireFreshRead"],
+    )
+    .unwrap_or(false);
+    let follow_up =
+        extract_object_bool(analysis_request, &["follow_up", "followUp"]).unwrap_or(false);
     let project_id = extract_object_string(analysis_request, &["project_id", "projectId"]);
     let content_id = extract_object_string(analysis_request, &["content_id", "contentId"]);
     let entry_source = extract_object_string(analysis_request, &["entry_source", "entrySource"])
@@ -236,6 +271,40 @@ fn build_analysis_skill_launch_system_prompt(
         format!("- 当前入口来源：{entry_source}。"),
         format!("- 当前分析目标：{prompt}"),
     ];
+
+    if let Some(value) = analysis_mode.as_deref() {
+        lines.push(format!("- 当前分析模式：{value}。"));
+    }
+    if !explicit_paths.is_empty() {
+        lines.push("- 当前存在显式本地路径，优先围绕这些路径做第一批只读工具调用。".to_string());
+        for path in explicit_paths.iter().take(3) {
+            lines.push(format!("- 优先路径：{path}。"));
+        }
+    }
+    if follow_up {
+        lines.push(
+            "- 这是基于上一轮仓库分析的 follow-up，必须沿用已有路径与上下文继续深挖，不要退回普通聊天直答。"
+                .to_string(),
+        );
+    }
+    if require_fresh_read {
+        lines.push(
+            "- 当前请求要求重新读取或补齐新证据；至少先完成一批新的只读工具调用，再输出最终结论。不要只基于上一轮缓存或当前记忆直接作答。"
+                .to_string(),
+        );
+    }
+    if matches!(analysis_mode.as_deref(), Some("local_repo")) {
+        lines.push(
+            "- 当前任务属于本地项目 / 仓库分析，不要只读 1 个文件就仓促下结论；至少补齐多个关键证据点后再给总评。"
+                .to_string(),
+        );
+        if matches!(output_format.as_deref(), Some(value) if value.contains("架构图")) {
+            lines.push(
+                "- 用户要求输出架构图时，优先覆盖依赖清单、前端入口、后端入口等关键事实源，再整理成架构结论；若证据仍不足，明确写出缺口。"
+                    .to_string(),
+            );
+        }
+    }
 
     if let Some(value) = content.as_deref() {
         lines.push(format!("- 当前显式正文：{value}。"));

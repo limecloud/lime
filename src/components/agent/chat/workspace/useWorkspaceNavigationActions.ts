@@ -99,11 +99,12 @@ export function useWorkspaceNavigationActions({
   }, [onNavigate]);
 
   const handleOpenRuntimeMemoryWorkbench = useCallback(
-    ({
+    (params?: OpenRuntimeMemoryWorkbenchParams) => {
+      const {
       sessionId,
       workingDir,
       userMessage,
-    }: OpenRuntimeMemoryWorkbenchParams) => {
+      } = params || {};
       const nextParams: MemoryPageParams = {
         section: "home",
         runtimeSessionId: sessionId?.trim() || undefined,
@@ -114,6 +115,20 @@ export function useWorkspaceNavigationActions({
     },
     [onNavigate],
   );
+
+  const handleOpenChannels = useCallback(() => {
+    onNavigate?.("channels");
+  }, [onNavigate]);
+
+  const handleOpenChromeRelay = useCallback(() => {
+    onNavigate?.("settings", {
+      tab: SettingsTabs.ChromeRelay,
+    });
+  }, [onNavigate]);
+
+  const handleOpenOpenClaw = useCallback(() => {
+    onNavigate?.("openclaw");
+  }, [onNavigate]);
 
   const handleCompactContext = useCallback(() => {
     void compactSession();
@@ -138,6 +153,9 @@ export function useWorkspaceNavigationActions({
     handleDismissEntryBanner,
     handleDismissWorkspaceAlert,
     handleManageProviders,
+    handleOpenChannels,
+    handleOpenChromeRelay,
+    handleOpenOpenClaw,
     handleOpenRuntimeMemoryWorkbench,
     handleOpenAppearanceSettings,
     handleProjectChange,

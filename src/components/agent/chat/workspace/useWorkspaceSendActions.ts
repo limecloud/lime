@@ -5,7 +5,7 @@ import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { getOrCreateDefaultProject } from "@/lib/api/project";
 import {
-  getSeededSkillCatalog,
+  getCurrentSkillCatalogSnapshot,
   listSkillCatalogCommandEntries,
 } from "@/lib/api/skillCatalog";
 import { parseAnalysisWorkbenchCommand } from "../utils/analysisWorkbenchCommand";
@@ -201,34 +201,6 @@ type CompletedMentionCommandUsage = {
   slotValues?: ServiceSkillSlotValues;
 };
 
-const MENTION_COMMAND_SKILL_ID_MAP = new Map(
-  listSkillCatalogCommandEntries(getSeededSkillCatalog())
-    .filter((entry) =>
-      entry.triggers.some((trigger) => trigger.mode === "mention"),
-    )
-    .flatMap((entry) => {
-      const commandKey = entry.commandKey.trim();
-      const skillId = entry.binding?.skillId?.trim();
-
-      return commandKey && skillId ? [[commandKey, skillId] as const] : [];
-    }),
-);
-const MENTION_COMMAND_PREFIX_KEY_MAP = new Map(
-  listSkillCatalogCommandEntries(getSeededSkillCatalog()).flatMap((entry) => {
-    const commandKey = entry.commandKey.trim();
-    if (!commandKey) {
-      return [];
-    }
-
-    return entry.triggers
-      .filter((trigger) => trigger.mode === "mention")
-      .flatMap((trigger) => {
-        const prefix = normalizeMentionCommandPrefix(trigger.prefix);
-        return prefix ? [[prefix, commandKey] as const] : [];
-      });
-  }),
-);
-
 function normalizeMentionCommandPrefix(value?: string | null): string {
   if (typeof value !== "string") {
     return "";
@@ -251,6 +223,41 @@ function normalizeOptionalText(value?: string | null): string | undefined {
 
   const normalized = value.trim();
   return normalized ? normalized : undefined;
+}
+
+function buildMentionCommandSkillIdMap(): Map<string, string> {
+  return new Map(
+    listSkillCatalogCommandEntries(getCurrentSkillCatalogSnapshot())
+      .filter((entry) =>
+        entry.triggers.some((trigger) => trigger.mode === "mention"),
+      )
+      .flatMap((entry) => {
+        const commandKey = entry.commandKey.trim();
+        const skillId = entry.binding?.skillId?.trim();
+
+        return commandKey && skillId ? [[commandKey, skillId] as const] : [];
+      }),
+  );
+}
+
+function buildMentionCommandPrefixKeyMap(): Map<string, string> {
+  return new Map(
+    listSkillCatalogCommandEntries(getCurrentSkillCatalogSnapshot()).flatMap(
+      (entry) => {
+        const commandKey = entry.commandKey.trim();
+        if (!commandKey) {
+          return [];
+        }
+
+        return entry.triggers
+          .filter((trigger) => trigger.mode === "mention")
+          .flatMap((trigger) => {
+            const prefix = normalizeMentionCommandPrefix(trigger.prefix);
+            return prefix ? [[prefix, commandKey] as const] : [];
+          });
+      },
+    ),
+  );
 }
 
 function normalizeServiceSkillUsageSlotValue(
@@ -611,6 +618,7 @@ function resolveMentionCommandReplayText(parsedCommand: {
 
 function resolveBareMentionCommandPrefillSourceText(
   rawText: string,
+  mentionCommandPrefixKeyMap: Map<string, string>,
 ): string | undefined {
   const matched = rawText.match(/^\s*(@[^\s]+)\s*$/u);
   if (!matched) {
@@ -618,7 +626,7 @@ function resolveBareMentionCommandPrefillSourceText(
   }
 
   const commandPrefix = matched[1];
-  const commandKey = MENTION_COMMAND_PREFIX_KEY_MAP.get(
+  const commandKey = mentionCommandPrefixKeyMap.get(
     normalizeMentionCommandPrefix(commandPrefix),
   );
   if (!commandKey) {
@@ -1119,13 +1127,14 @@ function resolveMentionCommandUsage(params: {
   commandKey: string;
   serviceSkills: ServiceSkillHomeItem[];
   requestMetadata?: Record<string, unknown>;
+  mentionCommandSkillIdMap: Map<string, string>;
 }): CompletedMentionUsage | null {
   const normalizedCommandKey = params.commandKey.trim();
   if (!normalizedCommandKey) {
     return null;
   }
 
-  const boundSkillId = MENTION_COMMAND_SKILL_ID_MAP.get(normalizedCommandKey);
+  const boundSkillId = params.mentionCommandSkillIdMap.get(normalizedCommandKey);
   if (!boundSkillId) {
     return null;
   }
@@ -2452,6 +2461,8 @@ export function useWorkspaceSendActions({
     useState<SubmissionPreviewSnapshot | null>(null);
   const [isPreparingSend, setIsPreparingSend] = useState(false);
   const isPreparingSendRef = useRef(false);
+  const mentionCommandSkillIdMap = buildMentionCommandSkillIdMap();
+  const mentionCommandPrefixKeyMap = buildMentionCommandPrefixKeyMap();
   const clearRuntimeTeamDispatchPreview = useCallback(() => {
     setRuntimeTeamDispatchPreview(null);
   }, []);
@@ -2541,7 +2552,10 @@ export function useWorkspaceSendActions({
       });
       sourceText = sendBoundary.sourceText;
       sourceText =
-        resolveBareMentionCommandPrefillSourceText(sourceText) || sourceText;
+        resolveBareMentionCommandPrefillSourceText(
+          sourceText,
+          mentionCommandPrefixKeyMap,
+        ) || sourceText;
       const mentionUsageMap = getMentionEntryUsageMap();
       type MergeableMentionParsedCommand = Parameters<
         typeof resolveMentionCommandMergedPrefillReplayText
@@ -2708,6 +2722,7 @@ export function useWorkspaceSendActions({
           commandKey,
           serviceSkills,
           requestMetadata: sendOptions?.requestMetadata,
+          mentionCommandSkillIdMap,
         });
       };
 
@@ -4323,6 +4338,8 @@ export function useWorkspaceSendActions({
       projectId,
       resolveSendBoundary,
       serviceSkills,
+      mentionCommandPrefixKeyMap,
+      mentionCommandSkillIdMap,
       workspaceRequestMetadataBase,
     ],
   );

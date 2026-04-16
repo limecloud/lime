@@ -6,10 +6,13 @@ use crate::conversation::message::Message;
 use crate::scheduler::Scheduler;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::{
-    require_shared_thread_runtime_store, save_team_membership, save_team_state, QueuedTurnRuntime,
-    RuntimeQueueSubmitResult, SessionManager, SessionRuntimeQueueService, SessionType,
-    SubagentSessionMetadata, TeamMember, TeamMembershipState, TeamSessionState, ThreadRuntimeStore,
+    create_subagent_session, persist_session_extension_data, query_session,
+    require_shared_session_runtime_store, save_team_membership, save_team_state, QueuedTurnRuntime,
+    RuntimeQueueSubmitResult, SessionRuntimeQueueService, SubagentSessionMetadata, TeamMember,
+    TeamMembershipState, TeamSessionState, ThreadRuntimeStore,
 };
+#[cfg(test)]
+use crate::session::{SessionManager, SessionType};
 use crate::tools::{
     AgentControlToolConfig, SendInputRequest, SendInputResponse, SpawnAgentRequest,
     SpawnAgentResponse, ToolRegistrationConfig,
@@ -246,7 +249,7 @@ async fn send_input_with_runtime(
     request: SendInputRequest,
 ) -> Result<SendInputResponse, String> {
     let message = require_non_empty_text(request.message.clone(), "message")?;
-    SessionManager::get_session(&request.id, false)
+    query_session(&request.id, false)
         .await
         .map_err(|error| format!("目标 agent 不存在: {error}"))?;
 
@@ -313,7 +316,7 @@ async fn register_spawned_teammate(
     teammate_name: String,
     agent_type: Option<String>,
 ) -> Result<(), String> {
-    let parent_session = SessionManager::get_session(parent_session_id, false)
+    let parent_session = query_session(parent_session_id, false)
         .await
         .map_err(|error| format!("读取父会话失败: {error}"))?;
     let Some(mut team_state) = TeamSessionState::from_session(&parent_session) else {
@@ -358,15 +361,14 @@ async fn spawn_agent_with_runtime(
     request: SpawnAgentRequest,
 ) -> Result<SpawnAgentResponse, String> {
     let initial_message = require_non_empty_text(request.message.clone(), "message")?;
-    let parent_session = SessionManager::get_session(&request.parent_session_id, false)
+    let parent_session = query_session(&request.parent_session_id, false)
         .await
         .map_err(|error| format!("读取父会话失败: {error}"))?;
     let working_dir = resolve_spawn_working_dir(&parent_session.working_dir, request.cwd.clone())?;
     let session_name = session_name_for_spawn(&request);
-    let child_session =
-        SessionManager::create_session(working_dir, session_name, SessionType::SubAgent)
-            .await
-            .map_err(|error| format!("创建子会话失败: {error}"))?;
+    let child_session = create_subagent_session(working_dir, session_name)
+        .await
+        .map_err(|error| format!("创建子会话失败: {error}"))?;
 
     let metadata = SubagentSessionMetadata::new(request.parent_session_id.clone())
         .with_task_summary(Some(message_preview(&initial_message)))
@@ -377,9 +379,7 @@ async fn spawn_agent_with_runtime(
     let extension_data = metadata
         .into_updated_extension_data(&child_session)
         .map_err(|error| format!("构建子会话元数据失败: {error}"))?;
-    SessionManager::update_session(&child_session.id)
-        .extension_data(extension_data)
-        .apply()
+    persist_session_extension_data(&child_session.id, extension_data)
         .await
         .map_err(|error| format!("保存子会话元数据失败: {error}"))?;
 
@@ -486,7 +486,7 @@ impl AgentManager {
                     .unwrap_or(DEFAULT_MAX_SESSION);
                 let manager = Self::new_with_thread_runtime_store(
                     Some(max_sessions),
-                    require_shared_thread_runtime_store()
+                    require_shared_session_runtime_store()
                         .context("AgentManager 启动前必须先初始化 shared thread runtime store")?,
                 )
                 .await?;
@@ -901,9 +901,7 @@ mod tests {
         .await
         .unwrap();
 
-        let spawned_session = SessionManager::get_session(&spawned.agent_id, false)
-            .await
-            .unwrap();
+        let spawned_session = query_session(&spawned.agent_id, false).await.unwrap();
         assert_eq!(spawned_session.working_dir, temp_dir.path());
 
         let peers_result = ListPeersTool::new()

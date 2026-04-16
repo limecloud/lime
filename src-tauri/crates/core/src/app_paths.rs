@@ -26,9 +26,7 @@ const USER_SIGNAL_TABLES: &[&str] = &[
 pub const WORKSPACE_LOCAL_RUNTIME_AGENTS_GITIGNORE_ENTRY: &str = ".lime/AGENTS.local.md";
 
 pub fn preferred_data_dir() -> Result<PathBuf, String> {
-    let dir = dirs::data_dir()
-        .ok_or_else(|| "无法获取应用数据目录".to_string())?
-        .join(APP_DATA_DIR_NAME);
+    let dir = preferred_data_parent_dir()?.join(APP_DATA_DIR_NAME);
     fs::create_dir_all(&dir).map_err(|e| format!("无法创建应用数据目录 {}: {e}", dir.display()))?;
     Ok(dir)
 }
@@ -40,9 +38,7 @@ pub fn legacy_home_dir() -> Result<PathBuf, String> {
 }
 
 fn legacy_app_data_dir() -> Result<PathBuf, String> {
-    Ok(dirs::data_dir()
-        .ok_or_else(|| "无法获取应用数据目录".to_string())?
-        .join(LEGACY_APP_DATA_DIR_NAME))
+    Ok(roaming_data_parent_dir()?.join(LEGACY_APP_DATA_DIR_NAME))
 }
 
 fn compat_home_dir() -> Result<PathBuf, String> {
@@ -123,15 +119,12 @@ pub fn resolve_user_memory_path() -> Result<PathBuf, String> {
     let preferred_root = compat_home_dir()?;
     let mut legacy_roots = Vec::new();
 
-    for root in [
-        preferred_data_dir()?,
-        legacy_app_data_dir()?,
-        legacy_home_dir()?,
-    ] {
-        if !legacy_roots.iter().any(|existing| existing == &root) {
-            legacy_roots.push(root);
-        }
-    }
+    #[cfg(target_os = "windows")]
+    push_unique_root(&mut legacy_roots, legacy_windows_roaming_app_data_dir()?);
+
+    push_unique_root(&mut legacy_roots, preferred_data_dir()?);
+    push_unique_root(&mut legacy_roots, legacy_app_data_dir()?);
+    push_unique_root(&mut legacy_roots, legacy_home_dir()?);
 
     resolve_user_memory_path_from_source_roots(&preferred_root, &legacy_roots)
 }
@@ -158,10 +151,12 @@ pub fn best_effort_runtime_subdir(subdir: &str) -> PathBuf {
     resolve_runtime_subdir(subdir).unwrap_or_else(|_| fallback_runtime_subdir(subdir))
 }
 
+pub fn best_effort_data_dir() -> PathBuf {
+    preferred_data_dir().unwrap_or_else(|_| fallback_app_data_dir())
+}
+
 pub fn best_effort_app_data_file(file_name: &str) -> PathBuf {
-    preferred_data_dir()
-        .unwrap_or_else(|_| fallback_app_data_dir())
-        .join(file_name)
+    best_effort_data_dir().join(file_name)
 }
 
 pub fn migrate_legacy_install_data() -> Result<(), String> {
@@ -196,6 +191,29 @@ pub fn migrate_legacy_install_data() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn preferred_data_parent_dir() -> Result<PathBuf, String> {
+    #[cfg(target_os = "windows")]
+    {
+        return dirs::data_local_dir()
+            .or_else(dirs::data_dir)
+            .ok_or_else(|| "无法获取本地应用数据目录".to_string());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        roaming_data_parent_dir()
+    }
+}
+
+fn roaming_data_parent_dir() -> Result<PathBuf, String> {
+    dirs::data_dir().ok_or_else(|| "无法获取应用数据目录".to_string())
+}
+
+#[cfg(target_os = "windows")]
+fn legacy_windows_roaming_app_data_dir() -> Result<PathBuf, String> {
+    Ok(roaming_data_parent_dir()?.join(APP_DATA_DIR_NAME))
 }
 
 fn with_app_roots<T>(
@@ -242,17 +260,20 @@ fn fallback_app_data_dir() -> PathBuf {
 fn migration_source_roots() -> Result<Vec<PathBuf>, String> {
     let mut roots = Vec::new();
 
-    for root in [
-        legacy_app_data_dir()?,
-        legacy_home_dir()?,
-        compat_home_dir()?,
-    ] {
-        if !roots.iter().any(|existing| existing == &root) {
-            roots.push(root);
-        }
-    }
+    #[cfg(target_os = "windows")]
+    push_unique_root(&mut roots, legacy_windows_roaming_app_data_dir()?);
+
+    push_unique_root(&mut roots, legacy_app_data_dir()?);
+    push_unique_root(&mut roots, legacy_home_dir()?);
+    push_unique_root(&mut roots, compat_home_dir()?);
 
     Ok(roots)
+}
+
+fn push_unique_root(roots: &mut Vec<PathBuf>, root: PathBuf) {
+    if !roots.iter().any(|existing| existing == &root) {
+        roots.push(root);
+    }
 }
 
 fn resolve_default_project_dir_from_source_roots(

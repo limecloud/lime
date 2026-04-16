@@ -2,14 +2,13 @@ use anyhow::{anyhow, Result};
 use std::sync::{Arc, OnceLock};
 
 use super::runtime_store::{
-    require_shared_thread_runtime_store, QueuedTurnRuntime, SessionExecutionGate,
-    ThreadRuntimeStore,
+    require_session_runtime_store, QueuedTurnRuntime, SessionExecutionGate, ThreadRuntimeStore,
 };
 
 static SHARED_SESSION_RUNTIME_QUEUE_SERVICE: OnceLock<Arc<SessionRuntimeQueueService>> =
     OnceLock::new();
 const SHARED_SESSION_RUNTIME_QUEUE_SERVICE_INIT_ERROR: &str =
-    "shared session runtime queue service is not initialized; call initialize_shared_thread_runtime_store first";
+    "shared session runtime queue service is not initialized; call initialize_session_runtime_store first";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuntimeQueueSubmitResult {
@@ -128,7 +127,7 @@ impl SessionRuntimeQueueService {
     }
 }
 
-pub(crate) fn initialize_shared_session_runtime_queue_service(
+pub(crate) fn initialize_session_runtime_queue_service(
     store: Arc<dyn ThreadRuntimeStore>,
 ) -> Arc<SessionRuntimeQueueService> {
     let _ =
@@ -140,7 +139,7 @@ pub(crate) fn initialize_shared_session_runtime_queue_service(
 }
 
 pub fn require_shared_session_runtime_queue_service() -> Result<Arc<SessionRuntimeQueueService>> {
-    require_shared_thread_runtime_store()?;
+    require_session_runtime_store()?;
     SHARED_SESSION_RUNTIME_QUEUE_SERVICE
         .get()
         .cloned()
@@ -154,7 +153,7 @@ mod tests {
         SessionRuntimeQueueService,
     };
     use crate::session::{
-        initialize_shared_thread_runtime_store, InMemoryThreadRuntimeStore, QueuedTurnRuntime,
+        initialize_session_runtime_store, InMemoryThreadRuntimeStore, QueuedTurnRuntime,
         ThreadRuntimeStore,
     };
     use serde_json::json;
@@ -176,7 +175,7 @@ mod tests {
 
     #[test]
     fn require_shared_session_runtime_queue_service_uses_initialized_store() {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
         assert!(require_shared_session_runtime_queue_service().is_ok());
     }
 

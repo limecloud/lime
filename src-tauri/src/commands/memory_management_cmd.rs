@@ -12,7 +12,8 @@ use crate::commands::unified_memory_cmd::{list_unified_memories, ListFilters};
 use crate::config::GlobalConfigManagerState;
 use crate::database::DbConnection;
 use crate::services::auto_memory_service::{
-    get_auto_memory_index, update_auto_memory_note, AutoMemoryIndexResponse,
+    cleanup_memdir, get_auto_memory_index, scaffold_memdir, update_auto_memory_note,
+    AutoMemoryIndexResponse, MemdirCleanupResult, MemdirMemoryType, MemdirScaffoldResult,
 };
 use crate::services::chat_history_service::{load_memory_source_candidates, MemorySourceCandidate};
 use crate::services::memory_source_resolver_service::{
@@ -459,6 +460,7 @@ pub async fn memory_update_auto_note(
     working_dir: Option<String>,
     note: String,
     topic: Option<String>,
+    memory_type: Option<MemdirMemoryType>,
 ) -> Result<AutoMemoryIndexResponse, String> {
     let config = global_config.config();
     let resolved_working_dir = resolve_working_dir(working_dir)?;
@@ -467,6 +469,34 @@ pub async fn memory_update_auto_note(
         &resolved_working_dir,
         &note,
         topic.as_deref(),
+        memory_type,
+    )
+}
+
+/// 整理 memdir：去重链接、裁剪历史段落并收口 topic note。
+#[tauri::command]
+pub async fn memory_cleanup_memdir(
+    global_config: State<'_, GlobalConfigManagerState>,
+    working_dir: Option<String>,
+) -> Result<MemdirCleanupResult, String> {
+    let config = global_config.config();
+    let resolved_working_dir = resolve_working_dir(working_dir)?;
+    cleanup_memdir(&config.memory, &resolved_working_dir)
+}
+
+/// 初始化 memdir 套件
+#[tauri::command]
+pub async fn memory_scaffold_memdir(
+    global_config: State<'_, GlobalConfigManagerState>,
+    working_dir: Option<String>,
+    overwrite: Option<bool>,
+) -> Result<MemdirScaffoldResult, String> {
+    let config = global_config.config();
+    let resolved_working_dir = resolve_working_dir(working_dir)?;
+    scaffold_memdir(
+        &config.memory,
+        &resolved_working_dir,
+        overwrite.unwrap_or(false),
     )
 }
 

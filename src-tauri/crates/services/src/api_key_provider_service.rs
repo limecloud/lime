@@ -9,8 +9,8 @@ use crate::provider_type_mapping::pool_provider_type_to_api_type;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
 use lime_core::database::dao::api_key_provider::{
-    ApiKeyEntry, ApiKeyProvider, ApiKeyProviderDao, ApiProviderPromptCacheMode, ApiProviderType,
-    ProviderGroup, ProviderWithKeys,
+    infer_managed_provider_type, ApiKeyEntry, ApiKeyProvider, ApiKeyProviderDao,
+    ApiProviderPromptCacheMode, ApiProviderType, ProviderGroup, ProviderWithKeys,
 };
 use lime_core::database::system_providers::{get_system_providers, to_api_key_provider};
 use lime_core::database::DbConnection;
@@ -20,7 +20,7 @@ use lime_core::models::{
 use lime_core::provider_prompt_cache_support::is_known_automatic_anthropic_compatible_host;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::RwLock;
 
@@ -173,6 +173,80 @@ data: [DONE]\n";
     }
 
     #[test]
+    fn test_format_anthropic_http_api_error_uses_protocol_level_guidance() {
+        let body = r#"{"type":"error","error":{"type":"authentication_error","message":"login fail: Please carry the API secret key in the 'Authorization' field of the request header"}}"#;
+
+        let formatted = ApiKeyProviderService::format_anthropic_http_api_error(
+            reqwest::StatusCode::UNAUTHORIZED,
+            body,
+            "https://example.com/anthropic",
+            ApiProviderType::AnthropicCompatible,
+            "k-cp-looks-truncated",
+        );
+
+        assert!(formatted.contains("Lime 已按 Anthropic 协议发送兼容鉴权"));
+        assert!(formatted.contains("核对 API Key 是否完整"));
+        assert!(!formatted.contains("MiniMax"));
+    }
+
+    #[test]
+    fn test_format_anthropic_http_api_error_keeps_base_message_for_non_anthropic_protocol() {
+        let body = r#"{"type":"error","error":{"type":"authentication_error","message":"Please carry the API secret key in the 'Authorization' field of the request header"}}"#;
+
+        let formatted = ApiKeyProviderService::format_anthropic_http_api_error(
+            reqwest::StatusCode::UNAUTHORIZED,
+            body,
+            "https://example.com/compatible",
+            ApiProviderType::Openai,
+            "k-cp-looks-truncated",
+        );
+
+        assert_eq!(
+            formatted,
+            "API 返回错误: 401 Unauthorized - Please carry the API secret key in the 'Authorization' field of the request header"
+        );
+    }
+
+    #[test]
+    fn test_format_anthropic_http_api_error_marks_upstream_overload() {
+        let body = r#"{"type":"error","error":{"type":"overloaded_error","message":"overloaded_error (529)"}}"#;
+
+        let formatted = ApiKeyProviderService::format_anthropic_http_api_error(
+            reqwest::StatusCode::from_u16(529).expect("status"),
+            body,
+            "https://example.com/anthropic",
+            ApiProviderType::AnthropicCompatible,
+            "test-key",
+        );
+
+        assert!(formatted.contains("上游 Anthropic 兼容接口当前暂时过载或限流"));
+        assert!(formatted.contains("overloaded_error (529)"));
+        assert!(formatted.contains("这通常不是 Base URL、鉴权头或模型配置错误"));
+    }
+
+    #[test]
+    fn test_is_transient_anthropic_upstream_error_supports_json_and_status_detection() {
+        assert!(
+            ApiKeyProviderService::is_transient_anthropic_upstream_error(
+                reqwest::StatusCode::from_u16(529).expect("status"),
+                r#"{"type":"error","error":{"type":"overloaded_error","message":"overloaded_error (529)"}}"#,
+            )
+        );
+        assert!(
+            ApiKeyProviderService::is_transient_anthropic_upstream_error(
+                reqwest::StatusCode::TOO_MANY_REQUESTS,
+                r#"{"error":{"message":"rate_limit exceeded"}}"#,
+            )
+        );
+        assert!(
+            !ApiKeyProviderService::is_transient_anthropic_upstream_error(
+                reqwest::StatusCode::UNAUTHORIZED,
+                r#"{"error":{"message":"invalid api key"}}"#,
+            )
+        );
+    }
+
+    #[test]
     fn test_pick_test_model_priority() {
         let with_explicit = ApiKeyProviderService::pick_test_model(
             Some("explicit-model".to_string()),
@@ -186,7 +260,14 @@ data: [DONE]\n";
             &["custom-model".to_string()],
             &["fallback-model".to_string(), "fallback-mini".to_string()],
         );
-        assert_eq!(with_custom.as_deref(), Some("custom-model"));
+        assert_eq!(with_custom.as_deref(), Some("fallback-mini"));
+
+        let with_matching_custom = ApiKeyProviderService::pick_test_model(
+            None,
+            &["MiniMax-M2.7".to_string()],
+            &["MiniMax-M2.7".to_string(), "MiniMax-M2.5".to_string()],
+        );
+        assert_eq!(with_matching_custom.as_deref(), Some("MiniMax-M2.7"));
 
         let with_local_fallback =
             ApiKeyProviderService::pick_test_model(None, &[], &["fallback-model".to_string()]);
@@ -253,7 +334,7 @@ data: [DONE]\n";
             .add_custom_provider(
                 &db,
                 "MiMo Anthropic".to_string(),
-                ApiProviderType::AnthropicCompatible,
+                ApiProviderType::Openai,
                 "https://token-plan-cn.xiaomimimo.com/anthropic".to_string(),
                 None,
                 None,
@@ -263,6 +344,7 @@ data: [DONE]\n";
             )
             .expect("创建自定义 Provider 失败");
 
+        assert_eq!(provider.provider_type, ApiProviderType::AnthropicCompatible);
         assert_eq!(
             provider.prompt_cache_mode,
             Some(ApiProviderPromptCacheMode::Automatic)
@@ -272,6 +354,10 @@ data: [DONE]\n";
         let persisted = ApiKeyProviderDao::get_provider_by_id(&conn, &provider.id)
             .expect("读取 Provider 失败")
             .expect("Provider 应存在");
+        assert_eq!(
+            persisted.provider_type,
+            ApiProviderType::AnthropicCompatible
+        );
         assert_eq!(
             persisted.prompt_cache_mode,
             Some(ApiProviderPromptCacheMode::Automatic)
@@ -307,7 +393,7 @@ data: [DONE]\n";
                 &db,
                 &provider.id,
                 None,
-                None,
+                Some(ApiProviderType::Openai),
                 Some("https://api.minimaxi.com/anthropic".to_string()),
                 None,
                 None,
@@ -320,6 +406,7 @@ data: [DONE]\n";
             )
             .expect("更新 Provider 失败");
 
+        assert_eq!(updated.provider_type, ApiProviderType::AnthropicCompatible);
         assert_eq!(
             updated.prompt_cache_mode,
             Some(ApiProviderPromptCacheMode::Automatic)
@@ -824,6 +911,13 @@ impl ApiKeyProviderService {
         }
     }
 
+    fn normalize_custom_provider_type(
+        provider_type: ApiProviderType,
+        api_host: &str,
+    ) -> ApiProviderType {
+        infer_managed_provider_type(provider_type, api_host)
+    }
+
     fn to_credential_prompt_cache_mode(
         mode: ApiProviderPromptCacheMode,
     ) -> ProviderPromptCacheMode {
@@ -923,6 +1017,7 @@ impl ApiKeyProviderService {
             .ok_or_else(|| format!("Provider not found: {provider_id}"))?;
 
         let provider = &provider_with_keys.provider;
+        let effective_provider_type = provider.effective_provider_type();
 
         let api_key = self
             .get_next_api_key(db, provider_id)?
@@ -935,7 +1030,7 @@ impl ApiKeyProviderService {
         let start = Instant::now();
 
         // 根据 Provider 协议类型选择测试方式
-        let result = match provider.provider_type {
+        let result = match effective_provider_type {
             // Codex 协议直接走 /responses 端点
             ApiProviderType::Codex => {
                 self.test_codex_responses_endpoint(
@@ -943,6 +1038,7 @@ impl ApiKeyProviderService {
                     &provider.api_host,
                     &test_model,
                     &prompt,
+                    effective_provider_type,
                 )
                 .await
             }
@@ -959,13 +1055,20 @@ impl ApiKeyProviderService {
                     &test_model,
                     &prompt,
                     provider.supports_automatic_prompt_cache(),
+                    effective_provider_type,
                 )
                 .await
             }
             // 其余默认 OpenAI 兼容
             _ => {
-                self.test_openai_chat_once(&api_key, &provider.api_host, &test_model, &prompt)
-                    .await
+                self.test_openai_chat_once(
+                    &api_key,
+                    &provider.api_host,
+                    &test_model,
+                    &prompt,
+                    effective_provider_type,
+                )
+                .await
             }
         };
         let latency_ms = start.elapsed().as_millis() as u64;
@@ -1019,9 +1122,34 @@ impl ApiKeyProviderService {
         custom_models: &[String],
         fallback_models: &[String],
     ) -> Option<String> {
-        model_name
-            .or_else(|| custom_models.first().cloned())
+        let explicit_model = model_name.and_then(|model| {
+            let normalized = model.trim();
+            (!normalized.is_empty()).then(|| normalized.to_string())
+        });
+        if explicit_model.is_some() {
+            return explicit_model;
+        }
+
+        let fallback_model_set: HashSet<String> = fallback_models
+            .iter()
+            .map(|model| model.trim().to_lowercase())
+            .filter(|model| !model.is_empty())
+            .collect();
+
+        let matching_custom_model = custom_models.iter().find_map(|model| {
+            let normalized = model.trim();
+            (!normalized.is_empty() && fallback_model_set.contains(&normalized.to_lowercase()))
+                .then(|| normalized.to_string())
+        });
+
+        matching_custom_model
             .or_else(|| Self::pick_preferred_fallback_model(fallback_models))
+            .or_else(|| {
+                custom_models.iter().find_map(|model| {
+                    let normalized = model.trim();
+                    (!normalized.is_empty()).then(|| normalized.to_string())
+                })
+            })
     }
 
     async fn test_openai_chat_once(
@@ -1030,6 +1158,7 @@ impl ApiKeyProviderService {
         api_host: &str,
         model: &str,
         prompt: &str,
+        provider_type: ApiProviderType,
     ) -> Result<(String, String), String> {
         use lime_core::models::openai::{ChatCompletionRequest, ChatMessage, MessageContent};
         use lime_providers::providers::openai_custom::OpenAICustomProvider;
@@ -1101,7 +1230,7 @@ impl ApiKeyProviderService {
         // 部分上游（如 Codex relay）不支持 messages 参数，需要走 /responses 端点
         if status.as_u16() == 400 && body.contains("Unsupported parameter: messages") {
             return self
-                .test_codex_responses_endpoint(api_key, api_host, model, prompt)
+                .test_codex_responses_endpoint(api_key, api_host, model, prompt, provider_type)
                 .await;
         }
 
@@ -1115,6 +1244,7 @@ impl ApiKeyProviderService {
         model: &str,
         prompt: &str,
         enable_automatic_prompt_cache: bool,
+        provider_type: ApiProviderType,
     ) -> Result<(String, String), String> {
         use lime_providers::providers::claude_custom::{ClaudeCustomProvider, PromptCacheMode};
 
@@ -1123,9 +1253,10 @@ impl ApiKeyProviderService {
         } else {
             PromptCacheMode::ExplicitOnly
         };
-        let provider = ClaudeCustomProvider::with_prompt_cache_mode(
+        let provider = ClaudeCustomProvider::with_provider_type_and_prompt_cache_mode(
             api_key.to_string(),
             Some(api_host.to_string()),
+            provider_type,
             prompt_cache_mode,
         );
 
@@ -1135,16 +1266,22 @@ impl ApiKeyProviderService {
             "messages": [{"role": "user", "content": prompt}]
         });
 
-        let resp = provider
-            .messages(&request)
-            .await
-            .map_err(|e| format!("API 调用失败: {e}"))?;
-
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
+        let (status, body) = Self::execute_anthropic_test_request_with_retries(|| async {
+            provider
+                .messages(&request)
+                .await
+                .map_err(|e| format!("API 调用失败: {e}"))
+        })
+        .await?;
 
         if !status.is_success() {
-            return Err(Self::format_http_api_error(status, &body));
+            return Err(Self::format_anthropic_http_api_error(
+                status,
+                &body,
+                api_host,
+                provider_type,
+                api_key,
+            ));
         }
 
         let parsed: serde_json::Value =
@@ -1263,6 +1400,79 @@ impl ApiKeyProviderService {
         }
     }
 
+    fn is_transient_anthropic_upstream_error(status: reqwest::StatusCode, body: &str) -> bool {
+        if matches!(status.as_u16(), 429 | 503 | 529) {
+            return true;
+        }
+
+        let message = Self::extract_json_error_message(body)
+            .unwrap_or_else(|| body.to_string())
+            .to_ascii_lowercase();
+
+        message.contains("overloaded_error")
+            || message.contains("rate_limit")
+            || message.contains("rate limit")
+    }
+
+    async fn execute_anthropic_test_request_with_retries<F, Fut>(
+        mut send_request: F,
+    ) -> Result<(reqwest::StatusCode, String), String>
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = Result<reqwest::Response, String>>,
+    {
+        const RETRY_DELAYS_MS: [u64; 5] = [0, 400, 1200, 2500, 5000];
+
+        for (attempt_index, delay_ms) in RETRY_DELAYS_MS.iter().enumerate() {
+            if attempt_index > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(*delay_ms)).await;
+            }
+
+            let response = send_request().await?;
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+
+            if !Self::is_transient_anthropic_upstream_error(status, &body)
+                || attempt_index + 1 == RETRY_DELAYS_MS.len()
+            {
+                return Ok((status, body));
+            }
+        }
+
+        unreachable!("Anthropic 重试循环必须在最后一次尝试返回结果");
+    }
+
+    fn format_anthropic_http_api_error(
+        status: reqwest::StatusCode,
+        body: &str,
+        _api_host: &str,
+        provider_type: ApiProviderType,
+        _api_key: &str,
+    ) -> String {
+        let base = Self::format_http_api_error(status, body);
+        let uses_anthropic_protocol = Self::uses_anthropic_protocol(provider_type);
+        let looks_like_misleading_auth_error = body.contains(
+            "Please carry the API secret key in the 'Authorization' field of the request header",
+        );
+
+        if uses_anthropic_protocol && Self::is_transient_anthropic_upstream_error(status, body) {
+            return format!(
+                "{base}。上游 Anthropic 兼容接口当前暂时过载或限流，请稍后重试；这通常不是 Base URL、鉴权头或模型配置错误。"
+            );
+        }
+
+        if status == reqwest::StatusCode::UNAUTHORIZED
+            && uses_anthropic_protocol
+            && looks_like_misleading_auth_error
+        {
+            return format!(
+                "{base}。Lime 已按 Anthropic 协议发送兼容鉴权；若仍返回此错误，请优先核对 API Key 是否完整、未被截断，并确认该 Key 已开通当前 Base URL / 模型对应的接口权限。"
+            );
+        }
+
+        base
+    }
+
     fn build_codex_responses_request(model: &str, prompt: &str) -> serde_json::Value {
         Self::build_openai_responses_request(model, prompt, true)
     }
@@ -1329,6 +1539,7 @@ impl ApiKeyProviderService {
         api_host: &str,
         model: &str,
         prompt: &str,
+        provider_type: ApiProviderType,
     ) -> Result<(String, String), String> {
         use lime_providers::providers::codex::CodexProvider;
 
@@ -1351,7 +1562,13 @@ impl ApiKeyProviderService {
         let body = resp.text().await.unwrap_or_default();
 
         if !status.is_success() {
-            return Err(Self::format_http_api_error(status, &body));
+            return Err(Self::format_anthropic_http_api_error(
+                status,
+                &body,
+                api_host,
+                provider_type,
+                api_key,
+            ));
         }
 
         // 解析 Codex SSE 响应
@@ -1494,6 +1711,7 @@ impl ApiKeyProviderService {
     ) -> Result<ApiKeyProvider, String> {
         let now = Utc::now();
         let id = format!("custom-{}", uuid::Uuid::new_v4());
+        let provider_type = Self::normalize_custom_provider_type(provider_type, &api_host);
         let normalized_prompt_cache_mode =
             Self::normalize_custom_prompt_cache_mode(provider_type, &api_host, prompt_cache_mode);
 
@@ -1575,6 +1793,8 @@ impl ApiKeyProviderService {
         if let Some(models) = custom_models {
             provider.custom_models = models;
         }
+        provider.provider_type =
+            Self::normalize_custom_provider_type(provider.provider_type, &provider.api_host);
         provider.prompt_cache_mode = Self::normalize_custom_prompt_cache_mode(
             provider.provider_type,
             &provider.api_host,
@@ -2280,9 +2500,10 @@ impl ApiKeyProviderService {
                 let conn = lime_core::database::lock_db(db)?;
                 self.decrypt_api_key_entry_with_migration(&conn, candidate_key)?
             };
+            let effective_provider_type = provider.effective_provider_type();
 
             // 检查客户端兼容性（仅对 Anthropic 类型进行检查）
-            if provider.provider_type == ApiProviderType::Anthropic {
+            if effective_provider_type == ApiProviderType::Anthropic {
                 if let Some(client) = client_type {
                     // 对于 Claude Code 客户端，可以使用任何 Claude 凭证
                     if matches!(
@@ -2344,7 +2565,7 @@ impl ApiKeyProviderService {
             "[智能降级] 成功通过 provider_id 找到凭证: {} (key: {}, type: {:?})",
             provider.name,
             selected_key.alias.as_deref().unwrap_or(&selected_key.id),
-            provider.provider_type
+            provider.effective_provider_type()
         );
 
         Ok(Some(credential))
@@ -2357,7 +2578,7 @@ impl ApiKeyProviderService {
         key_id: &str,
         api_key: &str,
     ) -> Result<ProviderCredential, String> {
-        let (credential_data, pool_type) = match provider.provider_type {
+        let (credential_data, pool_type) = match provider.effective_provider_type() {
             ApiProviderType::Anthropic => {
                 // Anthropic 类型使用 ClaudeKey
                 let data = CredentialData::ClaudeKey {
@@ -2526,6 +2747,7 @@ impl ApiKeyProviderService {
             .ok_or_else(|| format!("Provider not found: {provider_id}"))?;
 
         let provider = &provider_with_keys.provider;
+        let effective_provider_type = provider.effective_provider_type();
 
         // 获取一个可用的 API Key
         let api_key = self
@@ -2535,7 +2757,7 @@ impl ApiKeyProviderService {
         let start_time = Instant::now();
 
         // 根据 Provider 类型选择测试方式
-        let result = match provider.provider_type {
+        let result = match effective_provider_type {
             provider_type if Self::uses_anthropic_protocol(provider_type) => {
                 // Anthropic / AnthropicCompatible 不支持 /models，统一发送 /messages 测试请求
                 let test_model = Self::pick_test_model(
@@ -2551,6 +2773,7 @@ impl ApiKeyProviderService {
                         &provider.api_host,
                         &test_model,
                         provider.supports_automatic_prompt_cache(),
+                        effective_provider_type,
                     )
                     .await
                 {
@@ -2579,9 +2802,15 @@ impl ApiKeyProviderService {
                 )
                 .ok_or_else(|| "缺少模型名称：请在自定义模型中填写一个模型名".to_string())?;
 
-                self.test_codex_responses_endpoint(&api_key, &provider.api_host, &test_model, "hi")
-                    .await
-                    .map(|_| vec![test_model])
+                self.test_codex_responses_endpoint(
+                    &api_key,
+                    &provider.api_host,
+                    &test_model,
+                    "hi",
+                    effective_provider_type,
+                )
+                .await
+                .map(|_| vec![test_model])
             }
             provider_type if Self::uses_openai_responses_protocol(provider_type) => {
                 let test_model = Self::pick_test_model(
@@ -2703,7 +2932,7 @@ impl ApiKeyProviderService {
         api_host: &str,
         model: &str,
     ) -> Result<Vec<String>, String> {
-        self.test_openai_chat_once(api_key, api_host, model, "hi")
+        self.test_openai_chat_once(api_key, api_host, model, "hi", ApiProviderType::Openai)
             .await
             .map(|_| vec![model.to_string()])
     }
@@ -2762,6 +2991,7 @@ impl ApiKeyProviderService {
         api_host: &str,
         model: &str,
         enable_automatic_prompt_cache: bool,
+        provider_type: ApiProviderType,
     ) -> Result<Vec<String>, String> {
         use lime_providers::providers::claude_custom::{ClaudeCustomProvider, PromptCacheMode};
 
@@ -2770,9 +3000,10 @@ impl ApiKeyProviderService {
         } else {
             PromptCacheMode::ExplicitOnly
         };
-        let provider = ClaudeCustomProvider::with_prompt_cache_mode(
+        let provider = ClaudeCustomProvider::with_provider_type_and_prompt_cache_mode(
             api_key.to_string(),
             Some(api_host.to_string()),
+            provider_type,
             prompt_cache_mode,
         );
 
@@ -2783,23 +3014,29 @@ impl ApiKeyProviderService {
             "messages": [{"role": "user", "content": "hi"}]
         });
 
-        let response = provider
-            .messages(&request)
-            .await
-            .map_err(|e| format!("API 调用失败: {e}"))?;
+        let (status, body) = Self::execute_anthropic_test_request_with_retries(|| async {
+            provider
+                .messages(&request)
+                .await
+                .map_err(|e| format!("API 调用失败: {e}"))
+        })
+        .await?;
 
-        if response.status().is_success() {
+        if status.is_success() {
             Ok(vec![model.to_string()])
         } else {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-
             // 检查是否是 Claude Code 专用凭证限制错误
             if body.contains("only authorized for use with Claude Code") {
                 return Err("CLAUDE_CODE_ONLY".to_string());
             }
 
-            Err(format!("API 返回错误: {status} - {body}"))
+            Err(Self::format_anthropic_http_api_error(
+                status,
+                &body,
+                api_host,
+                provider_type,
+                api_key,
+            ))
         }
     }
 

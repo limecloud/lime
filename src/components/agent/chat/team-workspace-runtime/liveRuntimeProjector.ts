@@ -15,6 +15,10 @@ import {
 } from "../teamWorkspaceRuntime";
 import { resolveUserFacingToolDisplayLabel } from "../utils/toolDisplayInfo";
 import { resolveTeamWorkspaceDisplayRuntimeStatusLabel } from "../utils/teamWorkspaceCopy";
+import {
+  buildRuntimeStatusPresentationText,
+  isInternalRoutingRuntimeStatus,
+} from "../utils/turnSummaryPresentation";
 
 const LIVE_ACTIVITY_ENTRY_LIMIT = 3;
 const LIVE_ACTIVITY_DETAIL_MAX_LENGTH = 220;
@@ -142,19 +146,21 @@ function buildRuntimeStatusEntry(
   sessionId: string,
   status: AgentRuntimeStatusPayload,
 ) {
+  if (isInternalRoutingRuntimeStatus(status)) {
+    return null;
+  }
+
   const waiting =
     status.metadata?.team_phase === "queued" ||
     status.metadata?.concurrency_phase === "queued";
+  const detail = buildRuntimeStatusPresentationText({
+    detail: status.detail,
+    checkpoints: (status.checkpoints ?? []).map((item) => `• ${item}`),
+  });
   return buildActivityEntry({
     id: `runtime-status:${sessionId}`,
     title: status.title.trim() || "当前进展",
-    detail: [
-      status.detail,
-      ...(status.checkpoints ?? []).map((item) => `• ${item}`),
-    ]
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .join("\n"),
+    detail,
     statusLabel: waiting ? "稍后开始" : "处理中",
     badgeClassName: waiting
       ? QUEUED_BADGE_CLASS_NAME

@@ -178,6 +178,28 @@ impl ApiProviderType {
     }
 }
 
+pub fn infer_managed_runtime_spec(
+    provider_type: ApiProviderType,
+    api_host: &str,
+) -> ProviderRuntimeSpec {
+    let effective_provider_type = infer_managed_provider_type(provider_type, api_host);
+
+    if effective_provider_type == ApiProviderType::AnthropicCompatible
+        && is_known_automatic_anthropic_compatible_host(Some(api_host))
+    {
+        return ProviderRuntimeSpec {
+            protocol_family: ProviderProtocolFamily::Anthropic,
+            default_api_host: "https://api.anthropic.com",
+            auth_header: "Authorization",
+            auth_prefix: Some("Bearer"),
+            extra_headers: &ANTHROPIC_EXTRA_HEADERS,
+            aster_provider_name: "anthropic",
+        };
+    }
+
+    effective_provider_type.runtime_spec()
+}
+
 impl std::fmt::Display for ApiProviderPromptCacheMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -222,8 +244,9 @@ impl std::fmt::Display for ApiProviderType {
 #[cfg(test)]
 mod tests {
     use super::{
-        infer_managed_prompt_cache_mode, ApiKeyProvider, ApiProviderPromptCacheMode,
-        ApiProviderType, ProviderGroup, ProviderProtocolFamily,
+        infer_managed_prompt_cache_mode, infer_managed_provider_type, infer_managed_runtime_spec,
+        ApiKeyProvider, ApiProviderPromptCacheMode, ApiProviderType, ProviderGroup,
+        ProviderProtocolFamily,
     };
     use chrono::Utc;
 
@@ -292,7 +315,7 @@ mod tests {
         let provider = ApiKeyProvider {
             id: "custom-provider".to_string(),
             name: "Official Anthropic-Compatible".to_string(),
-            provider_type: ApiProviderType::AnthropicCompatible,
+            provider_type: ApiProviderType::Openai,
             api_host: "https://api.minimaxi.com/anthropic".to_string(),
             is_system: false,
             group: ProviderGroup::Custom,
@@ -312,6 +335,56 @@ mod tests {
             provider.effective_prompt_cache_mode(),
             Some(ApiProviderPromptCacheMode::Automatic)
         );
+        assert_eq!(
+            provider.effective_provider_type(),
+            ApiProviderType::AnthropicCompatible
+        );
+    }
+
+    #[test]
+    fn test_known_official_anthropic_compatible_hosts_should_normalize_provider_type() {
+        for provider_type in [
+            ApiProviderType::Openai,
+            ApiProviderType::OpenaiResponse,
+            ApiProviderType::Anthropic,
+            ApiProviderType::Gateway,
+        ] {
+            assert_eq!(
+                infer_managed_provider_type(provider_type, "https://api.minimaxi.com/anthropic"),
+                ApiProviderType::AnthropicCompatible
+            );
+        }
+
+        assert_eq!(
+            infer_managed_provider_type(
+                ApiProviderType::Gemini,
+                "https://api.minimaxi.com/anthropic"
+            ),
+            ApiProviderType::Gemini
+        );
+    }
+
+    #[test]
+    fn test_known_official_anthropic_compatible_hosts_should_use_authorization_header() {
+        let spec = infer_managed_runtime_spec(
+            ApiProviderType::Anthropic,
+            "https://api.minimaxi.com/anthropic",
+        );
+
+        assert_eq!(spec.protocol_family, ProviderProtocolFamily::Anthropic);
+        assert_eq!(spec.auth_header, "Authorization");
+        assert_eq!(spec.auth_prefix, Some("Bearer"));
+        assert_eq!(spec.extra_headers[0], ("anthropic-version", "2023-06-01"));
+    }
+
+    #[test]
+    fn test_unknown_anthropic_hosts_should_keep_x_api_key_header() {
+        let spec =
+            infer_managed_runtime_spec(ApiProviderType::Anthropic, "https://api.anthropic.com");
+
+        assert_eq!(spec.protocol_family, ProviderProtocolFamily::Anthropic);
+        assert_eq!(spec.auth_header, "x-api-key");
+        assert_eq!(spec.auth_prefix, None);
     }
 
     #[test]
@@ -579,19 +652,48 @@ fn infer_managed_prompt_cache_mode(
     None
 }
 
+pub fn infer_managed_provider_type(
+    provider_type: ApiProviderType,
+    api_host: &str,
+) -> ApiProviderType {
+    if is_known_automatic_anthropic_compatible_host(Some(api_host)) {
+        match provider_type {
+            ApiProviderType::Anthropic
+            | ApiProviderType::AnthropicCompatible
+            | ApiProviderType::Openai
+            | ApiProviderType::OpenaiResponse
+            | ApiProviderType::NewApi
+            | ApiProviderType::Gateway => return ApiProviderType::AnthropicCompatible,
+            _ => {}
+        }
+    }
+
+    provider_type
+}
+
 impl ApiKeyProvider {
+    pub fn effective_provider_type(&self) -> ApiProviderType {
+        infer_managed_provider_type(self.provider_type, &self.api_host)
+    }
+
+    pub fn effective_runtime_spec(&self) -> ProviderRuntimeSpec {
+        infer_managed_runtime_spec(self.provider_type, &self.api_host)
+    }
+
     pub fn effective_prompt_cache_mode(&self) -> Option<ApiProviderPromptCacheMode> {
+        let effective_provider_type = self.effective_provider_type();
+
         if let Some(managed_mode) =
-            infer_managed_prompt_cache_mode(self.provider_type, &self.api_host)
+            infer_managed_prompt_cache_mode(effective_provider_type, &self.api_host)
         {
             return Some(managed_mode);
         }
 
-        match self.provider_type {
+        match effective_provider_type {
             ApiProviderType::AnthropicCompatible => self
                 .prompt_cache_mode
-                .or_else(|| self.provider_type.default_prompt_cache_mode()),
-            _ => self.provider_type.default_prompt_cache_mode(),
+                .or_else(|| effective_provider_type.default_prompt_cache_mode()),
+            _ => effective_provider_type.default_prompt_cache_mode(),
         }
     }
 

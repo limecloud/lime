@@ -31,6 +31,7 @@ import { apiKeyProviderApi } from "@/lib/api/apiKeyProvider";
 import {
   fetchProviderModelsAuto,
   modelRegistryApi,
+  normalizeFetchProviderModelsSource,
   type FetchProviderModelsResult,
 } from "@/lib/api/modelRegistry";
 import { ModelCapabilityBadges } from "@/components/model/ModelCapabilityBadges";
@@ -78,7 +79,7 @@ export interface ProviderModelListProps {
 
 interface CachedProviderModels {
   models: EnhancedModelMetadata[];
-  source: "Api" | "LocalFallback" | null;
+  source: "Api" | "Catalog" | "CustomModels" | "LocalFallback" | null;
   error: string | null;
   requestUrl: string | null;
   diagnosticHint: string | null;
@@ -94,17 +95,20 @@ function buildApiDiagnosticLines(result: {
   diagnostic_hint?: string | null;
 }): string[] {
   const lines: string[] = [];
+  const errorText = result.error?.trim() ?? "";
+  const requestUrl = result.request_url?.trim() ?? "";
+  const diagnosticHint = result.diagnostic_hint?.trim() ?? "";
 
-  if (result.error?.trim()) {
-    lines.push(result.error.trim());
+  if (errorText) {
+    lines.push(errorText);
   }
 
-  if (result.request_url?.trim()) {
-    lines.push(`请求地址：${result.request_url.trim()}`);
+  if (requestUrl && !errorText.includes(requestUrl)) {
+    lines.push(`请求地址：${requestUrl}`);
   }
 
-  if (result.diagnostic_hint?.trim()) {
-    lines.push(result.diagnostic_hint.trim());
+  if (diagnosticHint && !errorText.includes(diagnosticHint)) {
+    lines.push(diagnosticHint);
   }
 
   return lines;
@@ -306,10 +310,17 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
   const registryProviderId = useMemo(() => {
     return resolveRegistryProviderId(providerId, {
       providerType,
+      apiHost,
       catalogAliasMap,
       validRegistryProviders: validRegistryProviderIds ?? undefined,
     });
-  }, [catalogAliasMap, providerId, providerType, validRegistryProviderIds]);
+  }, [
+    apiHost,
+    catalogAliasMap,
+    providerId,
+    providerType,
+    validRegistryProviderIds,
+  ]);
 
   // 获取模型数据
   const { models, loading, error } = useModelRegistry({
@@ -322,7 +333,9 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
   const [apiModels, setApiModels] = useState<EnhancedModelMetadata[] | null>(
     null,
   );
-  const [apiSource, setApiSource] = useState<"Api" | "LocalFallback" | null>(
+  const [apiSource, setApiSource] = useState<
+    "Api" | "Catalog" | "CustomModels" | "LocalFallback" | null
+  >(
     null,
   );
   const [apiError, setApiError] = useState<string | null>(null);
@@ -386,14 +399,18 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
     try {
       const result: FetchProviderModelsResult =
         await fetchProviderModelsAuto(providerId);
+      const normalizedSource = normalizeFetchProviderModelsSource(result);
 
       if (result && result.models) {
         const shouldDisplayFetchedModels =
-          result.source === "Api" && result.models.length > 0;
+          (normalizedSource === "Api" ||
+            normalizedSource === "Catalog" ||
+            normalizedSource === "CustomModels") &&
+          result.models.length > 0;
         const nextModels = shouldDisplayFetchedModels ? result.models : [];
 
         setApiModels(nextModels);
-        setApiSource(shouldDisplayFetchedModels ? "Api" : null);
+        setApiSource(shouldDisplayFetchedModels ? normalizedSource : null);
         setApiRequestUrl(result.request_url ?? null);
         setApiDiagnosticHint(result.diagnostic_hint ?? null);
         setApiShouldPromptError(Boolean(result.should_prompt_error));
@@ -406,7 +423,7 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
         if (shouldDisplayFetchedModels) {
           providerModelsCache.set(cacheKey, {
             models: nextModels,
-            source: "Api",
+            source: normalizedSource,
             error: result.error ?? null,
             requestUrl: result.request_url ?? null,
             diagnosticHint: result.diagnostic_hint ?? null,
@@ -658,13 +675,27 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
                         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs",
                         apiSource === "Api"
                           ? "bg-emerald-100 text-emerald-700"
-                          : "bg-amber-100 text-amber-700",
+                          : apiSource === "Catalog"
+                            ? "bg-sky-100 text-sky-700"
+                            : apiSource === "CustomModels"
+                              ? "bg-violet-100 text-violet-700"
+                            : "bg-amber-100 text-amber-700",
                       )}
                     >
                       {apiSource === "Api" ? (
                         <>
                           <Cloud className="h-3 w-3" />
                           API
+                        </>
+                      ) : apiSource === "Catalog" ? (
+                        <>
+                          <HardDrive className="h-3 w-3" />
+                          目录
+                        </>
+                      ) : apiSource === "CustomModels" ? (
+                        <>
+                          <HardDrive className="h-3 w-3" />
+                          自定义
                         </>
                       ) : (
                         <>
@@ -677,7 +708,11 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
                   <TooltipContent>
                     {apiSource === "Api"
                       ? "数据来自 Provider API"
-                      : "API 获取失败，使用本地数据"}
+                      : apiSource === "Catalog"
+                        ? "数据来自厂商目录"
+                        : apiSource === "CustomModels"
+                          ? "数据来自当前 Provider 已配置的自定义模型"
+                        : "API 获取失败，使用本地数据"}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

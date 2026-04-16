@@ -6,6 +6,70 @@
   },
   "models": [
     {
+      "id": "MiniMax-M2.7",
+      "name": "MiniMax-M2.7",
+      "family": "minimax",
+      "tier": "pro",
+      "capabilities": {
+        "vision": false,
+        "tools": true,
+        "streaming": true,
+        "json_mode": true,
+        "function_calling": true,
+        "reasoning": true
+      },
+      "status": "active",
+      "is_latest": true
+    },
+    {
+      "id": "MiniMax-M2.7-highspeed",
+      "name": "MiniMax-M2.7-highspeed",
+      "family": "minimax",
+      "tier": "mini",
+      "capabilities": {
+        "vision": false,
+        "tools": true,
+        "streaming": true,
+        "json_mode": true,
+        "function_calling": true,
+        "reasoning": true
+      },
+      "status": "active",
+      "is_latest": false
+    },
+    {
+      "id": "MiniMax-M2.5",
+      "name": "MiniMax-M2.5",
+      "family": "minimax",
+      "tier": "pro",
+      "capabilities": {
+        "vision": false,
+        "tools": true,
+        "streaming": true,
+        "json_mode": true,
+        "function_calling": true,
+        "reasoning": true
+      },
+      "status": "active",
+      "is_latest": false
+    },
+    {
+      "id": "MiniMax-M2.5-highspeed",
+      "name": "MiniMax-M2.5-highspeed",
+      "family": "minimax",
+      "tier": "mini",
+      "capabilities": {
+        "vision": false,
+        "tools": true,
+        "streaming": true,
+        "json_mode": true,
+        "function_calling": true,
+        "reasoning": true
+      },
+      "status": "active",
+      "is_latest": false
+    },
+    {
       "id": "MiniMax-M2.1",
       "name": "MiniMax-M2.1",
       "family": "minimax",
@@ -18,46 +82,10 @@
         "function_calling": true,
         "reasoning": true
       },
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "currency": "USD"
-      },
-      "limits": {
-        "context": 204800,
-        "max_output": 131072
-      },
       "status": "active",
-      "release_date": "2025-12-23",
-      "is_latest": false
-    },
-    {
-      "id": "MiniMax-M2",
-      "name": "MiniMax-M2",
-      "family": "minimax",
-      "tier": "mini",
-      "capabilities": {
-        "vision": false,
-        "tools": true,
-        "streaming": true,
-        "json_mode": true,
-        "function_calling": true,
-        "reasoning": true
-      },
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "currency": "USD"
-      },
-      "limits": {
-        "context": 196608,
-        "max_output": 128000
-      },
-      "status": "active",
-      "release_date": "2025-10-27",
       "is_latest": false
     }
   ],
-  "updated_at": "2026-01-06T10:24:55.370Z",
+  "updated_at": "2026-04-15T22:40:00.000Z",
   "source": "models.dev"
 }

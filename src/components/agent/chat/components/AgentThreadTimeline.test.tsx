@@ -720,7 +720,7 @@ describe("AgentThreadTimeline", () => {
       {
         ...createBaseItem("summary-1", 1),
         type: "turn_summary",
-        text: "直接回答优先\n当前请求无需默认升级为搜索或任务。",
+        text: "直接回答优先\n当前请求无需默认升级为搜索或任务，先直接给出结果，必要时再调用工具。",
       },
     ];
 

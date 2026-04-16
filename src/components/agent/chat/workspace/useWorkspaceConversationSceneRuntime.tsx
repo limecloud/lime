@@ -4,6 +4,7 @@ import type {
   ReactNode,
   SetStateAction,
 } from "react";
+import { useMemo } from "react";
 import { StepProgress } from "@/lib/workspace/workbenchUi";
 import { useWorkspaceNavigationActions } from "./useWorkspaceNavigationActions";
 import { useWorkspaceInputbarSceneRuntime } from "./useWorkspaceInputbarSceneRuntime";
@@ -27,6 +28,7 @@ import type { TaskFile } from "../components/TaskFiles";
 import type { WorkspacePathMissingState } from "../hooks/agentChatShared";
 import type { SyncStatus } from "../hooks/useContentSync";
 import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
+import { buildAgentTaskRuntimeCardModel } from "../utils/agentTaskRuntime";
 import {
   buildStepProgressProps,
   buildTeamWorkspaceDockProps,
@@ -36,7 +38,10 @@ import { WorkspaceConversationScene } from "./WorkspaceConversationScene";
 
 type InputbarScene = Pick<
   ReturnType<typeof useWorkspaceInputbarSceneRuntime>,
-  "inputbarNode" | "generalWorkbenchDialog" | "teamWorkbenchSurfaceProps"
+  | "inputbarNode"
+  | "generalWorkbenchDialog"
+  | "teamWorkbenchSurfaceProps"
+  | "runtimeToolAvailability"
 >;
 type CanvasScene = Pick<
   ReturnType<typeof useWorkspaceCanvasSceneRuntime>,
@@ -109,6 +114,10 @@ type NavigationActions = Pick<
   | "handleManageProviders"
   | "handleProjectChange"
   | "handleOpenAppearanceSettings"
+  | "handleOpenRuntimeMemoryWorkbench"
+  | "handleOpenChannels"
+  | "handleOpenChromeRelay"
+  | "handleOpenOpenClaw"
   | "handleBackToResources"
   | "handleCompactContext"
 >;
@@ -256,6 +265,13 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   handleRefreshSkills: ConversationScenePresentationParams["scene"]["onRefreshSkills"];
   handleOpenBrowserAssistInCanvas: ConversationScenePresentationParams["scene"]["onLaunchBrowserAssist"];
   browserAssistLaunching: ConversationScenePresentationParams["scene"]["browserAssistLoading"];
+  featuredSceneApps: ConversationScenePresentationParams["scene"]["featuredSceneApps"];
+  sceneAppsLoading: ConversationScenePresentationParams["scene"]["sceneAppsLoading"];
+  sceneAppLaunchingId: ConversationScenePresentationParams["scene"]["sceneAppLaunchingId"];
+  handleLaunchSceneApp?: ConversationScenePresentationParams["scene"]["onLaunchSceneApp"];
+  canResumeRecentSceneApp?: ConversationScenePresentationParams["scene"]["canResumeRecentSceneApp"];
+  handleResumeRecentSceneApp?: ConversationScenePresentationParams["scene"]["onResumeRecentSceneApp"];
+  handleOpenSceneAppsDirectory?: ConversationScenePresentationParams["scene"]["onOpenSceneAppsDirectory"];
   projectId: string | null;
   hideHistoryToggle: boolean;
   showChatPanel: boolean;
@@ -388,6 +404,13 @@ export function useWorkspaceConversationSceneRuntime({
   handleRefreshSkills,
   handleOpenBrowserAssistInCanvas,
   browserAssistLaunching,
+  featuredSceneApps,
+  sceneAppsLoading,
+  sceneAppLaunchingId,
+  handleLaunchSceneApp,
+  canResumeRecentSceneApp,
+  handleResumeRecentSceneApp,
+  handleOpenSceneAppsDirectory,
   projectId,
   hideHistoryToggle,
   showChatPanel,
@@ -493,6 +516,31 @@ export function useWorkspaceConversationSceneRuntime({
     turns.find((turn) => turn.id === currentTurnId) || turns.at(-1) || null;
   const currentSessionStatus = resolveSessionStatusBadge(
     isSending ? "running" : currentSessionTurn?.status,
+  );
+  const runtimeTaskCard = useMemo(
+    () =>
+      buildAgentTaskRuntimeCardModel({
+        messages: displayMessages,
+        turns,
+        threadItems: effectiveThreadItems,
+        currentTurnId,
+        threadRead,
+        pendingActions,
+        queuedTurns,
+        childSubagentSessions,
+        isSending,
+      }),
+    [
+      childSubagentSessions,
+      currentTurnId,
+      displayMessages,
+      effectiveThreadItems,
+      isSending,
+      pendingActions,
+      queuedTurns,
+      threadRead,
+      turns,
+    ],
   );
   const runtimeItemCount = effectiveThreadItems.filter(
     (item) => item.type !== "user_message" && item.type !== "agent_message",
@@ -749,9 +797,27 @@ export function useWorkspaceConversationSceneRuntime({
       onRefreshSkills: handleRefreshSkills,
       onLaunchBrowserAssist: handleOpenBrowserAssistInCanvas,
       browserAssistLoading: browserAssistLaunching,
+      featuredSceneApps,
+      sceneAppsLoading,
+      sceneAppLaunchingId,
+      onLaunchSceneApp: handleLaunchSceneApp,
+      canResumeRecentSceneApp,
+      onResumeRecentSceneApp: handleResumeRecentSceneApp,
+      onOpenSceneAppsDirectory: handleOpenSceneAppsDirectory,
       projectId,
       onProjectChange: navigationActions.handleProjectChange,
       onOpenSettings: navigationActions.handleOpenAppearanceSettings,
+      runtimeToolAvailability: inputbarScene.runtimeToolAvailability,
+      runtimeTaskCard,
+      onOpenMemoryWorkbench: () =>
+        navigationActions.handleOpenRuntimeMemoryWorkbench({
+          sessionId,
+          workingDir: projectRootPath,
+          userMessage: currentSessionTurn?.prompt_text || null,
+        }),
+      onOpenChannels: navigationActions.handleOpenChannels,
+      onOpenChromeRelay: navigationActions.handleOpenChromeRelay,
+      onOpenOpenClaw: navigationActions.handleOpenOpenClaw,
       navbarVisible: shellChromeRuntime.shouldRenderTopBar,
       isRunning: Boolean(isSending),
       navbarChrome: topBarChrome,

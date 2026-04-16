@@ -242,7 +242,8 @@ async fn try_select_api_key_credential(
         };
 
         // 构建额外的请求头
-        let extra_headers = build_api_key_headers(&provider.provider_type, &api_key);
+        let extra_headers =
+            build_api_key_headers(&provider.provider_type, &provider.api_host, &api_key);
 
         let response = CredentialResponse {
             uuid: key_id,
@@ -469,7 +470,8 @@ async fn try_get_api_key_token(
         })?;
 
     // 构建额外的请求头
-    let extra_headers = build_api_key_headers(&provider.provider_type, &api_key);
+    let extra_headers =
+        build_api_key_headers(&provider.provider_type, &provider.api_host, &api_key);
 
     let response = CredentialResponse {
         uuid: api_key_entry.id.clone(),

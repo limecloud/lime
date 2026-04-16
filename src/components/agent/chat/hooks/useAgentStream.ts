@@ -389,9 +389,16 @@ export function useAgentStream(options: UseAgentStreamOptions) {
       return promoteQueuedAgentTurn({
         runtime,
         queuedTurnId,
+        activeStream: activeStreamRef.current,
+        removeStreamListener,
         sessionIdRef,
         refreshSessionReadModel,
         setQueuedTurns,
+        setThreadItems,
+        setThreadTurns,
+        setCurrentTurnId,
+        setMessages,
+        setActiveStream,
         notify: {
           info: (message) => toast.info(message),
           error: (message) => toast.error(message),
@@ -401,7 +408,19 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         },
       });
     },
-    [refreshSessionReadModel, runtime, sessionIdRef, setQueuedTurns],
+    [
+      activeStreamRef,
+      refreshSessionReadModel,
+      removeStreamListener,
+      runtime,
+      sessionIdRef,
+      setActiveStream,
+      setCurrentTurnId,
+      setMessages,
+      setQueuedTurns,
+      setThreadItems,
+      setThreadTurns,
+    ],
   );
 
   return {

@@ -13,6 +13,7 @@ import { listServiceSkillUsage } from "../service-skills/storage";
 import { useWorkspaceSendActions } from "./useWorkspaceSendActions";
 import type { TeamWorkspaceRuntimeFormationState } from "../teamWorkspaceRuntime";
 import { listSlashEntryUsage } from "../skill-selection/slashEntryUsage";
+import { saveSkillCatalog } from "@/lib/api/skillCatalog";
 
 const mockPreheatBrowserAssistInBackground = vi.hoisted(() => vi.fn());
 const mockGetSkillCatalog = vi.hoisted(() => vi.fn());
@@ -3678,7 +3679,7 @@ describe("useWorkspaceSendActions", () => {
   });
 
   it("@配音 应保留原始消息，并通过 service_scene_launch 交给云端技能主链", async () => {
-    mockResolveOemCloudRuntimeContext.mockReturnValueOnce({
+    mockResolveOemCloudRuntimeContext.mockReturnValue({
       baseUrl: "https://user.limeai.run",
       controlPlaneBaseUrl: "https://user.limeai.run/api",
       sceneBaseUrl: "https://user.limeai.run/scene-api",
@@ -3746,6 +3747,77 @@ describe("useWorkspaceSendActions", () => {
             target_language: "英文",
             voice_style: "科技感",
           },
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("@搜索 的 service skill usage 应优先跟随当前 command catalog 绑定，而不是 seeded 默认映射", async () => {
+    const tenantResearchSkill = createGeneralServiceSkill({
+      id: "tenant-research",
+      skillKey: "tenant-research",
+      title: "租户搜索",
+    });
+    saveSkillCatalog(
+      {
+        version: "tenant-2026-04-15",
+        tenantId: "tenant-demo",
+        syncedAt: "2026-04-15T12:00:00.000Z",
+        groups: [
+          {
+            key: "general",
+            title: "通用技能",
+            summary: "租户下发目录",
+            sort: 90,
+            itemCount: 1,
+          },
+        ],
+        items: [
+          {
+            ...tenantResearchSkill,
+            groupKey: "general",
+            execution: {
+              kind: "agent_turn",
+            },
+          },
+        ],
+        entries: [
+          {
+            id: "command:research",
+            kind: "command",
+            title: "租户搜索",
+            summary: "把 @搜索 绑定到租户下发的搜索技能。",
+            commandKey: "research",
+            triggers: [{ mode: "mention", prefix: "@搜索" }],
+            binding: {
+              skillId: "tenant-research",
+              executionKind: "agent_turn",
+            },
+          },
+        ],
+      },
+      "bootstrap_sync",
+    );
+    const harness = mountHook({
+      input: "@搜索 query: AI Agent 聚焦 2026 年新发布",
+      serviceSkills: [tenantResearchSkill],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness.getValue().handleSend();
+        expect(started).toBe(true);
+      });
+
+      expect(listServiceSkillUsage()).toEqual([
+        expect.objectContaining({
+          skillId: "tenant-research",
+          runnerType: "instant",
+          slotValues: expect.objectContaining({
+            query: "AI Agent 聚焦 2026 年新发布",
+          }),
         }),
       ]);
     } finally {

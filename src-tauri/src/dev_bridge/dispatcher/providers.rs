@@ -49,7 +49,10 @@ fn api_key_provider_with_keys_to_display(
         provider: crate::commands::api_key_provider_cmd::ProviderDisplay {
             id: provider_with_keys.provider.id.clone(),
             name: provider_with_keys.provider.name.clone(),
-            provider_type: provider_with_keys.provider.provider_type.to_string(),
+            provider_type: provider_with_keys
+                .provider
+                .effective_provider_type()
+                .to_string(),
             api_host: provider_with_keys.provider.api_host.clone(),
             is_system: provider_with_keys.provider.is_system,
             group: provider_with_keys.provider.group.to_string(),
@@ -181,6 +184,98 @@ pub(super) async fn try_handle(
                 .map_err(|e| format!("获取系统 Provider Catalog 失败: {e}"))?;
             serde_json::to_value(catalog)?
         }
+        "test_api_key_provider_connection" => {
+            let args = args_or_default(args);
+            let provider_id = get_string_arg(&args, "providerId", "provider_id")?;
+            let model_name = args
+                .get("modelName")
+                .or_else(|| args.get("model_name"))
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let db = state
+                .db
+                .as_ref()
+                .ok_or_else(|| "Database not initialized".to_string())?;
+            let provider = state
+                .api_key_provider_service
+                .get_provider(db, &provider_id)?
+                .ok_or_else(|| format!("Provider 不存在: {provider_id}"))?;
+
+            let fallback_models = {
+                let guard = state.model_registry.read().await;
+                if let Some(model_registry) = guard.as_ref() {
+                    model_registry
+                        .get_local_fallback_model_ids_with_hints(
+                            &provider_id,
+                            &provider.provider.api_host,
+                            Some(provider.provider.effective_provider_type()),
+                            &provider.provider.custom_models,
+                        )
+                        .await
+                } else {
+                    Vec::new()
+                }
+            };
+
+            serde_json::to_value(
+                state
+                    .api_key_provider_service
+                    .test_connection_with_fallback_models(
+                        db,
+                        &provider_id,
+                        model_name,
+                        fallback_models,
+                    )
+                    .await?,
+            )?
+        }
+        "test_api_key_provider_chat" => {
+            let args = args_or_default(args);
+            let provider_id = get_string_arg(&args, "providerId", "provider_id")?;
+            let model_name = args
+                .get("modelName")
+                .or_else(|| args.get("model_name"))
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let prompt = get_string_arg(&args, "prompt", "prompt")?;
+            let db = state
+                .db
+                .as_ref()
+                .ok_or_else(|| "Database not initialized".to_string())?;
+            let provider = state
+                .api_key_provider_service
+                .get_provider(db, &provider_id)?
+                .ok_or_else(|| format!("Provider 不存在: {provider_id}"))?;
+
+            let fallback_models = {
+                let guard = state.model_registry.read().await;
+                if let Some(model_registry) = guard.as_ref() {
+                    model_registry
+                        .get_local_fallback_model_ids_with_hints(
+                            &provider_id,
+                            &provider.provider.api_host,
+                            Some(provider.provider.effective_provider_type()),
+                            &provider.provider.custom_models,
+                        )
+                        .await
+                } else {
+                    Vec::new()
+                }
+            };
+
+            serde_json::to_value(
+                state
+                    .api_key_provider_service
+                    .test_chat_with_fallback_models(
+                        db,
+                        &provider_id,
+                        model_name,
+                        prompt,
+                        fallback_models,
+                    )
+                    .await?,
+            )?
+        }
         "get_provider_pool_credentials" => {
             if let Some(db) = &state.db {
                 let conn = db.lock().map_err(|e| e.to_string())?;
@@ -239,4 +334,51 @@ pub(super) async fn try_handle(
     };
 
     Ok(Some(result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::api_key_provider_with_keys_to_display;
+    use chrono::Utc;
+    use lime_core::database::dao::api_key_provider::{
+        ApiKeyProvider, ApiProviderType, ProviderGroup, ProviderWithKeys,
+    };
+    use lime_services::api_key_provider_service::ApiKeyProviderService;
+
+    #[test]
+    fn known_anthropic_host_should_display_effective_provider_type() {
+        let provider = ApiKeyProvider {
+            id: "custom-minimax".to_string(),
+            name: "MiniMax".to_string(),
+            provider_type: ApiProviderType::Openai,
+            api_host: "https://api.minimaxi.com/anthropic".to_string(),
+            is_system: false,
+            group: ProviderGroup::Custom,
+            enabled: true,
+            sort_order: 0,
+            api_version: None,
+            project: None,
+            location: None,
+            region: None,
+            custom_models: vec![],
+            prompt_cache_mode: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        let provider_with_keys = ProviderWithKeys {
+            provider,
+            api_keys: vec![],
+        };
+
+        let display = api_key_provider_with_keys_to_display(
+            &provider_with_keys,
+            &ApiKeyProviderService::new(),
+        );
+
+        assert_eq!(display.provider.provider_type, "anthropic-compatible");
+        assert_eq!(
+            display.provider.prompt_cache_mode.as_deref(),
+            Some("automatic")
+        );
+    }
 }

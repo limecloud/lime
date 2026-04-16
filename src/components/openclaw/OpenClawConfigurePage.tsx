@@ -409,5 +409,3 @@ export function OpenClawConfigurePage({
     </div>
   );
 }
-
-export default OpenClawConfigurePage;

@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use crate::context_mgmt::compact_messages_with_summary;
 use crate::conversation::message::{Message, SystemNotificationType};
 use crate::recipe::build_recipe::build_recipe_from_template_with_positional_params;
-use crate::session::{save_summary, SessionManager};
+use crate::session::{apply_session_update, save_summary};
 
 use super::Agent;
 
@@ -140,13 +140,14 @@ impl Agent {
                 )
                 .await?;
         } else {
-            SessionManager::update_session(session_id)
-                .total_tokens(Some(0))
-                .input_tokens(Some(0))
-                .output_tokens(Some(0))
-                .cache_creation_input_tokens(Some(0))
-                .apply()
-                .await?;
+            apply_session_update(session_id, |update| {
+                update
+                    .total_tokens(Some(0))
+                    .input_tokens(Some(0))
+                    .output_tokens(Some(0))
+                    .cache_creation_input_tokens(Some(0))
+            })
+            .await?;
         }
 
         Ok(Some(Message::assistant().with_system_notification(

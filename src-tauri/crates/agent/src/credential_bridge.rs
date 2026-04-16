@@ -12,7 +12,7 @@
 
 use aster::model::ModelConfig;
 use aster::providers::base::Provider;
-use lime_core::database::dao::api_key_provider::ApiProviderType;
+use lime_core::database::dao::api_key_provider::{infer_managed_runtime_spec, ApiProviderType};
 use lime_core::database::DbConnection;
 use lime_core::models::provider_pool_model::{
     CredentialData, PoolProviderType, ProviderCredential,
@@ -559,6 +559,28 @@ fn split_url_host_and_path(url: &str) -> (String, String) {
     }
 }
 
+fn resolve_anthropic_env_key(config: &AsterProviderConfig) -> &'static str {
+    let api_host = config
+        .base_url
+        .as_deref()
+        .unwrap_or("https://api.anthropic.com");
+    let hinted_provider_type = config
+        .provider_selector
+        .as_deref()
+        .and_then(|value| value.parse::<ApiProviderType>().ok())
+        .unwrap_or(ApiProviderType::Anthropic);
+    let runtime_spec = infer_managed_runtime_spec(hinted_provider_type, api_host);
+
+    if runtime_spec
+        .auth_header
+        .eq_ignore_ascii_case("authorization")
+    {
+        "ANTHROPIC_AUTH_TOKEN"
+    } else {
+        "ANTHROPIC_API_KEY"
+    }
+}
+
 fn set_provider_env_vars(config: &AsterProviderConfig) {
     tracing::info!(
         "[CredentialBridge] set_provider_env_vars: provider_name={}, has_api_key={}, base_url={:?}",
@@ -569,7 +591,7 @@ fn set_provider_env_vars(config: &AsterProviderConfig) {
 
     let env_key = match config.provider_name.as_str() {
         "openai" => "OPENAI_API_KEY",
-        "anthropic" => "ANTHROPIC_API_KEY",
+        "anthropic" => resolve_anthropic_env_key(config),
         "google" => "GOOGLE_API_KEY",
         "bedrock" => "AWS_ACCESS_KEY_ID", // Bedrock 使用 AWS 凭证
         "gcpvertexai" => "GOOGLE_API_KEY",
@@ -585,6 +607,13 @@ fn set_provider_env_vars(config: &AsterProviderConfig) {
 
     if let Some(api_key) = &config.api_key {
         std::env::set_var(env_key, api_key);
+        if config.provider_name == "anthropic" {
+            match env_key {
+                "ANTHROPIC_AUTH_TOKEN" => std::env::remove_var("ANTHROPIC_API_KEY"),
+                "ANTHROPIC_API_KEY" => std::env::remove_var("ANTHROPIC_AUTH_TOKEN"),
+                _ => {}
+            }
+        }
     }
 
     if config.provider_name == "openai" {
@@ -601,19 +630,8 @@ fn set_provider_env_vars(config: &AsterProviderConfig) {
     if let Some(base_url) = &config.base_url {
         match config.provider_name.as_str() {
             "openai" => {
-                // 当显式强制 responses 模式时，需要将路径前缀保留在 OPENAI_HOST 中，
-                // 因为 Aster OpenAI provider 在 responses 模式下固定请求 v1/responses，
-                // 不会读取 OPENAI_BASE_PATH。
-                if config.force_responses_api {
-                    std::env::set_var("OPENAI_HOST", base_url);
-                    std::env::remove_var("OPENAI_BASE_PATH");
-                    tracing::info!(
-                        "[CredentialBridge] 强制 Responses 模式: 设置 OPENAI_HOST={}, 清理 OPENAI_BASE_PATH",
-                        base_url
-                    );
-                    return;
-                }
-                // 解析 base_url，将路径部分拆分到 OPENAI_BASE_PATH
+                // 解析 base_url，将路径部分拆分到 OPENAI_BASE_PATH。
+                // Responses 模式也复用这条前缀推导，避免出现 /v1/v1/responses。
                 // 例如 https://open.bigmodel.cn/api/paas/v4
                 //   -> OPENAI_HOST = https://open.bigmodel.cn
                 //   -> OPENAI_BASE_PATH = api/paas/v4/chat/completions
@@ -777,7 +795,7 @@ mod tests {
     }
 
     #[test]
-    fn test_set_provider_env_vars_openai_codex_responses_keeps_full_base_url() {
+    fn test_set_provider_env_vars_openai_codex_responses_splits_prefixed_base_url() {
         std::env::remove_var("OPENAI_HOST");
         std::env::remove_var("OPENAI_BASE_PATH");
         std::env::remove_var("OPENAI_FORCE_RESPONSES_API");
@@ -799,9 +817,47 @@ mod tests {
 
         assert_eq!(
             std::env::var("OPENAI_HOST").ok(),
-            Some("https://example.com/openai".to_string())
+            Some("https://example.com".to_string())
         );
-        assert!(std::env::var("OPENAI_BASE_PATH").is_err());
+        assert_eq!(
+            std::env::var("OPENAI_BASE_PATH").ok(),
+            Some("openai/chat/completions".to_string())
+        );
+        assert_eq!(
+            std::env::var("OPENAI_FORCE_RESPONSES_API").ok().as_deref(),
+            Some("1")
+        );
+    }
+
+    #[test]
+    fn test_set_provider_env_vars_openai_codex_responses_normalizes_v1_base_url() {
+        std::env::remove_var("OPENAI_HOST");
+        std::env::remove_var("OPENAI_BASE_PATH");
+        std::env::remove_var("OPENAI_FORCE_RESPONSES_API");
+
+        let config = AsterProviderConfig {
+            provider_name: "openai".to_string(),
+            provider_selector: Some("codex".to_string()),
+            model_name: "gpt-5.4".to_string(),
+            api_key: Some("test-key".to_string()),
+            base_url: Some("https://api.openai.com/v1".to_string()),
+            credential_uuid: "test-uuid".to_string(),
+            force_responses_api: true,
+            credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
+        };
+
+        set_provider_env_vars(&config);
+
+        assert_eq!(
+            std::env::var("OPENAI_HOST").ok(),
+            Some("https://api.openai.com".to_string())
+        );
+        assert_eq!(
+            std::env::var("OPENAI_BASE_PATH").ok(),
+            Some("v1/chat/completions".to_string())
+        );
         assert_eq!(
             std::env::var("OPENAI_FORCE_RESPONSES_API").ok().as_deref(),
             Some("1")
@@ -898,6 +954,9 @@ mod tests {
 
     #[test]
     fn test_set_provider_env_vars_anthropic_sets_host_and_base_url() {
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("ANTHROPIC_AUTH_TOKEN");
+
         let config = AsterProviderConfig {
             provider_name: "anthropic".to_string(),
             provider_selector: Some("anthropic".to_string()),
@@ -921,6 +980,38 @@ mod tests {
             std::env::var("ANTHROPIC_BASE_URL").ok().as_deref(),
             Some("https://open.bigmodel.cn/api/anthropic")
         );
+        assert_eq!(
+            std::env::var("ANTHROPIC_AUTH_TOKEN").ok().as_deref(),
+            Some("test-key")
+        );
+        assert!(std::env::var("ANTHROPIC_API_KEY").is_err());
+    }
+
+    #[test]
+    fn test_set_provider_env_vars_official_anthropic_keeps_api_key_env() {
+        std::env::remove_var("ANTHROPIC_API_KEY");
+        std::env::remove_var("ANTHROPIC_AUTH_TOKEN");
+
+        let config = AsterProviderConfig {
+            provider_name: "anthropic".to_string(),
+            provider_selector: Some("anthropic".to_string()),
+            model_name: "claude-sonnet-4-5".to_string(),
+            api_key: Some("official-key".to_string()),
+            base_url: Some("https://api.anthropic.com".to_string()),
+            credential_uuid: "test-uuid".to_string(),
+            force_responses_api: false,
+            credential_path: None,
+            toolshim: false,
+            toolshim_model: None,
+        };
+
+        set_provider_env_vars(&config);
+
+        assert_eq!(
+            std::env::var("ANTHROPIC_API_KEY").ok().as_deref(),
+            Some("official-key")
+        );
+        assert!(std::env::var("ANTHROPIC_AUTH_TOKEN").is_err());
     }
 
     #[test]

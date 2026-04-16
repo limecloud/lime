@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Clock3,
   Copy,
+  FileText,
   ListTodo,
   Loader2,
   PauseCircle,
@@ -48,6 +49,7 @@ import {
   type ThreadReliabilityTone,
 } from "../utils/threadReliabilityView";
 import { AgentIncidentPanel } from "./AgentIncidentPanel";
+import { AgentThreadFileCheckpointDialog } from "./AgentThreadFileCheckpointDialog";
 import { AgentThreadMemoryPrefetchPreview } from "./AgentThreadMemoryPrefetchPreview";
 import { AgentThreadOutcomeSummary } from "./AgentThreadOutcomeSummary";
 
@@ -708,6 +710,19 @@ function buildReliabilityDiagnosticText(params: {
     sections.push("- 无");
   }
 
+  sections.push("", "### 最近文件快照");
+  if (threadRead?.file_checkpoint_summary?.latest_checkpoint) {
+    const latestCheckpoint =
+      threadRead.file_checkpoint_summary.latest_checkpoint;
+    sections.push(`- 快照总数：${threadRead.file_checkpoint_summary.count}`);
+    sections.push(`- 最近文件：${latestCheckpoint.path}`);
+    sections.push(`- 最近版本：${latestCheckpoint.version_no ?? "未知"}`);
+    sections.push(`- 最近更新时间：${latestCheckpoint.updated_at || "未知"}`);
+    sections.push(`- 最近摘要：${latestCheckpoint.preview_text || "无"}`);
+  } else {
+    sections.push("- 无");
+  }
+
   sections.push("", "### 当前回合记忆预取");
   sections.push(...buildMemoryPrefetchDiagnosticLines(memoryPrefetchState));
 
@@ -938,6 +953,8 @@ export const AgentThreadReliabilityPanel: React.FC<
   const [isResumingThread, setIsResumingThread] = useState(false);
   const [isReplayingRequest, setIsReplayingRequest] = useState(false);
   const [isPromotingQueuedTurn, setIsPromotingQueuedTurn] = useState(false);
+  const [fileCheckpointDialogOpen, setFileCheckpointDialogOpen] =
+    useState(false);
   const [memoryPrefetchState, setMemoryPrefetchState] =
     useState<RuntimeMemoryPrefetchState>({
       status: "idle",
@@ -987,6 +1004,15 @@ export const AgentThreadReliabilityPanel: React.FC<
   );
   const latestCompactionSummary =
     latestCompactionBoundary?.summary_preview || "已生成压缩摘要预览";
+  const fileCheckpointSummary = threadRead?.file_checkpoint_summary || null;
+  const latestFileCheckpoint = fileCheckpointSummary?.latest_checkpoint || null;
+  const latestFileCheckpointUpdatedLabel = formatDiagnosticDateTime(
+    latestFileCheckpoint?.updated_at,
+  );
+  const latestFileCheckpointPreview = truncateDiagnosticText(
+    latestFileCheckpoint?.preview_text,
+    180,
+  );
   const latestTurnPrompt = useMemo(() => {
     const activeTurn =
       turns.find((turn) => turn.id === currentTurnId) ||
@@ -1612,7 +1638,9 @@ export const AgentThreadReliabilityPanel: React.FC<
           data-testid="agent-thread-reliability-memory-prefetch-baseline"
         >
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-sm font-medium text-emerald-900">相对最近基线</div>
+            <div className="text-sm font-medium text-emerald-900">
+              相对最近基线
+            </div>
             <Badge
               variant="outline"
               className="border-slate-200 bg-white text-slate-700"
@@ -1781,6 +1809,90 @@ export const AgentThreadReliabilityPanel: React.FC<
             ) : null}
           </div>
         </div>
+      ) : null}
+
+      {fileCheckpointSummary?.count ? (
+        <div
+          className="mt-4 rounded-2xl border border-sky-200 bg-sky-50/70 px-4 py-3"
+          data-testid="agent-thread-reliability-file-checkpoints"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-sky-900">
+                <FileText className="h-4 w-4" />
+                <span>最近文件快照</span>
+              </div>
+              <Badge
+                variant="outline"
+                className="border-sky-300 bg-white text-sky-700"
+              >
+                共 {fileCheckpointSummary.count} 个
+              </Badge>
+              {typeof latestFileCheckpoint?.version_no === "number" ? (
+                <Badge
+                  variant="outline"
+                  className="border-slate-200 bg-white text-slate-700"
+                >
+                  v{latestFileCheckpoint.version_no}
+                </Badge>
+              ) : null}
+            </div>
+            {diagnosticSessionId ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFileCheckpointDialogOpen(true)}
+                className="h-8 border-sky-300 bg-white text-sky-700 hover:bg-sky-100"
+                data-testid="agent-thread-file-checkpoint-open"
+              >
+                查看快照详情
+              </Button>
+            ) : null}
+          </div>
+          {latestFileCheckpoint ? (
+            <>
+              <div className="mt-2 text-sm font-medium leading-6 text-sky-950">
+                {latestFileCheckpoint.path}
+              </div>
+              {latestFileCheckpointPreview ? (
+                <div className="mt-1 text-sm leading-6 text-sky-900">
+                  {latestFileCheckpointPreview}
+                </div>
+              ) : null}
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-sky-800">
+                <span title={String(latestFileCheckpoint.updated_at)}>
+                  最近更新时间 {latestFileCheckpointUpdatedLabel || "未知"}
+                </span>
+                {latestFileCheckpoint.title ? (
+                  <span>标题 {latestFileCheckpoint.title}</span>
+                ) : null}
+                {latestFileCheckpoint.status ? (
+                  <span>状态 {latestFileCheckpoint.status}</span>
+                ) : null}
+                {latestFileCheckpoint.validation_issue_count > 0 ? (
+                  <span>
+                    校验问题 {latestFileCheckpoint.validation_issue_count}
+                  </span>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <div className="mt-2 text-sm leading-6 text-sky-900">
+              当前线程已记录文件快照，但还没有可展示的最近版本摘要。
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {diagnosticSessionId ? (
+        <AgentThreadFileCheckpointDialog
+          open={fileCheckpointDialogOpen}
+          onOpenChange={setFileCheckpointDialogOpen}
+          sessionId={diagnosticSessionId}
+          workingDir={diagnosticWorkingDir || null}
+          defaultCheckpointId={latestFileCheckpoint?.checkpoint_id || null}
+        />
       ) : null}
 
       <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">

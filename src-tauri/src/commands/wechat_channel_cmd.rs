@@ -307,10 +307,9 @@ pub async fn wechat_channel_set_runtime_model(
     persist_wechat_runtime_model(config_manager.inner(), logs.inner(), &request).await
 }
 
-#[tauri::command]
-pub async fn wechat_channel_list_accounts(
-    config_manager: State<'_, GlobalConfigManagerState>,
-) -> Result<Vec<WechatConfiguredAccount>, String> {
+pub fn list_wechat_configured_accounts(
+    config_manager: &GlobalConfigManagerState,
+) -> Vec<WechatConfiguredAccount> {
     let config = config_manager.config();
     let mut accounts = config
         .channels
@@ -333,7 +332,14 @@ pub async fn wechat_channel_list_accounts(
         })
         .collect::<Vec<_>>();
     accounts.sort_by(|left, right| left.account_id.cmp(&right.account_id));
-    Ok(accounts)
+    accounts
+}
+
+#[tauri::command]
+pub async fn wechat_channel_list_accounts(
+    config_manager: State<'_, GlobalConfigManagerState>,
+) -> Result<Vec<WechatConfiguredAccount>, String> {
+    Ok(list_wechat_configured_accounts(config_manager.inner()))
 }
 
 #[tauri::command]

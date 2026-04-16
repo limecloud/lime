@@ -55,14 +55,19 @@
 当前这里负责：
 
 1. 解析 managed / user / project / local / rules / durable / additional 记忆来源。
-2. 读取与写入自动记忆入口 `MEMORY.md` 及主题 note。
+2. 初始化 `memdir` 套件，并读取与写入 `MEMORY.md`、四类 `README.md` 与 topic note。
 3. 生成 `.lime/AGENTS.md` / `.lime/AGENTS.local.md` 模板与 `.gitignore` 守卫。
-4. 为 runtime prefetch 和 Memory 页面提供统一来源链读模型。
+4. 为 `feedback / project` 写入执行结构化约束，并拒绝相对日期项目记忆。
+5. `memory_cleanup_memdir` 负责去重索引、裁剪 README 历史段落，并把旧 topic 日志收口为当前有效版本。
+6. 为 runtime prefetch 和 Memory 页面提供统一来源链读模型，包括 `source_bucket / provider / memory_type / updated_at` 等 memdir 元数据。
 
 固定规则：
 
 - 来源链解析统一收口到 `resolve_effective_sources(...)`。
 - 自动记忆目录定位与入口索引统一收口到 `auto_memory_service.rs`。
+- `memdir` 默认以 `MEMORY.md -> user|feedback|project|reference` 四类目录组织；topic 文件必须继续挂在这条索引主链下。
+- typed topic note 默认按“同 topic 一条当前记忆”维护，后续写入应覆盖旧内容，而不是无限追加时间戳历史。
+- `memory_cleanup_memdir` 只做治理减法：清掉重复链接、缺失链接、过旧 README 历史段落和 topic 日志，不再额外长第二套归档真相。
 - 页面、Hook 或 runtime 不允许再各自扫描另一套“真实来源链”。
 
 ### 2. 单回合 prefetch、工作记忆与压缩状态
@@ -148,11 +153,13 @@
 2. 设置页复用同一套来源链、自动记忆与命中层状态，而不是再长另一份配置解释。
 3. 线程可靠性面板与记忆预演卡片继续消费 `memory_runtime_prefetch_for_turn` 的结果。
 4. DevBridge dispatcher、mock priority 和默认 mock 只为 current 命令提供桥接与兜底，不构成新的事实源。
+5. `MemorySettings` 里的 `整理 memdir` 入口必须继续直连 `memory_cleanup_memdir`，不能在前端本地伪造“已整理”状态。
 
 固定规则：
 
 - 页面层只消费 `memory_runtime_*` / `unified_memory_*` 输出，不自己读磁盘或数据库重组另一套真相。
 - 浏览器模式下的 mock priority 只允许模拟 current 命令结果，不能发明额外字段或第二套状态含义。
+- memdir prompt source 的 linked item 预取优先级应继续偏向“更具体的 topic note + 最近更新时间”，而不是把 README 索引长期压过真正的当前记忆。
 
 ## current / compat / deprecated / dead
 

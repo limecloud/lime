@@ -12,6 +12,7 @@ use axum::{
     response::IntoResponse,
 };
 use futures::{SinkExt, StreamExt as FuturesStreamExt};
+use lime_core::database::dao::api_key_provider::ApiProviderType;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -679,9 +680,10 @@ pub async fn call_provider_openai_for_ws(
             } else {
                 PromptCacheMode::ExplicitOnly
             };
-            let provider = ClaudeCustomProvider::with_prompt_cache_mode(
+            let provider = ClaudeCustomProvider::with_provider_type_and_prompt_cache_mode(
                 api_key.clone(),
                 base_url.clone(),
+                ApiProviderType::AnthropicCompatible,
                 prompt_cache_mode,
             );
             match provider.call_openai_api(request).await {
@@ -832,9 +834,10 @@ pub async fn call_provider_anthropic_for_ws(
             } else {
                 PromptCacheMode::ExplicitOnly
             };
-            let provider = ClaudeCustomProvider::with_prompt_cache_mode(
+            let provider = ClaudeCustomProvider::with_provider_type_and_prompt_cache_mode(
                 api_key.clone(),
                 base_url.clone(),
+                ApiProviderType::AnthropicCompatible,
                 prompt_cache_mode,
             );
             let resp = match provider.call_api(request).await {

@@ -262,6 +262,73 @@ describe("workspaceEntry", () => {
     });
   });
 
+  it("服务技能挂起入口允许无 prompt 直接进入 Claw 工作区", () => {
+    expect(
+      resolveWorkspaceEntry({
+        projectId: "project-1",
+        activeTheme: "general",
+        creationMode: "guided",
+        defaultToolPreferences,
+        payload: {
+          initialPendingServiceSkillLaunch: {
+            skillId: "sceneapp-service-analysis",
+            skillKey: "project-analysis",
+            initialSlotValues: {
+              focus: "架构",
+            },
+            launchUserInput: "请分析当前项目结构",
+          },
+        },
+        now: () => 654,
+      }),
+    ).toEqual({
+      ok: true,
+      toolPreferences: defaultToolPreferences,
+      targetTheme: "general",
+      nextNewChatAt: 654,
+      navigationParams: {
+        agentEntry: "claw",
+        immersiveHome: false,
+        projectId: "project-1",
+        theme: "general",
+        initialCreationMode: "guided",
+        initialUserPrompt: undefined,
+        initialUserImages: undefined,
+        openBrowserAssistOnMount: undefined,
+        initialPendingServiceSkillLaunch: {
+          skillId: "sceneapp-service-analysis",
+          skillKey: "project-analysis",
+          requestKey: 654,
+          initialSlotValues: {
+            focus: "架构",
+          },
+          launchUserInput: "请分析当前项目结构",
+        },
+        newChatAt: 654,
+        lockTheme: false,
+      },
+      workspaceBootstrap: {
+        projectId: "project-1",
+        initialUserPrompt: undefined,
+        initialUserImages: undefined,
+        theme: "general",
+        lockTheme: false,
+        initialCreationMode: "guided",
+        openBrowserAssistOnMount: undefined,
+        initialPendingServiceSkillLaunch: {
+          skillId: "sceneapp-service-analysis",
+          skillKey: "project-analysis",
+          requestKey: 654,
+          initialSlotValues: {
+            focus: "架构",
+          },
+          launchUserInput: "请分析当前项目结构",
+        },
+        newChatAt: 654,
+      },
+    });
+  });
+
   it("站点技能 metadata 启动时也应自动锁定 general 主题", () => {
     expect(
       resolveWorkspaceEntry({

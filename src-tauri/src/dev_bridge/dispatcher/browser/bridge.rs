@@ -20,6 +20,9 @@ pub(super) async fn try_handle(
                     .await?,
             )?
         }
+        "cleanup_gui_smoke_chrome_profiles" => serde_json::to_value(
+            crate::commands::webview_cmd::cleanup_gui_smoke_chrome_profiles_global().await?,
+        )?,
         "get_chrome_bridge_endpoint_info" => serde_json::to_value(
             crate::commands::webview_cmd::get_chrome_bridge_endpoint_info_global(
                 state.server.clone(),

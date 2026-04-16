@@ -37,6 +37,7 @@
 - `aiprompts/task-agent-taxonomy.md`：Task / Agent / Coordinator current taxonomy 与边界归属
 - `aiprompts/remote-runtime.md`：Remote runtime current 主链、current/compat 分类与远程入口归属
 - `aiprompts/memory-compaction.md`：Memory / Compaction current 主链、来源链/持久记忆/压缩边界与 current/compat 分类
+- `aiprompts/persistence-map.md`：Runtime 文件快照持久化主链、FileArtifact/sidecar/version/checkpoint 边界
 - `aiprompts/state-history-telemetry.md`：State / History / Telemetry current 主链、session/thread/request/evidence/history 边界与 current/compat 分类
 - `develop/scheduler-task-governance-p1.md`：调度任务治理 P1（连续失败、自动停用、冷却恢复）
 - `roadmap/lime-skills-standardization-roadmap.md`：Skills 标准化与产品化路线图

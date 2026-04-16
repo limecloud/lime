@@ -11,7 +11,7 @@
 // - 计划持久化存储
 // - 用户权限确认机制
 
-use crate::session::{resolve_team_context, SessionManager, SessionType};
+use crate::session::{query_session, resolve_team_context, SessionType};
 use crate::tools::{
     base::{PermissionCheckResult, Tool},
     context::{ToolContext, ToolOptions, ToolResult},
@@ -153,7 +153,7 @@ async fn session_is_subagent_context(context: &ToolContext) -> bool {
         return false;
     }
 
-    SessionManager::get_session(session_id, false)
+    query_session(session_id, false)
         .await
         .map(|session| matches!(session.session_type, SessionType::SubAgent))
         .unwrap_or(false)
@@ -1062,8 +1062,8 @@ Before using this tool, ensure your plan is clear and unambiguous. If there are 
 mod tests {
     use super::*;
     use crate::session::{
-        save_team_membership, save_team_state, SessionManager, SessionType, TeamMember,
-        TeamMembershipState, TeamSessionState,
+        delete_managed_session, save_team_membership, save_team_state, SessionManager, SessionType,
+        TeamMember, TeamMembershipState, TeamSessionState,
     };
     use crate::tools::{context::ToolContext, PermissionBehavior, SendInputResponse};
     use serde_json::{json, Value};
@@ -1259,7 +1259,7 @@ mod tests {
             Some("EnterPlanMode tool cannot be used in agent contexts".to_string())
         );
 
-        let _ = SessionManager::delete_session(&context.session_id).await;
+        let _ = delete_managed_session(&context.session_id).await;
         Ok(())
     }
 
@@ -1309,7 +1309,7 @@ mod tests {
         assert!(matches!(result.behavior, PermissionBehavior::Allow));
 
         GLOBAL_STATE.set_plan_mode(false, None, None);
-        let _ = SessionManager::delete_session(&context.session_id).await;
+        let _ = delete_managed_session(&context.session_id).await;
         Ok(())
     }
 
@@ -1356,7 +1356,7 @@ mod tests {
             .to_string()
             .contains("EnterPlanMode tool cannot be used in agent contexts"));
 
-        let _ = SessionManager::delete_session(&context.session_id).await;
+        let _ = delete_managed_session(&context.session_id).await;
         Ok(())
     }
 
@@ -1418,7 +1418,7 @@ mod tests {
             serde_json::from_str(result.output.as_ref().unwrap()).expect("valid exit plan output");
         assert_eq!(output["isAgent"], json!(true));
 
-        let _ = SessionManager::delete_session(&context.session_id).await;
+        let _ = delete_managed_session(&context.session_id).await;
         Ok(())
     }
 
@@ -1497,8 +1497,8 @@ mod tests {
         );
         assert_eq!(result.metadata["pending_request_id"], json!(request_id));
 
-        let _ = SessionManager::delete_session(&context.session_id).await;
-        let _ = SessionManager::delete_session(&lead_session_id).await;
+        let _ = delete_managed_session(&context.session_id).await;
+        let _ = delete_managed_session(&lead_session_id).await;
         Ok(())
     }
 

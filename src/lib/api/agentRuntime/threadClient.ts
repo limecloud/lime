@@ -6,7 +6,13 @@ import {
 } from "./transport";
 import type {
   AgentRuntimeCompactSessionRequest,
+  AgentRuntimeDiffFileCheckpointRequest,
+  AgentRuntimeFileCheckpointDetail,
+  AgentRuntimeFileCheckpointDiffResult,
+  AgentRuntimeFileCheckpointListResult,
+  AgentRuntimeGetFileCheckpointRequest,
   AgentRuntimeInterruptTurnRequest,
+  AgentRuntimeListFileCheckpointsRequest,
   AgentRuntimePromoteQueuedTurnRequest,
   AgentRuntimeRemoveQueuedTurnRequest,
   AgentRuntimeReplayRequestRequest,
@@ -70,9 +76,12 @@ export function createThreadClient({
   async function removeAgentRuntimeQueuedTurn(
     request: AgentRuntimeRemoveQueuedTurnRequest,
   ): Promise<boolean> {
-    return await invokeCommand<boolean>(AGENT_RUNTIME_COMMANDS.removeQueuedTurn, {
-      request,
-    });
+    return await invokeCommand<boolean>(
+      AGENT_RUNTIME_COMMANDS.removeQueuedTurn,
+      {
+        request,
+      },
+    );
   }
 
   async function promoteAgentRuntimeQueuedTurn(
@@ -105,10 +114,40 @@ export function createThreadClient({
     ) as AgentRuntimeThreadReadModel;
   }
 
+  async function listAgentRuntimeFileCheckpoints(
+    request: AgentRuntimeListFileCheckpointsRequest,
+  ): Promise<AgentRuntimeFileCheckpointListResult> {
+    return await invokeCommand<AgentRuntimeFileCheckpointListResult>(
+      AGENT_RUNTIME_COMMANDS.listFileCheckpoints,
+      { request },
+    );
+  }
+
+  async function getAgentRuntimeFileCheckpoint(
+    request: AgentRuntimeGetFileCheckpointRequest,
+  ): Promise<AgentRuntimeFileCheckpointDetail> {
+    return await invokeCommand<AgentRuntimeFileCheckpointDetail>(
+      AGENT_RUNTIME_COMMANDS.getFileCheckpoint,
+      { request },
+    );
+  }
+
+  async function diffAgentRuntimeFileCheckpoint(
+    request: AgentRuntimeDiffFileCheckpointRequest,
+  ): Promise<AgentRuntimeFileCheckpointDiffResult> {
+    return await invokeCommand<AgentRuntimeFileCheckpointDiffResult>(
+      AGENT_RUNTIME_COMMANDS.diffFileCheckpoint,
+      { request },
+    );
+  }
+
   return {
     compactAgentRuntimeSession,
+    diffAgentRuntimeFileCheckpoint,
+    getAgentRuntimeFileCheckpoint,
     getAgentRuntimeThreadRead,
     interruptAgentRuntimeTurn,
+    listAgentRuntimeFileCheckpoints,
     promoteAgentRuntimeQueuedTurn,
     removeAgentRuntimeQueuedTurn,
     replayAgentRuntimeRequest,
@@ -120,8 +159,11 @@ export function createThreadClient({
 
 export const {
   compactAgentRuntimeSession,
+  diffAgentRuntimeFileCheckpoint,
+  getAgentRuntimeFileCheckpoint,
   getAgentRuntimeThreadRead,
   interruptAgentRuntimeTurn,
+  listAgentRuntimeFileCheckpoints,
   promoteAgentRuntimeQueuedTurn,
   removeAgentRuntimeQueuedTurn,
   replayAgentRuntimeRequest,

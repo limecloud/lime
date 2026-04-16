@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readStoredBaseSetupPackageSnapshot } from "@/lib/base-setup/storage";
 import {
   getSeededServiceSkillCatalog,
   getServiceSkillCatalog,
@@ -49,6 +50,84 @@ function buildStaleRemoteCatalog(): ServiceSkillCatalog {
   };
 }
 
+function buildBaseSetupPackage() {
+  return {
+    id: "bootstrap-scene-pack",
+    version: "tenant-2026-04-15",
+    title: "Bootstrap Scene Pack",
+    summary: "通过 bootstrap 下发基础设置包",
+    bundle_refs: [
+      {
+        id: "bootstrap-bundle",
+        source: "remote",
+        path_or_uri: "lime://bundles/bootstrap",
+        kind: "skill_bundle",
+      },
+    ],
+    catalog_projections: [
+      {
+        id: "tenant-bootstrap-base-setup",
+        target_catalog: "service_skill_catalog",
+        entry_key: "tenant-bootstrap-base-setup",
+        title: "Bootstrap 基础设置场景",
+        summary: "来自 bootstrap 的基础设置包目录项",
+        category: "Bootstrap",
+        output_hint: "结果包",
+        bundle_ref_id: "bootstrap-bundle",
+        slot_profile_ref: "bootstrap-slot-profile",
+        binding_profile_ref: "bootstrap-binding-profile",
+        artifact_profile_ref: "bootstrap-artifact-profile",
+        scorecard_profile_ref: "bootstrap-scorecard-profile",
+        policy_profile_ref: "bootstrap-policy-profile",
+      },
+    ],
+    slot_profiles: [
+      {
+        id: "bootstrap-slot-profile",
+        slots: [
+          {
+            key: "topic",
+            label: "主题",
+            type: "text",
+            required: true,
+            placeholder: "输入主题",
+          },
+        ],
+      },
+    ],
+    binding_profiles: [
+      {
+        id: "bootstrap-binding-profile",
+        binding_family: "agent_turn",
+      },
+    ],
+    artifact_profiles: [
+      {
+        id: "bootstrap-artifact-profile",
+        delivery_contract: "artifact_bundle",
+        required_parts: ["index.md"],
+        viewer_kind: "artifact_bundle",
+      },
+    ],
+    scorecard_profiles: [
+      {
+        id: "bootstrap-scorecard-profile",
+        metrics: ["success_rate"],
+      },
+    ],
+    policy_profiles: [
+      {
+        id: "bootstrap-policy-profile",
+      },
+    ],
+    compatibility: {
+      min_app_version: "1.11.0",
+      required_kernel_capabilities: ["agent_turn"],
+      seeded_fallback: true,
+    },
+  };
+}
+
 describe("serviceSkillCatalogBootstrap", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -72,6 +151,46 @@ describe("serviceSkillCatalogBootstrap", () => {
         },
       }),
     ).toEqual(parseServiceSkillCatalog(catalog));
+  });
+
+  it("应支持从 bootstrap 包装层提取 Base Setup Package", () => {
+    const catalog = extractServiceSkillCatalogFromBootstrapPayload({
+      bootstrap: {
+        baseSetupPackage: buildBaseSetupPackage(),
+      },
+    });
+
+    expect(catalog).toEqual(
+      expect.objectContaining({
+        version: "tenant-2026-04-15",
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            id: "tenant-bootstrap-base-setup",
+            title: "Bootstrap 基础设置场景",
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("bootstrap 同步基础设置包时应写入基础设置快照", async () => {
+    syncServiceSkillCatalogFromBootstrapPayload({
+      bootstrap: {
+        baseSetupPackage: buildBaseSetupPackage(),
+      },
+    });
+
+    const storedSnapshot = readStoredBaseSetupPackageSnapshot();
+    const storedCatalog = await getServiceSkillCatalog();
+
+    expect(storedSnapshot).toEqual(
+      expect.objectContaining({
+        packageId: "bootstrap-scene-pack",
+        packageVersion: "tenant-2026-04-15",
+        tenantId: "base-setup",
+      }),
+    );
+    expect(storedCatalog.items[0]?.id).toBe("tenant-bootstrap-base-setup");
   });
 
   it("启动时应在专用全局快照无效时回退读取 bootstrap payload", async () => {

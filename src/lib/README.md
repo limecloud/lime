@@ -19,7 +19,6 @@
 - `types/` - 类型定义模块
   - `provider.ts` - API Key Provider 系统类型定义（Requirements 5.1）
 - `utils/` - 通用工具函数
-  - `apiKeyValidation.ts` - API Key 格式验证（Requirements 3.8）
 - `webview-api.ts` - Webview 管理 API（Tauri 2.x multiwebview）
 - `utils.ts` - 通用工具函数
 

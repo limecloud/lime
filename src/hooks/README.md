@@ -16,7 +16,6 @@
 ## 相关文档
 
 - 架构设计：`docs/prd/chat-architecture-redesign.md`
-- 类型定义：`src/types/chat.ts`
 
 ## useSkillExecution
 

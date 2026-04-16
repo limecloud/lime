@@ -1,7 +1,7 @@
 //! Runtime analysis handoff 导出服务
 //!
 //! 将 handoff bundle / evidence pack / replay case 重新包装成
-//! 外部 Claude Code / Codex 更容易直接消费的 analysis handoff。
+//! 外部代码助手 / Codex 更容易直接消费的 analysis handoff。
 //! 这条链仍然只负责导出证据与现成提示词，不在 Lime 内自动分析或自动修复。
 
 use crate::agent::SessionDetail;
@@ -742,7 +742,7 @@ fn build_reading_order() -> Vec<String> {
 
 fn build_external_analysis_contract() -> AnalysisExternalContract {
     AnalysisExternalContract {
-        audience: "Claude Code / Codex".to_string(),
+        audience: "外部代码助手 / Codex".to_string(),
         task: "基于 Lime 导出的结构化证据做问题分析与修复建议，不直接代替团队做最终决策。"
             .to_string(),
         required_sections: vec![
@@ -1309,6 +1309,7 @@ mod tests {
             interrupt_state: None,
             updated_at: Some("2026-03-27T10:01:20Z".to_string()),
             latest_compaction_boundary: None,
+            file_checkpoint_summary: None,
             diagnostics: Some(AgentRuntimeThreadDiagnostics {
                 latest_turn_status: Some("action_required".to_string()),
                 latest_turn_started_at: None,

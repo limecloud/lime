@@ -570,7 +570,8 @@ describe("MessageList", () => {
     expect(container.textContent).toContain("工具 读 1 / 列 1");
     expect(container.textContent).toContain("任务 0/1");
     expect(container.textContent).toContain("输入 1.8K / 输出 640");
-    expect(container.textContent).toContain("Prompt Cache 未声明自动缓存");
+    expect(container.textContent).toContain("缓存 0");
+    expect(container.textContent).toContain("未声明自动缓存");
     expect(
       container.querySelector('[data-testid="token-usage-display"]'),
     ).toBeNull();
@@ -603,6 +604,128 @@ describe("MessageList", () => {
       container.querySelector('[data-testid="assistant-message-meta-footer"]'),
     ).toBeNull();
     expect(container.textContent).not.toContain("正在整理相关信息");
+  });
+
+  it("首个文本分片到来前，不应渲染空白 assistant 气泡，只保留运行态行", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-user-empty-tail",
+        role: "user",
+        content: "你好",
+        timestamp: now,
+      },
+      {
+        id: "msg-assistant-empty-tail",
+        role: "assistant",
+        content: "",
+        timestamp: new Date(now.getTime() + 1000),
+        isThinking: true,
+      },
+    ];
+
+    const container = render(messages, {
+      isSending: true,
+    });
+
+    expect(
+      container.querySelector('[data-testid="streaming-renderer"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="assistant-message-meta-footer"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("处理中");
+    expect(container.textContent).not.toContain("<empty-assistant>");
+  });
+
+  it("assistant 首条流式内容只有协议残留时，不应渲染空白气泡", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-user-protocol-tail",
+        role: "user",
+        content: "你好",
+        timestamp: now,
+      },
+      {
+        id: "msg-assistant-protocol-tail",
+        role: "assistant",
+        content: [
+          "Built-in Tool: Read",
+          "input:",
+          '{"file_path":"/repo/src/index.ts"}',
+          "output:",
+          '{"ok":true}',
+        ].join("\n"),
+        timestamp: new Date(now.getTime() + 1000),
+        isThinking: true,
+      },
+    ];
+
+    const container = render(messages, {
+      isSending: true,
+    });
+
+    expect(
+      container.querySelector('[data-testid="streaming-renderer"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="assistant-message-meta-footer"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("处理中");
+    expect(container.textContent).not.toContain("Built-in Tool");
+  });
+
+  it("assistant 占位消息只有启动态 runtimeStatus 时，也不应保留空白气泡", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-user-runtime-only",
+        role: "user",
+        content: "你好",
+        timestamp: now,
+      },
+      {
+        id: "msg-assistant-runtime-only",
+        role: "assistant",
+        content: "",
+        timestamp: new Date(now.getTime() + 1000),
+        isThinking: true,
+        runtimeStatus: {
+          phase: "routing",
+          title: "正在启动处理流程",
+          detail: "已开始处理，正在准备环境并等待第一条进展。",
+          checkpoints: [
+            "会话已建立",
+            "对话优先执行",
+            "直接回答优先",
+            "等待首个模型事件",
+          ],
+        },
+      },
+    ];
+
+    const container = render(messages, {
+      isSending: true,
+    });
+
+    expect(
+      container.querySelector('[data-testid="streaming-renderer"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="assistant-message-meta-footer"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("处理中");
+    expect(container.textContent).not.toContain("正在启动处理流程");
   });
 
   it("assistant 消息结算区应以内联模式承载 token usage", () => {
@@ -2199,11 +2322,15 @@ describe("MessageList", () => {
     expect(
       container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
     ).toBeNull();
-    expect(mockStreamingRenderer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        showRuntimeStatusInline: true,
-      }),
-    );
+    expect(
+      container.querySelector('[data-testid="streaming-renderer"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="assistant-message-meta-footer"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
+    ).not.toBeNull();
   });
 
   it("本地工具批次的阶段结论不应再进入主消息流时间线", () => {
@@ -2575,13 +2702,12 @@ describe("MessageList", () => {
       },
     ];
 
-    render(messages);
+    const container = render(messages);
 
-    expect(mockStreamingRenderer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: "",
-      }),
-    );
+    expect(
+      container.querySelector('[data-testid="streaming-renderer"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("[Image #1]");
   });
 
   it("助手消息包含 artifacts 时应渲染产物卡片并响应点击", () => {
@@ -2941,8 +3067,14 @@ describe("MessageList", () => {
     );
   });
 
-  it("当前 turn 映射错位时，应优先显示在最后一个助手消息上", () => {
+  it("当前 turn 已映射到较早助手消息时，不应被最新助手消息抢占", () => {
     const messages: Message[] = [
+      {
+        id: "msg-user-earlier",
+        role: "user",
+        content: "先做第一轮分析",
+        timestamp: new Date("2026-03-15T09:00:00Z"),
+      },
       {
         id: "msg-assistant-earlier",
         role: "assistant",
@@ -2950,10 +3082,22 @@ describe("MessageList", () => {
         timestamp: new Date("2026-03-15T09:00:05Z"),
       },
       {
+        id: "msg-user-latest",
+        role: "user",
+        content: "继续下一轮",
+        timestamp: new Date("2026-03-15T09:00:10Z"),
+      },
+      {
         id: "msg-assistant-latest",
         role: "assistant",
-        content: "这是当前回合的最新回复。",
+        content: "",
         timestamp: new Date("2026-03-15T09:00:20Z"),
+        runtimeStatus: {
+          phase: "preparing",
+          title: "排队中",
+          detail: "等待上一轮完成后继续。",
+          checkpoints: [],
+        },
       },
     ];
 
@@ -2996,18 +3140,16 @@ describe("MessageList", () => {
       ),
     );
 
-    expect(streamingNodes).toHaveLength(2);
+    expect(streamingNodes).toHaveLength(1);
     expect(timelineNodes).toHaveLength(1);
     expect(
-      (streamingNodes[0] as Node).compareDocumentPosition(
-        timelineNodes[0] as Node,
+      (timelineNodes[0] as Node).compareDocumentPosition(
+        streamingNodes[0] as Node,
       ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      (timelineNodes[0] as Node).compareDocumentPosition(
-        streamingNodes[1] as Node,
-      ) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+      container.querySelector('[data-testid="assistant-message-meta-footer"]'),
+    ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="agent-thread-reliability-panel"]'),
     ).toBeNull();

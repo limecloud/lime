@@ -2,6 +2,7 @@
 //!
 //! 提供统一的模型获取、缓存和查询接口，支持从不同 Provider 获取模型列表。
 
+use lime_core::database::dao::api_key_provider::{infer_managed_runtime_spec, ApiProviderType};
 use lime_core::database::dao::provider_pool::ProviderPoolDao;
 use lime_core::database::DbConnection;
 use lime_core::models::provider_pool_model::{
@@ -205,18 +206,29 @@ impl ModelService {
             url
         );
 
-        let response = self
+        let runtime_spec = infer_managed_runtime_spec(
+            ApiProviderType::Anthropic,
+            base_url.unwrap_or("https://api.anthropic.com"),
+        );
+        let auth_value = runtime_spec
+            .auth_prefix
+            .map(|prefix| format!("{prefix} {api_key}"))
+            .unwrap_or_else(|| api_key.to_string());
+
+        let mut request = self
             .client
             .get(&url)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
-            .timeout(self.timeout)
-            .send()
-            .await
-            .map_err(|e| {
-                tracing::error!("[MODEL_SERVICE] Anthropic 请求失败: {}", e);
-                format!("请求失败: {e}")
-            })?;
+            .header(runtime_spec.auth_header, auth_value)
+            .timeout(self.timeout);
+
+        for (name, value) in runtime_spec.extra_headers {
+            request = request.header(*name, *value);
+        }
+
+        let response = request.send().await.map_err(|e| {
+            tracing::error!("[MODEL_SERVICE] Anthropic 请求失败: {}", e);
+            format!("请求失败: {e}")
+        })?;
 
         let status = response.status();
         tracing::info!("[MODEL_SERVICE] Anthropic 响应状态码: {}", status);

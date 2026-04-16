@@ -17,7 +17,9 @@ use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, SubRecipe};
-use crate::session::{SessionManager, SubagentSessionMetadata};
+use crate::session::{
+    create_subagent_session, persist_session_extension_data, SubagentSessionMetadata,
+};
 
 pub const AGENT_TOOL_NAME: &str = "Agent";
 const SUBAGENT_TASK_SUMMARY_MAX_CHARS: usize = 160;
@@ -444,17 +446,14 @@ async fn execute_subagent(
             data: None,
         })?;
 
-    let session = SessionManager::create_session(
-        working_dir,
-        build_subagent_session_name(&params, &recipe),
-        crate::session::session_manager::SessionType::SubAgent,
-    )
-    .await
-    .map_err(|e| ErrorData {
-        code: ErrorCode::INTERNAL_ERROR,
-        message: Cow::from(format!("Failed to create session: {}", e)),
-        data: None,
-    })?;
+    let session =
+        create_subagent_session(working_dir, build_subagent_session_name(&params, &recipe))
+            .await
+            .map_err(|e| ErrorData {
+                code: ErrorCode::INTERNAL_ERROR,
+                message: Cow::from(format!("Failed to create session: {}", e)),
+                data: None,
+            })?;
 
     persist_subagent_session_metadata(
         &session.id,
@@ -636,10 +635,7 @@ async fn persist_subagent_session_metadata(
     metadata: SubagentSessionMetadata,
 ) -> Result<()> {
     let extension_data = metadata.into_updated_extension_data(session)?;
-    SessionManager::update_session(session_id)
-        .extension_data(extension_data)
-        .apply()
-        .await
+    persist_session_extension_data(session_id, extension_data).await
 }
 
 fn build_recipe(

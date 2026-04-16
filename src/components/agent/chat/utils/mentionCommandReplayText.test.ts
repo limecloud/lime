@@ -373,7 +373,7 @@ describe("buildMentionCommandReplayText", () => {
 
   it("自然语句的 @分析 应保守回退正文", () => {
     const parsedCommand = parseAnalysisWorkbenchCommand(
-      "@分析 帮我拆解 Claude Code 最近为什么火",
+      "@分析 帮我拆解某代码助手最近为什么火",
     );
 
     expect(
@@ -381,7 +381,7 @@ describe("buildMentionCommandReplayText", () => {
         commandKey: "analysis",
         parsedCommand: parsedCommand!,
       }),
-    ).toBe("帮我拆解 Claude Code 最近为什么火");
+    ).toBe("帮我拆解某代码助手最近为什么火");
   });
 
   it("应把 @发布合规 回放整理成带默认约束的字段骨架", () => {

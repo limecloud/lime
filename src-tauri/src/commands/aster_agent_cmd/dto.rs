@@ -1,4 +1,5 @@
 use super::*;
+use crate::services::runtime_file_checkpoint_service;
 use chrono::{DateTime, Utc};
 use lime_core::models::model_registry::ModelCapabilities;
 
@@ -250,6 +251,28 @@ pub struct AgentRuntimeReplayRequestRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct AgentRuntimeListFileCheckpointsRequest {
+    #[serde(alias = "sessionId")]
+    pub session_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AgentRuntimeGetFileCheckpointRequest {
+    #[serde(alias = "sessionId")]
+    pub session_id: String,
+    #[serde(alias = "checkpointId")]
+    pub checkpoint_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AgentRuntimeDiffFileCheckpointRequest {
+    #[serde(alias = "sessionId")]
+    pub session_id: String,
+    #[serde(alias = "checkpointId")]
+    pub checkpoint_id: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct AgentRuntimeRemoveQueuedTurnRequest {
     #[serde(alias = "sessionId")]
     pub session_id: String,
@@ -425,6 +448,82 @@ pub struct AgentRuntimeCompactionBoundarySnapshot {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeFileCheckpointSummary {
+    pub checkpoint_id: String,
+    pub turn_id: String,
+    pub path: String,
+    pub source: String,
+    pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_no: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot_path: Option<String>,
+    pub validation_issue_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeFileCheckpointThreadSummary {
+    pub count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_checkpoint: Option<AgentRuntimeFileCheckpointSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeFileCheckpointListResult {
+    pub session_id: String,
+    pub thread_id: String,
+    pub checkpoint_count: usize,
+    #[serde(default)]
+    pub checkpoints: Vec<AgentRuntimeFileCheckpointSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeFileCheckpointDetail {
+    pub session_id: String,
+    pub thread_id: String,
+    pub checkpoint: AgentRuntimeFileCheckpointSummary,
+    pub live_path: String,
+    pub snapshot_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checkpoint_document: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub live_document: Option<serde_json::Value>,
+    #[serde(default)]
+    pub version_history: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub validation_issues: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRuntimeFileCheckpointDiffResult {
+    pub session_id: String,
+    pub thread_id: String,
+    pub checkpoint: AgentRuntimeFileCheckpointSummary,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_version_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_version_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diff: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentRuntimeThreadDiagnostics {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_turn_status: Option<String>,
@@ -491,6 +590,8 @@ pub struct AgentRuntimeThreadReadModel {
     pub updated_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_compaction_boundary: Option<AgentRuntimeCompactionBoundarySnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_checkpoint_summary: Option<AgentRuntimeFileCheckpointThreadSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostics: Option<AgentRuntimeThreadDiagnostics>,
 }
@@ -649,6 +750,8 @@ impl AgentRuntimeThreadReadModel {
                 .as_ref()
                 .and_then(|value| value.latest_context_compaction.as_ref()),
         );
+        let file_checkpoint_summary =
+            runtime_file_checkpoint_service::build_thread_file_checkpoint_summary(detail);
         let active_turn = detail
             .turns
             .iter()
@@ -713,6 +816,7 @@ impl AgentRuntimeThreadReadModel {
                 .map(|turn| turn.updated_at.clone())
                 .or_else(|| Some(detail.updated_at.to_string())),
             latest_compaction_boundary,
+            file_checkpoint_summary,
             diagnostics,
         }
     }

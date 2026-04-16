@@ -13,6 +13,10 @@ import type {
   ServiceSkillSurfaceScope,
   ServiceSkillType,
 } from "@/lib/api/serviceSkills";
+import type {
+  AutomationOutputFormat,
+  AutomationOutputSchema,
+} from "@/lib/api/automation";
 
 export const BASE_SETUP_TARGET_CATALOGS = [
   "skill_catalog",
@@ -55,6 +59,34 @@ export const BASE_SETUP_ALLOWED_KERNEL_CAPABILITIES = [
   "timeline",
 ] as const;
 
+export const BASE_SETUP_ALLOWED_COMMAND_EXECUTION_KINDS = [
+  "agent_turn",
+  "automation_job",
+  "cloud_scene",
+  "native_skill",
+  "site_adapter",
+  "task_queue",
+  "server_api",
+  "cli",
+] as const;
+
+export const BASE_SETUP_ALLOWED_RENDER_RESULT_KINDS = [
+  "text",
+  "tool_timeline",
+  "image_gallery",
+  "artifact",
+  "form",
+  "table_report",
+] as const;
+
+export const BASE_SETUP_ALLOWED_RENDER_DETAIL_KINDS = [
+  "json",
+  "task_detail",
+  "artifact_detail",
+  "media_detail",
+  "scene_detail",
+] as const;
+
 export type BaseSetupTargetCatalog =
   (typeof BASE_SETUP_TARGET_CATALOGS)[number];
 export type BaseSetupViewerKind = (typeof BASE_SETUP_VIEWER_KINDS)[number];
@@ -66,6 +98,12 @@ export type BaseSetupAllowedBindingFamily =
   (typeof BASE_SETUP_ALLOWED_BINDING_FAMILIES)[number];
 export type BaseSetupAllowedKernelCapability =
   (typeof BASE_SETUP_ALLOWED_KERNEL_CAPABILITIES)[number];
+export type BaseSetupCommandExecutionKind =
+  (typeof BASE_SETUP_ALLOWED_COMMAND_EXECUTION_KINDS)[number];
+export type BaseSetupRenderResultKind =
+  (typeof BASE_SETUP_ALLOWED_RENDER_RESULT_KINDS)[number];
+export type BaseSetupRenderDetailKind =
+  (typeof BASE_SETUP_ALLOWED_RENDER_DETAIL_KINDS)[number];
 
 export interface BaseSetupBundleRef {
   id: string;
@@ -105,6 +143,47 @@ export interface BaseSetupScorecardProfile {
   failureSignals?: string[];
 }
 
+export interface BaseSetupAutomationScheduleEveryPreset {
+  kind: "every";
+  everySecs: number;
+  slotKey?: string;
+}
+
+export interface BaseSetupAutomationScheduleCronPreset {
+  kind: "cron";
+  cronExpr: string;
+  cronTz?: string;
+  slotKey?: string;
+}
+
+export interface BaseSetupAutomationScheduleAtPreset {
+  kind: "at";
+  at: string;
+  slotKey?: string;
+}
+
+export type BaseSetupAutomationSchedulePreset =
+  | BaseSetupAutomationScheduleEveryPreset
+  | BaseSetupAutomationScheduleCronPreset
+  | BaseSetupAutomationScheduleAtPreset;
+
+export interface BaseSetupAutomationDeliveryPreset {
+  mode: "none" | "announce";
+  channel?: "webhook" | "telegram" | "local_file" | "google_sheets";
+  target?: string;
+  outputSchema?: AutomationOutputSchema;
+  outputFormat?: AutomationOutputFormat;
+  bestEffort?: boolean;
+}
+
+export interface BaseSetupAutomationProfile {
+  id: string;
+  enabledByDefault?: boolean;
+  schedule?: BaseSetupAutomationSchedulePreset;
+  delivery?: BaseSetupAutomationDeliveryPreset;
+  maxRetries?: number;
+}
+
 export interface BaseSetupPolicyProfile {
   id: string;
   enabled?: boolean;
@@ -114,6 +193,18 @@ export interface BaseSetupPolicyProfile {
 
 export interface BaseSetupCompositionDeliveryContract {
   requiredParts: string[];
+}
+
+export interface BaseSetupCommandBinding {
+  skillId?: string;
+  executionKind?: BaseSetupCommandExecutionKind;
+}
+
+export interface BaseSetupRenderContract {
+  resultKind: BaseSetupRenderResultKind;
+  detailKind: BaseSetupRenderDetailKind;
+  supportsStreaming?: boolean;
+  supportsTimeline?: boolean;
 }
 
 export interface BaseSetupCompositionStep {
@@ -142,6 +233,7 @@ export interface BaseSetupCatalogProjection {
   artifactProfileRef: string;
   scorecardProfileRef: string;
   policyProfileRef: string;
+  automationProfileRef?: string;
   compositionBlueprintRef?: string;
   skillKey?: string;
   entryHint?: string;
@@ -157,6 +249,8 @@ export interface BaseSetupCatalogProjection {
   themeTarget?: string;
   siteCapabilityBinding?: ServiceSkillSiteCapabilityBinding;
   sceneBinding?: ServiceSkillSceneBinding;
+  commandBinding?: BaseSetupCommandBinding;
+  commandRenderContract?: BaseSetupRenderContract;
   version?: string;
 }
 
@@ -179,6 +273,7 @@ export interface BaseSetupPackage {
   compositionBlueprints?: BaseSetupCompositionBlueprint[];
   artifactProfiles: BaseSetupArtifactProfile[];
   scorecardProfiles: BaseSetupScorecardProfile[];
+  automationProfiles?: BaseSetupAutomationProfile[];
   policyProfiles: BaseSetupPolicyProfile[];
   compatibility: BaseSetupCompatibility;
 }
@@ -203,6 +298,7 @@ export interface BaseSetupProjectionIndex {
   artifactProfileRefsByProjectionId: Record<string, string>;
   scorecardProfileRefsByProjectionId: Record<string, string>;
   policyProfileRefsByProjectionId: Record<string, string>;
+  automationProfileRefsByProjectionId: Record<string, string>;
   compositionBlueprintRefsByProjectionId: Record<string, string>;
 }
 

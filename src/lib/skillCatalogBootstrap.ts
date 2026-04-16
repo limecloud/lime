@@ -3,6 +3,7 @@ import {
   parseSkillCatalog,
   type SkillCatalog,
 } from "@/lib/api/skillCatalog";
+import { extractBaseSetupPackageFromBootstrapPayload } from "@/lib/base-setup/bootstrap";
 
 const SKILL_CATALOG_BOOTSTRAP_EVENT = "lime:skill-catalog-bootstrap";
 
@@ -17,46 +18,66 @@ function hasWindow(): boolean {
   return typeof window !== "undefined";
 }
 
-function extractFromRecord(
+function extractSkillCatalogPayloadFromRecord(
   record: Record<string, unknown>,
-): SkillCatalog | null {
-  const directCatalog = parseSkillCatalog(record.skillCatalog);
-  if (directCatalog) {
-    return directCatalog;
+): unknown | null {
+  if (record.skillCatalog !== undefined) {
+    const directCatalog = parseSkillCatalog(record.skillCatalog);
+    if (directCatalog) {
+      return record.skillCatalog;
+    }
+  }
+
+  const baseSetupPackage =
+    extractBaseSetupPackageFromBootstrapPayload(record.baseSetupPackage) ??
+    extractBaseSetupPackageFromBootstrapPayload(record.base_setup_package);
+  if (baseSetupPackage) {
+    return baseSetupPackage;
   }
 
   const nestedBootstrap = record.bootstrap;
   if (nestedBootstrap && typeof nestedBootstrap === "object") {
-    return extractSkillCatalogFromBootstrapPayload(nestedBootstrap);
+    return extractSkillCatalogPayloadFromBootstrapPayload(nestedBootstrap);
   }
 
   return null;
 }
 
-function extractSkillCatalogFromBootstrapPayload(
+function extractSkillCatalogPayloadFromBootstrapPayload(
   payload: unknown,
-): SkillCatalog | null {
+): unknown | null {
   const directCatalog = parseSkillCatalog(payload);
   if (directCatalog) {
-    return directCatalog;
+    return payload;
   }
 
   if (!payload || typeof payload !== "object") {
     return null;
   }
 
-  return extractFromRecord(payload as Record<string, unknown>);
+  return extractSkillCatalogPayloadFromRecord(payload as Record<string, unknown>);
+}
+
+export function extractSkillCatalogFromBootstrapPayload(
+  payload: unknown,
+): SkillCatalog | null {
+  const extracted = extractSkillCatalogPayloadFromBootstrapPayload(payload);
+  if (!extracted) {
+    return null;
+  }
+
+  return parseSkillCatalog(extracted);
 }
 
 export function syncSkillCatalogFromBootstrapPayload(
   payload: unknown,
 ): SkillCatalog | null {
-  const catalog = extractSkillCatalogFromBootstrapPayload(payload);
-  if (!catalog) {
+  const extracted = extractSkillCatalogPayloadFromBootstrapPayload(payload);
+  if (!extracted) {
     return null;
   }
 
-  return applyServerSyncedSkillCatalog(catalog, "bootstrap_sync");
+  return applyServerSyncedSkillCatalog(extracted, "bootstrap_sync");
 }
 
 export function applyInitialSkillCatalogBootstrap(): SkillCatalog | null {

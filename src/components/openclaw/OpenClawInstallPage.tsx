@@ -607,5 +607,3 @@ export function OpenClawInstallPage({
     </div>
   );
 }
-
-export default OpenClawInstallPage;

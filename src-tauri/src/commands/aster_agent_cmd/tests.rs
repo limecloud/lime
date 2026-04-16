@@ -93,7 +93,10 @@ mod tests {
                 continue;
             }
             let extension = path.extension().and_then(|ext| ext.to_str());
-            let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+            let file_name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("");
             if extension == Some("md") || file_name.starts_with("README") {
                 files.push(path);
             }
@@ -3168,6 +3171,33 @@ mod tests {
     }
 
     #[test]
+    fn test_agent_runtime_update_session_request_deserializes_recent_access_mode_aliases() {
+        let request: AgentRuntimeUpdateSessionRequest = serde_json::from_value(serde_json::json!({
+            "sessionId": "session-1",
+            "recentAccessMode": "full-access"
+        }))
+        .expect("request should deserialize");
+
+        assert_eq!(request.session_id, "session-1");
+        assert_eq!(
+            request.recent_access_mode,
+            Some(lime_agent::SessionExecutionRuntimeAccessMode::FullAccess)
+        );
+
+        let legacy_request: AgentRuntimeUpdateSessionRequest =
+            serde_json::from_value(serde_json::json!({
+                "sessionId": "session-1",
+                "recentAccessMode": "full_access"
+            }))
+            .expect("legacy request should deserialize");
+
+        assert_eq!(
+            legacy_request.recent_access_mode,
+            Some(lime_agent::SessionExecutionRuntimeAccessMode::FullAccess)
+        );
+    }
+
+    #[test]
     fn test_agent_runtime_update_session_request_deserializes_recent_team_selection_aliases() {
         let request: AgentRuntimeUpdateSessionRequest = serde_json::from_value(serde_json::json!({
             "sessionId": "session-1",
@@ -3822,6 +3852,44 @@ mod tests {
                 .as_ref()
                 .map(|artifact| artifact.source_file_name.as_str()),
             Some("content-posts/final.md")
+        );
+    }
+
+    #[test]
+    fn test_build_chat_run_finish_metadata_includes_browser_runtime_ref() {
+        let mut observation = ChatRunObservation::default();
+        observation.record_event(
+            &RuntimeAgentEvent::ToolEnd {
+                tool_id: "tool-browser".to_string(),
+                result: lime_agent::AgentToolResult {
+                    success: true,
+                    output: "done".to_string(),
+                    error: None,
+                    images: None,
+                    metadata: Some(HashMap::from([(
+                        "browser_session".to_string(),
+                        serde_json::json!({
+                            "profile_key": "general_browser_assist",
+                            "session_id": "browser-session-1",
+                            "target_id": "target-1"
+                        }),
+                    )])),
+                },
+            },
+            "/tmp/workspace",
+            None,
+            ProviderContinuationCapability::HistoryReplayOnly,
+        );
+
+        let metadata = build_chat_run_finish_metadata(&serde_json::Map::new(), &observation);
+
+        assert_eq!(
+            metadata.get("browser_runtime_ref"),
+            Some(&serde_json::json!({
+                "profile_key": "general_browser_assist",
+                "session_id": "browser-session-1",
+                "target_id": "target-1"
+            }))
         );
     }
 
@@ -6124,9 +6192,7 @@ mod tests {
                     return None;
                 }
                 if content.contains(".reply(") || content.contains("stream_reply_with_policy(") {
-                    Some(
-                        relative_path,
-                    )
+                    Some(relative_path)
                 } else {
                     None
                 }
@@ -6156,7 +6222,8 @@ mod tests {
                     .expect("src 文件应位于 crate 根下")
                     .to_string_lossy()
                     .replace('\\', "/");
-                if relative_path.starts_with("src/commands/") || relative_path.ends_with("/tests.rs")
+                if relative_path.starts_with("src/commands/")
+                    || relative_path.ends_with("/tests.rs")
                 {
                     return None;
                 }

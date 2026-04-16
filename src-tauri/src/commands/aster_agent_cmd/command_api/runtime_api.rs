@@ -3,7 +3,11 @@ use crate::services::runtime_analysis_handoff_service::{
     export_runtime_analysis_handoff, RuntimeAnalysisHandoffExportResult,
 };
 use crate::services::runtime_evidence_pack_service::{
-    export_runtime_evidence_pack, RuntimeEvidencePackExportResult,
+    export_runtime_evidence_pack, resolve_runtime_export_workspace_root,
+    RuntimeEvidencePackExportResult,
+};
+use crate::services::runtime_file_checkpoint_service::{
+    diff_file_checkpoint, get_file_checkpoint, list_file_checkpoints,
 };
 use crate::services::runtime_handoff_artifact_service::{
     export_runtime_handoff_bundle, RuntimeHandoffBundleExportResult,
@@ -17,7 +21,6 @@ use crate::services::runtime_review_decision_service::{
 };
 use crate::services::thread_reliability_projection_service::sync_thread_reliability_projection;
 use std::path::PathBuf;
-
 async fn resume_runtime_queue_with_warning(
     runtime: &RuntimeCommandContext,
     session_id: &str,
@@ -219,42 +222,109 @@ pub async fn agent_runtime_get_thread_read(
     ))
 }
 
+/// 统一运行时：列出当前线程的文件快照。
+#[tauri::command]
+pub async fn agent_runtime_list_file_checkpoints(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+    request: AgentRuntimeListFileCheckpointsRequest,
+) -> Result<AgentRuntimeFileCheckpointListResult, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
+    tracing::info!("[AsterAgent] 列出文件快照: {}", request.session_id);
+    let context =
+        load_runtime_export_context(&runtime, &request.session_id, "列出文件快照前").await?;
+    Ok(list_file_checkpoints(&context.detail))
+}
+
+/// 统一运行时：获取单个文件快照详情。
+#[tauri::command]
+pub async fn agent_runtime_get_file_checkpoint(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+    request: AgentRuntimeGetFileCheckpointRequest,
+) -> Result<AgentRuntimeFileCheckpointDetail, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
+    tracing::info!(
+        "[AsterAgent] 获取文件快照详情: session_id={}, checkpoint_id={}",
+        request.session_id,
+        request.checkpoint_id
+    );
+    let context =
+        load_runtime_export_context(&runtime, &request.session_id, "获取文件快照详情前").await?;
+    get_file_checkpoint(
+        &context.detail,
+        &context.workspace_root,
+        request.checkpoint_id.as_str(),
+    )
+}
+
+/// 统一运行时：获取单个文件快照 diff。
+#[tauri::command]
+pub async fn agent_runtime_diff_file_checkpoint(
+    app: AppHandle,
+    state: State<'_, AsterAgentState>,
+    db: State<'_, DbConnection>,
+    api_key_provider_service: State<'_, ApiKeyProviderServiceState>,
+    logs: State<'_, LogState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
+    mcp_manager: State<'_, McpManagerState>,
+    automation_state: State<'_, AutomationServiceState>,
+    request: AgentRuntimeDiffFileCheckpointRequest,
+) -> Result<AgentRuntimeFileCheckpointDiffResult, String> {
+    let runtime = build_runtime_command_context(
+        app,
+        state,
+        db,
+        api_key_provider_service,
+        logs,
+        config_manager,
+        mcp_manager,
+        automation_state,
+    );
+    tracing::info!(
+        "[AsterAgent] 获取文件快照 diff: session_id={}, checkpoint_id={}",
+        request.session_id,
+        request.checkpoint_id
+    );
+    let context =
+        load_runtime_export_context(&runtime, &request.session_id, "获取文件快照 diff 前").await?;
+    diff_file_checkpoint(&context.detail, request.checkpoint_id.as_str())
+}
+
 struct RuntimeExportContext {
     detail: SessionDetail,
     thread_read: AgentRuntimeThreadReadModel,
     workspace_root: PathBuf,
-}
-
-fn resolve_runtime_export_workspace_root(
-    db: &DbConnection,
-    detail: &SessionDetail,
-) -> Result<PathBuf, String> {
-    if let Some(workspace_id) = detail
-        .workspace_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        let manager = WorkspaceManager::new(db.clone());
-        let workspace_id = workspace_id.to_string();
-        let workspace = manager
-            .get(&workspace_id)
-            .map_err(|error| format!("读取 workspace 失败: {error}"))?
-            .ok_or_else(|| format!("Workspace 不存在: {workspace_id}"))?;
-        let ensured = ensure_workspace_ready_with_auto_relocate(&manager, &workspace)?;
-        return Ok(ensured.root_path);
-    }
-
-    if let Some(working_dir) = detail
-        .working_dir
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        return Ok(PathBuf::from(working_dir));
-    }
-
-    Err("当前会话缺少 workspace / working_dir，无法导出运行时制品".to_string())
 }
 
 async fn load_runtime_export_context(

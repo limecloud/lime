@@ -87,6 +87,7 @@ describe("useAgentTopicSnapshot", () => {
         IS_REACT_ACT_ENVIRONMENT?: boolean;
       }
     ).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
@@ -101,6 +102,7 @@ describe("useAgentTopicSnapshot", () => {
       mounted.container.remove();
     }
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it("存在活动话题时应推送 live snapshot", async () => {
@@ -163,6 +165,52 @@ describe("useAgentTopicSnapshot", () => {
       });
 
       expect(updateTopicSnapshot).toHaveBeenCalledTimes(2);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("发送中仅正文预览变化时，应节流合并 topic snapshot 更新", async () => {
+    const updateTopicSnapshot = vi.fn();
+    const harness = await mountHook({
+      updateTopicSnapshot,
+      isSending: true,
+    });
+
+    try {
+      expect(updateTopicSnapshot).toHaveBeenCalledTimes(1);
+
+      await harness.render({
+        isSending: true,
+        messages: [
+          createMessage({
+            content: "已完成当前整理，并继续补充更多背景。",
+          }),
+        ],
+      });
+      await harness.render({
+        isSending: true,
+        messages: [
+          createMessage({
+            content: "已完成当前整理，并继续补充更多背景与结论。",
+          }),
+        ],
+      });
+
+      expect(updateTopicSnapshot).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(650);
+      });
+
+      expect(updateTopicSnapshot).toHaveBeenCalledTimes(2);
+      expect(updateTopicSnapshot).toHaveBeenLastCalledWith(
+        "session-1",
+        expect.objectContaining({
+          lastPreview: "已完成当前整理，并继续补充更多背景与结论。",
+          status: "running",
+        }),
+      );
     } finally {
       harness.unmount();
     }

@@ -28,4 +28,14 @@ describe("sidebarNav", () => {
       resolveEnabledSidebarNavItems(["video", "image-gen", "terminal", "tools"]),
     ).toEqual([]);
   });
+
+  it("能力导航应暴露 SceneApp 目录页入口", () => {
+    const capabilitySection = MAIN_SIDEBAR_NAV_SECTIONS.find(
+      (section) => section.id === "capability",
+    );
+
+    expect(
+      capabilitySection?.items.some((item) => item.id === "sceneapps"),
+    ).toBe(true);
+  });
 });

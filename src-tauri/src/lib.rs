@@ -42,6 +42,7 @@ pub mod agent;
 pub mod agent_tools;
 pub mod app;
 pub mod plugin;
+pub mod sceneapp;
 pub mod screenshot;
 pub mod services;
 pub mod skills;

@@ -1,5 +1,8 @@
 export { createAgentRuntimeClient } from "./clientFactory";
-export type { AgentRuntimeClient, AgentRuntimeClientDeps } from "./clientFactory";
+export type {
+  AgentRuntimeClient,
+  AgentRuntimeClientDeps,
+} from "./clientFactory";
 export {
   configureAsterProvider,
   createAgentClient,
@@ -19,7 +22,10 @@ export {
   exportAgentRuntimeReviewDecisionTemplate,
   saveAgentRuntimeReviewDecision,
 } from "./exportClient";
-export { createInventoryClient, getAgentRuntimeToolInventory } from "./inventoryClient";
+export {
+  createInventoryClient,
+  getAgentRuntimeToolInventory,
+} from "./inventoryClient";
 export {
   cancelMediaTaskArtifact,
   createMediaClient,
@@ -61,8 +67,11 @@ export {
 export {
   compactAgentRuntimeSession,
   createThreadClient,
+  diffAgentRuntimeFileCheckpoint,
+  getAgentRuntimeFileCheckpoint,
   getAgentRuntimeThreadRead,
   interruptAgentRuntimeTurn,
+  listAgentRuntimeFileCheckpoints,
   promoteAgentRuntimeQueuedTurn,
   removeAgentRuntimeQueuedTurn,
   replayAgentRuntimeRequest,

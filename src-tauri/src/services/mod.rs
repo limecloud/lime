@@ -32,6 +32,7 @@ pub mod openclaw_service;
 pub mod runtime_agents_template_service;
 pub mod runtime_analysis_handoff_service;
 pub mod runtime_evidence_pack_service;
+pub mod runtime_file_checkpoint_service;
 pub mod runtime_handoff_artifact_service;
 pub mod runtime_replay_case_service;
 pub mod runtime_review_decision_service;

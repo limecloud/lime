@@ -323,10 +323,7 @@ fn build_context_memory_config(config: &Config) -> ContextMemoryConfig {
 /// 初始化插件安装器
 fn init_plugin_installer() -> Result<PluginInstallerState, String> {
     let db_path = database::get_db_path().map_err(|e| format!("获取数据库路径失败: {e}"))?;
-    let plugins_dir = dirs::data_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("lime")
-        .join("plugins");
+    let plugins_dir = lime_core::app_paths::best_effort_runtime_subdir("plugins");
     let temp_dir = std::env::temp_dir().join("lime_plugin_install");
 
     let _ = std::fs::create_dir_all(&plugins_dir);

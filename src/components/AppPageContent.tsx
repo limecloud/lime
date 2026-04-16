@@ -14,6 +14,7 @@ import type {
   OpenClawPageParams,
   Page,
   PageParams,
+  SceneAppsPageParams,
   SettingsPageParams,
   SkillsPageParams,
 } from "@/types/page";
@@ -66,6 +67,11 @@ const OpenClawPage = lazy(() =>
 const SkillsWorkspacePage = lazy(() =>
   import("./skills").then((module) => ({
     default: module.SkillsWorkspacePage,
+  })),
+);
+const SceneAppsPage = lazy(() =>
+  import("./sceneapps").then((module) => ({
+    default: module.SceneAppsPage,
   })),
 );
 const BrowserRuntimeWorkspace = lazy(() =>
@@ -125,6 +131,7 @@ export function AppPageContent({
           onNavigate={onNavigate}
           projectId={agentPageParams.projectId}
           contentId={agentPageParams.contentId}
+          initialSessionId={agentPageParams.initialSessionId}
           initialRequestMetadata={agentPageParams.initialRequestMetadata}
           initialUserPrompt={agentPageParams.initialUserPrompt}
           initialUserImages={agentPageParams.initialUserImages}
@@ -232,6 +239,17 @@ export function AppPageContent({
         <SkillsWorkspacePage
           onNavigate={onNavigate}
           pageParams={pageParams as SkillsPageParams}
+        />
+      </div>
+    );
+  }
+
+  if (currentPage === "sceneapps") {
+    return (
+      <div style={columnPageStyle}>
+        <SceneAppsPage
+          onNavigate={onNavigate}
+          pageParams={pageParams as SceneAppsPageParams}
         />
       </div>
     );

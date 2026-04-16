@@ -5,6 +5,13 @@
 import type { AutomationJobRecord } from "../api/automation";
 import type { CompanionPetStatus } from "../api/companion";
 import type { AgentRun } from "../api/executionRun";
+import type {
+  SceneAppCatalog,
+  SceneAppDescriptor,
+  SceneAppPlanResult,
+  SceneAppRuntimeAdapterPlan,
+  SceneAppScorecard,
+} from "../api/sceneapp";
 
 import {
   invokeViaHttp,
@@ -1025,6 +1032,1127 @@ const mockAutomationRuns: AgentRun[] = [
     updated_at: now(),
   },
 ];
+
+const mockSceneAppCatalog: SceneAppCatalog = {
+  version: "2026-04-15",
+  generatedAt: "2026-04-15T00:00:00.000Z",
+  items: [
+    {
+      id: "story-video-suite",
+      title: "短视频编排",
+      summary: "把文本、线框图、配乐、剧本和短视频草稿收口成一条多模态结果链。",
+      category: "Scene Apps",
+      sceneappType: "hybrid",
+      patternPrimary: "pipeline",
+      patternStack: ["pipeline", "inversion", "generator", "reviewer"],
+      capabilityRefs: [
+        "cloud_scene",
+        "native_skill",
+        "workspace_storage",
+        "artifact_viewer",
+      ],
+      infraProfile: [
+        "composition_blueprint",
+        "project_pack",
+        "workspace_storage",
+        "cloud_runtime",
+        "timeline",
+      ],
+      deliveryContract: "project_pack",
+      artifactKind: "artifact_bundle",
+      outputHint: "短视频项目包",
+      deliveryProfile: {
+        artifactProfileRef: "story-video-artifacts",
+        viewerKind: "artifact_bundle",
+        requiredParts: [
+          "brief",
+          "storyboard",
+          "script",
+          "music_refs",
+          "video_draft",
+          "review_note",
+        ],
+        primaryPart: "brief",
+      },
+      compositionProfile: {
+        blueprintRef: "story-video-blueprint",
+        stepCount: 6,
+        steps: [
+          {
+            id: "brief",
+            order: 1,
+            bindingProfileRef: "story-video-native-binding",
+            bindingFamily: "native_skill",
+          },
+          {
+            id: "storyboard",
+            order: 2,
+            bindingProfileRef: "story-video-native-binding",
+            bindingFamily: "native_skill",
+          },
+          {
+            id: "script",
+            order: 3,
+            bindingProfileRef: "story-video-native-binding",
+            bindingFamily: "native_skill",
+          },
+          {
+            id: "music_refs",
+            order: 4,
+            bindingProfileRef: "story-video-cloud-binding",
+            bindingFamily: "cloud_scene",
+          },
+          {
+            id: "video_draft",
+            order: 5,
+            bindingProfileRef: "story-video-cloud-binding",
+            bindingFamily: "cloud_scene",
+          },
+          {
+            id: "review_note",
+            order: 6,
+            bindingProfileRef: "story-video-native-binding",
+            bindingFamily: "native_skill",
+          },
+        ],
+      },
+      scorecardProfile: {
+        profileRef: "story-video-scorecard",
+        metricKeys: [
+          "complete_pack_rate",
+          "review_pass_rate",
+          "publish_conversion_rate",
+        ],
+        failureSignals: [
+          "pack_incomplete",
+          "review_blocked",
+          "publish_stalled",
+        ],
+      },
+      entryBindings: [
+        {
+          kind: "service_skill",
+          bindingFamily: "cloud_scene",
+          serviceSkillId: "sceneapp-service-story-video",
+          skillKey: "story-video-suite",
+          aliases: ["story-video", "mv-pipeline"],
+        },
+        {
+          kind: "scene",
+          bindingFamily: "cloud_scene",
+          sceneKey: "story-video-suite",
+          commandPrefix: "/story-video-suite",
+          aliases: ["story-video-scene"],
+        },
+      ],
+      launchRequirements: [
+        {
+          kind: "user_input",
+          message: "需要主题、风格或脚本线索作为场景输入。",
+        },
+        {
+          kind: "project",
+          message: "需要项目目录承接线框图、脚本和媒体结果。",
+        },
+        {
+          kind: "cloud_session",
+          message: "需要可用的云端运行时来完成多模态媒体处理。",
+        },
+      ],
+      linkedServiceSkillId: "sceneapp-service-story-video",
+      linkedSceneKey: "story-video-suite",
+      aliases: ["story-video", "mv-pipeline", "short-video-suite"],
+      sourcePackageId: "lime-core-sceneapps",
+      sourcePackageVersion: "2026-04-15",
+    },
+    {
+      id: "x-article-export",
+      title: "网页导出",
+      summary:
+        "在真实浏览器上下文中抓取网页正文、图片与元信息，并沉淀为项目内 Markdown 资料包。",
+      category: "Scene Apps",
+      sceneappType: "browser_grounded",
+      patternPrimary: "pipeline",
+      patternStack: ["pipeline", "tool_wrapper", "generator", "inversion"],
+      capabilityRefs: [
+        "browser_assist",
+        "workspace_storage",
+        "artifact_viewer",
+      ],
+      infraProfile: [
+        "browser_connector",
+        "site_adapter",
+        "workspace_storage",
+        "artifact_bundle",
+      ],
+      deliveryContract: "project_pack",
+      artifactKind: "document",
+      outputHint: "网页资料包",
+      deliveryProfile: {
+        artifactProfileRef: "article-export-artifacts",
+        viewerKind: "document",
+        requiredParts: ["index.md", "meta.json"],
+        primaryPart: "index.md",
+      },
+      scorecardProfile: {
+        profileRef: "article-export-scorecard",
+        metricKeys: ["success_rate", "reuse_rate"],
+        failureSignals: ["pack_incomplete"],
+      },
+      entryBindings: [
+        {
+          kind: "service_skill",
+          bindingFamily: "browser_assist",
+          serviceSkillId: "sceneapp-service-article-export",
+          skillKey: "x-article-export",
+          aliases: ["article-export"],
+        },
+      ],
+      launchRequirements: [
+        {
+          kind: "browser_session",
+          message: "需要真实网页上下文或浏览器附着会话。",
+        },
+        {
+          kind: "project",
+          message: "需要项目目录来保存 Markdown 与图片资源。",
+        },
+      ],
+      linkedServiceSkillId: "sceneapp-service-article-export",
+      linkedSceneKey: "x-article-export",
+      aliases: ["article-export", "web-article-export"],
+      sourcePackageId: "lime-core-sceneapps",
+      sourcePackageVersion: "2026-04-15",
+    },
+    {
+      id: "daily-trend-briefing",
+      title: "每日趋势摘要",
+      summary:
+        "把研究主题转成可持续运行的本地 durable 场景，并定时回流结果和失败原因。",
+      category: "Scene Apps",
+      sceneappType: "local_durable",
+      patternPrimary: "pipeline",
+      patternStack: ["pipeline", "reviewer"],
+      capabilityRefs: ["automation_job", "workspace_storage", "timeline"],
+      infraProfile: ["automation_schedule", "db_store", "json_snapshot"],
+      deliveryContract: "table_report",
+      artifactKind: "table_report",
+      outputHint: "趋势摘要",
+      deliveryProfile: {
+        artifactProfileRef: "daily-trend-artifacts",
+        viewerKind: "table_report",
+        requiredParts: ["brief", "review_note"],
+        primaryPart: "brief",
+      },
+      scorecardProfile: {
+        profileRef: "daily-trend-scorecard",
+        metricKeys: ["success_rate", "reuse_rate"],
+        failureSignals: ["automation_timeout"],
+      },
+      entryBindings: [
+        {
+          kind: "service_skill",
+          bindingFamily: "automation_job",
+          serviceSkillId: "sceneapp-service-daily-trend",
+          skillKey: "daily-trend-briefing",
+          aliases: ["trend-briefing", "growth-monitor"],
+        },
+      ],
+      launchRequirements: [
+        {
+          kind: "project",
+          message: "需要工作区或项目目录保存运行历史与结果快照。",
+        },
+        {
+          kind: "automation",
+          message: "需要可用的自动化调度能力。",
+        },
+      ],
+      linkedServiceSkillId: "sceneapp-service-daily-trend",
+      linkedSceneKey: "daily-trend-briefing",
+      aliases: ["trend-briefing", "growth-monitor"],
+      sourcePackageId: "lime-core-sceneapps",
+      sourcePackageVersion: "2026-04-15",
+    },
+  ],
+};
+
+function findMockSceneAppDescriptor(id?: string): SceneAppDescriptor | null {
+  if (!id) {
+    return null;
+  }
+  const normalized = id.trim();
+  return (
+    mockSceneAppCatalog.items.find(
+      (item) =>
+        item.id === normalized ||
+        item.linkedSceneKey === normalized ||
+        item.linkedServiceSkillId === normalized ||
+        item.aliases?.includes(normalized),
+    ) ?? null
+  );
+}
+
+function extractMockSceneAppUrlCandidate(
+  userInput?: string,
+): string | undefined {
+  if (typeof userInput !== "string") {
+    return undefined;
+  }
+
+  return userInput
+    .split(/\s+/)
+    .find(
+      (segment) =>
+        segment.startsWith("http://") || segment.startsWith("https://"),
+    )
+    ?.replace(/["')\]},.>，。）]+$/g, "");
+}
+
+function buildMockSceneAppAdapterPlan(
+  descriptor: SceneAppDescriptor,
+  intent: Record<string, unknown>,
+): SceneAppRuntimeAdapterPlan {
+  const adapterKind =
+    descriptor.entryBindings[0]?.bindingFamily ?? "agent_turn";
+  const baseRequestMetadata = {
+    harness: {
+      sceneapp_id: descriptor.id,
+      sceneapp_type: descriptor.sceneappType,
+      pattern_primary: descriptor.patternPrimary,
+      pattern_stack: descriptor.patternStack,
+      infra_profile: descriptor.infraProfile,
+      entry_source:
+        typeof intent.entrySource === "string" ? intent.entrySource : null,
+      workspace_id:
+        typeof intent.workspaceId === "string" ? intent.workspaceId : null,
+      project_id:
+        typeof intent.projectId === "string" ? intent.projectId : null,
+      sceneapp_launch: {
+        sceneapp_id: descriptor.id,
+        sceneapp_type: descriptor.sceneappType,
+        pattern_primary: descriptor.patternPrimary,
+        pattern_stack: descriptor.patternStack,
+        infra_profile: descriptor.infraProfile,
+        delivery_contract: descriptor.deliveryContract,
+        linked_service_skill_id: descriptor.linkedServiceSkillId ?? null,
+        linked_scene_key: descriptor.linkedSceneKey ?? null,
+        entry_source:
+          typeof intent.entrySource === "string" ? intent.entrySource : null,
+        workspace_id:
+          typeof intent.workspaceId === "string" ? intent.workspaceId : null,
+        project_id:
+          typeof intent.projectId === "string" ? intent.projectId : null,
+      },
+    },
+    sceneapp: {
+      id: descriptor.id,
+      title: descriptor.title,
+      sceneapp_type: descriptor.sceneappType,
+      pattern_primary: descriptor.patternPrimary,
+      pattern_stack: descriptor.patternStack,
+      infra_profile: descriptor.infraProfile,
+      delivery_contract: descriptor.deliveryContract,
+      source_package_id: descriptor.sourcePackageId,
+      source_package_version: descriptor.sourcePackageVersion,
+    },
+    ...(descriptor.linkedServiceSkillId || descriptor.linkedSceneKey
+      ? {
+          service_skill: {
+            id: descriptor.linkedServiceSkillId ?? null,
+            scene_key: descriptor.linkedSceneKey ?? null,
+          },
+        }
+      : {}),
+    ...(intent.slots && typeof intent.slots === "object"
+      ? {
+          sceneapp_slots: intent.slots,
+        }
+      : {}),
+  };
+
+  if (adapterKind === "browser_assist") {
+    const slotValues =
+      intent.slots && typeof intent.slots === "object"
+        ? (intent.slots as Record<string, unknown>)
+        : {};
+    const adapterName =
+      descriptor.id === "x-article-export"
+        ? "x/article-export"
+        : (descriptor.linkedSceneKey ?? descriptor.id);
+    const args: Record<string, unknown> = {};
+    const url =
+      (typeof slotValues.article_url === "string" && slotValues.article_url) ||
+      (typeof slotValues.url === "string" && slotValues.url) ||
+      extractMockSceneAppUrlCandidate(
+        typeof intent.userInput === "string" ? intent.userInput : undefined,
+      );
+    if (url) {
+      args.url = url;
+    }
+    if (typeof slotValues.target_language === "string") {
+      args.target_language = slotValues.target_language;
+    }
+    if (
+      Object.keys(args).length === 0 &&
+      typeof intent.userInput === "string"
+    ) {
+      args.prompt = intent.userInput;
+    }
+
+    return {
+      adapterKind,
+      runtimeAction: "launch_browser_assist",
+      targetRef: adapterName,
+      targetLabel: descriptor.title,
+      linkedServiceSkillId: descriptor.linkedServiceSkillId,
+      linkedSceneKey: descriptor.linkedSceneKey,
+      preferredProfileKey: "general_browser_assist",
+      requestMetadata: {
+        ...baseRequestMetadata,
+        harness: {
+          ...baseRequestMetadata.harness,
+          browser_requirement: "required",
+          browser_requirement_reason:
+            "当前 SceneApp 依赖真实浏览器上下文与登录态，不应回退到纯 WebSearch。",
+          browser_assist: {
+            enabled: true,
+            profile_key: "general_browser_assist",
+            preferred_backend: "lime_extension_bridge",
+            auto_launch: false,
+            stream_mode: "both",
+          },
+          service_skill_launch: {
+            kind: "site_adapter",
+            skill_id: descriptor.linkedServiceSkillId ?? null,
+            skill_title: descriptor.title,
+            adapter_name: adapterName,
+            args,
+            save_mode: "project_resource",
+            project_id:
+              typeof intent.projectId === "string" ? intent.projectId : null,
+          },
+        },
+      },
+      launchPayload: {
+        sceneapp_id: descriptor.id,
+        service_skill_id: descriptor.linkedServiceSkillId ?? null,
+        adapter_name: adapterName,
+        profile_key: "general_browser_assist",
+        args,
+        project_id:
+          typeof intent.projectId === "string" ? intent.projectId : null,
+        workspace_id:
+          typeof intent.workspaceId === "string" ? intent.workspaceId : null,
+        save_mode: "project_resource",
+      },
+      notes: [
+        "当前 SceneApp 规划先映射到 browser_assist 主链，再由后续 runtime adapter 负责真实执行。",
+        ...(url
+          ? []
+          : [
+              "当前 planner 还无法仅凭 descriptor 判断 article_url 是否齐备；执行前应继续通过 scene gate 补齐目标链接。",
+            ]),
+      ],
+    };
+  }
+
+  if (adapterKind === "automation_job") {
+    return {
+      adapterKind,
+      runtimeAction: "create_automation_job",
+      targetRef: descriptor.linkedServiceSkillId ?? descriptor.id,
+      targetLabel: descriptor.title,
+      linkedServiceSkillId: descriptor.linkedServiceSkillId,
+      linkedSceneKey: descriptor.linkedSceneKey,
+      requestMetadata: {
+        ...baseRequestMetadata,
+        harness: {
+          ...baseRequestMetadata.harness,
+          sceneapp_runtime_action: "create_automation_job",
+        },
+      },
+      launchPayload: {
+        sceneapp_id: descriptor.id,
+        name: `${descriptor.title} 自动化`,
+        enabled: true,
+        execution_mode: "intelligent",
+        schedule: {
+          kind: "every",
+          every_secs: 3600,
+        },
+        delivery: {
+          mode: "none",
+          channel: null,
+          target: null,
+          best_effort: false,
+          output_schema: null,
+          output_format: null,
+        },
+        launch_intent: {
+          sceneapp_id: descriptor.id,
+          entry_source:
+            typeof intent.entrySource === "string" ? intent.entrySource : null,
+          workspace_id:
+            typeof intent.workspaceId === "string" ? intent.workspaceId : null,
+          project_id:
+            typeof intent.projectId === "string" ? intent.projectId : null,
+          user_input:
+            typeof intent.userInput === "string" ? intent.userInput : null,
+          slots:
+            intent.slots && typeof intent.slots === "object"
+              ? intent.slots
+              : {},
+          runtime_context:
+            intent.runtimeContext && typeof intent.runtimeContext === "object"
+              ? intent.runtimeContext
+              : null,
+        },
+      },
+      notes: [
+        "当前 SceneApp 规划先映射到 automation_job 主链，再由后续 runtime adapter 负责真实执行。",
+        "当前 planner 只生成 durable automation draft；具体 schedule、delivery 与 run-now 策略可继续由 UI 调整。",
+      ],
+    };
+  }
+
+  if (adapterKind === "cloud_scene") {
+    return {
+      adapterKind,
+      runtimeAction: "launch_cloud_scene",
+      targetRef:
+        descriptor.linkedServiceSkillId ??
+        descriptor.linkedSceneKey ??
+        descriptor.id,
+      targetLabel: descriptor.title,
+      linkedServiceSkillId: descriptor.linkedServiceSkillId,
+      linkedSceneKey: descriptor.linkedSceneKey,
+      requestMetadata: {
+        ...baseRequestMetadata,
+        harness: {
+          ...baseRequestMetadata.harness,
+          service_scene_launch: {
+            kind: "cloud_scene",
+            service_scene_run: {
+              sceneapp_id: descriptor.id,
+              scene_key: descriptor.linkedSceneKey ?? null,
+              linked_skill_id: descriptor.linkedServiceSkillId ?? null,
+              skill_id: descriptor.linkedServiceSkillId ?? null,
+              skill_title: descriptor.title,
+              skill_summary: descriptor.summary,
+              execution_kind: "cloud_scene",
+              entry_source:
+                typeof intent.entrySource === "string"
+                  ? intent.entrySource
+                  : "sceneapp_plan",
+              workspace_id:
+                typeof intent.workspaceId === "string"
+                  ? intent.workspaceId
+                  : null,
+              project_id:
+                typeof intent.projectId === "string" ? intent.projectId : null,
+              user_input:
+                typeof intent.userInput === "string" ? intent.userInput : null,
+              slots:
+                intent.slots && typeof intent.slots === "object"
+                  ? intent.slots
+                  : {},
+            },
+          },
+        },
+      },
+      launchPayload: {
+        sceneapp_id: descriptor.id,
+        scene_key: descriptor.linkedSceneKey ?? null,
+        service_skill_id: descriptor.linkedServiceSkillId ?? null,
+        workspace_id:
+          typeof intent.workspaceId === "string" ? intent.workspaceId : null,
+        project_id:
+          typeof intent.projectId === "string" ? intent.projectId : null,
+        entry_source:
+          typeof intent.entrySource === "string"
+            ? intent.entrySource
+            : "sceneapp_plan",
+        user_input:
+          typeof intent.userInput === "string" ? intent.userInput : null,
+        slots:
+          intent.slots && typeof intent.slots === "object" ? intent.slots : {},
+      },
+      notes: [
+        "当前 SceneApp 规划先映射到 cloud_scene 主链，再由后续 runtime adapter 负责真实执行。",
+        ...(descriptor.sceneappType === "hybrid"
+          ? [
+              "当前 SceneApp 属于 hybrid，但首发执行仍先收敛到 cloud_scene；本地编排步骤由后续 composition blueprint 接续。",
+            ]
+          : []),
+      ],
+    };
+  }
+
+  if (adapterKind === "native_skill") {
+    return {
+      adapterKind,
+      runtimeAction: "launch_native_skill",
+      targetRef:
+        descriptor.linkedServiceSkillId ??
+        descriptor.linkedSceneKey ??
+        descriptor.id,
+      targetLabel: descriptor.title,
+      linkedServiceSkillId: descriptor.linkedServiceSkillId,
+      linkedSceneKey: descriptor.linkedSceneKey,
+      requestMetadata: {
+        ...baseRequestMetadata,
+        harness: {
+          ...baseRequestMetadata.harness,
+          sceneapp_runtime_action: "launch_native_skill",
+          sceneapp_native_skill_launch: {
+            skill_id: descriptor.linkedServiceSkillId ?? null,
+            skill_key: descriptor.linkedSceneKey ?? null,
+            project_id:
+              typeof intent.projectId === "string" ? intent.projectId : null,
+            workspace_id:
+              typeof intent.workspaceId === "string"
+                ? intent.workspaceId
+                : null,
+            user_input:
+              typeof intent.userInput === "string" ? intent.userInput : null,
+            slots:
+              intent.slots && typeof intent.slots === "object"
+                ? intent.slots
+                : {},
+          },
+        },
+      },
+      launchPayload: {
+        sceneapp_id: descriptor.id,
+        service_skill_id: descriptor.linkedServiceSkillId ?? null,
+        skill_key: descriptor.linkedSceneKey ?? null,
+        workspace_id:
+          typeof intent.workspaceId === "string" ? intent.workspaceId : null,
+        project_id:
+          typeof intent.projectId === "string" ? intent.projectId : null,
+        user_input:
+          typeof intent.userInput === "string" ? intent.userInput : null,
+        slots:
+          intent.slots && typeof intent.slots === "object" ? intent.slots : {},
+      },
+      notes: [
+        "当前 SceneApp 规划先映射到 native_skill 主链，再由后续 runtime adapter 负责真实执行。",
+        "native_skill 目前仍建议由统一 SceneApp UI 继续补参后，再把 draft 投递给本地 skill 执行入口。",
+      ],
+    };
+  }
+
+  return {
+    adapterKind,
+    runtimeAction: "submit_agent_turn",
+    targetRef: descriptor.id,
+    targetLabel: descriptor.title,
+    linkedServiceSkillId: descriptor.linkedServiceSkillId,
+    linkedSceneKey: descriptor.linkedSceneKey,
+    requestMetadata: {
+      ...baseRequestMetadata,
+      harness: {
+        ...baseRequestMetadata.harness,
+        sceneapp_runtime_action: "submit_agent_turn",
+      },
+    },
+    launchPayload: {
+      sceneapp_id: descriptor.id,
+      message: typeof intent.userInput === "string" ? intent.userInput : "",
+      workspace_id:
+        typeof intent.workspaceId === "string" ? intent.workspaceId : null,
+      project_id:
+        typeof intent.projectId === "string" ? intent.projectId : null,
+      slots:
+        intent.slots && typeof intent.slots === "object" ? intent.slots : {},
+    },
+    notes: [
+      "当前 SceneApp 规划先映射到 agent_turn 主链，再由后续 runtime adapter 负责真实执行。",
+      "agent_turn 类型 SceneApp 当前仍建议走统一聊天 turn，并把 sceneapp_launch metadata 合并进 request_metadata。",
+    ],
+  };
+}
+
+function buildMockSceneAppPlanResult(
+  descriptor: SceneAppDescriptor | null,
+  args?: Record<string, unknown>,
+): SceneAppPlanResult {
+  const resolvedDescriptor = descriptor ?? mockSceneAppCatalog.items[0]!;
+  const intent =
+    (args?.intent as Record<string, unknown> | undefined) ?? args ?? {};
+  const runtimeContext =
+    (intent.runtimeContext as Record<string, unknown> | undefined) ?? {};
+  const unmetRequirements = resolvedDescriptor.launchRequirements.filter(
+    (requirement) => {
+      if (requirement.kind === "user_input") {
+        return !(
+          typeof intent.userInput === "string" &&
+          intent.userInput.trim().length > 0
+        );
+      }
+      if (requirement.kind === "project") {
+        return !(
+          typeof intent.projectId === "string" &&
+          intent.projectId.trim().length > 0
+        );
+      }
+      if (requirement.kind === "browser_session") {
+        return runtimeContext.browserSessionAttached !== true;
+      }
+      if (requirement.kind === "cloud_session") {
+        return runtimeContext.cloudSessionReady !== true;
+      }
+      if (requirement.kind === "automation") {
+        return runtimeContext.automationEnabled !== true;
+      }
+      return false;
+    },
+  );
+
+  return {
+    descriptor: resolvedDescriptor,
+    readiness: {
+      ready: unmetRequirements.length === 0,
+      unmetRequirements,
+    },
+    plan: {
+      sceneappId: resolvedDescriptor.id,
+      executorKind:
+        resolvedDescriptor.entryBindings[0]?.bindingFamily ?? "agent_turn",
+      bindingFamily:
+        resolvedDescriptor.entryBindings[0]?.bindingFamily ?? "agent_turn",
+      stepPlan: resolvedDescriptor.patternStack.map((pattern, index) => ({
+        id: `step-${index + 1}`,
+        title: `执行 ${pattern} 阶段`,
+        bindingFamily:
+          resolvedDescriptor.entryBindings[0]?.bindingFamily ?? "agent_turn",
+      })),
+      adapterPlan: buildMockSceneAppAdapterPlan(resolvedDescriptor, intent),
+      storageStrategy: resolvedDescriptor.infraProfile.includes("db_store")
+        ? "db_plus_snapshot"
+        : "workspace_bundle",
+      artifactContract: resolvedDescriptor.deliveryContract,
+      governanceHooks: ["evidence_pack", "scorecard"],
+      warnings:
+        unmetRequirements.length > 0
+          ? ["当前 SceneApp 仍有未满足的启动前置条件。"]
+          : [],
+    },
+  };
+}
+
+function buildMockSceneAppScorecard(sceneappId: string): SceneAppScorecard {
+  if (sceneappId === "story-video-suite") {
+    return {
+      sceneappId,
+      updatedAt: "2026-04-15T00:00:00.000Z",
+      summary:
+        "这条多模态项目包样板已具备继续优化价值，重点是提升整包完整度与发布转化。",
+      metrics: [
+        {
+          key: "complete_pack_rate",
+          label: "整包交付率",
+          value: 78,
+          status: "watch",
+        },
+        {
+          key: "review_pass_rate",
+          label: "复核通过率",
+          value: 84,
+          status: "good",
+        },
+      ],
+      recommendedAction: "optimize",
+      observedFailureSignals: ["review_blocked", "pack_incomplete"],
+      topFailureSignal: "review_blocked",
+    };
+  }
+
+  return {
+    sceneappId,
+    updatedAt: "2026-04-15T00:00:00.000Z",
+    summary:
+      "该 SceneApp 已具备平台化治理入口，下一步重点是继续优化交付稳定性。",
+    metrics: [
+      {
+        key: "delivery_readiness",
+        label: "交付就绪度",
+        value: 0.78,
+        status: "watch",
+      },
+      {
+        key: "reuse_potential",
+        label: "结果复用潜力",
+        value: 0.84,
+        status: "good",
+      },
+    ],
+    recommendedAction: "keep",
+    observedFailureSignals: [],
+    topFailureSignal: null,
+  };
+}
+
+function extractMockSceneAppIdFromAutomationJob(
+  job?: Partial<AutomationJobRecord> | null,
+): string | null {
+  const payload =
+    (job?.payload as Record<string, unknown> | undefined) ?? undefined;
+  const requestMetadata =
+    (payload?.request_metadata as Record<string, unknown> | undefined) ??
+    (payload?.requestMetadata as Record<string, unknown> | undefined);
+  const sceneapp =
+    (requestMetadata?.sceneapp as Record<string, unknown> | undefined) ??
+    (requestMetadata?.sceneApp as Record<string, unknown> | undefined);
+  return typeof sceneapp?.id === "string" ? sceneapp.id : null;
+}
+
+function buildMockSceneAppRunSummaries(sceneappId?: string) {
+  const seededRuns = [
+    {
+      runId: "sceneapp-run-story-video-seed",
+      sceneappId: "story-video-suite",
+      status: "success",
+      source: "catalog_seed",
+      sourceRef: null,
+      startedAt: "2026-04-15T00:00:00.000Z",
+      finishedAt: "2026-04-15T00:08:00.000Z",
+      artifactCount: 3,
+      deliveryArtifactRefs: [
+        {
+          relativePath: "exports/story-video-suite/latest/brief.md",
+          absolutePath: "/workspace/exports/story-video-suite/latest/brief.md",
+          partKey: "brief",
+          projectId: "project-1",
+          workspaceId: "workspace-1",
+          source: "runtime_evidence",
+        },
+        {
+          relativePath: "exports/story-video-suite/latest/video_draft.mp4",
+          absolutePath:
+            "/workspace/exports/story-video-suite/latest/video_draft.mp4",
+          partKey: "video_draft",
+          projectId: "project-1",
+          workspaceId: "workspace-1",
+          source: "runtime_evidence",
+        },
+      ],
+      governanceArtifactRefs: [
+        {
+          kind: "evidence_summary",
+          label: "证据摘要",
+          relativePath:
+            ".lime/harness/sessions/session-story-video-1/evidence/summary.md",
+          absolutePath:
+            "/workspace/.lime/harness/sessions/session-story-video-1/evidence/summary.md",
+          projectId: "project-1",
+          workspaceId: "workspace-1",
+          source: "session_governance",
+        },
+        {
+          kind: "review_decision_markdown",
+          label: "人工复核记录",
+          relativePath:
+            ".lime/harness/sessions/session-story-video-1/review/review-decision.md",
+          absolutePath:
+            "/workspace/.lime/harness/sessions/session-story-video-1/review/review-decision.md",
+          projectId: "project-1",
+          workspaceId: "workspace-1",
+          source: "session_governance",
+        },
+        {
+          kind: "review_decision_json",
+          label: "复核 JSON",
+          relativePath:
+            ".lime/harness/sessions/session-story-video-1/review/review-decision.json",
+          absolutePath:
+            "/workspace/.lime/harness/sessions/session-story-video-1/review/review-decision.json",
+          projectId: "project-1",
+          workspaceId: "workspace-1",
+          source: "session_governance",
+        },
+      ],
+      deliveryRequiredParts: [
+        "brief",
+        "storyboard",
+        "script",
+        "music_refs",
+        "video_draft",
+        "review_note",
+      ],
+      deliveryCompletedParts: ["brief", "storyboard", "script"],
+      deliveryMissingParts: ["music_refs", "video_draft", "review_note"],
+      deliveryCompletionRate: 50,
+      deliveryPartCoverageKnown: true,
+      failureSignal: "review_blocked",
+    },
+    {
+      runId: "sceneapp-run-article-export-seed",
+      sceneappId: "x-article-export",
+      status: "queued",
+      source: "catalog_seed",
+      sourceRef: null,
+      startedAt: "2026-04-15T00:12:00.000Z",
+      finishedAt: null,
+      artifactCount: 0,
+      deliveryArtifactRefs: [],
+      deliveryRequiredParts: ["index.md", "meta.json"],
+      deliveryCompletedParts: [],
+      deliveryMissingParts: [],
+      deliveryCompletionRate: null,
+      deliveryPartCoverageKnown: false,
+      failureSignal: null,
+    },
+  ];
+
+  const automationRuns = mockAutomationRuns
+    .map((run) => {
+      const job = mockAutomationJobs.find((item) => item.id === run.source_ref);
+      const resolvedSceneAppId = extractMockSceneAppIdFromAutomationJob(job);
+      if (!resolvedSceneAppId) {
+        return null;
+      }
+      return {
+        runId: run.id,
+        sceneappId: resolvedSceneAppId,
+        status: run.status,
+        source: run.source,
+        sourceRef: run.source_ref ?? null,
+        startedAt: run.started_at,
+        finishedAt: run.finished_at,
+        artifactCount: 0,
+        deliveryRequiredParts: [],
+        deliveryCompletedParts: [],
+        deliveryMissingParts: [],
+        deliveryCompletionRate: null,
+        deliveryPartCoverageKnown: false,
+        failureSignal: null,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  const automationJobOnlyRuns = mockAutomationJobs
+    .filter((job) => {
+      const resolvedSceneAppId = extractMockSceneAppIdFromAutomationJob(job);
+      if (!resolvedSceneAppId) {
+        return false;
+      }
+      const hasRealRun = mockAutomationRuns.some(
+        (run) => run.source_ref === job.id,
+      );
+      return !hasRealRun;
+    })
+    .map((job) => ({
+      runId: `automation-job:${job.id}`,
+      sceneappId: extractMockSceneAppIdFromAutomationJob(job)!,
+      status: job.last_status ?? "queued",
+      source: "automation",
+      sourceRef: job.id,
+      startedAt: job.last_run_at ?? job.created_at,
+      finishedAt: job.last_finished_at ?? null,
+      artifactCount: 0,
+      deliveryRequiredParts: [],
+      deliveryCompletedParts: [],
+      deliveryMissingParts: [],
+      deliveryCompletionRate: null,
+      deliveryPartCoverageKnown: false,
+      failureSignal: null,
+    }));
+
+  const merged = [...automationRuns, ...automationJobOnlyRuns, ...seededRuns];
+  return sceneappId
+    ? merged.filter((run) => run.sceneappId === sceneappId)
+    : merged;
+}
+
+function createMockSceneAppAutomationJob(args?: Record<string, unknown>) {
+  const intent =
+    (args?.intent as Record<string, unknown> | undefined) ?? args ?? {};
+  const launchIntent =
+    (intent.launchIntent as Record<string, unknown> | undefined) ??
+    (intent.launch_intent as Record<string, unknown> | undefined) ??
+    {};
+  const descriptor = findMockSceneAppDescriptor(
+    (launchIntent.sceneappId as string | undefined) ??
+      (launchIntent.sceneapp_id as string | undefined),
+  );
+
+  if (!descriptor) {
+    throw new Error("未找到 SceneApp，无法创建自动化任务");
+  }
+  if (descriptor.sceneappType === "browser_grounded") {
+    throw new Error(
+      "当前 SceneApp 依赖浏览器上下文，暂不支持直接转为 automation job",
+    );
+  }
+
+  const workspaceId =
+    typeof launchIntent.workspaceId === "string"
+      ? launchIntent.workspaceId
+      : typeof launchIntent.workspace_id === "string"
+        ? launchIntent.workspace_id
+        : "workspace-default";
+  const projectId =
+    typeof launchIntent.projectId === "string"
+      ? launchIntent.projectId
+      : typeof launchIntent.project_id === "string"
+        ? launchIntent.project_id
+        : null;
+  const userInput =
+    typeof launchIntent.userInput === "string"
+      ? launchIntent.userInput
+      : typeof launchIntent.user_input === "string"
+        ? launchIntent.user_input
+        : "";
+  const schedule = (intent.schedule as Record<string, unknown> | undefined) ?? {
+    kind: "every",
+    every_secs: 3600,
+  };
+
+  const requestMetadata = {
+    sceneapp: {
+      id: descriptor.id,
+      title: descriptor.title,
+      sceneapp_type: descriptor.sceneappType,
+      pattern_primary: descriptor.patternPrimary,
+      pattern_stack: descriptor.patternStack,
+      infra_profile: descriptor.infraProfile,
+    },
+    service_skill: {
+      id: descriptor.linkedServiceSkillId,
+      scene_key: descriptor.linkedSceneKey,
+    },
+    harness: {
+      sceneapp_id: descriptor.id,
+      workspace_id: workspaceId,
+      project_id: projectId,
+      entry_source:
+        (launchIntent.entrySource as string | undefined) ??
+        (launchIntent.entry_source as string | undefined) ??
+        null,
+    },
+    sceneapp_slots:
+      (launchIntent.slots as Record<string, unknown> | undefined) ?? {},
+  };
+
+  const jobId = `sceneapp-automation-${Date.now()}`;
+  const createdJob: AutomationJobRecord = {
+    id: jobId,
+    name:
+      (typeof intent.name === "string" && intent.name.trim()) ||
+      `${descriptor.title} 自动化`,
+    description:
+      (typeof intent.description === "string" && intent.description.trim()
+        ? intent.description
+        : `由 SceneApp ${descriptor.title} 派生的自动化任务。`) ?? null,
+    enabled: intent.enabled !== false,
+    workspace_id: workspaceId,
+    execution_mode:
+      (intent.executionMode as
+        | AutomationJobRecord["execution_mode"]
+        | undefined) ??
+      (intent.execution_mode as
+        | AutomationJobRecord["execution_mode"]
+        | undefined) ??
+      "intelligent",
+    schedule: schedule as AutomationJobRecord["schedule"],
+    payload: {
+      kind: "agent_turn",
+      prompt: userInput
+        ? `SceneApp: ${descriptor.title}\n用户目标：${userInput}`
+        : `SceneApp: ${descriptor.title}`,
+      system_prompt: "你正在执行 SceneApp 自动化任务。",
+      web_search: false,
+      request_metadata: requestMetadata,
+    },
+    delivery: (intent.delivery as
+      | AutomationJobRecord["delivery"]
+      | undefined) ?? {
+      mode: "none",
+      channel: null,
+      target: null,
+      best_effort: true,
+      output_schema: "text",
+      output_format: "text",
+    },
+    timeout_secs:
+      (intent.timeoutSecs as number | undefined) ??
+      (intent.timeout_secs as number | undefined) ??
+      null,
+    max_retries:
+      (intent.maxRetries as number | undefined) ??
+      (intent.max_retries as number | undefined) ??
+      3,
+    next_run_at: now(),
+    last_status: null,
+    last_error: null,
+    last_run_at: null,
+    last_finished_at: null,
+    running_started_at: null,
+    consecutive_failures: 0,
+    last_retry_count: 0,
+    auto_disabled_until: null,
+    last_delivery: null,
+    created_at: now(),
+    updated_at: now(),
+  };
+  mockAutomationJobs.unshift(createdJob);
+
+  let runNowResult:
+    | {
+        job_count: number;
+        success_count: number;
+        failed_count: number;
+        timeout_count: number;
+      }
+    | undefined;
+  if (intent.runNow === true || intent.run_now === true) {
+    const runId = `sceneapp-run-${Date.now()}`;
+    mockAutomationRuns.unshift({
+      id: runId,
+      source: "automation",
+      source_ref: createdJob.id,
+      session_id: `session-${Date.now()}`,
+      status: "success",
+      started_at: now(),
+      finished_at: now(),
+      duration_ms: 1200,
+      error_code: null,
+      error_message: null,
+      metadata: JSON.stringify({
+        job_id: createdJob.id,
+        job_name: createdJob.name,
+        workspace_id: createdJob.workspace_id,
+        sceneapp: {
+          id: descriptor.id,
+          title: descriptor.title,
+        },
+        harness: {
+          sceneapp_id: descriptor.id,
+        },
+      }),
+      created_at: now(),
+      updated_at: now(),
+    });
+    runNowResult = {
+      job_count: 1,
+      success_count: 1,
+      failed_count: 0,
+      timeout_count: 0,
+    };
+  }
+
+  return {
+    sceneappId: descriptor.id,
+    jobId: createdJob.id,
+    jobName: createdJob.name,
+    enabled: createdJob.enabled,
+    workspaceId: createdJob.workspace_id,
+    nextRunAt: createdJob.next_run_at,
+    runNowResult,
+  };
+}
 
 function buildMockAutomationBrowserMetadata(
   job: any,
@@ -2680,6 +3808,12 @@ const defaultMocks: Record<string, any> = {
         last_url: profile.launch_url ?? "https://www.google.com/",
       })),
   close_chrome_profile_session: () => true,
+  cleanup_gui_smoke_chrome_profiles: () => ({
+    matched_profiles: [],
+    removed_profiles: [],
+    skipped_profiles: [],
+    terminated_process_count: 0,
+  }),
   open_browser_runtime_debugger_window: () => ({ success: true }),
   close_browser_runtime_debugger_window: () => ({ success: true }),
   launch_browser_runtime_assist: (args: any) =>
@@ -3432,6 +4566,86 @@ const defaultMocks: Record<string, any> = {
   agent_runtime_create_session: () => "mock-aster-session",
   agent_runtime_list_sessions: () => [],
   agent_runtime_get_session: () => ({ id: "mock", messages: [] }),
+  agent_runtime_list_file_checkpoints: () => ({
+    session_id: "mock-session",
+    thread_id: "mock-thread",
+    checkpoint_count: 1,
+    checkpoints: [
+      {
+        checkpoint_id: "artifact-document:req-1",
+        turn_id: "turn-1",
+        path: ".lime/artifacts/mock-thread/demo.artifact.json",
+        source: "artifact_document_service",
+        updated_at: "2026-04-15T00:00:00Z",
+        version_no: 2,
+        version_id: "artifact-document:req-1:v2",
+        request_id: "req-1",
+        title: "Mock Checkpoint",
+        kind: "analysis",
+        status: "ready",
+        preview_text: "mock preview",
+        snapshot_path:
+          ".lime/artifacts/mock-thread/versions/demo/v0002.artifact.json",
+        validation_issue_count: 0,
+      },
+    ],
+  }),
+  agent_runtime_get_file_checkpoint: () => ({
+    session_id: "mock-session",
+    thread_id: "mock-thread",
+    checkpoint: {
+      checkpoint_id: "artifact-document:req-1",
+      turn_id: "turn-1",
+      path: ".lime/artifacts/mock-thread/demo.artifact.json",
+      source: "artifact_document_service",
+      updated_at: "2026-04-15T00:00:00Z",
+      version_no: 2,
+      version_id: "artifact-document:req-1:v2",
+      request_id: "req-1",
+      title: "Mock Checkpoint",
+      kind: "analysis",
+      status: "ready",
+      preview_text: "mock preview",
+      snapshot_path:
+        ".lime/artifacts/mock-thread/versions/demo/v0002.artifact.json",
+      validation_issue_count: 0,
+    },
+    live_path: ".lime/artifacts/mock-thread/demo.artifact.json",
+    snapshot_path:
+      ".lime/artifacts/mock-thread/versions/demo/v0002.artifact.json",
+    checkpoint_document: { title: "Mock Checkpoint", summary: "snapshot" },
+    live_document: { title: "Mock Checkpoint", summary: "live" },
+    version_history: [],
+    validation_issues: [],
+    metadata: {},
+    content: "# Mock Checkpoint",
+  }),
+  agent_runtime_diff_file_checkpoint: () => ({
+    session_id: "mock-session",
+    thread_id: "mock-thread",
+    checkpoint: {
+      checkpoint_id: "artifact-document:req-1",
+      turn_id: "turn-1",
+      path: ".lime/artifacts/mock-thread/demo.artifact.json",
+      source: "artifact_document_service",
+      updated_at: "2026-04-15T00:00:00Z",
+      version_no: 2,
+      version_id: "artifact-document:req-1:v2",
+      request_id: "req-1",
+      title: "Mock Checkpoint",
+      kind: "analysis",
+      status: "ready",
+      preview_text: "mock preview",
+      snapshot_path:
+        ".lime/artifacts/mock-thread/versions/demo/v0002.artifact.json",
+      validation_issue_count: 0,
+    },
+    current_version_id: "artifact-document:req-1:v2",
+    previous_version_id: "artifact-document:req-1:v1",
+    diff: {
+      summary: "mock diff",
+    },
+  }),
   agent_runtime_export_analysis_handoff: () => ({
     session_id: "mock-session",
     thread_id: "mock-thread",
@@ -4094,17 +5308,41 @@ const defaultMocks: Record<string, any> = {
     loaded_sources: 1,
     follow_imports: true,
     import_max_depth: 5,
-    sources: [],
+    sources: [
+      {
+        kind: "auto_memory",
+        source_bucket: "auto",
+        provider: "memdir",
+        updated_at: Date.now(),
+        path: "/mock/workspace/memory/MEMORY.md",
+        exists: true,
+        loaded: true,
+        line_count: 4,
+        import_count: 1,
+        warnings: [],
+        preview: "# Lime memdir\\n- [项目记忆](project/README.md)",
+      },
+    ],
   }),
   memory_get_auto_index: () => ({
     enabled: true,
     root_dir: "/mock/workspace/memory",
     entrypoint: "MEMORY.md",
     max_loaded_lines: 200,
-    entry_exists: false,
-    total_lines: 0,
-    preview_lines: [],
-    items: [],
+    entry_exists: true,
+    total_lines: 4,
+    preview_lines: ["# Lime memdir", "- [项目记忆](project/README.md)"],
+    items: [
+      {
+        title: "项目记忆",
+        memory_type: "project",
+        provider: "memdir",
+        updated_at: Date.now(),
+        relative_path: "project/README.md",
+        exists: true,
+        summary: "记录项目背景、时间点、约束、动机与团队分工。",
+      },
+    ],
   }),
   memory_toggle_auto: (args: any) => ({
     enabled: Boolean(args?.enabled),
@@ -4117,7 +5355,60 @@ const defaultMocks: Record<string, any> = {
     entry_exists: true,
     total_lines: 1,
     preview_lines: ["- mock note"],
-    items: [],
+    items: [
+      {
+        title: "项目记忆",
+        memory_type: "project",
+        provider: "memdir",
+        updated_at: Date.now(),
+        relative_path: "project/README.md",
+        exists: true,
+        summary: "记录项目背景、时间点、约束、动机与团队分工。",
+      },
+    ],
+  }),
+  memory_cleanup_memdir: () => ({
+    root_dir: "/mock/workspace/memory",
+    entrypoint: "MEMORY.md",
+    scanned_files: 4,
+    updated_files: 2,
+    removed_duplicate_links: 1,
+    dropped_missing_links: 0,
+    removed_duplicate_notes: 1,
+    trimmed_notes: 1,
+    curated_topic_files: 1,
+  }),
+  memory_scaffold_memdir: (args: any) => ({
+    root_dir: `${args?.workingDir ?? "/mock/workspace"}/memory`,
+    entrypoint: "MEMORY.md",
+    created_parent_dir: true,
+    files: [
+      {
+        key: "entrypoint",
+        path: `${args?.workingDir ?? "/mock/workspace"}/memory/MEMORY.md`,
+        status: "created",
+      },
+      {
+        key: "user",
+        path: `${args?.workingDir ?? "/mock/workspace"}/memory/user/README.md`,
+        status: "created",
+      },
+      {
+        key: "feedback",
+        path: `${args?.workingDir ?? "/mock/workspace"}/memory/feedback/README.md`,
+        status: "created",
+      },
+      {
+        key: "project",
+        path: `${args?.workingDir ?? "/mock/workspace"}/memory/project/README.md`,
+        status: "created",
+      },
+      {
+        key: "reference",
+        path: `${args?.workingDir ?? "/mock/workspace"}/memory/reference/README.md`,
+        status: "created",
+      },
+    ],
   }),
   memory_scaffold_runtime_agents_template: (args: any) => {
     const target = args?.target ?? "workspace";
@@ -4803,6 +6094,46 @@ const defaultMocks: Record<string, any> = {
     has_more: false,
     next_offset: null,
   }),
+  sceneapp_list_catalog: () => mockSceneAppCatalog,
+  sceneapp_get_descriptor: (args: any) =>
+    findMockSceneAppDescriptor(args?.id ?? args?.sceneappId ?? null),
+  sceneapp_plan_launch: (args: any) =>
+    buildMockSceneAppPlanResult(
+      findMockSceneAppDescriptor(
+        args?.intent?.sceneappId ?? args?.sceneappId ?? args?.id ?? null,
+      ),
+      args,
+    ),
+  sceneapp_create_automation_job: (args: any) =>
+    createMockSceneAppAutomationJob(args),
+  sceneapp_list_runs: (args: any) => {
+    const sceneappId =
+      typeof args?.sceneappId === "string" ? args.sceneappId : null;
+    return buildMockSceneAppRunSummaries(sceneappId ?? undefined);
+  },
+  sceneapp_get_run_summary: (args: any) =>
+    buildMockSceneAppRunSummaries().find((run) => run.runId === args?.runId) ??
+    null,
+  sceneapp_prepare_run_governance_artifact: (args: any) =>
+    buildMockSceneAppRunSummaries().find((run) => run.runId === args?.runId) ??
+    null,
+  sceneapp_get_scorecard: (args: any) =>
+    buildMockSceneAppScorecard(
+      typeof args?.sceneappId === "string" && args.sceneappId.trim()
+        ? args.sceneappId
+        : "story-video-suite",
+    ),
+  gateway_channel_status: (args: any) => ({
+    channel:
+      typeof args?.request?.channel === "string" && args.request.channel.trim()
+        ? args.request.channel.trim().toLowerCase()
+        : "telegram",
+    status: {
+      running_accounts: 0,
+      accounts: [],
+    },
+  }),
+  wechat_channel_list_accounts: () => [],
   content_get_general_workbench_document_state: () => null,
 
   // Workspace 相关

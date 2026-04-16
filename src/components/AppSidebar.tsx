@@ -22,7 +22,6 @@ import { getPluginsForSurface, PluginUIInfo } from "@/lib/api/pluginUI";
 import { AgentPageParams, Page, PageParams } from "@/types/page";
 import { getConfig } from "@/lib/api/appConfig";
 import {
-  buildClawAgentParams,
   buildHomeAgentParams,
 } from "@/lib/workspace/navigation";
 import {
@@ -671,12 +670,9 @@ export function AppSidebar({
       return;
     }
 
-    const params: PageParams | undefined =
-      item.id === "home-general"
-        ? buildHomeAgentParams(item.params as AgentPageParams | undefined)
-        : item.id === "claw"
-          ? buildClawAgentParams(item.params as AgentPageParams | undefined)
-          : item.params;
+    const params: PageParams | undefined = item.resolveParams
+      ? item.resolveParams(item.params)
+      : item.params;
 
     onNavigate(item.page, params);
   };

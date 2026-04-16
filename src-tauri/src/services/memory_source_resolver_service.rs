@@ -2,9 +2,12 @@
 //!
 //! 将配置中的记忆来源（AGENTS、规则、自动记忆等）统一解析为可观察结果与可注入提示词片段。
 
-use crate::services::auto_memory_service::{get_auto_memory_index, resolve_auto_memory_root};
+use crate::services::auto_memory_service::{
+    get_auto_memory_index, infer_memdir_memory_type, resolve_auto_memory_root, MemdirMemoryType,
+};
 use crate::services::memory_import_parser_service::{parse_memory_file, MemoryImportParseOptions};
 use crate::services::memory_rules_loader_service::load_rules;
+use chrono::{DateTime, Utc};
 use lime_agent::{
     resolve_durable_memory_root, to_virtual_memory_path, DURABLE_MEMORY_VIRTUAL_ROOT,
 };
@@ -19,12 +22,26 @@ use std::path::{Path, PathBuf};
 
 const DURABLE_MEMORY_MAX_DEPTH: usize = 4;
 const DURABLE_MEMORY_MAX_FILES: usize = 64;
+const AUTO_MEMORY_LINKED_ITEM_LIMIT: usize = 8;
+const AUTO_MEMORY_LINKED_ITEM_LINE_LIMIT: usize = 40;
 
 /// 单个来源解析结果
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EffectiveMemorySource {
     /// 来源类型：managed_policy/project/user/local/rule/auto_memory/additional
     pub kind: String,
+    /// 归属来源桶：managed/user/project/local/rules/auto/durable/additional
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_bucket: Option<String>,
+    /// 当前命中的 provider 标识；memdir 主链会显式写入 `memdir`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// memdir 条目类型
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_type: Option<MemdirMemoryType>,
+    /// 最近更新时间
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<i64>,
     /// 来源路径
     pub path: String,
     /// 文件或目录是否存在
@@ -322,6 +339,67 @@ pub fn build_memory_sources_prompt_with_options(
     }
 }
 
+fn build_effective_memory_source(
+    kind: &str,
+    path: String,
+    exists: bool,
+    loaded: bool,
+    line_count: u32,
+    import_count: u32,
+    warnings: Vec<String>,
+    preview: Option<String>,
+    updated_at: Option<i64>,
+    memory_type: Option<MemdirMemoryType>,
+) -> EffectiveMemorySource {
+    EffectiveMemorySource {
+        kind: kind.to_string(),
+        source_bucket: source_bucket_for_kind(kind).map(str::to_string),
+        provider: provider_for_kind(kind).map(str::to_string),
+        memory_type,
+        updated_at,
+        path,
+        exists,
+        loaded,
+        line_count,
+        import_count,
+        warnings,
+        preview,
+    }
+}
+
+fn source_bucket_for_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "managed_policy" => Some("managed"),
+        "user_memory" => Some("user"),
+        "project_memory" | "workspace_agents" => Some("project"),
+        "project_local" => Some("local"),
+        "project_rule" | "project_rules" => Some("rules"),
+        "auto_memory" | "auto_memory_item" => Some("auto"),
+        "durable_memory" => Some("durable"),
+        "additional_memory" => Some("additional"),
+        _ => None,
+    }
+}
+
+fn provider_for_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "auto_memory" | "auto_memory_item" => Some("memdir"),
+        _ => None,
+    }
+}
+
+fn memory_type_for_kind(kind: &str, path: &str) -> Option<MemdirMemoryType> {
+    match kind {
+        "auto_memory" | "auto_memory_item" => infer_memdir_memory_type(path),
+        _ => None,
+    }
+}
+
+fn read_path_updated_at(path: &Path) -> Option<i64> {
+    let modified = fs::metadata(path).ok()?.modified().ok()?;
+    Some(DateTime::<Utc>::from(modified).timestamp_millis())
+}
+
 fn runtime_agent_overlap_paths(working_dir: &Path) -> HashSet<PathBuf> {
     let mut paths = HashSet::new();
     paths.insert(normalize_path(&app_paths::best_effort_user_memory_path()));
@@ -387,16 +465,18 @@ fn resolve_file_source_with_display_path(
         if !include_missing {
             return;
         }
-        output.push(EffectiveMemorySource {
-            kind: kind.to_string(),
-            path: display_path,
-            exists: false,
-            loaded: false,
-            line_count: 0,
-            import_count: 0,
-            warnings: Vec::new(),
-            preview: None,
-        });
+        output.push(build_effective_memory_source(
+            kind,
+            display_path,
+            false,
+            false,
+            0,
+            0,
+            Vec::new(),
+            None,
+            None,
+            None,
+        ));
         return;
     }
 
@@ -416,16 +496,18 @@ fn resolve_file_source_with_display_path(
                 0
             };
 
-            output.push(EffectiveMemorySource {
-                kind: kind.to_string(),
-                path: display_path.clone(),
-                exists: true,
+            output.push(build_effective_memory_source(
+                kind,
+                display_path.clone(),
+                true,
                 loaded,
                 line_count,
-                import_count: parsed.imported_files.len() as u32,
-                warnings: parsed.warnings.clone(),
+                parsed.imported_files.len() as u32,
+                parsed.warnings.clone(),
                 preview,
-            });
+                read_path_updated_at(&normalized),
+                memory_type_for_kind(kind, display_path.as_str()),
+            ));
 
             if loaded {
                 prompt_segments.push(format!("### {} ({})\n{}", kind, display_path, content));
@@ -437,16 +519,18 @@ fn resolve_file_source_with_display_path(
             }
         }
         Err(err) => {
-            output.push(EffectiveMemorySource {
-                kind: kind.to_string(),
-                path: display_path,
-                exists: true,
-                loaded: false,
-                line_count: 0,
-                import_count: 0,
-                warnings: vec![err],
-                preview: None,
-            });
+            output.push(build_effective_memory_source(
+                kind,
+                display_path,
+                true,
+                false,
+                0,
+                0,
+                vec![err],
+                None,
+                read_path_updated_at(&normalized),
+                memory_type_for_kind(kind, normalized.to_string_lossy().as_ref()),
+            ));
         }
     }
 }
@@ -462,16 +546,18 @@ fn resolve_durable_memory_sources(
     let root = match resolve_durable_memory_root() {
         Ok(path) => path,
         Err(err) => {
-            output.push(EffectiveMemorySource {
-                kind: "durable_memory".to_string(),
-                path: DURABLE_MEMORY_VIRTUAL_ROOT.to_string(),
-                exists: false,
-                loaded: false,
-                line_count: 0,
-                import_count: 0,
-                warnings: vec![format!("解析 durable memory 根目录失败: {err}")],
-                preview: None,
-            });
+            output.push(build_effective_memory_source(
+                "durable_memory",
+                DURABLE_MEMORY_VIRTUAL_ROOT.to_string(),
+                false,
+                false,
+                0,
+                0,
+                vec![format!("解析 durable memory 根目录失败: {err}")],
+                None,
+                None,
+                None,
+            ));
             return;
         }
     };
@@ -483,16 +569,18 @@ fn resolve_durable_memory_sources(
     ) {
         Ok(files) => files,
         Err(err) => {
-            output.push(EffectiveMemorySource {
-                kind: "durable_memory".to_string(),
-                path: DURABLE_MEMORY_VIRTUAL_ROOT.to_string(),
-                exists: root.exists(),
-                loaded: false,
-                line_count: 0,
-                import_count: 0,
-                warnings: vec![format!("扫描 durable memory 文件失败: {err}")],
-                preview: None,
-            });
+            output.push(build_effective_memory_source(
+                "durable_memory",
+                DURABLE_MEMORY_VIRTUAL_ROOT.to_string(),
+                root.exists(),
+                false,
+                0,
+                0,
+                vec![format!("扫描 durable memory 文件失败: {err}")],
+                None,
+                read_path_updated_at(&root),
+                None,
+            ));
             return;
         }
     };
@@ -503,16 +591,18 @@ fn resolve_durable_memory_sources(
         } else {
             vec!["记忆功能已关闭".to_string()]
         };
-        output.push(EffectiveMemorySource {
-            kind: "durable_memory".to_string(),
-            path: DURABLE_MEMORY_VIRTUAL_ROOT.to_string(),
-            exists: root.exists(),
-            loaded: false,
-            line_count: 0,
-            import_count: 0,
+        output.push(build_effective_memory_source(
+            "durable_memory",
+            DURABLE_MEMORY_VIRTUAL_ROOT.to_string(),
+            root.exists(),
+            false,
+            0,
+            0,
             warnings,
-            preview: None,
-        });
+            None,
+            read_path_updated_at(&root),
+            None,
+        ));
         return;
     }
 
@@ -554,16 +644,18 @@ fn resolve_rule_sources(
         if !include_missing {
             return;
         }
-        output.push(EffectiveMemorySource {
-            kind: "project_rules".to_string(),
-            path: normalized.to_string_lossy().to_string(),
-            exists: false,
-            loaded: false,
-            line_count: 0,
-            import_count: 0,
-            warnings: Vec::new(),
-            preview: None,
-        });
+        output.push(build_effective_memory_source(
+            "project_rules",
+            normalized.to_string_lossy().to_string(),
+            false,
+            false,
+            0,
+            0,
+            Vec::new(),
+            None,
+            None,
+            None,
+        ));
         return;
     }
 
@@ -572,16 +664,18 @@ fn resolve_rule_sources(
         if !include_missing {
             return;
         }
-        output.push(EffectiveMemorySource {
-            kind: "project_rules".to_string(),
-            path: normalized.to_string_lossy().to_string(),
-            exists: true,
-            loaded: false,
-            line_count: 0,
-            import_count: 0,
-            warnings: vec!["规则目录存在，但未发现可用规则".to_string()],
-            preview: None,
-        });
+        output.push(build_effective_memory_source(
+            "project_rules",
+            normalized.to_string_lossy().to_string(),
+            true,
+            false,
+            0,
+            0,
+            vec!["规则目录存在，但未发现可用规则".to_string()],
+            None,
+            read_path_updated_at(&normalized),
+            None,
+        ));
         return;
     }
 
@@ -599,24 +693,26 @@ fn resolve_rule_sources(
                 rule.path_patterns.join(", ")
             ));
         }
-        output.push(EffectiveMemorySource {
-            kind: "project_rule".to_string(),
-            path: normalized_rule.to_string_lossy().to_string(),
-            exists: true,
+        output.push(build_effective_memory_source(
+            "project_rule",
+            normalized_rule.to_string_lossy().to_string(),
+            true,
             loaded,
-            line_count: if loaded {
+            if loaded {
                 rule.content.lines().count() as u32
             } else {
                 0
             },
-            import_count: 0,
+            0,
             warnings,
-            preview: if loaded {
+            if loaded {
                 Some(clip_text(&rule.content, 300))
             } else {
                 None
             },
-        });
+            read_path_updated_at(&normalized_rule),
+            None,
+        ));
 
         if loaded {
             prompt_segments.push(format!(
@@ -649,7 +745,8 @@ fn resolve_auto_memory_source(
     } else {
         entry_name
     };
-    let entry_path = normalize_path(&auto_root.join(entry_name));
+    let entry_display_path = auto_root.join(entry_name);
+    let entry_path = normalize_path(&entry_display_path);
     if !seen.insert(entry_path.clone()) {
         return;
     }
@@ -658,50 +755,152 @@ fn resolve_auto_memory_source(
     match index {
         Ok(idx) => {
             let loaded = idx.entry_exists && !idx.preview_lines.is_empty();
-            output.push(EffectiveMemorySource {
-                kind: "auto_memory".to_string(),
-                path: entry_path.to_string_lossy().to_string(),
-                exists: idx.entry_exists,
+            output.push(build_effective_memory_source(
+                "auto_memory",
+                entry_display_path.to_string_lossy().to_string(),
+                idx.entry_exists,
                 loaded,
-                line_count: idx.total_lines,
-                import_count: idx.items.len() as u32,
-                warnings: if !memory_config.auto.enabled {
+                idx.total_lines,
+                idx.items.len() as u32,
+                if !memory_config.auto.enabled {
                     vec!["自动记忆已关闭".to_string()]
                 } else {
                     Vec::new()
                 },
-                preview: if loaded {
+                if loaded {
                     Some(clip_text(&idx.preview_lines.join("\n"), 300))
                 } else {
                     None
                 },
-            });
+                read_path_updated_at(&entry_path),
+                None,
+            ));
 
             if loaded {
                 prompt_segments.push(format!(
                     "### auto_memory ({})\n{}",
-                    entry_path.display(),
+                    entry_display_path.display(),
                     idx.preview_lines.join("\n")
                 ));
                 prompt_sources.push(MemoryPromptSegment {
                     title: "auto_memory".to_string(),
-                    path: entry_path.to_string_lossy().to_string(),
+                    path: entry_display_path.to_string_lossy().to_string(),
                     content: idx.preview_lines.join("\n"),
                 });
+
+                let sorted_items = sort_auto_memory_prompt_items(&idx.items);
+                for item in sorted_items.iter().take(AUTO_MEMORY_LINKED_ITEM_LIMIT) {
+                    let item_display_path = auto_root.join(&item.relative_path);
+                    let item_path = normalize_path(&item_display_path);
+                    if !seen.insert(item_path.clone()) {
+                        continue;
+                    }
+
+                    let Ok(content) = fs::read_to_string(&item_path) else {
+                        output.push(build_effective_memory_source(
+                            "auto_memory_item",
+                            item_display_path.to_string_lossy().to_string(),
+                            item.exists,
+                            false,
+                            0,
+                            0,
+                            vec![format!(
+                                "读取 memdir 条目失败: {}",
+                                item_display_path.display()
+                            )],
+                            None,
+                            item.updated_at,
+                            item.memory_type,
+                        ));
+                        continue;
+                    };
+
+                    let preview_lines = content
+                        .lines()
+                        .take(AUTO_MEMORY_LINKED_ITEM_LINE_LIMIT)
+                        .map(|line| line.to_string())
+                        .collect::<Vec<_>>();
+                    let item_loaded = !preview_lines.is_empty();
+
+                    output.push(build_effective_memory_source(
+                        "auto_memory_item",
+                        item_display_path.to_string_lossy().to_string(),
+                        item.exists,
+                        item_loaded,
+                        content.lines().count() as u32,
+                        0,
+                        Vec::new(),
+                        if item_loaded {
+                            Some(clip_text(&preview_lines.join("\n"), 300))
+                        } else {
+                            None
+                        },
+                        item.updated_at.or_else(|| read_path_updated_at(&item_path)),
+                        item.memory_type,
+                    ));
+
+                    if item_loaded {
+                        prompt_segments.push(format!(
+                            "### auto_memory_item ({})\n{}",
+                            item_display_path.display(),
+                            preview_lines.join("\n")
+                        ));
+                        prompt_sources.push(MemoryPromptSegment {
+                            title: format!("auto_memory_item: {}", item.title),
+                            path: item_display_path.to_string_lossy().to_string(),
+                            content: preview_lines.join("\n"),
+                        });
+                    }
+                }
             }
         }
         Err(err) => {
-            output.push(EffectiveMemorySource {
-                kind: "auto_memory".to_string(),
-                path: entry_path.to_string_lossy().to_string(),
-                exists: entry_path.exists(),
-                loaded: false,
-                line_count: 0,
-                import_count: 0,
-                warnings: vec![err],
-                preview: None,
-            });
+            output.push(build_effective_memory_source(
+                "auto_memory",
+                entry_display_path.to_string_lossy().to_string(),
+                entry_path.exists(),
+                false,
+                0,
+                0,
+                vec![err],
+                None,
+                read_path_updated_at(&entry_path),
+                None,
+            ));
         }
+    }
+}
+
+fn sort_auto_memory_prompt_items(
+    items: &[crate::services::auto_memory_service::AutoMemoryIndexItem],
+) -> Vec<crate::services::auto_memory_service::AutoMemoryIndexItem> {
+    let mut sorted = items.to_vec();
+    sorted.sort_by(|left, right| {
+        auto_memory_prompt_item_rank(left)
+            .cmp(&auto_memory_prompt_item_rank(right))
+            .then_with(|| {
+                right
+                    .updated_at
+                    .unwrap_or_default()
+                    .cmp(&left.updated_at.unwrap_or_default())
+            })
+            .then_with(|| left.relative_path.cmp(&right.relative_path))
+    });
+    sorted
+}
+
+fn auto_memory_prompt_item_rank(
+    item: &crate::services::auto_memory_service::AutoMemoryIndexItem,
+) -> usize {
+    let is_readme = item.relative_path.ends_with("/README.md")
+        || item.relative_path.ends_with("/README.markdown")
+        || item.relative_path.ends_with("/README.mdx")
+        || item.relative_path.eq_ignore_ascii_case("README.md");
+    match (item.memory_type.is_some(), is_readme) {
+        (true, false) => 0,
+        (true, true) => 1,
+        (false, false) => 2,
+        (false, true) => 3,
     }
 }
 
@@ -1057,6 +1256,106 @@ mod tests {
             .prompt_segments
             .iter()
             .any(|segment| segment.contains("/memories/MEMORY.md")));
+    }
+
+    #[test]
+    fn should_resolve_memdir_topic_items_with_provider_metadata() {
+        let _env_lock = durable_memory_env_lock().lock().expect("lock env");
+        let tmp = TempDir::new().expect("create temp dir");
+        let empty_durable_root = tmp.path().join("durable-empty");
+        fs::create_dir_all(&empty_durable_root).expect("create empty durable root");
+        let _durable_guard = DurableMemoryEnvGuard::set(&empty_durable_root);
+
+        let mut cfg = Config::default();
+        cfg.memory.enabled = true;
+        cfg.memory.auto.enabled = true;
+        cfg.memory.auto.root_dir = Some(tmp.path().join("memdir").to_string_lossy().to_string());
+        cfg.memory.auto.entrypoint = "MEMORY.md".to_string();
+        cfg.memory.sources.managed_policy_path = Some("missing-managed.md".to_string());
+        cfg.memory.sources.user_memory_path = Some("missing-user.md".to_string());
+        cfg.memory.sources.project_memory_paths = Vec::new();
+        cfg.memory.sources.project_rule_dirs = Vec::new();
+
+        crate::services::auto_memory_service::scaffold_memdir(&cfg.memory, tmp.path(), false)
+            .expect("scaffold memdir");
+        crate::services::auto_memory_service::update_auto_memory_note(
+            &cfg.memory,
+            tmp.path(),
+            "Why:\n- 团队多次确认 pnpm only 可以避免锁文件漂移。\n\nHow to apply:\n- 涉及依赖安装时默认使用 pnpm，并保留锁文件。",
+            Some("workflow"),
+            Some(MemdirMemoryType::Feedback),
+        )
+        .expect("write feedback note");
+
+        let resolved = resolve_effective_sources(&cfg, tmp.path(), None);
+        let auto_root = tmp.path().join("memdir");
+        let entry_path = auto_root.join("MEMORY.md").to_string_lossy().to_string();
+        let topic_path = auto_root
+            .join("feedback/workflow.md")
+            .to_string_lossy()
+            .to_string();
+
+        assert!(resolved.response.sources.iter().any(|source| {
+            source.kind == "auto_memory"
+                && source.source_bucket.as_deref() == Some("auto")
+                && source.provider.as_deref() == Some("memdir")
+                && source.updated_at.is_some()
+                && source.path == entry_path
+        }));
+
+        assert!(resolved.response.sources.iter().any(|source| {
+            source.kind == "auto_memory_item"
+                && source.path == topic_path
+                && source.loaded
+                && source.source_bucket.as_deref() == Some("auto")
+                && source.provider.as_deref() == Some("memdir")
+                && source.memory_type == Some(MemdirMemoryType::Feedback)
+                && source.updated_at.is_some()
+        }));
+
+        assert!(resolved
+            .prompt_segments
+            .iter()
+            .any(|segment| segment.contains("pnpm only")));
+    }
+
+    #[test]
+    fn should_prioritize_specific_memdir_topic_before_type_readme_in_prompt_sources() {
+        let _env_lock = durable_memory_env_lock().lock().expect("lock env");
+        let tmp = TempDir::new().expect("create temp dir");
+        let empty_durable_root = tmp.path().join("durable-empty");
+        fs::create_dir_all(&empty_durable_root).expect("create empty durable root");
+        let _durable_guard = DurableMemoryEnvGuard::set(&empty_durable_root);
+
+        let mut cfg = Config::default();
+        cfg.memory.enabled = true;
+        cfg.memory.auto.enabled = true;
+        cfg.memory.auto.root_dir = Some(tmp.path().join("memdir").to_string_lossy().to_string());
+        cfg.memory.auto.entrypoint = "MEMORY.md".to_string();
+        cfg.memory.sources.managed_policy_path = Some("missing-managed.md".to_string());
+        cfg.memory.sources.user_memory_path = Some("missing-user.md".to_string());
+        cfg.memory.sources.project_memory_paths = Vec::new();
+        cfg.memory.sources.project_rule_dirs = Vec::new();
+
+        crate::services::auto_memory_service::scaffold_memdir(&cfg.memory, tmp.path(), false)
+            .expect("scaffold memdir");
+        crate::services::auto_memory_service::update_auto_memory_note(
+            &cfg.memory,
+            tmp.path(),
+            "Why:\n- 团队多次确认 pnpm only 可以避免锁文件漂移。\n\nHow to apply:\n- 涉及依赖安装时默认使用 pnpm，并保留锁文件。",
+            Some("workflow"),
+            Some(MemdirMemoryType::Feedback),
+        )
+        .expect("write feedback note");
+
+        let resolved = resolve_effective_sources(&cfg, tmp.path(), None);
+        let first_item = resolved
+            .prompt_sources
+            .iter()
+            .find(|source| source.title.starts_with("auto_memory_item:"))
+            .expect("find first auto memory item");
+
+        assert!(first_item.path.ends_with("feedback/workflow.md"));
     }
 
     #[test]

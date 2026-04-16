@@ -13,11 +13,13 @@ import { MemoryPage } from "./MemoryPage";
 const {
   mockGetConfig,
   mockSaveConfig,
+  mockCleanupContextMemdir,
   mockGetContextMemoryEffectiveSources,
   mockGetContextMemoryAutoIndex,
   mockGetContextWorkingMemory,
   mockGetContextMemoryExtractionStatus,
   mockPrefetchContextMemoryForTurn,
+  mockScaffoldContextMemdir,
   mockGetUnifiedMemoryStats,
   mockListUnifiedMemories,
   mockGetProjectMemory,
@@ -27,11 +29,13 @@ const {
 } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(),
   mockSaveConfig: vi.fn(),
+  mockCleanupContextMemdir: vi.fn(),
   mockGetContextMemoryEffectiveSources: vi.fn(),
   mockGetContextMemoryAutoIndex: vi.fn(),
   mockGetContextWorkingMemory: vi.fn(),
   mockGetContextMemoryExtractionStatus: vi.fn(),
   mockPrefetchContextMemoryForTurn: vi.fn(),
+  mockScaffoldContextMemdir: vi.fn(),
   mockGetUnifiedMemoryStats: vi.fn(),
   mockListUnifiedMemories: vi.fn(),
   mockGetProjectMemory: vi.fn(),
@@ -46,11 +50,13 @@ vi.mock("@/lib/api/appConfig", () => ({
 }));
 
 vi.mock("@/lib/api/memoryRuntime", () => ({
+  cleanupContextMemdir: mockCleanupContextMemdir,
   getContextMemoryEffectiveSources: mockGetContextMemoryEffectiveSources,
   getContextMemoryAutoIndex: mockGetContextMemoryAutoIndex,
   getContextWorkingMemory: mockGetContextWorkingMemory,
   getContextMemoryExtractionStatus: mockGetContextMemoryExtractionStatus,
   prefetchContextMemoryForTurn: mockPrefetchContextMemoryForTurn,
+  scaffoldContextMemdir: mockScaffoldContextMemdir,
 }));
 
 vi.mock("@/lib/api/unifiedMemory", () => ({
@@ -123,6 +129,8 @@ describe("MemoryPage", () => {
       sources: [
         {
           kind: "workspace_agents",
+          source_bucket: "project",
+          updated_at: 1_712_345_678_900,
           path: "/tmp/workspace/.lime/AGENTS.md",
           exists: true,
           loaded: true,
@@ -141,7 +149,40 @@ describe("MemoryPage", () => {
       entry_exists: true,
       total_lines: 2,
       preview_lines: ["# MEMORY", "- mock note"],
-      items: [],
+      items: [
+        {
+          title: "项目记忆",
+          memory_type: "project",
+          provider: "memdir",
+          updated_at: 1_712_345_678_900,
+          relative_path: "project/README.md",
+          exists: true,
+          summary: "记录项目背景、时间点、约束和分工。",
+        },
+      ],
+    });
+    mockCleanupContextMemdir.mockResolvedValue({
+      root_dir: "/tmp/workspace/memory",
+      entrypoint: "MEMORY.md",
+      scanned_files: 6,
+      updated_files: 2,
+      removed_duplicate_links: 1,
+      dropped_missing_links: 1,
+      removed_duplicate_notes: 1,
+      trimmed_notes: 1,
+      curated_topic_files: 1,
+    });
+    mockScaffoldContextMemdir.mockResolvedValue({
+      root_dir: "/tmp/workspace/memory",
+      entrypoint: "MEMORY.md",
+      created_parent_dir: false,
+      files: [
+        {
+          key: "entry",
+          path: "/tmp/workspace/memory/MEMORY.md",
+          status: "exists",
+        },
+      ],
     });
     mockGetContextWorkingMemory.mockResolvedValue({
       memory_dir: "/tmp/runtime/memory",
@@ -249,10 +290,97 @@ describe("MemoryPage", () => {
     expect(bodyText).toContain("记忆来源");
     expect(bodyText).toContain("会话记忆");
     expect(bodyText).toContain("记忆类型");
-    expect(bodyText).toContain("Team Memory");
+    expect(bodyText).toContain("团队记忆");
     expect(bodyText).toContain("会话压缩");
-    expect(bodyText).toContain("Claude Code 记忆作用域");
+    expect(bodyText).toContain("记忆目录与作用域");
+    expect(bodyText).toContain("记忆目录（memdir）");
     expect(bodyText).toContain("不要写进记忆的内容");
+    expect(bodyText).not.toContain("Claude Code");
+  });
+
+  it("home 分区应展示默认心智层摘要卡", async () => {
+    renderPage();
+    await flushPageEffects();
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("默认心智层");
+    expect(bodyText).toContain("先看这轮真实命中");
+    expect(bodyText).toContain("跨会话可复用的沉淀");
+    expect(bodyText).toContain("项目规则与协作上下文");
+    expect(bodyText).toContain("长会话如何续接");
+    expect(bodyText).toContain("最近会话条目 2");
+    expect(bodyText).toContain("1 条长期记忆");
+    expect(bodyText).toContain("规则来源 1 条");
+    expect(bodyText).toContain("最近压缩保留 8 轮");
+  });
+
+  it("rules 分区应展示来源分类、provider 与 memdir 类型标签", async () => {
+    mockGetContextMemoryEffectiveSources.mockResolvedValue({
+      working_dir: "/tmp/workspace",
+      total_sources: 3,
+      loaded_sources: 2,
+      follow_imports: true,
+      import_max_depth: 5,
+      sources: [
+        {
+          kind: "workspace_agents",
+          source_bucket: "project",
+          updated_at: 1_712_345_678_900,
+          path: "/tmp/workspace/.lime/AGENTS.md",
+          exists: true,
+          loaded: true,
+          line_count: 12,
+          import_count: 0,
+          warnings: [],
+          preview: "# AGENTS\\n- 默认先跑 verify:local",
+        },
+        {
+          kind: "auto_memory_item",
+          source_bucket: "auto",
+          provider: "memdir",
+          memory_type: "feedback",
+          updated_at: 1_712_345_678_900,
+          path: "/tmp/workspace/memory/feedback/workflow.md",
+          exists: true,
+          loaded: true,
+          line_count: 6,
+          import_count: 0,
+          warnings: [],
+          preview: "Why:\\n- 团队反复确认 pnpm only。",
+        },
+      ],
+    });
+
+    renderPage({ section: "rules" });
+    await flushPageEffects();
+
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("记忆来源与 memdir");
+    expect(bodyText).toContain("来源分类：记忆目录（memdir）");
+    expect(bodyText).toContain("provider：memdir");
+    expect(bodyText).toContain("反馈记忆");
+    expect(bodyText).toContain("最近更新：");
+  });
+
+  it("rules 分区应支持整理 memdir 并复用同一条治理能力", async () => {
+    renderPage({ section: "rules" });
+    await flushPageEffects();
+
+    const cleanupButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((element) => element.textContent?.trim() === "整理 memdir");
+    expect(cleanupButton).toBeTruthy();
+
+    await act(async () => {
+      cleanupButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await flushPageEffects();
+
+    expect(mockCleanupContextMemdir).toHaveBeenCalledWith("/tmp/workspace");
+    expect(document.body.textContent ?? "").toContain(
+      "已整理 memdir：更新 2 个文件，收口 1 个 topic，清掉 4 处重复或过期内容",
+    );
   });
 
   it("应兼容旧的 durable category 深链，并支持带回创作输入", async () => {
@@ -260,7 +388,7 @@ describe("MemoryPage", () => {
     renderPage({ section: "identity", onNavigate });
     await flushPageEffects();
 
-    expect(document.body.textContent ?? "").toContain("Claude Code 记忆类型");
+    expect(document.body.textContent ?? "").toContain("Lime 记忆类型");
     expect(document.body.textContent ?? "").toContain("当前存量条目");
     expect(document.body.textContent ?? "").toContain("夏日短视频语气");
 

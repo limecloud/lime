@@ -19,6 +19,7 @@ const INVOKE_RETRY_DELAY_MS = 1_000;
 const POST_HEALTH_SETTLE_MS = 3_000;
 const POST_LAUNCH_SETTLE_MS = 1_500;
 const READ_PAGE_TIMEOUT_MS = 45_000;
+const SMOKE_PROFILE_KEY = "smoke-browser-runtime";
 
 function printHelp() {
   console.log(`
@@ -170,6 +171,20 @@ async function invoke(options, cmd, args) {
   throw new Error(`[smoke:browser-runtime] ${cmd} 请求失败: unknown error`);
 }
 
+async function closeSmokeProfileSession(options, profileKey, label) {
+  try {
+    await invoke(options, "close_chrome_profile_session", {
+      profile_key: profileKey,
+    });
+  } catch (error) {
+    console.warn(
+      `[smoke:browser-runtime] ${label}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
 async function waitForHealth(options) {
   const startedAt = Date.now();
   let lastError = null;
@@ -215,10 +230,16 @@ async function main() {
   await waitForHealth(options);
   await sleep(POST_HEALTH_SETTLE_MS);
 
-  const profileKey = `smoke-browser-runtime-${Date.now()}`;
+  const profileKey = SMOKE_PROFILE_KEY;
   let sessionId = null;
 
   try {
+    await closeSmokeProfileSession(
+      options,
+      profileKey,
+      "预清理旧 smoke profile 失败",
+    );
+
     const launchResponse = await invoke(options, "launch_browser_session", {
       request: {
         profile_key: profileKey,
@@ -332,6 +353,12 @@ async function main() {
         );
       }
     }
+
+    await closeSmokeProfileSession(
+      options,
+      profileKey,
+      "关闭 smoke profile 失败",
+    );
   }
 }
 

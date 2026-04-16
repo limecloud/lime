@@ -142,9 +142,34 @@ interface BuildWorkspaceEmptyStatePropsParams {
     typeof EmptyState
   >["onLaunchBrowserAssist"];
   browserAssistLoading: boolean;
+  featuredSceneApps: NonNullable<
+    ComponentProps<typeof EmptyState>["featuredSceneApps"]
+  >;
+  sceneAppsLoading: boolean;
+  sceneAppLaunchingId: ComponentProps<typeof EmptyState>["sceneAppLaunchingId"];
+  onLaunchSceneApp?: ComponentProps<typeof EmptyState>["onLaunchSceneApp"];
+  canResumeRecentSceneApp?: ComponentProps<
+    typeof EmptyState
+  >["canResumeRecentSceneApp"];
+  onResumeRecentSceneApp?: ComponentProps<
+    typeof EmptyState
+  >["onResumeRecentSceneApp"];
+  onOpenSceneAppsDirectory?: ComponentProps<
+    typeof EmptyState
+  >["onOpenSceneAppsDirectory"];
   projectId: string | null;
   onProjectChange?: ComponentProps<typeof EmptyState>["onProjectChange"];
   onOpenSettings?: ComponentProps<typeof EmptyState>["onOpenSettings"];
+  runtimeToolAvailability?: ComponentProps<
+    typeof EmptyState
+  >["runtimeToolAvailability"];
+  runtimeTaskCard?: ComponentProps<typeof EmptyState>["runtimeTaskCard"];
+  onOpenMemoryWorkbench?: ComponentProps<
+    typeof EmptyState
+  >["onOpenMemoryWorkbench"];
+  onOpenChannels?: ComponentProps<typeof EmptyState>["onOpenChannels"];
+  onOpenChromeRelay?: ComponentProps<typeof EmptyState>["onOpenChromeRelay"];
+  onOpenOpenClaw?: ComponentProps<typeof EmptyState>["onOpenOpenClaw"];
 }
 
 export function buildWorkspaceEmptyStateProps({
@@ -186,9 +211,22 @@ export function buildWorkspaceEmptyStateProps({
   onRefreshSkills,
   onLaunchBrowserAssist,
   browserAssistLoading,
+  featuredSceneApps,
+  sceneAppsLoading,
+  sceneAppLaunchingId,
+  onLaunchSceneApp,
+  canResumeRecentSceneApp,
+  onResumeRecentSceneApp,
+  onOpenSceneAppsDirectory,
   projectId,
   onProjectChange,
   onOpenSettings,
+  runtimeToolAvailability,
+  runtimeTaskCard,
+  onOpenMemoryWorkbench,
+  onOpenChannels,
+  onOpenChromeRelay,
+  onOpenOpenClaw,
 }: BuildWorkspaceEmptyStatePropsParams): ComponentProps<typeof EmptyState> {
   return {
     input,
@@ -239,9 +277,22 @@ export function buildWorkspaceEmptyStateProps({
     onRefreshSkills,
     onLaunchBrowserAssist,
     browserAssistLoading,
+    featuredSceneApps,
+    sceneAppsLoading,
+    sceneAppLaunchingId,
+    onLaunchSceneApp,
+    canResumeRecentSceneApp,
+    onResumeRecentSceneApp,
+    onOpenSceneAppsDirectory,
     projectId,
     onProjectChange,
     onOpenSettings,
+    runtimeToolAvailability,
+    runtimeTaskCard,
+    onOpenMemoryWorkbench,
+    onOpenChannels,
+    onOpenChromeRelay,
+    onOpenOpenClaw,
   };
 }
 

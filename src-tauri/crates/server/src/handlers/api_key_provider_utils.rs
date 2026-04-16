@@ -2,7 +2,9 @@
 //!
 //! 统一 provider_id 候选映射和鉴权请求头构建，避免各 handler 规则漂移。
 
-use lime_core::database::dao::api_key_provider::{ApiProviderType, ProviderProtocolFamily};
+use lime_core::database::dao::api_key_provider::{
+    infer_managed_runtime_spec, ApiProviderType, ProviderProtocolFamily,
+};
 
 /// 收集 API Key Provider ID 候选列表（按优先级）
 ///
@@ -59,11 +61,12 @@ pub(crate) fn collect_api_key_provider_ids(provider_type: &str) -> Vec<String> {
 /// 根据 API Provider 类型构建额外请求头
 pub(crate) fn build_api_key_headers(
     provider_type: &ApiProviderType,
+    api_host: &str,
     api_key: &str,
 ) -> std::collections::HashMap<String, String> {
     let mut headers = std::collections::HashMap::new();
 
-    let spec = provider_type.runtime_spec();
+    let spec = infer_managed_runtime_spec(*provider_type, api_host);
     let auth_value = match spec.auth_prefix {
         Some(prefix) => format!("{prefix} {api_key}"),
         None => api_key.to_string(),
@@ -112,12 +115,30 @@ mod tests {
 
     #[test]
     fn test_build_api_key_headers_supports_anthropic_compatible() {
-        let headers = build_api_key_headers(&ApiProviderType::AnthropicCompatible, "test-key");
-        assert_eq!(headers.get("x-api-key"), Some(&"test-key".to_string()));
+        let headers = build_api_key_headers(
+            &ApiProviderType::AnthropicCompatible,
+            "https://api.minimaxi.com/anthropic",
+            "test-key",
+        );
+        assert_eq!(
+            headers.get("Authorization"),
+            Some(&"Bearer test-key".to_string())
+        );
         assert_eq!(
             headers.get("anthropic-version"),
             Some(&"2023-06-01".to_string())
         );
+        assert!(!headers.contains_key("x-api-key"));
+    }
+
+    #[test]
+    fn test_build_api_key_headers_keeps_x_api_key_for_official_anthropic() {
+        let headers = build_api_key_headers(
+            &ApiProviderType::Anthropic,
+            "https://api.anthropic.com",
+            "test-key",
+        );
+        assert_eq!(headers.get("x-api-key"), Some(&"test-key".to_string()));
         assert!(!headers.contains_key("Authorization"));
     }
 }

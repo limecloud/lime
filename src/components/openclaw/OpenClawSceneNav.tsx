@@ -123,5 +123,3 @@ export function OpenClawSceneNav({
     </section>
   );
 }
-
-export default OpenClawSceneNav;

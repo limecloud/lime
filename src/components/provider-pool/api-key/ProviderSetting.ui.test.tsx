@@ -17,8 +17,13 @@ vi.mock("./ProviderModelList", () => ({
 }));
 
 vi.mock("./ConnectionTestButton", () => ({
-  ConnectionTestButton: () => (
-    <div data-testid="connection-test-button-stub">连接测试按钮</div>
+  ConnectionTestButton: (props: { disabled?: boolean }) => (
+    <div
+      data-testid="connection-test-button-stub"
+      data-disabled={String(Boolean(props.disabled))}
+    >
+      连接测试按钮
+    </div>
   ),
 }));
 
@@ -216,5 +221,28 @@ describe("ProviderSetting", () => {
     expect(
       container.querySelector('[data-testid="provider-prompt-cache-badge"]'),
     ).toBeNull();
+  });
+
+  it("已保存默认模型的 anthropic-compatible Provider 在真实目录未返回时仍应允许连接测试", () => {
+    const container = renderSetting(
+      createProvider({
+        id: "minimax-anthropic-saved-default",
+        name: "MiniMax Anthropic",
+        type: "anthropic-compatible",
+        api_host: "https://api.minimaxi.com/anthropic",
+        custom_models: ["MiniMax-M2.7"],
+      }),
+    );
+
+    expect(container.textContent ?? "").toContain("MiniMax-M2.7");
+    expect(container.textContent ?? "").toContain("可测试");
+    expect(container.textContent ?? "").toContain(
+      "已保存默认模型，可先用于连接验证",
+    );
+    expect(
+      container
+        .querySelector('[data-testid="connection-test-button-stub"]')
+        ?.getAttribute("data-disabled"),
+    ).toBe("false");
   });
 });

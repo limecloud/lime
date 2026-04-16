@@ -6,6 +6,7 @@ mod agent_sessions;
 mod app_runtime;
 mod automation;
 mod browser;
+mod channels;
 mod companion;
 mod content;
 mod logs;
@@ -18,6 +19,7 @@ mod plugins;
 mod project_resources;
 mod providers;
 mod runtime_queries;
+mod sceneapp;
 mod skills;
 mod tray;
 mod voice;
@@ -97,6 +99,10 @@ pub async fn handle_command(
         return Ok(result);
     }
 
+    if let Some(result) = channels::try_handle(state, cmd, args.as_ref()).await? {
+        return Ok(result);
+    }
+
     if let Some(result) = automation::try_handle(state, cmd, args.as_ref()).await? {
         return Ok(result);
     }
@@ -126,6 +132,10 @@ pub async fn handle_command(
     }
 
     if let Some(result) = runtime_queries::try_handle(state, cmd, args.as_ref()).await? {
+        return Ok(result);
+    }
+
+    if let Some(result) = sceneapp::try_handle(state, cmd, args.as_ref()).await? {
         return Ok(result);
     }
 
@@ -596,6 +606,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn agent_runtime_file_checkpoint_commands_are_bridged() {
+        let state = make_test_state();
+        let cases = [
+            (
+                "agent_runtime_list_file_checkpoints",
+                serde_json::json!({
+                    "request": {
+                        "session_id": "session-1"
+                    }
+                }),
+            ),
+            (
+                "agent_runtime_get_file_checkpoint",
+                serde_json::json!({
+                    "request": {
+                        "session_id": "session-1",
+                        "checkpoint_id": "checkpoint-1"
+                    }
+                }),
+            ),
+            (
+                "agent_runtime_diff_file_checkpoint",
+                serde_json::json!({
+                    "request": {
+                        "session_id": "session-1",
+                        "checkpoint_id": "checkpoint-1"
+                    }
+                }),
+            ),
+        ];
+
+        for (cmd, args) in cases {
+            let error = handle_command(&state, cmd, Some(args))
+                .await
+                .expect_err("missing app handle should fail after bridge routing");
+
+            let error_text = error.to_string();
+            assert!(
+                error_text.contains("Dev Bridge 未持有 AppHandle"),
+                "command {cmd} should route into agent_sessions bridge, got: {error_text}"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn fetch_provider_models_auto_is_bridged() {
         let state = make_test_state();
 
@@ -610,5 +665,86 @@ mod tests {
         .expect_err("missing provider should fail after bridge routing");
 
         assert!(error.to_string().contains("Provider 不存在: ollama"));
+    }
+
+    #[tokio::test]
+    async fn test_api_key_provider_connection_is_bridged() {
+        let state = make_test_state();
+
+        let error = handle_command(
+            &state,
+            "test_api_key_provider_connection",
+            Some(serde_json::json!({
+                "providerId": "missing-provider"
+            })),
+        )
+        .await
+        .expect_err("missing provider should fail after bridge routing");
+
+        assert!(error
+            .to_string()
+            .contains("Provider 不存在: missing-provider"));
+    }
+
+    #[tokio::test]
+    async fn test_api_key_provider_chat_is_bridged() {
+        let state = make_test_state();
+
+        let error = handle_command(
+            &state,
+            "test_api_key_provider_chat",
+            Some(serde_json::json!({
+                "providerId": "missing-provider",
+                "prompt": "hello"
+            })),
+        )
+        .await
+        .expect_err("missing provider should fail after bridge routing");
+
+        assert!(error
+            .to_string()
+            .contains("Provider 不存在: missing-provider"));
+    }
+
+    #[tokio::test]
+    async fn sceneapp_list_catalog_is_bridged() {
+        let state = make_test_state();
+
+        let value = handle_command(&state, "sceneapp_list_catalog", None)
+            .await
+            .unwrap();
+
+        assert!(value["items"].is_array());
+        assert!(value["version"].is_string());
+    }
+
+    #[tokio::test]
+    async fn gateway_channel_status_is_bridged() {
+        let state = make_test_state();
+
+        let error = handle_command(
+            &state,
+            "gateway_channel_status",
+            Some(serde_json::json!({
+                "request": {
+                    "channel": "telegram"
+                }
+            })),
+        )
+        .await
+        .expect_err("missing app handle should fail after bridge routing");
+
+        assert!(error.to_string().contains("Dev Bridge 未持有 AppHandle"));
+    }
+
+    #[tokio::test]
+    async fn wechat_channel_list_accounts_is_bridged() {
+        let state = make_test_state();
+
+        let error = handle_command(&state, "wechat_channel_list_accounts", None)
+            .await
+            .expect_err("missing app handle should fail after bridge routing");
+
+        assert!(error.to_string().contains("Dev Bridge 未持有 AppHandle"));
     }
 }

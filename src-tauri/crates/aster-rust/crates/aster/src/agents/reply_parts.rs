@@ -20,9 +20,9 @@ use crate::session_context::current_turn_context;
 
 use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
 use crate::agents::subagent_tool::AGENT_TOOL_NAME;
+use crate::session::{apply_session_update, query_session, SessionStore, TokenStatsUpdate};
 #[cfg(test)]
-use crate::session::SessionType;
-use crate::session::{SessionManager, SessionStore, TokenStatsUpdate};
+use crate::session::{SessionManager, SessionType};
 use rmcp::model::Tool;
 
 const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
@@ -477,7 +477,7 @@ impl Agent {
         let session = if let Some(store) = session_store {
             store.get_session(session_id, false).await?
         } else {
-            SessionManager::get_session(session_id, false).await?
+            query_session(session_id, false).await?
         };
 
         let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
@@ -534,18 +534,19 @@ impl Agent {
                 )
                 .await?;
         } else {
-            SessionManager::update_session(session_id)
-                .schedule_id(session_config.schedule_id.clone())
-                .total_tokens(current_total)
-                .input_tokens(current_input)
-                .output_tokens(current_output)
-                .cached_input_tokens(current_cached_input)
-                .cache_creation_input_tokens(current_cache_creation_input)
-                .accumulated_total_tokens(accumulated_total)
-                .accumulated_input_tokens(accumulated_input)
-                .accumulated_output_tokens(accumulated_output)
-                .apply()
-                .await?;
+            apply_session_update(session_id, |update| {
+                update
+                    .schedule_id(session_config.schedule_id.clone())
+                    .total_tokens(current_total)
+                    .input_tokens(current_input)
+                    .output_tokens(current_output)
+                    .cached_input_tokens(current_cached_input)
+                    .cache_creation_input_tokens(current_cache_creation_input)
+                    .accumulated_total_tokens(accumulated_total)
+                    .accumulated_input_tokens(accumulated_input)
+                    .accumulated_output_tokens(accumulated_output)
+            })
+            .await?;
         }
 
         Ok(())

@@ -28,6 +28,8 @@ use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 use tokio_util::sync::CancellationToken;
 
+use crate::session::{apply_session_update, create_managed_session};
+
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
 use crate::config::paths::Paths;
@@ -897,7 +899,7 @@ async fn execute_job(
         }
     };
 
-    let agent = Agent::new_with_required_shared_thread_runtime_store()
+    let agent = Agent::new_with_required_session_runtime_store()
         .context("Scheduler 执行任务前必须先初始化 shared thread runtime store")?;
 
     let config = Config::global();
@@ -913,7 +915,7 @@ async fn execute_job(
         }
     }
 
-    let session = SessionManager::create_session(
+    let session = create_managed_session(
         std::env::current_dir()?,
         format!("Scheduled job: {}", job.id),
         SessionType::Scheduled,
@@ -990,11 +992,12 @@ async fn execute_job(
         }
     }
 
-    SessionManager::update_session(&session.id)
-        .schedule_id(Some(job.id.clone()))
-        .recipe(Some(recipe))
-        .apply()
-        .await?;
+    apply_session_update(&session.id, |update| {
+        update
+            .schedule_id(Some(job.id.clone()))
+            .recipe(Some(recipe))
+    })
+    .await?;
 
     let duration_secs = start_time.elapsed().as_secs();
     tokio::spawn(async move {

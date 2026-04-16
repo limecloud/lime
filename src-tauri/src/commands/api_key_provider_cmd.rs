@@ -149,7 +149,7 @@ fn provider_to_display(provider: &ApiKeyProvider, api_key_count: usize) -> Provi
     ProviderDisplay {
         id: provider.id.clone(),
         name: provider.name.clone(),
-        provider_type: provider.provider_type.to_string(),
+        provider_type: provider.effective_provider_type().to_string(),
         api_host: provider.api_host.clone(),
         is_system: provider.is_system,
         group: provider.group.to_string(),
@@ -539,7 +539,7 @@ pub async fn test_api_key_provider_connection(
                 .get_local_fallback_model_ids_with_hints(
                     &provider_id,
                     &provider.provider.api_host,
-                    Some(provider.provider.provider_type),
+                    Some(provider.provider.effective_provider_type()),
                     &provider.provider.custom_models,
                 )
                 .await
@@ -575,7 +575,7 @@ pub async fn test_api_key_provider_chat(
                 .get_local_fallback_model_ids_with_hints(
                     &provider_id,
                     &provider.provider.api_host,
-                    Some(provider.provider.provider_type),
+                    Some(provider.provider.effective_provider_type()),
                     &provider.provider.custom_models,
                 )
                 .await

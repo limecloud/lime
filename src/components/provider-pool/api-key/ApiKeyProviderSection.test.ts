@@ -14,7 +14,8 @@ import * as fc from "fast-check";
 import {
   verifyProviderSelectionSync,
   extractSelectionState,
-} from "./ApiKeyProviderSection";
+  resolveProviderTestModel,
+} from "./ApiKeyProviderSection.helpers";
 import type {
   ProviderWithKeysDisplay,
   ApiKeyDisplay,
@@ -216,6 +217,24 @@ describe("Property 2: Provider 选择同步", () => {
       expect(state.listSelectedId).toBe("some-id");
       expect(state.settingProviderId).toBeNull();
       expect(state.isSynced).toBe(false);
+    });
+  });
+
+  describe("测试模型解析", () => {
+    test("应优先使用当前输入框里的模型名", () => {
+      expect(
+        resolveProviderTestModel(["claude-opus-4-6"], "MiniMax-M2.7"),
+      ).toBe("MiniMax-M2.7");
+    });
+
+    test("输入框为空时应回退到 provider 当前模型", () => {
+      expect(resolveProviderTestModel(["glm-5"], "")).toBe("glm-5");
+    });
+
+    test("应忽略空白模型项", () => {
+      expect(resolveProviderTestModel(["  "], "  , MiniMax-M2.5 ")).toBe(
+        "MiniMax-M2.5",
+      );
     });
   });
 

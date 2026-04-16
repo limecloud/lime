@@ -1,14 +1,154 @@
 # 参考运行时主链对齐进度日志
 
+## 2026-04-16
+
+### 已完成
+
+- 在 [auto_memory_service.rs](../../src-tauri/src/services/auto_memory_service.rs) 把 `memdir` 从“无限追加日志”收成“有界目录”：
+  - `feedback / project / user / reference` 的 typed topic note 现在按“同 topic 一条当前记忆”覆盖更新，不再持续追加时间戳段落
+  - 新增 `cleanup_memdir(...)`，统一负责去重入口链接、裁剪 README 历史段落，并把旧 topic 日志收口为当前有效版本
+  - `MEMORY.md` 入口的时间戳 note 现在会在写入时自动去重并保留有界窗口，避免入口长期劣化成无上限流水账
+- 在 [memory_management_cmd.rs](../../src-tauri/src/commands/memory_management_cmd.rs)、[memory_runtime.rs](../../src-tauri/src/dev_bridge/dispatcher/memory_runtime.rs)、[runner.rs](../../src-tauri/src/app/runner.rs)、[memoryRuntime.ts](../../src/lib/api/memoryRuntime.ts)、[memoryRuntimeTypes.ts](../../src/lib/api/memoryRuntimeTypes.ts)、[core.ts](../../src/lib/tauri-mock/core.ts) 与 [mockPriorityCommands.ts](../../src/lib/dev-bridge/mockPriorityCommands.ts) 补齐 `memory_cleanup_memdir` 这条 current control-plane 命令，不再让 memdir 整理只停留在本地脚本或人工编辑
+- 在 [memory_source_resolver_service.rs](../../src-tauri/src/services/memory_source_resolver_service.rs) 调整 memdir linked item 的 prompt 预取优先级：具体 topic note 会优先于类型 `README.md`，同层内优先看最近更新时间，减少索引文件长期压过真正当前记忆的噪音
+- 在 [index.tsx](../../src/components/settings-v2/general/memory/index.tsx) 补上真实的 `整理 memdir` 入口，并把“同一 topic 会覆盖旧内容”的行为写回设置页说明；MemorySettings 不再只是能写、能初始化，还能直接治理已有脏记忆
+- 补回归：
+  - [auto_memory_service.rs](../../src-tauri/src/services/auto_memory_service.rs) 新增 typed topic overwrite 与 memdir cleanup 定向测试
+  - [memory_source_resolver_service.rs](../../src-tauri/src/services/memory_source_resolver_service.rs) 新增“具体 topic 优先于 README”测试
+  - [memoryRuntime.test.ts](../../src/lib/api/memoryRuntime.test.ts) 与 [index.test.tsx](../../src/components/settings-v2/general/memory/index.test.tsx) 新增 `memory_cleanup_memdir / 整理 memdir` 前端链路回归
+- 已执行校验：
+  - `npx prettier --write "src/lib/api/memoryRuntime.ts" "src/lib/api/memoryRuntimeTypes.ts" "src/lib/api/memoryRuntime.test.ts" "src/lib/tauri-mock/core.ts" "src/lib/dev-bridge/mockPriorityCommands.ts" "src/components/settings-v2/general/memory/index.tsx" "src/components/settings-v2/general/memory/index.test.tsx"` 通过
+  - `rustfmt --edition 2021 "src-tauri/src/services/auto_memory_service.rs" "src-tauri/src/services/memory_source_resolver_service.rs" "src-tauri/src/commands/memory_management_cmd.rs" "src-tauri/src/dev_bridge/dispatcher/memory_runtime.rs" "src-tauri/src/app/runner.rs"` 通过
+  - `npm exec vitest run "src/lib/api/memoryRuntime.test.ts" "src/components/settings-v2/general/memory/index.test.tsx" "src/lib/dev-bridge/mockPriorityCommands.test.ts"` 通过（`18 passed`）
+
+- 在 [verify-gui-smoke.mjs](../../scripts/verify-gui-smoke.mjs) 收紧 `waitForBridgeHealth` 的启动判定：不再把 `tauri dev` 父进程退出直接等同为失败，而是继续观察 GUI smoke 进程组是否仍有活跃 `cargo/rustc/tauri` 链路；同时把“编译结束后的 boot grace”放宽到“父进程仍活着或进程组仍活着”两种场景，避免冷启动时因为父进程提前退场而误判 `headless Tauri 在 DevBridge 就绪前提前退出`
+- 已重新执行 `npm run verify:gui-smoke -- --timeout-ms 1200000 --cargo-target-dir "/tmp/lime-gui-smoke-target-debug-parent-exit"` 并通过：`workspace-ready`、`browser-runtime`、`site-adapters`、`agent-service-skill-entry`、`agent-runtime-tool-surface`、`agent-runtime-tool-surface-page` 全链路冒烟通过，GUI smoke 主路径重新恢复到 Lime 可交付门槛
+- 已再次核对 smoke Chrome profile 清理收口：GUI smoke 收尾后 `find "$HOME/Library/Application Support/lime/chrome_profiles" -maxdepth 1 -type d \( -name 'smoke-browser-runtime*' -o -name 'smoke-agent-runtime-tool-surface-page*' \) | sort` 结果为空；本轮预清理日志显示共回收 `78` 个历史 profile、结束 `264` 个残留进程，收尾阶段再清掉本轮新增的 `5` 个 profile 与 `2` 个残留进程
+- 在 [webview_cmd.rs](../../src-tauri/src/commands/webview_cmd.rs)、[runner.rs](../../src-tauri/src/app/runner.rs)、[bridge.rs](../../src-tauri/src/dev_bridge/dispatcher/browser/bridge.rs) 与 [core.ts](../../src/lib/tauri-mock/core.ts) 补上 `cleanup_gui_smoke_chrome_profiles` 这条 DevBridge current 清理命令：它只识别 `smoke-browser-runtime*` 与 `smoke-agent-runtime-tool-surface-page*` 两类 GUI smoke 专用 Chrome profile，统一收口“关闭受管 session / 关闭 runtime session / 杀掉孤儿 Chrome 进程 / 清 singleton 锁 / 删除 profile 目录”，不再把历史遗留清理逻辑散落在脚本层自己拼 `ps/find/rm`
+- 在 [verify-gui-smoke.mjs](../../scripts/verify-gui-smoke.mjs) 接上新的清理主链：health URL 现在会自动推导 `invoke` 地址，bridge 就绪后会先做一次历史 `smoke-*` Chrome profile 预清理，所有 smoke 结束后再做一次收尾清理，失败场景也会走兜底清理日志；后续 GUI smoke 不再只解决“本轮别再新增泄漏”，而是开始回收旧 profile 垃圾
+- 在 [webview_cmd.rs](../../src-tauri/src/commands/webview_cmd.rs) 补定向回归：新增 `is_gui_smoke_chrome_profile_key_should_only_match_expected_prefixes` 与 `cleanup_gui_smoke_chrome_profiles_should_remove_only_smoke_dirs`，锁定只清 GUI smoke profile、不误删普通浏览器资料的边界
+- 已执行校验：
+  - `node --check "scripts/verify-gui-smoke.mjs"` 通过
+  - `env CARGO_TARGET_DIR="/tmp/lime-target-gui-smoke-cleanup" cargo test --manifest-path "src-tauri/Cargo.toml" cleanup_gui_smoke_chrome_profiles_should_remove_only_smoke_dirs --lib -- --nocapture` 通过（`1 passed`）
+  - `npm run test:contracts` 通过
+  - `npm run verify:gui-smoke -- --timeout-ms 1200000 --cargo-target-dir "/tmp/lime-gui-smoke-target-debug-parent-exit"` 通过
+
+### 当前观察
+
+- `verify:gui-smoke` 这条质量门槛本轮已经恢复为绿色，不再阻塞 `memdir` / memory 主线继续推进
+- 本次长冷启动通过时，现场另一个本地 `lime` 进程最终占住了 `127.0.0.1:3030`（当前可见 PID `32676`），因此我这条独立 headless binary 在真正启动后记录了 `Dev Bridge 启动失败: Address already in use (os error 48)`；也就是说，这次通过证明了脚本不会再因为冷启动等待而误判失败，但若后续要证明“本实例独占 3030 也能启动”，仍应在更干净的本地环境或独立端口策略下复验
+
+### 继续推进（file checkpoint UI）
+
+- 在 [AgentThreadFileCheckpointDialog.tsx](../../src/components/agent/chat/components/AgentThreadFileCheckpointDialog.tsx) 新增最小 file checkpoint dialog，直接消费 `agent_runtime_list_file_checkpoints / agent_runtime_get_file_checkpoint / agent_runtime_diff_file_checkpoint` 这条 current 主链；弹窗打开时拉 list，默认选中最近 checkpoint，并在切换条目时并行刷新 detail / diff，不再只停留在可靠性面板上的单条“最近文件快照”摘要
+- 在 [AgentThreadReliabilityPanel.tsx](../../src/components/agent/chat/components/AgentThreadReliabilityPanel.tsx) 给“最近文件快照”卡片补上 `查看快照详情` 入口，并把弹窗状态维持在面板当前上下文内：只有存在 `diagnosticRuntimeContext.sessionId` 时才暴露入口，继续沿当前 thread/session 真相消费，不额外长第二套文件持久化读模型
+- 在 [AgentThreadReliabilityPanel.test.tsx](../../src/components/agent/chat/components/AgentThreadReliabilityPanel.test.tsx) 补上 file checkpoint 交互回归，覆盖入口出现、打开弹窗后拉 list、默认选中最近 checkpoint 拉 detail/diff，以及切换到旧版本 checkpoint 后重新刷新 detail/diff 与关键字段渲染
+- 在 [agent_sessions.rs](../../src-tauri/src/dev_bridge/dispatcher/agent_sessions.rs) 把 `agent_runtime_list_file_checkpoints / agent_runtime_get_file_checkpoint / agent_runtime_diff_file_checkpoint` 接回 browser DevBridge current 分发，不再让真实 GUI 在弹窗打开后掉回 `[DevBridge] 未知命令`
+- 在 [dispatcher.rs](../../src-tauri/src/dev_bridge/dispatcher.rs) 补上 `agent_runtime_file_checkpoint_commands_are_bridged` 定向回归，锁定这 3 个命令至少已经进入 `agent_sessions` bridge 分支；即使测试态没有 `AppHandle`，也应报 `Dev Bridge 未持有 AppHandle`，而不是回退成 unknown command
+- 为恢复本地真实 GUI 续测，又顺手收掉了当前工作区里会卡死 `tauri:dev:headless` 的一组 Rust 编译半状态：当前确认需要把 [api_key_provider_service.rs](../../src-tauri/crates/services/src/api_key_provider_service.rs) 中 `test_codex_responses_endpoint(...)` 的签名与 3 处调用点对齐到同一套 5 参链路，避免 `provider_type` 在调用侧 / 定义侧来回失配把整条 DevBridge 启动链卡死
+- 已用真实 GUI 复测打通 file checkpoint 弹窗主链：本地 `npm run tauri:dev:headless` 已成功启动 `target/debug/lime`，`npm run bridge:health -- --timeout-ms 30000` 返回 `status=ok`；随后在历史会话 `Hello greeting`（`session=6e7f8e4b-129a-4f78-9ad0-41d8a7a801ec`）里进入 `任务中心 -> 切换历史 -> Hello greeting -> 展开工作台 -> 线程可靠性 -> 查看快照详情`，弹窗已真实显示 `共 1 个` checkpoint、默认选中 `v1`、标题 `你好！👋`、状态 `draft`、`live_path / snapshot_path / currentVersionId` 以及完整 `ArtifactDocument` JSON，说明 browser DevBridge 已经从“unknown command”前进到真实 `list / detail / diff` 数据面
+- 已执行校验：
+  - `npx vitest run "src/components/agent/chat/components/AgentThreadReliabilityPanel.test.tsx"` 通过（`15 passed`）
+  - `npm run test:contracts` 通过
+  - `npm run typecheck` 通过
+  - `npm run tauri:dev:headless` 通过增量重编成功启动 `target/debug/lime`
+  - `npm run bridge:health -- --timeout-ms 30000` 通过（`status=ok`）
+  - `npm run verify:local` 已尝试执行，但当前仓库存在 `291` 个脏改，smart 模式被放大为全仓 workflow；本轮仅确认其已通过 `verify:app-version / lint / typecheck` 并进入 `vitest-smart` 多批次执行，随后为避免被无关改动长期占用而手动停止
+  - `npm run verify:gui-smoke` 的这轮旧阻塞已在本节上方收口；当前 file checkpoint 弹窗链路也已补到真实 GUI 证据，不过现场仍可见与本轮主线无关的 browser DevBridge 缺口：`sceneapp_list_catalog`、`gateway_channel_status` 仍报 unknown command；其中历史会话里 `agent_runtime_update_session` 的 `full-access` / `full_access` 枚举别名 warning 已开始在 current DTO/agent runtime 边界收口，尚未单独做一次真实 GUI 复测
+
+### 继续推进（recent_access_mode alias cleanup）
+
+- 在 [session_execution_runtime.rs](../../src-tauri/crates/agent/src/session_execution_runtime.rs) 把 `SessionExecutionRuntimeAccessMode` 的 serde 口径从只认 `snake_case` 收口为 `kebab-case` current 真相，并为历史 `read_only / full_access` 增加兼容 alias；后续 `recent_access_mode` 的序列化结果会稳定回到前端与运行时元数据已经在使用的 `read-only / current / full-access`
+- 在 [tests.rs](../../src-tauri/src/commands/aster_agent_cmd/tests.rs) 补上 `agent_runtime_update_session` 的 `recentAccessMode` 反序列化回归，锁定 browser DevBridge / GUI 历史会话当前实际发送的 `full-access` 不会再因为 Rust DTO 只认 `full_access` 而掉 warning
+- 已执行校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/agent/src/session_execution_runtime.rs" "src-tauri/src/commands/aster_agent_cmd/tests.rs"` 通过
+  - `npx vitest run "src/components/agent/chat/components/AgentThreadReliabilityPanel.test.tsx"` 通过（复跑，`15 passed`）
+  - `src-tauri/target/debug/deps/lime_lib-f738bc5b97ece89b --exact commands::aster_agent_cmd::tests::test_agent_runtime_update_session_request_deserializes_recent_access_mode_aliases --nocapture` 通过（`1 passed`）
+  - 已做真实 GUI 续测：`npm run bridge:health -- --timeout-ms 15000` 返回 `status=ok` 后，复用 `http://127.0.0.1:1420/` 现有页签重载首页，再沿 `任务中心 -> 切换历史 -> Hello greeting -> 展开工作台 -> 查看快照详情` 复走 file checkpoint 弹窗链路；控制台只剩既有的 `gateway_channel_status` / `sceneapp_list_catalog` unknown command 与 `i18n` warning，未再出现 `agent_runtime_update_session` 或 `full-access / full_access` 相关 warning
+  - `SessionExecutionRuntimeAccessMode` 自身的 agent crate 单测已补代码，但本地存在其他长期 `cargo run` 进程占用默认 Cargo cache；尝试绕开锁时会退化成重新下载整套 crates，因此本轮未继续等待 agent crate 独立测试跑完
+
 ## 2026-04-15
 
 ### 已完成
+
+- 在 [runtime_file_checkpoint_service.rs](../../src-tauri/src/services/runtime_file_checkpoint_service.rs)、[dto.rs](../../src-tauri/src/commands/aster_agent_cmd/dto.rs) 与 [runtime_api.rs](../../src-tauri/src/commands/aster_agent_cmd/command_api/runtime_api.rs) 补上 runtime file checkpoint current 主链：继续以 `SessionDetail.items -> FileArtifact -> artifact_document_service sidecar` 为唯一事实源，新增 `thread_read.file_checkpoint_summary` 轻摘要，以及 `agent_runtime_list_file_checkpoints / agent_runtime_get_file_checkpoint / agent_runtime_diff_file_checkpoint` 三个 current 命令，不再引入第二套 transcript 文件真相
+- 在 [runtime_evidence_pack_service.rs](../../src-tauri/src/services/runtime_evidence_pack_service.rs) 与 [runtime_replay_case_service.rs](../../src-tauri/src/services/runtime_replay_case_service.rs) 把 `fileCheckpoints / fileCheckpointCount` 正式接入 evidence / replay sidecar，analysis / review / replay 后续统一复用同一份 checkpoint 读模型，不再各自重新扫描 artifact 状态
+- 在 [types.ts](../../src/lib/api/agentRuntime/types.ts)、[threadClient.ts](../../src/lib/api/agentRuntime/threadClient.ts)、[agentRuntimeCommandSchema.json](../../src/lib/governance/agentRuntimeCommandSchema.json)、[agentCommandCatalog.json](../../src/lib/governance/agentCommandCatalog.json)、[mockPriorityCommands.ts](../../src/lib/dev-bridge/mockPriorityCommands.ts) 与 [core.ts](../../src/lib/tauri-mock/core.ts) 同步命令边界五侧，生成清单 [commandManifest.generated.ts](../../src/lib/api/agentRuntime/commandManifest.generated.ts) 也已刷新，新的 file checkpoint 命令继续落在 `agent_runtime_*` current gateway，而不是 compat/legacy 旁路
+- 在 [AgentThreadReliabilityPanel.tsx](../../src/components/agent/chat/components/AgentThreadReliabilityPanel.tsx) 新增“最近文件快照”摘要块，并在 [AgentThreadReliabilityPanel.test.tsx](../../src/components/agent/chat/components/AgentThreadReliabilityPanel.test.tsx) 补稳定断言；同时建立持久化 current 文档 [persistence-map.md](../aiprompts/persistence-map.md)，并回挂到 [docs/README.md](../README.md)、[docs/aiprompts/README.md](../aiprompts/README.md) 与 [AGENTS.md](../../AGENTS.md)
+- 在 [runtime_evidence_pack_service.rs](../../src-tauri/src/services/runtime_evidence_pack_service.rs) 与 [runtime_replay_case_service.rs](../../src-tauri/src/services/runtime_replay_case_service.rs) 的现有测试里补上 `fileCheckpointCount / fileCheckpoints / checkpoint_id / path` 断言，确保 evidence / replay 已真实消费新的 checkpoint 读模型，而不是只在实现侧悄悄接线
+- 已执行校验：
+  - `node scripts/generate-agent-runtime-clients.mjs` 通过
+  - `npx vitest run "src/components/agent/chat/components/AgentThreadReliabilityPanel.test.tsx" "src/lib/dev-bridge/mockPriorityCommands.test.ts"` 通过（`17 passed`）
+  - `npm run test:contracts` 通过
+  - `npm run typecheck` 通过
+  - `npx vitest run "src/components/provider-pool/api-key/ProviderConfigForm.ui.test.tsx" "src/components/settings-v2/general/memory/index.test.tsx"` 通过（`19 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo check --manifest-path "src-tauri/Cargo.toml" --lib` 通过
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" runtime_file_checkpoint_service::tests:: --lib -- --nocapture` 通过（`3 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" should_export_runtime_ --lib -- --nocapture` 通过（`6 passed`）
+  - `npm run verify:gui-smoke` 通过（复用现有 headless 环境，`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page` 全部通过）
+  - `npm run verify:local` 通过
+- 当前更高层验证状态：
+  - 之前记录里的 `should_export_runtime_` / `SceneAppRunSummary` 阻塞已不再复现；当前仓库中的 `sceneapp` 初始化点已补齐新字段，本轮实际阻塞改为 [claude_custom.rs](../../src-tauri/crates/providers/src/providers/claude_custom.rs) 的 `Default` 实现缺口，现已修复并复测通过
+  - 之前记录里的 `verify:local` TypeScript 阻塞也已修复；[ProviderConfigForm.ui.test.tsx](../../src/components/provider-pool/api-key/ProviderConfigForm.ui.test.tsx) 与 [index.tsx](../../src/components/settings-v2/general/memory/index.tsx) 的类型问题不再复现，本轮已重新从统一入口跑通 `npm run verify:local`
+
+- 在 [auto_memory_service.rs](../../src-tauri/src/services/auto_memory_service.rs) 将自动记忆入口收口为 `memdir` 主链：新增 `user / feedback / project / reference` 四类目录脚手架、最小 provider seam、topic 文件递归索引与 `memory_type / provider / updated_at` 元数据；`feedback / project` 写入现在强制要求 `Why:` 与 `How to apply:` 结构，`project` 同时拒绝 `今天 / tomorrow / next week` 这类相对时间词，避免记忆过期后继续误导执行
+- 在 [memory_source_resolver_service.rs](../../src-tauri/src/services/memory_source_resolver_service.rs) 为来源链读模型补齐 `source_bucket / provider / memory_type / updated_at`，并让 `auto_memory_item` 真正进入 runtime 解析与 prompt 来源链；同时把 `memory_type` 约束到 memdir 来源，不再误打到普通项目规则或其它非 memdir 文件
+- 在 [memoryRuntimeTypes.ts](../../src/lib/api/memoryRuntimeTypes.ts)、[index.tsx](../../src/components/settings-v2/general/memory/index.tsx) 与 [MemoryPage.tsx](../../src/components/memory/MemoryPage.tsx) 同步前端主链：设置页可以直接初始化 `memdir`、按类型写入真实 note，并在前端先做结构化/绝对日期拦截；Memory 页面与设置页当前都按 `memdir` 分类、provider、最近更新时间展示真实来源，不再沿用旧的外部工具记忆心智文案
+- 将这轮 `memdir` 约束与元数据回写到 [memory-compaction.md](../aiprompts/memory-compaction.md)，明确 `MEMORY.md -> user|feedback|project|reference` 是 current 组织方式，topic 文件必须继续挂在同一条索引主链下
+- 在 [browser-runtime-smoke.mjs](../../scripts/browser-runtime-smoke.mjs) 与 [agent-runtime-tool-surface-page-smoke.mjs](../../scripts/agent-runtime-tool-surface-page-smoke.mjs) 补上固定 smoke profile key 与 `close_chrome_profile_session` 前后清理，避免每次 GUI smoke 都遗留新的 headless Chrome profile 进程，连带拖慢后续 `browser_execute_action` 页面 smoke
+- 已执行校验：
+  - `npm exec vitest run "src/lib/api/memoryRuntime.test.ts" "src/components/settings-v2/general/memory/index.test.tsx" "src/components/memory/MemoryPage.test.tsx"` 通过（`26 passed`）
+  - `npm run test:contracts` 通过
+  - `npm run verify:gui-smoke -- --cargo-target-dir "/tmp/lime-gui-smoke-target-memdir-codex"` 通过（`workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page` 全部通过）
 
 - 在 [tests.rs](../../src-tauri/src/commands/aster_agent_cmd/tests.rs) 新增基础 Prompt 主链源码守卫，固定 `runtime_turn` 的 current 组装顺序：入口段必须保持 `RuntimeAgents -> ExplicitLocalPathFocus -> FullRuntime/FastChat 分流`，`build_full_runtime_system_prompt(...)` 必须保持 `Memory -> ... -> AutoContinue` 的既定 augmentation 顺序，`ServiceSkillLaunchPreload` 只能在 FullRuntime 下作为尾部追加阶段
 - 同步把 `service_skill_launch_preload` 相关重复测试 fixture 收口为共享 helper，减少同一预执行样例在多条测试里重复内联，避免后续调整站点技能预执行 contract 时只改一半测试
 - 补最贴边界的定向校验：
   - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" runtime_turn_source_keeps --lib -- --nocapture` 通过（`3 passed`）
   - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" service_skill_launch_preload --lib -- --nocapture` 通过（`3 passed`）
+
+### 继续推进（browser DevBridge sceneapp / channels current 收口）
+
+- 在 [sceneapp.rs](../../src-tauri/src/dev_bridge/dispatcher/sceneapp.rs)、[channels.rs](../../src-tauri/src/dev_bridge/dispatcher/channels.rs) 与 [dispatcher.rs](../../src-tauri/src/dev_bridge/dispatcher.rs) 把 `sceneapp_list_catalog`、`gateway_channel_status`、`wechat_channel_list_accounts` 继续接回 browser DevBridge current 分发；[dispatcher.rs](../../src-tauri/src/dev_bridge/dispatcher.rs) 也新增 `sceneapp_list_catalog_is_bridged`、`gateway_channel_status_is_bridged`、`wechat_channel_list_accounts_is_bridged` 定向守卫，锁定这些命令已进入对应 bridge 分支，不再回退成 `[DevBridge] 未知命令`
+- 在 [agentCommandCatalog.json](../../src/lib/governance/agentCommandCatalog.json)、[mockPriorityCommands.ts](../../src/lib/dev-bridge/mockPriorityCommands.ts)、[mockPriorityCommands.test.ts](../../src/lib/dev-bridge/mockPriorityCommands.test.ts) 与 [core.ts](../../src/lib/tauri-mock/core.ts) 同步命令边界四侧：
+  - `gateway_channel_status` 与 `wechat_channel_list_accounts` 现在都被视为 browser 模式下必须走 bridge 真相的 current runtime gateway 命令
+  - `wechat_channel_list_accounts` 同步补进默认 mock，避免非 browser 模式的开发回路缺少返回形态
+- 在 [wechat_channel_cmd.rs](../../src-tauri/src/commands/wechat_channel_cmd.rs) 抽出纯 helper `list_wechat_configured_accounts(...)`，让 Tauri 命令与 browser DevBridge 共享同一段“列微信账号”逻辑；不再把 `tauri::State` 包装态直接透传进 bridge 分支，避免 bridge 场景里额外引入命令包装态阻塞
+- 已执行校验：
+  - `npm test -- src/lib/dev-bridge/mockPriorityCommands.test.ts` 通过（`3 passed`）
+  - `npm run test:bridge` 通过（`22 passed`）
+  - `npm run test:contracts` 通过
+  - `env CARGO_TARGET_DIR="/tmp/lime-devbridge-current-tests" cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp_list_catalog_is_bridged --lib -- --nocapture` 通过（`1 passed`）
+  - `env CARGO_TARGET_DIR="/tmp/lime-devbridge-current-tests" cargo test --manifest-path "src-tauri/Cargo.toml" gateway_channel_status_is_bridged --lib -- --nocapture` 通过（`1 passed`）
+  - `env CARGO_TARGET_DIR="/tmp/lime-devbridge-current-tests" cargo test --manifest-path "src-tauri/Cargo.toml" wechat_channel_list_accounts_is_bridged --lib -- --nocapture` 通过（`1 passed`）
+- 已补现场证据：
+  - 活跃在 `127.0.0.1:3030` 的旧 bridge 一度是 Codex 自己遗留的 [lime](/Users/coso/Documents/dev/ai/aiclientproxy/lime/src-tauri/target/debug/lime) 实例；该旧进程对 `sceneapp_list_catalog`、`gateway_channel_status` 的 `curl /invoke` 已能返回 `200`，但 `wechat_channel_list_accounts` 仍返回 `[DevBridge] 未知命令`，说明真实 GUI 当时看到的是“上一刀已生效、这一刀尚未热更新”的混合现场
+  - 在清掉这条 Codex 遗留 bridge 后，`127.0.0.1:3030` 一度空闲，随后又被另一条 Codex 派生的 [lime](/Users/coso/Documents/dev/ai/aiclientproxy/lime/src-tauri/target/debug/lime) 实例接管；`/health` 与 `gateway_channel_status` 已恢复 `200`
+  - 当前活跃 bridge 上，`curl /invoke` 已能真实返回 `wechat_channel_list_accounts` 的账号目录，例如 `774304b339c6@im.bot` 这条已启用账号会返回 `baseUrl=https://ilinkai.weixin.qq.com`、`cdnBaseUrl=https://novac2c.cdn.weixin.qq.com/c2c`、`hasToken=true` 与 `scannerUserId`
+  - 真实 GUI 续测到的错误类型已经从 `[DevBridge] 未知命令` 前移为 bridge 级超时：在 `消息渠道 -> 高级排障 -> 微信` 页，控制台已出现 `wechat_channel_list_accounts` / `gateway_channel_status` 的调用与 `timeout after 1800ms`，不再是 `unknown command`
+- 在 [http-client.ts](../../src/lib/dev-bridge/http-client.ts) 收紧 browser DevBridge HTTP client 的时序策略：
+  - `sceneapp_list_catalog`、`gateway_channel_status`、`wechat_channel_list_accounts` 等“必须以 bridge 为真相”的命令现在统一使用 `5000ms` 请求超时，不再沿用默认 `1800ms`
+  - `fetch_provider_models_auto`、`test_api_key_provider_connection`、`test_api_key_provider_chat` 三条 provider 探测命令继续使用 `30000ms` 长超时，避免模型目录探测在浏览器模式下过早被前端判死
+  - `ensureBridgeReachable()` 对“首个 health probe timeout”不再直接写入 cooldown；只有硬连接失败才进入 `bridge cooldown active`，避免首页第一次慢探测把后续数秒都拖进假性不可用
+- 在 [http-client.test.ts](../../src/lib/dev-bridge/http-client.test.ts) 补齐回归护栏：
+  - 区分“硬连接失败会进入 cooldown”和“timeout 只会触发重试，不会立刻 cooldown”
+  - 锁定 bridge 真相命令的 `5000ms` 超时窗口与 provider 探测命令的 `30000ms` 超时窗口
+  - 锁定事件流监听只会在硬连接失败后的短退避窗口里阻止新 `EventSource` 建连
+- 本轮追加校验：
+  - `npm test -- src/lib/dev-bridge/http-client.test.ts` 通过（`10 passed`）
+  - `npm test -- src/lib/dev-bridge/mockPriorityCommands.test.ts` 通过（`3 passed`）
+  - `npm run test:bridge` 通过（`22 passed`）
+  - `npm run test:contracts` 通过
+- 本轮追加 live 证据：
+  - `curl -sS -m 5 "http://127.0.0.1:3030/health"` 返回 `{"service":"DevBridge","status":"ok","version":"1.0.0"}`
+  - `curl -sS -m 10 -X POST "http://127.0.0.1:3030/invoke" -d '{"cmd":"sceneapp_list_catalog"}'` 返回 scene app catalog
+  - `curl -sS -m 10 -X POST "http://127.0.0.1:3030/invoke" -d '{"cmd":"gateway_channel_status","args":{"request":{"channel":"wechat"}}}'` 返回 `{"channel":"wechat","status":{"accounts":[],"runningAccounts":0}}`
+  - `curl -sS -m 10 -X POST "http://127.0.0.1:3030/invoke" -d '{"cmd":"wechat_channel_list_accounts"}'` 返回真实微信账号目录，当前可见 `774304b339c6@im.bot`
+
+### 当前观察
+
+- `sceneapp_list_catalog`、`gateway_channel_status`、`wechat_channel_list_accounts` 三条 current bridge 命令现在都已经具备代码、契约、Rust 定向测试与 live `/invoke` 证据；消息渠道页的真实 blocker 已经从 `unknown command` 前移到 bridge 性能/时序层，而不再是命令缺口
+- 由于现场存在多条长期 `tauri dev` / `lime` 进程，本轮继续保留“用隔离 `CARGO_TARGET_DIR` 串行验证 bridge 改动”的做法，避免再次和默认 Cargo target 抢锁；后续若继续做消息渠道页的 GUI 续测，应优先复用当前已经接管 `3030` 的新版 bridge，而不是再让 Codex 遗留实例占住端口
+- 本轮尝试继续做 GUI 复测时，`Playwright MCP` 仍直接报 `Target page/context/browser has been closed`，`chrome_devtools` 也出现 page/transport 提前断开；因此当前已经拿到“bridge live 可用 + 前端定向状态机回归通过”的证据，但“消息渠道页控制台里 `1800ms timeout` 是否已显著减少”还需要在更稳定的 MCP 浏览器会话下补一次真实 GUI 复测
 
 ## 2026-04-14
 
@@ -180,17 +320,19 @@
   - 在 [inventory.rs](../../src-tauri/src/agent_tools/inventory.rs)、[runtime_api.rs](../../src-tauri/src/commands/aster_agent_cmd/command_api/runtime_api.rs)、[types.ts](../../src/lib/api/agentRuntime/types.ts)、[core.ts](../../src/lib/tauri-mock/core.ts) 与 [HarnessStatusPanel.tsx](../../src/components/agent/chat/components/HarnessStatusPanel.tsx) 已补统一 `runtime_tools` 视图后，本轮继续把前端 usage 从“只在工具库存面板里看四张表”往“主界面直接消费实际 runtime tool surface”推进
   - [useWorkspaceHarnessInventoryRuntime.ts](../../src/components/agent/chat/workspace/useWorkspaceHarnessInventoryRuntime.ts) 现在会在主界面启用时预取工具库存，不再等 Harness 面板展开后才第一次拉取
   - 新增 [runtimeToolAvailability.ts](../../src/components/agent/chat/utils/runtimeToolAvailability.ts)，把 `runtime_tools` 优先、`registry_tools` 兜底的真实 current surface 收口为 `webSearch / subagent(team) / task` 三组 capability 派生
-  - [useWorkspaceInputbarSceneRuntime.tsx](../../src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx)、[AgentRuntimeStrip.tsx](../../src/components/agent/chat/components/AgentRuntimeStrip.tsx)、[WorkspaceConversationScene.tsx](../../src/components/agent/chat/workspace/WorkspaceConversationScene.tsx)、[EmptyState.tsx](../../src/components/agent/chat/components/EmptyState.tsx) 与 [EmptyStateComposerPanel.tsx](../../src/components/agent/chat/components/EmptyStateComposerPanel.tsx) 已开始直接消费这份派生结果：Runtime strip 会显示实际 runtime tool surface 规模与 team/task gap，首页主输入区也会在用户开启 `联网搜索 / 任务拆分` 偏好但 runtime current tools 尚未接通时给出明确提示，不再把静态偏好误显示成“真实可用能力”
+  - [useWorkspaceInputbarSceneRuntime.tsx](../../src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx)、[AgentRuntimeStrip.tsx](../../src/components/agent/chat/components/AgentRuntimeStrip.tsx)、[WorkspaceConversationScene.tsx](../../src/components/agent/chat/workspace/WorkspaceConversationScene.tsx)、[EmptyState.tsx](../../src/components/agent/chat/components/EmptyState.tsx) 与 [EmptyStateComposerPanel.tsx](../../src/components/agent/chat/components/EmptyStateComposerPanel.tsx) 已开始直接消费这份派生结果：Runtime strip 会显示实际 runtime tool surface 规模与 team/task gap，首页主输入区也会在用户开启 `联网搜索 / 任务拆分` 偏好但 runtime current tools 尚未接通时给出明确提示，不再把静态偏好误显示成“真实可用能力”；此前误导性的两条页级黄提示已从主路径移除，只在工作台诊断位保留真实缺口摘要
   - 本轮继续补齐测试与 smoke：
     - 新增 [runtimeToolAvailability.test.ts](../../src/components/agent/chat/utils/runtimeToolAvailability.test.ts)，覆盖 `runtime_tools` current surface 派生与开发态 override
     - 新增 [AgentRuntimeStrip.test.tsx](../../src/components/agent/chat/components/AgentRuntimeStrip.test.tsx) 与 [EmptyState.test.tsx](../../src/components/agent/chat/components/EmptyState.test.tsx) 的 `runtime tool surface` 页级断言，验证 runtime strip 的 team/task gap 与首页空态告警都能真实透传
     - 在 [HarnessStatusPanel.tsx](../../src/components/agent/chat/components/HarnessStatusPanel.tsx) 新增 `Runtime 能力摘要`，让工具库存面板也直接消费 `deriveRuntimeToolAvailability(...)`，显式展示 `WebSearch / 子任务核心 tools / Team current tools / Task current tools` 的已接通状态或缺口，不再只显示 raw runtime tool list
     - 在 [HarnessStatusPanel.test.tsx](../../src/components/agent/chat/components/HarnessStatusPanel.test.tsx) 新增 `runtime tool surface` 断言，覆盖 team/task gap 暴露与 current surface 完整接通两种情况
     - 新增 [agent-runtime-tool-surface-smoke.mjs](../../scripts/agent-runtime-tool-surface-smoke.mjs)，并接入 [verify-gui-smoke.mjs](../../scripts/verify-gui-smoke.mjs) 与 [package.json](../../package.json) 的 `smoke:agent-runtime-tool-surface` current smoke 入口，避免这条主线只停留在局部单测
+    - 新增 [agent-runtime-tool-surface-page-smoke.mjs](../../scripts/agent-runtime-tool-surface-page-smoke.mjs)，通过真实页面执行 `onboarding -> 最小发送 -> 工作台` 链路，断言 `Runtime 能力摘要` 中的 `WebSearch / 子任务核心 tools / Team current tools / Task current tools` 缺口文案，同时确认旧页级黄提示不再回到页面主路径；脚本固定使用 `stream_mode=events`，避开真实页面在 `cdp_direct + frames/both` 下会把 `Runtime.evaluate` 挤到超时的已知运行时特性
   - 本轮已执行校验：
     - `npm run smoke:agent-runtime-tool-surface` 通过
-    - `npm run verify:gui-smoke` 通过（已串联新的 `smoke:agent-runtime-tool-surface`）
-    - Playwright MCP 真实页面续测通过：首页在开发态 override 下可稳定出现 `runtime tool surface` 告警，且 `toggle-web-search` / `toggle-subagent-mode` 可直接驱动真实空态提示
+    - `npm run smoke:agent-runtime-tool-surface-page` 通过
+    - `npm run verify:gui-smoke` 已接入新的 `smoke:agent-runtime-tool-surface-page`
+    - 真实页面自动 smoke 已验证：开发态 override 下可稳定进入工作台 `Runtime 能力摘要`，并且旧页级黄提示不会重新出现
 
 ### 当前判断
 

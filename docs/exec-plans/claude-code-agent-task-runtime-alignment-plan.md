@@ -79,7 +79,7 @@
 ### 已完成
 
 - `npx vitest run "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/MessageList.test.tsx" "src/components/agent/chat/utils/agentTaskRuntime.test.ts"`
-- `npx eslint "src/components/agent/chat/components/AgentTaskRuntimeCard.tsx" "src/components/agent/chat/components/Inputbar/index.tsx" "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx" "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx" "src/components/agent/chat/utils/agentTaskRuntime.ts"`
+- `npx eslint "src/components/agent/chat/components/Inputbar/index.tsx" "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx" "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx" "src/components/agent/chat/utils/agentTaskRuntime.ts"`
 
 ### 进行中
 

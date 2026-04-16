@@ -17,6 +17,20 @@ use rusqlite::Connection;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+const SQLITE_WAL_PRAGMAS: &str = r#"
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+PRAGMA cache_size = -64000;
+PRAGMA temp_store = MEMORY;
+"#;
+
+const SQLITE_FALLBACK_PRAGMAS: &str = r#"
+PRAGMA journal_mode = DELETE;
+PRAGMA synchronous = NORMAL;
+PRAGMA cache_size = -64000;
+PRAGMA temp_store = MEMORY;
+"#;
+
 /// 进程内共享的 SQLite 连接。
 ///
 /// 注意：
@@ -60,15 +74,7 @@ pub fn init_database() -> Result<DbConnection, String> {
         .map_err(|e| format!("设置 busy_timeout 失败: {e}"))?;
 
     // 启用 WAL 模式提升并发性能
-    conn.execute_batch(
-        "PRAGMA journal_mode = WAL;
-         PRAGMA synchronous = NORMAL;
-         PRAGMA cache_size = -64000;
-         PRAGMA temp_store = MEMORY;",
-    )
-    .map_err(|e| format!("设置数据库优化参数失败: {e}"))?;
-
-    tracing::info!("[数据库] 已启用 WAL 模式和性能优化参数");
+    apply_database_pragmas(&conn)?;
 
     // 创建表结构
     schema::create_tables(&conn).map_err(|e| e.to_string())?;
@@ -76,4 +82,25 @@ pub fn init_database() -> Result<DbConnection, String> {
     startup_migrations::run_startup_migrations(&conn);
 
     Ok(Arc::new(Mutex::new(conn)))
+}
+
+fn apply_database_pragmas(conn: &Connection) -> Result<(), String> {
+    match conn.execute_batch(SQLITE_WAL_PRAGMAS) {
+        Ok(()) => {
+            tracing::info!("[数据库] 已启用 WAL 模式和性能优化参数");
+            Ok(())
+        }
+        Err(wal_error) => {
+            tracing::warn!(
+                "[数据库] 启用 WAL 模式失败，将回退到兼容模式: {}",
+                wal_error
+            );
+            conn.execute_batch(SQLITE_FALLBACK_PRAGMAS)
+                .map_err(|fallback_error| {
+                    format!("设置数据库优化参数失败: WAL={wal_error}; fallback={fallback_error}")
+                })?;
+            tracing::info!("[数据库] 已回退到 DELETE journal 兼容模式");
+            Ok(())
+        }
+    }
 }

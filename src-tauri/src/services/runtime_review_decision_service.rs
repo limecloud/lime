@@ -1,6 +1,6 @@
 //! Runtime review decision 模板导出与保存服务
 //!
-//! 将外部 Claude Code / Codex 的分析结论回挂为
+//! 将外部代码助手 / Codex 的分析结论回挂为
 //! Lime 工作区内可版本化的人工审核与决策记录模板。
 //! 这条链只导出与保存 review-decision，不在 Lime 内自动批准或自动应用修复。
 
@@ -369,7 +369,7 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
         "# Lime 人工审核与决策记录\n\n\
 > 状态：`{decision_status}`\n\
 > 导出时间：`{exported_at}`\n\
-> 说明：这份模板用于把外部 Claude Code / Codex 的分析结论，回挂为 Lime 工作区内可版本化的人工审核记录；最终是否接受修复仍由开发者决定。\n\n\
+> 说明：这份模板用于把外部代码助手 / Codex 的分析结论，回挂为 Lime 工作区内可版本化的人工审核记录；最终是否接受修复仍由开发者决定。\n\n\
 ## 1. 审核上下文\n\
 - 标题：{title}\n\
 - session_id：`{session_id}`\n\
@@ -1170,6 +1170,7 @@ mod tests {
             interrupt_state: None,
             updated_at: Some("2026-03-27T10:01:20Z".to_string()),
             latest_compaction_boundary: None,
+            file_checkpoint_summary: None,
             diagnostics: Some(AgentRuntimeThreadDiagnostics {
                 latest_turn_status: Some("action_required".to_string()),
                 latest_turn_started_at: None,

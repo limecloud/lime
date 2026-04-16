@@ -80,6 +80,10 @@ export interface MemoryAnalysisResult {
 
 export interface EffectiveMemorySource {
   kind: string;
+  source_bucket?: string | null;
+  provider?: string | null;
+  memory_type?: MemdirMemoryType | null;
+  updated_at?: number | null;
   path: string;
   exists: boolean;
   loaded: boolean;
@@ -100,10 +104,15 @@ export interface EffectiveMemorySourcesResponse {
 
 export interface AutoMemoryIndexItem {
   title: string;
+  memory_type?: MemdirMemoryType | null;
+  provider?: string | null;
+  updated_at?: number | null;
   relative_path: string;
   exists: boolean;
   summary?: string | null;
 }
+
+export type MemdirMemoryType = "user" | "feedback" | "project" | "reference";
 
 export interface AutoMemoryIndexResponse {
   enabled: boolean;
@@ -118,6 +127,31 @@ export interface AutoMemoryIndexResponse {
 
 export interface MemoryAutoToggleResponse {
   enabled: boolean;
+}
+
+export interface MemdirScaffoldFile {
+  key: string;
+  path: string;
+  status: "created" | "exists" | "overwritten" | string;
+}
+
+export interface MemdirScaffoldResult {
+  root_dir: string;
+  entrypoint: string;
+  created_parent_dir: boolean;
+  files: MemdirScaffoldFile[];
+}
+
+export interface MemdirCleanupResult {
+  root_dir: string;
+  entrypoint: string;
+  scanned_files: number;
+  updated_files: number;
+  removed_duplicate_links: number;
+  dropped_missing_links: number;
+  removed_duplicate_notes: number;
+  trimmed_notes: number;
+  curated_topic_files: number;
 }
 
 export interface WorkingMemoryFileSummary {

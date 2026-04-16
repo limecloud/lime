@@ -11,6 +11,7 @@ describe("mockPriorityCommands", () => {
       shouldPreferMockInBrowser("execution_run_get_general_workbench_state"),
     ).toBe(true);
     expect(shouldPreferMockInBrowser("get_hint_routes")).toBe(true);
+    expect(shouldPreferMockInBrowser("memory_cleanup_memdir")).toBe(true);
     expect(shouldPreferMockInBrowser("aster_agent_init")).toBe(false);
     expect(shouldPreferMockInBrowser("agent_runtime_get_tool_inventory")).toBe(
       false,
@@ -31,21 +32,41 @@ describe("mockPriorityCommands", () => {
   it("模型与运行时真相命令在浏览器模式下禁止静默退回 mock", () => {
     expect(shouldDisallowMockFallbackInBrowser("aster_agent_init")).toBe(true);
     expect(shouldDisallowMockFallbackInBrowser("workspace_list")).toBe(true);
-    expect(
-      shouldDisallowMockFallbackInBrowser("workspace_get_default"),
-    ).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("workspace_get_default")).toBe(
+      true,
+    );
     expect(shouldDisallowMockFallbackInBrowser("workspace_get")).toBe(true);
-    expect(
-      shouldDisallowMockFallbackInBrowser("workspace_ensure_ready"),
-    ).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("workspace_ensure_ready")).toBe(
+      true,
+    );
     expect(
       shouldDisallowMockFallbackInBrowser("agent_runtime_submit_turn"),
+    ).toBe(true);
+    expect(
+      shouldDisallowMockFallbackInBrowser(
+        "agent_runtime_list_file_checkpoints",
+      ),
+    ).toBe(true);
+    expect(
+      shouldDisallowMockFallbackInBrowser("agent_runtime_get_file_checkpoint"),
+    ).toBe(true);
+    expect(
+      shouldDisallowMockFallbackInBrowser("agent_runtime_diff_file_checkpoint"),
     ).toBe(true);
     expect(
       shouldDisallowMockFallbackInBrowser("agent_runtime_list_sessions"),
     ).toBe(true);
     expect(
       shouldDisallowMockFallbackInBrowser("agent_runtime_update_session"),
+    ).toBe(true);
+    expect(
+      shouldDisallowMockFallbackInBrowser("sceneapp_create_automation_job"),
+    ).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("gateway_channel_status")).toBe(
+      true,
+    );
+    expect(
+      shouldDisallowMockFallbackInBrowser("wechat_channel_list_accounts"),
     ).toBe(true);
     expect(
       shouldDisallowMockFallbackInBrowser("get_model_registry_provider_ids"),

@@ -1,0 +1,10 @@
+/Users/coso/Documents/dev/ai/aiclientproxy/lime/.tmp-check-windows/x86_64-pc-windows-msvc/debug/deps/getrandom-0c62d8aacf5004ae.d: /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/lib.rs /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/backends.rs /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/error.rs /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/util.rs /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/../README.md /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/backends/windows.rs
+
+/Users/coso/Documents/dev/ai/aiclientproxy/lime/.tmp-check-windows/x86_64-pc-windows-msvc/debug/deps/libgetrandom-0c62d8aacf5004ae.rmeta: /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/lib.rs /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/backends.rs /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/error.rs /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/util.rs /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/../README.md /Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/backends/windows.rs
+
+/Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/lib.rs:
+/Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/backends.rs:
+/Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/error.rs:
+/Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/util.rs:
+/Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/../README.md:
+/Users/coso/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.1/src/backends/windows.rs:

@@ -52,6 +52,7 @@ import {
 } from "../utils/internalImagePlaceholder";
 import { isHiddenConversationArtifactPath } from "../utils/internalArtifactVisibility";
 import { buildInputbarRuntimeStatusLineModel } from "../utils/inputbarRuntimeStatusLine";
+import { resolvePromptCacheActivity } from "../utils/tokenUsageSummary";
 import { isInternalRoutingTurnSummaryText } from "../utils/turnSummaryPresentation";
 import {
   Message,
@@ -171,16 +172,6 @@ interface MessageListProps {
   activePendingA2UISource?: PendingA2UISource | null;
   /** 当前会话的 provider 选择器 */
   providerType?: string;
-}
-
-function resolvePromptCacheActivity(usage?: {
-  cached_input_tokens?: number;
-  cache_creation_input_tokens?: number;
-}): number {
-  return (
-    Math.max(0, usage?.cached_input_tokens ?? 0) +
-    Math.max(0, usage?.cache_creation_input_tokens ?? 0)
-  );
 }
 
 function normalizeRuntimeStatusMetaText(value?: string | null): string {
@@ -598,12 +589,23 @@ const MessageListInner: React.FC<MessageListProps> = ({
       return null;
     }
 
+    const mappedMessageId =
+      [...timelineByMessageId.values()].find(
+        (entry) => entry.turn.id === turn.id,
+      )?.messageId ?? null;
+
     return {
-      messageId: lastAssistantMessageId,
+      messageId: mappedMessageId || lastAssistantMessageId,
       turn,
       items: threadItems.filter((item) => item.turn_id === turn.id),
     };
-  }, [currentTurnId, lastAssistantMessageId, threadItems, turns]);
+  }, [
+    currentTurnId,
+    lastAssistantMessageId,
+    threadItems,
+    timelineByMessageId,
+    turns,
+  ]);
   const messageGroups = useMemo(
     () => buildMessageTurnGroups(visibleMessages),
     [visibleMessages],
@@ -617,12 +619,12 @@ const MessageListInner: React.FC<MessageListProps> = ({
           group.assistantMessages
             .map((message) => timelineByMessageId.get(message.id))
             .find(Boolean) ?? null;
+        const isCurrentTurnGroup =
+          Boolean(lastAssistantId) &&
+          currentTurnTimeline?.messageId === lastAssistantId;
         const isActiveGroup =
           Boolean(lastAssistantId) && lastAssistantId === lastAssistantMessageId;
-        const timeline =
-          isActiveGroup && currentTurnTimeline
-            ? currentTurnTimeline
-            : mappedTimeline;
+        const timeline = isCurrentTurnGroup ? currentTurnTimeline : mappedTimeline;
 
         return {
           ...group,
@@ -878,6 +880,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
         ? activePendingA2UISource.requestId
         : null;
     const actionContent = displayContent.trim();
+    const hasVisibleAssistantText = Boolean(actionContent);
     const canQuoteMessage = Boolean(onQuoteMessage && actionContent);
     const canCopyMessage = Boolean(actionContent);
     const canSaveMessageAsSkill = Boolean(
@@ -907,6 +910,15 @@ const MessageListInner: React.FC<MessageListProps> = ({
       onOpenSavedSiteContent &&
       !hasTrailingArtifactTimelineItems,
     );
+    const visibleAssistantArtifacts =
+      msg.role === "assistant"
+        ? (msg.artifacts || []).filter(
+            (artifact) =>
+              !isHiddenConversationArtifactPath(
+                resolveArtifactProtocolFilePath(artifact),
+              ),
+          )
+        : [];
     const shouldRenderTailRuntimeStatusLine =
       msg.role === "assistant" &&
       msg.id === lastAssistantMessageId &&
@@ -928,6 +940,66 @@ const MessageListInner: React.FC<MessageListProps> = ({
     const messageCanvasShortcutPath = messageSavedSiteContentTarget
       ? resolveSiteSavedContentTargetRelativePath(messageSavedSiteContentTarget)
       : null;
+    const shouldCollapseAssistantShell =
+      msg.role === "assistant" &&
+      !hasVisibleAssistantText &&
+      !(conversationContentParts?.length) &&
+      !conversationThinkingContent?.trim() &&
+      !(conversationToolCalls?.length) &&
+      !((msg.actionRequests || []).length > 0) &&
+      !primaryTimeline &&
+      !trailingTimeline &&
+      !((msg.images || []).length > 0) &&
+      visibleAssistantArtifacts.length === 0 &&
+      !shouldRenderMessageCanvasShortcut &&
+      !msg.imageWorkbenchPreview &&
+      !msg.taskPreview;
+    const hasAssistantBodyContent =
+      msg.role !== "assistant" || !shouldCollapseAssistantShell;
+    const assistantMetaFooter =
+      msg.role === "assistant" &&
+      (shouldRenderTailRuntimeStatusLine ||
+        shouldRenderStatusPill ||
+        shouldRenderUsageFooter) ? (
+        <div
+          className={
+            hasAssistantBodyContent
+              ? "mt-2 flex flex-wrap items-center gap-2"
+              : "flex flex-wrap items-center gap-2 px-1 py-0.5"
+          }
+          data-testid="assistant-message-meta-footer"
+        >
+          {shouldRenderTailRuntimeStatusLine ? (
+            <InputbarRuntimeStatusLine
+              runtime={tailRuntimeStatusLine || null}
+              providerType={providerType}
+              canStop={Boolean(onInterruptCurrentTurn)}
+            />
+          ) : null}
+          {shouldRenderStatusPill && msg.runtimeStatus ? (
+            <MessageRuntimeStatusPill status={msg.runtimeStatus} />
+          ) : null}
+          {shouldRenderUsageFooter ? (
+            <TokenUsageDisplay
+              usage={msg.usage!}
+              inline={true}
+              promptCacheNotice={
+                resolvePromptCacheActivity(msg.usage!) <= 0
+                  ? promptCacheNotice
+                  : undefined
+              }
+            />
+          ) : null}
+        </div>
+      ) : null;
+
+    if (
+      msg.role === "assistant" &&
+      !hasAssistantBodyContent &&
+      !assistantMetaFooter
+    ) {
+      return null;
+    }
 
     return (
       <MessageWrapper
@@ -936,289 +1008,265 @@ const MessageListInner: React.FC<MessageListProps> = ({
         $compactLeadingSpacing={compactLeadingSpacing}
       >
         <ContentColumn $isUser={msg.role === "user"}>
-          <MessageBubble
-            $isUser={msg.role === "user"}
-            aria-label={msg.role === "assistant" ? assistantLabel : undefined}
-          >
-            {msg.role === "assistant" ? (
-              <>
-                {primaryTimeline ? (
-                  <AgentThreadTimeline
-                    turn={primaryTimeline.turn}
-                    items={primaryTimeline.items}
-                    threadRead={threadRead}
-                    actionRequests={primaryActionRequests}
-                    isCurrentTurn={primaryTimeline.turn.id === currentTurnId}
-                    placement="leading"
-                    onFileClick={onFileClick}
-                    onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
-                    onOpenSavedSiteContent={onOpenSavedSiteContent}
-                    onOpenSubagentSession={onOpenSubagentSession}
-                    onPermissionResponse={onPermissionResponse}
-                    focusedItemId={focusedTimelineItemId}
-                    focusRequestKey={timelineFocusRequestKey}
-                  />
-                ) : null}
+          {hasAssistantBodyContent ? (
+            <MessageBubble
+              $isUser={msg.role === "user"}
+              aria-label={msg.role === "assistant" ? assistantLabel : undefined}
+            >
+              {msg.role === "assistant" ? (
+                <>
+                  {primaryTimeline ? (
+                    <AgentThreadTimeline
+                      turn={primaryTimeline.turn}
+                      items={primaryTimeline.items}
+                      threadRead={threadRead}
+                      actionRequests={primaryActionRequests}
+                      isCurrentTurn={primaryTimeline.turn.id === currentTurnId}
+                      placement="leading"
+                      onFileClick={onFileClick}
+                      onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
+                      onOpenSavedSiteContent={onOpenSavedSiteContent}
+                      onOpenSubagentSession={onOpenSubagentSession}
+                      onPermissionResponse={onPermissionResponse}
+                      focusedItemId={focusedTimelineItemId}
+                      focusRequestKey={timelineFocusRequestKey}
+                    />
+                  ) : null}
 
-                <StreamingRenderer
+                  <StreamingRenderer
+                    content={displayContent}
+                    isStreaming={msg.isThinking}
+                    toolCalls={conversationToolCalls}
+                    showCursor={msg.isThinking && !displayContent}
+                    thinkingContent={conversationThinkingContent}
+                    runtimeStatus={msg.runtimeStatus}
+                    contentParts={conversationContentParts}
+                    actionRequests={msg.actionRequests}
+                    onA2UISubmit={
+                      onA2UISubmit
+                        ? (formData) => onA2UISubmit(formData, msg.id)
+                        : undefined
+                    }
+                    a2uiFormId={a2uiFormDataMap?.[msg.id]?.formId}
+                    a2uiInitialFormData={a2uiFormDataMap?.[msg.id]?.formData}
+                    onA2UIFormChange={onA2UIFormChange}
+                    renderA2UIInline={
+                      renderA2UIInline && !shouldSuppressInlineA2UI
+                    }
+                    onWriteFile={
+                      onWriteFile
+                        ? (content, fileName, context) =>
+                            onWriteFile(content, fileName, {
+                              ...context,
+                              sourceMessageId:
+                                context?.sourceMessageId || msg.id,
+                              source: context?.source || "message_content",
+                            })
+                        : undefined
+                    }
+                    onFileClick={onFileClick}
+                    onOpenSavedSiteContent={onOpenSavedSiteContent}
+                    onPermissionResponse={onPermissionResponse}
+                    collapseCodeBlocks={collapseCodeBlocks}
+                    shouldCollapseCodeBlock={shouldCollapseCodeBlock}
+                    onCodeBlockClick={onCodeBlockClick}
+                    promoteActionRequestsToA2UI={promoteActionRequestsToA2UI}
+                    suppressedActionRequestId={suppressedActionRequestId}
+                    showRuntimeStatusInline={true}
+                    renderProposedPlanBlocks={
+                      !primaryTimeline ||
+                      inlineProcessCoverage.hasInlineProcessEntries
+                    }
+                    showContentBlockActions={Boolean(actionContent)}
+                    onQuoteContent={
+                      onQuoteMessage
+                        ? (quotedContent) =>
+                            onQuoteMessage(quotedContent, msg.id)
+                        : undefined
+                    }
+                  />
+                  {shouldRenderMessageCanvasShortcut ? (
+                    <button
+                      type="button"
+                      className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2.5 text-left transition-colors hover:bg-emerald-100/80"
+                      data-testid="message-canvas-shortcut"
+                      onClick={() => {
+                        if (
+                          messageSavedSiteContentTarget &&
+                          onOpenSavedSiteContent
+                        ) {
+                          onOpenSavedSiteContent(messageSavedSiteContentTarget);
+                        }
+                      }}
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700">
+                        <FileText className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium leading-6 text-emerald-900">
+                          在画布中打开 {messageCanvasShortcutTitle}
+                        </span>
+                        {messageCanvasShortcutPath ? (
+                          <span className="block truncate text-xs leading-5 text-emerald-700/80">
+                            {messageCanvasShortcutPath}
+                          </span>
+                        ) : null}
+                      </span>
+                      <ExternalLink className="h-4 w-4 shrink-0 text-emerald-700" />
+                    </button>
+                  ) : null}
+                  {msg.imageWorkbenchPreview ? (
+                    <ImageWorkbenchMessagePreview
+                      preview={msg.imageWorkbenchPreview}
+                      onOpen={
+                        onOpenMessagePreview
+                          ? (preview) =>
+                              onOpenMessagePreview(
+                                {
+                                  kind: "image_workbench",
+                                  preview,
+                                },
+                                msg,
+                              )
+                          : undefined
+                      }
+                    />
+                  ) : null}
+                  {msg.taskPreview ? (
+                    <TaskMessagePreview
+                      preview={msg.taskPreview}
+                      onOpen={
+                        onOpenMessagePreview
+                          ? (preview) =>
+                              onOpenMessagePreview(
+                                {
+                                  kind: "task",
+                                  preview,
+                                },
+                                msg,
+                              )
+                          : undefined
+                      }
+                    />
+                  ) : null}
+                </>
+              ) : displayContent ? (
+                <MarkdownRenderer
                   content={displayContent}
-                  isStreaming={msg.isThinking}
-                  toolCalls={conversationToolCalls}
-                  showCursor={msg.isThinking && !displayContent}
-                  thinkingContent={conversationThinkingContent}
-                  runtimeStatus={msg.runtimeStatus}
-                  contentParts={conversationContentParts}
-                  actionRequests={msg.actionRequests}
                   onA2UISubmit={
                     onA2UISubmit
                       ? (formData) => onA2UISubmit(formData, msg.id)
                       : undefined
                   }
-                  a2uiFormId={a2uiFormDataMap?.[msg.id]?.formId}
-                  a2uiInitialFormData={a2uiFormDataMap?.[msg.id]?.formData}
-                  onA2UIFormChange={onA2UIFormChange}
-                  renderA2UIInline={
-                    renderA2UIInline && !shouldSuppressInlineA2UI
-                  }
-                  onWriteFile={
-                    onWriteFile
-                      ? (content, fileName, context) =>
-                          onWriteFile(content, fileName, {
-                            ...context,
-                            sourceMessageId: context?.sourceMessageId || msg.id,
-                            source: context?.source || "message_content",
-                          })
-                      : undefined
-                  }
-                  onFileClick={onFileClick}
-                  onOpenSavedSiteContent={onOpenSavedSiteContent}
-                  onPermissionResponse={onPermissionResponse}
-                  collapseCodeBlocks={collapseCodeBlocks}
-                  shouldCollapseCodeBlock={shouldCollapseCodeBlock}
-                  onCodeBlockClick={onCodeBlockClick}
-                  promoteActionRequestsToA2UI={promoteActionRequestsToA2UI}
-                  suppressedActionRequestId={suppressedActionRequestId}
-                  showRuntimeStatusInline={true}
-                  renderProposedPlanBlocks={
-                    !primaryTimeline ||
-                    inlineProcessCoverage.hasInlineProcessEntries
-                  }
-                  showContentBlockActions={Boolean(actionContent)}
-                  onQuoteContent={
-                    onQuoteMessage
-                      ? (quotedContent) => onQuoteMessage(quotedContent, msg.id)
-                      : undefined
-                  }
+                  renderA2UIInline={renderA2UIInline}
                 />
-                {shouldRenderMessageCanvasShortcut ? (
-                  <button
-                    type="button"
-                    className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2.5 text-left transition-colors hover:bg-emerald-100/80"
-                    data-testid="message-canvas-shortcut"
-                    onClick={() => {
-                      if (
-                        messageSavedSiteContentTarget &&
-                        onOpenSavedSiteContent
-                      ) {
-                        onOpenSavedSiteContent(messageSavedSiteContentTarget);
+              ) : null}
+
+              {msg.images && msg.images.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {msg.images.map((img, i) => (
+                    <img
+                      key={i}
+                      src={`data:${img.mediaType};base64,${img.data}`}
+                      className="max-w-xs rounded-lg border border-border"
+                      alt="attachment"
+                    />
+                  ))}
+                </div>
+              )}
+
+              {msg.role === "assistant" &&
+                renderArtifactCards(visibleAssistantArtifacts)}
+
+              {msg.role === "assistant" && trailingTimeline ? (
+                <AgentThreadTimeline
+                  turn={trailingTimeline.turn}
+                  items={trailingTimeline.items}
+                  threadRead={threadRead}
+                  actionRequests={trailingActionRequests}
+                  isCurrentTurn={trailingTimeline.turn.id === currentTurnId}
+                  placement="trailing"
+                  onFileClick={onFileClick}
+                  onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
+                  onOpenSavedSiteContent={onOpenSavedSiteContent}
+                  onOpenSubagentSession={onOpenSubagentSession}
+                  onPermissionResponse={onPermissionResponse}
+                  focusedItemId={focusedTimelineItemId}
+                  focusRequestKey={timelineFocusRequestKey}
+                />
+              ) : null}
+
+              {assistantMetaFooter}
+
+              {showMessageActions ? (
+                <MessageActions className="message-actions">
+                  {canQuoteMessage ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-full border border-slate-200/90 bg-white/92 text-slate-400 shadow-sm shadow-slate-950/5 hover:bg-slate-50 hover:text-slate-700"
+                      onClick={() => onQuoteMessage?.(actionContent, msg.id)}
+                      aria-label="引用消息"
+                      title="引用消息"
+                    >
+                      <Quote size={12} />
+                    </Button>
+                  ) : null}
+                  {canCopyMessage ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-full border border-slate-200/90 bg-white/92 text-slate-400 shadow-sm shadow-slate-950/5 hover:bg-slate-50 hover:text-slate-700"
+                      onClick={() => handleCopy(actionContent, msg.id)}
+                      aria-label="复制消息"
+                      title="复制消息"
+                    >
+                      {copiedId === msg.id ? (
+                        <Check size={12} className="text-emerald-600" />
+                      ) : (
+                        <Copy size={12} />
+                      )}
+                    </Button>
+                  ) : null}
+                  {canSaveMessageAsSkill ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-full border border-emerald-200/90 bg-emerald-50/92 text-emerald-600 shadow-sm shadow-emerald-950/5 hover:bg-emerald-100 hover:text-emerald-700"
+                      onClick={() =>
+                        onSaveMessageAsSkill?.({
+                          messageId: msg.id,
+                          content: actionContent,
+                        })
                       }
-                    }}
-                  >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700">
-                      <FileText className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium leading-6 text-emerald-900">
-                        在画布中打开 {messageCanvasShortcutTitle}
-                      </span>
-                      {messageCanvasShortcutPath ? (
-                        <span className="block truncate text-xs leading-5 text-emerald-700/80">
-                          {messageCanvasShortcutPath}
-                        </span>
-                      ) : null}
-                    </span>
-                    <ExternalLink className="h-4 w-4 shrink-0 text-emerald-700" />
-                  </button>
-                ) : null}
-                {msg.imageWorkbenchPreview ? (
-                  <ImageWorkbenchMessagePreview
-                    preview={msg.imageWorkbenchPreview}
-                    onOpen={
-                      onOpenMessagePreview
-                        ? (preview) =>
-                            onOpenMessagePreview(
-                              {
-                                kind: "image_workbench",
-                                preview,
-                              },
-                              msg,
-                            )
-                        : undefined
-                    }
-                  />
-                ) : null}
-                {msg.taskPreview ? (
-                  <TaskMessagePreview
-                    preview={msg.taskPreview}
-                    onOpen={
-                      onOpenMessagePreview
-                        ? (preview) =>
-                            onOpenMessagePreview(
-                              {
-                                kind: "task",
-                                preview,
-                              },
-                              msg,
-                            )
-                        : undefined
-                    }
-                  />
-                ) : null}
-              </>
-            ) : displayContent ? (
-              <MarkdownRenderer
-                content={displayContent}
-                onA2UISubmit={
-                  onA2UISubmit
-                    ? (formData) => onA2UISubmit(formData, msg.id)
-                    : undefined
-                }
-                renderA2UIInline={renderA2UIInline}
-              />
-            ) : null}
-
-            {msg.images && msg.images.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {msg.images.map((img, i) => (
-                  <img
-                    key={i}
-                    src={`data:${img.mediaType};base64,${img.data}`}
-                    className="max-w-xs rounded-lg border border-border"
-                    alt="attachment"
-                  />
-                ))}
-              </div>
-            )}
-
-            {msg.role === "assistant" && renderArtifactCards(msg.artifacts)}
-
-            {msg.role === "assistant" && trailingTimeline ? (
-              <AgentThreadTimeline
-                turn={trailingTimeline.turn}
-                items={trailingTimeline.items}
-                threadRead={threadRead}
-                actionRequests={trailingActionRequests}
-                isCurrentTurn={trailingTimeline.turn.id === currentTurnId}
-                placement="trailing"
-                onFileClick={onFileClick}
-                onOpenArtifactFromTimeline={onOpenArtifactFromTimeline}
-                onOpenSavedSiteContent={onOpenSavedSiteContent}
-                onOpenSubagentSession={onOpenSubagentSession}
-                onPermissionResponse={onPermissionResponse}
-                focusedItemId={focusedTimelineItemId}
-                focusRequestKey={timelineFocusRequestKey}
-              />
-            ) : null}
-
-            {msg.role === "assistant" &&
-            (shouldRenderTailRuntimeStatusLine ||
-              shouldRenderStatusPill ||
-              shouldRenderUsageFooter) ? (
-              <div
-                className="mt-2 flex flex-wrap items-center gap-2"
-                data-testid="assistant-message-meta-footer"
-              >
-                {shouldRenderTailRuntimeStatusLine ? (
-                  <InputbarRuntimeStatusLine
-                    runtime={tailRuntimeStatusLine || null}
-                    providerType={providerType}
-                    canStop={Boolean(onInterruptCurrentTurn)}
-                  />
-                ) : null}
-                {shouldRenderStatusPill && msg.runtimeStatus ? (
-                  <MessageRuntimeStatusPill status={msg.runtimeStatus} />
-                ) : null}
-                {shouldRenderUsageFooter ? (
-                  <TokenUsageDisplay
-                    usage={msg.usage!}
-                    inline={true}
-                    promptCacheNotice={
-                      resolvePromptCacheActivity(msg.usage!) <= 0
-                        ? promptCacheNotice
-                        : undefined
-                    }
-                  />
-                ) : null}
-              </div>
-            ) : null}
-
-            {showMessageActions ? (
-              <MessageActions className="message-actions">
-                {canQuoteMessage ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-full border border-slate-200/90 bg-white/92 text-slate-400 shadow-sm shadow-slate-950/5 hover:bg-slate-50 hover:text-slate-700"
-                    onClick={() => onQuoteMessage?.(actionContent, msg.id)}
-                    aria-label="引用消息"
-                    title="引用消息"
-                  >
-                    <Quote size={12} />
-                  </Button>
-                ) : null}
-                {canCopyMessage ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-full border border-slate-200/90 bg-white/92 text-slate-400 shadow-sm shadow-slate-950/5 hover:bg-slate-50 hover:text-slate-700"
-                    onClick={() => handleCopy(actionContent, msg.id)}
-                    aria-label="复制消息"
-                    title="复制消息"
-                  >
-                    {copiedId === msg.id ? (
-                      <Check size={12} className="text-emerald-600" />
-                    ) : (
-                      <Copy size={12} />
-                    )}
-                  </Button>
-                ) : null}
-                {canSaveMessageAsSkill ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-full border border-emerald-200/90 bg-emerald-50/92 text-emerald-600 shadow-sm shadow-emerald-950/5 hover:bg-emerald-100 hover:text-emerald-700"
-                    onClick={() =>
-                      onSaveMessageAsSkill?.({
-                        messageId: msg.id,
-                        content: actionContent,
-                      })
-                    }
-                    aria-label="保存为技能"
-                    title="保存为技能"
-                  >
-                    <Sparkles size={12} />
-                  </Button>
-                ) : null}
-                {canSaveMessageAsInspiration ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 rounded-full border border-amber-200/90 bg-amber-50/92 text-amber-600 shadow-sm shadow-amber-950/5 hover:bg-amber-100 hover:text-amber-700"
-                    onClick={() =>
-                      onSaveMessageAsInspiration?.({
-                        messageId: msg.id,
-                        content: actionContent,
-                      })
-                    }
-                    aria-label="保存到灵感库"
-                    title="保存到灵感库"
-                  >
-                    <BookmarkPlus size={12} />
-                  </Button>
-                ) : null}
-              </MessageActions>
-            ) : null}
-          </MessageBubble>
+                      aria-label="保存为技能"
+                      title="保存为技能"
+                    >
+                      <Sparkles size={12} />
+                    </Button>
+                  ) : null}
+                  {canSaveMessageAsInspiration ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-full border border-amber-200/90 bg-amber-50/92 text-amber-600 shadow-sm shadow-amber-950/5 hover:bg-amber-100 hover:text-amber-700"
+                      onClick={() =>
+                        onSaveMessageAsInspiration?.({
+                          messageId: msg.id,
+                          content: actionContent,
+                        })
+                      }
+                      aria-label="保存到灵感库"
+                      title="保存到灵感库"
+                    >
+                      <BookmarkPlus size={12} />
+                    </Button>
+                  ) : null}
+                </MessageActions>
+              ) : null}
+            </MessageBubble>
+          ) : null}
+          {!hasAssistantBodyContent ? assistantMetaFooter : null}
         </ContentColumn>
       </MessageWrapper>
     );

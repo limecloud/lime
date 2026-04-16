@@ -26,6 +26,10 @@ function createAbortablePendingFetch() {
   });
 }
 
+function createHardConnectionFailure(message = "Failed to fetch") {
+  return vi.fn<typeof fetch>().mockRejectedValue(new TypeError(message));
+}
+
 describe("http-client", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -42,19 +46,46 @@ describe("http-client", () => {
     __resetDevBridgeHttpStateForTests();
   });
 
-  it("桥健康探测失败后，后续检查会在短退避窗口内快速失败", async () => {
-    const fetchMock = createAbortablePendingFetch();
+  it("桥健康探测硬连接失败后，后续检查会在短退避窗口内快速失败", async () => {
+    const fetchMock = createHardConnectionFailure();
     vi.stubGlobal("fetch", fetchMock);
 
-    const firstCheck = healthCheck();
-    await vi.advanceTimersByTimeAsync(1000);
-    await expect(firstCheck).resolves.toBe(false);
+    await expect(healthCheck()).resolves.toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     await expect(invokeViaHttp("workspace_list")).rejects.toThrow(
       "Failed to fetch",
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("桥首次健康探测超时后，后续调用应重新探测而不是进入 cooldown", async () => {
+    const firstHealthTimeout = createAbortablePendingFetch();
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(firstHealthTimeout)
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: ["project-a"] }), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const firstCheck = healthCheck();
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(firstCheck).resolves.toBe(false);
+
+    await expect(invokeViaHttp<string[]>("workspace_list")).resolves.toEqual([
+      "project-a",
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://127.0.0.1:3030/health");
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("http://127.0.0.1:3030/invoke");
   });
 
   it("桥健康时会复用短期健康缓存，避免每次调用都重复探测", async () => {
@@ -158,8 +189,71 @@ describe("http-client", () => {
     });
   });
 
+  it("bridge 真相命令应使用 5000ms 的请求超时窗口", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockImplementationOnce(createAbortablePendingFetch());
+    vi.stubGlobal("fetch", fetchMock);
+
+    let settled = false;
+    const invokePromise = invokeViaHttp("gateway_channel_status", {
+      request: { channel: "wechat" },
+    }).then(
+      () => ({ ok: true as const }),
+      (error) => ({ ok: false as const, error }),
+    );
+    invokePromise.finally(() => {
+      settled = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(2800);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(400);
+    await expect(invokePromise).resolves.toMatchObject({
+      ok: false,
+      error: expect.objectContaining({
+        message: expect.stringContaining("timeout after 5000ms"),
+      }),
+    });
+  });
+
+  it("Provider 模型探测命令应使用更长的请求超时窗口", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockImplementationOnce(createAbortablePendingFetch());
+    vi.stubGlobal("fetch", fetchMock);
+
+    let settled = false;
+    const invokePromise = invokeViaHttp("fetch_provider_models_auto", {
+      providerId: "custom-minimax",
+    }).then(
+      () => ({ ok: true as const }),
+      (error) => ({ ok: false as const, error }),
+    );
+    invokePromise.finally(() => {
+      settled = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(15000);
+    await expect(invokePromise).resolves.toMatchObject({
+      ok: false,
+      error: expect.objectContaining({
+        message: expect.stringContaining("timeout after 30000ms"),
+      }),
+    });
+  });
+
   it("桥失败短退避期间，事件监听不应继续创建 EventSource 连接", async () => {
-    const fetchMock = createAbortablePendingFetch();
+    const fetchMock = createHardConnectionFailure();
     const eventSourceMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal(
@@ -167,9 +261,7 @@ describe("http-client", () => {
       eventSourceMock as unknown as typeof EventSource,
     );
 
-    const firstCheck = healthCheck();
-    await vi.advanceTimersByTimeAsync(1000);
-    await expect(firstCheck).resolves.toBe(false);
+    await expect(healthCheck()).resolves.toBe(false);
 
     await expect(listenViaHttpEvent("config-changed", vi.fn())).rejects.toThrow(
       "Failed to fetch",

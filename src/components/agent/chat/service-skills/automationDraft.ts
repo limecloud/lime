@@ -1,4 +1,5 @@
 import type { AutomationJobDialogInitialValues } from "@/components/settings-v2/system/automation/AutomationJobDialog";
+import { resolveBaseSetupAutomationProjectionForSkill } from "@/lib/base-setup/automationProjection";
 import { buildHarnessRequestMetadata } from "../utils/harnessRequestMetadata";
 import { composeServiceSkillAutomationPrompt } from "./promptComposer";
 import type {
@@ -114,7 +115,16 @@ function resolveLocalTimeZone(): string {
 function resolveScheduleSlotValue(
   skill: ServiceSkillItem,
   slotValues: ServiceSkillSlotValues,
+  preferredSlotKey?: string,
 ): string {
+  if (preferredSlotKey) {
+    const currentValue = slotValues[preferredSlotKey]?.trim();
+    if (currentValue) {
+      return currentValue;
+    }
+    return "";
+  }
+
   const scheduleSlot = skill.slotSchema.find(
     (slot) => slot.type === "schedule_time",
   );
@@ -144,6 +154,24 @@ function buildCronPrefill(
     schedule_kind: "cron",
     cron_expr: expr,
     cron_tz: resolveLocalTimeZone(),
+  };
+}
+
+function buildAtPrefill(
+  at: string,
+): Pick<AutomationJobDialogInitialValues, "schedule_kind" | "at_local"> {
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) {
+    return {
+      schedule_kind: "at",
+      at_local: "",
+    };
+  }
+
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return {
+    schedule_kind: "at",
+    at_local: date.toISOString().slice(0, 16),
   };
 }
 
@@ -232,6 +260,7 @@ function buildServiceSkillAutomationMetadata(input: {
   userInput?: string;
 }): Record<string, unknown> {
   const { skill, slotValues, userInput } = input;
+  const automationProjection = resolveBaseSetupAutomationProjectionForSkill(skill);
   const slotSummary = slotValues
     ? buildServiceSkillAutomationSlotSummary(skill, slotValues)
     : [];
@@ -243,6 +272,19 @@ function buildServiceSkillAutomationMetadata(input: {
     runner_type: skill.runnerType,
     execution_location: skill.executionLocation,
     source: skill.source,
+    base_setup:
+      automationProjection.refs.packageId ||
+      automationProjection.refs.packageVersion ||
+      automationProjection.refs.projectionId ||
+      automationProjection.refs.automationProfileRef
+        ? {
+            package_id: automationProjection.refs.packageId ?? null,
+            package_version: automationProjection.refs.packageVersion ?? null,
+            projection_id: automationProjection.refs.projectionId ?? null,
+            automation_profile_ref:
+              automationProjection.refs.automationProfileRef ?? null,
+          }
+        : undefined,
     slot_values: slotSummary,
     slot_summary: slotSummary.map((item) => `${item.label}: ${item.value}`),
     user_input: normalizedUserInput ?? null,
@@ -319,14 +361,54 @@ export function buildServiceSkillAutomationInitialValues({
   userInput,
   workspaceId,
 }: BuildServiceSkillAutomationInitialValuesInput): AutomationJobDialogInitialValues {
-  const scheduleValue = resolveScheduleSlotValue(skill, slotValues);
-  const schedulePrefill = parseScheduleTextToPrefill(scheduleValue);
+  const automationProjection = resolveBaseSetupAutomationProjectionForSkill(skill);
+  const scheduleValue = resolveScheduleSlotValue(
+    skill,
+    slotValues,
+    automationProjection.profile?.schedule?.slotKey,
+  );
+  const schedulePrefill = scheduleValue.trim()
+    ? parseScheduleTextToPrefill(scheduleValue)
+    : automationProjection.profile?.schedule?.kind === "every"
+      ? {
+          schedule_kind: "every" as const,
+          every_secs: String(automationProjection.profile.schedule.everySecs),
+        }
+      : automationProjection.profile?.schedule?.kind === "cron"
+        ? {
+            schedule_kind: "cron" as const,
+            cron_expr: automationProjection.profile.schedule.cronExpr,
+            cron_tz:
+              automationProjection.profile.schedule.cronTz ||
+              resolveLocalTimeZone(),
+          }
+        : automationProjection.profile?.schedule?.kind === "at"
+          ? buildAtPrefill(automationProjection.profile.schedule.at)
+          : buildDefaultSchedulePrefill();
+  const deliveryPrefill =
+    automationProjection.profile?.delivery?.mode === "announce"
+      ? {
+          delivery_mode: "announce" as const,
+          delivery_channel:
+            automationProjection.profile.delivery.channel ?? "webhook",
+          delivery_target: automationProjection.profile.delivery.target ?? "",
+          delivery_output_schema:
+            automationProjection.profile.delivery.outputSchema ?? "text",
+          delivery_output_format:
+            automationProjection.profile.delivery.outputFormat ?? "text",
+          best_effort:
+            automationProjection.profile.delivery.bestEffort ?? true,
+        }
+      : {
+          delivery_mode: "none" as const,
+          best_effort:
+            automationProjection.profile?.delivery?.bestEffort ?? true,
+        };
 
   return {
     name: buildServiceSkillAutomationName(skill),
     description: buildServiceSkillAutomationDescription(skill, scheduleValue),
     workspace_id: workspaceId,
-    enabled: true,
     execution_mode: "skill",
     payload_kind: "agent_turn",
     prompt: composeServiceSkillAutomationPrompt({
@@ -342,8 +424,12 @@ export function buildServiceSkillAutomationInitialValues({
       slotValues,
       userInput,
     }).request_metadata,
-    max_retries: "2",
-    delivery_mode: "none",
+    max_retries:
+      automationProjection.profile?.maxRetries !== undefined
+        ? String(automationProjection.profile.maxRetries)
+        : "2",
+    enabled: automationProjection.profile?.enabledByDefault ?? true,
+    ...deliveryPrefill,
     ...schedulePrefill,
   };
 }

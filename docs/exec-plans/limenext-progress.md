@@ -1,8 +1,423 @@
 # LimeNext 推进日志
 
+## 2026-04-16
+
+### 已完成
+
+- 把 `smoke:agent-runtime-tool-surface-page` 继续从“依赖全局配置写入”收口成“页面级调试覆盖 + 阶段日志”：
+  - 新增前端 `workspace harness` 调试覆盖读取：
+    - `src/lib/developerFeatures.ts`
+    - `src/hooks/useDeveloperFeatureFlags.ts`
+  - 当前支持通过 `localStorage["lime:debug:workspace-harness-enabled:v1"]` 临时打开处理工作台，而不必为了 smoke 去调用 `save_config`
+  - 这让页级 smoke 不再为了打开工作台去碰全局配置文件和环境变量应用链，进一步符合 LimeNext 当前主线里的“场景页 / smoke / 基础设置解耦”原则
+  - `scripts/agent-runtime-tool-surface-page-smoke.mjs` 已同步改成：
+    - 仅注入本地 `localStorage` 调试覆盖
+    - 不再在 `finally` 里回写全局配置
+    - 每个关键阶段都会输出 `stage=...` 日志，便于继续定位真实卡点
+  - 已补最小回归：
+    - `src/lib/developerFeatures.test.ts`
+  - 当前已确认通过：
+    - `npm test -- "src/lib/developerFeatures.test.ts"`
+    - `npx eslint --no-warn-ignored "src/lib/developerFeatures.ts" "src/lib/developerFeatures.test.ts" "src/hooks/useDeveloperFeatureFlags.ts" "scripts/agent-runtime-tool-surface-page-smoke.mjs"`
+  - 当前未完成但已确认环境状态：
+    - 正在重新拉起隔离 `headless Tauri` 环境，当前还卡在冷编译阶段，`http://127.0.0.1:3030/health` 暂未恢复
+    - 下一步继续等 `DevBridge` 就绪后重跑 `npm run smoke:agent-runtime-tool-surface-page -- --timeout-ms 180000 --interval-ms 1000`
+
+- 重新执行 `npm run verify:gui-smoke`，当前主链进度已经前推到页级 runtime tool surface，而不再卡在最早的 `bridge:health`：
+  - 已确认通过：
+    - `smoke:workspace-ready`
+    - `smoke:browser-runtime`
+    - `smoke:site-adapters`
+    - `smoke:agent-service-skill-entry`
+    - `smoke:agent-runtime-tool-surface`
+  - 当前最终阻塞已缩小到：
+    - `smoke:agent-runtime-tool-surface-page`
+    - 具体现象：
+      - `browser_execute_action` 持续 `fetch failed`
+      - `close_cdp_session` 持续 `fetch failed`
+      - `close_chrome_profile_session` 持续 `fetch failed`
+  - 这说明本轮 SceneApp 分页改动没有把前面的 GUI 壳主链打断，剩余阻塞更像是页级浏览器动作链与 DevBridge/CDP 清理的稳定性问题
+
+- 把 `SceneAppsPage` 的跨页路径继续从“标签切页”推进到“业务向工作流导轨”：
+  - 新增 `SceneAppsWorkflowRail`，固定把 SceneApp 主路径表达为：
+    - `选场景`
+    - `补启动`
+    - `看治理`
+  - 导轨不只是展示步骤，还会根据当前上下文给出不同动作：
+    - 已有运行样本时可直接进入治理
+    - 还没有运行样本时，治理步骤会回指详情页先完成首轮启动
+    - 没有选中场景时，详情与治理步骤会明确回到目录
+  - 已同步更新：
+    - `src/components/sceneapps/SceneAppsWorkflowRail.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/aiprompts/design-language.md`
+    - `docs/exec-plans/limenext-plan.md`
+  - 当前已确认通过：
+    - `npm test -- "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint --no-warn-ignored "src/components/sceneapps/SceneAppsWorkflowRail.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 本轮额外沉淀：
+    - 复杂分页工作台不应只给标签页，还应给任务路径导轨
+    - 跨页按钮要根据业务状态自适应目标页，而不是机械地固定跳某一页
+
+- 把 `SceneAppsPage` 的分页式工作台继续补成“可回退、可引导”的分页级空态，而不只是标签切页：
+  - 新增 `SceneAppsPageEmptyState`，统一承接 `detail / governance` 两页的分页级空态
+  - `detail` 分页在没有匹配 SceneApp 时，会明确提示这是筛选结果为空，而不是继续落到“左侧目录”这种旧布局文案
+  - 当前已支持一键：
+    - 回到场景目录
+    - 清空筛选并返回目录
+  - `governance` 分页在还没有任何运行样本时，不再只显示空表，而是明确引导用户先回到详情页启动首轮结果链
+  - 已同步更新：
+    - `src/components/sceneapps/SceneAppsPageEmptyState.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - 当前已确认通过：
+    - `npm test -- "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint --no-warn-ignored "src/components/sceneapps/SceneAppsPageEmptyState.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppDetailPanel.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 本轮额外沉淀：
+    - 分页工作台不能只把内容拆开，还要把“当前无数据时下一步去哪”直接写进页面
+    - 治理页的首轮空态默认应回指详情页启动，而不是把用户留在没有运行样本的复盘页里
+
+- 把 `SceneAppsPage` 从“同页堆叠目录 + 详情 + 治理”继续收口成“分页式信息架构”：
+  - 当前固定拆成三页：
+    - `场景目录`
+    - `场景详情`
+    - `治理复盘`
+  - 顶部继续保留统一 `当前场景` 摘要和跨页入口，避免切页后丢失业务上下文
+  - 目录卡片点击现在会直接进入对应详情分页，不再只是停留在选中态边框
+  - 自动化摘要卡片与治理摘要的读模型残留问题已顺手收口：
+    - 修掉 `buildSceneAppAutomationWorkspaceCardViewModel(...)` 对 `getSceneAppPatternSummary(...)` 的错误入参
+    - 删除 `buildSceneAppGovernancePanelViewModel(...)` 重构后遗留的未使用局部变量
+  - 已同步更新：
+    - `src/components/sceneapps/SceneAppsCatalogPanel.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/product.test.ts`
+    - `docs/aiprompts/design-language.md`
+    - `docs/exec-plans/limenext-plan.md`
+  - 当前已确认通过：
+    - `npm test -- "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint --no-warn-ignored "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsCatalogPanel.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 本轮额外沉淀：
+    - 复杂工作台默认按任务阶段分页，不再把目录、详情、治理继续堆在一屏
+    - 承担导航职责的目录卡片必须有明确点击结果，不能只保留“选中态”伪反馈
+
+- 把 `SceneApp project pack` 的治理闭环从“单次运行详情”推进到“页面级治理看板”：
+  - 新增 `SceneAppGovernancePanel`，不再只在运行详情里解释治理动作
+  - `buildSceneAppGovernancePanelViewModel(...)` 已把：
+    - `run summary`
+    - `scorecard`
+    - `evidence / review`
+    收口成同一份业务向治理视图
+  - 页面级治理看板当前已经能表达：
+    - 当前治理状态
+    - 当前适合投放到哪里
+    - 周会材料 / 结构化治理 / 请求链路 / 结果校验是否已齐
+    - 推荐治理动作与继续处理入口
+  - 页面级治理动作继续复用既有主链：
+    - `prepareSceneAppRunGovernanceArtifacts(...)`
+    - `prepareSceneAppRunGovernanceArtifact(...)`
+    - `initialProjectFileOpenTarget`
+    - `open automation job / agent session / browser runtime`
+  - 已同步更新：
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/product.test.ts`
+    - `src/components/sceneapps/SceneAppGovernancePanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/exec-plans/limenext-plan.md`
+  - 当前已确认通过：
+    - `npx eslint --no-warn-ignored "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppGovernancePanel.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm test -- "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 当前已发起但尚未拿到最终结果：
+    - `npm run verify:gui-smoke`
+    - 本机冷编译阶段长时间卡在 `bridge:health -> DevBridge` 启动前，日志持续显示 `rustc` 编译与 `fetch failed`，暂时无法给出 smoke 通过结论
+
+- 把 `SceneApp project pack` 第二阶段从 `metadata artifact_paths` 启发式推进到 `session / evidence` 事实源：
+  - `runtime_evidence_pack_service` 已抽出可复用 helper：
+    - `resolve_runtime_export_workspace_root(...)`
+    - `build_runtime_evidence_sceneapp_snapshot(...)`
+  - `SceneApp` 运行摘要在拿到 `sessionId` 时，已优先读取：
+    - `SessionDetail`
+    - `AgentRuntimeThreadReadModel`
+    - 最近 `FileArtifact`
+    - verification failure outcomes
+  - `SceneApp project pack` 不再默认先信 `AgentRun.metadata.artifact_paths`，而是改成：
+    - 有 runtime evidence 时优先用真实会话产物
+    - 只有缺少 session evidence 时才回退 metadata
+  - 交付覆盖率判断已纠正：
+    - 如果 session evidence 明确存在但没有产物，现在会把覆盖率视为“已知为 0”，而不是继续落成“未知”
+    - 因此运行详情能够明确给出 `missing parts / 0% / pack_incomplete`
+  - `verification failure outcomes` 已开始回挂到 SceneApp 失败信号：
+    - 即使部件齐全，只要 runtime evidence 里还有未恢复校验失败，也会标记为 `review_blocked`
+  - `SceneAppService` 已统一改走 `build_sceneapp_run_summary_from_agent_run_with_db(...)`，避免 tracker 和 automation 侧继续各自走旧启发式
+  - 已补 Rust 定向回归：
+    - runtime evidence 优先于 metadata artifact 列表
+    - runtime verification failure 会回挂成 `review_blocked`
+  - 已同步更新：
+    - `src-tauri/src/services/runtime_evidence_pack_service.rs`
+    - `src-tauri/src/commands/aster_agent_cmd/command_api/runtime_api.rs`
+    - `src-tauri/src/sceneapp/adapters.rs`
+    - `src-tauri/src/sceneapp/application.rs`
+    - `src-tauri/src/services/execution_tracker_service.rs`
+  - 本轮校验已确认通过：
+    - `cargo fmt --manifest-path "src-tauri/Cargo.toml"` 已执行
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::adapters -- --nocapture`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::governance -- --nocapture`
+
+- 把 `SceneApp project pack` 的结果入口从“viewer 文案”推进到“稳定可打开的交付文件引用”：
+  - Rust `SceneAppRunSummary` 已新增 `deliveryArtifactRefs`
+  - 结果入口聚合规则已固定为：
+    - 有 runtime evidence 时优先读取真实 `FileArtifact`
+    - 缺少 session evidence 时再回退 `metadata artifact_paths`
+    - 继续在 DTO 层暴露 `relativePath / absolutePath / partKey / projectId / workspaceId / source`
+  - 前端运行详情页已新增“结果入口”区块：
+    - 会按 `primaryPart` 优先标记主稿
+    - 点击后继续复用现有 `Agent initialProjectFileOpenTarget` 打开结果文件
+    - 不新增新的 SceneApp viewer 协议，也不让 UI 直接解读底层 metadata
+  - 已同步更新：
+    - `src-tauri/src/services/runtime_evidence_pack_service.rs`
+    - `src-tauri/src/sceneapp/dto.rs`
+    - `src-tauri/src/sceneapp/adapters.rs`
+    - `src-tauri/src/sceneapp/application.rs`
+    - `src-tauri/src/sceneapp/governance.rs`
+    - `src/lib/sceneapp/types.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+  - 当前已确认通过：
+    - `cargo fmt --manifest-path "src-tauri/Cargo.toml"`
+    - `npx eslint "src/lib/sceneapp/types.ts" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppRunDetailPanel.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/tauri-mock/core.ts"`
+    - `npm test -- "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::adapters -- --nocapture`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::governance -- --nocapture`
+  - Rust 定向测试最终结果已确认通过：
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::adapters -- --nocapture`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::governance -- --nocapture`
+
+- 把 `SceneApp project pack` 的治理面继续从“有证据文案”推进到“有治理入口文件引用”：
+  - Rust `SceneAppRunSummary` 已新增 `governanceArtifactRefs`
+  - 适配层会按 `sessionId` 组装三类稳定治理路径：
+    - `.lime/harness/sessions/{sessionId}/evidence/summary.md`
+    - `.lime/harness/sessions/{sessionId}/review/review-decision.md`
+    - `.lime/harness/sessions/{sessionId}/review/review-decision.json`
+  - 前端运行详情页已在“证据与复核”区块新增“治理入口”卡片：
+    - 证据摘要
+    - 人工复核记录
+    - 复核 JSON
+  - 点击后继续复用现有 `Agent initialProjectFileOpenTarget` 打开文件，不新增新的 SceneApp viewer 协议，也不让 UI 直接拼底层 metadata
+  - 已同步更新：
+    - `src-tauri/src/sceneapp/dto.rs`
+    - `src-tauri/src/sceneapp/adapters.rs`
+    - `src-tauri/src/sceneapp/application.rs`
+    - `src-tauri/src/sceneapp/governance.rs`
+    - `src/lib/sceneapp/types.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `src/lib/sceneapp/product.test.ts`
+    - `src/lib/tauri-mock/core.ts`
+  - 当前已确认通过：
+    - `cargo fmt --manifest-path "src-tauri/Cargo.toml"`
+    - `npx eslint "src/lib/sceneapp/types.ts" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppRunDetailPanel.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/lib/tauri-mock/core.ts"`
+    - `npm test -- "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 当前未完成但已定位的阻塞：
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::adapters -- --nocapture`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::governance -- --nocapture`
+    - 两条 Rust 定向测试都会被仓库里无关编译错误挡住：
+      - `crates/services/src/api_key_provider_service.rs:1152`
+      - `cannot find value 'provider_type' in this scope`
+
+- 把 `SceneApp project pack` 的治理入口继续从“可打开”推进到“缺失时自动补生成”：
+  - 新增当前命令：
+    - `sceneapp_prepare_run_governance_artifact`
+  - 命令职责固定为：
+    - `evidence_summary` 只补导出 evidence pack
+    - `review_decision_markdown / review_decision_json` 走统一 review decision 模板导出链
+  - 这样 SceneApp 页面不需要直接调用 `agent_runtime_export_evidence_pack` / `agent_runtime_export_review_decision_template`
+  - 前端交互已改成：
+    - 点击治理入口时先调用 `src/lib/api/sceneapp.ts`
+    - 导出成功后继续复用 `initialProjectFileOpenTarget` 打开对应治理文件
+  - 命令边界已同步更新：
+    - `src-tauri/src/commands/sceneapp_cmd.rs`
+    - `src-tauri/src/app/runner.rs`
+    - `src/lib/api/sceneapp.ts`
+    - `src/lib/api/sceneapp.test.ts`
+    - `src/lib/dev-bridge/mockPriorityCommands.ts`
+    - `src/lib/governance/agentCommandCatalog.json`
+    - `src/lib/tauri-mock/core.ts`
+  - 页面与回归已同步更新：
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `src/lib/sceneapp/product.ts`
+  - 当前已确认通过：
+    - `cargo fmt --manifest-path "src-tauri/Cargo.toml"`
+    - `npx eslint --no-warn-ignored "src/lib/api/sceneapp.ts" "src/lib/api/sceneapp.test.ts" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/dev-bridge/mockPriorityCommands.ts" "src/lib/tauri-mock/core.ts"`
+    - `npm test -- "src/lib/api/sceneapp.test.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run test:contracts`
+  - 当前未完成但已定位的阻塞：
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::adapters -- --nocapture`
+    - 仍会被仓库里无关编译错误挡住：
+      - `crates/services/src/api_key_provider_service.rs:1439`
+      - `cannot find value 'provider_type' in this scope`
+
+- 把 `SceneApp project pack` 的治理面继续从“文件入口”推进到“业务动作”：
+  - 前端运行详情页已新增 `治理动作` 区块，而不只是列出治理文件：
+    - `准备周会复盘包`
+    - `准备结构化治理包`
+  - 当前动作语义固定为：
+    - 周会复盘包：批量补齐 `evidence_summary + review_decision_markdown`，随后直接打开人工复核记录
+    - 结构化治理包：批量补齐 `evidence_summary + review_decision_markdown + review_decision_json`，随后直接打开复核 JSON
+  - 批量治理仍继续经由 `src/lib/api/sceneapp.ts` 网关串行调用当前 `sceneapp_prepare_run_governance_artifact`，不让页面直接耦合底层 runtime export 命令名
+  - 运行详情文案已开始改成业务向表达：
+    - 什么动作适合周会复盘
+    - 什么动作适合任务中心 / 看板 / 后续自动治理消费
+  - 已同步更新：
+    - `src/lib/api/sceneapp.ts`
+    - `src/lib/api/sceneapp.test.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/product.test.ts`
+    - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/exec-plans/limenext-plan.md`
+  - 当前已确认通过：
+    - `npx eslint --no-warn-ignored "src/lib/api/sceneapp.ts" "src/lib/api/sceneapp.test.ts" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppRunDetailPanel.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm test -- "src/lib/api/sceneapp.test.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 正在补充：
+    - `npm run verify:gui-smoke`
+    - 当前仍在冷启动 Rust GUI smoke 编译链，尚未拿到最终结果
+
 ## 2026-04-15
 
 ### 已完成
+
+- 把 `SceneApp project pack` 从“目录描述”推进到“真实运行与经营聚合”，不再只靠静态 profile 讲故事：
+  - Rust `run summary` 已补齐业务级交付字段：
+    - `deliveryRequiredParts`
+    - `deliveryCompletedParts`
+    - `deliveryMissingParts`
+    - `deliveryCompletionRate`
+    - `deliveryPartCoverageKnown`
+    - `failureSignal`
+  - `AgentRun.metadata.artifact_paths` 与 `AutomationJob.last_delivery` 现在都会统一装配到同一份 `delivery state`，前端不再只看到 `artifactCount`
+  - `project pack` 的 scorecard 已改成专用聚合，而不是继续混在通用成功率面板里：
+    - `complete_pack_rate`
+    - `review_pass_rate`
+    - `publish_conversion_rate`
+    - `observedFailureSignals`
+    - `topFailureSignal`
+  - SceneApp 运行详情页已能直接解释：
+    - 这次交齐了几项
+    - 还缺哪些部件
+    - 当前卡在哪个失败信号
+  - 经营评分页已能同时区分：
+    - 基础设置包声明的静态经营口径
+    - 真实运行样本回流出来的实际失败信号
+  - 已同步更新：
+    - `src-tauri/src/sceneapp/dto.rs`
+    - `src-tauri/src/sceneapp/adapters.rs`
+    - `src-tauri/src/sceneapp/application.rs`
+    - `src-tauri/src/sceneapp/governance.rs`
+    - `src/lib/sceneapp/types.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/components/sceneapps/SceneAppRunList.tsx`
+    - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppScorecardPanel.tsx`
+    - `src/lib/tauri-mock/core.ts`
+  - 本轮已确认通过：
+    - `npx eslint "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppRunList.tsx" "src/components/sceneapps/SceneAppRunDetailPanel.tsx" "src/components/sceneapps/SceneAppScorecardPanel.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/tauri-mock/core.ts"`
+    - `npm test -- "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run test:contracts`
+  - Rust 定向测试已发起，但当前本机还有另一条长时间运行的 cargo 编译链占用构建资源，SceneApp 相关测试还在等待最终结果，后续需要补回最终通过记录
+
+- 把多模态 `SceneApp` 的 `project pack` 合同正式接到统一目录、产品视图与 GUI 主链，而不是继续停留在 `blueprint ref / profile ref` 级别：
+  - `src/lib/sceneapp/types.ts`
+  - `src/lib/sceneapp/catalog.ts`
+  - `src/lib/sceneapp/product.ts`
+  - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+  - `src/components/sceneapps/SceneAppScorecardPanel.tsx`
+  - 当前 `SceneAppDescriptor` 已新增三块稳定结构：
+    - `deliveryProfile`
+    - `compositionProfile`
+    - `scorecardProfile`
+  - `project pack` 相关的：
+    - `artifact profile`
+    - `viewer kind`
+    - `required parts`
+    - `composition steps`
+    - `failure signals`
+    现在都能从编译层一路进入业务向详情面板和经营评分面板
+  - 目录页不再只展示技术 ref，而会明确表达：
+    - 最终交付什么项目包
+    - 这条链分几步完成
+    - 当前经营判断重点看什么
+  - `SceneApp` 的 mock 与 Tauri seeded DTO 也已同步对齐，避免只在前端测试环境里有字段、真实命令却没有：
+    - `src/lib/tauri-mock/core.ts`
+    - `src-tauri/src/sceneapp/dto.rs`
+    - `src-tauri/src/sceneapp/catalog.rs`
+  - 定向回归已覆盖：
+    - `src/lib/sceneapp/catalog.test.ts`
+    - `src/lib/sceneapp/product.test.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - 本轮已确认通过：
+    - `npm test -- "src/lib/sceneapp/catalog.test.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint "src/lib/sceneapp/types.ts" "src/lib/sceneapp/catalog.ts" "src/lib/sceneapp/presentation.ts" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/catalog.test.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppDetailPanel.tsx" "src/components/sceneapps/SceneAppScorecardPanel.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/tauri-mock/core.ts"`
+    - `npm run test:contracts`
+    - `rustfmt --check "src-tauri/src/sceneapp/dto.rs" "src-tauri/src/sceneapp/catalog.rs"`
+  - 当前仓库级阻塞仍存在：
+    - `npm run typecheck` 会被无关现有错误挡住：
+      - `src/components/provider-pool/api-key/ProviderConfigForm.ui.test.tsx`
+      - `src/components/settings-v2/general/memory/index.tsx`
+    - `npm run verify:gui-smoke` 在 `smoke:browser-runtime` 阶段被现有环境问题挡住：
+      - `launch_browser_session` 持续超时，`180000ms` 内未收到 DevBridge 响应
+      - 日志中还出现 `libsqlite3-sys ... bindgen.rs: No such file or directory` 的临时构建噪音，需要后续单独排查
+
+- 把 `SceneApp` 前端启动编排继续收口成共享 runtime，而不是让目录页和聊天空态各写一套 launch 分支：
+  - 新增共享启动状态机与错误格式化：
+    - `src/lib/sceneapp/error.ts`
+    - `src/lib/sceneapp/launcher.ts`
+  - 把前端 action bridge 正式迁到共享层：
+    - `src/lib/sceneapp/launchBridge.ts`
+    - `src/components/agent/chat/workspace/sceneAppLaunch.ts`
+  - 统一由共享层负责：
+    - `sceneAppLaunchingId`
+    - 自动化弹窗开关与初始值
+    - automation workspace 加载
+    - `workspace_entry / automation_job` 启动收口
+    - SceneApp 相关错误文案格式化
+  - 两个高频入口现在都已消费同一套共享 runtime：
+    - `src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.ts`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+  - `sceneAppLaunch.ts` 旧路径暂时保留为 re-export，避免现有调用方与测试路径立刻断裂
+- 完成 SceneApp 统一启动 runtime 的一轮针对性校验：
+  - `npm test -- "src/components/agent/chat/workspace/sceneAppLaunch.test.ts" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/sceneapp/product.test.ts"` 通过
+  - `npx eslint "src/lib/sceneapp/error.ts" "src/lib/sceneapp/launchBridge.ts" "src/lib/sceneapp/launcher.ts" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.ts" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/agent/chat/workspace/sceneAppLaunch.ts"` 通过
+  - `npm run typecheck` 通过
+  - `npm run verify:gui-smoke` 在沙箱内仍会因为 `listen EPERM: operation not permitted 127.0.0.1:1420` 失败
+  - 提权后重跑 `npm run verify:gui-smoke` 已证明：
+    - 前端壳就绪
+    - `workspace-ready` 通过
+    - `browser-runtime` 通过
+    - `site-adapters` 通过
+    - `agent-service-skill-entry` 通过
+    - `agent-runtime-tool-surface` 通过
+    - `agent-runtime-tool-surface-page` 通过
+  - 仓库级页面 smoke 阻塞已收口：
+    - `scripts/agent-runtime-tool-surface-page-smoke.mjs` 现在补齐了首页 origin / storage 就绪门禁
+    - `browser_execute_action` 增加了针对 `CDP 调试端口不可用` 的重试
+    - 首页输入提交改成 `focus + native setter + input/change + 短暂让步 + 鼠标事件链`，避免卡在发送按钮未真正推进运行态
+  - 当前这条 GUI 主路径已完成最终验证：
+    - `npm run verify:gui-smoke` 通过
+    - `npm run smoke:agent-runtime-tool-surface-page -- --timeout-ms 180000 --interval-ms 1000` 通过
 
 - 新增基础设置包第一版代码骨架：
   - `src/lib/base-setup/types.ts`
@@ -12,11 +427,74 @@
   - `src/lib/base-setup/compat/serviceSkillCatalogProjection.ts`
   - 固定第一版先把 `Base Setup Package` 编译成 compat `ServiceSkillCatalog`
   - 固定 runtime 侧暂不新增执行链，继续只吃 current `request_metadata`
+- 新增基础设置包主链接线模块：
+  - `src/lib/base-setup/storage.ts`
+  - `src/lib/base-setup/bootstrap.ts`
+  - `src/lib/base-setup/serviceSkillCatalogAdapter.ts`
+  - 固定“解析 package -> gate -> compile -> 生成快照”由基础设置层统一负责
+  - 固定基础设置快照与当前激活目录一起落缓存，避免后续 `scene / command` projection 再次各自找事实源
+- 把基础设置包正式接回当前目录主链：
+  - `src/lib/api/serviceSkills.ts`
+  - `src/lib/serviceSkillCatalogBootstrap.ts`
+  - 远端 `refresh`、本地 `save`、bootstrap `sync` 都已支持直接消费 `Base Setup Package`
+  - 普通 catalog 覆盖时会清理旧基础设置快照，保证当前激活目录与装配快照一致
+- 把基础设置包继续接到统一 `skill / command / scene` 目录主链：
+  - `src/lib/base-setup/compat/sceneCatalogProjection.ts`
+  - `src/lib/api/skillCatalog.ts`
+  - `src/lib/skillCatalogBootstrap.ts`
+  - `Base Setup Package` 现在已经不只会编译 compat `ServiceSkillCatalog`，也会继续投影到真实 `SkillCatalog`
+  - 显式 `scene_catalog` projection 已能进入 slash / scene 面板真实消费链，而不是只停在 schema 或 compat 层
+  - `skillCatalog` 的 `refresh`、本地 `save`、bootstrap `sync` 现在都支持直接消费 `Base Setup Package`
+  - 显式 scene projection 会优先覆盖 compat 自动 scene，避免场景面板继续吃到旧的 auto scene 文案
+- 把 `Base Setup Package -> command_catalog projection` 正式接回当前输入触发层，而不是继续停在 seeded 手写 command 定义：
+  - `src/lib/base-setup/compat/commandCatalogProjection.ts`
+  - `src/lib/api/skillCatalog.ts`
+  - `src/lib/skillCatalogBootstrap.ts`
+  - `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`
+  - `skillCatalog` 现在会和 `scene_catalog` 一样继续编译显式 `command_catalog`
+  - 显式 command projection 会优先覆盖 seeded command 定义，避免同一 `commandKey` 继续双轨并存
+  - 工作区发送层不再只读模块加载时的 seeded command map，而会按当前目录快照解析 `mention -> commandKey -> bound skill`
+  - 这一步把 LimeNext 从“目录主链回到装配层”继续推进到了“现有命令语义的输入触发层也开始回到装配层”
+- 把剩余 seeded command fallback 也迁回基础设置包事实源，清掉 `SEEDED_COMMAND_ENTRY_DEFINITIONS` 这条 compat 双轨：
+  - `src/lib/base-setup/types.ts`
+  - `src/lib/base-setup/serviceSkillCatalogAdapter.ts`
+  - `src/lib/base-setup/validator.ts`
+  - `src/lib/base-setup/compat/commandCatalogProjection.ts`
+  - `src/lib/base-setup/seededCommandPackage.ts`
+  - `src/lib/api/skillCatalog.ts`
+  - `command_catalog` projection 现在支持命令侧显式 `commandBinding / commandRenderContract`
+  - seeded fallback 不再维护手写 command entry 数组，而是直接编译 seeded `Base Setup Package`
+  - 这一步把 LimeNext 从“显式 command projection 可覆盖 seeded”继续推进到了“seeded command 事实源本身也回到装配层”
+- 把默认云端 seeded 目录迁到装配层事实源：
+  - `src/lib/base-setup/seededServiceSkillPackage.ts`
+  - `src/lib/api/serviceSkills.ts`
+  - 默认 `7` 个内置云端场景不再手写为 `ServiceSkillCatalog`，而是改成手写 `Base Setup Package` 后编译出 compat catalog
+- 把 seeded 本地 `local_custom` 项也迁到装配层事实源：
+  - `src/lib/base-setup/seededServiceSkillPackage.ts`
+  - `src/lib/base-setup/compat/serviceSkillCatalogProjection.ts`
+  - `src/lib/api/serviceSkills.ts`
+  - `x-article-export` 不再手写为 `ServiceSkillItem` 补丁，而是改成手写 `Base Setup Package` 后编译出 `local_custom` 目录项
+  - 当前 seeded 目录已经从“编译产物 + 手写补丁”推进到“云端默认包编译产物 + 本地定制包编译产物”
+  - 同步纠正了 `sceneBinding` 不应强行把 `runnerType` 覆盖成 `managed` 的 compat 编译逻辑
 - 新增基础设置包单测：
   - `src/lib/base-setup/validator.test.ts`
   - `src/lib/base-setup/compiler.test.ts`
   - `src/lib/base-setup/rolloutGate.test.ts`
+  - `src/lib/base-setup/storage.test.ts`
+  - `src/lib/base-setup/bootstrap.test.ts`
+  - `src/lib/base-setup/seededServiceSkillPackage.test.ts`
   - 证明结构校验、引用校验、catalog projection 与 rollout gate 决策已跑通
+- 新增 `scene_catalog` 接线回归：
+  - `src/lib/api/skillCatalog.test.ts`
+  - `src/lib/skillCatalogBootstrap.test.ts`
+  - 证明 `Base Setup Package -> SkillCatalog` 已跑通
+  - 证明 bootstrap payload 直接下发 `baseSetupPackage` 时，`scene_catalog` projection 与基础设置快照都能落到真实消费链
+  - 证明显式 scene projection 已能覆盖 compat 自动 scene
+- 新增 seeded 本地定制装配回归：
+  - `src/lib/base-setup/seededServiceSkillPackage.test.ts`
+  - `src/lib/api/serviceSkills.test.ts`
+  - 证明 `x-article-export` 已由本地定制基础设置包编译生成，而不是继续依赖手写补丁
+  - 证明 `local_custom` 来源、`browser_assist` binding、`sceneBinding` 与 skill bundle metadata 都已稳定保留
 - 新增基础设置包实现设计专题：
   - [base-setup-implementation.md](../roadmap/limenext/base-setup-implementation.md)
   - 固定第一版先以 `Base Setup Package -> compat ServiceSkillCatalog projection` 落地
@@ -65,7 +543,351 @@
   - [execution-plan.md](../roadmap/limenext/execution-plan.md)
   - [limenext-plan.md](./limenext-plan.md)
   - 明确多模态组合样板成为第五条默认样板链路
-  - 明确下一刀是把 `composition blueprint` 继续收口到 schema 与目录投影
+  - 明确当前下一刀已经切到“seeded 事实源迁移 + scene / command projection 扩展”
+- 把 `SceneApp` 第一阶段全栈骨架正式落地到当前代码主链：
+  - `src/lib/sceneapp/*`
+  - `src/lib/api/sceneapp.ts`
+  - `src-tauri/src/sceneapp/*`
+  - `src-tauri/src/commands/sceneapp_cmd.rs`
+  - `docs/roadmap/limenext/sceneapp-*.md`
+  - 固定 `SceneApp` 不新增 runtime taxonomy，继续只作为 `Scene / ServiceSkill + 执行实体 + 基础设施画像 + 交付治理` 的装配层
+- 把第一条真实 `SceneApp` adapter 固定为 `SceneApp -> automation job`：
+  - `sceneapp_create_automation_job` 已接通 automation draft / tracker metadata / run summary 主链
+  - `daily-trend-briefing` 已作为 `Local Durable SceneApp` 的 seeded descriptor、mock catalog 与测试样板统一事实源
+  - `browser_assist / cloud_scene / native_skill / agent_turn` 其他 adapter 继续留在下一阶段推进
+- 把 `sceneapp_plan_launch` 从抽象 planner 推进到半结构化 adapter planner：
+  - `SceneAppPlanResult.plan.adapterPlan` 已能明确输出 `runtimeAction / targetRef / requestMetadata / launchPayload`
+  - 当前已覆盖 `cloud_scene / browser_assist / automation_job / native_skill / agent_turn` 五类 adapter draft
+  - 这让后续 SceneApp UI 和执行入口可以复用 current runtime，而不是再拼第二套 SceneApp 执行协议
+- 把 `SceneAppPlanResult.plan.adapterPlan` 继续收口成前端统一执行 facade：
+  - `src/lib/sceneapp/launch.ts`
+  - `buildSceneAppExecutionDraft(...)` 现已固定输出两类 current runtime 草稿：
+    - `workspace_entry`
+    - `automation_job`
+  - `workspace_entry` 继续复用当前工作区启动语义：
+    - `prompt`
+    - `initialAutoSendRequestMetadata`
+    - `projectId / contentId`
+    - `openBrowserAssistOnMount`
+  - `automation_job` 同时兼容当前两条自动化主链：
+    - `SceneAppAutomationIntent`
+    - `AutomationJobRequest`
+    - `AutomationJobDialogInitialValues`
+  - 这意味着 SceneApp 前端后续接线时，不必再让各个页面自己理解 `adapterPlan.launchPayload` 的 snake_case 草稿
+  - 新增 SceneApp 执行 facade 回归：
+  - `src/lib/sceneapp/launch.test.ts`
+  - 覆盖 `cloud_scene / browser_assist / automation_job` 三条主链翻译
+  - 证明 `story-video-suite / x-article-export / daily-trend-briefing` 已有可复用的前端执行草稿
+- 把 SceneApp 前端执行草稿继续接到真实前端 action bridge：
+  - `src/components/agent/chat/workspace/sceneAppLaunch.ts`
+  - 当前已形成统一 `SceneApp launch action bridge`：
+    - `resolveSceneAppLaunchAction(...)`
+    - `executeSceneAppLaunchAction(...)`
+  - `workspace_entry` 现在会继续翻译成真实 `resolveWorkspaceEntry(...)` 结果，而不是让 UI 自己再拼导航参数
+  - `automation_job` 现在支持两条 current 前端路径：
+    - 打开标准自动化表单
+    - 直接调用 `sceneapp_create_automation_job`
+  - 这让未来的 SceneApp 目录页、详情页、推荐位都可以复用同一套启动动作桥，而不是各写一份 launch 分支
+- 新增 SceneApp action bridge 回归：
+  - `src/components/agent/chat/workspace/sceneAppLaunch.test.ts`
+  - 覆盖：
+    - `workspace_entry -> agent navigation`
+    - `workspace_entry -> missing project`
+    - `workspace_entry -> missing navigate callback`
+    - `automation_job -> open dialog`
+  - `automation_job -> create job`
+  - 再补 `workspaceEntry.test.ts` 联动回归，证明新桥未偏离现有工作区导航合同
+- 把 SceneApp 统一启动桥真正接到主工作区空态入口：
+  - `src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.ts`
+  - `src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx`
+  - `src/components/agent/chat/sceneappEntryTypes.ts`
+  - `src/components/agent/chat/components/EmptyState.tsx`
+  - `src/components/agent/chat/workspace/chatSurfaceProps.ts`
+  - `src/components/agent/chat/workspace/WorkspaceConversationScene.tsx`
+  - `src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx`
+  - `src/components/agent/chat/AgentChatWorkspace.tsx`
+  - 当前 `SceneApp` 已不再只停在库层：
+    - `story-video-suite` 会从空态推荐位直接进入当前会话继续
+    - `daily-trend-briefing` 会直接打开标准自动化表单
+    - `x-article-export` 会在检测到 URL 上下文时进入推荐位
+  - 固定 `SceneApp` 自动化仍复用标准 `AutomationJobDialog` 与 `create_automation_job` 主链，只在 UI 层补回 `sceneapp` metadata，不新增第二套 editor
+- 新增 SceneApp 工作区入口回归：
+  - `src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx`
+  - `src/components/agent/chat/components/EmptyState.test.tsx`
+  - `src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.test.ts`
+  - 覆盖：
+    - featured SceneApp 卡片分类
+    - URL 条件显示 `x-article-export`
+    - `workspace_entry -> agent` 导航
+    - `automation_job -> 标准自动化表单 -> create_automation_job`
+- 把 `SceneApp` 从“空态推荐位”推进成真正的目录工作台：
+  - 新增独立页面与信息架构入口：
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsCatalogPanel.tsx`
+    - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppScorecardPanel.tsx`
+    - `src/components/sceneapps/SceneAppRunList.tsx`
+    - `src/components/sceneapps/index.ts`
+    - `src/types/page.ts`
+    - `src/components/AppPageContent.tsx`
+    - `src/lib/navigation/sidebarNav.ts`
+  - 当前目录页已经具备完整闭环：
+    - 业务向目录检索与模式筛选
+    - 详情页、启动输入、项目工作区选择
+    - `workspace_entry -> agent` 启动
+    - `automation_job -> AutomationJobDialog -> create_automation_job`
+    - `scorecard + recent runs` 统一回流展示
+  - 同时把 `SceneApp` 展示语义和自动化辅助从聊天工作区抽成共享层：
+    - `src/lib/sceneapp/presentation.ts`
+    - `src/lib/sceneapp/automation.ts`
+  - 这意味着后续再扩：
+    - 首页推荐位
+    - 目录页
+    - 详情页
+    - 未来更多入口
+    都不需要各写一份 `SceneApp` 文案、seed、project gate、automation metadata merge
+- 把 `SceneApp` 目录页入口继续收口成可恢复的跨入口协议：
+  - `src/lib/sceneapp/entry.ts`
+  - `src/lib/sceneapp/storage.ts`
+  - 当前已固定三种目录进入模式：
+    - `browse`
+    - `resume_latest`
+    - `prefer_latest`
+  - 这让侧边栏、聊天空态、未来插件入口都不需要自己拼“最近访问优先还是浏览目录”的判断
+  - 最近访问存储同时新增统一订阅能力，跨入口 UI 可以感知“是否存在可恢复场景”，而不用自己读取 localStorage 细节
+- 把 `SceneApp` 最近恢复能力接回两个高频入口：
+  - `src/lib/navigation/sidebarNav.ts`
+  - `src/components/AppSidebar.tsx`
+  - `src/components/agent/chat/AgentChatWorkspace.tsx`
+  - `src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx`
+  - `src/components/agent/chat/components/EmptyState.tsx`
+  - `src/components/agent/chat/workspace/chatSurfaceProps.ts`
+  - `src/components/agent/chat/workspace/WorkspaceConversationScene.tsx`
+  - `src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx`
+  - 当前交互已经更清楚：
+    - 侧边栏“场景应用”默认恢复最近一次 SceneApp 上下文
+    - 聊天空态显式区分“继续最近场景”和“查看全部场景”
+    - 浏览目录与恢复上次上下文不再共用一个语义模糊的按钮
+- 新增最近恢复链路回归：
+  - `src/lib/sceneapp/entry.test.ts`
+  - `src/lib/sceneapp/storage.test.ts`
+  - `src/components/AppSidebar.test.tsx`
+  - `src/components/agent/chat/components/EmptyState.test.tsx`
+  - 证明：
+    - 最近访问订阅已生效
+    - 侧边栏点击会优先恢复最近 SceneApp
+    - 空态会显式暴露“继续最近场景”动作
+- 把 `SceneApp` 目录页继续推进到独立的产品视图模型层：
+  - `src/lib/sceneapp/product.ts`
+  - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+  - `src/components/sceneapps/SceneAppsPage.tsx`
+  - `src/components/sceneapps/SceneAppsCatalogPanel.tsx`
+  - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+  - `src/components/sceneapps/SceneAppScorecardPanel.tsx`
+  - `src/components/sceneapps/SceneAppRunList.tsx`
+  - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+  - 当前 `SceneAppsPage` 已不再让组件自己直接解释底层 DTO：
+    - workbench summary stats
+    - catalog card copy
+    - detail panel copy
+    - scorecard view
+    - run list / run detail
+    都统一收口到 `SceneApp product view model`
+  - 这让后续首页推荐位、独立详情页、经营面板可以复用同一层业务解释，而不是重复从 `descriptor / run / scorecard` 重新拼 UI
+- 新增产品视图模型回归：
+  - `src/lib/sceneapp/product.test.ts`
+  - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - 证明目录统计、详情视图和运行详情已经可以通过共享产品层稳定产出
+- 把空态 SceneApp 面板补上“查看全部场景”入口，并接到统一 `sceneapps` 目录页：
+  - `src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx`
+  - `src/components/agent/chat/components/EmptyState.tsx`
+  - `src/components/agent/chat/workspace/chatSurfaceProps.ts`
+  - `src/components/agent/chat/workspace/WorkspaceConversationScene.tsx`
+  - `src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx`
+  - `src/components/agent/chat/AgentChatWorkspace.tsx`
+  - 现在用户可以：
+    - 在聊天空态直接启动精选 SceneApp
+    - 或跳到完整目录页再选型、看 scorecard、看 runs、再启动
+- 新增 SceneApp 目录页回归与路由回归：
+  - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - `src/components/AppPageContent.test.tsx`
+  - `src/hooks/useAppNavigation.test.tsx`
+  - `src/lib/navigation/sidebarNav.test.ts`
+  - 覆盖：
+    - 目录页渲染与详情联动
+    - `workspace_entry -> agent`
+    - `automation_job -> 标准自动化弹窗`
+    - 侧边栏与页面分发接线
+- 把 SceneApp 目录页继续补到“运行详情可经营”的状态：
+  - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+  - `src/components/sceneapps/SceneAppRunList.tsx`
+  - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+  - `src/lib/sceneapp/presentation.ts`
+  - 当前目录页已经形成：
+    - `runs -> selected run -> run summary` 的独立状态流
+    - `scorecard` 与 `runs` 解耦加载，不再因为一个接口失败把另一块也清空
+    - 运行来源、运行阶段、下一步动作的共享解释层
+  - 这意味着目录页不再只展示“最近运行列表”，而开始具备真实的运行复盘面板
+  - 后续再接首页推荐位、运营面板或更细颗粒的 evidence 视图时，可以继续复用同一套 run presentation 语义
+- 把 SceneApp 目录页继续补到“状态可恢复、可分享”的状态：
+  - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+  - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - `src/components/AppPageContent.test.tsx`
+  - `src/types/page.ts`
+  - 当前目录页现在已经支持把以下状态安全回写到 `pageParams`：
+    - `sceneappId`
+    - `runId`
+    - `projectId`
+    - `search`
+    - `prefillIntent`
+    - `typeFilter / patternFilter`
+  - 同时补了反向回灌：
+    - 同页再次导航到 `sceneapps` 时，目录页会用新的 `pageParams` 覆盖本地状态
+- 把 SceneApp 运行详情继续补到“可回到业务入口”的状态：
+  - `src/lib/sceneapp/types.ts`
+  - `src/lib/sceneapp/product.ts`
+  - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+  - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+  - `src/components/sceneapps/SceneAppsPage.tsx`
+  - `src-tauri/src/sceneapp/dto.rs`
+  - `src-tauri/src/sceneapp/adapters.rs`
+  - `src-tauri/src/sceneapp/application.rs`
+  - 当前目录页已经不再只是解释“这次跑完了什么”，还开始解释“现在该回哪里继续”：
+    - `SceneAppRunSummary` 新增 `sourceRef`
+    - 运行详情视图模型新增 `entryAction`
+    - 第一条真实恢复动作先固定为 `automation -> job detail`
+    - 第二条真实恢复动作已补成 `chat / skill -> agent session`
+  - 目录页运行详情现在可以直接跳回对应自动化任务：
+    - `source=automation`
+    - `sourceRef=jobId`
+    - 页面 runtime 会统一翻译成 `automation / selectedJobId / workspaceTab=tasks`
+  - 目录页运行详情现在也可以直接回到对应 Agent 会话：
+    - `SceneAppRunSummary` 新增 `sessionId`
+    - Agent 页新增 `initialSessionId`
+    - `source=chat / skill` 且存在 `sessionId` 时，会统一翻译成 `agent -> initialSessionId`
+  - 这一步把 `SceneApp` 从“可启动、可复盘”继续推进到“可恢复到业务入口”，为后续 agent / browser runtime 深链收口留出统一合同
+- 把 `browser_assist` 场景的运行恢复也接回统一协议，而不是继续由 UI 猜测浏览器上下文：
+  - `src/lib/sceneapp/types.ts`
+  - `src/lib/sceneapp/product.ts`
+  - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+  - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - `src-tauri/src/sceneapp/dto.rs`
+  - `src-tauri/src/sceneapp/adapters.rs`
+  - `src-tauri/src/commands/aster_agent_cmd/run_metadata/social_artifacts.rs`
+  - `src-tauri/src/commands/aster_agent_cmd/tests.rs`
+  - 当前已固定第一版浏览器恢复对象为：
+    - `browserRuntimeRef = { profileKey, sessionId, targetId }`
+  - 运行详情视图模型新增 `open_browser_runtime` 动作：
+    - 浏览器场景存在 `browserRuntimeRef` 时，优先回到 `browser-runtime`
+    - 没有浏览器引用时，`chat / skill -> agent session` 仍作为稳定兜底
+  - Rust 侧运行摘要现在会统一合并两类事实源：
+    - 运行终态 metadata 里的 `browser_runtime_ref / browser_session`
+    - request metadata 里的 `browser_assist`
+  - 运行观测层也开始把 tool result metadata 中的浏览器会话回写到 run metadata：
+    - `profile_key`
+    - `session_id`
+    - `target_id`
+  - 这意味着 `x-article-export` 这类 `Browser-grounded SceneApp` 终于可以从目录页直接回到真实浏览器运行时，而不是只回聊天页
+- 把 `cloud_scene / native_skill` 也补进同一套 SceneApp 启动与恢复合同，而不是继续在 UI 层分散猜测 metadata：
+  - `src/lib/sceneapp/types.ts`
+  - `src/lib/sceneapp/product.ts`
+  - `src/lib/sceneapp/launch.ts`
+  - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+  - `src/components/agent/chat/workspaceEntry.ts`
+  - `src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.ts`
+  - `src/components/agent/chat/AgentChatWorkspace.tsx`
+  - `src/types/page.ts`
+  - `src-tauri/src/sceneapp/dto.rs`
+  - `src-tauri/src/sceneapp/adapters.rs`
+  - 当前已固定两类新恢复引用：
+    - `cloudSceneRuntimeRef`
+    - `nativeSkillRuntimeRef`
+  - 当前目录页运行详情新增两类结构化业务动作：
+    - `open_cloud_scene_session`
+    - `open_native_skill_session`
+  - `cloud_scene` 现在不再只回退到普通会话：
+    - 有 `sessionId` 时优先回到原 Agent 会话
+    - 没有 `sessionId` 时，会基于 `service_scene_launch` 结构化引用重新恢复云端 Scene 上下文
+  - `native_skill` 启动桥也不再伪装成普通 prompt：
+    - SceneApp launch facade 现在会产出 `initialPendingServiceSkillLaunch`
+    - `AgentPendingServiceSkillLaunch` 新增 `skillKey / launchUserInput`
+    - 挂起技能入口现在可以保留原始 SceneApp 用户意图和已补齐 slots，再交给现有服务技能主链继续执行
+  - Rust 侧运行摘要现在会统一提取两类事实源：
+    - `service_scene_launch`
+    - `sceneapp_native_skill_launch`
+  - 这意味着 SceneApp 的五类 current 执行体已经全部进入统一协议：
+    - `automation_job`
+    - `agent_turn`
+    - `browser_assist`
+    - `cloud_scene`
+    - `native_skill`
+- 把 SceneApp 运行复盘与评分从 seeded 模板推进到真实聚合：
+  - `src-tauri/src/sceneapp/adapters.rs`
+  - `src-tauri/src/sceneapp/application.rs`
+  - `src-tauri/src/sceneapp/governance.rs`
+  - `src-tauri/src/commands/sceneapp_cmd.rs`
+  - `sceneapp_list_runs` 现在会统一聚合：
+    - `ExecutionTracker` 里的 chat / skill / automation 真实运行
+    - 自动化任务的 durable job 记录
+    - 没有真实样本时才回退 seeded baseline
+  - `sceneapp_get_scorecard` 现在会基于真实 runs 计算：
+    - 运行样本充足度
+    - 执行成功率
+    - 结果产出率
+    - 重复使用率
+  - 推荐动作也不再只按 `sceneapp_type` 写死，而会根据真实运行表现切到：
+    - `launch`
+    - `keep`
+    - `optimize`
+    - `retire`
+  - 同时补了 Rust 定向回归，覆盖：
+    - artifact count 从 run metadata / automation delivery 提取
+    - scorecard 的 `keep` / seeded fallback / `retire` 决策
+    - 不再只在首次挂载时读取参数
+  - 固定实现规则：
+    - 文本类参数使用轻量防抖同步，避免输入时触发导航风暴
+    - 统一 `normalize + serialize` 单一键值比较，不让页面和导航层各自发明一套相等性判断
+  - 这意味着未来再做：
+    - 最近访问的 SceneApp 恢复
+    - 可复制的目录页深链接
+    - 从聊天页/推荐位/运营面板跳回目录的状态保持
+    都可以继续复用当前参数协议
+- 把 SceneApp 前台继续接到 `Base Setup Package` 的 scorecard / composition 装配层：
+  - `src/lib/sceneapp/catalog.ts`
+  - `src/lib/sceneapp/product.ts`
+  - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+  - `src/components/sceneapps/SceneAppScorecardPanel.tsx`
+  - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+  - `src/lib/sceneapp/catalog.test.ts`
+  - `src/lib/sceneapp/product.test.ts`
+  - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - 当前目录页已经不再只显示 seeded 业务文案，而会继续暴露基础设置包里的：
+    - `compositionBlueprintRef / compositionStepCount`
+    - `scorecardProfileRef / scorecardMetricKeys`
+  - 详情面板现在可以直接看到组合蓝图和评分 profile
+  - 评分面板现在也会沿 view model 主链显示当前 scorecard profile 与 metric keys，而不是重新耦合 raw descriptor
+  - 即使还没有真实评分样本，评分面板也会先保留基础设置包里的观察口径，不再整块退回“纯空态”
+  - 即使评分接口暂时失败，评分面板也会继续保留当前 profile 与指标口径，不再因为 error state 把装配层上下文一起抹掉
+  - 这意味着 `Base Setup Package -> SceneApp descriptor -> product view model -> SceneAppsPage` 这条前台消费链已经闭环
+- 把 SceneApp 目录页继续补到“最近访问 / 一键继续”的状态：
+  - `src/lib/sceneapp/navigation.ts`
+  - `src/lib/sceneapp/storage.ts`
+  - `src/lib/sceneapp/storage.test.ts`
+  - `src/components/sceneapps/SceneAppsRecentPanel.tsx`
+  - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+  - 当前目录页现在已经具备：
+    - `SceneApp` 最近访问记录的统一本地事实源
+    - `sceneappId + projectId` 维度去重更新，而不是无上限堆积重复记录
+    - “继续上次上下文”与最近场景列表的业务入口
+  - 同时补了一个重要门禁：
+    - 空参打开目录页时，默认首项自动选中不会立刻写回导航和最近访问
+    - 只有显式页面参数或用户真实交互后，才会触发同步与持久化
+  - 这意味着后续再接：
+    - 侧边栏空参进入后的恢复入口
+    - 首页推荐位跳转后的回流继续
+    - 场景运营面板的最近活跃列表
+    都可以复用同一套 `SceneApp page state + recent visit` 协议
 
 ### 当前判断
 
@@ -76,12 +898,35 @@
 - 基础设置包现在不仅回答“长什么样”，也开始回答“怎么发布、怎么灰度、怎么回滚”
 - 基础设置包这条线现在也开始回答“第一版先改什么代码、先不改什么代码”
 - 基础设置包这条线现在已经不只是文档设计，而有了第一版代码骨架和最小单测闭环
+- 基础设置包这条线现在也不再只是“独立模块可跑”，而是已经接回 `serviceSkills.ts` 与 bootstrap 的真实主链
+- 基础设置包这条线现在还开始接管默认 seeded 云端目录，说明装配层已经不再只是“远端来的东西才走”
+- 基础设置包这条线现在也开始接管 seeded 本地定制项，说明内置目录的主要来源已经都回到装配层
+- 基础设置包这条线现在也已经接回 `skillCatalog.ts` 与 `skillCatalogBootstrap.ts`，说明 `scene_catalog` 不再只是未来规划，而是进入真实产品入口
+- `SceneApp` 这一层现在也不再只是路线图术语，而已经具备前后端统一 descriptor、命令边界、durable adapter 与治理 metadata 主链
+- `SceneApp` planner 现在也不再只会输出“解释性步骤”，而开始输出可执行的 current runtime adapter draft
+- `SceneApp` 前端现在也不再只有 planner 结果，而开始具备统一 execution draft facade，说明 `adapterPlan` 已经进入可接线阶段
+- `SceneApp` 前端现在也不再只有 execution draft facade，而开始具备真实 action bridge 与首个空态业务入口，说明“库层桥接”这一刀已经完成
+- `SceneApp` 统一恢复协议现在也不再只覆盖前三条浅链，而是已经把 `browser_assist / cloud_scene / native_skill` 的深链恢复一起收口
+- 当前 `SceneApp` 首页入口已经开始用业务语言而不是 runtime 术语表达：
+  - 多模态组合
+  - 资料沉淀
+  - 持续研究
+- `SceneApp` 消费层现在已经不再只有空态推荐，而开始具备真正的目录工作台、详情页、scorecard 和 recent runs 视图
 - 当前四类样板已经覆盖：
   - 浏览器采集导出
   - 云端托管媒体生产
   - 本地持续跟踪
   - 多模态组合结果链
 - 基础设置包现在已经不只是“目录下发”，还承担多步骤组合链的业务装配语义
+- durable 场景的 automation 装配现在也不再只靠 `slot.type=schedule_time` 和运行时临时拼装：
+  - `Base Setup Package` 已新增 `automationProfiles[]`
+  - `catalogProjection.automationProfileRef` 已进入 validator / parser / projection metadata / snapshot index
+  - `每日趋势摘要 / 账号增长跟踪` seeded durable 样板已显式声明 automation profile
+  - `service-skills/automationDraft.ts` 现在会优先消费装配层的 schedule / delivery / retry / enabled 预设，再回退到旧的 slot fallback
+- durable 场景的 automation fallback 现在也开始回到同一装配主链：
+  - `src/lib/base-setup/automationProjection.ts` 已成为统一解析层
+  - 当前 durable 启动不再需要直接读页面层或手写 seeded 补丁来猜 automation 默认值
+  - `service_skill.request_metadata.base_setup` 也开始携带稳定的 package / projection / automation profile 引用，方便后续 automation detail / SceneApp run / scorecard 继续对齐同一事实源
 
 ### 风险
 
@@ -89,28 +934,156 @@
 - 如果后续让 `catalog projection`、`binding profile`、`artifact profile` 分别在不同文档里各说各话，基础设置包会再次失去顶层约束
 - 如果后续只写 schema，不把 validator / rollout / seeded fallback 做成真实门禁，团队还是会退回“改了文档等于完成”
 - 如果后续跳过 compat projection，直接要求所有前台入口原生理解 `Base Setup Package`，改动面会过大，容易再次拖慢主线
-- 如果后续长期只停在独立模块和单测，不接回 `serviceSkills.ts` 的真实 catalog 主链，这套骨架会再次漂浮
+- 如果后续 `command_catalog` 或 automation projection 继续停在手写补丁层，装配主线仍然会长期半双轨
+- 如果后续把新增 `command_catalog` projection 误判成“已经支持任意新命令 DSL”，会高估当前阶段；现阶段仍主要服务现有命令语义的事实源收口
+- 如果后续 `SceneApp` UI 又回到从 `serviceSkills.ts`、`skillCatalog.ts`、selector 各自拼语义，统一 descriptor 主链会再次失效
 - 如果后续给组合型场景单独发明 viewer 或 binding，宿主边界会再次变模糊
 - 如果后续只看最终视频草稿成败，不看 `project pack` 接受率与阶段返工率，组合场景很容易被误判
 
 ### 下一刀
 
-- 把基础设置包 schema 继续下沉到 bootstrap / seeded catalog 可消费的目录投影与最小 validator
-- 把 `base-setup-projection-lifecycle.md` 继续下沉为 validator / projection compiler / rollout gate 的代码级设计
-- 基于 `base-setup-implementation.md` 决定第一版真实实现路线：客户端编译，还是服务端预编译 + 客户端 gate
-- 把 `src/lib/base-setup/*` 正式接回 `src/lib/api/serviceSkills.ts` 的 seeded / bootstrap 主链
-- 把多模态组合样板的 `project pack` 接到真实 artifact / viewer / scorecard 聚合入口
-- 把 `SceneScorecard` 与周会模板、场景看板和任务中心口径继续打通
+- durable 场景的 automation projection / fallback 已收口到装配主链，下一步转为：
+  - 基于 `base-setup-implementation.md` 决定第一版真实实现路线：客户端编译，还是服务端预编译 + 客户端 gate
+  - 把多模态组合样板的 `project pack` 接到真实 artifact / viewer / scorecard 聚合入口
+  - 把 `SceneScorecard` 与周会模板、场景看板和任务中心口径继续打通
+  - 继续把 automation detail / SceneApp run / scorecard 聚合层消费同一组 base-setup refs，而不是各自回退到运行时猜测
+- `SceneApp` 恢复协议当前已稳定收口到：
+  - `sourceRef`
+  - `sessionId`
+  - `browserRuntimeRef`
+  - `cloudSceneRuntimeRef`
+  - `nativeSkillRuntimeRef`
+- `browser-runtime` GUI smoke 当前也已恢复通过，所以后续主线不再是“先救 smoke 环境”，而是“把组合交付和经营聚合真正接起来”
 
 ### 验证
 
 - 已执行：
   - `npm run harness:doc-freshness`
   - 结果：`clean`
-  - `npm test -- "src/lib/base-setup/validator.test.ts" "src/lib/base-setup/compiler.test.ts" "src/lib/base-setup/rolloutGate.test.ts"`
-  - 结果：`3 files / 8 tests passed`
+  - `npm test -- "src/lib/base-setup/validator.test.ts" "src/lib/base-setup/compiler.test.ts" "src/lib/base-setup/rolloutGate.test.ts" "src/lib/base-setup/storage.test.ts" "src/lib/base-setup/bootstrap.test.ts" "src/lib/base-setup/seededServiceSkillPackage.test.ts" "src/lib/api/serviceSkills.test.ts" "src/lib/serviceSkillCatalogBootstrap.test.ts"`
+  - 结果：`8 files / 34 tests passed`
+  - `npm test -- "src/lib/api/skillCatalog.test.ts" "src/lib/skillCatalogBootstrap.test.ts"`
+  - 结果：`2 files / 9 tests passed`
+  - `npm test -- "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts"`
+  - 结果：`3 files / 33 tests passed`
+  - `npm test -- "src/lib/sceneapp/product.test.ts" "src/lib/sceneapp/launch.test.ts" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts" "src/components/agent/chat/workspaceEntry.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/api/sceneapp.test.ts"`
+  - 结果：`6 files / 47 tests passed`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::adapters`
+  - 结果：`5 tests passed`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::governance`
+  - 结果：`3 tests passed`
   - `npm run typecheck`
-  - 结果：未通过，当前阻塞来自仓库其他已有类型错误；本轮新增 `src/lib/base-setup/*` 未再报新错
+  - 结果：`passed`
+  - `npm test -- "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.test.ts"`
+  - 结果：`1 file / 7 tests passed`
+  - `npx eslint "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.ts" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx" "src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx" "src/components/agent/chat/workspace/WorkspaceConversationScene.tsx" "src/components/agent/chat/workspace/chatSurfaceProps.ts"`
+  - 结果：`passed`
+  - `npm test -- "src/lib/base-setup/seededServiceSkillPackage.test.ts" "src/lib/api/serviceSkills.test.ts" "src/lib/api/skillCatalog.test.ts" "src/lib/serviceSkillCatalogBootstrap.test.ts" "src/lib/skillCatalogBootstrap.test.ts"`
+  - 结果：`5 files / 32 tests passed`
+  - `npm test -- "src/lib/base-setup/compat/commandCatalogProjection.test.ts" "src/lib/api/skillCatalog.test.ts" "src/lib/skillCatalogBootstrap.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"`
+  - 结果：`4 files / 94 tests passed`
+  - `npx eslint "src/lib/base-setup/compat/commandCatalogProjection.ts" "src/lib/base-setup/compat/commandCatalogProjection.test.ts" "src/lib/api/skillCatalog.ts" "src/lib/api/skillCatalog.test.ts" "src/lib/skillCatalogBootstrap.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"`
+  - 结果：`passed`
+  - `npm run verify:gui-smoke`
+  - 结果：通过
+  - `npm run verify:local`
+  - 结果：通过
+  - `npm test -- "src/lib/base-setup/automationProjection.test.ts" "src/lib/base-setup/validator.test.ts" "src/lib/base-setup/compiler.test.ts" "src/lib/base-setup/storage.test.ts" "src/lib/base-setup/seededServiceSkillPackage.test.ts" "src/components/agent/chat/service-skills/automationDraft.test.ts"`
+  - 结果：`6 files / 21 tests passed`
+  - `npm run typecheck`
+  - 结果：通过
+  - `npx eslint "src/lib/base-setup/types.ts" "src/lib/base-setup/serviceSkillCatalogAdapter.ts" "src/lib/base-setup/validator.ts" "src/lib/base-setup/compat/serviceSkillCatalogProjection.ts" "src/lib/base-setup/seededServiceSkillPackage.ts" "src/lib/base-setup/automationProjection.ts" "src/lib/base-setup/automationProjection.test.ts" "src/lib/base-setup/storage.test.ts" "src/lib/base-setup/seededServiceSkillPackage.test.ts" "src/lib/base-setup/validator.test.ts" "src/lib/sceneapp/catalog.test.ts" "src/components/agent/chat/service-skills/automationDraft.ts" "src/components/agent/chat/service-skills/automationDraft.test.ts"`
+  - 结果：通过
+  - `npm run verify:local`
+  - 结果：未通过；当前仓库另一路改动在 `src/components/settings-v2/general/memory/index.tsx:269` 存在已有 lint parse error，阻塞全仓门槛，但不在本轮 `base-setup automation projection / durable automation draft` 变更范围内
+  - `npm test -- "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/api/sceneapp.test.ts"`
+  - 结果：`3 files / 13 tests passed`
+  - `npm test -- "src/components/AppPageContent.test.tsx" "src/components/agent/chat/workspace/useWorkspaceInitialSessionNavigation.test.tsx"`
+  - 结果：`2 files / 12 tests passed`
+  - `cargo check --manifest-path "src-tauri/Cargo.toml"`
+  - 结果：通过
+  - `npm run test:contracts`
+  - 结果：通过
+  - `npm run verify:gui-smoke`
+  - 结果：失败；`smoke:browser-runtime` 持续卡在 `launch_browser_session` 超时，`180000ms` 内未收到 DevBridge 响应
+  - `npm run verify:local`
+  - 结果：失败；同样阻塞于 `smoke:browser-runtime`，非本轮 SceneApp / Agent session 恢复代码直接触发的断言失败
+  - `npm run typecheck`
+  - 结果：通过
+  - `npm test -- src/lib/sceneapp/catalog.test.ts src/lib/api/sceneapp.test.ts src/lib/dev-bridge/mockPriorityCommands.test.ts src/lib/tauri-mock/core.test.ts`
+  - 结果：`4 files / 18 tests passed`
+  - `cargo check --manifest-path "src-tauri/Cargo.toml"`
+  - 结果：通过
+  - `npm test -- "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 结果：`1 file / 4 tests passed`
+  - `npx eslint "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppRunList.tsx" "src/components/sceneapps/SceneAppRunDetailPanel.tsx" "src/lib/sceneapp/presentation.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 结果：通过
+  - `npm run typecheck`
+  - 结果：通过
+  - `npm run verify:gui-smoke`
+  - 结果：未通过；当前环境无法监听 `127.0.0.1:1420`，报错 `listen EPERM: operation not permitted 127.0.0.1:1420`
+  - `npm test -- "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/AppPageContent.test.tsx"`
+  - 结果：`2 files / 14 tests passed`
+  - `npx eslint "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/AppPageContent.test.tsx" "src/types/page.ts"`
+  - 结果：通过
+  - `npm run typecheck`
+  - 结果：通过
+  - `npm run verify:gui-smoke`
+  - 结果：未通过；当前环境无法监听 `127.0.0.1:1420`，报错 `listen EPERM: operation not permitted 127.0.0.1:1420`
+  - `npm test -- "src/lib/sceneapp/storage.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/AppPageContent.test.tsx"`
+  - 结果：`3 files / 18 tests passed`
+  - `npx eslint "src/lib/sceneapp/navigation.ts" "src/lib/sceneapp/storage.ts" "src/lib/sceneapp/storage.test.ts" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsRecentPanel.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/AppPageContent.test.tsx" "src/types/page.ts"`
+  - 结果：通过
+  - `npm run typecheck`
+  - 结果：通过
+  - `npm run verify:gui-smoke`
+  - 结果：未通过；当前环境无法监听 `127.0.0.1:1420`，报错 `listen EPERM: operation not permitted 127.0.0.1:1420`
+  - `npm test -- src/lib/api/sceneapp.test.ts src/lib/tauri-mock/core.test.ts`
+  - 结果：`2 files / 14 tests passed`
+  - `npm test -- "src/lib/sceneapp/launch.test.ts" "src/lib/api/sceneapp.test.ts" "src/lib/tauri-mock/core.test.ts"`
+  - 结果：`3 files / 17 tests passed`
+  - `npm test -- "src/components/agent/chat/workspace/sceneAppLaunch.test.ts" "src/lib/sceneapp/launch.test.ts" "src/lib/api/sceneapp.test.ts"`
+  - 结果：`3 files / 13 tests passed`
+  - `npm test -- "src/components/agent/chat/workspaceEntry.test.ts" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts"`
+  - 结果：`2 files / 14 tests passed`
+  - `npx eslint "src/components/agent/chat/workspace/sceneAppLaunch.ts" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts" "src/lib/sceneapp/launch.ts"`
+  - 结果：通过
+  - `npx eslint "src/lib/sceneapp/launch.ts" "src/lib/sceneapp/launch.test.ts" "src/lib/sceneapp/types.ts" "src/lib/api/sceneapp.ts"`
+  - 结果：通过
+  - `npm run test:contracts`
+  - 结果：通过
+  - `npm test -- "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/AppPageContent.test.tsx" "src/hooks/useAppNavigation.test.tsx" "src/lib/navigation/sidebarNav.test.ts" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts" "src/lib/sceneapp/launch.test.ts"`
+  - 结果：`8 files / 56 tests passed`
+  - `npx eslint "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/sceneapps/SceneAppsCatalogPanel.tsx" "src/components/sceneapps/SceneAppDetailPanel.tsx" "src/components/sceneapps/SceneAppScorecardPanel.tsx" "src/components/sceneapps/SceneAppRunList.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/AppPageContent.tsx" "src/components/AppPageContent.test.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.ts" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts" "src/components/agent/chat/workspace/WorkspaceConversationScene.tsx" "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx" "src/components/agent/chat/workspace/chatSurfaceProps.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/lib/navigation/sidebarNav.ts" "src/lib/navigation/sidebarNav.test.ts" "src/types/page.ts" "src/lib/sceneapp/presentation.ts" "src/lib/sceneapp/automation.ts" "src/lib/sceneapp/launch.ts" "src/lib/sceneapp/launch.test.ts"`
+  - 结果：通过
+  - `npm run typecheck`
+  - 结果：通过
+  - `npm run verify:gui-smoke`
+  - 结果：失败，当前环境无法监听 `127.0.0.1:1420`，报错 `listen EPERM: operation not permitted 127.0.0.1:1420`
+  - `npm run verify:local`
+  - 结果：失败，但失败项仍为仓库已有无关问题，不在本轮 `SceneApp execution facade` 改动范围：
+    - `src/components/agent/chat/hooks/agentStreamFlowControl.test.ts`
+    - `src/components/agent/chat/utils/turnSummaryPresentation.ts`
+    - `src/lib/api/serviceSkills.ts`
+    - `src/lib/base-setup/serviceSkillCatalogAdapter.ts`
+  - `npm run lint`
+  - 结果：失败，但当前失败项为仓库已有无关问题，不在本轮 `SceneApp` 改动范围：
+    - `src/components/agent/chat/hooks/agentStreamFlowControl.test.ts`
+    - `src/components/agent/chat/utils/turnSummaryPresentation.ts`
+    - `src/lib/api/serviceSkills.ts`
+    - `src/lib/base-setup/serviceSkillCatalogAdapter.ts`
+  - `npm test -- "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/api/sceneapp.test.ts"`
+  - 结果：`3 files / 24 tests passed`
+  - `cargo test --manifest-path "src-tauri/Cargo.toml" browser_runtime_ref`
+  - 结果：`2 tests passed`
+  - `cargo check --manifest-path "src-tauri/Cargo.toml"`
+  - 结果：通过
+  - `npm run typecheck`
+  - 结果：通过
+  - `npx eslint "src/lib/sceneapp/types.ts" "src/lib/sceneapp/product.ts" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/api/sceneapp.ts"`
+  - 结果：通过
+  - `npm run verify:gui-smoke`
+  - 结果：失败；`smoke:browser-runtime` 仍阻塞于 `launch_browser_session`，报错 `读取 CDP 标签页失败: error sending request for url (http://127.0.0.1:14509/json/list)`
 
 ## 2026-04-14
 

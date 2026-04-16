@@ -3,6 +3,7 @@ import { getRegistryIdFromType } from "@/lib/constants/providerMappings";
 import {
   getProviderPromptCacheMode,
   isKnownAutomaticAnthropicCompatibleHost,
+  resolveKnownAnthropicCompatibleProvider,
   resolvePromptCacheSupportNotice,
 } from "./providerPromptCacheSupport";
 
@@ -101,8 +102,19 @@ describe("providerPromptCacheSupport", () => {
     expect(getProviderPromptCacheMode("openai")).toBe("not_applicable");
   });
 
-  it("模型注册表映射不应把 anthropic-compatible 推断成自动缓存", () => {
+  it("模型注册表映射应在已知官方 Anthropic 兼容 Host 上落到真实厂商目录", () => {
     expect(getRegistryIdFromType("anthropic-compatible")).toBe("anthropic");
+    expect(
+      getRegistryIdFromType(
+        "anthropic-compatible",
+        "https://api.minimaxi.com/anthropic",
+      ),
+    ).toBe("minimax");
+    expect(
+      resolveKnownAnthropicCompatibleProvider(
+        "https://open.bigmodel.cn/api/anthropic",
+      ),
+    ).toBe("zhipuai");
     expect(getProviderPromptCacheMode("anthropic-compatible")).toBe(
       "explicit_only",
     );

@@ -954,5 +954,3 @@ export function ProjectSelector({
     </>
   );
 }
-
-export default ProjectSelector;

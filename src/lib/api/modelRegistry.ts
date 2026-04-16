@@ -19,7 +19,7 @@ interface ModelRegistryQueryOptions {
 
 export interface FetchProviderModelsResult {
   models: EnhancedModelMetadata[];
-  source: "Api" | "LocalFallback";
+  source: "Api" | "Catalog" | "CustomModels" | "LocalFallback";
   error: string | null;
   request_url?: string | null;
   diagnostic_hint?: string | null;
@@ -32,6 +32,27 @@ export interface FetchProviderModelsResult {
     | "other"
     | null;
   should_prompt_error?: boolean;
+}
+
+export function normalizeFetchProviderModelsSource(
+  result: Pick<FetchProviderModelsResult, "source" | "models" | "error">,
+): FetchProviderModelsResult["source"] {
+  if (result.source === "CustomModels") {
+    return "CustomModels";
+  }
+
+  const preservesCurrentProviderCustomModels =
+    result.source === "LocalFallback" &&
+    Array.isArray(result.models) &&
+    result.models.length > 0 &&
+    typeof result.error === "string" &&
+    result.error.includes("已保留当前 Provider 的自定义模型");
+
+  if (preservesCurrentProviderCustomModels) {
+    return "CustomModels";
+  }
+
+  return result.source;
 }
 
 let modelRegistryCache: EnhancedModelMetadata[] | null = null;
@@ -300,6 +321,7 @@ export const modelRegistryApi = {
   getModelsForProvider,
   getModelsByTier,
   fetchProviderModelsAuto,
+  normalizeFetchProviderModelsSource,
   getProviderAliasConfig,
   getAllAliasConfigs: getAllAliasConfigsCached,
 };

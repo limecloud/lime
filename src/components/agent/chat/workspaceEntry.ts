@@ -1,6 +1,7 @@
 import { buildClawAgentParams } from "@/lib/workspace/navigation";
 import type {
   AgentPageParams,
+  AgentPendingServiceSkillLaunchParams,
   AgentProjectFileOpenTarget,
   AgentSiteSkillLaunchParams,
 } from "@/types/page";
@@ -21,6 +22,7 @@ export interface AgentChatWorkspaceBootstrap {
   lockTheme?: boolean;
   openBrowserAssistOnMount?: boolean;
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
+  initialPendingServiceSkillLaunch?: AgentPendingServiceSkillLaunchParams;
   initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   newChatAt?: number;
 }
@@ -35,6 +37,7 @@ export interface WorkspaceEntryPayload {
   autoRunInitialPromptOnMount?: boolean;
   openBrowserAssistOnMount?: boolean;
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
+  initialPendingServiceSkillLaunch?: AgentPendingServiceSkillLaunchParams;
   initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   toolPreferences?: ChatToolPreferences;
   themeOverride?: string;
@@ -112,6 +115,9 @@ export function resolveWorkspaceEntry(
   const hasSiteSkillLaunch = Boolean(
     payload.initialSiteSkillLaunch?.adapterName?.trim(),
   );
+  const hasPendingServiceSkillLaunch = Boolean(
+    payload.initialPendingServiceSkillLaunch?.skillId?.trim(),
+  );
   const toolPreferences = payload.toolPreferences ?? defaultToolPreferences;
   const targetTheme = payload.themeOverride ?? activeTheme;
   const lockTheme =
@@ -123,7 +129,11 @@ export function resolveWorkspaceEntry(
   const openBrowserAssistOnMount = payload.openBrowserAssistOnMount;
   const autoRunInitialPromptOnMount = payload.autoRunInitialPromptOnMount;
 
-  if (!openBrowserAssistOnMount && !hasSiteSkillLaunch && !resolvedProjectId) {
+  if (
+    !openBrowserAssistOnMount &&
+    !hasSiteSkillLaunch &&
+    !resolvedProjectId
+  ) {
     return {
       ok: false,
       reason: "missing_project",
@@ -133,6 +143,7 @@ export function resolveWorkspaceEntry(
   if (
     !openBrowserAssistOnMount &&
     !hasSiteSkillLaunch &&
+    !hasPendingServiceSkillLaunch &&
     !hasPrompt &&
     !hasImages &&
     !hasContentId
@@ -165,6 +176,16 @@ export function resolveWorkspaceEntry(
     openBrowserAssistOnMount,
     ...(payload.initialSiteSkillLaunch
       ? { initialSiteSkillLaunch: payload.initialSiteSkillLaunch }
+      : {}),
+    ...(payload.initialPendingServiceSkillLaunch
+      ? {
+          initialPendingServiceSkillLaunch: {
+            ...payload.initialPendingServiceSkillLaunch,
+            requestKey:
+              payload.initialPendingServiceSkillLaunch.requestKey ??
+              nextNewChatAt,
+          },
+        }
       : {}),
     ...(payload.initialProjectFileOpenTarget
       ? {
@@ -199,6 +220,16 @@ export function resolveWorkspaceEntry(
       openBrowserAssistOnMount,
       ...(payload.initialSiteSkillLaunch
         ? { initialSiteSkillLaunch: payload.initialSiteSkillLaunch }
+        : {}),
+      ...(payload.initialPendingServiceSkillLaunch
+        ? {
+            initialPendingServiceSkillLaunch: {
+              ...payload.initialPendingServiceSkillLaunch,
+              requestKey:
+                payload.initialPendingServiceSkillLaunch.requestKey ??
+                nextNewChatAt,
+            },
+          }
         : {}),
       ...(payload.initialProjectFileOpenTarget
         ? {

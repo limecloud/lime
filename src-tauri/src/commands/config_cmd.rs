@@ -162,7 +162,7 @@ pub async fn get_tool_versions() -> Result<Vec<ToolVersion>, String> {
 
     // 定义要检测的工具列表
     let tools = vec![
-        ("Claude Code", "claude", vec!["--version"]),
+        ("Claude CLI", "claude", vec!["--version"]),
         ("Codex", "codex", vec!["--version"]),
         ("Gemini CLI", "gemini", vec!["--version"]),
     ];

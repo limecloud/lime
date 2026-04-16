@@ -13,6 +13,7 @@
  */
 
 import type { SystemProviderCatalogItem } from "@/lib/api/apiKeyProvider";
+import { resolveKnownAnthropicCompatibleProvider } from "@/lib/model/providerPromptCacheSupport";
 
 /**
  * 兼容旧版本/历史配置的 Provider ID 别名映射。
@@ -45,11 +46,11 @@ const LEGACY_PROVIDER_ID_TO_REGISTRY_ID: Record<string, string> = {
  * 注意：
  * - 这里只负责把 Provider 类型归一到模型注册表 provider_id；
  * - 该映射不能用于推断 Prompt Cache、工具能力等运行时语义；
- * - 例如 `anthropic-compatible -> anthropic` 只表示模型目录复用，不等于官方 Anthropic 自动缓存能力。
+ * - 已知官方 Anthropic 兼容 Host 必须优先映射到对应厂商目录。
  */
 const PROVIDER_TYPE_TO_REGISTRY_ID: Record<string, string> = {
   anthropic: "anthropic",
-  "anthropic-compatible": "anthropic", // 仅复用 Anthropic 模型目录
+  "anthropic-compatible": "anthropic",
   openai: "openai",
   "openai-response": "openai",
   codex: "codex",
@@ -65,6 +66,7 @@ const PROVIDER_TYPE_TO_REGISTRY_ID: Record<string, string> = {
 
 export interface ResolveRegistryProviderOptions {
   providerType?: string;
+  apiHost?: string;
   /** 后端 Catalog 别名映射（legacy_id -> canonical_id） */
   catalogAliasMap?: Record<string, string> | null;
   /** 模型注册表中实际存在的 provider_id 集合 */
@@ -134,7 +136,15 @@ function tryResolveFromProviderId(providerId: string): string | undefined {
   );
 }
 
-function tryResolveFromProviderType(providerType?: string): string | undefined {
+function tryResolveFromProviderType(
+  providerType?: string,
+  apiHost?: string,
+): string | undefined {
+  const managedProvider = resolveKnownAnthropicCompatibleProvider(apiHost);
+  if (managedProvider) {
+    return managedProvider;
+  }
+
   if (!providerType) {
     return undefined;
   }
@@ -152,7 +162,7 @@ function buildDefaultCandidates(
     options.catalogAliasMap?.[lowerProviderId],
     tryResolveFromProviderId(normalizedId),
     tryResolveFromProviderId(lowerProviderId),
-    tryResolveFromProviderType(options.providerType),
+    tryResolveFromProviderType(options.providerType, options.apiHost),
     normalizedId,
   ]);
 }
@@ -169,7 +179,7 @@ function buildValidationCandidates(
     tryResolveFromProviderId(normalizedId),
     tryResolveFromProviderId(lowerProviderId),
     normalizedId,
-    tryResolveFromProviderType(options.providerType),
+    tryResolveFromProviderType(options.providerType, options.apiHost),
   ]);
 }
 
@@ -200,6 +210,7 @@ export function resolveRegistryProviderId(
 
   const defaultCandidates = buildDefaultCandidates(normalizedId, {
     providerType,
+    apiHost: options.apiHost,
     catalogAliasMap,
   });
 
@@ -207,6 +218,7 @@ export function resolveRegistryProviderId(
     const validSet = toLowerSet(validRegistryProviders);
     const validationCandidates = buildValidationCandidates(normalizedId, {
       providerType,
+      apiHost: options.apiHost,
       catalogAliasMap,
     });
 

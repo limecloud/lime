@@ -11,7 +11,7 @@ use std::time::Duration;
 use tokio::sync::{OnceCell, RwLock};
 use utoipa::ToSchema;
 
-use super::runtime_queue::initialize_shared_session_runtime_queue_service;
+use super::runtime_queue::initialize_session_runtime_queue_service;
 use crate::config::paths::Paths;
 use crate::session::session_manager::SESSIONS_FOLDER;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteRow};
@@ -20,7 +20,7 @@ use sqlx::{Pool, Row, Sqlite};
 pub const RUNTIME_DB_NAME: &str = "runtime.db";
 static SHARED_THREAD_RUNTIME_STORE: OnceLock<Arc<dyn ThreadRuntimeStore>> = OnceLock::new();
 const SHARED_THREAD_RUNTIME_STORE_INIT_ERROR: &str =
-    "shared thread runtime store is not initialized; call initialize_shared_thread_runtime_store first";
+    "shared thread runtime store is not initialized; call initialize_session_runtime_store first";
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -381,7 +381,7 @@ fn default_runtime_db_path() -> PathBuf {
         .join(RUNTIME_DB_NAME)
 }
 
-pub fn initialize_shared_thread_runtime_store(
+pub fn initialize_session_runtime_store(
     store: Arc<dyn ThreadRuntimeStore>,
 ) -> Arc<dyn ThreadRuntimeStore> {
     let _ = SHARED_THREAD_RUNTIME_STORE.set(store);
@@ -389,28 +389,26 @@ pub fn initialize_shared_thread_runtime_store(
         .get()
         .expect("shared thread runtime store should be initialized")
         .clone();
-    initialize_shared_session_runtime_queue_service(store.clone());
+    initialize_session_runtime_queue_service(store.clone());
     store
 }
 
-pub fn initialize_shared_sqlite_thread_runtime_store(
-    db_path: PathBuf,
-) -> Arc<dyn ThreadRuntimeStore> {
-    initialize_shared_thread_runtime_store(Arc::new(SqliteThreadRuntimeStore::new(db_path)))
+pub fn initialize_sqlite_session_runtime_store(db_path: PathBuf) -> Arc<dyn ThreadRuntimeStore> {
+    initialize_session_runtime_store(Arc::new(SqliteThreadRuntimeStore::new(db_path)))
 }
 
-pub fn initialize_default_shared_sqlite_thread_runtime_store() -> Arc<dyn ThreadRuntimeStore> {
-    initialize_shared_sqlite_thread_runtime_store(default_runtime_db_path())
+pub fn initialize_default_sqlite_session_runtime_store() -> Arc<dyn ThreadRuntimeStore> {
+    initialize_sqlite_session_runtime_store(default_runtime_db_path())
 }
 
-pub fn require_shared_thread_runtime_store() -> Result<Arc<dyn ThreadRuntimeStore>> {
+pub fn require_session_runtime_store() -> Result<Arc<dyn ThreadRuntimeStore>> {
     SHARED_THREAD_RUNTIME_STORE
         .get()
         .cloned()
         .ok_or_else(|| anyhow!(SHARED_THREAD_RUNTIME_STORE_INIT_ERROR))
 }
 
-pub async fn load_session_runtime_snapshot(
+pub async fn load_runtime_snapshot_from_store(
     store: &(impl ThreadRuntimeStore + ?Sized),
     session_id: &str,
 ) -> Result<SessionRuntimeSnapshot> {
@@ -433,8 +431,8 @@ pub async fn load_session_runtime_snapshot(
     })
 }
 
-pub async fn delete_shared_thread_runtime_session(session_id: &str) -> Result<()> {
-    require_shared_thread_runtime_store()?
+pub async fn delete_session_runtime_state(session_id: &str) -> Result<()> {
+    require_session_runtime_store()?
         .delete_session(session_id)
         .await
 }
@@ -1476,15 +1474,15 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn require_shared_thread_runtime_store_returns_initialized_store() {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
-        assert!(require_shared_thread_runtime_store().is_ok());
+    fn require_session_runtime_store_returns_initialized_store() {
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        assert!(require_session_runtime_store().is_ok());
     }
 
     #[tokio::test]
-    async fn delete_shared_thread_runtime_session_uses_initialized_store() {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
-        let store = require_shared_thread_runtime_store().unwrap();
+    async fn delete_session_runtime_state_uses_initialized_store() {
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        let store = require_session_runtime_store().unwrap();
         store
             .upsert_thread(ThreadRuntime::new(
                 "thread-delete",
@@ -1494,7 +1492,7 @@ mod tests {
             .await
             .unwrap();
 
-        delete_shared_thread_runtime_session("session-delete")
+        delete_session_runtime_state("session-delete")
             .await
             .unwrap();
 
@@ -1839,7 +1837,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_session_runtime_snapshot_collects_all_thread_runtime_data() {
+    async fn load_runtime_snapshot_from_store_collects_all_thread_runtime_data() {
         let store = InMemoryThreadRuntimeStore::default();
         let thread = ThreadRuntime::new("thread-1", "session-1", PathBuf::from("/tmp"));
         let turn = TurnRuntime::new(
@@ -1873,7 +1871,7 @@ mod tests {
         store.create_turn(turn.clone()).await.unwrap();
         store.create_item(item.clone()).await.unwrap();
 
-        let snapshot = load_session_runtime_snapshot(&store, "session-1")
+        let snapshot = load_runtime_snapshot_from_store(&store, "session-1")
             .await
             .unwrap();
 

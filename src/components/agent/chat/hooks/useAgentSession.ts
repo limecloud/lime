@@ -165,9 +165,24 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         return normalizedCandidate;
       }
 
+      if (isLegacyDefaultProjectId(mappedWorkspaceId)) {
+        logAgentDebug("useAgentSession", "restoreCandidate.rejected", {
+          candidateSessionId: normalizedCandidate,
+          mappedWorkspaceId,
+          workspaceId: resolvedWorkspaceId,
+        });
+        return null;
+      }
+
+      const normalizedMappedWorkspaceId =
+        normalizeProjectId(mappedWorkspaceId);
+      if (!normalizedMappedWorkspaceId) {
+        return normalizedCandidate;
+      }
+
       if (
-        isLegacyDefaultProjectId(mappedWorkspaceId) ||
-        (resolvedWorkspaceId && mappedWorkspaceId !== resolvedWorkspaceId)
+        resolvedWorkspaceId &&
+        normalizedMappedWorkspaceId !== resolvedWorkspaceId
       ) {
         logAgentDebug("useAgentSession", "restoreCandidate.rejected", {
           candidateSessionId: normalizedCandidate,
@@ -874,16 +889,13 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         );
         const runtimeWorkspaceId = normalizeProjectId(detail.workspace_id);
         const selectedTopic = topics.find((topic) => topic.id === topicId);
-        const shadowWorkspaceId = loadStoredSessionWorkspaceIdRaw(topicId);
+        const topicWorkspaceId = normalizeProjectId(selectedTopic?.workspaceId);
+        const shadowWorkspaceId = normalizeProjectId(
+          loadStoredSessionWorkspaceIdRaw(topicId),
+        );
         const resolvedWorkspaceId = normalizeProjectId(workspaceId);
         const knownWorkspaceId =
-          runtimeWorkspaceId ||
-          (isLegacyDefaultProjectId(selectedTopic?.workspaceId)
-            ? null
-            : selectedTopic?.workspaceId) ||
-          (isLegacyDefaultProjectId(shadowWorkspaceId)
-            ? null
-            : shadowWorkspaceId);
+          runtimeWorkspaceId || topicWorkspaceId || shadowWorkspaceId;
         if (
           resolvedWorkspaceId &&
           knownWorkspaceId &&
@@ -981,8 +993,12 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           workspaceId,
         });
 
+        const persistedWorkspaceId = runtimeWorkspaceId || resolvedWorkspaceId;
+        if (persistedWorkspaceId) {
+          savePersistedSessionWorkspaceId(topicId, persistedWorkspaceId);
+        }
+
         if (runtimeWorkspaceId) {
-          savePersistedSessionWorkspaceId(topicId, runtimeWorkspaceId);
           setTopics((prev) =>
             prev.map((topic) =>
               topic.id === topicId

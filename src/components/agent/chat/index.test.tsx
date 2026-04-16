@@ -873,6 +873,22 @@ async function flushEffects(times = 6) {
   }
 }
 
+async function waitForElement(
+  container: { querySelector(selector: string): Element | null },
+  selector: string,
+  attempts = 30,
+) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const element = container.querySelector(selector);
+    if (element) {
+      return element;
+    }
+    await flushEffects(1);
+  }
+
+  return null;
+}
+
 function getSendMessageCall(callIndex = 0) {
   const call = sharedSendMessageMock.mock.calls[callIndex];
   if (!call) {
@@ -5894,6 +5910,7 @@ describe("AgentChatPage 服务技能 A2UI", () => {
         prefillHint: "已根据 Skills 页入口推荐自动预填。",
       },
     });
+    await waitForElement(container, '[data-testid="layout-transition"]');
     await flushEffects(12);
 
     expect(

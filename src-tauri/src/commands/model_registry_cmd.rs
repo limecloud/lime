@@ -270,7 +270,7 @@ pub async fn fetch_provider_models_auto(
         return Err("Provider 没有配置 API Host".to_string());
     }
 
-    let provider_type = provider.provider.provider_type;
+    let provider_type = provider.provider.effective_provider_type();
     let requires_api_key = ModelRegistryService::requires_api_key_for_model_fetch(
         &provider_id,
         &api_host,

@@ -1,5 +1,4 @@
 import type { ProviderType } from "@/lib/types/provider";
-
 const LOCAL_OPENAI_LIKE_PROVIDER_IDS = new Set([
   "ollama",
   "lmstudio",

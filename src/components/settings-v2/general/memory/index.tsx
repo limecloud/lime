@@ -20,16 +20,19 @@ import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
+  cleanupContextMemdir,
   getContextMemoryAutoIndex,
   getContextMemoryEffectiveSources,
   getContextMemoryExtractionStatus,
   getContextWorkingMemory,
   ensureWorkspaceLocalAgentsGitignore,
+  scaffoldContextMemdir,
   scaffoldRuntimeAgentsTemplate,
   toggleContextMemoryAuto,
   updateContextMemoryAutoNote,
   type AutoMemoryIndexResponse,
   type EffectiveMemorySourcesResponse,
+  type MemdirMemoryType,
   type MemoryAutoConfig,
   type MemoryConfig,
   type MemoryProfileConfig,
@@ -77,6 +80,127 @@ const CHALLENGE_OPTIONS = [
   "先从简单的例子或类比入手",
   "先解释重点和难点在哪里",
   "多种解释/角度",
+];
+
+const MEMDIR_MEMORY_TYPE_OPTIONS: Array<{
+  value: MemdirMemoryType;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "project",
+    label: "项目记忆",
+    description: "默认推荐，用于项目背景、约束、时间点与分工。",
+  },
+  {
+    value: "feedback",
+    label: "反馈记忆",
+    description: "记录被确认有效的做法与需要持续遵守的规则。",
+  },
+  {
+    value: "user",
+    label: "用户记忆",
+    description: "记录用户背景、长期偏好与协作方式。",
+  },
+  {
+    value: "reference",
+    label: "参考记忆",
+    description: "记录文档、工单、监控和知识库入口。",
+  },
+];
+
+const MEMDIR_WRITE_GUIDES: Record<
+  MemdirMemoryType,
+  {
+    description: string;
+    topicPlaceholder: string;
+    placeholder: string;
+    requiredSections: string[];
+    note: string;
+  }
+> = {
+  user: {
+    description:
+      "记录用户背景、长期偏好和协作方式，帮助 Lime 调整解释深浅与默认协作节奏。",
+    topicPlaceholder:
+      "可选：topic，例如 communication-style、domain-background",
+    placeholder:
+      "例如：用户熟悉 Rust，但第一次接触这个前端；解释前先给结论，再给必要上下文。",
+    requiredSections: [],
+    note: "适合沉淀长期稳定的人物画像，不要记录临时任务状态。",
+  },
+  feedback: {
+    description:
+      "沉淀被反复验证有效的做法与明确要避免的模式，避免同一个纠偏再次发生。",
+    topicPlaceholder: "可选：topic，例如 workflow、testing-policy",
+    placeholder:
+      "Why:\n- 这条反馈为什么成立，避免了什么问题\n\nHow to apply:\n- 以后什么时候执行\n- 有哪些边界条件",
+    requiredSections: ["Why", "How to apply"],
+    note: "反馈记忆必须说明原因和使用方式，只写一句结论很容易失真。",
+  },
+  project: {
+    description:
+      "补足代码之外的项目背景、里程碑、冻结窗口和协作关系，帮助下一次快速进入上下文。",
+    topicPlaceholder: "可选：topic，例如 release-window、ownership-map",
+    placeholder:
+      "Why:\n- 这个背景/约束为什么重要\n\nHow to apply:\n- 这会如何影响当前实现或交付\n- 绝对日期：2026-04-15 / 2026-04-15 14:00",
+    requiredSections: ["Why", "How to apply", "绝对日期"],
+    note: "项目记忆不要写“今天/明天/下周”，请改成绝对日期，避免过期后误导后续决策。",
+  },
+  reference: {
+    description:
+      "记录外部文档、工单、监控、知识库或系统入口，方便下次知道去哪里查最新事实。",
+    topicPlaceholder: "可选：topic，例如 grafana-dashboard、runbook",
+    placeholder:
+      "例如：发布值班看板在 Grafana /d/release-ops；改协议前先查 release runbook 第 3 节。",
+    requiredSections: [],
+    note: "参考记忆应优先保存事实源入口，而不是把外部文档内容整段复制进来。",
+  },
+};
+
+const MEMORY_SOURCE_BUCKET_LABELS: Record<string, string> = {
+  managed: "托管记忆",
+  user: "用户记忆",
+  project: "项目记忆",
+  local: "本地记忆",
+  rules: "项目规则",
+  auto: "记忆目录（memdir）",
+  durable: "/memories",
+  additional: "附加目录",
+};
+
+const PROJECT_RELATIVE_DATE_TOKENS = [
+  "今天",
+  "明天",
+  "昨天",
+  "后天",
+  "今晚",
+  "今早",
+  "本周",
+  "下周",
+  "上周",
+  "本月",
+  "下个月",
+  "上个月",
+  "本季度",
+  "下季度",
+  "上季度",
+];
+
+const PROJECT_RELATIVE_DATE_ASCII_TOKENS = [
+  "today",
+  "tomorrow",
+  "yesterday",
+  "tonight",
+  "this week",
+  "next week",
+  "last week",
+  "this month",
+  "next month",
+  "last month",
+  "this quarter",
+  "next quarter",
+  "last quarter",
 ];
 
 function normalizeProfile(profile?: MemoryProfileConfig): MemoryProfileConfig {
@@ -143,6 +267,160 @@ function parseLines(input: string): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+}
+
+function resolveMemdirTypeLabel(type?: MemdirMemoryType | null): string {
+  return (
+    MEMDIR_MEMORY_TYPE_OPTIONS.find((option) => option.value === type)?.label ||
+    "未分类"
+  );
+}
+
+function resolveSourceBucketLabel(bucket?: string | null): string {
+  if (!bucket) {
+    return "未分类";
+  }
+  return MEMORY_SOURCE_BUCKET_LABELS[bucket] || bucket;
+}
+
+function formatRelativeTimeLabel(timestamp?: number | null): string {
+  if (!timestamp) {
+    return "未知时间";
+  }
+  const normalized =
+    timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return "未知时间";
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  if (diffMinutes < 1) {
+    return "刚刚";
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes} 分钟前`;
+  }
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} 小时前`;
+  }
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) {
+    return `${diffDays} 天前`;
+  }
+  return `${date.getMonth() + 1}/${date.getDate()} ${date
+    .getHours()
+    .toString()
+    .padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+}
+
+function normalizeStructuredLine(line: string): string {
+  return line
+    .trim()
+    .replace(/^[#*\-\s]+/u, "")
+    .replace(/：/gu, ":")
+    .toLowerCase();
+}
+
+function noteHasSection(note: string, headings: string[]): boolean {
+  return note.split("\n").some((line) => {
+    const normalized = normalizeStructuredLine(line);
+    return headings.some((heading) => normalized.startsWith(heading));
+  });
+}
+
+function containsAsciiPhrase(text: string, phrase: string): boolean {
+  let searchStart = 0;
+  while (searchStart < text.length) {
+    const index = text.indexOf(phrase, searchStart);
+    if (index < 0) {
+      return false;
+    }
+    const before = index === 0 ? "" : text[index - 1];
+    const after =
+      index + phrase.length >= text.length ? "" : text[index + phrase.length];
+    const beforeOk = before === "" || !/[a-z0-9_]/i.test(before);
+    const afterOk = after === "" || !/[a-z0-9_]/i.test(after);
+    if (beforeOk && afterOk) {
+      return true;
+    }
+    searchStart = index + phrase.length;
+  }
+  return false;
+}
+
+function findProjectRelativeDateToken(note: string): string | null {
+  for (const token of PROJECT_RELATIVE_DATE_TOKENS) {
+    if (note.includes(token)) {
+      return token;
+    }
+  }
+
+  const asciiNote = note.replace(/：/gu, ":").toLowerCase();
+  for (const token of PROJECT_RELATIVE_DATE_ASCII_TOKENS) {
+    if (containsAsciiPhrase(asciiNote, token)) {
+      return token;
+    }
+  }
+
+  return null;
+}
+
+function validateMemdirNote(
+  note: string,
+  memoryType: MemdirMemoryType,
+): string | null {
+  if (memoryType === "feedback" || memoryType === "project") {
+    if (!noteHasSection(note, ["why", "为什么", "原因"])) {
+      return "反馈/项目记忆必须包含 `Why:` 段落。";
+    }
+    if (!noteHasSection(note, ["how to apply", "如何使用", "如何应用"])) {
+      return "反馈/项目记忆必须包含 `How to apply:` 段落。";
+    }
+  }
+
+  if (memoryType === "project") {
+    const relativeDateToken = findProjectRelativeDateToken(note);
+    if (relativeDateToken) {
+      return `项目记忆不能使用相对时间词“${relativeDateToken}”，请改成绝对日期，例如 2026-04-15。`;
+    }
+  }
+
+  return null;
+}
+
+function resolveActionErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
+
+function formatMemdirCleanupMessage(result: {
+  updated_files: number;
+  curated_topic_files: number;
+  removed_duplicate_links: number;
+  dropped_missing_links: number;
+  removed_duplicate_notes: number;
+  trimmed_notes: number;
+}): string {
+  const touchedCount =
+    result.curated_topic_files +
+    result.removed_duplicate_links +
+    result.dropped_missing_links +
+    result.removed_duplicate_notes +
+    result.trimmed_notes;
+
+  if (result.updated_files === 0 || touchedCount === 0) {
+    return "memdir 已经是干净状态，无需整理";
+  }
+
+  return `已整理 memdir：更新 ${result.updated_files} 个文件，收口 ${result.curated_topic_files} 个 topic，清掉 ${result.removed_duplicate_links + result.dropped_missing_links + result.removed_duplicate_notes + result.trimmed_notes} 处重复或过期内容`;
 }
 
 interface MultiSelectSectionProps {
@@ -343,6 +621,10 @@ export function MemorySettings() {
   );
   const [autoTopic, setAutoTopic] = useState("");
   const [autoNote, setAutoNote] = useState("");
+  const [autoMemoryType, setAutoMemoryType] =
+    useState<MemdirMemoryType>("project");
+  const [scaffoldingMemdir, setScaffoldingMemdir] = useState(false);
+  const [cleaningMemdir, setCleaningMemdir] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const loadLayerMetrics = useCallback(async () => {
@@ -497,12 +779,12 @@ export function MemorySettings() {
           enabled: result.enabled,
         },
       }));
-      setMessage(result.enabled ? "自动记忆已开启" : "自动记忆已关闭");
+      setMessage(result.enabled ? "记忆目录已开启" : "记忆目录已关闭");
       setTimeout(() => setMessage(null), 2500);
       await loadSourceState();
     } catch (error) {
-      console.error("切换自动记忆失败:", error);
-      setMessage("切换自动记忆失败");
+      console.error("切换记忆目录失败:", error);
+      setMessage("切换记忆目录失败");
       setTimeout(() => setMessage(null), 2500);
     }
   };
@@ -510,8 +792,15 @@ export function MemorySettings() {
   const handleUpdateAutoNote = async () => {
     const note = autoNote.trim();
     if (!note) {
-      setMessage("请先输入要保存的自动记忆内容");
+      setMessage("请先输入要保存的 memdir 内容");
       setTimeout(() => setMessage(null), 2500);
+      return;
+    }
+
+    const validationError = validateMemdirNote(note, autoMemoryType);
+    if (validationError) {
+      setMessage(validationError);
+      setTimeout(() => setMessage(null), 3000);
       return;
     }
 
@@ -520,17 +809,90 @@ export function MemorySettings() {
       const index = await updateContextMemoryAutoNote(
         note,
         autoTopic.trim() || undefined,
+        undefined,
+        autoMemoryType,
       );
       setAutoIndex(index);
       setAutoNote("");
-      setMessage("已写入自动记忆");
+      setMessage("已写入 memdir");
       setTimeout(() => setMessage(null), 2500);
     } catch (error) {
-      console.error("写入自动记忆失败:", error);
-      setMessage("写入自动记忆失败");
-      setTimeout(() => setMessage(null), 2500);
+      console.error("写入 memdir 失败:", error);
+      setMessage(resolveActionErrorMessage(error, "写入 memdir 失败"));
+      setTimeout(() => setMessage(null), 3500);
     } finally {
       setSavingAutoNote(false);
+    }
+  };
+
+  const handleScaffoldMemdir = async () => {
+    const workingDir = effectiveSources?.working_dir?.trim() || undefined;
+    if (!workingDir) {
+      setMessage("当前未获取到 workspace 路径，暂无法初始化 memdir");
+      setTimeout(() => setMessage(null), 2500);
+      return;
+    }
+
+    setScaffoldingMemdir(true);
+    try {
+      const result = await scaffoldContextMemdir(workingDir, false);
+      const createdCount = result.files.filter(
+        (file) => file.status === "created" || file.status === "overwritten",
+      ).length;
+      setMessage(
+        createdCount > 0
+          ? `已初始化 memdir：${result.root_dir}`
+          : `memdir 已存在：${result.root_dir}`,
+      );
+      setTimeout(() => setMessage(null), 3000);
+      const [nextIndex, nextSources] = await Promise.all([
+        getContextMemoryAutoIndex().catch(() => null),
+        getContextMemoryEffectiveSources().catch(() => null),
+      ]);
+      if (nextIndex) {
+        setAutoIndex(nextIndex);
+      }
+      if (nextSources) {
+        setEffectiveSources(nextSources);
+      }
+    } catch (error) {
+      console.error("初始化 memdir 失败:", error);
+      setMessage("初始化 memdir 失败");
+      setTimeout(() => setMessage(null), 2500);
+    } finally {
+      setScaffoldingMemdir(false);
+    }
+  };
+
+  const handleCleanupMemdir = async () => {
+    const workingDir = effectiveSources?.working_dir?.trim() || undefined;
+    if (!workingDir) {
+      setMessage("当前未获取到 workspace 路径，暂无法整理 memdir");
+      setTimeout(() => setMessage(null), 2500);
+      return;
+    }
+
+    setCleaningMemdir(true);
+    try {
+      const result = await cleanupContextMemdir(workingDir);
+      setMessage(formatMemdirCleanupMessage(result));
+      setTimeout(() => setMessage(null), 3500);
+      const [nextIndex, nextSources] = await Promise.all([
+        getContextMemoryAutoIndex().catch(() => null),
+        getContextMemoryEffectiveSources().catch(() => null),
+      ]);
+      if (nextIndex) {
+        setAutoIndex(nextIndex);
+      }
+      if (nextSources) {
+        setEffectiveSources(nextSources);
+      }
+    } catch (error) {
+      console.error("整理 memdir 失败:", error);
+      setMessage(resolveActionErrorMessage(error, "整理 memdir 失败"));
+      setTimeout(() => setMessage(null), 3000);
+    } finally {
+      setCleaningMemdir(false);
     }
   };
 
@@ -627,8 +989,9 @@ export function MemorySettings() {
       ? "已初始化"
       : "待初始化"
     : "已关闭";
+  const selectedMemdirGuide = MEMDIR_WRITE_GUIDES[autoMemoryType];
   const messageIsError = Boolean(
-    message && (message.includes("失败") || message.includes("请先")),
+    message && /失败|请先|必须|不能|绝对日期/u.test(message),
   );
 
   return (
@@ -661,12 +1024,12 @@ export function MemorySettings() {
                 </h1>
                 <WorkbenchInfoTip
                   ariaLabel="记忆设置说明"
-                  content="管理用户画像、来源链与自动记忆入口，让代理在长期使用里更稳定地续接规则、会话与协作状态。"
+                  content="管理用户画像、来源链策略与记忆目录入口，让代理在长期使用里更稳定地续接规则、会话与协作状态。"
                   tone="mint"
                 />
               </div>
               <p className="text-sm text-slate-500">
-                管理用户画像、来源链策略与自动记忆入口。
+                管理用户画像、来源链策略与记忆目录入口。
               </p>
             </div>
 
@@ -688,7 +1051,7 @@ export function MemorySettings() {
                     : "border-amber-200 bg-amber-50 text-amber-700",
                 )}
               >
-                自动记忆：{autoStatusLabel}
+                记忆目录：{autoStatusLabel}
               </span>
               <span
                 className={cn(
@@ -718,7 +1081,9 @@ export function MemorySettings() {
                 </div>
                 <p className="text-xs leading-5 text-slate-500">
                   当前模式：{draft.enabled ? "记忆已启用" : "记忆已关闭"}。
-                  {dirty ? " 当前有未保存更改。" : " 当前配置与已保存版本一致。"}
+                  {dirty
+                    ? " 当前有未保存更改。"
+                    : " 当前配置与已保存版本一致。"}
                 </p>
               </div>
 
@@ -814,7 +1179,7 @@ export function MemorySettings() {
           <MemoryPanel
             icon={Layers3}
             title="记忆命中层可用性"
-            description="持续检查来源链、会话记忆、持久记忆、Team Memory 与会话压缩的参与情况。"
+            description="持续检查来源链、会话记忆、持久记忆、团队记忆与会话压缩的参与情况。"
             aside={
               <button
                 type="button"
@@ -1251,16 +1616,34 @@ export function MemorySettings() {
 
       <MemoryPanel
         icon={Database}
-        title="自动记忆（Auto Memory）"
-        description="管理自动记忆入口、写入内容和当前索引预览。"
+        title="记忆目录（memdir）"
+        description="管理 MEMORY.md 入口、四类记忆文件、类型化写入和当前索引预览。"
         aside={
-          <button
-            type="button"
-            onClick={handleToggleAutoImmediately}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-          >
-            {autoConfig.enabled ? "立即关闭" : "立即开启"}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={handleScaffoldMemdir}
+              disabled={scaffoldingMemdir}
+              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:border-emerald-300 hover:text-emerald-800 disabled:opacity-60"
+            >
+              {scaffoldingMemdir ? "初始化中..." : "初始化 memdir"}
+            </button>
+            <button
+              type="button"
+              onClick={handleCleanupMemdir}
+              disabled={cleaningMemdir}
+              className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 disabled:opacity-60"
+            >
+              {cleaningMemdir ? "整理中..." : "整理 memdir"}
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleAutoImmediately}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              {autoConfig.enabled ? "立即关闭" : "立即开启"}
+            </button>
+          </>
         }
       >
         <div className="space-y-4">
@@ -1312,7 +1695,7 @@ export function MemorySettings() {
 
             <label className="space-y-2 rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
               <span className="text-sm font-semibold text-slate-900">
-                自动记忆根目录
+                memdir 根目录
               </span>
               <input
                 type="text"
@@ -1336,21 +1719,79 @@ export function MemorySettings() {
             <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/60 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                 <Database className="h-4 w-4 text-emerald-600" />
-                写入自动记忆
+                写入 memdir
               </div>
               <div className="mt-4 space-y-3">
+                <div className="grid gap-2">
+                  <p className="text-xs leading-5 text-slate-500">
+                    先选择这条记忆应归入哪一类，再决定是否额外拆 topic 文件。
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {MEMDIR_MEMORY_TYPE_OPTIONS.map((option) => {
+                      const active = autoMemoryType === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setAutoMemoryType(option.value)}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                            active
+                              ? "border-slate-900 bg-slate-900 text-white"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
+                          )}
+                          title={option.description}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="rounded-[18px] border border-white/90 bg-white/88 px-4 py-3 shadow-sm">
+                  <p className="text-sm font-medium text-slate-900">
+                    {resolveMemdirTypeLabel(autoMemoryType)}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    {selectedMemdirGuide.description}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedMemdirGuide.requiredSections.length > 0 ? (
+                      selectedMemdirGuide.requiredSections.map((section) => (
+                        <span
+                          key={section}
+                          className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700"
+                        >
+                          必须包含 {section}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                        可直接写自然语言，不强制模板
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    {selectedMemdirGuide.note}
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    同一 topic
+                    会被视为同一条当前记忆并覆盖更新；如果要保留多条并行结论，请拆成不同
+                    topic。
+                  </p>
+                </div>
                 <input
                   type="text"
                   value={autoTopic}
                   onChange={(event) => setAutoTopic(event.target.value)}
                   className={INPUT_CLASS_NAME}
-                  placeholder="可选：topic，例如 workflow"
+                  placeholder={selectedMemdirGuide.topicPlaceholder}
                 />
                 <textarea
                   value={autoNote}
                   onChange={(event) => setAutoNote(event.target.value)}
                   className={TEXTAREA_CLASS_NAME}
-                  placeholder="输入要写入自动记忆的内容"
+                  placeholder={selectedMemdirGuide.placeholder}
                 />
                 <button
                   type="button"
@@ -1358,8 +1799,12 @@ export function MemorySettings() {
                   disabled={savingAutoNote}
                   className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
                 >
-                  {savingAutoNote ? "写入中..." : "写入自动记忆"}
+                  {savingAutoNote ? "写入中..." : "写入 memdir"}
                 </button>
+                <p className="text-xs leading-5 text-slate-500">
+                  “整理 memdir” 会去重入口链接、裁剪 README 历史段落，并把旧的
+                  topic 日志收口成当前有效版本。
+                </p>
               </div>
             </div>
 
@@ -1380,9 +1825,48 @@ export function MemorySettings() {
                 </pre>
               ) : (
                 <p className="mt-4 text-sm leading-6 text-slate-500">
-                  暂无自动记忆入口内容
+                  暂无 memdir 入口内容
                 </p>
               )}
+              {autoIndex?.items?.length ? (
+                <div className="mt-4 space-y-2">
+                  {autoIndex.items.slice(0, 6).map((item) => (
+                    <div
+                      key={item.relative_path}
+                      className="rounded-[16px] border border-slate-200/80 bg-slate-50/70 px-3 py-2"
+                    >
+                      <p className="text-sm font-medium text-slate-900">
+                        {item.title}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        {item.relative_path}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {item.memory_type ? (
+                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                            {resolveMemdirTypeLabel(item.memory_type)}
+                          </span>
+                        ) : null}
+                        {item.provider ? (
+                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                            provider：{item.provider}
+                          </span>
+                        ) : null}
+                        {item.updated_at ? (
+                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                            更新于 {formatRelativeTimeLabel(item.updated_at)}
+                          </span>
+                        ) : null}
+                      </div>
+                      {item.summary ? (
+                        <p className="mt-1 text-sm leading-6 text-slate-600">
+                          {item.summary}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1432,6 +1916,26 @@ export function MemorySettings() {
                   <p className="mt-2 break-all text-xs leading-5 text-slate-500">
                     {source.path}
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                      来源分类：{resolveSourceBucketLabel(source.source_bucket)}
+                    </span>
+                    {source.provider ? (
+                      <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                        provider：{source.provider}
+                      </span>
+                    ) : null}
+                    {source.memory_type ? (
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                        {resolveMemdirTypeLabel(source.memory_type)}
+                      </span>
+                    ) : null}
+                    {source.updated_at ? (
+                      <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                        最近更新：{formatRelativeTimeLabel(source.updated_at)}
+                      </span>
+                    ) : null}
+                  </div>
                   {source.preview ? (
                     <p className="mt-3 text-sm leading-6 text-slate-600 line-clamp-3">
                       {source.preview}

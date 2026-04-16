@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { A2UITaskCard, A2UITaskLoadingCard } from "./A2UITaskCard";
-import { CHAT_A2UI_TASK_CARD_PRESET } from "@/lib/workspace/a2ui";
+import {
+  CHAT_A2UI_TASK_CARD_PRESET,
+  type A2UIResponse,
+} from "@/lib/workspace/a2ui";
 import {
   cleanupMountedRoots,
   clickButtonByText,
@@ -9,23 +12,58 @@ import {
   setupReactActEnvironment,
   type MountedRoot,
 } from "@/components/workspace/hooks/testUtils";
-import {
-  buildCreateConfirmationA2UI,
-  type PendingCreateConfirmation,
-} from "@/components/workspace/utils/createConfirmationPolicy";
 
 setupReactActEnvironment();
 
+const createConfirmationResponse: A2UIResponse = {
+  id: "create-confirmation-project-1",
+  root: "create_confirmation_root",
+  data: {},
+  components: [
+    {
+      id: "create_confirmation_hint",
+      component: "Text",
+      text: "我已经收到你的提示，先确认要继续已有内容还是创建新稿。",
+      variant: "body",
+    },
+    {
+      id: "create_confirmation_option",
+      component: "ChoicePicker",
+      label: "你希望我如何开始这次创作？",
+      value: [],
+      variant: "mutuallyExclusive",
+      layout: "vertical",
+      options: [
+        {
+          value: "continue_history",
+          label: "继续完善已有内容",
+          description: "直接回到最近相关文稿继续，不额外新建。",
+        },
+        {
+          value: "new_post",
+          label: "新写一篇内容",
+          description: "创建新的独立文稿，从这次需求开始写。",
+        },
+      ],
+    },
+    {
+      id: "create_confirmation_root",
+      component: "Column",
+      children: ["create_confirmation_hint", "create_confirmation_option"],
+      gap: 16,
+      align: "stretch",
+    },
+  ],
+  submitAction: {
+    label: "开始处理",
+    action: {
+      name: "submit",
+    },
+  },
+};
+
 describe("A2UITaskCard", () => {
   const mountedRoots: MountedRoot[] = [];
-
-  const pendingConfirmation: PendingCreateConfirmation = {
-    projectId: "project-1",
-    source: "workspace_prompt",
-    creationMode: "guided",
-    initialUserPrompt: "帮我继续这篇内容",
-    createdAt: 1_700_000_000_000,
-  };
 
   afterEach(() => {
     cleanupMountedRoots(mountedRoots);
@@ -37,7 +75,7 @@ describe("A2UITaskCard", () => {
     const { container } = mountHarness(
       A2UITaskCard,
       {
-        response: buildCreateConfirmationA2UI(pendingConfirmation),
+        response: createConfirmationResponse,
         onSubmit: submitSpy,
         preset: CHAT_A2UI_TASK_CARD_PRESET,
       },
@@ -84,7 +122,7 @@ describe("A2UITaskCard", () => {
     const { container } = mountHarness(
       A2UITaskCard,
       {
-        response: buildCreateConfirmationA2UI(pendingConfirmation),
+        response: createConfirmationResponse,
         onSubmit: submitSpy,
         preset: CHAT_A2UI_TASK_CARD_PRESET,
         compact: true,

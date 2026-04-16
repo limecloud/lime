@@ -26,6 +26,7 @@ import {
 import { EmptyStateComposerPanel } from "./EmptyStateComposerPanel";
 import { EmptyStateHero } from "./EmptyStateHero";
 import { EmptyStateQuickActions } from "./EmptyStateQuickActions";
+import { EmptyStateSceneAppsPanel } from "./EmptyStateSceneAppsPanel";
 import {
   EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME,
   EMPTY_STATE_PAGE_CONTAINER_CLASSNAME,
@@ -64,6 +65,9 @@ import capabilitySkillsPlaceholder from "@/assets/entry-surface/capability-skill
 import capabilityAutomationsPlaceholder from "@/assets/entry-surface/capability-automations-lime.png";
 import capabilityAgentTeamsPlaceholder from "@/assets/entry-surface/capability-agent-teams-lime.png";
 import capabilityBrowserAssistPlaceholder from "@/assets/entry-surface/capability-browser-assist-lime.png";
+import type { SceneAppEntryCardItem } from "../sceneappEntryTypes";
+import type { RuntimeToolAvailability } from "../utils/runtimeToolAvailability";
+import type { AgentTaskRuntimeCardModel } from "../utils/agentTaskRuntime";
 
 const contentReveal = keyframes`
   from {
@@ -255,12 +259,38 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   onLaunchBrowserAssist?: () => void | Promise<void>;
   /** 浏览器协助启动中 */
   browserAssistLoading?: boolean;
+  /** 首页推荐的 SceneApp 入口 */
+  featuredSceneApps?: SceneAppEntryCardItem[];
+  /** SceneApp 入口加载中 */
+  sceneAppsLoading?: boolean;
+  /** 当前正在启动的 SceneApp */
+  sceneAppLaunchingId?: string | null;
+  /** 启动 SceneApp */
+  onLaunchSceneApp?: (sceneappId: string) => void | Promise<void>;
+  /** 是否存在可恢复的最近 SceneApp */
+  canResumeRecentSceneApp?: boolean;
+  /** 恢复最近一次 SceneApp 上下文 */
+  onResumeRecentSceneApp?: () => void;
+  /** 打开 SceneApp 目录页 */
+  onOpenSceneAppsDirectory?: () => void;
   /** 当前项目 ID */
   projectId?: string | null;
   /** 项目切换 */
   onProjectChange?: (projectId: string) => void;
   /** 打开设置 */
   onOpenSettings?: () => void;
+  /** 当前 runtime tool surface */
+  runtimeToolAvailability?: RuntimeToolAvailability | null;
+  /** 当前执行态摘要 */
+  runtimeTaskCard?: AgentTaskRuntimeCardModel | null;
+  /** 打开记忆工作台 */
+  onOpenMemoryWorkbench?: () => void;
+  /** 打开消息渠道 */
+  onOpenChannels?: () => void;
+  /** 打开浏览器连接器 */
+  onOpenChromeRelay?: () => void;
+  /** 打开 OpenClaw 兼容入口 */
+  onOpenOpenClaw?: () => void;
 }
 
 type RecommendationShelfItem =
@@ -463,6 +493,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onRefreshSkills,
   onLaunchBrowserAssist,
   browserAssistLoading = false,
+  featuredSceneApps = [],
+  sceneAppsLoading = false,
+  sceneAppLaunchingId = null,
+  onLaunchSceneApp,
+  canResumeRecentSceneApp = false,
+  onResumeRecentSceneApp,
+  onOpenSceneAppsDirectory,
   projectId = null,
   onProjectChange,
   onOpenSettings,
@@ -1176,6 +1213,18 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     </RecommendationShelf>
   );
 
+  const generalSceneAppsPanel = (
+    <EmptyStateSceneAppsPanel
+      items={featuredSceneApps}
+      loading={sceneAppsLoading}
+      launchingSceneAppId={sceneAppLaunchingId}
+      onLaunchSceneApp={onLaunchSceneApp}
+      canResumeRecentSceneApp={canResumeRecentSceneApp}
+      onResumeRecentSceneApp={onResumeRecentSceneApp}
+      onOpenSceneAppsDirectory={onOpenSceneAppsDirectory}
+    />
+  );
+
   const generalContinuationPanel = (
     <RecommendationShelf>
       <RecommendationShelfHeader>
@@ -1279,6 +1328,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           supportingSlot={
             isGeneralTheme ? (
               <>
+                {generalSceneAppsPanel}
                 {generalContinuationPanel}
                 {generalRecommendedSolutionsPanel}
               </>

@@ -4,6 +4,8 @@
  * @module lib/constants/providerMappings
  */
 
+import { resolveKnownAnthropicCompatibleProvider } from "@/lib/model/providerPromptCacheSupport";
+
 // ============================================================================
 // 别名配置相关常量
 // ============================================================================
@@ -40,8 +42,7 @@ const ALIAS_CONFIG_MAPPING: Record<string, string> = {
  *
  * 注意：
  * - 这里只做“模型目录 / 别名”层的归一化，不代表运行时能力等价；
- * - 例如 `anthropic-compatible -> anthropic` 仅表示可复用 Anthropic 模型注册表，
- *   Prompt Cache 等能力仍必须按真实 ProviderType 单独判断。
+ * - 已知官方 Anthropic 兼容 Host 需要按真实厂商目录分流，不能一律回落到 Anthropic。
  */
 const PROVIDER_TYPE_TO_REGISTRY_ID: Record<string, string> = {
   // 主流 AI
@@ -95,13 +96,21 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
 /**
  * 获取 Provider 类型对应的模型注册表 ID
  * @param providerType Provider 类型
+ * @param apiHost 可选的 Provider API Host，用于识别官方 Anthropic 兼容厂商
  * @returns 模型注册表中的 provider_id
  */
-export function getRegistryIdFromType(providerType: string): string {
-  return (
-    PROVIDER_TYPE_TO_REGISTRY_ID[providerType.toLowerCase()] ||
-    providerType.toLowerCase()
-  );
+export function getRegistryIdFromType(
+  providerType: string,
+  apiHost?: string | null,
+): string {
+  const managedRegistryId = resolveKnownAnthropicCompatibleProvider(apiHost);
+  if (managedRegistryId) {
+    return managedRegistryId;
+  }
+
+  const normalizedType = providerType.toLowerCase();
+
+  return PROVIDER_TYPE_TO_REGISTRY_ID[normalizedType] || normalizedType;
 }
 
 /**

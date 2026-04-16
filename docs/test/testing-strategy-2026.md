@@ -40,7 +40,7 @@
 - 旧权限表面治理护栏已经补齐：`src/lib/governance/legacyToolPermissionGuard.test.ts` + `npm run governance:legacy-report`
 - 跨层命令契约检查基础版已经落地：`npm run test:contracts` 已进入 `scripts/local-ci.mjs`
 - 命令契约延期例外已经收口：`agent_terminal_command_response`、`agent_term_scrollback_response` 已退出 `runtimeGatewayCommands`，改为 `dead-candidate` 治理监控
-- 自包含 smoke 最小基线已落地：`npm run smoke:workspace-ready`、`npm run smoke:browser-runtime`、`npm run smoke:site-adapters` 都无需人工准备；另外，`npm run smoke:agent-runtime-tool-surface` 已补齐“runtime inventory -> 主界面提示/runtime strip”这条应用层主线 smoke，`npm run verify:gui-smoke` 现已默认串联这四条 current smoke
+- 自包含 smoke 最小基线已落地：`npm run smoke:workspace-ready`、`npm run smoke:browser-runtime`、`npm run smoke:site-adapters` 都无需人工准备；另外，`npm run smoke:agent-runtime-tool-surface` 与 `npm run smoke:agent-runtime-tool-surface-page` 已补齐“runtime inventory -> 应用层透传 / Runtime strip / 工作台 Runtime 能力摘要”这条应用层主线 smoke，`npm run verify:gui-smoke` 现已默认串联这组 current smoke
 - 测试文档事实源已经收口：`docs/test/README.md`、`docs/test/e2e-tests.md`、`docs/aiprompts/playwright-e2e.md` 已按“索引 / 总览 / 详细事实源”分层
 
 ## 3. 当前仍未解决的问题优先级

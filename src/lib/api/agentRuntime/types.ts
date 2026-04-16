@@ -200,6 +200,58 @@ export interface AgentRuntimeCompactionBoundarySnapshot {
   detail?: string;
 }
 
+export interface AgentRuntimeFileCheckpointSummary {
+  checkpoint_id: string;
+  turn_id: string;
+  path: string;
+  source: string;
+  updated_at: string | number;
+  version_no?: number;
+  version_id?: string;
+  request_id?: string;
+  title?: string;
+  kind?: string;
+  status?: string;
+  preview_text?: string;
+  snapshot_path?: string;
+  validation_issue_count: number;
+}
+
+export interface AgentRuntimeFileCheckpointThreadSummary {
+  count: number;
+  latest_checkpoint?: AgentRuntimeFileCheckpointSummary | null;
+}
+
+export interface AgentRuntimeFileCheckpointListResult {
+  session_id: string;
+  thread_id: string;
+  checkpoint_count: number;
+  checkpoints: AgentRuntimeFileCheckpointSummary[];
+}
+
+export interface AgentRuntimeFileCheckpointDetail {
+  session_id: string;
+  thread_id: string;
+  checkpoint: AgentRuntimeFileCheckpointSummary;
+  live_path: string;
+  snapshot_path: string;
+  checkpoint_document?: unknown;
+  live_document?: unknown;
+  version_history: unknown[];
+  validation_issues: string[];
+  metadata?: unknown;
+  content?: string;
+}
+
+export interface AgentRuntimeFileCheckpointDiffResult {
+  session_id: string;
+  thread_id: string;
+  checkpoint: AgentRuntimeFileCheckpointSummary;
+  current_version_id?: string;
+  previous_version_id?: string;
+  diff?: unknown;
+}
+
 export interface AgentRuntimeThreadDiagnostics {
   latest_turn_status?: string;
   latest_turn_started_at?: string | number;
@@ -238,6 +290,7 @@ export interface AgentRuntimeThreadReadModel {
   interrupt_state?: string;
   updated_at?: string | number;
   latest_compaction_boundary?: AgentRuntimeCompactionBoundarySnapshot | null;
+  file_checkpoint_summary?: AgentRuntimeFileCheckpointThreadSummary | null;
   diagnostics?: AgentRuntimeThreadDiagnostics | null;
 }
 
@@ -654,6 +707,20 @@ export interface AgentRuntimeResumeThreadRequest {
 export interface AgentRuntimeReplayRequestRequest {
   session_id: string;
   request_id: string;
+}
+
+export interface AgentRuntimeListFileCheckpointsRequest {
+  session_id: string;
+}
+
+export interface AgentRuntimeGetFileCheckpointRequest {
+  session_id: string;
+  checkpoint_id: string;
+}
+
+export interface AgentRuntimeDiffFileCheckpointRequest {
+  session_id: string;
+  checkpoint_id: string;
 }
 
 export interface AgentRuntimeRemoveQueuedTurnRequest {

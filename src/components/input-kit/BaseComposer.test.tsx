@@ -205,4 +205,12 @@ describe("BaseComposer", () => {
 
     expect(onSend).toHaveBeenCalledTimes(1);
   });
+
+  it("应为输入框提供稳定的 id 与 name，避免表单告警", () => {
+    const { container } = renderHarness();
+    const textarea = getTextarea(container);
+
+    expect(textarea.getAttribute("id")).toBeTruthy();
+    expect(textarea.getAttribute("name")).toBe("agent-chat-message");
+  });
 });

@@ -50,6 +50,7 @@ use axum::{
 use futures::StreamExt;
 
 use crate::AppState;
+use lime_core::database::dao::api_key_provider::ApiProviderType;
 use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::openai::ChatCompletionRequest;
 use lime_core::models::provider_pool_model::{CredentialData, ProviderCredential};
@@ -556,9 +557,10 @@ pub async fn call_provider_anthropic(
             } else {
                 PromptCacheMode::ExplicitOnly
             };
-            let claude = ClaudeCustomProvider::with_prompt_cache_mode(
+            let claude = ClaudeCustomProvider::with_provider_type_and_prompt_cache_mode(
                 api_key.clone(),
                 base_url.clone(),
+                ApiProviderType::AnthropicCompatible,
                 prompt_cache_mode,
             );
             let request_url = claude.get_base_url();
@@ -785,9 +787,10 @@ pub async fn call_provider_anthropic(
         // Anthropic API Key - 根据 base_url 决定调用方式
         CredentialData::AnthropicKey { api_key, base_url } => {
             // 使用 Anthropic 原生格式调用（无论是否有自定义 base_url）
-            let claude = ClaudeCustomProvider::with_prompt_cache_mode(
+            let claude = ClaudeCustomProvider::with_provider_type_and_prompt_cache_mode(
                 api_key.clone(),
                 base_url.clone(),
+                ApiProviderType::Anthropic,
                 PromptCacheMode::Automatic,
             );
             let request_url = claude.get_base_url();
@@ -1691,9 +1694,10 @@ pub async fn call_provider_openai(
             } else {
                 PromptCacheMode::ExplicitOnly
             };
-            let claude = ClaudeCustomProvider::with_prompt_cache_mode(
+            let claude = ClaudeCustomProvider::with_provider_type_and_prompt_cache_mode(
                 api_key.clone(),
                 base_url.clone(),
+                ApiProviderType::AnthropicCompatible,
                 prompt_cache_mode,
             );
 

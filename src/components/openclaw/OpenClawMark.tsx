@@ -31,5 +31,3 @@ export function OpenClawMark({ size = "md", className }: OpenClawMarkProps) {
     </div>
   );
 }
-
-export default OpenClawMark;

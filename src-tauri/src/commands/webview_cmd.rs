@@ -116,6 +116,34 @@ impl ChromeProfileProcess {
     }
 }
 
+#[derive(Debug, Clone)]
+struct ManagedChromeProfileSnapshot {
+    profile_key: String,
+    browser_source: String,
+    browser_path: String,
+    profile_dir: String,
+    remote_debugging_port: u16,
+    started_at: String,
+    last_url: String,
+    child_pid: u32,
+    child_running: bool,
+}
+
+impl ManagedChromeProfileSnapshot {
+    fn to_session_info(&self, pid: u32) -> ChromeProfileSessionInfo {
+        ChromeProfileSessionInfo {
+            profile_key: self.profile_key.clone(),
+            browser_source: self.browser_source.clone(),
+            browser_path: self.browser_path.clone(),
+            profile_dir: self.profile_dir.clone(),
+            remote_debugging_port: self.remote_debugging_port,
+            pid,
+            started_at: self.started_at.clone(),
+            last_url: self.last_url.clone(),
+        }
+    }
+}
+
 /// Chrome Profile 会话管理器状态
 pub struct ChromeProfileManagerState {
     sessions: HashMap<String, ChromeProfileProcess>,
@@ -146,6 +174,10 @@ static BROWSER_STREAM_RELAY_TASKS: Lazy<Mutex<HashMap<String, JoinHandle<()>>>> 
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 const MANAGED_CHROME_RECOVERY_WAIT_MS: u64 = 800;
+const GUI_SMOKE_CHROME_PROFILE_PREFIXES: [&str; 2] = [
+    "smoke-browser-runtime",
+    "smoke-agent-runtime-tool-surface-page",
+];
 static WINDOW_SCROLL_SCRIPT_TOP_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?is)window\.scroll(?:By|To)\s*\(\s*\{[^}]*top\s*:\s*(?P<amount>-?\d+)"#)
         .expect("window scroll top regex should be valid")
@@ -266,6 +298,14 @@ pub struct ChromeProfileSessionInfo {
     pub started_at: String,
     /// 最近一次打开的 URL
     pub last_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq, Eq)]
+pub struct CleanupGuiSmokeChromeProfilesResult {
+    pub matched_profiles: Vec<String>,
+    pub removed_profiles: Vec<String>,
+    pub skipped_profiles: Vec<String>,
+    pub terminated_process_count: usize,
 }
 
 /// Chrome 扩展桥接端点信息
@@ -1113,11 +1153,22 @@ async fn close_chrome_profile_session_with_manager(
     manager: Arc<Mutex<ChromeProfileManagerState>>,
     profile_key: String,
 ) -> Result<bool, String> {
-    let key = normalize_profile_key(&profile_key);
-    let mut manager = manager.lock().await;
+    close_chrome_profile_session_with_runtime(manager, shared_browser_runtime(), profile_key).await
+}
 
-    let closed = if let Some(mut process) = manager.sessions.remove(&key) {
-        match process.child.try_wait() {
+async fn close_chrome_profile_session_with_runtime(
+    manager: Arc<Mutex<ChromeProfileManagerState>>,
+    runtime: Arc<BrowserRuntimeManager>,
+    profile_key: String,
+) -> Result<bool, String> {
+    let key = normalize_profile_key(&profile_key);
+    let mut profile_dir_to_cleanup = None;
+    let mut manager = manager.lock().await;
+    let mut closed = false;
+
+    if let Some(mut process) = manager.sessions.remove(&key) {
+        profile_dir_to_cleanup = Some(PathBuf::from(process.profile_dir.clone()));
+        closed = match process.child.try_wait() {
             Ok(Some(_)) => true,
             Ok(None) => {
                 if let Err(e) = process.child.kill() {
@@ -1130,23 +1181,57 @@ async fn close_chrome_profile_session_with_manager(
                 tracing::warn!("[ChromeProfile] 读取进程状态失败: key={}, err={}", key, e);
                 true
             }
-        }
-    } else {
-        false
-    };
+        };
+    }
     drop(manager);
 
-    if let Some(cdp_session) = shared_browser_runtime()
-        .find_session_by_profile_key(&key)
-        .await
-    {
-        let _ = shared_browser_runtime()
-            .close_session(&cdp_session.session_id)
-            .await;
-        cleanup_browser_stream_relay(&cdp_session.session_id).await;
+    if profile_dir_to_cleanup.is_none() && is_gui_smoke_chrome_profile_key(&key) {
+        let base_dir = lime_core::app_paths::preferred_data_dir()
+            .map_err(|error| format!("获取应用数据目录失败: {error}"))?;
+        let profile_dir = resolve_chrome_profile_data_dir_from_base(&base_dir, &key);
+        if profile_dir.exists() {
+            profile_dir_to_cleanup = Some(profile_dir);
+        }
     }
 
+    if let Some(profile_dir) = profile_dir_to_cleanup {
+        if !collect_chrome_profile_processes(&profile_dir).is_empty() {
+            closed = cleanup_orphan_chrome_profile_processes(&profile_dir).await? || closed;
+        } else {
+            cleanup_chrome_profile_singleton_artifacts(&profile_dir);
+        }
+    }
+
+    close_browser_runtime_session_for_profile_key(runtime, &key).await;
+
     Ok(closed)
+}
+
+#[tauri::command]
+pub async fn cleanup_gui_smoke_chrome_profiles(
+    state: tauri::State<'_, ChromeProfileManagerWrapper>,
+) -> Result<CleanupGuiSmokeChromeProfilesResult, String> {
+    let base_dir = lime_core::app_paths::preferred_data_dir()
+        .map_err(|error| format!("获取应用数据目录失败: {error}"))?;
+    cleanup_gui_smoke_chrome_profiles_with_runtime(
+        state.0.clone(),
+        shared_browser_runtime(),
+        &base_dir,
+    )
+    .await
+}
+
+#[cfg_attr(any(test, not(debug_assertions)), allow(dead_code))]
+pub async fn cleanup_gui_smoke_chrome_profiles_global(
+) -> Result<CleanupGuiSmokeChromeProfilesResult, String> {
+    let base_dir = lime_core::app_paths::preferred_data_dir()
+        .map_err(|error| format!("获取应用数据目录失败: {error}"))?;
+    cleanup_gui_smoke_chrome_profiles_with_runtime(
+        shared_chrome_profile_manager(),
+        shared_browser_runtime(),
+        &base_dir,
+    )
+    .await
 }
 
 /// 获取 ChromeBridge 连接端点信息
@@ -2197,18 +2282,10 @@ async fn enrich_browser_action_value(
             if let Ok(profile_session) =
                 select_profile_session(manager, Some(resolved_profile_key.clone())).await
             {
-                if runtime
-                    .is_cdp_endpoint_alive(profile_session.remote_debugging_port)
-                    .await
-                {
-                    cdp_session = ensure_cdp_runtime_session(
-                        &runtime,
-                        &profile_session,
-                        target_id.as_deref(),
-                    )
-                    .await
-                    .ok();
-                }
+                cdp_session =
+                    ensure_cdp_runtime_session(&runtime, &profile_session, target_id.as_deref())
+                        .await
+                        .ok();
             }
         }
     }
@@ -2791,6 +2868,43 @@ async fn cleanup_browser_stream_relay(session_id: &str) {
     }
 }
 
+async fn close_browser_runtime_session_for_profile_key(
+    runtime: Arc<BrowserRuntimeManager>,
+    profile_key: &str,
+) {
+    let session_ids = runtime.close_sessions_by_profile_key(profile_key).await;
+    for session_id in session_ids {
+        cleanup_browser_stream_relay(&session_id).await;
+    }
+}
+
+async fn resolve_managed_profile_snapshot(
+    snapshot: &ManagedChromeProfileSnapshot,
+) -> Option<ChromeProfileSessionInfo> {
+    let profile_dir = Path::new(&snapshot.profile_dir);
+    let discovered_pid = find_chrome_profile_process_pid(profile_dir);
+    let endpoint_alive = if snapshot.child_running || discovered_pid.is_some() {
+        false
+    } else {
+        shared_browser_runtime()
+            .is_cdp_endpoint_alive(snapshot.remote_debugging_port)
+            .await
+    };
+
+    if !(snapshot.child_running || discovered_pid.is_some() || endpoint_alive) {
+        return None;
+    }
+
+    let effective_pid = discovered_pid.unwrap_or_else(|| {
+        if snapshot.child_running {
+            snapshot.child_pid
+        } else {
+            0
+        }
+    });
+    Some(snapshot.to_session_info(effective_pid))
+}
+
 async fn discover_unmanaged_profile_session(
     profile_key: &str,
 ) -> Result<Option<ChromeProfileSessionInfo>, String> {
@@ -2805,15 +2919,28 @@ async fn discover_unmanaged_profile_session(
     let remote_debugging_port = profile_remote_debugging_port(&normalized_profile_key);
     let runtime = shared_browser_runtime();
     let targets = match runtime.list_targets(remote_debugging_port).await {
-        Ok(value) => value,
-        Err(_) => return Ok(None),
+        Ok(value) => Some(value),
+        Err(error) => {
+            if !runtime.is_cdp_endpoint_alive(remote_debugging_port).await {
+                return Ok(None);
+            }
+            tracing::debug!(
+                "[ChromeProfile] 读取未受管 profile target 列表失败，但 CDP 仍可用: key={}, port={}, err={}",
+                normalized_profile_key,
+                remote_debugging_port,
+                error
+            );
+            None
+        }
     };
     let pid = find_chrome_profile_process_pid(&profile_dir).unwrap_or_default();
 
     let (browser_path, browser_source) =
         get_available_chrome_path().unwrap_or_else(|| (String::new(), "system".to_string()));
     let last_url = targets
-        .iter()
+        .as_ref()
+        .into_iter()
+        .flat_map(|items| items.iter())
         .find(|target| target.target_type == "page" && !target.url.trim().is_empty())
         .map(|target| target.url.trim().to_string())
         .unwrap_or_else(|| "about:blank".to_string());
@@ -2847,12 +2974,25 @@ async fn discover_bridge_backed_profile_session(
     let remote_debugging_port = profile_remote_debugging_port(&normalized_profile_key);
     let runtime = shared_browser_runtime();
     let targets = match runtime.list_targets(remote_debugging_port).await {
-        Ok(value) => value,
-        Err(_) => return Ok(None),
+        Ok(value) => Some(value),
+        Err(error) => {
+            if !runtime.is_cdp_endpoint_alive(remote_debugging_port).await {
+                return Ok(None);
+            }
+            tracing::debug!(
+                "[ChromeProfile] 读取扩展附着 profile target 列表失败，但 CDP 仍可用: key={}, port={}, err={}",
+                normalized_profile_key,
+                remote_debugging_port,
+                error
+            );
+            None
+        }
     };
 
     let last_url = targets
-        .iter()
+        .as_ref()
+        .into_iter()
+        .flat_map(|items| items.iter())
         .find(|target| target.target_type == "page" && !target.url.trim().is_empty())
         .map(|target| target.url.trim().to_string())
         .or_else(|| {
@@ -2906,6 +3046,126 @@ async fn discover_unmanaged_profile_sessions() -> Result<Vec<ChromeProfileSessio
     Ok(discovered)
 }
 
+fn is_gui_smoke_chrome_profile_key(profile_key: &str) -> bool {
+    let normalized = normalize_profile_key(profile_key);
+    GUI_SMOKE_CHROME_PROFILE_PREFIXES
+        .iter()
+        .any(|prefix| normalized == *prefix || normalized.starts_with(&format!("{prefix}-")))
+}
+
+fn list_gui_smoke_chrome_profile_dirs(base_dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
+    let chrome_profiles_dir = base_dir.join("chrome_profiles");
+    if !chrome_profiles_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut matches = Vec::new();
+    let entries = std::fs::read_dir(&chrome_profiles_dir)
+        .map_err(|error| format!("读取 GUI smoke Chrome profile 目录失败: {error}"))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("读取 GUI smoke profile 条目失败: {error}"))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|error| format!("读取 GUI smoke profile 类型失败: {error}"))?;
+        if !file_type.is_dir() {
+            continue;
+        }
+
+        let profile_key = entry.file_name().to_string_lossy().to_string();
+        if !is_gui_smoke_chrome_profile_key(&profile_key) {
+            continue;
+        }
+
+        matches.push((profile_key, entry.path()));
+    }
+
+    matches.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(matches)
+}
+
+async fn cleanup_gui_smoke_chrome_profiles_with_runtime(
+    manager: Arc<Mutex<ChromeProfileManagerState>>,
+    runtime: Arc<BrowserRuntimeManager>,
+    base_dir: &Path,
+) -> Result<CleanupGuiSmokeChromeProfilesResult, String> {
+    let managed_profile_keys = {
+        let guard = manager.lock().await;
+        guard
+            .sessions
+            .keys()
+            .filter(|profile_key| is_gui_smoke_chrome_profile_key(profile_key))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+
+    for profile_key in managed_profile_keys {
+        let _ = close_chrome_profile_session_with_runtime(
+            manager.clone(),
+            runtime.clone(),
+            profile_key,
+        )
+        .await?;
+    }
+
+    let matched_profile_dirs = list_gui_smoke_chrome_profile_dirs(base_dir)?;
+    if matched_profile_dirs.is_empty() {
+        return Ok(CleanupGuiSmokeChromeProfilesResult::default());
+    }
+
+    let matched_profiles = matched_profile_dirs
+        .iter()
+        .map(|(profile_key, _)| profile_key.clone())
+        .collect::<Vec<_>>();
+    let mut removed_profiles = Vec::new();
+    let mut skipped_profiles = Vec::new();
+    let mut terminated_process_count = 0usize;
+
+    for (profile_key, profile_dir) in matched_profile_dirs {
+        close_browser_runtime_session_for_profile_key(runtime.clone(), &profile_key).await;
+
+        let process_count = collect_chrome_profile_processes(&profile_dir).len();
+        terminated_process_count += process_count;
+        if process_count > 0 {
+            let _ = cleanup_orphan_chrome_profile_processes(&profile_dir).await?;
+        } else {
+            cleanup_chrome_profile_singleton_artifacts(&profile_dir);
+        }
+
+        if !collect_chrome_profile_processes(&profile_dir).is_empty() {
+            tracing::warn!(
+                "[ChromeProfile] GUI smoke profile 清理后仍有残留进程，跳过删目录: key={}, dir={:?}",
+                profile_key,
+                profile_dir
+            );
+            skipped_profiles.push(profile_key);
+            continue;
+        }
+
+        match std::fs::remove_dir_all(&profile_dir) {
+            Ok(()) => removed_profiles.push(profile_key),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                removed_profiles.push(profile_key);
+            }
+            Err(error) => {
+                tracing::warn!(
+                    "[ChromeProfile] 删除 GUI smoke profile 目录失败: key={}, dir={:?}, err={}",
+                    profile_key,
+                    profile_dir,
+                    error
+                );
+                skipped_profiles.push(profile_key);
+            }
+        }
+    }
+
+    Ok(CleanupGuiSmokeChromeProfilesResult {
+        matched_profiles,
+        removed_profiles,
+        skipped_profiles,
+        terminated_process_count,
+    })
+}
+
 async fn discover_bridge_backed_profile_sessions() -> Result<Vec<ChromeProfileSessionInfo>, String>
 {
     let bridge_status = chrome_bridge::chrome_bridge_hub()
@@ -2932,27 +3192,45 @@ async fn discover_bridge_backed_profile_sessions() -> Result<Vec<ChromeProfileSe
 async fn list_alive_profile_sessions(
     manager: Arc<Mutex<ChromeProfileManagerState>>,
 ) -> Vec<ChromeProfileSessionInfo> {
-    let mut guard = manager.lock().await;
+    let snapshots = {
+        let mut guard = manager.lock().await;
+        guard
+            .sessions
+            .iter_mut()
+            .map(|(key, process)| ManagedChromeProfileSnapshot {
+                profile_key: key.clone(),
+                browser_source: process.browser_source.clone(),
+                browser_path: process.browser_path.clone(),
+                profile_dir: process.profile_dir.clone(),
+                remote_debugging_port: process.remote_debugging_port,
+                started_at: process.started_at.clone(),
+                last_url: process.last_url.clone(),
+                child_pid: process.child.id(),
+                child_running: matches!(process.child.try_wait(), Ok(None)),
+            })
+            .collect::<Vec<_>>()
+    };
+
     let mut stale_keys = Vec::new();
     let mut sessions = Vec::new();
-
-    for (key, process) in &mut guard.sessions {
-        match process.child.try_wait() {
-            Ok(None) => sessions.push(process.as_info()),
-            Ok(Some(_)) => stale_keys.push(key.clone()),
-            Err(_) => stale_keys.push(key.clone()),
+    for snapshot in snapshots {
+        match resolve_managed_profile_snapshot(&snapshot).await {
+            Some(session) => sessions.push(session),
+            None => stale_keys.push(snapshot.profile_key),
         }
     }
 
-    for key in stale_keys {
-        guard.sessions.remove(&key);
+    if !stale_keys.is_empty() {
+        let mut guard = manager.lock().await;
+        for key in stale_keys {
+            guard.sessions.remove(&key);
+        }
     }
 
     let mut known_profile_keys = sessions
         .iter()
         .map(|session| session.profile_key.clone())
         .collect::<HashSet<_>>();
-    drop(guard);
 
     let unmanaged_sessions = match discover_unmanaged_profile_sessions().await {
         Ok(items) => items,
@@ -3684,6 +3962,7 @@ mod tests {
     use crate::services::browser_profile_service::sanitize_browser_profile_key;
     use rusqlite::Connection;
     use std::sync::{Arc, Mutex};
+    use tempfile::TempDir;
     use tokio::sync::Mutex as AsyncMutex;
 
     static BROWSER_RUNTIME_AUDIT_TEST_LOCK: Lazy<AsyncMutex<()>> =
@@ -3742,6 +4021,63 @@ mod tests {
     fn sanitize_profile_key_should_replace_unsafe_chars() {
         let safe = sanitize_browser_profile_key("search/google:zh-CN");
         assert_eq!(safe, "search_google_zh-CN");
+    }
+
+    #[test]
+    fn is_gui_smoke_chrome_profile_key_should_only_match_expected_prefixes() {
+        assert!(is_gui_smoke_chrome_profile_key("smoke-browser-runtime"));
+        assert!(is_gui_smoke_chrome_profile_key(
+            "smoke-browser-runtime-1776268837197"
+        ));
+        assert!(is_gui_smoke_chrome_profile_key(
+            "smoke-agent-runtime-tool-surface-page"
+        ));
+        assert!(is_gui_smoke_chrome_profile_key(
+            "smoke-agent-runtime-tool-surface-page-1776268952231"
+        ));
+        assert!(!is_gui_smoke_chrome_profile_key("general_browser_assist"));
+        assert!(!is_gui_smoke_chrome_profile_key("smoke-browser"));
+    }
+
+    #[tokio::test]
+    async fn cleanup_gui_smoke_chrome_profiles_should_remove_only_smoke_dirs() {
+        let temp_dir = TempDir::new().unwrap();
+        let chrome_profiles_dir = temp_dir.path().join("chrome_profiles");
+        std::fs::create_dir_all(&chrome_profiles_dir).unwrap();
+
+        let smoke_dir = chrome_profiles_dir.join("smoke-browser-runtime");
+        let smoke_legacy_dir =
+            chrome_profiles_dir.join("smoke-agent-runtime-tool-surface-page-1776268952231");
+        let unrelated_dir = chrome_profiles_dir.join("general_browser_assist");
+
+        std::fs::create_dir_all(&smoke_dir).unwrap();
+        std::fs::create_dir_all(&smoke_legacy_dir).unwrap();
+        std::fs::create_dir_all(&unrelated_dir).unwrap();
+        std::fs::write(smoke_dir.join("SingletonLock"), "lock").unwrap();
+        std::fs::write(smoke_legacy_dir.join("Preferences"), "{}").unwrap();
+        std::fs::write(unrelated_dir.join("Preferences"), "{}").unwrap();
+
+        let result = cleanup_gui_smoke_chrome_profiles_with_runtime(
+            Arc::new(tokio::sync::Mutex::new(ChromeProfileManagerState::new())),
+            Arc::new(BrowserRuntimeManager::new()),
+            temp_dir.path(),
+        )
+        .await
+        .expect("cleanup should succeed");
+
+        assert_eq!(
+            result.matched_profiles,
+            vec![
+                "smoke-agent-runtime-tool-surface-page-1776268952231".to_string(),
+                "smoke-browser-runtime".to_string(),
+            ]
+        );
+        assert_eq!(result.removed_profiles, result.matched_profiles);
+        assert!(result.skipped_profiles.is_empty());
+        assert_eq!(result.terminated_process_count, 0);
+        assert!(!smoke_dir.exists());
+        assert!(!smoke_legacy_dir.exists());
+        assert!(unrelated_dir.exists());
     }
 
     #[test]

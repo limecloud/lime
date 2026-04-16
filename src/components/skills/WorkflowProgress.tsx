@@ -326,5 +326,3 @@ export function WorkflowProgress({
     </div>
   );
 }
-
-export default WorkflowProgress;

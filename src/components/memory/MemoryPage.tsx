@@ -17,13 +17,17 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
 import {
+  cleanupContextMemdir,
   getContextMemoryAutoIndex,
   getContextMemoryEffectiveSources,
   getContextMemoryExtractionStatus,
   getContextWorkingMemory,
   prefetchContextMemoryForTurn,
+  scaffoldContextMemdir,
   type AutoMemoryIndexResponse,
   type EffectiveMemorySourcesResponse,
+  type MemdirCleanupResult,
+  type MemdirScaffoldResult,
   type MemoryExtractionStatusResponse,
   type MemoryConfig,
   type TurnMemoryPrefetchResult,
@@ -81,7 +85,7 @@ type PrimarySection =
   | "durable"
   | "team"
   | "compaction";
-type ClaudeMemoryType = "user" | "feedback" | "project" | "reference";
+type MemoryKnowledgeType = "user" | "feedback" | "project" | "reference";
 type SourceBucketKey =
   | "managed"
   | "user"
@@ -103,12 +107,52 @@ interface RuntimeMemoryPrefetchState {
   error: string | null;
 }
 
+interface MemdirActionNotice {
+  tone: "success" | "error";
+  message: string;
+}
+
 const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   enabled: true,
   max_entries: 1000,
   retention_days: 30,
   auto_cleanup: true,
 };
+
+function resolveActionErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
+
+function formatMemdirCleanupMessage(result: MemdirCleanupResult): string {
+  const touchedCount =
+    result.curated_topic_files +
+    result.removed_duplicate_links +
+    result.dropped_missing_links +
+    result.removed_duplicate_notes +
+    result.trimmed_notes;
+
+  if (result.updated_files === 0 || touchedCount === 0) {
+    return "memdir 已经是干净状态，无需整理";
+  }
+
+  return `已整理 memdir：更新 ${result.updated_files} 个文件，收口 ${result.curated_topic_files} 个 topic，清掉 ${result.removed_duplicate_links + result.dropped_missing_links + result.removed_duplicate_notes + result.trimmed_notes} 处重复或过期内容`;
+}
+
+function formatMemdirScaffoldMessage(result: MemdirScaffoldResult): string {
+  const createdCount = result.files.filter(
+    (file) => file.status === "created" || file.status === "overwritten",
+  ).length;
+
+  return createdCount > 0
+    ? `已初始化 memdir：${result.root_dir}`
+    : `memdir 已存在：${result.root_dir}`;
+}
 
 const SECTION_META: Array<{
   key: PrimarySection;
@@ -120,13 +164,13 @@ const SECTION_META: Array<{
     key: "home",
     label: "记忆总览",
     icon: BrainCircuit,
-    description: "按 Claude Code 的来源与作用域查看当前记忆。",
+    description: "按 Lime 的记忆目录、作用域与类型查看当前记忆。",
   },
   {
     key: "rules",
     label: "记忆来源",
     icon: ScrollText,
-    description: "Managed、User、Project、Local、Rules、Auto 与 /memories。",
+    description: "托管策略、用户/项目/本地记忆、规则目录、memdir 与 /memories。",
   },
   {
     key: "working",
@@ -138,13 +182,13 @@ const SECTION_META: Array<{
     key: "durable",
     label: "记忆类型",
     icon: Database,
-    description: "Claude 四类记忆视角与 Lime 当前存量映射。",
+    description: "Lime 四类记忆与当前存量映射。",
   },
   {
     key: "team",
-    label: "Team Memory",
+    label: "团队记忆",
     icon: Users,
-    description: "repo 作用域的协作影子与分工快照。",
+    description: "仓库作用域的协作影子与分工快照。",
   },
   {
     key: "compaction",
@@ -170,46 +214,46 @@ const CATEGORY_LABELS: Record<MemoryCategory, string> = {
   activity: "收藏",
 };
 
-const CLAUDE_MEMORY_TYPE_META: Array<{
-  key: ClaudeMemoryType;
+const MEMORY_TYPE_META: Array<{
+  key: MemoryKnowledgeType;
   label: string;
   description: string;
   useCase: string;
 }> = [
   {
     key: "user",
-    label: "User memory",
+    label: "用户记忆",
     description: "记录用户角色、职责、目标与长期偏好，用来调整协作方式。",
     useCase: "例如用户的经验背景、沟通偏好、对解释深浅的期待。",
   },
   {
     key: "feedback",
-    label: "Feedback memory",
+    label: "反馈记忆",
     description: "记录用户反复强调的做事方式，包括纠偏和验证通过的做法。",
     useCase: "例如“不要做额外重构”“回复保持简洁”“测试要打真实链路”。",
   },
   {
     key: "project",
-    label: "Project memory",
+    label: "项目记忆",
     description: "记录项目内不易从代码直接推导的目标、约束、时间点和背景。",
     useCase: "例如当前主线、冻结窗口、重构动机、团队分工和交付背景。",
   },
   {
     key: "reference",
-    label: "Reference memory",
+    label: "参考记忆",
     description: "记录外部资料和系统入口，帮助下次知道去哪里查最新事实。",
     useCase: "例如文档地址、监控面板、工单系统、知识库目录。",
   },
 ];
 
-const CLAUDE_MEMORY_TYPE_LABELS: Record<ClaudeMemoryType, string> = {
+const MEMORY_TYPE_LABELS: Record<MemoryKnowledgeType, string> = {
   user: "用户记忆",
   feedback: "反馈记忆",
   project: "项目记忆",
   reference: "参考记忆",
 };
 
-const LEGACY_CATEGORY_TO_CLAUDE_TYPE: Record<MemoryCategory, ClaudeMemoryType> =
+const LEGACY_CATEGORY_TO_MEMORY_TYPE: Record<MemoryCategory, MemoryKnowledgeType> =
   {
     identity: "user",
     preference: "feedback",
@@ -218,7 +262,7 @@ const LEGACY_CATEGORY_TO_CLAUDE_TYPE: Record<MemoryCategory, ClaudeMemoryType> =
     context: "reference",
   };
 
-const CLAUDE_TYPE_BADGE_CLASS_NAMES: Record<ClaudeMemoryType, string> = {
+const MEMORY_TYPE_BADGE_CLASS_NAMES: Record<MemoryKnowledgeType, string> = {
   user: "border-emerald-200 bg-emerald-50 text-emerald-800",
   feedback: "border-emerald-200 bg-emerald-50 text-emerald-800",
   project: "border-emerald-200 bg-emerald-50 text-emerald-800",
@@ -235,7 +279,7 @@ const SOURCE_BUCKET_META: Array<{
 }> = [
   {
     key: "managed",
-    label: "Managed memory",
+    label: "托管记忆",
     scope: "全局托管",
     description: "平台托管的基础政策与默认行为，优先级最高。",
     kinds: ["managed_policy"],
@@ -243,7 +287,7 @@ const SOURCE_BUCKET_META: Array<{
   },
   {
     key: "user",
-    label: "User memory",
+    label: "用户记忆",
     scope: "用户级",
     description: "全局用户记忆，通常对应当前用户的长期偏好与个人规则。",
     kinds: ["user_memory"],
@@ -251,7 +295,7 @@ const SOURCE_BUCKET_META: Array<{
   },
   {
     key: "project",
-    label: "Project memory",
+    label: "项目记忆",
     scope: "项目级",
     description: "项目共享记忆，通常来自仓库内主记忆文件。",
     kinds: ["project_memory", "workspace_agents"],
@@ -259,15 +303,15 @@ const SOURCE_BUCKET_META: Array<{
   },
   {
     key: "local",
-    label: "Local memory",
+    label: "本地记忆",
     scope: "本地项目级",
     description: "仅在当前工作区本地生效，不应替代共享主记忆。",
     kinds: ["project_local"],
-    emptyState: "当前未发现本地 local memory 文件。",
+    emptyState: "当前未发现本地记忆文件。",
   },
   {
     key: "rules",
-    label: "Project rules",
+    label: "项目规则",
     scope: "项目规则目录",
     description: "规则目录与细粒度规则文件，会在项目范围内参与注入。",
     kinds: ["project_rule", "project_rules"],
@@ -275,23 +319,23 @@ const SOURCE_BUCKET_META: Array<{
   },
   {
     key: "auto",
-    label: "Auto memory",
-    scope: "自动归档",
-    description: "自动记忆目录与入口文件，承接持续沉淀的 note 与索引。",
-    kinds: ["auto_memory"],
-    emptyState: "当前未启用或未发现 auto memory 入口。",
+    label: "记忆目录（memdir）",
+    scope: "memdir 根目录",
+    description: "以 MEMORY.md 为入口，承接四类记忆文件、自动沉淀 note 与索引。",
+    kinds: ["auto_memory", "auto_memory_item"],
+    emptyState: "当前未启用或未发现 memdir 入口。",
   },
   {
     key: "durable",
     label: "/memories",
     scope: "跨会话",
-    description: "可跨会话访问的 durable memory 根目录，用于共享结构化沉淀。",
+    description: "可跨会话访问的长期记忆根目录，用于共享结构化沉淀。",
     kinds: ["durable_memory"],
-    emptyState: "当前未发现 durable memory 根目录。",
+    emptyState: "当前未发现 /memories 根目录。",
   },
   {
     key: "additional",
-    label: "Additional memory",
+    label: "附加目录",
     scope: "附加目录",
     description: "额外扫描目录中的补充记忆来源，避免直接混入主链。",
     kinds: ["additional_memory"],
@@ -306,32 +350,32 @@ const MEMORY_SCOPE_CARD_META: Array<{
 }> = [
   {
     key: "user",
-    label: "User memory",
+    label: "用户记忆",
     description: "面向当前用户的长期偏好与协作方式。",
   },
   {
     key: "project",
-    label: "Project memory",
+    label: "项目记忆",
     description: "仓库共享记忆，承接项目背景和约束。",
   },
   {
     key: "local",
-    label: "Local memory",
+    label: "本地记忆",
     description: "只在本地工作区生效的附加指令与补充说明。",
   },
   {
     key: "auto",
-    label: "Auto memory folder",
-    description: "自动整理的 MEMORY 入口和主题 note。",
+    label: "记忆目录（memdir）",
+    description: "以 MEMORY.md 为入口，承接四类记忆、主题 note 与索引。",
   },
   {
     key: "durable",
     label: "/memories",
-    description: "跨会话可读取的 durable 记忆根目录。",
+    description: "跨会话可读取的长期记忆根目录。",
   },
   {
     key: "team",
-    label: "Team memory",
+    label: "团队记忆",
     description: "repo-scoped 协作影子，补充团队分工和上下文。",
   },
 ];
@@ -353,6 +397,7 @@ const MEMORY_DO_NOT_SAVE = [
   "调试步骤、修复配方或一次性操作过程，真正的结果应该回到代码和提交记录。",
   "已经写进 `AGENTS.md`、项目规则或其他记忆文件的内容，不要重复保存。",
   "临时任务状态、当前会话上下文、一次性的待办列表，这些属于 working memory，不是 durable memory。",
+  "一次性操作日志和短期摘录，这些更适合留在会话记忆，而不是 memdir。",
 ];
 
 const MEMORY_READ_GUARDRAILS = [
@@ -370,7 +415,7 @@ const MEMORY_PAGE_LAYER_COPY: Record<
 > = {
   rules: {
     title: "来源链",
-    description: "当前已解析到可注入的规则与记忆来源文件。",
+    description: "当前已解析到可注入的规则文件、记忆目录与来源项。",
   },
   working: {
     title: "会话记忆",
@@ -378,11 +423,11 @@ const MEMORY_PAGE_LAYER_COPY: Record<
   },
   durable: {
     title: "持久记忆",
-    description: "跨会话可复用的结构化沉淀已进入 durable memory 视图。",
+    description: "跨会话可复用的结构化沉淀已进入长期记忆视图。",
   },
   team: {
-    title: "Team Memory",
-    description: "repo 作用域的 Team memory 快照可用于补足协作上下文。",
+    title: "团队记忆",
+    description: "repo 作用域的团队记忆快照可用于补足协作上下文。",
   },
   compaction: {
     title: "会话压缩",
@@ -415,7 +460,7 @@ const RUNTIME_HISTORY_LAYER_LABELS: Record<
   rules: "规则层",
   working: "工作层",
   durable: "持久层",
-  team: "Team 层",
+  team: "团队层",
   compaction: "压缩层",
 };
 
@@ -469,6 +514,49 @@ function formatRelativeTime(timestamp: number | undefined): string {
     .padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
 }
 
+function truncateSummaryText(value?: string | null, maxLength = 88): string {
+  const normalized = (value || "").trim().replace(/\s+/g, " ");
+  if (!normalized) {
+    return "";
+  }
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function countRuntimePrefetchHitLayers(
+  result: TurnMemoryPrefetchResult | null,
+): number {
+  if (!result) {
+    return 0;
+  }
+
+  return [
+    result.rules_source_paths.length > 0,
+    Boolean(result.working_memory_excerpt),
+    result.durable_memories.length > 0,
+    result.team_memory_entries.length > 0,
+    Boolean(result.latest_compaction),
+  ].filter(Boolean).length;
+}
+
+function buildRuntimePrefetchHitSummary(
+  result: TurnMemoryPrefetchResult | null,
+): string {
+  if (!result) {
+    return "带着当前会话进入时，这里会直接显示这轮真实命中的规则、工作摘录、长期记忆、团队影子和压缩摘要。";
+  }
+
+  return [
+    `规则 ${result.rules_source_paths.length}`,
+    result.working_memory_excerpt ? "工作已命中" : "工作未命中",
+    `长期 ${result.durable_memories.length}`,
+    `团队 ${result.team_memory_entries.length}`,
+    result.latest_compaction ? "压缩已命中" : "压缩未命中",
+  ].join(" · ");
+}
+
 function formatRuntimeLayerStatusLabel(
   label: string,
   count?: number | null,
@@ -504,7 +592,7 @@ function resolveRuntimeHistoryPreviewChangeLabel(
     case "durable":
       return `持久记忆 ${change.previous || "无"} -> ${change.current || "无"}`;
     case "team":
-      return `Team Memory ${change.previous || "无"} -> ${change.current || "无"}`;
+      return `团队记忆 ${change.previous || "无"} -> ${change.current || "无"}`;
     case "compaction":
       return `压缩摘要 ${change.previous || "无"} -> ${change.current || "无"}`;
     case "user_message":
@@ -672,33 +760,44 @@ function getMemoryAvailabilityBadge(status: MemoryAvailabilityStatus): {
   }
 }
 
-function resolveClaudeMemoryType(category: MemoryCategory): ClaudeMemoryType {
-  return LEGACY_CATEGORY_TO_CLAUDE_TYPE[category];
+function resolveMemoryType(category: MemoryCategory): MemoryKnowledgeType {
+  return LEGACY_CATEGORY_TO_MEMORY_TYPE[category];
 }
 
 function resolveSourceKindLabel(kind: string): string {
   switch (kind) {
     case "managed_policy":
-      return "Managed memory";
+      return "托管记忆";
     case "user_memory":
-      return "User memory";
+      return "用户记忆";
     case "project_memory":
     case "workspace_agents":
-      return "Project memory";
+      return "项目记忆";
     case "project_local":
-      return "Local memory";
+      return "本地记忆";
     case "project_rule":
     case "project_rules":
-      return "Project rules";
+      return "项目规则";
     case "auto_memory":
-      return "Auto memory";
+      return "记忆目录入口";
+    case "auto_memory_item":
+      return "memdir 条目";
     case "durable_memory":
       return "/memories";
     case "additional_memory":
-      return "Additional memory";
+      return "附加目录";
     default:
       return kind;
   }
+}
+
+function resolveSourceBucketLabel(bucket?: string | null): string {
+  if (!bucket) {
+    return "未分类";
+  }
+  return (
+    SOURCE_BUCKET_META.find((item) => item.key === bucket)?.label || bucket
+  );
 }
 
 function MemorySurfacePanel(props: {
@@ -768,6 +867,11 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       result: null,
       error: null,
     });
+  const [memdirActionNotice, setMemdirActionNotice] =
+    useState<MemdirActionNotice | null>(null);
+  const [memdirActionType, setMemdirActionType] = useState<
+    "scaffold" | "cleanup" | null
+  >(null);
   const [runtimeHistoryScope, setRuntimeHistoryScope] =
     useState<RuntimeMemoryPrefetchHistoryScope>("all");
   const [
@@ -779,6 +883,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
   const runtimeWorkingDir = pageParams?.runtimeWorkingDir?.trim() || "";
   const runtimeUserMessage = pageParams?.runtimeUserMessage?.trim() || "";
   const hasRuntimeContext = Boolean(runtimeSessionId && runtimeWorkingDir);
+  const memdirWorkingDir =
+    runtimeWorkingDir || rulesSources?.working_dir?.trim() || undefined;
 
   useEffect(() => {
     const resolved = resolveSectionState(pageParams?.section);
@@ -876,6 +982,20 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     };
   }, []);
 
+  const refreshMemdirSurface = useCallback(async (workingDir?: string) => {
+    const [nextRulesSources, nextAutoIndex] = await Promise.all([
+      getContextMemoryEffectiveSources(workingDir).catch(() => null),
+      getContextMemoryAutoIndex(workingDir).catch(() => null),
+    ]);
+
+    if (nextRulesSources) {
+      setRulesSources(nextRulesSources);
+    }
+    if (nextAutoIndex) {
+      setAutoIndex(nextAutoIndex);
+    }
+  }, []);
+
   const filteredMemories = useMemo(() => {
     if (durableFilter === "all") {
       return unifiedMemories;
@@ -920,6 +1040,13 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           ) || [];
         const loadedCount = sources.filter((source) => source.loaded).length;
         const existsCount = sources.filter((source) => source.exists).length;
+        const latestUpdatedAt =
+          sources.reduce((latest, source) => {
+            if (!source.updated_at) {
+              return latest;
+            }
+            return Math.max(latest, source.updated_at);
+          }, 0) || null;
         const status: "loaded" | "exists" | "missing" =
           loadedCount > 0 ? "loaded" : existsCount > 0 ? "exists" : "missing";
         return {
@@ -927,6 +1054,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           sources,
           loadedCount,
           existsCount,
+          latestUpdatedAt,
+          provider:
+            sources.find((source) => source.provider)?.provider ||
+            (bucket.key === "auto" ? "memdir" : null),
           status,
           primaryPath: sources[0]?.path || null,
           preview:
@@ -954,7 +1085,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           detail:
             teamSnapshots.length > 0
               ? `${teamSnapshots.length} 个 repo 作用域快照`
-              : "当前没有本地 Team memory 快照",
+              : "当前没有本地团队记忆快照",
           helper:
             teamSnapshots.length > 0
               ? "用于补充团队分工与协作影子，不替代共享记忆文件。"
@@ -987,10 +1118,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           detail:
             autoIndex?.root_dir ||
             bucket?.primaryPath ||
-            "未发现 auto memory 根目录",
+            "未发现 memdir 根目录",
           helper: autoIndex?.entrypoint
-            ? `入口文件：${autoIndex.entrypoint} · 已索引 ${autoIndex.items.length} 个主题`
-            : bucket?.emptyState || "当前未启用 auto memory。",
+            ? `入口文件：${autoIndex.entrypoint} · 已索引 ${autoIndex.items.length} 个条目`
+            : bucket?.emptyState || "当前未启用 memdir。",
         };
       }
 
@@ -1025,12 +1156,12 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     unifiedStats?.total_entries,
   ]);
 
-  const claudeTypeCards = useMemo(
+  const memoryTypeCards = useMemo(
     () =>
-      CLAUDE_MEMORY_TYPE_META.map((item) => {
+      MEMORY_TYPE_META.map((item) => {
         const mappedCategories = (
-          Object.keys(LEGACY_CATEGORY_TO_CLAUDE_TYPE) as MemoryCategory[]
-        ).filter((category) => resolveClaudeMemoryType(category) === item.key);
+          Object.keys(LEGACY_CATEGORY_TO_MEMORY_TYPE) as MemoryCategory[]
+        ).filter((category) => resolveMemoryType(category) === item.key);
         const count = mappedCategories.reduce(
           (total, category) =>
             total + (durableCountsByCategory.get(category) || 0),
@@ -1171,11 +1302,69 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     }
   }
 
-  function buildMemoryPageParams(
-    section: MemoryPageSection,
-    overrides: Partial<MemoryPageParams> = {},
-  ): MemoryPageParams {
-    return {
+  const handleScaffoldMemdir = useCallback(async () => {
+    if (!memdirWorkingDir) {
+      setMemdirActionNotice({
+        tone: "error",
+        message: "当前未获取到 workspace 路径，暂无法初始化 memdir",
+      });
+      return;
+    }
+
+    setMemdirActionType("scaffold");
+    setMemdirActionNotice(null);
+    try {
+      const result = await scaffoldContextMemdir(memdirWorkingDir, false);
+      setMemdirActionNotice({
+        tone: "success",
+        message: formatMemdirScaffoldMessage(result),
+      });
+      await refreshMemdirSurface(memdirWorkingDir);
+    } catch (actionError) {
+      console.error("初始化 memdir 失败:", actionError);
+      setMemdirActionNotice({
+        tone: "error",
+        message: resolveActionErrorMessage(actionError, "初始化 memdir 失败"),
+      });
+    } finally {
+      setMemdirActionType(null);
+    }
+  }, [memdirWorkingDir, refreshMemdirSurface]);
+
+  const handleCleanupMemdir = useCallback(async () => {
+    if (!memdirWorkingDir) {
+      setMemdirActionNotice({
+        tone: "error",
+        message: "当前未获取到 workspace 路径，暂无法整理 memdir",
+      });
+      return;
+    }
+
+    setMemdirActionType("cleanup");
+    setMemdirActionNotice(null);
+    try {
+      const result = await cleanupContextMemdir(memdirWorkingDir);
+      setMemdirActionNotice({
+        tone: "success",
+        message: formatMemdirCleanupMessage(result),
+      });
+      await refreshMemdirSurface(memdirWorkingDir);
+    } catch (actionError) {
+      console.error("整理 memdir 失败:", actionError);
+      setMemdirActionNotice({
+        tone: "error",
+        message: resolveActionErrorMessage(actionError, "整理 memdir 失败"),
+      });
+    } finally {
+      setMemdirActionType(null);
+    }
+  }, [memdirWorkingDir, refreshMemdirSurface]);
+
+  const buildMemoryPageParams = useCallback(
+    (
+      section: MemoryPageSection,
+      overrides: Partial<MemoryPageParams> = {},
+    ): MemoryPageParams => ({
       section,
       runtimeSessionId:
         (overrides.runtimeSessionId ?? runtimeSessionId) || undefined,
@@ -1183,15 +1372,19 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         (overrides.runtimeWorkingDir ?? runtimeWorkingDir) || undefined,
       runtimeUserMessage:
         (overrides.runtimeUserMessage ?? runtimeUserMessage) || undefined,
-    };
-  }
+    }),
+    [runtimeSessionId, runtimeUserMessage, runtimeWorkingDir],
+  );
 
-  function navigateToMemorySection(nextSection: MemoryPageSection) {
-    const resolved = resolveSectionState(nextSection);
-    setActiveSection(resolved.section);
-    setDurableFilter(resolved.durableFilter);
-    onNavigate("memory", buildMemoryPageParams(nextSection));
-  }
+  const navigateToMemorySection = useCallback(
+    (nextSection: MemoryPageSection) => {
+      const resolved = resolveSectionState(nextSection);
+      setActiveSection(resolved.section);
+      setDurableFilter(resolved.durableFilter);
+      onNavigate("memory", buildMemoryPageParams(nextSection));
+    },
+    [buildMemoryPageParams, onNavigate],
+  );
 
   function handleBringToCreation(entry: UnifiedMemory) {
     const categoryLabel = CATEGORY_LABELS[entry.category];
@@ -1366,7 +1559,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         className={cn(BUTTON_CLASS_NAME, EMERALD_BUTTON_CLASS_NAME)}
         onClick={() => navigateToMemorySection("team")}
       >
-        看 Team Memory
+        看团队记忆
       </button>
       <button
         type="button"
@@ -1377,6 +1570,89 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       </button>
     </div>
   ) : null;
+  const homeOverviewCards = useMemo(
+    () => [
+      {
+        key: "current-turn",
+        eyebrow: "当前回合",
+        title: "先看这轮真实命中",
+        value:
+          runtimePrefetchState.status === "loading"
+            ? "正在对照当前回合"
+            : runtimePrefetchState.result
+              ? `已命中 ${countRuntimePrefetchHitLayers(
+                  runtimePrefetchState.result,
+                )} 层`
+              : hasRuntimeContext
+                ? "当前回合还未命中"
+                : workingView?.total_entries
+                  ? `最近会话条目 ${workingView.total_entries}`
+                  : "等待带入当前回合",
+        detail: buildRuntimePrefetchHitSummary(runtimePrefetchState.result),
+        actionLabel: "看会话记忆",
+        onClick: () => navigateToMemorySection("working"),
+      },
+      {
+        key: "durable",
+        eyebrow: "长期记忆",
+        title: "跨会话可复用的沉淀",
+        value: `${unifiedStats?.memory_count || 0} 条长期记忆`,
+        detail:
+          (unifiedStats?.categories?.length || 0) > 0
+            ? `已覆盖 ${unifiedStats?.categories.length || 0} 个记忆类型，适合回看稳定偏好、项目背景和长期参考。`
+            : "当前还没有长期记忆沉淀，后续的稳定结论会先在这里累计。",
+        actionLabel: "看记忆类型",
+        onClick: () => navigateToMemorySection("durable"),
+      },
+      {
+        key: "team",
+        eyebrow: "团队 / 项目",
+        title: "项目规则与协作上下文",
+        value:
+          teamSnapshots.length > 0
+            ? `团队快照 ${teamSnapshots.length} 个`
+            : `规则来源 ${rulesSources?.loaded_sources || 0} 条`,
+        detail: `规则已加载 ${rulesSources?.loaded_sources || 0}/${
+          rulesSources?.total_sources || 0
+        } 条；${
+          teamSnapshots.length > 0
+            ? "最近的团队影子可补充 repo 范围内的分工和上下文。"
+            : "当前还没有本地团队影子。"
+        }`,
+        actionLabel: "看团队记忆",
+        onClick: () => navigateToMemorySection("team"),
+      },
+      {
+        key: "compaction",
+        eyebrow: "会话压缩",
+        title: "长会话如何续接",
+        value: extractionStatus?.latest_compaction
+          ? `最近压缩保留 ${extractionStatus.latest_compaction.turn_count} 轮`
+          : "还没有会话压缩",
+        detail:
+          truncateSummaryText(
+            extractionStatus?.latest_compaction?.summary_preview ||
+              extractionStatus?.status_summary,
+          ) || "长会话压缩后会把可续接摘要收在这里，便于下次继续。",
+        actionLabel: "看会话压缩",
+        onClick: () => navigateToMemorySection("compaction"),
+      },
+    ],
+    [
+      extractionStatus?.latest_compaction,
+      extractionStatus?.status_summary,
+      hasRuntimeContext,
+      navigateToMemorySection,
+      rulesSources?.loaded_sources,
+      rulesSources?.total_sources,
+      runtimePrefetchState.result,
+      runtimePrefetchState.status,
+      teamSnapshots.length,
+      unifiedStats?.categories,
+      unifiedStats?.memory_count,
+      workingView?.total_entries,
+    ],
+  );
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.08),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(148,163,184,0.12),_transparent_24%),linear-gradient(180deg,_#f8fafc_0%,_#f4f8f5_58%,_#eef5ef_100%)] px-6 py-6">
@@ -1384,14 +1660,13 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         <aside className={cn(PANEL_CLASS_NAME, "h-fit")}>
           <div className="mb-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-              Claude Code Memory
+              Lime memdir
             </p>
             <h1 className="mt-2 text-2xl font-semibold text-slate-900">
               记忆工作台
             </h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              把来源链、会话记忆、记忆类型、Team Memory
-              和会话压缩收口到一处查看。
+              把来源链、记忆目录、会话记忆、记忆类型、团队记忆和会话压缩收口到一处查看。
             </p>
           </div>
 
@@ -1458,7 +1733,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                 {rulesSources?.total_sources || 0}
               </span>
               <span>
-                Auto memory：{autoIndex?.enabled ? "已启用" : "未启用"}
+                memdir：{autoIndex?.enabled ? "已启用" : "未启用"}
               </span>
               <span>
                 抽取状态：{extractionStatus?.status_summary || "等待加载"}
@@ -1560,6 +1835,53 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
           {!loading && !error && activeSection === "home" ? (
             <>
+              <MemorySurfacePanel
+                title="默认心智层"
+                description="先用一层更轻的摘要回答这轮记忆从哪里来、会落到哪里，再按需要进入更细的分区。"
+              >
+                <div
+                  className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+                  data-testid="memory-home-default-overview"
+                >
+                  {homeOverviewCards.map((card) => (
+                    <article
+                      key={card.key}
+                      className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-medium tracking-[0.12em] text-slate-500">
+                            {card.eyebrow}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {card.title}
+                          </p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="border-slate-200 bg-white text-slate-700"
+                        >
+                          {card.eyebrow}
+                        </Badge>
+                      </div>
+                      <p className="mt-3 text-sm font-semibold leading-6 text-slate-900">
+                        {card.value}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {card.detail}
+                      </p>
+                      <button
+                        type="button"
+                        className={cn(BUTTON_CLASS_NAME, "mt-4")}
+                        onClick={card.onClick}
+                      >
+                        {card.actionLabel}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </MemorySurfacePanel>
+
               {hasRuntimeContext ? (
                 <MemorySurfacePanel
                   title="当前运行时预演"
@@ -1570,7 +1892,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                     <span>会话：{runtimeSessionId}</span>
                     <span>工作区：{runtimeWorkingDir}</span>
                     <span>
-                      Team Memory：
+                      团队记忆：
                       {runtimeTeamSnapshot
                         ? runtimeTeamSnapshot.repoScope
                         : "未命中本地快照"}
@@ -1835,7 +2157,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         variant="outline"
                         className="border-slate-200 bg-white text-slate-700"
                       >
-                        Team 层 {runtimeHistorySummary.layerEntryHits.team}/
+                        团队层 {runtimeHistorySummary.layerEntryHits.team}/
                         {runtimeHistorySummary.totalEntries}
                       </Badge>
                       <Badge
@@ -2190,8 +2512,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
               </MemorySurfacePanel>
 
               <MemorySurfacePanel
-                title="Claude Code 记忆作用域"
-                description="Claude Code 把记忆理解为文件、作用域和类型，而不是单一大仪表盘。这里先看当前 Lime 已经具备的入口。"
+                title="记忆目录与作用域"
+                description="Lime 把记忆看成一条目录链：文件入口、作用域、类型和读取守则一起工作。这里先看当前已经接入的入口。"
               >
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {memoryScopeCards.map((card) => {
@@ -2228,7 +2550,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
               <MemorySurfacePanel
                 title="不要写进记忆的内容"
-                description="Claude Code 的 durable memory 只保存当前状态里不容易重新推导的长期信息，以下内容更适合留在代码、规则或工作记忆中。"
+                description="Lime 只把不容易从当前仓库和外部事实重新推导的长期信息沉淀到记忆目录和 /memories 中，以下内容更适合留在代码、规则或工作记忆里。"
               >
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.95fr)]">
                   <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
@@ -2266,7 +2588,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
               <MemorySurfacePanel
                 title="运行时层就绪度"
-                description={`当前已有 ${layerMetrics.readyLayers}/${layerMetrics.totalLayers} 个运行时层处于可用状态，可继续对照 Claude 风格来源链与 Lime 的真实命中层。`}
+                description={`当前已有 ${layerMetrics.readyLayers}/${layerMetrics.totalLayers} 个运行时层处于可用状态，可继续对照记忆目录主链与 Lime 的真实命中层。`}
               >
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                   {layerMetrics.cards.map((card) => (
@@ -2293,7 +2615,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                               : card.key === "durable"
                                 ? "当前还没有可复用的持久记忆。"
                                 : card.key === "team"
-                                  ? "当前仓库还没有 Team Memory 快照。"
+                                  ? "当前仓库还没有团队记忆快照。"
                                   : "当前还没有可复用的会话压缩摘要。"}
                       </p>
                     </article>
@@ -2306,9 +2628,68 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           {!loading && !error && activeSection === "rules" ? (
             <>
               <MemorySurfacePanel
-                title="Claude Code 记忆来源链"
-                description="按 Claude Code 的来源心智重排当前 Lime 的可注入来源，优先看作用域、入口和当前命中状态。"
+                title="记忆来源与 memdir"
+                description="按 Lime 的记忆目录主链重排当前可注入来源，优先看作用域、入口和当前命中状态。"
+                actions={
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      className={cn(
+                        BUTTON_CLASS_NAME,
+                        EMERALD_BUTTON_CLASS_NAME,
+                        !memdirWorkingDir || memdirActionType !== null
+                          ? "cursor-not-allowed opacity-60"
+                          : "",
+                      )}
+                      disabled={!memdirWorkingDir || memdirActionType !== null}
+                      onClick={() => void handleScaffoldMemdir()}
+                    >
+                      {memdirActionType === "scaffold"
+                        ? "初始化中..."
+                        : "初始化 memdir"}
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        BUTTON_CLASS_NAME,
+                        EMERALD_BUTTON_CLASS_NAME,
+                        !memdirWorkingDir || memdirActionType !== null
+                          ? "cursor-not-allowed opacity-60"
+                          : "",
+                      )}
+                      disabled={!memdirWorkingDir || memdirActionType !== null}
+                      onClick={() => void handleCleanupMemdir()}
+                    >
+                      {memdirActionType === "cleanup"
+                        ? "整理中..."
+                        : "整理 memdir"}
+                    </button>
+                  </div>
+                }
               >
+                <div className="mb-4 rounded-3xl border border-emerald-200 bg-emerald-50/80 p-4">
+                  <p className="text-sm font-medium text-emerald-900">
+                    同一 topic 会覆盖旧内容；“整理 memdir” 会去重入口链接、裁剪 README
+                    历史段落，并把旧 topic 日志收口为当前版本。
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-emerald-800/90">
+                    {memdirWorkingDir
+                      ? `当前工作区：${memdirWorkingDir}`
+                      : "当前未获取到 workspace 路径，暂无法执行 memdir 治理动作。"}
+                  </p>
+                </div>
+                {memdirActionNotice ? (
+                  <div
+                    className={cn(
+                      "mb-4 rounded-3xl border px-4 py-3 text-sm",
+                      memdirActionNotice.tone === "success"
+                        ? "border-emerald-200 bg-emerald-50/80 text-emerald-900"
+                        : "border-rose-200 bg-rose-50/80 text-rose-700",
+                    )}
+                  >
+                    {memdirActionNotice.message}
+                  </div>
+                ) : null}
                 <div className="grid gap-4 xl:grid-cols-2">
                   {sourceBuckets.map((bucket) => {
                     const badge = getMemoryAvailabilityBadge(
@@ -2326,7 +2707,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         : bucket.primaryPath || bucket.emptyState;
                     const helper =
                       bucket.key === "auto"
-                        ? `入口文件：${autoIndex?.entrypoint || "MEMORY.md"} · 已索引 ${autoIndex?.items.length || 0} 个主题`
+                        ? `入口文件：${autoIndex?.entrypoint || "MEMORY.md"} · 已索引 ${autoIndex?.items.length || 0} 个条目`
                         : bucket.status === "loaded"
                           ? `已加载 ${bucket.loadedCount} 条来源`
                           : bucket.status === "exists"
@@ -2359,6 +2740,30 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         <p className="mt-3 text-sm leading-6 text-slate-500">
                           {helper}
                         </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge
+                            variant="outline"
+                            className={SLATE_OUTLINE_BADGE_CLASS_NAME}
+                          >
+                            来源分类：{bucket.label}
+                          </Badge>
+                          {bucket.provider ? (
+                            <Badge
+                              variant="outline"
+                              className={SLATE_OUTLINE_BADGE_CLASS_NAME}
+                            >
+                              provider：{bucket.provider}
+                            </Badge>
+                          ) : null}
+                          {bucket.latestUpdatedAt ? (
+                            <Badge
+                              variant="outline"
+                              className={SLATE_OUTLINE_BADGE_CLASS_NAME}
+                            >
+                              最近更新：{formatRelativeTime(bucket.latestUpdatedAt)}
+                            </Badge>
+                          ) : null}
+                        </div>
                       </article>
                     );
                   })}
@@ -2367,7 +2772,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
               <MemorySurfacePanel
                 title="当前命中来源明细"
-                description="下面是运行时实际解析到的来源明细。Lime 底层已经支持 managed、user、project、local、rules、auto 和 /memories 等来源。"
+                description="下面是运行时实际解析到的来源明细。Lime 底层已经支持托管策略、用户/项目/本地记忆、规则目录、memdir 与 /memories 等来源。"
               >
                 <div className="space-y-3">
                   {rulesSources?.sources.map((source) => (
@@ -2379,6 +2784,30 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         <span className="rounded-full bg-emerald-700 px-2.5 py-1 text-xs font-medium text-white">
                           {resolveSourceKindLabel(source.kind)}
                         </span>
+                        <Badge
+                          variant="outline"
+                          className={SLATE_OUTLINE_BADGE_CLASS_NAME}
+                        >
+                          {resolveSourceBucketLabel(source.source_bucket)}
+                        </Badge>
+                        {source.provider ? (
+                          <Badge
+                            variant="outline"
+                            className={SLATE_OUTLINE_BADGE_CLASS_NAME}
+                          >
+                            provider：{source.provider}
+                          </Badge>
+                        ) : null}
+                        {source.memory_type ? (
+                          <Badge
+                            variant="outline"
+                            className={
+                              MEMORY_TYPE_BADGE_CLASS_NAMES[source.memory_type]
+                            }
+                          >
+                            {MEMORY_TYPE_LABELS[source.memory_type]}
+                          </Badge>
+                        ) : null}
                         <span className="font-medium text-slate-900">
                           {source.path}
                         </span>
@@ -2391,6 +2820,9 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                             : "文件不存在"}
                         ，共 {source.line_count} 行，导入 {source.import_count}{" "}
                         个。
+                        {source.updated_at
+                          ? ` 最近更新于 ${formatRelativeTime(source.updated_at)}。`
+                          : ""}
                       </p>
                       {source.preview ? (
                         <pre className="mt-3 overflow-x-auto rounded-2xl bg-slate-950 p-3 text-xs leading-6 text-slate-100">
@@ -2464,11 +2896,11 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           {!loading && !error && activeSection === "durable" ? (
             <>
               <MemorySurfacePanel
-                title="Claude Code 记忆类型"
-                description="Claude Code 把 durable memory 限制在四类：user、feedback、project、reference。当前 Lime 先用映射视角展示存量。"
+                title="Lime 记忆类型"
+                description="Lime 当前统一用四类记忆来理解长期沉淀：user、feedback、project、reference。这里先把既有存量映射到这四类。"
               >
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {claudeTypeCards.map((item) => (
+                  {memoryTypeCards.map((item) => (
                     <article
                       key={item.key}
                       className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4"
@@ -2484,7 +2916,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         </div>
                         <Badge
                           variant="outline"
-                          className={CLAUDE_TYPE_BADGE_CLASS_NAMES[item.key]}
+                          className={MEMORY_TYPE_BADGE_CLASS_NAMES[item.key]}
                         >
                           {item.count} 条
                         </Badge>
@@ -2502,7 +2934,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
               <MemorySurfacePanel
                 title="当前存量条目"
-                description="当前 Lime 仍按旧分类保存 unified memory。下面展示的是 Claude Code 视角下的映射结果，同时保留原始分类过滤与带回创作输入。"
+                description="当前 Lime 仍按旧分类保存 unified memory。下面展示的是映射到 Lime 四类记忆后的结果，同时保留原始分类过滤与带回创作输入。"
                 actions={
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -2552,14 +2984,14 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                               <Badge
                                 variant="outline"
                                 className={
-                                  CLAUDE_TYPE_BADGE_CLASS_NAMES[
-                                    resolveClaudeMemoryType(memory.category)
+                                  MEMORY_TYPE_BADGE_CLASS_NAMES[
+                                    resolveMemoryType(memory.category)
                                   ]
                                 }
                               >
                                 {
-                                  CLAUDE_MEMORY_TYPE_LABELS[
-                                    resolveClaudeMemoryType(memory.category)
+                                  MEMORY_TYPE_LABELS[
+                                    resolveMemoryType(memory.category)
                                   ]
                                 }
                               </Badge>
@@ -2612,8 +3044,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
           {!loading && !error && activeSection === "team" ? (
             <MemorySurfacePanel
-              title="Team Memory 快照"
-              description="这里展示本地 localStorage 中保存的 repo-scoped Team memory 影子，便于核对最近一次团队分工。"
+              title="团队记忆快照"
+              description="这里展示本地 localStorage 中保存的 repo-scoped 团队记忆影子，便于核对最近一次团队分工。"
             >
               <div className="space-y-4">
                 {teamSnapshots.length ? (
@@ -2649,7 +3081,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                   ))
                 ) : (
                   <p className="text-sm text-slate-500">
-                    当前没有本地 Team memory 快照。
+                    当前没有本地团队记忆快照。
                   </p>
                 )}
               </div>

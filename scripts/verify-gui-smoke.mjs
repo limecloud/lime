@@ -16,6 +16,7 @@ const LIME_DISABLE_SINGLE_INSTANCE = "LIME_DISABLE_SINGLE_INSTANCE";
 const LIME_WEB_BRIDGE_REUSE_EXISTING_ONLY =
   "LIME_WEB_BRIDGE_REUSE_EXISTING_ONLY";
 const LIME_WEB_BRIDGE_URL = "LIME_WEB_BRIDGE_URL";
+const DEFAULT_HEALTH_URL = "http://127.0.0.1:3030/health";
 const ROOT_MARKERS = ["<title>Lime</title>", '<div id="root"></div>'];
 const SHARED_TAURI_TARGET_DIR = path.join(rootDir, "src-tauri", "target");
 const ISOLATED_GUI_SMOKE_TARGET_DIR = path.join(
@@ -29,6 +30,10 @@ const GUI_SMOKE_BRIDGE_HEARTBEAT_MS = 30_000;
 const GUI_SMOKE_COMPILE_GRACE_MS = 900_000;
 const GUI_SMOKE_MAX_COMPILE_GRACE_EXTENSIONS = 2;
 const GUI_SMOKE_BOOT_GRACE_MS = 60_000;
+const GUI_SMOKE_CHILD_EXIT_GRACE_MS = 30_000;
+const INVOKE_TIMEOUT_CEILING_MS = 180_000;
+const INVOKE_RETRY_COUNT = 10;
+const INVOKE_RETRY_DELAY_MS = 1_000;
 const HEADLESS_TAURI_CONFIG_PATH = path.join(
   rootDir,
   "src-tauri",
@@ -95,13 +100,26 @@ function resolveDefaultTimeoutMs(cargoTargetDir) {
 
 const DEFAULTS = {
   appUrl: "http://127.0.0.1:1420/",
-  healthUrl: "http://127.0.0.1:3030/health",
+  healthUrl: DEFAULT_HEALTH_URL,
+  invokeUrl: "http://127.0.0.1:3030/invoke",
   cargoTargetDir: resolvePreferredCargoTargetDir(),
   intervalMs: 1_000,
   reuseRunning: false,
   sampleProjectName: "Lime Smoke Workspace",
 };
 DEFAULTS.timeoutMs = resolveDefaultTimeoutMs(DEFAULTS.cargoTargetDir);
+
+function resolveInvokeUrl(healthUrl) {
+  try {
+    const url = new URL(healthUrl);
+    url.pathname = "/invoke";
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "http://127.0.0.1:3030/invoke";
+  }
+}
 
 function printHelp() {
   console.log(`
@@ -118,6 +136,7 @@ Lime GUI 冒烟入口
 选项:
   --app-url <url>             前端地址，默认 http://127.0.0.1:1420/
   --health-url <url>          DevBridge 健康检查地址，默认 http://127.0.0.1:3030/health
+  --invoke-url <url>          DevBridge invoke 地址，默认随 health-url 推导 /invoke
   --timeout-ms <ms>           等待 headless / bridge / smoke 的超时，默认冷启动 1800000 / 热启动 600000
   --interval-ms <ms>          轮询间隔，默认 1000
   --sample-project-name <s>   workspace 路径校验使用的示例项目名
@@ -129,6 +148,7 @@ Lime GUI 冒烟入口
 
 function parseArgs(argv) {
   const options = { ...DEFAULTS };
+  let invokeUrlExplicit = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -141,6 +161,13 @@ function parseArgs(argv) {
 
     if (arg === "--health-url" && argv[index + 1]) {
       options.healthUrl = String(argv[index + 1]).trim();
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--invoke-url" && argv[index + 1]) {
+      options.invokeUrl = String(argv[index + 1]).trim();
+      invokeUrlExplicit = true;
       index += 1;
       continue;
     }
@@ -196,6 +223,13 @@ function parseArgs(argv) {
     throw new Error("--health-url 不能为空");
   }
 
+  if (!invokeUrlExplicit) {
+    options.invokeUrl = resolveInvokeUrl(options.healthUrl);
+  }
+  if (!options.invokeUrl) {
+    throw new Error("--invoke-url 不能为空");
+  }
+
   if (!options.sampleProjectName) {
     throw new Error("--sample-project-name 不能为空");
   }
@@ -209,6 +243,57 @@ function parseArgs(argv) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientInvokeError(error) {
+  return (
+    error?.name === "TimeoutError" ||
+    (error instanceof TypeError && error.message === "fetch failed")
+  );
+}
+
+async function invokeBridgeCommand(options, cmd, args) {
+  const invokeTimeoutMs = Math.min(options.timeoutMs, INVOKE_TIMEOUT_CEILING_MS);
+  const requestInit = {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ cmd, args }),
+    signal: AbortSignal.timeout(invokeTimeoutMs),
+  };
+
+  for (let attempt = 1; attempt <= INVOKE_RETRY_COUNT; attempt += 1) {
+    try {
+      const response = await fetch(options.invokeUrl, requestInit);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const payload = await response.json();
+      if (payload?.error) {
+        throw new Error(String(payload.error));
+      }
+      return payload?.result;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (!isTransientInvokeError(error) || attempt >= INVOKE_RETRY_COUNT) {
+        if (error?.name === "TimeoutError") {
+          throw new Error(
+            `[verify:gui-smoke] ${cmd} 超时，${invokeTimeoutMs}ms 内未收到 DevBridge 响应`,
+          );
+        }
+        throw new Error(`[verify:gui-smoke] ${cmd} 请求失败: ${detail}`);
+      }
+
+      console.warn(
+        `[verify:gui-smoke] ${cmd} 第 ${attempt} 次请求失败，${INVOKE_RETRY_DELAY_MS}ms 后重试: ${detail}`,
+      );
+      await sleep(INVOKE_RETRY_DELAY_MS);
+    }
+  }
+
+  throw new Error(`[verify:gui-smoke] ${cmd} 请求失败: unknown error`);
 }
 
 function assert(condition, message) {
@@ -433,8 +518,22 @@ function listGuiSmokeGroupProcesses(startedByScript) {
   return listProcessStats().filter((item) => item.pgid === targetGroupId);
 }
 
+function isZombieProcess(item) {
+  return typeof item?.stat === "string" && item.stat.includes("Z");
+}
+
+function listActiveGuiSmokeGroupProcesses(startedByScript) {
+  return listGuiSmokeGroupProcesses(startedByScript).filter(
+    (item) => !isZombieProcess(item),
+  );
+}
+
+function hasActiveGuiSmokeProcesses(startedByScript) {
+  return listActiveGuiSmokeGroupProcesses(startedByScript).length > 0;
+}
+
 function hasActiveGuiSmokeCompile(startedByScript) {
-  return listGuiSmokeGroupProcesses(startedByScript).some(
+  return listActiveGuiSmokeGroupProcesses(startedByScript).some(
     (item) =>
       item.command.includes("/bin/rustc") ||
       item.command.includes("cargo run --no-default-features"),
@@ -442,7 +541,7 @@ function hasActiveGuiSmokeCompile(startedByScript) {
 }
 
 function describeGuiSmokeHeartbeat(startedByScript) {
-  const interestingProcesses = listGuiSmokeGroupProcesses(startedByScript)
+  const interestingProcesses = listActiveGuiSmokeGroupProcesses(startedByScript)
     .filter(
       (item) =>
         item.command.includes("tauri dev") ||
@@ -563,6 +662,61 @@ async function cleanupStaleGuiSmokeProcesses() {
   }
 
   return snapshot.stale.length;
+}
+
+async function cleanupStaleGuiSmokeChromeProfiles(
+  options,
+  { label, required, skipIfBridgeUnavailable = false },
+) {
+  if (
+    skipIfBridgeUnavailable &&
+    !(await isUrlReady(options.healthUrl, Math.min(options.intervalMs, 1_500)))
+  ) {
+    console.warn(`[verify:gui-smoke] ${label}: DevBridge 未就绪，跳过。`);
+    return null;
+  }
+
+  try {
+    const result = await invokeBridgeCommand(
+      options,
+      "cleanup_gui_smoke_chrome_profiles",
+    );
+    const matchedProfiles = Array.isArray(result?.matched_profiles)
+      ? result.matched_profiles
+      : [];
+    const removedProfiles = Array.isArray(result?.removed_profiles)
+      ? result.removed_profiles
+      : [];
+    const skippedProfiles = Array.isArray(result?.skipped_profiles)
+      ? result.skipped_profiles
+      : [];
+    const terminatedProcessCount = Number.isFinite(
+      result?.terminated_process_count,
+    )
+      ? Number(result.terminated_process_count)
+      : 0;
+
+    if (matchedProfiles.length === 0) {
+      return result;
+    }
+
+    console.log(
+      `[verify:gui-smoke] ${label}: 匹配 ${matchedProfiles.length} 个 smoke Chrome profiles，删除 ${removedProfiles.length} 个目录，结束 ${terminatedProcessCount} 个残留进程。`,
+    );
+    if (skippedProfiles.length > 0) {
+      console.warn(
+        `[verify:gui-smoke] ${label}: 仍有 ${skippedProfiles.length} 个 profile 未删掉：${skippedProfiles.join(", ")}`,
+      );
+    }
+    return result;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (required) {
+      throw error;
+    }
+    console.warn(`[verify:gui-smoke] ${label}: ${detail}`);
+    return null;
+  }
 }
 
 function listListeningCommandsForPort(port) {
@@ -767,6 +921,8 @@ async function waitForBridgeHealth(options, startedByScript) {
   let deadlineAt = startedAt + options.timeoutMs;
   let compileGraceCount = 0;
   let bootGraceUsed = false;
+  let childExitObservedAt = null;
+  let lastExitedChildLogAt = 0;
   let lastError = null;
   let lastHeartbeatAt = startedAt;
 
@@ -778,14 +934,40 @@ async function waitForBridgeHealth(options, startedByScript) {
       state.child &&
       (typeof state.child.exitCode === "number" || state.child.signalCode)
     ) {
+      const now = Date.now();
+      if (childExitObservedAt === null) {
+        childExitObservedAt = now;
+      }
+
       const exitDetail = describeChildExit(state.child);
-      const lastDetail =
-        lastError instanceof Error
-          ? `；最近一次健康检查错误: ${lastError.message}`
-          : "";
-      throw new Error(
-        `[verify:gui-smoke] headless Tauri 在 DevBridge 就绪前提前退出（${exitDetail}）${lastDetail}`,
-      );
+      const activeProcessCount = listActiveGuiSmokeGroupProcesses(
+        startedByScript,
+      ).length;
+      const heartbeat = describeGuiSmokeHeartbeat(startedByScript);
+
+      if (activeProcessCount > 0) {
+        if (now - lastExitedChildLogAt >= GUI_SMOKE_BRIDGE_HEARTBEAT_MS) {
+          lastExitedChildLogAt = now;
+          console.log(
+            `[bridge:health] headless Tauri 父进程已退出（${exitDetail}），但进程组仍有 ${activeProcessCount} 个活跃进程，继续等待 DevBridge${heartbeat ? `；进程组: ${heartbeat}` : ""}`,
+          );
+        }
+      } else if (
+        now - childExitObservedAt >= GUI_SMOKE_CHILD_EXIT_GRACE_MS
+      ) {
+        const lastDetail =
+          lastError instanceof Error
+            ? `；最近一次健康检查错误: ${lastError.message}`
+            : "";
+        throw new Error(
+          `[verify:gui-smoke] headless Tauri 在 DevBridge 就绪前提前退出（${exitDetail}），且 ${GUI_SMOKE_CHILD_EXIT_GRACE_MS}ms 内未检测到仍在运行的 GUI smoke 进程组${lastDetail}`,
+        );
+      } else if (now - lastExitedChildLogAt >= GUI_SMOKE_BRIDGE_HEARTBEAT_MS) {
+        lastExitedChildLogAt = now;
+        console.log(
+          `[bridge:health] headless Tauri 父进程已退出（${exitDetail}），等待最多 ${GUI_SMOKE_CHILD_EXIT_GRACE_MS}ms 确认是否还有后续启动链。`,
+        );
+      }
     }
 
     try {
@@ -833,9 +1015,10 @@ async function waitForBridgeHealth(options, startedByScript) {
         if (
           !bootGraceUsed &&
           startedByScript &&
-          state.child &&
-          state.child.exitCode === null &&
-          !state.child.signalCode
+          ((state.child &&
+            state.child.exitCode === null &&
+            !state.child.signalCode) ||
+            hasActiveGuiSmokeProcesses(startedByScript))
         ) {
           bootGraceUsed = true;
           deadlineAt = heartbeatAt + GUI_SMOKE_BOOT_GRACE_MS;
@@ -1040,6 +1223,11 @@ async function main() {
 
     await waitForAppShell(options);
 
+    await cleanupStaleGuiSmokeChromeProfiles(options, {
+      label: "预清理历史残留 smoke Chrome profiles",
+      required: true,
+    });
+
     runCommand(
       npmCommand,
       [
@@ -1102,8 +1290,25 @@ async function main() {
       options.timeoutMs + 30_000,
     );
 
+    runCommand(
+      npmCommand,
+      ["run", "smoke:agent-runtime-tool-surface-page"],
+      "smoke:agent-runtime-tool-surface-page",
+      options.timeoutMs + 30_000,
+    );
+
+    await cleanupStaleGuiSmokeChromeProfiles(options, {
+      label: "收尾清理本轮 smoke Chrome profiles",
+      required: true,
+    });
+
     console.log("\n[verify:gui-smoke] 通过");
   } finally {
+    await cleanupStaleGuiSmokeChromeProfiles(options, {
+      label: "兜底清理 smoke Chrome profiles",
+      required: false,
+      skipIfBridgeUnavailable: true,
+    });
     if (startedByScript) {
       await stopHeadlessTauri();
     }

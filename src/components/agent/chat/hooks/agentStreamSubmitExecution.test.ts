@@ -97,7 +97,11 @@ describe("agentStreamSubmitExecution", () => {
       setExecutionRuntime: noopDispatch<AsterSessionExecutionRuntime | null>(),
     });
 
-    expect(registerListener).toHaveBeenCalledWith(unlisten);
+    expect(registerListener).toHaveBeenCalledTimes(1);
+    const registeredUnlisten = registerListener.mock.calls[0]?.[0];
+    expect(registeredUnlisten).toEqual(expect.any(Function));
+    registeredUnlisten?.();
+    expect(unlisten).toHaveBeenCalledTimes(1);
     expect(submitOp).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "user_input",

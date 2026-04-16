@@ -95,5 +95,3 @@ export function ConnectErrorAlert({
     </div>
   );
 }
-
-export default ConnectErrorAlert;

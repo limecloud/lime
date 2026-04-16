@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "private": true,
-  "version": "1.11.0",
+  "version": "1.12.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
@@ -75,6 +75,7 @@
     "smoke:browser-runtime": "node scripts/browser-runtime-smoke.mjs",
     "smoke:site-adapters": "node scripts/site-adapter-catalog-smoke.mjs",
     "smoke:agent-runtime-tool-surface": "node scripts/agent-runtime-tool-surface-smoke.mjs",
+    "smoke:agent-runtime-tool-surface-page": "node scripts/agent-runtime-tool-surface-page-smoke.mjs",
     "smoke:agent-service-skill-entry": "node scripts/agent-service-skill-entry-smoke.mjs",
     "smoke:social-workbench": "node scripts/social-workbench-e2e-smoke.mjs",
     "dev:web-bridge": "node scripts/start-web-bridge-dev.mjs",

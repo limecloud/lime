@@ -46,14 +46,14 @@ pub async fn check_api_compatibility(
 
     logs.write().await.add(
         "info",
-        &format!("[API检测] 开始检测 {provider_type} API 兼容性 (Claude Code 功能测试)..."),
+        &format!("[API检测] 开始检测 {provider_type} API 兼容性（代理工具调用能力测试）..."),
     );
 
     let s = state.read().await;
     let mut results: Vec<ApiCheckResult> = Vec::new();
     let mut warnings: Vec<String> = Vec::new();
 
-    // Claude Code 需要的测试项目
+    // 代理工具调用主链需要的测试项目
     let test_cases: Vec<(&str, &str)> = match provider_type {
         ProviderType::Kiro => vec![
             ("claude-sonnet-4-5", "basic"),
@@ -97,7 +97,7 @@ pub async fn check_api_compatibility(
         // 根据测试类型构建不同的请求
         let test_request = match test_type {
             "tool_call" => {
-                // 测试 Tool Calls - Claude Code 核心功能
+                // 测试 Tool Calls - 代理工具调用主链能力
                 crate::models::openai::ChatCompletionRequest {
                     model: model.to_string(),
                     messages: vec![crate::models::openai::ChatMessage {
@@ -178,7 +178,7 @@ pub async fn check_api_compatibility(
                             body.contains("\"name\"") && body.contains("\"toolUseId\"");
                         if !has_tool_use {
                             warnings.push(format!(
-                                "{test_name}: 响应未包含 tool_use，Claude Code 可能无法正常工作"
+                                "{test_name}: 响应未包含 tool_use，兼容代理工具调用能力可能无法正常工作"
                             ));
                         }
                     }

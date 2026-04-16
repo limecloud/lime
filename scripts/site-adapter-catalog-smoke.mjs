@@ -9,6 +9,8 @@ const DEFAULTS = {
   intervalMs: 1_000,
   invokeTimeoutMs: 20_000,
 };
+const INVOKE_RETRY_COUNT = 3;
+const INVOKE_RETRY_DELAY_MS = 1_000;
 
 function printHelp() {
   console.log(`
@@ -126,35 +128,49 @@ async function waitForHealth(options) {
 
 async function invoke(options, cmd, args) {
   console.log(`[smoke:site-adapters] invoke ${cmd}`);
-  let response;
-  try {
-    response = await fetch(options.invokeUrl, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ cmd, args }),
-      signal: AbortSignal.timeout(options.invokeTimeoutMs),
-    });
-  } catch (error) {
-    if (error?.name === "TimeoutError") {
-      throw new Error(
-        `[smoke:site-adapters] ${cmd} 超时，${options.invokeTimeoutMs}ms 内未收到 DevBridge 响应`,
-      );
+  for (let attempt = 1; attempt <= INVOKE_RETRY_COUNT; attempt += 1) {
+    let response;
+    try {
+      response = await fetch(options.invokeUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ cmd, args }),
+        signal: AbortSignal.timeout(options.invokeTimeoutMs),
+      });
+    } catch (error) {
+      const isTimeout = error?.name === "TimeoutError";
+      const isFetchFailed =
+        error instanceof TypeError && error.message === "fetch failed";
+      if ((isTimeout || isFetchFailed) && attempt < INVOKE_RETRY_COUNT) {
+        console.warn(
+          `[smoke:site-adapters] ${cmd} 第 ${attempt} 次请求失败，${INVOKE_RETRY_DELAY_MS}ms 后重试: ${
+            isTimeout ? "timeout" : error.message
+          }`,
+        );
+        await sleep(INVOKE_RETRY_DELAY_MS);
+        continue;
+      }
+      if (isTimeout) {
+        throw new Error(
+          `[smoke:site-adapters] ${cmd} 超时，${options.invokeTimeoutMs}ms 内未收到 DevBridge 响应`,
+        );
+      }
+      throw error;
     }
-    throw error;
-  }
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
 
-  const payload = await response.json();
-  if (payload?.error) {
-    throw new Error(String(payload.error));
-  }
+    const payload = await response.json();
+    if (payload?.error) {
+      throw new Error(String(payload.error));
+    }
 
-  return payload?.result;
+    return payload?.result;
+  }
 }
 
 async function main() {

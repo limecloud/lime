@@ -28,6 +28,9 @@ pub(super) async fn try_handle(
             | "agent_runtime_list_sessions"
             | "agent_runtime_get_session"
             | "agent_runtime_get_thread_read"
+            | "agent_runtime_list_file_checkpoints"
+            | "agent_runtime_get_file_checkpoint"
+            | "agent_runtime_diff_file_checkpoint"
             | "agent_runtime_get_tool_inventory"
             | "agent_runtime_replay_request"
             | "agent_runtime_update_session"
@@ -221,6 +224,96 @@ pub(super) async fn try_handle(
                     mcp_manager,
                     automation_state,
                     session_id,
+                )
+                .await?,
+            )?
+        }
+        "agent_runtime_list_file_checkpoints" => {
+            let request = parse_request::<
+                crate::commands::aster_agent_cmd::AgentRuntimeListFileCheckpointsRequest,
+            >(args)?;
+            let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
+            let db = app_handle.state::<crate::database::DbConnection>();
+            let api_key_provider_service =
+                app_handle
+                    .state::<crate::commands::api_key_provider_cmd::ApiKeyProviderServiceState>();
+            let logs = app_handle.state::<crate::app::LogState>();
+            let config_manager = app_handle.state::<crate::config::GlobalConfigManagerState>();
+            let mcp_manager = app_handle.state::<crate::mcp::McpManagerState>();
+            let automation_state =
+                app_handle.state::<crate::services::automation_service::AutomationServiceState>();
+
+            serde_json::to_value(
+                crate::commands::aster_agent_cmd::agent_runtime_list_file_checkpoints(
+                    app_handle.clone(),
+                    aster_state,
+                    db,
+                    api_key_provider_service,
+                    logs,
+                    config_manager,
+                    mcp_manager,
+                    automation_state,
+                    request,
+                )
+                .await?,
+            )?
+        }
+        "agent_runtime_get_file_checkpoint" => {
+            let request = parse_request::<
+                crate::commands::aster_agent_cmd::AgentRuntimeGetFileCheckpointRequest,
+            >(args)?;
+            let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
+            let db = app_handle.state::<crate::database::DbConnection>();
+            let api_key_provider_service =
+                app_handle
+                    .state::<crate::commands::api_key_provider_cmd::ApiKeyProviderServiceState>();
+            let logs = app_handle.state::<crate::app::LogState>();
+            let config_manager = app_handle.state::<crate::config::GlobalConfigManagerState>();
+            let mcp_manager = app_handle.state::<crate::mcp::McpManagerState>();
+            let automation_state =
+                app_handle.state::<crate::services::automation_service::AutomationServiceState>();
+
+            serde_json::to_value(
+                crate::commands::aster_agent_cmd::agent_runtime_get_file_checkpoint(
+                    app_handle.clone(),
+                    aster_state,
+                    db,
+                    api_key_provider_service,
+                    logs,
+                    config_manager,
+                    mcp_manager,
+                    automation_state,
+                    request,
+                )
+                .await?,
+            )?
+        }
+        "agent_runtime_diff_file_checkpoint" => {
+            let request = parse_request::<
+                crate::commands::aster_agent_cmd::AgentRuntimeDiffFileCheckpointRequest,
+            >(args)?;
+            let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
+            let db = app_handle.state::<crate::database::DbConnection>();
+            let api_key_provider_service =
+                app_handle
+                    .state::<crate::commands::api_key_provider_cmd::ApiKeyProviderServiceState>();
+            let logs = app_handle.state::<crate::app::LogState>();
+            let config_manager = app_handle.state::<crate::config::GlobalConfigManagerState>();
+            let mcp_manager = app_handle.state::<crate::mcp::McpManagerState>();
+            let automation_state =
+                app_handle.state::<crate::services::automation_service::AutomationServiceState>();
+
+            serde_json::to_value(
+                crate::commands::aster_agent_cmd::agent_runtime_diff_file_checkpoint(
+                    app_handle.clone(),
+                    aster_state,
+                    db,
+                    api_key_provider_service,
+                    logs,
+                    config_manager,
+                    mcp_manager,
+                    automation_state,
+                    request,
                 )
                 .await?,
             )?

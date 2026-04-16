@@ -29,6 +29,19 @@ describe("providerModelFetchSupport", () => {
     });
   });
 
+  it("官方 Anthropic 兼容 Host 应支持通过模型接口获取真实模型列表", () => {
+    expect(
+      getProviderModelAutoFetchCapability({
+        providerId: "minimax-test",
+        providerType: "anthropic-compatible",
+        apiHost: "https://api.minimaxi.com/anthropic",
+      }),
+    ).toEqual({
+      supported: true,
+      requiresApiKey: true,
+    });
+  });
+
   it("Gemini 官方协议应支持自动获取且需要 API Key", () => {
     expect(
       getProviderModelAutoFetchCapability({

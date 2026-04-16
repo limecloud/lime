@@ -230,7 +230,7 @@ pub async fn update_provider_env_vars(
     let home = dirs::home_dir().ok_or("Cannot find home directory")?;
 
     // 根据 provider_type 确定要更新的环境变量
-    // 参考 Claude Code 文档：https://code.claude.com/docs/en/llm-gateway
+    // 参考 Claude 兼容网关文档：https://code.claude.com/docs/en/llm-gateway
     let parsed_api_provider_type = provider_type.parse::<ApiProviderType>().ok();
     let env_vars = build_provider_env_vars(&provider_type, &api_host, api_key.as_deref());
 

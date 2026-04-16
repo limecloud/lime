@@ -2,8 +2,10 @@ use anyhow::Result;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+#[cfg(test)]
+use crate::session::create_managed_session;
 use crate::session::extension_data::{ExtensionData, ExtensionState};
-use crate::session::{Session, SessionManager};
+use crate::session::{persist_session_extension_data, query_session, Session};
 
 pub const TEAM_LEAD_NAME: &str = "team-lead";
 
@@ -156,7 +158,7 @@ pub async fn resolve_team_context(session_id: &str) -> Result<Option<ResolvedTea
         return Ok(None);
     }
 
-    let session = match SessionManager::get_session(session_id, false).await {
+    let session = match query_session(session_id, false).await {
         Ok(session) => session,
         Err(_) => return Ok(None),
     };
@@ -173,7 +175,7 @@ pub async fn resolve_team_context(session_id: &str) -> Result<Option<ResolvedTea
     let Some(membership) = TeamMembershipState::from_session(&session) else {
         return Ok(None);
     };
-    let lead_session = match SessionManager::get_session(&membership.lead_session_id, false).await {
+    let lead_session = match query_session(&membership.lead_session_id, false).await {
         Ok(session) => session,
         Err(_) => return Ok(None),
     };
@@ -194,7 +196,7 @@ pub async fn save_team_state(
     lead_session_id: &str,
     team_state: Option<TeamSessionState>,
 ) -> Result<()> {
-    let mut session = SessionManager::get_session(lead_session_id, false).await?;
+    let mut session = query_session(lead_session_id, false).await?;
     match team_state {
         Some(team_state) => {
             team_state.to_extension_data(&mut session.extension_data)?;
@@ -207,17 +209,14 @@ pub async fn save_team_state(
         }
     }
 
-    SessionManager::update_session(lead_session_id)
-        .extension_data(session.extension_data)
-        .apply()
-        .await
+    persist_session_extension_data(lead_session_id, session.extension_data).await
 }
 
 pub async fn save_team_membership(
     session_id: &str,
     membership: Option<TeamMembershipState>,
 ) -> Result<()> {
-    let mut session = SessionManager::get_session(session_id, false).await?;
+    let mut session = query_session(session_id, false).await?;
     match membership {
         Some(membership) => {
             membership.to_extension_data(&mut session.extension_data)?;
@@ -230,10 +229,7 @@ pub async fn save_team_membership(
         }
     }
 
-    SessionManager::update_session(session_id)
-        .extension_data(session.extension_data)
-        .apply()
-        .await
+    persist_session_extension_data(session_id, session.extension_data).await
 }
 
 #[cfg(test)]
@@ -264,13 +260,13 @@ mod tests {
     #[tokio::test]
     async fn resolve_team_context_reads_membership_from_child_session() -> anyhow::Result<()> {
         let temp_dir = tempdir()?;
-        let lead = SessionManager::create_session(
+        let lead = create_managed_session(
             temp_dir.path().to_path_buf(),
             format!("team-lead-{}", Uuid::new_v4()),
             SessionType::Hidden,
         )
         .await?;
-        let child = SessionManager::create_session(
+        let child = create_managed_session(
             temp_dir.path().to_path_buf(),
             format!("team-child-{}", Uuid::new_v4()),
             SessionType::SubAgent,

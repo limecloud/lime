@@ -21,6 +21,7 @@ export interface AgentChatWorkspaceProps {
   onNavigate?: (page: Page, params?: PageParams) => void;
   projectId?: string;
   contentId?: string;
+  initialSessionId?: string;
   initialRequestMetadata?: Record<string, unknown>;
   initialAutoSendRequestMetadata?: Record<string, unknown>;
   autoRunInitialPromptOnMount?: boolean;

@@ -212,11 +212,16 @@ describe("safeInvoke", () => {
     };
     mocks.baseListen.mockResolvedValueOnce(unlisten);
 
-    await expect(safeListen("config-changed", vi.fn())).resolves.toBe(unlisten);
+    const safeUnlisten = await safeListen("config-changed", vi.fn());
+
+    safeUnlisten();
+    safeUnlisten();
+
     expect(mocks.baseListen).toHaveBeenCalledWith(
       "config-changed",
       expect.any(Function),
     );
+    expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
   it("浏览器开发模式下 safeListen 优先走 HTTP 事件桥", async () => {
@@ -224,13 +229,17 @@ describe("safeInvoke", () => {
     mocks.hasDevBridgeEventListenerCapability.mockReturnValue(true);
     mocks.listenViaHttpEvent.mockResolvedValueOnce(unlisten);
 
-    await expect(safeListen("config-changed", vi.fn())).resolves.toBe(unlisten);
+    const safeUnlisten = await safeListen("config-changed", vi.fn());
+
+    safeUnlisten();
+    safeUnlisten();
 
     expect(mocks.listenViaHttpEvent).toHaveBeenCalledWith(
       "config-changed",
       expect.any(Function),
     );
     expect(mocks.baseListen).not.toHaveBeenCalled();
+    expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
   it("事件桥失败且没有 Tauri 标记时会退回显式 mock 监听", async () => {
@@ -241,14 +250,16 @@ describe("safeInvoke", () => {
     );
     mocks.explicitMockListen.mockResolvedValueOnce(unlisten);
 
-    await expect(safeListen("companion-pet-status", vi.fn())).resolves.toBe(
-      unlisten,
-    );
+    const safeUnlisten = await safeListen("companion-pet-status", vi.fn());
+
+    safeUnlisten();
+    safeUnlisten();
 
     expect(mocks.explicitMockListen).toHaveBeenCalledWith(
       "companion-pet-status",
       expect.any(Function),
     );
+    expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
   it("Tauri 运行时存在但事件桥缺失时 safeListen 返回空清理函数", async () => {

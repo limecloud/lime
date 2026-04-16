@@ -141,6 +141,32 @@
       "allowedPaths": []
     },
     {
+      "id": "terminal-runtime-state-modules",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口终端状态、VDOM、贴纸侧链与自述，前端 terminal 能力只允许通过 src/lib/api/terminal.ts 复用命令与事件，不再保留 src/lib/terminal 侧链",
+      "targets": [
+        "src/lib/terminal/README.md",
+        "src/lib/terminal/stickers/README.md",
+        "src/lib/terminal/stickers/index.ts",
+        "src/lib/terminal/stickers/store.ts",
+        "src/lib/terminal/stickers/types.ts",
+        "src/lib/terminal/store/README.md",
+        "src/lib/terminal/store/atoms.ts",
+        "src/lib/terminal/store/events.ts",
+        "src/lib/terminal/store/hooks.ts",
+        "src/lib/terminal/store/index.ts",
+        "src/lib/terminal/store/multiInput.ts",
+        "src/lib/terminal/store/types.ts",
+        "src/lib/terminal/store/viewmodel.ts",
+        "src/lib/terminal/themes.ts",
+        "src/lib/terminal/vdom/README.md",
+        "src/lib/terminal/vdom/index.ts",
+        "src/lib/terminal/vdom/store.ts",
+        "src/lib/terminal/vdom/types.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "claw-home-shell-skills-hook",
       "classification": "dead-candidate",
       "description": "已删除的旧 Claw 首页技能加载 Hook",
@@ -227,6 +253,15 @@
       "targets": [
         "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.tsx",
         "src/components/agent/chat/workspace/WorkspacePendingA2UIDialog.test.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "workspace-create-confirmation-policy-entry",
+      "classification": "dead-candidate",
+      "description": "已删除的工作区创建确认策略 helper，当前 A2UI 任务卡测试需内联 fixture，不再保留独立 createConfirmationPolicy 运行时模块",
+      "targets": [
+        "src/components/workspace/utils/createConfirmationPolicy.ts"
       ],
       "allowedPaths": []
     },
@@ -432,6 +467,16 @@
         "src/components/settings-v2/system/channels/DeleteChannelDialog.tsx",
         "src/components/settings-v2/system/channels/AIChannelFormModal.tsx",
         "src/components/settings-v2/system/channels/NotificationChannelFormModal.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "settings-execution-tracker-page-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的 settings-v2 执行轨迹独立页面壳，旧 execution-tracker 标签只保留回退兼容，不再挂载独立设置页",
+      "targets": [
+        "src/components/settings-v2/system/execution-tracker/index.tsx",
+        "src/components/settings-v2/system/execution-tracker/index.test.tsx"
       ],
       "allowedPaths": []
     },
@@ -718,7 +763,18 @@
       "targets": [
         "src/lib/notifications.ts",
         "src/lib/tauri-event.ts",
+        "src/lib/tauri-event.test.ts",
         "src/lib/utils/syntaxHighlight.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "api-key-validation-helper-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的独立 API Key 格式校验 helper 与属性测试，当前前端主链不再暴露这条零入口 Provider 校验侧链",
+      "targets": [
+        "src/lib/utils/apiKeyValidation.ts",
+        "src/lib/utils/apiKeyValidation.test.ts"
       ],
       "allowedPaths": []
     },
@@ -776,12 +832,60 @@
       "allowedPaths": []
     },
     {
+      "id": "isolated-frontend-api-wrapper-shells",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口前端 API 包装壳与自测，当前前端主链不再暴露旧 persona / auto-fix / sysinfo 孤立命令网关",
+      "targets": [
+        "src/lib/api/personas.ts",
+        "src/lib/api/personas.test.ts",
+        "src/lib/api/autoFix.ts",
+        "src/lib/api/autoFix.test.ts",
+        "src/lib/api/sysinfo.ts",
+        "src/lib/api/sysinfo.test.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "unused-local-storage-notification-helpers",
       "classification": "dead-candidate",
       "description": "已删除的零入口本地通知服务与思考底模记忆 helper，当前前端主链不再暴露这两条本地状态侧链",
       "targets": [
         "src/lib/notificationService.ts",
         "src/lib/model/thinkingBaseModelMemory.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "thinking-model-resolver-helper-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的思考模型切换推导 helper 与自测，当前前端主链不再暴露这条零入口 reasoning 变体选择侧链",
+      "targets": [
+        "src/lib/model/thinkingModelResolver.ts",
+        "src/lib/model/thinkingModelResolver.test.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "companion-pet-quick-actions-helper-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的桌宠快动作与对话 helper 侧链，当前 companion 主链不再保留这条零入口气泡生成实现",
+      "targets": [
+        "src/lib/companion/petQuickActions.ts",
+        "src/lib/companion/petQuickActions.test.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "isolated-workspace-helper-notice-surfaces",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口工作区输入骨架 helper、风格重写 helper 与输入栏 prompt cache 提示壳，当前前端主链不再暴露这些孤立辅助面",
+      "targets": [
+        "src/components/memory/memoryEntryCreationSeed.ts",
+        "src/components/memory/memoryEntryCreationSeed.test.ts",
+        "src/components/agent/chat/utils/styleRuntime.ts",
+        "src/components/agent/chat/utils/styleRuntime.test.ts",
+        "src/components/agent/chat/components/Inputbar/components/InputbarPromptCacheNotice.tsx",
+        "src/components/agent/chat/components/Inputbar/components/InputbarPromptCacheNotice.test.tsx"
       ],
       "allowedPaths": []
     },
@@ -910,6 +1014,13 @@
       "allowedPaths": []
     },
     {
+      "id": "legacy-layout-stylesheet-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口布局样式表壳，当前 layout 主链不再通过独立 layout.css 挂接旧 terminal/workbench 面板样式",
+      "targets": ["src/components/layout/layout.css"],
+      "allowedPaths": []
+    },
+    {
       "id": "project-template-ui-module",
       "classification": "dead-candidate",
       "description": "已删除的项目排版模板前端入口与 Hook/API 模块",
@@ -955,6 +1066,105 @@
         "src/components/content-creator/hooks/useActivityLog.ts",
         "src/components/content-creator/hooks/useContentCreator.ts",
         "src/components/content-creator/hooks/usePersistence.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "project-workspace-legacy-hooks",
+      "classification": "dead-candidate",
+      "description": "已删除的旧项目与工作区通用 Hook 壳，前端主链统一收口到 useProjects、api/project 与工作区 runtime",
+      "targets": [
+        "src/hooks/useProject.ts",
+        "src/hooks/useWorkspace.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "project-context-legacy-frontend-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的旧项目上下文前端 Hook、API 包装与类型壳，现役上下文注入统一留在 runtime prompt 构建边界",
+      "targets": [
+        "src/hooks/useProjectContext.ts",
+        "src/lib/api/projectContext.ts",
+        "src/types/context.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "unused-frontend-generic-hook-wrappers",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口通用 Hook 包装壳，当前前端主链不再暴露旧错误处理、配置订阅、文件轮询、自动修复、人设管理与 provider 状态 Hook",
+      "targets": [
+        "src/hooks/useErrorHandler.ts",
+        "src/hooks/useAutoFix.ts",
+        "src/hooks/useConfigEvents.ts",
+        "src/hooks/useFileMonitoring.ts",
+        "src/hooks/usePersonas.ts",
+        "src/hooks/useProviderState.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "agent-task-runtime-card-shell",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口任务运行态胶囊卡壳，不再保留独立展示壳，执行态统一依附当前工作台运行时模型",
+      "targets": [
+        "src/components/agent/chat/components/AgentTaskRuntimeCard.tsx"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "unused-toast-hook-wrapper",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口 sonner Hook 包装壳，前端统一直接消费 sonner toast，不再保留 useToast 过渡层",
+      "targets": [
+        "src/hooks/use-toast.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "legacy-chat-shared-type-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口统一 chat 类型壳，现役对话类型分别收口到 agent/general 等各自运行时边界",
+      "targets": [
+        "src/types/chat.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "legacy-platform-shared-type-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口 platform 类型壳，现役文档平台类型统一收口到各自业务边界，不再保留孤立 src/types/platform.ts",
+      "targets": [
+        "src/types/platform.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "legacy-persona-shared-type-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口 persona 类型壳，品牌人设与一次性 persona 命令面已迁回各自边界，不再保留前端共享 persona.ts",
+      "targets": [
+        "src/types/persona.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "connection-management-legacy-frontend-gateway",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口连接管理前端 API 网关壳，连接能力底层命令仍保留，但前端主链不再暴露这组 connection_* 包装接口",
+      "targets": [
+        "src/lib/connection-api.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "i18n-dynamic-template-legacy-surface",
+      "classification": "dead-candidate",
+      "description": "已删除的零入口 i18n barrel 与动态模板翻译层，当前前端只保留 Patch Layer 子路径导入与现役翻译运行时",
+      "targets": [
+        "src/i18n/index.ts",
+        "src/i18n/dynamic-translation.ts"
       ],
       "allowedPaths": []
     },
@@ -3216,7 +3426,9 @@
       "description": "已零引用的 Lime 业务层 direct legacy TodoState 读取回流",
       "patterns": ["TodoState::from_extension_data(", "TodoState::new("],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": []
+      "allowedPaths": [
+        "src-tauri/crates/aster-rust/crates/aster/src/session/extension_data.rs"
+      ]
     },
     {
       "id": "rust-agent-session-structured-todo-helper-bypass",
@@ -3227,7 +3439,9 @@
         "TodoListState::from_markdown("
       ],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": []
+      "allowedPaths": [
+        "src-tauri/crates/aster-rust/crates/aster/src/session/extension_data.rs"
+      ]
     },
     {
       "id": "rust-services-default-workspace-query-leak",
@@ -3336,7 +3550,11 @@
       "description": "session get_session 直读只允许统一 session_query helper 持有",
       "patterns": ["SessionManager::get_session("],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": ["src-tauri/crates/agent/src/session_query.rs"]
+      "allowedPaths": [
+        "src-tauri/crates/agent/src/session_query.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/query.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/subagent.rs"
+      ]
     },
     {
       "id": "rust-agent-subagent-child-session-direct-read",
@@ -3344,7 +3562,11 @@
       "description": "subagent child session 列表直读只允许统一 session_query helper 持有",
       "patterns": ["list_subagent_child_sessions("],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": ["src-tauri/crates/agent/src/session_query.rs"]
+      "allowedPaths": [
+        "src-tauri/crates/agent/src/session_query.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/query.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/subagent.rs"
+      ]
     },
     {
       "id": "rust-agent-subagent-session-list-direct-read",
@@ -3352,7 +3574,11 @@
       "description": "subagent 全量 session 列表直读只允许统一 session_query helper 持有",
       "patterns": ["list_subagent_sessions_with_metadata("],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": ["src-tauri/crates/agent/src/session_query.rs"]
+      "allowedPaths": [
+        "src-tauri/crates/agent/src/session_query.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/query.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/subagent.rs"
+      ]
     },
     {
       "id": "rust-agent-subagent-metadata-direct-read",
@@ -3362,19 +3588,21 @@
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
       "allowedPaths": [
         "src-tauri/crates/agent/src/session_query.rs",
-        "src-tauri/crates/agent/src/session_store.rs"
+        "src-tauri/crates/agent/src/session_store.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/query.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/subagent.rs"
       ]
     },
     {
       "id": "rust-agent-session-extension-data-direct-update",
-      "classification": "deprecated",
-      "description": "session extension_data 直写 builder 只允许统一 session_update helper 持有",
+      "classification": "dead-candidate",
+      "description": "已零引用的 session extension_data 直写 builder 回流",
       "patterns": [],
       "regexPatterns": [
         "SessionManager::update_session\\([\\s\\S]*?\\)\\s*[\\s\\S]*?\\.extension_data\\([\\s\\S]*?\\)\\s*[\\s\\S]*?\\.apply\\(\\)"
       ],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": ["src-tauri/crates/agent/src/session_update.rs"]
+      "allowedPaths": []
     },
     {
       "id": "rust-agent-session-update-direct-call",
@@ -3382,18 +3610,21 @@
       "description": "session update_session 直写只允许统一 session_update helper 持有",
       "patterns": ["SessionManager::update_session("],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": ["src-tauri/crates/agent/src/session_update.rs"]
+      "allowedPaths": [
+        "src-tauri/crates/agent/src/session_update.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/update.rs"
+      ]
     },
     {
       "id": "rust-agent-session-compaction-metrics-direct-update",
-      "classification": "deprecated",
-      "description": "session compaction token 指标直写 builder 只允许统一 session_update helper 持有",
+      "classification": "dead-candidate",
+      "description": "已零引用的 session compaction token 指标直写 builder 回流",
       "patterns": [],
       "regexPatterns": [
         "SessionManager::update_session\\([\\s\\S]*?\\)\\s*[\\s\\S]*?\\.schedule_id\\([\\s\\S]*?\\)\\s*[\\s\\S]*?\\.total_tokens\\([\\s\\S]*?\\)\\s*[\\s\\S]*?\\.input_tokens\\([\\s\\S]*?\\)\\s*[\\s\\S]*?\\.output_tokens\\([\\s\\S]*?\\)\\s*[\\s\\S]*?\\.accumulated_total_tokens\\([\\s\\S]*?\\)\\s*[\\s\\S]*?\\.accumulated_input_tokens\\([\\s\\S]*?\\)\\s*[\\s\\S]*?\\.accumulated_output_tokens\\([\\s\\S]*?\\)\\s*[\\s\\S]*?\\.apply\\(\\)"
       ],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": ["src-tauri/crates/agent/src/session_update.rs"]
+      "allowedPaths": []
     },
     {
       "id": "rust-agent-session-replace-conversation-direct-update",
@@ -3401,7 +3632,10 @@
       "description": "session conversation 直写 replace_conversation 只允许统一 session_update helper 持有",
       "patterns": ["SessionManager::replace_conversation("],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": ["src-tauri/crates/agent/src/session_update.rs"]
+      "allowedPaths": [
+        "src-tauri/crates/agent/src/session_update.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/update.rs"
+      ]
     },
     {
       "id": "rust-agent-session-create-direct-update",
@@ -3409,7 +3643,10 @@
       "description": "session create_session 直写只允许统一 session_update helper 持有",
       "patterns": ["SessionManager::create_session("],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": ["src-tauri/crates/agent/src/session_update.rs"]
+      "allowedPaths": [
+        "src-tauri/crates/agent/src/session_update.rs",
+        "src-tauri/crates/aster-rust/crates/aster/src/session/update.rs"
+      ]
     },
     {
       "id": "rust-agent-session-delete-direct-update",
@@ -3417,7 +3654,9 @@
       "description": "已零引用的 session delete_session 直写回流",
       "patterns": ["SessionManager::delete_session("],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": []
+      "allowedPaths": [
+        "src-tauri/crates/aster-rust/crates/aster/src/session/update.rs"
+      ]
     },
     {
       "id": "rust-agent-session-record-create-api-leak",
@@ -3626,7 +3865,10 @@
       "description": "已零引用的 Lime 业务层 direct ASTER_PATH_ROOT 环境变量处理回流",
       "patterns": ["\"ASTER_PATH_ROOT\""],
       "includePathPrefixes": ["src-tauri/src", "src-tauri/crates"],
-      "allowedPaths": []
+      "allowedPaths": [
+        "src-tauri/crates/aster-rust/crates/aster/src/config/paths.rs",
+        "src-tauri/crates/aster-rust/crates/aster/tests/acp_integration_test.rs"
+      ]
     },
     {
       "id": "rust-aster-global-session-store-leak",

@@ -20,13 +20,18 @@ function createBaseParams(overrides: Record<string, unknown> = {}) {
       handleManageProviders: noop,
       handleProjectChange: noop,
       handleOpenAppearanceSettings: noop,
+      handleOpenChannels: noop,
+      handleOpenChromeRelay: noop,
+      handleOpenOpenClaw: noop,
       handleBackToResources: noop,
       handleCompactContext: noop,
+      handleOpenRuntimeMemoryWorkbench: noop,
     },
     inputbarScene: {
       inputbarNode: null,
       generalWorkbenchDialog: undefined,
       teamWorkbenchSurfaceProps: {},
+      runtimeToolAvailability: null,
     },
     canvasScene: {
       hasLiveCanvasPreviewContent: false,

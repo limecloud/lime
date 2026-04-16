@@ -123,6 +123,7 @@ interface ServiceSkillSelectionOptions {
   requestKey?: number | string;
   initialSlotValues?: ServiceSkillSlotValues;
   prefillHint?: string;
+  launchUserInput?: string | null;
 }
 
 function resolveServiceSkillLaunchUserInput(
@@ -238,6 +239,7 @@ interface PendingServiceSkillLaunchInputState {
   skill: ServiceSkillHomeItem;
   initialSlotValues: ServiceSkillSlotValues;
   prefillHint?: string;
+  launchUserInput?: string;
 }
 
 interface UseWorkspaceServiceSkillEntryActionsParams {
@@ -990,6 +992,9 @@ export function useWorkspaceServiceSkillEntryActions({
       const launched = await handleServiceSkillLaunch(
         pendingServiceSkillLaunchInput.skill,
         slotValues,
+        {
+          launchUserInput: pendingServiceSkillLaunchInput.launchUserInput,
+        },
       );
       if (launched) {
         setPendingServiceSkillLaunchInput(null);
@@ -1016,7 +1021,9 @@ export function useWorkspaceServiceSkillEntryActions({
       const validation = validateServiceSkillSlotValues(skill, initialSlotValues);
 
       if (skill.slotSchema.length === 0 || validation.valid) {
-        void handleServiceSkillLaunch(skill, initialSlotValues);
+        void handleServiceSkillLaunch(skill, initialSlotValues, {
+          launchUserInput: options?.launchUserInput,
+        });
         return;
       }
 
@@ -1029,6 +1036,7 @@ export function useWorkspaceServiceSkillEntryActions({
         skill,
         initialSlotValues,
         prefillHint: options?.prefillHint ?? replayPrefill?.hint,
+        launchUserInput: normalizeOptionalText(options?.launchUserInput),
       });
     },
     [creationReplay, handleServiceSkillLaunch],

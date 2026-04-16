@@ -5,7 +5,11 @@
 
 use crate::agent::SessionDetail;
 use crate::commands::aster_agent_cmd::AgentRuntimeThreadReadModel;
+use crate::database::DbConnection;
 use crate::services::artifact_document_validator::ARTIFACT_DOCUMENT_SCHEMA_VERSION;
+use crate::services::runtime_file_checkpoint_service::list_file_checkpoints;
+use crate::services::workspace_health_service::ensure_workspace_ready_with_auto_relocate;
+use crate::workspace::WorkspaceManager;
 use chrono::Utc;
 use lime_core::database::dao::agent_timeline::AgentThreadItemPayload;
 use lime_infra::telemetry::RequestLog;
@@ -66,6 +70,19 @@ pub struct RuntimeEvidencePackExportResult {
     pub known_gaps: Vec<String>,
     pub observability_summary: Value,
     pub artifacts: Vec<RuntimeEvidenceArtifact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct RuntimeEvidenceSceneAppSnapshot {
+    pub recent_artifact_paths: Vec<String>,
+    pub workspace_root: Option<String>,
+    pub known_gaps: Vec<String>,
+    pub verification_failure_outcomes: Vec<String>,
+    pub request_telemetry_available: bool,
+    pub request_telemetry_matched_count: usize,
+    pub artifact_validator_applicable: bool,
+    pub artifact_validator_issue_count: usize,
+    pub artifact_validator_recovered_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -160,10 +177,11 @@ pub fn export_runtime_evidence_pack(
         .iter()
         .map(|artifact| artifact.path.clone())
         .collect::<Vec<_>>();
+    let file_checkpoints = list_file_checkpoints(detail);
     let latest_turn_summary = collect_latest_turn_summary(detail);
     let request_telemetry = collect_request_telemetry(detail, workspace_root.as_path());
     let verification =
-        collect_runtime_verification(detail, workspace_root.as_path(), &recent_artifacts);
+        collect_runtime_verification(detail, Some(workspace_root.as_path()), &recent_artifacts);
     let signal_coverage = build_signal_coverage(
         thread_read,
         &recent_artifacts,
@@ -209,6 +227,7 @@ pub fn export_runtime_evidence_pack(
                 thread_read,
                 workspace_root.as_path(),
                 &recent_artifact_paths,
+                &file_checkpoints.checkpoints,
                 &observability_summary,
                 &known_gaps,
                 exported_at.as_str(),
@@ -232,6 +251,7 @@ pub fn export_runtime_evidence_pack(
                 detail,
                 thread_read,
                 &recent_artifact_paths,
+                &file_checkpoints.checkpoints,
                 &observability_summary,
                 &request_telemetry,
                 &verification,
@@ -263,6 +283,93 @@ pub fn export_runtime_evidence_pack(
         observability_summary,
         artifacts,
     })
+}
+
+pub(crate) fn resolve_runtime_export_workspace_root(
+    db: &DbConnection,
+    detail: &SessionDetail,
+) -> Result<PathBuf, String> {
+    if let Some(workspace_id) = detail
+        .workspace_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let manager = WorkspaceManager::new(db.clone());
+        let workspace_id = workspace_id.to_string();
+        let workspace = manager
+            .get(&workspace_id)
+            .map_err(|error| format!("读取 workspace 失败: {error}"))?
+            .ok_or_else(|| format!("Workspace 不存在: {workspace_id}"))?;
+        let ensured = ensure_workspace_ready_with_auto_relocate(&manager, &workspace)?;
+        return Ok(ensured.root_path);
+    }
+
+    if let Some(working_dir) = detail
+        .working_dir
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(PathBuf::from(working_dir));
+    }
+
+    Err("当前会话缺少 workspace / working_dir，无法导出运行时制品".to_string())
+}
+
+pub(crate) fn build_runtime_evidence_sceneapp_snapshot(
+    detail: &SessionDetail,
+    thread_read: &AgentRuntimeThreadReadModel,
+    workspace_root: Option<&Path>,
+) -> RuntimeEvidenceSceneAppSnapshot {
+    let recent_artifacts = collect_recent_artifacts(detail);
+    let request_telemetry = workspace_root
+        .map(|root| collect_request_telemetry(detail, root))
+        .unwrap_or_default();
+    let verification = collect_runtime_verification(detail, workspace_root, &recent_artifacts);
+    let signal_coverage = build_signal_coverage(
+        thread_read,
+        &recent_artifacts,
+        &request_telemetry,
+        &verification,
+    );
+    let known_gaps = build_known_gaps(&recent_artifacts, &signal_coverage);
+
+    RuntimeEvidenceSceneAppSnapshot {
+        recent_artifact_paths: recent_artifacts
+            .into_iter()
+            .map(|artifact| artifact.path)
+            .collect(),
+        workspace_root: workspace_root.map(|path| path.to_string_lossy().to_string()),
+        known_gaps,
+        verification_failure_outcomes: extract_verification_failure_outcomes(&verification),
+        request_telemetry_available: !request_telemetry.searched_roots.is_empty(),
+        request_telemetry_matched_count: request_telemetry.matched_request_count,
+        artifact_validator_applicable: verification.artifact_validator.applicable,
+        artifact_validator_issue_count: verification
+            .artifact_validator
+            .records
+            .iter()
+            .map(|record| {
+                record
+                    .get("issues")
+                    .and_then(Value::as_array)
+                    .map(|issues| issues.len())
+                    .unwrap_or(0)
+            })
+            .sum(),
+        artifact_validator_recovered_count: verification
+            .artifact_validator
+            .records
+            .iter()
+            .filter(|record| {
+                record
+                    .get("repaired")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+            })
+            .count(),
+    }
 }
 
 fn write_evidence_file(
@@ -402,6 +509,7 @@ fn build_runtime_json(
     thread_read: &AgentRuntimeThreadReadModel,
     workspace_root: &Path,
     recent_artifacts: &[String],
+    file_checkpoints: &[crate::commands::aster_agent_cmd::AgentRuntimeFileCheckpointSummary],
     observability_summary: &Value,
     known_gaps: &[String],
     exported_at: &str,
@@ -486,6 +594,8 @@ fn build_runtime_json(
         }).collect::<Vec<_>>(),
         "observabilitySummary": observability_summary,
         "recentArtifacts": recent_artifacts,
+        "fileCheckpointCount": file_checkpoints.len(),
+        "fileCheckpoints": file_checkpoints,
         "knownGaps": known_gaps
     });
 
@@ -529,6 +639,7 @@ fn build_artifacts_json(
     detail: &SessionDetail,
     thread_read: &AgentRuntimeThreadReadModel,
     recent_artifacts: &[String],
+    file_checkpoints: &[crate::commands::aster_agent_cmd::AgentRuntimeFileCheckpointSummary],
     observability_summary: &Value,
     request_telemetry: &RuntimeRequestTelemetrySummary,
     verification: &RuntimeEvidenceVerificationSummary,
@@ -540,6 +651,8 @@ fn build_artifacts_json(
         "exportedAt": exported_at,
         "recentArtifacts": recent_artifacts,
         "artifactCount": recent_artifacts.len(),
+        "fileCheckpointCount": file_checkpoints.len(),
+        "fileCheckpoints": file_checkpoints,
         "observabilitySummary": observability_summary,
         "requests": {
             "pending": thread_read.pending_requests.iter().map(|item| {
@@ -891,7 +1004,7 @@ fn build_runtime_observability_summary_json(
 
 fn collect_runtime_verification(
     detail: &SessionDetail,
-    workspace_root: &Path,
+    workspace_root: Option<&Path>,
     recent_artifacts: &[RuntimeRecentArtifact],
 ) -> RuntimeEvidenceVerificationSummary {
     RuntimeEvidenceVerificationSummary {
@@ -902,7 +1015,7 @@ fn collect_runtime_verification(
 }
 
 fn collect_artifact_validator_summary(
-    workspace_root: &Path,
+    workspace_root: Option<&Path>,
     recent_artifacts: &[RuntimeRecentArtifact],
 ) -> RuntimeArtifactValidatorSummary {
     let mut summary = RuntimeArtifactValidatorSummary::default();
@@ -920,10 +1033,12 @@ fn collect_artifact_validator_summary(
 
         if artifact.path.ends_with(".artifact.json") {
             applicable = true;
-            let absolute_path = resolve_workspace_path(workspace_root, artifact.path.as_str());
-            if let Ok(raw) = fs::read_to_string(&absolute_path) {
-                if let Ok(document) = serde_json::from_str::<Value>(raw.as_str()) {
-                    candidates.push(document);
+            if let Some(workspace_root) = workspace_root {
+                let absolute_path = resolve_workspace_path(workspace_root, artifact.path.as_str());
+                if let Ok(raw) = fs::read_to_string(&absolute_path) {
+                    if let Ok(document) = serde_json::from_str::<Value>(raw.as_str()) {
+                        candidates.push(document);
+                    }
                 }
             }
         }
@@ -941,6 +1056,25 @@ fn collect_artifact_validator_summary(
     }
 
     summary
+}
+
+fn extract_verification_failure_outcomes(
+    verification: &RuntimeEvidenceVerificationSummary,
+) -> Vec<String> {
+    build_observability_verification_summary_json(verification)
+        .and_then(|summary| {
+            summary
+                .get("focusVerificationFailureOutcomes")
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                })
+        })
+        .unwrap_or_default()
 }
 
 fn collect_browser_evidence(detail: &SessionDetail) -> Vec<Value> {
@@ -1723,6 +1857,7 @@ mod tests {
             interrupt_state: None,
             updated_at: Some("2026-03-27T10:01:00Z".to_string()),
             latest_compaction_boundary: None,
+            file_checkpoint_summary: None,
             diagnostics: Some(
                 crate::commands::aster_agent_cmd::AgentRuntimeThreadDiagnostics {
                     latest_turn_status: Some("running".to_string()),
@@ -1875,6 +2010,10 @@ mod tests {
         assert!(runtime.contains("\"sessionId\": \"session-1\""));
         assert!(runtime.contains("\"pendingRequestCount\": 1"));
         assert!(runtime.contains("\"observabilitySummary\""));
+        assert!(runtime.contains("\"fileCheckpointCount\": 1"));
+        assert!(runtime.contains("\"fileCheckpoints\""));
+        assert!(runtime.contains("\"checkpoint_id\": \"artifact-1\""));
+        assert!(runtime.contains("\"path\": \".lime/artifacts/thread-1/report.md\""));
         assert!(runtime.contains("\"requestTelemetry\""));
         assert!(runtime.contains("\"matchedRequestCount\": 1"));
         assert!(!runtime.contains("\"verificationSummary\""));
@@ -1889,6 +2028,9 @@ mod tests {
         let artifacts = fs::read_to_string(artifacts_path).expect("artifacts");
         assert!(artifacts.contains("\"observabilitySummary\""));
         assert!(artifacts.contains("\"telemetry\""));
+        assert!(artifacts.contains("\"fileCheckpointCount\": 1"));
+        assert!(artifacts.contains("\"fileCheckpoints\""));
+        assert!(artifacts.contains("\"checkpoint_id\": \"artifact-1\""));
         assert!(artifacts.contains("\"matchedRequestCount\": 1"));
         assert!(!artifacts.contains("\"verification\""));
     }

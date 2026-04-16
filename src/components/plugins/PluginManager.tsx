@@ -2683,8 +2683,6 @@ function PluginItem({
   );
 }
 
-export default PluginManager;
-
 /** 已安装插件项组件 */
 interface InstalledPluginItemProps {
   plugin: InstalledPlugin;

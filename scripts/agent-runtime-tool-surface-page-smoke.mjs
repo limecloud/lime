@@ -13,12 +13,16 @@ const DEFAULTS = {
 const INVOKE_TIMEOUT_CEILING_MS = 180_000;
 const INVOKE_RETRY_COUNT = 10;
 const INVOKE_RETRY_DELAY_MS = 1_000;
+const BROWSER_ACTION_RETRY_COUNT = 6;
+const BROWSER_ACTION_RETRY_DELAY_MS = 1_000;
 const POST_HEALTH_SETTLE_MS = 1_500;
-const POST_CONFIG_SETTLE_MS = 1_000;
 const POST_LAUNCH_SETTLE_MS = 1_500;
-const DEFAULT_ACTION_TIMEOUT_MS = 15_000;
+const DEFAULT_ACTION_TIMEOUT_MS = 45_000;
 const ONBOARDING_VERSION = "1.1.0";
 const PROMPT_TEXT = "请回复一句：smoke harness";
+const SMOKE_PROFILE_KEY = "smoke-agent-runtime-tool-surface-page";
+const WORKSPACE_HARNESS_DEBUG_OVERRIDE_KEY =
+  "lime:debug:workspace-harness-enabled:v1";
 const RUNTIME_TOOL_AVAILABILITY_OVERRIDE = {
   known: true,
   agentInitialized: true,
@@ -133,6 +137,10 @@ function assert(condition, message) {
   }
 }
 
+function logStage(label) {
+  console.log(`[smoke:agent-runtime-tool-surface-page] stage=${label}`);
+}
+
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -193,6 +201,20 @@ async function invoke(options, cmd, args) {
   );
 }
 
+async function closeSmokeProfileSession(options, profileKey, label) {
+  try {
+    await invoke(options, "close_chrome_profile_session", {
+      profile_key: profileKey,
+    });
+  } catch (error) {
+    console.warn(
+      `[smoke:agent-runtime-tool-surface-page] ${label}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
 async function waitForHealth(options) {
   const startedAt = Date.now();
   let lastError = null;
@@ -230,6 +252,10 @@ function buildHarnessBootstrapScript() {
     localStorage.setItem("lime_onboarding_complete", "true");
     localStorage.setItem("lime_onboarding_version", ${JSON.stringify(ONBOARDING_VERSION)});
     localStorage.setItem("lime_user_profile", "developer");
+    localStorage.setItem(
+      ${JSON.stringify(WORKSPACE_HARNESS_DEBUG_OVERRIDE_KEY)},
+      "true"
+    );
     localStorage.setItem("lime.chat.harness-panel.visible.v1", "true");
     localStorage.setItem(
       "lime:debug:runtime-tool-availability:v1",
@@ -239,17 +265,53 @@ function buildHarnessBootstrapScript() {
   })()`;
 }
 
-function buildFillPromptAndSendScript(prompt) {
+function buildPageStorageReadyScript(appUrl) {
   return `(() => {
+    try {
+      const href = window.location.href;
+      const readyState = document.readyState;
+      void window.localStorage;
+      return {
+        ok: href.startsWith(${JSON.stringify(appUrl)}) && readyState !== "loading",
+        href,
+        readyState,
+        title: document.title,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        href: window.location.href,
+        readyState: document.readyState,
+        title: document.title,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  })()`;
+}
+
+function buildFillPromptScript(prompt) {
+  return `(() => {
+    const collectButtons = () =>
+      Array.from(document.querySelectorAll("button")).map((button) => ({
+        text: (button.textContent || "").trim(),
+        aria: button.getAttribute("aria-label"),
+        disabled: Boolean(button.disabled),
+      }));
     const textarea = document.querySelector('textarea[placeholder="有什么我可以帮你的？"]');
-    const send = document.querySelector('button[aria-label="发送"]');
-    if (!textarea || !send) {
-      return { ok: false, reason: "missing-input-or-send" };
+    const initialSend = document.querySelector('button[aria-label="发送"]');
+    if (!textarea || !initialSend) {
+      return {
+        ok: false,
+        reason: "missing-input-or-send",
+        buttons: collectButtons(),
+      };
     }
     const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
     if (!setter) {
       return { ok: false, reason: "missing-native-textarea-setter" };
     }
+
+    textarea.focus();
     setter.call(textarea, ${JSON.stringify(prompt)});
     textarea.dispatchEvent(new InputEvent("input", {
       bubbles: true,
@@ -257,10 +319,33 @@ function buildFillPromptAndSendScript(prompt) {
       inputType: "insertText",
     }));
     textarea.dispatchEvent(new Event("change", { bubbles: true }));
+
+    const currentTextarea =
+      document.querySelector('textarea[placeholder="有什么我可以帮你的？"]') ||
+      textarea;
+    const currentSend = document.querySelector('button[aria-label="发送"]');
     return {
       ok: true,
-      value: textarea.value,
-      sendDisabled: Boolean(send.disabled),
+      value: currentTextarea?.value ?? "",
+      sendDisabled: Boolean(currentSend?.disabled),
+      buttons: collectButtons(),
+    };
+  })()`;
+}
+
+function buildSendReadyScript() {
+  return `(() => {
+    const textarea = document.querySelector('textarea[placeholder="有什么我可以帮你的？"]');
+    const send = document.querySelector('button[aria-label="发送"]');
+    return {
+      ok:
+        Boolean(textarea) &&
+        typeof textarea?.value === "string" &&
+        textarea.value.trim().length > 0 &&
+        Boolean(send) &&
+        send.disabled === false,
+      value: textarea?.value ?? "",
+      sendDisabled: Boolean(send?.disabled),
     };
   })()`;
 }
@@ -269,21 +354,50 @@ function buildClickSendScript() {
   return `(() => {
     const send = document.querySelector('button[aria-label="发送"]');
     if (!send) {
-      return { ok: false, reason: "missing-send-button" };
+      return {
+        ok: false,
+        reason: "missing-send-button",
+      };
     }
-    send.click();
+    if (send.disabled) {
+      return {
+        ok: false,
+        reason: "send-disabled",
+      };
+    }
+
+    send.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+    }));
+    send.dispatchEvent(new MouseEvent("mouseup", {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+    }));
+    send.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+    }));
+
     return {
       ok: true,
-      disabled: Boolean(send.disabled),
-      ariaExpanded: send.getAttribute("aria-expanded"),
+      submitted: true,
     };
   })()`;
 }
 
 function buildOpenWorkbenchScript() {
   return `(() => {
+    const bodyText = document.body ? document.body.innerText : "";
     const target = Array.from(document.querySelectorAll("button")).find(
-      (button) => (button.textContent || "").trim() === "工作台",
+      (button) =>
+        ((button.textContent || "").trim() === "工作台" ||
+          (button.getAttribute("aria-label") || "").includes("工作台") ||
+          (button.getAttribute("title") || "").includes("工作台")) &&
+        button instanceof HTMLButtonElement,
     );
     if (!target) {
       return {
@@ -294,10 +408,28 @@ function buildOpenWorkbenchScript() {
         })),
       };
     }
+
+    const alreadyOpen =
+      bodyText.includes("处理工作台") ||
+      target.getAttribute("aria-expanded") === "true" ||
+      (target.getAttribute("aria-label") || "").includes("收起工作台") ||
+      (target.getAttribute("title") || "").includes("收起工作台");
+
+    if (alreadyOpen) {
+      return {
+        ok: true,
+        alreadyOpen: true,
+        ariaExpanded: target.getAttribute("aria-expanded"),
+        ariaLabel: target.getAttribute("aria-label"),
+      };
+    }
+
     target.click();
     return {
       ok: true,
+      alreadyOpen: false,
       ariaExpanded: target.getAttribute("aria-expanded"),
+      ariaLabel: target.getAttribute("aria-label"),
     };
   })()`;
 }
@@ -321,30 +453,72 @@ function buildRuntimeSummaryCheckScript() {
 
 function extractJavascriptValue(actionResult) {
   return (
-    actionResult?.data?.result?.result?.value ??
+    actionResult?.data?.result ??
+    actionResult?.data?.value ??
+    actionResult?.data?.result?.result ??
     actionResult?.data?.result?.value ??
     actionResult?.data?.result ??
     null
   );
 }
 
-async function runBrowserAction(options, profileKey, action, args = {}) {
-  return invoke(options, "browser_execute_action", {
-    request: {
-      profile_key: profileKey,
-      backend: "cdp_direct",
-      action,
-      args,
-      timeout_ms: DEFAULT_ACTION_TIMEOUT_MS,
-    },
-  });
+function isRetryableBrowserActionFailure(detail) {
+  return (
+    typeof detail === "string" &&
+    (detail.includes("CDP 调试端口不可用") ||
+      detail.includes("没有可用的 Chrome 会话"))
+  );
 }
 
-async function runJavascript(options, profileKey, expression) {
-  const result = await runBrowserAction(options, profileKey, "javascript", {
-    expression,
-    return_by_value: true,
-  });
+async function runBrowserAction(options, profileKey, action, args = {}, label = action) {
+  for (let attempt = 1; attempt <= BROWSER_ACTION_RETRY_COUNT; attempt += 1) {
+    const result = await invoke(options, "browser_execute_action", {
+      request: {
+        profile_key: profileKey,
+        backend: "cdp_direct",
+        action,
+        args,
+        timeout_ms: DEFAULT_ACTION_TIMEOUT_MS,
+      },
+    });
+
+    if (result?.success === true) {
+      return result;
+    }
+
+    const detail = String(result?.error || JSON.stringify(result ?? null));
+    if (
+      isRetryableBrowserActionFailure(detail) &&
+      attempt < BROWSER_ACTION_RETRY_COUNT
+    ) {
+      console.warn(
+        `[smoke:agent-runtime-tool-surface-page] browser_execute_action(${label}) 第 ${attempt} 次失败，${BROWSER_ACTION_RETRY_DELAY_MS}ms 后重试: ${detail}`,
+      );
+      await sleep(BROWSER_ACTION_RETRY_DELAY_MS);
+      continue;
+    }
+
+    throw new Error(
+      `[smoke:agent-runtime-tool-surface-page] browser_execute_action(${label}) 失败: ${detail}`,
+    );
+  }
+
+  throw new Error(
+    `[smoke:agent-runtime-tool-surface-page] browser_execute_action(${label}) 失败: unknown error`,
+  );
+}
+
+async function runJavascript(options, profileKey, expression, label = "javascript") {
+  const result = await runBrowserAction(
+    options,
+    profileKey,
+    "javascript",
+    {
+      expression,
+      return_by_value: true,
+    },
+    `javascript:${label}`,
+  );
   return extractJavascriptValue(result);
 }
 
@@ -372,51 +546,36 @@ async function waitForCheck(options, label, check) {
   );
 }
 
-async function ensureHarnessEnabled(options) {
-  const originalConfig = await invoke(options, "get_config");
-  const enabled =
-    originalConfig?.developer?.workspace_harness_enabled === true;
-  if (enabled) {
-    return {
-      originalConfig,
-      changed: false,
-    };
-  }
-
-  const nextConfig = deepClone(originalConfig);
-  nextConfig.developer = {
-    ...(nextConfig.developer || {}),
-    workspace_harness_enabled: true,
-  };
-  await invoke(options, "save_config", nextConfig);
-  await sleep(POST_CONFIG_SETTLE_MS);
-  return {
-    originalConfig,
-    changed: true,
-  };
-}
-
 async function main() {
   if (typeof fetch !== "function") {
     throw new Error("当前 Node 运行时不支持 fetch，请使用 Node 18+");
   }
 
   const options = parseArgs(process.argv.slice(2));
+  logStage("wait-health");
   await waitForHealth(options);
   await sleep(POST_HEALTH_SETTLE_MS);
-
-  const { originalConfig, changed } = await ensureHarnessEnabled(options);
-  const profileKey = `smoke-agent-runtime-tool-surface-page-${Date.now()}`;
+  const profileKey = SMOKE_PROFILE_KEY;
   let sessionId = null;
 
   try {
+    logStage("cleanup-old-profile");
+    await closeSmokeProfileSession(
+      options,
+      profileKey,
+      "预清理旧 smoke profile 失败",
+    );
+
+    logStage("launch-browser-session");
     const launchResponse = await invoke(options, "launch_browser_session", {
       request: {
         profile_key: profileKey,
         url: options.appUrl,
         headless: true,
         open_window: false,
-        stream_mode: "both",
+        // 真实 Lime 页面在 cdp_direct + frames/both 下会持续产出 frame 流，
+        // 这里会把后续 Runtime.evaluate 挤到超时；页面 smoke 只需要事件流即可。
+        stream_mode: "events",
       },
     });
 
@@ -427,14 +586,37 @@ async function main() {
     );
     await sleep(POST_LAUNCH_SETTLE_MS);
 
-    await runJavascript(options, profileKey, buildHarnessBootstrapScript());
+    logStage("wait-page-storage-ready");
+    await waitForCheck(options, "Lime 首页 origin 可访问", async () => {
+      const value = await runJavascript(
+        options,
+        profileKey,
+        buildPageStorageReadyScript(options.appUrl),
+        "wait-page-storage-ready",
+      );
+      return {
+        ok: value?.ok === true,
+        value,
+      };
+    });
+
+    logStage("bootstrap-harness-storage");
+    await runJavascript(
+      options,
+      profileKey,
+      buildHarnessBootstrapScript(),
+      "bootstrap-harness-storage",
+    );
+    logStage("refresh-page");
     await runBrowserAction(options, profileKey, "refresh_page");
 
+    logStage("wait-empty-state");
     await waitForCheck(options, "首页空态加载", async () => {
       const text = await runJavascript(
         options,
         profileKey,
         'document.body ? document.body.innerText : ""',
+        "wait-empty-state-text",
       );
       return {
         ok:
@@ -445,32 +627,55 @@ async function main() {
       };
     });
 
-    const prepared = await runJavascript(
+    logStage("fill-prompt");
+    const filled = await runJavascript(
       options,
       profileKey,
-      buildFillPromptAndSendScript(PROMPT_TEXT),
+      buildFillPromptScript(PROMPT_TEXT),
+      "fill-prompt",
     );
     assert(
-      prepared?.ok === true,
-      `准备输入失败: ${JSON.stringify(prepared ?? null)}`,
+      filled?.ok === true,
+      `准备输入失败: ${JSON.stringify(filled ?? null)}`,
     );
-    assert(prepared?.sendDisabled === false, "发送按钮仍处于禁用状态");
 
-    const sendResult = await runJavascript(
+    logStage("wait-send-ready");
+    const sendReady = await waitForCheck(options, "发送按钮可用", async () => {
+      const value = await runJavascript(
+        options,
+        profileKey,
+        buildSendReadyScript(),
+        "wait-send-ready",
+      );
+      return {
+        ok: value?.ok === true,
+        value,
+      };
+    });
+    assert(
+      sendReady?.ok === true,
+      `发送按钮未就绪: ${JSON.stringify(sendReady ?? null)}`,
+    );
+
+    logStage("click-send");
+    const submitted = await runJavascript(
       options,
       profileKey,
       buildClickSendScript(),
+      "click-send",
     );
     assert(
-      sendResult?.ok === true,
-      `发送最小请求失败: ${JSON.stringify(sendResult ?? null)}`,
+      submitted?.ok === true,
+      `提交输入失败: ${JSON.stringify(submitted ?? null)}`,
     );
 
+    logStage("wait-workbench-button");
     await waitForCheck(options, "运行态工作台按钮出现", async () => {
       const text = await runJavascript(
         options,
         profileKey,
         'document.body ? document.body.innerText : ""',
+        "wait-workbench-button",
       );
       return {
         ok: typeof text === "string" && text.includes("工作台"),
@@ -478,16 +683,19 @@ async function main() {
       };
     });
 
+    logStage("open-workbench");
     const openWorkbench = await runJavascript(
       options,
       profileKey,
       buildOpenWorkbenchScript(),
+      "open-workbench",
     );
     assert(
       openWorkbench?.ok === true,
       `打开工作台失败: ${JSON.stringify(openWorkbench ?? null)}`,
     );
 
+    logStage("wait-runtime-summary");
     const summaryFlags = await waitForCheck(
       options,
       "Runtime 能力摘要出现",
@@ -496,6 +704,7 @@ async function main() {
           options,
           profileKey,
           buildRuntimeSummaryCheckScript(),
+          "check-runtime-summary",
         );
         const hasAllRequired = REQUIRED_RUNTIME_SUMMARY_FLAGS.every(
           (key) => value?.[key] === true,
@@ -509,6 +718,7 @@ async function main() {
       },
     );
 
+    logStage("read-page-markdown");
     const pageMarkdown = await readPageMarkdown(options, profileKey);
     for (const warning of FORBIDDEN_PAGE_WARNINGS) {
       assert(
@@ -525,6 +735,7 @@ async function main() {
     );
   } finally {
     if (sessionId) {
+      logStage("close-cdp-session");
       try {
         await invoke(options, "close_cdp_session", {
           request: {
@@ -540,17 +751,12 @@ async function main() {
       }
     }
 
-    if (changed) {
-      try {
-        await invoke(options, "save_config", originalConfig);
-      } catch (error) {
-        console.warn(
-          `[smoke:agent-runtime-tool-surface-page] 恢复 developer.workspace_harness_enabled 失败: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-    }
+    logStage("close-profile-session");
+    await closeSmokeProfileSession(
+      options,
+      profileKey,
+      "关闭 smoke profile 失败",
+    );
   }
 }
 

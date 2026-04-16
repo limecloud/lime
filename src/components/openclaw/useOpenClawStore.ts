@@ -50,5 +50,3 @@ export const useOpenClawStore = create<OpenClawStoreState>()(
     },
   ),
 );
-
-export default useOpenClawStore;

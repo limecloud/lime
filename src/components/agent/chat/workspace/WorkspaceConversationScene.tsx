@@ -288,9 +288,34 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
     typeof EmptyState
   >["onLaunchBrowserAssist"];
   browserAssistLoading: boolean;
+  featuredSceneApps: NonNullable<
+    ComponentProps<typeof EmptyState>["featuredSceneApps"]
+  >;
+  sceneAppsLoading: boolean;
+  sceneAppLaunchingId: ComponentProps<typeof EmptyState>["sceneAppLaunchingId"];
+  onLaunchSceneApp?: ComponentProps<typeof EmptyState>["onLaunchSceneApp"];
+  canResumeRecentSceneApp?: ComponentProps<
+    typeof EmptyState
+  >["canResumeRecentSceneApp"];
+  onResumeRecentSceneApp?: ComponentProps<
+    typeof EmptyState
+  >["onResumeRecentSceneApp"];
+  onOpenSceneAppsDirectory?: ComponentProps<
+    typeof EmptyState
+  >["onOpenSceneAppsDirectory"];
   projectId: string | null;
   onProjectChange?: ComponentProps<typeof EmptyState>["onProjectChange"];
   onOpenSettings?: () => void;
+  runtimeToolAvailability?: ComponentProps<
+    typeof EmptyState
+  >["runtimeToolAvailability"];
+  runtimeTaskCard?: ComponentProps<typeof EmptyState>["runtimeTaskCard"];
+  onOpenMemoryWorkbench?: ComponentProps<
+    typeof EmptyState
+  >["onOpenMemoryWorkbench"];
+  onOpenChannels?: ComponentProps<typeof EmptyState>["onOpenChannels"];
+  onOpenChromeRelay?: ComponentProps<typeof EmptyState>["onOpenChromeRelay"];
+  onOpenOpenClaw?: ComponentProps<typeof EmptyState>["onOpenOpenClaw"];
   navbarVisible: boolean;
   isRunning: boolean;
   navbarChrome: ComponentProps<typeof ChatNavbar>["chrome"];
@@ -393,9 +418,22 @@ export function WorkspaceConversationScene({
   onRefreshSkills,
   onLaunchBrowserAssist,
   browserAssistLoading,
+  featuredSceneApps,
+  sceneAppsLoading,
+  sceneAppLaunchingId,
+  onLaunchSceneApp,
+  canResumeRecentSceneApp,
+  onResumeRecentSceneApp,
+  onOpenSceneAppsDirectory,
   projectId,
   onProjectChange,
   onOpenSettings,
+  runtimeToolAvailability,
+  runtimeTaskCard,
+  onOpenMemoryWorkbench,
+  onOpenChannels,
+  onOpenChromeRelay,
+  onOpenOpenClaw,
   navbarVisible,
   isRunning,
   navbarChrome,
@@ -474,9 +512,22 @@ export function WorkspaceConversationScene({
     onRefreshSkills,
     onLaunchBrowserAssist,
     browserAssistLoading,
+    featuredSceneApps,
+    sceneAppsLoading,
+    sceneAppLaunchingId,
+    onLaunchSceneApp,
+    canResumeRecentSceneApp,
+    onResumeRecentSceneApp,
+    onOpenSceneAppsDirectory,
     projectId,
     onProjectChange,
     onOpenSettings,
+    runtimeToolAvailability,
+    runtimeTaskCard,
+    onOpenMemoryWorkbench,
+    onOpenChannels,
+    onOpenChromeRelay,
+    onOpenOpenClaw,
   });
 
   const chatContent = renderWorkspaceChatContent({

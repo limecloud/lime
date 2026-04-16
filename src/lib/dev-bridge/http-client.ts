@@ -9,16 +9,25 @@ import {
   hasTauriInvokeCapability,
   hasTauriRuntimeMarkers,
 } from "@/lib/tauri-runtime";
+import { shouldDisallowMockFallbackInBrowser } from "./mockPriorityCommands";
 
 const BRIDGE_URL = "http://127.0.0.1:3030/invoke";
 const BRIDGE_HEALTH_URL = "http://127.0.0.1:3030/health";
 const BRIDGE_EVENTS_URL = "http://127.0.0.1:3030/events";
 const DEV_BRIDGE_EVENT_CONNECT_TIMEOUT_MS = 1500;
 const DEV_BRIDGE_REQUEST_TIMEOUT_MS = 1800;
+const DEV_BRIDGE_TRUTH_COMMAND_TIMEOUT_MS = 5000;
 const DEV_BRIDGE_AGENT_RUNTIME_TIMEOUT_MS = 10000;
+const DEV_BRIDGE_PROVIDER_PROBE_TIMEOUT_MS = 30000;
 const DEV_BRIDGE_HEALTH_TIMEOUT_MS = 800;
 const DEV_BRIDGE_HEALTH_CACHE_MS = 10000;
 const DEV_BRIDGE_FAILURE_COOLDOWN_MS = 3000;
+
+const DEV_BRIDGE_PROVIDER_PROBE_COMMANDS = new Set([
+  "fetch_provider_models_auto",
+  "test_api_key_provider_connection",
+  "test_api_key_provider_chat",
+]);
 
 export interface InvokeRequest {
   cmd: string;
@@ -49,6 +58,12 @@ let bridgeHealthProbePromise: Promise<boolean> | null = null;
 function resolveBridgeRequestTimeoutMs(cmd: string): number {
   if (cmd.startsWith("agent_runtime_")) {
     return DEV_BRIDGE_AGENT_RUNTIME_TIMEOUT_MS;
+  }
+  if (DEV_BRIDGE_PROVIDER_PROBE_COMMANDS.has(cmd)) {
+    return DEV_BRIDGE_PROVIDER_PROBE_TIMEOUT_MS;
+  }
+  if (shouldDisallowMockFallbackInBrowser(cmd)) {
+    return DEV_BRIDGE_TRUTH_COMMAND_TIMEOUT_MS;
   }
   return DEV_BRIDGE_REQUEST_TIMEOUT_MS;
 }
@@ -205,7 +220,6 @@ async function ensureBridgeReachable(): Promise<void> {
             markBridgeHealthy();
             return true;
           }
-          markBridgeUnavailable();
           return false;
         }
         throw error;

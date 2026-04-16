@@ -18,7 +18,6 @@ if (!process.env.VITE_APP_VERSION && cargoWorkspaceVersion) {
 
 // 获取 Tauri mock 目录路径
 const tauriMockDir = path.resolve(__dirname, "./src/lib/tauri-mock");
-const tauriEventWrapper = path.resolve(__dirname, "./src/lib/tauri-event.ts");
 const sharedTauriOptimizeDepsExclude = ["@tauri-apps/plugin-deep-link"];
 
 export default defineConfig(({ mode }) => {
@@ -33,12 +32,7 @@ export default defineConfig(({ mode }) => {
   
   // 只在非 Tauri 环境（纯浏览器开发）下使用 mock
   const tauriAliases = isTauri
-    ? [
-        {
-          find: /^@tauri-apps\/api\/event$/,
-          replacement: tauriEventWrapper,
-        },
-      ]
+    ? []
     : [
         {
           find: /^@tauri-apps\/api\/core$/,

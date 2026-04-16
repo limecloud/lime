@@ -1598,5 +1598,3 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     </div>
   );
 }
-
-export default ResourcesPage;

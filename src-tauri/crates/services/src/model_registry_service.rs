@@ -3,7 +3,7 @@
 //! 从内嵌资源加载模型数据，管理本地缓存，提供模型搜索等功能
 //! 模型数据在构建时从 aiclientproxy/models 仓库打包进应用
 
-use lime_core::database::dao::api_key_provider::ApiProviderType;
+use lime_core::database::dao::api_key_provider::{infer_managed_runtime_spec, ApiProviderType};
 use lime_core::database::DbConnection;
 use lime_core::models::model_registry::{
     EnhancedModelMetadata, ModelCapabilities, ModelLimits, ModelPricing, ModelSource, ModelStatus,
@@ -926,6 +926,8 @@ impl ModelRegistryService {
     /// 1. 精确匹配 custom_models
     /// 2. 按 provider_id / provider_type / api_host 推断候选 provider
     /// 3. 使用本地资源中的候选 provider 模型列表
+    ///
+    /// 对 Anthropic 兼容 Provider，不执行本地模型兜底，避免误显示其它厂商模型。
     pub async fn fetch_models_from_api_with_hints(
         &self,
         provider_id: &str,
@@ -978,6 +980,54 @@ impl ModelRegistryService {
                     "[ModelRegistry] API 获取失败: {}, 回退到本地文件",
                     api_error.message
                 );
+
+                if Self::should_disable_registry_fallback(api_host, provider_type) {
+                    let scoped_provider_candidates = self
+                        .collect_explicit_model_provider_ids(provider_id, api_host)
+                        .await;
+                    let matched_custom_models = self
+                        .match_local_models_by_ids(
+                            custom_models,
+                            Some(scoped_provider_candidates.as_slice()),
+                        )
+                        .await;
+                    let keeps_custom_models = !matched_custom_models.is_empty();
+                    let is_anthropic_models_not_found =
+                        api_error.kind == ModelFetchErrorKind::NotFound;
+                    let adjusted_hint = if is_anthropic_models_not_found {
+                        None
+                    } else {
+                        diagnostic_hint
+                    };
+                    let error = if is_anthropic_models_not_found {
+                        if keeps_custom_models {
+                            "当前 Anthropic 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。"
+                                .to_string()
+                        } else {
+                            "当前 Anthropic 兼容入口未提供标准 /models 接口。".to_string()
+                        }
+                    } else if keeps_custom_models {
+                        format!(
+                            "API 获取失败: {}，已保留当前 Provider 的自定义模型；同时不再回退通用本地目录，避免误显示其它厂商模型。",
+                            api_error.message
+                        )
+                    } else {
+                        format!(
+                            "API 获取失败: {}，当前 Provider 不再回退通用本地目录，避免误显示其它厂商模型。",
+                            api_error.message
+                        )
+                    };
+
+                    return Ok(FetchModelsResult {
+                        models: matched_custom_models,
+                        source: ModelFetchSource::CustomModels,
+                        error: Some(error),
+                        request_url: api_url,
+                        diagnostic_hint: adjusted_hint,
+                        error_kind: Some(api_error.kind.clone()),
+                        should_prompt_error: false,
+                    });
+                }
 
                 // 回退到本地资源模型（多级匹配）
                 let local_models = self
@@ -1039,7 +1089,12 @@ impl ModelRegistryService {
         custom_models: &[String],
     ) -> Vec<EnhancedModelMetadata> {
         // 优先精确匹配 custom_models（最贴近用户配置）
-        let matched_custom_models = self.match_local_models_by_ids(custom_models).await;
+        let scoped_provider_candidates = self
+            .collect_explicit_model_provider_ids(provider_id, api_host)
+            .await;
+        let matched_custom_models = self
+            .match_local_models_by_ids(custom_models, Some(scoped_provider_candidates.as_slice()))
+            .await;
         if !matched_custom_models.is_empty() {
             tracing::info!(
                 "[ModelRegistry] 本地兜底命中 custom_models: provider={}, matched={}",
@@ -1047,6 +1102,15 @@ impl ModelRegistryService {
                 matched_custom_models.len()
             );
             return matched_custom_models;
+        }
+
+        if Self::should_disable_registry_fallback(api_host, provider_type) {
+            tracing::info!(
+                "[ModelRegistry] 当前协议禁用通用本地模型兜底: provider={}, host={}",
+                provider_id,
+                api_host
+            );
+            return Vec::new();
         }
 
         let candidate_provider_ids = self
@@ -1074,7 +1138,11 @@ impl ModelRegistryService {
         models
     }
 
-    async fn match_local_models_by_ids(&self, model_ids: &[String]) -> Vec<EnhancedModelMetadata> {
+    async fn match_local_models_by_ids(
+        &self,
+        model_ids: &[String],
+        provider_candidates: Option<&[String]>,
+    ) -> Vec<EnhancedModelMetadata> {
         if model_ids.is_empty() {
             return Vec::new();
         }
@@ -1089,10 +1157,23 @@ impl ModelRegistryService {
             return Vec::new();
         }
 
+        let provider_candidates = provider_candidates.map(|candidates| {
+            candidates
+                .iter()
+                .map(|candidate| candidate.trim().to_lowercase())
+                .filter(|candidate| !candidate.is_empty())
+                .collect::<HashSet<_>>()
+        });
+
         let cache = self.models_cache.read().await;
         cache
             .iter()
-            .filter(|m| target_ids.contains(&m.id.to_lowercase()))
+            .filter(|model| {
+                target_ids.contains(&model.id.to_lowercase())
+                    && provider_candidates.as_ref().is_none_or(|candidates| {
+                        candidates.contains(&model.provider_id.to_lowercase())
+                    })
+            })
             .cloned()
             .collect()
     }
@@ -1144,6 +1225,33 @@ impl ModelRegistryService {
         if let Some(provider_type) = provider_type {
             for mapped_id in Self::map_provider_type_to_registry_ids(provider_type) {
                 Self::push_unique_candidate(&mut candidates, mapped_id);
+            }
+        }
+
+        candidates
+    }
+
+    async fn collect_explicit_model_provider_ids(
+        &self,
+        provider_id: &str,
+        api_host: &str,
+    ) -> Vec<String> {
+        let mut candidates = Vec::new();
+
+        Self::push_unique_candidate(&mut candidates, provider_id);
+
+        if let Some(stripped) = provider_id.strip_suffix("_api_key") {
+            Self::push_unique_candidate(&mut candidates, stripped);
+        }
+
+        let host_alias_candidates = self.infer_provider_ids_from_host_aliases(api_host);
+        if host_alias_candidates.is_empty() {
+            for inferred_id in Self::infer_provider_ids_from_api_host(api_host) {
+                Self::push_unique_candidate(&mut candidates, inferred_id);
+            }
+        } else {
+            for inferred_id in host_alias_candidates {
+                Self::push_unique_candidate(&mut candidates, &inferred_id);
             }
         }
 
@@ -1411,6 +1519,18 @@ impl ModelRegistryService {
         ModelFetchProtocol::OpenAiCompatible
     }
 
+    fn should_disable_registry_fallback(
+        api_host: &str,
+        provider_type: Option<ApiProviderType>,
+    ) -> bool {
+        if matches!(provider_type, Some(ApiProviderType::AnthropicCompatible)) {
+            return true;
+        }
+
+        let host = api_host.trim().to_lowercase();
+        host.contains("/anthropic")
+    }
+
     /// 构建模型枚举 API URL
     fn build_models_api_url(api_host: &str) -> String {
         let host = api_host.trim_end_matches('/');
@@ -1618,13 +1738,24 @@ impl ModelRegistryService {
         };
 
         let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
-        let runtime_spec = request_type.runtime_spec();
+        let runtime_spec = infer_managed_runtime_spec(request_type, normalized_host);
         if !api_key.trim().is_empty() {
+            let trimmed_api_key = api_key.trim();
             let auth_value = runtime_spec
                 .auth_prefix
-                .map(|prefix| format!("{prefix} {api_key}"))
-                .unwrap_or_else(|| api_key.to_string());
+                .map(|prefix| format!("{prefix} {trimmed_api_key}"))
+                .unwrap_or_else(|| trimmed_api_key.to_string());
             headers.push((runtime_spec.auth_header.to_string(), auth_value));
+
+            if matches!(
+                request_type,
+                ApiProviderType::Anthropic | ApiProviderType::AnthropicCompatible
+            ) && runtime_spec
+                .auth_header
+                .eq_ignore_ascii_case("Authorization")
+            {
+                headers.push(("x-api-key".to_string(), trimmed_api_key.to_string()));
+            }
         }
 
         for (name, value) in runtime_spec.extra_headers {
@@ -1664,8 +1795,13 @@ impl ModelRegistryService {
 
         let models = match request.protocol {
             ModelFetchProtocol::OpenAiCompatible => {
-                let body =
-                    Self::send_models_api_request(&client, &request.url, &request.headers).await?;
+                let body = Self::send_models_api_request(
+                    &client,
+                    &request.url,
+                    &request.headers,
+                    request.protocol,
+                )
+                .await?;
                 Self::parse_openai_models_response(&body)?
             }
             ModelFetchProtocol::Anthropic => {
@@ -1675,8 +1811,13 @@ impl ModelRegistryService {
                 Self::call_gemini_models_api(&client, &request.url, &request.headers).await?
             }
             ModelFetchProtocol::Ollama => {
-                let body =
-                    Self::send_models_api_request(&client, &request.url, &request.headers).await?;
+                let body = Self::send_models_api_request(
+                    &client,
+                    &request.url,
+                    &request.headers,
+                    request.protocol,
+                )
+                .await?;
                 Self::parse_ollama_models_response(&body)?
             }
             ModelFetchProtocol::Unsupported => unreachable!(),
@@ -1685,10 +1826,64 @@ impl ModelRegistryService {
         Ok((models, request.url))
     }
 
+    fn summarize_http_error_body(body: &str) -> Option<String> {
+        let normalized = body.split_whitespace().collect::<Vec<_>>().join(" ");
+        if normalized.is_empty() {
+            return None;
+        }
+
+        if Self::looks_like_html_error_body(&normalized) {
+            return Some("上游返回了 HTML 错误页".to_string());
+        }
+
+        const MAX_BODY_CHARS: usize = 240;
+        let mut summarized = String::new();
+        for (index, ch) in normalized.chars().enumerate() {
+            if index >= MAX_BODY_CHARS {
+                summarized.push_str("...");
+                break;
+            }
+            summarized.push(ch);
+        }
+
+        Some(summarized)
+    }
+
+    fn looks_like_html_error_body(body: &str) -> bool {
+        let preview = body.trim_start().chars().take(256).collect::<String>();
+        if preview.is_empty() {
+            return false;
+        }
+
+        let preview = preview.to_ascii_lowercase();
+        preview.starts_with("<!doctype html")
+            || preview.starts_with("<html")
+            || preview.contains("<head>")
+            || preview.contains("<body>")
+    }
+
+    fn format_models_api_not_found_message(protocol: ModelFetchProtocol, body: &str) -> String {
+        match protocol {
+            ModelFetchProtocol::Anthropic => "当前 Anthropic 兼容入口未提供标准 /models 接口；若消息测试可用，请直接使用已配置的自定义模型，或改用厂商文档提供的模型枚举入口。"
+                .to_string(),
+            _ => {
+                let base_message = match Self::summarize_http_error_body(body) {
+                    Some(summary) => format!("API 返回错误 404 Not Found: {summary}。"),
+                    None => "API 返回错误 404 Not Found。".to_string(),
+                };
+
+                format!(
+                    "{base_message}这通常表示 Base URL 路径不兼容，请检查 Provider Base URL 是否已经包含版本路径，或是否应直接使用 /models 端点。"
+                )
+            }
+        }
+    }
+
     async fn send_models_api_request(
         client: &reqwest::Client,
         url: &str,
         headers: &[(String, String)],
+        protocol: ModelFetchProtocol,
     ) -> Result<String, ModelsApiError> {
         let mut request_builder = client.get(url);
         for (name, value) in headers {
@@ -1708,9 +1903,7 @@ impl ModelRegistryService {
             if status == reqwest::StatusCode::NOT_FOUND {
                 return Err(ModelsApiError::new(
                     ModelFetchErrorKind::NotFound,
-                    format!(
-                        "API 返回错误 {status}: {body}（请求地址: {url}）。这通常表示 Base URL 路径不兼容，请检查 Provider Base URL 是否已经包含版本路径，或是否应直接使用 /models 端点。"
-                    ),
+                    Self::format_models_api_not_found_message(protocol, &body),
                 ));
             }
             let kind = if status == reqwest::StatusCode::UNAUTHORIZED {
@@ -1720,10 +1913,11 @@ impl ModelRegistryService {
             } else {
                 ModelFetchErrorKind::Other
             };
-            return Err(ModelsApiError::new(
-                kind,
-                format!("API 返回错误 {status}: {body}（请求地址: {url}）"),
-            ));
+            let message = match Self::summarize_http_error_body(&body) {
+                Some(summary) => format!("API 返回错误 {status}: {summary}"),
+                None => format!("API 返回错误 {status}"),
+            };
+            return Err(ModelsApiError::new(kind, message));
         }
 
         response.text().await.map_err(|e| {
@@ -1765,7 +1959,13 @@ impl ModelRegistryService {
                 request_url.query_pairs_mut().append_pair("after_id", after);
             }
 
-            let body = Self::send_models_api_request(client, request_url.as_ref(), headers).await?;
+            let body = Self::send_models_api_request(
+                client,
+                request_url.as_ref(),
+                headers,
+                ModelFetchProtocol::Anthropic,
+            )
+            .await?;
             let response = Self::parse_anthropic_models_response(&body)?;
             models.extend(response.models);
 
@@ -1838,7 +2038,13 @@ impl ModelRegistryService {
                     .append_pair("pageToken", page_token);
             }
 
-            let body = Self::send_models_api_request(client, request_url.as_ref(), headers).await?;
+            let body = Self::send_models_api_request(
+                client,
+                request_url.as_ref(),
+                headers,
+                ModelFetchProtocol::Gemini,
+            )
+            .await?;
             let response = Self::parse_gemini_models_response(&body)?;
             models.extend(response.models);
 
@@ -2094,6 +2300,10 @@ struct OllamaModelDetails {
 pub enum ModelFetchSource {
     /// 从 API 获取
     Api,
+    /// 从厂商目录获取
+    Catalog,
+    /// 使用当前 Provider 显式配置的自定义模型
+    CustomModels,
     /// 从本地文件回退
     LocalFallback,
 }
@@ -2254,12 +2464,85 @@ mod tests {
             .contains("https://open.bigmodel.cn/api/paas/v4"));
     }
 
+    #[test]
+    fn test_format_models_api_not_found_message_for_anthropic() {
+        let message = ModelRegistryService::format_models_api_not_found_message(
+            ModelFetchProtocol::Anthropic,
+            "<html>404</html>",
+        );
+
+        assert!(message.contains("当前 Anthropic 兼容入口未提供标准 /models 接口"));
+        assert!(!message.contains("<html>"));
+        assert!(!message.contains("404 Not Found"));
+        assert!(!message.contains("Base URL 路径不兼容"));
+    }
+
+    #[test]
+    fn test_format_models_api_not_found_message_summarizes_html_body_for_non_anthropic() {
+        let message = ModelRegistryService::format_models_api_not_found_message(
+            ModelFetchProtocol::OpenAiCompatible,
+            "<html><head><title>404 Not Found</title></head><body>oops</body></html>",
+        );
+
+        assert!(message.contains("API 返回错误 404 Not Found: 上游返回了 HTML 错误页。"));
+        assert!(!message.contains("<html>"));
+        assert!(message.contains("Base URL 路径不兼容"));
+    }
+
+    #[test]
+    fn test_prepare_model_fetch_request_adds_dual_auth_for_anthropic_compatible_host() {
+        let request = ModelRegistryService::prepare_model_fetch_request(
+            "compatible-test",
+            "https://api.minimaxi.com/anthropic",
+            "test-key",
+            Some(ApiProviderType::AnthropicCompatible),
+        )
+        .expect("anthropic-compatible request should be prepared");
+
+        assert_eq!(request.protocol, ModelFetchProtocol::Anthropic);
+        assert_eq!(request.url, "https://api.minimaxi.com/anthropic/v1/models");
+        assert!(request
+            .headers
+            .iter()
+            .any(|(name, value)| name == "Authorization" && value == "Bearer test-key"));
+        assert!(request
+            .headers
+            .iter()
+            .any(|(name, value)| name == "x-api-key" && value == "test-key"));
+    }
+
+    #[test]
+    fn test_prepare_model_fetch_request_keeps_x_api_key_for_official_anthropic() {
+        let request = ModelRegistryService::prepare_model_fetch_request(
+            "anthropic",
+            "https://api.anthropic.com",
+            "test-key",
+            Some(ApiProviderType::Anthropic),
+        )
+        .expect("request should be prepared");
+
+        assert!(request
+            .headers
+            .iter()
+            .any(|(name, value)| name == "x-api-key" && value == "test-key"));
+        assert!(!request
+            .headers
+            .iter()
+            .any(|(name, _)| name == "Authorization"));
+    }
+
     fn create_service_with_resource_dir(resource_dir: std::path::PathBuf) -> ModelRegistryService {
         let conn = Connection::open_in_memory().expect("in-memory db");
         let db: DbConnection = Arc::new(Mutex::new(conn));
         let mut service = ModelRegistryService::new(db);
         service.set_resource_dir(resource_dir);
         service
+    }
+
+    fn create_service_with_repo_resource_dir() -> ModelRegistryService {
+        create_service_with_resource_dir(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."),
+        )
     }
 
     #[test]
@@ -2338,6 +2621,77 @@ mod tests {
             ModelRegistryService::infer_provider_ids_from_api_host("https://api.openai.com/v1"),
             ["openai"]
         );
+    }
+
+    #[test]
+    fn test_build_diagnostic_models_api_url_keeps_anthropic_compatible_provider_request() {
+        assert_eq!(
+            ModelRegistryService::build_diagnostic_models_api_url(
+                "compatible-test",
+                "https://api.minimaxi.com/anthropic",
+                Some(ApiProviderType::AnthropicCompatible),
+            ),
+            Some("https://api.minimaxi.com/anthropic/v1/models".to_string())
+        );
+    }
+
+    #[test]
+    fn test_should_disable_registry_fallback_for_anthropic_compatible() {
+        assert!(ModelRegistryService::should_disable_registry_fallback(
+            "https://example.com/api/anthropic",
+            Some(ApiProviderType::AnthropicCompatible),
+        ));
+        assert!(ModelRegistryService::should_disable_registry_fallback(
+            "https://open.bigmodel.cn/api/anthropic",
+            None,
+        ));
+        assert!(!ModelRegistryService::should_disable_registry_fallback(
+            "https://api.openai.com/v1",
+            Some(ApiProviderType::Openai),
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_anthropic_compatible_local_fallback_returns_empty() {
+        let service = create_service_with_repo_resource_dir();
+        service
+            .initialize()
+            .await
+            .expect("initialize model registry");
+
+        let fallback_models = service
+            .get_local_fallback_model_ids_with_hints(
+                "custom-minimax",
+                "https://api.minimaxi.com/anthropic",
+                Some(ApiProviderType::AnthropicCompatible),
+                &[
+                    "claude-opus-4-6".to_string(),
+                    "claude-opus-4-5-20251101".to_string(),
+                ],
+            )
+            .await;
+
+        assert!(fallback_models.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_anthropic_compatible_local_fallback_keeps_explicit_custom_models() {
+        let service = create_service_with_repo_resource_dir();
+        service
+            .initialize()
+            .await
+            .expect("initialize model registry");
+
+        let fallback_models = service
+            .get_local_fallback_model_ids_with_hints(
+                "custom-minimax",
+                "https://api.minimaxi.com/anthropic",
+                Some(ApiProviderType::AnthropicCompatible),
+                &["MiniMax-M2.7".to_string()],
+            )
+            .await;
+
+        assert_eq!(fallback_models, vec!["MiniMax-M2.7".to_string()]);
     }
 
     #[test]

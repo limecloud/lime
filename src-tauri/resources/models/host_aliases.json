@@ -77,6 +77,18 @@
       "providers": ["mistral"]
     },
     {
+      "contains": "minimaxi.com",
+      "providers": ["minimax"]
+    },
+    {
+      "contains": "minimax.io",
+      "providers": ["minimax"]
+    },
+    {
+      "contains": "xiaomimimo.com",
+      "providers": ["minimax-cn", "minimax"]
+    },
+    {
       "contains": "dashscope.aliyuncs.com",
       "providers": ["alibaba-cn", "alibaba"]
     },

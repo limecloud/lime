@@ -3,7 +3,7 @@
 //! Provides multi-format export functionality for sessions.
 
 use crate::conversation::message::MessageContent;
-use crate::session::{Session, SessionManager};
+use crate::session::{query_session, Session};
 use anyhow::Result;
 
 /// Export format options
@@ -56,7 +56,7 @@ impl ExportOptions {
 
 /// Export a session to the specified format
 pub async fn export_session(session_id: &str, options: ExportOptions) -> Result<String> {
-    let session = SessionManager::get_session(session_id, options.include_messages).await?;
+    let session = query_session(session_id, options.include_messages).await?;
 
     match options.format {
         ExportFormat::Json => export_to_json(&session, &options),

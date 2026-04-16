@@ -441,7 +441,7 @@ impl Agent {
                 )
             })?;
 
-        let session = match crate::session::SessionManager::get_session(session_id, true).await {
+        let session = match crate::session::query_session(session_id, true).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 return Err(ErrorData::new(

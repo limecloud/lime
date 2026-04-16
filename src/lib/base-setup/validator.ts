@@ -1,6 +1,9 @@
 import {
+  BASE_SETUP_ALLOWED_COMMAND_EXECUTION_KINDS,
   BASE_SETUP_ALLOWED_BINDING_FAMILIES,
   BASE_SETUP_ALLOWED_KERNEL_CAPABILITIES,
+  BASE_SETUP_ALLOWED_RENDER_DETAIL_KINDS,
+  BASE_SETUP_ALLOWED_RENDER_RESULT_KINDS,
   BASE_SETUP_TARGET_CATALOGS,
   BASE_SETUP_VIEWER_KINDS,
   type BaseSetupPackage,
@@ -111,6 +114,15 @@ export function validateBaseSetupStructure(
   pkg: BaseSetupPackage,
 ): BaseSetupValidationResult {
   const issues: BaseSetupValidationIssue[] = [];
+  const allowedCommandExecutionKinds = new Set<string>(
+    BASE_SETUP_ALLOWED_COMMAND_EXECUTION_KINDS,
+  );
+  const allowedRenderResultKinds = new Set<string>(
+    BASE_SETUP_ALLOWED_RENDER_RESULT_KINDS,
+  );
+  const allowedRenderDetailKinds = new Set<string>(
+    BASE_SETUP_ALLOWED_RENDER_DETAIL_KINDS,
+  );
 
   if (!isNonEmptyString(pkg.id)) {
     pushIssue(issues, {
@@ -155,6 +167,7 @@ export function validateBaseSetupStructure(
   validateUniqueIds(issues, pkg.bindingProfiles, "bindingProfiles");
   validateUniqueIds(issues, pkg.artifactProfiles, "artifactProfiles");
   validateUniqueIds(issues, pkg.scorecardProfiles, "scorecardProfiles");
+  validateUniqueIds(issues, pkg.automationProfiles ?? [], "automationProfiles");
   validateUniqueIds(issues, pkg.policyProfiles, "policyProfiles");
   validateUniqueIds(
     issues,
@@ -182,13 +195,14 @@ export function validateBaseSetupStructure(
   }
 
   pkg.catalogProjections.forEach((projection, index) => {
+    const basePath = `catalogProjections[${index}]`;
     if (!BASE_SETUP_TARGET_CATALOGS.includes(projection.targetCatalog)) {
       pushIssue(issues, {
         level: "L0",
         severity: "error",
         code: "invalid_target_catalog",
         message: `catalogProjections[${index}] 使用了非法 targetCatalog：${projection.targetCatalog}`,
-        path: `catalogProjections[${index}].targetCatalog`,
+        path: `${basePath}.targetCatalog`,
       });
     }
     if (!isNonEmptyString(projection.entryKey)) {
@@ -197,7 +211,7 @@ export function validateBaseSetupStructure(
         severity: "error",
         code: "missing_entry_key",
         message: "catalog projection 的 entryKey 不能为空",
-        path: `catalogProjections[${index}].entryKey`,
+        path: `${basePath}.entryKey`,
       });
     }
     if (!isNonEmptyString(projection.title)) {
@@ -206,7 +220,7 @@ export function validateBaseSetupStructure(
         severity: "error",
         code: "missing_projection_title",
         message: "catalog projection 的 title 不能为空",
-        path: `catalogProjections[${index}].title`,
+        path: `${basePath}.title`,
       });
     }
     if (!isNonEmptyString(projection.summary)) {
@@ -215,7 +229,194 @@ export function validateBaseSetupStructure(
         severity: "error",
         code: "missing_projection_summary",
         message: "catalog projection 的 summary 不能为空",
-        path: `catalogProjections[${index}].summary`,
+        path: `${basePath}.summary`,
+      });
+    }
+
+    if (
+      projection.targetCatalog !== "command_catalog" &&
+      (projection.commandBinding || projection.commandRenderContract)
+    ) {
+      pushIssue(issues, {
+        level: "L0",
+        severity: "error",
+        code: "command_projection_field_out_of_scope",
+        message:
+          "只有 command_catalog projection 才允许声明 commandBinding 或 commandRenderContract",
+        path: basePath,
+      });
+    }
+
+    if (
+      projection.automationProfileRef &&
+      projection.targetCatalog !== "service_skill_catalog"
+    ) {
+      pushIssue(issues, {
+        level: "L0",
+        severity: "error",
+        code: "automation_profile_out_of_scope",
+        message:
+          "只有 service_skill_catalog projection 才允许声明 automationProfileRef",
+        path: `${basePath}.automationProfileRef`,
+      });
+    }
+
+    if (
+      projection.commandBinding?.executionKind &&
+      !allowedCommandExecutionKinds.has(projection.commandBinding.executionKind)
+    ) {
+      pushIssue(issues, {
+        level: "L0",
+        severity: "error",
+        code: "unsupported_command_execution_kind",
+        message: `commandBinding.executionKind 使用了不受支持的值：${projection.commandBinding.executionKind}`,
+        path: `${basePath}.commandBinding.executionKind`,
+      });
+    }
+
+    if (
+      projection.commandRenderContract &&
+      !allowedRenderResultKinds.has(projection.commandRenderContract.resultKind)
+    ) {
+      pushIssue(issues, {
+        level: "L0",
+        severity: "error",
+        code: "unsupported_render_result_kind",
+        message: `commandRenderContract.resultKind 使用了不受支持的值：${projection.commandRenderContract.resultKind}`,
+        path: `${basePath}.commandRenderContract.resultKind`,
+      });
+    }
+
+    if (
+      projection.commandRenderContract &&
+      !allowedRenderDetailKinds.has(projection.commandRenderContract.detailKind)
+    ) {
+      pushIssue(issues, {
+        level: "L0",
+        severity: "error",
+        code: "unsupported_render_detail_kind",
+        message: `commandRenderContract.detailKind 使用了不受支持的值：${projection.commandRenderContract.detailKind}`,
+        path: `${basePath}.commandRenderContract.detailKind`,
+      });
+    }
+  });
+
+  const bindingProfiles = new Map(
+    pkg.bindingProfiles.map((profile) => [profile.id, profile] as const),
+  );
+  pkg.catalogProjections.forEach((projection, index) => {
+    const bindingProfile = bindingProfiles.get(projection.bindingProfileRef);
+    if (!bindingProfile) {
+      return;
+    }
+
+    const basePath = `catalogProjections[${index}]`;
+    if (
+      bindingProfile.bindingFamily === "automation_job" &&
+      projection.targetCatalog === "service_skill_catalog" &&
+      !projection.automationProfileRef
+    ) {
+      pushIssue(issues, {
+        level: "L0",
+        severity: "warning",
+        code: "recommended_automation_profile_ref",
+        message:
+          "automation_job projection 建议显式声明 automationProfileRef，避免 durable 场景继续依赖隐式 fallback。",
+        path: basePath,
+      });
+    }
+
+    if (
+      projection.automationProfileRef &&
+      bindingProfile.bindingFamily !== "automation_job"
+    ) {
+      pushIssue(issues, {
+        level: "L0",
+        severity: "error",
+        code: "automation_profile_binding_mismatch",
+        message:
+          "automationProfileRef 只能绑定到 automation_job 类型的 bindingProfile。",
+        path: `${basePath}.automationProfileRef`,
+      });
+    }
+  });
+
+  (pkg.automationProfiles ?? []).forEach((profile, index) => {
+    if (!isNonEmptyString(profile.id)) {
+      pushIssue(issues, {
+        level: "L0",
+        severity: "error",
+        code: "invalid_automation_profile_id",
+        message: "automationProfiles[].id 不能为空",
+        path: `automationProfiles[${index}].id`,
+      });
+    }
+
+    if (profile.schedule) {
+      if (
+        profile.schedule.kind === "every" &&
+        (!Number.isFinite(profile.schedule.everySecs) ||
+          profile.schedule.everySecs <= 0)
+      ) {
+        pushIssue(issues, {
+          level: "L0",
+          severity: "error",
+          code: "invalid_automation_every_secs",
+          message: "automation schedule.everySecs 必须是正数",
+          path: `automationProfiles[${index}].schedule.everySecs`,
+        });
+      }
+
+      if (
+        profile.schedule.kind === "cron" &&
+        !isNonEmptyString(profile.schedule.cronExpr)
+      ) {
+        pushIssue(issues, {
+          level: "L0",
+          severity: "error",
+          code: "missing_automation_cron_expr",
+          message: "automation schedule.cronExpr 不能为空",
+          path: `automationProfiles[${index}].schedule.cronExpr`,
+        });
+      }
+
+      if (
+        profile.schedule.kind === "at" &&
+        !isNonEmptyString(profile.schedule.at)
+      ) {
+        pushIssue(issues, {
+          level: "L0",
+          severity: "error",
+          code: "missing_automation_at",
+          message: "automation schedule.at 不能为空",
+          path: `automationProfiles[${index}].schedule.at`,
+        });
+      }
+    }
+
+    if (
+      profile.maxRetries !== undefined &&
+      (!Number.isFinite(profile.maxRetries) || profile.maxRetries < 0)
+    ) {
+      pushIssue(issues, {
+        level: "L0",
+        severity: "error",
+        code: "invalid_automation_max_retries",
+        message: "automation maxRetries 必须是大于等于 0 的数字",
+        path: `automationProfiles[${index}].maxRetries`,
+      });
+    }
+
+    if (
+      profile.delivery?.mode === "announce" &&
+      !isNonEmptyString(profile.delivery.channel)
+    ) {
+      pushIssue(issues, {
+        level: "L0",
+        severity: "error",
+        code: "missing_automation_delivery_channel",
+        message: "announce 模式下必须声明 delivery.channel",
+        path: `automationProfiles[${index}].delivery.channel`,
       });
     }
   });
@@ -248,6 +449,9 @@ export function validateBaseSetupReferences(
   const scorecardProfileIds = new Set(
     pkg.scorecardProfiles.map((entry) => entry.id),
   );
+  const automationProfileIds = new Set(
+    (pkg.automationProfiles ?? []).map((entry) => entry.id),
+  );
   const policyProfileIds = new Set(pkg.policyProfiles.map((entry) => entry.id));
   const compositionBlueprints = new Map(
     (pkg.compositionBlueprints ?? []).map((entry) => [entry.id, entry] as const),
@@ -275,6 +479,19 @@ export function validateBaseSetupReferences(
         });
       }
     });
+
+    if (
+      projection.automationProfileRef &&
+      !automationProfileIds.has(projection.automationProfileRef)
+    ) {
+      pushIssue(issues, {
+        level: "L1",
+        severity: "error",
+        code: "missing_automation_profile_ref",
+        message: `automationProfileRef 引用了不存在的对象：${projection.automationProfileRef}`,
+        path: `${basePath}.automationProfileRef`,
+      });
+    }
 
     if (
       projection.compositionBlueprintRef &&

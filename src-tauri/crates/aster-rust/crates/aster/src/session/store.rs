@@ -361,7 +361,7 @@ static GLOBAL_SESSION_STORE: tokio::sync::OnceCell<Arc<dyn SessionStore>> =
 ///
 /// 必须在使用 `SessionManager` 静态方法之前调用。
 /// 通常在应用启动时调用一次。
-pub async fn set_global_session_store(store: Arc<dyn SessionStore>) -> Result<()> {
+pub async fn install_global_session_store(store: Arc<dyn SessionStore>) -> Result<()> {
     GLOBAL_SESSION_STORE
         .set(store)
         .map_err(|_| anyhow::anyhow!("Global session store already set"))

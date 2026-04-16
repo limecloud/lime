@@ -48,6 +48,7 @@ pub mod plugin_install_cmd;
 pub mod plugin_rpc_cmd;
 pub mod prompt_cmd;
 pub mod provider_pool_cmd;
+pub mod sceneapp_cmd;
 pub mod screenshot_cmd;
 pub mod security_perf_cmd;
 pub mod session_files_cmd;

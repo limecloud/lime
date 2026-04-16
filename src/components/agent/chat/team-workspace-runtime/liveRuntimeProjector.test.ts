@@ -122,6 +122,27 @@ describe("liveRuntimeProjector", () => {
     });
   });
 
+  it("内部路由型 runtime_status 不应投影为用户可见 activity", () => {
+    const projection = projectRuntimeStreamEvent({
+      sessionId: "child-1",
+      session: createSessionSnapshot({
+        runtimeStatus: "running",
+        latestTurnStatus: "running",
+      }),
+      event: {
+        type: "runtime_status",
+        status: {
+          title: "直接回答优先",
+          detail: "当前请求无需默认升级为搜索或任务。",
+          checkpoints: ["默认保持直接回答"],
+        },
+      } as AgentEvent,
+    });
+
+    expect(projection?.entry).toBeNull();
+    expect(projection?.liveRuntimePatch).toBeUndefined();
+  });
+
   it("queue 与 turn 生命周期提示应使用子任务口径", () => {
     const queuedProjection = projectRuntimeStreamEvent({
       sessionId: "child-1",

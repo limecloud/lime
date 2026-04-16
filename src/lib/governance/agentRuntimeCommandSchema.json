@@ -56,6 +56,33 @@
       "docsSection": "agent-runtime.thread"
     },
     {
+      "command": "agent_runtime_list_file_checkpoints",
+      "domain": "thread",
+      "requestType": "AgentRuntimeListFileCheckpointsRequest",
+      "responseType": "AgentRuntimeFileCheckpointListResult",
+      "lifecycle": "current",
+      "mockStrategy": "bridge-only",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_get_file_checkpoint",
+      "domain": "thread",
+      "requestType": "AgentRuntimeGetFileCheckpointRequest",
+      "responseType": "AgentRuntimeFileCheckpointDetail",
+      "lifecycle": "current",
+      "mockStrategy": "bridge-only",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
+      "command": "agent_runtime_diff_file_checkpoint",
+      "domain": "thread",
+      "requestType": "AgentRuntimeDiffFileCheckpointRequest",
+      "responseType": "AgentRuntimeFileCheckpointDiffResult",
+      "lifecycle": "current",
+      "mockStrategy": "bridge-only",
+      "docsSection": "agent-runtime.thread"
+    },
+    {
       "command": "agent_runtime_promote_queued_turn",
       "domain": "thread",
       "requestType": "AgentRuntimePromoteQueuedTurnRequest",

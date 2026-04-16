@@ -6,12 +6,23 @@ import { EmptyState } from "./EmptyState";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
+import type { SceneAppEntryCardItem } from "../sceneappEntryTypes";
 import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import { recordEntryRecommendedSolutionUsage } from "../utils/entryRecommendedSolutions";
 
 const { mockGetConfig, mockProjectSelector } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(async () => ({})),
   mockProjectSelector: vi.fn(),
+}));
+
+const {
+  mockGatewayChannelStatus,
+  mockGetBrowserConnectorSettings,
+  mockGetChromeBridgeStatus,
+} = vi.hoisted(() => ({
+  mockGatewayChannelStatus: vi.fn(),
+  mockGetBrowserConnectorSettings: vi.fn(),
+  mockGetChromeBridgeStatus: vi.fn(),
 }));
 
 const mockCharacterMention =
@@ -29,6 +40,15 @@ const mockCharacterMention =
 
 vi.mock("@/lib/api/appConfig", () => ({
   getConfig: mockGetConfig,
+}));
+
+vi.mock("@/lib/api/channelsRuntime", () => ({
+  gatewayChannelStatus: mockGatewayChannelStatus,
+}));
+
+vi.mock("@/lib/webview-api", () => ({
+  getBrowserConnectorSettings: mockGetBrowserConnectorSettings,
+  getChromeBridgeStatus: mockGetChromeBridgeStatus,
 }));
 
 vi.mock("@/components/projects/ProjectSelector", () => ({
@@ -169,6 +189,25 @@ beforeEach(() => {
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   mockGetConfig.mockImplementation(async () => ({}));
+  mockGatewayChannelStatus.mockResolvedValue({
+    status: {
+      running_accounts: 0,
+    },
+  });
+  mockGetBrowserConnectorSettings.mockResolvedValue({
+    enabled: true,
+    system_connectors: [
+      {
+        connector_type: "chrome",
+        available: true,
+        authorization_status: "authorized",
+      },
+    ],
+  });
+  mockGetChromeBridgeStatus.mockResolvedValue({
+    observer_count: 1,
+    control_count: 0,
+  });
   window.localStorage.clear();
 });
 
@@ -281,6 +320,24 @@ function createSceneBoundServiceSkill(): ServiceSkillHomeItem {
       title: "项目线索整理",
       summary: "围绕当前项目整理线索和下一步动作。",
     },
+  };
+}
+
+function createSceneAppEntry(): SceneAppEntryCardItem {
+  return {
+    id: "story-video-suite",
+    title: "短视频编排",
+    summary: "把文本、线框图、配乐和短视频草稿串成结果链。",
+    businessLabel: "多模态组合",
+    valueStatement: "从一句主题串起脚本、线框图、配乐方向和短视频草稿。",
+    deliveryLabel: "短视频结果包",
+    executionLabel: "当前会话继续",
+    executionTone: "sky",
+    patternSummary: "步骤链 · 结果生成",
+    infraSummary: "组合蓝图 · 项目沉淀 · 云端编排",
+    sourceLabel: "将基于当前输入启动",
+    sourcePreview: "做一条新品发布短视频",
+    actionLabel: "开始组合",
   };
 }
 
@@ -546,6 +603,72 @@ describe("EmptyState", () => {
     }
 
     expect(container.textContent).not.toContain("连接浏览器");
+  });
+
+  it("通用首页不再渲染 runtime 总览层", async () => {
+    const onOpenMemoryWorkbench = vi.fn();
+    const onOpenChannels = vi.fn();
+    const onOpenChromeRelay = vi.fn();
+    const onOpenOpenClaw = vi.fn();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      runtimeToolAvailability: {
+        source: "runtime_tools",
+        known: true,
+        agentInitialized: true,
+        availableToolCount: 9,
+        webSearch: true,
+        subagentCore: true,
+        subagentTeamTools: true,
+        subagentRuntime: true,
+        taskRuntime: true,
+        missingSubagentCoreTools: [],
+        missingSubagentTeamTools: [],
+        missingTaskTools: [],
+      },
+      runtimeTaskCard: {
+        taskId: "task-1",
+        title: "当前任务",
+        summary: "正在执行",
+        status: "running",
+        statusLabel: "进行中",
+        phase: "tool_batch",
+        phaseLabel: "工具批次处理中",
+        detail: "正在执行工具批次",
+        supportingLines: [],
+        batchDescriptor: null,
+        queuedTurnCount: 0,
+        pendingRequestCount: 0,
+        subtaskStats: null,
+      },
+      onOpenMemoryWorkbench,
+      onOpenChannels,
+      onOpenChromeRelay,
+      onOpenOpenClaw,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="empty-state-runtime-overview"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("当前能力、执行态和远程入口");
+    expect(container.textContent).not.toContain("Runtime Tool Surface");
+    expect(container.textContent).not.toContain("Thread Runtime");
+    expect(container.textContent).not.toContain("消息渠道 + 浏览器连接器");
+    expect(container.textContent).not.toContain("当前回合 / 长期 / Team / 压缩");
+    expect(container.textContent).not.toContain("频道入口");
+    expect(container.textContent).not.toContain("浏览器连接器");
+    expect(container.textContent).not.toContain("OpenClaw 兼容入口");
+    expect(container.textContent).not.toContain("打开记忆工作台");
+
+    expect(onOpenChannels).not.toHaveBeenCalled();
+    expect(onOpenChromeRelay).not.toHaveBeenCalled();
+    expect(onOpenOpenClaw).not.toHaveBeenCalled();
+    expect(onOpenMemoryWorkbench).not.toHaveBeenCalled();
   });
 
   it("点击浏览器能力卡图片应触发浏览器接入", async () => {
@@ -1205,5 +1328,82 @@ describe("EmptyState", () => {
     });
 
     expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
+  });
+
+  it("通用主题应渲染 SceneApp 面板并触发启动回调", async () => {
+    const onLaunchSceneApp = vi.fn();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      featuredSceneApps: [createSceneAppEntry()],
+      onLaunchSceneApp,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("场景应用");
+    expect(container.textContent).toContain("短视频编排");
+
+    const launchButton = container.querySelector(
+      '[data-testid="sceneapp-launch-story-video-suite"]',
+    ) as HTMLButtonElement | null;
+    expect(launchButton).toBeTruthy();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    expect(onLaunchSceneApp).toHaveBeenCalledWith("story-video-suite");
+  });
+
+  it("通用主题应提供进入 SceneApp 目录页的入口", async () => {
+    const onOpenSceneAppsDirectory = vi.fn();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      featuredSceneApps: [createSceneAppEntry()],
+      onOpenSceneAppsDirectory,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const browseButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("查看全部场景"),
+    );
+    expect(browseButton).toBeTruthy();
+
+    act(() => {
+      browseButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onOpenSceneAppsDirectory).toHaveBeenCalledTimes(1);
+  });
+
+  it("存在最近 SceneApp 时应提供继续最近场景入口", async () => {
+    const onResumeRecentSceneApp = vi.fn();
+    const container = renderEmptyState({
+      activeTheme: "general",
+      featuredSceneApps: [createSceneAppEntry()],
+      canResumeRecentSceneApp: true,
+      onResumeRecentSceneApp,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain(
+      "继续最近场景会恢复你上次打开的 SceneApp、项目和运行上下文。",
+    );
+
+    const resumeButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("继续最近场景"),
+    );
+    expect(resumeButton).toBeTruthy();
+
+    act(() => {
+      resumeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onResumeRecentSceneApp).toHaveBeenCalledTimes(1);
   });
 });

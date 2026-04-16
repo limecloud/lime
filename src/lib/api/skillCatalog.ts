@@ -1,3 +1,13 @@
+import { getRuntimeAppVersion } from "@/lib/appVersion";
+import { resolveBaseSetupCatalogPayload } from "@/lib/base-setup/bootstrap";
+import { compileCommandCatalogProjection } from "@/lib/base-setup/compat/commandCatalogProjection";
+import { compileSceneCatalogProjection } from "@/lib/base-setup/compat/sceneCatalogProjection";
+import { createSeededCommandCatalogBaseSetupPackage } from "@/lib/base-setup/seededCommandPackage";
+import {
+  clearStoredBaseSetupPackageSnapshot,
+  saveStoredBaseSetupPackageSnapshot,
+  type StoredBaseSetupPackageSnapshot,
+} from "@/lib/base-setup/storage";
 import {
   hasOemCloudSession,
   resolveOemCloudRuntimeContext,
@@ -5,6 +15,7 @@ import {
 import {
   getSeededServiceSkillCatalog,
   parseServiceSkillCatalog,
+  type ServiceSkillCatalog,
   type ServiceSkillExecutorBinding,
   type ServiceSkillItem,
   type ServiceSkillSiteCapabilityBinding,
@@ -142,6 +153,11 @@ interface SkillCatalogResponseEnvelope {
   data?: unknown;
 }
 
+interface NormalizedSkillCatalogInput {
+  catalog: SkillCatalog;
+  baseSetupSnapshot: StoredBaseSetupPackageSnapshot | null;
+}
+
 const SKILL_CATALOG_STORAGE_KEY = "lime:skill-catalog:v1";
 export const SKILL_CATALOG_CHANGED_EVENT = "lime:skill-catalog-changed";
 const SEEDED_SKILL_GROUP_PRESETS = [
@@ -217,733 +233,10 @@ const SEEDED_SKILL_GROUP_PRESETS = [
 ] as const;
 const SEEDED_SKILL_CATALOG_VERSION =
   "client-seed-skill-catalog-2026-04-08-creation-copy";
-const SEEDED_COMMAND_ENTRY_DEFINITIONS = [
-  {
-    id: "command:image_generate",
-    title: "配图",
-    summary: "根据文字描述生成新的图片结果。",
-    commandKey: "image_generate",
-    aliases: ["image", "img", "图片", "生图"],
-    triggers: [{ mode: "mention", prefix: "@配图" }],
-    binding: {
-      skillId: "image_generate",
-      executionKind: "task_queue" as const,
-    },
-    renderContract: {
-      resultKind: "image_gallery" as const,
-      detailKind: "media_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:cover_generate",
-    title: "封面",
-    summary: "根据主题生成平台封面图任务。",
-    commandKey: "cover_generate",
-    aliases: ["cover", "fengmian", "封面", "封面图", "头图"],
-    triggers: [{ mode: "mention", prefix: "@封面" }],
-    binding: {
-      skillId: "cover_generate",
-      executionKind: "task_queue" as const,
-    },
-    renderContract: {
-      resultKind: "image_gallery" as const,
-      detailKind: "media_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:poster_generate",
-    title: "海报",
-    summary: "围绕活动、产品或主题生成可直接使用的海报视觉。",
-    commandKey: "poster_generate",
-    aliases: ["poster", "haibao", "海报", "活动海报", "宣传海报"],
-    triggers: [{ mode: "mention", prefix: "@海报" }],
-    binding: {
-      skillId: "image_generate",
-      executionKind: "task_queue" as const,
-    },
-    renderContract: {
-      resultKind: "image_gallery" as const,
-      detailKind: "media_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:image_edit",
-    title: "修图",
-    summary: "编辑已有图片并生成新的结果图。",
-    commandKey: "image_edit",
-    aliases: ["edit", "xiutu", "修图", "改图", "图片编辑"],
-    triggers: [{ mode: "mention", prefix: "@修图" }],
-    binding: {
-      skillId: "image_generate",
-      executionKind: "task_queue" as const,
-    },
-    renderContract: {
-      resultKind: "image_gallery" as const,
-      detailKind: "media_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:image_variation",
-    title: "重绘",
-    summary: "基于已有图片或参考图继续重绘新的结果图。",
-    commandKey: "image_variation",
-    aliases: ["variation", "variant", "zhonghui", "重绘", "图片重绘", "变体"],
-    triggers: [{ mode: "mention", prefix: "@重绘" }],
-    binding: {
-      skillId: "image_generate",
-      executionKind: "task_queue" as const,
-    },
-    renderContract: {
-      resultKind: "image_gallery" as const,
-      detailKind: "media_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:video_generate",
-    title: "视频",
-    summary: "根据文字描述提交视频生成任务。",
-    commandKey: "video_generate",
-    aliases: ["video", "shipin", "视频", "短视频", "生成视频"],
-    triggers: [{ mode: "mention", prefix: "@视频" }],
-    binding: {
-      skillId: "video_generate",
-      executionKind: "task_queue" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "media_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:voice_runtime",
-    title: "配音",
-    summary: "把视频或旁白需求切到云端配音技能主链，优先提交服务型技能运行。",
-    commandKey: "voice_runtime",
-    aliases: [
-      "voice",
-      "dubbing",
-      "dub",
-      "peiyin",
-      "配音",
-      "旁白",
-      "视频配音",
-      "语音配音",
-    ],
-    triggers: [{ mode: "mention", prefix: "@配音" }],
-    binding: {
-      skillId: "cloud-video-dubbing",
-      executionKind: "cloud_scene" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "scene_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:browser_runtime",
-    title: "浏览器",
-    summary: "把本次输入显式切到真实浏览器执行主链，而不是退回 WebSearch 或普通聊天。",
-    commandKey: "browser_runtime",
-    aliases: [
-      "browser",
-      "browse",
-      "liulanqi",
-      "浏览器",
-      "网页操作",
-      "打开网页",
-      "网页任务",
-    ],
-    triggers: [{ mode: "mention", prefix: "@浏览器" }],
-    binding: {
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:presentation_generate",
-    title: "PPT",
-    summary: "根据目标说明生成一份可直接讲述和继续导出的演示稿草稿。",
-    commandKey: "presentation_generate",
-    aliases: [
-      "ppt",
-      "presentation",
-      "slides",
-      "deck",
-      "yanjiang",
-      "演示",
-      "演示稿",
-      "路演",
-    ],
-    triggers: [{ mode: "mention", prefix: "@PPT" }],
-    binding: {
-      skillId: "presentation_generate",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "artifact" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:form_generate",
-    title: "表单",
-    summary: "根据目标说明生成可直接在聊天区渲染的 A2UI 表单。",
-    commandKey: "form_generate",
-    aliases: ["form", "survey", "biaodan", "wenjuan", "表单", "问卷", "报名表"],
-    triggers: [{ mode: "mention", prefix: "@表单" }],
-    binding: {
-      skillId: "form_generate",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "form" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:webpage_generate",
-    title: "网页",
-    summary: "根据目标说明生成可直接预览的单文件网页。",
-    commandKey: "webpage_generate",
-    aliases: [
-      "webpage",
-      "web",
-      "wangye",
-      "网页",
-      "落地页",
-      "landing",
-      "官网",
-      "活动页",
-    ],
-    triggers: [{ mode: "mention", prefix: "@网页" }],
-    binding: {
-      skillId: "webpage_generate",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "artifact" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:code_runtime",
-    title: "代码",
-    summary: "把本次输入切到代码编排主链，优先调度工具、子代理与代码团队协作。",
-    commandKey: "code_runtime",
-    aliases: [
-      "code",
-      "coding",
-      "kaifa",
-      "daima",
-      "代码",
-      "开发",
-      "代码评审",
-      "修复",
-      "重构",
-    ],
-    triggers: [{ mode: "mention", prefix: "@代码" }],
-    binding: {
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:channel_preview_runtime",
-    title: "渠道预览",
-    summary: "把当前内容整理成适合指定平台预览的预览稿与封面建议。",
-    commandKey: "channel_preview_runtime",
-    aliases: [
-      "preview",
-      "qudaoyulan",
-      "预览",
-      "渠道预览",
-      "平台预览",
-      "首屏预览",
-    ],
-    triggers: [{ mode: "mention", prefix: "@渠道预览" }],
-    binding: {
-      skillId: "content_post_with_cover",
-      executionKind: "native_skill" as const,
-    },
-    renderContract: {
-      resultKind: "artifact" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:upload_runtime",
-    title: "上传",
-    summary: "把当前内容整理成适合目标平台直接上传的上传稿与素材清单。",
-    commandKey: "upload_runtime",
-    aliases: [
-      "upload",
-      "shangchuan",
-      "上传",
-      "上架",
-      "内容上传",
-      "平台上传",
-    ],
-    triggers: [{ mode: "mention", prefix: "@上传" }],
-    binding: {
-      skillId: "content_post_with_cover",
-      executionKind: "native_skill" as const,
-    },
-    renderContract: {
-      resultKind: "artifact" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:publish_runtime",
-    title: "发布",
-    summary: "把当前内容导入发布工作流，继续整理发布稿、发布包与平台检查。",
-    commandKey: "publish_runtime",
-    aliases: [
-      "publish",
-      "fabu",
-      "fawen",
-      "投稿",
-      "发文",
-      "发布",
-      "发布稿",
-      "发布前检查",
-    ],
-    triggers: [{ mode: "mention", prefix: "@发布" }],
-    binding: {
-      skillId: "content_post_with_cover",
-      executionKind: "native_skill" as const,
-    },
-    renderContract: {
-      resultKind: "artifact" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:broadcast_generate",
-    title: "播报",
-    summary: "把现有文稿整理成适合口播或播客转换的文本任务。",
-    commandKey: "broadcast_generate",
-    aliases: ["broadcast", "bobao", "播报", "播客", "口播", "podcast"],
-    triggers: [{ mode: "mention", prefix: "@播报" }],
-    binding: {
-      skillId: "broadcast_generate",
-      executionKind: "cli" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "task_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:modal_resource_search",
-    title: "素材",
-    summary: "为当前内容提交图片、BGM、音效等资源检索任务。",
-    commandKey: "modal_resource_search",
-    aliases: ["resource", "sucai", "素材", "资源", "素材检索", "资源检索"],
-    triggers: [{ mode: "mention", prefix: "@素材" }],
-    binding: {
-      skillId: "modal_resource_search",
-      executionKind: "cli" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "task_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:research",
-    title: "搜索",
-    summary: "针对当前主题执行联网检索与轻量调研，返回可引用结论与来源。",
-    commandKey: "research",
-    aliases: [
-      "search",
-      "research",
-      "sousuo",
-      "搜索",
-      "检索",
-      "调研",
-      "联网搜索",
-      "最新信息",
-    ],
-    triggers: [{ mode: "mention", prefix: "@搜索" }],
-    binding: {
-      skillId: "research",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:deep_search",
-    title: "深搜",
-    summary: "针对当前主题执行多轮扩搜与深度调研，输出事实、推断与待确认项。",
-    commandKey: "deep_search",
-    aliases: [
-      "deep",
-      "deepsearch",
-      "shensou",
-      "深搜",
-      "深度搜索",
-      "深入调研",
-      "多轮搜索",
-    ],
-    triggers: [{ mode: "mention", prefix: "@深搜" }],
-    binding: {
-      skillId: "research",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:research_report",
-    title: "研报",
-    summary: "围绕主题执行多轮调研并输出结构化研究报告。",
-    commandKey: "research_report",
-    aliases: [
-      "report",
-      "research_report",
-      "yanbao",
-      "研报",
-      "研究报告",
-      "行业报告",
-      "竞品报告",
-    ],
-    triggers: [{ mode: "mention", prefix: "@研报" }],
-    binding: {
-      skillId: "report_generate",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:competitor_research",
-    title: "竞品",
-    summary: "围绕竞品对象执行多轮调研，并输出结构化竞品分析与对比结论。",
-    commandKey: "competitor_research",
-    aliases: [
-      "competitor",
-      "competitive",
-      "jingpin",
-      "竞品",
-      "竞品分析",
-      "竞品研究",
-      "产品对比",
-      "竞对",
-    ],
-    triggers: [{ mode: "mention", prefix: "@竞品" }],
-    binding: {
-      skillId: "report_generate",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:site_search",
-    title: "站点搜索",
-    summary: "在指定站点内检索内容，优先复用 site adapter 与真实浏览器上下文。",
-    commandKey: "site_search",
-    aliases: [
-      "site",
-      "site_search",
-      "zhandian",
-      "站点",
-      "站点搜索",
-      "GitHub 搜索",
-      "知乎搜索",
-      "B站搜索",
-    ],
-    triggers: [{ mode: "mention", prefix: "@站点搜索" }],
-    binding: {
-      skillId: "site_search",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:read_pdf",
-    title: "读PDF",
-    summary:
-      "读取本地或工作区 PDF，并通过真实文件读取 timeline 输出结构化解读。",
-    commandKey: "read_pdf",
-    aliases: [
-      "pdf",
-      "read_pdf",
-      "dupdf",
-      "读PDF",
-      "PDF 解读",
-      "PDF 阅读",
-      "PDF 总结",
-    ],
-    triggers: [{ mode: "mention", prefix: "@读PDF" }],
-    binding: {
-      skillId: "pdf_read",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:summary",
-    title: "总结",
-    summary: "提炼当前文本、对话或上下文中的关键结论与重点。",
-    commandKey: "summary",
-    aliases: ["summary", "summarize", "zongjie", "总结", "摘要", "提炼重点"],
-    triggers: [{ mode: "mention", prefix: "@总结" }],
-    binding: {
-      skillId: "summary",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:translation",
-    title: "翻译",
-    summary: "翻译当前文本、对话或文件内容，保留真实 skill / tool timeline。",
-    commandKey: "translation",
-    aliases: [
-      "translate",
-      "translation",
-      "fanyi",
-      "翻译",
-      "中译英",
-      "英译中",
-      "多语言翻译",
-    ],
-    triggers: [{ mode: "mention", prefix: "@翻译" }],
-    binding: {
-      skillId: "translation",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:analysis",
-    title: "分析",
-    summary: "分析当前文本、对话或文件内容，输出判断、依据与待确认项。",
-    commandKey: "analysis",
-    aliases: ["analysis", "analyze", "fenxi", "分析", "拆解", "研判"],
-    triggers: [{ mode: "mention", prefix: "@分析" }],
-    binding: {
-      skillId: "analysis",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:publish_compliance",
-    title: "发布合规",
-    summary: "围绕广告法、版权与平台发布风险检查当前内容是否适合发布。",
-    commandKey: "publish_compliance",
-    aliases: [
-      "compliance",
-      "hegui",
-      "发布合规",
-      "内容合规",
-      "广告法",
-      "版权风险",
-    ],
-    triggers: [{ mode: "mention", prefix: "@发布合规" }],
-    binding: {
-      skillId: "analysis",
-      executionKind: "agent_turn" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "json" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:transcription_generate",
-    title: "转写",
-    summary: "把音频或视频来源提交为转写任务。",
-    commandKey: "transcription_generate",
-    aliases: ["transcribe", "zhuanxie", "转写", "逐字稿", "字幕", "语音转文字"],
-    triggers: [{ mode: "mention", prefix: "@转写" }],
-    binding: {
-      skillId: "transcription_generate",
-      executionKind: "task_queue" as const,
-    },
-    renderContract: {
-      resultKind: "artifact" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:web_scrape",
-    title: "抓取",
-    summary: "抓取网页正文并提交为可追踪的网页内容任务。",
-    commandKey: "web_scrape",
-    aliases: [
-      "scrape",
-      "web_scrape",
-      "zhuaqu",
-      "抓取",
-      "网页抓取",
-      "网页正文",
-      "Web Scrape",
-    ],
-    triggers: [{ mode: "mention", prefix: "@抓取" }],
-    binding: {
-      skillId: "url_parse",
-      executionKind: "task_queue" as const,
-    },
-    renderContract: {
-      resultKind: "artifact" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:webpage_read",
-    title: "网页读取",
-    summary: "读取页面或链接内容，并提交为可追踪的网页阅读任务。",
-    commandKey: "webpage_read",
-    aliases: [
-      "web_read",
-      "page_read",
-      "wangyeduqu",
-      "网页读取",
-      "读取网页",
-      "页面读取",
-      "网页总结",
-    ],
-    triggers: [{ mode: "mention", prefix: "@网页读取" }],
-    binding: {
-      skillId: "url_parse",
-      executionKind: "task_queue" as const,
-    },
-    renderContract: {
-      resultKind: "artifact" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:url_parse",
-    title: "链接解析",
-    summary: "解析网页链接并提交为可追踪的文本任务。",
-    commandKey: "url_parse",
-    aliases: ["url", "url_parse", "链接", "链接解析", "网页解析"],
-    triggers: [{ mode: "mention", prefix: "@链接解析" }],
-    binding: {
-      skillId: "url_parse",
-      executionKind: "task_queue" as const,
-    },
-    renderContract: {
-      resultKind: "artifact" as const,
-      detailKind: "artifact_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-  {
-    id: "command:typesetting",
-    title: "排版",
-    summary: "把现有文稿整理成更适合发布与阅读的排版任务。",
-    commandKey: "typesetting",
-    aliases: ["typesetting", "paiban", "排版", "排版优化", "整理排版"],
-    triggers: [{ mode: "mention", prefix: "@排版" }],
-    binding: {
-      skillId: "typesetting",
-      executionKind: "cli" as const,
-    },
-    renderContract: {
-      resultKind: "tool_timeline" as const,
-      detailKind: "task_detail" as const,
-      supportsStreaming: true,
-      supportsTimeline: true,
-    },
-  },
-] as const;
+const SEEDED_COMMAND_ENTRIES = compileCommandCatalogProjection(
+  createSeededCommandCatalogBaseSetupPackage(),
+  getSeededServiceSkillCatalog().items,
+);
 const SITE_GROUP_TITLE_OVERRIDES: Record<string, string> = {
   github: "GitHub",
   zhihu: "知乎",
@@ -1189,20 +482,21 @@ function buildSceneEntryFromCatalogItem(
 }
 
 function buildSeededCommandEntries(): SkillCatalogCommandEntry[] {
-  return SEEDED_COMMAND_ENTRY_DEFINITIONS.map((definition) => ({
-    id: definition.id,
-    kind: "command",
-    title: definition.title,
-    summary: definition.summary,
-    commandKey: definition.commandKey,
-    aliases: [...definition.aliases],
-    surfaceScopes: ["mention", "workspace"],
-    triggers: definition.triggers.map((trigger) => ({ ...trigger })),
-    binding: definition.binding ? { ...definition.binding } : undefined,
-    renderContract: definition.renderContract
-      ? { ...definition.renderContract }
-      : undefined,
-  }));
+  return SEEDED_COMMAND_ENTRIES.map((entry) => cloneJsonValue(entry));
+}
+
+function buildCatalogEntryMergeKeys(entry: SkillCatalogEntry): string[] {
+  const keys = [`id:${entry.id}`];
+
+  if (entry.kind === "command") {
+    keys.push(`command:${entry.commandKey.trim().toLowerCase()}`);
+  } else if (entry.kind === "scene") {
+    keys.push(`scene:${entry.sceneKey.trim().toLowerCase()}`);
+  } else if (entry.kind === "skill") {
+    keys.push(`skill:${entry.skillId.trim().toLowerCase()}`);
+  }
+
+  return keys;
 }
 
 function buildSceneEntriesFromCatalogItems(
@@ -1213,22 +507,31 @@ function buildSceneEntriesFromCatalogItems(
     .filter((entry): entry is SkillCatalogSceneEntry => Boolean(entry));
 }
 
+function buildSkillEntriesFromCatalogItems(
+  items: SkillCatalogItem[],
+): SkillCatalogSkillEntry[] {
+  return items.map((item) => buildSkillEntryFromCatalogItem(item));
+}
+
 function mergeSeededCatalogEntries(
   entries: SkillCatalogEntry[],
   sceneSourceItems: SkillCatalogItem[],
 ): SkillCatalogEntry[] {
   const merged: SkillCatalogEntry[] = [];
-  const seenIds = new Set<string>();
+  const seenKeys = new Set<string>();
 
   [
+    ...entries,
     ...buildSeededCommandEntries(),
     ...buildSceneEntriesFromCatalogItems(sceneSourceItems),
-    ...entries,
   ].forEach((entry) => {
-    if (seenIds.has(entry.id)) {
+    const mergeKeys = buildCatalogEntryMergeKeys(entry);
+    if (mergeKeys.some((key) => seenKeys.has(key))) {
       return;
     }
-    seenIds.add(entry.id);
+    mergeKeys.forEach((key) => {
+      seenKeys.add(key);
+    });
     merged.push(entry);
   });
 
@@ -1273,12 +576,32 @@ function resolveSeededSkillGroupKey(item: ServiceSkillItem): string {
   return resolveAdapterGroupKey(item.siteCapabilityBinding?.adapterName);
 }
 
-function buildRawSeededSkillCatalog(): SkillCatalog {
-  const seeded = getSeededServiceSkillCatalog();
-  const items: SkillCatalogItem[] = seeded.items.map((item) => {
-    const clonedItem = cloneJsonValue(item);
-    const groupKey = resolveSeededSkillGroupKey(clonedItem);
-    const execution: SkillCatalogExecution = {
+function normalizeCategoryGroupKey(value?: string): string | null {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized.replace(/\s+/g, "-").toLowerCase();
+}
+
+function resolveSkillCatalogGroupKey(item: ServiceSkillItem): string {
+  return (
+    normalizeCategoryGroupKey(item.category) ??
+    resolveSeededSkillGroupKey(item)
+  );
+}
+
+function buildSkillCatalogItemFromServiceSkillItem(
+  item: ServiceSkillItem,
+  groupKeyOverride?: string,
+): SkillCatalogItem {
+  const clonedItem = cloneJsonValue(item);
+
+  return {
+    ...clonedItem,
+    groupKey: groupKeyOverride ?? resolveSkillCatalogGroupKey(clonedItem),
+    execution: {
       kind: resolveSkillCatalogExecutionKind(
         clonedItem.defaultExecutorBinding,
         clonedItem.siteCapabilityBinding,
@@ -1286,14 +609,39 @@ function buildRawSeededSkillCatalog(): SkillCatalog {
       siteAdapterBinding: clonedItem.siteCapabilityBinding
         ? cloneJsonValue(clonedItem.siteCapabilityBinding)
         : undefined,
-    };
+    },
+  };
+}
 
-    return {
-      ...clonedItem,
-      groupKey,
-      execution,
-    };
-  });
+function buildRawSkillCatalogFromServiceSkillCatalog(
+  catalog: ServiceSkillCatalog,
+  explicitEntries: SkillCatalogEntry[] = [],
+): SkillCatalog {
+  const items = catalog.items.map((item) =>
+    buildSkillCatalogItemFromServiceSkillItem(item),
+  );
+
+  return {
+    version: catalog.version,
+    tenantId: catalog.tenantId,
+    syncedAt: catalog.syncedAt,
+    groups: mergeCatalogGroups([], items),
+    items,
+    entries: [
+      ...buildSkillEntriesFromCatalogItems(items),
+      ...explicitEntries.map((entry) => cloneJsonValue(entry)),
+    ],
+  };
+}
+
+function buildRawSeededSkillCatalog(): SkillCatalog {
+  const seeded = getSeededServiceSkillCatalog();
+  const items: SkillCatalogItem[] = seeded.items.map((item) =>
+    buildSkillCatalogItemFromServiceSkillItem(
+      item,
+      resolveSeededSkillGroupKey(item),
+    ),
+  );
 
   const itemCountByGroup = items.reduce<Record<string, number>>((acc, item) => {
     acc[item.groupKey] = (acc[item.groupKey] ?? 0) + 1;
@@ -1699,7 +1047,7 @@ function mergeSeededLocalCustomSkillCatalogItems(
   };
 }
 
-export function parseSkillCatalog(value: unknown): SkillCatalog | null {
+function parseRawSkillCatalog(value: unknown): SkillCatalog | null {
   if (!isPlainRecord(value)) {
     return null;
   }
@@ -1752,6 +1100,68 @@ export function parseSkillCatalog(value: unknown): SkillCatalog | null {
       entries,
     }),
   );
+}
+
+function normalizeSkillCatalogInput(
+  value: unknown,
+): NormalizedSkillCatalogInput | null {
+  const directCatalog = parseRawSkillCatalog(value);
+  if (directCatalog) {
+    return {
+      catalog: directCatalog,
+      baseSetupSnapshot: null,
+    };
+  }
+
+  const runtime = resolveOemCloudRuntimeContext();
+  const compiledFromBaseSetup = resolveBaseSetupCatalogPayload(value, {
+    appVersion: getRuntimeAppVersion(),
+    tenantId: runtime?.tenantId ?? "base-setup",
+    seededFallbackAvailable: true,
+  });
+  if (!compiledFromBaseSetup) {
+    return null;
+  }
+
+  const explicitSceneEntries = compileSceneCatalogProjection(
+    compiledFromBaseSetup.package,
+    compiledFromBaseSetup.catalog.items,
+  );
+  const explicitCommandEntries = compileCommandCatalogProjection(
+    compiledFromBaseSetup.package,
+    compiledFromBaseSetup.catalog.items,
+  );
+
+  return {
+    catalog: normalizeSkillCatalog(
+      mergeSeededLocalCustomSkillCatalogItems(
+        buildRawSkillCatalogFromServiceSkillCatalog(
+          compiledFromBaseSetup.catalog,
+          [...explicitCommandEntries, ...explicitSceneEntries],
+        ),
+      ),
+    ),
+    baseSetupSnapshot: compiledFromBaseSetup.snapshot,
+  };
+}
+
+function isNormalizedSkillCatalogInput(
+  value: unknown,
+): value is NormalizedSkillCatalogInput {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (!("catalog" in record) || !parseRawSkillCatalog(record.catalog)) {
+    return false;
+  }
+
+  return record.baseSetupSnapshot === null || "baseSetupSnapshot" in record;
+}
+
+export function parseSkillCatalog(value: unknown): SkillCatalog | null {
+  return normalizeSkillCatalogInput(value)?.catalog ?? null;
 }
 
 function persistSkillCatalog(catalog: SkillCatalog): void {
@@ -1911,6 +1321,25 @@ export function getSeededSkillCatalog(): SkillCatalog {
   return cloneSkillCatalog(SEEDED_SKILL_CATALOG);
 }
 
+export function getCurrentSkillCatalogSnapshot(): SkillCatalog {
+  const seeded = getSeededSkillCatalog();
+  const cached = readCachedSkillCatalog();
+
+  if (!cached) {
+    return seeded;
+  }
+
+  if (!isSeededCatalogCompatibleWithActiveTenant(cached)) {
+    return seeded;
+  }
+
+  if (shouldRefreshSeededSkillCatalog(cached, seeded)) {
+    return seeded;
+  }
+
+  return cached;
+}
+
 export function listSkillCatalogEntries(
   catalog: SkillCatalog,
 ): SkillCatalogEntry[] {
@@ -1949,45 +1378,74 @@ export function isSeededSkillCatalog(catalog: SkillCatalog): boolean {
 }
 
 export function saveSkillCatalog(
-  catalog: SkillCatalog,
+  catalog: unknown,
   source: Exclude<
     SkillCatalogChangeSource,
     "seeded_fallback" | "cache_clear"
   > = "manual_override",
 ): SkillCatalog {
-  const normalized = parseSkillCatalog(catalog);
-  if (!normalized) {
+  const normalizedInput = normalizeSkillCatalogInput(catalog);
+  if (!normalizedInput) {
     throw new Error("invalid skill catalog");
   }
+
   const current = readCachedSkillCatalog();
-  if (current && isSameSkillCatalog(current, normalized)) {
-    persistSkillCatalog(normalized);
-    return normalized;
+  if (current && isSameSkillCatalog(current, normalizedInput.catalog)) {
+    persistSkillCatalog(normalizedInput.catalog);
+    if (normalizedInput.baseSetupSnapshot) {
+      saveStoredBaseSetupPackageSnapshot(normalizedInput.baseSetupSnapshot);
+    } else {
+      clearStoredBaseSetupPackageSnapshot();
+    }
+    return normalizedInput.catalog;
   }
-  persistSkillCatalog(normalized);
+
+  persistSkillCatalog(normalizedInput.catalog);
+  if (normalizedInput.baseSetupSnapshot) {
+    saveStoredBaseSetupPackageSnapshot(normalizedInput.baseSetupSnapshot);
+  } else {
+    clearStoredBaseSetupPackageSnapshot();
+  }
   emitSkillCatalogChanged(source);
-  return normalized;
+  return normalizedInput.catalog;
 }
 
 export function applyServerSyncedSkillCatalog(
-  catalog: SkillCatalog,
+  catalog: unknown,
   source: "bootstrap_sync",
 ): SkillCatalog {
+  const normalizedInput = isNormalizedSkillCatalogInput(catalog)
+    ? catalog
+    : normalizeSkillCatalogInput(catalog);
+  if (!normalizedInput) {
+    return getSeededSkillCatalog();
+  }
+
   const current = readCachedSkillCatalog();
-  if (shouldIgnoreServerSyncedCatalog(current, catalog)) {
+  if (shouldIgnoreServerSyncedCatalog(current, normalizedInput.catalog)) {
     return current && isSeededCatalogCompatibleWithActiveTenant(current)
       ? current
       : getSeededSkillCatalog();
   }
 
-  if (current && isSameSkillCatalog(current, catalog)) {
-    persistSkillCatalog(catalog);
-    return catalog;
+  if (current && isSameSkillCatalog(current, normalizedInput.catalog)) {
+    persistSkillCatalog(normalizedInput.catalog);
+    if (normalizedInput.baseSetupSnapshot) {
+      saveStoredBaseSetupPackageSnapshot(normalizedInput.baseSetupSnapshot);
+    } else {
+      clearStoredBaseSetupPackageSnapshot();
+    }
+    return normalizedInput.catalog;
   }
 
-  persistSkillCatalog(catalog);
+  persistSkillCatalog(normalizedInput.catalog);
+  if (normalizedInput.baseSetupSnapshot) {
+    saveStoredBaseSetupPackageSnapshot(normalizedInput.baseSetupSnapshot);
+  } else {
+    clearStoredBaseSetupPackageSnapshot();
+  }
   emitSkillCatalogChanged(source);
-  return catalog;
+  return normalizedInput.catalog;
 }
 
 export function clearSkillCatalogCache(): void {
@@ -1999,6 +1457,7 @@ export function clearSkillCatalogCache(): void {
     }
   }
 
+  clearStoredBaseSetupPackageSnapshot();
   emitSkillCatalogChanged("cache_clear");
 }
 
@@ -2035,7 +1494,7 @@ export function subscribeSkillCatalogChanged(
   };
 }
 
-async function requestRemoteSkillCatalog(): Promise<SkillCatalog> {
+async function requestRemoteSkillCatalog(): Promise<NormalizedSkillCatalogInput> {
   const runtime = resolveOemCloudRuntimeContext();
   if (!runtime) {
     throw new Error("缺少 OEM 云端配置，请先注入 base_url 与 tenant_id。");
@@ -2068,12 +1527,12 @@ async function requestRemoteSkillCatalog(): Promise<SkillCatalog> {
     );
   }
 
-  const catalog = parseSkillCatalog(payload?.data);
-  if (!catalog) {
+  const normalizedInput = normalizeSkillCatalogInput(payload?.data);
+  if (!normalizedInput) {
     throw new Error(payload?.message?.trim() || "服务端返回的技能目录格式非法");
   }
 
-  return catalog;
+  return normalizedInput;
 }
 
 export async function getSkillCatalog(): Promise<SkillCatalog> {
@@ -2086,6 +1545,7 @@ export async function getSkillCatalog(): Promise<SkillCatalog> {
 
     if (shouldRefreshSeededSkillCatalog(cached, seeded)) {
       persistSkillCatalog(seeded);
+      clearStoredBaseSetupPackageSnapshot();
       return seeded;
     }
 
@@ -2093,6 +1553,7 @@ export async function getSkillCatalog(): Promise<SkillCatalog> {
   }
 
   persistSkillCatalog(seeded);
+  clearStoredBaseSetupPackageSnapshot();
   return seeded;
 }
 

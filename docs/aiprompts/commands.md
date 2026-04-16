@@ -97,6 +97,22 @@
 - 若服务端下发的 `renderContract` 超出 Lime 当前支持范围，优先由服务端回退到已支持类型，客户端也必须退化到通用 timeline / artifact 展示
 - `scene` 的展示命名、推荐文案和补参标题应继续围绕创作生产语义收敛；`@发布合规` 只是发布前风控检查，不应被产品文案扩写成独立“法务场景”，也不要在目录里长出“建立”这类脱离创作目标的泛入口
 
+`SceneApp` 的统一目录与运行前规划命令同样只允许走单一网关。当前前端主入口为 `src/lib/api/sceneapp.ts`，统一承接：
+
+- `sceneapp_list_catalog`
+- `sceneapp_get_descriptor`
+- `sceneapp_plan_launch`
+- `sceneapp_create_automation_job`
+- `sceneapp_list_runs`
+- `sceneapp_get_run_summary`
+- `sceneapp_get_scorecard`
+
+固定约束：
+
+- `SceneApp` 命令当前属于目录查询、运行前规划与治理摘要主链，不应在页面组件里直接裸 `invoke`
+- 新的 SceneApp UI 先消费 `SceneAppDescriptor / SceneAppPlanResult / SceneAppScorecard`，不要重新从 `serviceSkills.ts`、`skillCatalog.ts`、卡片配置和 selector 里各自拼语义
+- 真正的执行仍应通过 runtime adapter 继续挂回现有 `agent turn / browser_assist / automation_job / cloud_scene` 主链；`sceneapp_*` 不用于重新发明第二套 runtime taxonomy
+
 技能脚手架创建同样只允许走当前命令网关主链：
 
 - 前端统一经由 `src/lib/api/skills.ts -> create_skill_scaffold_for_app`

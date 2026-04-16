@@ -62,21 +62,77 @@ function buildBundleSummary(
   pkg: BaseSetupPackage,
   projection: BaseSetupCatalogProjection,
   bundleRef: BaseSetupBundleRef,
+  bindingProfile: BaseSetupBindingProfile,
+  artifactProfile: BaseSetupArtifactProfile,
+  policyProfile: BaseSetupPolicyProfile,
 ): ServiceSkillBundleSummary {
+  const skillType = inferSkillType(projection, bindingProfile);
+  const executionLocation = inferExecutionLocation(projection, bindingProfile);
+
+  const metadata: Record<string, string> = {
+    Lime_base_setup_package_id: pkg.id,
+    Lime_base_setup_package_version: pkg.version,
+    Lime_projection_id: projection.id,
+    Lime_target_catalog: projection.targetCatalog,
+    Lime_artifact_profile_ref: projection.artifactProfileRef,
+    Lime_scorecard_profile_ref: projection.scorecardProfileRef,
+    Lime_policy_profile_ref: projection.policyProfileRef,
+    Lime_automation_profile_ref: projection.automationProfileRef ?? "",
+    Lime_skill_type: skillType,
+    Lime_category: projection.category,
+    Lime_runner_type: bindingProfile.runnerType ?? "instant",
+    Lime_execution_location: executionLocation,
+    Lime_executor_binding: bindingProfile.bindingFamily,
+    Lime_output_destination: artifactProfile.outputDestination ?? "",
+    Lime_output_hint: projection.outputHint,
+    Lime_entry_hint: projection.entryHint ?? "",
+    Lime_prompt_template_key: projection.promptTemplateKey ?? "",
+    Lime_theme_target: projection.themeTarget ?? "",
+    Lime_composition_blueprint_ref: projection.compositionBlueprintRef ?? "",
+  };
+
+  if (policyProfile.surfaceScopes && policyProfile.surfaceScopes.length > 0) {
+    metadata.Lime_surface_scopes = JSON.stringify(policyProfile.surfaceScopes);
+  }
+
+  if (projection.siteCapabilityBinding?.adapterName) {
+    metadata.Lime_site_adapter = projection.siteCapabilityBinding.adapterName;
+  }
+  if (projection.siteCapabilityBinding?.siteLabel) {
+    metadata.Lime_site_label = projection.siteCapabilityBinding.siteLabel;
+  }
+  if (projection.siteCapabilityBinding?.adapterMatch?.urlArgName) {
+    metadata.Lime_site_adapter_match_url_arg =
+      projection.siteCapabilityBinding.adapterMatch.urlArgName;
+  }
+  if (
+    projection.siteCapabilityBinding?.adapterMatch?.requiredCapabilities &&
+    projection.siteCapabilityBinding.adapterMatch.requiredCapabilities.length > 0
+  ) {
+    metadata.Lime_site_adapter_match_capabilities = JSON.stringify(
+      projection.siteCapabilityBinding.adapterMatch.requiredCapabilities,
+    );
+  }
+  if (
+    projection.siteCapabilityBinding?.adapterMatch?.hostAliases &&
+    projection.siteCapabilityBinding.adapterMatch.hostAliases.length > 0
+  ) {
+    metadata.Lime_site_adapter_match_host_aliases = JSON.stringify(
+      projection.siteCapabilityBinding.adapterMatch.hostAliases,
+    );
+  }
+
+  for (const [key, value] of Object.entries(metadata)) {
+    if (!value) {
+      delete metadata[key];
+    }
+  }
+
   return {
-    name: bundleRef.id,
+    name: projection.skillKey ?? projection.entryKey ?? bundleRef.id,
     description: projection.summary,
     compatibility: pkg.compatibility.minAppVersion,
-    metadata: {
-      Lime_base_setup_package_id: pkg.id,
-      Lime_base_setup_package_version: pkg.version,
-      Lime_projection_id: projection.id,
-      Lime_target_catalog: projection.targetCatalog,
-      Lime_artifact_profile_ref: projection.artifactProfileRef,
-      Lime_scorecard_profile_ref: projection.scorecardProfileRef,
-      Lime_policy_profile_ref: projection.policyProfileRef,
-      Lime_composition_blueprint_ref: projection.compositionBlueprintRef ?? "",
-    },
+    metadata,
     resourceSummary: {
       hasScripts: false,
       hasReferences: false,
@@ -119,7 +175,7 @@ function createServiceSkillItem(params: {
     outputHint: projection.outputHint,
     triggerHints: projection.triggerHints ? [...projection.triggerHints] : undefined,
     source: projection.source ?? mapBundleSourceToServiceSkillSource(bundleRef),
-    runnerType: projection.sceneBinding ? "managed" : bindingProfile.runnerType ?? "instant",
+    runnerType: bindingProfile.runnerType ?? "instant",
     defaultExecutorBinding: bindingProfile.bindingFamily,
     executionLocation: inferExecutionLocation(projection, bindingProfile),
     defaultArtifactKind: artifactProfile.defaultArtifactKind,
@@ -147,7 +203,14 @@ function createServiceSkillItem(params: {
       : undefined,
     promptTemplateKey: projection.promptTemplateKey,
     themeTarget: projection.themeTarget,
-    skillBundle: buildBundleSummary(pkg, projection, bundleRef),
+    skillBundle: buildBundleSummary(
+      pkg,
+      projection,
+      bundleRef,
+      bindingProfile,
+      artifactProfile,
+      policyProfile,
+    ),
     version: projection.version ?? pkg.version,
   };
 }
@@ -164,6 +227,14 @@ function buildProjectionIndex(
     ),
     policyProfileRefsByProjectionId: Object.fromEntries(
       projections.map((projection) => [projection.id, projection.policyProfileRef]),
+    ),
+    automationProfileRefsByProjectionId: Object.fromEntries(
+      projections
+        .filter((projection) => projection.automationProfileRef)
+        .map((projection) => [
+          projection.id,
+          projection.automationProfileRef as string,
+        ]),
     ),
     compositionBlueprintRefsByProjectionId: Object.fromEntries(
       projections

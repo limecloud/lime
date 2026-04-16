@@ -1,4 +1,7 @@
 //! Claude Custom Provider (自定义 Claude API)
+use lime_core::database::dao::api_key_provider::{
+    infer_managed_runtime_spec, ApiProviderType, ProviderRuntimeSpec,
+};
 use lime_core::models::anthropic::AnthropicMessagesRequest;
 use lime_core::models::openai::{ChatCompletionRequest, ContentPart, MessageContent};
 use reqwest::Client;
@@ -15,13 +18,31 @@ pub enum PromptCacheMode {
     ExplicitOnly,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeCustomConfig {
     pub api_key: Option<String>,
     pub base_url: Option<String>,
     pub enabled: bool,
     #[serde(default)]
     pub prompt_cache_mode: PromptCacheMode,
+    #[serde(default = "default_provider_type")]
+    pub provider_type: ApiProviderType,
+}
+
+const fn default_provider_type() -> ApiProviderType {
+    ApiProviderType::Anthropic
+}
+
+impl Default for ClaudeCustomConfig {
+    fn default() -> Self {
+        Self {
+            api_key: None,
+            base_url: None,
+            enabled: false,
+            prompt_cache_mode: PromptCacheMode::default(),
+            provider_type: default_provider_type(),
+        }
+    }
 }
 
 pub struct ClaudeCustomProvider {
@@ -79,12 +100,27 @@ impl ClaudeCustomProvider {
         base_url: Option<String>,
         prompt_cache_mode: PromptCacheMode,
     ) -> Self {
+        Self::with_provider_type_and_prompt_cache_mode(
+            api_key,
+            base_url,
+            ApiProviderType::Anthropic,
+            prompt_cache_mode,
+        )
+    }
+
+    pub fn with_provider_type_and_prompt_cache_mode(
+        api_key: String,
+        base_url: Option<String>,
+        provider_type: ApiProviderType,
+        prompt_cache_mode: PromptCacheMode,
+    ) -> Self {
         Self {
             config: ClaudeCustomConfig {
                 api_key: Some(api_key),
                 base_url,
                 enabled: true,
                 prompt_cache_mode,
+                provider_type,
             },
             client: create_http_client(),
         }
@@ -341,6 +377,44 @@ impl ClaudeCustomProvider {
         Self::apply_prompt_cache_control_for_mode(self.config.prompt_cache_mode, payload);
     }
 
+    fn effective_runtime_spec(&self) -> ProviderRuntimeSpec {
+        infer_managed_runtime_spec(self.config.provider_type, &self.get_base_url())
+    }
+
+    fn apply_runtime_headers(
+        &self,
+        request: reqwest::RequestBuilder,
+        api_key: &str,
+    ) -> reqwest::RequestBuilder {
+        let api_key = api_key.trim();
+        let runtime_spec = self.effective_runtime_spec();
+        let auth_value = runtime_spec
+            .auth_prefix
+            .map(|prefix| format!("{prefix} {api_key}"))
+            .unwrap_or_else(|| api_key.to_string());
+
+        let mut request = request
+            .header(runtime_spec.auth_header, auth_value)
+            .header("Content-Type", "application/json");
+
+        // 部分 Anthropic 协议上游在官方示例里会同时携带
+        // `Authorization` 与 `x-api-key`；双写可尽量贴近 SDK 实际行为。
+        if runtime_spec.protocol_family
+            == lime_core::database::dao::api_key_provider::ProviderProtocolFamily::Anthropic
+            && runtime_spec
+                .auth_header
+                .eq_ignore_ascii_case("Authorization")
+        {
+            request = request.header("x-api-key", api_key);
+        }
+
+        for (name, value) in runtime_spec.extra_headers {
+            request = request.header(*name, *value);
+        }
+
+        request
+    }
+
     fn anthropic_prompt_tokens(response: &Value) -> u64 {
         let usage = response
             .get("usage")
@@ -396,11 +470,7 @@ impl ClaudeCustomProvider {
         self.maybe_apply_prompt_cache_control(&mut payload);
 
         let resp = self
-            .client
-            .post(&url)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("Content-Type", "application/json")
+            .apply_runtime_headers(self.client.post(&url), api_key)
             .json(&payload)
             .send()
             .await?;
@@ -519,11 +589,7 @@ impl ClaudeCustomProvider {
         );
 
         let resp = self
-            .client
-            .post(&url)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("Content-Type", "application/json")
+            .apply_runtime_headers(self.client.post(&url), api_key)
             .json(&anthropic_body)
             .send()
             .await?;
@@ -619,11 +685,7 @@ impl ClaudeCustomProvider {
         self.maybe_apply_prompt_cache_control(&mut payload);
 
         let resp = self
-            .client
-            .post(&url)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("Content-Type", "application/json")
+            .apply_runtime_headers(self.client.post(&url), api_key)
             .json(&payload)
             .send()
             .await?;
@@ -651,11 +713,7 @@ impl ClaudeCustomProvider {
         let url = self.build_url("messages/count_tokens");
 
         let resp = self
-            .client
-            .post(&url)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("Content-Type", "application/json")
+            .apply_runtime_headers(self.client.post(&url), api_key)
             .json(request)
             .send()
             .await?;
@@ -851,11 +909,7 @@ impl StreamingProvider for ClaudeCustomProvider {
         );
 
         let resp = self
-            .client
-            .post(&url)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("Content-Type", "application/json")
+            .apply_runtime_headers(self.client.post(&url), api_key)
             .header("Accept", "text/event-stream")
             .json(&anthropic_body)
             .send()
@@ -892,6 +946,7 @@ impl StreamingProvider for ClaudeCustomProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lime_core::database::dao::api_key_provider::ProviderProtocolFamily;
     use lime_core::models::openai::{FunctionDef, Tool};
 
     #[test]
@@ -1189,5 +1244,94 @@ mod tests {
             ClaudeCustomProvider::anthropic_completion_tokens(&response),
             10
         );
+    }
+
+    #[test]
+    fn test_effective_runtime_spec_uses_authorization_for_minimax_host() {
+        let provider = ClaudeCustomProvider::with_config(
+            "test-key".to_string(),
+            Some("https://api.minimaxi.com/anthropic".to_string()),
+        );
+
+        let spec = provider.effective_runtime_spec();
+        assert_eq!(spec.protocol_family, ProviderProtocolFamily::Anthropic);
+        assert_eq!(spec.auth_header, "Authorization");
+        assert_eq!(spec.auth_prefix, Some("Bearer"));
+    }
+
+    #[test]
+    fn test_effective_runtime_spec_keeps_x_api_key_for_official_anthropic() {
+        let provider = ClaudeCustomProvider::with_config(
+            "test-key".to_string(),
+            Some("https://api.anthropic.com".to_string()),
+        );
+
+        let spec = provider.effective_runtime_spec();
+        assert_eq!(spec.protocol_family, ProviderProtocolFamily::Anthropic);
+        assert_eq!(spec.auth_header, "x-api-key");
+        assert_eq!(spec.auth_prefix, None);
+    }
+
+    #[test]
+    fn test_apply_runtime_headers_adds_dual_auth_headers_for_minimax_host() {
+        let provider = ClaudeCustomProvider::with_config(
+            "test-key".to_string(),
+            Some("https://api.minimaxi.com/anthropic".to_string()),
+        );
+
+        let request = provider
+            .apply_runtime_headers(
+                reqwest::Client::new().post("https://example.com"),
+                "test-key",
+            )
+            .build()
+            .expect("构建请求失败");
+
+        assert_eq!(
+            request
+                .headers()
+                .get("Authorization")
+                .and_then(|value| value.to_str().ok()),
+            Some("Bearer test-key")
+        );
+        assert_eq!(
+            request
+                .headers()
+                .get("x-api-key")
+                .and_then(|value| value.to_str().ok()),
+            Some("test-key")
+        );
+        assert_eq!(
+            request
+                .headers()
+                .get("anthropic-version")
+                .and_then(|value| value.to_str().ok()),
+            Some("2023-06-01")
+        );
+    }
+
+    #[test]
+    fn test_apply_runtime_headers_keeps_official_anthropic_single_auth_header() {
+        let provider = ClaudeCustomProvider::with_config(
+            "test-key".to_string(),
+            Some("https://api.anthropic.com".to_string()),
+        );
+
+        let request = provider
+            .apply_runtime_headers(
+                reqwest::Client::new().post("https://example.com"),
+                "test-key",
+            )
+            .build()
+            .expect("构建请求失败");
+
+        assert_eq!(
+            request
+                .headers()
+                .get("x-api-key")
+                .and_then(|value| value.to_str().ok()),
+            Some("test-key")
+        );
+        assert!(request.headers().get("Authorization").is_none());
     }
 }

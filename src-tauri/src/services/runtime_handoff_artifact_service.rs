@@ -967,6 +967,7 @@ mod tests {
             interrupt_state: None,
             updated_at: Some("2026-03-27T10:01:00Z".to_string()),
             latest_compaction_boundary: None,
+            file_checkpoint_summary: None,
             diagnostics: Some(crate::commands::aster_agent_cmd::AgentRuntimeThreadDiagnostics {
                 latest_turn_status: Some("completed".to_string()),
                 latest_turn_started_at: None,

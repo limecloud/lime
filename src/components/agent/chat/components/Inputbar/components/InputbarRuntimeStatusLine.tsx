@@ -4,27 +4,17 @@ import {
   resolveConfiguredProviderPromptCacheSupportNotice,
   useConfiguredProviders,
 } from "@/hooks/useConfiguredProviders";
-import type { AgentTokenUsage as TokenUsage } from "@/lib/api/agentProtocol";
 import type { InputbarRuntimeStatusLineModel } from "../../../utils/inputbarRuntimeStatusLine";
+import {
+  resolvePromptCacheActivity,
+  resolvePromptCacheMetaText,
+  resolveUsageInputOutputSummary,
+} from "../../../utils/tokenUsageSummary";
 
 interface InputbarRuntimeStatusLineProps {
   runtime: InputbarRuntimeStatusLineModel | null;
   providerType?: string | null;
   canStop?: boolean;
-}
-
-function formatCompactCount(value: number): string {
-  const normalized = Math.max(0, value);
-  if (normalized >= 1_000_000_000) {
-    return `${(normalized / 1_000_000_000).toFixed(1)}B`;
-  }
-  if (normalized >= 1_000_000) {
-    return `${(normalized / 1_000_000).toFixed(1)}M`;
-  }
-  if (normalized >= 1_000) {
-    return `${(normalized / 1_000).toFixed(1)}K`;
-  }
-  return normalized.toLocaleString();
 }
 
 function resolveTimestamp(value?: string | number | null): number | null {
@@ -54,48 +44,6 @@ function formatElapsed(ms: number): string {
     2,
     "0",
   )}`;
-}
-
-function resolveUsageSummary(usage?: TokenUsage): string | null {
-  if (!usage) {
-    return null;
-  }
-
-  return `输入 ${formatCompactCount(usage.input_tokens)} / 输出 ${formatCompactCount(
-    usage.output_tokens,
-  )}`;
-}
-
-function resolvePromptCacheTotal(usage?: TokenUsage): number {
-  return (
-    Math.max(0, usage?.cached_input_tokens ?? 0) +
-    Math.max(0, usage?.cache_creation_input_tokens ?? 0)
-  );
-}
-
-function resolvePromptCacheSummary(
-  usage?: TokenUsage,
-  fallbackLabel?: string | null,
-): string | null {
-  if (usage) {
-    const cachedRead = Math.max(0, usage.cached_input_tokens ?? 0);
-    const cacheWrite = Math.max(0, usage.cache_creation_input_tokens ?? 0);
-    if (cachedRead > 0 && cacheWrite > 0) {
-      return `Prompt Cache 读 ${formatCompactCount(cachedRead)} / 写 ${formatCompactCount(cacheWrite)}`;
-    }
-    if (cachedRead > 0) {
-      return `Prompt Cache ${formatCompactCount(cachedRead)}`;
-    }
-    if (cacheWrite > 0) {
-      return `Prompt Cache 写 ${formatCompactCount(cacheWrite)}`;
-    }
-  }
-
-  if (fallbackLabel) {
-    return `Prompt Cache ${fallbackLabel}`;
-  }
-
-  return null;
 }
 
 function resolveStatusMeta(
@@ -168,7 +116,7 @@ export const InputbarRuntimeStatusLine: React.FC<
   const shouldInspectPromptCacheNotice = Boolean(
     providerType?.trim() &&
       runtime?.usage &&
-      resolvePromptCacheTotal(runtime.usage) <= 0,
+      resolvePromptCacheActivity(runtime.usage) <= 0,
   );
   const { providers } = useConfiguredProviders({
     autoLoad: shouldInspectPromptCacheNotice,
@@ -213,11 +161,12 @@ export const InputbarRuntimeStatusLine: React.FC<
     startedAtMs && (completedAtMs || now) >= startedAtMs
       ? formatElapsed((completedAtMs || now) - startedAtMs)
       : null;
-  const usageSummary = resolveUsageSummary(runtime.usage);
-  const promptCacheSummary = resolvePromptCacheSummary(
-    runtime.usage,
-    promptCacheNotice?.label,
-  );
+  const usageSummary = resolveUsageInputOutputSummary(runtime.usage);
+  const promptCacheMetaText = resolvePromptCacheMetaText(runtime.usage);
+  const promptCacheNoticeLabel =
+    resolvePromptCacheActivity(runtime.usage) <= 0
+      ? promptCacheNotice?.label?.trim() || null
+      : null;
   const detailText =
     runtime.status === "waiting_input" ||
     runtime.status === "failed" ||
@@ -233,7 +182,8 @@ export const InputbarRuntimeStatusLine: React.FC<
       ? `任务 ${runtime.subtaskStats.active}/${runtime.subtaskStats.total}`
       : null,
     usageSummary,
-    promptCacheSummary,
+    promptCacheMetaText,
+    promptCacheNoticeLabel,
     canStop && (runtime.status === "running" || runtime.status === "queued")
       ? "可随时停止"
       : null,

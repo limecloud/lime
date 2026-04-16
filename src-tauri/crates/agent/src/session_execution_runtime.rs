@@ -26,10 +26,12 @@ pub enum SessionExecutionRuntimeSource {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "kebab-case")]
 pub enum SessionExecutionRuntimeAccessMode {
+    #[serde(alias = "read_only")]
     ReadOnly,
     Current,
+    #[serde(alias = "full_access")]
     FullAccess,
 }
 
@@ -524,7 +526,6 @@ fn extract_recent_harness_context_from_metadata(
             _ => None,
         }
     };
-
     RecentHarnessContext {
         theme: resolve_text(&["theme", "harness_theme", "harnessTheme"]),
         session_mode: normalize_session_mode(resolve_text(&["session_mode", "sessionMode"])),
@@ -1029,6 +1030,25 @@ mod tests {
         assert_eq!(
             runtime.recent_access_mode,
             Some(SessionExecutionRuntimeAccessMode::ReadOnly)
+        );
+    }
+
+    #[test]
+    fn access_mode_serde_prefers_kebab_case_and_accepts_legacy_snake_case() {
+        assert_eq!(
+            serde_json::to_value(SessionExecutionRuntimeAccessMode::FullAccess)
+                .expect("serialize access mode"),
+            json!("full-access")
+        );
+        assert_eq!(
+            serde_json::from_value::<SessionExecutionRuntimeAccessMode>(json!("full-access"))
+                .expect("deserialize kebab-case access mode"),
+            SessionExecutionRuntimeAccessMode::FullAccess
+        );
+        assert_eq!(
+            serde_json::from_value::<SessionExecutionRuntimeAccessMode>(json!("full_access"))
+                .expect("deserialize legacy snake_case access mode"),
+            SessionExecutionRuntimeAccessMode::FullAccess
         );
     }
 

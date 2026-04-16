@@ -9,6 +9,7 @@ use crate::commands::aster_agent_cmd::AgentRuntimeThreadReadModel;
 use crate::services::runtime_evidence_pack_service::{
     export_runtime_evidence_pack, RuntimeEvidencePackExportResult,
 };
+use crate::services::runtime_file_checkpoint_service::list_file_checkpoints;
 use crate::services::runtime_handoff_artifact_service::{
     export_runtime_handoff_bundle, RuntimeHandoffBundleExportResult,
 };
@@ -142,6 +143,7 @@ pub fn export_runtime_replay_case(
                 .and_then(|turn| normalize_optional_text(Some(turn.prompt_text.clone())))
         });
     let recent_artifacts = collect_recent_artifact_paths(detail);
+    let file_checkpoints = list_file_checkpoints(detail);
     let pending_requests = collect_pending_request_inputs(detail, thread_read);
     let recent_timeline = collect_recent_timeline_items(detail);
     let observability_summary = read_observability_summary_from_evidence_pack(&evidence_pack)?;
@@ -171,6 +173,7 @@ pub fn export_runtime_replay_case(
                 latest_plan.as_deref(),
                 latest_turn_summary.as_deref(),
                 &recent_artifacts,
+                &file_checkpoints.checkpoints,
                 &recent_timeline,
                 &pending_requests,
                 &observability_summary,
@@ -310,6 +313,7 @@ fn build_input_json(
     latest_plan: Option<&str>,
     latest_turn_summary: Option<&str>,
     recent_artifacts: &[String],
+    file_checkpoints: &[crate::commands::aster_agent_cmd::AgentRuntimeFileCheckpointSummary],
     recent_timeline: &[ReplayTimelineItem],
     pending_requests: &[ReplayPendingRequestInput],
     observability_summary: &Value,
@@ -382,6 +386,8 @@ fn build_input_json(
                 })
             }).collect::<Vec<_>>(),
             "recentArtifacts": recent_artifacts,
+            "fileCheckpointCount": file_checkpoints.len(),
+            "fileCheckpoints": file_checkpoints,
             "recentTimeline": recent_timeline,
             "lastOutcome": &thread_read.last_outcome,
             "incidents": &thread_read.incidents,
@@ -1182,6 +1188,7 @@ mod tests {
             interrupt_state: None,
             updated_at: Some("2026-03-27T10:02:00Z".to_string()),
             latest_compaction_boundary: None,
+            file_checkpoint_summary: None,
             diagnostics: Some(crate::commands::aster_agent_cmd::AgentRuntimeThreadDiagnostics {
                 latest_turn_status: Some("completed".to_string()),
                 latest_turn_started_at: None,
@@ -1272,6 +1279,10 @@ mod tests {
         ));
         assert!(input.contains("\"requestId\": \"req-1\""));
         assert!(input.contains("\"recentArtifacts\""));
+        assert!(input.contains("\"fileCheckpointCount\": 1"));
+        assert!(input.contains("\"fileCheckpoints\""));
+        assert!(input.contains("\"checkpoint_id\": \"artifact-1\""));
+        assert!(input.contains("\"path\": \".lime/artifacts/thread-1/report.md\""));
         assert!(input.contains("\"classification\""));
         assert!(input.contains("\"suiteTags\""));
         assert!(input.contains("\"failureModes\""));

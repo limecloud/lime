@@ -920,5 +920,3 @@ export function SkillsWorkspacePage({
     </>
   );
 }
-
-export default SkillsWorkspacePage;

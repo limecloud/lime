@@ -2,7 +2,10 @@
 //!
 //! Provides functionality for forking sessions and managing session branches,
 
-use crate::session::{Session, SessionManager};
+use crate::session::{
+    apply_session_update, create_managed_session, query_session, replace_session_conversation,
+    Session,
+};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
@@ -117,7 +120,7 @@ impl ForkMetadata {
 
 /// Fork a session to create a new branch
 pub async fn fork_session(source_session_id: &str, options: ForkOptions) -> Result<Session> {
-    let source_session = SessionManager::get_session(source_session_id, true).await?;
+    let source_session = query_session(source_session_id, true).await?;
 
     let from_index = options.from_message_index.unwrap_or(0);
     let new_name = options
@@ -125,7 +128,7 @@ pub async fn fork_session(source_session_id: &str, options: ForkOptions) -> Resu
         .unwrap_or_else(|| format!("{} (fork)", source_session.name));
 
     // Create new session
-    let new_session = SessionManager::create_session(
+    let new_session = create_managed_session(
         source_session.working_dir.clone(),
         new_name.clone(),
         source_session.session_type,
@@ -152,7 +155,7 @@ pub async fn fork_session(source_session_id: &str, options: ForkOptions) -> Resu
         if !messages_to_copy.is_empty() {
             let new_conversation =
                 crate::conversation::Conversation::new_unvalidated(messages_to_copy);
-            SessionManager::replace_conversation(&new_session.id, &new_conversation).await?;
+            replace_session_conversation(&new_session.id, &new_conversation).await?;
         }
     }
 
@@ -167,10 +170,10 @@ pub async fn fork_session(source_session_id: &str, options: ForkOptions) -> Resu
     let mut new_extension_data = new_session.extension_data.clone();
     fork_metadata.to_extension_data(&mut new_extension_data)?;
 
-    SessionManager::update_session(&new_session.id)
-        .extension_data(new_extension_data)
-        .apply()
-        .await?;
+    apply_session_update(&new_session.id, |update| {
+        update.extension_data(new_extension_data)
+    })
+    .await?;
 
     // Update source session's branches list
     let mut source_fork_metadata = ForkMetadata::from_session(&source_session).unwrap_or_default();
@@ -179,12 +182,12 @@ pub async fn fork_session(source_session_id: &str, options: ForkOptions) -> Resu
     let mut source_extension_data = source_session.extension_data.clone();
     source_fork_metadata.to_extension_data(&mut source_extension_data)?;
 
-    SessionManager::update_session(source_session_id)
-        .extension_data(source_extension_data)
-        .apply()
-        .await?;
+    apply_session_update(source_session_id, |update| {
+        update.extension_data(source_extension_data)
+    })
+    .await?;
 
-    SessionManager::get_session(&new_session.id, true).await
+    query_session(&new_session.id, true).await
 }
 
 /// Merge one session into another
@@ -193,8 +196,8 @@ pub async fn merge_sessions(
     source_session_id: &str,
     options: MergeOptions,
 ) -> Result<Session> {
-    let target_session = SessionManager::get_session(target_session_id, true).await?;
-    let source_session = SessionManager::get_session(source_session_id, true).await?;
+    let target_session = query_session(target_session_id, true).await?;
+    let source_session = query_session(source_session_id, true).await?;
 
     let target_messages = target_session
         .conversation
@@ -228,41 +231,7 @@ pub async fn merge_sessions(
     if !merged_messages.is_empty() {
         let merged_conversation =
             crate::conversation::Conversation::new_unvalidated(merged_messages);
-        SessionManager::replace_conversation(target_session_id, &merged_conversation).await?;
-    }
-
-    // Update metadata based on strategy
-    let mut update_builder = SessionManager::update_session(target_session_id);
-
-    match options.keep_metadata {
-        MetadataStrategy::Source => {
-            update_builder = update_builder
-                .total_tokens(source_session.total_tokens)
-                .input_tokens(source_session.input_tokens)
-                .output_tokens(source_session.output_tokens);
-        }
-        MetadataStrategy::Merge => {
-            let merged_total = target_session
-                .total_tokens
-                .unwrap_or(0)
-                .saturating_add(source_session.total_tokens.unwrap_or(0));
-            let merged_input = target_session
-                .input_tokens
-                .unwrap_or(0)
-                .saturating_add(source_session.input_tokens.unwrap_or(0));
-            let merged_output = target_session
-                .output_tokens
-                .unwrap_or(0)
-                .saturating_add(source_session.output_tokens.unwrap_or(0));
-
-            update_builder = update_builder
-                .total_tokens(Some(merged_total))
-                .input_tokens(Some(merged_input))
-                .output_tokens(Some(merged_output));
-        }
-        MetadataStrategy::Target => {
-            // Keep target metadata, no changes needed
-        }
+        replace_session_conversation(target_session_id, &merged_conversation).await?;
     }
 
     // Record merge in fork metadata
@@ -274,28 +243,55 @@ pub async fn merge_sessions(
     let mut extension_data = target_session.extension_data.clone();
     fork_metadata.to_extension_data(&mut extension_data)?;
 
-    update_builder
-        .extension_data(extension_data)
-        .apply()
-        .await?;
+    apply_session_update(target_session_id, |update_builder| {
+        let update_builder = match options.keep_metadata {
+            MetadataStrategy::Source => update_builder
+                .total_tokens(source_session.total_tokens)
+                .input_tokens(source_session.input_tokens)
+                .output_tokens(source_session.output_tokens),
+            MetadataStrategy::Merge => {
+                let merged_total = target_session
+                    .total_tokens
+                    .unwrap_or(0)
+                    .saturating_add(source_session.total_tokens.unwrap_or(0));
+                let merged_input = target_session
+                    .input_tokens
+                    .unwrap_or(0)
+                    .saturating_add(source_session.input_tokens.unwrap_or(0));
+                let merged_output = target_session
+                    .output_tokens
+                    .unwrap_or(0)
+                    .saturating_add(source_session.output_tokens.unwrap_or(0));
 
-    SessionManager::get_session(target_session_id, true).await
+                update_builder
+                    .total_tokens(Some(merged_total))
+                    .input_tokens(Some(merged_input))
+                    .output_tokens(Some(merged_output))
+            }
+            MetadataStrategy::Target => update_builder,
+        };
+
+        update_builder.extension_data(extension_data)
+    })
+    .await?;
+
+    query_session(target_session_id, true).await
 }
 
 /// Get the branch tree for a session
 pub async fn get_session_branch_tree(session_id: &str) -> Result<SessionBranchTree> {
-    let session = SessionManager::get_session(session_id, false).await?;
+    let session = query_session(session_id, false).await?;
     let fork_metadata = ForkMetadata::from_session(&session).unwrap_or_default();
 
     let parent = if let Some(parent_id) = &fork_metadata.parent_id {
-        SessionManager::get_session(parent_id, false).await.ok()
+        query_session(parent_id, false).await.ok()
     } else {
         None
     };
 
     let mut branches = Vec::new();
     for branch_id in &fork_metadata.branches {
-        if let Ok(branch) = SessionManager::get_session(branch_id, false).await {
+        if let Ok(branch) = query_session(branch_id, false).await {
             branches.push(branch);
         }
     }

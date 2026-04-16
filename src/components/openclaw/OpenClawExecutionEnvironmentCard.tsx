@@ -326,5 +326,3 @@ export function OpenClawExecutionEnvironmentCard({
     </div>
   );
 }
-
-export default OpenClawExecutionEnvironmentCard;

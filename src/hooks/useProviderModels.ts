@@ -7,6 +7,7 @@
 import { useMemo, useState, useEffect } from "react";
 import {
   modelRegistryApi,
+  normalizeFetchProviderModelsSource,
   type FetchProviderModelsResult,
 } from "@/lib/api/modelRegistry";
 import { providerPoolApi } from "@/lib/api/providerPool";
@@ -76,10 +77,13 @@ async function fetchProviderModelsFromApi(
       await modelRegistryApi.fetchProviderModelsAuto(
         selectedProvider.providerId ?? selectedProvider.key,
       );
+    const normalizedSource = normalizeFetchProviderModelsSource(result);
 
     if (
       result &&
-      result.source === "Api" &&
+      (normalizedSource === "Api" ||
+        normalizedSource === "Catalog" ||
+        normalizedSource === "CustomModels") &&
       result.models &&
       result.models.length > 0
     ) {

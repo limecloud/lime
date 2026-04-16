@@ -136,7 +136,10 @@ export function buildConfiguredProviders(
         key,
         label,
         registryId: provider.id,
-        fallbackRegistryId: getRegistryIdFromType(provider.type),
+        fallbackRegistryId: getRegistryIdFromType(
+          provider.type,
+          provider.api_host,
+        ),
         type: provider.type,
         credentialType: `${provider.type}_key`,
         providerId: provider.id,
@@ -247,7 +250,7 @@ export function useConfiguredProviders(
     { autoLoad },
   );
   const { providers: apiKeyProviders, loading: apiKeyLoading } =
-    useApiKeyProvider({ autoLoad });
+    useApiKeyProvider({ autoLoad, hydrateUiState: false });
 
   // 计算已配置的 Provider 列表
   const providers = useMemo(

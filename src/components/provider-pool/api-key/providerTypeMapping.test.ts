@@ -112,4 +112,15 @@ describe("providerTypeMapping", () => {
       "explicit_only",
     );
   });
+
+  it("已知官方 Anthropic 兼容 Host 应优先映射到对应厂商目录", () => {
+    const resolved = resolveRegistryProviderId("custom-minimax-provider", {
+      providerType: "anthropic-compatible",
+      apiHost: "https://api.minimaxi.com/anthropic",
+      catalogAliasMap: null,
+      validRegistryProviders: ["anthropic", "minimax"],
+    });
+
+    expect(resolved).toBe("minimax");
+  });
 });

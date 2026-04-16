@@ -751,5 +751,3 @@ export function OpenClawRuntimePage({
     </div>
   );
 }
-
-export default OpenClawRuntimePage;

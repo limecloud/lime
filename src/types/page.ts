@@ -10,6 +10,9 @@
 
 import type { SettingsTabs } from "./settings";
 import type { SkillScaffoldTarget } from "@/lib/api/skills";
+import type { SceneAppsPageParams } from "@/lib/sceneapp/navigation";
+
+export type { SceneAppsPageParams } from "@/lib/sceneapp/navigation";
 
 export type WorkspaceTheme = "general";
 
@@ -17,6 +20,7 @@ export type Page =
   | "openclaw"
   | "agent"
   | "skills"
+  | "sceneapps"
   | "automation"
   | "channels"
   | "resources"
@@ -42,9 +46,11 @@ export interface OpenClawPageParams {
 
 export interface AgentPendingServiceSkillLaunchParams {
   skillId: string;
+  skillKey?: string;
   requestKey?: number;
   initialSlotValues?: Record<string, string>;
   prefillHint?: string;
+  launchUserInput?: string;
 }
 
 /**
@@ -54,6 +60,8 @@ export interface AgentPendingServiceSkillLaunchParams {
 export interface AgentPageParams {
   projectId?: string;
   contentId?: string;
+  /** 进入 Agent 后优先恢复到指定会话 */
+  initialSessionId?: string;
   initialRequestMetadata?: Record<string, unknown>;
   initialAutoSendRequestMetadata?: Record<string, unknown>;
   autoRunInitialPromptOnMount?: boolean;
@@ -190,5 +198,6 @@ export type PageParams =
   | SettingsPageParams
   | OpenClawPageParams
   | SkillsPageParams
+  | SceneAppsPageParams
   | MemoryPageParams
   | Record<string, unknown>;

@@ -154,13 +154,30 @@ async function listenFallbackTransport<T>(
   handler: (event: { payload: T }) => void,
 ): Promise<UnlistenFn> {
   try {
-    return await baseListen(event, handler);
+    return createSafeUnlisten(await baseListen(event, handler));
   } catch (error) {
     if (!canUseExplicitBrowserMockFallback()) {
       throw error;
     }
-    return listenExplicitMock(event, handler);
+    return createSafeUnlisten(await listenExplicitMock(event, handler));
   }
+}
+
+function createSafeUnlisten(unlisten: UnlistenFn): UnlistenFn {
+  let active = true;
+
+  return () => {
+    if (!active) {
+      return;
+    }
+    active = false;
+
+    try {
+      unlisten();
+    } catch (error) {
+      console.warn("[safeListen] 取消事件监听失败，已忽略。", error);
+    }
+  };
 }
 
 function startInvokeTiming(command: string): string | null {
@@ -531,7 +548,7 @@ export async function safeListen<T = any>(
   // 同步检查即可，不轮询等待，避免首屏并发监听全部阻塞
   if (hasTauriEventListenerCapability()) {
     try {
-      return await baseListen(event, handler);
+      return createSafeUnlisten(await baseListen(event, handler));
     } catch (error) {
       if (hasTauriRuntimeMarkers()) {
         console.warn(
@@ -546,10 +563,10 @@ export async function safeListen<T = any>(
 
   if (hasDevBridgeEventListenerCapability()) {
     try {
-      return await listenViaHttpEvent(event, handler);
+      return createSafeUnlisten(await listenViaHttpEvent(event, handler));
     } catch (error) {
       if (!hasTauriRuntimeMarkers()) {
-        return listenExplicitMock(event, handler);
+        return createSafeUnlisten(await listenExplicitMock(event, handler));
       }
       console.warn(
         `[safeListen] DevBridge 事件流调用失败，跳过监听: ${event}`,

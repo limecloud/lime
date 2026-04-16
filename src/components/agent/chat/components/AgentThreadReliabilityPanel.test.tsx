@@ -10,12 +10,26 @@ import type {
   AgentThreadTurn,
   Message,
 } from "../types";
-import type { AgentRuntimeThreadReadModel } from "@/lib/api/agentRuntime";
+import type {
+  AgentRuntimeFileCheckpointDetail,
+  AgentRuntimeFileCheckpointDiffResult,
+  AgentRuntimeFileCheckpointListResult,
+  AgentRuntimeThreadReadModel,
+} from "@/lib/api/agentRuntime";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import type { HarnessSessionState } from "../utils/harnessState";
 import { recordRuntimeMemoryPrefetchHistory } from "@/lib/runtimeMemoryPrefetchHistory";
 
-const { mockToast, mockPrefetchContextMemoryForTurn } = vi.hoisted(() => ({
+const {
+  diffAgentRuntimeFileCheckpointMock,
+  getAgentRuntimeFileCheckpointMock,
+  listAgentRuntimeFileCheckpointsMock,
+  mockToast,
+  mockPrefetchContextMemoryForTurn,
+} = vi.hoisted(() => ({
+  diffAgentRuntimeFileCheckpointMock: vi.fn(),
+  getAgentRuntimeFileCheckpointMock: vi.fn(),
+  listAgentRuntimeFileCheckpointsMock: vi.fn(),
   mockToast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -26,6 +40,18 @@ const { mockToast, mockPrefetchContextMemoryForTurn } = vi.hoisted(() => ({
 vi.mock("sonner", () => ({
   toast: mockToast,
 }));
+
+vi.mock("@/lib/api/agentRuntime", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/agentRuntime")>(
+    "@/lib/api/agentRuntime",
+  );
+  return {
+    ...actual,
+    diffAgentRuntimeFileCheckpoint: diffAgentRuntimeFileCheckpointMock,
+    getAgentRuntimeFileCheckpoint: getAgentRuntimeFileCheckpointMock,
+    listAgentRuntimeFileCheckpoints: listAgentRuntimeFileCheckpointsMock,
+  };
+});
 
 vi.mock("@/lib/api/memoryRuntime", () => ({
   prefetchContextMemoryForTurn: mockPrefetchContextMemoryForTurn,
@@ -38,6 +64,171 @@ interface MountedHarness {
 
 const mountedRoots: MountedHarness[] = [];
 let originalClipboard: Clipboard | undefined;
+
+function createFileCheckpointListResult(): AgentRuntimeFileCheckpointListResult {
+  return {
+    session_id: "session-file-1",
+    thread_id: "thread-file-1",
+    checkpoint_count: 2,
+    checkpoints: [
+      {
+        checkpoint_id: "artifact-document:req-2",
+        turn_id: "turn-10",
+        path: ".lime/artifacts/thread-file/persistence-map.artifact.json",
+        source: "artifact_document_service",
+        updated_at: "2026-04-16T09:12:00Z",
+        version_no: 8,
+        version_id: "artifact-document:req-2:v8",
+        request_id: "req-2",
+        title: "持久化 current map",
+        kind: "artifact_document",
+        status: "ready",
+        preview_text: "补上 file checkpoint 对话框入口",
+        snapshot_path:
+          ".lime/artifacts/thread-file/.versions/persistence-map.v8.json",
+        validation_issue_count: 1,
+      },
+      {
+        checkpoint_id: "artifact-document:req-1",
+        turn_id: "turn-9",
+        path: ".lime/artifacts/thread-file/replay.artifact.json",
+        source: "artifact_document_service",
+        updated_at: "2026-04-16T08:58:00Z",
+        version_no: 7,
+        version_id: "artifact-document:req-1:v7",
+        request_id: "req-1",
+        title: "Replay case",
+        kind: "artifact_document",
+        status: "ready",
+        preview_text: "上一版 replay 导出",
+        snapshot_path:
+          ".lime/artifacts/thread-file/.versions/replay-case.v7.json",
+        validation_issue_count: 0,
+      },
+    ],
+  };
+}
+
+function createFileCheckpointDetail(
+  checkpointId: string,
+): AgentRuntimeFileCheckpointDetail {
+  if (checkpointId === "artifact-document:req-1") {
+    return {
+      session_id: "session-file-1",
+      thread_id: "thread-file-1",
+      checkpoint: {
+        checkpoint_id: "artifact-document:req-1",
+        turn_id: "turn-9",
+        path: ".lime/artifacts/thread-file/replay.artifact.json",
+        source: "artifact_document_service",
+        updated_at: "2026-04-16T08:58:00Z",
+        version_no: 7,
+        version_id: "artifact-document:req-1:v7",
+        request_id: "req-1",
+        title: "Replay case",
+        kind: "artifact_document",
+        status: "ready",
+        preview_text: "上一版 replay 导出",
+        snapshot_path:
+          ".lime/artifacts/thread-file/.versions/replay-case.v7.json",
+        validation_issue_count: 0,
+      },
+      live_path: ".lime/artifacts/thread-file/replay.artifact.json",
+      snapshot_path:
+        ".lime/artifacts/thread-file/.versions/replay-case.v7.json",
+      checkpoint_document: {
+        title: "Replay case",
+        body: "上一版导出仍使用旧摘要文案",
+      },
+      live_document: {
+        title: "Replay case",
+        body: "当前已切到新的 evidence 结构",
+      },
+      version_history: [{ version_id: "artifact-document:req-1:v6" }],
+      validation_issues: [],
+      metadata: {
+        source: "artifact_document_service",
+      },
+      content: "上一版 replay 导出",
+    };
+  }
+
+  return {
+    session_id: "session-file-1",
+    thread_id: "thread-file-1",
+    checkpoint: {
+      checkpoint_id: "artifact-document:req-2",
+      turn_id: "turn-10",
+      path: ".lime/artifacts/thread-file/persistence-map.artifact.json",
+      source: "artifact_document_service",
+      updated_at: "2026-04-16T09:12:00Z",
+      version_no: 8,
+      version_id: "artifact-document:req-2:v8",
+      request_id: "req-2",
+      title: "持久化 current map",
+      kind: "artifact_document",
+      status: "ready",
+      preview_text: "补上 file checkpoint 对话框入口",
+      snapshot_path:
+        ".lime/artifacts/thread-file/.versions/persistence-map.v8.json",
+      validation_issue_count: 1,
+    },
+    live_path: ".lime/artifacts/thread-file/persistence-map.artifact.json",
+    snapshot_path:
+      ".lime/artifacts/thread-file/.versions/persistence-map.v8.json",
+    checkpoint_document: {
+      title: "持久化 current map",
+      summary: "已在可靠性面板接入 file checkpoint detail/diff 对话框",
+    },
+    live_document: {
+      title: "持久化 current map",
+      summary: "当前工作区产物已经更新到 v8",
+    },
+    version_history: [
+      { version_id: "artifact-document:req-2:v7" },
+      { version_id: "artifact-document:req-2:v6" },
+    ],
+    validation_issues: ["缺少 reviewer 字段"],
+    metadata: {
+      source: "artifact_document_service",
+    },
+    content: "补上 file checkpoint 对话框入口",
+  };
+}
+
+function createFileCheckpointDiff(
+  checkpointId: string,
+): AgentRuntimeFileCheckpointDiffResult {
+  if (checkpointId === "artifact-document:req-1") {
+    return {
+      session_id: "session-file-1",
+      thread_id: "thread-file-1",
+      checkpoint: createFileCheckpointDetail(checkpointId).checkpoint,
+      current_version_id: "artifact-document:req-1:v7",
+      previous_version_id: "artifact-document:req-1:v6",
+      diff: {
+        changes: ["summary 从旧结构迁移到 replay 包"],
+      },
+    };
+  }
+
+  return {
+    session_id: "session-file-1",
+    thread_id: "thread-file-1",
+    checkpoint: createFileCheckpointDetail(checkpointId).checkpoint,
+    current_version_id: "artifact-document:req-2:v8",
+    previous_version_id: "artifact-document:req-2:v7",
+    diff: {
+      changes: ["新增可靠性面板快照详情入口"],
+    },
+  };
+}
+
+async function flushPromises(rounds = 4) {
+  for (let index = 0; index < rounds; index += 1) {
+    await Promise.resolve();
+  }
+}
 
 beforeEach(() => {
   (
@@ -63,6 +254,17 @@ beforeEach(() => {
     latest_compaction: null,
     prompt: null,
   });
+  listAgentRuntimeFileCheckpointsMock.mockResolvedValue(
+    createFileCheckpointListResult(),
+  );
+  getAgentRuntimeFileCheckpointMock.mockImplementation(
+    async ({ checkpoint_id }: { checkpoint_id: string }) =>
+      createFileCheckpointDetail(checkpoint_id),
+  );
+  diffAgentRuntimeFileCheckpointMock.mockImplementation(
+    async ({ checkpoint_id }: { checkpoint_id: string }) =>
+      createFileCheckpointDiff(checkpoint_id),
+  );
 });
 
 afterEach(() => {
@@ -261,6 +463,114 @@ describe("AgentThreadReliabilityPanel", () => {
     });
 
     expect(onInterruptCurrentTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("应展示最近文件快照摘要", () => {
+    const container = renderPanel({
+      threadRead: {
+        thread_id: "thread-file",
+        status: "completed",
+        file_checkpoint_summary: {
+          count: 2,
+          latest_checkpoint: {
+            checkpoint_id: "artifact-document:req-1",
+            turn_id: "turn-9",
+            path: ".lime/artifacts/thread-file/demo.artifact.json",
+            source: "artifact_document_service",
+            updated_at: "2026-04-15T09:08:00Z",
+            version_no: 7,
+            version_id: "artifact-document:req-1:v7",
+            preview_text: "补充了持久化快照对齐说明",
+            validation_issue_count: 0,
+            title: "持久化对齐说明",
+            status: "ready",
+          },
+        },
+      },
+    });
+
+    expect(container.textContent).toContain("最近文件快照");
+    expect(container.textContent).toContain(
+      ".lime/artifacts/thread-file/demo.artifact.json",
+    );
+    expect(container.textContent).toContain("共 2 个");
+    expect(container.textContent).toContain("v7");
+    expect(container.textContent).toContain("补充了持久化快照对齐说明");
+  });
+
+  it("应支持打开文件快照详情并拉取 list、detail、diff", async () => {
+    const container = renderPanel({
+      threadRead: {
+        thread_id: "thread-file-1",
+        status: "completed",
+        file_checkpoint_summary: {
+          count: 2,
+          latest_checkpoint: createFileCheckpointListResult().checkpoints[0],
+        },
+      },
+      diagnosticRuntimeContext: {
+        sessionId: "session-file-1",
+        workspaceId: "workspace-file-1",
+        workingDir: "/workspace/project-a",
+      },
+    });
+
+    const openButton = container.querySelector(
+      '[data-testid="agent-thread-file-checkpoint-open"]',
+    );
+    expect(openButton).not.toBeNull();
+    expect(openButton?.textContent).toContain("查看快照详情");
+
+    await act(async () => {
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await flushPromises();
+    });
+
+    expect(listAgentRuntimeFileCheckpointsMock).toHaveBeenCalledWith({
+      session_id: "session-file-1",
+    });
+    expect(getAgentRuntimeFileCheckpointMock).toHaveBeenCalledWith({
+      session_id: "session-file-1",
+      checkpoint_id: "artifact-document:req-2",
+    });
+    expect(diffAgentRuntimeFileCheckpointMock).toHaveBeenCalledWith({
+      session_id: "session-file-1",
+      checkpoint_id: "artifact-document:req-2",
+    });
+    expect(document.body.textContent).toContain("文件快照详情");
+    expect(document.body.textContent).toContain("缺少 reviewer 字段");
+    expect(document.body.textContent).toContain(
+      "新增可靠性面板快照详情入口",
+    );
+    expect(document.body.textContent).toContain("artifact-document:req-2:v7");
+    expect(document.body.textContent).toContain(
+      ".lime/artifacts/thread-file/persistence-map.artifact.json",
+    );
+
+    const previousCheckpointButton = document.body.querySelector(
+      '[data-testid="agent-thread-file-checkpoint-item-artifact-document:req-1"]',
+    );
+    expect(previousCheckpointButton).not.toBeNull();
+
+    await act(async () => {
+      previousCheckpointButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await flushPromises();
+    });
+
+    expect(getAgentRuntimeFileCheckpointMock).toHaveBeenLastCalledWith({
+      session_id: "session-file-1",
+      checkpoint_id: "artifact-document:req-1",
+    });
+    expect(diffAgentRuntimeFileCheckpointMock).toHaveBeenLastCalledWith({
+      session_id: "session-file-1",
+      checkpoint_id: "artifact-document:req-1",
+    });
+    expect(document.body.textContent).toContain("上一版导出仍使用旧摘要文案");
+    expect(document.body.textContent).toContain(
+      "summary 从旧结构迁移到 replay 包",
+    );
   });
 
   it("中断进行中时，面板应展示中断中的瞬时状态", async () => {

@@ -20,6 +20,7 @@
 - `task-agent-taxonomy.md` - Task / Agent / Coordinator current taxonomy、current/compat 分类与协调边界
 - `remote-runtime.md` - Remote runtime current 主链、远程入口 current/compat 分类与控制面归属
 - `memory-compaction.md` - Memory / Compaction current 主链、来源链/持久记忆/压缩边界与 current/compat 分类
+- `persistence-map.md` - Runtime 文件快照持久化主链、artifact sidecar/version/checkpoint 边界
 - `state-history-telemetry.md` - State / History / Telemetry current 主链、session/thread/request/evidence/history 边界与 current/compat 分类
 - `governance.md` - 新旧并存治理、迁移收口、禁止回流
 - `harness-engine-governance.md` - Harness Engine 事实源、evidence pack、replay / analysis / review 治理规范
@@ -67,6 +68,7 @@
 - **改 subagent / automation / execution tracker / scheduler taxonomy**：先读 `task-agent-taxonomy.md`
 - **改 channels / browser connector / DevBridge / OpenClaw remote runtime**：先读 `remote-runtime.md`
 - **改记忆来源链 / working memory / durable memory / Team Memory / compaction**：先读 `memory-compaction.md`
+- **改 FileArtifact / artifact sidecar / versions / file checkpoint / evidence 中的文件快照**：先读 `persistence-map.md`
 - **改 session detail / thread read / requestTelemetry / evidence / history-record**：先读 `state-history-telemetry.md`
 - **改 Tauri 命令 / Bridge / mock**：先读 `commands.md`，再看 `quality-workflow.md`
 - **改 `@` / `/` / 轻卡 / viewer / ServiceSkill 场景**：先读 `command-runtime.md`

@@ -1,17 +1,9 @@
 use aster::session::{
-    list_subagent_child_sessions, list_subagent_sessions_with_metadata,
-    resolve_subagent_session_metadata, Session, SessionManager, SessionType,
+    collect_subagent_cascade_session_ids as collect_query_subagent_cascade_session_ids,
+    query_all_subagent_sessions_with_metadata, query_child_subagent_sessions, query_session,
+    query_subagent_parent_session_id, query_subagent_session, Session, SessionType,
 };
-use std::collections::{HashMap, HashSet, VecDeque};
-
-fn normalize_optional_text(value: Option<String>) -> Option<String> {
-    let trimmed = value?.trim().to_string();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed)
-    }
-}
+use std::collections::HashSet;
 
 pub(crate) fn ensure_subagent_session(session: &Session) -> Result<(), String> {
     if session.session_type != SessionType::SubAgent {
@@ -28,7 +20,7 @@ pub async fn read_session(
     with_conversation: bool,
     error_context: &str,
 ) -> Result<Session, String> {
-    SessionManager::get_session(session_id, with_conversation)
+    query_session(session_id, with_conversation)
         .await
         .map_err(|error| format!("{error_context}: {error}"))
 }
@@ -37,13 +29,13 @@ pub async fn list_child_subagent_sessions(
     parent_session_id: &str,
     error_context: &str,
 ) -> Result<Vec<Session>, String> {
-    list_subagent_child_sessions(parent_session_id)
+    query_child_subagent_sessions(parent_session_id)
         .await
         .map_err(|error| format!("{error_context}: {error}"))
 }
 
 async fn list_subagent_sessions_with_metadata_query() -> Result<Vec<Session>, String> {
-    list_subagent_sessions_with_metadata()
+    query_all_subagent_sessions_with_metadata()
         .await
         .map_err(|error| format!("读取 subagent session 列表失败: {error}"))
 }
@@ -52,14 +44,13 @@ pub(crate) async fn read_subagent_session(
     session_id: &str,
     error_context: &str,
 ) -> Result<Session, String> {
-    let session = read_session(session_id, false, error_context).await?;
-    ensure_subagent_session(&session)?;
-    Ok(session)
+    query_subagent_session(session_id)
+        .await
+        .map_err(|error| format!("{error_context}: {error}"))
 }
 
 pub(crate) fn resolve_subagent_parent_session_id(session: &Session) -> Option<String> {
-    let metadata = resolve_subagent_session_metadata(&session.extension_data)?;
-    normalize_optional_text(Some(metadata.parent_session_id))
+    query_subagent_parent_session_id(session)
 }
 
 pub async fn list_subagent_status_scope_session_ids(session_id: &str) -> Vec<String> {
@@ -99,29 +90,7 @@ pub async fn list_subagent_cascade_session_ids(session_id: &str) -> Result<Vec<S
 }
 
 pub fn collect_subagent_cascade_session_ids(session_id: &str, sessions: &[Session]) -> Vec<String> {
-    let mut children_by_parent: HashMap<String, Vec<String>> = HashMap::new();
-    for session in sessions {
-        let Some(parent_session_id) = resolve_subagent_parent_session_id(session) else {
-            continue;
-        };
-        children_by_parent
-            .entry(parent_session_id)
-            .or_default()
-            .push(session.id.clone());
-    }
-
-    let mut ordered = vec![session_id.to_string()];
-    let mut queue = VecDeque::from([session_id.to_string()]);
-    while let Some(parent_id) = queue.pop_front() {
-        let Some(children) = children_by_parent.get(&parent_id) else {
-            continue;
-        };
-        for child_id in children {
-            ordered.push(child_id.clone());
-            queue.push_back(child_id.clone());
-        }
-    }
-    ordered
+    collect_query_subagent_cascade_session_ids(session_id, sessions)
 }
 
 #[cfg(test)]

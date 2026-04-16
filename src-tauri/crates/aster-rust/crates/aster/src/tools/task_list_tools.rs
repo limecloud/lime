@@ -22,9 +22,11 @@ use crate::session::extension_data::{
     persist_task_board_state, resolve_task_board_state, TaskBoardItem, TaskBoardItemStatus,
     TaskBoardState,
 };
+#[cfg(test)]
+use crate::session::SessionManager;
 use crate::session::{
-    resolve_team_context, resolve_team_task_list_id, SessionManager, SessionType,
-    TeamMembershipState, TeamSessionState,
+    apply_session_update, query_session, resolve_team_context, resolve_team_task_list_id,
+    SessionType, TeamMembershipState, TeamSessionState,
 };
 use crate::user_message_manager::UserMessageManager;
 
@@ -151,7 +153,7 @@ async fn resolve_task_board_binding(context: &ToolContext) -> ResolvedTaskBoardB
             };
         }
 
-        if let Ok(session) = SessionManager::get_session(&context.session_id, false).await {
+        if let Ok(session) = query_session(&context.session_id, false).await {
             if let Some(task_list_id) = resolve_team_task_list_id(&session.extension_data) {
                 return ResolvedTaskBoardBinding {
                     task_list_id,
@@ -319,7 +321,7 @@ async fn load_task_board_state(
     binding: &ResolvedTaskBoardBinding,
 ) -> TaskBoardState {
     if let Some(owner_session_id) = binding.owner_session_id.as_deref() {
-        if let Ok(session) = SessionManager::get_session(owner_session_id, false).await {
+        if let Ok(session) = query_session(owner_session_id, false).await {
             if let Some(state) = resolve_task_board_state(&session.extension_data) {
                 storage.set(&binding.task_list_id, state.clone());
                 return state;
@@ -341,12 +343,12 @@ async fn persist_task_board(
         return;
     };
 
-    if let Ok(mut session) = SessionManager::get_session(owner_session_id, false).await {
+    if let Ok(mut session) = query_session(owner_session_id, false).await {
         if persist_task_board_state(&mut session.extension_data, state).is_ok() {
-            let _ = SessionManager::update_session(owner_session_id)
-                .extension_data(session.extension_data)
-                .apply()
-                .await;
+            let _ = apply_session_update(owner_session_id, |update| {
+                update.extension_data(session.extension_data)
+            })
+            .await;
         }
     }
 }
@@ -398,9 +400,7 @@ async fn resolve_assignment_target_session_id(
     owner_name: &str,
 ) -> Option<String> {
     let member = team_state.find_member_by_name(owner_name)?.clone();
-    let session = SessionManager::get_session(&member.agent_id, false)
-        .await
-        .ok()?;
+    let session = query_session(&member.agent_id, false).await.ok()?;
 
     if member.is_lead {
         let lead_state = TeamSessionState::from_session(&session)?;
@@ -1135,11 +1135,10 @@ impl Tool for TaskUpdateTool {
                 "to": task_status_label(&task.status)
             })
         });
-        let should_emit_verification_nudge =
-            SessionManager::get_session(&context.session_id, false)
-                .await
-                .map(|session| session.session_type != SessionType::SubAgent)
-                .unwrap_or(true);
+        let should_emit_verification_nudge = query_session(&context.session_id, false)
+            .await
+            .map(|session| session.session_type != SessionType::SubAgent)
+            .unwrap_or(true);
         let verification_nudge_needed = should_emit_verification_nudge
             && previous_status != TaskBoardItemStatus::Completed
             && task.status == TaskBoardItemStatus::Completed

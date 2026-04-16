@@ -215,25 +215,40 @@ export const ProviderSetting: React.FC<ProviderSettingProps> = ({
   const requiresLiveModelTruth = modelAutoFetchCapability.supported;
   const hasRequiredApiAccess =
     !modelAutoFetchCapability.requiresApiKey || enabledApiKeyCount > 0;
+  const usesAnthropicProtocol = ["anthropic", "anthropic-compatible"].includes(
+    (provider.type || "").trim().toLowerCase(),
+  );
+  const savedDefaultModelId =
+    draftCustomModels.find((model) => model.trim().length > 0)?.trim() ?? null;
   const hasResolvedLiveModelDirectory =
     !requiresLiveModelTruth || Boolean(recommendedLatestModelId);
+  const canTestWithSavedDefaultModel =
+    requiresLiveModelTruth &&
+    usesAnthropicProtocol &&
+    Boolean(savedDefaultModelId);
   const showVerifiedModelState =
-    !requiresLiveModelTruth || hasResolvedLiveModelDirectory;
+    !requiresLiveModelTruth ||
+    hasResolvedLiveModelDirectory ||
+    canTestWithSavedDefaultModel;
   const defaultModel = showVerifiedModelState
-    ? (draftCustomModels[0] ?? recommendedLatestModelId ?? null)
+    ? (savedDefaultModelId ?? recommendedLatestModelId ?? null)
     : null;
   const connectionReady =
-    provider.enabled && hasRequiredApiAccess && hasResolvedLiveModelDirectory;
+    provider.enabled &&
+    hasRequiredApiAccess &&
+    (hasResolvedLiveModelDirectory || canTestWithSavedDefaultModel);
   const connectionBlockHint = !provider.enabled
     ? "请先启用当前 Provider，再进行连通性验证。"
     : !hasRequiredApiAccess
       ? "先添加并启用至少一把 API Key，再进行连通性验证。"
-      : !hasResolvedLiveModelDirectory
+      : !hasResolvedLiveModelDirectory && !canTestWithSavedDefaultModel
         ? "先读取真实模型目录，再进行连接测试与默认模型验证。"
         : null;
   const modelStatusNotice = !hasRequiredApiAccess
     ? "先添加并启用 API Key，才能读取真实模型目录。"
-    : !hasResolvedLiveModelDirectory
+    : !hasResolvedLiveModelDirectory && canTestWithSavedDefaultModel
+      ? "已保存默认模型，可先用于连接验证；读取真实模型目录后，页面会继续校正推荐模型。"
+      : !hasResolvedLiveModelDirectory
       ? "读取真实模型目录前，不展示旧模型，避免把历史缓存误认为当前可用模型。"
       : null;
   const showExplicitPromptCacheBadge =

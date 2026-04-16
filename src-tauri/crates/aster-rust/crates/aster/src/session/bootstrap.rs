@@ -1,6 +1,6 @@
 use super::{
-    initialize_default_shared_sqlite_thread_runtime_store, is_global_session_store_set,
-    load_session_runtime_snapshot, require_shared_thread_runtime_store, set_global_session_store,
+    initialize_default_sqlite_session_runtime_store, install_global_session_store,
+    is_global_session_store_set, load_runtime_snapshot_from_store, require_session_runtime_store,
     SessionRuntimeSnapshot, SessionStore, ThreadRuntimeStore,
 };
 use crate::config::paths::{initialize_path_root, Paths};
@@ -16,8 +16,8 @@ pub async fn initialize_shared_session_runtime_with_root(
     initialize_path_root(root).map_err(anyhow::Error::msg)?;
     ensure_shared_session_runtime_dirs()?;
 
-    if require_shared_thread_runtime_store().is_err() {
-        initialize_default_shared_sqlite_thread_runtime_store();
+    if require_session_runtime_store().is_err() {
+        initialize_default_sqlite_session_runtime_store();
     }
 
     if let Some(session_store) = session_store {
@@ -28,14 +28,21 @@ pub async fn initialize_shared_session_runtime_with_root(
 }
 
 pub fn require_shared_session_runtime_store() -> Result<Arc<dyn ThreadRuntimeStore>> {
-    require_shared_thread_runtime_store()
+    require_session_runtime_store()
 }
 
 pub async fn load_shared_session_runtime_snapshot(
     session_id: &str,
 ) -> Result<SessionRuntimeSnapshot> {
     let store = require_shared_session_runtime_store()?;
-    load_session_runtime_snapshot(store.as_ref(), session_id).await
+    load_managed_session_runtime_snapshot(store.as_ref(), session_id).await
+}
+
+pub async fn load_managed_session_runtime_snapshot(
+    store: &(impl ThreadRuntimeStore + ?Sized),
+    session_id: &str,
+) -> Result<SessionRuntimeSnapshot> {
+    load_runtime_snapshot_from_store(store, session_id).await
 }
 
 fn ensure_shared_session_runtime_dirs() -> Result<()> {
@@ -56,7 +63,7 @@ async fn ensure_global_session_store(store: Arc<dyn SessionStore>) -> Result<()>
         return Ok(());
     }
 
-    if let Err(error) = set_global_session_store(store).await {
+    if let Err(error) = install_global_session_store(store).await {
         if is_global_session_store_set() {
             return Ok(());
         }

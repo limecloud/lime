@@ -55,19 +55,19 @@ export function buildLayerMetrics(
       available: input.durableEntryCount > 0,
       description:
         input.durableEntryCount > 0
-          ? "跨会话可复用的结构化沉淀已进入 durable memory 视图。"
+          ? "跨会话可复用的结构化沉淀已进入长期记忆视图。"
           : "当前还没有可复用的持久记忆。",
     },
     {
       key: "team",
-      title: "Team Memory",
+      title: "团队记忆",
       value: input.teamSnapshotCount,
       unit: "份",
       available: input.teamSnapshotCount > 0,
       description:
         input.teamSnapshotCount > 0
-          ? "repo 作用域的 Team memory 快照可用于补足协作上下文。"
-          : "当前仓库还没有 Team Memory 快照。",
+          ? "repo 作用域的团队记忆快照可用于补足协作上下文。"
+          : "当前仓库还没有团队记忆快照。",
     },
     {
       key: "compaction",

@@ -1128,6 +1128,11 @@ pub(super) fn append_payload_tracking_metadata(metadata: &mut Map<String, Value>
             }) {
                 metadata.insert("service_skill".to_string(), service_skill.clone());
             }
+            if let Some(sceneapp) = request_metadata
+                .and_then(|value| value.get("sceneapp").or_else(|| value.get("sceneApp")))
+            {
+                metadata.insert("sceneapp".to_string(), sceneapp.clone());
+            }
 
             let harness = request_metadata
                 .and_then(|value| value.get("harness"))

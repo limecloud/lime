@@ -3,7 +3,7 @@
 //! Provides functionality for archiving sessions.
 
 use crate::config::paths::Paths;
-use crate::session::SessionManager;
+use crate::session::{delete_managed_session, SessionManager};
 use anyhow::Result;
 use std::fs;
 use std::path::PathBuf;
@@ -60,7 +60,7 @@ pub async fn archive_session(session_id: &str) -> Result<PathBuf> {
 /// * `session_id` - The session ID to archive and delete
 pub async fn archive_and_delete_session(session_id: &str) -> Result<PathBuf> {
     let archive_path = archive_session(session_id).await?;
-    SessionManager::delete_session(session_id).await?;
+    delete_managed_session(session_id).await?;
     info!("Session {} deleted after archiving", session_id);
     Ok(archive_path)
 }

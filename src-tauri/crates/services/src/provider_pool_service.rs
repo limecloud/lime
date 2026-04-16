@@ -10,6 +10,7 @@ use crate::provider_type_mapping::{
     resolve_pool_provider_type_or_default,
 };
 use chrono::Utc;
+use lime_core::database::dao::api_key_provider::{infer_managed_runtime_spec, ApiProviderType};
 use lime_core::database::dao::provider_pool::ProviderPoolDao;
 use lime_core::database::DbConnection;
 use lime_core::models::client_type::ClientType;
@@ -1531,16 +1532,24 @@ impl ProviderPoolService {
 
         tracing::debug!("[HEALTH_CHECK] Claude API URL: {}, model: {}", url, model);
 
-        let response = self
+        let runtime_spec = infer_managed_runtime_spec(ApiProviderType::Anthropic, base);
+        let auth_value = runtime_spec
+            .auth_prefix
+            .map(|prefix| format!("{prefix} {api_key}"))
+            .unwrap_or_else(|| api_key.to_string());
+
+        let mut request = self
             .client
             .post(&url)
-            .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
+            .header(runtime_spec.auth_header, auth_value)
             .json(&request_body)
-            .timeout(self.health_check_timeout)
-            .send()
-            .await
-            .map_err(|e| format!("请求失败: {e}"))?;
+            .timeout(self.health_check_timeout);
+
+        for (name, value) in runtime_spec.extra_headers {
+            request = request.header(*name, *value);
+        }
+
+        let response = request.send().await.map_err(|e| format!("请求失败: {e}"))?;
 
         if response.status().is_success() {
             Ok(())

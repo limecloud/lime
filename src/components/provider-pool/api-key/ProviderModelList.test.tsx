@@ -14,6 +14,20 @@ const { mockGetSystemProviderCatalog, mockGetModelRegistryProviderIds } =
 const { mockFetchProviderModelsAuto } = vi.hoisted(() => ({
   mockFetchProviderModelsAuto: vi.fn(),
 }));
+const { mockNormalizeFetchProviderModelsSource } = vi.hoisted(() => ({
+  mockNormalizeFetchProviderModelsSource: vi.fn((result) => {
+    if (
+      result?.source === "LocalFallback" &&
+      Array.isArray(result?.models) &&
+      result.models.length > 0 &&
+      typeof result?.error === "string" &&
+      result.error.includes("已保留当前 Provider 的自定义模型")
+    ) {
+      return "CustomModels";
+    }
+    return result?.source ?? "LocalFallback";
+  }),
+}));
 
 vi.mock("@/hooks/useModelRegistry", () => ({
   useModelRegistry: mockUseModelRegistry,
@@ -27,6 +41,7 @@ vi.mock("@/lib/api/apiKeyProvider", () => ({
 
 vi.mock("@/lib/api/modelRegistry", () => ({
   fetchProviderModelsAuto: mockFetchProviderModelsAuto,
+  normalizeFetchProviderModelsSource: mockNormalizeFetchProviderModelsSource,
   modelRegistryApi: {
     getModelRegistryProviderIds: mockGetModelRegistryProviderIds,
   },
@@ -276,6 +291,179 @@ describe("ProviderModelList", () => {
 
     expect(container.textContent).toContain("模型真相源异常");
     expect(container.textContent).toContain("未找到 models index.json");
+  });
+
+  it("MiniMax 的 anthropic-compatible 自定义 Provider 应能读取 Catalog 模型目录", async () => {
+    mockFetchProviderModelsAuto.mockResolvedValueOnce({
+      models: [
+        {
+          id: "MiniMax-M2.1",
+          display_name: "MiniMax-M2.1",
+          provider_id: "minimax",
+          provider_name: "MiniMax",
+          family: "minimax",
+          tier: "mini",
+          capabilities: {
+            vision: false,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+          },
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: null,
+          is_latest: false,
+          description: null,
+          source: "embedded",
+          created_at: 0,
+          updated_at: 0,
+        },
+        {
+          id: "MiniMax-M2.7",
+          display_name: "MiniMax-M2.7",
+          provider_id: "minimax",
+          provider_name: "MiniMax",
+          family: "minimax",
+          tier: "pro",
+          capabilities: {
+            vision: false,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+          },
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: null,
+          is_latest: true,
+          description: null,
+          source: "embedded",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+      source: "Catalog",
+      error: null,
+      request_url: null,
+      diagnostic_hint: null,
+      should_prompt_error: false,
+    });
+
+    const container = renderProviderModelList({
+      providerId: "custom-0f61e11f-b5e9-468d-b32e-d1a9c308a846",
+      providerType: "anthropic-compatible",
+      apiHost: "https://api.minimaxi.com/anthropic",
+      hasApiKey: true,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("获取最新模型"),
+    );
+
+    expect(button).not.toBeUndefined();
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockFetchProviderModelsAuto).toHaveBeenCalledWith(
+      "custom-0f61e11f-b5e9-468d-b32e-d1a9c308a846",
+    );
+    expect(container.textContent).toContain("MiniMax-M2.1");
+    expect(container.textContent).toContain("MiniMax-M2.7");
+    expect(container.textContent).toContain("目录");
+  });
+
+  it("实时目录不可用但保留当前 Provider 自定义模型时，应继续展示自定义模型", async () => {
+    mockFetchProviderModelsAuto.mockResolvedValueOnce({
+      models: [
+        {
+          id: "MiniMax-M2.7",
+          display_name: "MiniMax-M2.7",
+          provider_id: "minimax",
+          provider_name: "MiniMax",
+          family: "minimax",
+          tier: "pro",
+          capabilities: {
+            vision: false,
+            tools: true,
+            streaming: true,
+            json_mode: true,
+            function_calling: true,
+            reasoning: true,
+          },
+          pricing: null,
+          limits: {
+            context_length: null,
+            max_output_tokens: null,
+            requests_per_minute: null,
+            tokens_per_minute: null,
+          },
+          status: "active",
+          release_date: null,
+          is_latest: true,
+          description: null,
+          source: "embedded",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+      source: "LocalFallback",
+      error: "当前 Anthropic 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。",
+      request_url: "https://api.minimaxi.com/anthropic/v1/models",
+      diagnostic_hint: null,
+      should_prompt_error: false,
+    });
+
+    const container = renderProviderModelList({
+      providerId: "custom-0f61e11f-b5e9-468d-b32e-d1a9c308a846",
+      providerType: "anthropic-compatible",
+      apiHost: "https://api.minimaxi.com/anthropic",
+      hasApiKey: true,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const button = Array.from(container.querySelectorAll("button")).find(
+      (item) => item.textContent?.includes("获取最新模型"),
+    );
+
+    await act(async () => {
+      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("MiniMax-M2.7");
+    expect(container.textContent).toContain("自定义");
+    expect(container.textContent).toContain(
+      "当前 Anthropic 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。",
+    );
   });
 
   it("Provider 模型缓存应在 TTL 后过期", () => {

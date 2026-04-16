@@ -3,6 +3,7 @@
 use super::types::{
     HookResult, Plugin, PluginConfig, PluginContext, PluginError, PluginManifest, PluginType,
 };
+use crate::app_paths;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -19,12 +20,7 @@ impl PluginLoader {
     }
 
     pub fn default_plugins_dir() -> PathBuf {
-        // 使用 data_dir 而不是 config_dir，与 PluginInstaller 保持一致
-        // 在 macOS 上两者相同，但在其他平台上可能不同
-        dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("lime")
-            .join("plugins")
+        app_paths::best_effort_runtime_subdir("plugins")
     }
 
     pub fn with_defaults() -> Self {

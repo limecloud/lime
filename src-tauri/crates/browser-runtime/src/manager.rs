@@ -42,6 +42,7 @@ pub struct OpenSessionRequest {
 
 pub struct BrowserRuntimeManager {
     sessions: RwLock<HashMap<String, CdpSessionHandle>>,
+    open_session_gate: Mutex<()>,
 }
 
 impl Default for BrowserRuntimeManager {
@@ -54,6 +55,7 @@ impl BrowserRuntimeManager {
     pub fn new() -> Self {
         Self {
             sessions: RwLock::new(HashMap::new()),
+            open_session_gate: Mutex::new(()),
         }
     }
 
@@ -69,21 +71,47 @@ impl BrowserRuntimeManager {
     }
 
     pub async fn find_session_by_profile_key(&self, profile_key: &str) -> Option<CdpSessionState> {
-        let sessions = self.sessions.read().await;
-        for session in sessions.values() {
-            let state = session.state().await;
-            if state.profile_key == profile_key && state.connected {
-                return Some(state);
-            }
+        let mut sessions = self
+            .session_states_by_profile_key(profile_key)
+            .await
+            .into_iter()
+            .filter(|state| state.connected)
+            .collect::<Vec<_>>();
+        sessions.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+        sessions.pop()
+    }
+
+    pub async fn close_sessions_by_profile_key(&self, profile_key: &str) -> Vec<String> {
+        let session_ids = self
+            .session_states_by_profile_key(profile_key)
+            .await
+            .into_iter()
+            .map(|state| state.session_id)
+            .collect::<Vec<_>>();
+
+        for session_id in &session_ids {
+            let _ = self.close_session(session_id).await;
         }
-        None
+
+        session_ids
     }
 
     pub async fn open_session(
         &self,
         request: OpenSessionRequest,
     ) -> Result<CdpSessionState, String> {
+        let _open_guard = self.open_session_gate.lock().await;
         if let Some(existing) = self.find_session_by_profile_key(&request.profile_key).await {
+            let duplicate_session_ids = self
+                .session_states_by_profile_key(&request.profile_key)
+                .await
+                .into_iter()
+                .filter(|state| state.connected && state.session_id != existing.session_id)
+                .map(|state| state.session_id)
+                .collect::<Vec<_>>();
+            for session_id in duplicate_session_ids {
+                let _ = self.close_session(&session_id).await;
+            }
             if existing.environment_preset_id == request.environment_preset_id {
                 return Ok(existing);
             }
@@ -302,6 +330,24 @@ impl BrowserRuntimeManager {
             .get(session_id)
             .cloned()
             .ok_or_else(|| format!("未找到 session_id={session_id}"))
+    }
+
+    async fn session_states_by_profile_key(&self, profile_key: &str) -> Vec<CdpSessionState> {
+        let session_handles = self
+            .sessions
+            .read()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut matches = Vec::new();
+        for session in session_handles {
+            let state = session.state().await;
+            if state.profile_key == profile_key {
+                matches.push(state);
+            }
+        }
+        matches
     }
 }
 
@@ -875,9 +921,14 @@ impl CdpSessionHandle {
                 .await;
             }
             "Page.loadEventFired" => {
-                if let Ok(page_info) = self.capture_page_info().await {
-                    self.update_page_info(page_info).await;
-                }
+                // 不要在 reader_loop 内直接等待 Runtime.evaluate，
+                // 否则会把“等待响应”和“接收响应”锁在同一个任务里。
+                let session = self.clone();
+                tokio::spawn(async move {
+                    if let Ok(page_info) = session.capture_page_info().await {
+                        session.update_page_info(page_info).await;
+                    }
+                });
             }
             "Page.screencastFrame" => {
                 let data = params
@@ -906,13 +957,16 @@ impl CdpSessionHandle {
                 .await;
                 self.promote_to_live_if_needed().await;
                 if let Some(session_id) = params.get("sessionId").and_then(Value::as_u64) {
-                    let _ = self
-                        .send_command(
-                            "Page.screencastFrameAck",
-                            json!({ "sessionId": session_id }),
-                            DEFAULT_CDP_TIMEOUT_MS,
-                        )
-                        .await;
+                    let session = self.clone();
+                    tokio::spawn(async move {
+                        let _ = session
+                            .send_command(
+                                "Page.screencastFrameAck",
+                                json!({ "sessionId": session_id }),
+                                DEFAULT_CDP_TIMEOUT_MS,
+                            )
+                            .await;
+                    });
                 }
             }
             _ => {

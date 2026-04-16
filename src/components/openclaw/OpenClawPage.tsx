@@ -347,9 +347,13 @@ function buildCompatibleProviders(
       key: provider.id,
       label: provider.name,
       registryId: provider.id,
-      fallbackRegistryId: getRegistryIdFromType(provider.type),
+      fallbackRegistryId: getRegistryIdFromType(
+        provider.type,
+        provider.api_host,
+      ),
       type: provider.type,
       providerId: provider.id,
+      apiHost: provider.api_host,
       customModels: provider.custom_models,
       credentialType: `${provider.type}_key`,
     }));
@@ -2942,6 +2946,46 @@ export function OpenClawPage({
                     Gateway {gatewayRunning ? "运行中" : gatewayStatus}
                   </Badge>
                 </div>
+
+                <div className="rounded-[24px] border border-slate-200/80 bg-white/82 p-4 shadow-sm shadow-slate-950/5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="max-w-3xl">
+                      <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-500">
+                        REMOTE COMPAT
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        当前 remote 主入口已收口到消息渠道与浏览器连接器
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        OpenClaw 继续负责本地
+                        Gateway、安装修复和兼容接入，适合处理环境准备、 Gateway
+                        运行和本地兼容链路，而不是替代当前 remote 主入口。
+                      </p>
+                    </div>
+                    {onNavigate ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className={openClawSecondaryButtonClassName}
+                          onClick={() => onNavigate("channels")}
+                        >
+                          去消息渠道
+                        </button>
+                        <button
+                          type="button"
+                          className={openClawSecondaryButtonClassName}
+                          onClick={() =>
+                            onNavigate("settings", {
+                              tab: SettingsTabs.ChromeRelay,
+                            })
+                          }
+                        >
+                          去浏览器连接器
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               </div>
 
               <Tabs defaultValue="overview" className="w-full">
@@ -3210,5 +3254,3 @@ export function OpenClawPage({
     </div>
   );
 }
-
-export default OpenClawPage;

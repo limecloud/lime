@@ -54,6 +54,69 @@ describe("tauri-mock/core invoke", () => {
     expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
   });
 
+  it("SceneApp 自动化命令在浏览器模式下应返回结构化结果", async () => {
+    vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
+
+    await expect(
+      invoke("sceneapp_create_automation_job", {
+        intent: {
+          launchIntent: {
+            sceneappId: "daily-trend-briefing",
+            workspaceId: "workspace-default",
+            userInput: "关注 AI Agent 趋势",
+          },
+          runNow: true,
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        sceneappId: "daily-trend-briefing",
+        jobId: expect.any(String),
+        runNowResult: expect.objectContaining({
+          success_count: 1,
+        }),
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
+  it("SceneApp 运行前规划应返回 adapter plan 草稿", async () => {
+    vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
+
+    await expect(
+      invoke("sceneapp_plan_launch", {
+        intent: {
+          sceneappId: "x-article-export",
+          workspaceId: "workspace-default",
+          projectId: "project-research",
+          slots: {
+            article_url: "https://x.com/openai/article/123",
+            target_language: "中文",
+          },
+          runtimeContext: {
+            browserSessionAttached: true,
+          },
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        plan: expect.objectContaining({
+          adapterPlan: expect.objectContaining({
+            runtimeAction: "launch_browser_assist",
+            targetRef: "x/article-export",
+            preferredProfileKey: "general_browser_assist",
+            launchPayload: expect.objectContaining({
+              adapter_name: "x/article-export",
+            }),
+          }),
+        }),
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
   it("工具库存 fallback mock 不应再返回空壳清单", async () => {
     mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
     const consoleWarnSpy = vi

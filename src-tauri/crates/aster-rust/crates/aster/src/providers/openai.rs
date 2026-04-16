@@ -209,6 +209,34 @@ impl OpenAiProvider {
         Self::force_responses_api() || Self::looks_like_codex_responses_model(model_name)
     }
 
+    fn responses_path_from_base_path(base_path: &str) -> String {
+        let trimmed = base_path.trim_matches('/');
+        if trimmed.is_empty() {
+            return "v1/responses".to_string();
+        }
+
+        if let Some(prefix) = trimmed.strip_suffix("/chat/completions") {
+            if prefix.is_empty() {
+                return "responses".to_string();
+            }
+            return format!("{prefix}/responses");
+        }
+
+        if trimmed == "chat/completions" {
+            return "responses".to_string();
+        }
+
+        if trimmed.ends_with("/responses") || trimmed == "responses" {
+            return trimmed.to_string();
+        }
+
+        if trimmed.ends_with("/v1") || trimmed == "v1" {
+            return format!("{trimmed}/responses");
+        }
+
+        format!("{trimmed}/responses")
+    }
+
     fn normalize_optional_text(value: Option<&str>) -> Option<String> {
         value
             .map(str::trim)
@@ -310,9 +338,10 @@ impl OpenAiProvider {
     }
 
     async fn post_responses(&self, payload: &Value) -> Result<Value, ProviderError> {
+        let responses_path = Self::responses_path_from_base_path(&self.base_path);
         let response = self
             .api_client
-            .response_post("v1/responses", payload)
+            .response_post(&responses_path, payload)
             .await?;
         handle_response_openai_compat(response).await
     }
@@ -502,9 +531,10 @@ impl Provider for OpenAiProvider {
             let response = self
                 .with_retry(|| async {
                     let payload_clone = payload.clone();
+                    let responses_path = Self::responses_path_from_base_path(&self.base_path);
                     let resp = self
                         .api_client
-                        .response_post("v1/responses", &payload_clone)
+                        .response_post(&responses_path, &payload_clone)
                         .await?;
                     handle_status_openai_compat(resp).await
                 })
@@ -643,6 +673,26 @@ mod tests {
         std::env::set_var("OPENAI_FORCE_RESPONSES_API", "1");
         assert!(OpenAiProvider::uses_responses_api("gpt-4o"));
         std::env::remove_var("OPENAI_FORCE_RESPONSES_API");
+    }
+
+    #[test]
+    fn test_responses_path_from_base_path_reuses_existing_prefix() {
+        assert_eq!(
+            OpenAiProvider::responses_path_from_base_path("v1/chat/completions"),
+            "v1/responses"
+        );
+        assert_eq!(
+            OpenAiProvider::responses_path_from_base_path("openai/chat/completions"),
+            "openai/responses"
+        );
+        assert_eq!(
+            OpenAiProvider::responses_path_from_base_path("openai/v1/chat/completions"),
+            "openai/v1/responses"
+        );
+        assert_eq!(
+            OpenAiProvider::responses_path_from_base_path("v1"),
+            "v1/responses"
+        );
     }
 
     #[tokio::test]

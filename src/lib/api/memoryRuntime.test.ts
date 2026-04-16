@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { safeInvoke } from "@/lib/dev-bridge";
 import {
   analyzeContextMemory,
+  cleanupContextMemdir,
   cleanupContextMemory,
   getContextMemoryAutoIndex,
   getContextMemoryEffectiveSources,
@@ -11,6 +12,7 @@ import {
   getContextWorkingMemory,
   ensureWorkspaceLocalAgentsGitignore,
   prefetchContextMemoryForTurn,
+  scaffoldContextMemdir,
   scaffoldRuntimeAgentsTemplate,
   toggleContextMemoryAuto,
   updateContextMemoryAutoNote,
@@ -50,6 +52,8 @@ describe("memoryRuntime API", () => {
           return { sources: [] };
         case "memory_get_auto_index":
           return { items: [] };
+        case "memory_scaffold_memdir":
+          return { files: [], root_dir: "/tmp/workspace/memory" };
         case "memory_scaffold_runtime_agents_template":
           return { status: "created", path: "/tmp/.lime/AGENTS.md" };
         case "memory_ensure_workspace_local_agents_gitignore":
@@ -85,6 +89,9 @@ describe("memoryRuntime API", () => {
     );
     await expect(getContextMemoryAutoIndex()).resolves.toEqual(
       expect.objectContaining({ items: [] }),
+    );
+    await expect(scaffoldContextMemdir("/tmp/workspace")).resolves.toEqual(
+      expect.objectContaining({ root_dir: "/tmp/workspace/memory" }),
     );
     await expect(
       scaffoldRuntimeAgentsTemplate("workspace", "/tmp/workspace"),
@@ -142,8 +149,12 @@ describe("memoryRuntime API", () => {
     expect(safeInvoke).toHaveBeenNthCalledWith(9, "memory_get_auto_index", {
       workingDir: undefined,
     });
+    expect(safeInvoke).toHaveBeenNthCalledWith(10, "memory_scaffold_memdir", {
+      overwrite: undefined,
+      workingDir: "/tmp/workspace",
+    });
     expect(safeInvoke).toHaveBeenNthCalledWith(
-      10,
+      11,
       "memory_scaffold_runtime_agents_template",
       {
         overwrite: undefined,
@@ -152,7 +163,7 @@ describe("memoryRuntime API", () => {
       },
     );
     expect(safeInvoke).toHaveBeenNthCalledWith(
-      11,
+      12,
       "memory_ensure_workspace_local_agents_gitignore",
       {
         workingDir: "/tmp/workspace",
@@ -185,6 +196,10 @@ describe("memoryRuntime API", () => {
           return { enabled: true };
         case "memory_update_auto_note":
           return { items: [] };
+        case "memory_cleanup_memdir":
+          return { updated_files: 1 };
+        case "memory_scaffold_memdir":
+          return { files: [], root_dir: "/tmp/workspace/memory" };
         case "memory_scaffold_runtime_agents_template":
           return { status: "exists", path: "/tmp/.lime/AGENTS.md" };
         case "memory_ensure_workspace_local_agents_gitignore":
@@ -227,6 +242,12 @@ describe("memoryRuntime API", () => {
     await expect(updateContextMemoryAutoNote("note")).resolves.toEqual(
       expect.objectContaining({ items: [] }),
     );
+    await expect(cleanupContextMemdir("/tmp/workspace")).resolves.toEqual(
+      expect.objectContaining({ updated_files: 1 }),
+    );
+    await expect(scaffoldContextMemdir("/tmp/workspace")).resolves.toEqual(
+      expect.objectContaining({ root_dir: "/tmp/workspace/memory" }),
+    );
     await expect(scaffoldRuntimeAgentsTemplate("global")).resolves.toEqual(
       expect.objectContaining({ status: "exists" }),
     );
@@ -238,13 +259,27 @@ describe("memoryRuntime API", () => {
   it("应代理 context memory 自动记忆开关与写入命令", async () => {
     vi.mocked(safeInvoke)
       .mockResolvedValueOnce({ enabled: true })
-      .mockResolvedValueOnce({ items: [] });
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ updated_files: 1 });
 
     await expect(toggleContextMemoryAuto(true)).resolves.toEqual(
       expect.objectContaining({ enabled: true }),
     );
-    await expect(updateContextMemoryAutoNote("note", "topic")).resolves.toEqual(
-      expect.objectContaining({ items: [] }),
+    await expect(
+      updateContextMemoryAutoNote("note", "topic", undefined, "feedback"),
+    ).resolves.toEqual(expect.objectContaining({ items: [] }));
+
+    expect(safeInvoke).toHaveBeenNthCalledWith(2, "memory_update_auto_note", {
+      memoryType: "feedback",
+      note: "note",
+      topic: "topic",
+      workingDir: undefined,
+    });
+    await expect(cleanupContextMemdir("/tmp/workspace")).resolves.toEqual(
+      expect.objectContaining({ updated_files: 1 }),
     );
+    expect(safeInvoke).toHaveBeenNthCalledWith(3, "memory_cleanup_memdir", {
+      workingDir: "/tmp/workspace",
+    });
   });
 });

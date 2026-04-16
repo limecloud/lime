@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentPageParams, Page, PageParams } from "@/types/page";
+import { recordSceneAppRecentVisit } from "@/lib/sceneapp";
 import { AppSidebar } from "./AppSidebar";
 
 const { mockGetConfig, mockGetPluginsForSurface } = vi.hoisted(() => ({
@@ -28,6 +29,7 @@ const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
 function mountSidebar(options?: {
   currentPage?: Page;
   currentPageParams?: PageParams;
+  onNavigate?: (page: Page, params?: PageParams) => void;
 }): MountedSidebar["container"] {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -38,7 +40,7 @@ function mountSidebar(options?: {
       <AppSidebar
         currentPage={options?.currentPage ?? "agent"}
         currentPageParams={options?.currentPageParams}
-        onNavigate={vi.fn()}
+        onNavigate={options?.onNavigate ?? vi.fn()}
       />,
     );
   });
@@ -148,6 +150,44 @@ describe("AppSidebar", () => {
         'button[aria-label="消息渠道"][aria-current="page"]',
       ),
     ).not.toBeNull();
+  });
+
+  it("点击场景应用入口时应优先恢复最近一次 SceneApp 上下文", async () => {
+    const onNavigate = vi.fn();
+    recordSceneAppRecentVisit(
+      {
+        sceneappId: "story-video-suite",
+        projectId: "project-9",
+        runId: "run-2",
+      },
+      {
+        visitedAt: 600,
+      },
+    );
+
+    const container = mountSidebar({
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+      onNavigate,
+    });
+    await flushEffects();
+
+    const button = container.querySelector(
+      'button[aria-label="场景应用"]',
+    ) as HTMLButtonElement | null;
+
+    expect(button).not.toBeNull();
+
+    act(() => {
+      button?.click();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("sceneapps", {
+      sceneappId: "story-video-suite",
+      projectId: "project-9",
+      runId: "run-2",
+    });
   });
 
   it("默认应隐藏系统区的可选入口，只保留设置", async () => {

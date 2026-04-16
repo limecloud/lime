@@ -1,6 +1,6 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::session::SessionManager;
+use crate::session::{query_session, SessionManager};
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
@@ -91,7 +91,7 @@ impl ChatRecallClient {
 
         if let Some(sid) = session_id {
             // LOAD MODE: Get session summary (first and last few messages)
-            match SessionManager::get_session(&sid, true).await {
+            match query_session(&sid, true).await {
                 Ok(loaded_session) => {
                     let conversation = loaded_session.conversation.as_ref();
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef } from "react";
 
 interface BaseComposerRenderContext {
   textareaRef: React.RefObject<HTMLTextAreaElement>;
@@ -58,6 +58,7 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
 }) => {
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = externalTextareaRef || internalTextareaRef;
+  const textareaId = useId();
 
   const hasContent = useMemo(() => {
     return allowEmptySend || text.trim().length > 0 || hasAdditionalContent;
@@ -154,6 +155,8 @@ export const BaseComposer: React.FC<BaseComposerProps> = ({
   );
 
   const textareaProps: React.TextareaHTMLAttributes<HTMLTextAreaElement> = {
+    id: textareaId,
+    name: "agent-chat-message",
     value: text,
     onChange: (event) => setText(event.target.value),
     onKeyDown: handleKeyDown,

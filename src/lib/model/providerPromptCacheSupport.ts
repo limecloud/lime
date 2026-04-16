@@ -29,9 +29,10 @@ const EXPLICIT_ONLY_PROMPT_CACHE_PROVIDER_TYPES = new Set([
 ]);
 
 const KNOWN_AUTOMATIC_ANTHROPIC_COMPATIBLE_HOSTS =
-  promptCacheCatalog.automaticAnthropicCompatibleHosts.map((rule) =>
-    rule.contains.trim().toLowerCase(),
-  );
+  promptCacheCatalog.automaticAnthropicCompatibleHosts.map((rule) => ({
+    contains: rule.contains.trim().toLowerCase(),
+    provider: rule.provider.trim().toLowerCase(),
+  }));
 
 function normalizeProviderType(value?: string | null): string {
   return (value || "").trim().toLowerCase().replace(/_/g, "-");
@@ -44,13 +45,21 @@ function normalizeApiHost(value?: string | null): string {
 export function isKnownAutomaticAnthropicCompatibleHost(
   apiHost?: string | null,
 ): boolean {
+  return resolveKnownAnthropicCompatibleProvider(apiHost) !== null;
+}
+
+export function resolveKnownAnthropicCompatibleProvider(
+  apiHost?: string | null,
+): string | null {
   const normalizedApiHost = normalizeApiHost(apiHost);
   if (!normalizedApiHost) {
-    return false;
+    return null;
   }
 
-  return KNOWN_AUTOMATIC_ANTHROPIC_COMPATIBLE_HOSTS.some((needle) =>
-    normalizedApiHost.includes(needle),
+  return (
+    KNOWN_AUTOMATIC_ANTHROPIC_COMPATIBLE_HOSTS.find((rule) =>
+      normalizedApiHost.includes(rule.contains),
+    )?.provider ?? null
   );
 }
 

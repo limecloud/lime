@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  SEEDED_SERVICE_SKILL_CATALOG_TENANT_ID,
+  SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+} from "@/lib/base-setup/seededServiceSkillPackage";
+import { readStoredBaseSetupPackageSnapshot } from "@/lib/base-setup/storage";
+import {
   clearServiceSkillCatalogCache,
   getSeededServiceSkillCatalog,
   getServiceSkillCatalog,
@@ -9,6 +14,93 @@ import {
   subscribeServiceSkillCatalogChanged,
   type ServiceSkillCatalog,
 } from "./serviceSkills";
+
+function buildRemoteBaseSetupPackage() {
+  return {
+    id: "tenant-scene-pack",
+    version: "tenant-2026-04-15",
+    title: "Tenant Scene Pack",
+    summary: "租户下发的基础设置包",
+    bundle_refs: [
+      {
+        id: "tenant-bundle",
+        source: "remote",
+        path_or_uri: "lime://bundles/tenant",
+        kind: "skill_bundle",
+      },
+    ],
+    catalog_projections: [
+      {
+        id: "tenant-base-setup-skill",
+        target_catalog: "service_skill_catalog",
+        entry_key: "tenant-base-setup-skill",
+        skill_key: "tenant-base-setup-skill",
+        title: "租户基础设置场景",
+        summary: "通过基础设置包编译出来的目录项",
+        category: "租户能力",
+        output_hint: "结果包",
+        bundle_ref_id: "tenant-bundle",
+        slot_profile_ref: "tenant-slot-profile",
+        binding_profile_ref: "tenant-binding-profile",
+        artifact_profile_ref: "tenant-artifact-profile",
+        scorecard_profile_ref: "tenant-scorecard-profile",
+        policy_profile_ref: "tenant-policy-profile",
+        aliases: ["租户场景"],
+        trigger_hints: ["租户下发的新场景"],
+      },
+    ],
+    slot_profiles: [
+      {
+        id: "tenant-slot-profile",
+        slots: [
+          {
+            key: "topic",
+            label: "主题",
+            type: "text",
+            required: true,
+            placeholder: "输入主题",
+          },
+        ],
+      },
+    ],
+    binding_profiles: [
+      {
+        id: "tenant-binding-profile",
+        binding_family: "agent_turn",
+        runner_type: "instant",
+      },
+    ],
+    artifact_profiles: [
+      {
+        id: "tenant-artifact-profile",
+        delivery_contract: "artifact_bundle",
+        required_parts: ["index.md"],
+        viewer_kind: "artifact_bundle",
+        default_artifact_kind: "brief",
+        output_destination: "workspace",
+      },
+    ],
+    scorecard_profiles: [
+      {
+        id: "tenant-scorecard-profile",
+        metrics: ["acceptance_rate"],
+      },
+    ],
+    policy_profiles: [
+      {
+        id: "tenant-policy-profile",
+        enabled: true,
+        surface_scopes: ["home", "workspace"],
+      },
+    ],
+    compatibility: {
+      min_app_version: "1.11.0",
+      required_kernel_capabilities: ["agent_turn", "artifact_viewer"],
+      seeded_fallback: true,
+      compat_catalog_projection: true,
+    },
+  };
+}
 
 function buildRemoteCatalog(): ServiceSkillCatalog {
   const seeded = getSeededServiceSkillCatalog();
@@ -62,7 +154,7 @@ describe("serviceSkills API", () => {
   it("无缓存时应回退到 seeded catalog", async () => {
     const catalog = await getServiceSkillCatalog();
 
-    expect(catalog.tenantId).toBe("local-seeded");
+    expect(catalog.tenantId).toBe(SEEDED_SERVICE_SKILL_CATALOG_TENANT_ID);
     expect(catalog.items.length).toBeGreaterThan(0);
     expect(
       catalog.items.find((item) => item.id === "carousel-post-replication"),
@@ -82,6 +174,7 @@ describe("serviceSkills API", () => {
             isStandard: true,
           }),
           metadata: expect.objectContaining({
+            Lime_base_setup_package_id: "lime-seeded-service-skills",
             Lime_skill_type: "service",
             Lime_prompt_template_key: "replication",
           }),
@@ -93,6 +186,7 @@ describe("serviceSkills API", () => {
     ).toEqual(
       expect.objectContaining({
         source: "local_custom",
+        runnerType: "instant",
         defaultExecutorBinding: "browser_assist",
         sceneBinding: expect.objectContaining({
           sceneKey: "x-article-export",
@@ -118,6 +212,14 @@ describe("serviceSkills API", () => {
             defaultValue: "中文",
           }),
         ]),
+        skillBundle: expect.objectContaining({
+          metadata: expect.objectContaining({
+            Lime_base_setup_package_id:
+              "lime-seeded-local-custom-service-skills",
+            Lime_executor_binding: "browser_assist",
+            Lime_runner_type: "instant",
+          }),
+        }),
       }),
     );
     expect(
@@ -133,7 +235,9 @@ describe("serviceSkills API", () => {
     );
 
     const cached = window.localStorage.getItem("lime:service-skill-catalog:v1");
-    expect(cached).toContain('"tenantId":"local-seeded"');
+    expect(cached).toContain(
+      `"tenantId":"${SEEDED_SERVICE_SKILL_CATALOG_TENANT_ID}"`,
+    );
   });
 
   it("保存远端目录后应优先返回远端 catalog", async () => {
@@ -182,8 +286,8 @@ describe("serviceSkills API", () => {
     clearServiceSkillCatalogCache();
     const catalog = await getServiceSkillCatalog();
 
-    expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-04-09-browser-scene");
+    expect(catalog.tenantId).toBe(SEEDED_SERVICE_SKILL_CATALOG_TENANT_ID);
+    expect(catalog.version).toBe(SEEDED_SERVICE_SKILL_CATALOG_VERSION);
   });
 
   it("当前 OEM 租户不匹配时不应读取其他租户的缓存目录", async () => {
@@ -195,8 +299,8 @@ describe("serviceSkills API", () => {
 
     const catalog = await getServiceSkillCatalog();
 
-    expect(catalog.tenantId).toBe("local-seeded");
-    expect(catalog.version).toBe("client-seed-2026-04-09-browser-scene");
+    expect(catalog.tenantId).toBe(SEEDED_SERVICE_SKILL_CATALOG_TENANT_ID);
+    expect(catalog.version).toBe(SEEDED_SERVICE_SKILL_CATALOG_VERSION);
   });
 
   it("旧的 seeded 本地缓存应自动升级到当前 seeded 目录", async () => {
@@ -295,5 +399,81 @@ describe("serviceSkills API", () => {
     expect(catalog?.version).toBe("tenant-2026-03-24");
     expect(stored.version).toBe("tenant-2026-03-24");
     expect(stored.items[0]?.id).toBe("tenant-remote-skill");
+  });
+
+  it("应支持把 Base Setup Package 编译成 compat catalog", async () => {
+    saveServiceSkillCatalog(buildRemoteBaseSetupPackage(), "bootstrap_sync");
+
+    const catalog = await getServiceSkillCatalog();
+    const storedSnapshot = readStoredBaseSetupPackageSnapshot();
+
+    expect(catalog.tenantId).toBe("base-setup");
+    expect(catalog.version).toBe("tenant-2026-04-15");
+    expect(storedSnapshot).toEqual(
+      expect.objectContaining({
+        packageId: "tenant-scene-pack",
+        packageVersion: "tenant-2026-04-15",
+        tenantId: "base-setup",
+      }),
+    );
+    expect(catalog.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "tenant-base-setup-skill",
+          skillKey: "tenant-base-setup-skill",
+          title: "租户基础设置场景",
+          defaultExecutorBinding: "agent_turn",
+          outputDestination: "workspace",
+          skillBundle: expect.objectContaining({
+            metadata: expect.objectContaining({
+              Lime_base_setup_package_id: "tenant-scene-pack",
+              Lime_projection_id: "tenant-base-setup-skill",
+            }),
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it("切回普通 catalog 时应清理已有基础设置快照", async () => {
+    saveServiceSkillCatalog(buildRemoteBaseSetupPackage(), "bootstrap_sync");
+    expect(readStoredBaseSetupPackageSnapshot()?.packageId).toBe(
+      "tenant-scene-pack",
+    );
+
+    saveServiceSkillCatalog(buildRemoteCatalog(), "bootstrap_sync");
+
+    expect(readStoredBaseSetupPackageSnapshot()).toBeNull();
+  });
+
+  it("远端刷新应支持服务端直接返回 Base Setup Package", async () => {
+    window.__LIME_OEM_CLOUD__ = {
+      baseUrl: "https://oem.example.com",
+      tenantId: "tenant-demo",
+    };
+    window.__LIME_SESSION_TOKEN__ = "session-token-demo";
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        code: 200,
+        message: "success",
+        data: buildRemoteBaseSetupPackage(),
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const catalog = await refreshServiceSkillCatalogFromRemote();
+    const stored = await getServiceSkillCatalog();
+    const storedSnapshot = readStoredBaseSetupPackageSnapshot();
+
+    expect(catalog?.tenantId).toBe("tenant-demo");
+    expect(stored.items[0]?.id).toBe("tenant-base-setup-skill");
+    expect(storedSnapshot).toEqual(
+      expect.objectContaining({
+        packageId: "tenant-scene-pack",
+        tenantId: "tenant-demo",
+      }),
+    );
   });
 });

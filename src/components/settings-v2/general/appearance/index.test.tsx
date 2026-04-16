@@ -174,7 +174,7 @@ describe("AppearanceSettings", () => {
     expect(text).toContain("主导航入口");
     expect(text).toContain("系统入口");
     expect(text).toContain(
-      "核心入口固定显示：新建任务、任务中心、我的方法、消息渠道、资料库、灵感库",
+      "核心入口固定显示：新建任务、任务中心、我的方法、场景应用、消息渠道、资料库、灵感库",
     );
     expect(text).toContain("推荐行为");
     expect(text).toContain("OpenClaw");

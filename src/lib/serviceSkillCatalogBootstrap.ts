@@ -3,6 +3,7 @@ import {
   parseServiceSkillCatalog,
   type ServiceSkillCatalog,
 } from "@/lib/api/serviceSkills";
+import { extractBaseSetupPackageFromBootstrapPayload } from "@/lib/base-setup/bootstrap";
 
 const SERVICE_SKILL_CATALOG_BOOTSTRAP_EVENT =
   "lime:service-skill-catalog-bootstrap";
@@ -18,46 +19,68 @@ function hasWindow(): boolean {
   return typeof window !== "undefined";
 }
 
-function extractFromRecord(
+function extractServiceSkillCatalogPayloadFromRecord(
   record: Record<string, unknown>,
-): ServiceSkillCatalog | null {
-  const directCatalog = parseServiceSkillCatalog(record.serviceSkillCatalog);
-  if (directCatalog) {
-    return directCatalog;
+): unknown | null {
+  if (record.serviceSkillCatalog !== undefined) {
+    const directCatalog = parseServiceSkillCatalog(record.serviceSkillCatalog);
+    if (directCatalog) {
+      return record.serviceSkillCatalog;
+    }
+  }
+
+  const baseSetupPackage =
+    extractBaseSetupPackageFromBootstrapPayload(record.baseSetupPackage) ??
+    extractBaseSetupPackageFromBootstrapPayload(record.base_setup_package);
+  if (baseSetupPackage) {
+    return baseSetupPackage;
   }
 
   const nestedBootstrap = record.bootstrap;
   if (nestedBootstrap && typeof nestedBootstrap === "object") {
-    return extractServiceSkillCatalogFromBootstrapPayload(nestedBootstrap);
+    return extractServiceSkillCatalogPayloadFromBootstrapPayload(nestedBootstrap);
   }
 
   return null;
 }
 
-export function extractServiceSkillCatalogFromBootstrapPayload(
+function extractServiceSkillCatalogPayloadFromBootstrapPayload(
   payload: unknown,
-): ServiceSkillCatalog | null {
+): unknown | null {
   const directCatalog = parseServiceSkillCatalog(payload);
   if (directCatalog) {
-    return directCatalog;
+    return payload;
   }
 
   if (!payload || typeof payload !== "object") {
     return null;
   }
 
-  return extractFromRecord(payload as Record<string, unknown>);
+  return extractServiceSkillCatalogPayloadFromRecord(
+    payload as Record<string, unknown>,
+  );
+}
+
+export function extractServiceSkillCatalogFromBootstrapPayload(
+  payload: unknown,
+): ServiceSkillCatalog | null {
+  const extracted = extractServiceSkillCatalogPayloadFromBootstrapPayload(payload);
+  if (!extracted) {
+    return null;
+  }
+
+  return parseServiceSkillCatalog(extracted);
 }
 
 export function syncServiceSkillCatalogFromBootstrapPayload(
   payload: unknown,
 ): ServiceSkillCatalog | null {
-  const catalog = extractServiceSkillCatalogFromBootstrapPayload(payload);
-  if (!catalog) {
+  const extracted = extractServiceSkillCatalogPayloadFromBootstrapPayload(payload);
+  if (!extracted) {
     return null;
   }
 
-  return applyServerSyncedServiceSkillCatalog(catalog, "bootstrap_sync");
+  return applyServerSyncedServiceSkillCatalog(extracted, "bootstrap_sync");
 }
 
 export function applyInitialServiceSkillCatalogBootstrap(): ServiceSkillCatalog | null {

@@ -8,10 +8,9 @@
 |------|------|
 | `apiKeyMask.ts` | API Key 脱敏工具，用于安全显示 API Key |
 | `apiKeyMask.test.ts` | API Key 脱敏属性测试 |
-| `apiKeyValidation.ts` | API Key 格式验证，各 Provider 的验证规则 |
-| `apiKeyValidation.test.ts` | API Key 格式验证属性测试 |
 | `connectError.ts` | Connect 错误处理工具函数，Toast 通知 |
-| `syntaxHighlight.ts` | 代码语法高亮工具 |
+| `scheduleMinimumDelayIdleTask.ts` | 最小延迟 idle 调度 helper |
+| `scheduleMinimumDelayIdleTask.test.ts` | 最小延迟 idle 调度测试 |
 
 ## 主要功能
 
@@ -21,13 +20,6 @@
 - 长度 > 8：显示前 4 位 + "..." + 后 4 位
 - 长度 <= 8：返回 "****"
 
-### API Key 验证 (`apiKeyValidation.ts`)
-
-验证各 Provider 的 API Key 格式：
-- 前缀验证（如 OpenAI 的 `sk-`）
-- 长度验证
-- 字符验证
-
 ### Connect 错误处理 (`connectError.ts`)
 
 Lime Connect 功能的错误提示 Toast 通知：
@@ -35,3 +27,8 @@ Lime Connect 功能的错误提示 Toast 通知：
 - `showRegistryLoadError` - Registry 加载失败提示（已回退到缓存）
 - `showRegistryNoCacheError` - Registry 不可用错误（无缓存）
 - `showApiKeySaveError` - API Key 保存失败提示
+
+### 最小延迟 Idle 调度 (`scheduleMinimumDelayIdleTask.ts`)
+
+为需要让出主线程的轻量任务提供统一调度入口：
+- `scheduleMinimumDelayIdleTask` - 优先利用 idle 回调，在最小延迟后触发任务

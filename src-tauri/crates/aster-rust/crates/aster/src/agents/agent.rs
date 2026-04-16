@@ -47,14 +47,14 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{
-    load_session_runtime_snapshot, require_shared_thread_runtime_store, save_summary,
+    apply_session_update, load_managed_session_runtime_snapshot, query_session,
+    replace_session_conversation, require_shared_session_runtime_store, save_summary,
     InMemoryThreadRuntimeStore, ItemRuntime, ItemRuntimePayload, ItemStatus, Session,
     SessionManager, SessionRuntimeSnapshot, SessionStore, SessionType, TeamMembershipState,
     TeamSessionState, ThreadRuntime, ThreadRuntimeStore, TurnContextOverride,
     TurnOutputSchemaRuntime, TurnOutputSchemaSource, TurnOutputSchemaStrategy, TurnRuntime,
     TurnStatus,
 };
-use crate::session_context::current_turn_context;
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::tools::{
@@ -115,15 +115,6 @@ const SUBAGENT_TEAMMATE_ALLOWED_TOOL_NAMES: [&str; 5] = [
 ];
 const AUTO_COMPACTION_DISABLED_CONTEXT_LIMIT_TEXT: &str =
     "Automatic compaction is disabled for this turn. The conversation reached the context limit. Compact the session manually or start a new session before retrying.";
-const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
-const LIME_RUNTIME_TOOL_SURFACE_KEY: &str = "tool_surface";
-const TURN_TOOL_SURFACE_LOCAL_WORKSPACE: &str = "local_workspace";
-const LOCAL_WORKSPACE_TOOL_BATCH_PHASE: &str = "local_workspace_tool_batch";
-const LOCAL_WORKSPACE_STAGE_SUMMARY_REMINDER: &str =
-    "你刚完成一批本地工作区工具调用。下一步先直接输出 1 到 2 句用户可见的结论正文：说明已经确认了什么、还缺什么、为什么还要继续；不要额外输出“阶段结论”标题。只有仍缺关键证据时，才继续下一批；若继续，请把 2 到 4 个彼此独立的只读工具调用放在同一条回复里一起发起，不要退回单步长链侦查，也不要只说“继续检查”却不给过程结论。若用户已点名绝对路径、仓库根或具体文件，下一批也必须继续优先围绕这些显式路径，不要无故回扫默认工作目录。";
-const LOCAL_WORKSPACE_EMPTY_FOLLOWUP_CONTINUE_PROMPT: &str =
-    "请继续。你上一轮已经完成本地工作区侦查，但没有给出新的用户可见结论。现在必须继续：若仍缺关键证据，就立刻发起下一批必要的只读工具；证据已足够时，直接给出完整对比结论。不要停在空白，也不要重复已经完成的工具。";
-const ASSISTANT_PHASE_SUMMARY_FALLBACK_TITLE: &str = "已整理当前发现";
 const PROPOSED_PLAN_OPEN: &str = "<proposed_plan>";
 const PROPOSED_PLAN_CLOSE: &str = "</proposed_plan>";
 const FILE_ARTIFACT_METADATA_KEYS: [&str; 9] = [
@@ -217,401 +208,6 @@ fn extract_proposed_plan_block(text: &str) -> Option<String> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ToolBatchOperationKind {
-    List,
-    Search,
-    Read,
-    Command,
-    Other,
-}
-
-#[derive(Debug, Default)]
-struct LocalWorkspaceToolBatchAccumulator {
-    total_requests: usize,
-    list_count: usize,
-    search_count: usize,
-    read_count: usize,
-    command_count: usize,
-    latest_hint: Option<String>,
-    latest_list_hint: Option<String>,
-    latest_search_hint: Option<String>,
-    latest_read_hint: Option<String>,
-    latest_command_hint: Option<String>,
-}
-
-impl LocalWorkspaceToolBatchAccumulator {
-    fn record_request(&mut self, request: &ToolRequest) {
-        let Ok(tool_call) = &request.tool_call else {
-            return;
-        };
-
-        self.total_requests += 1;
-
-        let operation_kind = resolve_tool_batch_operation_kind(
-            tool_call.name.as_ref(),
-            tool_call.arguments.as_ref(),
-        );
-        let hint = resolve_tool_batch_latest_hint(request);
-        if let Some(latest_hint) = hint.clone() {
-            self.latest_hint = Some(latest_hint);
-        }
-
-        match operation_kind {
-            ToolBatchOperationKind::List => {
-                self.list_count += 1;
-                if let Some(latest_hint) = hint {
-                    self.latest_list_hint = Some(latest_hint);
-                }
-            }
-            ToolBatchOperationKind::Search => {
-                self.search_count += 1;
-                if let Some(latest_hint) = hint {
-                    self.latest_search_hint = Some(latest_hint);
-                }
-            }
-            ToolBatchOperationKind::Read => {
-                self.read_count += 1;
-                if let Some(latest_hint) = hint {
-                    self.latest_read_hint = Some(latest_hint);
-                }
-            }
-            ToolBatchOperationKind::Command => {
-                self.command_count += 1;
-                if let Some(latest_hint) = hint {
-                    self.latest_command_hint = Some(latest_hint);
-                }
-            }
-            ToolBatchOperationKind::Other => {}
-        }
-    }
-}
-
-fn normalize_tool_batch_name_key(tool_name: &str) -> String {
-    let mut normalized = String::with_capacity(tool_name.len());
-    let mut previous_was_separator = true;
-
-    for ch in tool_name.chars() {
-        if ch.is_ascii_uppercase() {
-            if !normalized.is_empty() && !previous_was_separator {
-                normalized.push('_');
-            }
-            normalized.push(ch.to_ascii_lowercase());
-            previous_was_separator = false;
-        } else if ch.is_ascii_alphanumeric() {
-            normalized.push(ch.to_ascii_lowercase());
-            previous_was_separator = false;
-        } else if !previous_was_separator && !normalized.is_empty() {
-            normalized.push('_');
-            previous_was_separator = true;
-        }
-    }
-
-    normalized.trim_matches('_').to_string()
-}
-
-fn shorten_tool_batch_hint(value: &str) -> Option<String> {
-    let collapsed = value.split_whitespace().collect::<Vec<_>>().join(" ");
-    let trimmed = collapsed.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    const MAX_HINT_CHARS: usize = 72;
-    let shortened = trimmed.chars().take(MAX_HINT_CHARS).collect::<String>();
-    if trimmed.chars().count() > MAX_HINT_CHARS {
-        Some(format!("{shortened}..."))
-    } else {
-        Some(shortened)
-    }
-}
-
-fn read_tool_batch_argument(
-    arguments: Option<&rmcp::model::JsonObject>,
-    keys: &[&str],
-) -> Option<String> {
-    let arguments = arguments?;
-
-    for key in keys {
-        let Some(value) = arguments.get(*key) else {
-            continue;
-        };
-        match value {
-            Value::String(text) => {
-                if let Some(value) = shorten_tool_batch_hint(text) {
-                    return Some(value);
-                }
-            }
-            Value::Number(number) => return Some(number.to_string()),
-            Value::Bool(boolean) => return Some(boolean.to_string()),
-            Value::Array(items) => {
-                let joined = items
-                    .iter()
-                    .filter_map(|item| item.as_str())
-                    .map(str::trim)
-                    .filter(|item| !item.is_empty())
-                    .take(3)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                if let Some(value) = shorten_tool_batch_hint(&joined) {
-                    return Some(value);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    None
-}
-
-fn resolve_tool_batch_path(
-    tool_name: &str,
-    arguments: Option<&rmcp::model::JsonObject>,
-) -> Option<String> {
-    fn read_raw_path_argument(
-        arguments: Option<&rmcp::model::JsonObject>,
-        keys: &[&str],
-    ) -> Option<String> {
-        let arguments = arguments?;
-        for key in keys {
-            let Some(value) = arguments.get(*key) else {
-                continue;
-            };
-            if let Some(text) = value.as_str() {
-                let trimmed = text.trim();
-                if !trimmed.is_empty() {
-                    return Some(trimmed.to_string());
-                }
-            }
-        }
-        None
-    }
-
-    let normalized_name = normalize_tool_batch_name_key(tool_name);
-    let candidate = if normalized_name.contains("read") {
-        read_raw_path_argument(
-            arguments,
-            &["file_path", "filePath", "path", "absolute_path", "cwd"],
-        )
-    } else if normalized_name.contains("glob")
-        || normalized_name.contains("list")
-        || normalized_name.contains("tree")
-    {
-        read_raw_path_argument(arguments, &["path", "root", "cwd", "workdir"])
-    } else if normalized_name.contains("grep") || normalized_name.contains("search") {
-        read_raw_path_argument(arguments, &["path", "root", "cwd", "workdir"])
-    } else if normalized_name.contains("bash")
-        || normalized_name.contains("shell")
-        || normalized_name.contains("power")
-    {
-        read_raw_path_argument(arguments, &["cwd", "workdir", "path"])
-    } else {
-        read_raw_path_argument(
-            arguments,
-            &[
-                "file_path",
-                "filePath",
-                "path",
-                "absolute_path",
-                "root",
-                "cwd",
-                "workdir",
-            ],
-        )
-    }?;
-
-    Some(candidate)
-}
-
-fn file_name_from_tool_batch_path(path: &str) -> Option<String> {
-    let trimmed = path.trim().trim_matches('"').trim_matches('\'');
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    std::path::Path::new(trimmed)
-        .file_name()
-        .and_then(|value| value.to_str())
-        .and_then(shorten_tool_batch_hint)
-        .or_else(|| shorten_tool_batch_hint(trimmed))
-}
-
-fn resolve_shell_like_operation_kind(command: &str) -> ToolBatchOperationKind {
-    let trimmed = command.trim();
-    if trimmed.is_empty() {
-        return ToolBatchOperationKind::Command;
-    }
-
-    let normalized = trimmed.to_ascii_lowercase();
-    let first_token = normalized
-        .lines()
-        .find(|line| !line.trim().is_empty())
-        .and_then(|line| line.split_whitespace().next())
-        .unwrap_or_default()
-        .trim_matches('"')
-        .trim_matches('\'');
-
-    if matches!(first_token, "ls" | "dir" | "tree" | "find" | "fd") {
-        return ToolBatchOperationKind::List;
-    }
-    if matches!(first_token, "rg" | "grep" | "findstr") || normalized.contains(" rg ") {
-        return ToolBatchOperationKind::Search;
-    }
-    if matches!(
-        first_token,
-        "cat" | "sed" | "head" | "tail" | "awk" | "wc" | "type" | "bat"
-    ) {
-        return ToolBatchOperationKind::Read;
-    }
-
-    ToolBatchOperationKind::Command
-}
-
-fn resolve_tool_batch_operation_kind(
-    tool_name: &str,
-    arguments: Option<&rmcp::model::JsonObject>,
-) -> ToolBatchOperationKind {
-    let normalized_name = normalize_tool_batch_name_key(tool_name);
-
-    if normalized_name.contains("read") {
-        ToolBatchOperationKind::Read
-    } else if normalized_name.contains("glob")
-        || normalized_name.contains("list")
-        || normalized_name.contains("tree")
-    {
-        ToolBatchOperationKind::List
-    } else if normalized_name.contains("grep") || normalized_name.contains("search") {
-        ToolBatchOperationKind::Search
-    } else if normalized_name.contains("bash")
-        || normalized_name.contains("shell")
-        || normalized_name.contains("power")
-    {
-        let command =
-            read_tool_batch_argument(arguments, &["command", "script"]).unwrap_or_default();
-        resolve_shell_like_operation_kind(&command)
-    } else {
-        ToolBatchOperationKind::Other
-    }
-}
-
-fn resolve_tool_batch_latest_hint(request: &ToolRequest) -> Option<String> {
-    let tool_call = request.tool_call.as_ref().ok()?;
-    let arguments = tool_call.arguments.as_ref();
-    let operation_kind = resolve_tool_batch_operation_kind(tool_call.name.as_ref(), arguments);
-    let path_hint = resolve_tool_batch_path(tool_call.name.as_ref(), arguments)
-        .and_then(|path| file_name_from_tool_batch_path(&path).or(Some(path)));
-    let pattern_hint =
-        read_tool_batch_argument(arguments, &["pattern", "query", "q", "regex", "search"]);
-
-    match operation_kind {
-        ToolBatchOperationKind::Read | ToolBatchOperationKind::List => path_hint,
-        ToolBatchOperationKind::Search => match (path_hint, pattern_hint) {
-            (Some(path), Some(pattern)) => shorten_tool_batch_hint(&format!("{path} / {pattern}")),
-            (Some(path), None) => Some(path),
-            (None, Some(pattern)) => Some(pattern),
-            (None, None) => shorten_tool_batch_hint(tool_call.name.as_ref()),
-        },
-        ToolBatchOperationKind::Command => {
-            read_tool_batch_argument(arguments, &["command", "script"])
-                .and_then(|command| shorten_tool_batch_hint(&command))
-                .or(path_hint)
-        }
-        ToolBatchOperationKind::Other => {
-            path_hint.or_else(|| shorten_tool_batch_hint(tool_call.name.as_ref()))
-        }
-    }
-}
-
-fn build_local_workspace_tool_batch_runtime_status(
-    frontend_requests: &[ToolRequest],
-    remaining_requests: &[ToolRequest],
-) -> Option<(String, String, String, Vec<String>)> {
-    let mut accumulator = LocalWorkspaceToolBatchAccumulator::default();
-    for request in frontend_requests.iter().chain(remaining_requests.iter()) {
-        accumulator.record_request(request);
-    }
-
-    if accumulator.total_requests == 0 {
-        return None;
-    }
-
-    let mut activities = Vec::new();
-    if accumulator.list_count > 0 {
-        activities.push("目录扫描");
-    }
-    if accumulator.search_count > 0 {
-        activities.push("关键检索");
-    }
-    if accumulator.read_count > 0 {
-        activities.push("文件读取");
-    }
-    if accumulator.command_count > 0 {
-        activities.push("命令探查");
-    }
-    if activities.is_empty() {
-        activities.push("本地工具分析");
-    }
-
-    let activity_text = match activities.as_slice() {
-        [] => "本地工具分析".to_string(),
-        [single] => (*single).to_string(),
-        [left, right] => format!("{left}和{right}"),
-        _ => {
-            let head = activities[..activities.len() - 1].join("、");
-            let tail = activities.last().copied().unwrap_or("本地工具分析");
-            format!("{head}和{tail}")
-        }
-    };
-
-    let detail = match accumulator.latest_hint.as_deref() {
-        Some(latest_hint) => format!(
-            "已完成这一批本地仓库的{activity_text}，当前线索集中在“{latest_hint}”，正在整理这一批结果并判断是否还需要继续取证。"
-        ),
-        None => format!(
-            "已完成这一批本地仓库的{activity_text}，正在整理这一批结果并判断是否还需要继续取证。"
-        ),
-    };
-
-    let mut checkpoints = Vec::new();
-    if accumulator.list_count > 0 {
-        checkpoints.push(match accumulator.latest_list_hint.as_deref() {
-            Some(latest_hint) => format!("目录扫描：{latest_hint}"),
-            None => format!("目录扫描 {} 次", accumulator.list_count),
-        });
-    }
-    if accumulator.search_count > 0 {
-        checkpoints.push(match accumulator.latest_search_hint.as_deref() {
-            Some(latest_hint) => format!("关键检索：{latest_hint}"),
-            None => format!("关键检索 {} 次", accumulator.search_count),
-        });
-    }
-    if accumulator.read_count > 0 {
-        checkpoints.push(match accumulator.latest_read_hint.as_deref() {
-            Some(latest_hint) => format!("文件读取：{latest_hint}"),
-            None => format!("文件读取 {} 次", accumulator.read_count),
-        });
-    }
-    if accumulator.command_count > 0 {
-        checkpoints.push(match accumulator.latest_command_hint.as_deref() {
-            Some(latest_hint) => format!("命令探查：{latest_hint}"),
-            None => format!("命令探查 {} 次", accumulator.command_count),
-        });
-    }
-    if checkpoints.is_empty() {
-        checkpoints.push(format!(
-            "本批共发起 {} 个工具调用",
-            accumulator.total_requests
-        ));
-    }
-
-    Some((
-        LOCAL_WORKSPACE_TOOL_BATCH_PHASE.to_string(),
-        "已完成一批本地分析".to_string(),
-        detail,
-        checkpoints,
-    ))
-}
-
 #[derive(Debug, Clone)]
 struct ToolExecutionBatch {
     is_concurrency_safe: bool,
@@ -671,47 +267,6 @@ fn partition_tool_requests_for_execution(requests: &[ToolRequest]) -> Vec<ToolEx
     }
 
     batches
-}
-
-fn extract_assistant_phase_summary_detail(text: &str) -> Option<String> {
-    let marker = ["阶段结论：", "阶段结论:"]
-        .into_iter()
-        .filter_map(|candidate| text.rfind(candidate).map(|index| (index, candidate)))
-        .max_by_key(|(index, _)| *index);
-    if let Some(marker) = marker {
-        let summary_tail = text.get(marker.0 + marker.1.len()..)?.trim_start();
-        if summary_tail.is_empty() {
-            return None;
-        }
-
-        let detail = summary_tail
-            .split("\n\n")
-            .next()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())?;
-        return Some(detail.to_string());
-    }
-
-    let mut offset = 0usize;
-    let mut last_heading_end = None;
-    for line in text.split('\n') {
-        if is_assistant_phase_summary_heading_line(line.trim()) {
-            last_heading_end = Some(offset + line.len());
-        }
-        offset += line.len() + 1;
-    }
-
-    let summary_tail = text.get(last_heading_end?..)?.trim_start();
-    if summary_tail.is_empty() {
-        return None;
-    }
-
-    let detail = summary_tail
-        .split("\n\n")
-        .next()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())?;
-    Some(detail.to_string())
 }
 
 fn is_assistant_phase_summary_heading_line(line: &str) -> bool {
@@ -1043,81 +598,6 @@ fn tool_surface_updated_from_call_tool_result(result: &CallToolResult) -> bool {
         .and_then(|value| value.get("tool_surface_updated"))
         .and_then(Value::as_bool)
         .unwrap_or(false)
-}
-
-fn resolve_current_turn_tool_surface_mode() -> Option<String> {
-    current_turn_context()?
-        .metadata
-        .get(LIME_RUNTIME_METADATA_KEY)
-        .and_then(|value| value.get(LIME_RUNTIME_TOOL_SURFACE_KEY))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-}
-
-fn is_local_workspace_stage_summary_reminder(message: &Message) -> bool {
-    is_agent_only_runtime_prompt(message, LOCAL_WORKSPACE_STAGE_SUMMARY_REMINDER)
-}
-
-fn is_local_workspace_empty_followup_continue_prompt(message: &Message) -> bool {
-    is_agent_only_runtime_prompt(message, LOCAL_WORKSPACE_EMPTY_FOLLOWUP_CONTINUE_PROMPT)
-}
-
-fn is_agent_only_runtime_prompt(message: &Message, expected_text: &str) -> bool {
-    message.metadata.agent_visible
-        && !message.metadata.user_visible
-        && message.role == Role::User
-        && message
-            .content
-            .iter()
-            .filter_map(MessageContent::as_text)
-            .any(|text| text.trim() == expected_text)
-}
-
-fn already_has_local_workspace_stage_summary_reminder(
-    conversation: &Conversation,
-    pending_messages: &Conversation,
-) -> bool {
-    pending_messages
-        .messages()
-        .last()
-        .or_else(|| conversation.messages().last())
-        .is_some_and(is_local_workspace_stage_summary_reminder)
-}
-
-fn already_has_local_workspace_empty_followup_continue_prompt(
-    conversation: &Conversation,
-    pending_messages: &Conversation,
-) -> bool {
-    pending_messages
-        .messages()
-        .last()
-        .or_else(|| conversation.messages().last())
-        .is_some_and(is_local_workspace_empty_followup_continue_prompt)
-}
-
-fn should_queue_local_workspace_stage_summary_prompt(
-    tool_surface_mode: Option<&str>,
-    tool_request_count: usize,
-    already_has_pending_prompt: bool,
-) -> bool {
-    matches!(tool_surface_mode, Some(TURN_TOOL_SURFACE_LOCAL_WORKSPACE))
-        && tool_request_count > 0
-        && !already_has_pending_prompt
-}
-
-fn should_retry_local_workspace_empty_followup(
-    tool_surface_mode: Option<&str>,
-    conversation: &Conversation,
-    pending_messages: &Conversation,
-) -> bool {
-    matches!(tool_surface_mode, Some(TURN_TOOL_SURFACE_LOCAL_WORKSPACE))
-        && already_has_local_workspace_stage_summary_reminder(conversation, pending_messages)
-        && !already_has_local_workspace_empty_followup_continue_prompt(
-            conversation,
-            pending_messages,
-        )
 }
 
 fn normalize_agent_optional_text(value: Option<String>) -> Option<String> {
@@ -1575,46 +1055,6 @@ impl TurnItemRuntimeProjector {
             ));
         }
 
-        if let Some(detail) = extract_assistant_phase_summary_detail(&raw_next_text) {
-            let status_item_id = Agent::runtime_status_item_id(&self.turn_id);
-            let summary_title = self
-                .items
-                .get(&status_item_id)
-                .and_then(|item| match &item.payload {
-                    ItemRuntimePayload::RuntimeStatus { phase, title, .. }
-                        if phase == LOCAL_WORKSPACE_TOOL_BATCH_PHASE
-                            && !title.trim().is_empty() =>
-                    {
-                        Some(title.clone())
-                    }
-                    _ => None,
-                })
-                .unwrap_or_else(|| ASSISTANT_PHASE_SUMMARY_FALLBACK_TITLE.to_string());
-            let should_emit_runtime_status = !matches!(
-                self.items.get(&status_item_id).map(|item| &item.payload),
-                Some(ItemRuntimePayload::RuntimeStatus {
-                    phase,
-                    detail: existing_detail,
-                    checkpoints,
-                    ..
-                }) if phase == LOCAL_WORKSPACE_TOOL_BATCH_PHASE
-                    && existing_detail == &detail
-                    && checkpoints.is_empty()
-            );
-
-            if should_emit_runtime_status {
-                events.push(self.upsert_in_progress(
-                    status_item_id,
-                    ItemRuntimePayload::RuntimeStatus {
-                        phase: LOCAL_WORKSPACE_TOOL_BATCH_PHASE.to_string(),
-                        title: summary_title,
-                        detail,
-                        checkpoints: Vec::new(),
-                    },
-                ));
-            }
-        }
-
         events
     }
 
@@ -1966,8 +1406,8 @@ impl Agent {
         }
     }
 
-    pub fn new_with_required_shared_thread_runtime_store() -> Result<Self> {
-        Ok(Self::new().with_thread_runtime_store(require_shared_thread_runtime_store()?))
+    pub fn new_with_required_session_runtime_store() -> Result<Self> {
+        Ok(Self::new().with_thread_runtime_store(require_shared_session_runtime_store()?))
     }
 
     /// 设置自定义 session 存储
@@ -2214,7 +1654,7 @@ impl Agent {
         if let Some(store) = &self.session_store {
             store.get_session(session_id, include_messages).await
         } else {
-            SessionManager::get_session(session_id, include_messages).await
+            query_session(session_id, include_messages).await
         }
     }
 
@@ -2227,7 +1667,7 @@ impl Agent {
         if let Some(store) = &self.session_store {
             store.replace_conversation(session_id, conversation).await
         } else {
-            SessionManager::replace_conversation(session_id, conversation).await
+            replace_session_conversation(session_id, conversation).await
         }
     }
 
@@ -2242,10 +1682,7 @@ impl Agent {
                 .update_extension_data(session_id, extension_data)
                 .await
         } else {
-            SessionManager::update_session(session_id)
-                .extension_data(extension_data)
-                .apply()
-                .await
+            apply_session_update(session_id, |update| update.extension_data(extension_data)).await
         }
     }
 
@@ -2261,11 +1698,12 @@ impl Agent {
                 .update_provider_config(session_id, Some(provider_name), Some(model_config))
                 .await
         } else {
-            SessionManager::update_session(session_id)
-                .provider_name(provider_name)
-                .model_config(model_config)
-                .apply()
-                .await
+            apply_session_update(session_id, |update| {
+                update
+                    .provider_name(provider_name)
+                    .model_config(model_config)
+            })
+            .await
         }
     }
 
@@ -2679,7 +2117,7 @@ impl Agent {
     }
 
     pub async fn runtime_snapshot(&self, session_id: &str) -> Result<SessionRuntimeSnapshot> {
-        load_session_runtime_snapshot(self.thread_runtime_store.as_ref(), session_id).await
+        load_managed_session_runtime_snapshot(self.thread_runtime_store.as_ref(), session_id).await
     }
 
     // ========== End Session 存储辅助方法 ==========
@@ -3796,7 +3234,7 @@ impl Agent {
                             let updated_session = if let Some(store) = &session_store_clone {
                                 store.get_session(&session_id_clone, true).await
                             } else {
-                                SessionManager::get_session(&session_id_clone, true).await
+                                query_session(&session_id_clone, true).await
                             }
                                 .map_err(|e| anyhow!("Failed to fetch updated session: {}", e))?;
                             let updated_conversation = updated_session
@@ -4064,7 +3502,6 @@ impl Agent {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
             let mut overflow_handler = OverflowHandler::new(2);
-            let turn_tool_surface_mode = resolve_current_turn_tool_surface_mode();
 
             if emit_context_trace && !context_trace.is_empty() {
                 yield AgentEvent::ContextTrace { steps: context_trace };
@@ -4345,43 +3782,6 @@ impl Agent {
                                     }
                                 }
 
-                                if turn_tool_surface_mode.as_deref()
-                                    == Some(TURN_TOOL_SURFACE_LOCAL_WORKSPACE)
-                                {
-                                    if let Some((phase, title, detail, checkpoints)) =
-                                        build_local_workspace_tool_batch_runtime_status(
-                                            &frontend_requests,
-                                            &remaining_requests,
-                                        )
-                                    {
-                                        let runtime_status_event = self
-                                            .upsert_runtime_status_item(
-                                                &session_config,
-                                                phase,
-                                                title,
-                                                detail,
-                                                checkpoints,
-                                            )
-                                            .await?;
-                                        yield runtime_status_event;
-                                    }
-                                }
-
-                                if should_queue_local_workspace_stage_summary_prompt(
-                                    turn_tool_surface_mode.as_deref(),
-                                    num_tool_requests,
-                                    already_has_local_workspace_stage_summary_reminder(
-                                        &conversation,
-                                        &messages_to_add,
-                                    ),
-                                ) {
-                                    messages_to_add.push(
-                                        Message::user()
-                                            .with_text(LOCAL_WORKSPACE_STAGE_SUMMARY_REMINDER)
-                                            .agent_only(),
-                                    );
-                                }
-
                                 no_tools_called = false;
                             }
                         }
@@ -4523,16 +3923,6 @@ impl Agent {
                         }
                     } else if did_recovery_compact_this_iteration {
                         // Avoid setting exit_chat; continue from last user message in the conversation
-                    } else if should_retry_local_workspace_empty_followup(
-                        turn_tool_surface_mode.as_deref(),
-                        &conversation,
-                        &messages_to_add,
-                    ) {
-                        let message = Message::user()
-                            .with_text(LOCAL_WORKSPACE_EMPTY_FOLLOWUP_CONTINUE_PROMPT)
-                            .agent_only();
-                        messages_to_add.push(message.clone());
-                        yield AgentEvent::Message(message);
                     } else {
                         match self.handle_retry_logic(&mut conversation, &session_config, &initial_messages).await {
                             Ok(should_retry) => {
@@ -4885,7 +4275,7 @@ mod tests {
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage};
     use crate::providers::errors::ProviderError;
     use crate::session::{
-        extension_data::ExtensionData, initialize_shared_thread_runtime_store, ChatHistoryMatch,
+        extension_data::ExtensionData, initialize_session_runtime_store, ChatHistoryMatch,
         CommitOptions, CommitReport, InMemoryThreadRuntimeStore, MemoryCategory, MemoryHealth,
         MemoryRecord, MemorySearchResult, MemoryStats, SessionInsights, SessionManager,
         SessionStore, SessionType, TokenStatsUpdate, TurnContextOverride,
@@ -5205,9 +4595,9 @@ mod tests {
     }
 
     #[test]
-    fn test_new_with_required_shared_thread_runtime_store_uses_initialized_store() {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
-        assert!(Agent::new_with_required_shared_thread_runtime_store().is_ok());
+    fn test_new_with_required_session_runtime_store_uses_initialized_store() {
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        assert!(Agent::new_with_required_session_runtime_store().is_ok());
     }
 
     #[test]
@@ -5229,105 +4619,6 @@ mod tests {
             ])
         );
         assert_eq!(build_reasoning_summary_sections("   "), None);
-    }
-
-    #[test]
-    fn test_build_local_workspace_tool_batch_runtime_status() {
-        let frontend_requests = vec![ToolRequest {
-            id: "tool-1".to_string(),
-            tool_call: Ok(CallToolRequestParam {
-                name: "Glob".into(),
-                arguments: Some(
-                    serde_json::json!({
-                        "path": "/Users/coso/Documents/dev/js/claudecode/src"
-                    })
-                    .as_object()
-                    .cloned()
-                    .expect("glob arguments should be an object"),
-                ),
-            }),
-            metadata: None,
-            tool_meta: None,
-        }];
-        let remaining_requests = vec![
-            ToolRequest {
-                id: "tool-2".to_string(),
-                tool_call: Ok(CallToolRequestParam {
-                    name: "Grep".into(),
-                    arguments: Some(
-                        serde_json::json!({
-                            "pattern": "scripts",
-                            "path": "/Users/coso/Documents/dev/js/claudecode/package.json"
-                        })
-                        .as_object()
-                        .cloned()
-                        .expect("grep arguments should be an object"),
-                    ),
-                }),
-                metadata: None,
-                tool_meta: None,
-            },
-            ToolRequest {
-                id: "tool-3".to_string(),
-                tool_call: Ok(CallToolRequestParam {
-                    name: "Read".into(),
-                    arguments: Some(
-                        serde_json::json!({
-                            "file_path": "/Users/coso/Documents/dev/js/claudecode/package.json"
-                        })
-                        .as_object()
-                        .cloned()
-                        .expect("read arguments should be an object"),
-                    ),
-                }),
-                metadata: None,
-                tool_meta: None,
-            },
-        ];
-
-        let runtime_status = build_local_workspace_tool_batch_runtime_status(
-            &frontend_requests,
-            &remaining_requests,
-        )
-        .expect("should build local workspace runtime status");
-
-        assert_eq!(runtime_status.0, LOCAL_WORKSPACE_TOOL_BATCH_PHASE);
-        assert_eq!(runtime_status.1, "已完成一批本地分析");
-        assert!(
-            runtime_status.2.contains("目录扫描、关键检索和文件读取"),
-            "detail should summarize batched operations"
-        );
-        assert!(
-            runtime_status.2.contains("package.json"),
-            "detail should retain latest hint"
-        );
-        assert_eq!(
-            runtime_status.3,
-            vec![
-                "目录扫描：src".to_string(),
-                "关键检索：package.json / scripts".to_string(),
-                "文件读取：package.json".to_string(),
-            ]
-        );
-    }
-
-    #[test]
-    fn test_extract_assistant_phase_summary_detail() {
-        let text = "先说明\n阶段结论：第一次结论\n\n继续\n阶段结论：已确认主入口和长链路瓶颈，下一步只需补一个证据点。\n\n再继续";
-        assert_eq!(
-            extract_assistant_phase_summary_detail(text).as_deref(),
-            Some("已确认主入口和长链路瓶颈，下一步只需补一个证据点。")
-        );
-        let markdown_text =
-            "先说明\n## 阶段结论\n\n已确认主入口和长链路瓶颈，下一步只需补一个证据点。\n\n再继续";
-        assert_eq!(
-            extract_assistant_phase_summary_detail(markdown_text).as_deref(),
-            Some("已确认主入口和长链路瓶颈，下一步只需补一个证据点。")
-        );
-        assert_eq!(
-            extract_assistant_phase_summary_detail("阶段结论：   "),
-            None
-        );
     }
 
     #[test]
@@ -5370,7 +4661,7 @@ mod tests {
     }
 
     #[test]
-    fn test_project_message_emits_phase_summary_runtime_item() {
+    fn test_project_message_strips_phase_summary_title() {
         let turn = TurnRuntime::new(
             "turn-phase-summary",
             "session-1",
@@ -5379,15 +4670,6 @@ mod tests {
             None,
         );
         let mut projector = TurnItemRuntimeProjector::new(&turn);
-        projector.upsert_in_progress(
-            Agent::runtime_status_item_id(&turn.id),
-            ItemRuntimePayload::RuntimeStatus {
-                phase: LOCAL_WORKSPACE_TOOL_BATCH_PHASE.to_string(),
-                title: "已完成一批本地分析".to_string(),
-                detail: "启发式摘要".to_string(),
-                checkpoints: vec!["目录扫描：src".to_string()],
-            },
-        );
 
         let message = Message::assistant()
             .with_id("assistant-msg-phase")
@@ -5398,7 +4680,7 @@ mod tests {
         assert!(
             events.iter().any(|event| matches!(
                 event,
-                AgentEvent::ItemUpdated { item }
+                AgentEvent::ItemStarted { item } | AgentEvent::ItemUpdated { item }
                     if item.id == "assistant:assistant-msg-phase"
                         && matches!(
                             &item.payload,
@@ -5407,27 +4689,6 @@ mod tests {
                         )
             )),
             "assistant 消息正文不应再保留“阶段结论”标题"
-        );
-
-        assert!(
-            events.iter().any(|event| matches!(
-                event,
-                AgentEvent::ItemUpdated { item }
-                    if item.id == Agent::runtime_status_item_id(&turn.id)
-                        && matches!(
-                            &item.payload,
-                            ItemRuntimePayload::RuntimeStatus {
-                                phase,
-                                title,
-                                detail,
-                                checkpoints,
-                            } if phase == LOCAL_WORKSPACE_TOOL_BATCH_PHASE
-                                && title == "已完成一批本地分析"
-                                && detail == "已确认主入口和长链路瓶颈，下一步只需补一个证据点。"
-                                && checkpoints.is_empty()
-                        )
-            )),
-            "assistant 阶段结论应覆盖同一条 turn_summary"
         );
     }
 
@@ -5545,7 +4806,7 @@ mod tests {
     #[tokio::test]
     async fn test_ensure_runtime_turn_initialized_reuses_existing_thread_without_reloading_session()
     {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let store = Arc::new(CountingSessionStore::new(Session {
             id: "session-runtime-cache".to_string(),
@@ -5573,7 +4834,7 @@ mod tests {
             model_config: None,
         }));
 
-        let agent = Agent::new_with_required_shared_thread_runtime_store()
+        let agent = Agent::new_with_required_session_runtime_store()
             .expect("初始化 agent 失败")
             .with_session_store(store.clone());
         let session_config = SessionConfig {
@@ -5602,7 +4863,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_prepare_tools_and_prompt_reuses_listed_tools_for_subagent_prompt_flag() {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let store = Arc::new(CountingSessionStore::new(Session {
             id: "session-prompt-surface".to_string(),
@@ -5630,7 +4891,7 @@ mod tests {
             model_config: None,
         }));
 
-        let agent = Agent::new_with_required_shared_thread_runtime_store()
+        let agent = Agent::new_with_required_session_runtime_store()
             .expect("初始化 agent 失败")
             .with_session_store(store.clone());
         agent
@@ -5656,7 +4917,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_prepare_tools_and_prompt_reuses_session_type_hint_after_runtime_init() {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let store = Arc::new(CountingSessionStore::new(Session {
             id: "session-runtime-hint".to_string(),
@@ -5684,7 +4945,7 @@ mod tests {
             model_config: None,
         }));
 
-        let agent = Agent::new_with_required_shared_thread_runtime_store()
+        let agent = Agent::new_with_required_session_runtime_store()
             .expect("初始化 agent 失败")
             .with_session_store(store.clone());
         let session_config = SessionConfig {
@@ -5719,7 +4980,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reply_reuses_session_type_hint_after_loading_session() -> Result<()> {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let store = Arc::new(CountingSessionStore::new(Session {
             id: "session-reply-hint".to_string(),
@@ -5747,7 +5008,7 @@ mod tests {
             model_config: None,
         }));
 
-        let agent = Agent::new_with_required_shared_thread_runtime_store()
+        let agent = Agent::new_with_required_session_runtime_store()
             .expect("初始化 agent 失败")
             .with_session_store(store.clone());
         agent
@@ -5789,7 +5050,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_dispatch_tool_call_skips_session_reload_for_non_agent_tools() -> Result<()> {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let store = Arc::new(CountingSessionStore::new(Session {
             id: "session-tool-dispatch".to_string(),
@@ -5817,7 +5078,7 @@ mod tests {
             model_config: None,
         }));
 
-        let agent = Agent::new_with_required_shared_thread_runtime_store()
+        let agent = Agent::new_with_required_session_runtime_store()
             .expect("初始化 agent 失败")
             .with_session_store(store.clone());
         agent
@@ -6309,7 +5570,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_tools_includes_current_agent_tool_without_extensions() -> Result<()> {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let agent = Agent::new();
         let session = SessionManager::create_session(
@@ -6335,7 +5596,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_tools_excludes_legacy_agent_control_surface() -> Result<()> {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let agent = Agent::new();
         let session = SessionManager::create_session(
@@ -6551,7 +5812,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_tools_hides_resource_helpers_without_resource_extensions() -> Result<()> {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let agent = Agent::new();
         let session = SessionManager::create_session(
@@ -6584,7 +5845,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_tools_applies_current_surface_main_thread_gates() -> Result<()> {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let agent = Agent::new();
         let session = SessionManager::create_session(
@@ -6618,7 +5879,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_tools_hides_main_thread_only_tools_for_subagent_sessions() -> Result<()> {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let agent = Agent::new();
         let session = SessionManager::create_session(
@@ -6698,7 +5959,7 @@ mod tests {
             TeamSessionState,
         };
 
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let manager = AgentManager::new_with_thread_runtime_store(
             None,
@@ -6773,7 +6034,7 @@ mod tests {
             TeamSessionState,
         };
 
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let manager = AgentManager::new_with_thread_runtime_store(
             None,
@@ -6849,7 +6110,7 @@ mod tests {
             TeamSessionState,
         };
 
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let spawn_agent_callback = Arc::new(move |_request: SpawnAgentRequest| {
             Box::pin(async move {
@@ -6961,7 +6222,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_tool_routes_async_current_surface_through_callbacks() -> Result<()> {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let captured = Arc::new(std::sync::Mutex::new(None::<SpawnAgentRequest>));
         let captured_clone = captured.clone();
@@ -7047,7 +6308,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_tool_routes_cwd_override_through_callbacks() -> Result<()> {
-        initialize_shared_thread_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
 
         let captured = Arc::new(std::sync::Mutex::new(None::<SpawnAgentRequest>));
         let captured_clone = captured.clone();
@@ -7351,61 +6612,5 @@ mod tests {
         );
 
         Ok(())
-    }
-
-    #[test]
-    fn test_should_queue_local_workspace_stage_summary_prompt() {
-        assert!(should_queue_local_workspace_stage_summary_prompt(
-            Some(TURN_TOOL_SURFACE_LOCAL_WORKSPACE),
-            3,
-            false,
-        ));
-        assert!(should_queue_local_workspace_stage_summary_prompt(
-            Some(TURN_TOOL_SURFACE_LOCAL_WORKSPACE),
-            3,
-            false,
-        ));
-        assert!(!should_queue_local_workspace_stage_summary_prompt(
-            Some("direct_answer"),
-            3,
-            false,
-        ));
-        assert!(!should_queue_local_workspace_stage_summary_prompt(
-            Some(TURN_TOOL_SURFACE_LOCAL_WORKSPACE),
-            3,
-            true,
-        ));
-    }
-
-    #[test]
-    fn test_already_has_local_workspace_stage_summary_reminder() {
-        let conversation = Conversation::new_unvalidated(vec![Message::user()
-            .with_text(LOCAL_WORKSPACE_STAGE_SUMMARY_REMINDER)
-            .agent_only()]);
-        assert!(already_has_local_workspace_stage_summary_reminder(
-            &conversation,
-            &Conversation::default(),
-        ));
-    }
-
-    #[test]
-    fn test_should_retry_local_workspace_empty_followup() {
-        let conversation = Conversation::new_unvalidated(vec![Message::user()
-            .with_text(LOCAL_WORKSPACE_STAGE_SUMMARY_REMINDER)
-            .agent_only()]);
-        assert!(should_retry_local_workspace_empty_followup(
-            Some(TURN_TOOL_SURFACE_LOCAL_WORKSPACE),
-            &conversation,
-            &Conversation::default(),
-        ));
-
-        let already_retried = Conversation::new_unvalidated(vec![Message::user()
-            .with_text(LOCAL_WORKSPACE_EMPTY_FOLLOWUP_CONTINUE_PROMPT)
-            .agent_only()]);
-        assert!(!should_retry_local_workspace_empty_followup(
-            Some(TURN_TOOL_SURFACE_LOCAL_WORKSPACE),
-            &already_retried,
-            &Conversation::default(),
-        ));
     }
 }

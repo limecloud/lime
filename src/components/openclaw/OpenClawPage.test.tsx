@@ -359,6 +359,31 @@ afterEach(() => {
 });
 
 describe("OpenClawPage", () => {
+  it("应在头部明确 remote 主入口与 OpenClaw compat 的职责边界", async () => {
+    const onNavigate = vi.fn();
+    const mounted = renderPage({ onNavigate });
+    await waitForInstallPage(mounted.container);
+    await flushEffects();
+
+    expect(mounted.container.textContent).toContain(
+      "当前 remote 主入口已收口到消息渠道与浏览器连接器",
+    );
+    expect(mounted.container.textContent).toContain(
+      "OpenClaw 继续负责本地 Gateway、安装修复和兼容接入",
+    );
+
+    await act(async () => {
+      findButton(mounted.container, "去消息渠道").click();
+      findButton(mounted.container, "去浏览器连接器").click();
+      await flushEffects();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("channels");
+    expect(onNavigate).toHaveBeenCalledWith("settings", {
+      tab: "chrome-relay",
+    });
+  });
+
   it("Windows 缺依赖时点击安装不应真正调用安装接口", async () => {
     const mounted = renderPage();
     await waitForInstallPage(mounted.container);

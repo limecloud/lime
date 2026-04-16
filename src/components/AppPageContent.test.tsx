@@ -23,6 +23,12 @@ const latestMemoryPageProps = vi.hoisted(
       value: null as Record<string, unknown> | null,
     }) as { value: Record<string, unknown> | null },
 );
+const latestSceneAppsPageProps = vi.hoisted(
+  () =>
+    ({
+      value: null as Record<string, unknown> | null,
+    }) as { value: Record<string, unknown> | null },
+);
 
 vi.mock("./agent/chat", () => ({
   AgentChatPage: (props: Record<string, unknown>) => {
@@ -50,6 +56,13 @@ vi.mock("./memory", () => ({
   MemoryPage: (props: Record<string, unknown>) => {
     latestMemoryPageProps.value = props;
     return <div data-testid="memory-page" />;
+  },
+}));
+
+vi.mock("./sceneapps", () => ({
+  SceneAppsPage: (props: Record<string, unknown>) => {
+    latestSceneAppsPageProps.value = props;
+    return <div data-testid="sceneapps-page" />;
   },
 }));
 
@@ -96,6 +109,7 @@ describe("AppPageContent", () => {
     latestAgentChatProps.value = null;
     latestSkillsWorkspaceProps.value = null;
     latestMemoryPageProps.value = null;
+    latestSceneAppsPageProps.value = null;
   });
 
   afterEach(() => {
@@ -182,6 +196,23 @@ describe("AppPageContent", () => {
         relativePath: "exports/x-article/google-cloud/index.md",
         requestKey: 20260408,
       },
+    });
+  });
+
+  it("agent 页面应把 initialSessionId 透传给 AgentChatPage", async () => {
+    const pageParams: AgentPageParams = {
+      agentEntry: "claw",
+      initialSessionId: "session-sceneapp-1",
+      entryBannerMessage: "已恢复 SceneApp 对应会话。",
+    };
+
+    renderContent("agent", pageParams);
+    await flushEffects();
+
+    expect(latestAgentChatProps.value).toMatchObject({
+      agentEntry: "claw",
+      initialSessionId: "session-sceneapp-1",
+      entryBannerMessage: "已恢复 SceneApp 对应会话。",
     });
   });
 
@@ -279,5 +310,29 @@ describe("AppPageContent", () => {
     expect(memoryPage?.parentElement?.className).toContain("overflow-auto");
     expect(memoryPage?.parentElement?.className).toContain("min-h-0");
     expect(memoryPage?.parentElement?.className).toContain("flex-1");
+  });
+
+  it("sceneapps 页面应把目录页参数透传给 SceneAppsPage", async () => {
+    const container = renderContent("sceneapps", {
+      sceneappId: "story-video-suite",
+      runId: "story-video-suite-run-1",
+      projectId: "project-sceneapp",
+      prefillIntent: "生成一个短视频方案",
+      search: "短视频",
+    });
+    await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="sceneapps-page"]'),
+    ).not.toBeNull();
+    expect(latestSceneAppsPageProps.value).toMatchObject({
+      pageParams: {
+        sceneappId: "story-video-suite",
+        runId: "story-video-suite-run-1",
+        projectId: "project-sceneapp",
+        prefillIntent: "生成一个短视频方案",
+        search: "短视频",
+      },
+    });
   });
 });

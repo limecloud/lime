@@ -64,6 +64,10 @@ impl ExecutionTracker {
         }
     }
 
+    pub fn db(&self) -> &DbConnection {
+        &self.db
+    }
+
     pub fn start(
         &self,
         source: RunSource,

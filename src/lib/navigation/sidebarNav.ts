@@ -9,6 +9,7 @@ import {
   Send,
   Settings,
   Sparkles,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -16,9 +17,11 @@ import {
   type OpenClawPageParams,
   type Page,
   type PageParams,
+  type SceneAppsPageParams,
   type SettingsPageParams,
 } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
+import { resolveSceneAppsPageEntryParams } from "@/lib/sceneapp";
 import {
   buildClawAgentParams,
   buildHomeAgentParams,
@@ -30,6 +33,7 @@ export interface SidebarNavItemDefinition {
   icon: LucideIcon;
   page?: Page;
   params?: PageParams;
+  resolveParams?: (params?: PageParams) => PageParams | undefined;
   isActive?: (currentPage: Page, currentParams?: PageParams) => boolean;
   configurable?: boolean;
   children?: SidebarNavItemDefinition[];
@@ -49,6 +53,8 @@ const TASK_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     icon: Plus,
     page: "agent",
     params: buildHomeAgentParams(),
+    resolveParams: (params) =>
+      buildHomeAgentParams(params as AgentPageParams | undefined),
     isActive: (currentPage, currentParams) =>
       currentPage === "agent" &&
       (currentParams as AgentPageParams | undefined)?.agentEntry === "new-task",
@@ -60,6 +66,8 @@ const TASK_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     icon: MessageSquare,
     page: "agent",
     params: buildClawAgentParams(),
+    resolveParams: (params) =>
+      buildClawAgentParams(params as AgentPageParams | undefined),
     isActive: (currentPage, currentParams) =>
       currentPage === "agent" &&
       (currentParams as AgentPageParams | undefined)?.agentEntry !== "new-task",
@@ -74,6 +82,21 @@ const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     icon: Sparkles,
     page: "skills",
     isActive: (currentPage) => currentPage === "skills",
+    configurable: false,
+  },
+  {
+    id: "sceneapps",
+    label: "场景应用",
+    icon: Workflow,
+    page: "sceneapps",
+    resolveParams: (params) =>
+      resolveSceneAppsPageEntryParams(
+        params as SceneAppsPageParams | undefined,
+        {
+        mode: "prefer_latest",
+      },
+      ),
+    isActive: (currentPage) => currentPage === "sceneapps",
     configurable: false,
   },
   {

@@ -3,8 +3,8 @@ use aster::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use aster::conversation::message::Message;
 use aster::providers::create_with_named_model;
 use aster::providers::databricks::DATABRICKS_DEFAULT_MODEL;
+use aster::session::create_managed_session;
 use aster::session::session_manager::SessionType;
-use aster::session::SessionManager;
 use dotenvy::dotenv;
 use futures::StreamExt;
 use std::path::PathBuf;
@@ -17,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
 
     let agent = Agent::new();
 
-    let session = SessionManager::create_session(
+    let session = create_managed_session(
         PathBuf::default(),
         "max-turn-test".to_string(),
         SessionType::Hidden,

@@ -113,6 +113,7 @@ export interface UseApiKeyProviderReturn {
 
 interface UseApiKeyProviderOptions {
   autoLoad?: boolean;
+  hydrateUiState?: boolean;
 }
 
 // ============================================================================
@@ -171,7 +172,7 @@ function providerDebugLog(...args: unknown[]): void {
 export function useApiKeyProvider(
   options: UseApiKeyProviderOptions = {},
 ): UseApiKeyProviderReturn {
-  const { autoLoad = true } = options;
+  const { autoLoad = true, hydrateUiState = true } = options;
   // ===== 状态 =====
   const [providers, setProviders] = useState<ProviderWithKeysDisplay[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
@@ -259,7 +260,7 @@ export function useApiKeyProvider(
   }, [fetchProviders]);
 
   // ===== 加载 UI 状态 =====
-  const loadUiState = useCallback(async () => {
+  const hydrateStoredUiState = useCallback(async () => {
     try {
       // 加载折叠状态
       const collapsedJson = await apiKeyProviderApi.getUiState(
@@ -292,7 +293,9 @@ export function useApiKeyProvider(
     if (!applyCachedProviders()) {
       void fetchProviders(true);
     }
-    loadUiState();
+    if (hydrateUiState) {
+      void hydrateStoredUiState();
+    }
 
     const unsubscribe = subscribeProviderDataChanged((source) => {
       if (source === "api_key") {
@@ -308,7 +311,13 @@ export function useApiKeyProvider(
     return () => {
       unsubscribe();
     };
-  }, [applyCachedProviders, autoLoad, fetchProviders, loadUiState]);
+  }, [
+    applyCachedProviders,
+    autoLoad,
+    fetchProviders,
+    hydrateStoredUiState,
+    hydrateUiState,
+  ]);
 
   // ===== 保存折叠状态 =====
   const saveCollapsedGroups = useCallback(

@@ -342,5 +342,3 @@ export function ConnectConfirmDialog({
     </Dialog>
   );
 }
-
-export default ConnectConfirmDialog;

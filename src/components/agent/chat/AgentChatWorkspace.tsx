@@ -18,7 +18,6 @@ import type { Dispatch, SetStateAction } from "react";
 import { toast } from "sonner";
 import { useAgentChatUnified } from "./hooks";
 import {
-  buildLiveTaskSnapshot,
   type TaskStatusReason,
 } from "./hooks/agentChatShared";
 import {
@@ -187,7 +186,9 @@ import { useWorkspaceGeneralWorkbenchRuntime } from "./workspace/useWorkspaceGen
 import { useWorkspaceTeamSessionRuntime } from "./workspace/useWorkspaceTeamSessionRuntime";
 import { useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime } from "./workspace/useWorkspaceGeneralWorkbenchDocumentPersistenceRuntime";
 import { useWorkspaceServiceSkillEntryActions } from "./workspace/useWorkspaceServiceSkillEntryActions";
+import { useWorkspaceSceneAppEntryActions } from "./workspace/useWorkspaceSceneAppEntryActions";
 import { useWorkspaceArtifactViewModeControl } from "./workspace/useWorkspaceArtifactViewModeControl";
+import { useWorkspaceInitialSessionNavigation } from "./workspace/useWorkspaceInitialSessionNavigation";
 import { WorkspaceGeneralWorkbenchSidebar } from "./workspace/WorkspaceGeneralWorkbenchSidebar";
 import { GeneralWorkbenchHarnessDialogSection } from "./workspace/WorkspaceHarnessDialogs";
 import { WorkspaceShellScene } from "./workspace/WorkspaceShellScene";
@@ -235,6 +236,11 @@ import { buildMessageInspirationDraft } from "./utils/messageInspirationDraft";
 import { buildSkillsPageParamsFromMessage } from "./utils/skillScaffoldDraft";
 import { AutomationJobDialog } from "@/components/settings-v2/system/automation/AutomationJobDialog";
 import { shouldAutoSelectGeneralArtifact } from "./workspace/generalArtifactAutoSelection";
+import {
+  hasSceneAppRecentVisit,
+  resolveSceneAppsPageEntryParams,
+  subscribeSceneAppRecentVisits,
+} from "@/lib/sceneapp";
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
 const BLANK_HOME_DEFERRED_LOAD_MS = 6_000;
@@ -356,6 +362,7 @@ export function AgentChatWorkspace({
   onNavigate: _onNavigate,
   projectId: externalProjectId,
   contentId,
+  initialSessionId,
   initialRequestMetadata,
   initialAutoSendRequestMetadata,
   autoRunInitialPromptOnMount = false,
@@ -856,16 +863,20 @@ export function AgentChatWorkspace({
   }, [activeTheme, serviceSkillsError]);
   const initialPendingServiceSkillLaunchSignature = useMemo(() => {
     const skillId = initialPendingServiceSkillLaunch?.skillId?.trim();
-    if (!skillId) {
+    const skillKey = initialPendingServiceSkillLaunch?.skillKey?.trim();
+    if (!skillId && !skillKey) {
       return "";
     }
 
     return JSON.stringify({
       skillId,
+      skillKey,
       requestKey: initialPendingServiceSkillLaunch?.requestKey ?? 0,
       initialSlotValues:
         initialPendingServiceSkillLaunch?.initialSlotValues ?? null,
       prefillHint: initialPendingServiceSkillLaunch?.prefillHint ?? null,
+      launchUserInput:
+        initialPendingServiceSkillLaunch?.launchUserInput ?? null,
     });
   }, [initialPendingServiceSkillLaunch]);
   const combinedSkillsLoading = skillsLoading || serviceSkillsLoading;
@@ -989,12 +1000,60 @@ export function AgentChatWorkspace({
     string | null
   >(null);
   const [timelineFocusRequestKey, setTimelineFocusRequestKey] = useState(0);
+  const [canResumeRecentSceneApp, setCanResumeRecentSceneApp] =
+    useState<boolean>(() => hasSceneAppRecentVisit());
   const autoCollapsedTopicSidebarRef = useRef(false);
+
+  useEffect(() => {
+    setCanResumeRecentSceneApp(hasSceneAppRecentVisit());
+
+    return subscribeSceneAppRecentVisits((records) => {
+      setCanResumeRecentSceneApp(records.length > 0);
+    });
+  }, []);
 
   // 跳转到技能主页面
   const handleNavigateToSkillSettings = useCallback(() => {
     _onNavigate?.("skills");
   }, [_onNavigate]);
+  const handleOpenSceneAppsDirectory = useCallback(() => {
+    if (!_onNavigate) {
+      toast.error("当前入口暂不支持跳转到 SceneApp 目录");
+      return;
+    }
+
+    _onNavigate(
+      "sceneapps",
+      resolveSceneAppsPageEntryParams(
+        {
+          projectId: projectId || undefined,
+          prefillIntent: input.trim() || undefined,
+        },
+        {
+          mode: "browse",
+        },
+      ),
+    );
+  }, [_onNavigate, input, projectId]);
+  const handleResumeRecentSceneApp = useCallback(() => {
+    if (!_onNavigate) {
+      toast.error("当前入口暂不支持跳转到 SceneApp 目录");
+      return;
+    }
+
+    _onNavigate(
+      "sceneapps",
+      resolveSceneAppsPageEntryParams(
+        {
+          projectId: projectId || undefined,
+          prefillIntent: input.trim() || undefined,
+        },
+        {
+          mode: "resume_latest",
+        },
+      ),
+    );
+  }, [_onNavigate, input, projectId]);
   const handleRefreshSkills = useCallback(async () => {
     await loadSkills(true);
   }, [loadSkills]);
@@ -1513,7 +1572,6 @@ export function AgentChatWorkspace({
     switchTopic: originalSwitchTopic,
     deleteTopic,
     renameTopic,
-    updateTopicSnapshot = () => undefined,
     workspacePathMissing = false,
     fixWorkspacePathAndRetry,
     dismissWorkspacePathError,
@@ -2233,6 +2291,15 @@ export function AgentChatWorkspace({
       onNavigate: _onNavigate,
       recordServiceSkillUsage,
     });
+  const workspaceSceneAppEntryActions = useWorkspaceSceneAppEntryActions({
+    activeTheme,
+    creationMode,
+    projectId,
+    input,
+    selectedText,
+    defaultToolPreferences: effectiveChatToolPreferences,
+    onNavigate: _onNavigate,
+  });
   const handlePendingServiceSkillLaunchSubmit =
     workspaceServiceSkillEntryActions.handlePendingServiceSkillLaunchSubmit;
   useEffect(() => {
@@ -2253,15 +2320,24 @@ export function AgentChatWorkspace({
     }
 
     const skillId = initialPendingServiceSkillLaunch?.skillId?.trim();
-    if (!skillId) {
+    const skillKey = initialPendingServiceSkillLaunch?.skillKey?.trim();
+    if (!skillId && !skillKey) {
       return;
     }
 
-    const matchedSkill = serviceSkills.find((skill) => skill.id === skillId);
+    const matchedSkill = serviceSkills.find(
+      (skill) =>
+        (skillId && skill.id === skillId) ||
+        (skillKey && skill.skillKey === skillKey),
+    );
     if (!matchedSkill) {
+      if (serviceSkills.length === 0) {
+        return;
+      }
+
       handledInitialPendingServiceSkillLaunchSignatureRef.current =
         initialPendingServiceSkillLaunchSignature;
-      toast.error(`未找到技能：${skillId}`);
+      toast.error(`未找到技能：${skillId ?? skillKey}`);
       return;
     }
 
@@ -2272,6 +2348,7 @@ export function AgentChatWorkspace({
       initialSlotValues:
         initialPendingServiceSkillLaunch?.initialSlotValues,
       prefillHint: initialPendingServiceSkillLaunch?.prefillHint,
+      launchUserInput: initialPendingServiceSkillLaunch?.launchUserInput,
     });
   }, [
     activeTheme,
@@ -2895,6 +2972,11 @@ export function AgentChatWorkspace({
       loadPersistedProjectId(`agent_session_workspace_${topicId}`),
     resetTopicLocalState,
   });
+  useWorkspaceInitialSessionNavigation({
+    initialSessionId,
+    currentSessionId: sessionId,
+    switchTopic,
+  });
 
   useTrayModelShortcuts({
     providerType,
@@ -3158,31 +3240,6 @@ export function AgentChatWorkspace({
     console.log("[AgentChatPage] 执行技能命令:", command);
     handleSend([], false, false, command);
   }, [pendingSkillKey, isThemeWorkbench, consumePendingSkill, handleSend]);
-  useEffect(() => {
-    if (!sessionId) {
-      return;
-    }
-
-    updateTopicSnapshot(
-      sessionId,
-      buildLiveTaskSnapshot({
-        messages: displayMessages,
-        isSending,
-        pendingActionCount: pendingActions.length,
-        queuedTurnCount: queuedTurns.length,
-        workspaceError: Boolean(workspacePathMissing || workspaceHealthError),
-      }),
-    );
-  }, [
-    displayMessages,
-    isSending,
-    pendingActions.length,
-    queuedTurns.length,
-    sessionId,
-    updateTopicSnapshot,
-    workspaceHealthError,
-    workspacePathMissing,
-  ]);
   const latestAssistantMessageId = useMemo(
     () =>
       [...displayMessages]
@@ -4530,6 +4587,13 @@ export function AgentChatWorkspace({
     handleRefreshSkills,
     handleOpenBrowserAssistInCanvas: handleOpenBrowserRuntimeForBrowserAssist,
     browserAssistLaunching,
+    featuredSceneApps: workspaceSceneAppEntryActions.featuredSceneApps,
+    sceneAppsLoading: workspaceSceneAppEntryActions.sceneAppsLoading,
+    sceneAppLaunchingId: workspaceSceneAppEntryActions.sceneAppLaunchingId,
+    handleLaunchSceneApp: workspaceSceneAppEntryActions.handleLaunchSceneApp,
+    canResumeRecentSceneApp,
+    handleResumeRecentSceneApp,
+    handleOpenSceneAppsDirectory,
     hideHistoryToggle,
     showChatPanel: effectiveShowChatPanel,
     topBarChrome,
@@ -4656,6 +4720,19 @@ export function AgentChatWorkspace({
         onSubmit={
           workspaceServiceSkillEntryActions.handleAutomationDialogSubmit
         }
+      />
+      <AutomationJobDialog
+        open={workspaceSceneAppEntryActions.automationDialogOpen}
+        mode="create"
+        workspaces={workspaceSceneAppEntryActions.automationWorkspaces}
+        initialValues={
+          workspaceSceneAppEntryActions.automationDialogInitialValues
+        }
+        saving={workspaceSceneAppEntryActions.automationJobSaving}
+        onOpenChange={
+          workspaceSceneAppEntryActions.handleAutomationDialogOpenChange
+        }
+        onSubmit={workspaceSceneAppEntryActions.handleAutomationDialogSubmit}
       />
     </>
   );

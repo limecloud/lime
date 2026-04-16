@@ -6,8 +6,10 @@ const INTERNAL_ROUTING_SUMMARY_PATTERNS = [
   /^联网搜索能力待命$/,
   /^联网搜索仅作为候选能力待命$/,
   /^先理解意图再决定是否联网$/,
-  /^当前请求无需默认升级为搜索或任务$/,
-  /^当前请求无需工具介入$/,
+  /^当前请求无需默认升级为搜索或任务/,
+  /^当前请求无需工具介入/,
+  /^默认保持直接回答$/,
+  /^只有证据不足或时效性要求出现时才升级$/,
   /^等待首个模型事件$/,
   /^推理增强已待命$/,
   /^必要时启用深度思考$/,
@@ -26,6 +28,7 @@ const INTERNAL_ROUTING_SUMMARY_PATTERNS = [
 function normalizeLineForMatch(value: string): string {
   return value
     .replace(LEGACY_DECISION_PREFIX_RE, "")
+    .replace(/^[•*-]\s*/u, "")
     .replace(/[。；，、,.!?！？:：]/g, "")
     .replace(/\s+/g, "")
     .trim();
@@ -73,4 +76,45 @@ export function isInternalRoutingTurnSummaryText(
       pattern.test(normalized),
     );
   });
+}
+
+interface RuntimeStatusLike {
+  title?: string | null;
+  detail?: string | null;
+  checkpoints?: Array<string | null | undefined> | null;
+}
+
+export function buildRuntimeStatusPresentationText(
+  status?: RuntimeStatusLike | null,
+): string {
+  if (!status) {
+    return "";
+  }
+
+  return [
+    status.title,
+    status.detail,
+    ...(status.checkpoints ?? []),
+  ]
+    .map((line) => normalizeTurnSummaryDisplayText(line))
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function isInternalRoutingRuntimeStatus(
+  status?: RuntimeStatusLike | null,
+): boolean {
+  if (!status) {
+    return false;
+  }
+
+  const primaryText = [status.title, status.detail]
+    .map((line) => normalizeTurnSummaryDisplayText(line))
+    .filter(Boolean)
+    .join("\n");
+  if (primaryText && isInternalRoutingTurnSummaryText(primaryText)) {
+    return true;
+  }
+
+  return isInternalRoutingTurnSummaryText(buildRuntimeStatusPresentationText(status));
 }

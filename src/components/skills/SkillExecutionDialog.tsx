@@ -486,5 +486,3 @@ export function SkillExecutionDialog({
     </Dialog>
   );
 }
-
-export default SkillExecutionDialog;

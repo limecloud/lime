@@ -7,6 +7,8 @@ use tauri::{Emitter, Manager};
 
 #[cfg(desktop)]
 use tauri::Listener;
+#[cfg(target_os = "windows")]
+use winapi::um::winuser::{MessageBoxW, MB_ICONERROR, MB_OK};
 
 use crate::commands;
 use crate::tray::{TrayIconStatus, TrayManager, TrayStateSnapshot};
@@ -62,6 +64,42 @@ fn reveal_main_window(window: &tauri::WebviewWindow) {
     run_action("聚焦", &|| window.set_focus());
 }
 
+fn report_fatal_startup_error(stage: &str, error: &str) {
+    let message = format!("Lime 启动失败（{stage}）\n\n{error}");
+    tracing::error!("{message}");
+    eprintln!("{message}");
+    show_fatal_startup_dialog("Lime 启动失败", &message);
+}
+
+#[cfg(target_os = "windows")]
+fn show_fatal_startup_dialog(title: &str, message: &str) {
+    use std::ffi::OsStr;
+    use std::iter;
+    use std::os::windows::ffi::OsStrExt;
+
+    fn to_wide(value: &str) -> Vec<u16> {
+        OsStr::new(value)
+            .encode_wide()
+            .chain(iter::once(0))
+            .collect()
+    }
+
+    let title_wide = to_wide(title);
+    let message_wide = to_wide(message);
+
+    unsafe {
+        MessageBoxW(
+            std::ptr::null_mut(),
+            message_wide.as_ptr(),
+            title_wide.as_ptr(),
+            MB_OK | MB_ICONERROR,
+        );
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn show_fatal_startup_dialog(_title: &str, _message: &str) {}
+
 /// 运行 Tauri 应用
 ///
 /// 这是应用的主入口点，负责：
@@ -78,8 +116,7 @@ pub fn run() {
     let config = match bootstrap::load_and_validate_config() {
         Ok(cfg) => cfg,
         Err(err) => {
-            tracing::error!("{}", err);
-            eprintln!("{err}");
+            report_fatal_startup_error("加载配置", &err.to_string());
             return;
         }
     };
@@ -95,8 +132,7 @@ pub fn run() {
     let states = match bootstrap::init_states(&config) {
         Ok(s) => s,
         Err(err) => {
-            tracing::error!("应用状态初始化失败: {}", err);
-            eprintln!("应用状态初始化失败: {err}");
+            report_fatal_startup_error("初始化应用状态", &err);
             return;
         }
     };
@@ -212,7 +248,7 @@ pub fn run() {
         tracing::info!("[启动] 已禁用单实例插件（当前会话允许并行实例）");
     }
 
-    builder
+    let run_result = builder
         .manage(state)
         .manage(logs)
         .manage(db)
@@ -537,10 +573,7 @@ pub fn run() {
             {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    // 获取应用数据目录
-                    let app_data_dir = dirs::data_dir()
-                        .unwrap_or_else(|| std::path::PathBuf::from("."))
-                        .join("lime");
+                    let app_data_dir = lime_core::app_paths::best_effort_data_dir();
 
                     // 初始化 Connect 状态
                     match crate::commands::connect_cmd::init_connect_state(app_data_dir).await {
@@ -1245,6 +1278,15 @@ pub fn run() {
             commands::execution_run_cmd::execution_run_get,
             commands::execution_run_cmd::execution_run_get_general_workbench_state,
             commands::execution_run_cmd::execution_run_list_general_workbench_history,
+            // SceneApp commands
+            commands::sceneapp_cmd::sceneapp_list_catalog,
+            commands::sceneapp_cmd::sceneapp_get_descriptor,
+            commands::sceneapp_cmd::sceneapp_plan_launch,
+            commands::sceneapp_cmd::sceneapp_create_automation_job,
+            commands::sceneapp_cmd::sceneapp_list_runs,
+            commands::sceneapp_cmd::sceneapp_get_run_summary,
+            commands::sceneapp_cmd::sceneapp_prepare_run_governance_artifact,
+            commands::sceneapp_cmd::sceneapp_get_scorecard,
             // Ecommerce Review Reply commands
             commands::ecommerce_review_reply_cmd::execute_ecommerce_review_reply,
             // Provider Pool commands
@@ -1448,6 +1490,9 @@ pub fn run() {
             commands::aster_agent_cmd::command_api::session_api::agent_runtime_list_sessions,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_get_session,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_get_thread_read,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_list_file_checkpoints,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_get_file_checkpoint,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_diff_file_checkpoint,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_export_analysis_handoff,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_export_handoff_bundle,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_export_evidence_pack,
@@ -1595,6 +1640,7 @@ pub fn run() {
             commands::webview_cmd::open_chrome_profile_window,
             commands::webview_cmd::get_chrome_profile_sessions,
             commands::webview_cmd::close_chrome_profile_session,
+            commands::webview_cmd::cleanup_gui_smoke_chrome_profiles,
             commands::webview_cmd::get_chrome_bridge_endpoint_info,
             commands::webview_cmd::get_chrome_bridge_status,
             commands::webview_cmd::disconnect_browser_connector_session,
@@ -1766,6 +1812,8 @@ pub fn run() {
             commands::memory_management_cmd::memory_get_auto_index,
             commands::memory_management_cmd::memory_toggle_auto,
             commands::memory_management_cmd::memory_update_auto_note,
+            commands::memory_management_cmd::memory_cleanup_memdir,
+            commands::memory_management_cmd::memory_scaffold_memdir,
             commands::memory_management_cmd::memory_scaffold_runtime_agents_template,
             commands::memory_management_cmd::memory_ensure_workspace_local_agents_gitignore,
             // Unified Memory commands
@@ -1857,8 +1905,11 @@ pub fn run() {
             commands::telegram_remote_cmd::stop_telegram_remote,
             commands::telegram_remote_cmd::get_telegram_remote_status,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(error) = run_result {
+        report_fatal_startup_error("启动 Tauri 应用", &error.to_string());
+    }
 }
 
 #[cfg(test)]

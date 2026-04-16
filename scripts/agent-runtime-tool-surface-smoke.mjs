@@ -34,7 +34,7 @@ function runVitest(label, args) {
 }
 
 function main() {
-  runVitest("runtime tool surface 派生与页级提示", [
+  runVitest("runtime tool surface 派生与应用层透传", [
     "src/components/agent/chat/utils/runtimeToolAvailability.test.ts",
     "src/components/agent/chat/components/AgentRuntimeStrip.test.tsx",
     "src/components/agent/chat/components/EmptyState.test.tsx",

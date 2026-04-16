@@ -2,7 +2,7 @@
 
 ## 概述
 
-Lime 仍保留终端底层能力，用于复用运行时、诊断与会话管理；独立前端 `terminal / sysinfo / files / web` 页面已经下线，不再保留 `src/components/terminal/` 页面模块。
+Lime 仍保留终端底层能力，用于复用运行时、诊断与会话管理；独立前端 `terminal / sysinfo / files / web` 页面已经下线，旧 `src/components/terminal/` 页面模块与 `src/lib/terminal/` 状态侧链都已删除。
 
 ## 目录结构
 
@@ -14,10 +14,6 @@ src-tauri/src/terminal/
 └── commands.rs     # 终端命令
 
 src/lib/api/terminal.ts
-src/lib/terminal/
-├── store/          # 终端状态与输入态
-├── stickers/       # 终端贴纸状态
-└── vdom/           # VDOM 状态与类型
 ```
 
 ## PTY 管理
@@ -53,7 +49,7 @@ impl PtyManager {
 
 ## 前端边界
 
-前端当前只允许通过 `src/lib/api/terminal.ts` 和 `src/lib/terminal/*` 复用终端会话、事件和状态能力，不再新增独立页面壳。
+前端当前只允许通过 `src/lib/api/terminal.ts` 复用终端会话与事件能力；旧 `src/lib/terminal/*` 状态、VDOM、贴纸侧链已删除，不再恢复。
 
 ## Tauri 命令
 

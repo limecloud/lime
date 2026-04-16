@@ -37,6 +37,39 @@ const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
 const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";
 const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 
+fn normalize_anthropic_host(host: &str) -> String {
+    host.trim().trim_end_matches('/').to_ascii_lowercase()
+}
+
+fn should_use_bearer_auth_for_anthropic_host(host: &str) -> bool {
+    let normalized_host = normalize_anthropic_host(host);
+    if normalized_host.is_empty() {
+        return false;
+    }
+
+    [
+        "bigmodel.cn/api/anthropic",
+        "moonshot.cn/anthropic",
+        "moonshot.ai/anthropic",
+        "minimaxi.com/anthropic",
+        "minimax.io/anthropic",
+        "token-plan-cn.xiaomimimo.com/anthropic",
+    ]
+    .iter()
+    .any(|needle| normalized_host.contains(needle))
+}
+
+fn resolve_anthropic_auth(host: &str, secret: String) -> AuthMethod {
+    if should_use_bearer_auth_for_anthropic_host(host) {
+        AuthMethod::BearerToken(secret)
+    } else {
+        AuthMethod::ApiKey {
+            header_name: "x-api-key".to_string(),
+            key: secret,
+        }
+    }
+}
+
 #[derive(serde::Serialize)]
 pub struct AnthropicProvider {
     #[serde(skip)]
@@ -51,16 +84,21 @@ impl AnthropicProvider {
         let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
-        let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
         let host: String = config
             .get_param("ANTHROPIC_HOST")
             .or_else(|_| config.get_param("ANTHROPIC_BASE_URL"))
             .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
-
-        let auth = AuthMethod::ApiKey {
-            header_name: "x-api-key".to_string(),
-            key: api_key,
+        let api_key: String = if should_use_bearer_auth_for_anthropic_host(&host) {
+            config
+                .get_secret("ANTHROPIC_AUTH_TOKEN")
+                .or_else(|_| config.get_secret("ANTHROPIC_API_KEY"))?
+        } else {
+            config
+                .get_secret("ANTHROPIC_API_KEY")
+                .or_else(|_| config.get_secret("ANTHROPIC_AUTH_TOKEN"))?
         };
+
+        let auth = resolve_anthropic_auth(&host, api_key);
 
         let api_client =
             ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
@@ -82,10 +120,7 @@ impl AnthropicProvider {
             .get_secret(&config.api_key_env)
             .map_err(|_| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
 
-        let auth = AuthMethod::ApiKey {
-            header_name: "x-api-key".to_string(),
-            key: api_key,
-        };
+        let auth = resolve_anthropic_auth(&config.base_url, api_key);
 
         let api_client = ApiClient::new(config.base_url, auth)?
             .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
@@ -181,6 +216,7 @@ impl Provider for AnthropicProvider {
             ANTHROPIC_DOC_URL,
             vec![
                 ConfigKey::new("ANTHROPIC_API_KEY", true, true, None),
+                ConfigKey::new("ANTHROPIC_AUTH_TOKEN", true, true, None),
                 ConfigKey::new(
                     "ANTHROPIC_HOST",
                     true,
@@ -300,5 +336,44 @@ impl Provider for AnthropicProvider {
 
     fn supports_streaming(&self) -> bool {
         self.supports_streaming
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resolve_anthropic_auth, should_use_bearer_auth_for_anthropic_host};
+    use crate::providers::api_client::AuthMethod;
+
+    #[test]
+    fn test_known_official_anthropic_compatible_hosts_use_bearer_auth() {
+        assert!(should_use_bearer_auth_for_anthropic_host(
+            "https://api.minimaxi.com/anthropic"
+        ));
+        assert!(should_use_bearer_auth_for_anthropic_host(
+            "https://open.bigmodel.cn/api/anthropic"
+        ));
+    }
+
+    #[test]
+    fn test_official_anthropic_host_keeps_x_api_key_auth() {
+        assert!(!should_use_bearer_auth_for_anthropic_host(
+            "https://api.anthropic.com"
+        ));
+    }
+
+    #[test]
+    fn test_resolve_anthropic_auth_uses_expected_auth_method() {
+        match resolve_anthropic_auth("https://api.minimaxi.com/anthropic", "k1".to_string()) {
+            AuthMethod::BearerToken(token) => assert_eq!(token, "k1"),
+            _ => panic!("expected bearer token auth"),
+        }
+
+        match resolve_anthropic_auth("https://api.anthropic.com", "k2".to_string()) {
+            AuthMethod::ApiKey { header_name, key } => {
+                assert_eq!(header_name, "x-api-key");
+                assert_eq!(key, "k2");
+            }
+            _ => panic!("expected x-api-key auth"),
+        }
     }
 }

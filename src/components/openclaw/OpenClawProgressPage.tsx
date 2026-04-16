@@ -236,5 +236,3 @@ export function OpenClawProgressPage({
     </div>
   );
 }
-
-export default OpenClawProgressPage;

@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProviderWithKeysDisplay } from "@/lib/api/apiKeyProvider";
+import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 
 const { mockUseProviderModels } = vi.hoisted(() => ({
   mockUseProviderModels: vi.fn(),
@@ -38,6 +39,55 @@ function createProvider(
     created_at: new Date("2026-03-15T00:00:00.000Z").toISOString(),
     updated_at: new Date("2026-03-15T00:00:00.000Z").toISOString(),
     api_keys: [],
+    ...overrides,
+  };
+}
+
+function createEnabledApiKey() {
+  return {
+    id: "key-1",
+    provider_id: "provider-1",
+    api_key_masked: "sk-****",
+    enabled: true,
+    usage_count: 0,
+    error_count: 0,
+    created_at: new Date("2026-03-15T00:00:00.000Z").toISOString(),
+  };
+}
+
+function createModel(
+  id: string,
+  overrides: Partial<EnhancedModelMetadata> = {},
+): EnhancedModelMetadata {
+  return {
+    id,
+    display_name: id,
+    provider_id: "minimax",
+    provider_name: "MiniMax",
+    family: "minimax",
+    tier: "pro",
+    capabilities: {
+      vision: false,
+      tools: true,
+      streaming: true,
+      json_mode: true,
+      function_calling: true,
+      reasoning: true,
+    },
+    pricing: null,
+    limits: {
+      context_length: null,
+      max_output_tokens: null,
+      requests_per_minute: null,
+      tokens_per_minute: null,
+    },
+    status: "active",
+    release_date: null,
+    is_latest: false,
+    description: null,
+    source: "custom",
+    created_at: 0,
+    updated_at: 0,
     ...overrides,
   };
 }
@@ -126,6 +176,47 @@ describe("ProviderConfigForm", () => {
     expect(container.textContent ?? "").not.toContain("推荐最新模型：gpt-4.1");
     expect(container.textContent ?? "").not.toContain(">gpt-4.1<");
     expect(container.textContent ?? "").not.toContain("当前默认模型：gpt-4.1");
+  });
+
+  it("实时拉模型渠道在拿到真实目录后应自动纠正历史错误默认模型", async () => {
+    mockUseProviderModels.mockReturnValue({
+      modelIds: ["MiniMax-M2.1", "MiniMax-M2.7"],
+      models: [
+        createModel("MiniMax-M2.1"),
+        createModel("MiniMax-M2.7", {
+          is_latest: true,
+        }),
+      ],
+      loading: false,
+      error: null,
+    });
+
+    const provider = createProvider({
+      id: "custom-minimax",
+      name: "Minimax-test",
+      is_system: false,
+      type: "anthropic-compatible",
+      api_host: "https://api.minimaxi.com/anthropic",
+      custom_models: ["claude-opus-4-6"],
+      api_keys: [createEnabledApiKey()],
+    });
+    const { container, onUpdate } = renderForm(provider);
+
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+      await Promise.resolve();
+    });
+
+    expect(onUpdate).toHaveBeenCalledWith(
+      "custom-minimax",
+      expect.objectContaining({
+        type: "anthropic-compatible",
+        custom_models: ["MiniMax-M2.7"],
+      }),
+    );
+    expect(container.textContent ?? "").toContain("当前：MiniMax-M2.7");
+    expect(container.textContent ?? "").toContain("推荐最新：MiniMax-M2.7");
+    expect(container.textContent ?? "").not.toContain("当前：claude-opus-4-6");
   });
 
   it("自定义 Provider 应允许切换兼容协议并保存", async () => {

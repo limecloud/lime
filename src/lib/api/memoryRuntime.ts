@@ -6,6 +6,9 @@ import type {
   MemoryExtractionStatusResponse,
   MemoryAnalysisResult,
   MemoryAutoToggleResponse,
+  MemdirCleanupResult,
+  MemdirScaffoldResult,
+  MemdirMemoryType,
   MemoryStatsResponse,
   MemoryOverviewResponse,
   RuntimeAgentsTemplateScaffoldResult,
@@ -28,6 +31,10 @@ export type {
   MemoryAnalysisResult,
   MemoryAutoConfig,
   MemoryAutoToggleResponse,
+  MemdirScaffoldFile,
+  MemdirCleanupResult,
+  MemdirScaffoldResult,
+  MemdirMemoryType,
   MemoryCategoryStat,
   MemoryConfig,
   MemoryEntryPreview,
@@ -121,8 +128,27 @@ export async function updateContextMemoryAutoNote(
   note: string,
   topic?: string,
   workingDir?: string,
+  memoryType?: MemdirMemoryType,
 ): Promise<AutoMemoryIndexResponse> {
-  return safeInvoke("memory_update_auto_note", { note, topic, workingDir });
+  return safeInvoke("memory_update_auto_note", {
+    note,
+    topic,
+    workingDir,
+    memoryType,
+  });
+}
+
+export async function cleanupContextMemdir(
+  workingDir?: string,
+): Promise<MemdirCleanupResult> {
+  return safeInvoke("memory_cleanup_memdir", { workingDir });
+}
+
+export async function scaffoldContextMemdir(
+  workingDir?: string,
+  overwrite?: boolean,
+): Promise<MemdirScaffoldResult> {
+  return safeInvoke("memory_scaffold_memdir", { workingDir, overwrite });
 }
 
 export async function scaffoldRuntimeAgentsTemplate(

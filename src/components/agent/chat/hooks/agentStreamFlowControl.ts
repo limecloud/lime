@@ -47,6 +47,13 @@ interface RemoveQueuedTurnOptions extends QueueActionOptions {
 interface PromoteQueuedTurnOptions extends QueueActionOptions {
   runtime: Pick<AgentRuntimeAdapter, "promoteQueuedTurn">;
   queuedTurnId: string;
+  activeStream: ActiveStreamState | null;
+  removeStreamListener: (eventName: string) => boolean;
+  setThreadItems: Dispatch<SetStateAction<AgentThreadItem[]>>;
+  setThreadTurns: Dispatch<SetStateAction<AgentThreadTurn[]>>;
+  setCurrentTurnId: Dispatch<SetStateAction<string | null>>;
+  setMessages: Dispatch<SetStateAction<Message[]>>;
+  setActiveStream: (nextActive: ActiveStreamState | null) => void;
   onError?: (error: unknown) => void;
 }
 
@@ -176,15 +183,53 @@ export async function promoteQueuedAgentTurn(
   const {
     runtime,
     queuedTurnId,
+    activeStream,
+    removeStreamListener,
     sessionIdRef,
     refreshSessionReadModel,
     setQueuedTurns,
+    setThreadItems,
+    setThreadTurns,
+    setCurrentTurnId,
+    setMessages,
+    setActiveStream,
     notify,
     onError,
   } = options;
   const activeSessionId = sessionIdRef.current;
   if (!activeSessionId || !queuedTurnId.trim()) {
     return false;
+  }
+
+  if (activeStream) {
+    removeStreamListener(activeStream.eventName);
+    if (activeStream.pendingItemKey) {
+      setThreadItems((prev) =>
+        removeThreadItemState(prev, activeStream.pendingItemKey!),
+      );
+    }
+    if (activeStream.pendingTurnKey) {
+      setThreadTurns((prev) =>
+        removeThreadTurnState(prev, activeStream.pendingTurnKey!),
+      );
+      setCurrentTurnId((prev) =>
+        prev === activeStream.pendingTurnKey ? null : prev,
+      );
+    }
+    if (activeStream.assistantMsgId) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === activeStream.assistantMsgId
+            ? {
+                ...updateMessageArtifactsStatus(msg, "complete"),
+                isThinking: false,
+                runtimeStatus: undefined,
+              }
+            : msg,
+        ),
+      );
+    }
+    setActiveStream(null);
   }
 
   setQueuedTurns((prev) => removeQueuedTurnFromState(prev, queuedTurnId));
