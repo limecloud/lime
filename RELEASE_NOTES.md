@@ -1,38 +1,30 @@
-## Lime v1.12.0
+## Lime v1.12.1
 
-### ✨ 主要更新
+### 主要更新
 
-- 本次 `v1.12.0` 重点把 Harness Engine 的验证事实源进一步收口到同一条主链：`evidence / analysis / review / dashboard / cleanup` 现在共享同一套 verification facts 语义，前端 review 与 evidence 展示也开始复用统一的验证结果区块
-- Agent 工作台继续围绕 General Workbench、Harness 状态、Tool Search / Tool Call、Inline Process Step、Message List 与 Review Decision 做交互收敛，工作区输入发送与场景运行时同步补齐了一批回归测试
-- 资源工作台补上图片资源工作台与分类浏览能力，Provider Pool 同步把 Prompt Cache 认知前置到配置 UI，`anthropic-compatible` 渠道与官方兼容 Host 的展示口径进一步统一
-- 仓库治理继续做减法：独立 `terminal / tools / image-gen / video` 页面面已下线，只保留当前主路径需要的运行时与 API 能力，侧边栏与旧页面残留同步清退
-- `docs/roadmap/harness-engine/`、`docs/aiprompts/quality-workflow.md`、`docs/aiprompts/terminal.md`、`docs/aiprompts/providers.md` 等文档已按当前实现刷新，长期路线图与工程边界描述同步更新
+- 修复 macOS 发布工作流：notarization 所需 secrets 缺失时直接阻断发布，不再继续产出 signed-only 但未 notarize 的安装包
+- 调整 macOS 发布校验顺序：在上传产物前增加 `.app` 的 `spctl` 和 `xcrun stapler validate` 检查，确保发布资产符合签名与公证预期
+- 统一同步应用、Rust workspace、Tauri 配置和 CLI npm wrapper 版本到 `1.12.1`
 
-### 🔗 版本与发布同步
+### 版本与发布同步
 
-- 应用、Rust workspace 与 CLI npm wrapper 版本已统一提升到 `1.12.0`
 - 应用版本入口已对齐到 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`src-tauri/tauri.conf.headless.json`
-- `package-lock.json`、`src-tauri/Cargo.lock`、`packages/lime-cli-npm/package.json` 与 CLI README 示例已同步到当前版本
-- 本次发布目标 tag 为 `v1.12.0`
+- CLI npm wrapper 版本与 README 发布示例已同步到 `1.12.1`
+- 本次发布目标 tag 为 `v1.12.1`
 
-### 🧪 已执行校验
+### 计划执行校验
 
 - `npm run verify:app-version`
-- `cargo test --manifest-path "src-tauri/Cargo.toml"`：通过，`913` 个单测通过；另有 `2` 个真实联网用例按默认配置保持 `ignored`
-- `cargo clippy --manifest-path "src-tauri/Cargo.toml"`：通过，当前包含 `2` 条非阻塞告警，分别是 `src-tauri/crates/core/src/models/provider_pool_model.rs` 的 `clippy::if_same_then_else` 与 `src-tauri/src/commands/aster_agent_cmd/tool_runtime/workspace_tools.rs` 的 `dead_code`
+- `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
+- `cargo test --manifest-path "src-tauri/Cargo.toml"`
+- `cargo clippy --manifest-path "src-tauri/Cargo.toml"`
 - `npm run lint`
 
-### ⏳ 待执行发布动作
+### 发布说明
 
-- `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
-- 创建并推送 `v1.12.0` tag
-- 推送当前分支到 GitHub
-
-### 📝 发布说明
-
-- 本次发布说明按当前工作区完整改动刷新，重点覆盖 Harness Engine 验证闭环、Agent Workspace 交互收口、资源工作台与 Provider 配置体验，以及旧页面面的治理减法
-- 由于 `cargo fmt --all` 和 `git tag / git push` 具有批量改写或发布风险，当前 release note 已明确把它们标记为待执行动作；完成后可直接作为 GitHub Release note 使用
+- 这是一次以发布链路修复为主的补丁版本，核心目标是避免类似 `v1.12.0` 那样在 macOS notarization 失败后仍继续对外发布问题包
+- 若 macOS notarization 再次失败，CI 现在会直接失败并阻止发布，需要先修复签名或公证环境后再重新发版
 
 ---
 
-**完整变更**: `v1.11.0` -> `v1.12.0`
+**完整变更**: `v1.12.0` -> `v1.12.1`
