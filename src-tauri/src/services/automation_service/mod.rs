@@ -28,6 +28,7 @@ use lime_core::database::dao::automation_job::{
     AutomationJob, AutomationJobDao, AutomationJobLastDelivery,
 };
 use lime_core::database::DbConnection;
+use parking_lot::RwLock as SyncRwLock;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -41,7 +42,10 @@ use uuid::Uuid;
 pub type AutomationJobRecord = AutomationJob;
 
 #[derive(Clone)]
-pub struct AutomationServiceState(pub Arc<RwLock<AutomationService>>);
+pub struct AutomationServiceState(
+    pub Arc<RwLock<AutomationService>>,
+    pub Arc<SyncRwLock<AutomationStatus>>,
+);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationStatus {
@@ -141,7 +145,7 @@ pub struct AutomationCycleResult {
 pub struct AutomationService {
     config: AutomationSettings,
     cancel_token: Option<CancellationToken>,
-    status: AutomationStatus,
+    status: Arc<SyncRwLock<AutomationStatus>>,
     db: Option<DbConnection>,
     app_handle: Option<tauri::AppHandle>,
 }
@@ -151,23 +155,31 @@ pub(super) const BROWSER_AUTOMATION_RETIRED_MESSAGE: &str =
 pub(super) const BROWSER_AUTOMATION_RETIRED_LAST_ERROR: &str =
     "浏览器自动化任务已下线，请删除该任务";
 
+fn initial_automation_status() -> AutomationStatus {
+    AutomationStatus {
+        running: false,
+        last_polled_at: None,
+        next_poll_at: None,
+        last_job_count: 0,
+        total_executions: 0,
+        active_job_id: None,
+        active_job_name: None,
+    }
+}
+
 impl AutomationService {
     pub fn new(config: AutomationSettings) -> Self {
         Self {
             config,
             cancel_token: None,
-            status: AutomationStatus {
-                running: false,
-                last_polled_at: None,
-                next_poll_at: None,
-                last_job_count: 0,
-                total_executions: 0,
-                active_job_id: None,
-                active_job_name: None,
-            },
+            status: Arc::new(SyncRwLock::new(initial_automation_status())),
             db: None,
             app_handle: None,
         }
+    }
+
+    pub fn status_handle(&self) -> Arc<SyncRwLock<AutomationStatus>> {
+        self.status.clone()
     }
 
     pub fn set_db(&mut self, db: DbConnection) {
@@ -187,11 +199,11 @@ impl AutomationService {
     }
 
     pub fn get_status(&self) -> AutomationStatus {
-        self.status.clone()
+        self.status.read().clone()
     }
 
     pub async fn start(&mut self, self_ref: Arc<RwLock<AutomationService>>) -> Result<(), String> {
-        if self.status.running {
+        if self.status.read().running {
             return Ok(());
         }
         let db = self
@@ -201,7 +213,7 @@ impl AutomationService {
 
         let cancel_token = CancellationToken::new();
         self.cancel_token = Some(cancel_token.clone());
-        self.status.running = true;
+        self.status.write().running = true;
         self.update_next_poll();
 
         let retired_job_count = {
@@ -239,9 +251,10 @@ impl AutomationService {
         if let Some(token) = self.cancel_token.take() {
             token.cancel();
         }
-        self.status.running = false;
-        self.status.active_job_id = None;
-        self.status.active_job_name = None;
+        let mut status = self.status.write();
+        status.running = false;
+        status.active_job_id = None;
+        status.active_job_name = None;
         Ok(())
     }
 
@@ -431,9 +444,9 @@ impl AutomationService {
         query_automation_health(db, query)
     }
 
-    fn update_next_poll(&mut self) {
+    fn update_next_poll(&self) {
         let now = Utc::now();
-        self.status.next_poll_at = Some(
+        self.status.write().next_poll_at = Some(
             (now + chrono::Duration::seconds(self.config.poll_interval_secs.max(5) as i64))
                 .to_rfc3339(),
         );
@@ -451,27 +464,30 @@ impl AutomationService {
         };
 
         {
-            let mut service = self_ref.write().await;
-            service.status.last_polled_at = Some(Utc::now().to_rfc3339());
-            service.status.last_job_count = jobs.len();
+            let service = self_ref.write().await;
+            let mut status = service.status.write();
+            status.last_polled_at = Some(Utc::now().to_rfc3339());
+            status.last_job_count = jobs.len();
             service.update_next_poll();
         }
 
         for job in jobs {
             {
-                let mut service = self_ref.write().await;
-                service.status.active_job_id = Some(job.id.clone());
-                service.status.active_job_name = Some(job.name.clone());
+                let service = self_ref.write().await;
+                let mut status = service.status.write();
+                status.active_job_id = Some(job.id.clone());
+                status.active_job_name = Some(job.name.clone());
             }
             let config = { self_ref.read().await.config.clone() };
             let result = Self::execute_job_once(&job, db, app_handle, &config).await?;
             {
-                let mut service = self_ref.write().await;
-                service.status.total_executions += 1;
-                service.status.active_job_id = None;
-                service.status.active_job_name = None;
+                let service = self_ref.write().await;
+                let mut status = service.status.write();
+                status.total_executions += 1;
+                status.active_job_id = None;
+                status.active_job_name = None;
                 if result == "error" || result == "timeout" {
-                    service.status.last_job_count = service.status.last_job_count.max(1);
+                    status.last_job_count = status.last_job_count.max(1);
                 }
             }
         }

@@ -74,6 +74,9 @@ import {
 } from "./automationPresentation";
 import type { AutomationWorkspaceTab } from "@/types/page";
 
+const AUTOMATION_CORE_LOAD_TIMEOUT_MS = 8000;
+const AUTOMATION_AUXILIARY_LOAD_TIMEOUT_MS = 5000;
+
 type AutomationWorkspaceTemplate = {
   id: string;
   tag: string;
@@ -149,6 +152,35 @@ interface AutomationSettingsProps {
   onOpenWorkspace?: () => void;
 }
 
+function resolveAutomationLoadErrorMessage(
+  error: unknown,
+  fallback: string,
+): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+  if (typeof error === "string" && error.trim()) {
+    return error.trim();
+  }
+  return fallback;
+}
+
+function withAutomationLoadTimeout<T>(
+  promise: Promise<T>,
+  label: string,
+  timeoutMs: number,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(`${label}加载超时（${timeoutMs}ms）`));
+    }, timeoutMs);
+
+    promise.then(resolve, reject).finally(() => {
+      window.clearTimeout(timeoutId);
+    });
+  });
+}
+
 export function AutomationSettings({
   mode = "full",
   initialSelectedJobId,
@@ -161,6 +193,7 @@ export function AutomationSettings({
   const showWorkspacePanels = !settingsOnly;
   const showSchedulerEditor = !workspaceOnly;
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [schedulerConfig, setSchedulerConfig] =
     useState<AutomationSchedulerConfig | null>(null);
   const [status, setStatus] = useState<AutomationStatus | null>(null);
@@ -182,6 +215,21 @@ export function AutomationSettings({
   );
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const autoOpenedInitialJobIdRef = useRef<string | null>(null);
+  const schedulerConfigRef = useRef<AutomationSchedulerConfig | null>(null);
+  const statusRef = useRef<AutomationStatus | null>(null);
+  const jobsRef = useRef<AutomationJobRecord[]>([]);
+
+  useEffect(() => {
+    schedulerConfigRef.current = schedulerConfig;
+  }, [schedulerConfig]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
+    jobsRef.current = jobs;
+  }, [jobs]);
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? null,
@@ -228,26 +276,79 @@ export function AutomationSettings({
 
   const refreshAll = useCallback(
     async (silent: boolean = false) => {
+      const hasVisibleContent = schedulerConfigRef.current !== null;
       if (!silent) {
         setLoading(true);
       }
       try {
-        const [nextSchedulerConfig, nextStatus, nextJobs, nextWorkspaces] =
-          await Promise.all([
+        const [schedulerConfigResult, statusResult, jobsResult] =
+          await Promise.allSettled([
+          withAutomationLoadTimeout(
             getAutomationSchedulerConfig(),
+            "自动化调度器配置",
+            AUTOMATION_CORE_LOAD_TIMEOUT_MS,
+          ),
+          withAutomationLoadTimeout(
             getAutomationStatus(),
+            "自动化状态",
+            AUTOMATION_CORE_LOAD_TIMEOUT_MS,
+          ),
+          withAutomationLoadTimeout(
             getAutomationJobs(),
-            listProjects(),
-          ]);
-        const nextHealth = await getAutomationHealth({
-          top_limit: Math.max(6, nextJobs.length),
-        });
+            "自动化任务列表",
+            AUTOMATION_CORE_LOAD_TIMEOUT_MS,
+          ),
+        ]);
 
-        setSchedulerConfig(nextSchedulerConfig);
-        setStatus(nextStatus);
-        setJobs(nextJobs);
-        setHealth(nextHealth);
-        setWorkspaces(nextWorkspaces);
+        const coreErrors: string[] = [];
+
+        const nextSchedulerConfig =
+          schedulerConfigResult.status === "fulfilled"
+            ? schedulerConfigResult.value
+            : schedulerConfigRef.current;
+        const nextJobs =
+          jobsResult.status === "fulfilled" ? jobsResult.value : jobsRef.current;
+
+        if (schedulerConfigResult.status === "fulfilled") {
+          setSchedulerConfig(schedulerConfigResult.value);
+        } else {
+          coreErrors.push(
+            resolveAutomationLoadErrorMessage(
+              schedulerConfigResult.reason,
+              "自动化调度器配置加载失败",
+            ),
+          );
+        }
+
+        if (statusResult.status === "fulfilled") {
+          setStatus(statusResult.value);
+        } else {
+          coreErrors.push(
+            resolveAutomationLoadErrorMessage(
+              statusResult.reason,
+              "自动化状态加载失败",
+            ),
+          );
+        }
+
+        if (jobsResult.status === "fulfilled") {
+          setJobs(jobsResult.value);
+        } else {
+          coreErrors.push(
+            resolveAutomationLoadErrorMessage(
+              jobsResult.reason,
+              "自动化任务列表加载失败",
+            ),
+          );
+        }
+
+        if (!nextSchedulerConfig) {
+          throw new Error(
+            coreErrors.join("；") || "自动化调度器配置加载失败",
+          );
+        }
+
+        setLoadError(null);
         setSelectedJobId((current) => {
           if (!showWorkspacePanels) {
             return null;
@@ -263,17 +364,71 @@ export function AutomationSettings({
           }
           return null;
         });
+        if (coreErrors.length > 0) {
+          toast.error(`自动化页面存在部分数据未加载：${coreErrors.join("；")}`);
+        }
+
+        void Promise.allSettled([
+          withAutomationLoadTimeout(
+            listProjects(),
+            "工作区列表",
+            AUTOMATION_AUXILIARY_LOAD_TIMEOUT_MS,
+          ),
+          withAutomationLoadTimeout(
+            getAutomationHealth({
+              top_limit: Math.max(6, nextJobs.length),
+            }),
+            "自动化健康状态",
+            AUTOMATION_AUXILIARY_LOAD_TIMEOUT_MS,
+          ),
+        ]).then(([workspacesSettled, healthSettled]) => {
+          const auxiliaryErrors: string[] = [];
+
+          if (workspacesSettled?.status === "fulfilled") {
+            setWorkspaces(workspacesSettled.value);
+          } else if (workspacesSettled) {
+            auxiliaryErrors.push(
+              resolveAutomationLoadErrorMessage(
+                workspacesSettled.reason,
+                "工作区列表加载失败",
+              ),
+            );
+          }
+
+          if (healthSettled?.status === "fulfilled") {
+            setHealth(healthSettled.value);
+          } else if (healthSettled) {
+            auxiliaryErrors.push(
+              resolveAutomationLoadErrorMessage(
+                healthSettled.reason,
+                "自动化健康状态加载失败",
+              ),
+            );
+          }
+
+          if (auxiliaryErrors.length > 0) {
+            toast.error(`自动化页面存在部分数据未加载：${auxiliaryErrors.join("；")}`);
+          }
+        });
       } catch (error) {
-        toast.error(
-          `加载自动化设置失败: ${error instanceof Error ? error.message : error}`,
+        const message = resolveAutomationLoadErrorMessage(
+          error,
+          "加载自动化设置失败",
         );
+        if (!hasVisibleContent) {
+          setLoadError(message);
+        }
+        toast.error(`加载自动化设置失败: ${message}`);
       } finally {
         if (!silent) {
           setLoading(false);
         }
       }
     },
-    [initialSelectedJobId, showWorkspacePanels],
+    [
+      initialSelectedJobId,
+      showWorkspacePanels,
+    ],
   );
 
   const refreshHistory = useCallback(async (jobId: string) => {
@@ -489,11 +644,27 @@ export function AutomationSettings({
       ? "聚焦任务创建、运行和概览切换。"
       : "统一管理自动化任务、运行状态和调度入口。";
 
-  if (loading || !schedulerConfig) {
+  if (loading && !schedulerConfig) {
     return (
       <div className="flex h-40 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
+    );
+  }
+
+  if (!schedulerConfig) {
+    return (
+      <Card className="rounded-[28px] border-slate-200/80 bg-white shadow-sm shadow-slate-950/5">
+        <CardContent className="flex min-h-40 flex-col items-center justify-center gap-3 py-10 text-center">
+          <div className="text-lg font-semibold text-slate-900">
+            自动化页面加载失败
+          </div>
+          <p className="max-w-[520px] text-sm leading-6 text-slate-500">
+            {loadError ?? "自动化调度器配置暂时不可用，请稍后重试。"}
+          </p>
+          <Button onClick={() => void refreshAll()}>重新加载</Button>
+        </CardContent>
+      </Card>
     );
   }
 

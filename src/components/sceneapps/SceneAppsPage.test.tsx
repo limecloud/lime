@@ -6,6 +6,7 @@ import { SceneAppsPage } from "./SceneAppsPage";
 import {
   recordSceneAppRecentVisit,
   type SceneAppCatalog,
+  type SceneAppsPageParams,
   type SceneAppPlanResult,
 } from "@/lib/sceneapp";
 import type { Page, PageParams } from "@/types/page";
@@ -453,6 +454,55 @@ function renderSceneAppsPage(
         );
       });
     },
+  };
+}
+
+function renderControlledSceneAppsPage(
+  initialPageParams?: Partial<SceneAppsPageParams>,
+) {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const navigationCalls: Array<{
+    page: Page;
+    params?: PageParams;
+  }> = [];
+
+  function ControlledSceneAppsPage() {
+    const [pageParams, setPageParams] = React.useState<SceneAppsPageParams>({
+      view: "catalog",
+      sceneappId: "story-video-suite",
+      projectId: "project-1",
+      prefillIntent: "生成一个 30 秒短视频方案",
+      ...initialPageParams,
+    });
+
+    const handleNavigate = React.useCallback(
+      (page: Page, params?: PageParams) => {
+        navigationCalls.push({ page, params });
+        if (page === "sceneapps") {
+          setPageParams((params ?? {}) as SceneAppsPageParams);
+        }
+      },
+      [],
+    );
+
+    return (
+      <SceneAppsPage
+        onNavigate={handleNavigate}
+        pageParams={pageParams}
+      />
+    );
+  }
+
+  act(() => {
+    root.render(<ControlledSceneAppsPage />);
+  });
+
+  mountedRoots.push({ root, container });
+  return {
+    container,
+    navigationCalls,
   };
 }
 
@@ -1111,6 +1161,10 @@ describe("SceneAppsPage", () => {
 
     await openSceneAppsView(container, "catalog");
     expect(
+      container.querySelector('[data-testid="sceneapps-catalog-directory"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("短视频编排");
+    expect(
       container.querySelector('[data-testid="sceneapp-page-card-story-video-suite"]'),
     ).not.toBeNull();
 
@@ -1203,7 +1257,7 @@ describe("SceneAppsPage", () => {
     await flushEffects();
 
     const governanceButton = container.querySelector(
-      '[data-testid="sceneapps-workflow-action-governance"]',
+      '[data-testid="sceneapps-open-governance"]',
     ) as HTMLButtonElement | null;
     expect(governanceButton).toBeTruthy();
 
@@ -1229,16 +1283,11 @@ describe("SceneAppsPage", () => {
     });
     await flushEffects();
 
-    expect(
-      container.querySelector(
-        '[data-testid="sceneapps-workflow-stage-governance"]',
-      )?.textContent,
-    ).toContain("等待首轮样本");
-
     const governanceButton = container.querySelector(
-      '[data-testid="sceneapps-workflow-action-governance"]',
+      '[data-testid="sceneapps-open-governance"]',
     ) as HTMLButtonElement | null;
     expect(governanceButton).toBeTruthy();
+    expect(governanceButton?.textContent).toContain("先去启动");
 
     act(() => {
       governanceButton?.click();
@@ -1401,7 +1450,7 @@ describe("SceneAppsPage", () => {
       await openSceneAppsView(container, "catalog");
 
       const searchInput = container.querySelector(
-        'input[placeholder="搜索结果目标、模式或基础设施"]',
+        'input[placeholder="搜索场景标题"]',
       ) as HTMLInputElement | null;
 
       expect(searchInput).toBeTruthy();
@@ -1464,7 +1513,7 @@ describe("SceneAppsPage", () => {
 
     await openSceneAppsView(container, "catalog");
     const searchInput = container.querySelector(
-      'input[placeholder="搜索结果目标、模式或基础设施"]',
+      'input[placeholder="搜索场景标题"]',
     ) as HTMLInputElement | null;
 
     await openSceneAppsView(container, "detail");
@@ -1513,6 +1562,7 @@ describe("SceneAppsPage", () => {
       container.querySelector('[data-testid="sceneapp-recent-latest-title"]')
         ?.textContent,
     ).toContain("短视频编排");
+    expect(container.textContent).toContain("继续最近");
 
     const secondaryRecentButton = container.querySelector(
       '[data-testid="sceneapp-recent-item-daily-trend-briefing:project-2"]',
@@ -1532,6 +1582,69 @@ describe("SceneAppsPage", () => {
         prefillIntent: "继续跟踪云厂商动态",
       }),
     );
+  });
+
+  it("受控导航壳内点击继续最近场景不应触发循环回灌", async () => {
+    vi.useFakeTimers();
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    try {
+      recordSceneAppRecentVisit(
+        {
+          sceneappId: "daily-trend-briefing",
+          projectId: "project-2",
+          search: "趋势",
+          prefillIntent: "继续跟踪云厂商动态",
+        },
+        {
+          visitedAt: 200,
+        },
+      );
+
+      const { container, navigationCalls } = renderControlledSceneAppsPage();
+      await flushEffects();
+      await openSceneAppsView(container, "catalog");
+
+      navigationCalls.splice(0, navigationCalls.length);
+
+      const secondaryRecentButton = container.querySelector(
+        '[data-testid="sceneapp-recent-item-daily-trend-briefing:project-2"]',
+      ) as HTMLButtonElement | null;
+      expect(secondaryRecentButton).toBeTruthy();
+
+      act(() => {
+        secondaryRecentButton?.click();
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(1200);
+        await Promise.resolve();
+      });
+      await flushEffects(12);
+
+      expect(
+        consoleErrorSpy.mock.calls.some(([message]) =>
+          String(message).includes("Maximum update depth exceeded"),
+        ),
+      ).toBe(false);
+      expect(navigationCalls).toHaveLength(1);
+      expect(navigationCalls[0]).toEqual({
+        page: "sceneapps",
+        params: expect.objectContaining({
+          view: "detail",
+          sceneappId: "daily-trend-briefing",
+          projectId: "project-2",
+          search: "趋势",
+          prefillIntent: "继续跟踪云厂商动态",
+        }),
+      });
+      expect(container.textContent).toContain("每日趋势摘要");
+    } finally {
+      consoleErrorSpy.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it("workspace_entry 类型 SceneApp 应继续导航到 agent 主链", async () => {

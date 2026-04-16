@@ -1343,6 +1343,9 @@ describe("EmptyState", () => {
 
     expect(container.textContent).toContain("场景应用");
     expect(container.textContent).toContain("短视频编排");
+    expect(
+      container.querySelector('[data-testid="sceneapps-home-directory"]'),
+    ).not.toBeNull();
 
     const launchButton = container.querySelector(
       '[data-testid="sceneapp-launch-story-video-suite"]',
@@ -1390,10 +1393,6 @@ describe("EmptyState", () => {
     await act(async () => {
       await Promise.resolve();
     });
-
-    expect(container.textContent).toContain(
-      "继续最近场景会恢复你上次打开的 SceneApp、项目和运行上下文。",
-    );
 
     const resumeButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("继续最近场景"),

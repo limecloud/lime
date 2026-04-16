@@ -1,7 +1,11 @@
 //! 自动化任务命令
 
 use crate::app::AppState;
-use crate::services::automation_service::health::{AutomationHealthQuery, AutomationHealthResult};
+use crate::config::GlobalConfigManagerState;
+use crate::database::{lock_db, DbConnection};
+use crate::services::automation_service::health::{
+    query_automation_health, AutomationHealthQuery, AutomationHealthResult,
+};
 use crate::services::automation_service::schedule::{
     preview_next_run as preview_next_run_for_schedule, validate_schedule as validate_schedule_value,
 };
@@ -11,6 +15,7 @@ use crate::services::automation_service::{
 };
 use lime_core::config::{AutomationExecutionMode, DeliveryConfig, TaskSchedule};
 use lime_core::database::dao::agent_run::AgentRun;
+use lime_core::database::dao::automation_job::AutomationJobDao;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
@@ -58,19 +63,20 @@ pub struct ScheduleValidationResult {
 
 #[tauri::command]
 pub async fn get_automation_scheduler_config(
-    state: State<'_, AppState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
 ) -> Result<AutomationSchedulerConfigResponse, String> {
-    let state = state.read().await;
+    let config = config_manager.0.config();
     Ok(AutomationSchedulerConfigResponse {
-        enabled: state.config.automation.enabled,
-        poll_interval_secs: state.config.automation.poll_interval_secs,
-        enable_history: state.config.automation.enable_history,
+        enabled: config.automation.enabled,
+        poll_interval_secs: config.automation.poll_interval_secs,
+        enable_history: config.automation.enable_history,
     })
 }
 
 #[tauri::command]
 pub async fn update_automation_scheduler_config(
     state: State<'_, AppState>,
+    config_manager: State<'_, GlobalConfigManagerState>,
     automation_state: State<'_, AutomationServiceState>,
     config: AutomationSchedulerConfigResponse,
     app: AppHandle,
@@ -80,18 +86,16 @@ pub async fn update_automation_scheduler_config(
         state.config.automation.enabled
     };
 
-    {
+    let next_config = {
         let mut state = state.write().await;
         state.config.automation.enabled = config.enabled;
         state.config.automation.poll_interval_secs = config.poll_interval_secs.max(5);
         state.config.automation.enable_history = config.enable_history;
-        crate::config::save_config(&state.config).map_err(|e| e.to_string())?;
-    }
-
-    let new_config = {
-        let state = state.read().await;
-        state.config.automation.clone()
+        state.config.clone()
     };
+    config_manager.0.save_config(&next_config).await?;
+
+    let new_config = next_config.automation.clone();
     let mut service = automation_state.0.write().await;
     service.update_config(new_config);
     service.set_app_handle(app);
@@ -108,25 +112,24 @@ pub async fn update_automation_scheduler_config(
 pub async fn get_automation_status(
     automation_state: State<'_, AutomationServiceState>,
 ) -> Result<AutomationStatus, String> {
-    let service = automation_state.0.read().await;
-    Ok(service.get_status())
+    Ok(automation_state.1.read().clone())
 }
 
 #[tauri::command]
 pub async fn get_automation_jobs(
-    automation_state: State<'_, AutomationServiceState>,
+    db: State<'_, DbConnection>,
 ) -> Result<Vec<AutomationJobRecord>, String> {
-    let service = automation_state.0.read().await;
-    service.list_jobs()
+    let conn = lock_db(db.inner())?;
+    AutomationJobDao::list(&conn).map_err(|e| format!("查询自动化任务失败: {e}"))
 }
 
 #[tauri::command]
 pub async fn get_automation_job(
-    automation_state: State<'_, AutomationServiceState>,
+    db: State<'_, DbConnection>,
     id: String,
 ) -> Result<Option<AutomationJobRecord>, String> {
-    let service = automation_state.0.read().await;
-    service.get_job(id.trim())
+    let conn = lock_db(db.inner())?;
+    AutomationJobDao::get(&conn, id.trim()).map_err(|e| format!("查询自动化任务失败: {e}"))
 }
 
 #[tauri::command]
@@ -199,21 +202,26 @@ pub async fn run_automation_job_now(
 
 #[tauri::command]
 pub async fn get_automation_health(
-    automation_state: State<'_, AutomationServiceState>,
+    db: State<'_, DbConnection>,
     query: Option<AutomationHealthQuery>,
 ) -> Result<AutomationHealthResult, String> {
-    let service = automation_state.0.read().await;
-    service.get_health(query)
+    query_automation_health(db.inner(), query)
 }
 
 #[tauri::command]
 pub async fn get_automation_run_history(
-    automation_state: State<'_, AutomationServiceState>,
+    db: State<'_, DbConnection>,
     id: String,
     limit: Option<usize>,
 ) -> Result<Vec<AgentRun>, String> {
-    let service = automation_state.0.read().await;
-    service.get_job_runs(id.trim(), limit.unwrap_or(20))
+    let conn = lock_db(db.inner())?;
+    lime_core::database::dao::agent_run::AgentRunDao::list_runs_by_source_ref(
+        &conn,
+        "automation",
+        id.trim(),
+        limit.unwrap_or(20),
+    )
+    .map_err(|e| format!("查询自动化运行历史失败: {e}"))
 }
 
 #[tauri::command]

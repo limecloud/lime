@@ -4,6 +4,105 @@
 
 ### 已完成
 
+- 修掉 `SceneAppsPage` 点击“继续最近”后因同页重复导航导致的持续闪屏：
+  - 根因不是纯样式问题，而是 `useSceneAppsPageRuntime` 在显式恢复最近参数后，`search / prefillIntent` 的 debounced 同步又拿旧值触发了一轮同页 `onNavigate("sceneapps", ...)`
+  - 当前已改成：
+    - 当本地 `searchQuery / launchInput` 与外部 `pageParams` 一致时，优先用当前值参与同步
+    - 不再让 debounce 落后的旧值在“继续最近”后触发第二轮同页导航
+  - 已补稳定回归：
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - 新增“点击继续最近场景后不应因为搜索与输入 debounce 再次重复导航”断言
+  - 当前已确认通过：
+    - `npm test -- "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint --no-warn-ignored "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+
+- 把 `SceneApps` 目录页从“无图场景墙”进一步纠偏到“纯标题目录”：
+  - 删除目录分页里大外框、大卡片和“场景选品墙”式陈列
+  - 最近访问入口继续保留，但已压缩成同一块目录里的纯文字标题入口
+  - 场景目录当前只保留标题点击，不再在目录页展示产出、模式、基础设施与 CTA 块
+  - 已同步更新：
+    - `src/components/sceneapps/SceneAppsCatalogPanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/aiprompts/design-language.md`
+  - 本轮额外沉淀：
+    - 对“目录页”来说，真正的合并不是把两组卡片放进一个组件，而是把它们收成同一种文字语义
+    - 如果页面目标只是快速选场景，宁可退成纯标题目录，也不要继续保留 SceneApp 大框
+
+- 把首页 `SceneApps` 入口从“大卡片推荐面板”继续收口成“纯文字标题目录”：
+  - 命中组件是 `src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx`，不是 `SceneAppsPage`
+  - 首页入口当前只保留：
+    - 标题说明
+    - 继续最近场景 / 查看全部场景
+    - 一行可直接点击启动的场景标题目录
+  - 删除首页入口里的：
+    - SceneApp 大卡片
+    - 产出 / 模式 / 基建 / 来源信息块
+    - 深色主 CTA 按钮
+  - 已同步更新：
+    - `src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/aiprompts/design-language.md`
+  - 本轮额外沉淀：
+    - 首页场景入口和场景目录页都应共享“纯标题目录”语义，不能一个已经去框化，另一个还保留老式卡片
+
+- 把 `SceneAppsPage` 首屏壳层从“大框工作台”继续收口成纯文字导航：
+  - 删除首屏 hero 外框、四张统计卡、当前场景摘要卡和 `WORKFLOW PATH` 三步卡
+  - 当前只保留：
+    - 页面标题与说明
+    - 刷新目录文字入口
+    - 目录 / 详情 / 治理的文字型分页切换
+    - 当前场景的一行文字状态与最小动作入口
+  - 已同步更新：
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/aiprompts/design-language.md`
+  - 本轮额外沉淀：
+    - `SceneAppsPage` 的“分页”与“卡片化壳层”不是一回事；保留分页不等于必须保留大块容器
+    - 如果用户目标是快速选场景，顶层工作台也应回到文字导航，而不是继续展示经营看板式首屏
+
+- 把 `browser runtime` 会话稳定性从“依赖首个 launcher 子进程存活”收口成“按 `profile_key` 管理当前活跃 session”：
+  - `src-tauri/src/commands/webview_cmd.rs` 已修正：
+    - Chrome profile 存活判断不再只依赖最初 launcher 子进程
+    - 未受管 / 扩展附着 session 发现不再把 `/json/list` 瞬时失败直接判死
+    - `close_browser_runtime_session_for_profile_key(...)` 现在会清这个 profile 的全部 runtime session
+  - `src-tauri/crates/browser-runtime/src/manager.rs` 已修正：
+    - 新增 `open_session_gate`，串行化同一 `profile_key` 的 `open_session`
+    - `find_session_by_profile_key(...)` 优先返回最新的 connected session
+    - 新增 `close_sessions_by_profile_key(...)`，避免旧 session 残留
+  - 本轮已确认通过：
+    - `env CARGO_TARGET_DIR="/tmp/lime-browser-runtime-verify" cargo test --manifest-path "src-tauri/Cargo.toml" -p lime-browser-runtime`
+    - `npm run smoke:agent-runtime-tool-surface-page -- --timeout-ms 180000 --interval-ms 1000`
+    - `npm run smoke:browser-runtime -- --timeout-ms 180000 --interval-ms 1000 --headless`
+    - `npm run verify:gui-smoke -- --reuse-running --timeout-ms 600000`
+  - 本轮额外沉淀：
+    - 页级 runtime smoke 不应继续被旧 session / 孤儿 profile 清理策略拖垮
+    - `browser runtime` 的事实源应围绕 `profile_key` 当前活跃会话，而不是某一次 launcher 生命周期
+
+- 把 `SceneApps` 目录页从“最近场景 + 目录卡片”双块结构收口成统一的无图场景选品墙：
+  - 最近访问入口不再单独占一块面板，而是并入 `SceneAppsCatalogPanel`
+  - 目录卡片已补充：
+    - `产出`
+    - `模式`
+    - `基建`
+    - `业务动作`
+  - 当前目录页结构固定为：
+    - 顶部搜索与双层筛选
+    - 同语义的“继续最近工作”
+    - 同语义的“按结果挑场景”
+  - 已同步更新：
+    - `src/components/sceneapps/SceneAppsCatalogPanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `src/lib/sceneapp/product.ts`
+    - `docs/aiprompts/design-language.md`
+  - 当前已确认通过：
+    - `npm test -- "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint --no-warn-ignored "src/components/sceneapps/SceneAppsCatalogPanel.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/sceneapp/product.ts"`
+    - `npm run verify:gui-smoke -- --reuse-running --timeout-ms 600000`
+  - 本轮额外沉淀：
+    - 目录页要让用户感觉自己在“选场景”，而不是在“最近记录区”和“目录区”之间切换
+    - 没有图片时，也可以靠结果、模式、基建和当前状态做出 marketplace 式层级，但仍要保持 Lime 的桌面产品气质
+
 - 把 `smoke:agent-runtime-tool-surface-page` 继续从“依赖全局配置写入”收口成“页面级调试覆盖 + 阶段日志”：
   - 新增前端 `workspace harness` 调试覆盖读取：
     - `src/lib/developerFeatures.ts`

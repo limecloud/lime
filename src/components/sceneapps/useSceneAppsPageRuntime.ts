@@ -254,6 +254,7 @@ export function useSceneAppsPageRuntime({
   pageParams,
 }: UseSceneAppsPageRuntimeParams) {
   const appliedExternalParamsKeyRef = useRef<string | null>(null);
+  const requestedPageParamsSyncKeyRef = useRef<string | null>(null);
   const [pageStateTouched, setPageStateTouched] = useState(
     serializeSceneAppsPageParams(pageParams) !== "{}",
   );
@@ -328,49 +329,78 @@ export function useSceneAppsPageRuntime({
     [normalizedIncomingPageParams],
   );
   const hasIncomingPageState = normalizedIncomingPageParamsKey !== "{}";
+  const resolvedIncomingPageParams = useMemo(() => {
+    if (!hasIncomingPageState) {
+      return normalizedIncomingPageParams;
+    }
+
+    return normalizeSceneAppsPageParams({
+      ...normalizedIncomingPageParams,
+      view: resolveSceneAppsViewMode(normalizedIncomingPageParams),
+    });
+  }, [hasIncomingPageState, normalizedIncomingPageParams]);
+  const resolvedIncomingPageParamsKey = useMemo(
+    () => serializeSceneAppsPageParams(resolvedIncomingPageParams),
+    [resolvedIncomingPageParams],
+  );
+
+  const applySceneAppsPageParams = useCallback(
+    (params: SceneAppsPageParams) => {
+      const nextSearchQuery = params.search ?? "";
+      const nextTypeFilter = params.typeFilter ?? "all";
+      const nextPatternFilter = params.patternFilter ?? "all";
+      const nextViewMode = resolveSceneAppsViewMode(params);
+      const nextSceneAppId = params.sceneappId ?? null;
+      const nextRunId = params.runId ?? null;
+      const nextProjectId = params.projectId ?? null;
+      const nextLaunchInput = params.prefillIntent ?? "";
+
+      setSearchQuery((current) =>
+        current === nextSearchQuery ? current : nextSearchQuery,
+      );
+      setTypeFilter((current) =>
+        current === nextTypeFilter ? current : nextTypeFilter,
+      );
+      setPatternFilter((current) =>
+        current === nextPatternFilter ? current : nextPatternFilter,
+      );
+      setViewMode((current) =>
+        current === nextViewMode ? current : nextViewMode,
+      );
+      setSelectedSceneAppId((current) =>
+        current === nextSceneAppId ? current : nextSceneAppId,
+      );
+      setSelectedRunId((current) => (current === nextRunId ? current : nextRunId));
+      setSelectedProjectId((current) =>
+        current === nextProjectId ? current : nextProjectId,
+      );
+      setLaunchInput((current) =>
+        current === nextLaunchInput ? current : nextLaunchInput,
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     setPageStateTouched(hasIncomingPageState);
 
-    if (appliedExternalParamsKeyRef.current === normalizedIncomingPageParamsKey) {
+    if (appliedExternalParamsKeyRef.current === resolvedIncomingPageParamsKey) {
+      if (requestedPageParamsSyncKeyRef.current === resolvedIncomingPageParamsKey) {
+        requestedPageParamsSyncKeyRef.current = null;
+      }
       return;
     }
 
-    appliedExternalParamsKeyRef.current = normalizedIncomingPageParamsKey;
-
-    const nextSearchQuery = normalizedIncomingPageParams.search ?? "";
-    const nextTypeFilter = normalizedIncomingPageParams.typeFilter ?? "all";
-    const nextPatternFilter = normalizedIncomingPageParams.patternFilter ?? "all";
-    const nextViewMode = resolveSceneAppsViewMode(normalizedIncomingPageParams);
-    const nextSceneAppId = normalizedIncomingPageParams.sceneappId ?? null;
-    const nextRunId = normalizedIncomingPageParams.runId ?? null;
-    const nextProjectId = normalizedIncomingPageParams.projectId ?? null;
-    const nextLaunchInput = normalizedIncomingPageParams.prefillIntent ?? "";
-
-    setSearchQuery((current) =>
-      current === nextSearchQuery ? current : nextSearchQuery,
-    );
-    setTypeFilter((current) =>
-      current === nextTypeFilter ? current : nextTypeFilter,
-    );
-    setPatternFilter((current) =>
-      current === nextPatternFilter ? current : nextPatternFilter,
-    );
-    setViewMode((current) => (current === nextViewMode ? current : nextViewMode));
-    setSelectedSceneAppId((current) =>
-      current === nextSceneAppId ? current : nextSceneAppId,
-    );
-    setSelectedRunId((current) => (current === nextRunId ? current : nextRunId));
-    setSelectedProjectId((current) =>
-      current === nextProjectId ? current : nextProjectId,
-    );
-    setLaunchInput((current) =>
-      current === nextLaunchInput ? current : nextLaunchInput,
-    );
+    appliedExternalParamsKeyRef.current = resolvedIncomingPageParamsKey;
+    if (requestedPageParamsSyncKeyRef.current === resolvedIncomingPageParamsKey) {
+      requestedPageParamsSyncKeyRef.current = null;
+    }
+    applySceneAppsPageParams(resolvedIncomingPageParams);
   }, [
+    applySceneAppsPageParams,
     hasIncomingPageState,
-    normalizedIncomingPageParams,
-    normalizedIncomingPageParamsKey,
+    resolvedIncomingPageParams,
+    resolvedIncomingPageParamsKey,
   ]);
 
   const refreshCatalog = useCallback(async () => {
@@ -408,6 +438,24 @@ export function useSceneAppsPageRuntime({
     PREFILL_PARAM_SYNC_DELAY_MS,
     { maxWait: 900 },
   );
+  const effectiveSearchParam = useMemo(() => {
+    const incomingSearch = normalizedIncomingPageParams.search ?? "";
+    return searchQuery === incomingSearch ? searchQuery : debouncedSearchQuery;
+  }, [
+    debouncedSearchQuery,
+    normalizedIncomingPageParams.search,
+    searchQuery,
+  ]);
+  const effectivePrefillIntent = useMemo(() => {
+    const incomingPrefill = normalizedIncomingPageParams.prefillIntent ?? "";
+    return launchInput === incomingPrefill
+      ? launchInput
+      : debouncedLaunchInput;
+  }, [
+    debouncedLaunchInput,
+    launchInput,
+    normalizedIncomingPageParams.prefillIntent,
+  ]);
 
   const allDescriptors = useMemo(() => catalog?.items ?? [], [catalog]);
 
@@ -487,6 +535,12 @@ export function useSceneAppsPageRuntime({
     }
 
     let cancelled = false;
+    setScorecard(null);
+    setRuns([]);
+    setSelectedRunId(null);
+    setSelectedRunSummary(null);
+    setSelectedRunLoading(false);
+    setSelectedRunError(null);
     setScorecardLoading(true);
     setRunsLoading(true);
     setScorecardError(null);
@@ -555,16 +609,17 @@ export function useSceneAppsPageRuntime({
       normalizeSceneAppsPageParams({
         view: viewMode,
         sceneappId: selectedSceneAppId ?? undefined,
-        runId: selectedRunId ?? undefined,
+        runId:
+          viewMode === "governance" ? selectedRunId ?? undefined : undefined,
         projectId: selectedProjectId ?? undefined,
-        prefillIntent: debouncedLaunchInput,
-        search: debouncedSearchQuery,
+        prefillIntent: effectivePrefillIntent,
+        search: effectiveSearchParam,
         typeFilter: typeFilter !== "all" ? typeFilter : undefined,
         patternFilter: patternFilter !== "all" ? patternFilter : undefined,
       }),
     [
-      debouncedLaunchInput,
-      debouncedSearchQuery,
+      effectivePrefillIntent,
+      effectiveSearchParam,
       patternFilter,
       selectedProjectId,
       selectedRunId,
@@ -583,15 +638,21 @@ export function useSceneAppsPageRuntime({
     if (!shouldSyncPageParams) {
       return;
     }
-    if (syncedPageParamsKey === normalizedIncomingPageParamsKey) {
+    if (syncedPageParamsKey === resolvedIncomingPageParamsKey) {
+      if (requestedPageParamsSyncKeyRef.current === syncedPageParamsKey) {
+        requestedPageParamsSyncKeyRef.current = null;
+      }
+      return;
+    }
+    if (requestedPageParamsSyncKeyRef.current === syncedPageParamsKey) {
       return;
     }
 
+    requestedPageParamsSyncKeyRef.current = syncedPageParamsKey;
     onNavigate("sceneapps", syncedPageParams);
   }, [
-    hasIncomingPageState,
-    normalizedIncomingPageParamsKey,
     onNavigate,
+    resolvedIncomingPageParamsKey,
     shouldSyncPageParams,
     syncedPageParams,
     syncedPageParamsKey,
@@ -1037,10 +1098,19 @@ export function useSceneAppsPageRuntime({
 
   const handleResumeRecentVisit = useCallback(
     (params: SceneAppsPageParams) => {
+      const normalizedParams = normalizeSceneAppsPageParams({
+        ...params,
+        view: resolveSceneAppsViewMode(params),
+      });
+      const normalizedParamsKey = serializeSceneAppsPageParams(normalizedParams);
+
       setPageStateTouched(true);
-      onNavigate("sceneapps", normalizeSceneAppsPageParams(params));
+      appliedExternalParamsKeyRef.current = normalizedParamsKey;
+      requestedPageParamsSyncKeyRef.current = normalizedParamsKey;
+      applySceneAppsPageParams(normalizedParams);
+      onNavigate("sceneapps", normalizedParams);
     },
-    [onNavigate],
+    [applySceneAppsPageParams, onNavigate],
   );
 
   const handleSearchQueryChange = useCallback((value: string) => {

@@ -1,16 +1,12 @@
-import { RefreshCw } from "lucide-react";
 import { AutomationJobDialog } from "@/components/settings-v2/system/automation/AutomationJobDialog";
-import { Button } from "@/components/ui/button";
 import type { Page, PageParams, SceneAppsPageParams } from "@/types/page";
 import { SceneAppDetailPanel } from "./SceneAppDetailPanel";
 import { SceneAppGovernancePanel } from "./SceneAppGovernancePanel";
-import { SceneAppsRecentPanel } from "./SceneAppsRecentPanel";
 import { SceneAppRunDetailPanel } from "./SceneAppRunDetailPanel";
 import { SceneAppsCatalogPanel } from "./SceneAppsCatalogPanel";
 import { SceneAppsPageEmptyState } from "./SceneAppsPageEmptyState";
 import { SceneAppRunList } from "./SceneAppRunList";
 import { SceneAppScorecardPanel } from "./SceneAppScorecardPanel";
-import { SceneAppsWorkflowRail } from "./SceneAppsWorkflowRail";
 import { useSceneAppsPageRuntime } from "./useSceneAppsPageRuntime";
 
 interface SceneAppsPageProps {
@@ -60,8 +56,8 @@ export function SceneAppsPage({
   return (
     <div className="flex-1 overflow-auto px-6 py-6">
       <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6">
-        <section className="rounded-[32px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(244,251,248,0.96)_100%)] p-6 shadow-sm shadow-slate-950/5">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+        <section className="space-y-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-[860px]">
               <div className="text-[11px] font-semibold tracking-[0.12em] text-lime-700">
                 SCENEAPP WORKBENCH
@@ -75,46 +71,25 @@ export function SceneAppsPage({
               </p>
             </div>
 
-            <Button
+            <button
               type="button"
-              variant="outline"
-              className="rounded-full border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
               onClick={() => {
                 void runtime.refreshCatalog();
               }}
             >
-              <RefreshCw className="mr-2 h-4 w-4" />
               刷新目录
-            </Button>
-          </div>
-
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {runtime.workbenchStats.map((stat) => (
-              <article
-                key={stat.key}
-                className="rounded-[24px] border border-slate-200 bg-white p-4"
-              >
-                <div className="text-xs font-medium text-slate-500">
-                  {stat.label}
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-slate-900">
-                  {stat.value}
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {stat.description}
-                </p>
-              </article>
-            ))}
+            </button>
           </div>
 
           {runtime.catalogError ? (
-            <div className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
+            <div className="text-sm leading-6 text-amber-700">
               {runtime.catalogError}
             </div>
           ) : null}
 
-          <div className="mt-4 rounded-[24px] border border-slate-200 bg-white p-4">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-4">
               {VIEW_OPTIONS.map((option) => {
                 const active = runtime.viewMode === option.key;
                 return (
@@ -124,8 +99,8 @@ export function SceneAppsPage({
                     data-testid={`sceneapps-view-${option.key}`}
                     className={
                       active
-                        ? "rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-                        : "rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                        ? "text-sm font-semibold text-slate-950"
+                        : "text-sm font-medium text-slate-500 transition-colors hover:text-slate-900"
                     }
                     onClick={() => runtime.handleViewModeChange(option.key)}
                   >
@@ -134,85 +109,54 @@ export function SceneAppsPage({
                 );
               })}
             </div>
-            <p className="mt-3 text-sm leading-6 text-slate-500">
+            <p className="text-sm leading-6 text-slate-500">
               {VIEW_OPTIONS.find((option) => option.key === runtime.viewMode)
                 ?.summary ?? "按分页方式浏览 SceneApp。"}
             </p>
             {runtime.selectedDescriptor ? (
-              <div className="mt-4 flex flex-col gap-3 rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="text-xs font-medium tracking-[0.12em] text-slate-500">
-                    当前场景
-                  </div>
-                  <div className="mt-1 text-base font-semibold text-slate-900">
-                    {runtime.selectedDescriptor.title}
-                  </div>
-                  <div className="mt-1 text-sm leading-6 text-slate-500">
-                    {runtime.selectedDescriptor.summary}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant={
-                      runtime.viewMode === "detail" ? "default" : "outline"
-                    }
-                    onClick={() => runtime.handleViewModeChange("detail")}
-                  >
-                    查看详情
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={
-                      runtime.viewMode === "governance" ? "default" : "outline"
-                    }
-                    onClick={() => runtime.handleViewModeChange("governance")}
-                  >
-                    查看治理
-                  </Button>
-                </div>
+              <div className="flex flex-wrap items-center gap-3 text-sm leading-6 text-slate-600">
+                <span className="font-medium text-slate-900">当前场景：</span>
+                <span>{runtime.selectedDescriptor.title}</span>
+                <span>{runtime.selectedDescriptor.summary}</span>
+                <button
+                  type="button"
+                  data-testid="sceneapps-open-detail"
+                  className="font-medium text-slate-700 transition-colors hover:text-slate-950"
+                  onClick={() => runtime.handleViewModeChange("detail")}
+                >
+                  查看详情
+                </button>
+                <button
+                  type="button"
+                  data-testid="sceneapps-open-governance"
+                  className="font-medium text-slate-700 transition-colors hover:text-slate-950"
+                  onClick={() =>
+                    runtime.runListItems.length > 0
+                      ? runtime.handleViewModeChange("governance")
+                      : runtime.handleViewModeChange("detail")
+                  }
+                >
+                  {runtime.runListItems.length > 0 ? "查看治理" : "先去启动"}
+                </button>
               </div>
             ) : null}
-
-            <SceneAppsWorkflowRail
-              activeView={runtime.viewMode}
-              hasSelectedSceneApp={Boolean(runtime.selectedDescriptor)}
-              hasRuns={runtime.runListItems.length > 0}
-              launchReady={
-                Boolean(runtime.selectedDescriptor) &&
-                runtime.launchDisabledReason == null
-              }
-              selectedSceneTitle={runtime.selectedDescriptor?.title}
-              onOpenCatalog={() => runtime.handleViewModeChange("catalog")}
-              onOpenDetail={() => runtime.handleViewModeChange("detail")}
-              onOpenGovernance={() =>
-                runtime.runListItems.length > 0
-                  ? runtime.handleViewModeChange("governance")
-                  : runtime.handleViewModeChange("detail")
-              }
-            />
           </div>
         </section>
 
         {runtime.viewMode === "catalog" ? (
-          <>
-            <SceneAppsRecentPanel
-              items={runtime.recentVisits}
-              onResume={runtime.handleResumeRecentVisit}
-            />
-
-            <SceneAppsCatalogPanel
-              items={runtime.catalogCards}
-              searchQuery={runtime.searchQuery}
-              typeFilter={runtime.typeFilter}
-              patternFilter={runtime.patternFilter}
-              selectedSceneAppId={runtime.selectedSceneAppId}
-              onSearchQueryChange={runtime.handleSearchQueryChange}
-              onTypeFilterChange={runtime.handleTypeFilterChange}
-              onPatternFilterChange={runtime.handlePatternFilterChange}
-              onSelectSceneApp={runtime.handleSelectSceneApp}
-            />
-          </>
+          <SceneAppsCatalogPanel
+            items={runtime.catalogCards}
+            recentItems={runtime.recentVisits}
+            searchQuery={runtime.searchQuery}
+            typeFilter={runtime.typeFilter}
+            patternFilter={runtime.patternFilter}
+            selectedSceneAppId={runtime.selectedSceneAppId}
+            onSearchQueryChange={runtime.handleSearchQueryChange}
+            onTypeFilterChange={runtime.handleTypeFilterChange}
+            onPatternFilterChange={runtime.handlePatternFilterChange}
+            onResumeRecentVisit={runtime.handleResumeRecentVisit}
+            onSelectSceneApp={runtime.handleSelectSceneApp}
+          />
         ) : null}
 
         {runtime.viewMode === "detail" ? (

@@ -264,8 +264,11 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
     // 初始化自动化调度服务
     let mut automation_service = AutomationService::new(config.automation.clone());
     automation_service.set_db(db.clone());
-    let automation_service_state =
-        AutomationServiceState(Arc::new(RwLock::new(automation_service)));
+    let automation_status_state = automation_service.status_handle();
+    let automation_service_state = AutomationServiceState(
+        Arc::new(RwLock::new(automation_service)),
+        automation_status_state,
+    );
 
     Ok(AppStates {
         state,

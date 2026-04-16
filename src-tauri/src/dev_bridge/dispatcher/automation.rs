@@ -34,12 +34,15 @@ pub(super) async fn try_handle(
 
     let app_handle = require_app_handle(state)?;
     let app_state = app_handle.state::<crate::app::AppState>();
+    let config_manager = app_handle.state::<crate::config::GlobalConfigManagerState>();
+    let db = app_handle.state::<crate::database::DbConnection>();
     let automation_state =
         app_handle.state::<crate::services::automation_service::AutomationServiceState>();
 
     let result = match cmd {
         "get_automation_scheduler_config" => serde_json::to_value(
-            crate::commands::automation_cmd::get_automation_scheduler_config(app_state).await?,
+            crate::commands::automation_cmd::get_automation_scheduler_config(config_manager)
+                .await?,
         )?,
         "update_automation_scheduler_config" => {
             let config = parse_nested_arg::<
@@ -47,6 +50,7 @@ pub(super) async fn try_handle(
             >(&args_or_default(args), "config")?;
             crate::commands::automation_cmd::update_automation_scheduler_config(
                 app_state,
+                config_manager,
                 automation_state,
                 config,
                 app_handle.clone(),
@@ -57,14 +61,14 @@ pub(super) async fn try_handle(
         "get_automation_status" => serde_json::to_value(
             crate::commands::automation_cmd::get_automation_status(automation_state).await?,
         )?,
-        "get_automation_jobs" => serde_json::to_value(
-            crate::commands::automation_cmd::get_automation_jobs(automation_state).await?,
-        )?,
+        "get_automation_jobs" => {
+            serde_json::to_value(crate::commands::automation_cmd::get_automation_jobs(db).await?)?
+        }
         "get_automation_job" => {
             let args = args_or_default(args);
             let id = get_string_arg(&args, "id", "id")?;
             serde_json::to_value(
-                crate::commands::automation_cmd::get_automation_job(automation_state, id).await?,
+                crate::commands::automation_cmd::get_automation_job(db, id).await?,
             )?
         }
         "create_automation_job" => {
@@ -113,8 +117,7 @@ pub(super) async fn try_handle(
                 crate::services::automation_service::health::AutomationHealthQuery,
             >(&args_or_default(args), "query")?;
             serde_json::to_value(
-                crate::commands::automation_cmd::get_automation_health(automation_state, query)
-                    .await?,
+                crate::commands::automation_cmd::get_automation_health(db, query).await?,
             )?
         }
         "get_automation_run_history" => {
@@ -125,12 +128,7 @@ pub(super) async fn try_handle(
                 .and_then(|value| value.as_u64())
                 .map(|value| value as usize);
             serde_json::to_value(
-                crate::commands::automation_cmd::get_automation_run_history(
-                    automation_state,
-                    id,
-                    limit,
-                )
-                .await?,
+                crate::commands::automation_cmd::get_automation_run_history(db, id, limit).await?,
             )?
         }
         "preview_automation_schedule" => {

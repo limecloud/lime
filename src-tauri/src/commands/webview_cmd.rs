@@ -91,7 +91,6 @@ pub struct WebviewManagerWrapper(pub Arc<RwLock<WebviewManagerState>>);
 
 /// Chrome Profile 进程内部状态
 struct ChromeProfileProcess {
-    profile_key: String,
     browser_source: String,
     browser_path: String,
     profile_dir: String,
@@ -99,21 +98,6 @@ struct ChromeProfileProcess {
     started_at: String,
     last_url: String,
     child: Child,
-}
-
-impl ChromeProfileProcess {
-    fn as_info(&self) -> ChromeProfileSessionInfo {
-        ChromeProfileSessionInfo {
-            profile_key: self.profile_key.clone(),
-            browser_source: self.browser_source.clone(),
-            browser_path: self.browser_path.clone(),
-            profile_dir: self.profile_dir.clone(),
-            remote_debugging_port: self.remote_debugging_port,
-            pid: self.child.id(),
-            started_at: self.started_at.clone(),
-            last_url: self.last_url.clone(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -917,7 +901,6 @@ async fn open_chrome_profile_window_with_manager(
         guard.sessions.insert(
             profile_key.clone(),
             ChromeProfileProcess {
-                profile_key,
                 browser_source: browser_source.clone(),
                 browser_path: browser_path.clone(),
                 profile_dir: profile_dir.to_string_lossy().to_string(),
@@ -1099,7 +1082,6 @@ async fn ensure_managed_chrome_profile_with_manager(
         guard.sessions.insert(
             normalized_profile_key.clone(),
             ChromeProfileProcess {
-                profile_key: normalized_profile_key,
                 browser_source,
                 browser_path,
                 profile_dir: session.profile_dir.clone(),

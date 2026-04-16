@@ -633,6 +633,34 @@ describe("AutomationSettings", () => {
     );
   });
 
+  it("工作区列表挂起时不应阻塞持续流程页面首屏", async () => {
+    mockListProjects.mockImplementationOnce(() => new Promise(() => {}));
+
+    const container = await renderSettings({
+      mode: "workspace",
+    });
+
+    expect(container.textContent).toContain("自动化");
+    expect(container.textContent).toContain("任务入口");
+    expect(container.textContent).toContain("任务列表");
+    expect(container.querySelector("table")).not.toBeNull();
+  });
+
+  it("核心调度器配置加载失败时应显示错误态而不是一直 loading", async () => {
+    mockGetAutomationSchedulerConfig.mockRejectedValueOnce(
+      new Error("scheduler offline"),
+    );
+
+    const container = await renderSettings({
+      mode: "workspace",
+    });
+
+    expect(container.textContent).toContain("自动化页面加载失败");
+    expect(container.textContent).toContain("scheduler offline");
+    expect(container.textContent).toContain("重新加载");
+    expect(container.querySelector("table")).toBeNull();
+  });
+
   it("服务型技能自动化任务应展示参数摘要与主稿绑定", async () => {
     mockGetAutomationJobs.mockResolvedValueOnce([
       {

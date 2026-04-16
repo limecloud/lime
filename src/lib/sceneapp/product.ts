@@ -12,6 +12,7 @@ import type {
 import type { SceneAppEntryCardItem, SceneAppSeed } from "./presentation";
 import {
   getSceneAppDeliveryContractLabel,
+  getSceneAppInfraSummary,
   getSceneAppPatternLabel,
   getSceneAppPatternSummary,
   getSceneAppPresentationCopy,
@@ -91,6 +92,8 @@ export interface SceneAppCatalogCardViewModel {
   summary: string;
   outputHint: string;
   patternSummary: string;
+  infraSummary: string;
+  actionLabel: string;
 }
 
 export interface SceneAppDeliveryPartViewModel {
@@ -1124,6 +1127,8 @@ export function buildSceneAppCatalogCardViewModel(
     summary: descriptor.summary,
     outputHint: descriptor.outputHint,
     patternSummary: getSceneAppPatternSummary(descriptor),
+    infraSummary: getSceneAppInfraSummary(descriptor),
+    actionLabel: copy.actionLabel,
   };
 }
 
