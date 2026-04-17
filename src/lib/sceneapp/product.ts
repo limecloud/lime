@@ -6,6 +6,7 @@ import type {
   SceneAppGovernanceArtifactKind,
   SceneAppGovernanceArtifactRef,
   SceneAppNativeSkillRuntimeRef,
+  SceneAppPlanResult,
   SceneAppRunSummary,
   SceneAppScorecard,
 } from "./types";
@@ -76,6 +77,20 @@ const SCORECARD_SIGNAL_LABELS: Record<string, string> = {
   runtime_failure: "运行链稳定性",
 };
 
+const CONTEXT_LAYER_LABELS: Record<string, string> = {
+  skill: "Skill",
+  memory: "Memory",
+  taste: "Taste",
+  tool: "Tool",
+  reference: "Reference",
+};
+
+const PROJECT_PACK_COMPLETION_LABELS: Record<string, string> = {
+  required_parts_complete: "按必含部件判断整包完成度",
+  workspace_artifact_writeback: "按工作区结果回写判断交付",
+  artifact_writeback: "按结果文件回流判断交付",
+};
+
 export interface SceneAppWorkbenchStatItem {
   key: string;
   label: string;
@@ -107,6 +122,31 @@ export interface SceneAppCompositionStepViewModel {
   bindingLabel?: string;
 }
 
+export interface SceneAppPlanningViewModel {
+  statusLabel: string;
+  summary: string;
+  warnings: string[];
+  unmetRequirements: string[];
+}
+
+export interface SceneAppContextPlanViewModel {
+  activeLayers: SceneAppDeliveryPartViewModel[];
+  referenceCount: number;
+  memoryRefs: SceneAppDeliveryPartViewModel[];
+  toolRefs: SceneAppDeliveryPartViewModel[];
+  tasteSummary?: string;
+  notes: string[];
+}
+
+export interface SceneAppProjectPackPlanViewModel {
+  packKindLabel: string;
+  completionStrategyLabel: string;
+  viewerLabel?: string;
+  primaryPart?: string;
+  requiredParts: SceneAppDeliveryPartViewModel[];
+  notes: string[];
+}
+
 export interface SceneAppDetailViewModel {
   id: string;
   title: string;
@@ -133,6 +173,9 @@ export interface SceneAppDetailViewModel {
   compositionBlueprintRef?: string;
   compositionStepCount: number;
   compositionSteps: SceneAppCompositionStepViewModel[];
+  planning: SceneAppPlanningViewModel;
+  contextPlan: SceneAppContextPlanViewModel | null;
+  projectPackPlan: SceneAppProjectPackPlanViewModel | null;
   scorecardProfileRef?: string;
   scorecardMetricKeys: SceneAppDeliveryPartViewModel[];
   scorecardFailureSignals: SceneAppDeliveryPartViewModel[];
@@ -155,7 +198,9 @@ export interface SceneAppScorecardViewModel {
   topFailureSignalLabel?: string;
   deliveryContractLabel?: string;
   viewerLabel?: string;
+  completionStrategyLabel?: string;
   deliveryRequiredParts: SceneAppDeliveryPartViewModel[];
+  packPlanNotes: string[];
   operatingNarrative: string;
   actionLabel?: string;
   summary: string;
@@ -241,6 +286,10 @@ export interface SceneAppRunDetailViewModel {
   deliveryMissingParts: SceneAppDeliveryPartViewModel[];
   deliveryPartCoverageKnown: boolean;
   deliveryViewerLabel?: string;
+  packCompletionStrategyLabel?: string;
+  packViewerLabel?: string;
+  plannedDeliveryRequiredParts: SceneAppDeliveryPartViewModel[];
+  packPlanNotes: string[];
   deliveryArtifactEntries: SceneAppRunDeliveryArtifactEntryViewModel[];
   governanceActionEntries: SceneAppRunGovernanceActionViewModel[];
   governanceArtifactEntries: SceneAppRunGovernanceArtifactEntryViewModel[];
@@ -350,6 +399,73 @@ function buildLabeledItems(
       key: value,
       label: labelMap[value] ?? humanizeTokenLabel(value),
     }));
+}
+
+function buildContextRefItems(
+  values: string[] | undefined,
+): SceneAppDeliveryPartViewModel[] {
+  return Array.from(new Set(values ?? []))
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => {
+      const separatorIndex = value.indexOf(":");
+      if (separatorIndex < 0) {
+        return {
+          key: value,
+          label: humanizeTokenLabel(value),
+        };
+      }
+
+      const prefix = value.slice(0, separatorIndex);
+      const suffix = value.slice(separatorIndex + 1);
+      return {
+        key: value,
+        label: `${humanizeTokenLabel(prefix)} · ${suffix}`,
+      };
+    });
+}
+
+function buildProjectPackPlanPresentation(params: {
+  descriptor?:
+    | Pick<SceneAppDescriptor, "deliveryContract" | "deliveryProfile">
+    | null;
+  projectPackPlan?: SceneAppPlanResult["projectPackPlan"] | null;
+}): {
+  packKindLabel?: string;
+  completionStrategyLabel?: string;
+  viewerLabel?: string;
+  primaryPart?: string;
+  requiredParts: SceneAppDeliveryPartViewModel[];
+  notes: string[];
+} {
+  const { descriptor, projectPackPlan } = params;
+  const resolvedContract =
+    projectPackPlan?.packKind ?? descriptor?.deliveryContract;
+  const primaryPart =
+    projectPackPlan?.primaryPart ?? descriptor?.deliveryProfile?.primaryPart;
+
+  return {
+    packKindLabel: resolvedContract
+      ? getSceneAppDeliveryContractLabel(resolvedContract)
+      : undefined,
+    completionStrategyLabel: projectPackPlan?.completionStrategy
+      ? PROJECT_PACK_COMPLETION_LABELS[projectPackPlan.completionStrategy] ??
+        humanizeTokenLabel(projectPackPlan.completionStrategy)
+      : undefined,
+    viewerLabel: getSceneAppViewerKindLabel(
+      projectPackPlan?.viewerKind ?? descriptor?.deliveryProfile?.viewerKind,
+    ),
+    primaryPart:
+      primaryPart &&
+      (DELIVERY_PART_LABELS[primaryPart] ?? humanizeTokenLabel(primaryPart)),
+    requiredParts: buildLabeledItems(
+      projectPackPlan?.requiredParts?.length
+        ? projectPackPlan.requiredParts
+        : descriptor?.deliveryProfile?.requiredParts,
+      DELIVERY_PART_LABELS,
+    ),
+    notes: dedupeNonEmptyLines(projectPackPlan?.notes),
+  };
 }
 
 function getFailureSignalLabel(signal?: string | null): string | undefined {
@@ -1136,8 +1252,9 @@ export function buildSceneAppDetailViewModel(params: {
   descriptor: SceneAppDescriptor;
   entryCard: SceneAppEntryCardItem | null;
   launchSeed: SceneAppSeed | null;
+  planResult?: SceneAppPlanResult | null;
 }): SceneAppDetailViewModel {
-  const { descriptor, entryCard, launchSeed } = params;
+  const { descriptor, entryCard, launchSeed, planResult } = params;
   const copy = getSceneAppPresentationCopy(descriptor);
   const executionChainLabel = Array.from(
     new Set(
@@ -1160,6 +1277,77 @@ export function buildSceneAppDetailViewModel(params: {
     SCORECARD_SIGNAL_LABELS,
   );
   const compositionSteps = buildCompositionStepViewModels(descriptor);
+  const projectPackPlanPresentation = buildProjectPackPlanPresentation({
+    descriptor,
+    projectPackPlan: planResult?.projectPackPlan,
+  });
+  const planning: SceneAppPlanningViewModel = planResult
+    ? {
+        statusLabel: planResult.readiness.ready
+          ? "已就绪"
+          : `待补 ${planResult.readiness.unmetRequirements.length} 项`,
+        summary: planResult.readiness.ready
+          ? `当前这次输入已经能进入 ${
+              BINDING_FAMILY_LABELS[planResult.plan.executorKind] ??
+              humanizeTokenLabel(planResult.plan.executorKind)
+            }，并沿 ${getSceneAppDeliveryContractLabel(
+              planResult.plan.artifactContract,
+            )} 主链继续交付。`
+          : `当前预规划已生成，但还有 ${planResult.readiness.unmetRequirements.length} 项前置待补齐；补齐后会继续沿 ${
+              BINDING_FAMILY_LABELS[planResult.plan.executorKind] ??
+              humanizeTokenLabel(planResult.plan.executorKind)
+            } 执行。`,
+        warnings: dedupeNonEmptyLines(planResult.plan.warnings),
+        unmetRequirements: planResult.readiness.unmetRequirements.map(
+          (requirement) => requirement.message,
+        ),
+      }
+    : {
+        statusLabel: "待生成",
+        summary:
+          "当前还没有根据项目与启动输入生成执行预规划；补齐输入后会自动刷新。",
+        warnings: [],
+        unmetRequirements: [],
+      };
+  const contextPlan = planResult?.contextOverlay
+    ? {
+        activeLayers: buildLabeledItems(
+          planResult.contextOverlay.compilerPlan.activeLayers,
+          CONTEXT_LAYER_LABELS,
+        ),
+        referenceCount: planResult.contextOverlay.compilerPlan.referenceCount,
+        memoryRefs: buildContextRefItems(
+          planResult.contextOverlay.snapshot.memoryRefs.length > 0
+            ? planResult.contextOverlay.snapshot.memoryRefs
+            : planResult.contextOverlay.compilerPlan.memoryRefs,
+        ),
+        toolRefs: buildContextRefItems(
+          planResult.contextOverlay.snapshot.toolRefs.length > 0
+            ? planResult.contextOverlay.snapshot.toolRefs
+            : planResult.contextOverlay.compilerPlan.toolRefs,
+        ),
+        tasteSummary:
+          planResult.contextOverlay.snapshot.tasteProfile?.summary?.trim() ||
+          undefined,
+        notes: dedupeNonEmptyLines(
+          planResult.contextOverlay.compilerPlan.notes,
+        ),
+      }
+    : null;
+  const projectPackPlan = planResult?.projectPackPlan
+    ? {
+        ...projectPackPlanPresentation,
+        packKindLabel:
+          projectPackPlanPresentation.packKindLabel ??
+          getSceneAppDeliveryContractLabel(planResult.projectPackPlan.packKind),
+        completionStrategyLabel:
+          projectPackPlanPresentation.completionStrategyLabel ??
+          (PROJECT_PACK_COMPLETION_LABELS[
+            planResult.projectPackPlan.completionStrategy
+          ] ??
+            humanizeTokenLabel(planResult.projectPackPlan.completionStrategy)),
+      }
+    : null;
 
   return {
     id: descriptor.id,
@@ -1199,6 +1387,9 @@ export function buildSceneAppDetailViewModel(params: {
     compositionBlueprintRef: descriptor.compositionProfile?.blueprintRef,
     compositionStepCount: descriptor.compositionProfile?.stepCount ?? 0,
     compositionSteps,
+    planning,
+    contextPlan,
+    projectPackPlan,
     scorecardProfileRef: descriptor.scorecardProfile?.profileRef,
     scorecardMetricKeys,
     scorecardFailureSignals,
@@ -1210,12 +1401,18 @@ export function buildSceneAppScorecardViewModel(
   params: {
     descriptor: SceneAppDescriptor | null;
     scorecard: SceneAppScorecard | null;
+    planResult?: Pick<SceneAppPlanResult, "projectPackPlan"> | null;
   },
 ): SceneAppScorecardViewModel | null {
   const { descriptor, scorecard } = params;
   if (!descriptor && !scorecard) {
     return null;
   }
+
+  const projectPackPlan = buildProjectPackPlanPresentation({
+    descriptor,
+    projectPackPlan: params.planResult?.projectPackPlan,
+  });
 
   if (!scorecard) {
     return {
@@ -1234,13 +1431,10 @@ export function buildSceneAppScorecardViewModel(
       deliveryContractLabel: descriptor
         ? getSceneAppDeliveryContractLabel(descriptor.deliveryContract)
         : undefined,
-      viewerLabel: getSceneAppViewerKindLabel(
-        descriptor?.deliveryProfile?.viewerKind,
-      ),
-      deliveryRequiredParts: buildLabeledItems(
-        descriptor?.deliveryProfile?.requiredParts,
-        DELIVERY_PART_LABELS,
-      ),
+      viewerLabel: projectPackPlan.viewerLabel,
+      completionStrategyLabel: projectPackPlan.completionStrategyLabel,
+      deliveryRequiredParts: projectPackPlan.requiredParts,
+      packPlanNotes: projectPackPlan.notes,
       operatingNarrative: descriptor
         ? buildSceneAppScorecardNarrative(descriptor)
         : "当前还没有明确的经营口径。",
@@ -1270,13 +1464,10 @@ export function buildSceneAppScorecardViewModel(
     deliveryContractLabel: descriptor
       ? getSceneAppDeliveryContractLabel(descriptor.deliveryContract)
       : undefined,
-    viewerLabel: getSceneAppViewerKindLabel(
-      descriptor?.deliveryProfile?.viewerKind,
-    ),
-    deliveryRequiredParts: buildLabeledItems(
-      descriptor?.deliveryProfile?.requiredParts,
-      DELIVERY_PART_LABELS,
-    ),
+    viewerLabel: projectPackPlan.viewerLabel,
+    completionStrategyLabel: projectPackPlan.completionStrategyLabel,
+    deliveryRequiredParts: projectPackPlan.requiredParts,
+    packPlanNotes: projectPackPlan.notes,
     operatingNarrative: descriptor
       ? buildSceneAppScorecardNarrative(descriptor)
       : "当前先按真实运行数据判断这个场景是否值得继续投入。",
@@ -1314,10 +1505,18 @@ export function buildSceneAppRunListItemViewModel(
 }
 
 export function buildSceneAppRunDetailViewModel(params: {
-  descriptor: Pick<SceneAppDescriptor, "title" | "deliveryProfile">;
+  descriptor: Pick<
+    SceneAppDescriptor,
+    "title" | "deliveryContract" | "deliveryProfile"
+  >;
   run: SceneAppRunSummary;
+  projectPackPlan?: SceneAppPlanResult["projectPackPlan"] | null;
 }): SceneAppRunDetailViewModel {
   const delivery = buildRunDeliveryPresentation(params.run);
+  const projectPackPlan = buildProjectPackPlanPresentation({
+    descriptor: params.descriptor,
+    projectPackPlan: params.projectPackPlan,
+  });
   const deliveryArtifactEntries = buildRunDeliveryArtifactEntries(params);
   const governanceActionEntries = buildRunGovernanceActionEntries(params.run);
   const governanceArtifactEntries = buildRunGovernanceArtifactEntries(
@@ -1349,6 +1548,10 @@ export function buildSceneAppRunDetailViewModel(params: {
     deliveryMissingParts: delivery.missingParts,
     deliveryPartCoverageKnown: delivery.partCoverageKnown,
     deliveryViewerLabel: evidence.deliveryViewerLabel,
+    packCompletionStrategyLabel: projectPackPlan.completionStrategyLabel,
+    packViewerLabel: projectPackPlan.viewerLabel,
+    plannedDeliveryRequiredParts: projectPackPlan.requiredParts,
+    packPlanNotes: projectPackPlan.notes,
     deliveryArtifactEntries,
     governanceActionEntries,
     governanceArtifactEntries,
@@ -1543,12 +1746,14 @@ export function buildSceneAppGovernancePanelViewModel(params: {
   descriptor: SceneAppDescriptor;
   scorecard: SceneAppScorecard | null;
   run: SceneAppRunSummary | null;
+  projectPackPlan?: SceneAppPlanResult["projectPackPlan"] | null;
 }): SceneAppGovernancePanelViewModel {
   const { descriptor, scorecard, run } = params;
   const detailView = run
     ? buildSceneAppRunDetailViewModel({
         descriptor,
         run,
+        projectPackPlan: params.projectPackPlan,
       })
     : null;
   const statusItems = buildSceneAppGovernanceStatusItems({
@@ -1559,6 +1764,7 @@ export function buildSceneAppGovernancePanelViewModel(params: {
     descriptor,
     scorecard,
     run,
+    projectPackPlan: params.projectPackPlan,
   });
 
   return {
@@ -1577,12 +1783,14 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
   descriptor: SceneAppDescriptor;
   scorecard: SceneAppScorecard | null;
   run: SceneAppRunSummary | null;
+  projectPackPlan?: SceneAppPlanResult["projectPackPlan"] | null;
 }): SceneAppOperatingSummaryViewModel {
   const { descriptor, scorecard, run } = params;
   const detailView = run
     ? buildSceneAppRunDetailViewModel({
         descriptor,
         run,
+        projectPackPlan: params.projectPackPlan,
       })
     : null;
   const destinations = buildSceneAppGovernanceDestinations({

@@ -5,6 +5,10 @@ use super::adapters::{
     extract_sceneapp_id_from_run_metadata, prepare_sceneapp_run_governance_artifact,
 };
 use super::catalog::{get_sceneapp_descriptor, seeded_sceneapp_catalog};
+use super::context::store::{
+    build_persisted_sceneapp_context, load_persisted_sceneapp_context,
+    save_persisted_sceneapp_context,
+};
 use super::dto::*;
 use super::governance::build_sceneapp_scorecard_from_runs;
 use super::runtime::build_launch_plan;
@@ -35,10 +39,51 @@ impl SceneAppService {
         get_sceneapp_descriptor(id)
     }
 
-    pub fn plan_launch(intent: SceneAppLaunchIntent) -> Result<SceneAppPlanResult, String> {
-        let descriptor = get_sceneapp_descriptor(intent.sceneapp_id.as_str())
-            .ok_or_else(|| format!("未找到 SceneApp: {}", intent.sceneapp_id))?;
-        Ok(build_launch_plan(descriptor, intent))
+    pub fn plan_launch(
+        db: &DbConnection,
+        intent: SceneAppLaunchIntent,
+    ) -> Result<SceneAppPlanResult, String> {
+        let sceneapp_id = intent.sceneapp_id.clone();
+        let workspace_id = intent.workspace_id.clone();
+        let project_id = intent.project_id.clone();
+        let descriptor = get_sceneapp_descriptor(sceneapp_id.as_str())
+            .ok_or_else(|| format!("未找到 SceneApp: {sceneapp_id}"))?;
+
+        let persisted_context = match load_persisted_sceneapp_context(
+            db,
+            sceneapp_id.as_str(),
+            workspace_id.as_deref(),
+            project_id.as_deref(),
+        ) {
+            Ok(context) => context,
+            Err(error) => {
+                let mut result = build_launch_plan(descriptor, intent, None);
+                result.plan.warnings.push(format!(
+                    "读取项目级 Context Snapshot 失败，本次先按最新输入继续 planning：{error}"
+                ));
+                return Ok(result);
+            }
+        };
+
+        let mut result = build_launch_plan(descriptor, intent, persisted_context.as_ref());
+        let Some(context_overlay) = result.context_overlay.as_ref() else {
+            return Ok(result);
+        };
+        let persisted_context =
+            build_persisted_sceneapp_context(sceneapp_id.as_str(), &context_overlay.snapshot);
+
+        match save_persisted_sceneapp_context(db, &persisted_context) {
+            Ok(Some(_)) => {}
+            Ok(None) => result
+                .plan
+                .warnings
+                .push("当前未解析到项目目录，暂未写入项目级 Context Snapshot。".to_string()),
+            Err(error) => result.plan.warnings.push(format!(
+                "写入项目级 Context Snapshot 失败，本次 planning 结果仍已返回：{error}"
+            )),
+        }
+
+        Ok(result)
     }
 
     fn seeded_runs() -> Vec<SceneAppRunSummary> {

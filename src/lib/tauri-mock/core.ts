@@ -7,8 +7,10 @@ import type { CompanionPetStatus } from "../api/companion";
 import type { AgentRun } from "../api/executionRun";
 import type {
   SceneAppCatalog,
+  SceneAppContextOverlay,
   SceneAppDescriptor,
   SceneAppPlanResult,
+  SceneAppProjectPackPlan,
   SceneAppRuntimeAdapterPlan,
   SceneAppScorecard,
 } from "../api/sceneapp";
@@ -50,6 +52,16 @@ const deprecatedAgentCommandMocks = Object.fromEntries(
     ],
   ),
 ) as Record<string, () => never>;
+
+type MockPersistedSceneAppContext = {
+  sceneappId: string;
+  workspaceId?: string | null;
+  projectId?: string | null;
+  referenceItems: SceneAppContextOverlay["snapshot"]["referenceItems"];
+  tasteProfile?: SceneAppContextOverlay["snapshot"]["tasteProfile"];
+};
+
+const mockSceneAppContextStore = new Map<string, MockPersistedSceneAppContext>();
 
 function normalizeMockMediaTaskId(taskRef?: string): string {
   const normalized = (taskRef || "task-image-mock-1")
@@ -1294,19 +1306,365 @@ function findMockSceneAppDescriptor(id?: string): SceneAppDescriptor | null {
 }
 
 function extractMockSceneAppUrlCandidate(
-  userInput?: string,
+  text?: string,
 ): string | undefined {
-  if (typeof userInput !== "string") {
+  if (typeof text !== "string") {
     return undefined;
   }
 
-  return userInput
+  return text
     .split(/\s+/)
     .find(
       (segment) =>
         segment.startsWith("http://") || segment.startsWith("https://"),
     )
     ?.replace(/["')\]},.>，。）]+$/g, "");
+}
+
+function normalizeMockSceneAppOptionalId(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function resolveMockSceneAppWorkspaceId(intent: Record<string, unknown>) {
+  return (
+    normalizeMockSceneAppOptionalId(intent.workspaceId) ??
+    normalizeMockSceneAppOptionalId(intent.workspace_id)
+  );
+}
+
+function resolveMockSceneAppProjectId(intent: Record<string, unknown>) {
+  return (
+    normalizeMockSceneAppOptionalId(intent.projectId) ??
+    normalizeMockSceneAppOptionalId(intent.project_id)
+  );
+}
+
+function resolveMockSceneAppContextStoreKey(
+  sceneappId: string,
+  intent: Record<string, unknown>,
+): string | null {
+  const projectId = resolveMockSceneAppProjectId(intent);
+  const workspaceId = resolveMockSceneAppWorkspaceId(intent);
+  const scopeId = projectId ?? workspaceId;
+  if (!scopeId) {
+    return null;
+  }
+  return `${sceneappId.trim()}::${scopeId}`;
+}
+
+function pushUniqueMock(values: string[], value?: string | null) {
+  if (typeof value !== "string") {
+    return;
+  }
+  const normalized = value.trim();
+  if (!normalized || values.includes(normalized)) {
+    return;
+  }
+  values.push(normalized);
+}
+
+function truncateMockSceneAppSummary(value: string, maxChars: number) {
+  const trimmed = value.trim();
+  const chars = Array.from(trimmed);
+  if (chars.length <= maxChars) {
+    return trimmed;
+  }
+  return `${chars.slice(0, maxChars).join("")}…`;
+}
+
+function stableMockSceneAppReferenceItemId(
+  prefix: string,
+  key: string,
+  value: string,
+) {
+  let hash = 2166136261;
+  for (const ch of `${prefix}:${key}:${value.trim()}`) {
+    hash ^= ch.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${prefix}-${key}-${(hash >>> 0).toString(16)}`;
+}
+
+function buildMockSceneAppReferenceItems(intent: Record<string, unknown>) {
+  const items = [] as NonNullable<
+    SceneAppContextOverlay["snapshot"]["referenceItems"]
+  >;
+  const userInput =
+    typeof intent.userInput === "string"
+      ? intent.userInput.trim()
+      : typeof intent.user_input === "string"
+        ? intent.user_input.trim()
+        : "";
+  if (userInput) {
+    const userInputUrl = extractMockSceneAppUrlCandidate(userInput);
+    items.push({
+      id: stableMockSceneAppReferenceItemId("user-input", "input", userInput),
+      label: "用户输入",
+      sourceKind: "user_input",
+      contentType: userInputUrl ? "url" : "text",
+      uri: userInputUrl ?? null,
+      summary: truncateMockSceneAppSummary(userInput, 80),
+      selected: true,
+    });
+  }
+
+  const slots =
+    intent.slots && typeof intent.slots === "object"
+      ? (intent.slots as Record<string, unknown>)
+      : {};
+  for (const [key, rawValue] of Object.entries(slots)) {
+    if (typeof rawValue !== "string" || !rawValue.trim()) {
+      continue;
+    }
+    const slotUrl = extractMockSceneAppUrlCandidate(rawValue);
+    items.push({
+      id: stableMockSceneAppReferenceItemId("slot", key, rawValue.trim()),
+      label: key,
+      sourceKind: "slot",
+      contentType: slotUrl ? "url" : "slot",
+      uri: slotUrl ?? null,
+      summary: truncateMockSceneAppSummary(rawValue, 80),
+      selected: true,
+    });
+  }
+
+  return items;
+}
+
+function mergeMockSceneAppReferenceItems(
+  inputItems: NonNullable<SceneAppContextOverlay["snapshot"]["referenceItems"]>,
+  persistedContext?: MockPersistedSceneAppContext | null,
+) {
+  const seen = new Set<string>();
+  const merged = [] as NonNullable<
+    SceneAppContextOverlay["snapshot"]["referenceItems"]
+  >;
+
+  for (const item of inputItems) {
+    if (seen.has(item.id)) {
+      continue;
+    }
+    seen.add(item.id);
+    merged.push(item);
+  }
+
+  for (const item of persistedContext?.referenceItems ?? []) {
+    if (seen.has(item.id)) {
+      continue;
+    }
+    seen.add(item.id);
+    merged.push({
+      ...item,
+      sourceKind: "reference_library",
+    });
+  }
+
+  return merged;
+}
+
+function buildMockSceneAppTasteProfile(
+  descriptor: SceneAppDescriptor,
+  intent: Record<string, unknown>,
+  referenceItems: NonNullable<SceneAppContextOverlay["snapshot"]["referenceItems"]>,
+  persistedContext?: MockPersistedSceneAppContext | null,
+) {
+  const userInput =
+    typeof intent.userInput === "string"
+      ? intent.userInput.trim()
+      : typeof intent.user_input === "string"
+        ? intent.user_input.trim()
+        : "";
+  const persistedTasteProfile = persistedContext?.tasteProfile ?? null;
+  if (!referenceItems.length && !userInput) {
+    return persistedTasteProfile;
+  }
+
+  const keywords: string[] = [];
+  for (const keyword of persistedTasteProfile?.keywords ?? []) {
+    pushUniqueMock(keywords, keyword);
+  }
+  for (const alias of (descriptor.aliases ?? []).slice(0, 2)) {
+    pushUniqueMock(keywords, alias);
+  }
+  const slots =
+    intent.slots && typeof intent.slots === "object"
+      ? (intent.slots as Record<string, unknown>)
+      : {};
+  for (const [key, rawValue] of Object.entries(slots)) {
+    if (typeof rawValue !== "string" || !rawValue.trim()) {
+      continue;
+    }
+    const normalizedKey = key.trim().toLowerCase();
+    if (
+      !["style", "tone", "mood", "platform", "target_language", "duration"].includes(
+        normalizedKey,
+      )
+    ) {
+      continue;
+    }
+    pushUniqueMock(
+      keywords,
+      `${key}:${truncateMockSceneAppSummary(rawValue, 24)}`,
+    );
+  }
+  if (descriptor.patternPrimary === "reviewer") {
+    pushUniqueMock(keywords, "review-first");
+  }
+  pushUniqueMock(keywords, descriptor.outputHint);
+
+  const avoidKeywords: string[] = [];
+  for (const keyword of persistedTasteProfile?.avoidKeywords ?? []) {
+    pushUniqueMock(avoidKeywords, keyword);
+  }
+  if (referenceItems.length > 0) {
+    pushUniqueMock(avoidKeywords, "偏离参考素材");
+  }
+
+  return {
+    profileId: `taste-${descriptor.id}`,
+    summary:
+      persistedTasteProfile && referenceItems.length > 0
+        ? `当前 TasteProfile 已在项目沉淀基础上，结合 ${referenceItems.length} 条参考输入更新启发式摘要。`
+        : persistedTasteProfile
+          ? "当前 TasteProfile 已从项目上下文恢复。"
+          : referenceItems.length === 0
+            ? "当前 TasteProfile 先基于用户输入与场景画像生成启发式摘要。"
+            : `当前 TasteProfile 先基于 ${referenceItems.length} 条参考输入与场景画像生成启发式摘要。`,
+    keywords,
+    avoidKeywords,
+    derivedFromReferenceIds: referenceItems.map((item) => item.id),
+    confidence:
+      persistedTasteProfile && referenceItems.length > 0
+        ? 0.72
+        : persistedTasteProfile
+          ? 0.64
+          : referenceItems.length === 0
+            ? 0.38
+            : 0.56,
+  };
+}
+
+function buildMockSceneAppContextOverlay(
+  descriptor: SceneAppDescriptor,
+  intent: Record<string, unknown>,
+  persistedContext?: MockPersistedSceneAppContext | null,
+): SceneAppContextOverlay {
+  const inputReferenceItems = buildMockSceneAppReferenceItems(intent);
+  const referenceItems = mergeMockSceneAppReferenceItems(
+    inputReferenceItems,
+    persistedContext,
+  );
+  const runtimeContext =
+    intent.runtimeContext && typeof intent.runtimeContext === "object"
+      ? (intent.runtimeContext as Record<string, unknown>)
+      : {};
+  const memoryRefs: string[] = [];
+  const toolRefs = [...descriptor.capabilityRefs];
+  const skillRefs: string[] = [
+    descriptor.id,
+    descriptor.linkedServiceSkillId,
+    descriptor.linkedSceneKey,
+    descriptor.compositionProfile?.blueprintRef,
+  ].filter((value): value is string => typeof value === "string" && Boolean(value));
+
+  pushUniqueMock(
+    memoryRefs,
+    typeof intent.workspaceId === "string"
+      ? `workspace:${intent.workspaceId}`
+      : typeof intent.workspace_id === "string"
+        ? `workspace:${intent.workspace_id}`
+        : null,
+  );
+  pushUniqueMock(
+    memoryRefs,
+    typeof intent.projectId === "string"
+      ? `project:${intent.projectId}`
+      : typeof intent.project_id === "string"
+        ? `project:${intent.project_id}`
+        : null,
+  );
+  const userInput =
+    typeof intent.userInput === "string"
+      ? intent.userInput.trim()
+      : typeof intent.user_input === "string"
+        ? intent.user_input.trim()
+        : "";
+  if (userInput) {
+    pushUniqueMock(memoryRefs, "memory_profile:user_input");
+  }
+  if (runtimeContext.browserSessionAttached === true) {
+    pushUniqueMock(toolRefs, "browser_session");
+  }
+  if (runtimeContext.cloudSessionReady === true) {
+    pushUniqueMock(toolRefs, "cloud_session");
+  }
+  if (runtimeContext.automationEnabled === true) {
+    pushUniqueMock(toolRefs, "automation");
+  }
+
+  const activeLayers = ["skill", "tool"];
+  if (memoryRefs.length > 0) {
+    activeLayers.push("memory");
+  }
+  if (referenceItems.length > 0) {
+    activeLayers.push("reference");
+  }
+
+  const tasteProfile = buildMockSceneAppTasteProfile(
+    descriptor,
+    intent,
+    referenceItems,
+    persistedContext,
+  );
+  if (tasteProfile) {
+    activeLayers.push("taste");
+  }
+
+  const restoredReferenceCount = persistedContext?.referenceItems.length ?? 0;
+  const notes: string[] = [];
+  if (memoryRefs.length > 0) {
+    notes.push(`已装配 ${memoryRefs.length} 条 memory 引用。`);
+  }
+  if (restoredReferenceCount > 0) {
+    notes.push(`已从项目上下文恢复 ${restoredReferenceCount} 条历史参考。`);
+  }
+  if (inputReferenceItems.length === 0 && referenceItems.length === 0) {
+    notes.push("当前尚未选中显式参考素材，将主要依赖用户输入与场景画像。");
+  } else if (inputReferenceItems.length > 0) {
+    notes.push(
+      `本次新增 ${inputReferenceItems.length} 条参考输入，当前 planning 共带上 ${referenceItems.length} 条参考。`,
+    );
+  } else if (referenceItems.length > 0) {
+    notes.push(`当前 planning 直接复用了 ${referenceItems.length} 条项目级参考。`);
+  }
+  if (persistedContext?.tasteProfile) {
+    notes.push("当前已复用项目级 TasteProfile，并按最新输入继续更新。");
+  } else if (tasteProfile) {
+    notes.push("当前 TasteProfile 为启发式摘要，后续可继续接入持久化反馈回写。");
+  }
+
+  return {
+    compilerPlan: {
+      activeLayers,
+      memoryRefs,
+      toolRefs,
+      referenceCount: referenceItems.length,
+      notes,
+    },
+    snapshot: {
+      workspaceId: resolveMockSceneAppWorkspaceId(intent),
+      projectId: resolveMockSceneAppProjectId(intent),
+      skillRefs,
+      memoryRefs,
+      toolRefs,
+      referenceItems,
+      tasteProfile,
+    },
+  };
 }
 
 function buildMockSceneAppAdapterPlan(
@@ -1681,6 +2039,13 @@ function buildMockSceneAppPlanResult(
   const resolvedDescriptor = descriptor ?? mockSceneAppCatalog.items[0]!;
   const intent =
     (args?.intent as Record<string, unknown> | undefined) ?? args ?? {};
+  const persistedContextKey = resolveMockSceneAppContextStoreKey(
+    resolvedDescriptor.id,
+    intent,
+  );
+  const persistedContext = persistedContextKey
+    ? (mockSceneAppContextStore.get(persistedContextKey) ?? null)
+    : null;
   const runtimeContext =
     (intent.runtimeContext as Record<string, unknown> | undefined) ?? {};
   const unmetRequirements = resolvedDescriptor.launchRequirements.filter(
@@ -1709,6 +2074,28 @@ function buildMockSceneAppPlanResult(
       return false;
     },
   );
+  const contextOverlay = buildMockSceneAppContextOverlay(
+    resolvedDescriptor,
+    intent,
+    persistedContext,
+  );
+  if (persistedContextKey) {
+    mockSceneAppContextStore.set(persistedContextKey, {
+      sceneappId: resolvedDescriptor.id,
+      workspaceId: contextOverlay.snapshot.workspaceId ?? null,
+      projectId: contextOverlay.snapshot.projectId ?? null,
+      referenceItems: contextOverlay.snapshot.referenceItems,
+      tasteProfile: contextOverlay.snapshot.tasteProfile ?? null,
+    });
+  }
+
+  const warnings =
+    unmetRequirements.length > 0
+      ? ["当前 SceneApp 仍有未满足的启动前置条件。"]
+      : [];
+  if (!persistedContextKey) {
+    warnings.push("当前未解析到项目目录，暂未写入项目级 Context Snapshot。");
+  }
 
   return {
     descriptor: resolvedDescriptor,
@@ -1716,6 +2103,12 @@ function buildMockSceneAppPlanResult(
       ready: unmetRequirements.length === 0,
       unmetRequirements,
     },
+    contextOverlay,
+    projectPackPlan: buildMockSceneAppProjectPackPlan(
+      resolvedDescriptor,
+      intent,
+      contextOverlay,
+    ),
     plan: {
       sceneappId: resolvedDescriptor.id,
       executorKind:
@@ -1734,11 +2127,59 @@ function buildMockSceneAppPlanResult(
         : "workspace_bundle",
       artifactContract: resolvedDescriptor.deliveryContract,
       governanceHooks: ["evidence_pack", "scorecard"],
-      warnings:
-        unmetRequirements.length > 0
-          ? ["当前 SceneApp 仍有未满足的启动前置条件。"]
-          : [],
+      warnings,
     },
+  };
+}
+
+function buildMockSceneAppProjectPackPlan(
+  descriptor: SceneAppDescriptor,
+  intent: Record<string, unknown>,
+  contextOverlay: SceneAppContextOverlay,
+): SceneAppProjectPackPlan {
+  const requiredParts = Array.from(
+    new Set(
+      (
+        descriptor.deliveryProfile?.requiredParts.length
+          ? descriptor.deliveryProfile.requiredParts
+          : descriptor.compositionProfile?.steps.map((step) => step.id) ?? []
+      )
+        .map((part) => part.trim())
+        .filter(Boolean),
+    ),
+  );
+  const projectId =
+    typeof intent.projectId === "string" && intent.projectId.trim()
+      ? intent.projectId.trim()
+      : null;
+
+  return {
+    packKind: descriptor.deliveryContract,
+    primaryPart:
+      descriptor.deliveryProfile?.primaryPart ?? requiredParts[0] ?? undefined,
+    requiredParts,
+    viewerKind: descriptor.deliveryProfile?.viewerKind,
+    completionStrategy:
+      requiredParts.length > 0
+        ? "required_parts_complete"
+        : descriptor.infraProfile.includes("workspace_storage")
+          ? "workspace_artifact_writeback"
+          : "artifact_writeback",
+    notes: [
+      descriptor.deliveryContract === "project_pack"
+        ? "当前 SceneApp 以结果包作为默认交付单位。"
+        : "当前 SceneApp 会沿现有结果交付主链回写。",
+      requiredParts.length > 0
+        ? `完整度将按 ${requiredParts.length} 个必含部件判断。`
+        : "当前场景暂按结果文件回流判断交付。",
+      projectId
+        ? `结果会优先回写到项目 ${projectId}，便于继续编辑与复盘。`
+        : "当前还没有绑定项目，结果包只能先按运行时结果临时回流。",
+      contextOverlay.compilerPlan.referenceCount > 0 ||
+      contextOverlay.snapshot.tasteProfile
+        ? "结果包会连同参考与风格快照一起进入后续治理链。"
+        : "结果包会继续进入 evidence 与 scorecard 主链。",
+    ],
   };
 }
 
@@ -6243,6 +6684,7 @@ export function mockCommand(cmd: string, handler: (...args: any[]) => any) {
  */
 export function clearMocks() {
   mockCommands.clear();
+  mockSceneAppContextStore.clear();
 }
 
 /**

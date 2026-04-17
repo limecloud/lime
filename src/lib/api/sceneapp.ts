@@ -13,9 +13,13 @@ import type {
 
 export type {
   SceneAppBindingFamily,
+  ContextCompilerPlan,
+  ContextLayerSnapshot,
+  ReferenceItem,
   SceneAppBrowserRuntimeRef,
   SceneAppCatalog,
   SceneAppCloudSceneRuntimeRef,
+  SceneAppContextOverlay,
   SceneAppAutomationIntent,
   SceneAppDeliveryContract,
   SceneAppDescriptor,
@@ -26,6 +30,7 @@ export type {
   SceneAppLaunchRequirement,
   SceneAppPattern,
   SceneAppPlanResult,
+  SceneAppProjectPackPlan,
   SceneAppReadiness,
   SceneAppNativeSkillRuntimeRef,
   SceneAppRunSummary,
@@ -35,6 +40,7 @@ export type {
   SceneAppScorecard,
   SceneAppScorecardMetric,
   SceneAppType,
+  TasteProfile,
 } from "@/lib/sceneapp";
 
 export async function listSceneAppCatalog(): Promise<SceneAppCatalog> {

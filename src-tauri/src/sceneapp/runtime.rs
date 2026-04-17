@@ -1,5 +1,9 @@
 use super::adapters::build_sceneapp_runtime_adapter_plan;
+use super::context::compiler::build_sceneapp_context_overlay;
+use super::context::dto::SceneAppContextOverlay;
+use super::context::store::PersistedSceneAppContext;
 use super::dto::*;
+use std::collections::BTreeSet;
 
 fn pattern_title(pattern: &SceneAppPattern) -> &'static str {
     match pattern {
@@ -107,10 +111,134 @@ fn build_step_plan(descriptor: &SceneAppDescriptor) -> Vec<SceneAppExecutionPlan
         .collect()
 }
 
+fn dedupe_strings<I>(values: I) -> Vec<String>
+where
+    I: IntoIterator<Item = String>,
+{
+    let mut seen = BTreeSet::new();
+    values
+        .into_iter()
+        .filter_map(|value| {
+            let normalized = value.trim().to_string();
+            if normalized.is_empty() || !seen.insert(normalized.clone()) {
+                return None;
+            }
+            Some(normalized)
+        })
+        .collect()
+}
+
+fn build_project_pack_required_parts(descriptor: &SceneAppDescriptor) -> Vec<String> {
+    let declared_parts = descriptor
+        .delivery_profile
+        .as_ref()
+        .map(|profile| profile.required_parts.clone())
+        .unwrap_or_default();
+    if !declared_parts.is_empty() {
+        return dedupe_strings(declared_parts);
+    }
+
+    descriptor
+        .composition_profile
+        .as_ref()
+        .map(|profile| {
+            dedupe_strings(
+                profile
+                    .steps
+                    .iter()
+                    .map(|step| step.id.clone())
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .unwrap_or_default()
+}
+
+fn build_project_pack_completion_strategy(
+    descriptor: &SceneAppDescriptor,
+    required_parts: &[String],
+) -> String {
+    if !required_parts.is_empty() {
+        return "required_parts_complete".to_string();
+    }
+    if descriptor
+        .infra_profile
+        .iter()
+        .any(|item| item == "workspace_storage" || item == "artifact_bundle")
+    {
+        return "workspace_artifact_writeback".to_string();
+    }
+    "artifact_writeback".to_string()
+}
+
+fn build_project_pack_plan(
+    descriptor: &SceneAppDescriptor,
+    intent: &SceneAppLaunchIntent,
+    context_overlay: &SceneAppContextOverlay,
+) -> SceneAppProjectPackPlan {
+    let required_parts = build_project_pack_required_parts(descriptor);
+    let viewer_kind = descriptor
+        .delivery_profile
+        .as_ref()
+        .and_then(|profile| profile.viewer_kind.clone());
+    let primary_part = descriptor
+        .delivery_profile
+        .as_ref()
+        .and_then(|profile| profile.primary_part.clone())
+        .or_else(|| required_parts.first().cloned());
+    let completion_strategy =
+        build_project_pack_completion_strategy(descriptor, required_parts.as_slice());
+    let mut notes = Vec::new();
+
+    if matches!(
+        descriptor.delivery_contract,
+        SceneAppDeliveryContract::ProjectPack
+    ) {
+        notes.push("当前 SceneApp 以结果包作为默认交付单位。".to_string());
+    }
+    if !required_parts.is_empty() {
+        notes.push(format!(
+            "完整度将按 {} 个必含部件判断。",
+            required_parts.len()
+        ));
+    }
+    if let Some(project_id) = intent
+        .project_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        notes.push(format!(
+            "结果会优先回写到项目 {project_id}，便于继续编辑与复盘。"
+        ));
+    } else {
+        notes.push("当前还没有绑定项目，结果包只能先按运行时结果临时回流。".to_string());
+    }
+    if context_overlay.compiler_plan.reference_count > 0
+        || context_overlay.snapshot.taste_profile.is_some()
+    {
+        notes.push("结果包会连同参考与风格快照一起进入后续治理链。".to_string());
+    }
+    if viewer_kind.is_some() {
+        notes.push("结果包可继续复用当前 viewer 主链打开与检查。".to_string());
+    }
+
+    SceneAppProjectPackPlan {
+        pack_kind: descriptor.delivery_contract.clone(),
+        primary_part,
+        required_parts,
+        viewer_kind,
+        completion_strategy,
+        notes,
+    }
+}
+
 pub fn build_launch_plan(
     descriptor: SceneAppDescriptor,
     intent: SceneAppLaunchIntent,
+    persisted_context: Option<&PersistedSceneAppContext>,
 ) -> SceneAppPlanResult {
+    let context_overlay = build_sceneapp_context_overlay(&descriptor, &intent, persisted_context);
+    let project_pack_plan = build_project_pack_plan(&descriptor, &intent, &context_overlay);
     let sceneapp_id = descriptor.id.clone();
     let binding_family = descriptor
         .entry_bindings
@@ -138,6 +266,8 @@ pub fn build_launch_plan(
     SceneAppPlanResult {
         descriptor: descriptor.clone(),
         readiness,
+        context_overlay: Some(context_overlay),
+        project_pack_plan: Some(project_pack_plan),
         plan: SceneAppExecutionPlan {
             sceneapp_id,
             executor_kind: binding_family.clone(),
@@ -156,8 +286,11 @@ pub fn build_launch_plan(
 mod tests {
     use super::build_launch_plan;
     use crate::sceneapp::catalog::get_sceneapp_descriptor;
+    use crate::sceneapp::context::dto::{ContextLayerSourceKind, ReferenceItem, TasteProfile};
+    use crate::sceneapp::context::store::PersistedSceneAppContext;
     use crate::sceneapp::dto::{
-        SceneAppLaunchIntent, SceneAppRuntimeAction, SceneAppRuntimeContext,
+        SceneAppDeliveryContract, SceneAppLaunchIntent, SceneAppRuntimeAction,
+        SceneAppRuntimeContext,
     };
     use std::collections::BTreeMap;
 
@@ -179,11 +312,31 @@ mod tests {
                     ..SceneAppRuntimeContext::default()
                 }),
             },
+            None,
         );
 
         assert_eq!(
             plan.plan.adapter_plan.runtime_action,
             SceneAppRuntimeAction::LaunchCloudScene
+        );
+        assert!(plan.context_overlay.is_some());
+        assert_eq!(
+            plan.context_overlay
+                .as_ref()
+                .map(|overlay| overlay.compiler_plan.reference_count),
+            Some(1)
+        );
+        assert_eq!(
+            plan.project_pack_plan
+                .as_ref()
+                .map(|pack| pack.pack_kind.clone()),
+            Some(SceneAppDeliveryContract::ProjectPack)
+        );
+        assert_eq!(
+            plan.project_pack_plan
+                .as_ref()
+                .map(|pack| pack.completion_strategy.as_str()),
+            Some("required_parts_complete")
         );
         assert_eq!(
             plan.plan.adapter_plan.target_ref,
@@ -222,11 +375,22 @@ mod tests {
                     ..SceneAppRuntimeContext::default()
                 }),
             },
+            None,
         );
 
         assert_eq!(
             plan.plan.adapter_plan.runtime_action,
             SceneAppRuntimeAction::LaunchBrowserAssist
+        );
+        assert!(plan.context_overlay.as_ref().is_some_and(|overlay| overlay
+            .compiler_plan
+            .active_layers
+            .contains(&"reference".to_string())));
+        assert_eq!(
+            plan.project_pack_plan
+                .as_ref()
+                .map(|pack| pack.required_parts.len()),
+            Some(2)
         );
         assert_eq!(plan.plan.adapter_plan.target_ref, "x/article-export");
         assert_eq!(
@@ -261,12 +425,17 @@ mod tests {
                     ..SceneAppRuntimeContext::default()
                 }),
             },
+            None,
         );
 
         assert_eq!(
             plan.plan.adapter_plan.runtime_action,
             SceneAppRuntimeAction::CreateAutomationJob
         );
+        assert!(plan.context_overlay.as_ref().is_some_and(|overlay| overlay
+            .compiler_plan
+            .active_layers
+            .contains(&"memory".to_string())));
         assert_eq!(
             plan.plan.adapter_plan.target_ref,
             "sceneapp-service-daily-trend"
@@ -279,5 +448,65 @@ mod tests {
                 .and_then(|value| value.as_str()),
             Some("every")
         );
+    }
+
+    #[test]
+    fn should_merge_persisted_context_into_launch_plan() {
+        let descriptor = get_sceneapp_descriptor("story-video-suite")
+            .expect("story-video-suite descriptor should exist");
+        let persisted_context = PersistedSceneAppContext {
+            sceneapp_id: "story-video-suite".to_string(),
+            workspace_id: Some("workspace-default".to_string()),
+            project_id: Some("project-video".to_string()),
+            reference_items: vec![ReferenceItem {
+                id: "saved-reference-1".to_string(),
+                label: "历史拆解".to_string(),
+                source_kind: ContextLayerSourceKind::ReferenceLibrary,
+                content_type: "text".to_string(),
+                uri: None,
+                summary: Some("保留强开头与多镜头切换。".to_string()),
+                selected: true,
+            }],
+            taste_profile: Some(TasteProfile {
+                profile_id: "taste-story-video-suite".to_string(),
+                summary: "偏好科技感、快节奏。".to_string(),
+                keywords: vec!["科技感".to_string(), "快节奏".to_string()],
+                avoid_keywords: vec!["铺垫过长".to_string()],
+                derived_from_reference_ids: vec!["saved-reference-1".to_string()],
+                confidence: Some(0.74),
+            }),
+        };
+        let mut slots = BTreeMap::new();
+        slots.insert("style".to_string(), "科技感".to_string());
+
+        let plan = build_launch_plan(
+            descriptor,
+            SceneAppLaunchIntent {
+                sceneapp_id: "story-video-suite".to_string(),
+                entry_source: Some("sceneapp_card".to_string()),
+                workspace_id: Some("workspace-default".to_string()),
+                project_id: Some("project-video".to_string()),
+                user_input: Some("根据这次发布会做 30 秒短视频".to_string()),
+                slots,
+                runtime_context: Some(SceneAppRuntimeContext {
+                    cloud_session_ready: true,
+                    ..SceneAppRuntimeContext::default()
+                }),
+            },
+            Some(&persisted_context),
+        );
+
+        let overlay = plan.context_overlay.expect("context overlay should exist");
+        assert_eq!(overlay.compiler_plan.reference_count, 3);
+        assert!(overlay
+            .compiler_plan
+            .notes
+            .iter()
+            .any(|note| note.contains("已从项目上下文恢复 1 条历史参考")));
+        assert!(overlay
+            .compiler_plan
+            .notes
+            .iter()
+            .any(|note| note.contains("当前已复用项目级 TasteProfile")));
     }
 }

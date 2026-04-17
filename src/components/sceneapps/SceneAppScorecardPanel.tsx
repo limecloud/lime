@@ -65,7 +65,9 @@ export function SceneAppScorecardPanel({
           </p>
           {scorecardView.deliveryContractLabel ||
           scorecardView.viewerLabel ||
+          scorecardView.completionStrategyLabel ||
           scorecardView.deliveryRequiredParts.length ||
+          scorecardView.packPlanNotes.length ||
           scorecardView.profileRef ||
           scorecardView.metricKeys.length ||
           scorecardView.failureSignals.length ? (
@@ -86,6 +88,15 @@ export function SceneAppScorecardPanel({
                 <div className="mt-2 text-sm text-slate-700">
                   <span className="font-medium text-slate-900">查看方式：</span>
                   {scorecardView.viewerLabel}
+                </div>
+              ) : null}
+              {scorecardView.completionStrategyLabel ? (
+                <div
+                  data-testid="sceneapp-scorecard-completion-strategy"
+                  className="mt-2 text-sm text-slate-700"
+                >
+                  <span className="font-medium text-slate-900">完成口径：</span>
+                  {scorecardView.completionStrategyLabel}
                 </div>
               ) : null}
               {scorecardView.deliveryRequiredParts.length ? (
@@ -146,6 +157,26 @@ export function SceneAppScorecardPanel({
                 <div className="mt-3 text-sm text-slate-700">
                   <span className="font-medium text-slate-900">当前主要阻塞：</span>
                   {scorecardView.topFailureSignalLabel}
+                </div>
+              ) : null}
+              {scorecardView.packPlanNotes.length ? (
+                <div className="mt-3">
+                  <div className="text-xs font-medium text-slate-500">
+                    规划备注
+                  </div>
+                  <div
+                    data-testid="sceneapp-scorecard-pack-notes"
+                    className="mt-2 flex flex-wrap gap-2"
+                  >
+                    {scorecardView.packPlanNotes.map((note) => (
+                      <span
+                        key={note}
+                        className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700"
+                      >
+                        {note}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               ) : null}
               {scorecardView.observedFailureSignals.length ? (

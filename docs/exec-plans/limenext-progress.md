@@ -4,6 +4,21 @@
 
 ### 已完成
 
+- 收口 `SceneApp / Context Layer` 这轮尾部校验，把最终阻塞从“实现错误”纠偏为“测试契约与 smoke 串联稳定性”：
+  - `src/components/agent/chat/utils/clawWorkspaceProviderSelection.test.ts` 已补齐 `normalizeFetchProviderModelsSource` mock，避免 provider API fallback 分支被旧测试契约静默吞掉
+  - 之前 `verify:local` 首次失败里的两类红灯现已分别确认：
+    - `clawWorkspaceProviderSelection` 两条失败是测试 mock 落后，不是当前 provider 选择实现回退
+    - Rust `media_task_cmd` 两条 image task 失败是受限环境里的端口绑定权限问题；在当前无沙箱环境下定向 `cargo test --manifest-path "src-tauri/Cargo.toml" execute_image_generation_task_should_` 已通过
+  - GUI smoke 首次卡在 `smoke:agent-runtime-tool-surface-page` 的 `browser_execute_action / close_cdp_session / close_chrome_profile_session -> fetch failed`，但单独复跑该 smoke 与随后复跑整套 `verify:gui-smoke -- --reuse-running --timeout-ms 600000` 已全部通过，说明更像一次串联波动，而不是 SceneApp 主链回归
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/utils/clawWorkspaceProviderSelection.test.ts"`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" execute_image_generation_task_should_`
+    - `npm run verify:gui-smoke -- --reuse-running --timeout-ms 600000`
+    - `npm run verify:local`
+  - 本轮额外沉淀：
+    - `SceneApp / Context Layer` 主线已经达到 Lime 当前本地可交付门槛，剩余重点不再是补兼容，而是继续把 page smoke 的串联稳定性保持住
+    - 遇到 `fetch failed` 一类 GUI smoke 假红时，先拆成“单条 smoke / DevBridge 健康 / 定向 Rust 用例”三段验证，再决定是不是实现回退
+
 - 修掉 `SceneAppsPage` 点击“继续最近”后因同页重复导航导致的持续闪屏：
   - 根因不是纯样式问题，而是 `useSceneAppsPageRuntime` 在显式恢复最近参数后，`search / prefillIntent` 的 debounced 同步又拿旧值触发了一轮同页 `onNavigate("sceneapps", ...)`
   - 当前已改成：

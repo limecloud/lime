@@ -25,9 +25,10 @@ pub async fn sceneapp_get_descriptor(id: String) -> Result<Option<SceneAppDescri
 
 #[tauri::command]
 pub async fn sceneapp_plan_launch(
+    db: State<'_, DbConnection>,
     intent: SceneAppLaunchIntent,
 ) -> Result<SceneAppPlanResult, String> {
-    SceneAppService::plan_launch(intent)
+    SceneAppService::plan_launch(db.inner(), intent)
 }
 
 #[tauri::command]

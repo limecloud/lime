@@ -5,6 +5,7 @@ import {
   getSceneAppScorecard,
   listSceneAppCatalog,
   listSceneAppRuns,
+  planSceneAppLaunch,
   prepareSceneAppRunGovernanceArtifact,
   prepareSceneAppRunGovernanceArtifacts,
   type SceneAppCatalog,
@@ -12,6 +13,7 @@ import {
   type SceneAppDescriptor,
   type SceneAppNativeSkillRuntimeRef,
   type SceneAppPattern,
+  type SceneAppPlanResult,
   type SceneAppRunSummary,
   type SceneAppScorecard,
   type SceneAppType,
@@ -290,6 +292,12 @@ export function useSceneAppsPageRuntime({
     useState<SceneAppRunSummary | null>(null);
   const [selectedRunLoading, setSelectedRunLoading] = useState(false);
   const [selectedRunError, setSelectedRunError] = useState<string | null>(null);
+  const [selectedPlanResult, setSelectedPlanResult] =
+    useState<SceneAppPlanResult | null>(null);
+  const [selectedPlanLoading, setSelectedPlanLoading] = useState(false);
+  const [selectedPlanError, setSelectedPlanError] = useState<string | null>(
+    null,
+  );
   const [recentVisitRecords, setRecentVisitRecords] = useState<
     SceneAppRecentVisitRecord[]
   >(() => listSceneAppRecentVisits());
@@ -527,6 +535,9 @@ export function useSceneAppsPageRuntime({
       setRuns([]);
       setScorecardError(null);
       setRunsError(null);
+      setSelectedPlanResult(null);
+      setSelectedPlanLoading(false);
+      setSelectedPlanError(null);
       setSelectedRunId(null);
       setSelectedRunSummary(null);
       setSelectedRunLoading(false);
@@ -710,6 +721,10 @@ export function useSceneAppsPageRuntime({
     () => extractExplicitUrlFromText(launchInput),
     [launchInput],
   );
+  const previewUrlCandidate = useMemo(
+    () => extractExplicitUrlFromText(effectivePrefillIntent),
+    [effectivePrefillIntent],
+  );
 
   const selectedEntryCard = useMemo<SceneAppEntryCardItem | null>(() => {
     if (!selectedDescriptor) {
@@ -723,14 +738,77 @@ export function useSceneAppsPageRuntime({
       urlCandidate,
     });
   }, [launchInput, selectedDescriptor, selectedProjectId, urlCandidate]);
+  const previewLaunchSeed = useMemo<SceneAppSeed | null>(() => {
+    if (!selectedDescriptor) {
+      return null;
+    }
+
+    return resolveSceneAppSeed({
+      descriptor: selectedDescriptor,
+      input: effectivePrefillIntent,
+      urlCandidate: previewUrlCandidate,
+    });
+  }, [
+    effectivePrefillIntent,
+    previewUrlCandidate,
+    selectedDescriptor,
+  ]);
+
+  useEffect(() => {
+    if (!selectedDescriptor) {
+      setSelectedPlanResult(null);
+      setSelectedPlanLoading(false);
+      setSelectedPlanError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const trimmedProjectId = selectedProjectId?.trim() || undefined;
+    setSelectedPlanResult((current) =>
+      current?.descriptor.id === selectedDescriptor.id ? current : null,
+    );
+    setSelectedPlanLoading(true);
+    setSelectedPlanError(null);
+
+    void planSceneAppLaunch({
+      sceneappId: selectedDescriptor.id,
+      entrySource: "sceneapp_detail_preview",
+      workspaceId: trimmedProjectId,
+      projectId: trimmedProjectId,
+      userInput: previewLaunchSeed?.userInput,
+      slots: previewLaunchSeed?.slots,
+    })
+      .then((nextPlanResult) => {
+        if (cancelled) {
+          return;
+        }
+        setSelectedPlanResult(nextPlanResult);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setSelectedPlanError(formatSceneAppErrorMessage(error));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSelectedPlanLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewLaunchSeed, selectedDescriptor, selectedProjectId]);
 
   const scorecardView = useMemo(
     () =>
       buildSceneAppScorecardViewModel({
         descriptor: selectedDescriptor,
         scorecard,
+        planResult: selectedPlanResult,
       }),
-    [scorecard, selectedDescriptor],
+    [scorecard, selectedDescriptor, selectedPlanResult],
   );
   const governanceView = useMemo(
     () =>
@@ -739,9 +817,10 @@ export function useSceneAppsPageRuntime({
             descriptor: selectedDescriptor,
             scorecard,
             run: selectedRunSummary,
+            projectPackPlan: selectedPlanResult?.projectPackPlan,
           })
         : null,
-    [scorecard, selectedDescriptor, selectedRunSummary],
+    [scorecard, selectedDescriptor, selectedPlanResult, selectedRunSummary],
   );
 
   const runListItems = useMemo(
@@ -757,8 +836,9 @@ export function useSceneAppsPageRuntime({
     return buildSceneAppRunDetailViewModel({
       descriptor: selectedDescriptor,
       run: selectedRunSummary,
+      projectPackPlan: selectedPlanResult?.projectPackPlan,
     });
-  }, [selectedDescriptor, selectedRunSummary]);
+  }, [selectedDescriptor, selectedPlanResult, selectedRunSummary]);
 
   const selectedRunEntryAction = selectedRunDetailView?.entryAction;
 
@@ -1011,6 +1091,7 @@ export function useSceneAppsPageRuntime({
           const refreshedDetailView = buildSceneAppRunDetailViewModel({
             descriptor: selectedDescriptor,
             run: refreshed,
+            projectPackPlan: selectedPlanResult?.projectPackPlan,
           });
           const targetEntry = refreshedDetailView.governanceArtifactEntries.find(
             (entry) => entry.artifactRef.kind === action.primaryArtifactKind,
@@ -1027,6 +1108,7 @@ export function useSceneAppsPageRuntime({
     [
       openSelectedRunFileEntry,
       selectedDescriptor,
+      selectedPlanResult?.projectPackPlan,
       selectedRunSummary?.runId,
     ],
   );
@@ -1052,8 +1134,9 @@ export function useSceneAppsPageRuntime({
       descriptor: selectedDescriptor,
       entryCard: selectedEntryCard,
       launchSeed,
+      planResult: selectedPlanResult,
     });
-  }, [launchSeed, selectedDescriptor, selectedEntryCard]);
+  }, [launchSeed, selectedDescriptor, selectedEntryCard, selectedPlanResult]);
 
   const launchDisabledReason = useMemo(() => {
     if (!selectedDescriptor) {
@@ -1211,6 +1294,8 @@ export function useSceneAppsPageRuntime({
     selectedEntryCard,
     launchSeed,
     selectedDetailView,
+    selectedPlanLoading,
+    selectedPlanError,
     launchDisabledReason,
     launchingSceneAppId: launchRuntime.sceneAppLaunchingId,
     recentVisits,

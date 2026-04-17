@@ -5,6 +5,8 @@ import type { SceneAppPlanResult } from "./types";
 type SceneAppPlanResultOverrides = {
   descriptor?: Partial<SceneAppPlanResult["descriptor"]>;
   readiness?: Partial<SceneAppPlanResult["readiness"]>;
+  contextOverlay?: Partial<NonNullable<SceneAppPlanResult["contextOverlay"]>>;
+  projectPackPlan?: Partial<NonNullable<SceneAppPlanResult["projectPackPlan"]>>;
   plan?: Partial<Omit<SceneAppPlanResult["plan"], "adapterPlan">> & {
     adapterPlan?: Partial<SceneAppPlanResult["plan"]["adapterPlan"]>;
   };
@@ -45,6 +47,35 @@ function createPlanResult(
       unmetRequirements: [],
       ...(overrides.readiness ?? {}),
     } as SceneAppPlanResult["readiness"],
+    contextOverlay: {
+      compilerPlan: {
+        activeLayers: ["skill", "memory", "tool"],
+        memoryRefs: ["workspace:workspace-demo"],
+        toolRefs: ["workspace_storage"],
+        referenceCount: 0,
+        notes: ["已装配 1 条 memory 引用。"],
+        ...(overrides.contextOverlay?.compilerPlan ?? {}),
+      },
+      snapshot: {
+        workspaceId: "workspace-demo",
+        projectId: "project-demo",
+        skillRefs: ["sceneapp-demo"],
+        memoryRefs: ["workspace:workspace-demo"],
+        toolRefs: ["workspace_storage"],
+        referenceItems: [],
+        tasteProfile: null,
+        ...(overrides.contextOverlay?.snapshot ?? {}),
+      },
+    },
+    projectPackPlan: {
+      packKind: "artifact_bundle",
+      primaryPart: "brief",
+      requiredParts: ["brief", "review_note"],
+      viewerKind: "artifact_bundle",
+      completionStrategy: "required_parts_complete",
+      notes: ["完整度将按 2 个必含部件判断。"],
+      ...(overrides.projectPackPlan ?? {}),
+    },
     plan: {
       sceneappId: planOverrides.sceneappId ?? "sceneapp-demo",
       executorKind: planOverrides.executorKind ?? "agent_turn",
@@ -161,6 +192,8 @@ describe("sceneapp launch facade", () => {
         }),
       }),
     );
+    expect(draft.notes).toContain("已装配 1 条 memory 引用。");
+    expect(draft.notes).toContain("完整度将按 2 个必含部件判断。");
     expect(draft.notes).toContain("当前 SceneApp 规划先映射到 cloud_scene 主链。");
   });
 

@@ -14,6 +14,8 @@ import type { Page, PageParams } from "@/types/page";
 type SceneAppPlanResultOverrides = {
   descriptor?: Partial<SceneAppPlanResult["descriptor"]>;
   readiness?: Partial<SceneAppPlanResult["readiness"]>;
+  contextOverlay?: Partial<NonNullable<SceneAppPlanResult["contextOverlay"]>>;
+  projectPackPlan?: Partial<NonNullable<SceneAppPlanResult["projectPackPlan"]>>;
   plan?: Partial<Omit<SceneAppPlanResult["plan"], "adapterPlan">> & {
     adapterPlan?: Partial<SceneAppPlanResult["plan"]["adapterPlan"]>;
   };
@@ -376,6 +378,38 @@ function createPlanResult(
       unmetRequirements: [],
       ...(overrides.readiness ?? {}),
     } as SceneAppPlanResult["readiness"],
+    contextOverlay: {
+      compilerPlan: {
+        activeLayers: ["skill", "memory", "tool"],
+        memoryRefs: ["workspace:project-1"],
+        toolRefs: ["workspace_storage", "cloud_scene"],
+        referenceCount: 1,
+        notes: ["已装配 1 条参考素材和 1 条 memory 引用。"],
+        ...(overrides.contextOverlay?.compilerPlan ?? {}),
+      },
+      snapshot: {
+        workspaceId: "project-1",
+        projectId: "project-1",
+        skillRefs: ["sceneapp-demo"],
+        memoryRefs: ["workspace:project-1"],
+        toolRefs: ["workspace_storage", "cloud_scene"],
+        referenceItems: [],
+        tasteProfile: null,
+        ...(overrides.contextOverlay?.snapshot ?? {}),
+      },
+    },
+    projectPackPlan: {
+      packKind: "project_pack",
+      primaryPart: "brief",
+      requiredParts: ["brief", "video_draft", "review_note"],
+      viewerKind: "artifact_bundle",
+      completionStrategy: "required_parts_complete",
+      notes: [
+        "当前 SceneApp 以结果包作为默认交付单位。",
+        "完整度将按 3 个必含部件判断。",
+      ],
+      ...(overrides.projectPackPlan ?? {}),
+    },
     plan: {
       sceneappId: planOverrides.sceneappId ?? "sceneapp-demo",
       executorKind: planOverrides.executorKind ?? "agent_turn",
@@ -1186,6 +1220,23 @@ describe("SceneAppsPage", () => {
         ?.textContent,
     ).toContain("story-video-scorecard");
     expect(
+      container.querySelector('[data-testid="sceneapp-detail-context-layers"]')
+        ?.textContent,
+    ).toContain("Skill");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-detail-context-reference-count"]',
+      )?.textContent,
+    ).toContain("1 条");
+    expect(
+      container.querySelector('[data-testid="sceneapp-detail-pack-strategy"]')
+        ?.textContent,
+    ).toContain("整包完成度");
+    expect(
+      container.querySelector('[data-testid="sceneapp-detail-pack-required-parts"]')
+        ?.textContent,
+    ).toContain("短视频草稿");
+    expect(
       container.querySelector('[data-testid="sceneapp-scorecard-profile-ref"]')
         ?.textContent,
     ).toContain("story-video-scorecard");
@@ -1196,7 +1247,16 @@ describe("SceneAppsPage", () => {
     expect(
       container.querySelector('[data-testid="sceneapp-scorecard-delivery-parts"]')
         ?.textContent,
-    ).toContain("配乐建议");
+    ).toContain("复核意见");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-completion-strategy"]',
+      )?.textContent,
+    ).toContain("整包完成度");
+    expect(
+      container.querySelector('[data-testid="sceneapp-scorecard-pack-notes"]')
+        ?.textContent,
+    ).toContain("结果包作为默认交付单位");
     expect(
       container.querySelector(
         '[data-testid="sceneapp-scorecard-failure-signals"]',
@@ -1219,6 +1279,19 @@ describe("SceneAppsPage", () => {
       container.querySelector('[data-testid="sceneapp-run-detail-summary"]')
         ?.textContent,
     ).toContain("短视频编排");
+    expect(
+      container.querySelector('[data-testid="sceneapp-run-detail-pack-strategy"]')
+        ?.textContent,
+    ).toContain("整包完成度");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-pack-required-parts"]',
+      )?.textContent,
+    ).toContain("复核意见");
+    expect(
+      container.querySelector('[data-testid="sceneapp-run-detail-pack-notes"]')
+        ?.textContent,
+    ).toContain("3 个必含部件");
     expect(container.textContent).toContain("当前主要阻塞：复核阻塞");
     expect(mockGetSceneAppRunSummary).toHaveBeenCalledWith(
       "story-video-suite-run-2",
@@ -1413,6 +1486,15 @@ describe("SceneAppsPage", () => {
       container.querySelector('[data-testid="sceneapp-scorecard-profile-ref"]')
         ?.textContent,
     ).toContain("story-video-scorecard");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-completion-strategy"]',
+      )?.textContent,
+    ).toContain("整包完成度");
+    expect(
+      container.querySelector('[data-testid="sceneapp-scorecard-pack-notes"]')
+        ?.textContent,
+    ).toContain("3 个必含部件");
     expect(
       container.querySelector('[data-testid="sceneapp-scorecard-metric-keys"]')
         ?.textContent,

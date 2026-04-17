@@ -47,6 +47,32 @@ describe("sceneapp API", () => {
           id: "story-video-suite",
           title: "短视频编排",
         },
+        contextOverlay: {
+          compilerPlan: {
+            activeLayers: ["skill", "memory", "tool"],
+            memoryRefs: ["workspace:workspace-default"],
+            toolRefs: ["workspace_storage"],
+            referenceCount: 0,
+            notes: ["已装配 1 条 memory 引用。"],
+          },
+          snapshot: {
+            workspaceId: "workspace-default",
+            projectId: null,
+            skillRefs: ["story-video-suite"],
+            memoryRefs: ["workspace:workspace-default"],
+            toolRefs: ["workspace_storage"],
+            referenceItems: [],
+            tasteProfile: null,
+          },
+        },
+        projectPackPlan: {
+          packKind: "project_pack",
+          primaryPart: "brief",
+          requiredParts: ["brief", "video_draft"],
+          viewerKind: "artifact_bundle",
+          completionStrategy: "required_parts_complete",
+          notes: ["完整度将按 2 个必含部件判断。"],
+        },
         readiness: {
           ready: false,
           unmetRequirements: [{ kind: "project" }],
@@ -91,6 +117,9 @@ describe("sceneapp API", () => {
           adapterPlan: expect.objectContaining({
             runtimeAction: "launch_cloud_scene",
           }),
+        }),
+        projectPackPlan: expect.objectContaining({
+          completionStrategy: "required_parts_complete",
         }),
       }),
     );

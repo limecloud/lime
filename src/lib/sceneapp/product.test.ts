@@ -10,9 +10,22 @@ import {
 } from "./product";
 import type {
   SceneAppDescriptor,
+  SceneAppPlanResult,
   SceneAppRunSummary,
   SceneAppScorecard,
 } from "./types";
+
+type SceneAppPlanResultOverrides = {
+  descriptor?: Partial<SceneAppDescriptor>;
+  readiness?: Partial<SceneAppPlanResult["readiness"]>;
+  contextOverlay?: Partial<NonNullable<SceneAppPlanResult["contextOverlay"]>>;
+  projectPackPlan?: Partial<
+    NonNullable<SceneAppPlanResult["projectPackPlan"]>
+  >;
+  plan?: Partial<Omit<SceneAppPlanResult["plan"], "adapterPlan">> & {
+    adapterPlan?: Partial<SceneAppPlanResult["plan"]["adapterPlan"]>;
+  };
+};
 
 function createDescriptor(
   overrides: Partial<SceneAppDescriptor> = {},
@@ -221,6 +234,106 @@ function createRun(
   };
 }
 
+function createPlanResult(
+  overrides: SceneAppPlanResultOverrides = {},
+): SceneAppPlanResult {
+  const planOverrides = overrides.plan ?? {};
+  const adapterPlanOverrides = planOverrides.adapterPlan ?? {};
+
+  return {
+    descriptor: createDescriptor(overrides.descriptor ?? {}),
+    readiness: {
+      ready: true,
+      unmetRequirements: [],
+      ...(overrides.readiness ?? {}),
+    },
+    contextOverlay: {
+      compilerPlan: {
+        activeLayers: ["skill", "memory", "taste", "tool"],
+        memoryRefs: ["workspace:project-story-video"],
+        toolRefs: ["cloud_scene", "workspace_storage"],
+        referenceCount: 2,
+        notes: ["已装配 2 条参考素材和 1 条 memory 引用。"],
+      },
+      snapshot: {
+        workspaceId: "project-story-video",
+        projectId: "project-story-video",
+        skillRefs: ["sceneapp-service-story-video"],
+        memoryRefs: ["workspace:project-story-video"],
+        toolRefs: ["cloud_scene", "workspace_storage"],
+        referenceItems: [
+          {
+            id: "ref-1",
+            label: "竞品视频 1",
+            sourceKind: "user_input",
+            contentType: "video",
+            selected: true,
+          },
+          {
+            id: "ref-2",
+            label: "脚本参考 1",
+            sourceKind: "reference_library",
+            contentType: "text",
+            selected: true,
+          },
+        ],
+        tasteProfile: {
+          profileId: "taste-story-video",
+          summary: "偏好快节奏、科技感强、开头三秒直接给出结论。",
+          keywords: ["快节奏", "科技感", "直接结论"],
+          avoidKeywords: ["冗长铺垫"],
+          derivedFromReferenceIds: ["ref-1", "ref-2"],
+          confidence: 0.76,
+        },
+      },
+    },
+    projectPackPlan: {
+      packKind: "project_pack",
+      primaryPart: "brief",
+      requiredParts: [
+        "brief",
+        "storyboard",
+        "script",
+        "music_refs",
+        "video_draft",
+        "review_note",
+      ],
+      viewerKind: "artifact_bundle",
+      completionStrategy: "required_parts_complete",
+      notes: [
+        "当前 SceneApp 以结果包作为默认交付单位。",
+        "完整度将按 6 个必含部件判断。",
+      ],
+      ...(overrides.projectPackPlan ?? {}),
+    },
+    plan: {
+      sceneappId: planOverrides.sceneappId ?? "story-video-suite",
+      executorKind: planOverrides.executorKind ?? "cloud_scene",
+      bindingFamily: planOverrides.bindingFamily ?? "cloud_scene",
+      stepPlan: planOverrides.stepPlan ?? [],
+      adapterPlan: {
+        adapterKind: adapterPlanOverrides.adapterKind ?? "cloud_scene",
+        runtimeAction:
+          adapterPlanOverrides.runtimeAction ?? "launch_cloud_scene",
+        targetRef:
+          adapterPlanOverrides.targetRef ?? "sceneapp-service-story-video",
+        targetLabel: adapterPlanOverrides.targetLabel ?? "短视频编排",
+        requestMetadata: adapterPlanOverrides.requestMetadata ?? {},
+        launchPayload: adapterPlanOverrides.launchPayload ?? {},
+        notes: adapterPlanOverrides.notes ?? [],
+        linkedServiceSkillId: adapterPlanOverrides.linkedServiceSkillId,
+        linkedSceneKey: adapterPlanOverrides.linkedSceneKey,
+        preferredProfileKey: adapterPlanOverrides.preferredProfileKey,
+      },
+      storageStrategy: planOverrides.storageStrategy ?? "workspace_bundle",
+      artifactContract: planOverrides.artifactContract ?? "project_pack",
+      governanceHooks:
+        planOverrides.governanceHooks ?? ["evidence_pack", "scorecard"],
+      warnings: planOverrides.warnings ?? [],
+    },
+  };
+}
+
 function createScorecard(
   overrides: Partial<SceneAppScorecard> = {},
 ): SceneAppScorecard {
@@ -295,6 +408,7 @@ describe("sceneapp product", () => {
         sourceLabel: "将基于当前输入启动",
         sourcePreview: "生成一个 30 秒短视频方案",
       },
+      planResult: createPlanResult(),
     });
 
     expect(detailView).toEqual(
@@ -348,12 +462,25 @@ describe("sceneapp product", () => {
     );
     expect(detailView.deliveryNarrative).toContain("项目资料包");
     expect(detailView.scorecardNarrative).toContain("整包");
+    expect(detailView.planning.statusLabel).toBe("已就绪");
+    expect(detailView.contextPlan?.referenceCount).toBe(2);
+    expect(detailView.contextPlan?.tasteSummary).toContain("快节奏");
+    expect(detailView.projectPackPlan?.completionStrategyLabel).toContain(
+      "整包完成度",
+    );
   });
 
   it("应把 descriptor 与 scorecard 装配成统一评分模型", () => {
+    const planResult = createPlanResult({
+      projectPackPlan: {
+        completionStrategy: "workspace_artifact_writeback",
+        notes: ["运行完成后需要回写工作区结果。"],
+      },
+    });
     const scorecardView = buildSceneAppScorecardViewModel({
       descriptor: createDescriptor(),
       scorecard: createScorecard(),
+      planResult,
     });
 
     expect(scorecardView).toEqual(
@@ -389,6 +516,10 @@ describe("sceneapp product", () => {
           label: "复核意见",
         }),
       ]),
+    );
+    expect(scorecardView?.completionStrategyLabel).toContain("工作区结果回写");
+    expect(scorecardView?.packPlanNotes).toContain(
+      "运行完成后需要回写工作区结果。",
     );
     expect(scorecardView?.metrics).toEqual(
       expect.arrayContaining([
@@ -437,6 +568,7 @@ describe("sceneapp product", () => {
     const detailView = buildSceneAppRunDetailViewModel({
       descriptor: createDescriptor(),
       run: createRun(),
+      projectPackPlan: createPlanResult().projectPackPlan,
     });
 
     expect(detailView).toEqual(
@@ -471,6 +603,16 @@ describe("sceneapp product", () => {
       ]),
     );
     expect(detailView.deliveryViewerLabel).toBe("结果包查看");
+    expect(detailView.packCompletionStrategyLabel).toContain("整包完成度");
+    expect(detailView.plannedDeliveryRequiredParts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "review_note",
+          label: "复核意见",
+        }),
+      ]),
+    );
+    expect(detailView.packPlanNotes).toContain("完整度将按 6 个必含部件判断。");
     expect(detailView.deliveryArtifactEntries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -522,6 +664,39 @@ describe("sceneapp product", () => {
           ],
         }),
       ]),
+    );
+  });
+
+  it("运行回流缺少部件覆盖率时也应保留规划结果包基线", () => {
+    const planResult = createPlanResult({
+      projectPackPlan: {
+        requiredParts: ["brief", "video_draft", "review_note"],
+        completionStrategy: "artifact_writeback",
+        notes: ["当前按结果文件回流判断整包交付。"],
+      },
+    });
+    const detailView = buildSceneAppRunDetailViewModel({
+      descriptor: createDescriptor(),
+      run: createRun({
+        deliveryRequiredParts: [],
+        deliveryCompletedParts: [],
+        deliveryMissingParts: [],
+        deliveryPartCoverageKnown: false,
+      }),
+      projectPackPlan: planResult.projectPackPlan,
+    });
+
+    expect(detailView.deliveryRequiredParts).toEqual([]);
+    expect(detailView.deliveryPartCoverageKnown).toBe(false);
+    expect(detailView.packCompletionStrategyLabel).toContain("结果文件回流");
+    expect(detailView.plannedDeliveryRequiredParts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "brief", label: "任务简报" }),
+        expect.objectContaining({ key: "review_note", label: "复核意见" }),
+      ]),
+    );
+    expect(detailView.packPlanNotes).toContain(
+      "当前按结果文件回流判断整包交付。",
     );
   });
 

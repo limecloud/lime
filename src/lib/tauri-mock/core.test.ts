@@ -101,6 +101,15 @@ describe("tauri-mock/core invoke", () => {
       }),
     ).resolves.toEqual(
       expect.objectContaining({
+        contextOverlay: expect.objectContaining({
+          compilerPlan: expect.objectContaining({
+            referenceCount: 2,
+          }),
+        }),
+        projectPackPlan: expect.objectContaining({
+          completionStrategy: "required_parts_complete",
+          requiredParts: ["index.md", "meta.json"],
+        }),
         plan: expect.objectContaining({
           adapterPlan: expect.objectContaining({
             runtimeAction: "launch_browser_assist",
@@ -108,6 +117,66 @@ describe("tauri-mock/core invoke", () => {
             preferredProfileKey: "general_browser_assist",
             launchPayload: expect.objectContaining({
               adapter_name: "x/article-export",
+            }),
+          }),
+        }),
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
+  it("SceneApp mock 应在同一项目内复用上一次 context snapshot", async () => {
+    vi.mocked(shouldPreferMockInBrowser).mockReturnValue(true);
+
+    await expect(
+      invoke("sceneapp_plan_launch", {
+        intent: {
+          sceneappId: "story-video-suite",
+          workspaceId: "workspace-default",
+          projectId: "project-video",
+          userInput: "根据发布会亮点生成 30 秒短视频草稿",
+          runtimeContext: {
+            cloudSessionReady: true,
+          },
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        contextOverlay: expect.objectContaining({
+          compilerPlan: expect.objectContaining({
+            referenceCount: 1,
+          }),
+        }),
+      }),
+    );
+
+    await expect(
+      invoke("sceneapp_plan_launch", {
+        intent: {
+          sceneappId: "story-video-suite",
+          workspaceId: "workspace-default",
+          projectId: "project-video",
+          runtimeContext: {
+            cloudSessionReady: true,
+          },
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        contextOverlay: expect.objectContaining({
+          compilerPlan: expect.objectContaining({
+            referenceCount: 1,
+            notes: expect.arrayContaining([
+              expect.stringContaining("已从项目上下文恢复 1 条历史参考"),
+              expect.stringContaining("当前 planning 直接复用了 1 条项目级参考"),
+              expect.stringContaining("当前已复用项目级 TasteProfile"),
+            ]),
+          }),
+          snapshot: expect.objectContaining({
+            tasteProfile: expect.objectContaining({
+              summary:
+                "当前 TasteProfile 已在项目沉淀基础上，结合 1 条参考输入更新启发式摘要。",
             }),
           }),
         }),

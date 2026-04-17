@@ -165,6 +165,8 @@ function readRequestMetadata(result: SceneAppPlanResult): Record<string, unknown
 
 function resolveSceneAppNotes(result: SceneAppPlanResult): string[] {
   return dedupeStrings([
+    ...(result.contextOverlay?.compilerPlan.notes ?? []),
+    ...(result.projectPackPlan?.notes ?? []),
     ...result.plan.warnings,
     ...result.plan.adapterPlan.notes,
     result.readiness.ready ? undefined : "当前 SceneApp 仍有未满足的启动前置条件。",

@@ -10,6 +10,8 @@ interface SceneAppDetailPanelProps {
   detailView: SceneAppDetailViewModel | null;
   projectId: string | null;
   launchInput: string;
+  planLoading: boolean;
+  planError?: string | null;
   launchDisabledReason?: string;
   launching: boolean;
   onProjectChange: (projectId: string) => void;
@@ -21,6 +23,8 @@ export function SceneAppDetailPanel({
   detailView,
   projectId,
   launchInput,
+  planLoading,
+  planError,
   launchDisabledReason,
   launching,
   onProjectChange,
@@ -264,6 +268,207 @@ export function SceneAppDetailPanel({
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="text-sm font-medium text-slate-900">执行预规划</div>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                {detailView.planning.statusLabel}
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              {detailView.planning.summary}
+            </p>
+            {planLoading ? (
+              <p className="mt-3 text-xs font-medium text-lime-700">
+                正在根据当前项目与输入刷新预规划…
+              </p>
+            ) : null}
+            {planError ? (
+              <p className="mt-3 text-sm leading-6 text-amber-700">{planError}</p>
+            ) : null}
+            {detailView.planning.unmetRequirements.length ? (
+              <div className="mt-4">
+                <div className="text-xs font-medium text-slate-500">仍待补齐</div>
+                <div
+                  data-testid="sceneapp-detail-planning-unmet"
+                  className="mt-2 flex flex-col gap-2"
+                >
+                  {detailView.planning.unmetRequirements.map((message, index) => (
+                    <div
+                      key={`${detailView.id}-planning-unmet-${index}`}
+                      className="rounded-[18px] border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm leading-6 text-amber-800"
+                    >
+                      {message}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {detailView.contextPlan ? (
+              <div className="mt-4 space-y-3">
+                {detailView.contextPlan.activeLayers.length ? (
+                  <div>
+                    <div className="text-xs font-medium text-slate-500">活跃层</div>
+                    <div
+                      data-testid="sceneapp-detail-context-layers"
+                      className="mt-2 flex flex-wrap gap-2"
+                    >
+                      {detailView.contextPlan.activeLayers.map((layer) => (
+                        <span
+                          key={layer.key}
+                          className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700"
+                        >
+                          {layer.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div
+                  data-testid="sceneapp-detail-context-reference-count"
+                  className="text-sm leading-6 text-slate-600"
+                >
+                  <span className="font-medium text-slate-700">参考注入：</span>
+                  {detailView.contextPlan.referenceCount} 条
+                </div>
+                {detailView.contextPlan.memoryRefs.length ? (
+                  <div>
+                    <div className="text-xs font-medium text-slate-500">记忆引用</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {detailView.contextPlan.memoryRefs.map((memoryRef) => (
+                        <span
+                          key={memoryRef.key}
+                          className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600"
+                        >
+                          {memoryRef.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {detailView.contextPlan.toolRefs.length ? (
+                  <div>
+                    <div className="text-xs font-medium text-slate-500">工具开放面</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {detailView.contextPlan.toolRefs.map((toolRef) => (
+                        <span
+                          key={toolRef.key}
+                          className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700"
+                        >
+                          {toolRef.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {detailView.contextPlan.tasteSummary ? (
+                  <div
+                    data-testid="sceneapp-detail-context-taste-summary"
+                    className="rounded-[18px] border border-lime-200 bg-lime-50/70 px-3 py-2 text-sm leading-6 text-lime-900"
+                  >
+                    <span className="font-medium">风格摘要：</span>
+                    {detailView.contextPlan.tasteSummary}
+                  </div>
+                ) : null}
+                {detailView.contextPlan.notes.length ? (
+                  <div className="space-y-2">
+                    {detailView.contextPlan.notes.map((note, index) => (
+                      <div
+                        key={`${detailView.id}-context-note-${index}`}
+                        className="rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600"
+                      >
+                        {note}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm leading-6 text-slate-500">
+                当前还没有生成上下文覆盖层，继续补项目或启动输入后会自动刷新。
+              </p>
+            )}
+            {detailView.planning.warnings.length ? (
+              <div className="mt-4 space-y-2">
+                {detailView.planning.warnings.map((warning, index) => (
+                  <div
+                    key={`${detailView.id}-planning-warning-${index}`}
+                    className="rounded-[18px] border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800"
+                  >
+                    {warning}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+            <div className="text-sm font-medium text-slate-900">Project Pack 规划</div>
+            {detailView.projectPackPlan ? (
+              <>
+                <div className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
+                  <div>
+                    <span className="font-medium text-slate-700">交付形态：</span>
+                    {detailView.projectPackPlan.packKindLabel}
+                  </div>
+                  <div data-testid="sceneapp-detail-pack-strategy">
+                    <span className="font-medium text-slate-700">完成策略：</span>
+                    {detailView.projectPackPlan.completionStrategyLabel}
+                  </div>
+                  {detailView.projectPackPlan.primaryPart ? (
+                    <div>
+                      <span className="font-medium text-slate-700">主件：</span>
+                      {detailView.projectPackPlan.primaryPart}
+                    </div>
+                  ) : null}
+                  {detailView.projectPackPlan.viewerLabel ? (
+                    <div>
+                      <span className="font-medium text-slate-700">查看方式：</span>
+                      {detailView.projectPackPlan.viewerLabel}
+                    </div>
+                  ) : null}
+                </div>
+                {detailView.projectPackPlan.requiredParts.length ? (
+                  <div
+                    data-testid="sceneapp-detail-pack-required-parts"
+                    className="mt-3 flex flex-wrap gap-2"
+                  >
+                    {detailView.projectPackPlan.requiredParts.map((part) => (
+                      <span
+                        key={part.key}
+                        className="rounded-full border border-lime-200 bg-lime-50 px-2.5 py-1 text-[11px] font-medium text-lime-700"
+                      >
+                        {part.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm leading-6 text-slate-500">
+                    当前规划还没有显式声明整包部件，继续沿现有结果回流主链执行。
+                  </p>
+                )}
+                {detailView.projectPackPlan.notes.length ? (
+                  <div className="mt-4 space-y-2">
+                    {detailView.projectPackPlan.notes.map((note, index) => (
+                      <div
+                        key={`${detailView.id}-pack-note-${index}`}
+                        className="rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600"
+                      >
+                        {note}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                当前规划还没有显式暴露 Project Pack 结果，继续沿现有交付合同运行。
+              </p>
+            )}
           </div>
         </div>
 

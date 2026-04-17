@@ -199,6 +199,8 @@ export function SceneAppsPage({
                 detailView={runtime.selectedDetailView}
                 projectId={runtime.selectedProjectId}
                 launchInput={runtime.launchInput}
+                planLoading={runtime.selectedPlanLoading}
+                planError={runtime.selectedPlanError}
                 launchDisabledReason={runtime.launchDisabledReason}
                 launching={
                   runtime.launchingSceneAppId === runtime.selectedDescriptor?.id

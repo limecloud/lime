@@ -1,3 +1,4 @@
+use super::context::dto::SceneAppContextOverlay;
 use lime_core::config::{AutomationExecutionMode, DeliveryConfig, TaskSchedule};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -232,10 +233,25 @@ pub struct SceneAppReadiness {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SceneAppProjectPackPlan {
+    pub pack_kind: SceneAppDeliveryContract,
+    pub primary_part: Option<String>,
+    pub required_parts: Vec<String>,
+    pub viewer_kind: Option<String>,
+    pub completion_strategy: String,
+    pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SceneAppPlanResult {
     pub descriptor: SceneAppDescriptor,
     pub readiness: SceneAppReadiness,
     pub plan: SceneAppExecutionPlan,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_overlay: Option<SceneAppContextOverlay>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_pack_plan: Option<SceneAppProjectPackPlan>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

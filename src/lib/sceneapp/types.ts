@@ -5,6 +5,17 @@ import type {
   TaskSchedule,
 } from "@/lib/api/automation";
 import type { BaseSetupViewerKind } from "@/lib/base-setup/types";
+import type {
+  SceneAppContextOverlay,
+} from "@/lib/context-layer";
+
+export type {
+  ContextCompilerPlan,
+  ContextLayerSnapshot,
+  ReferenceItem,
+  SceneAppContextOverlay,
+  TasteProfile,
+} from "@/lib/context-layer";
 
 export type SceneAppType =
   | "local_instant"
@@ -171,10 +182,21 @@ export interface SceneAppReadiness {
   unmetRequirements: SceneAppLaunchRequirement[];
 }
 
+export interface SceneAppProjectPackPlan {
+  packKind: SceneAppDeliveryContract;
+  primaryPart?: string;
+  requiredParts: string[];
+  viewerKind?: BaseSetupViewerKind;
+  completionStrategy: string;
+  notes: string[];
+}
+
 export interface SceneAppPlanResult {
   descriptor: SceneAppDescriptor;
   readiness: SceneAppReadiness;
   plan: SceneAppExecutionPlan;
+  contextOverlay?: SceneAppContextOverlay;
+  projectPackPlan?: SceneAppProjectPackPlan;
 }
 
 export interface SceneAppAutomationIntent {

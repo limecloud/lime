@@ -277,6 +277,79 @@ export function SceneAppRunDetailPanel({
             </div>
           </div>
         ) : null}
+
+        {runDetailView.packCompletionStrategyLabel ||
+        runDetailView.packViewerLabel ||
+        runDetailView.plannedDeliveryRequiredParts.length ||
+        runDetailView.packPlanNotes.length ? (
+          <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white p-4">
+            <div className="text-xs font-medium text-slate-500">
+              规划结果包基线
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              这部分展示预规划阶段承诺的结果包口径，方便和当前真实回流的交付覆盖率对照。
+            </p>
+
+            {runDetailView.packCompletionStrategyLabel ? (
+              <div
+                data-testid="sceneapp-run-detail-pack-strategy"
+                className="mt-3 text-sm text-slate-700"
+              >
+                <span className="font-medium text-slate-900">完成口径：</span>
+                {runDetailView.packCompletionStrategyLabel}
+              </div>
+            ) : null}
+
+            {runDetailView.packViewerLabel ? (
+              <div className="mt-2 text-sm text-slate-700">
+                <span className="font-medium text-slate-900">规划入口：</span>
+                {runDetailView.packViewerLabel}
+              </div>
+            ) : null}
+
+            {runDetailView.plannedDeliveryRequiredParts.length ? (
+              <div className="mt-3">
+                <div className="text-xs font-medium text-slate-500">
+                  规划必含部件
+                </div>
+                <div
+                  data-testid="sceneapp-run-detail-pack-required-parts"
+                  className="mt-2 flex flex-wrap gap-2"
+                >
+                  {runDetailView.plannedDeliveryRequiredParts.map((part) => (
+                    <span
+                      key={`planned-${part.key}`}
+                      className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700"
+                    >
+                      {part.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {runDetailView.packPlanNotes.length ? (
+              <div className="mt-3">
+                <div className="text-xs font-medium text-slate-500">
+                  规划备注
+                </div>
+                <div
+                  data-testid="sceneapp-run-detail-pack-notes"
+                  className="mt-2 flex flex-wrap gap-2"
+                >
+                  {runDetailView.packPlanNotes.map((note) => (
+                    <span
+                      key={note}
+                      className="rounded-full border border-lime-200 bg-lime-50 px-2.5 py-1 text-[11px] font-medium text-lime-700"
+                    >
+                      {note}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-4 rounded-[22px] border border-slate-200 bg-white p-4">

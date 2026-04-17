@@ -8,12 +8,25 @@ const {
   mockGetModelRegistry,
   mockGetProviderAliasConfig,
   mockFetchProviderModelsAuto,
+  mockNormalizeFetchProviderModelsSource,
   mockFilterModelsByTheme,
 } = vi.hoisted(() => ({
   mockLoadConfiguredProviders: vi.fn(),
   mockGetModelRegistry: vi.fn(),
   mockGetProviderAliasConfig: vi.fn(),
   mockFetchProviderModelsAuto: vi.fn(),
+  mockNormalizeFetchProviderModelsSource: vi.fn((result) => {
+    if (
+      result?.source === "LocalFallback" &&
+      Array.isArray(result?.models) &&
+      result.models.length > 0 &&
+      typeof result?.error === "string" &&
+      result.error.includes("已保留当前 Provider 的自定义模型")
+    ) {
+      return "CustomModels";
+    }
+    return result?.source ?? "LocalFallback";
+  }),
   mockFilterModelsByTheme: vi.fn(),
 }));
 
@@ -46,6 +59,7 @@ vi.mock("@/hooks/useConfiguredProviders", () => ({
 }));
 
 vi.mock("@/lib/api/modelRegistry", () => ({
+  normalizeFetchProviderModelsSource: mockNormalizeFetchProviderModelsSource,
   modelRegistryApi: {
     getModelRegistry: mockGetModelRegistry,
     getProviderAliasConfig: mockGetProviderAliasConfig,
