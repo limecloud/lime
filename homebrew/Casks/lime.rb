@@ -23,9 +23,9 @@ cask "lime" do
   app "Lime.app"
 
   zap trash: [
-    "~/Library/Application Support/com.lime.app",
-    "~/Library/Caches/com.lime.app",
-    "~/Library/Preferences/com.lime.app.plist",
-    "~/Library/Saved Application State/com.lime.app.savedState",
+    "~/Library/Application Support/com.limecloud.lime",
+    "~/Library/Caches/com.limecloud.lime",
+    "~/Library/Preferences/com.limecloud.lime.plist",
+    "~/Library/Saved Application State/com.limecloud.lime.savedState",
   ]
 end
