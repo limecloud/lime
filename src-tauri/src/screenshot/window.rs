@@ -381,10 +381,10 @@ fn open_floating_window_with_url(app: &AppHandle, url: &str) -> Result<(), Windo
         if is_voice_mode {
             use tauri::Emitter;
             // 延迟发送事件，等待页面加载
-            let window_clone = window.clone();
+            let app_clone = app.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(200));
-                let _ = window_clone.emit("voice-start-recording", ());
+                let _ = app_clone.emit("voice-start-recording", ());
                 info!("[语音输入] 已发送开始录音事件");
             });
         }
@@ -428,6 +428,16 @@ fn open_floating_window_with_url(app: &AppHandle, url: &str) -> Result<(), Windo
 
     info!("悬浮窗口创建成功: {}", FLOATING_WINDOW_LABEL);
 
+    if is_voice_mode {
+        use tauri::Emitter;
+        let app_clone = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            let _ = app_clone.emit("voice-start-recording", ());
+            info!("[语音输入] 已广播开始录音事件");
+        });
+    }
+
     Ok(())
 }
 
@@ -440,12 +450,9 @@ pub fn open_floating_window_with_voice(app: &AppHandle) -> Result<(), WindowErro
 pub fn send_voice_stop_event(app: &AppHandle) -> Result<(), WindowError> {
     use tauri::Emitter;
 
-    if let Some(window) = app.get_webview_window(FLOATING_WINDOW_LABEL) {
-        window
-            .emit("voice-stop-recording", ())
-            .map_err(|e| WindowError::OperationFailed(format!("发送停止录音事件失败: {e}")))?;
-        info!("[语音输入] 已发送停止录音事件到截图输入框");
-    }
+    app.emit("voice-stop-recording", ())
+        .map_err(|e| WindowError::OperationFailed(format!("发送停止录音事件失败: {e}")))?;
+    info!("[语音输入] 已广播停止录音事件");
     Ok(())
 }
 

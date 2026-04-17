@@ -54,7 +54,7 @@ function createMockConfig() {
       },
     },
     navigation: {
-      enabled_items: ["home-general"],
+      enabled_items: [],
     },
     chat_appearance: {
       append_selected_text_to_recommendation: true,
@@ -154,7 +154,7 @@ afterEach(() => {
 });
 
 describe("AppearanceSettings", () => {
-  it("应在同一页面中渲染基础外观、侧栏入口与推荐行为设置", async () => {
+  it("应在同一页面中渲染基础外观、初始化恢复与推荐行为设置", async () => {
     const { container } = await renderPage();
     const text = container.textContent ?? "";
     const buttonTexts = Array.from(container.querySelectorAll("button")).map(
@@ -162,117 +162,72 @@ describe("AppearanceSettings", () => {
     );
 
     expect(text).toContain("外观");
-    expect(text).toContain("管理主题、语言、导航入口和推荐行为。");
+    expect(text).toContain("管理主题、语言、提示音效和推荐行为。");
     expect(text).toContain("主题：跟随系统");
     expect(text).toContain("语言：中文");
     expect(text).toContain("提示音效：已开启");
     expect(text).toContain("基础外观");
     expect(text).toContain("主题模式");
     expect(text).toContain("界面语言");
-    expect(text).toContain("主导航入口与推荐行为");
-    expect(text).toContain("左侧边栏导航");
-    expect(text).toContain("主导航入口");
-    expect(text).toContain("系统入口");
-    expect(text).toContain(
-      "核心入口固定显示：新建任务、任务中心、我的方法、场景应用、消息渠道、资料库、灵感库",
-    );
+    expect(text).not.toContain("左侧边栏导航");
+    expect(text).not.toContain("主导航入口");
+    expect(text).not.toContain("系统入口");
+    expect(text).not.toContain("OpenClaw");
     expect(text).toContain("推荐行为");
-    expect(text).toContain("OpenClaw");
-    expect(text).toContain("资料库");
-    expect(text).toContain("灵感库");
     expect(text).toContain("推荐自动附带选中内容");
     expect(text).toContain("重新运行引导");
     expect(text).not.toContain("已合并旧入口");
     expect(buttonTexts).not.toContain("设置");
   });
 
-  it("切换底部入口时应保留 workspace_preferences 的其他配置", async () => {
+  it("切换推荐行为时应保留 workspace_preferences 的其他配置", async () => {
     const { container } = await renderPage();
-    const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("插件中心"),
+    const switchButton = container.querySelector(
+      'button[aria-label="切换推荐自动附带选中内容"]',
     );
 
     await act(async () => {
-      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      switchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual(["plugins"]);
+    expect(
+      savedConfig.chat_appearance.append_selected_text_to_recommendation,
+    ).toBe(false);
     expect(
       savedConfig.workspace_preferences.media_defaults.voice
         .preferredProviderId,
     ).toBe("openai");
   });
 
-  it("切换底部入口时应保存完整的侧栏导航配置", async () => {
+  it("切换推荐行为时应写回完整的聊天外观配置", async () => {
     const { container } = await renderPage();
-    const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("插件中心"),
+    const switchButton = container.querySelector(
+      'button[aria-label="切换推荐自动附带选中内容"]',
     );
 
     await act(async () => {
-      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      switchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 
     const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
 
-    expect(savedConfig.navigation.enabled_items).toEqual(["plugins"]);
-  });
-
-  it("缺少导航配置时应回退到底部默认入口", async () => {
-    mockGetConfig.mockResolvedValue({
-      language: "zh",
-      chat_appearance: {
-        append_selected_text_to_recommendation: true,
-      },
-    });
-
-    const { container } = await renderPage();
-    const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("插件中心"),
+    expect(savedConfig.chat_appearance).toEqual(
+      expect.objectContaining({
+        append_selected_text_to_recommendation: false,
+        showAvatar: false,
+      }),
     );
-
-    await act(async () => {
-      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
-    });
-
-    const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
-
-    expect(savedConfig.navigation.enabled_items).toEqual(["plugins"]);
-  });
-
-  it("应允许把所有可选侧栏入口恢复为默认隐藏", async () => {
-    mockGetConfig.mockResolvedValue({
-      ...createMockConfig(),
-      navigation: {
-        enabled_items: ["plugins"],
-      },
-    });
-
-    const { container } = await renderPage();
-    const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent?.includes("插件中心"),
-    );
-
-    await act(async () => {
-      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
-    });
-
-    const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
-
-    expect(savedConfig.navigation.enabled_items).toEqual([]);
   });
 
   it("应把首屏和基础外观说明收进 tips", async () => {
     await renderPage();
 
     expect(getBodyText()).not.toContain(
-      "管理主题、语言、提示音效，以及左侧导航入口和推荐行为。",
+      "管理主题、语言、提示音效，以及推荐问题的上下文带入方式。",
     );
     expect(getBodyText()).not.toContain(
       "先确定全局主题、语言和声音反馈，再统一工作区里的视觉节奏。",
@@ -280,7 +235,7 @@ describe("AppearanceSettings", () => {
 
     const heroTip = await hoverTip("外观设置总览说明");
     expect(getBodyText()).toContain(
-      "管理主题、语言、提示音效，以及左侧导航入口和推荐行为。",
+      "管理主题、语言、提示音效，以及推荐问题的上下文带入方式。",
     );
     await leaveTip(heroTip);
 

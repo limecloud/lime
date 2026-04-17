@@ -2939,7 +2939,14 @@ fn resolve_runtime_access_mode_from_request(
 }
 
 fn backfill_runtime_access_policies(request: &mut AsterChatRequest) {
-    let Some(access_mode) = resolve_runtime_access_mode_from_request(request) else {
+    let access_mode = resolve_runtime_access_mode_from_request(request).or_else(|| {
+        if request.approval_policy.is_none() && request.sandbox_policy.is_none() {
+            Some(lime_agent::SessionExecutionRuntimeAccessMode::default_for_session())
+        } else {
+            None
+        }
+    });
+    let Some(access_mode) = access_mode else {
         return;
     };
 
@@ -5384,6 +5391,41 @@ mod tests {
                     "access_mode": "full-access"
                 }
             })),
+            turn_id: None,
+            queue_if_busy: None,
+            queued_turn_id: None,
+        };
+
+        backfill_runtime_access_policies(&mut request);
+
+        assert_eq!(request.approval_policy.as_deref(), Some("never"));
+        assert_eq!(
+            request.sandbox_policy.as_deref(),
+            Some("danger-full-access")
+        );
+    }
+
+    #[test]
+    fn backfill_runtime_access_policies_should_default_to_full_access_when_request_missing() {
+        let mut request = AsterChatRequest {
+            message: "继续执行".to_string(),
+            session_id: "session-access-default".to_string(),
+            event_name: "agent_stream".to_string(),
+            images: None,
+            provider_config: None,
+            provider_preference: None,
+            model_preference: None,
+            thinking_enabled: None,
+            approval_policy: None,
+            sandbox_policy: None,
+            project_id: None,
+            workspace_id: "workspace-access".to_string(),
+            web_search: None,
+            search_mode: None,
+            execution_strategy: None,
+            auto_continue: None,
+            system_prompt: None,
+            metadata: None,
             turn_id: None,
             queue_if_busy: None,
             queued_turn_id: None,

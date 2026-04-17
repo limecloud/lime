@@ -35,7 +35,7 @@ function statusBadgeClass(tone: string): string {
 
 function renderSceneIcon(current: boolean, tone: string) {
   if (current) {
-    return <PlayCircle className="h-5 w-5 text-white" />;
+    return <PlayCircle className="h-5 w-5 text-emerald-600" />;
   }
 
   if (tone === "done") {
@@ -73,7 +73,7 @@ export function OpenClawSceneNav({
               className={cn(
                 "w-full rounded-[22px] border px-4 py-4 text-left transition hover:border-slate-300 hover:bg-slate-50",
                 current &&
-                  "border-slate-300 bg-slate-900 text-white shadow-sm hover:bg-slate-900",
+                  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_54%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10 hover:opacity-95",
               )}
             >
               <div className="flex items-start gap-3">
@@ -87,7 +87,7 @@ export function OpenClawSceneNav({
                       <p
                         className={cn(
                           "mt-1 text-xs leading-5",
-                          current ? "text-white/70" : "text-slate-500",
+                          current ? "text-slate-600" : "text-slate-500",
                         )}
                       >
                         {scene.description}
@@ -97,7 +97,7 @@ export function OpenClawSceneNav({
                       className={cn(
                         "shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium",
                         current
-                          ? "border-white/15 bg-white/10 text-white"
+                          ? "border-emerald-200 bg-white/90 text-emerald-700"
                           : statusBadgeClass(status.tone),
                       )}
                     >
@@ -108,7 +108,7 @@ export function OpenClawSceneNav({
                   <div
                     className={cn(
                       "mt-3 inline-flex items-center gap-1 text-xs",
-                      current ? "text-white/70" : "text-slate-500",
+                      current ? "text-slate-600" : "text-slate-500",
                     )}
                   >
                     <span>{current ? "当前步骤" : "切换到此步骤"}</span>

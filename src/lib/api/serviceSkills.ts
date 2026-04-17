@@ -289,7 +289,7 @@ function resolveDerivedServiceSkillOutputDestination(
   }
 
   if (item.runnerType === "scheduled") {
-    return "首轮结果会进入当前工作区；后续结果会同步到任务中心。";
+    return "首轮结果会进入当前工作区；后续结果会同步到生成工作台。";
   }
 
   if (item.runnerType === "managed") {

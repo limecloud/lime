@@ -27,9 +27,9 @@ export function EmptyStateSceneAppsPanel({
     <section className="space-y-2.5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1.5">
-          <div className="text-sm font-semibold text-slate-900">场景应用</div>
+          <div className="text-sm font-semibold text-slate-900">创作场景</div>
           <p className="text-xs leading-5 text-slate-500 md:text-sm">
-            不是单个技能，而是一条完整结果链。先选一个目标，Lime 会把合适的能力组合起来。
+            不是单个技能，而是一条完整结果链。先挑一个场景，Lime 会把合适的能力和交付合同组合起来。
           </p>
         </div>
         {canResumeRecentSceneApp || onOpenSceneAppsDirectory ? (
@@ -58,7 +58,7 @@ export function EmptyStateSceneAppsPanel({
 
       {loading && items.length === 0 ? (
         <div className="text-sm leading-6 text-slate-500">
-          正在整理可直接启动的场景应用…
+          正在整理可直接启动的创作场景…
         </div>
       ) : (
         <div

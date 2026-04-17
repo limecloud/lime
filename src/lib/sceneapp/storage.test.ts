@@ -107,6 +107,26 @@ describe("sceneapp storage", () => {
     ]);
   });
 
+  it("应保留最近访问里的灵感条目选择", () => {
+    const records = recordSceneAppRecentVisit(
+      {
+        sceneappId: "story-video-suite",
+        projectId: "project-1",
+        referenceMemoryIds: ["memory-2", "memory-1", "memory-2"],
+      },
+      {
+        visitedAt: 400,
+      },
+    );
+
+    expect(records[0]).toEqual(
+      expect.objectContaining({
+        sceneappId: "story-video-suite",
+        referenceMemoryIds: ["memory-2", "memory-1"],
+      }),
+    );
+  });
+
   it("写入最近访问时应通知订阅者", () => {
     const received: Array<string | undefined> = [];
     const unsubscribe = subscribeSceneAppRecentVisits((records) => {

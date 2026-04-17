@@ -35,7 +35,6 @@ import type {
   TeamRoleDefinition,
 } from "../utils/teamDefinitions";
 import type { UseRuntimeTeamFormationResult } from "../hooks/useRuntimeTeamFormation";
-import type { AgentAccessMode } from "../hooks/agentChatStorage";
 import type { TeamWorkspaceRuntimeFormationState } from "../teamWorkspaceRuntime";
 import {
   buildWaitingAgentRuntimeStatus,
@@ -200,7 +199,7 @@ export function buildGeneralWorkbenchResumePromptFromRunState(
     signature: `run:${pendingRun.run_id}:${pendingRun.status}:${pendingRun.started_at}:${"finished_at" in pendingRun ? pendingRun.finished_at || "" : ""}`,
     title: "发现上次未完成任务",
     description: `最近一次任务“${runTitle}”尚未完成${stageSuffix}。`,
-    actionLabel: "继续上次任务",
+    actionLabel: "继续上次生成",
     prompt: `请基于当前文稿与最近一次未完成的运行继续推进。任务标题：${runTitle}。${gateLabel ? `优先衔接“${gateLabel}”阶段。` : ""}不要从头开始，先概括已有进度，再继续执行。`,
   };
 }
@@ -235,6 +234,19 @@ function readExistingBrowserRequirement(
     return requirement;
   }
   return undefined;
+}
+
+function omitLegacyAccessModeFromHarnessMetadata(
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!metadata) {
+    return metadata;
+  }
+
+  const nextMetadata = { ...metadata };
+  delete nextMetadata.access_mode;
+  delete nextMetadata.accessMode;
+  return nextMetadata;
 }
 
 function readExistingTeamSource(
@@ -415,7 +427,6 @@ interface BuildWorkspaceRequestMetadataOptions {
   workspaceRequestMetadataBase?: Record<string, unknown>;
   sendOptions?: HandleSendOptions;
   effectiveToolPreferences: ChatToolPreferences;
-  accessMode?: AgentAccessMode;
   mappedTheme: ThemeType;
   isThemeWorkbench: boolean;
   currentGateKey: string;
@@ -669,7 +680,6 @@ export function buildWorkspaceRequestMetadata(
     workspaceRequestMetadataBase,
     sendOptions,
     effectiveToolPreferences,
-    accessMode,
     mappedTheme,
     isThemeWorkbench,
     currentGateKey,
@@ -686,10 +696,12 @@ export function buildWorkspaceRequestMetadata(
     teamMemoryShadowSnapshot,
   } = options;
 
-  const existingHarnessMetadata = extractExistingHarnessMetadata({
-    ...(workspaceRequestMetadataBase || {}),
-    ...(sendOptions?.requestMetadata || {}),
-  });
+  const existingHarnessMetadata = omitLegacyAccessModeFromHarnessMetadata(
+    extractExistingHarnessMetadata({
+      ...(workspaceRequestMetadataBase || {}),
+      ...(sendOptions?.requestMetadata || {}),
+    }),
+  );
   const resolvedPreferredTeamPresetId =
     preferredTeamPresetId ||
     readMetadataText(existingHarnessMetadata, "preferred_team_preset_id");
@@ -737,7 +749,6 @@ export function buildWorkspaceRequestMetadata(
         task: effectiveToolPreferences.task,
         subagent: effectiveToolPreferences.subagent,
       },
-      accessMode,
       sessionMode: isThemeWorkbench ? "general_workbench" : "default",
       gateKey: isThemeWorkbench ? currentGateKey : undefined,
       runTitle: themeWorkbenchActiveQueueTitle?.trim() || undefined,

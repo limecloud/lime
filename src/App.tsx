@@ -96,7 +96,14 @@ const pageLoadingFallback = (
 function AppContent() {
   const hasTauriDesktopRuntime = hasTauriInvokeCapability();
   const [showSplash, setShowSplash] = useState(true);
-  const { currentPage, pageParams, handleNavigate } = useAppNavigation();
+  const {
+    currentPage,
+    pageParams,
+    requestedPage,
+    requestedPageParams,
+    navigationRequestId,
+    handleNavigate,
+  } = useAppNavigation();
   const [agentHasMessages, setAgentHasMessages] = useState(false);
   const { needsOnboarding, completeOnboarding } = useOnboardingState();
 
@@ -251,6 +258,8 @@ function AppContent() {
             <AppSidebar
               currentPage={currentPage}
               currentPageParams={pageParams}
+              requestedPage={requestedPage}
+              requestedPageParams={requestedPageParams}
               onNavigate={handleNavigate}
             />
           )}
@@ -259,6 +268,9 @@ function AppContent() {
               <AppPageContent
                 currentPage={currentPage}
                 pageParams={pageParams}
+                requestedPage={requestedPage}
+                requestedPageParams={requestedPageParams}
+                navigationRequestId={navigationRequestId}
                 onNavigate={handleNavigate}
                 onAgentHasMessagesChange={setAgentHasMessages}
               />

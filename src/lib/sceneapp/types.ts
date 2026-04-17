@@ -135,6 +135,7 @@ export interface SceneAppLaunchIntent {
   workspaceId?: string;
   projectId?: string;
   userInput?: string;
+  referenceMemoryIds?: string[];
   slots?: Record<string, string>;
   runtimeContext?: SceneAppRuntimeContext;
 }

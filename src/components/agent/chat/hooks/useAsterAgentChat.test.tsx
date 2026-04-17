@@ -6198,6 +6198,39 @@ describe("useAsterAgentChat 偏好持久化", () => {
     }
   });
 
+  it("切换话题时 recent_access_mode 与 session access shadow 都缺失应回退工作区默认并回写 session", async () => {
+    const workspaceId = "ws-topic-access-workspace-default";
+    const topicId = "topic-access-workspace-default";
+    localStorage.setItem(
+      `aster_access_mode_${workspaceId}`,
+      JSON.stringify("read-only"),
+    );
+    mockGetAgentRuntimeSession.mockResolvedValue({
+      id: topicId,
+      messages: [],
+      execution_strategy: "react",
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().switchTopic(topicId);
+      });
+      await flushEffects();
+
+      expect(harness.getValue().accessMode).toBe("read-only");
+      expect(mockUpdateAgentRuntimeSession).toHaveBeenCalledWith({
+        session_id: topicId,
+        recent_access_mode: "read-only",
+      });
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("切换话题时应保留工具调用历史并恢复 elicitation 回答文本", async () => {
     const workspaceId = "ws-history-hydrate";
     const now = Math.floor(Date.now() / 1000);

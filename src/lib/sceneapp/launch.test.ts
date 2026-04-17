@@ -96,8 +96,9 @@ function createPlanResult(
           sceneapp_id: "sceneapp-demo",
           message: "请执行 SceneApp Demo",
         },
-        notes:
-          adapterPlanOverrides.notes ?? ["SceneApp runtime facade 测试样板。"],
+        notes: adapterPlanOverrides.notes ?? [
+          "SceneApp runtime facade 测试样板。",
+        ],
         linkedServiceSkillId: adapterPlanOverrides.linkedServiceSkillId,
         linkedSceneKey: adapterPlanOverrides.linkedSceneKey,
         preferredProfileKey: adapterPlanOverrides.preferredProfileKey,
@@ -182,6 +183,11 @@ describe("sceneapp launch facade", () => {
           projectId: "project-video",
           contentId: "content-video-1",
           autoRunInitialPromptOnMount: true,
+          initialSceneAppExecutionSummary: expect.objectContaining({
+            sceneappId: "story-video-suite",
+            title: "短视频编排",
+            deliveryContractLabel: expect.any(String),
+          }),
           initialAutoSendRequestMetadata: expect.objectContaining({
             harness: expect.objectContaining({
               service_scene_launch: expect.objectContaining({
@@ -194,7 +200,9 @@ describe("sceneapp launch facade", () => {
     );
     expect(draft.notes).toContain("已装配 1 条 memory 引用。");
     expect(draft.notes).toContain("完整度将按 2 个必含部件判断。");
-    expect(draft.notes).toContain("当前 SceneApp 规划先映射到 cloud_scene 主链。");
+    expect(draft.notes).toContain(
+      "当前 SceneApp 规划先映射到 cloud_scene 主链。",
+    );
   });
 
   it("应把 browser_assist adapter plan 翻译成浏览器工作区启动草稿", () => {
@@ -269,7 +277,8 @@ describe("sceneapp launch facade", () => {
           openBrowserAssistOnMount: true,
           themeOverride: "general",
           lockTheme: true,
-          prompt: "请执行场景应用「X 文章转存」。目标链接：https://x.com/openai/article/123；目标语言：中文。",
+          prompt:
+            "请执行创作场景「X 文章转存」。目标链接：https://x.com/openai/article/123；目标语言：中文。",
           initialAutoSendRequestMetadata: expect.objectContaining({
             harness: expect.objectContaining({
               service_skill_launch: expect.objectContaining({
@@ -353,6 +362,11 @@ describe("sceneapp launch facade", () => {
         workspaceId: "workspace-analysis",
         workspaceEntry: expect.objectContaining({
           projectId: "project-analysis",
+          initialSceneAppExecutionSummary: expect.objectContaining({
+            sceneappId: "project-analysis-copilot",
+            title: "项目分析 Copilot",
+            deliveryContractLabel: expect.any(String),
+          }),
           initialRequestMetadata: expect.objectContaining({
             harness: expect.objectContaining({
               sceneapp_native_skill_launch: expect.objectContaining({
@@ -428,6 +442,7 @@ describe("sceneapp launch facade", () => {
               project_id: "project-trend",
               workspace_id: "workspace-trend",
               user_input: "关注 AI Agent 产品与云厂商动作",
+              reference_memory_ids: ["memory-trend-1"],
             },
           },
           notes: ["当前 SceneApp 规划先映射到 automation_job 主链。"],
@@ -460,6 +475,7 @@ describe("sceneapp launch facade", () => {
             projectId: "project-trend",
             workspaceId: "workspace-trend",
             userInput: "关注 AI Agent 产品与云厂商动作",
+            referenceMemoryIds: ["memory-trend-1"],
           }),
         }),
         automationRequest: expect.objectContaining({
@@ -468,6 +484,8 @@ describe("sceneapp launch facade", () => {
             kind: "agent_turn",
             prompt:
               "SceneApp: 每日趋势摘要\n用户目标：关注 AI Agent 产品与云厂商动作",
+            approval_policy: "never",
+            sandbox_policy: "danger-full-access",
             request_metadata: expect.objectContaining({
               sceneapp: expect.objectContaining({
                 id: "daily-trend-briefing",
@@ -481,6 +499,7 @@ describe("sceneapp launch facade", () => {
           every_secs: "3600",
           payload_kind: "agent_turn",
           execution_mode: "intelligent",
+          agent_access_mode: "full-access",
           prompt:
             "SceneApp: 每日趋势摘要\n用户目标：关注 AI Agent 产品与云厂商动作",
         }),

@@ -50,7 +50,7 @@ export interface ConnectConfirmDialogProps {
  */
 function VerifiedProviderInfo({ relay }: { relay: RelayInfo }) {
   return (
-    <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+    <div className="flex items-center gap-4 rounded-xl border border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(224,242,254,0.95)_100%)] p-4">
       {/* Logo */}
       <div
         className="w-14 h-14 rounded-xl flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0"
@@ -89,7 +89,7 @@ function VerifiedProviderInfo({ relay }: { relay: RelayInfo }) {
             href={relay.links.homepage}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-blue-600 hover:text-blue-800 hover:underline mt-2 inline-flex items-center gap-1"
+            className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 hover:underline"
           >
             访问官网
             <svg
@@ -240,7 +240,7 @@ export function ConnectConfirmDialog({
         <DialogHeader className="pb-2">
           <DialogTitle className="text-xl flex items-center gap-2">
             <svg
-              className="w-6 h-6 text-blue-600"
+              className="w-6 h-6 text-emerald-700"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

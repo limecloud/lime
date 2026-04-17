@@ -48,6 +48,10 @@ import { CompanionCapabilityPreferencesCard } from "./CompanionCapabilityPrefere
 
 const SURFACE_CLASS_NAME =
   "rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5";
+const PRIMARY_ACTION_BUTTON_CLASS =
+  "inline-flex items-center justify-center gap-2 rounded-[16px] border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 disabled:opacity-60";
+const ACTIVE_WORKSPACE_TRIGGER_CLASS =
+  "data-[state=active]:border-emerald-200 data-[state=active]:bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_56%,rgba(224,242,254,0.95)_100%)] data-[state=active]:text-slate-800 data-[state=active]:shadow-sm data-[state=active]:shadow-emerald-950/10";
 const DEFAULT_COMPANION_ENDPOINT = "ws://127.0.0.1:45554/companion/pet";
 const LIME_PET_RELEASES_URL =
   "https://github.com/limecloud/lime-pet/releases/latest";
@@ -914,7 +918,7 @@ function CompanionProviderBridgeCard() {
             type="button"
             onClick={() => void handleLaunchPet()}
             disabled={launchingPet}
-            className="inline-flex items-center justify-center gap-2 rounded-[16px] bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+            className={PRIMARY_ACTION_BUTTON_CLASS}
             data-testid="companion-launch"
           >
             {launchingPet ? (
@@ -1185,7 +1189,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
             <button
               type="button"
               onClick={() => props.onOpenProfile?.()}
-              className="inline-flex items-center justify-center gap-2 rounded-[16px] bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+              className={PRIMARY_ACTION_BUTTON_CLASS}
               data-testid="open-profile-login"
             >
               <LogIn className="h-4 w-4" />
@@ -1297,7 +1301,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
               <button
                 type="button"
                 onClick={() => void openUserCenter("")}
-                className="inline-flex items-center justify-center gap-2 rounded-[16px] bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+                className={PRIMARY_ACTION_BUTTON_CLASS}
               >
                 <ExternalLink className="h-4 w-4" />
                 打开用户中心
@@ -1479,7 +1483,7 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
                         type="button"
                         onClick={() => void handleSetDefault(offer)}
                         disabled={savingDefault === offer.providerKey}
-                        className="inline-flex items-center justify-center gap-2 rounded-[16px] bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+                        className={PRIMARY_ACTION_BUTTON_CLASS}
                       >
                         {savingDefault === offer.providerKey ? (
                           <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -1671,11 +1675,11 @@ export function CloudProviderSettings(props: CloudProviderSettingsProps) {
                   value={item.value}
                   className={cn(
                     "h-auto min-h-[60px] items-center justify-start gap-2 rounded-[18px] border border-transparent bg-transparent px-4 py-3 text-left text-slate-600 shadow-none",
-                    "data-[state=active]:border-slate-900 data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-sm",
+                    ACTIVE_WORKSPACE_TRIGGER_CLASS,
                   )}
                   data-testid={`provider-workspace-tab-${item.value}`}
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-2xl border border-current/15 bg-white/70 text-current data-[state=active]:border-white/15 data-[state=active]:bg-white/10">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-2xl border border-current/15 bg-white/80 text-current">
                     <ItemIcon className="h-4 w-4" />
                   </span>
                   <span className="text-sm font-semibold">{item.label}</span>

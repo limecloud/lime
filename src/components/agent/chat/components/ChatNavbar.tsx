@@ -329,7 +329,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 <Sparkles size={14} />
                 <span>{harnessToggleLabel}</span>
                 {harnessPendingCount > 0 ? (
-                  <span className="rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white">
+                  <span className="rounded-full border border-emerald-200 bg-white/90 px-1.5 py-0.5 text-[10px] font-medium leading-none text-emerald-700 shadow-sm shadow-emerald-950/10">
                     {harnessPendingCount > 99 ? "99+" : harnessPendingCount}
                   </span>
                 ) : null}

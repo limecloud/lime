@@ -59,6 +59,12 @@ export async function planSceneAppLaunch(
   return safeInvoke("sceneapp_plan_launch", { intent });
 }
 
+export async function saveSceneAppContextBaseline(
+  intent: SceneAppLaunchIntent,
+): Promise<SceneAppPlanResult> {
+  return safeInvoke("sceneapp_save_context_baseline", { intent });
+}
+
 export type SceneAppAutomationRunResult = AutomationCycleResult;
 
 export interface SceneAppAutomationResult {

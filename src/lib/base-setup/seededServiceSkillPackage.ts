@@ -706,7 +706,7 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       viewerKind: "artifact_bundle",
       defaultArtifactKind: "analysis",
       outputDestination:
-        "首轮结果会进入当前工作区；后续执行结果会同步到任务中心与对应项目内容。",
+        "首轮结果会进入当前工作区；后续执行结果会同步到生成工作台与对应项目内容。",
     },
     {
       id: "account-performance-tracking-artifact",
@@ -715,7 +715,7 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       viewerKind: "artifact_bundle",
       defaultArtifactKind: "analysis",
       outputDestination:
-        "首轮策略会写回当前工作区；后续跟踪结果会持续回流到任务中心与项目内容。",
+        "首轮策略会写回当前工作区；后续跟踪结果会持续回流到生成工作台与项目内容。",
     },
   ],
   scorecardProfiles: [

@@ -62,7 +62,7 @@ const TASK_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   },
   {
     id: "claw",
-    label: "任务中心",
+    label: "生成",
     icon: MessageSquare,
     page: "agent",
     params: buildClawAgentParams(),
@@ -86,7 +86,7 @@ const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   },
   {
     id: "sceneapps",
-    label: "场景应用",
+    label: "创作场景",
     icon: Workflow,
     page: "sceneapps",
     resolveParams: (params) =>

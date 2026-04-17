@@ -211,7 +211,7 @@ function createScheduledServiceSkill(): ServiceSkillHomeItem {
     isRecent: false,
     runnerLabel: "本地计划任务",
     runnerTone: "sky",
-    runnerDescription: "可直接创建本地定时任务，并回流到任务中心与工作区。",
+    runnerDescription: "可直接创建本地定时任务，并回流到生成工作台与工作区。",
     actionLabel: "创建任务",
     automationStatus: null,
   };

@@ -39,6 +39,7 @@ import {
   getExecutionStrategyStorageKey,
   loadPersisted,
   loadPersistedString,
+  resolvePersistedAccessMode,
   resolvePersistedExecutionStrategy,
   loadTransient,
   savePersisted,
@@ -174,8 +175,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         return null;
       }
 
-      const normalizedMappedWorkspaceId =
-        normalizeProjectId(mappedWorkspaceId);
+      const normalizedMappedWorkspaceId = normalizeProjectId(mappedWorkspaceId);
       if (!normalizedMappedWorkspaceId) {
         return normalizedCandidate;
       }
@@ -949,22 +949,30 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         if (runtimeExecutionStrategy) {
           markSessionExecutionStrategySynced(topicId, runtimeExecutionStrategy);
         }
+        const shadowAccessMode = loadSessionAccessMode(topicId);
         if (runtimeAccessMode) {
           setAccessModeState(runtimeAccessMode);
           persistSessionAccessMode(topicId, runtimeAccessMode);
+        } else if (shadowAccessMode) {
+          setAccessModeState(shadowAccessMode);
+          void runtime
+            .setSessionAccessMode?.(topicId, shadowAccessMode)
+            .catch((error) => {
+              console.warn(
+                "[AsterChat] 迁移会话 accessMode fallback 失败:",
+                error,
+              );
+            });
         } else {
-          const shadowAccessMode = loadSessionAccessMode(topicId);
-          if (shadowAccessMode) {
-            setAccessModeState(shadowAccessMode);
-            void runtime
-              .setSessionAccessMode?.(topicId, shadowAccessMode)
-              .catch((error) => {
-                console.warn(
-                  "[AsterChat] 迁移会话 accessMode fallback 失败:",
-                  error,
-                );
-              });
-          }
+          const workspaceDefaultAccessMode =
+            resolvePersistedAccessMode(workspaceId);
+          setAccessModeState(workspaceDefaultAccessMode);
+          persistSessionAccessMode(topicId, workspaceDefaultAccessMode);
+          void runtime
+            .setSessionAccessMode?.(topicId, workspaceDefaultAccessMode)
+            .catch((error) => {
+              console.warn("[AsterChat] 回填会话默认 accessMode 失败:", error);
+            });
         }
         logAgentDebug("useAgentSession", "switchTopic.success", {
           durationMs: Date.now() - startedAt,
@@ -984,9 +992,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
               : null,
           accessModeSource: runtimeAccessMode
             ? "execution_runtime"
-            : loadSessionAccessMode(topicId)
+            : shadowAccessMode
               ? "session_storage"
-              : null,
+              : "workspace_default",
           queuedTurnsCount: detail.queued_turns?.length ?? 0,
           topicId,
           turnsCount: detail.turns?.length ?? 0,

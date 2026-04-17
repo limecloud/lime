@@ -1,9 +1,14 @@
 import { RefreshCw } from "lucide-react";
 import type { AutomationJobRecord } from "@/lib/api/automation";
 import type { AgentRun } from "@/lib/api/executionRun";
+import type {
+  SceneAppAutomationWorkspaceCardViewModel,
+  SceneAppRunDetailViewModel,
+} from "@/lib/sceneapp";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
+import { SceneAppRunDetailPanel } from "@/components/sceneapps/SceneAppRunDetailPanel";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +20,7 @@ import type { AutomationServiceSkillContext } from "./serviceSkillContext";
 import {
   LEGACY_BROWSER_AUTOMATION_NOTICE,
   LEGACY_BROWSER_AUTOMATION_STATUS,
+  describeAgentTurnAccessMode,
   deliveryChannelLabel,
   deliveryModeLabel,
   deliveryStatusVariant,
@@ -49,6 +55,21 @@ interface AutomationJobDetailsDialogProps {
   serviceSkillContext: AutomationServiceSkillContext | null;
   jobRuns: AgentRun[];
   historyLoading: boolean;
+  sceneAppSummaryCard?: SceneAppAutomationWorkspaceCardViewModel | null;
+  sceneAppRunDetailView?: SceneAppRunDetailViewModel | null;
+  sceneAppLoading?: boolean;
+  sceneAppError?: string | null;
+  onOpenSceneAppDetail?: () => void;
+  onOpenSceneAppGovernance?: () => void;
+  onSceneAppDeliveryArtifactAction?: (
+    action: SceneAppRunDetailViewModel["deliveryArtifactEntries"][number],
+  ) => void;
+  onSceneAppGovernanceAction?: (
+    action: SceneAppRunDetailViewModel["governanceActionEntries"][number],
+  ) => void;
+  onSceneAppGovernanceArtifactAction?: (
+    action: SceneAppRunDetailViewModel["governanceArtifactEntries"][number],
+  ) => void;
   onRefreshHistory: (jobId: string) => Promise<void> | void;
 }
 
@@ -60,6 +81,15 @@ export function AutomationJobDetailsDialog({
   serviceSkillContext,
   jobRuns,
   historyLoading,
+  sceneAppSummaryCard = null,
+  sceneAppRunDetailView = null,
+  sceneAppLoading = false,
+  sceneAppError = null,
+  onOpenSceneAppDetail,
+  onOpenSceneAppGovernance,
+  onSceneAppDeliveryArtifactAction,
+  onSceneAppGovernanceAction,
+  onSceneAppGovernanceArtifactAction,
   onRefreshHistory,
 }: AutomationJobDetailsDialogProps) {
   return (
@@ -139,6 +169,11 @@ export function AutomationJobDetailsDialog({
                   </div>
                   <div className="mt-4 grid gap-2 text-sm text-slate-500 md:grid-cols-2 xl:grid-cols-3">
                     <div>任务类型: {payloadKindLabel(job.payload.kind)}</div>
+                    {!isLegacyBrowserAutomation(job) ? (
+                      <div>
+                        权限模式: {describeAgentTurnAccessMode(job.payload)}
+                      </div>
+                    ) : null}
                     <div>调度: {describeSchedule(job)}</div>
                     <div>下次执行: {formatTime(job.next_run_at)}</div>
                     <div>最近执行: {formatTime(job.last_run_at)}</div>
@@ -208,6 +243,157 @@ export function AutomationJobDetailsDialog({
                         </div>
                       </div>
                     ) : null}
+                  </div>
+                ) : null}
+
+                {sceneAppSummaryCard ||
+                sceneAppRunDetailView ||
+                sceneAppLoading ||
+                sceneAppError ? (
+                  <div className="space-y-4">
+                    <div className="rounded-[22px] border border-lime-200/80 bg-lime-50/70 px-4 py-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium text-slate-900">
+                            创作场景闭环
+                          </div>
+                          <div className="mt-1 text-sm leading-6 text-slate-600">
+                            这条自动化任务已经接到创作场景主链，调度状态之外，也会继续消费同一份
+                            Project Pack、治理材料和经营判断。
+                          </div>
+                        </div>
+                        {sceneAppSummaryCard ? (
+                          <Badge variant="secondary">
+                            {sceneAppSummaryCard.statusLabel}
+                          </Badge>
+                        ) : null}
+                      </div>
+
+                      {sceneAppLoading && !sceneAppSummaryCard ? (
+                        <div className="mt-4 rounded-[18px] border border-dashed border-lime-200 bg-white/80 px-4 py-4 text-sm text-slate-600">
+                          正在回流这条自动化任务对应的创作场景摘要…
+                        </div>
+                      ) : null}
+
+                      {sceneAppSummaryCard ? (
+                        <>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                              {sceneAppSummaryCard.title}
+                            </span>
+                            <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                              {sceneAppSummaryCard.businessLabel}
+                            </span>
+                            <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                              {sceneAppSummaryCard.typeLabel}
+                            </span>
+                            <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                              {sceneAppSummaryCard.patternSummary}
+                            </span>
+                          </div>
+
+                          <div className="mt-4 rounded-[18px] border border-white bg-white/90 px-4 py-4">
+                            <div className="text-sm leading-7 text-slate-800">
+                              {sceneAppSummaryCard.summary}
+                            </div>
+                            <div className="mt-2 text-sm leading-6 text-slate-600">
+                              {sceneAppSummaryCard.nextAction}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 md:grid-cols-2">
+                            <div className="rounded-[18px] border border-white bg-white/90 px-4 py-3">
+                              <div className="text-xs font-medium text-slate-500">
+                                自动化概览
+                              </div>
+                              <div className="mt-2 text-sm font-medium text-slate-900">
+                                {sceneAppSummaryCard.automationSummary}
+                              </div>
+                            </div>
+                            <div className="rounded-[18px] border border-white bg-white/90 px-4 py-3">
+                              <div className="text-xs font-medium text-slate-500">
+                                最近任务
+                              </div>
+                              <div className="mt-2 text-sm font-medium text-slate-900">
+                                {sceneAppSummaryCard.latestAutomationLabel}
+                              </div>
+                            </div>
+                          </div>
+
+                          {sceneAppSummaryCard.scorecardActionLabel ||
+                          sceneAppSummaryCard.topFailureSignalLabel ? (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {sceneAppSummaryCard.scorecardActionLabel ? (
+                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                                  {sceneAppSummaryCard.scorecardActionLabel}
+                                </span>
+                              ) : null}
+                              {sceneAppSummaryCard.topFailureSignalLabel ? (
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                                  {sceneAppSummaryCard.topFailureSignalLabel}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {sceneAppSummaryCard.destinations.length ? (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {sceneAppSummaryCard.destinations.map(
+                                (destination) => (
+                                  <span
+                                    key={destination.key}
+                                    className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                                  >
+                                    {destination.label}
+                                  </span>
+                                ),
+                              )}
+                            </div>
+                          ) : null}
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={onOpenSceneAppDetail}
+                            >
+                              回到创作场景准备
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={onOpenSceneAppGovernance}
+                            >
+                              查看治理复盘
+                            </Button>
+                          </div>
+                        </>
+                      ) : null}
+
+                      {sceneAppError && !sceneAppRunDetailView ? (
+                        <div className="mt-4 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
+                          {sceneAppError}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <SceneAppRunDetailPanel
+                      hasSelectedSceneApp={
+                        Boolean(sceneAppSummaryCard) ||
+                        sceneAppLoading ||
+                        Boolean(sceneAppError)
+                      }
+                      runDetailView={sceneAppRunDetailView}
+                      loading={sceneAppLoading}
+                      error={sceneAppError}
+                      onDeliveryArtifactAction={
+                        onSceneAppDeliveryArtifactAction
+                      }
+                      onGovernanceAction={onSceneAppGovernanceAction}
+                      onGovernanceArtifactAction={
+                        onSceneAppGovernanceArtifactAction
+                      }
+                    />
                   </div>
                 ) : null}
 

@@ -5,6 +5,7 @@ import type {
   AgentProjectFileOpenTarget,
   AgentSiteSkillLaunchParams,
 } from "@/types/page";
+import type { SceneAppExecutionSummaryViewModel } from "@/lib/sceneapp/product";
 import type { CreationMode } from "./components/types";
 import type { MessageImage } from "./types";
 import type { ChatToolPreferences } from "./utils/chatToolPreferences";
@@ -12,6 +13,7 @@ import type { ChatToolPreferences } from "./utils/chatToolPreferences";
 export interface AgentChatWorkspaceBootstrap {
   projectId?: string;
   contentId?: string;
+  initialSceneAppExecutionSummary?: SceneAppExecutionSummaryViewModel;
   initialUserPrompt?: string;
   initialUserImages?: MessageImage[];
   initialRequestMetadata?: Record<string, unknown>;
@@ -32,6 +34,7 @@ export interface WorkspaceEntryPayload {
   images?: MessageImage[];
   projectId?: string;
   contentId?: string;
+  initialSceneAppExecutionSummary?: SceneAppExecutionSummaryViewModel;
   initialRequestMetadata?: Record<string, unknown>;
   initialAutoSendRequestMetadata?: Record<string, unknown>;
   autoRunInitialPromptOnMount?: boolean;
@@ -158,6 +161,7 @@ export function resolveWorkspaceEntry(
   const shared = {
     projectId: resolvedProjectId,
     contentId: payload.contentId,
+    initialSceneAppExecutionSummary: payload.initialSceneAppExecutionSummary,
     theme: targetTheme,
     lockTheme,
     initialCreationMode: creationMode,
@@ -204,6 +208,7 @@ export function resolveWorkspaceEntry(
     workspaceBootstrap: {
       projectId: resolvedProjectId,
       contentId: payload.contentId,
+      initialSceneAppExecutionSummary: payload.initialSceneAppExecutionSummary,
       initialUserPrompt: payload.prompt,
       initialUserImages: payload.images,
       initialRequestMetadata: payload.initialRequestMetadata,

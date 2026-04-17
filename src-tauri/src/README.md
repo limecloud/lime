@@ -32,7 +32,7 @@ Tauri 后端核心代码，处理系统级功能和 API 服务。
   - 更新检查支持提醒频控（同版本 24h 一次、关闭退避）与埋点计数
 - `streaming/` - 流式响应处理
 - `telemetry/` - 遥测和统计
-- `terminal/` - 终端核心模块（PTY 管理、会话管理）
+- `terminal/` - 已移除的终端历史模块（仅保留治理语义，不再参与编译）
 - `tray/` - 系统托盘
 - `websocket/` - WebSocket 支持
 - `workspace/` - Workspace 工作目录管理

@@ -54,7 +54,7 @@ fn resolve_codex_runtime_policies() -> (String, String) {
     let sandbox_policy = turn_context
         .as_ref()
         .and_then(|context| context.sandbox_policy.clone())
-        .unwrap_or_else(|| "workspace-write".to_string());
+        .unwrap_or_else(|| "danger-full-access".to_string());
 
     (approval_policy, sandbox_policy)
 }
@@ -999,7 +999,7 @@ mod tests {
 
         assert_eq!(params["threadId"], json!("thread-1"));
         assert_eq!(params["approvalPolicy"], json!("never"));
-        assert_eq!(params["sandboxPolicy"]["type"], json!("workspaceWrite"));
+        assert_eq!(params["sandboxPolicy"]["type"], json!("dangerFullAccess"));
         assert_eq!(params["model"], json!("gpt-5.3-codex"));
         assert_eq!(params["effort"], json!("high"));
         assert_eq!(params["input"][0]["type"], json!("text"));

@@ -232,20 +232,48 @@ function render(
 }
 
 describe("MessageList", () => {
-  it("自动恢复任务中心时应展示恢复占位而不是空白引导", () => {
+  it("应在同一滚动区域顶部渲染 leadingContent", () => {
+    const container = render(
+      [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "第一条消息",
+        } as Message,
+      ],
+      {
+        leadingContent: (
+          <div data-testid="leading-probe">scene summary heading</div>
+        ),
+      },
+    );
+
+    const leadingContent = container.querySelector(
+      '[data-testid="message-list-leading-content"]',
+    );
+    const messageColumn = container.querySelector(
+      '[data-testid="message-list-column"]',
+    );
+
+    expect(leadingContent?.textContent).toContain("scene summary heading");
+    expect(messageColumn?.firstElementChild).toBe(leadingContent);
+    expect(messageColumn?.textContent).toContain("第一条消息");
+  });
+
+  it("自动恢复生成会话时应展示恢复占位而不是空白引导", () => {
     const container = render([], { isRestoringSession: true });
 
     expect(
       container.querySelector('[data-testid="message-list-restoring-session"]'),
     ).not.toBeNull();
-    expect(container.textContent).toContain("正在恢复任务中心...");
+    expect(container.textContent).toContain("正在恢复生成会话...");
     expect(container.textContent).toContain(
-      "正在同步最近一次任务会话，请稍候。",
+      "正在同步最近一次生成会话，请稍候。",
     );
     expect(container.textContent).not.toContain("开始一段新的对话吧");
   });
 
-  it("任务中心空列表时应展示回访型空态而不是普通新对话文案", () => {
+  it("生成页空列表时应展示执行面空态而不是普通新对话文案", () => {
     const container = render([], {
       emptyStateVariant: "task-center",
     });
@@ -254,14 +282,14 @@ describe("MessageList", () => {
       container.querySelector('[data-testid="message-list-empty-task-center"]'),
     ).not.toBeNull();
     expect(container.textContent).toContain("创作");
-    expect(container.textContent).toContain("任务中心");
+    expect(container.textContent).toContain("生成");
     expect(container.textContent).toContain(
-      "回到进行中的任务、最近结果和已经跑过的工作现场。",
+      "这里是 Lime 的生成主执行面，可以继续进行中的创作、回看最近结果和旧历史。",
     );
     expect(container.textContent).toContain(
-      "还没有进行中的任务时，从新建任务开始也很自然；跑过的结果和做法后面都会继续留在这里。",
+      "还没有生成任务时，从新建任务开始也很自然；跑过的结果、做法和中间素材后面都会继续留在这里。",
     );
-    expect(container.textContent).toContain("左侧会继续显示继续中的任务");
+    expect(container.textContent).toContain("左侧会继续显示正在推进的生成任务");
     expect(container.textContent).toContain("最近结果会继续在这里回访");
     expect(container.textContent).toContain(
       "常用做法和恢复中的会话会自动回到这里",

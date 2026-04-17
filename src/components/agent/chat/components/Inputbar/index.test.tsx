@@ -862,7 +862,7 @@ describe("Inputbar", () => {
     ).toBeNull();
   });
 
-  it("任务中心工作区应使用继续推进型输入提示", async () => {
+  it("生成工作区应使用继续推进型输入提示", async () => {
     renderInputbar({
       variant: "workspace",
       contextVariant: "task-center",
@@ -883,7 +883,7 @@ describe("Inputbar", () => {
       mockInputbarCore.mock.calls[mockInputbarCore.mock.calls.length - 1]?.[0];
     expect(latestCall).toBeTruthy();
     expect(latestCall.placeholder).toContain(
-      "继续补充当前任务，或回到左侧继续旧历史",
+      "继续补充当前生成任务，或回到左侧继续旧历史",
     );
   });
 

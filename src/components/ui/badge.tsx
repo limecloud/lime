@@ -8,7 +8,7 @@ interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
 const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
   ({ className, variant = "default", ...props }, ref) => {
     const variants = {
-      default: "bg-blue-600 text-white",
+      default: "border border-emerald-200 bg-emerald-50 text-emerald-700",
       secondary: "bg-gray-100 text-gray-900",
       destructive: "bg-red-600 text-white",
       outline: "text-gray-900 border border-gray-300",

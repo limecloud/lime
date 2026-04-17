@@ -173,9 +173,9 @@ export function OpenClawProgressPage({
           </TabsList>
 
           <TabsContent value="logs" className="mt-4">
-            <div className="max-h-[420px] min-h-[300px] overflow-auto rounded-[22px] bg-slate-950 p-4 text-sm text-slate-100">
+            <div className="max-h-[420px] min-h-[300px] overflow-auto rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#f0fdf4_0%,#ffffff_52%,#f0f9ff_100%)] p-4 text-sm text-slate-700 shadow-sm shadow-slate-950/5">
               {logs.length === 0 ? (
-                <div className="text-slate-400">
+                <div className="text-slate-500">
                   {running ? "正在等待日志输出..." : "暂无日志输出"}
                 </div>
               ) : (
@@ -188,10 +188,10 @@ export function OpenClawProgressPage({
                       <span
                         className={
                           log.level === "error"
-                            ? "text-red-300"
+                            ? "text-rose-600"
                             : log.level === "warn"
-                              ? "text-amber-300"
-                              : "text-slate-200"
+                              ? "text-amber-600"
+                              : "text-slate-600"
                         }
                       >
                         [{log.level.toUpperCase()}]

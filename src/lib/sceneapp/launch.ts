@@ -12,6 +12,10 @@ import type {
   SceneAppPlanResult,
   SceneAppRuntimeAction,
 } from "./types";
+import {
+  buildSceneAppExecutionSummaryViewModel,
+  type SceneAppExecutionSummaryViewModel,
+} from "./product";
 
 type SceneAppWorkspaceRuntimeAction = Exclude<
   SceneAppRuntimeAction,
@@ -22,6 +26,7 @@ export interface SceneAppWorkspaceEntryDraft {
   prompt?: string;
   projectId?: string;
   contentId?: string;
+  initialSceneAppExecutionSummary?: SceneAppExecutionSummaryViewModel;
   initialRequestMetadata?: Record<string, unknown>;
   initialAutoSendRequestMetadata?: Record<string, unknown>;
   initialPendingServiceSkillLaunch?: AgentPendingServiceSkillLaunchParams;
@@ -147,6 +152,27 @@ function readStringRecord(
   return Object.fromEntries(entries);
 }
 
+function readStringArray(
+  source: Record<string, unknown> | undefined,
+  ...keys: string[]
+): string[] | undefined {
+  const value = readValue(source, keys);
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = Array.from(
+    new Set(
+      value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 function dedupeStrings(values: Array<string | undefined>): string[] {
   return Array.from(
     new Set(values.map((value) => value?.trim()).filter(Boolean)),
@@ -159,7 +185,9 @@ function readLaunchPayload(
   return asRecord(result.plan.adapterPlan.launchPayload);
 }
 
-function readRequestMetadata(result: SceneAppPlanResult): Record<string, unknown> {
+function readRequestMetadata(
+  result: SceneAppPlanResult,
+): Record<string, unknown> {
   return asRecord(result.plan.adapterPlan.requestMetadata) ?? {};
 }
 
@@ -169,7 +197,9 @@ function resolveSceneAppNotes(result: SceneAppPlanResult): string[] {
     ...(result.projectPackPlan?.notes ?? []),
     ...result.plan.warnings,
     ...result.plan.adapterPlan.notes,
-    result.readiness.ready ? undefined : "当前 SceneApp 仍有未满足的启动前置条件。",
+    result.readiness.ready
+      ? undefined
+      : "当前 SceneApp 仍有未满足的启动前置条件。",
   ]);
 }
 
@@ -177,7 +207,11 @@ function resolveSceneAppLaunchIntent(
   result: SceneAppPlanResult,
 ): SceneAppAutomationIntent["launchIntent"] {
   const launchPayload = readLaunchPayload(result);
-  const nestedIntent = readRecord(launchPayload, "launch_intent", "launchIntent");
+  const nestedIntent = readRecord(
+    launchPayload,
+    "launch_intent",
+    "launchIntent",
+  );
 
   return {
     sceneappId:
@@ -191,6 +225,17 @@ function resolveSceneAppLaunchIntent(
     userInput:
       readText(nestedIntent, "userInput", "user_input") ??
       readText(launchPayload, "message", "userInput", "user_input", "prompt"),
+    referenceMemoryIds:
+      readStringArray(
+        nestedIntent,
+        "referenceMemoryIds",
+        "reference_memory_ids",
+      ) ??
+      readStringArray(
+        launchPayload,
+        "referenceMemoryIds",
+        "reference_memory_ids",
+      ),
     slots:
       readStringRecord(nestedIntent, "slots") ??
       readStringRecord(launchPayload, "slots"),
@@ -230,11 +275,7 @@ function normalizeSchedule(
 function normalizeExecutionMode(
   value: string | undefined,
 ): AutomationExecutionMode {
-  if (
-    value === "intelligent" ||
-    value === "skill" ||
-    value === "log_only"
-  ) {
+  if (value === "intelligent" || value === "skill" || value === "log_only") {
     return value;
   }
   return "intelligent";
@@ -260,7 +301,8 @@ function normalizeDeliveryConfig(
     mode: "announce",
     channel: channel ?? "webhook",
     target: readText(deliveryRecord, "target") ?? null,
-    best_effort: readBoolean(deliveryRecord, "best_effort", "bestEffort") ?? true,
+    best_effort:
+      readBoolean(deliveryRecord, "best_effort", "bestEffort") ?? true,
     output_schema:
       readText(deliveryRecord, "output_schema", "outputSchema") === "json"
         ? "json"
@@ -283,7 +325,13 @@ function buildSceneAppIntentSummary(
   result: SceneAppPlanResult,
   source: Record<string, unknown> | undefined,
 ): string | undefined {
-  const directInput = readText(source, "message", "prompt", "user_input", "userInput");
+  const directInput = readText(
+    source,
+    "message",
+    "prompt",
+    "user_input",
+    "userInput",
+  );
   if (directInput) {
     return directInput;
   }
@@ -333,8 +381,8 @@ function buildWorkspacePrompt(result: SceneAppPlanResult): string {
 
   if (result.plan.adapterPlan.runtimeAction === "launch_browser_assist") {
     return summary
-      ? `请执行场景应用「${result.descriptor.title}」。${summary}。`
-      : `请执行场景应用「${result.descriptor.title}」，并复用当前浏览器上下文完成任务。`;
+      ? `请执行创作场景「${result.descriptor.title}」。${summary}。`
+      : `请执行创作场景「${result.descriptor.title}」，并复用当前浏览器上下文完成任务。`;
   }
 
   if (result.plan.adapterPlan.runtimeAction === "launch_cloud_scene") {
@@ -343,8 +391,8 @@ function buildWorkspacePrompt(result: SceneAppPlanResult): string {
     }
 
     return summary
-      ? `请启动场景应用「${result.descriptor.title}」。${summary}。`
-      : `请启动场景应用「${result.descriptor.title}」，并按当前 SceneApp launch metadata 继续执行。`;
+      ? `请启动创作场景「${result.descriptor.title}」。${summary}。`
+      : `请启动创作场景「${result.descriptor.title}」，并按当前 SceneApp launch metadata 继续执行。`;
   }
 
   if (result.plan.adapterPlan.runtimeAction === "launch_native_skill") {
@@ -353,14 +401,14 @@ function buildWorkspacePrompt(result: SceneAppPlanResult): string {
     }
 
     return summary
-      ? `请执行场景应用「${result.descriptor.title}」。${summary}。`
-      : `请执行场景应用「${result.descriptor.title}」，并把结果回写到当前工作区。`;
+      ? `请执行创作场景「${result.descriptor.title}」。${summary}。`
+      : `请执行创作场景「${result.descriptor.title}」，并把结果回写到当前工作区。`;
   }
 
   return directInput
     ? directInput
-    : summary ??
-        `请继续执行场景应用「${result.descriptor.title}」，并遵循当前 SceneApp launch metadata。`;
+    : (summary ??
+        `请继续执行创作场景「${result.descriptor.title}」，并遵循当前 SceneApp launch metadata。`);
 }
 
 function buildAutomationPrompt(result: SceneAppPlanResult): string {
@@ -456,6 +504,12 @@ function buildWorkspaceExecutionDraft(
       workspaceEntry: {
         projectId: resolveWorkspaceProjectId(launchPayload),
         contentId: resolveWorkspaceContentId(requestMetadata, launchPayload),
+        initialSceneAppExecutionSummary: buildSceneAppExecutionSummaryViewModel(
+          {
+            descriptor: result.descriptor,
+            planResult: result,
+          },
+        ),
         initialRequestMetadata:
           Object.keys(requestMetadata).length > 0 ? requestMetadata : undefined,
         initialPendingServiceSkillLaunch: nativeSkillId
@@ -484,6 +538,10 @@ function buildWorkspaceExecutionDraft(
       prompt: buildWorkspacePrompt(result),
       projectId: resolveWorkspaceProjectId(launchPayload),
       contentId: resolveWorkspaceContentId(requestMetadata, launchPayload),
+      initialSceneAppExecutionSummary: buildSceneAppExecutionSummaryViewModel({
+        descriptor: result.descriptor,
+        planResult: result,
+      }),
       initialAutoSendRequestMetadata:
         Object.keys(requestMetadata).length > 0 ? requestMetadata : undefined,
       autoRunInitialPromptOnMount: true,
@@ -557,6 +615,7 @@ function buildAutomationDialogInitialValues(input: {
     system_prompt: "你正在执行 SceneApp 自动化任务。",
     web_search: false,
     agent_content_id: "",
+    agent_access_mode: "full-access",
     agent_request_metadata: requestMetadata,
     timeout_secs:
       typeof timeoutSecs === "number" && Number.isFinite(timeoutSecs)
@@ -594,7 +653,9 @@ function buildAutomationExecutionDraft(
   const launchPayload = readLaunchPayload(result);
   const launchIntent = resolveSceneAppLaunchIntent(result);
   const schedule = normalizeSchedule(readRecord(launchPayload, "schedule"));
-  const delivery = normalizeDeliveryConfig(readRecord(launchPayload, "delivery"));
+  const delivery = normalizeDeliveryConfig(
+    readRecord(launchPayload, "delivery"),
+  );
   const enabled = readBoolean(launchPayload, "enabled") ?? true;
   const executionMode = normalizeExecutionMode(
     readText(launchPayload, "execution_mode", "executionMode"),
@@ -647,6 +708,8 @@ function buildAutomationExecutionDraft(
         prompt,
         system_prompt: "你正在执行 SceneApp 自动化任务。",
         web_search: false,
+        approval_policy: "never",
+        sandbox_policy: "danger-full-access",
         request_metadata: requestMetadata,
       },
       delivery,

@@ -17,6 +17,9 @@ interface TeamSuggestionBarProps {
   compact?: boolean;
 }
 
+const TEAM_SUGGESTION_PRIMARY_BUTTON_CLASSNAME =
+  "h-8 rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-3 text-white shadow-sm shadow-emerald-950/15 hover:opacity-95";
+
 export function TeamSuggestionBar({
   score,
   reasons,
@@ -137,7 +140,7 @@ export function TeamSuggestionBar({
           <Button
             type="button"
             size="sm"
-            className="h-8 rounded-full bg-slate-900 px-3 text-white hover:bg-slate-800"
+            className={TEAM_SUGGESTION_PRIMARY_BUTTON_CLASSNAME}
             onClick={onEnableTeam}
           >
             启用任务分工

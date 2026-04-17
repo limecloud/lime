@@ -41,6 +41,10 @@ impl ExtensionState for SessionExecutionRuntimeAccessMode {
 }
 
 impl SessionExecutionRuntimeAccessMode {
+    pub fn default_for_session() -> Self {
+        Self::FullAccess
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::ReadOnly => "read-only",
@@ -1048,6 +1052,14 @@ mod tests {
         assert_eq!(
             serde_json::from_value::<SessionExecutionRuntimeAccessMode>(json!("full_access"))
                 .expect("deserialize legacy snake_case access mode"),
+            SessionExecutionRuntimeAccessMode::FullAccess
+        );
+    }
+
+    #[test]
+    fn default_session_access_mode_is_full_access() {
+        assert_eq!(
+            SessionExecutionRuntimeAccessMode::default_for_session(),
             SessionExecutionRuntimeAccessMode::FullAccess
         );
     }

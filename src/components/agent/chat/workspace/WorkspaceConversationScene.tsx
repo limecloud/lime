@@ -54,6 +54,7 @@ interface WorkspaceChatContentParams {
   entryBannerVisible: boolean;
   entryBannerMessage?: string;
   onDismissEntryBanner: () => void;
+  sceneAppExecutionSummaryCard?: ReactNode;
   serviceSkillExecutionCard?: ReactNode;
   stepProgressProps?: StepProgressProps | null;
   showChatLayout: boolean;
@@ -103,6 +104,7 @@ function renderWorkspaceChatContent({
   entryBannerVisible,
   entryBannerMessage,
   onDismissEntryBanner,
+  sceneAppExecutionSummaryCard,
   serviceSkillExecutionCard,
   stepProgressProps,
   showChatLayout,
@@ -121,9 +123,21 @@ function renderWorkspaceChatContent({
   showInlineInputbar,
   inputbarNode,
 }: WorkspaceChatContentParams): ReactNode {
+  const leadingMessageContent =
+    sceneAppExecutionSummaryCard ||
+    stepProgressProps ||
+    serviceSkillExecutionCard ? (
+      <>
+        {sceneAppExecutionSummaryCard}
+        {stepProgressProps ? <StepProgress {...stepProgressProps} /> : null}
+        {serviceSkillExecutionCard}
+      </>
+    ) : null;
+
   const messageListNode = (
     <MessageList
       {...messageListProps}
+      leadingContent={leadingMessageContent}
       compactLeadingSpacing={contextWorkspaceEnabled}
     />
   );
@@ -144,9 +158,6 @@ function renderWorkspaceChatContent({
             </EntryBannerClose>
           </EntryBanner>
         ) : null}
-
-        {stepProgressProps ? <StepProgress {...stepProgressProps} /> : null}
-        {serviceSkillExecutionCard}
 
         {showChatLayout ? (
           <ChatContent $compact={compactChrome}>
@@ -212,6 +223,7 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
   entryBannerVisible: boolean;
   entryBannerMessage?: string;
   onDismissEntryBanner: () => void;
+  sceneAppExecutionSummaryCard?: WorkspaceChatContentParams["sceneAppExecutionSummaryCard"];
   serviceSkillExecutionCard?: WorkspaceChatContentParams["serviceSkillExecutionCard"];
   stepProgressProps?: WorkspaceChatContentParams["stepProgressProps"];
   showChatLayout: boolean;
@@ -362,6 +374,7 @@ export function WorkspaceConversationScene({
   entryBannerVisible,
   entryBannerMessage,
   onDismissEntryBanner,
+  sceneAppExecutionSummaryCard,
   serviceSkillExecutionCard,
   stepProgressProps,
   showChatLayout,
@@ -534,6 +547,7 @@ export function WorkspaceConversationScene({
     entryBannerVisible,
     entryBannerMessage,
     onDismissEntryBanner,
+    sceneAppExecutionSummaryCard,
     serviceSkillExecutionCard,
     stepProgressProps,
     showChatLayout,

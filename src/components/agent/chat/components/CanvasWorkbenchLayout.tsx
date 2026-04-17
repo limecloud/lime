@@ -1684,7 +1684,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
                 {documentTitle}
               </div>
               {currentVersionLabel ? (
-                <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                <span className="rounded-full border border-emerald-200 bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 shadow-sm shadow-emerald-950/10">
                   {currentVersionLabel}
                 </span>
               ) : null}

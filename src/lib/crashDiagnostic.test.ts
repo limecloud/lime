@@ -458,13 +458,6 @@ describe("buildCrashDiagnosticPayload", () => {
             },
           ],
         },
-        terminal_summary: {
-          total_sessions: 2,
-          connecting_sessions: 0,
-          running_sessions: 1,
-          done_sessions: 1,
-          error_sessions: 0,
-        },
       },
     });
 
@@ -476,7 +469,6 @@ describe("buildCrashDiagnosticPayload", () => {
     expect(text).toContain("Provider Pool 凭证总数：3");
     expect(text).toContain("API Key Provider / Key 数：2 / 4");
     expect(text).toContain("MCP 服务器数 / 运行中数：3 / 1");
-    expect(text).toContain("终端会话数：2");
   });
 
   it("无可用凭证时应提示初始化不足", () => {

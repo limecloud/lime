@@ -157,7 +157,6 @@ pub fn run() {
         connect_state,
         model_registry: model_registry_state,
         global_config_manager: global_config_manager_state,
-        terminal_manager: terminal_manager_state,
         webview_manager: webview_manager_state,
         chrome_profile_manager: chrome_profile_manager_state,
         update_check_service: update_check_service_state,
@@ -267,7 +266,6 @@ pub fn run() {
         .manage(connect_state)
         .manage(model_registry_state)
         .manage(global_config_manager_state)
-        .manage(terminal_manager_state)
         .manage(webview_manager_state)
         .manage(chrome_profile_manager_state)
         .manage(update_check_service_state)
@@ -652,17 +650,6 @@ pub fn run() {
                         }
                     }
                 });
-            }
-
-            // 初始化终端会话管理器
-            {
-                let app_handle = app.handle().clone();
-                let terminal_manager = lime_terminal::TerminalSessionManager::new(crate::terminal::TauriEmitter(app_handle.clone()));
-                if let Some(state) = app_handle.try_state::<crate::commands::terminal_cmd::TerminalManagerState>() {
-                    let mut guard = state.inner().0.blocking_write();
-                    *guard = Some(terminal_manager);
-                    tracing::info!("[启动] 终端会话管理器初始化成功");
-                }
             }
 
             // 注册 Deep Link 事件处理器（桌面端）
@@ -1282,6 +1269,7 @@ pub fn run() {
             commands::sceneapp_cmd::sceneapp_list_catalog,
             commands::sceneapp_cmd::sceneapp_get_descriptor,
             commands::sceneapp_cmd::sceneapp_plan_launch,
+            commands::sceneapp_cmd::sceneapp_save_context_baseline,
             commands::sceneapp_cmd::sceneapp_create_automation_job,
             commands::sceneapp_cmd::sceneapp_list_runs,
             commands::sceneapp_cmd::sceneapp_get_run_summary,
@@ -1572,24 +1560,6 @@ pub fn run() {
             commands::model_cmd::get_all_available_models,
             commands::model_cmd::refresh_all_credential_models,
             commands::model_cmd::get_default_models_for_provider,
-            // Terminal commands
-            commands::terminal_cmd::terminal_create_session,
-            commands::terminal_cmd::terminal_write,
-            commands::terminal_cmd::terminal_resize,
-            commands::terminal_cmd::terminal_close,
-            commands::terminal_cmd::terminal_list_sessions,
-            commands::terminal_cmd::terminal_get_session,
-            // Connection commands
-            commands::connection_cmd::connection_list,
-            commands::connection_cmd::connection_add,
-            commands::connection_cmd::connection_update,
-            commands::connection_cmd::connection_delete,
-            commands::connection_cmd::connection_get,
-            commands::connection_cmd::connection_get_config_path,
-            commands::connection_cmd::connection_get_raw_config,
-            commands::connection_cmd::connection_save_raw_config,
-            commands::connection_cmd::connection_test,
-            commands::connection_cmd::connection_import_ssh_host,
             // WebSocket commands
             commands::websocket_cmd::get_websocket_status,
             commands::websocket_cmd::get_websocket_connections,

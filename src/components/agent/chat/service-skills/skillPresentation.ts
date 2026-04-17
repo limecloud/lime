@@ -21,7 +21,7 @@ const RUNNER_TONES: Record<ServiceSkillRunnerType, ServiceSkillTone> = {
 
 const RUNNER_DESCRIPTIONS: Record<ServiceSkillRunnerType, string> = {
   instant: "会直接在当前工作区生成首版结果，方便继续补充与改写。",
-  scheduled: "会先生成首轮结果，再按设定时间持续回流到任务中心。",
+  scheduled: "会先生成首轮结果，再按设定时间持续回流到生成工作台。",
   managed: "会先生成首轮策略，再持续跟踪并回流后续结果与提醒。",
 };
 
@@ -179,7 +179,7 @@ export function getServiceSkillOutputDestination(
   }
 
   if (item.runnerType === "scheduled") {
-    return "首轮结果会进入当前工作区；后续结果会同步到任务中心。";
+    return "首轮结果会进入当前工作区；后续结果会同步到生成工作台。";
   }
 
   if (item.runnerType === "managed") {

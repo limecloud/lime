@@ -70,7 +70,7 @@ lime/
 | 模块 | 说明 |
 |------|------|
 | `src/features/browser-runtime/` | 浏览器协助运行时与调试工作区 |
-| `src-tauri/src/terminal/` | 内置终端与 PTY 会话 |
+| `终端能力（已移除）` | 不属于当前能力层；仅在治理文档中保留退役说明与历史检索语义 |
 | `src-tauri/src/services/automation_service/` + `src-tauri/src/app/scheduler_service.rs` | 自动化任务、后台轮询与兼容调度触发壳 |
 | `src-tauri/src/plugin/` | 插件系统 |
 | `src-tauri/src/services/mcp_service.rs` | MCP 服务器与工具管理 |
@@ -103,7 +103,7 @@ lime/
 | `services/` | 心跳、OpenClaw、浏览器窗口、MCP 等业务服务 |
 | `converter/` | 协议兼容与转换 |
 | `server/` | HTTP Server 与 REST 能力 |
-| `terminal/` | 终端与 PTY |
+| `terminal/` | 已移除；不要恢复旧终端/PTTY 模块 |
 | `plugin/` | 插件加载与运行时 |
 | `voice/` | 语音输入输出与 ASR 流程 |
 
@@ -228,7 +228,6 @@ lime/
 - [state-history-telemetry.md](state-history-telemetry.md) - session/thread/request/evidence/history 的状态读模型主链
 - [skill-standard.md](skill-standard.md) - 统一技能标准、目录与运行边界
 - [../../src-tauri/src/skills/README.md](../../src-tauri/src/skills/README.md) - Skills 标准与集成
-- [terminal.md](terminal.md) - 终端能力
 - [mcp.md](mcp.md) - MCP 服务器
 - [plugins.md](plugins.md) - 插件系统
 - [aster-integration.md](aster-integration.md) - Agent Runtime 集成

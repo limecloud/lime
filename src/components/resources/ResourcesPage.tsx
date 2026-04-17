@@ -944,7 +944,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
-                        className="mt-5 h-11 w-full rounded-2xl bg-slate-900 text-white hover:bg-slate-800"
+                        className="mt-5 h-11 w-full rounded-2xl border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
                         disabled={!projectId || saving}
                       >
                         <Plus className="mr-2 h-4 w-4" />
@@ -1048,7 +1048,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                       className={cn(
                         "flex w-full items-center justify-between rounded-2xl border border-transparent px-3 py-3 text-left text-sm transition hover:border-slate-200 hover:bg-slate-50",
                         viewCategory === key &&
-                          "border-slate-900/10 bg-slate-900 text-white shadow-sm hover:bg-slate-900",
+                          "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10 hover:opacity-95",
                       )}
                       onClick={() => setViewCategory(key)}
                     >
@@ -1057,7 +1057,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                           className={cn(
                             "flex h-10 w-10 items-center justify-center rounded-2xl border",
                             viewCategory === key
-                              ? "border-white/15 bg-white/10 text-white"
+                              ? "border-emerald-200 bg-white/90 text-emerald-700"
                               : "border-slate-200 bg-slate-50 text-slate-600",
                           )}
                         >
@@ -1069,7 +1069,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                             className={cn(
                               "block text-xs",
                               viewCategory === key
-                                ? "text-white/70"
+                                ? "text-slate-600"
                                 : "text-slate-500",
                             )}
                           >
@@ -1083,7 +1083,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                         className={cn(
                           "rounded-full px-2.5 py-1 text-xs font-medium",
                           viewCategory === key
-                            ? "bg-white/10 text-white"
+                            ? "border border-emerald-200 bg-white/90 text-emerald-700"
                             : "bg-slate-100 text-slate-600",
                         )}
                       >
@@ -1169,7 +1169,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                               </div>
                             </div>
                             {project.id === projectId && (
-                              <span className="rounded-full bg-slate-900 px-2 py-1 text-[11px] font-medium text-white">
+                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">
                                 当前
                               </span>
                             )}
@@ -1494,7 +1494,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                                     className={cn(
                                       "rounded-full",
                                       item.kind === "folder" &&
-                                        "bg-slate-900 text-white hover:bg-slate-900",
+                                        "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50",
                                     )}
                                   >
                                     {kindLabelMap[item.kind]}

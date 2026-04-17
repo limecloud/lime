@@ -4,7 +4,7 @@ exclude = ["crates/aster", "crates/aster-models", "crates/aster-rust"]
 resolver = "2"
 
 [workspace.package]
-version = "1.12.3"
+version = "1.13.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -17,7 +17,6 @@ lime-config = { path = "crates/config" }
 lime-infra = { path = "crates/infra" }
 lime-providers = { path = "crates/providers" }
 lime-services = { path = "crates/services" }
-lime-terminal = { path = "crates/terminal" }
 lime-credential = { path = "crates/credential" }
 lime-websocket = { path = "crates/websocket" }
 lime-processor = { path = "crates/processor" }
@@ -189,7 +188,7 @@ version = "2.4"
 
 [package]
 name = "lime"
-version = "1.12.3"
+version = "1.13.0"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"
@@ -211,7 +210,6 @@ lime-config.workspace = true
 lime-infra.workspace = true
 lime-providers.workspace = true
 lime-services.workspace = true
-lime-terminal.workspace = true
 lime-credential.workspace = true
 lime-websocket.workspace = true
 lime-processor.workspace = true

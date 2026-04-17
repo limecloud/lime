@@ -205,7 +205,7 @@ pub(crate) async fn create_runtime_session_internal(
         .map(ToString::to_string)
         .or_else(|| Some(workspace_root.clone()));
 
-    AsterAgentWrapper::create_session_sync(
+    let session_id = AsterAgentWrapper::create_session_sync(
         db,
         name,
         resolved_working_dir,
@@ -216,7 +216,15 @@ pub(crate) async fn create_runtime_session_internal(
                 .as_db_value()
                 .to_string(),
         ),
+    )?;
+
+    AsterAgentWrapper::persist_session_recent_access_mode(
+        &session_id,
+        lime_agent::SessionExecutionRuntimeAccessMode::default_for_session(),
     )
+    .await?;
+
+    Ok(session_id)
 }
 
 pub(crate) fn update_runtime_session_execution_strategy_internal(

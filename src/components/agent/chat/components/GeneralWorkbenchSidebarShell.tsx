@@ -63,7 +63,9 @@ function getSidebarTabButtonClassName(active: boolean) {
 function getSidebarTabCountClassName(active: boolean) {
   return cn(
     "inline-flex min-h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold leading-none",
-    active ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500",
+    active
+      ? "border border-emerald-200 bg-white/90 text-emerald-700 shadow-sm shadow-emerald-950/10"
+      : "bg-slate-200 text-slate-500",
   );
 }
 

@@ -17,7 +17,7 @@ interface ButtonRendererProps {
 
 const variantClass: Record<string, string> = {
   primary:
-    "border border-slate-900 bg-slate-900 text-white shadow-sm hover:border-slate-800 hover:bg-slate-800",
+    "border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95",
   borderless: "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
 };
 

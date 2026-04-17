@@ -445,7 +445,7 @@ function buildMemoryPrefetchDiagnosticLines(
 function resolveMemoryPrefetchHistorySourceLabel(
   source: RuntimeMemoryPrefetchHistoryEntry["source"],
 ): string {
-  return source === "thread_reliability" ? "线程面板" : "记忆工作台";
+  return source === "thread_reliability" ? "线程面板" : "灵感库";
 }
 
 function resolveMemoryPrefetchPreviewChangeLabel(
@@ -1623,7 +1623,7 @@ export const AgentThreadReliabilityPanel: React.FC<
                 onClick={onOpenMemoryWorkbench}
                 className="h-8 rounded-full border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50"
               >
-                在记忆工作台查看
+                在灵感库查看
               </Button>
             ) : undefined
           }

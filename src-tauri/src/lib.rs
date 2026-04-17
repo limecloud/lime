@@ -46,7 +46,6 @@ pub mod sceneapp;
 pub mod screenshot;
 pub mod services;
 pub mod skills;
-pub mod terminal;
 pub mod tray;
 pub mod voice;
 

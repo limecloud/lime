@@ -183,6 +183,8 @@ pub struct SceneAppLaunchIntent {
     pub project_id: Option<String>,
     pub user_input: Option<String>,
     #[serde(default)]
+    pub reference_memory_ids: Vec<String>,
+    #[serde(default)]
     pub slots: BTreeMap<String, String>,
     pub runtime_context: Option<SceneAppRuntimeContext>,
 }

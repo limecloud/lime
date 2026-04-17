@@ -106,6 +106,11 @@ export function UpdateCheckSettings() {
     );
   }
 
+  const switchEnabledClassName =
+    "bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)]";
+  const selectedIntervalClassName =
+    "border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15";
+
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-medium">自动更新检查</h3>
@@ -122,7 +127,7 @@ export function UpdateCheckSettings() {
           <button
             onClick={handleToggleEnabled}
             className={`relative w-11 h-6 rounded-full transition-colors ${
-              settings.enabled ? "bg-blue-600" : "bg-muted"
+              settings.enabled ? switchEnabledClassName : "bg-muted"
             }`}
           >
             <span
@@ -145,7 +150,7 @@ export function UpdateCheckSettings() {
             onClick={handleToggleNotification}
             disabled={!settings.enabled}
             className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
-              settings.show_notification ? "bg-blue-600" : "bg-muted"
+              settings.show_notification ? switchEnabledClassName : "bg-muted"
             }`}
           >
             <span
@@ -167,7 +172,7 @@ export function UpdateCheckSettings() {
                 disabled={!settings.enabled}
                 className={`px-3 py-1.5 rounded-md text-xs transition-colors disabled:opacity-50 ${
                   settings.check_interval_hours === hours
-                    ? "bg-blue-600 text-white"
+                    ? selectedIntervalClassName
                     : "bg-muted hover:bg-muted/80"
                 }`}
               >

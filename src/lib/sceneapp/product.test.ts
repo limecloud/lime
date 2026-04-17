@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  backfillSceneAppExecutionSummaryViewModel,
   buildSceneAppAutomationWorkspaceCardViewModel,
   buildSceneAppDetailViewModel,
+  buildSceneAppExecutionSummaryViewModel,
   buildSceneAppGovernancePanelViewModel,
   buildSceneAppOperatingSummaryViewModel,
   buildSceneAppRunDetailViewModel,
@@ -19,9 +21,7 @@ type SceneAppPlanResultOverrides = {
   descriptor?: Partial<SceneAppDescriptor>;
   readiness?: Partial<SceneAppPlanResult["readiness"]>;
   contextOverlay?: Partial<NonNullable<SceneAppPlanResult["contextOverlay"]>>;
-  projectPackPlan?: Partial<
-    NonNullable<SceneAppPlanResult["projectPackPlan"]>
-  >;
+  projectPackPlan?: Partial<NonNullable<SceneAppPlanResult["projectPackPlan"]>>;
   plan?: Partial<Omit<SceneAppPlanResult["plan"], "adapterPlan">> & {
     adapterPlan?: Partial<SceneAppPlanResult["plan"]["adapterPlan"]>;
   };
@@ -254,6 +254,7 @@ function createPlanResult(
         toolRefs: ["cloud_scene", "workspace_storage"],
         referenceCount: 2,
         notes: ["已装配 2 条参考素材和 1 条 memory 引用。"],
+        ...(overrides.contextOverlay?.compilerPlan ?? {}),
       },
       snapshot: {
         workspaceId: "project-story-video",
@@ -268,6 +269,9 @@ function createPlanResult(
             sourceKind: "user_input",
             contentType: "video",
             selected: true,
+            usageCount: 3,
+            lastUsedAt: "2026-04-15T00:02:05.000Z",
+            lastFeedbackLabel: "复核阻塞",
           },
           {
             id: "ref-2",
@@ -275,6 +279,9 @@ function createPlanResult(
             sourceKind: "reference_library",
             contentType: "text",
             selected: true,
+            usageCount: 2,
+            lastUsedAt: "2026-04-14T09:00:00.000Z",
+            lastFeedbackLabel: "继续保留",
           },
         ],
         tasteProfile: {
@@ -284,8 +291,14 @@ function createPlanResult(
           avoidKeywords: ["冗长铺垫"],
           derivedFromReferenceIds: ["ref-1", "ref-2"],
           confidence: 0.76,
+          feedbackSummary:
+            "最近一次运行已交付 5/6 个必含部件，当前主要卡点是复核阻塞，经营上建议优先优化。",
+          feedbackSignals: ["review_blocked", "artifact_validation_issue"],
+          lastFeedbackAt: "2026-04-15T00:03:00.000Z",
         },
+        ...(overrides.contextOverlay?.snapshot ?? {}),
       },
+      ...(overrides.contextOverlay ?? {}),
     },
     projectPackPlan: {
       packKind: "project_pack",
@@ -327,8 +340,10 @@ function createPlanResult(
       },
       storageStrategy: planOverrides.storageStrategy ?? "workspace_bundle",
       artifactContract: planOverrides.artifactContract ?? "project_pack",
-      governanceHooks:
-        planOverrides.governanceHooks ?? ["evidence_pack", "scorecard"],
+      governanceHooks: planOverrides.governanceHooks ?? [
+        "evidence_pack",
+        "scorecard",
+      ],
       warnings: planOverrides.warnings ?? [],
     },
   };
@@ -401,7 +416,7 @@ describe("sceneapp product", () => {
         infraSummary: "组合蓝图 · 项目沉淀",
         sourceLabel: "将基于当前输入启动",
         sourcePreview: "生成一个 30 秒短视频方案",
-        actionLabel: "开始组合",
+        actionLabel: "进入生成",
       },
       launchSeed: {
         userInput: "生成一个 30 秒短视频方案",
@@ -416,7 +431,7 @@ describe("sceneapp product", () => {
         title: "短视频编排",
         businessLabel: "多模态组合",
         executionChainLabel: "云端 Scene · Agent 工作区",
-        launchActionLabel: "开始组合",
+        launchActionLabel: "进入生成",
         launchRequirements: ["需要项目目录承接结果。"],
         artifactProfileRef: "story-video-artifacts",
         deliveryViewerLabel: "结果包查看",
@@ -463,10 +478,83 @@ describe("sceneapp product", () => {
     expect(detailView.deliveryNarrative).toContain("项目资料包");
     expect(detailView.scorecardNarrative).toContain("整包");
     expect(detailView.planning.statusLabel).toBe("已就绪");
+    expect(detailView.contextPlan?.scopeLabel).toBe("项目 project-story-video");
     expect(detailView.contextPlan?.referenceCount).toBe(2);
+    expect(detailView.contextPlan?.referenceItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "ref-1",
+          label: "竞品视频 1",
+          sourceLabel: "用户输入",
+          contentTypeLabel: "视频",
+          selected: true,
+        }),
+        expect.objectContaining({
+          key: "ref-2",
+          label: "脚本参考 1",
+          sourceLabel: "参考库",
+          contentTypeLabel: "文本",
+          selected: true,
+        }),
+      ]),
+    );
     expect(detailView.contextPlan?.tasteSummary).toContain("快节奏");
+    expect(detailView.contextPlan?.feedbackSummary).toContain("复核阻塞");
+    expect(detailView.contextPlan?.feedbackSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "review_blocked", label: "复核阻塞" }),
+      ]),
+    );
+    expect(detailView.contextPlan?.tasteKeywords).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "快节奏", label: "快节奏" }),
+        expect.objectContaining({ key: "科技感", label: "科技感" }),
+      ]),
+    );
+    expect(detailView.contextPlan?.avoidKeywords).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "冗长铺垫", label: "冗长铺垫" }),
+      ]),
+    );
     expect(detailView.projectPackPlan?.completionStrategyLabel).toContain(
       "整包完成度",
+    );
+  });
+
+  it("应把运行态回流补进生成页执行摘要", () => {
+    const planResult = createPlanResult();
+    const summary = buildSceneAppExecutionSummaryViewModel({
+      descriptor: planResult.descriptor,
+      planResult,
+    });
+
+    const runtimeBackfilledSummary = backfillSceneAppExecutionSummaryViewModel({
+      summary,
+      run: createRun(),
+      scorecard: createScorecard(),
+    });
+
+    expect(runtimeBackfilledSummary.runtimeBackflow).toEqual(
+      expect.objectContaining({
+        runId: "run-1",
+        statusLabel: "成功",
+        statusTone: "risk",
+        sourceLabel: "自动化调度",
+        deliveryCompletionLabel: "已交付 5/6 个部件",
+        evidenceSourceLabel: "当前已接入会话证据",
+        scorecardActionLabel: "建议继续优化",
+        topFailureSignalLabel: "复核阻塞",
+      }),
+    );
+    expect(
+      runtimeBackfilledSummary.runtimeBackflow?.observedFailureSignals,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "review_blocked",
+          label: "复核阻塞",
+        }),
+      ]),
     );
   });
 
@@ -521,6 +609,32 @@ describe("sceneapp product", () => {
     expect(scorecardView?.packPlanNotes).toContain(
       "运行完成后需要回写工作区结果。",
     );
+    expect(scorecardView?.contextBaseline).toEqual(
+      expect.objectContaining({
+        scopeLabel: "项目 project-story-video",
+        referenceCount: 2,
+        tasteSummary: expect.stringContaining("快节奏"),
+        feedbackSummary: expect.stringContaining("复核阻塞"),
+      }),
+    );
+    expect(scorecardView?.contextBaseline?.referenceItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "ref-1",
+          label: "竞品视频 1",
+          usageLabel: "已用 3 次",
+          feedbackLabel: "复核阻塞",
+        }),
+      ]),
+    );
+    expect(scorecardView?.contextBaseline?.feedbackSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "review_blocked",
+          label: "复核阻塞",
+        }),
+      ]),
+    );
     expect(scorecardView?.metrics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -565,10 +679,11 @@ describe("sceneapp product", () => {
   });
 
   it("应把运行记录装配成业务向详情模型", () => {
+    const planResult = createPlanResult();
     const detailView = buildSceneAppRunDetailViewModel({
       descriptor: createDescriptor(),
       run: createRun(),
-      projectPackPlan: createPlanResult().projectPackPlan,
+      planResult,
     });
 
     expect(detailView).toEqual(
@@ -613,6 +728,32 @@ describe("sceneapp product", () => {
       ]),
     );
     expect(detailView.packPlanNotes).toContain("完整度将按 6 个必含部件判断。");
+    expect(detailView.contextBaseline).toEqual(
+      expect.objectContaining({
+        scopeLabel: "项目 project-story-video",
+        referenceCount: 2,
+        tasteSummary: expect.stringContaining("快节奏"),
+        feedbackSummary: expect.stringContaining("复核阻塞"),
+      }),
+    );
+    expect(detailView.contextBaseline?.referenceItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "ref-1",
+          label: "竞品视频 1",
+          usageLabel: "已用 3 次",
+          feedbackLabel: "复核阻塞",
+        }),
+      ]),
+    );
+    expect(detailView.contextBaseline?.feedbackSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "artifact_validation_issue",
+          label: "结果结构校验问题",
+        }),
+      ]),
+    );
     expect(detailView.deliveryArtifactEntries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -683,7 +824,7 @@ describe("sceneapp product", () => {
         deliveryMissingParts: [],
         deliveryPartCoverageKnown: false,
       }),
-      projectPackPlan: planResult.projectPackPlan,
+      planResult,
     });
 
     expect(detailView.deliveryRequiredParts).toEqual([]);
@@ -698,13 +839,16 @@ describe("sceneapp product", () => {
     expect(detailView.packPlanNotes).toContain(
       "当前按结果文件回流判断整包交付。",
     );
+    expect(detailView.contextBaseline?.referenceCount).toBe(2);
   });
 
   it("应把运行、证据和 scorecard 装配成页面级治理看板", () => {
+    const planResult = createPlanResult();
     const governanceView = buildSceneAppGovernancePanelViewModel({
       descriptor: createDescriptor(),
       scorecard: createScorecard(),
       run: createRun(),
+      planResult,
     });
 
     expect(governanceView).toEqual(
@@ -717,13 +861,41 @@ describe("sceneapp product", () => {
     );
     expect(governanceView.summary).toContain("复核阻塞");
     expect(governanceView.nextAction).toContain("准备周会复盘包");
+    expect(governanceView.contextBaseline).toEqual(
+      expect.objectContaining({
+        scopeLabel: "项目 project-story-video",
+        referenceCount: 2,
+        tasteSummary: expect.stringContaining("快节奏"),
+        feedbackSummary: expect.stringContaining("复核阻塞"),
+      }),
+    );
+    expect(governanceView.contextBaseline?.referenceItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "ref-2",
+          label: "脚本参考 1",
+          usageLabel: "已用 2 次",
+        }),
+      ]),
+    );
+    expect(governanceView.contextBaseline?.feedbackSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "review_blocked",
+          label: "复核阻塞",
+        }),
+      ]),
+    );
     expect(governanceView.destinations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: "weekly-review", label: "周会复盘" }),
-        expect.objectContaining({ key: "task-center", label: "任务中心 / 看板" }),
+        expect.objectContaining({
+          key: "task-center",
+          label: "生成 / 看板",
+        }),
         expect.objectContaining({
           key: "automation-job",
-          label: "自动化任务中心",
+          label: "持续流程 / 自动化",
         }),
       ]),
     );
@@ -753,11 +925,64 @@ describe("sceneapp product", () => {
     );
   });
 
+  it("应把人工复核反馈信号翻译成前台标签", () => {
+    const planResult = createPlanResult({
+      contextOverlay: {
+        snapshot: {
+          skillRefs: ["sceneapp-service-story-video"],
+          memoryRefs: ["workspace:project-story-video"],
+          toolRefs: ["cloud_scene", "workspace_storage"],
+          referenceItems: [
+            {
+              id: "ref-1",
+              label: "竞品视频 1",
+              sourceKind: "user_input",
+              contentType: "video",
+              selected: true,
+            },
+          ],
+          tasteProfile: {
+            profileId: "taste-story-video-suite",
+            summary: "偏好快节奏、强结论。",
+            keywords: ["快节奏"],
+            avoidKeywords: ["铺垫过长"],
+            derivedFromReferenceIds: ["ref-1"],
+            confidence: 0.68,
+            feedbackSummary: "人工复核已接受，但仍需做小流量验证。",
+            feedbackSignals: ["review_decision_accepted", "review_risk_high"],
+            lastFeedbackAt: "2026-04-15T00:06:00.000Z",
+          },
+        },
+      },
+    });
+    const governanceView = buildSceneAppGovernancePanelViewModel({
+      descriptor: createDescriptor(),
+      scorecard: createScorecard(),
+      run: createRun(),
+      planResult,
+    });
+
+    expect(governanceView.contextBaseline?.feedbackSignals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "review_decision_accepted",
+          label: "人工接受",
+        }),
+        expect.objectContaining({
+          key: "review_risk_high",
+          label: "人工高风险",
+        }),
+      ]),
+    );
+  });
+
   it("没有运行样本时治理看板应回到首轮试跑提示", () => {
+    const planResult = createPlanResult();
     const governanceView = buildSceneAppGovernancePanelViewModel({
       descriptor: createDescriptor(),
       scorecard: null,
       run: null,
+      planResult,
     });
 
     expect(governanceView).toEqual(
@@ -787,6 +1012,7 @@ describe("sceneapp product", () => {
     );
     expect(governanceView.governanceActionEntries).toEqual([]);
     expect(governanceView.entryAction).toBeNull();
+    expect(governanceView.contextBaseline?.referenceCount).toBe(2);
   });
 
   it("应把 SceneApp 运营状态抽成可跨页面复用的摘要", () => {
@@ -809,7 +1035,7 @@ describe("sceneapp product", () => {
     expect(summary.destinations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ label: "周会复盘" }),
-        expect.objectContaining({ label: "任务中心 / 看板" }),
+        expect.objectContaining({ label: "生成 / 看板" }),
       ]),
     );
   });
@@ -868,8 +1094,12 @@ describe("sceneapp product", () => {
     });
 
     expect(detailView.evidenceSourceLabel).toBe("当前仍使用运行摘要回退");
-    expect(detailView.requestTelemetryLabel).toContain("尚未接入会话级请求遥测");
-    expect(detailView.artifactValidatorLabel).toContain("尚未接入 Artifact 校验事实");
+    expect(detailView.requestTelemetryLabel).toContain(
+      "尚未接入会话级请求遥测",
+    );
+    expect(detailView.artifactValidatorLabel).toContain(
+      "尚未接入 Artifact 校验事实",
+    );
     expect(detailView.evidenceKnownGaps).toEqual([
       "当前还没有拿到关联 session 的会话证据，运行判断暂时回退到 tracker metadata。",
     ]);

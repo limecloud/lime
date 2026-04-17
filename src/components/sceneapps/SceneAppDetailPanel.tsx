@@ -1,40 +1,58 @@
 import {
   type SceneAppDetailViewModel,
+  type SceneAppRunDetailViewModel,
 } from "@/lib/sceneapp";
 import { ProjectSelector } from "@/components/projects/ProjectSelector";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { SceneAppProjectPackRuntimePanel } from "./SceneAppProjectPackRuntimePanel";
 
 interface SceneAppDetailPanelProps {
   detailView: SceneAppDetailViewModel | null;
+  packRuntimeView: SceneAppRunDetailViewModel | null;
+  packRuntimeLoading?: boolean;
+  packRuntimeUsesFallback?: boolean;
   projectId: string | null;
   launchInput: string;
   planLoading: boolean;
   planError?: string | null;
+  saveBaselineDisabledReason?: string;
   launchDisabledReason?: string;
+  savingContextBaseline: boolean;
   launching: boolean;
   onProjectChange: (projectId: string) => void;
   onLaunchInputChange: (value: string) => void;
+  onPackRuntimeArtifactAction?: (
+    action: SceneAppRunDetailViewModel["deliveryArtifactEntries"][number],
+  ) => void;
+  onSaveContextBaseline: () => void;
   onLaunch: () => void;
 }
 
 export function SceneAppDetailPanel({
   detailView,
+  packRuntimeView,
+  packRuntimeLoading = false,
+  packRuntimeUsesFallback = false,
   projectId,
   launchInput,
   planLoading,
   planError,
+  saveBaselineDisabledReason,
   launchDisabledReason,
+  savingContextBaseline,
   launching,
   onProjectChange,
   onLaunchInputChange,
+  onPackRuntimeArtifactAction,
+  onSaveContextBaseline,
   onLaunch,
 }: SceneAppDetailPanelProps) {
   if (!detailView) {
     return (
       <section className="rounded-[28px] border border-dashed border-slate-200 bg-white p-6 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-        先回到场景目录选择一个 SceneApp，再补齐启动意图和项目工作区。
+        先回到场景目录选择一条创作场景，再补齐进入生成前的意图和项目工作区。
       </section>
     );
   }
@@ -111,7 +129,7 @@ export function SceneAppDetailPanel({
             <div className="text-sm font-medium text-slate-900">启动前置</div>
             {detailView.launchRequirements.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                这个 SceneApp 没有额外前置条件，可以直接启动。
+                这条创作场景没有额外前置条件，可以直接进入生成。
               </p>
             ) : (
               <div className="mt-3 flex flex-col gap-2">
@@ -216,7 +234,7 @@ export function SceneAppDetailPanel({
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前 SceneApp 还没有显式组合蓝图，继续按单阶段 binding 运行。
+                当前创作场景还没有显式组合蓝图，继续按单阶段 binding 运行。
               </p>
             )}
           </div>
@@ -248,7 +266,8 @@ export function SceneAppDetailPanel({
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前 profile 还没有显式暴露指标键，后续会继续和真实评分聚合对齐。
+                当前 profile
+                还没有显式暴露指标键，后续会继续和真实评分聚合对齐。
               </p>
             )}
             {detailView.scorecardFailureSignals.length ? (
@@ -274,7 +293,9 @@ export function SceneAppDetailPanel({
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="text-sm font-medium text-slate-900">执行预规划</div>
+              <div className="text-sm font-medium text-slate-900">
+                执行预规划
+              </div>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                 {detailView.planning.statusLabel}
               </span>
@@ -288,23 +309,29 @@ export function SceneAppDetailPanel({
               </p>
             ) : null}
             {planError ? (
-              <p className="mt-3 text-sm leading-6 text-amber-700">{planError}</p>
+              <p className="mt-3 text-sm leading-6 text-amber-700">
+                {planError}
+              </p>
             ) : null}
             {detailView.planning.unmetRequirements.length ? (
               <div className="mt-4">
-                <div className="text-xs font-medium text-slate-500">仍待补齐</div>
+                <div className="text-xs font-medium text-slate-500">
+                  仍待补齐
+                </div>
                 <div
                   data-testid="sceneapp-detail-planning-unmet"
                   className="mt-2 flex flex-col gap-2"
                 >
-                  {detailView.planning.unmetRequirements.map((message, index) => (
-                    <div
-                      key={`${detailView.id}-planning-unmet-${index}`}
-                      className="rounded-[18px] border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm leading-6 text-amber-800"
-                    >
-                      {message}
-                    </div>
-                  ))}
+                  {detailView.planning.unmetRequirements.map(
+                    (message, index) => (
+                      <div
+                        key={`${detailView.id}-planning-unmet-${index}`}
+                        className="rounded-[18px] border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm leading-6 text-amber-800"
+                      >
+                        {message}
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             ) : null}
@@ -312,7 +339,9 @@ export function SceneAppDetailPanel({
               <div className="mt-4 space-y-3">
                 {detailView.contextPlan.activeLayers.length ? (
                   <div>
-                    <div className="text-xs font-medium text-slate-500">活跃层</div>
+                    <div className="text-xs font-medium text-slate-500">
+                      活跃层
+                    </div>
                     <div
                       data-testid="sceneapp-detail-context-layers"
                       className="mt-2 flex flex-wrap gap-2"
@@ -335,9 +364,40 @@ export function SceneAppDetailPanel({
                   <span className="font-medium text-slate-700">参考注入：</span>
                   {detailView.contextPlan.referenceCount} 条
                 </div>
+                {detailView.contextPlan.scopeLabel ? (
+                  <div
+                    data-testid="sceneapp-detail-context-scope"
+                    className="text-sm leading-6 text-slate-600"
+                  >
+                    <span className="font-medium text-slate-700">作用域：</span>
+                    {detailView.contextPlan.scopeLabel}
+                  </div>
+                ) : null}
+                {detailView.contextPlan.skillRefs.length ? (
+                  <div>
+                    <div className="text-xs font-medium text-slate-500">
+                      场景绑定
+                    </div>
+                    <div
+                      data-testid="sceneapp-detail-context-skill-refs"
+                      className="mt-2 flex flex-wrap gap-2"
+                    >
+                      {detailView.contextPlan.skillRefs.map((skillRef) => (
+                        <span
+                          key={skillRef.key}
+                          className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-medium text-violet-700"
+                        >
+                          {skillRef.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {detailView.contextPlan.memoryRefs.length ? (
                   <div>
-                    <div className="text-xs font-medium text-slate-500">记忆引用</div>
+                    <div className="text-xs font-medium text-slate-500">
+                      记忆引用
+                    </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {detailView.contextPlan.memoryRefs.map((memoryRef) => (
                         <span
@@ -352,7 +412,9 @@ export function SceneAppDetailPanel({
                 ) : null}
                 {detailView.contextPlan.toolRefs.length ? (
                   <div>
-                    <div className="text-xs font-medium text-slate-500">工具开放面</div>
+                    <div className="text-xs font-medium text-slate-500">
+                      工具开放面
+                    </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {detailView.contextPlan.toolRefs.map((toolRef) => (
                         <span
@@ -365,6 +427,62 @@ export function SceneAppDetailPanel({
                     </div>
                   </div>
                 ) : null}
+                {detailView.contextPlan.referenceItems.length ? (
+                  <div>
+                    <div className="text-xs font-medium text-slate-500">
+                      参考条目
+                    </div>
+                    <div
+                      data-testid="sceneapp-detail-context-reference-items"
+                      className="mt-2 grid gap-3"
+                    >
+                      {detailView.contextPlan.referenceItems.map(
+                        (reference) => (
+                          <div
+                            key={reference.key}
+                            className="rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-3"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-medium text-slate-900">
+                                {reference.label}
+                              </span>
+                              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-slate-600">
+                                {reference.sourceLabel}
+                              </span>
+                              <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-sky-700">
+                                {reference.contentTypeLabel}
+                              </span>
+                            </div>
+                            {reference.summary ? (
+                              <div className="mt-2 text-sm leading-6 text-slate-600">
+                                {reference.summary}
+                              </div>
+                            ) : null}
+                            {reference.uri ? (
+                              <div className="mt-1 break-all text-xs leading-5 text-slate-500">
+                                {reference.uri}
+                              </div>
+                            ) : null}
+                            {reference.usageLabel || reference.feedbackLabel ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {reference.usageLabel ? (
+                                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                                    {reference.usageLabel}
+                                  </span>
+                                ) : null}
+                                {reference.feedbackLabel ? (
+                                  <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                                    {reference.feedbackLabel}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                ) : null}
                 {detailView.contextPlan.tasteSummary ? (
                   <div
                     data-testid="sceneapp-detail-context-taste-summary"
@@ -372,6 +490,83 @@ export function SceneAppDetailPanel({
                   >
                     <span className="font-medium">风格摘要：</span>
                     {detailView.contextPlan.tasteSummary}
+                  </div>
+                ) : null}
+                {detailView.contextPlan.feedbackSummary ? (
+                  <div
+                    data-testid="sceneapp-detail-context-feedback-summary"
+                    className="rounded-[18px] border border-sky-200 bg-sky-50/70 px-3 py-2 text-sm leading-6 text-sky-900"
+                  >
+                    <span className="font-medium">最近反馈：</span>
+                    {detailView.contextPlan.feedbackSummary}
+                  </div>
+                ) : null}
+                {detailView.contextPlan.feedbackUpdatedAtLabel ? (
+                  <div className="text-sm leading-6 text-slate-600">
+                    <span className="font-medium text-slate-700">
+                      反馈更新时间：
+                    </span>
+                    {detailView.contextPlan.feedbackUpdatedAtLabel}
+                  </div>
+                ) : null}
+                {detailView.contextPlan.feedbackSignals.length ? (
+                  <div>
+                    <div className="text-xs font-medium text-slate-500">
+                      反馈信号
+                    </div>
+                    <div
+                      data-testid="sceneapp-detail-context-feedback-signals"
+                      className="mt-2 flex flex-wrap gap-2"
+                    >
+                      {detailView.contextPlan.feedbackSignals.map((signal) => (
+                        <span
+                          key={signal.key}
+                          className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700"
+                        >
+                          {signal.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {detailView.contextPlan.tasteKeywords.length ? (
+                  <div>
+                    <div className="text-xs font-medium text-slate-500">
+                      偏好关键词
+                    </div>
+                    <div
+                      data-testid="sceneapp-detail-context-taste-keywords"
+                      className="mt-2 flex flex-wrap gap-2"
+                    >
+                      {detailView.contextPlan.tasteKeywords.map((keyword) => (
+                        <span
+                          key={keyword.key}
+                          className="rounded-full border border-lime-200 bg-lime-50 px-2.5 py-1 text-[11px] font-medium text-lime-700"
+                        >
+                          {keyword.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {detailView.contextPlan.avoidKeywords.length ? (
+                  <div>
+                    <div className="text-xs font-medium text-slate-500">
+                      避免方向
+                    </div>
+                    <div
+                      data-testid="sceneapp-detail-context-avoid-keywords"
+                      className="mt-2 flex flex-wrap gap-2"
+                    >
+                      {detailView.contextPlan.avoidKeywords.map((keyword) => (
+                        <span
+                          key={keyword.key}
+                          className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700"
+                        >
+                          {keyword.label}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
                 {detailView.contextPlan.notes.length ? (
@@ -407,16 +602,22 @@ export function SceneAppDetailPanel({
           </div>
 
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-            <div className="text-sm font-medium text-slate-900">Project Pack 规划</div>
+            <div className="text-sm font-medium text-slate-900">
+              Project Pack 规划
+            </div>
             {detailView.projectPackPlan ? (
               <>
                 <div className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
                   <div>
-                    <span className="font-medium text-slate-700">交付形态：</span>
+                    <span className="font-medium text-slate-700">
+                      交付形态：
+                    </span>
                     {detailView.projectPackPlan.packKindLabel}
                   </div>
                   <div data-testid="sceneapp-detail-pack-strategy">
-                    <span className="font-medium text-slate-700">完成策略：</span>
+                    <span className="font-medium text-slate-700">
+                      完成策略：
+                    </span>
                     {detailView.projectPackPlan.completionStrategyLabel}
                   </div>
                   {detailView.projectPackPlan.primaryPart ? (
@@ -427,7 +628,9 @@ export function SceneAppDetailPanel({
                   ) : null}
                   {detailView.projectPackPlan.viewerLabel ? (
                     <div>
-                      <span className="font-medium text-slate-700">查看方式：</span>
+                      <span className="font-medium text-slate-700">
+                        查看方式：
+                      </span>
                       {detailView.projectPackPlan.viewerLabel}
                     </div>
                   ) : null}
@@ -466,16 +669,28 @@ export function SceneAppDetailPanel({
               </>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前规划还没有显式暴露 Project Pack 结果，继续沿现有交付合同运行。
+                当前规划还没有显式暴露 Project Pack
+                结果，继续沿现有交付合同运行。
               </p>
             )}
           </div>
+
+          <SceneAppProjectPackRuntimePanel
+            title="最近结果入口"
+            description="把 Project Pack 的查看方式落到真实结果入口，而不只是停留在规划文案。"
+            emptyMessage="当前还没有可直接消费的 Project Pack 结果文件。先跑出一轮正式样本，再回来从准备页直接打开结果。"
+            testIdPrefix="sceneapp-detail-pack"
+            runDetailView={packRuntimeView}
+            loading={packRuntimeLoading}
+            usesFallbackRun={packRuntimeUsesFallback}
+            onDeliveryArtifactAction={onPackRuntimeArtifactAction}
+          />
         </div>
 
         <div className="rounded-[24px] border border-slate-200 bg-white p-4">
           <div className="text-sm font-medium text-slate-900">启动输入</div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            这一步只负责补齐场景意图，真正执行仍继续复用 Agent 或自动化主链。
+            这一步只负责补齐场景意图和上下文基线；真正执行会进入生成主执行面，继续复用 Agent 或自动化主链。
           </p>
 
           <div className="mt-4">
@@ -512,22 +727,47 @@ export function SceneAppDetailPanel({
             </div>
           </div>
 
+          <p className="mt-4 text-xs leading-5 text-slate-500">
+            写入当前场景基线会把这次显式带入的灵感对象、输入摘要和风格偏好沉淀到项目目录，供后续 planning 继续复用。
+          </p>
+          {saveBaselineDisabledReason ? (
+            <p className="mt-2 text-xs text-amber-600">
+              {saveBaselineDisabledReason}
+            </p>
+          ) : null}
+
           <div className="mt-4 flex items-center justify-between gap-3">
             <div className="min-h-[20px] text-xs text-amber-600">
               {launchDisabledReason ?? ""}
             </div>
-            <Button
-              type="button"
-              data-testid="sceneapp-page-launch"
-              className={cn(
-                "rounded-full px-5",
-                "bg-slate-900 text-white hover:bg-slate-800",
-              )}
-              disabled={Boolean(launchDisabledReason) || launching}
-              onClick={onLaunch}
-            >
-              {launching ? "准备中…" : detailView.launchActionLabel}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                data-testid="sceneapp-save-context-baseline"
+                variant="outline"
+                className={cn(
+                  "rounded-full border-slate-200 px-5 text-slate-700 hover:bg-slate-50",
+                )}
+                disabled={
+                  Boolean(saveBaselineDisabledReason) || savingContextBaseline
+                }
+                onClick={onSaveContextBaseline}
+              >
+                {savingContextBaseline ? "写入中…" : "写入当前场景基线"}
+              </Button>
+              <Button
+                type="button"
+                data-testid="sceneapp-page-launch"
+                className={cn(
+                  "rounded-full px-5",
+                  "border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95",
+                )}
+                disabled={Boolean(launchDisabledReason) || launching}
+                onClick={onLaunch}
+              >
+                {launching ? "准备中…" : detailView.launchActionLabel}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

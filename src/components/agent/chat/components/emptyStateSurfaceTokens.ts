@@ -40,7 +40,7 @@ export const EMPTY_STATE_SECONDARY_ACTION_BUTTON_CLASSNAME =
   "h-8 w-full rounded-full border border-lime-200/80 bg-lime-50/50 text-xs text-slate-700 shadow-none transition-colors hover:border-lime-300 hover:bg-white";
 
 export const EMPTY_STATE_PRIMARY_ACTION_BUTTON_CLASSNAME =
-  "h-9 w-full rounded-full bg-slate-900 px-5 text-white shadow-sm shadow-slate-900/10 transition-colors hover:bg-slate-800 sm:w-auto";
+  "h-9 w-full rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-5 text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 sm:w-auto";
 
 export const EMPTY_STATE_RECOMMENDATION_CARD_CLASSNAME =
   "group flex min-w-0 flex-col items-start gap-2 rounded-[20px] border border-lime-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.97)_0%,rgba(247,254,231,0.9)_100%)] px-3.5 py-3.5 text-left shadow-sm shadow-slate-950/5 transition-colors hover:border-lime-300 hover:bg-white";

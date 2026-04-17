@@ -4370,7 +4370,7 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
-  it("应把 accessMode 写入 harness request metadata", async () => {
+  it("聊天主路径不应再把 accessMode 写入 harness request metadata", async () => {
     const harness = mountHook({
       accessMode: "full-access",
     });
@@ -4385,13 +4385,9 @@ describe("useWorkspaceSendActions", () => {
       const args = mockSendMessage.mock.calls[0] as Parameters<
         HookProps["sendMessage"]
       >;
-      expect(args?.[8]).toMatchObject({
-        requestMetadata: {
-          harness: expect.objectContaining({
-            access_mode: "full-access",
-          }),
-        },
-      });
+      expect(args?.[8]?.requestMetadata?.harness).not.toHaveProperty(
+        "access_mode",
+      );
     } finally {
       harness.unmount();
     }

@@ -47,6 +47,8 @@ export function AddCredentialModal({
   const isApiKey = ["openai", "claude", "gemini_api_key"].includes(
     providerType,
   );
+  const primaryActionButtonClassName =
+    "rounded-lg border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95 disabled:opacity-50";
 
   const handleSelectFile = async () => {
     try {
@@ -316,7 +318,7 @@ export function AddCredentialModal({
           <button
             onClick={antigravityForm.handleGetAuthUrl}
             disabled={loading}
-            className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className={primaryActionButtonClassName}
           >
             {loading ? "获取中..." : "获取授权 URL"}
           </button>
@@ -331,7 +333,7 @@ export function AddCredentialModal({
         <button
           onClick={antigravityForm.handleFileSubmit}
           disabled={loading}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className={primaryActionButtonClassName}
         >
           {loading ? "添加中..." : "添加凭证"}
         </button>
@@ -345,7 +347,7 @@ export function AddCredentialModal({
           <button
             onClick={codexForm.handleGetAuthUrl}
             disabled={loading}
-            className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className={primaryActionButtonClassName}
           >
             {loading ? "获取中..." : "获取授权 URL"}
           </button>
@@ -360,7 +362,7 @@ export function AddCredentialModal({
         <button
           onClick={codexForm.handleFileSubmit}
           disabled={loading}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className={primaryActionButtonClassName}
         >
           {loading ? "添加中..." : "添加凭证"}
         </button>
@@ -373,7 +375,7 @@ export function AddCredentialModal({
         <button
           onClick={claudeOAuthForm.handleCookieSubmit}
           disabled={loading}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className={primaryActionButtonClassName}
         >
           {loading ? "授权中..." : "Cookie 授权"}
         </button>
@@ -387,7 +389,7 @@ export function AddCredentialModal({
           <button
             onClick={claudeOAuthForm.handleGetAuthUrl}
             disabled={loading}
-            className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className={primaryActionButtonClassName}
           >
             {loading ? "获取中..." : "获取授权 URL"}
           </button>
@@ -402,7 +404,7 @@ export function AddCredentialModal({
         <button
           onClick={claudeOAuthForm.handleFileSubmit}
           disabled={loading}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className={primaryActionButtonClassName}
         >
           {loading ? "添加中..." : "添加凭证"}
         </button>
@@ -416,7 +418,7 @@ export function AddCredentialModal({
           <button
             onClick={geminiForm.handleGetAuthUrl}
             disabled={loading}
-            className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className={primaryActionButtonClassName}
           >
             {loading ? "获取中..." : "获取授权 URL"}
           </button>
@@ -431,7 +433,7 @@ export function AddCredentialModal({
         <button
           onClick={geminiForm.handleFileSubmit}
           disabled={loading}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className={primaryActionButtonClassName}
         >
           {loading ? "添加中..." : "添加凭证"}
         </button>
@@ -444,7 +446,7 @@ export function AddCredentialModal({
         <button
           onClick={kiroForm.handleJsonSubmit}
           disabled={loading}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className={primaryActionButtonClassName}
         >
           {loading ? "添加中..." : "添加凭证"}
         </button>
@@ -457,7 +459,7 @@ export function AddCredentialModal({
         <button
           onClick={kiroForm.handleFileSubmit}
           disabled={loading}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className={primaryActionButtonClassName}
         >
           {loading ? "添加中..." : "添加凭证"}
         </button>
@@ -469,7 +471,7 @@ export function AddCredentialModal({
       <button
         onClick={handleSubmit}
         disabled={loading}
-        className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        className={primaryActionButtonClassName}
       >
         {loading ? "添加中..." : "添加凭证"}
       </button>

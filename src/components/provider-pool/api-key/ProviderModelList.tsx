@@ -88,6 +88,10 @@ interface CachedProviderModels {
 }
 
 const providerModelsCache = new Map<string, CachedProviderModels>();
+const DEFAULT_MODEL_CARD_CLASS =
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.94)_100%)] shadow-sm shadow-emerald-950/10";
+const DEFAULT_MODEL_PILL_CLASS =
+  "border-emerald-200 bg-emerald-50 text-emerald-700";
 
 function buildApiDiagnosticLines(result: {
   error: string | null;
@@ -142,7 +146,7 @@ const ModelItem: React.FC<ModelItemProps> = ({
           ? "cursor-pointer hover:border-slate-300 hover:bg-slate-50"
           : "hover:bg-slate-50",
         isDefault
-          ? "border-slate-900 bg-slate-900/[0.03]"
+          ? DEFAULT_MODEL_CARD_CLASS
           : "border-slate-200/80 bg-white",
       )}
       onClick={onSelect ? () => onSelect(model.id) : undefined}
@@ -176,13 +180,13 @@ const ModelItem: React.FC<ModelItemProps> = ({
       </div>
 
       <div className="flex shrink-0 items-center gap-2 pt-1">
-        {isDefault ? <Check className="h-3.5 w-3.5 text-slate-900" /> : null}
+        {isDefault ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : null}
         {onSelect ? (
           <span
             className={cn(
               "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
               isDefault
-                ? "border-slate-900 bg-slate-900 text-white"
+                ? DEFAULT_MODEL_PILL_CLASS
                 : "border-slate-200 bg-white text-slate-600 group-hover:border-slate-300 group-hover:text-slate-900",
             )}
           >

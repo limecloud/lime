@@ -15,6 +15,9 @@ export interface ReferenceItem {
   uri?: string | null;
   summary?: string | null;
   selected: boolean;
+  usageCount?: number | null;
+  lastUsedAt?: string | null;
+  lastFeedbackLabel?: string | null;
 }
 
 export interface TasteProfile {
@@ -24,6 +27,9 @@ export interface TasteProfile {
   avoidKeywords: string[];
   derivedFromReferenceIds: string[];
   confidence?: number | null;
+  feedbackSummary?: string | null;
+  feedbackSignals?: string[];
+  lastFeedbackAt?: string | null;
 }
 
 export interface ContextCompilerPlan {

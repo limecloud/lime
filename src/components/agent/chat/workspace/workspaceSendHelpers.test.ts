@@ -107,7 +107,7 @@ describe("workspaceSendHelpers runtime team preview", () => {
     expect(prompt).toMatchObject({
       kind: "resume",
       title: "发现上次未完成任务",
-      actionLabel: "继续上次任务",
+      actionLabel: "继续上次生成",
       description: expect.stringContaining("撰写主稿"),
     });
   });

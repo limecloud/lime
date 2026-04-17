@@ -70,6 +70,12 @@ import {
   type RuntimeMemoryPrefetchHistoryScope,
 } from "@/lib/runtimeMemoryPrefetchHistory";
 import { buildLayerMetrics } from "./memoryLayerMetrics";
+import {
+  buildInspirationProjectionEntries,
+  buildInspirationTasteSummary,
+  buildScenePrefillFromInspiration,
+  INSPIRATION_PROJECTION_META,
+} from "./inspirationProjection";
 import type {
   MemoryPageParams,
   MemoryPageSection,
@@ -162,39 +168,39 @@ const SECTION_META: Array<{
 }> = [
   {
     key: "home",
-    label: "记忆总览",
+    label: "灵感总览",
     icon: BrainCircuit,
-    description: "按 Lime 的记忆目录、作用域与类型查看当前记忆。",
+    description: "先看灵感对象、风格层和本轮可继续创作的线索。",
   },
   {
     key: "rules",
-    label: "记忆来源",
+    label: "底层来源",
     icon: ScrollText,
-    description: "托管策略、用户/项目/本地记忆、规则目录、memdir 与 /memories。",
+    description: "查看支撑灵感库的底层记忆来源、规则目录和 memdir。",
   },
   {
     key: "working",
-    label: "会话记忆",
+    label: "会话工作记忆",
     icon: FolderKanban,
-    description: "当前 session 的计划、摘录和工作文件。",
+    description: "查看当前 session 的计划、摘录和工作文件。",
   },
   {
     key: "durable",
-    label: "记忆类型",
+    label: "参考与风格",
     icon: Database,
-    description: "Lime 四类记忆与当前存量映射。",
+    description: "按灵感对象查看参考、风格、偏好和成果沉淀。",
   },
   {
     key: "team",
-    label: "团队记忆",
+    label: "团队影子",
     icon: Users,
-    description: "仓库作用域的协作影子与分工快照。",
+    description: "查看 repo 作用域的协作影子和分工快照。",
   },
   {
     key: "compaction",
-    label: "会话压缩",
+    label: "压缩摘要",
     icon: GitBranch,
-    description: "长会话压缩后保留下来的可续接摘要。",
+    description: "查看长会话压缩后保留下来的可续接摘要。",
   },
 ];
 
@@ -213,38 +219,6 @@ const CATEGORY_LABELS: Record<MemoryCategory, string> = {
   experience: "成果",
   activity: "收藏",
 };
-
-const MEMORY_TYPE_META: Array<{
-  key: MemoryKnowledgeType;
-  label: string;
-  description: string;
-  useCase: string;
-}> = [
-  {
-    key: "user",
-    label: "用户记忆",
-    description: "记录用户角色、职责、目标与长期偏好，用来调整协作方式。",
-    useCase: "例如用户的经验背景、沟通偏好、对解释深浅的期待。",
-  },
-  {
-    key: "feedback",
-    label: "反馈记忆",
-    description: "记录用户反复强调的做事方式，包括纠偏和验证通过的做法。",
-    useCase: "例如“不要做额外重构”“回复保持简洁”“测试要打真实链路”。",
-  },
-  {
-    key: "project",
-    label: "项目记忆",
-    description: "记录项目内不易从代码直接推导的目标、约束、时间点和背景。",
-    useCase: "例如当前主线、冻结窗口、重构动机、团队分工和交付背景。",
-  },
-  {
-    key: "reference",
-    label: "参考记忆",
-    description: "记录外部资料和系统入口，帮助下次知道去哪里查最新事实。",
-    useCase: "例如文档地址、监控面板、工单系统、知识库目录。",
-  },
-];
 
 const MEMORY_TYPE_LABELS: Record<MemoryKnowledgeType, string> = {
   user: "用户记忆",
@@ -514,49 +488,6 @@ function formatRelativeTime(timestamp: number | undefined): string {
     .padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
 }
 
-function truncateSummaryText(value?: string | null, maxLength = 88): string {
-  const normalized = (value || "").trim().replace(/\s+/g, " ");
-  if (!normalized) {
-    return "";
-  }
-  if (normalized.length <= maxLength) {
-    return normalized;
-  }
-  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
-}
-
-function countRuntimePrefetchHitLayers(
-  result: TurnMemoryPrefetchResult | null,
-): number {
-  if (!result) {
-    return 0;
-  }
-
-  return [
-    result.rules_source_paths.length > 0,
-    Boolean(result.working_memory_excerpt),
-    result.durable_memories.length > 0,
-    result.team_memory_entries.length > 0,
-    Boolean(result.latest_compaction),
-  ].filter(Boolean).length;
-}
-
-function buildRuntimePrefetchHitSummary(
-  result: TurnMemoryPrefetchResult | null,
-): string {
-  if (!result) {
-    return "带着当前会话进入时，这里会直接显示这轮真实命中的规则、工作摘录、长期记忆、团队影子和压缩摘要。";
-  }
-
-  return [
-    `规则 ${result.rules_source_paths.length}`,
-    result.working_memory_excerpt ? "工作已命中" : "工作未命中",
-    `长期 ${result.durable_memories.length}`,
-    `团队 ${result.team_memory_entries.length}`,
-    result.latest_compaction ? "压缩已命中" : "压缩未命中",
-  ].join(" · ");
-}
-
 function formatRuntimeLayerStatusLabel(
   label: string,
   count?: number | null,
@@ -605,7 +536,7 @@ function resolveRuntimeHistoryPreviewChangeLabel(
 function resolveRuntimeHistorySourceLabel(
   source: RuntimeMemoryPrefetchHistoryEntry["source"],
 ): string {
-  return source === "thread_reliability" ? "来自线程面板" : "来自记忆工作台";
+  return source === "thread_reliability" ? "来自线程面板" : "来自灵感库";
 }
 
 function formatRuntimeLayerLatestValue(
@@ -1005,6 +936,57 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     );
   }, [durableFilter, unifiedMemories]);
 
+  const inspirationEntries = useMemo(
+    () => buildInspirationProjectionEntries(unifiedMemories),
+    [unifiedMemories],
+  );
+
+  const inspirationEntryMap = useMemo(
+    () => new Map(inspirationEntries.map((entry) => [entry.id, entry])),
+    [inspirationEntries],
+  );
+
+  const inspirationProjectionCounts = useMemo(() => {
+    return inspirationEntries.reduce(
+      (result, entry) => {
+        result[entry.projectionKind] += 1;
+        return result;
+      },
+      {
+        style: 0,
+        reference: 0,
+        preference: 0,
+        outcome: 0,
+        collection: 0,
+      } as Record<keyof typeof INSPIRATION_PROJECTION_META, number>,
+    );
+  }, [inspirationEntries]);
+
+  const featuredInspirationEntries = useMemo(
+    () => inspirationEntries.slice(0, 6),
+    [inspirationEntries],
+  );
+
+  const tasteSummary = useMemo(
+    () => buildInspirationTasteSummary(inspirationEntries),
+    [inspirationEntries],
+  );
+
+  const inspirationKindCards = useMemo(
+    () =>
+      (
+        Object.keys(
+          INSPIRATION_PROJECTION_META,
+        ) as Array<keyof typeof INSPIRATION_PROJECTION_META>
+      ).map((key) => ({
+        key,
+        label: INSPIRATION_PROJECTION_META[key].label,
+        description: INSPIRATION_PROJECTION_META[key].description,
+        count: inspirationProjectionCounts[key],
+      })),
+    [inspirationProjectionCounts],
+  );
+
   const layerMetrics = useMemo(
     () =>
       buildLayerMetrics({
@@ -1022,14 +1004,6 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
       workingView?.total_entries,
     ],
   );
-
-  const durableCountsByCategory = useMemo(() => {
-    const counts = new Map<MemoryCategory, number>();
-    unifiedStats?.categories.forEach((item) => {
-      counts.set(item.category, item.count);
-    });
-    return counts;
-  }, [unifiedStats?.categories]);
 
   const sourceBuckets = useMemo(
     () =>
@@ -1155,29 +1129,6 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     teamSnapshots.length,
     unifiedStats?.total_entries,
   ]);
-
-  const memoryTypeCards = useMemo(
-    () =>
-      MEMORY_TYPE_META.map((item) => {
-        const mappedCategories = (
-          Object.keys(LEGACY_CATEGORY_TO_MEMORY_TYPE) as MemoryCategory[]
-        ).filter((category) => resolveMemoryType(category) === item.key);
-        const count = mappedCategories.reduce(
-          (total, category) =>
-            total + (durableCountsByCategory.get(category) || 0),
-          0,
-        );
-
-        return {
-          ...item,
-          count,
-          legacyLabels: mappedCategories
-            .map((category) => CATEGORY_LABELS[category])
-            .join("、"),
-        };
-      }),
-    [durableCountsByCategory],
-  );
 
   const runtimeTeamSnapshot = useMemo(() => {
     if (!runtimeWorkingDir) {
@@ -1411,6 +1362,21 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     );
   }
 
+  function handleOpenInScene(entry: UnifiedMemory) {
+    const projectedEntry = inspirationEntryMap.get(entry.id);
+    const prefillIntent = projectedEntry
+      ? buildScenePrefillFromInspiration(projectedEntry)
+      : `围绕这条灵感继续创作：${entry.title}`;
+
+    onNavigate("sceneapps", {
+      view: "catalog",
+      projectId: projectId || undefined,
+      referenceMemoryIds: [entry.id],
+      search: entry.title,
+      prefillIntent,
+    });
+  }
+
   function handleOpenRuntimeHistoryEntry(
     entry: RuntimeMemoryPrefetchHistoryEntry,
   ) {
@@ -1538,118 +1504,98 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         className={cn(BUTTON_CLASS_NAME, EMERALD_BUTTON_CLASS_NAME)}
         onClick={() => navigateToMemorySection("rules")}
       >
-        看来源链
+        看底层来源
       </button>
       <button
         type="button"
         className={cn(BUTTON_CLASS_NAME, EMERALD_BUTTON_CLASS_NAME)}
         onClick={() => navigateToMemorySection("working")}
       >
-        看会话记忆
+        看会话工作记忆
       </button>
       <button
         type="button"
         className={cn(BUTTON_CLASS_NAME, EMERALD_BUTTON_CLASS_NAME)}
         onClick={() => navigateToMemorySection("durable")}
       >
-        看记忆类型
+        看参考与风格
       </button>
       <button
         type="button"
         className={cn(BUTTON_CLASS_NAME, EMERALD_BUTTON_CLASS_NAME)}
         onClick={() => navigateToMemorySection("team")}
       >
-        看团队记忆
+        看团队影子
       </button>
       <button
         type="button"
         className={cn(BUTTON_CLASS_NAME, EMERALD_BUTTON_CLASS_NAME)}
         onClick={() => navigateToMemorySection("compaction")}
       >
-        看会话压缩
+        看压缩摘要
       </button>
     </div>
   ) : null;
   const homeOverviewCards = useMemo(
     () => [
       {
-        key: "current-turn",
-        eyebrow: "当前回合",
-        title: "先看这轮真实命中",
-        value:
-          runtimePrefetchState.status === "loading"
-            ? "正在对照当前回合"
-            : runtimePrefetchState.result
-              ? `已命中 ${countRuntimePrefetchHitLayers(
-                  runtimePrefetchState.result,
-                )} 层`
-              : hasRuntimeContext
-                ? "当前回合还未命中"
-                : workingView?.total_entries
-                  ? `最近会话条目 ${workingView.total_entries}`
-                  : "等待带入当前回合",
-        detail: buildRuntimePrefetchHitSummary(runtimePrefetchState.result),
-        actionLabel: "看会话记忆",
-        onClick: () => navigateToMemorySection("working"),
-      },
-      {
-        key: "durable",
-        eyebrow: "长期记忆",
-        title: "跨会话可复用的沉淀",
-        value: `${unifiedStats?.memory_count || 0} 条长期记忆`,
+        key: "library",
+        eyebrow: "灵感库",
+        title: "可继续复用的灵感对象",
+        value: `${inspirationEntries.length} 条灵感对象`,
         detail:
-          (unifiedStats?.categories?.length || 0) > 0
-            ? `已覆盖 ${unifiedStats?.categories.length || 0} 个记忆类型，适合回看稳定偏好、项目背景和长期参考。`
-            : "当前还没有长期记忆沉淀，后续的稳定结论会先在这里累计。",
-        actionLabel: "看记忆类型",
+          inspirationEntries[0]
+            ? `最近更新：${inspirationEntries[0].title} · ${inspirationEntries[0].summary}`
+            : "把认可的风格、参考、成果和收藏沉淀成可复用对象。",
+        actionLabel: "看灵感条目",
         onClick: () => navigateToMemorySection("durable"),
       },
       {
-        key: "team",
-        eyebrow: "团队 / 项目",
-        title: "项目规则与协作上下文",
-        value:
-          teamSnapshots.length > 0
-            ? `团队快照 ${teamSnapshots.length} 个`
-            : `规则来源 ${rulesSources?.loaded_sources || 0} 条`,
-        detail: `规则已加载 ${rulesSources?.loaded_sources || 0}/${
-          rulesSources?.total_sources || 0
-        } 条；${
-          teamSnapshots.length > 0
-            ? "最近的团队影子可补充 repo 范围内的分工和上下文。"
-            : "当前还没有本地团队影子。"
-        }`,
-        actionLabel: "看团队记忆",
-        onClick: () => navigateToMemorySection("team"),
+        key: "reference",
+        eyebrow: "参考库",
+        title: "这次可带上的参考素材",
+        value: `${inspirationProjectionCounts.reference} 条参考素材`,
+        detail:
+          inspirationProjectionCounts.reference > 0
+            ? `当前已整理出 ${tasteSummary.referenceKeywords.length} 个可直接带入 planning 的参考关键词。`
+            : "当前还没有明确参考素材，可以从聊天结果或资料里继续沉淀。",
+        actionLabel: "看参考素材",
+        onClick: () => navigateToMemorySection("durable"),
       },
       {
-        key: "compaction",
-        eyebrow: "会话压缩",
-        title: "长会话如何续接",
-        value: extractionStatus?.latest_compaction
-          ? `最近压缩保留 ${extractionStatus.latest_compaction.turn_count} 轮`
-          : "还没有会话压缩",
+        key: "taste",
+        eyebrow: "风格层",
+        title: "系统已提炼的创作倾向",
+        value: tasteSummary.styleKeywords.length
+          ? `${tasteSummary.styleKeywords.length} 个风格关键词`
+          : `${inspirationProjectionCounts.style + inspirationProjectionCounts.preference} 条风格线索`,
+        detail: tasteSummary.summary,
+        actionLabel: "看风格层",
+        onClick: () => navigateToMemorySection("durable"),
+      },
+      {
+        key: "memory",
+        eyebrow: "底层记忆",
+        title: "底层记忆只做事实源",
+        value: `${rulesSources?.loaded_sources || 0} 条来源已接入`,
         detail:
-          truncateSummaryText(
-            extractionStatus?.latest_compaction?.summary_preview ||
-              extractionStatus?.status_summary,
-          ) || "长会话压缩后会把可续接摘要收在这里，便于下次继续。",
-        actionLabel: "看会话压缩",
-        onClick: () => navigateToMemorySection("compaction"),
+          `会话 ${workingView?.total_entries || 0} 条 · 团队 ${teamSnapshots.length} 个 · 压缩 ${extractionStatus?.recent_compactions.length || 0} 条`,
+        actionLabel: "看底层来源",
+        onClick: () => navigateToMemorySection("rules"),
       },
     ],
     [
-      extractionStatus?.latest_compaction,
-      extractionStatus?.status_summary,
-      hasRuntimeContext,
+      extractionStatus?.recent_compactions.length,
+      inspirationEntries,
+      inspirationProjectionCounts.preference,
+      inspirationProjectionCounts.reference,
+      inspirationProjectionCounts.style,
       navigateToMemorySection,
       rulesSources?.loaded_sources,
-      rulesSources?.total_sources,
-      runtimePrefetchState.result,
-      runtimePrefetchState.status,
+      tasteSummary.referenceKeywords.length,
+      tasteSummary.styleKeywords.length,
+      tasteSummary.summary,
       teamSnapshots.length,
-      unifiedStats?.categories,
-      unifiedStats?.memory_count,
       workingView?.total_entries,
     ],
   );
@@ -1660,13 +1606,13 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         <aside className={cn(PANEL_CLASS_NAME, "h-fit")}>
           <div className="mb-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-              Lime memdir
+              Inspiration Library
             </p>
             <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-              记忆工作台
+              灵感库
             </h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              把来源链、记忆目录、会话记忆、记忆类型、团队记忆和会话压缩收口到一处查看。
+              前台优先看灵感对象、参考素材和风格层；底层记忆留在后面的诊断分区，不再和灵感库混成同一层。
             </p>
           </div>
 
@@ -1708,11 +1654,11 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
         <main className="space-y-6">
           <MemorySurfacePanel
-            title={currentSectionMeta?.label || "记忆工作台"}
+            title={currentSectionMeta?.label || "灵感库"}
             description={currentSectionMeta?.description}
             actions={
               <label className="inline-flex items-center gap-3 text-sm text-slate-600">
-                <span>启用记忆</span>
+                <span>启用底层记忆</span>
                 <input
                   type="checkbox"
                   checked={memoryConfig.enabled}
@@ -1726,7 +1672,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           >
             <div className="flex flex-wrap gap-4 text-sm text-slate-500">
               <span>
-                记忆状态：{memoryConfig.enabled ? "已启用" : "已关闭"}
+                底层记忆：{memoryConfig.enabled ? "已启用" : "已关闭"}
               </span>
               <span>
                 来源加载：{rulesSources?.loaded_sources || 0}/
@@ -1743,7 +1689,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
           {loading ? (
             <div className={PANEL_CLASS_NAME}>
-              <p className="text-sm text-slate-500">正在加载记忆工作台...</p>
+              <p className="text-sm text-slate-500">正在加载灵感库...</p>
             </div>
           ) : error ? (
             <div
@@ -1836,8 +1782,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           {!loading && !error && activeSection === "home" ? (
             <>
               <MemorySurfacePanel
-                title="默认心智层"
-                description="先用一层更轻的摘要回答这轮记忆从哪里来、会落到哪里，再按需要进入更细的分区。"
+                title="灵感库总览"
+                description="这里先展示前台真正可见的灵感对象，再决定是否下探到底层记忆来源和运行时诊断。"
               >
                 <div
                   className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
@@ -1879,6 +1825,187 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                       </button>
                     </article>
                   ))}
+                </div>
+              </MemorySurfacePanel>
+
+              <MemorySurfacePanel
+                title="可继续用于创作的灵感"
+                description="这些条目是前台真正要复用的对象。底层 unified memory 只是来源，不再直接充当前台概念。"
+              >
+                {featuredInspirationEntries.length > 0 ? (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {featuredInspirationEntries.map((entry) => (
+                      <article
+                        key={entry.id}
+                        className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                              >
+                                {entry.projectionLabel}
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className={SLATE_OUTLINE_BADGE_CLASS_NAME}
+                              >
+                                {entry.categoryLabel}
+                              </Badge>
+                            </div>
+                            <h3 className="mt-3 text-base font-semibold text-slate-900">
+                              {entry.title}
+                            </h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-600">
+                              {entry.summary}
+                            </p>
+                            {entry.tags.length > 0 ? (
+                              <p className="mt-3 text-sm text-slate-500">
+                                标签：{entry.tags.join("、")}
+                              </p>
+                            ) : null}
+                          </div>
+                          <span className="text-xs text-slate-400">
+                            {formatRelativeTime(entry.updatedAt)}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className={cn(
+                              BUTTON_CLASS_NAME,
+                              EMERALD_BUTTON_CLASS_NAME,
+                            )}
+                            onClick={() => {
+                              const sourceEntry = unifiedMemories.find(
+                                (memory) => memory.id === entry.id,
+                              );
+                              if (!sourceEntry) {
+                                return;
+                              }
+                              handleBringToCreation(sourceEntry);
+                            }}
+                          >
+                            带回创作输入
+                          </button>
+                          <button
+                            type="button"
+                            className={BUTTON_CLASS_NAME}
+                            onClick={() => {
+                              const sourceEntry = unifiedMemories.find(
+                                (memory) => memory.id === entry.id,
+                              );
+                              if (!sourceEntry) {
+                                return;
+                              }
+                              handleOpenInScene(sourceEntry);
+                            }}
+                          >
+                            去创作场景
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/70 p-4">
+                    <p className="text-sm leading-6 text-slate-500">
+                      当前还没有正式沉淀下来的灵感对象。先在对话结果里收藏一条参考、风格或成果，再回到这里继续复用。
+                    </p>
+                  </div>
+                )}
+              </MemorySurfacePanel>
+
+              <MemorySurfacePanel
+                title="风格层摘要"
+                description="这层不是模型训练，而是当前可解释、可带入创作场景 planning 的 taste 摘要。"
+              >
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+                    <p className="text-sm font-semibold text-slate-900">
+                      当前 taste 摘要
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-slate-600">
+                      {tasteSummary.summary}
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-slate-500">
+                      这份摘要会优先服务创作场景 planning；如果后续你继续收藏、筛掉或认可结果，这里的关键词会继续变化。
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <article className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+                      <p className="text-sm font-semibold text-slate-900">
+                        风格关键词
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {tasteSummary.styleKeywords.length > 0 ? (
+                          tasteSummary.styleKeywords.map((keyword) => (
+                            <Badge
+                              key={keyword}
+                              variant="outline"
+                              className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                            >
+                              {keyword}
+                            </Badge>
+                          ))
+                        ) : (
+                          <p className="text-sm leading-6 text-slate-500">
+                            还没有提炼出明确的风格关键词。
+                          </p>
+                        )}
+                      </div>
+                    </article>
+
+                    <article className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+                      <p className="text-sm font-semibold text-slate-900">
+                        参考关键词
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {tasteSummary.referenceKeywords.length > 0 ? (
+                          tasteSummary.referenceKeywords.map((keyword) => (
+                            <Badge
+                              key={keyword}
+                              variant="outline"
+                              className={SLATE_OUTLINE_BADGE_CLASS_NAME}
+                            >
+                              {keyword}
+                            </Badge>
+                          ))
+                        ) : (
+                          <p className="text-sm leading-6 text-slate-500">
+                            还没有明确带入 planning 的参考关键词。
+                          </p>
+                        )}
+                      </div>
+                    </article>
+
+                    <article className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
+                      <p className="text-sm font-semibold text-slate-900">
+                        避让提示
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {tasteSummary.avoidKeywords.length > 0 ? (
+                          tasteSummary.avoidKeywords.map((keyword) => (
+                            <Badge
+                              key={keyword}
+                              variant="outline"
+                              className="border-amber-200 bg-amber-50 text-amber-700"
+                            >
+                              {keyword}
+                            </Badge>
+                          ))
+                        ) : (
+                          <p className="text-sm leading-6 text-slate-500">
+                            当前还没有明确避让词，后续可通过反馈继续补。
+                          </p>
+                        )}
+                      </div>
+                    </article>
+                  </div>
                 </div>
               </MemorySurfacePanel>
 
@@ -2087,7 +2214,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
               <MemorySurfacePanel
                 title="最近运行时命中"
-                description="这里保留最近几次记忆命中快照，方便回看上下文为什么命中、以及命中层是否发生变化。"
+                description="这里保留最近几次底层记忆命中快照，方便回看灵感库背后的上下文为什么命中、以及命中层是否发生变化。"
                 actions={
                   <div className="flex flex-wrap justify-end gap-2">
                     {hasRuntimeContext
@@ -2512,8 +2639,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
               </MemorySurfacePanel>
 
               <MemorySurfacePanel
-                title="记忆目录与作用域"
-                description="Lime 把记忆看成一条目录链：文件入口、作用域、类型和读取守则一起工作。这里先看当前已经接入的入口。"
+                title="底层记忆目录与作用域"
+                description="灵感库只是投影层；真正的事实源仍来自文件入口、作用域、类型和读取守则这一条底层目录链。"
               >
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {memoryScopeCards.map((card) => {
@@ -2549,8 +2676,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
               </MemorySurfacePanel>
 
               <MemorySurfacePanel
-                title="不要写进记忆的内容"
-                description="Lime 只把不容易从当前仓库和外部事实重新推导的长期信息沉淀到记忆目录和 /memories 中，以下内容更适合留在代码、规则或工作记忆里。"
+                title="底层记忆守则"
+                description="只有不容易从当前仓库和外部事实重新推导的长期信息，才应该沉淀到底层记忆目录和 /memories 中。"
               >
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.95fr)]">
                   <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
@@ -2587,8 +2714,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
               </MemorySurfacePanel>
 
               <MemorySurfacePanel
-                title="运行时层就绪度"
-                description={`当前已有 ${layerMetrics.readyLayers}/${layerMetrics.totalLayers} 个运行时层处于可用状态，可继续对照记忆目录主链与 Lime 的真实命中层。`}
+                title="底层运行时层就绪度"
+                description={`当前已有 ${layerMetrics.readyLayers}/${layerMetrics.totalLayers} 个运行时层处于可用状态，可继续对照灵感库背后的真实命中层。`}
               >
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                   {layerMetrics.cards.map((card) => (
@@ -2628,8 +2755,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           {!loading && !error && activeSection === "rules" ? (
             <>
               <MemorySurfacePanel
-                title="记忆来源与 memdir"
-                description="按 Lime 的记忆目录主链重排当前可注入来源，优先看作用域、入口和当前命中状态。"
+                title="底层记忆来源与 memdir"
+                description="这里是支撑灵感库与风格层的底层事实源，优先看作用域、入口和当前命中状态。"
                 actions={
                   <div className="flex flex-wrap justify-end gap-2">
                     <button
@@ -2839,10 +2966,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           {!loading && !error && activeSection === "working" ? (
             <>
               <MemorySurfacePanel
-                title="会话记忆文件"
+                title="会话工作记忆"
                 description={
                   extractionStatus?.status_summary ||
-                  "这里查看 session 级的 task plan、摘录和工作文件，它们属于会话记忆而非 durable memory。"
+                  "这里查看 session 级的 task plan、摘录和工作文件；它们服务当前回合，不直接等同于灵感库长期对象。"
                 }
               >
                 <div className="space-y-4">
@@ -2896,11 +3023,11 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
           {!loading && !error && activeSection === "durable" ? (
             <>
               <MemorySurfacePanel
-                title="Lime 记忆类型"
-                description="Lime 当前统一用四类记忆来理解长期沉淀：user、feedback、project、reference。这里先把既有存量映射到这四类。"
+                title="灵感对象分层"
+                description="前台按风格线索、参考素材、偏好约束、成果打法和收藏备选理解沉淀；底层 unified memory 仍保留旧分类。"
               >
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {memoryTypeCards.map((item) => (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                  {inspirationKindCards.map((item) => (
                     <article
                       key={item.key}
                       className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4"
@@ -2916,25 +3043,19 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                         </div>
                         <Badge
                           variant="outline"
-                          className={MEMORY_TYPE_BADGE_CLASS_NAMES[item.key]}
+                          className={SLATE_OUTLINE_BADGE_CLASS_NAME}
                         >
                           {item.count} 条
                         </Badge>
                       </div>
-                      <p className="mt-4 text-sm leading-6 text-slate-600">
-                        {item.useCase}
-                      </p>
-                      <p className="mt-3 text-sm text-slate-500">
-                        当前映射：{item.legacyLabels}
-                      </p>
                     </article>
                   ))}
                 </div>
               </MemorySurfacePanel>
 
               <MemorySurfacePanel
-                title="当前存量条目"
-                description="当前 Lime 仍按旧分类保存 unified memory。下面展示的是映射到 Lime 四类记忆后的结果，同时保留原始分类过滤与带回创作输入。"
+                title="灵感条目明细"
+                description="这里展示当前灵感库真正可复用的条目，同时保留带回创作输入和进入创作场景两条动作。"
                 actions={
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -2968,8 +3089,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
               >
                 <div className="mb-4 flex flex-wrap gap-4 text-sm text-slate-500">
                   <span>总条数：{unifiedStats?.total_entries || 0}</span>
-                  <span>记忆库：{unifiedStats?.memory_count || 0}</span>
-                  <span>过滤口径：当前仍按 Lime 存量分类</span>
+                  <span>灵感对象：{inspirationEntries.length}</span>
+                  <span>过滤口径：当前仍按底层存量分类过滤</span>
                 </div>
                 <div className="space-y-4">
                   {filteredMemories.length ? (
@@ -2995,8 +3116,15 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                   ]
                                 }
                               </Badge>
+                              <Badge
+                                variant="outline"
+                                className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                              >
+                                {inspirationEntryMap.get(memory.id)?.projectionLabel ||
+                                  "灵感对象"}
+                              </Badge>
                               <span className="rounded-full bg-emerald-700 px-2.5 py-1 text-xs font-medium text-white">
-                                原分类：{CATEGORY_LABELS[memory.category]}
+                                沉淀来源：{CATEGORY_LABELS[memory.category]}
                               </span>
                               <h3 className="text-base font-semibold text-slate-900">
                                 {memory.title}
@@ -3018,23 +3146,32 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                             <span className="text-xs text-slate-400">
                               {formatRelativeTime(memory.updated_at)}
                             </span>
-                            <button
-                              type="button"
-                              className={cn(
-                                BUTTON_CLASS_NAME,
-                                EMERALD_BUTTON_CLASS_NAME,
-                              )}
-                              onClick={() => handleBringToCreation(memory)}
-                            >
-                              带回创作输入
-                            </button>
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <button
+                                type="button"
+                                className={cn(
+                                  BUTTON_CLASS_NAME,
+                                  EMERALD_BUTTON_CLASS_NAME,
+                                )}
+                                onClick={() => handleBringToCreation(memory)}
+                              >
+                                带回创作输入
+                              </button>
+                              <button
+                                type="button"
+                                className={BUTTON_CLASS_NAME}
+                                onClick={() => handleOpenInScene(memory)}
+                              >
+                                用于创作场景
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </article>
                     ))
                   ) : (
                     <p className="text-sm text-slate-500">
-                      当前筛选下还没有可映射的 durable memory 条目。
+                      当前筛选下还没有可复用的灵感条目。
                     </p>
                   )}
                 </div>
@@ -3044,8 +3181,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
           {!loading && !error && activeSection === "team" ? (
             <MemorySurfacePanel
-              title="团队记忆快照"
-              description="这里展示本地 localStorage 中保存的 repo-scoped 团队记忆影子，便于核对最近一次团队分工。"
+              title="团队影子快照"
+              description="这里展示本地 localStorage 中保存的 repo-scoped 团队影子，便于核对最近一次团队分工。"
             >
               <div className="space-y-4">
                 {teamSnapshots.length ? (
@@ -3090,7 +3227,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
           {!loading && !error && activeSection === "compaction" ? (
             <MemorySurfacePanel
-              title="会话压缩摘要"
+              title="压缩摘要"
               description="这些摘要来自 Aster summary cache，用于在长会话中续接更早的历史。"
             >
               <div className="space-y-4">

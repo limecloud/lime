@@ -146,7 +146,7 @@ export function buildHarnessRequestMetadata(
       task: preferences.task,
       subagent: preferences.subagent,
     },
-    access_mode: accessMode || undefined,
+    ...(accessMode ? { access_mode: accessMode } : {}),
     session_mode: normalizedSessionMode,
     gate_key: isGeneralWorkbenchSessionMode(normalizedSessionMode)
       ? gateKey || undefined

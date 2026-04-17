@@ -8,6 +8,7 @@ import {
   listSceneAppCatalog,
   listSceneAppRuns,
   planSceneAppLaunch,
+  saveSceneAppContextBaseline,
   prepareSceneAppRunGovernanceArtifact,
   prepareSceneAppRunGovernanceArtifacts,
 } from "./sceneapp";
@@ -96,6 +97,71 @@ describe("sceneapp API", () => {
           governanceHooks: [],
           warnings: [],
         },
+      })
+      .mockResolvedValueOnce({
+        descriptor: {
+          id: "story-video-suite",
+          title: "短视频编排",
+        },
+        contextOverlay: {
+          compilerPlan: {
+            activeLayers: ["skill", "memory", "tool"],
+            memoryRefs: ["workspace:workspace-default"],
+            toolRefs: ["workspace_storage"],
+            referenceCount: 1,
+            notes: ["当前场景基线已写入项目级 Context Snapshot，后续 planning 会优先复用。"],
+          },
+          snapshot: {
+            workspaceId: "workspace-default",
+            projectId: "project-demo",
+            skillRefs: ["story-video-suite"],
+            memoryRefs: ["workspace:workspace-default"],
+            toolRefs: ["workspace_storage"],
+            referenceItems: [
+              {
+                id: "ref-1",
+                label: "用户输入",
+                sourceKind: "user_input",
+                contentType: "text",
+                selected: true,
+                usageCount: 1,
+                lastUsedAt: "2026-04-17T00:00:00.000Z",
+              },
+            ],
+            tasteProfile: null,
+          },
+        },
+        projectPackPlan: {
+          packKind: "project_pack",
+          primaryPart: "brief",
+          requiredParts: ["brief", "video_draft"],
+          viewerKind: "artifact_bundle",
+          completionStrategy: "required_parts_complete",
+          notes: ["完整度将按 2 个必含部件判断。"],
+        },
+        readiness: {
+          ready: false,
+          unmetRequirements: [{ kind: "project" }],
+        },
+        plan: {
+          sceneappId: "story-video-suite",
+          executorKind: "cloud_scene",
+          bindingFamily: "cloud_scene",
+          stepPlan: [],
+          adapterPlan: {
+            adapterKind: "cloud_scene",
+            runtimeAction: "launch_cloud_scene",
+            targetRef: "sceneapp-service-story-video",
+            targetLabel: "短视频编排",
+            requestMetadata: {},
+            launchPayload: {},
+            notes: [],
+          },
+          storageStrategy: "workspace_bundle",
+          artifactContract: "artifact_bundle",
+          governanceHooks: [],
+          warnings: [],
+        },
       });
 
     await expect(getSceneAppDescriptor("story-video-suite")).resolves.toEqual(
@@ -107,6 +173,7 @@ describe("sceneapp API", () => {
       planSceneAppLaunch({
         sceneappId: "story-video-suite",
         userInput: "生成一个 30 秒产品短视频",
+        referenceMemoryIds: ["memory-1"],
       }),
     ).resolves.toEqual(
       expect.objectContaining({
@@ -123,6 +190,26 @@ describe("sceneapp API", () => {
         }),
       }),
     );
+    await expect(
+      saveSceneAppContextBaseline({
+        sceneappId: "story-video-suite",
+        projectId: "project-demo",
+        userInput: "生成一个 30 秒产品短视频",
+        referenceMemoryIds: ["memory-1"],
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        contextOverlay: expect.objectContaining({
+          snapshot: expect.objectContaining({
+            referenceItems: expect.arrayContaining([
+              expect.objectContaining({
+                usageCount: 1,
+              }),
+            ]),
+          }),
+        }),
+      }),
+    );
 
     expect(vi.mocked(safeInvoke)).toHaveBeenNthCalledWith(
       1,
@@ -136,6 +223,19 @@ describe("sceneapp API", () => {
         intent: {
           sceneappId: "story-video-suite",
           userInput: "生成一个 30 秒产品短视频",
+          referenceMemoryIds: ["memory-1"],
+        },
+      },
+    );
+    expect(vi.mocked(safeInvoke)).toHaveBeenNthCalledWith(
+      3,
+      "sceneapp_save_context_baseline",
+      {
+        intent: {
+          sceneappId: "story-video-suite",
+          projectId: "project-demo",
+          userInput: "生成一个 30 秒产品短视频",
+          referenceMemoryIds: ["memory-1"],
         },
       },
     );

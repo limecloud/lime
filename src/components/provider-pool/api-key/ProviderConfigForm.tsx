@@ -82,6 +82,8 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
   location: "us-central1",
   region: "us-east-1",
 };
+const DEFAULT_MODEL_BADGE_CLASS =
+  "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50";
 
 // ============================================================================
 // 类型定义
@@ -917,7 +919,7 @@ export const ProviderConfigForm = forwardRef<
                       {modelId}
                     </span>
                     {index === 0 ? (
-                      <Badge className="bg-slate-900 text-white hover:bg-slate-900">
+                      <Badge className={DEFAULT_MODEL_BADGE_CLASS}>
                         默认
                       </Badge>
                     ) : null}

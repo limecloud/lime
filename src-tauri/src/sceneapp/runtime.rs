@@ -1,6 +1,6 @@
 use super::adapters::build_sceneapp_runtime_adapter_plan;
 use super::context::compiler::build_sceneapp_context_overlay;
-use super::context::dto::SceneAppContextOverlay;
+use super::context::dto::{ReferenceItem, SceneAppContextOverlay};
 use super::context::store::PersistedSceneAppContext;
 use super::dto::*;
 use std::collections::BTreeSet;
@@ -236,8 +236,14 @@ pub fn build_launch_plan(
     descriptor: SceneAppDescriptor,
     intent: SceneAppLaunchIntent,
     persisted_context: Option<&PersistedSceneAppContext>,
+    explicit_reference_items: &[ReferenceItem],
 ) -> SceneAppPlanResult {
-    let context_overlay = build_sceneapp_context_overlay(&descriptor, &intent, persisted_context);
+    let context_overlay = build_sceneapp_context_overlay(
+        &descriptor,
+        &intent,
+        persisted_context,
+        explicit_reference_items,
+    );
     let project_pack_plan = build_project_pack_plan(&descriptor, &intent, &context_overlay);
     let sceneapp_id = descriptor.id.clone();
     let binding_family = descriptor
@@ -306,6 +312,7 @@ mod tests {
                 workspace_id: Some("workspace-default".to_string()),
                 project_id: Some("project-video".to_string()),
                 user_input: Some("根据发布会内容生成 30 秒短视频草稿".to_string()),
+                reference_memory_ids: Vec::new(),
                 slots: BTreeMap::new(),
                 runtime_context: Some(SceneAppRuntimeContext {
                     cloud_session_ready: true,
@@ -313,6 +320,7 @@ mod tests {
                 }),
             },
             None,
+            &[],
         );
 
         assert_eq!(
@@ -369,6 +377,7 @@ mod tests {
                 workspace_id: Some("workspace-default".to_string()),
                 project_id: Some("project-research".to_string()),
                 user_input: Some("请导出这篇文章".to_string()),
+                reference_memory_ids: Vec::new(),
                 slots,
                 runtime_context: Some(SceneAppRuntimeContext {
                     browser_session_attached: true,
@@ -376,6 +385,7 @@ mod tests {
                 }),
             },
             None,
+            &[],
         );
 
         assert_eq!(
@@ -419,6 +429,7 @@ mod tests {
                 workspace_id: Some("workspace-default".to_string()),
                 project_id: Some("project-growth".to_string()),
                 user_input: Some("关注 AI Agent 产品趋势".to_string()),
+                reference_memory_ids: Vec::new(),
                 slots: BTreeMap::new(),
                 runtime_context: Some(SceneAppRuntimeContext {
                     automation_enabled: true,
@@ -426,6 +437,7 @@ mod tests {
                 }),
             },
             None,
+            &[],
         );
 
         assert_eq!(
@@ -466,6 +478,9 @@ mod tests {
                 uri: None,
                 summary: Some("保留强开头与多镜头切换。".to_string()),
                 selected: true,
+                usage_count: Some(1),
+                last_used_at: Some("2026-04-16T00:00:00.000Z".to_string()),
+                last_feedback_label: Some("可继续复用".to_string()),
             }],
             taste_profile: Some(TasteProfile {
                 profile_id: "taste-story-video-suite".to_string(),
@@ -474,7 +489,11 @@ mod tests {
                 avoid_keywords: vec!["铺垫过长".to_string()],
                 derived_from_reference_ids: vec!["saved-reference-1".to_string()],
                 confidence: Some(0.74),
+                feedback_summary: Some("最近一次运行可继续复用。".to_string()),
+                feedback_signals: vec!["publish_ready".to_string()],
+                last_feedback_at: Some("2026-04-16T00:00:00.000Z".to_string()),
             }),
+            last_feedback_run_id: Some("sceneapp-run-1".to_string()),
         };
         let mut slots = BTreeMap::new();
         slots.insert("style".to_string(), "科技感".to_string());
@@ -487,6 +506,7 @@ mod tests {
                 workspace_id: Some("workspace-default".to_string()),
                 project_id: Some("project-video".to_string()),
                 user_input: Some("根据这次发布会做 30 秒短视频".to_string()),
+                reference_memory_ids: Vec::new(),
                 slots,
                 runtime_context: Some(SceneAppRuntimeContext {
                     cloud_session_ready: true,
@@ -494,6 +514,7 @@ mod tests {
                 }),
             },
             Some(&persisted_context),
+            &[],
         );
 
         let overlay = plan.context_overlay.expect("context overlay should exist");

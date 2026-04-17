@@ -59,6 +59,9 @@ const defaultServerConfig = JSON.stringify(
   2,
 );
 
+const mcpPrimaryActionButtonClassName =
+  "rounded-lg border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-3 py-1.5 text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95";
+
 interface McpPageProps {
   hideHeader?: boolean;
 }
@@ -297,7 +300,7 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
             {/* 同步到外部按钮 */}
             <button
               onClick={handleSyncToLive}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm"
+              className={`flex items-center gap-1.5 ${mcpPrimaryActionButtonClassName}`}
               title="同步配置到所有外部应用"
             >
               <Upload className="h-4 w-4" />
@@ -354,7 +357,7 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
           {/* 同步到外部按钮 */}
           <button
             onClick={handleSyncToLive}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm"
+            className={`flex items-center gap-1.5 ${mcpPrimaryActionButtonClassName}`}
             title="同步配置到所有外部应用"
           >
             <Upload className="h-4 w-4" />
@@ -364,7 +367,7 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
       )}
 
       <HelpTip title="什么是 MCP？" variant="blue">
-        <ul className="list-disc list-inside space-y-1 text-sm text-blue-700 dark:text-blue-400">
+        <ul className="list-disc list-inside space-y-1 text-sm text-emerald-700 dark:text-emerald-300">
           <li>
             MCP (Model Context Protocol) 是 AI 工具扩展协议，让 AI
             能访问文件系统、数据库等外部资源
@@ -426,13 +429,13 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
                 <div
                   key={server.id}
                   onClick={() => handleSelectServer(server)}
-                  className={cn(
-                    "p-2.5 rounded-lg cursor-pointer transition-colors",
-                    selectedServer?.id === server.id
-                      ? "bg-primary/10 border border-primary"
-                      : "hover:bg-muted border border-transparent",
-                  )}
-                >
+                    className={cn(
+                      "p-2.5 rounded-lg cursor-pointer transition-colors",
+                      selectedServer?.id === server.id
+                        ? "border border-emerald-200 bg-emerald-50"
+                        : "hover:bg-muted border border-transparent",
+                    )}
+                  >
                   <span className="font-medium text-sm truncate block">
                     {server.name}
                   </span>
@@ -498,10 +501,10 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
                           type="button"
                           onClick={() => handlePresetSelect(preset.id)}
                           className={cn(
-                            "px-2.5 py-1 rounded text-xs transition-colors",
+                            "rounded border px-2.5 py-1 text-xs transition-colors",
                             selectedPreset === preset.id
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted hover:bg-muted/80 text-muted-foreground",
+                              ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                              : "border-transparent bg-muted text-muted-foreground hover:bg-muted/80",
                           )}
                         >
                           {preset.name}
@@ -615,7 +618,7 @@ export function McpPage({ hideHeader = false }: McpPageProps) {
                 <button
                   onClick={handleSave}
                   disabled={saving || !editName.trim() || !!configError}
-                  className="px-3 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-sm"
+                  className={`${mcpPrimaryActionButtonClassName} disabled:opacity-50`}
                 >
                   {saving ? "保存中..." : "保存"}
                 </button>

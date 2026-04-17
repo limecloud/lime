@@ -188,7 +188,7 @@ const getTaskStateClassName = (state: PluginTaskState): string => {
       return "bg-green-100 text-green-700";
     case "running":
     case "retrying":
-      return "bg-blue-100 text-blue-700";
+      return "bg-sky-100 text-sky-700";
     case "queued":
       return "bg-yellow-100 text-yellow-700";
     case "failed":
@@ -979,7 +979,7 @@ export function PluginManager({ onNavigate }: PluginManagerProps = {}) {
     if (updateLoading) {
       return {
         toneClassName: "border-slate-300 bg-slate-50/80",
-        badgeClassName: "bg-slate-900 text-white hover:bg-slate-900",
+        badgeClassName: "border border-sky-200 bg-white/90 text-sky-700 hover:bg-white/90",
         badgeText: "检查中",
         title: "正在检查 Windows 主程序版本",
         summary:
@@ -2557,7 +2557,7 @@ function PluginItem({
                 {plugin.hooks.map((hook) => (
                   <span
                     key={hook}
-                    className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs"
+                    className="rounded bg-sky-100 px-2 py-0.5 text-xs text-sky-700"
                   >
                     {hook}
                   </span>

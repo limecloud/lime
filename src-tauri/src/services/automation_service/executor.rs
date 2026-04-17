@@ -54,6 +54,8 @@ pub async fn execute_job(
                     prompt,
                     system_prompt,
                     web_search,
+                    approval_policy,
+                    sandbox_policy,
                     request_metadata,
                     content_id,
                 } => {
@@ -64,6 +66,8 @@ pub async fn execute_job(
                         prompt,
                         system_prompt,
                         web_search,
+                        approval_policy,
+                        sandbox_policy,
                         request_metadata,
                         content_id,
                     )
@@ -84,6 +88,8 @@ async fn execute_agent_turn(
     prompt: String,
     system_prompt: Option<String>,
     web_search: bool,
+    approval_policy: Option<String>,
+    sandbox_policy: Option<String>,
     request_metadata: Option<Value>,
     content_id: Option<String>,
 ) -> Result<JobExecutionResult, String> {
@@ -108,6 +114,12 @@ async fn execute_agent_turn(
         job.workspace_id.clone(),
         Some("auto".to_string()),
     )?;
+    let access_mode = resolve_agent_turn_access_mode_from_payload(
+        approval_policy.as_deref(),
+        sandbox_policy.as_deref(),
+        request_metadata.as_ref(),
+    )?;
+    AsterAgentWrapper::persist_session_recent_access_mode(&session_id, access_mode).await?;
 
     let agent_state = app
         .try_state::<crate::agent::AsterAgentState>()
@@ -137,8 +149,8 @@ async fn execute_agent_turn(
         provider_preference: None,
         model_preference: None,
         thinking_enabled: None,
-        approval_policy: None,
-        sandbox_policy: None,
+        approval_policy: Some(access_mode.approval_policy().to_string()),
+        sandbox_policy: Some(access_mode.sandbox_policy().to_string()),
         project_id: None,
         workspace_id: job.workspace_id.clone(),
         web_search: Some(web_search),
@@ -196,6 +208,50 @@ fn build_prompt(job: &AutomationJobRecord, prompt: &str, web_search: bool) -> St
     sections.push("请执行以下自动化任务：".to_string());
     sections.push(prompt.trim().to_string());
     sections.join("\n\n")
+}
+
+fn extract_access_mode_text(request_metadata: Option<&Value>) -> Option<&str> {
+    let root = request_metadata?.as_object()?;
+    let harness = root.get("harness").and_then(Value::as_object);
+
+    harness
+        .and_then(|value| value.get("access_mode").and_then(Value::as_str))
+        .or_else(|| harness.and_then(|value| value.get("accessMode").and_then(Value::as_str)))
+        .or_else(|| root.get("access_mode").and_then(Value::as_str))
+        .or_else(|| root.get("accessMode").and_then(Value::as_str))
+}
+
+pub(super) fn resolve_agent_turn_access_mode_from_payload(
+    approval_policy: Option<&str>,
+    sandbox_policy: Option<&str>,
+    request_metadata: Option<&Value>,
+) -> Result<lime_agent::SessionExecutionRuntimeAccessMode, String> {
+    if approval_policy.is_some() || sandbox_policy.is_some() {
+        return match (approval_policy.map(str::trim), sandbox_policy.map(str::trim)) {
+            (Some("on-request"), Some("read-only")) | (None, Some("read-only")) => {
+                Ok(lime_agent::SessionExecutionRuntimeAccessMode::ReadOnly)
+            }
+            (Some("on-request"), Some("workspace-write"))
+            | (None, Some("workspace-write")) => {
+                Ok(lime_agent::SessionExecutionRuntimeAccessMode::Current)
+            }
+            (Some("never"), Some("danger-full-access"))
+            | (None, Some("danger-full-access")) => {
+                Ok(lime_agent::SessionExecutionRuntimeAccessMode::FullAccess)
+            }
+            _ => Err(
+                "自动化任务 approval_policy/sandbox_policy 仅支持 read-only/current/full-access 对应的正式策略组合"
+                    .to_string(),
+            ),
+        };
+    }
+
+    Ok(
+        lime_agent::SessionExecutionRuntimeAccessMode::from_access_mode_text(
+            extract_access_mode_text(request_metadata),
+        )
+        .unwrap_or_else(lime_agent::SessionExecutionRuntimeAccessMode::default_for_session),
+    )
 }
 
 fn normalize_agent_turn_request_metadata(
@@ -280,6 +336,65 @@ mod tests {
                 .pointer("/harness/content_id")
                 .and_then(Value::as_str),
             Some("content-2")
+        );
+    }
+
+    #[test]
+    fn resolve_agent_turn_access_mode_prefers_formal_policies_over_legacy_metadata() {
+        assert_eq!(
+            resolve_agent_turn_access_mode_from_payload(
+                Some("never"),
+                Some("danger-full-access"),
+                Some(&json!({
+                    "harness": {
+                        "access_mode": "read-only"
+                    }
+                })),
+            )
+            .expect("resolved access mode"),
+            lime_agent::SessionExecutionRuntimeAccessMode::FullAccess
+        );
+    }
+
+    #[test]
+    fn resolve_agent_turn_access_mode_prefers_explicit_harness_value_when_formal_policies_missing()
+    {
+        assert_eq!(
+            resolve_agent_turn_access_mode_from_payload(
+                None,
+                None,
+                Some(&json!({
+                    "harness": {
+                        "access_mode": "read-only"
+                    }
+                })),
+            )
+            .expect("resolved access mode"),
+            lime_agent::SessionExecutionRuntimeAccessMode::ReadOnly
+        );
+    }
+
+    #[test]
+    fn resolve_agent_turn_access_mode_defaults_to_full_access() {
+        assert_eq!(
+            resolve_agent_turn_access_mode_from_payload(None, None, None)
+                .expect("resolved access mode"),
+            lime_agent::SessionExecutionRuntimeAccessMode::FullAccess
+        );
+    }
+
+    #[test]
+    fn resolve_agent_turn_access_mode_rejects_invalid_formal_policy_pair() {
+        assert_eq!(
+            resolve_agent_turn_access_mode_from_payload(
+                Some("never"),
+                Some("workspace-write"),
+                None,
+            ),
+            Err(
+                "自动化任务 approval_policy/sandbox_policy 仅支持 read-only/current/full-access 对应的正式策略组合"
+                    .to_string()
+            )
         );
     }
 }

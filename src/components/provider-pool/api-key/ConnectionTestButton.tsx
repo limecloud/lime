@@ -147,7 +147,7 @@ export const ConnectionTestButton: React.FC<ConnectionTestButtonProps> = ({
   const renderStatusIcon = () => {
     switch (status) {
       case "testing":
-        return <LoadingIcon className="text-blue-500" />;
+        return <LoadingIcon className="text-sky-500" />;
       case "success":
         return <CheckCircleIcon className="text-green-500" />;
       case "error":

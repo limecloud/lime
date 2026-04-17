@@ -227,6 +227,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   generalWorkbenchHarnessDialog: ConversationScenePresentationParams["scene"]["generalWorkbenchHarnessDialog"];
   entryBannerVisible: ConversationScenePresentationParams["scene"]["entryBannerVisible"];
   entryBannerMessage: ConversationScenePresentationParams["scene"]["entryBannerMessage"];
+  sceneAppExecutionSummaryCard?: ConversationScenePresentationParams["scene"]["sceneAppExecutionSummaryCard"];
   serviceSkillExecutionCard?: ConversationScenePresentationParams["scene"]["serviceSkillExecutionCard"];
   contextWorkspaceEnabled: boolean;
   input: ConversationScenePresentationParams["scene"]["input"];
@@ -366,6 +367,7 @@ export function useWorkspaceConversationSceneRuntime({
   generalWorkbenchHarnessDialog,
   entryBannerVisible,
   entryBannerMessage,
+  sceneAppExecutionSummaryCard,
   serviceSkillExecutionCard,
   contextWorkspaceEnabled,
   input,
@@ -740,6 +742,7 @@ export function useWorkspaceConversationSceneRuntime({
       entryBannerVisible,
       entryBannerMessage,
       onDismissEntryBanner: navigationActions.handleDismissEntryBanner,
+      sceneAppExecutionSummaryCard,
       serviceSkillExecutionCard,
       showChatLayout: shellChromeRuntime.showChatLayout,
       compactChrome: shellChromeRuntime.isWorkspaceCompactChrome,

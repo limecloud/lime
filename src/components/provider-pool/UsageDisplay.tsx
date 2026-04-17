@@ -76,9 +76,7 @@ export function UsageDisplay({ usage, loading }: UsageDisplayProps) {
             className={`h-full transition-all ${
               usage.isLowBalance
                 ? "bg-amber-500"
-                : usagePercent > 50
-                  ? "bg-blue-500"
-                  : "bg-green-500"
+                : "bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)]"
             }`}
             style={{ width: `${Math.min(usagePercent, 100)}%` }}
           />

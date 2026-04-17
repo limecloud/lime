@@ -1,10 +1,10 @@
 /**
  * 全局应用侧边栏
  *
- * 参考任务中心信息架构：任务、工作台、能力、资料库、系统入口分层展示
+ * 参考生成主执行面信息架构：任务、工作台、能力、资料库、系统入口分层展示
  */
 
-import { useState, useEffect, useMemo, type ReactElement } from "react";
+import { useState, useEffect, useMemo, useRef, type ReactElement } from "react";
 import styled from "styled-components";
 import {
   ChevronDown,
@@ -45,6 +45,8 @@ import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayId
 interface AppSidebarProps {
   currentPage: Page;
   currentPageParams?: PageParams;
+  requestedPage?: Page;
+  requestedPageParams?: PageParams;
   onNavigate: (page: Page, params?: PageParams) => void;
 }
 
@@ -52,6 +54,7 @@ type SidebarNavItem = SidebarNavItemDefinition;
 type SidebarNavSection = SidebarNavSectionDefinition;
 
 const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
+const APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY = "lime.app-sidebar.enabled-items";
 const SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS = 1200;
 const SIDEBAR_PLUGIN_BROWSER_IDLE_TIMEOUT_MS = 6000;
 
@@ -64,6 +67,89 @@ function scheduleSidebarPluginLoad(task: () => void): () => void {
     minimumDelayMs,
     idleTimeoutMs: SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS,
   });
+}
+
+interface SidebarNavigationTarget {
+  page: Page;
+  rawParams?: PageParams;
+  paramsKey: string;
+}
+
+function normalizeNavigationParams(params?: PageParams): PageParams {
+  return params ? { ...params } : {};
+}
+
+function serializeNavigationParams(params?: PageParams): string {
+  return JSON.stringify(normalizeNavigationParams(params));
+}
+
+function resolveSidebarNavigationTarget(
+  item: SidebarNavItem,
+): SidebarNavigationTarget | null {
+  if (!item.page) {
+    return null;
+  }
+
+  const rawParams = item.resolveParams ? item.resolveParams(item.params) : item.params;
+
+  return {
+    page: item.page,
+    rawParams,
+    paramsKey: serializeNavigationParams(rawParams),
+  };
+}
+
+function isSameSidebarNavigationTarget(
+  target: SidebarNavigationTarget | null,
+  page: Page,
+  params?: PageParams,
+): boolean {
+  if (!target) {
+    return false;
+  }
+
+  return (
+    target.page === page && target.paramsKey === serializeNavigationParams(params)
+  );
+}
+
+function readCachedEnabledNavItems(): string[] {
+  if (typeof window === "undefined") {
+    return [...DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(
+      APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
+    );
+    if (!raw) {
+      return [...DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [...DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS];
+    }
+
+    return resolveEnabledSidebarNavItems(parsed);
+  } catch {
+    return [...DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS];
+  }
+}
+
+function persistEnabledNavItems(items: string[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
+      JSON.stringify(items),
+    );
+  } catch {
+    // ignore
+  }
 }
 
 const Container = styled.aside<{
@@ -438,12 +524,24 @@ function getIconByName(iconName: string): LucideIcon {
 export function AppSidebar({
   currentPage,
   currentPageParams,
+  requestedPage,
+  requestedPageParams,
   onNavigate,
 }: AppSidebarProps) {
-  const agentEntry = (currentPageParams as AgentPageParams | undefined)
+  const activePage = requestedPage ?? currentPage;
+  const activePageParams = requestedPageParams ?? currentPageParams;
+  const activeNavigationTarget = {
+    page: activePage,
+    rawParams: activePageParams,
+    paramsKey: serializeNavigationParams(activePageParams),
+  } satisfies SidebarNavigationTarget;
+  const requestedNavigationTargetRef = useRef<SidebarNavigationTarget>({
+    ...activeNavigationTarget,
+  });
+  const agentEntry = (activePageParams as AgentPageParams | undefined)
     ?.agentEntry;
-  const isClawTaskCenter = currentPage === "agent" && agentEntry === "claw";
-  const isNewTaskHome = currentPage === "agent" && agentEntry === "new-task";
+  const isClawTaskCenter = activePage === "agent" && agentEntry === "claw";
+  const isNewTaskHome = activePage === "agent" && agentEntry === "new-task";
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") {
       return false;
@@ -462,9 +560,8 @@ export function AppSidebar({
     return "light";
   });
 
-  const [enabledNavItems, setEnabledNavItems] = useState<string[]>(
-    DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
-  );
+  const [enabledNavItems, setEnabledNavItems] =
+    useState<string[]>(readCachedEnabledNavItems);
   const [sidebarPlugins, setSidebarPlugins] = useState<PluginUIInfo[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>(() =>
@@ -478,8 +575,11 @@ export function AppSidebar({
     const loadNavConfig = async () => {
       try {
         const config = await getConfig();
-        const saved = config.navigation?.enabled_items;
-        setEnabledNavItems(resolveEnabledSidebarNavItems(saved));
+        const resolvedItems = resolveEnabledSidebarNavItems(
+          config.navigation?.enabled_items,
+        );
+        setEnabledNavItems(resolvedItems);
+        persistEnabledNavItems(resolvedItems);
       } catch (error) {
         console.error("加载配置失败:", error);
       }
@@ -581,6 +681,10 @@ export function AppSidebar({
   }, [theme]);
 
   useEffect(() => {
+    requestedNavigationTargetRef.current = activeNavigationTarget;
+  }, [activeNavigationTarget]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -626,11 +730,20 @@ export function AppSidebar({
     }
 
     if (item.isActive) {
-      return item.isActive(currentPage, currentPageParams);
+      return item.isActive(activePage, activePageParams);
     }
 
-    return currentPage === item.page;
+    return activePage === item.page;
   };
+
+  const activeLeafNavItemId =
+    [
+      ...filteredMainSections.flatMap((section) => section.items),
+      ...assistantItems,
+      ...filteredFooterSections.flatMap((section) => section.items),
+    ].find(
+      (item) => (!item.children || item.children.length === 0) && isActive(item),
+    )?.id ?? null;
 
   useEffect(() => {
     const isGroupActive = (item: SidebarNavItem): boolean => {
@@ -643,10 +756,10 @@ export function AppSidebar({
       }
 
       if (item.isActive) {
-        return item.isActive(currentPage, currentPageParams);
+        return item.isActive(activePage, activePageParams);
       }
 
-      return currentPage === item.page;
+      return activePage === item.page;
     };
 
     const activeGroupIds = MAIN_SIDEBAR_NAV_ITEMS.filter(
@@ -663,18 +776,38 @@ export function AppSidebar({
       activeGroupIds.forEach((id) => next.add(id));
       return Array.from(next);
     });
-  }, [currentPage, currentPageParams]);
+  }, [activeLeafNavItemId, activePage, activePageParams]);
 
   const handleNavigate = (item: SidebarNavItem) => {
-    if (!item.page) {
+    const target = resolveSidebarNavigationTarget(item);
+
+    if (!target) {
       return;
     }
 
-    const params: PageParams | undefined = item.resolveParams
-      ? item.resolveParams(item.params)
-      : item.params;
+    if (
+      isActive(item) &&
+      isSameSidebarNavigationTarget(
+        requestedNavigationTargetRef.current,
+        activeNavigationTarget.page,
+        activeNavigationTarget.rawParams,
+      )
+    ) {
+      return;
+    }
 
-    onNavigate(item.page, params);
+    if (
+      isSameSidebarNavigationTarget(
+        target,
+        requestedNavigationTargetRef.current.page,
+        requestedNavigationTargetRef.current.rawParams,
+      )
+    ) {
+      return;
+    }
+
+    requestedNavigationTargetRef.current = target;
+    onNavigate(target.page, target.rawParams);
   };
 
   const toggleGroup = (groupId: string) => {

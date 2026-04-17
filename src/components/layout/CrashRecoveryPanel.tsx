@@ -365,7 +365,7 @@ export function CrashRecoveryPanel({
               onClick={() => void handleSelectNewDirectory()}
               disabled={busy}
               className={cn(
-                "inline-flex items-center gap-1 rounded-md border border-blue-400 bg-blue-50 px-3 py-1.5 text-xs text-blue-700 transition-colors dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-300",
+                "inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700 transition-colors dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
                 busy && "cursor-not-allowed opacity-50",
               )}
             >
@@ -436,7 +436,7 @@ export function CrashRecoveryPanel({
               onClick={handleForceResourceReload}
               disabled={busy}
               className={cn(
-                "inline-flex items-center gap-1 rounded-md border border-blue-400 bg-blue-50 px-3 py-1.5 text-xs text-blue-700 transition-colors dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-300",
+                "inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700 transition-colors dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
                 busy && "cursor-not-allowed opacity-50",
               )}
             >

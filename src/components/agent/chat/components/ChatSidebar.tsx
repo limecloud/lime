@@ -46,6 +46,12 @@ const TEAM_SECTION_INITIAL_SIBLING_COUNT = 2;
 const TEAM_SECTION_LABEL = "子任务";
 const PINNED_TASK_IDS_STORAGE_KEY = "lime_task_sidebar_pinned_ids";
 
+const CHAT_SIDEBAR_PRIMARY_ACTION_BUTTON_CLASSNAME =
+  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-[18px] border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 text-sm font-semibold text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100";
+
+const CHAT_SIDEBAR_ACTIVE_FILTER_CLASSNAME =
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10 dark:border-white dark:bg-white dark:text-slate-900";
+
 const STATUS_META: Record<
   TaskStatus,
   {
@@ -240,7 +246,7 @@ function resolveTaskCenterContinuationBadge(
   if (item.status === "running") {
     return "正在推进";
   }
-  return "工作现场";
+  return "生成现场";
 }
 
 function resolveTaskCenterContinuationActionLabel(
@@ -797,19 +803,23 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const hasAnyTasks = topics.length > 0;
   const hasFilteredResults = filteredTaskItems.length > 0;
   const taskHeadingLabel =
-    contextVariant === "task-center" ? "工作现场" : "任务";
+    contextVariant === "task-center" ? "生成现场" : "任务";
   const taskHeadingHint =
     contextVariant === "task-center"
-      ? "回到进行中的任务、旧历史和最近工作现场。"
+      ? "在这里继续推进当前创作、回看最近结果和旧历史。"
       : null;
   const emptyStateTitle =
-    contextVariant === "task-center" ? "还没有进行中的任务" : "还没有任务";
+    contextVariant === "task-center"
+      ? "还没有进行中的生成任务"
+      : "还没有任务";
   const emptyStateDescription =
     contextVariant === "task-center"
-      ? "从“新建任务”开始也很自然，创建后会在这里继续回访。"
+      ? "从“新建任务”开始也很自然，开始后会回到这里继续生成。"
       : "从“新建任务”开始输入需求，创建后会出现在这里。";
   const olderSectionMoreLabel =
-    contextVariant === "task-center" ? "查看更多旧历史" : "查看更多历史任务";
+    contextVariant === "task-center"
+      ? "查看更多旧生成历史"
+      : "查看更多历史任务";
 
   useEffect(() => {
     if (editingTopicId && editInputRef.current) {
@@ -1071,7 +1081,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
           <button
             type="button"
             onClick={onNewChat}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[18px] bg-[#1a3b2b] px-4 text-sm font-semibold text-white shadow-sm shadow-[#1a3b2b]/10 transition hover:bg-[#132c20] dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            className={CHAT_SIDEBAR_PRIMARY_ACTION_BUTTON_CLASSNAME}
           >
             <Plus className="h-4 w-4" />
             新建任务
@@ -1084,7 +1094,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               className={cn(
                 "inline-flex h-9 flex-1 items-center justify-center rounded-2xl border px-2 text-xs font-medium transition",
                 statusFilter === "all"
-                  ? "border-[#1a3b2b] bg-[#1a3b2b] text-white dark:border-white dark:bg-white dark:text-slate-900"
+                  ? CHAT_SIDEBAR_ACTIVE_FILTER_CLASSNAME
                   : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
               )}
             >
@@ -1096,7 +1106,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               className={cn(
                 "inline-flex h-9 flex-1 items-center justify-center rounded-2xl border px-2 text-xs font-medium transition",
                 statusFilter === "active"
-                  ? "border-[#1a3b2b] bg-[#1a3b2b] text-white dark:border-white dark:bg-white dark:text-slate-900"
+                  ? CHAT_SIDEBAR_ACTIVE_FILTER_CLASSNAME
                   : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
               )}
             >
@@ -1119,10 +1129,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-[11px] font-semibold tracking-[0.12em] text-emerald-700">
-                      继续上次任务
+                      继续上次生成
                     </div>
                     <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                      上次推进到哪、结果留在哪个项目里，这里会直接告诉你。
+                      上次生成到哪、结果留在哪个项目里，这里会直接告诉你。
                     </p>
                   </div>
                   <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">
@@ -1203,7 +1213,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white dark:bg-white dark:text-slate-900">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-emerald-700 shadow-sm shadow-emerald-950/10 dark:border-white/10 dark:bg-white dark:text-slate-900">
                       <GitBranch className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
@@ -1304,7 +1314,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                               "当前子任务",
                             )}
                           </div>
-                        <Badge className="border border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900">
+                        <Badge className="border border-emerald-200 bg-white/90 text-emerald-700 shadow-sm shadow-emerald-950/10 dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
                           当前子任务
                         </Badge>
                       </div>

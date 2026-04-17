@@ -4,8 +4,12 @@
  * 负责根据当前页面类型渲染对应主内容，避免主入口继续膨胀。
  */
 
-import { lazy } from "react";
+import { lazy, useEffect, useState, type ReactNode } from "react";
 import styled from "styled-components";
+import {
+  normalizeSceneAppsPageParams,
+  serializeSceneAppsPageParams,
+} from "@/lib/sceneapp";
 import type {
   AgentPageParams,
   AutomationPageParams,
@@ -18,6 +22,9 @@ import type {
   SettingsPageParams,
   SkillsPageParams,
 } from "@/types/page";
+import { AutomationPage } from "./automation";
+import { ImConfigPage } from "./channels/ImConfigPage";
+import { SceneAppsPage } from "./sceneapps";
 import { SettingsPageV2 } from "./settings-v2";
 
 const PageWrapper = styled.div<{ $isActive: boolean }>`
@@ -27,6 +34,12 @@ const PageWrapper = styled.div<{ $isActive: boolean }>`
   display: ${(props) => (props.$isActive ? "block" : "none")};
 `;
 
+const KeepAliveColumnPage = styled.div<{ $isActive: boolean }>`
+  flex: 1;
+  min-height: 0;
+  display: ${(props) => (props.$isActive ? "flex" : "none")};
+`;
+
 const columnPageStyle = {
   flex: 1,
   minHeight: 0,
@@ -34,60 +47,49 @@ const columnPageStyle = {
   flexDirection: "column",
 } as const;
 
-const ResourcesPage = lazy(() =>
+const loadResourcesPage = () =>
   import("./resources").then((module) => ({
     default: module.ResourcesPage,
-  })),
-);
-const MemoryPage = lazy(() =>
+  }));
+const loadMemoryPage = () =>
   import("./memory").then((module) => ({
     default: module.MemoryPage,
-  })),
-);
-const PluginsPage = lazy(() =>
+  }));
+const loadPluginsPage = () =>
   import("./plugins/PluginsPage").then((module) => ({
     default: module.PluginsPage,
-  })),
-);
-const AutomationPage = lazy(() =>
-  import("./automation").then((module) => ({
-    default: module.AutomationPage,
-  })),
-);
-const ImConfigPage = lazy(() =>
-  import("./channels/ImConfigPage").then((module) => ({
-    default: module.ImConfigPage,
-  })),
-);
-const OpenClawPage = lazy(() =>
+  }));
+const loadOpenClawPage = () =>
   import("./openclaw").then((module) => ({
     default: module.OpenClawPage,
-  })),
-);
-const SkillsWorkspacePage = lazy(() =>
+  }));
+const loadSkillsWorkspacePage = () =>
   import("./skills").then((module) => ({
     default: module.SkillsWorkspacePage,
-  })),
-);
-const SceneAppsPage = lazy(() =>
-  import("./sceneapps").then((module) => ({
-    default: module.SceneAppsPage,
-  })),
-);
-const BrowserRuntimeWorkspace = lazy(() =>
+  }));
+const loadBrowserRuntimeWorkspace = () =>
   import("@/features/browser-runtime").then((module) => ({
     default: module.BrowserRuntimeWorkspace,
-  })),
-);
-const AgentChatPage = lazy(() =>
+  }));
+const loadAgentChatPage = () =>
   import("./agent/chat").then((module) => ({
     default: module.AgentChatPage,
-  })),
-);
+  }));
+
+const ResourcesPage = lazy(loadResourcesPage);
+const MemoryPage = lazy(loadMemoryPage);
+const PluginsPage = lazy(loadPluginsPage);
+const OpenClawPage = lazy(loadOpenClawPage);
+const SkillsWorkspacePage = lazy(loadSkillsWorkspacePage);
+const BrowserRuntimeWorkspace = lazy(loadBrowserRuntimeWorkspace);
+const AgentChatPage = lazy(loadAgentChatPage);
 
 interface AppPageContentProps {
   currentPage: Page;
   pageParams: PageParams;
+  requestedPage?: Page;
+  requestedPageParams?: PageParams;
+  navigationRequestId?: number;
   onNavigate: (page: Page, params?: PageParams) => void;
   onAgentHasMessagesChange: (hasMessages: boolean) => void;
 }
@@ -95,22 +97,86 @@ interface AppPageContentProps {
 export function AppPageContent({
   currentPage,
   pageParams,
+  requestedPage,
+  requestedPageParams,
+  navigationRequestId = 0,
   onNavigate,
   onAgentHasMessagesChange,
 }: AppPageContentProps) {
-  if (currentPage === "automation") {
-    return (
+  const activePage = requestedPage ?? currentPage;
+  const activePageParams = requestedPageParams ?? pageParams;
+  const activeSceneAppsPageParams =
+    activePage === "sceneapps"
+      ? normalizeSceneAppsPageParams(activePageParams as SceneAppsPageParams)
+      : null;
+  const activeSceneAppsPageParamsKey = serializeSceneAppsPageParams(
+    activeSceneAppsPageParams ?? {},
+  );
+  const [hasVisitedSceneApps, setHasVisitedSceneApps] = useState(
+    activePage === "sceneapps",
+  );
+  const [cachedSceneAppsPageParams, setCachedSceneAppsPageParams] =
+    useState<SceneAppsPageParams>(() => activeSceneAppsPageParams ?? {});
+
+  useEffect(() => {
+    if (activePage !== "sceneapps" || !activeSceneAppsPageParams) {
+      return;
+    }
+
+    setHasVisitedSceneApps(true);
+    setCachedSceneAppsPageParams((current) =>
+      serializeSceneAppsPageParams(current) === activeSceneAppsPageParamsKey
+        ? current
+        : activeSceneAppsPageParams,
+    );
+  }, [
+    activeSceneAppsPageParams,
+    activeSceneAppsPageParamsKey,
+    activePage,
+  ]);
+
+  const shouldRenderSceneApps =
+    hasVisitedSceneApps || activePage === "sceneapps";
+  const sceneAppsContent = shouldRenderSceneApps ? (
+    <KeepAliveColumnPage $isActive={activePage === "sceneapps"}>
+      <SceneAppsPage
+        isActive={activePage === "sceneapps"}
+        isNavigationTargetOwner={activePage === "sceneapps"}
+        navigationRequestId={navigationRequestId}
+        onNavigate={onNavigate}
+        pageParams={activeSceneAppsPageParams ?? cachedSceneAppsPageParams}
+      />
+    </KeepAliveColumnPage>
+  ) : null;
+  const wrapWithSceneApps = (content: ReactNode) =>
+    sceneAppsContent ? (
+      <>
+        {sceneAppsContent}
+        {content}
+      </>
+    ) : (
+      content
+    );
+
+  if (activePage === "sceneapps") {
+    return wrapWithSceneApps(null);
+  }
+
+  if (activePage === "automation") {
+    const content = (
       <div style={columnPageStyle}>
         <AutomationPage
           onNavigate={onNavigate}
-          pageParams={pageParams as AutomationPageParams}
+          pageParams={activePageParams as AutomationPageParams}
         />
       </div>
     );
+
+    return wrapWithSceneApps(content);
   }
 
-  if (currentPage === "channels") {
-    return (
+  if (activePage === "channels") {
+    const content = (
       <div style={columnPageStyle}>
         <div className="flex-1 overflow-auto px-6 py-6">
           <div className="mx-auto w-full max-w-[1440px]">
@@ -119,12 +185,14 @@ export function AppPageContent({
         </div>
       </div>
     );
+
+    return wrapWithSceneApps(content);
   }
 
-  if (currentPage === "agent") {
-    const agentPageParams = pageParams as AgentPageParams;
+  if (activePage === "agent") {
+    const agentPageParams = activePageParams as AgentPageParams;
 
-    return (
+    const content = (
       <div style={columnPageStyle}>
         <AgentChatPage
           key={`${agentPageParams.projectId || ""}:${agentPageParams.contentId || ""}:${agentPageParams.theme || ""}:${agentPageParams.lockTheme ? "1" : "0"}:${agentPageParams.agentEntry || "claw"}:${agentPageParams.immersiveHome ? "immersive" : "standard"}:${agentPageParams.newChatAt ?? 0}:${agentPageParams.initialPendingServiceSkillLaunch?.skillId || ""}:${agentPageParams.initialPendingServiceSkillLaunch?.requestKey ?? 0}:${agentPageParams.initialProjectFileOpenTarget?.relativePath || ""}:${agentPageParams.initialProjectFileOpenTarget?.requestKey ?? 0}`}
@@ -132,7 +200,13 @@ export function AppPageContent({
           projectId={agentPageParams.projectId}
           contentId={agentPageParams.contentId}
           initialSessionId={agentPageParams.initialSessionId}
+          initialSceneAppExecutionSummary={
+            agentPageParams.initialSceneAppExecutionSummary
+          }
           initialRequestMetadata={agentPageParams.initialRequestMetadata}
+          initialAutoSendRequestMetadata={
+            agentPageParams.initialAutoSendRequestMetadata
+          }
           initialUserPrompt={agentPageParams.initialUserPrompt}
           initialUserImages={agentPageParams.initialUserImages}
           initialCreationMode={agentPageParams.initialCreationMode}
@@ -160,20 +234,24 @@ export function AppPageContent({
         />
       </div>
     );
+
+    return wrapWithSceneApps(content);
   }
 
-  if (currentPage === "resources") {
-    return (
+  if (activePage === "resources") {
+    const content = (
       <div style={columnPageStyle}>
         <ResourcesPage onNavigate={onNavigate} />
       </div>
     );
+
+    return wrapWithSceneApps(content);
   }
 
-  if (currentPage === "browser-runtime") {
-    const browserRuntimeParams = pageParams as BrowserRuntimePageParams;
+  if (activePage === "browser-runtime") {
+    const browserRuntimeParams = activePageParams as BrowserRuntimePageParams;
 
-    return (
+    const content = (
       <PageWrapper $isActive={true}>
         <BrowserRuntimeWorkspace
           active={true}
@@ -193,31 +271,37 @@ export function AppPageContent({
         />
       </PageWrapper>
     );
+
+    return wrapWithSceneApps(content);
   }
 
-  if (currentPage === "plugins") {
-    return (
+  if (activePage === "plugins") {
+    const content = (
       <PageWrapper $isActive={true}>
         <PluginsPage onNavigate={onNavigate} />
       </PageWrapper>
     );
+
+    return wrapWithSceneApps(content);
   }
 
-  if (currentPage === "memory") {
-    return (
+  if (activePage === "memory") {
+    const content = (
       <div style={columnPageStyle}>
         <div className="flex-1 min-h-0 overflow-auto">
           <MemoryPage
             onNavigate={onNavigate}
-            pageParams={pageParams as MemoryPageParams}
+            pageParams={activePageParams as MemoryPageParams}
           />
         </div>
       </div>
     );
+
+    return wrapWithSceneApps(content);
   }
 
-  if (currentPage === "openclaw") {
-    return (
+  if (activePage === "openclaw") {
+    const content = (
       <div
         style={{
           ...columnPageStyle,
@@ -226,45 +310,42 @@ export function AppPageContent({
       >
         <OpenClawPage
           onNavigate={onNavigate}
-          pageParams={pageParams as OpenClawPageParams}
+          pageParams={activePageParams as OpenClawPageParams}
           isActive={true}
         />
       </div>
     );
+
+    return wrapWithSceneApps(content);
   }
 
-  if (currentPage === "skills") {
-    return (
+  if (activePage === "skills") {
+    const content = (
       <div style={columnPageStyle}>
         <SkillsWorkspacePage
           onNavigate={onNavigate}
-          pageParams={pageParams as SkillsPageParams}
+          pageParams={activePageParams as SkillsPageParams}
         />
       </div>
     );
+
+    return wrapWithSceneApps(content);
   }
 
-  if (currentPage === "sceneapps") {
-    return (
-      <div style={columnPageStyle}>
-        <SceneAppsPage
-          onNavigate={onNavigate}
-          pageParams={pageParams as SceneAppsPageParams}
-        />
-      </div>
-    );
-  }
-
-  if (currentPage === "settings") {
-    return (
+  if (activePage === "settings") {
+    const content = (
       <div style={columnPageStyle}>
         <SettingsPageV2
           onNavigate={onNavigate}
-          initialTab={(pageParams as SettingsPageParams).tab}
-          initialProviderView={(pageParams as SettingsPageParams).providerView}
+          initialTab={(activePageParams as SettingsPageParams).tab}
+          initialProviderView={
+            (activePageParams as SettingsPageParams).providerView
+          }
         />
       </div>
     );
+
+    return wrapWithSceneApps(content);
   }
 
   return null;

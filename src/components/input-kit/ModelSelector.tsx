@@ -525,7 +525,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         </span>
                       </span>
                       {isSelected && (
-                        <div className="h-1.5 w-1.5 rounded-full bg-slate-900" />
+                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       )}
                     </button>
                   );

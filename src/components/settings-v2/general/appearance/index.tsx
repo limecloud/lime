@@ -1,6 +1,6 @@
 /**
  * @file index.tsx
- * @description 通用设置 - 外观、主导航入口与推荐行为
+ * @description 通用设置 - 外观与推荐行为
  */
 
 import {
@@ -13,7 +13,6 @@ import {
 import {
   Check,
   Languages,
-  LayoutPanelLeft,
   Monitor,
   Moon,
   Palette,
@@ -31,14 +30,6 @@ import { useI18nPatch } from "@/i18n/I18nPatchProvider";
 import type { Language } from "@/i18n/text-map";
 import { useSoundContext } from "@/contexts/useSoundContext";
 import { Switch } from "@/components/ui/switch";
-import {
-  CONFIGURABLE_MAIN_SIDEBAR_NAV_ITEMS,
-  CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS,
-  DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
-  FIXED_MAIN_SIDEBAR_NAV_ITEMS,
-  FIXED_FOOTER_SIDEBAR_NAV_ITEMS,
-  resolveEnabledSidebarNavItems,
-} from "@/lib/navigation/sidebarNav";
 
 type Theme = "light" | "dark" | "system";
 
@@ -57,6 +48,7 @@ interface LanguageOption {
 
 interface SurfacePanelProps {
   icon: LucideIcon;
+  iconClassName?: string;
   title: string;
   description: string;
   aside?: ReactNode;
@@ -97,6 +89,39 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
   },
 ];
 
+const ACTIVE_OPTION_CARD_CLASS =
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10";
+
+const INACTIVE_OPTION_CARD_CLASS =
+  "border-slate-200 bg-white text-slate-700 hover:border-sky-200 hover:bg-sky-50/70 hover:text-slate-900";
+
+const PRIMARY_ACTION_BUTTON_CLASS =
+  "inline-flex w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#0ea5e9_0%,#10b981_100%)] px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-95 shadow-sm shadow-emerald-950/15";
+
+const HEADER_INFO_PILL_CLASS =
+  "rounded-full border border-sky-200 bg-sky-50/90 px-2.5 py-1 text-[11px] font-medium text-sky-700";
+
+const HEADER_SUCCESS_PILL_CLASS =
+  "rounded-full border border-emerald-200 bg-emerald-50/90 px-2.5 py-1 text-[11px] font-medium text-emerald-700";
+
+const HEADER_NEUTRAL_PILL_CLASS =
+  "rounded-full border border-cyan-200 bg-cyan-50/90 px-2.5 py-1 text-[11px] font-medium text-cyan-700";
+
+const CURRENT_INFO_PILL_CLASS =
+  "rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700";
+
+const CURRENT_SUCCESS_PILL_CLASS =
+  "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700";
+
+const CONTEXT_STATUS_PILL_CLASS =
+  "rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-700";
+
+const RECOVERY_ICON_BADGE_CLASS =
+  "inline-flex h-12 w-12 items-center justify-center rounded-[18px] border border-sky-200 bg-[linear-gradient(135deg,rgba(240,249,255,0.98)_0%,rgba(236,253,245,0.92)_100%)] text-sky-700";
+
+const RECOVERY_NOTICE_CLASS =
+  "flex items-center justify-between gap-3 rounded-[18px] border border-cyan-200/80 bg-cyan-50/70 px-4 py-3 text-xs leading-5 text-cyan-700";
+
 function applyTheme(theme: Theme) {
   const root = document.documentElement;
 
@@ -113,6 +138,7 @@ function applyTheme(theme: Theme) {
 
 function SurfacePanel({
   icon: Icon,
+  iconClassName,
   title,
   description,
   aside,
@@ -123,7 +149,7 @@ function SurfacePanel({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-            <Icon className="h-4 w-4 text-sky-600" />
+            <Icon className={cn("h-4 w-4 text-sky-600", iconClassName)} />
             {title}
             <WorkbenchInfoTip
               ariaLabel={`${title}说明`}
@@ -167,9 +193,6 @@ export function AppearanceSettings() {
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<Theme>("system");
   const [language, setLanguageState] = useState<Language>("zh");
-  const [enabledNavItems, setEnabledNavItems] = useState<string[]>(
-    DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
-  );
   const [
     appendSelectedTextToRecommendation,
     setAppendSelectedTextToRecommendation,
@@ -190,9 +213,6 @@ export function AppearanceSettings() {
       const loadedConfig = await getConfig();
       setConfig(loadedConfig);
       setLanguageState((loadedConfig.language || "zh") as Language);
-      setEnabledNavItems(
-        resolveEnabledSidebarNavItems(loadedConfig.navigation?.enabled_items),
-      );
       setAppendSelectedTextToRecommendation(
         loadedConfig.chat_appearance?.append_selected_text_to_recommendation ??
           true,
@@ -222,28 +242,6 @@ export function AppearanceSettings() {
     }),
     [language, soundEnabled, theme],
   );
-
-  const enabledWorkspaceNavCount = useMemo(
-    () =>
-      FIXED_MAIN_SIDEBAR_NAV_ITEMS.length +
-      CONFIGURABLE_MAIN_SIDEBAR_NAV_ITEMS.filter((item) =>
-        enabledNavItems.includes(item.id),
-      ).length,
-    [enabledNavItems],
-  );
-
-  const enabledFooterNavCount = useMemo(
-    () =>
-      CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS.filter((item) =>
-        enabledNavItems.includes(item.id),
-      ).length,
-    [enabledNavItems],
-  );
-
-  const visibleNavItemCount =
-    FIXED_MAIN_SIDEBAR_NAV_ITEMS.length +
-    enabledNavItems.length +
-    FIXED_FOOTER_SIDEBAR_NAV_ITEMS.length;
 
   const handleThemeChange = useCallback((nextTheme: Theme) => {
     setTheme(nextTheme);
@@ -290,43 +288,6 @@ export function AppearanceSettings() {
       }
     },
     [playToolcallSound, setSoundEnabled],
-  );
-
-  const handleNavItemToggle = useCallback(
-    async (itemId: string) => {
-      if (!config) {
-        return;
-      }
-
-      const previousNavItems = enabledNavItems;
-      const nextItems = enabledNavItems.includes(itemId)
-        ? enabledNavItems.filter((item) => item !== itemId)
-        : [...enabledNavItems, itemId];
-
-      const previousConfig = config;
-      const nextConfig = {
-        ...config,
-        navigation: {
-          ...(config.navigation || {}),
-          enabled_items: nextItems,
-        },
-      };
-
-      setError(null);
-      setEnabledNavItems(nextItems);
-      setConfig(nextConfig);
-
-      try {
-        await saveConfig(nextConfig);
-        window.dispatchEvent(new CustomEvent("nav-config-changed"));
-      } catch (err) {
-        console.error("保存导航设置失败:", err);
-        setEnabledNavItems(previousNavItems);
-        setConfig(previousConfig);
-        setError("保存左侧导航设置失败，请重试。");
-      }
-    },
-    [config, enabledNavItems],
   );
 
   const handleRecommendationSelectionToggle = useCallback(
@@ -386,41 +347,46 @@ export function AppearanceSettings() {
         </div>
       ) : null}
 
-      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-4 shadow-sm shadow-slate-950/5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-1.5">
+      <section className="rounded-[26px] border border-slate-200/80 bg-white px-5 py-3.5 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-[24px] font-semibold tracking-tight text-slate-900">
+              <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">
                 外观
               </h1>
               <WorkbenchInfoTip
                 ariaLabel="外观设置总览说明"
-                content="管理主题、语言、提示音效，以及左侧导航入口和推荐行为。"
+                content="管理主题、语言、提示音效，以及推荐问题的上下文带入方式。"
                 tone="mint"
               />
             </div>
-            <p className="text-sm text-slate-500">
-              管理主题、语言、导航入口和推荐行为。
+            <p className="text-[13px] text-slate-500">
+              管理主题、语言、提示音效和推荐行为。
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+          <div className="flex flex-wrap items-center gap-1.5 xl:justify-end">
+            <span className={HEADER_INFO_PILL_CLASS}>
               主题：{workspaceSummary.themeLabel}
             </span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+            <span className={HEADER_SUCCESS_PILL_CLASS}>
               语言：{workspaceSummary.languageLabel}
             </span>
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+            <span
+              className={
+                soundEnabled ? HEADER_SUCCESS_PILL_CLASS : HEADER_NEUTRAL_PILL_CLASS
+              }
+            >
               提示音效：{workspaceSummary.soundsLabel}
             </span>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.16fr)_minmax(320px,0.84fr)]">
+      <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.16fr)_minmax(320px,0.84fr)]">
         <SurfacePanel
           icon={Palette}
+          iconClassName="text-sky-600"
           title="基础外观"
           description="先确定全局主题、语言和声音反馈，再统一工作区里的视觉节奏。"
         >
@@ -439,7 +405,7 @@ export function AppearanceSettings() {
                     />
                   </div>
                 </div>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                <span className={CURRENT_INFO_PILL_CLASS}>
                   当前：{resolveThemeLabel(theme)}
                 </span>
               </div>
@@ -455,8 +421,8 @@ export function AppearanceSettings() {
                       className={cn(
                         "rounded-[20px] border px-4 py-4 text-left transition shadow-sm",
                         active
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900",
+                          ? ACTIVE_OPTION_CARD_CLASS
+                          : INACTIVE_OPTION_CARD_CLASS,
                       )}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -471,7 +437,7 @@ export function AppearanceSettings() {
                       <p
                         className={cn(
                           "mt-1 text-xs leading-5",
-                          active ? "text-white/70" : "text-slate-500",
+                          active ? "text-slate-600" : "text-slate-500",
                         )}
                       >
                         {option.description}
@@ -501,7 +467,7 @@ export function AppearanceSettings() {
                     </div>
                   </div>
                 </div>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                <span className={CURRENT_SUCCESS_PILL_CLASS}>
                   当前：{resolveLanguageLabel(language)}
                 </span>
               </div>
@@ -518,8 +484,8 @@ export function AppearanceSettings() {
                       className={cn(
                         "rounded-[20px] border px-4 py-4 text-left transition shadow-sm",
                         active
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900",
+                          ? ACTIVE_OPTION_CARD_CLASS
+                          : INACTIVE_OPTION_CARD_CLASS,
                         !config && "cursor-not-allowed opacity-60",
                       )}
                     >
@@ -530,7 +496,7 @@ export function AppearanceSettings() {
                       <p
                         className={cn(
                           "mt-2 text-xs leading-5",
-                          active ? "text-white/70" : "text-slate-500",
+                          active ? "text-slate-600" : "text-slate-500",
                         )}
                       >
                         {option.hint}
@@ -570,17 +536,18 @@ export function AppearanceSettings() {
 
         <SurfacePanel
           icon={RotateCcw}
+          iconClassName="text-cyan-600"
           title="初始化与恢复"
           description="当你想重新走一遍首次启动流程，或者排查引导配置异常时，从这里恢复。"
           aside={
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+            <span className={CURRENT_INFO_PILL_CLASS}>
               适合排障
             </span>
           }
         >
-          <div className="flex h-full flex-col justify-between gap-5 rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.94)_0%,rgba(248,250,252,0.92)_100%)] p-5">
-            <div className="space-y-4">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-[18px] border border-amber-200 bg-amber-50 text-amber-700">
+          <div className="flex flex-col gap-4 rounded-[24px] border border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.94)_0%,rgba(248,250,252,0.92)_100%)] p-4">
+            <div className="space-y-3">
+              <div className={RECOVERY_ICON_BADGE_CLASS}>
                 <RotateCcw className="h-5 w-5" />
               </div>
               <div className="space-y-2">
@@ -597,8 +564,8 @@ export function AppearanceSettings() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3 rounded-[18px] border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs leading-5 text-slate-500">
+            <div className="space-y-2.5">
+              <div className={RECOVERY_NOTICE_CLASS}>
                 <span>重新运行不会删除现有数据</span>
                 <WorkbenchInfoTip
                   ariaLabel="重新运行引导注意事项"
@@ -609,7 +576,7 @@ export function AppearanceSettings() {
               <button
                 type="button"
                 onClick={handleResetOnboarding}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+                className={PRIMARY_ACTION_BUTTON_CLASS}
               >
                 <RotateCcw className="h-4 w-4" />
                 重新运行引导
@@ -621,184 +588,67 @@ export function AppearanceSettings() {
 
       <SurfacePanel
         icon={Sparkles}
-        title="主导航入口与推荐行为"
-        description="统一控制左侧边栏的任务、工作台、能力与资料库入口，以及推荐问题的上下文带入方式。"
+        iconClassName="text-emerald-600"
+        title="推荐行为"
+        description="控制推荐问题是否自动带上当前选中内容，减少重复粘贴上下文。"
       >
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <article className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
-                  <LayoutPanelLeft className="h-5 w-5" />
+        <article className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    推荐行为
+                  </h3>
+                  <WorkbenchInfoTip
+                    ariaLabel="推荐行为说明"
+                    content="控制首页推荐问题是否自动带上当前选中内容，减少重复粘贴上下文。"
+                    tone="slate"
+                  />
                 </div>
+              </div>
+            </div>
+
+            <div className="rounded-[20px] border border-slate-200 bg-white/80 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-slate-900">
-                      左侧边栏导航
-                    </h3>
+                    <h4 className="text-sm font-semibold text-slate-900">
+                      推荐自动附带选中内容
+                    </h4>
                     <WorkbenchInfoTip
-                      ariaLabel="左侧边栏导航说明"
-                      content="控制工作区左侧常驻入口，保留高频内容即可，减少视觉干扰。"
+                      ariaLabel="推荐自动附带选中内容说明"
+                      content="在文档或画布中有选区时，推荐问题会自动把该段内容作为上下文带入，减少手工复制粘贴。"
                       tone="slate"
                     />
                   </div>
                 </div>
-              </div>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                {visibleNavItemCount} 个已显示
-              </span>
-            </div>
-
-            <div className="mt-4 space-y-4">
-              <section className="rounded-[20px] border border-slate-200 bg-white/80 p-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        主导航入口
-                      </h4>
-                      <WorkbenchInfoTip
-                        ariaLabel="主导航入口说明"
-                        content="控制主导航区展示的工作台、资料库和系统功能入口，任务与能力核心入口会固定保留。"
-                        tone="slate"
-                      />
-                    </div>
-                  </div>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                    {enabledWorkspaceNavCount} 个已启用
+                <div className="flex items-center gap-3">
+                  <span
+                    className={
+                      appendSelectedTextToRecommendation
+                        ? CURRENT_SUCCESS_PILL_CLASS
+                        : CONTEXT_STATUS_PILL_CLASS
+                    }
+                  >
+                    {appendSelectedTextToRecommendation ? "已开启" : "已关闭"}
                   </span>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2.5">
-                  {CONFIGURABLE_MAIN_SIDEBAR_NAV_ITEMS.map((item) => {
-                    const active = enabledNavItems.includes(item.id);
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        disabled={!config}
-                        onClick={() => void handleNavItemToggle(item.id)}
-                        className={cn(
-                          "rounded-full border px-3.5 py-2 text-sm transition shadow-sm",
-                          active
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
-                          !config && "cursor-not-allowed opacity-60",
-                        )}
-                      >
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {FIXED_MAIN_SIDEBAR_NAV_ITEMS.length > 0 ? (
-                  <div className="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs leading-5 text-slate-600">
-                    核心入口固定显示：
-                    {FIXED_MAIN_SIDEBAR_NAV_ITEMS.map(
-                      (item) => item.label,
-                    ).join("、")}
-                  </div>
-                ) : null}
-              </section>
-
-              <section className="rounded-[20px] border border-slate-200 bg-white/80 p-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        系统入口
-                      </h4>
-                      <WorkbenchInfoTip
-                        ariaLabel="系统入口说明"
-                        content="设置入口固定显示，这里只管理系统区的其余功能入口。"
-                        tone="slate"
-                      />
-                    </div>
-                  </div>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                    {enabledFooterNavCount} 个已启用
-                  </span>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2.5">
-                  {CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS.map((item) => {
-                    const active = enabledNavItems.includes(item.id);
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        disabled={!config}
-                        onClick={() => void handleNavItemToggle(item.id)}
-                        className={cn(
-                          "rounded-full border px-3.5 py-2 text-sm transition shadow-sm",
-                          active
-                            ? "border-slate-900 bg-slate-900 text-white"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
-                          !config && "cursor-not-allowed opacity-60",
-                        )}
-                      >
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            </div>
-          </article>
-
-          <article className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
-            <div className="flex h-full flex-col justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-slate-900">
-                      推荐行为
-                    </h3>
-                    <WorkbenchInfoTip
-                      ariaLabel="推荐行为说明"
-                      content="控制首页推荐问题是否自动带上当前选中内容，减少重复粘贴上下文。"
-                      tone="slate"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[20px] border border-slate-200 bg-white/80 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        推荐自动附带选中内容
-                      </h4>
-                      <WorkbenchInfoTip
-                        ariaLabel="推荐自动附带选中内容说明"
-                        content="在文档或画布中有选区时，推荐问题会自动把该段内容作为上下文带入，减少手工复制粘贴。"
-                        tone="slate"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                      {appendSelectedTextToRecommendation ? "已开启" : "已关闭"}
-                    </span>
-                    <Switch
-                      checked={appendSelectedTextToRecommendation}
-                      onCheckedChange={(checked) => {
-                        void handleRecommendationSelectionToggle(checked);
-                      }}
-                      aria-label="切换推荐自动附带选中内容"
-                      disabled={!config}
-                    />
-                  </div>
+                  <Switch
+                    checked={appendSelectedTextToRecommendation}
+                    onCheckedChange={(checked) => {
+                      void handleRecommendationSelectionToggle(checked);
+                    }}
+                    aria-label="切换推荐自动附带选中内容"
+                    disabled={!config}
+                  />
                 </div>
               </div>
             </div>
-          </article>
-        </div>
+          </div>
+        </article>
       </SurfacePanel>
     </div>
   );

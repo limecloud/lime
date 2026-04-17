@@ -787,7 +787,7 @@ export function ProjectSelector({
                     size="sm"
                     className={cn(
                       compact ? "h-8 px-3 text-xs" : "h-9",
-                      "gap-1.5 rounded-full bg-slate-900 text-white hover:bg-slate-800",
+                      "gap-1.5 rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95",
                     )}
                     onClick={() => {
                       setOpen(false);

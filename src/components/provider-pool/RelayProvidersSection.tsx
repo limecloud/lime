@@ -28,6 +28,8 @@ import { open } from "@tauri-apps/plugin-shell";
  */
 function RelayProviderCard({ provider }: { provider: RelayInfo }) {
   const [imageError, setImageError] = useState(false);
+  const primaryActionButtonClassName =
+    "rounded-lg border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-sm font-medium text-white shadow-sm shadow-emerald-950/15 hover:opacity-95 transition-colors";
 
   // 打开外部链接
   const handleOpenLink = async (url: string) => {
@@ -81,12 +83,12 @@ function RelayProviderCard({ provider }: { provider: RelayInfo }) {
 
       {/* API 信息 */}
       <div className="flex flex-wrap gap-2 mb-3">
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs">
+        <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700">
           <Zap className="w-3 h-3" />
           {provider.api.protocol.toUpperCase()}
         </span>
         {provider.features.streaming && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 text-xs">
+          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700">
             流式响应
           </span>
         )}
@@ -124,7 +126,7 @@ function RelayProviderCard({ provider }: { provider: RelayInfo }) {
         {getApiKeyLink() && (
           <button
             onClick={() => handleOpenLink(getApiKeyLink()!)}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 ${primaryActionButtonClassName}`}
           >
             <ExternalLink className="w-4 h-4" />
             获取 API Key
@@ -224,7 +226,7 @@ export function RelayProvidersSection() {
           <p className="text-sm mt-1">点击刷新按钮加载中转商列表</p>
           <button
             onClick={refresh}
-            className="mt-4 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90"
+            className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
           >
             <RefreshCw className="w-4 h-4" />
             加载中转商

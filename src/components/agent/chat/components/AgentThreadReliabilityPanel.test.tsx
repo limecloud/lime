@@ -1034,7 +1034,7 @@ describe("AgentThreadReliabilityPanel", () => {
     );
   });
 
-  it("应支持从线程可靠性面板跳到记忆工作台查看当前预演", async () => {
+  it("应支持从线程可靠性面板跳到灵感库查看当前预演", async () => {
     const onOpenMemoryWorkbench = vi.fn();
     const container = renderPanel({
       turns: [
@@ -1062,7 +1062,7 @@ describe("AgentThreadReliabilityPanel", () => {
     });
 
     const button = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("在记忆工作台查看"),
+      (element) => element.textContent?.includes("在灵感库查看"),
     );
     expect(button).toBeTruthy();
 

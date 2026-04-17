@@ -89,6 +89,12 @@ const SUGGESTED_TAGS = [
   "学生",
   "研究者",
 ];
+const PRIMARY_ACTION_BUTTON_CLASS =
+  "inline-flex items-center gap-2 rounded-[16px] border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-3 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95";
+const PRIMARY_PILL_BUTTON_CLASS =
+  "inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-3 py-1.5 text-xs font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95";
+const ICON_ACTION_BUTTON_CLASS =
+  "absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-2xl border border-white bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_55%,#10b981_100%)] text-white shadow-lg shadow-emerald-950/15 transition hover:opacity-95";
 
 function hasText(value?: string) {
   return Boolean(value?.trim());
@@ -246,7 +252,7 @@ function ProfileFieldCard({
               type="button"
               aria-label={`保存${label}`}
               onClick={onSave}
-              className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-800"
+              className={PRIMARY_PILL_BUTTON_CLASS}
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               保存
@@ -540,7 +546,7 @@ export function ProfileSettings() {
                 type="button"
                 aria-label="更新头像"
                 onClick={handleUploadAvatar}
-                className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-2xl border border-white bg-slate-900 text-white shadow-lg shadow-slate-950/15 transition hover:bg-slate-800"
+                className={ICON_ACTION_BUTTON_CLASS}
               >
                 <Camera className="h-4 w-4" />
               </button>
@@ -723,7 +729,7 @@ export function ProfileSettings() {
                 <button
                   type="button"
                   onClick={handleAddTag}
-                  className="inline-flex items-center gap-2 rounded-[16px] bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                  className={PRIMARY_ACTION_BUTTON_CLASS}
                 >
                   <Plus className="h-4 w-4" />
                   添加标签

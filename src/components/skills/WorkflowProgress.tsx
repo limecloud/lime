@@ -141,7 +141,7 @@ function StepStatusIcon({ status }: { status: StepStatus }) {
     case "failed":
       return <XCircle className="h-5 w-5 text-red-500" />;
     case "running":
-      return <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />;
+      return <Loader2 className="h-5 w-5 text-emerald-500 animate-spin" />;
     case "retrying":
       return <RotateCcw className="h-5 w-5 text-yellow-500 animate-spin" />;
     case "pending":
@@ -162,7 +162,7 @@ function StepItem({ step }: { step: StepDisplayInfo }) {
       className={cn(
         "flex items-start gap-3 p-3 rounded-lg transition-colors",
         isActive &&
-          "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800",
+          "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800",
         isFailed &&
           "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800",
         !isActive && !isFailed && "hover:bg-muted/50",
@@ -175,7 +175,7 @@ function StepItem({ step }: { step: StepDisplayInfo }) {
         <p
           className={cn(
             "text-sm font-medium",
-            isActive && "text-blue-700 dark:text-blue-300",
+            isActive && "text-emerald-700 dark:text-emerald-300",
             isFailed && "text-red-700 dark:text-red-300",
             step.status === "completed" && "text-green-700 dark:text-green-300",
             step.status === "pending" && "text-muted-foreground",

@@ -442,7 +442,7 @@ export function EditCredentialModal({
           {/* 高级选项：代理设置 */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Globe className="h-4 w-4 text-blue-500" />
+              <Globe className="h-4 w-4 text-emerald-500" />
               <label className="text-sm font-medium">凭证代理设置</label>
               <span className="text-xs text-muted-foreground">
                 （高级选项）
@@ -471,11 +471,11 @@ export function EditCredentialModal({
                   </p>
                 )}
               </div>
-              <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-xs">
-                <p className="font-medium text-blue-700 dark:text-blue-300">
+              <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-3 text-xs">
+                <p className="font-medium text-emerald-700 dark:text-emerald-300">
                   代理优先级说明：
                 </p>
-                <ul className="mt-1 list-inside list-disc text-blue-600 dark:text-blue-400">
+                <ul className="mt-1 list-inside list-disc text-emerald-600 dark:text-emerald-400">
                   <li>此凭证代理优先于全局代理</li>
                   <li>留空时使用全局代理设置</li>
                   <li>全局代理可在「设置 → 通用」中配置</li>

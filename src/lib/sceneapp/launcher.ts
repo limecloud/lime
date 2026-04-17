@@ -36,6 +36,7 @@ export interface SceneAppLaunchRequest {
   descriptor: SceneAppDescriptor;
   seed: SceneAppSeed;
   entrySource: string;
+  referenceMemoryIds?: string[];
 }
 
 export function useSceneAppLaunchRuntime({
@@ -79,7 +80,12 @@ export function useSceneAppLaunchRuntime({
   );
 
   const launchSceneApp = useCallback(
-    async ({ descriptor, seed, entrySource }: SceneAppLaunchRequest) => {
+    async ({
+      descriptor,
+      seed,
+      entrySource,
+      referenceMemoryIds,
+    }: SceneAppLaunchRequest) => {
       setSceneAppLaunchingId(descriptor.id);
       try {
         const trimmedProjectId = projectId?.trim() || undefined;
@@ -89,6 +95,10 @@ export function useSceneAppLaunchRuntime({
           workspaceId: trimmedProjectId,
           projectId: trimmedProjectId,
           userInput: seed.userInput,
+          referenceMemoryIds:
+            referenceMemoryIds && referenceMemoryIds.length > 0
+              ? referenceMemoryIds
+              : undefined,
           slots: seed.slots,
         });
 

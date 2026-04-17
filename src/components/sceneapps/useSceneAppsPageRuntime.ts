@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  exportAgentRuntimeReviewDecisionTemplate,
+  saveAgentRuntimeReviewDecision,
+  type AgentRuntimeReviewDecisionTemplate,
+  type AgentRuntimeSaveReviewDecisionRequest,
+} from "@/lib/api/agentRuntime";
+import {
   getSceneAppRunSummary,
   getSceneAppScorecard,
   listSceneAppCatalog,
   listSceneAppRuns,
   planSceneAppLaunch,
+  saveSceneAppContextBaseline,
   prepareSceneAppRunGovernanceArtifact,
   prepareSceneAppRunGovernanceArtifacts,
   type SceneAppCatalog,
-  type SceneAppCloudSceneRuntimeRef,
   type SceneAppDescriptor,
-  type SceneAppNativeSkillRuntimeRef,
   type SceneAppPattern,
   type SceneAppPlanResult,
   type SceneAppRunSummary,
@@ -20,6 +25,7 @@ import {
 } from "@/lib/api/sceneapp";
 import {
   buildSceneAppCatalogCardViewModel,
+  buildSceneAppQuickReviewDecisionRequest,
   buildSceneAppDetailViewModel,
   buildSceneAppGovernancePanelViewModel,
   buildSceneAppRunDetailViewModel,
@@ -32,10 +38,16 @@ import {
   recordSceneAppRecentVisit,
   readStoredSceneAppCatalog,
   resolveSceneAppSeed,
+  resolveSceneAppRunEntryNavigationTarget,
   serializeSceneAppsPageParams,
   formatSceneAppErrorMessage,
+  findLatestSceneAppPackResultRun,
   listSceneAppRecentVisits,
   useSceneAppLaunchRuntime,
+  resolveSceneAppRuntimeArtifactOpenTarget,
+  SCENEAPP_QUICK_REVIEW_ACTIONS,
+  type SceneAppQuickReviewAction,
+  type SceneAppQuickReviewActionTone,
   type SceneAppEntryCardItem,
   type SceneAppRecentVisitRecord,
   type SceneAppSeed,
@@ -50,6 +62,7 @@ import type { Page, PageParams } from "@/types/page";
 export type SceneAppTypeFilter = "all" | SceneAppType;
 export type SceneAppPatternFilter = "all" | SceneAppPattern;
 export type SceneAppsViewMode = SceneAppsView;
+export type { SceneAppQuickReviewAction, SceneAppQuickReviewActionTone };
 
 const DEFAULT_TOOL_PREFERENCES: ChatToolPreferences = {
   webSearch: false,
@@ -60,7 +73,6 @@ const DEFAULT_TOOL_PREFERENCES: ChatToolPreferences = {
 
 const SEARCH_PARAM_SYNC_DELAY_MS = 180;
 const PREFILL_PARAM_SYNC_DELAY_MS = 220;
-
 function matchesSearch(descriptor: SceneAppDescriptor, query: string): boolean {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) {
@@ -103,6 +115,9 @@ function resolveSceneAppsViewMode(
 interface UseSceneAppsPageRuntimeParams {
   onNavigate: (page: Page, params?: PageParams) => void;
   pageParams?: SceneAppsPageParams;
+  isActive?: boolean;
+  isNavigationTargetOwner?: boolean;
+  navigationRequestId?: number;
 }
 
 export interface SceneAppRecentVisitItem {
@@ -135,140 +150,64 @@ function buildRecentVisitHint(record: SceneAppRecentVisitRecord): string {
   if (record.search) {
     parts.push(`筛选：${record.search}`);
   }
+  if ((record.referenceMemoryIds?.length ?? 0) > 0) {
+    parts.push(`灵感 ${record.referenceMemoryIds?.length} 条`);
+  }
 
   return parts.length > 0 ? parts.join(" · ") : "恢复最近一次浏览上下文";
 }
 
-function normalizeSceneAppSlotValues(
-  slots?: Record<string, string>,
-): Record<string, string> | undefined {
-  if (!slots) {
-    return undefined;
-  }
-
-  const normalizedEntries = Object.entries(slots)
-    .map(([key, value]) => {
-      const normalizedKey = key.trim();
-      const normalizedValue = value.trim();
-      if (!normalizedKey || !normalizedValue) {
-        return null;
-      }
-
-      return [normalizedKey, normalizedValue] as const;
-    })
-    .filter((entry): entry is readonly [string, string] => Boolean(entry));
-
-  if (normalizedEntries.length === 0) {
-    return undefined;
-  }
-
-  return Object.fromEntries(normalizedEntries);
+function resolveSceneAppRunSortTime(run: SceneAppRunSummary): number {
+  const timestamp = Date.parse(run.finishedAt ?? run.startedAt);
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function buildCloudSceneResumeRequestMetadata(params: {
-  sceneappId: string;
-  runtimeRef: SceneAppCloudSceneRuntimeRef;
-}): Record<string, unknown> {
-  return {
-    sceneapp: {
-      id: params.sceneappId,
-    },
-    harness: {
-      service_scene_launch: {
-        kind: "cloud_scene",
-        service_scene_run: {
-          sceneapp_id: params.sceneappId,
-          scene_key: params.runtimeRef.sceneKey ?? null,
-          skill_id: params.runtimeRef.skillId ?? null,
-          linked_skill_id: params.runtimeRef.skillId ?? null,
-          project_id: params.runtimeRef.projectId ?? null,
-          content_id: params.runtimeRef.contentId ?? null,
-          workspace_id: params.runtimeRef.workspaceId ?? null,
-          entry_source:
-            params.runtimeRef.entrySource?.trim() || "sceneapp_run_resume",
-          user_input: params.runtimeRef.userInput ?? null,
-          slots: normalizeSceneAppSlotValues(params.runtimeRef.slots) ?? {},
-        },
-      },
-    },
-  };
-}
-
-function buildCloudSceneResumePrompt(params: {
-  title: string;
-  runtimeRef: SceneAppCloudSceneRuntimeRef;
-}): string {
-  const userInput = params.runtimeRef.userInput?.trim();
-  if (userInput) {
-    return userInput;
-  }
-
-  const slotSummary = Object.entries(
-    normalizeSceneAppSlotValues(params.runtimeRef.slots) ?? {},
-  )
-    .slice(0, 3)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join("；");
-
-  if (slotSummary) {
-    return `请继续执行场景应用「${params.title}」。场景参数：${slotSummary}。`;
-  }
-
-  return `请继续执行场景应用「${params.title}」，并按最近一次云端 Scene 运行上下文继续。`;
-}
-
-function buildNativeSkillResumeRequestMetadata(params: {
-  sceneappId: string;
-  runtimeRef: SceneAppNativeSkillRuntimeRef;
-}): Record<string, unknown> | undefined {
-  const slots = normalizeSceneAppSlotValues(params.runtimeRef.slots);
-  const hasPayload =
-    Boolean(params.runtimeRef.skillId?.trim()) ||
-    Boolean(params.runtimeRef.skillKey?.trim()) ||
-    Boolean(params.runtimeRef.projectId?.trim()) ||
-    Boolean(params.runtimeRef.workspaceId?.trim()) ||
-    Boolean(params.runtimeRef.userInput?.trim()) ||
-    Boolean(slots);
-
-  if (!hasPayload) {
-    return undefined;
-  }
-
-  return {
-    sceneapp: {
-      id: params.sceneappId,
-    },
-    harness: {
-      sceneapp_native_skill_launch: {
-        skill_id: params.runtimeRef.skillId ?? null,
-        skill_key: params.runtimeRef.skillKey ?? null,
-        project_id: params.runtimeRef.projectId ?? null,
-        workspace_id: params.runtimeRef.workspaceId ?? null,
-        user_input: params.runtimeRef.userInput ?? null,
-        slots: slots ?? {},
-      },
-    },
-  };
+function buildLatestSceneAppRunMap(
+  runs: SceneAppRunSummary[],
+): Record<string, SceneAppRunSummary> {
+  return runs.reduce<Record<string, SceneAppRunSummary>>((acc, run) => {
+    const current = acc[run.sceneappId];
+    if (!current || resolveSceneAppRunSortTime(run) >= resolveSceneAppRunSortTime(current)) {
+      acc[run.sceneappId] = run;
+    }
+    return acc;
+  }, {});
 }
 
 export function useSceneAppsPageRuntime({
   onNavigate,
   pageParams,
+  isActive = true,
+  isNavigationTargetOwner = isActive,
+  navigationRequestId = 0,
 }: UseSceneAppsPageRuntimeParams) {
   const appliedExternalParamsKeyRef = useRef<string | null>(null);
   const requestedPageParamsSyncKeyRef = useRef<string | null>(null);
+  const navigationOwnershipBarrierRef = useRef(false);
+  const lastHandledNavigationRequestIdRef = useRef(navigationRequestId);
   const [pageStateTouched, setPageStateTouched] = useState(
     serializeSceneAppsPageParams(pageParams) !== "{}",
   );
   const [catalog, setCatalog] = useState<SceneAppCatalog | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogRuntimeLoading, setCatalogRuntimeLoading] = useState(false);
+  const [catalogRuntimeError, setCatalogRuntimeError] = useState<string | null>(
+    null,
+  );
+  const [catalogScorecardMap, setCatalogScorecardMap] = useState<
+    Record<string, SceneAppScorecard>
+  >({});
+  const [catalogLatestRunMap, setCatalogLatestRunMap] = useState<
+    Record<string, SceneAppRunSummary>
+  >({});
   const [searchQuery, setSearchQuery] = useState(pageParams?.search ?? "");
   const [typeFilter, setTypeFilter] = useState<SceneAppTypeFilter>(
     pageParams?.typeFilter ?? "all",
   );
-  const [patternFilter, setPatternFilter] =
-    useState<SceneAppPatternFilter>(pageParams?.patternFilter ?? "all");
+  const [patternFilter, setPatternFilter] = useState<SceneAppPatternFilter>(
+    pageParams?.patternFilter ?? "all",
+  );
   const [viewMode, setViewMode] = useState<SceneAppsViewMode>(
     resolveSceneAppsViewMode(pageParams),
   );
@@ -278,6 +217,9 @@ export function useSceneAppsPageRuntime({
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     pageParams?.projectId ?? null,
   );
+  const [selectedReferenceMemoryIds, setSelectedReferenceMemoryIds] = useState<
+    string[]
+  >(pageParams?.referenceMemoryIds ?? []);
   const [launchInput, setLaunchInput] = useState(
     pageParams?.prefillIntent ?? "",
   );
@@ -285,9 +227,11 @@ export function useSceneAppsPageRuntime({
   const [scorecardLoading, setScorecardLoading] = useState(false);
   const [scorecardError, setScorecardError] = useState<string | null>(null);
   const [runs, setRuns] = useState<SceneAppRunSummary[]>([]);
-  const [runsLoading, setRunsLoading] = useState(false);
+  const [runsLoading, setRunsLoading] = useState(Boolean(pageParams?.runId));
   const [runsError, setRunsError] = useState<string | null>(null);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(
+    pageParams?.runId ?? null,
+  );
   const [selectedRunSummary, setSelectedRunSummary] =
     useState<SceneAppRunSummary | null>(null);
   const [selectedRunLoading, setSelectedRunLoading] = useState(false);
@@ -298,6 +242,13 @@ export function useSceneAppsPageRuntime({
   const [selectedPlanError, setSelectedPlanError] = useState<string | null>(
     null,
   );
+  const [savingContextBaseline, setSavingContextBaseline] = useState(false);
+  const [reviewDecisionDialogOpen, setReviewDecisionDialogOpen] =
+    useState(false);
+  const [reviewDecisionTemplate, setReviewDecisionTemplate] =
+    useState<AgentRuntimeReviewDecisionTemplate | null>(null);
+  const [reviewDecisionLoading, setReviewDecisionLoading] = useState(false);
+  const [reviewDecisionSaving, setReviewDecisionSaving] = useState(false);
   const [recentVisitRecords, setRecentVisitRecords] = useState<
     SceneAppRecentVisitRecord[]
   >(() => listSceneAppRecentVisits());
@@ -317,6 +268,7 @@ export function useSceneAppsPageRuntime({
         runId: pageParams?.runId,
         projectId: pageParams?.projectId,
         prefillIntent: pageParams?.prefillIntent,
+        referenceMemoryIds: pageParams?.referenceMemoryIds,
         search: pageParams?.search,
         typeFilter: pageParams?.typeFilter,
         patternFilter: pageParams?.patternFilter,
@@ -326,6 +278,7 @@ export function useSceneAppsPageRuntime({
       pageParams?.patternFilter,
       pageParams?.prefillIntent,
       pageParams?.projectId,
+      pageParams?.referenceMemoryIds,
       pageParams?.runId,
       pageParams?.sceneappId,
       pageParams?.search,
@@ -361,6 +314,7 @@ export function useSceneAppsPageRuntime({
       const nextSceneAppId = params.sceneappId ?? null;
       const nextRunId = params.runId ?? null;
       const nextProjectId = params.projectId ?? null;
+      const nextReferenceMemoryIds = params.referenceMemoryIds ?? [];
       const nextLaunchInput = params.prefillIntent ?? "";
 
       setSearchQuery((current) =>
@@ -378,9 +332,17 @@ export function useSceneAppsPageRuntime({
       setSelectedSceneAppId((current) =>
         current === nextSceneAppId ? current : nextSceneAppId,
       );
-      setSelectedRunId((current) => (current === nextRunId ? current : nextRunId));
+      setSelectedRunId((current) =>
+        current === nextRunId ? current : nextRunId,
+      );
       setSelectedProjectId((current) =>
         current === nextProjectId ? current : nextProjectId,
+      );
+      setSelectedReferenceMemoryIds((current) =>
+        current.length === nextReferenceMemoryIds.length &&
+        current.every((value, index) => value === nextReferenceMemoryIds[index])
+          ? current
+          : nextReferenceMemoryIds,
       );
       setLaunchInput((current) =>
         current === nextLaunchInput ? current : nextLaunchInput,
@@ -393,14 +355,18 @@ export function useSceneAppsPageRuntime({
     setPageStateTouched(hasIncomingPageState);
 
     if (appliedExternalParamsKeyRef.current === resolvedIncomingPageParamsKey) {
-      if (requestedPageParamsSyncKeyRef.current === resolvedIncomingPageParamsKey) {
+      if (
+        requestedPageParamsSyncKeyRef.current === resolvedIncomingPageParamsKey
+      ) {
         requestedPageParamsSyncKeyRef.current = null;
       }
       return;
     }
 
     appliedExternalParamsKeyRef.current = resolvedIncomingPageParamsKey;
-    if (requestedPageParamsSyncKeyRef.current === resolvedIncomingPageParamsKey) {
+    if (
+      requestedPageParamsSyncKeyRef.current === resolvedIncomingPageParamsKey
+    ) {
       requestedPageParamsSyncKeyRef.current = null;
     }
     applySceneAppsPageParams(resolvedIncomingPageParams);
@@ -449,16 +415,10 @@ export function useSceneAppsPageRuntime({
   const effectiveSearchParam = useMemo(() => {
     const incomingSearch = normalizedIncomingPageParams.search ?? "";
     return searchQuery === incomingSearch ? searchQuery : debouncedSearchQuery;
-  }, [
-    debouncedSearchQuery,
-    normalizedIncomingPageParams.search,
-    searchQuery,
-  ]);
+  }, [debouncedSearchQuery, normalizedIncomingPageParams.search, searchQuery]);
   const effectivePrefillIntent = useMemo(() => {
     const incomingPrefill = normalizedIncomingPageParams.prefillIntent ?? "";
-    return launchInput === incomingPrefill
-      ? launchInput
-      : debouncedLaunchInput;
+    return launchInput === incomingPrefill ? launchInput : debouncedLaunchInput;
   }, [
     debouncedLaunchInput,
     launchInput,
@@ -466,6 +426,77 @@ export function useSceneAppsPageRuntime({
   ]);
 
   const allDescriptors = useMemo(() => catalog?.items ?? [], [catalog]);
+
+  useEffect(() => {
+    if (allDescriptors.length === 0) {
+      setCatalogRuntimeLoading(false);
+      setCatalogRuntimeError(null);
+      setCatalogScorecardMap({});
+      setCatalogLatestRunMap({});
+      return;
+    }
+
+    let cancelled = false;
+    setCatalogRuntimeLoading(true);
+    setCatalogRuntimeError(null);
+
+    void (async () => {
+      const [runsResult, scorecardResults] = await Promise.all([
+        listSceneAppRuns().then(
+          (value) => ({ ok: true as const, value }),
+          (error) => ({ ok: false as const, error }),
+        ),
+        Promise.all(
+          allDescriptors.map(async (descriptor) => {
+            try {
+              const scorecard = await getSceneAppScorecard(descriptor.id);
+              return {
+                id: descriptor.id,
+                ok: true as const,
+                scorecard,
+              };
+            } catch (error) {
+              return {
+                id: descriptor.id,
+                ok: false as const,
+                error,
+              };
+            }
+          }),
+        ),
+      ]);
+
+      if (cancelled) {
+        return;
+      }
+
+      const nextScorecardMap: Record<string, SceneAppScorecard> = {};
+      scorecardResults.forEach((result) => {
+        if (result.ok) {
+          nextScorecardMap[result.id] = result.scorecard;
+        }
+      });
+
+      setCatalogScorecardMap(nextScorecardMap);
+      setCatalogLatestRunMap(
+        runsResult.ok ? buildLatestSceneAppRunMap(runsResult.value) : {},
+      );
+
+      const partialErrors: string[] = [];
+      if (!runsResult.ok) {
+        partialErrors.push(formatSceneAppErrorMessage(runsResult.error));
+      }
+      if (scorecardResults.some((result) => !result.ok)) {
+        partialErrors.push("部分经营评分暂未回流，目录先按已拿到的运行事实展示。");
+      }
+      setCatalogRuntimeError(partialErrors[0] ?? null);
+      setCatalogRuntimeLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [allDescriptors]);
 
   const filteredDescriptors = useMemo(() => {
     return allDescriptors.filter((descriptor) => {
@@ -491,10 +522,15 @@ export function useSceneAppsPageRuntime({
   );
 
   const catalogCards = useMemo(
-    () => filteredDescriptors.map((descriptor) =>
-      buildSceneAppCatalogCardViewModel(descriptor),
-    ),
-    [filteredDescriptors],
+    () =>
+      filteredDescriptors.map((descriptor) =>
+        buildSceneAppCatalogCardViewModel({
+          descriptor,
+          scorecard: catalogScorecardMap[descriptor.id] ?? null,
+          run: catalogLatestRunMap[descriptor.id] ?? null,
+        }),
+      ),
+    [catalogLatestRunMap, catalogScorecardMap, filteredDescriptors],
   );
 
   useEffect(() => {
@@ -505,7 +541,9 @@ export function useSceneAppsPageRuntime({
 
     if (
       selectedSceneAppId &&
-      filteredDescriptors.some((descriptor) => descriptor.id === selectedSceneAppId)
+      filteredDescriptors.some(
+        (descriptor) => descriptor.id === selectedSceneAppId,
+      )
     ) {
       return;
     }
@@ -516,21 +554,32 @@ export function useSceneAppsPageRuntime({
           (descriptor) => descriptor.id === pageParams.sceneappId,
         )
         ? pageParams.sceneappId
-        : filteredDescriptors[0]?.id ?? null,
+        : (filteredDescriptors[0]?.id ?? null),
     );
   }, [filteredDescriptors, pageParams?.sceneappId, selectedSceneAppId]);
 
   const selectedDescriptor = useMemo(
     () =>
       selectedSceneAppId
-        ? allDescriptors.find((descriptor) => descriptor.id === selectedSceneAppId) ??
-          null
+        ? (allDescriptors.find(
+            (descriptor) => descriptor.id === selectedSceneAppId,
+          ) ?? null)
         : null,
     [allDescriptors, selectedSceneAppId],
   );
 
   useEffect(() => {
     if (!selectedDescriptor) {
+      if (catalogLoading) {
+        return;
+      }
+
+      // 目录刚加载完、选中场景还未落稳时，不要抢先清空运行态；
+      // 否则带 runId 进入治理页会在这一帧丢失外部 run 选择。
+      if (filteredDescriptors.length > 0) {
+        return;
+      }
+
       setScorecard(null);
       setRuns([]);
       setScorecardError(null);
@@ -548,7 +597,6 @@ export function useSceneAppsPageRuntime({
     let cancelled = false;
     setScorecard(null);
     setRuns([]);
-    setSelectedRunId(null);
     setSelectedRunSummary(null);
     setSelectedRunLoading(false);
     setSelectedRunError(null);
@@ -583,12 +631,22 @@ export function useSceneAppsPageRuntime({
           return;
         }
         setRuns(nextRuns);
+        setSelectedRunId((current) => {
+          if (nextRuns.length === 0) {
+            return null;
+          }
+          if (current && nextRuns.some((run) => run.runId === current)) {
+            return current;
+          }
+          return nextRuns[0]?.runId ?? null;
+        });
       })
       .catch((error) => {
         if (cancelled) {
           return;
         }
         setRuns([]);
+        setSelectedRunId(null);
         setRunsError(formatSceneAppErrorMessage(error));
       })
       .finally(() => {
@@ -600,20 +658,7 @@ export function useSceneAppsPageRuntime({
     return () => {
       cancelled = true;
     };
-  }, [selectedDescriptor]);
-
-  useEffect(() => {
-    if (runs.length === 0) {
-      setSelectedRunId(null);
-      return;
-    }
-
-    if (selectedRunId && runs.some((run) => run.runId === selectedRunId)) {
-      return;
-    }
-
-    setSelectedRunId(runs[0]?.runId ?? null);
-  }, [runs, selectedRunId]);
+  }, [catalogLoading, filteredDescriptors.length, selectedDescriptor]);
 
   const syncedPageParams = useMemo(
     () =>
@@ -621,9 +666,13 @@ export function useSceneAppsPageRuntime({
         view: viewMode,
         sceneappId: selectedSceneAppId ?? undefined,
         runId:
-          viewMode === "governance" ? selectedRunId ?? undefined : undefined,
+          viewMode === "governance" ? (selectedRunId ?? undefined) : undefined,
         projectId: selectedProjectId ?? undefined,
         prefillIntent: effectivePrefillIntent,
+        referenceMemoryIds:
+          selectedReferenceMemoryIds.length > 0
+            ? selectedReferenceMemoryIds
+            : undefined,
         search: effectiveSearchParam,
         typeFilter: typeFilter !== "all" ? typeFilter : undefined,
         patternFilter: patternFilter !== "all" ? patternFilter : undefined,
@@ -633,6 +682,7 @@ export function useSceneAppsPageRuntime({
       effectiveSearchParam,
       patternFilter,
       selectedProjectId,
+      selectedReferenceMemoryIds,
       selectedRunId,
       selectedSceneAppId,
       typeFilter,
@@ -644,9 +694,56 @@ export function useSceneAppsPageRuntime({
     [syncedPageParams],
   );
   const shouldSyncPageParams = pageStateTouched || hasIncomingPageState;
+  const canWriteSceneAppsNavigation =
+    isActive &&
+    isNavigationTargetOwner &&
+    !navigationOwnershipBarrierRef.current;
 
   useEffect(() => {
-    if (!shouldSyncPageParams) {
+    if (lastHandledNavigationRequestIdRef.current === navigationRequestId) {
+      return;
+    }
+
+    lastHandledNavigationRequestIdRef.current = navigationRequestId;
+
+    if (!isNavigationTargetOwner) {
+      navigationOwnershipBarrierRef.current = false;
+      return;
+    }
+
+    if (syncedPageParamsKey !== resolvedIncomingPageParamsKey) {
+      navigationOwnershipBarrierRef.current = true;
+    }
+  }, [
+    isNavigationTargetOwner,
+    navigationRequestId,
+    resolvedIncomingPageParamsKey,
+    syncedPageParamsKey,
+  ]);
+
+  useEffect(() => {
+    if (!navigationOwnershipBarrierRef.current) {
+      return;
+    }
+
+    if (!isNavigationTargetOwner) {
+      navigationOwnershipBarrierRef.current = false;
+      return;
+    }
+
+    if (syncedPageParamsKey !== resolvedIncomingPageParamsKey) {
+      return;
+    }
+
+    navigationOwnershipBarrierRef.current = false;
+  }, [
+    isNavigationTargetOwner,
+    resolvedIncomingPageParamsKey,
+    syncedPageParamsKey,
+  ]);
+
+  useEffect(() => {
+    if (!canWriteSceneAppsNavigation || !shouldSyncPageParams) {
       return;
     }
     if (syncedPageParamsKey === resolvedIncomingPageParamsKey) {
@@ -662,6 +759,7 @@ export function useSceneAppsPageRuntime({
     requestedPageParamsSyncKeyRef.current = syncedPageParamsKey;
     onNavigate("sceneapps", syncedPageParams);
   }, [
+    canWriteSceneAppsNavigation,
     onNavigate,
     resolvedIncomingPageParamsKey,
     shouldSyncPageParams,
@@ -670,12 +768,21 @@ export function useSceneAppsPageRuntime({
   ]);
 
   useEffect(() => {
-    if (!shouldSyncPageParams || !syncedPageParams.sceneappId) {
+    if (
+      !canWriteSceneAppsNavigation ||
+      !shouldSyncPageParams ||
+      !syncedPageParams.sceneappId
+    ) {
       return;
     }
 
     setRecentVisitRecords(recordSceneAppRecentVisit(syncedPageParams));
-  }, [shouldSyncPageParams, syncedPageParams, syncedPageParamsKey]);
+  }, [
+    canWriteSceneAppsNavigation,
+    shouldSyncPageParams,
+    syncedPageParams,
+    syncedPageParamsKey,
+  ]);
 
   useEffect(() => {
     if (!selectedRunId) {
@@ -748,10 +855,27 @@ export function useSceneAppsPageRuntime({
       input: effectivePrefillIntent,
       urlCandidate: previewUrlCandidate,
     });
+  }, [effectivePrefillIntent, previewUrlCandidate, selectedDescriptor]);
+  const refreshSelectedPlanResult = useCallback(async () => {
+    if (!selectedDescriptor) {
+      return null;
+    }
+
+    const trimmedProjectId = selectedProjectId?.trim() || undefined;
+    return planSceneAppLaunch({
+      sceneappId: selectedDescriptor.id,
+      entrySource: "sceneapp_detail_preview",
+      workspaceId: trimmedProjectId,
+      projectId: trimmedProjectId,
+      userInput: previewLaunchSeed?.userInput,
+      referenceMemoryIds: selectedReferenceMemoryIds,
+      slots: previewLaunchSeed?.slots,
+    });
   }, [
-    effectivePrefillIntent,
-    previewUrlCandidate,
+    previewLaunchSeed,
     selectedDescriptor,
+    selectedProjectId,
+    selectedReferenceMemoryIds,
   ]);
 
   useEffect(() => {
@@ -763,26 +887,20 @@ export function useSceneAppsPageRuntime({
     }
 
     let cancelled = false;
-    const trimmedProjectId = selectedProjectId?.trim() || undefined;
     setSelectedPlanResult((current) =>
       current?.descriptor.id === selectedDescriptor.id ? current : null,
     );
     setSelectedPlanLoading(true);
     setSelectedPlanError(null);
 
-    void planSceneAppLaunch({
-      sceneappId: selectedDescriptor.id,
-      entrySource: "sceneapp_detail_preview",
-      workspaceId: trimmedProjectId,
-      projectId: trimmedProjectId,
-      userInput: previewLaunchSeed?.userInput,
-      slots: previewLaunchSeed?.slots,
-    })
+    void refreshSelectedPlanResult()
       .then((nextPlanResult) => {
         if (cancelled) {
           return;
         }
-        setSelectedPlanResult(nextPlanResult);
+        if (nextPlanResult) {
+          setSelectedPlanResult(nextPlanResult);
+        }
       })
       .catch((error) => {
         if (cancelled) {
@@ -799,7 +917,7 @@ export function useSceneAppsPageRuntime({
     return () => {
       cancelled = true;
     };
-  }, [previewLaunchSeed, selectedDescriptor, selectedProjectId]);
+  }, [refreshSelectedPlanResult, selectedDescriptor]);
 
   const scorecardView = useMemo(
     () =>
@@ -817,7 +935,7 @@ export function useSceneAppsPageRuntime({
             descriptor: selectedDescriptor,
             scorecard,
             run: selectedRunSummary,
-            projectPackPlan: selectedPlanResult?.projectPackPlan,
+            planResult: selectedPlanResult,
           })
         : null,
     [scorecard, selectedDescriptor, selectedPlanResult, selectedRunSummary],
@@ -836,11 +954,183 @@ export function useSceneAppsPageRuntime({
     return buildSceneAppRunDetailViewModel({
       descriptor: selectedDescriptor,
       run: selectedRunSummary,
-      projectPackPlan: selectedPlanResult?.projectPackPlan,
+      planResult: selectedPlanResult,
     });
   }, [selectedDescriptor, selectedPlanResult, selectedRunSummary]);
 
+  const latestPackResultRunSummary = useMemo(
+    () =>
+      findLatestSceneAppPackResultRun({
+        selectedRun: selectedRunSummary,
+        runs,
+      }),
+    [runs, selectedRunSummary],
+  );
+
+  const latestPackResultDetailView = useMemo(() => {
+    if (!selectedDescriptor || !latestPackResultRunSummary) {
+      return null;
+    }
+
+    return buildSceneAppRunDetailViewModel({
+      descriptor: selectedDescriptor,
+      run: latestPackResultRunSummary,
+      planResult: selectedPlanResult,
+    });
+  }, [latestPackResultRunSummary, selectedDescriptor, selectedPlanResult]);
+
+  const latestPackResultUsesFallback =
+    Boolean(latestPackResultRunSummary) &&
+    Boolean(selectedRunSummary) &&
+    latestPackResultRunSummary?.runId !== selectedRunSummary?.runId;
+
   const selectedRunEntryAction = selectedRunDetailView?.entryAction;
+  const selectedRunPreview = useMemo(
+    () =>
+      selectedRunSummary ??
+      runs.find((run) => run.runId === selectedRunId) ??
+      null,
+    [runs, selectedRunId, selectedRunSummary],
+  );
+  const selectedRunSessionId = selectedRunPreview?.sessionId?.trim() || "";
+  const canOpenSelectedRunHumanReview =
+    selectedRunSessionId.length > 0 &&
+    Boolean(
+      selectedRunPreview &&
+      ["success", "error", "canceled", "timeout"].includes(
+        selectedRunPreview.status,
+      ),
+    );
+
+  const resolveSelectedRunReviewDecisionTemplate = useCallback(async () => {
+    if (!selectedRunSessionId) {
+      return null;
+    }
+
+    if (reviewDecisionTemplate?.session_id === selectedRunSessionId) {
+      return reviewDecisionTemplate;
+    }
+
+    setReviewDecisionLoading(true);
+    try {
+      const template =
+        await exportAgentRuntimeReviewDecisionTemplate(selectedRunSessionId);
+      setReviewDecisionTemplate(template);
+      return template;
+    } catch (error) {
+      toast.error(formatSceneAppErrorMessage(error));
+      return null;
+    } finally {
+      setReviewDecisionLoading(false);
+    }
+  }, [reviewDecisionTemplate, selectedRunSessionId]);
+
+  const handleOpenSelectedRunHumanReview = useCallback(() => {
+    if (!selectedRunSessionId) {
+      toast.error("当前运行还没有关联会话，暂时无法填写人工复核。");
+      return;
+    }
+
+    void (async () => {
+      const template = await resolveSelectedRunReviewDecisionTemplate();
+      if (template) {
+        setReviewDecisionDialogOpen(true);
+      }
+    })();
+  }, [resolveSelectedRunReviewDecisionTemplate, selectedRunSessionId]);
+
+  const persistSelectedRunHumanReview = useCallback(
+    async (
+      request: AgentRuntimeSaveReviewDecisionRequest,
+      options?: {
+        closeDialog?: boolean;
+        successMessage?: string;
+      },
+    ) => {
+      setReviewDecisionSaving(true);
+      try {
+        const template = await saveAgentRuntimeReviewDecision(request);
+        setReviewDecisionTemplate(template);
+        if (options?.closeDialog !== false) {
+          setReviewDecisionDialogOpen(false);
+        }
+        toast.success(options?.successMessage ?? "已保存人工复核结果");
+
+        setSelectedPlanLoading(true);
+        setSelectedPlanError(null);
+        try {
+          const refreshedPlan = await refreshSelectedPlanResult();
+          if (refreshedPlan) {
+            setSelectedPlanResult(refreshedPlan);
+          }
+        } catch (error) {
+          setSelectedPlanError(formatSceneAppErrorMessage(error));
+        } finally {
+          setSelectedPlanLoading(false);
+        }
+      } catch (error) {
+        toast.error(formatSceneAppErrorMessage(error));
+      } finally {
+        setReviewDecisionSaving(false);
+      }
+    },
+    [refreshSelectedPlanResult],
+  );
+
+  const handleSaveSelectedRunHumanReview = useCallback(
+    async (request: AgentRuntimeSaveReviewDecisionRequest) => {
+      await persistSelectedRunHumanReview(request);
+    },
+    [persistSelectedRunHumanReview],
+  );
+
+  const handleApplySelectedRunQuickReview = useCallback(
+    (actionKey: SceneAppQuickReviewAction["key"]) => {
+      if (!canOpenSelectedRunHumanReview || !selectedRunSessionId) {
+        toast.error("当前运行还没有关联会话，暂时无法记录轻量反馈。");
+        return;
+      }
+
+      const action = SCENEAPP_QUICK_REVIEW_ACTIONS.find(
+        (item) => item.key === actionKey,
+      );
+      if (!action) {
+        return;
+      }
+
+      void (async () => {
+        const template = await resolveSelectedRunReviewDecisionTemplate();
+        if (!template) {
+          return;
+        }
+
+        await persistSelectedRunHumanReview(
+          buildSceneAppQuickReviewDecisionRequest({
+            template,
+            action,
+            sceneTitle: selectedDescriptor?.title,
+            failureSignal:
+              selectedRunDetailView?.failureSignalLabel ??
+              governanceView?.topFailureSignalLabel,
+            sourceLabel: "创作场景",
+          }),
+          {
+            closeDialog: false,
+            successMessage: `已记录「${action.label}」判断`,
+          },
+        );
+      })();
+    },
+    [
+      canOpenSelectedRunHumanReview,
+      governanceView?.topFailureSignalLabel,
+      persistSelectedRunHumanReview,
+      resolveSelectedRunReviewDecisionTemplate,
+      selectedDescriptor?.title,
+      selectedRunDetailView?.failureSignalLabel,
+      selectedRunSessionId,
+    ],
+  );
 
   const openSelectedRunFileEntry = useCallback(
     (
@@ -863,27 +1153,24 @@ export function useSceneAppsPageRuntime({
         return;
       }
 
-      const relativePath = entry.artifactRef.relativePath?.trim();
-      const absolutePath = entry.artifactRef.absolutePath?.trim();
-      const projectId =
-        entry.artifactRef.projectId?.trim() || selectedProjectId || undefined;
-      const openTargetPath = projectId
-        ? relativePath || absolutePath
-        : absolutePath || relativePath;
-
-      if (!openTargetPath) {
+      const target = resolveSceneAppRuntimeArtifactOpenTarget({
+        entry,
+        fallbackProjectId: selectedProjectId,
+        bannerPrefix: options.bannerPrefix,
+      });
+      if (!target) {
         toast.error(options.missingPathMessage);
         return;
       }
 
       onNavigate("agent", {
         agentEntry: "claw",
-        projectId,
+        projectId: target.projectId,
         initialProjectFileOpenTarget: {
-          relativePath: openTargetPath,
+          relativePath: target.openTargetPath,
           requestKey: Date.now(),
         },
-        entryBannerMessage: `${options.bannerPrefix}：${entry.label}。`,
+        entryBannerMessage: target.bannerMessage,
       });
     },
     [onNavigate, selectedProjectId],
@@ -899,110 +1186,22 @@ export function useSceneAppsPageRuntime({
       if (!entryAction) {
         return;
       }
-
-      if (entryAction.kind === "open_automation_job") {
-        onNavigate("automation", {
-          selectedJobId: entryAction.jobId,
-          workspaceTab: "tasks",
-        });
+      const target = resolveSceneAppRunEntryNavigationTarget({
+        action: entryAction,
+        sceneappId:
+          selectedRunSummary?.sceneappId ?? selectedDescriptor?.id ?? "",
+        sceneTitle: selectedDescriptor?.title,
+        sourceLabel: "创作场景复盘",
+        projectId: selectedProjectId,
+        linkedServiceSkillId: selectedDescriptor?.linkedServiceSkillId,
+        linkedSceneKey: selectedDescriptor?.linkedSceneKey,
+      });
+      if (!target) {
+        toast.error("当前运行缺少可恢复的入口上下文。");
         return;
       }
 
-      if (entryAction.kind === "open_agent_session") {
-        onNavigate("agent", {
-          agentEntry: "claw",
-          initialSessionId: entryAction.sessionId,
-          entryBannerMessage: "已从 SceneApp 运行复盘恢复对应 Agent 会话。",
-        });
-        return;
-      }
-
-      if (entryAction.kind === "open_browser_runtime") {
-        onNavigate("browser-runtime", {
-          initialProfileKey:
-            entryAction.browserRuntimeRef.profileKey ?? undefined,
-          initialSessionId:
-            entryAction.browserRuntimeRef.sessionId ?? undefined,
-          initialTargetId:
-            entryAction.browserRuntimeRef.targetId ?? undefined,
-        });
-        return;
-      }
-
-      if (entryAction.kind === "open_cloud_scene_session") {
-        if (entryAction.sessionId) {
-          onNavigate("agent", {
-            agentEntry: "claw",
-            initialSessionId: entryAction.sessionId,
-            entryBannerMessage: "已从 SceneApp 运行复盘恢复云端 Scene 会话。",
-          });
-          return;
-        }
-
-        onNavigate("agent", {
-          agentEntry: "claw",
-          projectId: entryAction.cloudSceneRuntimeRef.projectId ?? undefined,
-          contentId: entryAction.cloudSceneRuntimeRef.contentId ?? undefined,
-          initialUserPrompt: buildCloudSceneResumePrompt({
-            title: selectedDescriptor?.title ?? "SceneApp",
-            runtimeRef: entryAction.cloudSceneRuntimeRef,
-          }),
-          initialAutoSendRequestMetadata: buildCloudSceneResumeRequestMetadata({
-            sceneappId: selectedRunSummary?.sceneappId ?? selectedDescriptor?.id ?? "",
-            runtimeRef: entryAction.cloudSceneRuntimeRef,
-          }),
-          autoRunInitialPromptOnMount: true,
-          entryBannerMessage: "已从 SceneApp 运行复盘恢复云端 Scene 上下文。",
-        });
-        return;
-      }
-
-      if (entryAction.kind === "open_native_skill_session") {
-        if (entryAction.sessionId) {
-          onNavigate("agent", {
-            agentEntry: "claw",
-            initialSessionId: entryAction.sessionId,
-            entryBannerMessage: "已从 SceneApp 运行复盘恢复本机技能会话。",
-          });
-          return;
-        }
-
-        const initialPendingServiceSkillLaunch = {
-          skillId:
-            entryAction.nativeSkillRuntimeRef.skillId ??
-            entryAction.nativeSkillRuntimeRef.skillKey ??
-            selectedDescriptor?.linkedServiceSkillId ??
-            selectedDescriptor?.linkedSceneKey ??
-            selectedDescriptor?.id ??
-            "",
-          skillKey:
-            entryAction.nativeSkillRuntimeRef.skillKey ??
-            selectedDescriptor?.linkedSceneKey ??
-            undefined,
-          requestKey: Date.now(),
-          initialSlotValues:
-            normalizeSceneAppSlotValues(
-              entryAction.nativeSkillRuntimeRef.slots,
-            ) ?? undefined,
-          prefillHint: "已从 SceneApp 最近一次运行恢复技能补参。",
-          launchUserInput:
-            entryAction.nativeSkillRuntimeRef.userInput ?? undefined,
-        };
-
-        onNavigate("agent", {
-          agentEntry: "claw",
-          projectId:
-            entryAction.nativeSkillRuntimeRef.projectId ??
-            selectedProjectId ??
-            undefined,
-          initialRequestMetadata: buildNativeSkillResumeRequestMetadata({
-            sceneappId: selectedRunSummary?.sceneappId ?? selectedDescriptor?.id ?? "",
-            runtimeRef: entryAction.nativeSkillRuntimeRef,
-          }),
-          initialPendingServiceSkillLaunch,
-          entryBannerMessage: "已从 SceneApp 运行复盘恢复本机技能入口。",
-        });
-      }
+      onNavigate(target.page, target.params);
     },
     [
       onNavigate,
@@ -1016,12 +1215,14 @@ export function useSceneAppsPageRuntime({
   const handleOpenSelectedRunDeliveryArtifact = useCallback(
     (
       artifactEntry?: NonNullable<
-        NonNullable<typeof selectedRunDetailView>["deliveryArtifactEntries"][number]
+        NonNullable<
+          typeof selectedRunDetailView
+        >["deliveryArtifactEntries"][number]
       >,
     ) => {
       openSelectedRunFileEntry(artifactEntry, {
         missingPathMessage: "当前这次运行还没有可打开的结果文件路径。",
-        bannerPrefix: "已从 SceneApp 运行复盘打开结果文件",
+        bannerPrefix: "已从创作场景复盘打开结果文件",
       });
     },
     [openSelectedRunFileEntry],
@@ -1030,7 +1231,9 @@ export function useSceneAppsPageRuntime({
   const handleOpenSelectedRunGovernanceArtifact = useCallback(
     (
       artifactEntry?: NonNullable<
-        NonNullable<typeof selectedRunDetailView>["governanceArtifactEntries"][number]
+        NonNullable<
+          typeof selectedRunDetailView
+        >["governanceArtifactEntries"][number]
       >,
     ) => {
       const runId = selectedRunSummary?.runId?.trim();
@@ -1058,7 +1261,7 @@ export function useSceneAppsPageRuntime({
 
         openSelectedRunFileEntry(artifactEntry, {
           missingPathMessage: "当前这次运行还没有可打开的证据或复核文件。",
-          bannerPrefix: "已从 SceneApp 运行复盘打开治理文件",
+          bannerPrefix: "已从创作场景复盘打开治理文件",
         });
       })();
     },
@@ -1068,7 +1271,9 @@ export function useSceneAppsPageRuntime({
   const handleRunSelectedGovernanceAction = useCallback(
     (
       action?: NonNullable<
-        NonNullable<typeof selectedRunDetailView>["governanceActionEntries"][number]
+        NonNullable<
+          typeof selectedRunDetailView
+        >["governanceActionEntries"][number]
       >,
     ) => {
       const runId = selectedRunSummary?.runId?.trim();
@@ -1091,14 +1296,15 @@ export function useSceneAppsPageRuntime({
           const refreshedDetailView = buildSceneAppRunDetailViewModel({
             descriptor: selectedDescriptor,
             run: refreshed,
-            projectPackPlan: selectedPlanResult?.projectPackPlan,
+            planResult: selectedPlanResult,
           });
-          const targetEntry = refreshedDetailView.governanceArtifactEntries.find(
-            (entry) => entry.artifactRef.kind === action.primaryArtifactKind,
-          );
+          const targetEntry =
+            refreshedDetailView.governanceArtifactEntries.find(
+              (entry) => entry.artifactRef.kind === action.primaryArtifactKind,
+            );
           openSelectedRunFileEntry(targetEntry, {
             missingPathMessage: `治理动作已准备完成，但当前没有可打开的${action.primaryArtifactLabel}路径。`,
-            bannerPrefix: `已从 SceneApp 运行复盘打开治理动作`,
+            bannerPrefix: "已从创作场景复盘打开治理动作",
           });
         } catch (error) {
           toast.error(formatSceneAppErrorMessage(error));
@@ -1108,7 +1314,7 @@ export function useSceneAppsPageRuntime({
     [
       openSelectedRunFileEntry,
       selectedDescriptor,
-      selectedPlanResult?.projectPackPlan,
+      selectedPlanResult,
       selectedRunSummary?.runId,
     ],
   );
@@ -1140,7 +1346,7 @@ export function useSceneAppsPageRuntime({
 
   const launchDisabledReason = useMemo(() => {
     if (!selectedDescriptor) {
-      return "先选择一个场景应用";
+      return "先选择一个创作场景";
     }
     if (selectedEntryCard?.disabledReason) {
       return selectedEntryCard.disabledReason;
@@ -1150,6 +1356,23 @@ export function useSceneAppsPageRuntime({
     }
     return undefined;
   }, [launchSeed, selectedDescriptor, selectedEntryCard?.disabledReason]);
+  const saveContextBaselineDisabledReason = useMemo(() => {
+    if (!selectedDescriptor) {
+      return "先选择一个创作场景";
+    }
+    if (!selectedProjectId?.trim()) {
+      return "先绑定项目工作区，才能写入当前场景基线";
+    }
+    if (!launchInput.trim() && selectedReferenceMemoryIds.length === 0) {
+      return "先带入灵感对象或启动输入，再写入当前场景基线";
+    }
+    return undefined;
+  }, [
+    launchInput,
+    selectedDescriptor,
+    selectedProjectId,
+    selectedReferenceMemoryIds,
+  ]);
 
   const recentVisits = useMemo<SceneAppRecentVisitItem[]>(() => {
     return recentVisitRecords.slice(0, 4).map((record) => {
@@ -1158,11 +1381,11 @@ export function useSceneAppsPageRuntime({
       const businessLabel = descriptor
         ? getSceneAppPresentationCopy(descriptor).businessLabel
         : "最近访问";
-      const title = descriptor?.title ?? record.sceneappId ?? "未命名 SceneApp";
+      const title = descriptor?.title ?? record.sceneappId ?? "未命名创作场景";
       const summary =
         record.prefillIntent && record.prefillIntent.trim()
           ? truncateSingleLine(record.prefillIntent)
-          : descriptor?.summary ?? "继续上一次场景上下文";
+          : (descriptor?.summary ?? "继续上一次创作场景上下文");
 
       return {
         key: `${record.sceneappId}:${record.projectId ?? ""}`,
@@ -1177,7 +1400,12 @@ export function useSceneAppsPageRuntime({
           (record.projectId ?? null) === selectedProjectId,
       };
     });
-  }, [allDescriptors, recentVisitRecords, selectedProjectId, selectedSceneAppId]);
+  }, [
+    allDescriptors,
+    recentVisitRecords,
+    selectedProjectId,
+    selectedSceneAppId,
+  ]);
 
   const handleResumeRecentVisit = useCallback(
     (params: SceneAppsPageParams) => {
@@ -1185,7 +1413,8 @@ export function useSceneAppsPageRuntime({
         ...params,
         view: resolveSceneAppsViewMode(params),
       });
-      const normalizedParamsKey = serializeSceneAppsPageParams(normalizedParams);
+      const normalizedParamsKey =
+        serializeSceneAppsPageParams(normalizedParams);
 
       setPageStateTouched(true);
       appliedExternalParamsKeyRef.current = normalizedParamsKey;
@@ -1250,7 +1479,7 @@ export function useSceneAppsPageRuntime({
 
   const handleLaunchSelected = useCallback(async () => {
     if (!selectedDescriptor) {
-      toast.error("请先选择一个场景应用");
+      toast.error("请先选择一个创作场景");
       return;
     }
 
@@ -1263,8 +1492,58 @@ export function useSceneAppsPageRuntime({
       descriptor: selectedDescriptor,
       seed: launchSeed,
       entrySource: "sceneapps_page",
+      referenceMemoryIds: selectedReferenceMemoryIds,
     });
-  }, [launchRuntime, launchSeed, selectedDescriptor]);
+  }, [
+    launchRuntime,
+    launchSeed,
+    selectedDescriptor,
+    selectedReferenceMemoryIds,
+  ]);
+
+  const handleSaveContextBaseline = useCallback(async () => {
+    if (!selectedDescriptor) {
+      toast.error("请先选择一个创作场景");
+      return;
+    }
+
+    const trimmedProjectId = selectedProjectId?.trim();
+    if (!trimmedProjectId) {
+      toast.error("请先绑定项目工作区，再写入当前场景基线。");
+      return;
+    }
+
+    if (!launchInput.trim() && selectedReferenceMemoryIds.length === 0) {
+      toast.error("请先带入灵感对象或启动输入，再写入当前场景基线。");
+      return;
+    }
+
+    setSavingContextBaseline(true);
+    try {
+      const savedPlanResult = await saveSceneAppContextBaseline({
+        sceneappId: selectedDescriptor.id,
+        entrySource: "sceneapp_detail_save_context_baseline",
+        workspaceId: trimmedProjectId,
+        projectId: trimmedProjectId,
+        userInput: launchInput.trim() || undefined,
+        referenceMemoryIds: selectedReferenceMemoryIds,
+        slots: launchSeed?.slots,
+      });
+      setSelectedPlanResult(savedPlanResult);
+      setSelectedPlanError(null);
+      toast.success("已写入当前场景基线");
+    } catch (error) {
+      toast.error(formatSceneAppErrorMessage(error));
+    } finally {
+      setSavingContextBaseline(false);
+    }
+  }, [
+    launchInput,
+    launchSeed,
+    selectedDescriptor,
+    selectedProjectId,
+    selectedReferenceMemoryIds,
+  ]);
 
   return {
     allDescriptors,
@@ -1274,6 +1553,8 @@ export function useSceneAppsPageRuntime({
     catalog,
     catalogLoading,
     catalogError,
+    catalogRuntimeLoading,
+    catalogRuntimeError,
     refreshCatalog,
     searchQuery,
     handleSearchQueryChange,
@@ -1288,6 +1569,7 @@ export function useSceneAppsPageRuntime({
     handleSelectSceneApp,
     selectedDescriptor,
     selectedProjectId,
+    selectedReferenceMemoryIds,
     handleProjectChange,
     launchInput,
     handleLaunchInputChange,
@@ -1296,11 +1578,14 @@ export function useSceneAppsPageRuntime({
     selectedDetailView,
     selectedPlanLoading,
     selectedPlanError,
+    savingContextBaseline,
+    saveContextBaselineDisabledReason,
     launchDisabledReason,
     launchingSceneAppId: launchRuntime.sceneAppLaunchingId,
     recentVisits,
     handleResumeRecentVisit,
     handleLaunchSelected,
+    handleSaveContextBaseline,
     scorecard,
     scorecardView,
     scorecardLoading,
@@ -1314,8 +1599,20 @@ export function useSceneAppsPageRuntime({
     handleSelectRun,
     selectedRunSummary,
     selectedRunDetailView,
+    latestPackResultDetailView,
+    latestPackResultUsesFallback,
     selectedRunLoading,
     selectedRunError,
+    canOpenSelectedRunHumanReview,
+    quickReviewActions: SCENEAPP_QUICK_REVIEW_ACTIONS,
+    reviewDecisionDialogOpen,
+    reviewDecisionTemplate,
+    reviewDecisionLoading,
+    reviewDecisionSaving,
+    setReviewDecisionDialogOpen,
+    handleOpenSelectedRunHumanReview,
+    handleSaveSelectedRunHumanReview,
+    handleApplySelectedRunQuickReview,
     handleOpenSelectedRunEntryAction,
     handleOpenSelectedRunDeliveryArtifact,
     handleOpenSelectedRunGovernanceArtifact,

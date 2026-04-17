@@ -49,6 +49,9 @@ const TONE_BADGE_CLASSNAMES: Record<ServiceSkillTone, string> = {
   amber: "border-amber-200 bg-amber-50 text-amber-700",
 };
 
+const SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME =
+  "rounded-2xl border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 text-white shadow-sm shadow-emerald-950/15 hover:opacity-95";
+
 const LOCAL_SKILL_SOURCE_LABELS = {
   builtin: "内置",
   project: "项目",
@@ -454,7 +457,7 @@ export function SkillsWorkspacePage({
           <div className="text-xs text-slate-400">{skill.outputHint}</div>
           <Button
             type="button"
-            className="rounded-2xl bg-slate-950 px-4"
+            className={SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME}
             onClick={() => handleServiceSkillSelect(skill)}
           >
             {skill.actionLabel}
@@ -499,7 +502,7 @@ export function SkillsWorkspacePage({
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
-                    className="rounded-2xl bg-slate-950 px-4"
+                    className={SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME}
                     onClick={() => void handleRefreshAll()}
                     disabled={refreshing}
                   >

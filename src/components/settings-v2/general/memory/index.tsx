@@ -447,6 +447,12 @@ const INPUT_CLASS_NAME =
 const TEXTAREA_CLASS_NAME = `${INPUT_CLASS_NAME} min-h-24`;
 const TOGGLE_ROW_CLASS_NAME =
   "flex items-center justify-between rounded-[18px] border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-700";
+const ACTIVE_OPTION_BUTTON_CLASS =
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10";
+const PRIMARY_ACTION_BUTTON_CLASS =
+  "rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 disabled:opacity-60";
+const PRIMARY_INLINE_BUTTON_CLASS =
+  "rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-3 py-1.5 text-xs font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 disabled:opacity-60";
 
 function MemoryPanel({
   icon: Icon,
@@ -540,7 +546,7 @@ function MultiSelectSection({
               className={cn(
                 "rounded-full border px-3.5 py-2 text-sm transition shadow-sm",
                 selected
-                  ? "border-slate-900 bg-slate-900 text-white"
+                  ? ACTIVE_OPTION_BUTTON_CLASS
                   : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
               )}
             >
@@ -1114,7 +1120,7 @@ export function MemorySettings() {
                 type="button"
                 onClick={handleSave}
                 disabled={!dirty || saving}
-                className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+                className={PRIMARY_INLINE_BUTTON_CLASS}
               >
                 {saving ? "保存中..." : "保存"}
               </button>
@@ -1737,7 +1743,7 @@ export function MemorySettings() {
                           className={cn(
                             "rounded-full border px-3 py-1.5 text-xs font-medium transition",
                             active
-                              ? "border-slate-900 bg-slate-900 text-white"
+                              ? ACTIVE_OPTION_BUTTON_CLASS
                               : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
                           )}
                           title={option.description}
@@ -1797,7 +1803,7 @@ export function MemorySettings() {
                   type="button"
                   onClick={handleUpdateAutoNote}
                   disabled={savingAutoNote}
-                  className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+                  className={PRIMARY_ACTION_BUTTON_CLASS}
                 >
                   {savingAutoNote ? "写入中..." : "写入 memdir"}
                 </button>

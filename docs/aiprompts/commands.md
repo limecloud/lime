@@ -102,6 +102,7 @@
 - `sceneapp_list_catalog`
 - `sceneapp_get_descriptor`
 - `sceneapp_plan_launch`
+- `sceneapp_save_context_baseline`
 - `sceneapp_create_automation_job`
 - `sceneapp_list_runs`
 - `sceneapp_get_run_summary`
@@ -110,6 +111,8 @@
 固定约束：
 
 - `SceneApp` 命令当前属于目录查询、运行前规划与治理摘要主链，不应在页面组件里直接裸 `invoke`
+- `sceneapp_plan_launch` 只负责 preview 当前 planning，并读取已有项目级 Context Snapshot；不要再把它当成自动落盘命令
+- 显式把当前灵感对象、输入摘要与风格基线写回项目目录时，只能走 `sceneapp_save_context_baseline`
 - 新的 SceneApp UI 先消费 `SceneAppDescriptor / SceneAppPlanResult / SceneAppScorecard`，不要重新从 `serviceSkills.ts`、`skillCatalog.ts`、卡片配置和 selector 里各自拼语义
 - 真正的执行仍应通过 runtime adapter 继续挂回现有 `agent turn / browser_assist / automation_job / cloud_scene` 主链；`sceneapp_*` 不用于重新发明第二套 runtime taxonomy
 
@@ -530,7 +533,9 @@ npm run verify:local
 - **Team runtime 工具主链**：当前协作工具面继续收敛到 `Agent / TeamCreate / TeamDelete / SendMessage / ListPeers`；不要把已删除的 `SubAgentTask` compat 工具重新接回新的多代理主路径
 - **用户可见消息工具主链**：继续收敛到 `SendUserMessage`，用于把回复、进度同步、主动提醒和附件送到用户主可见消息面；不要再把这类能力拆到其它平行工具名或旁路协议里
 - **会话状态回写主链**：继续收敛到 `agent_runtime_update_session`，用于名称、执行策略、session provider/model、`recent_access_mode`、`recent_preferences` 以及 `recent_team_selection` 的轻量持久化回写
-- **会话权限主链**：`agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy` 是正式 turn context 权限协议；`getSession` 返回的 `execution_runtime.recent_access_mode` 负责承接会话最近一次 accessMode。当前端已命中同一 steady-state 权限时，不应继续依赖 `harness.access_mode` 作为唯一事实源
+- **会话权限主链**：`agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy` 是正式 turn context 权限协议；`getSession` 返回的 `execution_runtime.recent_access_mode` 负责承接会话最近一次 accessMode。当前端已命中同一 steady-state 权限时，不应继续依赖 `harness.access_mode` 作为唯一事实源；聊天发送主路径默认也不再主动发这个 compat 字段
+- **会话权限默认值**：当前默认 accessMode 固定收敛到 `full-access -> never + danger-full-access`；`current -> on-request + workspace-write` 与 `read-only -> on-request + read-only` 只允许来自用户显式切换、会话恢复或边界层迁移，不允许把 formal policy 留空后再让工具层自行猜默认；provider / thread-start 适配层也不得私自回退为 `workspace-write`
+- **自动化 `agent_turn` 权限主链**：自动化任务 payload 也应直接写 `approval_policy / sandbox_policy`；`request_metadata.harness.access_mode` 只允许作为 legacy / compat 输入兜底，不应继续由新的自动化编辑入口主动写回
 - **运行时 Provider 能力快照主链**：`agent_runtime_submit_turn.turn_config.provider_config` 允许携带 `model_capabilities / tool_call_strategy / toolshim_model` 这组三个运行时字段；后端会在真正发起 turn 前刷新它们，尤其是 `ollama` 会根据当前模型真实能力在原生 tools 与 `tool_shim` 之间做最终决策。前端不得把模型目录里的静态 tools 标记当作唯一真相
 - **运行时交接导出主链**：继续收敛到 `agent_runtime_export_handoff_bundle`；前端统一通过 `src/lib/api/agentRuntime.ts` 网关进入，当前 GUI 入口位于 `HarnessStatusPanel`
 - **运行时证据导出主链**：继续收敛到 `agent_runtime_export_evidence_pack`，用于把 runtime / timeline / artifacts 打包成最小问题证据

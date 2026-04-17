@@ -2,6 +2,7 @@ import type {
   SceneAppDeliveryArtifactRef,
   SceneAppBrowserRuntimeRef,
   SceneAppCloudSceneRuntimeRef,
+  SceneAppDeliveryContract,
   SceneAppDescriptor,
   SceneAppGovernanceArtifactKind,
   SceneAppGovernanceArtifactRef,
@@ -75,6 +76,19 @@ const SCORECARD_SIGNAL_LABELS: Record<string, string> = {
   dependency_failure: "外部依赖与会话稳定性",
   adoption_failure: "补参与人工中断",
   runtime_failure: "运行链稳定性",
+  artifact_validation_issue: "结果结构校验问题",
+  telemetry_missing: "请求遥测缺失",
+  runtime_evidence_gap: "会话证据缺口",
+  verification_failure: "结果校验失败",
+  publish_ready: "可继续发布",
+  review_decision_accepted: "人工接受",
+  review_decision_deferred: "人工延后",
+  review_decision_rejected: "人工否决",
+  review_decision_needs_more_evidence: "人工补证据",
+  review_decision_pending_review: "待人工审核",
+  review_risk_low: "人工低风险",
+  review_risk_medium: "人工中风险",
+  review_risk_high: "人工高风险",
 };
 
 const CONTEXT_LAYER_LABELS: Record<string, string> = {
@@ -83,6 +97,27 @@ const CONTEXT_LAYER_LABELS: Record<string, string> = {
   taste: "Taste",
   tool: "Tool",
   reference: "Reference",
+};
+
+const CONTEXT_SOURCE_KIND_LABELS: Record<string, string> = {
+  user_input: "用户输入",
+  slot: "启动参数",
+  project: "项目上下文",
+  workspace: "工作区上下文",
+  memory_profile: "记忆画像",
+  reference_library: "参考库",
+  tool_readiness: "工具就绪",
+};
+
+const CONTEXT_CONTENT_TYPE_LABELS: Record<string, string> = {
+  text: "文本",
+  url: "链接",
+  slot: "参数",
+  image: "图片",
+  video: "视频",
+  audio: "音频",
+  markdown: "Markdown",
+  json: "JSON",
 };
 
 const PROJECT_PACK_COMPLETION_LABELS: Record<string, string> = {
@@ -103,11 +138,18 @@ export interface SceneAppCatalogCardViewModel {
   title: string;
   businessLabel: string;
   typeLabel: string;
+  deliveryContractLabel: string;
   valueStatement: string;
   summary: string;
   outputHint: string;
   patternSummary: string;
   infraSummary: string;
+  status: SceneAppOperatingSummaryViewModel["status"];
+  statusLabel: string;
+  operatingSummary: string;
+  latestRunLabel?: string;
+  scorecardActionLabel?: string;
+  topFailureSignalLabel?: string;
   actionLabel: string;
 }
 
@@ -129,12 +171,35 @@ export interface SceneAppPlanningViewModel {
   unmetRequirements: string[];
 }
 
-export interface SceneAppContextPlanViewModel {
-  activeLayers: SceneAppDeliveryPartViewModel[];
+export interface SceneAppContextReferenceItemViewModel {
+  key: string;
+  label: string;
+  sourceLabel: string;
+  contentTypeLabel: string;
+  summary?: string;
+  uri?: string;
+  selected: boolean;
+  usageLabel?: string;
+  feedbackLabel?: string;
+}
+
+export interface SceneAppContextBaselineViewModel {
+  scopeLabel?: string;
   referenceCount: number;
+  referenceItems: SceneAppContextReferenceItemViewModel[];
+  tasteSummary?: string;
+  tasteKeywords: SceneAppDeliveryPartViewModel[];
+  avoidKeywords: SceneAppDeliveryPartViewModel[];
+  feedbackSummary?: string;
+  feedbackSignals: SceneAppDeliveryPartViewModel[];
+  feedbackUpdatedAtLabel?: string;
+}
+
+export interface SceneAppContextPlanViewModel extends SceneAppContextBaselineViewModel {
+  activeLayers: SceneAppDeliveryPartViewModel[];
+  skillRefs: SceneAppDeliveryPartViewModel[];
   memoryRefs: SceneAppDeliveryPartViewModel[];
   toolRefs: SceneAppDeliveryPartViewModel[];
-  tasteSummary?: string;
   notes: string[];
 }
 
@@ -145,6 +210,56 @@ export interface SceneAppProjectPackPlanViewModel {
   primaryPart?: string;
   requiredParts: SceneAppDeliveryPartViewModel[];
   notes: string[];
+}
+
+export interface SceneAppExecutionRuntimeBackflowViewModel {
+  runId: string;
+  statusLabel: string;
+  statusTone: "default" | "accent" | "success" | "watch" | "risk";
+  summary: string;
+  nextAction: string;
+  sourceLabel: string;
+  deliveryCompletionLabel: string;
+  evidenceSourceLabel: string;
+  startedAtLabel: string;
+  finishedAtLabel: string;
+  scorecardActionLabel?: string;
+  topFailureSignalLabel?: string;
+  deliveryCompletedParts: SceneAppDeliveryPartViewModel[];
+  deliveryMissingParts: SceneAppDeliveryPartViewModel[];
+  observedFailureSignals: SceneAppDeliveryPartViewModel[];
+  governanceArtifacts: SceneAppDeliveryPartViewModel[];
+}
+
+export interface SceneAppExecutionSummaryDescriptorSnapshot {
+  deliveryContract: SceneAppDeliveryContract;
+  deliveryProfile?: SceneAppDescriptor["deliveryProfile"];
+  linkedServiceSkillId?: string;
+  linkedSceneKey?: string;
+}
+
+export interface SceneAppExecutionSummaryViewModel {
+  sceneappId: string;
+  title: string;
+  summary: string;
+  businessLabel: string;
+  typeLabel: string;
+  executionChainLabel: string;
+  deliveryContractLabel: string;
+  planningStatusLabel: string;
+  planningSummary: string;
+  activeLayers: SceneAppDeliveryPartViewModel[];
+  referenceCount: number;
+  referenceItems: SceneAppContextReferenceItemViewModel[];
+  tasteSummary?: string;
+  feedbackSummary?: string;
+  projectPackPlan: SceneAppProjectPackPlanViewModel | null;
+  scorecardProfileRef?: string;
+  scorecardMetricKeys: SceneAppDeliveryPartViewModel[];
+  scorecardFailureSignals: SceneAppDeliveryPartViewModel[];
+  notes: string[];
+  descriptorSnapshot?: SceneAppExecutionSummaryDescriptorSnapshot;
+  runtimeBackflow?: SceneAppExecutionRuntimeBackflowViewModel | null;
 }
 
 export interface SceneAppDetailViewModel {
@@ -201,6 +316,7 @@ export interface SceneAppScorecardViewModel {
   completionStrategyLabel?: string;
   deliveryRequiredParts: SceneAppDeliveryPartViewModel[];
   packPlanNotes: string[];
+  contextBaseline: SceneAppContextBaselineViewModel | null;
   operatingNarrative: string;
   actionLabel?: string;
   summary: string;
@@ -290,6 +406,7 @@ export interface SceneAppRunDetailViewModel {
   packViewerLabel?: string;
   plannedDeliveryRequiredParts: SceneAppDeliveryPartViewModel[];
   packPlanNotes: string[];
+  contextBaseline: SceneAppContextBaselineViewModel | null;
   deliveryArtifactEntries: SceneAppRunDeliveryArtifactEntryViewModel[];
   governanceActionEntries: SceneAppRunGovernanceActionViewModel[];
   governanceArtifactEntries: SceneAppRunGovernanceArtifactEntryViewModel[];
@@ -346,6 +463,7 @@ export interface SceneAppGovernancePanelViewModel {
   latestRunLabel: string;
   scorecardActionLabel?: string;
   topFailureSignalLabel?: string;
+  contextBaseline: SceneAppContextBaselineViewModel | null;
   destinations: SceneAppGovernancePanelDestinationViewModel[];
   statusItems: SceneAppGovernancePanelStatusItemViewModel[];
   governanceActionEntries: SceneAppRunGovernanceActionViewModel[];
@@ -425,10 +543,262 @@ function buildContextRefItems(
     });
 }
 
+function buildPlainLabelItems(
+  values: string[] | undefined,
+): SceneAppDeliveryPartViewModel[] {
+  return Array.from(new Set(values ?? []))
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => ({
+      key: value,
+      label: value,
+    }));
+}
+
+function buildContextScopeLabel(
+  snapshot?:
+    | NonNullable<SceneAppPlanResult["contextOverlay"]>["snapshot"]
+    | null,
+): string | undefined {
+  if (!snapshot) {
+    return undefined;
+  }
+
+  const parts: string[] = [];
+  const projectId = snapshot.projectId?.trim();
+  const workspaceId = snapshot.workspaceId?.trim();
+
+  if (projectId) {
+    parts.push(`项目 ${projectId}`);
+  }
+  if (workspaceId && workspaceId !== projectId) {
+    parts.push(`工作区 ${workspaceId}`);
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
+function getContextSourceKindLabel(value: string): string {
+  return CONTEXT_SOURCE_KIND_LABELS[value] ?? humanizeTokenLabel(value);
+}
+
+function getContextContentTypeLabel(value: string): string {
+  return CONTEXT_CONTENT_TYPE_LABELS[value] ?? humanizeTokenLabel(value);
+}
+
+function getRuntimeFeedbackSignalLabel(signal: string): string {
+  return SCORECARD_SIGNAL_LABELS[signal] ?? humanizeTokenLabel(signal);
+}
+
+function buildRuntimeReferenceFeedbackLabel(
+  run?: SceneAppRunSummary | null,
+  scorecard?: SceneAppScorecard | null,
+): string | undefined {
+  const signal = run?.failureSignal ?? scorecard?.topFailureSignal;
+  if (signal) {
+    return getFailureSignalLabel(signal);
+  }
+
+  switch (scorecard?.recommendedAction) {
+    case "launch":
+      return "继续补样本";
+    case "keep":
+      return "继续保留";
+    case "optimize":
+      return "优先优化";
+    case "retire":
+      return "考虑收口";
+    default:
+      break;
+  }
+
+  switch (run?.status) {
+    case "success":
+      return "可继续复用";
+    case "canceled":
+      return "人工中断";
+    case "timeout":
+      return "运行超时";
+    case "error":
+      return "运行受阻";
+    default:
+      return undefined;
+  }
+}
+
+function buildRuntimeFeedbackSignals(
+  run?: SceneAppRunSummary | null,
+  scorecard?: SceneAppScorecard | null,
+): string[] {
+  const signals = new Set<string>();
+  if (run?.failureSignal) {
+    signals.add(run.failureSignal);
+  }
+  if (scorecard?.topFailureSignal) {
+    signals.add(scorecard.topFailureSignal);
+  }
+  for (const signal of scorecard?.observedFailureSignals ?? []) {
+    signals.add(signal);
+  }
+  if ((run?.artifactValidatorIssueCount ?? 0) > 0) {
+    signals.add("artifact_validation_issue");
+  }
+  if (run?.requestTelemetryAvailable === false) {
+    signals.add("telemetry_missing");
+  }
+  if ((run?.evidenceKnownGaps?.length ?? 0) > 0) {
+    signals.add("runtime_evidence_gap");
+  }
+  if ((run?.verificationFailureOutcomes?.length ?? 0) > 0) {
+    signals.add("verification_failure");
+  }
+  if (!run?.failureSignal && (run?.deliveryMissingParts?.length ?? 0) > 0) {
+    signals.add("pack_incomplete");
+  }
+  return Array.from(signals);
+}
+
+function buildRuntimeFeedbackSummary(
+  run?: SceneAppRunSummary | null,
+  scorecard?: SceneAppScorecard | null,
+): string | undefined {
+  if (!run && !scorecard) {
+    return undefined;
+  }
+
+  const deliveryRequiredParts = run?.deliveryRequiredParts ?? [];
+  const deliveryCompletedParts = run?.deliveryCompletedParts ?? [];
+  const deliveryMissingParts = run?.deliveryMissingParts ?? [];
+
+  const deliverySentence = run
+    ? run.deliveryPartCoverageKnown && deliveryRequiredParts.length > 0
+      ? deliveryMissingParts.length === 0
+        ? `最近一次运行已交齐 ${deliveryCompletedParts.length}/${deliveryRequiredParts.length} 个必含部件。`
+        : `最近一次运行已交付 ${deliveryCompletedParts.length}/${deliveryRequiredParts.length} 个必含部件。`
+      : run.artifactCount > 0
+        ? `最近一次运行已回流 ${run.artifactCount} 份结果。`
+        : "最近一次运行还没有回流可复盘结果。"
+    : undefined;
+
+  const blockerSentence =
+    run?.failureSignal || scorecard?.topFailureSignal
+      ? `当前主要卡点是${getRuntimeFeedbackSignalLabel(run?.failureSignal ?? scorecard?.topFailureSignal ?? "")}。`
+      : (run?.evidenceKnownGaps?.length ?? 0) > 0
+        ? "当前仍有会话证据缺口需要补齐。"
+        : (run?.verificationFailureOutcomes?.length ?? 0) > 0
+          ? "当前仍有结果校验问题需要回头处理。"
+          : "当前还没有出现明显阻塞。";
+
+  const actionSentence = scorecard
+    ? `经营上建议${
+        scorecard.recommendedAction === "launch"
+          ? "继续补样本"
+          : scorecard.recommendedAction === "keep"
+            ? "继续保留"
+            : scorecard.recommendedAction === "optimize"
+              ? "优先优化"
+              : "考虑收口"
+      }。`
+    : run?.status === "success"
+      ? "经营上可以继续复用这轮结果。"
+      : run?.status === "canceled"
+        ? "经营上更适合先确认人工中断原因。"
+        : run?.status === "timeout" || run?.status === "error"
+          ? "经营上更适合先修运行链再继续放大。"
+          : "经营上先等待这轮运行稳定收口。";
+
+  return [deliverySentence, blockerSentence, actionSentence]
+    .filter(Boolean)
+    .join("");
+}
+
+function buildContextReferenceItems(
+  values:
+    | NonNullable<
+        SceneAppPlanResult["contextOverlay"]
+      >["snapshot"]["referenceItems"]
+    | undefined,
+  feedback?: {
+    run?: SceneAppRunSummary | null;
+    scorecard?: SceneAppScorecard | null;
+  },
+): SceneAppContextReferenceItemViewModel[] {
+  const runtimeFeedbackLabel = buildRuntimeReferenceFeedbackLabel(
+    feedback?.run,
+    feedback?.scorecard,
+  );
+  return (values ?? [])
+    .filter((item) => item.id.trim() && item.label.trim())
+    .map((item) => ({
+      key: item.id,
+      label: item.label.trim(),
+      sourceLabel: getContextSourceKindLabel(item.sourceKind),
+      contentTypeLabel: getContextContentTypeLabel(item.contentType),
+      summary: item.summary?.trim() || undefined,
+      uri: item.uri?.trim() || undefined,
+      selected: item.selected,
+      usageLabel:
+        typeof item.usageCount === "number" && item.usageCount > 0
+          ? `已用 ${item.usageCount} 次`
+          : undefined,
+      feedbackLabel:
+        item.lastFeedbackLabel?.trim() ||
+        (item.selected ? runtimeFeedbackLabel : undefined),
+    }));
+}
+
+function buildContextBaselinePresentation(
+  contextOverlay?: SceneAppPlanResult["contextOverlay"] | null,
+  feedback?: {
+    run?: SceneAppRunSummary | null;
+    scorecard?: SceneAppScorecard | null;
+  },
+): SceneAppContextBaselineViewModel | null {
+  if (!contextOverlay) {
+    return null;
+  }
+
+  const tasteProfile = contextOverlay.snapshot.tasteProfile;
+  const runtimeFeedbackSignals = buildRuntimeFeedbackSignals(
+    feedback?.run,
+    feedback?.scorecard,
+  );
+  const feedbackTimestamp =
+    tasteProfile?.lastFeedbackAt ??
+    feedback?.run?.finishedAt ??
+    feedback?.run?.startedAt ??
+    undefined;
+
+  return {
+    scopeLabel: buildContextScopeLabel(contextOverlay.snapshot),
+    referenceCount: contextOverlay.compilerPlan.referenceCount,
+    referenceItems: buildContextReferenceItems(
+      contextOverlay.snapshot.referenceItems,
+      feedback,
+    ),
+    tasteSummary: tasteProfile?.summary?.trim() || undefined,
+    tasteKeywords: buildPlainLabelItems(tasteProfile?.keywords),
+    avoidKeywords: buildPlainLabelItems(tasteProfile?.avoidKeywords),
+    feedbackSummary:
+      tasteProfile?.feedbackSummary?.trim() ||
+      buildRuntimeFeedbackSummary(feedback?.run, feedback?.scorecard),
+    feedbackSignals: buildLabeledItems(
+      tasteProfile?.feedbackSignals?.length
+        ? tasteProfile.feedbackSignals
+        : runtimeFeedbackSignals,
+      SCORECARD_SIGNAL_LABELS,
+    ),
+    feedbackUpdatedAtLabel: feedbackTimestamp
+      ? formatSceneAppDateTime(feedbackTimestamp)
+      : undefined,
+  };
+}
+
 function buildProjectPackPlanPresentation(params: {
-  descriptor?:
-    | Pick<SceneAppDescriptor, "deliveryContract" | "deliveryProfile">
-    | null;
+  descriptor?: Pick<
+    SceneAppDescriptor,
+    "deliveryContract" | "deliveryProfile"
+  > | null;
   projectPackPlan?: SceneAppPlanResult["projectPackPlan"] | null;
 }): {
   packKindLabel?: string;
@@ -449,8 +819,8 @@ function buildProjectPackPlanPresentation(params: {
       ? getSceneAppDeliveryContractLabel(resolvedContract)
       : undefined,
     completionStrategyLabel: projectPackPlan?.completionStrategy
-      ? PROJECT_PACK_COMPLETION_LABELS[projectPackPlan.completionStrategy] ??
-        humanizeTokenLabel(projectPackPlan.completionStrategy)
+      ? (PROJECT_PACK_COMPLETION_LABELS[projectPackPlan.completionStrategy] ??
+        humanizeTokenLabel(projectPackPlan.completionStrategy))
       : undefined,
     viewerLabel: getSceneAppViewerKindLabel(
       projectPackPlan?.viewerKind ?? descriptor?.deliveryProfile?.viewerKind,
@@ -511,7 +881,9 @@ function buildRunDeliveryPresentation(run: SceneAppRunSummary): {
 
     return {
       deliveryLabel:
-        missingParts.length === 0 ? `整包 ${delivered}/${total}` : `交付 ${delivered}/${total}`,
+        missingParts.length === 0
+          ? `整包 ${delivered}/${total}`
+          : `交付 ${delivered}/${total}`,
       completionLabel:
         missingParts.length === 0
           ? `整包已交齐 ${delivered}/${total} 个部件`
@@ -611,11 +983,7 @@ function buildRunNextAction(
 
 function dedupeNonEmptyLines(values: string[] | undefined): string[] {
   return Array.from(
-    new Set(
-      (values ?? [])
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ),
+    new Set((values ?? []).map((value) => value.trim()).filter(Boolean)),
   );
 }
 
@@ -655,7 +1023,9 @@ function getSceneAppGovernanceArtifactLabel(
 
   return (
     getSceneAppGovernanceArtifactKindLabel(artifact.kind) ??
-    extractFileNameFromPath(artifact.relativePath || artifact.absolutePath || "")
+    extractFileNameFromPath(
+      artifact.relativePath || artifact.absolutePath || "",
+    )
   );
 }
 
@@ -677,12 +1047,12 @@ function canOpenSceneAppFileRef(
 
   return Boolean(
     (relativePath && projectId) ||
-      absolutePath ||
-      (relativePath &&
-        (relativePath.startsWith("/") ||
-          relativePath.startsWith("~/") ||
-          /^[A-Za-z]:[\\/]/.test(relativePath) ||
-          relativePath.startsWith("\\\\"))),
+    absolutePath ||
+    (relativePath &&
+      (relativePath.startsWith("/") ||
+        relativePath.startsWith("~/") ||
+        /^[A-Za-z]:[\\/]/.test(relativePath) ||
+        relativePath.startsWith("\\\\"))),
   );
 }
 
@@ -700,7 +1070,9 @@ function buildRunDeliveryArtifactEntries(params: {
     .filter((artifact) => {
       const partKey = artifact.partKey?.trim();
       const dedupeKey =
-        partKey || artifact.relativePath?.trim() || artifact.absolutePath?.trim();
+        partKey ||
+        artifact.relativePath?.trim() ||
+        artifact.absolutePath?.trim();
       if (!dedupeKey || seenKeys.has(dedupeKey)) {
         return false;
       }
@@ -736,7 +1108,9 @@ function buildRunDeliveryArtifactEntries(params: {
       const leftPartKey = left.artifactRef.partKey?.trim() || "";
       const rightPartKey = right.artifactRef.partKey?.trim() || "";
       const leftIndex = leftPartKey ? requiredParts.indexOf(leftPartKey) : -1;
-      const rightIndex = rightPartKey ? requiredParts.indexOf(rightPartKey) : -1;
+      const rightIndex = rightPartKey
+        ? requiredParts.indexOf(rightPartKey)
+        : -1;
       if (leftIndex !== rightIndex) {
         if (leftIndex < 0) {
           return 1;
@@ -788,7 +1162,8 @@ function buildRunGovernanceArtifactEntries(
       artifactRef: artifact,
     }))
     .sort((left, right) => {
-      const leftOrder = kindOrder[left.artifactRef.kind] ?? Number.MAX_SAFE_INTEGER;
+      const leftOrder =
+        kindOrder[left.artifactRef.kind] ?? Number.MAX_SAFE_INTEGER;
       const rightOrder =
         kindOrder[right.artifactRef.kind] ?? Number.MAX_SAFE_INTEGER;
       if (leftOrder !== rightOrder) {
@@ -845,7 +1220,7 @@ function buildRunGovernanceActionEntries(
         validatorIssueCount > 0 ||
         verificationFailureCount > 0 ||
         run.requestTelemetryAvailable === false
-          ? "一次补齐证据、复核记录和结构化 JSON，方便任务中心、周报或后续治理继续消费。"
+          ? "一次补齐证据、复核记录和结构化 JSON，方便生成页、周报或后续治理继续消费。"
           : "一次补齐证据、复核记录和结构化 JSON，方便批量治理、看板统计和后续自动化消费。",
       primaryArtifactKind: "review_decision_json",
       primaryArtifactLabel: getSceneAppGovernanceArtifactKindLabel(
@@ -897,9 +1272,11 @@ function buildRunEvidencePresentation(params: {
 
   let artifactValidatorLabel: string;
   if (!runtimeEvidenceUsed) {
-    artifactValidatorLabel = "当前仍按运行摘要回退，尚未接入 Artifact 校验事实。";
+    artifactValidatorLabel =
+      "当前仍按运行摘要回退，尚未接入 Artifact 校验事实。";
   } else if (run.artifactValidatorApplicable === false) {
-    artifactValidatorLabel = "这次结果没有命中 Artifact 校验文档，当前不需要额外结构校验。";
+    artifactValidatorLabel =
+      "这次结果没有命中 Artifact 校验文档，当前不需要额外结构校验。";
   } else {
     const issueCount = run.artifactValidatorIssueCount ?? 0;
     const recoveredCount = run.artifactValidatorRecoveredCount ?? 0;
@@ -934,12 +1311,14 @@ function buildCompositionStepViewModels(
     id: step.id,
     title: `第 ${step.order} 步 · ${DELIVERY_PART_LABELS[step.id] ?? humanizeTokenLabel(step.id)}`,
     bindingLabel: step.bindingFamily
-      ? BINDING_FAMILY_LABELS[step.bindingFamily] ?? step.bindingFamily
+      ? (BINDING_FAMILY_LABELS[step.bindingFamily] ?? step.bindingFamily)
       : undefined,
   }));
 }
 
-function buildSceneAppDeliveryNarrative(descriptor: SceneAppDescriptor): string {
+function buildSceneAppDeliveryNarrative(
+  descriptor: SceneAppDescriptor,
+): string {
   const parts = buildLabeledItems(
     descriptor.deliveryProfile?.requiredParts,
     DELIVERY_PART_LABELS,
@@ -960,7 +1339,9 @@ function buildSceneAppDeliveryNarrative(descriptor: SceneAppDescriptor): string 
   }
 }
 
-function buildSceneAppScorecardNarrative(descriptor: SceneAppDescriptor): string {
+function buildSceneAppScorecardNarrative(
+  descriptor: SceneAppDescriptor,
+): string {
   switch (descriptor.deliveryContract) {
     case "project_pack":
       return "经营上优先看整包是否交齐、是否通过复核，以及结果是否继续被打开编辑或发布。";
@@ -1229,21 +1610,43 @@ export function buildSceneAppWorkbenchStatItems(
   ];
 }
 
-export function buildSceneAppCatalogCardViewModel(
-  descriptor: SceneAppDescriptor,
-): SceneAppCatalogCardViewModel {
+export function buildSceneAppCatalogCardViewModel(params: {
+  descriptor: SceneAppDescriptor;
+  scorecard?: SceneAppScorecard | null;
+  run?: SceneAppRunSummary | null;
+}): SceneAppCatalogCardViewModel {
+  const { descriptor, scorecard, run } = params;
   const copy = getSceneAppPresentationCopy(descriptor);
+  const operatingSummary = buildSceneAppOperatingSummaryViewModel({
+    descriptor,
+    scorecard: scorecard ?? null,
+    run: run ?? null,
+  });
+  const latestRunLabel = run
+    ? `最近运行：${getSceneAppRunSourceLabel(run.source)} · ${formatSceneAppDateTime(
+        run.finishedAt ?? run.startedAt,
+      )}`
+    : undefined;
 
   return {
     id: descriptor.id,
     title: descriptor.title,
     businessLabel: copy.businessLabel,
     typeLabel: getSceneAppTypeLabel(descriptor.sceneappType),
+    deliveryContractLabel: getSceneAppDeliveryContractLabel(
+      descriptor.deliveryContract,
+    ),
     valueStatement: copy.valueStatement,
     summary: descriptor.summary,
     outputHint: descriptor.outputHint,
     patternSummary: getSceneAppPatternSummary(descriptor),
     infraSummary: getSceneAppInfraSummary(descriptor),
+    status: operatingSummary.status,
+    statusLabel: operatingSummary.statusLabel,
+    operatingSummary: operatingSummary.summary,
+    latestRunLabel,
+    scorecardActionLabel: operatingSummary.scorecardActionLabel,
+    topFailureSignalLabel: operatingSummary.topFailureSignalLabel,
     actionLabel: copy.actionLabel,
   };
 }
@@ -1281,6 +1684,9 @@ export function buildSceneAppDetailViewModel(params: {
     descriptor,
     projectPackPlan: planResult?.projectPackPlan,
   });
+  const contextBaseline = buildContextBaselinePresentation(
+    planResult?.contextOverlay,
+  );
   const planning: SceneAppPlanningViewModel = planResult
     ? {
         statusLabel: planResult.readiness.ready
@@ -1309,31 +1715,33 @@ export function buildSceneAppDetailViewModel(params: {
         warnings: [],
         unmetRequirements: [],
       };
-  const contextPlan = planResult?.contextOverlay
-    ? {
-        activeLayers: buildLabeledItems(
-          planResult.contextOverlay.compilerPlan.activeLayers,
-          CONTEXT_LAYER_LABELS,
-        ),
-        referenceCount: planResult.contextOverlay.compilerPlan.referenceCount,
-        memoryRefs: buildContextRefItems(
-          planResult.contextOverlay.snapshot.memoryRefs.length > 0
-            ? planResult.contextOverlay.snapshot.memoryRefs
-            : planResult.contextOverlay.compilerPlan.memoryRefs,
-        ),
-        toolRefs: buildContextRefItems(
-          planResult.contextOverlay.snapshot.toolRefs.length > 0
-            ? planResult.contextOverlay.snapshot.toolRefs
-            : planResult.contextOverlay.compilerPlan.toolRefs,
-        ),
-        tasteSummary:
-          planResult.contextOverlay.snapshot.tasteProfile?.summary?.trim() ||
-          undefined,
-        notes: dedupeNonEmptyLines(
-          planResult.contextOverlay.compilerPlan.notes,
-        ),
-      }
-    : null;
+  const contextPlan =
+    planResult?.contextOverlay && contextBaseline
+      ? {
+          ...contextBaseline,
+          activeLayers: buildLabeledItems(
+            planResult.contextOverlay.compilerPlan.activeLayers,
+            CONTEXT_LAYER_LABELS,
+          ),
+          skillRefs: buildContextRefItems(
+            planResult.contextOverlay.snapshot.skillRefs,
+          ),
+          referenceCount: planResult.contextOverlay.compilerPlan.referenceCount,
+          memoryRefs: buildContextRefItems(
+            planResult.contextOverlay.snapshot.memoryRefs.length > 0
+              ? planResult.contextOverlay.snapshot.memoryRefs
+              : planResult.contextOverlay.compilerPlan.memoryRefs,
+          ),
+          toolRefs: buildContextRefItems(
+            planResult.contextOverlay.snapshot.toolRefs.length > 0
+              ? planResult.contextOverlay.snapshot.toolRefs
+              : planResult.contextOverlay.compilerPlan.toolRefs,
+          ),
+          notes: dedupeNonEmptyLines(
+            planResult.contextOverlay.compilerPlan.notes,
+          ),
+        }
+      : null;
   const projectPackPlan = planResult?.projectPackPlan
     ? {
         ...projectPackPlanPresentation,
@@ -1342,10 +1750,10 @@ export function buildSceneAppDetailViewModel(params: {
           getSceneAppDeliveryContractLabel(planResult.projectPackPlan.packKind),
         completionStrategyLabel:
           projectPackPlanPresentation.completionStrategyLabel ??
-          (PROJECT_PACK_COMPLETION_LABELS[
+          PROJECT_PACK_COMPLETION_LABELS[
             planResult.projectPackPlan.completionStrategy
           ] ??
-            humanizeTokenLabel(planResult.projectPackPlan.completionStrategy)),
+          humanizeTokenLabel(planResult.projectPackPlan.completionStrategy),
       }
     : null;
 
@@ -1397,13 +1805,228 @@ export function buildSceneAppDetailViewModel(params: {
   };
 }
 
-export function buildSceneAppScorecardViewModel(
-  params: {
-    descriptor: SceneAppDescriptor | null;
-    scorecard: SceneAppScorecard | null;
-    planResult?: Pick<SceneAppPlanResult, "projectPackPlan"> | null;
-  },
-): SceneAppScorecardViewModel | null {
+export function buildSceneAppExecutionSummaryViewModel(params: {
+  descriptor: SceneAppDescriptor;
+  planResult: SceneAppPlanResult;
+}): SceneAppExecutionSummaryViewModel {
+  const detailView = buildSceneAppDetailViewModel({
+    descriptor: params.descriptor,
+    entryCard: null,
+    launchSeed: null,
+    planResult: params.planResult,
+  });
+
+  return {
+    sceneappId: detailView.id,
+    title: detailView.title,
+    summary: detailView.summary,
+    businessLabel: detailView.businessLabel,
+    typeLabel: detailView.typeLabel,
+    executionChainLabel: detailView.executionChainLabel,
+    deliveryContractLabel: detailView.deliveryContractLabel,
+    planningStatusLabel: detailView.planning.statusLabel,
+    planningSummary: detailView.planning.summary,
+    activeLayers: detailView.contextPlan?.activeLayers ?? [],
+    referenceCount: detailView.contextPlan?.referenceCount ?? 0,
+    referenceItems: detailView.contextPlan?.referenceItems ?? [],
+    tasteSummary: detailView.contextPlan?.tasteSummary,
+    feedbackSummary: detailView.contextPlan?.feedbackSummary,
+    projectPackPlan: detailView.projectPackPlan,
+    scorecardProfileRef: detailView.scorecardProfileRef,
+    scorecardMetricKeys: detailView.scorecardMetricKeys,
+    scorecardFailureSignals: detailView.scorecardFailureSignals,
+    notes: dedupeNonEmptyLines([
+      ...detailView.planning.warnings,
+      ...(detailView.contextPlan?.notes ?? []),
+      ...(detailView.projectPackPlan?.notes ?? []),
+    ]),
+    descriptorSnapshot: {
+      deliveryContract: params.descriptor.deliveryContract,
+      deliveryProfile: params.descriptor.deliveryProfile,
+      linkedServiceSkillId: params.descriptor.linkedServiceSkillId,
+      linkedSceneKey: params.descriptor.linkedSceneKey,
+    },
+    runtimeBackflow: null,
+  };
+}
+
+function resolveSceneAppExecutionSummaryDeliveryContract(
+  summary: SceneAppExecutionSummaryViewModel,
+): SceneAppDeliveryContract {
+  if (summary.descriptorSnapshot?.deliveryContract) {
+    return summary.descriptorSnapshot.deliveryContract;
+  }
+
+  switch (summary.deliveryContractLabel) {
+    case "结果包":
+      return "artifact_bundle";
+    case "表格报告":
+      return "table_report";
+    case "项目资料包":
+    default:
+      return "project_pack";
+  }
+}
+
+export function buildSceneAppExecutionSummaryRunDetailViewModel(params: {
+  summary: SceneAppExecutionSummaryViewModel;
+  run: SceneAppRunSummary;
+}): SceneAppRunDetailViewModel {
+  const requiredParts = dedupeNonEmptyLines([
+    ...(params.summary.descriptorSnapshot?.deliveryProfile?.requiredParts ?? []),
+    ...(params.run.deliveryRequiredParts ?? []),
+  ]);
+  const detailView = buildSceneAppRunDetailViewModel({
+    descriptor: {
+      title: params.summary.title,
+      deliveryContract:
+        resolveSceneAppExecutionSummaryDeliveryContract(params.summary),
+      deliveryProfile: {
+        ...params.summary.descriptorSnapshot?.deliveryProfile,
+        requiredParts,
+      },
+    },
+    run: params.run,
+  });
+
+  return {
+    ...detailView,
+    packCompletionStrategyLabel:
+      detailView.packCompletionStrategyLabel ??
+      params.summary.projectPackPlan?.completionStrategyLabel,
+    packViewerLabel:
+      detailView.packViewerLabel ?? params.summary.projectPackPlan?.viewerLabel,
+    plannedDeliveryRequiredParts:
+      detailView.plannedDeliveryRequiredParts.length > 0
+        ? detailView.plannedDeliveryRequiredParts
+        : (params.summary.projectPackPlan?.requiredParts ?? []),
+    packPlanNotes:
+      detailView.packPlanNotes.length > 0
+        ? detailView.packPlanNotes
+        : (params.summary.projectPackPlan?.notes ?? []),
+  };
+}
+
+function resolveSceneAppExecutionRuntimeTone(params: {
+  run: SceneAppRunSummary;
+  scorecard?: SceneAppScorecard | null;
+}): SceneAppExecutionRuntimeBackflowViewModel["statusTone"] {
+  const { run, scorecard } = params;
+  const hasRisk =
+    run.status === "error" ||
+    run.status === "timeout" ||
+    run.failureSignal === "review_blocked" ||
+    run.failureSignal === "publish_stalled" ||
+    (run.artifactValidatorIssueCount ?? 0) > 0 ||
+    (run.verificationFailureOutcomes?.length ?? 0) > 0 ||
+    scorecard?.recommendedAction === "retire";
+  if (hasRisk) {
+    return "risk";
+  }
+
+  const hasWatchSignal =
+    run.status === "queued" ||
+    run.status === "running" ||
+    run.status === "canceled" ||
+    run.requestTelemetryAvailable === false ||
+    (run.evidenceKnownGaps?.length ?? 0) > 0 ||
+    (run.deliveryMissingParts?.length ?? 0) > 0 ||
+    scorecard?.recommendedAction === "optimize";
+  if (hasWatchSignal) {
+    return run.status === "queued" || run.status === "running"
+      ? "accent"
+      : "watch";
+  }
+
+  if (run.status === "success") {
+    return "success";
+  }
+
+  return "default";
+}
+
+function buildSceneAppExecutionRuntimeBackflowViewModel(params: {
+  title: string;
+  run: SceneAppRunSummary;
+  scorecard?: SceneAppScorecard | null;
+}): SceneAppExecutionRuntimeBackflowViewModel {
+  const { title, run, scorecard } = params;
+  const delivery = buildRunDeliveryPresentation(run);
+  const scorecardActionLabel = scorecard
+    ? getSceneAppScorecardActionLabel(scorecard.recommendedAction)
+    : undefined;
+  const fallbackNextAction = scorecardActionLabel
+    ? `${scorecardActionLabel}，并继续把这轮运行沉淀到复盘与选品基线。`
+    : "继续把这轮运行沉淀到复盘与选品基线。";
+  const evidenceSourceLabel = !run.runtimeEvidenceUsed
+    ? "当前仍使用运行摘要回退"
+    : run.requestTelemetryAvailable === false
+      ? "已接通会话证据，遥测仍待补齐"
+      : "当前已接入会话证据";
+
+  return {
+    runId: run.runId,
+    statusLabel: getSceneAppRunStatusLabel(run.status),
+    statusTone: resolveSceneAppExecutionRuntimeTone({
+      run,
+      scorecard,
+    }),
+    summary: buildRunSummaryText({
+      descriptorTitle: title,
+      run,
+      delivery,
+    }),
+    nextAction: buildRunNextAction(run, fallbackNextAction, delivery),
+    sourceLabel: getSceneAppRunSourceLabel(run.source),
+    deliveryCompletionLabel: delivery.completionLabel,
+    evidenceSourceLabel,
+    startedAtLabel: formatSceneAppDateTime(run.startedAt),
+    finishedAtLabel: formatSceneAppDateTime(run.finishedAt),
+    scorecardActionLabel,
+    topFailureSignalLabel: getFailureSignalLabel(
+      scorecard?.topFailureSignal ?? run.failureSignal,
+    ),
+    deliveryCompletedParts: delivery.completedParts,
+    deliveryMissingParts: delivery.missingParts,
+    observedFailureSignals: buildLabeledItems(
+      buildRuntimeFeedbackSignals(run, scorecard),
+      SCORECARD_SIGNAL_LABELS,
+    ),
+    governanceArtifacts: buildPlainLabelItems(
+      (run.governanceArtifactRefs ?? []).map((artifact) =>
+        getSceneAppGovernanceArtifactKindLabel(artifact.kind),
+      ),
+    ),
+  };
+}
+
+export function backfillSceneAppExecutionSummaryViewModel(params: {
+  summary: SceneAppExecutionSummaryViewModel;
+  run?: SceneAppRunSummary | null;
+  scorecard?: SceneAppScorecard | null;
+}): SceneAppExecutionSummaryViewModel {
+  const runtimeBackflow = params.run
+    ? buildSceneAppExecutionRuntimeBackflowViewModel({
+        title: params.summary.title,
+        run: params.run,
+        scorecard: params.scorecard,
+      })
+    : null;
+
+  return {
+    ...params.summary,
+    runtimeBackflow,
+  };
+}
+
+export function buildSceneAppScorecardViewModel(params: {
+  descriptor: SceneAppDescriptor | null;
+  scorecard: SceneAppScorecard | null;
+  planResult?: Pick<
+    SceneAppPlanResult,
+    "projectPackPlan" | "contextOverlay"
+  > | null;
+}): SceneAppScorecardViewModel | null {
   const { descriptor, scorecard } = params;
   if (!descriptor && !scorecard) {
     return null;
@@ -1413,6 +2036,12 @@ export function buildSceneAppScorecardViewModel(
     descriptor,
     projectPackPlan: params.planResult?.projectPackPlan,
   });
+  const contextBaseline = buildContextBaselinePresentation(
+    params.planResult?.contextOverlay,
+    {
+      scorecard,
+    },
+  );
 
   if (!scorecard) {
     return {
@@ -1435,6 +2064,7 @@ export function buildSceneAppScorecardViewModel(
       completionStrategyLabel: projectPackPlan.completionStrategyLabel,
       deliveryRequiredParts: projectPackPlan.requiredParts,
       packPlanNotes: projectPackPlan.notes,
+      contextBaseline,
       operatingNarrative: descriptor
         ? buildSceneAppScorecardNarrative(descriptor)
         : "当前还没有明确的经营口径。",
@@ -1468,6 +2098,7 @@ export function buildSceneAppScorecardViewModel(
     completionStrategyLabel: projectPackPlan.completionStrategyLabel,
     deliveryRequiredParts: projectPackPlan.requiredParts,
     packPlanNotes: projectPackPlan.notes,
+    contextBaseline,
     operatingNarrative: descriptor
       ? buildSceneAppScorecardNarrative(descriptor)
       : "当前先按真实运行数据判断这个场景是否值得继续投入。",
@@ -1510,13 +2141,22 @@ export function buildSceneAppRunDetailViewModel(params: {
     "title" | "deliveryContract" | "deliveryProfile"
   >;
   run: SceneAppRunSummary;
-  projectPackPlan?: SceneAppPlanResult["projectPackPlan"] | null;
+  planResult?: Pick<
+    SceneAppPlanResult,
+    "projectPackPlan" | "contextOverlay"
+  > | null;
 }): SceneAppRunDetailViewModel {
   const delivery = buildRunDeliveryPresentation(params.run);
   const projectPackPlan = buildProjectPackPlanPresentation({
     descriptor: params.descriptor,
-    projectPackPlan: params.projectPackPlan,
+    projectPackPlan: params.planResult?.projectPackPlan,
   });
+  const contextBaseline = buildContextBaselinePresentation(
+    params.planResult?.contextOverlay,
+    {
+      run: params.run,
+    },
+  );
   const deliveryArtifactEntries = buildRunDeliveryArtifactEntries(params);
   const governanceActionEntries = buildRunGovernanceActionEntries(params.run);
   const governanceArtifactEntries = buildRunGovernanceArtifactEntries(
@@ -1552,6 +2192,7 @@ export function buildSceneAppRunDetailViewModel(params: {
     packViewerLabel: projectPackPlan.viewerLabel,
     plannedDeliveryRequiredParts: projectPackPlan.requiredParts,
     packPlanNotes: projectPackPlan.notes,
+    contextBaseline,
     deliveryArtifactEntries,
     governanceActionEntries,
     governanceArtifactEntries,
@@ -1578,7 +2219,8 @@ function buildSceneAppGovernanceDestinations(params: {
       {
         key: "first-run",
         label: "首轮试跑",
-        description: "先跑出一轮结果包、证据摘要和复核结论，再决定是否进入治理闭环。",
+        description:
+          "先跑出一轮结果包、证据摘要和复核结论，再决定是否进入治理闭环。",
       },
     ];
   }
@@ -1599,7 +2241,8 @@ function buildSceneAppGovernanceDestinations(params: {
     destinations.push({
       key: "weekly-review",
       label: "周会复盘",
-      description: "把证据摘要和人工复核记录一起带去业务复盘，方便对齐卡点、结论和下一步。",
+      description:
+        "把证据摘要和人工复核记录一起带去业务复盘，方便对齐卡点、结论和下一步。",
     });
   }
 
@@ -1609,16 +2252,18 @@ function buildSceneAppGovernanceDestinations(params: {
   ) {
     destinations.push({
       key: "task-center",
-      label: "任务中心 / 看板",
-      description: "结构化治理材料已经适合继续被任务中心、看板统计或后续自动治理消费。",
+      label: "生成 / 看板",
+      description:
+        "结构化治理材料已经适合继续被生成页、看板统计或后续自动治理消费。",
     });
   }
 
   if (detailView.entryAction?.kind === "open_automation_job") {
     destinations.push({
       key: "automation-job",
-      label: "自动化任务中心",
-      description: "这条 SceneApp 已接到持续任务，可回到自动化任务查看历史、频率和交付状态。",
+      label: "持续流程 / 自动化",
+      description:
+        "这条 SceneApp 已接到持续任务，可回到持续流程查看历史、频率和交付状态。",
     });
   }
 
@@ -1626,7 +2271,8 @@ function buildSceneAppGovernanceDestinations(params: {
     destinations.push({
       key: "delivery-editing",
       label: "结果编辑 / 发布",
-      description: "当前结果文件已经可直接打开，适合继续编辑、复核或进入发布动作。",
+      description:
+        "当前结果文件已经可直接打开，适合继续编辑、复核或进入发布动作。",
     });
   }
 
@@ -1651,21 +2297,24 @@ function buildSceneAppGovernanceStatusItems(params: {
         key: "structured-pack",
         label: "结构化治理",
         value: "待首轮样本",
-        description: "先跑出一轮结果，后续才能判断这条 SceneApp 是否适合被任务中心和看板继续消费。",
+        description:
+          "先跑出一轮结果，后续才能判断这条 SceneApp 是否适合被生成页和看板继续消费。",
         tone: "idle",
       },
       {
         key: "request-chain",
         label: "请求链路",
         value: "尚未建立",
-        description: "当前还没有会话级请求与证据样本，暂时无法做成本或调用复盘。",
+        description:
+          "当前还没有会话级请求与证据样本，暂时无法做成本或调用复盘。",
         tone: "idle",
       },
       {
         key: "artifact-check",
         label: "结果校验",
         value: "待首轮样本",
-        description: "先让这条 SceneApp 产出第一份结果包，再判断交付件是否可直接进入后续发布。",
+        description:
+          "先让这条 SceneApp 产出第一份结果包，再判断交付件是否可直接进入后续发布。",
         tone: "idle",
       },
     ];
@@ -1677,7 +2326,8 @@ function buildSceneAppGovernanceStatusItems(params: {
   const weeklyPackReady =
     artifactKinds.has("evidence_summary") &&
     artifactKinds.has("review_decision_markdown");
-  const structuredPackReady = weeklyPackReady && artifactKinds.has("review_decision_json");
+  const structuredPackReady =
+    weeklyPackReady && artifactKinds.has("review_decision_json");
   const validatorIssueCount = run.artifactValidatorIssueCount ?? 0;
   const recoveredCount = run.artifactValidatorRecoveredCount ?? 0;
   const telemetryMatchedCount = run.requestTelemetryMatchedCount ?? 0;
@@ -1697,7 +2347,7 @@ function buildSceneAppGovernanceStatusItems(params: {
       label: "结构化治理",
       value: structuredPackReady ? "已齐" : "待补齐",
       description: structuredPackReady
-        ? "复核 JSON 已经就绪，后续可以继续喂给任务中心、场景看板或自动治理链。"
+        ? "复核 JSON 已经就绪，后续可以继续喂给生成页、场景看板或自动治理链。"
         : "如果要做批量统计、任务编排或后续自动治理，先把结构化治理包补齐。",
       tone: structuredPackReady ? "good" : "watch",
     },
@@ -1746,14 +2396,17 @@ export function buildSceneAppGovernancePanelViewModel(params: {
   descriptor: SceneAppDescriptor;
   scorecard: SceneAppScorecard | null;
   run: SceneAppRunSummary | null;
-  projectPackPlan?: SceneAppPlanResult["projectPackPlan"] | null;
+  planResult?: Pick<
+    SceneAppPlanResult,
+    "projectPackPlan" | "contextOverlay"
+  > | null;
 }): SceneAppGovernancePanelViewModel {
   const { descriptor, scorecard, run } = params;
   const detailView = run
     ? buildSceneAppRunDetailViewModel({
         descriptor,
         run,
-        projectPackPlan: params.projectPackPlan,
+        planResult: params.planResult,
       })
     : null;
   const statusItems = buildSceneAppGovernanceStatusItems({
@@ -1764,14 +2417,22 @@ export function buildSceneAppGovernancePanelViewModel(params: {
     descriptor,
     scorecard,
     run,
-    projectPackPlan: params.projectPackPlan,
+    planResult: params.planResult,
   });
+  const contextBaseline = buildContextBaselinePresentation(
+    params.planResult?.contextOverlay,
+    {
+      run,
+      scorecard,
+    },
+  );
 
   return {
     ...operatingSummary,
     latestRunLabel: detailView
       ? `最近运行：${detailView.sourceLabel} · ${detailView.finishedAtLabel}`
       : "最近运行：尚未开始",
+    contextBaseline,
     statusItems,
     governanceActionEntries: detailView?.governanceActionEntries ?? [],
     governanceArtifactEntries: detailView?.governanceArtifactEntries ?? [],
@@ -1783,14 +2444,17 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
   descriptor: SceneAppDescriptor;
   scorecard: SceneAppScorecard | null;
   run: SceneAppRunSummary | null;
-  projectPackPlan?: SceneAppPlanResult["projectPackPlan"] | null;
+  planResult?: Pick<
+    SceneAppPlanResult,
+    "projectPackPlan" | "contextOverlay"
+  > | null;
 }): SceneAppOperatingSummaryViewModel {
   const { descriptor, scorecard, run } = params;
   const detailView = run
     ? buildSceneAppRunDetailViewModel({
         descriptor,
         run,
-        projectPackPlan: params.projectPackPlan,
+        planResult: params.planResult,
       })
     : null;
   const destinations = buildSceneAppGovernanceDestinations({
@@ -1811,14 +2475,15 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
       summary:
         "这条 SceneApp 还没有首轮治理样本，当前适合先跑出一份正式结果包和复核材料。",
       nextAction:
-        "先试跑一轮，让结果、证据摘要和复核结论都落下来，再决定是否进入任务中心或看板放大。",
+        "先试跑一轮，让结果、证据摘要和复核结论都落下来，再决定是否进入生成页或看板放大。",
       scorecardActionLabel,
       topFailureSignalLabel,
       destinations,
     };
   }
 
-  const verificationFailureCount = detailView.verificationFailureOutcomes.length;
+  const verificationFailureCount =
+    detailView.verificationFailureOutcomes.length;
   const validatorIssueCount = run.artifactValidatorIssueCount ?? 0;
   const artifactKinds = new Set(
     detailView.governanceArtifactEntries.map((entry) => entry.artifactRef.kind),
@@ -1841,7 +2506,7 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
   let status: SceneAppOperatingSummaryViewModel["status"] = "good";
   let statusLabel = "治理已可复用";
   let summary =
-    "这条 SceneApp 最近一次运行已经带齐结果、证据和结构化治理材料，可以继续进入周会、任务中心或场景看板。";
+    "这条 SceneApp 最近一次运行已经带齐结果、证据和结构化治理材料，可以继续进入周会、生成页或场景看板。";
   let nextAction =
     scorecardActionLabel != null
       ? `${scorecardActionLabel}，并把这次治理材料继续沉淀为后续复盘与统计的基线。`
@@ -1866,9 +2531,9 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
     status = "watch";
     statusLabel = "先补治理材料";
     summary =
-      "这条 SceneApp 已有可复盘的运行结果，但看板和任务中心需要的治理材料还没完全齐，暂时不适合直接放大。";
+      "这条 SceneApp 已有可复盘的运行结果，但看板和生成页需要的治理材料还没完全齐，暂时不适合直接放大。";
     nextAction =
-      "先准备结构化治理包，把证据摘要、复核记录和结构化 JSON 一次补齐，再继续进入周会、任务中心或统计面。";
+      "先准备结构化治理包，把证据摘要、复核记录和结构化 JSON 一次补齐，再继续进入周会、生成页或统计面。";
   }
 
   return {

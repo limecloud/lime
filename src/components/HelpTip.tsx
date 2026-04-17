@@ -18,10 +18,10 @@ export function HelpTip({
 
   const variantStyles = {
     blue: {
-      border: "border-blue-200 dark:border-blue-900",
-      bg: "bg-blue-50 dark:bg-blue-950/30",
-      title: "text-blue-800 dark:text-blue-300",
-      icon: "text-blue-600 dark:text-blue-400",
+      border: "border-emerald-200 dark:border-emerald-900",
+      bg: "bg-emerald-50 dark:bg-emerald-950/30",
+      title: "text-emerald-800 dark:text-emerald-300",
+      icon: "text-emerald-600 dark:text-emerald-400",
     },
     amber: {
       border: "border-amber-200 dark:border-amber-900",

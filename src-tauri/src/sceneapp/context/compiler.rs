@@ -4,6 +4,7 @@ use super::dto::{
 };
 use super::store::PersistedSceneAppContext;
 use crate::sceneapp::dto::{SceneAppDescriptor, SceneAppLaunchIntent, SceneAppPattern};
+use lime_memory::UnifiedMemory;
 use std::collections::{hash_map::DefaultHasher, BTreeSet};
 use std::hash::{Hash, Hasher};
 
@@ -50,6 +51,46 @@ fn stable_reference_item_id(prefix: &str, key: &str, value: &str) -> String {
     format!("{prefix}-{key}-{:x}", hasher.finish())
 }
 
+fn stable_memory_reference_item_id(memory_id: &str) -> String {
+    format!("memory:{memory_id}")
+}
+
+fn build_reference_content_type(memory: &UnifiedMemory) -> String {
+    if extract_url_candidate(memory.content.as_str()).is_some() {
+        return "url".to_string();
+    }
+
+    match memory.category {
+        lime_memory::MemoryCategory::Identity => "style_memory".to_string(),
+        lime_memory::MemoryCategory::Preference => "preference_memory".to_string(),
+        lime_memory::MemoryCategory::Context => "reference_memory".to_string(),
+        lime_memory::MemoryCategory::Experience => "outcome_memory".to_string(),
+        lime_memory::MemoryCategory::Activity => "collection_memory".to_string(),
+    }
+}
+
+pub fn build_reference_library_items(memories: &[UnifiedMemory]) -> Vec<ReferenceItem> {
+    memories
+        .iter()
+        .map(|memory| ReferenceItem {
+            id: stable_memory_reference_item_id(memory.id.as_str()),
+            label: memory.title.trim().to_string(),
+            source_kind: ContextLayerSourceKind::ReferenceLibrary,
+            content_type: build_reference_content_type(memory),
+            uri: extract_url_candidate(memory.content.as_str()),
+            summary: Some(if memory.summary.trim().is_empty() {
+                truncate_summary(memory.content.as_str(), 80)
+            } else {
+                truncate_summary(memory.summary.as_str(), 80)
+            }),
+            selected: true,
+            usage_count: None,
+            last_used_at: None,
+            last_feedback_label: None,
+        })
+        .collect()
+}
+
 fn build_reference_items(intent: &SceneAppLaunchIntent) -> Vec<ReferenceItem> {
     let mut items = Vec::new();
 
@@ -67,6 +108,9 @@ fn build_reference_items(intent: &SceneAppLaunchIntent) -> Vec<ReferenceItem> {
                 uri: extract_url_candidate(user_input),
                 summary: Some(truncate_summary(user_input, 80)),
                 selected: true,
+                usage_count: None,
+                last_used_at: None,
+                last_feedback_label: None,
             });
         }
     }
@@ -88,20 +132,69 @@ fn build_reference_items(intent: &SceneAppLaunchIntent) -> Vec<ReferenceItem> {
             uri: extract_url_candidate(normalized),
             summary: Some(truncate_summary(normalized, 80)),
             selected: true,
+            usage_count: None,
+            last_used_at: None,
+            last_feedback_label: None,
         })
     }));
 
     items
 }
 
+fn merge_reference_item_feedback(
+    mut item: ReferenceItem,
+    persisted_item: &ReferenceItem,
+) -> ReferenceItem {
+    if item.summary.is_none() {
+        item.summary = persisted_item.summary.clone();
+    }
+    if item.uri.is_none() {
+        item.uri = persisted_item.uri.clone();
+    }
+    if item.usage_count.is_none() {
+        item.usage_count = persisted_item.usage_count;
+    }
+    if item.last_used_at.is_none() {
+        item.last_used_at = persisted_item.last_used_at.clone();
+    }
+    if item.last_feedback_label.is_none() {
+        item.last_feedback_label = persisted_item.last_feedback_label.clone();
+    }
+    item.selected = item.selected || persisted_item.selected;
+    item
+}
+
 fn merge_reference_items(
+    explicit_reference_items: Vec<ReferenceItem>,
     input_items: Vec<ReferenceItem>,
     persisted_context: Option<&PersistedSceneAppContext>,
 ) -> Vec<ReferenceItem> {
     let mut seen = BTreeSet::new();
     let mut merged = Vec::new();
 
-    for item in input_items {
+    for mut item in explicit_reference_items {
+        if let Some(persisted_item) = persisted_context.and_then(|context| {
+            context
+                .reference_items
+                .iter()
+                .find(|existing| existing.id == item.id)
+        }) {
+            item = merge_reference_item_feedback(item, persisted_item);
+        }
+        if seen.insert(item.id.clone()) {
+            merged.push(item);
+        }
+    }
+
+    for mut item in input_items {
+        if let Some(persisted_item) = persisted_context.and_then(|context| {
+            context
+                .reference_items
+                .iter()
+                .find(|existing| existing.id == item.id)
+        }) {
+            item = merge_reference_item_feedback(item, persisted_item);
+        }
         if seen.insert(item.id.clone()) {
             merged.push(item);
         }
@@ -206,6 +299,14 @@ fn build_taste_profile(
             push_unique(&mut keywords, Some(keyword.clone()));
         }
     }
+    for item in reference_items.iter().filter(|item| {
+        matches!(
+            item.source_kind,
+            ContextLayerSourceKind::ReferenceLibrary | ContextLayerSourceKind::Project
+        )
+    }) {
+        push_unique(&mut keywords, Some(item.label.clone()));
+    }
     for alias in descriptor.aliases.iter().take(2) {
         push_unique(&mut keywords, Some(alias.clone()));
     }
@@ -268,6 +369,13 @@ fn build_taste_profile(
                 0.56
             },
         ),
+        feedback_summary: persisted_taste_profile
+            .and_then(|profile| profile.feedback_summary.clone()),
+        feedback_signals: persisted_taste_profile
+            .map(|profile| profile.feedback_signals.clone())
+            .unwrap_or_default(),
+        last_feedback_at: persisted_taste_profile
+            .and_then(|profile| profile.last_feedback_at.clone()),
     })
 }
 
@@ -275,9 +383,14 @@ pub fn build_sceneapp_context_overlay(
     descriptor: &SceneAppDescriptor,
     intent: &SceneAppLaunchIntent,
     persisted_context: Option<&PersistedSceneAppContext>,
+    explicit_reference_items: &[ReferenceItem],
 ) -> SceneAppContextOverlay {
     let input_reference_items = build_reference_items(intent);
-    let reference_items = merge_reference_items(input_reference_items.clone(), persisted_context);
+    let reference_items = merge_reference_items(
+        explicit_reference_items.to_vec(),
+        input_reference_items.clone(),
+        persisted_context,
+    );
     let memory_refs = build_memory_refs(intent);
     let tool_refs = build_tool_refs(descriptor, intent);
     let skill_refs = build_skill_refs(descriptor);
@@ -308,8 +421,24 @@ pub fn build_sceneapp_context_overlay(
             restored_reference_count
         ));
     }
-    if input_reference_items.is_empty() && reference_items.is_empty() {
+    if explicit_reference_items.is_empty()
+        && input_reference_items.is_empty()
+        && reference_items.is_empty()
+    {
         notes.push("当前尚未选中显式参考素材，将主要依赖用户输入与场景画像。".to_string());
+    } else if !explicit_reference_items.is_empty() && !input_reference_items.is_empty() {
+        notes.push(format!(
+            "本次显式带入 {} 条灵感对象，并新增 {} 条输入参考，当前 planning 共带上 {} 条参考。",
+            explicit_reference_items.len(),
+            input_reference_items.len(),
+            reference_items.len()
+        ));
+    } else if !explicit_reference_items.is_empty() {
+        notes.push(format!(
+            "本次显式带入 {} 条灵感对象，当前 planning 共带上 {} 条参考。",
+            explicit_reference_items.len(),
+            reference_items.len()
+        ));
     } else if !input_reference_items.is_empty() {
         notes.push(format!(
             "本次新增 {} 条参考输入，当前 planning 共带上 {} 条参考。",
@@ -328,7 +457,8 @@ pub fn build_sceneapp_context_overlay(
     {
         notes.push("当前已复用项目级 TasteProfile，并按最新输入继续更新。".to_string());
     } else if taste_profile.is_some() {
-        notes.push("当前 TasteProfile 为启发式摘要，后续可继续接入持久化反馈回写。".to_string());
+        notes
+            .push("当前 TasteProfile 为启发式摘要，可继续通过场景基线与运行反馈沉淀。".to_string());
     }
 
     SceneAppContextOverlay {
@@ -353,11 +483,12 @@ pub fn build_sceneapp_context_overlay(
 
 #[cfg(test)]
 mod tests {
-    use super::build_sceneapp_context_overlay;
+    use super::{build_reference_library_items, build_sceneapp_context_overlay};
     use crate::sceneapp::catalog::get_sceneapp_descriptor;
     use crate::sceneapp::context::dto::{ContextLayerSourceKind, ReferenceItem, TasteProfile};
     use crate::sceneapp::context::store::PersistedSceneAppContext;
     use crate::sceneapp::dto::{SceneAppLaunchIntent, SceneAppRuntimeContext};
+    use lime_memory::UnifiedMemory;
     use std::collections::BTreeMap;
 
     #[test]
@@ -379,6 +510,7 @@ mod tests {
                 workspace_id: Some("workspace-default".to_string()),
                 project_id: Some("project-export".to_string()),
                 user_input: Some("请导出这篇文章并保持原始语气".to_string()),
+                reference_memory_ids: Vec::new(),
                 slots,
                 runtime_context: Some(SceneAppRuntimeContext {
                     browser_session_attached: true,
@@ -386,6 +518,7 @@ mod tests {
                 }),
             },
             None,
+            &[],
         );
 
         assert!(overlay
@@ -422,6 +555,9 @@ mod tests {
                 uri: None,
                 summary: Some("保留结论前置和对比镜头。".to_string()),
                 selected: true,
+                usage_count: Some(2),
+                last_used_at: Some("2026-04-16T12:00:00.000Z".to_string()),
+                last_feedback_label: Some("复核阻塞".to_string()),
             }],
             taste_profile: Some(TasteProfile {
                 profile_id: "taste-story-video-suite".to_string(),
@@ -430,7 +566,11 @@ mod tests {
                 avoid_keywords: vec!["冗长铺垫".to_string()],
                 derived_from_reference_ids: vec!["saved-reference-1".to_string()],
                 confidence: Some(0.66),
+                feedback_summary: Some("最近一次运行卡在复核环节。".to_string()),
+                feedback_signals: vec!["review_blocked".to_string()],
+                last_feedback_at: Some("2026-04-16T12:00:00.000Z".to_string()),
             }),
+            last_feedback_run_id: Some("sceneapp-run-42".to_string()),
         };
 
         let overlay = build_sceneapp_context_overlay(
@@ -441,10 +581,12 @@ mod tests {
                 workspace_id: Some("workspace-default".to_string()),
                 project_id: Some("project-video".to_string()),
                 user_input: Some("做一个 30 秒新品短视频".to_string()),
+                reference_memory_ids: Vec::new(),
                 slots,
                 runtime_context: None,
             },
             Some(&persisted_context),
+            &[],
         );
 
         assert_eq!(overlay.compiler_plan.reference_count, 3);
@@ -463,11 +605,83 @@ mod tests {
             .reference_items
             .iter()
             .any(|item| item.label == "竞品拆解"
-                && matches!(item.source_kind, ContextLayerSourceKind::ReferenceLibrary)));
+                && matches!(item.source_kind, ContextLayerSourceKind::ReferenceLibrary)
+                && item.usage_count == Some(2)
+                && item.last_feedback_label.as_deref() == Some("复核阻塞")));
         assert!(overlay
             .snapshot
             .taste_profile
             .as_ref()
-            .is_some_and(|profile| profile.summary.contains("项目沉淀基础")));
+            .is_some_and(|profile| profile.summary.contains("项目沉淀基础")
+                && profile.feedback_summary.as_deref() == Some("最近一次运行卡在复核环节。")
+                && profile
+                    .feedback_signals
+                    .iter()
+                    .any(|signal| signal == "review_blocked")));
+    }
+
+    #[test]
+    fn should_promote_selected_memory_entries_into_reference_items() {
+        let descriptor = get_sceneapp_descriptor("story-video-suite")
+            .expect("story-video-suite descriptor should exist");
+        let explicit_reference_items = build_reference_library_items(&[UnifiedMemory {
+            id: "memory-1".to_string(),
+            session_id: "session-1".to_string(),
+            memory_type: lime_memory::MemoryType::Conversation,
+            category: lime_memory::MemoryCategory::Identity,
+            title: "夏日短视频语气".to_string(),
+            content: "保留轻盈、结论前置和更强的节奏推进。".to_string(),
+            summary: "轻盈、结论前置、快节奏。".to_string(),
+            tags: vec!["小红书".to_string()],
+            metadata: lime_memory::MemoryMetadata {
+                confidence: 0.86,
+                importance: 7,
+                access_count: 0,
+                last_accessed_at: None,
+                source: lime_memory::MemorySource::Manual,
+                embedding: None,
+            },
+            created_at: 1_712_345_678_900,
+            updated_at: 1_712_345_678_900,
+            archived: false,
+        }]);
+
+        let overlay = build_sceneapp_context_overlay(
+            &descriptor,
+            &SceneAppLaunchIntent {
+                sceneapp_id: "story-video-suite".to_string(),
+                entry_source: Some("memory_page".to_string()),
+                workspace_id: Some("workspace-default".to_string()),
+                project_id: Some("project-video".to_string()),
+                user_input: Some("继续整理成 30 秒短视频方案".to_string()),
+                reference_memory_ids: vec!["memory-1".to_string()],
+                slots: BTreeMap::new(),
+                runtime_context: Some(SceneAppRuntimeContext {
+                    cloud_session_ready: true,
+                    ..SceneAppRuntimeContext::default()
+                }),
+            },
+            None,
+            explicit_reference_items.as_slice(),
+        );
+
+        assert!(overlay
+            .snapshot
+            .reference_items
+            .iter()
+            .any(|item| item.id == "memory:memory-1" && item.label == "夏日短视频语气"));
+        assert!(overlay
+            .snapshot
+            .taste_profile
+            .as_ref()
+            .is_some_and(|profile| profile
+                .keywords
+                .iter()
+                .any(|keyword| keyword == "夏日短视频语气")));
+        assert!(overlay
+            .compiler_plan
+            .notes
+            .iter()
+            .any(|note| note.contains("显式带入 1 条灵感对象")));
     }
 }

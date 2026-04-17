@@ -22,6 +22,8 @@ export function VertexAISection({
   entries = [],
   onChange,
 }: VertexAISectionProps) {
+  const primaryActionButtonClassName =
+    "rounded-lg border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95";
   // 确保 entries 是数组
   const safeEntries = Array.isArray(entries) ? entries : [];
   const [showKeys, setShowKeys] = useState<Set<string>>(new Set());
@@ -100,7 +102,7 @@ export function VertexAISection({
         </div>
         <button
           onClick={addEntry}
-          className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
+          className={`flex items-center gap-1 px-3 py-1.5 ${primaryActionButtonClassName}`}
         >
           <Plus className="h-4 w-4" />
           添加
@@ -264,7 +266,7 @@ export function VertexAISection({
                       <div className="flex gap-2">
                         <button
                           onClick={() => addAlias(entry.id)}
-                          className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs"
+                          className="rounded border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-2 py-1 text-xs text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
                         >
                           添加
                         </button>

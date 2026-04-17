@@ -19,6 +19,7 @@ import {
   savePersistedSessionWorkspaceId,
 } from "./agentProjectStorage";
 import {
+  DEFAULT_AGENT_ACCESS_MODE,
   getAgentPreferenceKeys,
   getAccessModeStorageKey,
   getExecutionStrategyStorageKey,
@@ -539,7 +540,7 @@ export function useAgentContext(options: UseAgentContextOptions) {
     const resolvedWorkspaceId = workspaceId?.trim();
     if (!resolvedWorkspaceId) {
       setExecutionStrategyState("react");
-      setAccessModeState("current");
+      setAccessModeState(DEFAULT_AGENT_ACCESS_MODE);
       return;
     }
     setExecutionStrategyState(

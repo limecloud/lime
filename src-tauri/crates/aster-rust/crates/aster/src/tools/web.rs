@@ -129,6 +129,30 @@ const WEB_FETCH_PREAPPROVED_HOSTS: &[&str] = &[
     "httpd.apache.org",
 ];
 
+fn current_turn_metadata_bool(keys: &[&str]) -> bool {
+    crate::session_context::current_turn_context()
+        .as_ref()
+        .and_then(|turn_context| {
+            keys.iter()
+                .find_map(|key| turn_context.metadata.get(*key))
+                .and_then(serde_json::Value::as_bool)
+        })
+        .unwrap_or(false)
+}
+
+fn current_turn_approval_policy_is_never() -> bool {
+    crate::session_context::current_turn_context()
+        .as_ref()
+        .and_then(|turn_context| turn_context.approval_policy.as_deref())
+        .map(str::trim)
+        .is_some_and(|policy| policy.eq_ignore_ascii_case("never"))
+}
+
+fn current_turn_allows_web_tools_without_confirmation() -> bool {
+    current_turn_metadata_bool(&["web_search_enabled", "webSearchEnabled"])
+        || current_turn_approval_policy_is_never()
+}
+
 /// 缓存内容结构
 #[derive(Debug, Clone)]
 struct CachedContent {
@@ -1241,6 +1265,10 @@ impl Tool for WebFetchTool {
         params: &serde_json::Value,
         _context: &ToolContext,
     ) -> PermissionCheckResult {
+        if current_turn_allows_web_tools_without_confirmation() {
+            return PermissionCheckResult::allow();
+        }
+
         let parsed_url = serde_json::from_value::<WebFetchInput>(params.clone())
             .ok()
             .and_then(|input| Url::parse(&input.url).ok());
@@ -2180,6 +2208,10 @@ impl Tool for WebSearchTool {
         _params: &serde_json::Value,
         _context: &ToolContext,
     ) -> PermissionCheckResult {
+        if current_turn_allows_web_tools_without_confirmation() {
+            return PermissionCheckResult::allow();
+        }
+
         PermissionCheckResult::ask("WebSearch 将联网搜索最新信息，请确认后继续。")
     }
 
@@ -2441,8 +2473,21 @@ pub fn clear_web_caches(cache: &WebCache) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::session::TurnContextOverride;
     use crate::tools::base::PermissionBehavior;
     use std::collections::HashMap;
+
+    fn turn_context_with_metadata(
+        entries: impl IntoIterator<Item = (&'static str, serde_json::Value)>,
+    ) -> TurnContextOverride {
+        TurnContextOverride {
+            metadata: entries
+                .into_iter()
+                .map(|(key, value)| (key.to_string(), value))
+                .collect(),
+            ..TurnContextOverride::default()
+        }
+    }
 
     #[tokio::test]
     async fn test_web_fetch_tool_creation() {
@@ -2637,6 +2682,32 @@ mod tests {
         assert!(result.message.is_none());
     }
 
+    #[tokio::test]
+    async fn test_web_fetch_permissions_allow_when_turn_web_search_enabled() {
+        let tool = WebFetchTool::new();
+
+        let result = crate::session_context::with_turn_context(
+            Some(turn_context_with_metadata([(
+                "web_search_enabled",
+                serde_json::json!(true),
+            )])),
+            async {
+                tool.check_permissions(
+                    &serde_json::json!({
+                        "url": "https://example.com/docs",
+                        "prompt": "总结内容"
+                    }),
+                    &ToolContext::default(),
+                )
+                .await
+            },
+        )
+        .await;
+
+        assert_eq!(result.behavior, PermissionBehavior::Allow);
+        assert!(result.message.is_none());
+    }
+
     #[test]
     fn test_web_fetch_preapproved_path_prefix_matches_exact_scope() {
         assert!(is_preapproved_web_fetch_host(
@@ -2687,6 +2758,56 @@ mod tests {
             result.message,
             Some("WebSearch 将联网搜索最新信息，请确认后继续。".to_string())
         );
+    }
+
+    #[tokio::test]
+    async fn test_web_search_permissions_allow_when_turn_web_search_enabled() {
+        let tool = WebSearchTool::new();
+
+        let result = crate::session_context::with_turn_context(
+            Some(turn_context_with_metadata([(
+                "webSearchEnabled",
+                serde_json::json!(true),
+            )])),
+            async {
+                tool.check_permissions(
+                    &serde_json::json!({
+                        "query": "latest ai news"
+                    }),
+                    &ToolContext::default(),
+                )
+                .await
+            },
+        )
+        .await;
+
+        assert_eq!(result.behavior, PermissionBehavior::Allow);
+        assert!(result.message.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_web_search_permissions_allow_when_turn_approval_policy_is_never() {
+        let tool = WebSearchTool::new();
+
+        let result = crate::session_context::with_turn_context(
+            Some(TurnContextOverride {
+                approval_policy: Some("never".to_string()),
+                ..TurnContextOverride::default()
+            }),
+            async {
+                tool.check_permissions(
+                    &serde_json::json!({
+                        "query": "latest ai news"
+                    }),
+                    &ToolContext::default(),
+                )
+                .await
+            },
+        )
+        .await;
+
+        assert_eq!(result.behavior, PermissionBehavior::Allow);
+        assert!(result.message.is_none());
     }
 
     #[tokio::test]

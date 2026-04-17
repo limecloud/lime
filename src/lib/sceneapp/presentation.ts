@@ -136,7 +136,7 @@ const FEATURED_SCENEAPP_PRESETS: Record<string, SceneAppPresentationCopy> = {
     businessLabel: "多模态组合",
     valueStatement:
       "从一句主题串起脚本、线框图、配乐方向和短视频草稿。",
-    actionLabel: "开始组合",
+    actionLabel: "进入生成",
     executionLabel: "当前会话继续",
     executionTone: "sky",
     fallbackPrompt:
@@ -145,7 +145,7 @@ const FEATURED_SCENEAPP_PRESETS: Record<string, SceneAppPresentationCopy> = {
   "x-article-export": {
     businessLabel: "资料沉淀",
     valueStatement: "把网页正文、图片和元信息沉淀成项目资料包。",
-    actionLabel: "导出网页",
+    actionLabel: "进入生成",
     executionLabel: "浏览器上下文",
     executionTone: "amber",
     fallbackPrompt: "请把这个网页导出为项目内可复用的资料包。",
@@ -203,7 +203,7 @@ function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentation
       actionLabel: "配置自动化",
       executionLabel: "持续运行",
       executionTone: "emerald",
-      fallbackPrompt: `请启动场景应用「${descriptor.title}」，并把结果持续回流到当前工作区。`,
+      fallbackPrompt: `请启动创作场景「${descriptor.title}」，并把结果持续回流到当前工作区。`,
     };
   }
 
@@ -211,10 +211,10 @@ function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentation
     return {
       businessLabel: "浏览器依赖",
       valueStatement: "复用真实网页登录态和网页上下文完成结果链。",
-      actionLabel: "启动场景",
+      actionLabel: "进入生成",
       executionLabel: "浏览器上下文",
       executionTone: "amber",
-      fallbackPrompt: `请执行场景应用「${descriptor.title}」，并复用当前浏览器上下文完成任务。`,
+      fallbackPrompt: `请执行创作场景「${descriptor.title}」，并复用当前浏览器上下文完成任务。`,
     };
   }
 
@@ -222,10 +222,10 @@ function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentation
     return {
       businessLabel: "云端编排",
       valueStatement: "把长链路生成和结果汇总交给云端运行时处理。",
-      actionLabel: "启动场景",
+      actionLabel: "进入生成",
       executionLabel: "云端托管",
       executionTone: "sky",
-      fallbackPrompt: `请启动场景应用「${descriptor.title}」，并把结果写回当前工作区。`,
+      fallbackPrompt: `请启动创作场景「${descriptor.title}」，并把结果写回当前工作区。`,
     };
   }
 
@@ -233,20 +233,20 @@ function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentation
     return {
       businessLabel: "多能力组合",
       valueStatement: "把不同能力编排成一条完整的场景结果链。",
-      actionLabel: "启动场景",
+      actionLabel: "进入生成",
       executionLabel: "当前会话继续",
       executionTone: "sky",
-      fallbackPrompt: `请执行场景应用「${descriptor.title}」，并把结果整理成完整交付。`,
+      fallbackPrompt: `请执行创作场景「${descriptor.title}」，并把结果整理成完整交付。`,
     };
   }
 
   return {
     businessLabel: "即时工作流",
     valueStatement: "在当前工作区里快速完成一次结果交付。",
-    actionLabel: "启动场景",
+    actionLabel: "进入生成",
     executionLabel: "当前会话继续",
     executionTone: "slate",
-    fallbackPrompt: `请执行场景应用「${descriptor.title}」，并把结果回写到当前工作区。`,
+    fallbackPrompt: `请执行创作场景「${descriptor.title}」，并把结果回写到当前工作区。`,
   };
 }
 

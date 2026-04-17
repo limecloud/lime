@@ -119,6 +119,7 @@ fn build_sceneapp_launch_harness_value(
         "entry_source": launch_intent.entry_source.clone(),
         "workspace_id": launch_intent.workspace_id.clone(),
         "project_id": launch_intent.project_id.clone(),
+        "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
         "linked_service_skill_id": descriptor.linked_service_skill_id.clone(),
         "linked_scene_key": descriptor.linked_scene_key.clone(),
     })
@@ -198,6 +199,12 @@ fn build_sceneapp_metadata_root(
         root.insert(
             "sceneapp_slots".to_string(),
             json!(launch_intent.slots.clone()),
+        );
+    }
+    if !launch_intent.reference_memory_ids.is_empty() {
+        root.insert(
+            "sceneapp_reference_memory_ids".to_string(),
+            json!(launch_intent.reference_memory_ids.clone()),
         );
     }
 
@@ -303,6 +310,7 @@ fn build_sceneapp_runtime_request_metadata(
                         "workspace_id": launch_intent.workspace_id.clone(),
                         "project_id": launch_intent.project_id.clone(),
                         "user_input": launch_intent.user_input.clone(),
+                        "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
                         "slots": launch_intent.slots.clone(),
                     }
                 }),
@@ -362,6 +370,7 @@ fn build_sceneapp_runtime_request_metadata(
                     "project_id": launch_intent.project_id.clone(),
                     "workspace_id": launch_intent.workspace_id.clone(),
                     "user_input": launch_intent.user_input.clone(),
+                    "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
                     "slots": launch_intent.slots.clone(),
                 }),
             );
@@ -1478,6 +1487,7 @@ pub fn build_sceneapp_runtime_adapter_plan(
                 "project_id": launch_intent.project_id.clone(),
                 "entry_source": launch_intent.entry_source.clone().unwrap_or_else(|| "sceneapp_plan".to_string()),
                 "user_input": launch_intent.user_input.clone(),
+                "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
                 "slots": launch_intent.slots.clone(),
             })
         }
@@ -1527,6 +1537,7 @@ pub fn build_sceneapp_runtime_adapter_plan(
                     "workspace_id": launch_intent.workspace_id.clone(),
                     "project_id": launch_intent.project_id.clone(),
                     "user_input": launch_intent.user_input.clone(),
+                    "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
                     "slots": launch_intent.slots.clone(),
                     "runtime_context": launch_intent.runtime_context.clone(),
                 },
@@ -1545,6 +1556,7 @@ pub fn build_sceneapp_runtime_adapter_plan(
                 "workspace_id": launch_intent.workspace_id.clone(),
                 "project_id": launch_intent.project_id.clone(),
                 "user_input": launch_intent.user_input.clone(),
+                "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
                 "slots": launch_intent.slots.clone(),
             })
         }
@@ -1559,6 +1571,7 @@ pub fn build_sceneapp_runtime_adapter_plan(
                 "message": launch_intent.user_input.clone().unwrap_or_default(),
                 "workspace_id": launch_intent.workspace_id.clone(),
                 "project_id": launch_intent.project_id.clone(),
+                "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
                 "slots": launch_intent.slots.clone(),
             })
         }
@@ -1677,6 +1690,8 @@ pub fn build_sceneapp_automation_draft(
                     .unwrap_or("agent_turn")
             )),
             web_search: false,
+            approval_policy: Some("never".to_string()),
+            sandbox_policy: Some("danger-full-access".to_string()),
             request_metadata: Some(build_sceneapp_request_metadata(descriptor, intent)),
             content_id: None,
         },

@@ -95,6 +95,13 @@ function normalizeKnownProvider(provider: KnownProvider): KnownProvider {
   };
 }
 
+const ACTIVE_PROVIDER_TEMPLATE_CLASS =
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10";
+const SELECTED_PROVIDER_CARD_CLASS =
+  "rounded-[28px] border border-sky-200/80 bg-[linear-gradient(135deg,rgba(240,249,255,0.98)_0%,rgba(236,253,245,0.96)_55%,rgba(239,246,255,0.98)_100%)] px-5 py-5 text-slate-800 shadow-sm shadow-emerald-950/10";
+const SELECTED_PROVIDER_SUMMARY_CARD_CLASS =
+  "rounded-[20px] border border-sky-200/70 bg-white/85 p-4";
+
 /** 已知厂商列表（用于快速填充） */
 const FALLBACK_KNOWN_PROVIDERS: KnownProvider[] = [
   {
@@ -810,7 +817,7 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
                         className={cn(
                           "w-full rounded-[20px] border px-4 py-3 text-left transition-all",
                           isActive
-                            ? "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-950/10"
+                            ? ACTIVE_PROVIDER_TEMPLATE_CLASS
                             : "border-slate-200/80 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-100/80",
                         )}
                         data-testid={`known-provider-item-${provider.id}`}
@@ -823,7 +830,7 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
                             <p
                               className={cn(
                                 "mt-1 truncate text-xs",
-                                isActive ? "text-slate-200" : "text-slate-500",
+                                isActive ? "text-slate-600" : "text-slate-500",
                               )}
                             >
                               {provider.apiHost || "手动填写 API Host"}
@@ -834,7 +841,7 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
                             className={cn(
                               "shrink-0 border-current/20 px-2 py-0.5 text-[11px]",
                               isActive
-                                ? "bg-white/10 text-white"
+                                ? "border-emerald-200 bg-white/90 text-emerald-700"
                                 : "bg-slate-50 text-slate-600",
                             )}
                           >
@@ -861,14 +868,14 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
           <div className="bg-white">
             <div className="space-y-6 p-5 lg:p-6">
               <section
-                className="rounded-[28px] border border-slate-200/80 bg-slate-950 px-5 py-5 text-white shadow-lg shadow-slate-950/10"
+                className={SELECTED_PROVIDER_CARD_CLASS}
                 data-testid="selected-provider-card"
               >
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-sky-300" />
-                      <p className="text-sm font-medium text-sky-100">
+                      <Sparkles className="h-4 w-4 text-sky-600" />
+                      <p className="text-sm font-medium text-sky-700">
                         当前接入方案
                       </p>
                     </div>
@@ -877,7 +884,7 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
                         selectedKnownProvider?.name ||
                         "手动创建新 Provider"}
                     </h3>
-                    <p className="max-w-3xl text-sm leading-6 text-slate-300">
+                    <p className="max-w-3xl text-sm leading-6 text-slate-600">
                       {selectedKnownProvider
                         ? "已按模板预填协议类型与接口地址，你只需要确认鉴权和附加参数。"
                         : "适合接入未内置的厂商、私有部署网关，或需要兼容 OpenAI / Anthropic / Gemini 协议的第三方服务。"}
@@ -885,16 +892,16 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <Badge className="border border-white/10 bg-white/10 text-white hover:bg-white/10">
+                    <Badge className="border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-50">
                       {typeOption?.label ??
                         getProviderTypeLabel(formState.type)}
                     </Badge>
                     {selectedKnownProvider ? (
-                      <Badge className="border border-emerald-300/20 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/10">
+                      <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
                         已套用模板
                       </Badge>
                     ) : (
-                      <Badge className="border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/10">
+                      <Badge className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-50">
                         手动配置
                       </Badge>
                     )}
@@ -907,16 +914,16 @@ export const AddCustomProviderModal: React.FC<AddCustomProviderModalProps> = ({
                     return (
                       <div
                         key={item.title}
-                        className="rounded-[20px] border border-white/10 bg-white/5 p-4"
+                        className={SELECTED_PROVIDER_SUMMARY_CARD_CLASS}
                       >
-                        <div className="flex items-center gap-2 text-xs text-slate-300">
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
                           <Icon className="h-3.5 w-3.5" />
                           <span>{item.title}</span>
                         </div>
-                        <p className="mt-3 break-all text-sm font-semibold text-white">
+                        <p className="mt-3 break-all text-sm font-semibold text-slate-900">
                           {item.value}
                         </p>
-                        <p className="mt-2 text-xs leading-5 text-slate-300">
+                        <p className="mt-2 text-xs leading-5 text-slate-500">
                           {item.hint}
                         </p>
                       </div>

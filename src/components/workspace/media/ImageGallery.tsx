@@ -51,6 +51,15 @@ const ALL_CATEGORIES: ImageCategory[] = [
   "other",
 ];
 
+const IMAGE_GALLERY_ACTIVE_FILTER_CLASSNAME =
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10 hover:opacity-95";
+
+const IMAGE_GALLERY_SELECTED_SURFACE_CLASSNAME =
+  "border-emerald-200 ring-2 ring-emerald-100 shadow-lg shadow-emerald-950/10";
+
+const IMAGE_GALLERY_SELECTED_BADGE_CLASSNAME =
+  "border border-emerald-200 bg-white/90 text-emerald-700 shadow-sm shadow-emerald-950/10";
+
 function getMaterialPreviewUrl(material: GalleryMaterial): string | null {
   if (material.metadata?.thumbnail) {
     return material.metadata.thumbnail;
@@ -222,7 +231,7 @@ export function ImageGallery({
             className={cn(
               "h-8 rounded-full border px-3 text-xs font-medium transition",
               !selectedCategory
-                ? "border-slate-900/10 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"
+                ? IMAGE_GALLERY_ACTIVE_FILTER_CLASSNAME
                 : "border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900",
             )}
             onClick={() => handleCategoryFilter(null)}
@@ -237,7 +246,7 @@ export function ImageGallery({
               className={cn(
                 "h-8 rounded-full border px-3 text-xs font-medium transition",
                 selectedCategory === category
-                  ? "border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800"
+                  ? IMAGE_GALLERY_ACTIVE_FILTER_CLASSNAME
                   : "border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900",
               )}
               onClick={() => handleCategoryFilter(category)}
@@ -282,7 +291,7 @@ export function ImageGallery({
                   className={cn(
                     "group relative aspect-square cursor-pointer overflow-hidden rounded-[1.25rem] border bg-slate-50 shadow-sm shadow-slate-950/5 transition-all",
                     isSelected(material.id)
-                      ? "border-slate-900/15 ring-2 ring-slate-900/10"
+                      ? IMAGE_GALLERY_SELECTED_SURFACE_CLASSNAME
                       : "border-slate-200/80 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-950/10",
                   )}
                   onClick={() => handleSelect(material)}
@@ -343,7 +352,12 @@ export function ImageGallery({
                   )}
 
                   {isSelected(material.id) && (
-                    <div className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm">
+                    <div
+                      className={cn(
+                        "absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full",
+                        IMAGE_GALLERY_SELECTED_BADGE_CLASSNAME,
+                      )}
+                    >
                       <CheckIcon className="h-3.5 w-3.5" />
                     </div>
                   )}
@@ -361,7 +375,7 @@ export function ImageGallery({
                   className={cn(
                     "flex cursor-pointer items-center gap-3 rounded-[1rem] px-3 py-2.5 transition-colors",
                     isSelected(material.id)
-                      ? "bg-slate-900/[0.04]"
+                      ? "bg-[linear-gradient(135deg,rgba(240,253,250,0.92)_0%,rgba(236,253,245,0.9)_52%,rgba(224,242,254,0.9)_100%)]"
                       : "hover:bg-slate-50",
                   )}
                   onClick={() => handleSelect(material)}
@@ -410,7 +424,12 @@ export function ImageGallery({
                   </div>
 
                   {isSelected(material.id) && (
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-white shadow-sm">
+                    <div
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-full",
+                        IMAGE_GALLERY_SELECTED_BADGE_CLASSNAME,
+                      )}
+                    >
                       <CheckIcon className="h-3.5 w-3.5" />
                     </div>
                   )}

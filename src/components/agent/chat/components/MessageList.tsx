@@ -86,6 +86,7 @@ import { type ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNaviga
 
 interface MessageListProps {
   messages: Message[];
+  leadingContent?: React.ReactNode;
   emptyStateVariant?: "default" | "task-center";
   turns?: AgentThreadTurn[];
   threadItems?: AgentThreadItem[];
@@ -458,6 +459,7 @@ function filterConversationDisplayContentParts(
 
 const MessageListInner: React.FC<MessageListProps> = ({
   messages,
+  leadingContent,
   emptyStateVariant = "default",
   turns = [],
   threadItems = [],
@@ -1353,6 +1355,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
             : "mx-auto flex w-full max-w-[1040px] flex-col gap-4 py-4 pl-4 pr-4"
         }
       >
+        {leadingContent ? (
+          <div data-testid="message-list-leading-content">{leadingContent}</div>
+        ) : null}
         {messageGroups.length === 0 &&
           (isRestoringSession ? (
             <div
@@ -1366,10 +1371,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
               </div>
               <div className="space-y-1 text-center">
                 <p className="text-lg font-medium text-foreground">
-                  正在恢复任务中心...
+                  正在恢复生成会话...
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  正在同步最近一次任务会话，请稍候。
+                  正在同步最近一次生成会话，请稍候。
                 </p>
               </div>
             </div>
@@ -1394,13 +1399,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
 
                     <div className="mt-4 space-y-2">
                       <h2 className="text-[32px] font-semibold tracking-tight text-slate-900 md:text-[36px]">
-                        任务中心
+                        生成
                       </h2>
                       <p className="max-w-[48rem] text-[15px] leading-7 text-slate-600">
-                        回到进行中的任务、最近结果和已经跑过的工作现场。
+                        这里是 Lime 的生成主执行面，可以继续进行中的创作、回看最近结果和旧历史。
                       </p>
                       <p className="text-sm leading-7 text-slate-500">
-                        还没有进行中的任务时，从新建任务开始也很自然；跑过的结果和做法后面都会继续留在这里。
+                        还没有生成任务时，从新建任务开始也很自然；跑过的结果、做法和中间素材后面都会继续留在这里。
                       </p>
                     </div>
                   </div>
@@ -1408,13 +1413,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
 
                 <div className="mt-6 flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                    左侧会继续显示继续中的任务
+                    左侧会继续显示正在推进的生成任务
                   </span>
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
                     最近结果会继续在这里回访
                   </span>
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                    常用做法和恢复中的会话会自动回到这里
+                    常用做法和恢复中的会话会自动回到这里继续生成
                   </span>
                 </div>
               </section>

@@ -124,10 +124,6 @@ const generalChatRestrictedPaths = [
       "agent.ts 已删除；请直接使用 @/lib/api/agentRuntime 或 @/lib/api/agentStream。",
   },
   {
-    name: "@/lib/terminal-api",
-    message: "terminal-api 现在只是兼容门面；新代码请改用 @/lib/api/terminal。",
-  },
-  {
     name: "@/hooks/useTauri",
     message:
       "useTauri 现在只是兼容聚合层，禁止新增依赖；请直接接入对应的 @/lib/api/* 网关。",
@@ -644,19 +640,6 @@ const systemSupportCommandSelectors = [
     "系统支持类后端命令请统一通过对应 API 网关（`src/lib/api/notification.ts` / `autoFix.ts` / `frontendCrash.ts`）调用，避免在 lib / hook 中继续直接拼接命令名。",
 }));
 
-const terminalCommandSelectors = [
-  "terminal_create_session",
-  "terminal_write",
-  "terminal_resize",
-  "terminal_close",
-  "terminal_list_sessions",
-  "terminal_get_session",
-].map((command) => ({
-  selector: `CallExpression[callee.name='safeInvoke'][arguments.0.value='${command}'], CallExpression[callee.name='invoke'][arguments.0.value='${command}']`,
-  message:
-    "终端相关后端命令请统一通过 `src/lib/api/terminal.ts` 暴露的网关函数调用，避免在其他模块中继续直接拼接命令名。",
-}));
-
 const serverRuntimeCommandSelectors = [
   "start_server",
   "stop_server",
@@ -1081,7 +1064,6 @@ export default [
         ...appUpdateCommandSelectors,
         ...screenshotChatCommandSelectors,
         ...systemSupportCommandSelectors,
-        ...terminalCommandSelectors,
         ...serverRuntimeCommandSelectors,
         ...logCommandSelectors,
         ...appConfigCommandSelectors,
@@ -1174,7 +1156,6 @@ export default [
       "src/lib/api/frontendCrash.ts",
       "src/lib/api/memoryFeedback.ts",
       "src/lib/api/toolHooks.ts",
-      "src/lib/api/terminal.ts",
       "src/lib/api/unifiedMemory.ts",
       "src/lib/api/serverRuntime.ts",
       "src/lib/api/logs.ts",

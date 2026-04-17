@@ -1,3 +1,4 @@
+import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,6 +26,7 @@ interface MountedSidebar {
 
 const mountedSidebars: MountedSidebar[] = [];
 const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
+const APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY = "lime.app-sidebar.enabled-items";
 
 function mountSidebar(options?: {
   currentPage?: Page;
@@ -47,6 +49,52 @@ function mountSidebar(options?: {
 
   mountedSidebars.push({ container, root });
   return container;
+}
+
+function mountControlledSidebar(options?: {
+  currentPage?: Page;
+  currentPageParams?: PageParams;
+}) {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  const navigationCalls: Array<{ page: Page; params?: PageParams }> = [];
+
+  function ControlledSidebar() {
+    const [currentPage, setCurrentPage] = React.useState<Page>(
+      options?.currentPage ?? "agent",
+    );
+    const [currentPageParams, setCurrentPageParams] = React.useState<PageParams>(
+      options?.currentPageParams ?? {},
+    );
+
+    const handleNavigate = React.useCallback(
+      (page: Page, params?: PageParams) => {
+        navigationCalls.push({ page, params });
+        setCurrentPage(page);
+        setCurrentPageParams(params ?? {});
+      },
+      [],
+    );
+
+    return (
+      <AppSidebar
+        currentPage={currentPage}
+        currentPageParams={currentPageParams}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
+
+  act(() => {
+    root.render(<ControlledSidebar />);
+  });
+
+  mountedSidebars.push({ container, root });
+  return {
+    container,
+    navigationCalls,
+  };
 }
 
 async function flushEffects() {
@@ -78,7 +126,7 @@ describe("AppSidebar", () => {
     vi.unstubAllGlobals();
   });
 
-  it("进入 Claw 任务中心时应自动折叠导航栏", async () => {
+  it("进入 Claw 生成页时应自动折叠导航栏", async () => {
     localStorage.setItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY, "false");
 
     const container = mountSidebar({
@@ -152,7 +200,49 @@ describe("AppSidebar", () => {
     ).not.toBeNull();
   });
 
-  it("点击场景应用入口时应优先恢复最近一次 SceneApp 上下文", async () => {
+  it("点击当前已激活的创作场景入口时不应重复导航", async () => {
+    const onNavigate = vi.fn();
+    const container = mountSidebar({
+      currentPage: "sceneapps",
+      currentPageParams: {
+        sceneappId: "story-video-suite",
+        projectId: "project-9",
+      },
+      onNavigate,
+    });
+    await flushEffects();
+
+    const button = container.querySelector(
+      'button[aria-label="创作场景"]',
+    ) as HTMLButtonElement | null;
+
+    expect(button).not.toBeNull();
+    expect(button?.getAttribute("aria-current")).toBe("page");
+
+    act(() => {
+      button?.click();
+    });
+
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("侧边栏重新挂载前应先恢复缓存的可选入口，避免持续流程短暂消失", () => {
+    localStorage.setItem(
+      APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
+      JSON.stringify(["automation"]),
+    );
+    mockGetConfig.mockImplementation(() => new Promise(() => undefined));
+
+    const container = mountSidebar({
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+
+    expect(container.textContent).toContain("持续流程");
+  });
+
+  it("点击创作场景入口时应优先恢复最近一次 SceneApp 上下文", async () => {
     const onNavigate = vi.fn();
     recordSceneAppRecentVisit(
       {
@@ -174,7 +264,7 @@ describe("AppSidebar", () => {
     await flushEffects();
 
     const button = container.querySelector(
-      'button[aria-label="场景应用"]',
+      'button[aria-label="创作场景"]',
     ) as HTMLButtonElement | null;
 
     expect(button).not.toBeNull();
@@ -188,6 +278,78 @@ describe("AppSidebar", () => {
       projectId: "project-9",
       runId: "run-2",
     });
+  });
+
+  it("快速从持续流程切回创作场景时不应吞掉第二次导航", async () => {
+    localStorage.setItem(
+      APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
+      JSON.stringify(["automation"]),
+    );
+    mockGetConfig.mockResolvedValue({
+      navigation: {
+        enabled_items: ["automation"],
+      },
+    });
+    recordSceneAppRecentVisit(
+      {
+        sceneappId: "story-video-suite",
+        projectId: "project-9",
+        runId: "run-2",
+      },
+      {
+        visitedAt: 600,
+      },
+    );
+
+    const { container, navigationCalls } = mountControlledSidebar({
+      currentPage: "sceneapps",
+      currentPageParams: {
+        sceneappId: "story-video-suite",
+        projectId: "project-9",
+        runId: "run-2",
+      },
+    });
+    await flushEffects();
+
+    const automationButton = container.querySelector(
+      'button[aria-label="持续流程"]',
+    ) as HTMLButtonElement | null;
+    const sceneAppsButton = container.querySelector(
+      'button[aria-label="创作场景"]',
+    ) as HTMLButtonElement | null;
+
+    expect(automationButton).not.toBeNull();
+    expect(sceneAppsButton).not.toBeNull();
+
+    act(() => {
+      automationButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true }),
+      );
+      sceneAppsButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true }),
+      );
+    });
+    await flushEffects();
+
+    expect(navigationCalls).toEqual([
+      {
+        page: "automation",
+        params: undefined,
+      },
+      {
+        page: "sceneapps",
+        params: {
+          sceneappId: "story-video-suite",
+          projectId: "project-9",
+          runId: "run-2",
+        },
+      },
+    ]);
+    expect(
+      container.querySelector(
+        'button[aria-label="创作场景"][aria-current="page"]',
+      ),
+    ).not.toBeNull();
   });
 
   it("默认应隐藏系统区的可选入口，只保留设置", async () => {

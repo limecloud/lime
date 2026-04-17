@@ -126,11 +126,62 @@ describe("tauri-mock/core invoke", () => {
     expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
   });
 
+  it("SceneApp preview 规划不应自动写入 context snapshot", async () => {
+    vi.mocked(shouldPreferMockInBrowser).mockReturnValue(true);
+
+    const firstPlan = await invoke("sceneapp_plan_launch", {
+      intent: {
+        sceneappId: "story-video-suite",
+        workspaceId: "workspace-default",
+        projectId: "project-video",
+        userInput: "根据发布会亮点生成 30 秒短视频草稿",
+        runtimeContext: {
+          cloudSessionReady: true,
+        },
+      },
+    });
+
+    const secondPlan = await invoke("sceneapp_plan_launch", {
+      intent: {
+        sceneappId: "story-video-suite",
+        workspaceId: "workspace-default",
+        projectId: "project-video",
+        runtimeContext: {
+          cloudSessionReady: true,
+        },
+      },
+    });
+
+    expect(firstPlan).toEqual(
+      expect.objectContaining({
+        contextOverlay: expect.objectContaining({
+          compilerPlan: expect.objectContaining({
+            referenceCount: 1,
+          }),
+        }),
+      }),
+    );
+    expect(secondPlan).toEqual(
+      expect.objectContaining({
+        contextOverlay: expect.objectContaining({
+          compilerPlan: expect.objectContaining({
+            notes: expect.not.arrayContaining([
+              expect.stringContaining("已从项目上下文恢复"),
+              expect.stringContaining("当前 planning 直接复用了 1 条项目级参考"),
+            ]),
+          }),
+        }),
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
   it("SceneApp mock 应在同一项目内复用上一次 context snapshot", async () => {
     vi.mocked(shouldPreferMockInBrowser).mockReturnValue(true);
 
     await expect(
-      invoke("sceneapp_plan_launch", {
+      invoke("sceneapp_save_context_baseline", {
         intent: {
           sceneappId: "story-video-suite",
           workspaceId: "workspace-default",
@@ -146,6 +197,16 @@ describe("tauri-mock/core invoke", () => {
         contextOverlay: expect.objectContaining({
           compilerPlan: expect.objectContaining({
             referenceCount: 1,
+            notes: expect.arrayContaining([
+              expect.stringContaining("已写入项目级 Context Snapshot"),
+            ]),
+          }),
+          snapshot: expect.objectContaining({
+            referenceItems: expect.arrayContaining([
+              expect.objectContaining({
+                usageCount: 1,
+              }),
+            ]),
           }),
         }),
       }),
@@ -177,6 +238,73 @@ describe("tauri-mock/core invoke", () => {
             tasteProfile: expect.objectContaining({
               summary:
                 "当前 TasteProfile 已在项目沉淀基础上，结合 1 条参考输入更新启发式摘要。",
+            }),
+          }),
+        }),
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
+  it("SceneApp mock 应把 referenceMemoryIds 编译成正式参考对象并透传到 adapter 合同", async () => {
+    vi.mocked(shouldPreferMockInBrowser).mockReturnValueOnce(true);
+
+    await expect(
+      invoke("sceneapp_plan_launch", {
+        intent: {
+          sceneappId: "story-video-suite",
+          workspaceId: "workspace-default",
+          projectId: "project-video",
+          userInput: "把这次新品卖点整理成 30 秒短视频方案",
+          referenceMemoryIds: ["memory-1", "memory-2"],
+          runtimeContext: {
+            cloudSessionReady: true,
+          },
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        contextOverlay: expect.objectContaining({
+          compilerPlan: expect.objectContaining({
+            referenceCount: 3,
+            notes: expect.arrayContaining([
+              expect.stringContaining("显式带入 2 条灵感对象"),
+            ]),
+          }),
+          snapshot: expect.objectContaining({
+            referenceItems: expect.arrayContaining([
+              expect.objectContaining({
+                id: "memory:memory-1",
+                label: "夏日短视频语气",
+                sourceKind: "reference_library",
+              }),
+              expect.objectContaining({
+                id: "memory:memory-2",
+                label: "爆款封面参考",
+                sourceKind: "reference_library",
+              }),
+            ]),
+            tasteProfile: expect.objectContaining({
+              keywords: expect.arrayContaining([
+                "夏日短视频语气",
+                "爆款封面参考",
+              ]),
+            }),
+          }),
+        }),
+        plan: expect.objectContaining({
+          adapterPlan: expect.objectContaining({
+            launchPayload: expect.objectContaining({
+              reference_memory_ids: ["memory-1", "memory-2"],
+            }),
+            requestMetadata: expect.objectContaining({
+              sceneapp_reference_memory_ids: ["memory-1", "memory-2"],
+              harness: expect.objectContaining({
+                sceneapp_launch: expect.objectContaining({
+                  reference_memory_ids: ["memory-1", "memory-2"],
+                }),
+              }),
             }),
           }),
         }),

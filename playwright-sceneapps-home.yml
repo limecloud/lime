@@ -1,0 +1,100 @@
+- generic [ref=e2]:
+  - generic [ref=e14]:
+    - complementary [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - button "Lime Lime" [ref=e18] [cursor=pointer]:
+            - img "Lime" [ref=e20]
+            - generic [ref=e21]: Lime
+          - button "折叠导航栏" [ref=e22] [cursor=pointer]:
+            - img [ref=e23]
+        - button "搜索任务" [ref=e26] [cursor=pointer]:
+          - img [ref=e27]
+          - generic [ref=e30]: 搜索任务
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]: 任务
+          - button "新建任务" [ref=e34] [cursor=pointer]:
+            - img [ref=e35]
+            - generic [ref=e36]: 新建任务
+          - button "生成" [ref=e37] [cursor=pointer]:
+            - img [ref=e38]
+            - generic [ref=e40]: 生成
+        - generic [ref=e41]:
+          - generic [ref=e42]: 能力
+          - button "我的方法" [ref=e43] [cursor=pointer]:
+            - img [ref=e44]
+            - generic [ref=e46]: 我的方法
+          - button "创作场景" [ref=e47] [cursor=pointer]:
+            - img [ref=e48]
+            - generic [ref=e52]: 创作场景
+          - button "持续流程" [ref=e53] [cursor=pointer]:
+            - img [ref=e54]
+            - generic [ref=e56]: 持续流程
+          - button "消息渠道" [ref=e57] [cursor=pointer]:
+            - img [ref=e58]
+            - generic [ref=e61]: 消息渠道
+        - generic [ref=e62]:
+          - generic [ref=e63]: 资料
+          - button "资料库" [ref=e64] [cursor=pointer]:
+            - img [ref=e65]
+            - generic [ref=e67]: 资料库
+          - button "灵感库" [ref=e68] [cursor=pointer]:
+            - img [ref=e69]
+            - generic [ref=e81]: 灵感库
+      - generic [ref=e82]:
+        - generic [ref=e83]:
+          - generic [ref=e84]: 系统
+          - button "OpenClaw" [ref=e85] [cursor=pointer]:
+            - img [ref=e86]
+            - generic [ref=e89]: OpenClaw
+          - button "设置" [ref=e90] [cursor=pointer]:
+            - img [ref=e91]
+            - generic [ref=e94]: 设置
+        - button "切换到深色模式" [ref=e96] [cursor=pointer]:
+          - img [ref=e97]
+    - main [ref=e103]:
+      - generic [ref=e117]:
+        - generic [ref=e120]:
+          - generic [ref=e121]:
+            - generic [ref=e122]: 创作
+            - generic [ref=e124]
+          - generic [ref=e140]:
+            - generic [ref=e141]
+            - generic [ref=e145]
+        - generic [ref=e150]:
+          - generic [ref=e151]:
+            - button "添加图片" [ref=e152] [cursor=pointer]
+            - textbox "有什么我可以帮你的？" [ref=e158]
+            - generic [ref=e159]
+          - generic [ref=e172]:
+            - button "展开高级设置" [ref=e173] [cursor=pointer]
+            - generic "当前模型：Custom-a32774c6-6fd0-433b-8b81-e95340e08793 / glm-5.1" [ref=e182]
+        - generic [ref=e185]:
+          - generic [ref=e186]:
+            - generic [ref=e187]
+            - generic [ref=e194]
+          - generic [ref=e200]:
+            - generic [ref=e202]
+            - generic [ref=e205]: 你最近跑通过的结果模板和方法，会出现在这里。
+          - generic [ref=e206]:
+            - generic [ref=e208]
+            - generic [ref=e211]
+        - generic [ref=e235]:
+          - article [ref=e236]:
+            - generic [ref=e237]
+            - generic [ref=e242]
+            - img "方法能力卡占位图" [ref=e253]
+          - article [ref=e254]:
+            - generic [ref=e255]
+            - generic [ref=e261]
+            - img "持续流程能力卡占位图" [ref=e272]
+          - article [ref=e273]:
+            - generic [ref=e274]
+            - generic [ref=e281]
+            - img "任务拆分能力卡占位图" [ref=e292]
+          - article [ref=e293]:
+            - generic [ref=e294]
+            - generic [ref=e300]
+            - button "连接浏览器" [ref=e310] [cursor=pointer]
+  - region "Notifications alt+T"

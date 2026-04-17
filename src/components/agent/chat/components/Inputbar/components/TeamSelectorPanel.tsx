@@ -48,6 +48,9 @@ interface TeamSelectorPanelProps {
   onClose?: () => void;
 }
 
+const TEAM_SELECTOR_PRIMARY_BUTTON_CLASSNAME =
+  "border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95";
+
 interface TeamDraft {
   id?: string;
   label: string;
@@ -568,7 +571,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
             {!isCurrent ? (
               <Button
                 type="button"
-                className="bg-slate-900 text-white hover:bg-slate-800"
+                className={TEAM_SELECTOR_PRIMARY_BUTTON_CLASSNAME}
                 onClick={() => handleSelect(inspectorTeam)}
               >
                 采用这套分工
@@ -987,7 +990,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
           </Button>
           <Button
             type="button"
-            className="bg-slate-900 text-white hover:bg-slate-800"
+            className={TEAM_SELECTOR_PRIMARY_BUTTON_CLASSNAME}
             onClick={() => {
               void handleSaveDraft();
             }}
@@ -1064,7 +1067,7 @@ export const TeamSelectorPanel: React.FC<TeamSelectorPanelProps> = ({
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
-                className="bg-slate-900 text-white hover:bg-slate-800"
+                className={TEAM_SELECTOR_PRIMARY_BUTTON_CLASSNAME}
                 onClick={() =>
                   handleStartCreate(
                     selectedTeam || recommendedTeam || builtinTeams[0] || null,

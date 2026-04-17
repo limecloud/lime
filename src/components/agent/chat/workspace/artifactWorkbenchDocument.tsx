@@ -85,6 +85,15 @@ interface ArtifactRecoveryPresentation {
   badgeLabel: string;
 }
 
+const ARTIFACT_PRIMARY_ACTION_BUTTON_CLASSNAME =
+  "inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60";
+
+const ARTIFACT_ACTIVE_SURFACE_CLASSNAME =
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10";
+
+const ARTIFACT_ACTIVE_BADGE_CLASSNAME =
+  "border border-emerald-200 bg-white/90 text-emerald-700 shadow-sm shadow-emerald-950/10";
+
 export interface ArtifactWorkbenchDocumentController {
   artifact: Artifact;
   document: ArtifactDocumentV1 | null;
@@ -944,7 +953,7 @@ const OverviewPanel: React.FC<{
                     <button
                       data-testid="artifact-recovery-mark-ready"
                       type="button"
-                      className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      className={ARTIFACT_PRIMARY_ACTION_BUTTON_CLASSNAME}
                       onClick={onMarkAsReady}
                       disabled={isUpdatingRecoveryState}
                     >
@@ -1129,7 +1138,7 @@ const VersionsPanel: React.FC<{
           className={cn(
             "rounded-2xl border p-4",
             currentVersion?.id === version.id
-              ? "border-slate-900 bg-slate-900 text-white"
+              ? ARTIFACT_ACTIVE_SURFACE_CLASSNAME
               : "border-slate-200 bg-white text-slate-900",
           )}
         >
@@ -1140,7 +1149,7 @@ const VersionsPanel: React.FC<{
                 className={cn(
                   "mt-1 text-xs",
                   currentVersion?.id === version.id
-                    ? "text-slate-300"
+                    ? "text-slate-600"
                     : "text-slate-500",
                 )}
               >
@@ -1152,7 +1161,9 @@ const VersionsPanel: React.FC<{
                 currentVersion?.id === version.id ? "secondary" : "outline"
               }
               className={
-                currentVersion?.id === version.id ? "text-slate-950" : undefined
+                currentVersion?.id === version.id
+                  ? ARTIFACT_ACTIVE_BADGE_CLASSNAME
+                  : undefined
               }
             >
               {currentVersion?.id === version.id
@@ -1164,7 +1175,7 @@ const VersionsPanel: React.FC<{
             className={cn(
               "mt-3 text-sm font-medium",
               currentVersion?.id === version.id
-                ? "text-white"
+                ? "text-slate-900"
                 : "text-slate-950",
             )}
           >
@@ -1175,7 +1186,7 @@ const VersionsPanel: React.FC<{
               className={cn(
                 "mt-2 text-sm leading-6",
                 currentVersion?.id === version.id
-                  ? "text-slate-300"
+                  ? "text-slate-600"
                   : "text-slate-600",
               )}
             >
@@ -1398,7 +1409,7 @@ const EditInspectorPanel: React.FC<{
                 className={cn(
                   "w-full rounded-2xl border px-4 py-3 text-left transition",
                   isActive
-                    ? "border-slate-900 bg-slate-900 text-white"
+                    ? ARTIFACT_ACTIVE_SURFACE_CLASSNAME
                     : "border-slate-200 bg-white text-slate-900 hover:border-emerald-200 hover:bg-emerald-50",
                 )}
                 onClick={() => onSelectBlock(block.blockId)}
@@ -1412,7 +1423,7 @@ const EditInspectorPanel: React.FC<{
                       <div
                         className={cn(
                           "mt-1 truncate text-xs",
-                          isActive ? "text-slate-300" : "text-slate-500",
+                          isActive ? "text-slate-600" : "text-slate-500",
                         )}
                       >
                         {block.detail}
@@ -1422,7 +1433,7 @@ const EditInspectorPanel: React.FC<{
                   {isDirty ? (
                     <Badge
                       variant={isActive ? "secondary" : "outline"}
-                      className={isActive ? "text-slate-950" : undefined}
+                      className={isActive ? ARTIFACT_ACTIVE_BADGE_CLASSNAME : undefined}
                     >
                       未保存
                     </Badge>
@@ -1715,7 +1726,7 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                className={ARTIFACT_PRIMARY_ACTION_BUTTON_CLASSNAME}
                 onClick={handleSave}
                 disabled={isSaving || isStreaming}
               >
@@ -1808,7 +1819,7 @@ export const ArtifactWorkbenchEditSurface: React.FC<{
                         <button
                           data-testid="artifact-edit-rewrite-save"
                           type="button"
-                          className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                          className={ARTIFACT_PRIMARY_ACTION_BUTTON_CLASSNAME}
                           onClick={() => {
                             void handleApplyRewriteSuggestionAndSave();
                           }}

@@ -169,7 +169,7 @@ export function McpServerList({
                     <button
                       onClick={(e) => handleReconnect(server.name, e)}
                       disabled={operatingServer === server.name}
-                      className="p-1.5 rounded hover:bg-blue-500/10 text-blue-600 disabled:opacity-50"
+                      className="rounded p-1.5 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                       title="重连服务器"
                     >
                       <RefreshCw
@@ -219,12 +219,12 @@ export function McpServerList({
                 {server.is_running && server.server_info && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {server.server_info.supports_tools && (
-                      <span className="px-1.5 py-0.5 text-xs rounded bg-blue-500/10 text-blue-600">
+                      <span className="rounded px-1.5 py-0.5 text-xs bg-emerald-50 text-emerald-700">
                         工具
                       </span>
                     )}
                     {server.server_info.supports_prompts && (
-                      <span className="px-1.5 py-0.5 text-xs rounded bg-purple-500/10 text-purple-600">
+                      <span className="rounded bg-sky-50 px-1.5 py-0.5 text-xs text-sky-700 dark:bg-sky-950/30 dark:text-sky-300">
                         提示词
                       </span>
                     )}

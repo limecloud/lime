@@ -32,6 +32,14 @@ pub async fn sceneapp_plan_launch(
 }
 
 #[tauri::command]
+pub async fn sceneapp_save_context_baseline(
+    db: State<'_, DbConnection>,
+    intent: SceneAppLaunchIntent,
+) -> Result<SceneAppPlanResult, String> {
+    SceneAppService::save_context_baseline(db.inner(), intent)
+}
+
+#[tauri::command]
 pub async fn sceneapp_create_automation_job(
     automation_state: State<'_, AutomationServiceState>,
     intent: SceneAppAutomationIntent,

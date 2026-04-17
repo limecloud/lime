@@ -43,7 +43,7 @@ describe("buildHomeAgentParams", () => {
 });
 
 describe("buildClawAgentParams", () => {
-  it("应返回 Claw 任务中心参数", () => {
+  it("应返回 Claw 生成页参数", () => {
     const params = buildClawAgentParams();
 
     expect(params.agentEntry).toBe("claw");

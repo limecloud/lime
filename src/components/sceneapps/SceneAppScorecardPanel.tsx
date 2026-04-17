@@ -1,12 +1,20 @@
 import {
+  type SceneAppRunDetailViewModel,
   type SceneAppScorecardViewModel,
 } from "@/lib/sceneapp";
 import { cn } from "@/lib/utils";
+import { SceneAppProjectPackRuntimePanel } from "./SceneAppProjectPackRuntimePanel";
 
 interface SceneAppScorecardPanelProps {
   scorecardView: SceneAppScorecardViewModel | null;
+  packRuntimeView: SceneAppRunDetailViewModel | null;
+  packRuntimeLoading?: boolean;
+  packRuntimeUsesFallback?: boolean;
   loading: boolean;
   error?: string | null;
+  onPackRuntimeArtifactAction?: (
+    action: SceneAppRunDetailViewModel["deliveryArtifactEntries"][number],
+  ) => void;
 }
 
 const METRIC_STATUS_CLASSNAMES = {
@@ -17,8 +25,12 @@ const METRIC_STATUS_CLASSNAMES = {
 
 export function SceneAppScorecardPanel({
   scorecardView,
+  packRuntimeView,
+  packRuntimeLoading = false,
+  packRuntimeUsesFallback = false,
   loading,
   error,
+  onPackRuntimeArtifactAction,
 }: SceneAppScorecardPanelProps) {
   return (
     <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
@@ -26,7 +38,8 @@ export function SceneAppScorecardPanel({
         <div>
           <div className="text-sm font-semibold text-slate-900">经营评分</div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            用统一 scorecard 判断这个场景交付的结果是否值得继续放大、优化还是收口。
+            用统一 scorecard
+            判断这个场景交付的结果是否值得继续放大、优化还是收口。
           </p>
         </div>
         {scorecardView?.hasRuntimeScorecard && scorecardView.actionLabel ? (
@@ -155,7 +168,9 @@ export function SceneAppScorecardPanel({
               ) : null}
               {scorecardView.topFailureSignalLabel ? (
                 <div className="mt-3 text-sm text-slate-700">
-                  <span className="font-medium text-slate-900">当前主要阻塞：</span>
+                  <span className="font-medium text-slate-900">
+                    当前主要阻塞：
+                  </span>
                   {scorecardView.topFailureSignalLabel}
                 </div>
               ) : null}
@@ -177,6 +192,98 @@ export function SceneAppScorecardPanel({
                       </span>
                     ))}
                   </div>
+                </div>
+              ) : null}
+              {scorecardView.contextBaseline ? (
+                <div className="mt-4 rounded-[18px] border border-sky-200 bg-white px-3 py-3">
+                  <div className="text-xs font-medium text-slate-500">
+                    Planning 基线
+                  </div>
+                  <div
+                    data-testid="sceneapp-scorecard-context-reference-count"
+                    className="mt-2 text-sm text-slate-700"
+                  >
+                    <span className="font-medium text-slate-900">
+                      参考注入：
+                    </span>
+                    {scorecardView.contextBaseline.referenceCount} 条
+                  </div>
+                  {scorecardView.contextBaseline.scopeLabel ? (
+                    <div className="mt-2 text-sm text-slate-700">
+                      <span className="font-medium text-slate-900">
+                        作用域：
+                      </span>
+                      {scorecardView.contextBaseline.scopeLabel}
+                    </div>
+                  ) : null}
+                  {scorecardView.contextBaseline.referenceItems.length ? (
+                    <div
+                      data-testid="sceneapp-scorecard-context-reference-items"
+                      className="mt-3 flex flex-wrap gap-2"
+                    >
+                      {scorecardView.contextBaseline.referenceItems.map(
+                        (item) => (
+                          <span
+                            key={item.key}
+                            className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
+                          >
+                            {item.label}
+                            {item.usageLabel ? ` · ${item.usageLabel}` : ""}
+                            {item.feedbackLabel
+                              ? ` · ${item.feedbackLabel}`
+                              : ""}
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  ) : null}
+                  {scorecardView.contextBaseline.tasteSummary ? (
+                    <div
+                      data-testid="sceneapp-scorecard-context-taste-summary"
+                      className="mt-3 text-sm leading-6 text-slate-700"
+                    >
+                      <span className="font-medium text-slate-900">
+                        风格摘要：
+                      </span>
+                      {scorecardView.contextBaseline.tasteSummary}
+                    </div>
+                  ) : null}
+                  {scorecardView.contextBaseline.feedbackSummary ? (
+                    <div
+                      data-testid="sceneapp-scorecard-context-feedback-summary"
+                      className="mt-3 text-sm leading-6 text-slate-700"
+                    >
+                      <span className="font-medium text-slate-900">
+                        最近反馈：
+                      </span>
+                      {scorecardView.contextBaseline.feedbackSummary}
+                    </div>
+                  ) : null}
+                  {scorecardView.contextBaseline.feedbackUpdatedAtLabel ? (
+                    <div className="mt-2 text-sm text-slate-700">
+                      <span className="font-medium text-slate-900">
+                        反馈更新时间：
+                      </span>
+                      {scorecardView.contextBaseline.feedbackUpdatedAtLabel}
+                    </div>
+                  ) : null}
+                  {scorecardView.contextBaseline.feedbackSignals.length ? (
+                    <div
+                      data-testid="sceneapp-scorecard-context-feedback-signals"
+                      className="mt-3 flex flex-wrap gap-2"
+                    >
+                      {scorecardView.contextBaseline.feedbackSignals.map(
+                        (signal) => (
+                          <span
+                            key={signal.key}
+                            className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700"
+                          >
+                            {signal.label}
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {scorecardView.observedFailureSignals.length ? (
@@ -226,6 +333,19 @@ export function SceneAppScorecardPanel({
                 : "当前还没有真实评分数据，先跑一次结果链再看表现。"}
             </div>
           )}
+
+          <div className="mt-4">
+            <SceneAppProjectPackRuntimePanel
+              title="最近可消费结果"
+              description="把经营评分和最近一轮可打开的 Project Pack 样本绑在一起，避免只剩分数、没有结果入口。"
+              emptyMessage="当前还没有可直接打开的结果样本，先跑出一轮带真实文件回流的 Project Pack，再结合 scorecard 继续判断。"
+              testIdPrefix="sceneapp-scorecard-pack"
+              runDetailView={packRuntimeView}
+              loading={packRuntimeLoading}
+              usesFallbackRun={packRuntimeUsesFallback}
+              onDeliveryArtifactAction={onPackRuntimeArtifactAction}
+            />
+          </div>
         </>
       )}
     </section>

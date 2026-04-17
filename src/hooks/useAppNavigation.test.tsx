@@ -22,6 +22,7 @@ describe("useAppNavigation", () => {
   let container: HTMLDivElement;
   let root: Root;
   let latestNavigation: ReturnType<typeof useAppNavigation> | null;
+  let readyCallCount: number;
 
   beforeEach(() => {
     (
@@ -35,6 +36,7 @@ describe("useAppNavigation", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     latestNavigation = null;
+    readyCallCount = 0;
   });
 
   afterEach(() => {
@@ -58,6 +60,7 @@ describe("useAppNavigation", () => {
         <HookProbe
           onReady={(value) => {
             latestNavigation = value;
+            readyCallCount += 1;
           }}
         />,
       );
@@ -69,6 +72,9 @@ describe("useAppNavigation", () => {
     await renderProbe();
 
     expect(latestNavigation?.currentPage).toBe("agent");
+    expect(latestNavigation?.requestedPage).toBe("agent");
+    expect(latestNavigation?.navigationRequestId).toBe(0);
+    expect(latestNavigation?.isNavigating).toBe(false);
     expect(latestNavigation?.pageParams).toMatchObject({
       agentEntry: "new-task",
       immersiveHome: false,
@@ -109,6 +115,8 @@ describe("useAppNavigation", () => {
     });
 
     expect(latestNavigation?.currentPage).toBe("skills");
+    expect(latestNavigation?.requestedPage).toBe("skills");
+    expect(latestNavigation?.navigationRequestId).toBe(1);
     expect(latestNavigation?.pageParams).toEqual({});
   });
 
@@ -127,5 +135,63 @@ describe("useAppNavigation", () => {
       sceneappId: "story-video-suite",
       projectId: "project-sceneapps",
     });
+  });
+
+  it("同页同参数重复跳转时不应再次更新导航状态", async () => {
+    await renderProbe();
+
+    await act(async () => {
+      latestNavigation?.handleNavigate("sceneapps", {
+        sceneappId: "story-video-suite",
+        projectId: "project-sceneapps",
+      });
+    });
+    await flushEffects();
+
+    const readyCallsAfterFirstNavigation = readyCallCount;
+
+    await act(async () => {
+      latestNavigation?.handleNavigate("sceneapps", {
+        sceneappId: "story-video-suite",
+        projectId: "project-sceneapps",
+      });
+    });
+    await flushEffects();
+
+    expect(readyCallCount).toBe(readyCallsAfterFirstNavigation);
+    expect(latestNavigation?.currentPage).toBe("sceneapps");
+    expect(latestNavigation?.pageParams).toEqual({
+      sceneappId: "story-video-suite",
+      projectId: "project-sceneapps",
+    });
+  });
+
+  it("同一轮连续导航时应以最后一次请求为准", async () => {
+    await renderProbe();
+
+    await act(async () => {
+      latestNavigation?.handleNavigate("automation");
+      latestNavigation?.handleNavigate("sceneapps", {
+        sceneappId: "story-video-suite",
+        projectId: "project-sceneapps",
+        runId: "scene-run-2",
+      });
+    });
+    await flushEffects();
+
+    expect(latestNavigation?.currentPage).toBe("sceneapps");
+    expect(latestNavigation?.requestedPage).toBe("sceneapps");
+    expect(latestNavigation?.pageParams).toEqual({
+      sceneappId: "story-video-suite",
+      projectId: "project-sceneapps",
+      runId: "scene-run-2",
+    });
+    expect(latestNavigation?.requestedPageParams).toEqual({
+      sceneappId: "story-video-suite",
+      projectId: "project-sceneapps",
+      runId: "scene-run-2",
+    });
+    expect(latestNavigation?.navigationRequestId).toBe(2);
+    expect(latestNavigation?.isNavigating).toBe(false);
   });
 });

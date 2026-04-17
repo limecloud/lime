@@ -155,13 +155,13 @@ const sourceConfig: Record<
   community: {
     label: "社区",
     className:
-      "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+      "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
     surfaceClassName: "from-sky-200/70 via-sky-50 to-white",
   },
   local: {
     label: "本地",
     className:
-      "bg-gray-100 text-gray-800 dark:bg-gray-800/50 dark:text-gray-400",
+      "bg-slate-100 text-slate-800 dark:bg-slate-800/50 dark:text-slate-400",
     surfaceClassName: "from-slate-200/70 via-slate-50 to-white",
   },
 };
@@ -177,7 +177,7 @@ function SourceBadge({ source }: { source: SkillSource }) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border border-black/5 px-2.5 py-1 text-xs font-medium shadow-sm ${className}`}
+      className={`inline-flex items-center rounded-full border border-border/60 px-2.5 py-1 text-xs font-medium shadow-sm ${className}`}
     >
       {label}
     </span>
@@ -407,7 +407,7 @@ export function SkillCard({
                 className={`min-w-[120px] flex-1 ${actionButtonBaseClassName} ${
                   skill.installed
                     ? "border border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/30"
-                    : "bg-slate-900 text-white shadow-sm hover:bg-slate-800"
+                    : "border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {installing ? (

@@ -143,7 +143,7 @@
     {
       "id": "terminal-runtime-state-modules",
       "classification": "dead-candidate",
-      "description": "已删除的零入口终端状态、VDOM、贴纸侧链与自述，前端 terminal 能力只允许通过 src/lib/api/terminal.ts 复用命令与事件，不再保留 src/lib/terminal 侧链",
+      "description": "已删除的零入口终端状态、VDOM、贴纸侧链与自述；terminal 产品面已经整体下线，不再保留任何前端 terminal API 或页面侧链",
       "targets": [
         "src/lib/terminal/README.md",
         "src/lib/terminal/stickers/README.md",

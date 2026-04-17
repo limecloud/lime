@@ -17,6 +17,8 @@ pub struct PersistedSceneAppContext {
     pub reference_items: Vec<ReferenceItem>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub taste_profile: Option<TasteProfile>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_feedback_run_id: Option<String>,
 }
 
 fn normalize_optional_id(value: Option<&str>) -> Option<String> {
@@ -97,6 +99,7 @@ pub fn build_persisted_sceneapp_context(
         project_id: snapshot.project_id.clone(),
         reference_items: snapshot.reference_items.clone(),
         taste_profile: snapshot.taste_profile.clone(),
+        last_feedback_run_id: None,
     }
 }
 
@@ -211,6 +214,9 @@ mod tests {
                 uri: None,
                 summary: Some("科技感，快节奏".to_string()),
                 selected: true,
+                usage_count: Some(1),
+                last_used_at: Some("2026-04-17T00:00:00.000Z".to_string()),
+                last_feedback_label: Some("可继续复用".to_string()),
             }],
             taste_profile: Some(crate::sceneapp::context::dto::TasteProfile {
                 profile_id: "taste-story-video-suite".to_string(),
@@ -219,6 +225,9 @@ mod tests {
                 avoid_keywords: vec!["冗长铺垫".to_string()],
                 derived_from_reference_ids: vec!["slot-style-a1b2".to_string()],
                 confidence: Some(0.72),
+                feedback_summary: Some("最近一次运行已沉淀为正向风格反馈。".to_string()),
+                feedback_signals: vec!["publish_ready".to_string()],
+                last_feedback_at: Some("2026-04-17T00:00:00.000Z".to_string()),
             }),
         };
         let persisted = build_persisted_sceneapp_context("story-video-suite", &snapshot);

@@ -3,6 +3,9 @@ import { cn } from "@/lib/utils";
 import { RenderableTaskImage } from "./RenderableTaskImage";
 import type { ImageTaskViewerProps } from "./imageWorkbenchTypes";
 
+const IMAGE_TASK_PRIMARY_BUTTON_CLASSNAME =
+  "inline-flex items-center justify-center rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95";
+
 function resolveModeEyebrow(mode?: string): string {
   switch ((mode || "").trim().toLowerCase()) {
     case "edit":
@@ -470,7 +473,7 @@ export function ImageTaskViewer({
                   }
                   onSeedFollowUpCommand?.(followUpCommand);
                 }}
-                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                className={IMAGE_TASK_PRIMARY_BUTTON_CLASSNAME}
               >
                 {resolveFollowUpLabel(selectedTask?.mode)}
               </button>

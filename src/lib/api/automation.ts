@@ -1,6 +1,10 @@
 import { safeInvoke } from "@/lib/dev-bridge";
 import type { AgentRun } from "@/lib/api/executionRun";
 import type { BrowserStreamMode } from "@/lib/webview-api";
+import type {
+  AsterApprovalPolicy,
+  AsterSandboxPolicy,
+} from "@/lib/api/agentRuntime";
 
 export type TaskSchedule =
   | { kind: "every"; every_secs: number }
@@ -71,6 +75,8 @@ export interface AgentTurnAutomationPayload {
   system_prompt?: string | null;
   web_search: boolean;
   content_id?: string | null;
+  approval_policy?: AsterApprovalPolicy | null;
+  sandbox_policy?: AsterSandboxPolicy | null;
   request_metadata?: AutomationRequestMetadata | null;
 }
 

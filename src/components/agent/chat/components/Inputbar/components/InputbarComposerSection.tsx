@@ -352,7 +352,7 @@ export const InputbarComposerSection: React.FC<
             ? workflowGate?.status === "waiting"
               ? "说说你的选择，剩下的交给我"
               : contextVariant === "task-center"
-                ? "继续补充当前任务，或回到左侧继续旧历史"
+                ? "继续补充当前生成任务，或回到左侧继续旧历史"
                 : "试着输入任何指令，剩下的交给我"
             : undefined
         }

@@ -1,73 +1,41 @@
-# 终端底层能力
+# 终端能力归档说明（已移除）
+
+本页仅用于治理归档与历史检索，不作为 current 模块入口。
 
 ## 概述
 
-Lime 仍保留终端底层能力，用于复用运行时、诊断与会话管理；独立前端 `terminal / sysinfo / files / web` 页面已经下线，旧 `src/components/terminal/` 页面模块与 `src/lib/terminal/` 状态侧链都已删除。
+`lime-terminal` 已从当前仓库移除，Lime 不再提供内置 PTY / SSH / WSL 终端会话能力。独立前端 `terminal / sysinfo / files / web` 页面更早已下线；本轮收口后，旧 `src-tauri/src/terminal/`、`terminal_cmd`、`connection_cmd` 与 `src/lib/api/terminal.ts` 也不再作为 current surface 保留。
 
-## 目录结构
+## 当前结论
 
-```
-src-tauri/src/terminal/
-├── mod.rs          # 模块入口
-├── pty.rs          # PTY 管理
-├── session.rs      # 会话管理
-└── commands.rs     # 终端命令
+当前与“terminal”仍相关的能力只剩：
 
-src/lib/api/terminal.ts
-```
+- Windows 启动诊断里的默认 shell 判定
+- Aster runtime 中的 `SessionType::Terminal` 会话类型与相关读模型语义
+- 与 Agent / 执行工作区相关的 `latest_terminal / recent_terminals` 运行结果摘要字段
+- 文档与治理目录册中的历史痕迹扫描
 
-## PTY 管理
+这些都不是内置终端产品面，不应再被扩展回 PTY 会话、连接管理或终端页面。
 
-```rust
-pub struct PtyManager {
-    sessions: HashMap<String, PtySession>,
-}
+## 治理分类
 
-pub struct PtySession {
-    id: String,
-    master: PtyMaster,
-    child: Child,
-}
+- `dead`
+  - `src-tauri/src/terminal/*`
+  - `src-tauri/src/commands/terminal_cmd.rs`
+  - `src-tauri/src/commands/connection_cmd.rs`
+  - `src/lib/api/terminal.ts`
+- `current`
+  - `src/lib/api/serverRuntime.ts`、`crashDiagnostic.ts` 等非终端产品面的运行时诊断入口
+  - Aster runtime 会话读模型里的 `SessionType::Terminal`
+  - 执行工作区中的 `latest_terminal / recent_terminals` 运行结果摘要
 
-impl PtyManager {
-    /// 创建新会话
-    pub fn create_session(&mut self, shell: &str) -> Result<String>;
-    
-    /// 写入数据
-    pub fn write(&self, session_id: &str, data: &[u8]) -> Result<()>;
-    
-    /// 读取输出
-    pub fn read(&self, session_id: &str) -> Result<Vec<u8>>;
-    
-    /// 调整大小
-    pub fn resize(&self, session_id: &str, cols: u16, rows: u16) -> Result<()>;
-    
-    /// 关闭会话
-    pub fn close_session(&mut self, session_id: &str) -> Result<()>;
-}
-```
+## 约束
 
-## 前端边界
-
-前端当前只允许通过 `src/lib/api/terminal.ts` 复用终端会话与事件能力；旧 `src/lib/terminal/*` 状态、VDOM、贴纸侧链已删除，不再恢复。
-
-## Tauri 命令
-
-```rust
-#[tauri::command]
-async fn terminal_create(shell: Option<String>) -> Result<String, String>;
-
-#[tauri::command]
-async fn terminal_write(session_id: String, data: String) -> Result<(), String>;
-
-#[tauri::command]
-async fn terminal_resize(session_id: String, cols: u16, rows: u16) -> Result<(), String>;
-
-#[tauri::command]
-async fn terminal_close(session_id: String) -> Result<(), String>;
-```
+- 不再新增任何 `terminal_*` / `connection_*` Tauri 命令
+- 不再恢复终端页面、终端 API 网关或 PTY 管理层
+- 如未来确有需求，必须重新定义新的 current surface，而不是复活旧 crate / 旧命令 / 旧页面
 
 ## 相关文档
 
 - [commands.md](commands.md) - Tauri 命令
-- [components.md](components.md) - 组件系统
+- [governance.md](governance.md) - 治理判断

@@ -322,7 +322,7 @@ export function ChannelLogTailPanel() {
               <span className="text-muted-foreground">
                 [{formatTime(entry.timestamp)}]
               </span>{" "}
-              <span className="text-blue-500">
+              <span className="text-sky-600 dark:text-sky-400">
                 [{entry.level.toUpperCase()}]
               </span>{" "}
               {entry.message}

@@ -39,7 +39,6 @@ import {
   type InvokeTraceBufferEntry,
 } from "@/lib/dev-bridge";
 import { revealPathInFinder } from "@/lib/api/fileSystem";
-import { listTerminalSessions, type SessionMetadata } from "@/lib/api/terminal";
 import {
   clearWorkspaceRepairHistory,
   getWorkspaceRepairHistory,
@@ -141,20 +140,11 @@ export interface McpDiagnosticSummary {
   servers: McpServerEntrySummary[];
 }
 
-export interface TerminalDiagnosticSummary {
-  total_sessions: number;
-  connecting_sessions: number;
-  running_sessions: number;
-  done_sessions: number;
-  error_sessions: number;
-}
-
 export interface RuntimeDiagnosticSnapshot {
   config_summary?: RuntimeConfigSummary | null;
   provider_pool_summary?: ProviderPoolDiagnosticSummary | null;
   api_key_provider_summary?: ApiKeyProviderDiagnosticSummary | null;
   mcp_summary?: McpDiagnosticSummary | null;
-  terminal_summary?: TerminalDiagnosticSummary | null;
 }
 
 export interface RuntimeDiagnosticCollectionResult {
@@ -369,20 +359,6 @@ function buildMcpSummary(servers: McpServerInfo[]): McpDiagnosticSummary {
   };
 }
 
-function buildTerminalSummary(
-  sessions: SessionMetadata[],
-): TerminalDiagnosticSummary {
-  return {
-    total_sessions: sessions.length,
-    connecting_sessions: sessions.filter((item) => item.status === "connecting")
-      .length,
-    running_sessions: sessions.filter((item) => item.status === "running")
-      .length,
-    done_sessions: sessions.filter((item) => item.status === "done").length,
-    error_sessions: sessions.filter((item) => item.status === "error").length,
-  };
-}
-
 function normalizeDiagnosticErrorMessage(error: unknown): string {
   const rawMessage = error instanceof Error ? error.message : String(error);
   const compactMessage = rawMessage.replace(/\s+/g, " ").trim();
@@ -408,8 +384,7 @@ function hasRuntimeSnapshotData(snapshot: RuntimeDiagnosticSnapshot): boolean {
     snapshot.config_summary ||
     snapshot.provider_pool_summary ||
     snapshot.api_key_provider_summary ||
-    snapshot.mcp_summary ||
-    snapshot.terminal_summary,
+    snapshot.mcp_summary,
   );
 }
 
@@ -422,13 +397,11 @@ export async function collectRuntimeSnapshotForDiagnostic(
     providerPoolResult,
     apiKeyProviderResult,
     mcpResult,
-    terminalResult,
   ] = await Promise.allSettled([
     configTask,
     providerPoolApi.getOverview(),
     apiKeyProviderApi.getProviders(),
     mcpApi.listServersWithStatus(),
-    listTerminalSessions(),
   ]);
 
   const snapshot: RuntimeDiagnosticSnapshot = {};
@@ -486,19 +459,6 @@ export async function collectRuntimeSnapshotForDiagnostic(
         "runtime_snapshot.mcp_summary",
         "mcp_list_servers_with_status",
         mcpResult.reason,
-      ),
-    );
-  }
-
-  if (terminalResult.status === "fulfilled") {
-    snapshot.terminal_summary = buildTerminalSummary(terminalResult.value);
-  } else {
-    snapshot.terminal_summary = null;
-    collectionNotes.push(
-      buildCollectionFailureNote(
-        "runtime_snapshot.terminal_summary",
-        "terminal_list_sessions",
-        terminalResult.reason,
       ),
     );
   }
@@ -848,7 +808,6 @@ function buildDiagnosticSummary(payload: CrashDiagnosticPayload): string {
   const apiKeyProviderSummary =
     payload.runtime_snapshot?.api_key_provider_summary;
   const mcpSummary = payload.runtime_snapshot?.mcp_summary;
-  const terminalSummary = payload.runtime_snapshot?.terminal_summary;
   const summaryLines = [
     `- 版本：${payload.app_version}`,
     `- 平台：${payload.platform}（${payload.runtime}）`,
@@ -872,7 +831,6 @@ function buildDiagnosticSummary(payload: CrashDiagnosticPayload): string {
         ? `${mcpSummary.total_servers} / ${mcpSummary.running_servers}`
         : "未采集"
     }`,
-    `- 终端会话数：${formatOptionalSummaryValue(terminalSummary?.total_sessions)}`,
     `- 关联日志文件数：${relatedLogFileCount}`,
     `- 原始响应文件数：${rawResponseFileCount}`,
     `- Workspace 自动修复记录条数：${workspaceRepairCount}`,

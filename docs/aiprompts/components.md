@@ -12,7 +12,7 @@ src/components/
 ├── provider-pool/      # 凭证池管理
 ├── flow-monitor/       # 流量监控
 ├── general-chat/       # 兼容画布桥接（非对话主入口）
-├── terminal/           # 内置终端
+├── terminal/           # 已移除的历史终端页面路径（不要恢复）
 ├── mcp/                # MCP 服务器
 ├── settings/           # 设置页面
 └── AppSidebar.tsx      # 全局侧边栏

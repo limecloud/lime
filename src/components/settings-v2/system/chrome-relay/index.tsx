@@ -90,7 +90,7 @@ interface EngineDefinition {
 const SECONDARY_BUTTON_CLASS_NAME =
   "inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50";
 const PRIMARY_BUTTON_CLASS_NAME =
-  "inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50";
 const SELECT_CLASS_NAME =
   "h-11 w-full rounded-[16px] border border-slate-200 bg-white px-3.5 text-sm text-slate-700 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200 sm:w-auto";
 const PRIMARY_TABS_CLASS_NAME =
@@ -103,6 +103,8 @@ const SECTION_TAB_TRIGGER_CLASS_NAME =
   "rounded-full border px-4 py-2 text-sm font-medium";
 const SECTION_TAB_BADGE_CLASS_NAME =
   "inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold";
+const ACTIVE_TAB_TRIGGER_CLASS_NAME =
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10";
 const REMOTE_DEBUGGING_URL = "chrome://inspect/#remote-debugging";
 
 const BrowserRuntimeDebugPanel = lazy(() =>
@@ -1877,7 +1879,7 @@ export function ChromeRelaySettings() {
     cn(
       SECTION_TAB_TRIGGER_CLASS_NAME,
       activeSectionTab === tab
-        ? "border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-950/15"
+        ? ACTIVE_TAB_TRIGGER_CLASS_NAME
         : "border-transparent bg-white/70 text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-900",
     );
 
@@ -1893,13 +1895,15 @@ export function ChromeRelaySettings() {
     return (
       <span className="inline-flex items-center gap-2">
         <Icon
-          className={cn("h-4 w-4", active ? "text-white" : "text-slate-500")}
+          className={cn("h-4 w-4", active ? "text-emerald-600" : "text-slate-500")}
         />
         <span>{label}</span>
         <span
           className={cn(
             SECTION_TAB_BADGE_CLASS_NAME,
-            active ? "bg-white/15 text-white" : "bg-slate-200 text-slate-600",
+            active
+              ? "border border-emerald-200 bg-white/90 text-emerald-700"
+              : "bg-slate-200 text-slate-600",
           )}
         >
           {badge}
@@ -1912,7 +1916,7 @@ export function ChromeRelaySettings() {
     cn(
       PRIMARY_TAB_TRIGGER_CLASS_NAME,
       activePrimaryTab === tab
-        ? "border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-950/15"
+        ? ACTIVE_TAB_TRIGGER_CLASS_NAME
         : "bg-white text-slate-600 hover:border-slate-200 hover:text-slate-900",
     );
 

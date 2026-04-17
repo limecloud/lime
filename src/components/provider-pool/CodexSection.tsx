@@ -79,7 +79,7 @@ export function CodexSection({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <LogIn className="h-5 w-5 text-purple-500" />
+          <LogIn className="h-5 w-5 text-sky-600" />
           <div>
             <h3 className="text-sm font-medium">OpenAI Codex OAuth</h3>
             <p className="text-xs text-muted-foreground">
@@ -184,7 +184,7 @@ export function CodexSection({
                   <button
                     onClick={() => handleOAuthLogin(entry.id)}
                     disabled={loginLoading === entry.id}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-50"
+                    className="flex items-center gap-1 rounded border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-3 py-1.5 text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95 disabled:opacity-50"
                   >
                     {loginLoading === entry.id ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />

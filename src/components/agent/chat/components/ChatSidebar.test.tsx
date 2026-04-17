@@ -144,24 +144,24 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("任务一");
   });
 
-  it("任务中心侧栏空态应展示回访型文案", () => {
+  it("生成侧栏空态应展示执行面文案", () => {
     const container = renderSidebar({
       contextVariant: "task-center",
       topics: [],
       currentTopicId: null,
     });
 
-    expect(container.textContent).toContain("工作现场");
+    expect(container.textContent).toContain("生成现场");
     expect(container.textContent).toContain(
-      "回到进行中的任务、旧历史和最近工作现场。",
+      "在这里继续推进当前创作、回看最近结果和旧历史。",
     );
-    expect(container.textContent).toContain("还没有进行中的任务");
+    expect(container.textContent).toContain("还没有进行中的生成任务");
     expect(container.textContent).toContain(
-      "从“新建任务”开始也很自然，创建后会在这里继续回访。",
+      "从“新建任务”开始也很自然，开始后会回到这里继续生成。",
     );
   });
 
-  it("任务中心侧栏应在顶部展示继续上次任务与最近结果入口", async () => {
+  it("生成侧栏应在顶部展示继续上次生成与最近结果入口", async () => {
     mockGetProject.mockImplementation(async (projectId: string) => {
       if (projectId === "project-waiting") {
         return {
@@ -219,9 +219,9 @@ describe("ChatSidebar", () => {
       '[data-testid="task-center-continuation-panel"]',
     ) as HTMLElement | null;
     expect(panel).toBeTruthy();
-    expect(panel?.textContent).toContain("继续上次任务");
+    expect(panel?.textContent).toContain("继续上次生成");
     expect(panel?.textContent).toContain(
-      "上次推进到哪、结果留在哪个项目里，这里会直接告诉你。",
+      "上次生成到哪、结果留在哪个项目里，这里会直接告诉你。",
     );
     expect(panel?.textContent).toContain("待继续任务");
     expect(panel?.textContent).toContain("品牌项目");
@@ -251,7 +251,7 @@ describe("ChatSidebar", () => {
     expect(onSwitchTopic).toHaveBeenCalledWith("topic-recent");
   });
 
-  it("任务中心侧栏应使用回访型任务分组标题", () => {
+  it("生成侧栏应使用回访型任务分组标题", () => {
     const now = Date.now();
     const container = renderSidebar({
       contextVariant: "task-center",

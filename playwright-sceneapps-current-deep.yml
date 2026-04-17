@@ -1,0 +1,178 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - button "Lime Lime" [ref=e8] [cursor=pointer]:
+            - img "Lime" [ref=e10]
+            - generic [ref=e11]: Lime
+          - button "折叠导航栏" [ref=e12] [cursor=pointer]:
+            - img [ref=e13]
+        - button "搜索任务" [ref=e16] [cursor=pointer]:
+          - img [ref=e17]
+          - generic [ref=e20]: 搜索任务
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e23]: 任务
+          - button "新建任务" [ref=e24] [cursor=pointer]:
+            - img [ref=e25]
+            - generic [ref=e26]: 新建任务
+          - button "生成" [ref=e27] [cursor=pointer]:
+            - img [ref=e28]
+            - generic [ref=e30]: 生成
+        - generic [ref=e31]:
+          - generic [ref=e32]: 能力
+          - button "我的方法" [ref=e33] [cursor=pointer]:
+            - img [ref=e34]
+            - generic [ref=e36]: 我的方法
+          - button "创作场景" [ref=e37] [cursor=pointer]:
+            - img [ref=e38]
+            - generic [ref=e42]: 创作场景
+          - button "持续流程" [ref=e43] [cursor=pointer]:
+            - img [ref=e44]
+            - generic [ref=e46]: 持续流程
+          - button "消息渠道" [ref=e47] [cursor=pointer]:
+            - img [ref=e48]
+            - generic [ref=e51]: 消息渠道
+        - generic [ref=e52]:
+          - generic [ref=e53]: 资料
+          - button "资料库" [ref=e54] [cursor=pointer]:
+            - img [ref=e55]
+            - generic [ref=e57]: 资料库
+          - button "灵感库" [ref=e58] [cursor=pointer]:
+            - img [ref=e59]
+            - generic [ref=e71]: 灵感库
+      - generic [ref=e72]:
+        - generic [ref=e73]:
+          - generic [ref=e74]: 系统
+          - button "OpenClaw" [ref=e75] [cursor=pointer]:
+            - img [ref=e76]
+            - generic [ref=e79]: OpenClaw
+          - button "设置" [ref=e80] [cursor=pointer]:
+            - img [ref=e81]
+            - generic [ref=e84]: 设置
+        - button "切换到深色模式" [ref=e86] [cursor=pointer]:
+          - img [ref=e87]
+    - main [ref=e93]:
+      - generic [ref=e107]:
+        - generic [ref=e110]:
+          - generic [ref=e111]:
+            - generic [ref=e112]: 创作
+            - generic [ref=e114]:
+              - button "📁 默认项目 默认" [ref=e115] [cursor=pointer]:
+                - generic [ref=e116]
+                - img [ref=e123]
+              - button "打开设置" [ref=e126] [cursor=pointer]:
+                - img [ref=e127]
+          - generic [ref=e130]:
+            - generic [ref=e131]:
+              - paragraph [ref=e132]: 青柠一下，灵感即来
+              - paragraph [ref=e133]: 说一句目标，剩下的交给 Lime。
+              - paragraph [ref=e134]: 文案、图片、视频、搜索和网页任务，会围绕同一个目标持续推进。跑通过的方法会沉淀成常用做法、偏好和项目上下文，下次不用重新开始。
+            - generic [ref=e135]:
+              - generic [ref=e136]: 通用对话
+              - generic [ref=e137]: 对话内开工
+        - generic [ref=e140]:
+          - generic [ref=e141]:
+            - button "添加图片" [ref=e142] [cursor=pointer]:
+              - img [ref=e143]
+            - textbox "有什么我可以帮你的？" [ref=e148]
+            - generic [ref=e149]:
+              - button "展开输入框" [ref=e150] [cursor=pointer]:
+                - img [ref=e151]
+              - button "开始语音输入" [ref=e153] [cursor=pointer]:
+                - img [ref=e154]
+              - button "发送" [disabled] [ref=e157]:
+                - img [ref=e158]
+          - generic [ref=e162]:
+            - button "展开高级设置" [ref=e163] [cursor=pointer]:
+              - img [ref=e166]
+              - generic [ref=e169]: 高级设置
+              - img [ref=e170]
+            - generic "当前模型：Custom-a32774c6-6fd0-433b-8b81-e95340e08793 / glm-5.1" [ref=e172]:
+              - generic [ref=e173]: 当前模型
+              - generic [ref=e174]: glm-5.1
+        - generic [ref=e175]:
+          - generic [ref=e176]:
+            - generic [ref=e177]:
+              - generic [ref=e178]:
+                - generic [ref=e179]: 创作场景
+                - paragraph [ref=e180]: 不是单个技能，而是一条完整结果链。先挑一个场景，Lime 会把合适的能力和交付合同组合起来。
+              - generic [ref=e181]:
+                - button "继续最近场景" [ref=e182] [cursor=pointer]
+                - button "查看全部场景" [ref=e183] [cursor=pointer]
+            - generic [ref=e184]:
+              - generic [ref=e185]:
+                - button "短视频编排" [ref=e186] [cursor=pointer]
+                - generic [ref=e187]: /
+              - button "每日趋势摘要" [ref=e189] [cursor=pointer]
+          - generic [ref=e190]:
+            - generic [ref=e192]:
+              - generic [ref=e193]: 继续上次做法
+              - generic [ref=e194]: 最近跑通过的结果模板和常用做法会留在这里，下一次不用重新开始。
+            - generic [ref=e195]: 你最近跑通过的结果模板和方法，会出现在这里。
+          - generic [ref=e196]:
+            - generic [ref=e198]:
+              - generic [ref=e199]: 结果模板
+              - generic [ref=e200]: 先选你想拿到什么结果，具体由 Lime 在当前任务里分发对应能力。
+            - generic [ref=e201]:
+              - button "网页研究简报" [ref=e203] [cursor=pointer]:
+                - generic [ref=e204]: 网页研究简报
+              - generic [ref=e205]:
+                - generic [ref=e206]: "|"
+                - button "内容主稿生成" [ref=e207] [cursor=pointer]
+              - generic [ref=e209]:
+                - generic [ref=e210]: "|"
+                - button "演示提纲草案" [ref=e211] [cursor=pointer]
+              - generic [ref=e213]:
+                - generic [ref=e214]: "|"
+                - button "网页登录与采集" [ref=e215] [cursor=pointer]
+              - generic [ref=e217]:
+                - generic [ref=e218]: "|"
+                - button "复制轮播帖" [ref=e219] [cursor=pointer]
+              - generic [ref=e221]:
+                - generic [ref=e222]: "|"
+                - button "复制视频脚本" [ref=e223] [cursor=pointer]
+        - generic [ref=e225]:
+          - article [ref=e226]:
+            - generic [ref=e227]:
+              - img [ref=e229]
+              - generic [ref=e231]: 沉淀能力
+            - generic [ref=e232]:
+              - generic [ref=e233]:
+                - generic [ref=e234]: 我的方法
+                - button "我的方法说明" [ref=e236]
+              - generic [ref=e240]: 29 套做法可直接复用
+            - img "方法能力卡占位图" [ref=e243]
+          - article [ref=e244]:
+            - generic [ref=e245]:
+              - img [ref=e247]
+              - generic [ref=e250]: 沉淀能力
+            - generic [ref=e251]:
+              - generic [ref=e252]:
+                - generic [ref=e253]: 持续流程
+                - button "持续流程说明" [ref=e255]
+              - generic [ref=e259]: 重复任务可持续复用
+            - img "持续流程能力卡占位图" [ref=e262]
+          - article [ref=e263]:
+            - generic [ref=e264]:
+              - img [ref=e266]
+              - generic [ref=e270]: 支撑能力
+            - generic [ref=e271]:
+              - generic [ref=e272]:
+                - generic [ref=e273]: 任务拆分
+                - button "任务拆分说明" [ref=e275]
+              - generic [ref=e279]: 复杂任务可拆分并行推进
+            - img "任务拆分能力卡占位图" [ref=e282]
+          - article [ref=e283]:
+            - generic [ref=e284]:
+              - img [ref=e286]
+              - generic [ref=e289]: 支撑能力
+            - generic [ref=e290]:
+              - generic [ref=e291]:
+                - generic [ref=e292]: 浏览器接入
+                - button "浏览器接入说明" [ref=e294]
+              - generic [ref=e298]: 网页登录与网页执行
+            - button "连接浏览器" [ref=e300] [cursor=pointer]:
+              - img "浏览器接入能力卡占位图" [ref=e301]
+  - region "Notifications alt+T"

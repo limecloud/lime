@@ -1,7 +1,10 @@
 import React from "react";
 import { ShieldCheck } from "lucide-react";
 import { MetaSelect, MetaSelectIcon, MetaSelectWrap } from "../styles";
-import type { AgentAccessMode } from "../../../hooks/agentChatStorage";
+import {
+  DEFAULT_AGENT_ACCESS_MODE,
+  type AgentAccessMode,
+} from "../../../hooks/agentChatStorage";
 
 interface InputbarAccessModeSelectProps {
   isFullscreen?: boolean;
@@ -20,7 +23,11 @@ const ACCESS_MODE_OPTIONS: Array<{
 
 export const InputbarAccessModeSelect: React.FC<
   InputbarAccessModeSelectProps
-> = ({ isFullscreen = false, accessMode = "current", setAccessMode }) => {
+> = ({
+  isFullscreen = false,
+  accessMode = DEFAULT_AGENT_ACCESS_MODE,
+  setAccessMode,
+}) => {
   if (isFullscreen || !setAccessMode) {
     return null;
   }

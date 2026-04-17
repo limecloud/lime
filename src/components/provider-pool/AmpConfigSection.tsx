@@ -21,6 +21,8 @@ export function AmpConfigSection({
   onChange,
   onSave,
 }: AmpConfigSectionProps) {
+  const primaryActionButtonClassName =
+    "rounded-lg border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95 disabled:opacity-50";
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -74,7 +76,7 @@ export function AmpConfigSection({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Terminal className="h-5 w-5 text-indigo-500" />
+        <Terminal className="h-5 w-5 text-emerald-600" />
         <div>
           <h3 className="text-sm font-medium">Amp CLI 集成</h3>
           <p className="text-xs text-muted-foreground">
@@ -200,7 +202,7 @@ export function AmpConfigSection({
                 <button
                   onClick={addMapping}
                   disabled={!mappingFrom.trim() || !mappingTo.trim()}
-                  className="px-3 py-1.5 rounded bg-primary text-primary-foreground text-sm disabled:opacity-50"
+                  className={`px-3 py-1.5 ${primaryActionButtonClassName}`}
                 >
                   添加
                 </button>
@@ -232,7 +234,7 @@ export function AmpConfigSection({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+            className={`w-full px-4 py-2 font-medium ${primaryActionButtonClassName}`}
           >
             {saving ? "保存中..." : "保存 Amp CLI 配置"}
           </button>

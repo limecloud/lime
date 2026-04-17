@@ -54,7 +54,7 @@ const actionButtonClassName =
   "inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-50";
 
 const secondaryActionButtonClassName = `${actionButtonClassName} border border-slate-200 bg-white/85 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white`;
-const primaryActionButtonClassName = `${actionButtonClassName} bg-slate-900 text-white shadow-sm hover:bg-slate-800`;
+const primaryActionButtonClassName = `${actionButtonClassName} border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95`;
 
 const sectionStyleMap = {
   builtin: {
@@ -353,7 +353,7 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
         value: skills.length,
         hint: "当前工作台可见",
         icon: Package,
-        iconClassName: "bg-slate-900 text-white",
+        iconClassName: "bg-sky-100 text-sky-700",
       },
       {
         label: "可用技能",
@@ -571,7 +571,7 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                     }
                     className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition ${
                       active
-                        ? "bg-slate-900 text-white shadow-sm"
+                        ? "border border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10"
                         : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                     }`}
                   >
@@ -579,7 +579,7 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs ${
                         active
-                          ? "bg-white/20 text-white"
+                          ? "border border-emerald-200 bg-white/90 text-emerald-700"
                           : "bg-slate-100 text-slate-500"
                       }`}
                     >

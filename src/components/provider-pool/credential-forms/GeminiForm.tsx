@@ -175,11 +175,11 @@ export function GeminiForm({
 
         {mode === "login" ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/30">
-              <p className="text-sm text-blue-700 dark:text-blue-300">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30">
+              <p className="text-sm text-emerald-700 dark:text-emerald-300">
                 点击下方按钮获取授权 URL，然后复制到浏览器完成 Google 登录。
               </p>
-              <p className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+              <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
                 授权成功后，复制页面显示的授权码粘贴到下方输入框。
               </p>
             </div>
@@ -191,7 +191,7 @@ export function GeminiForm({
                   <span className="text-sm font-medium">授权 URL</span>
                   <button
                     onClick={handleCopyUrl}
-                    className="flex items-center gap-1 rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                    className="flex items-center gap-1 rounded px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
                   >
                     {copied ? (
                       <>
@@ -235,7 +235,7 @@ export function GeminiForm({
                 <button
                   onClick={handleExchangeCode}
                   disabled={exchanging || !authCode.trim()}
-                  className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="w-full rounded-lg border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95 disabled:opacity-50"
                 >
                   {exchanging ? (
                     <span className="flex items-center justify-center gap-2">

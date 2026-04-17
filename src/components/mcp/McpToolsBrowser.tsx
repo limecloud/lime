@@ -292,9 +292,9 @@ export function McpToolsBrowser({
                               )}
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
-                                  <Code className="h-3.5 w-3.5 flex-shrink-0 text-blue-500" />
+                                  <Code className="h-3.5 w-3.5 flex-shrink-0 text-sky-600 dark:text-sky-400" />
                                   <span
-                                    className="font-mono text-sm text-blue-600 dark:text-blue-400"
+                                    className="font-mono text-sm text-emerald-700 dark:text-emerald-300"
                                     title={tool.name}
                                   >
                                     {displayName}
@@ -320,7 +320,7 @@ export function McpToolsBrowser({
                                         onClick={() =>
                                           onCallTool(tool.name, {})
                                         }
-                                        className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
+                                        className="rounded border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-2 py-1 text-xs text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
                                       >
                                         调用工具
                                       </button>

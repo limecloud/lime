@@ -24,6 +24,8 @@ import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 
 const FALLBACK_RELEASES_URL = "https://github.com/aiclientproxy/lime/releases";
+const PRIMARY_ACTION_BUTTON_CLASS =
+  "inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 disabled:opacity-50";
 
 const WORKSPACE_FOCUSES = [
   "Claw 对话与技能执行",
@@ -369,7 +371,7 @@ export function AboutSection() {
                     type="button"
                     onClick={() => void handleDownloadUpdate()}
                     disabled={downloading}
-                    className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+                    className={PRIMARY_ACTION_BUTTON_CLASS}
                   >
                     <RefreshCw
                       className={cn("h-4 w-4", downloading && "animate-spin")}

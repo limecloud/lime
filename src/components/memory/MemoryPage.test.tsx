@@ -281,37 +281,40 @@ describe("MemoryPage", () => {
     cleanupMountedRoots(mountedRoots);
   });
 
-  it("应展示新的六区记忆结构", async () => {
+  it("应展示灵感库与底层诊断分层结构", async () => {
     renderPage();
     await flushPageEffects();
 
     const bodyText = document.body.textContent ?? "";
-    expect(bodyText).toContain("记忆工作台");
-    expect(bodyText).toContain("记忆来源");
-    expect(bodyText).toContain("会话记忆");
-    expect(bodyText).toContain("记忆类型");
-    expect(bodyText).toContain("团队记忆");
-    expect(bodyText).toContain("会话压缩");
-    expect(bodyText).toContain("记忆目录与作用域");
+    expect(bodyText).toContain("灵感库");
+    expect(bodyText).toContain("灵感总览");
+    expect(bodyText).toContain("底层来源");
+    expect(bodyText).toContain("会话工作记忆");
+    expect(bodyText).toContain("参考与风格");
+    expect(bodyText).toContain("团队影子");
+    expect(bodyText).toContain("压缩摘要");
+    expect(bodyText).toContain("底层记忆目录与作用域");
     expect(bodyText).toContain("记忆目录（memdir）");
-    expect(bodyText).toContain("不要写进记忆的内容");
+    expect(bodyText).toContain("底层记忆守则");
     expect(bodyText).not.toContain("Claude Code");
   });
 
-  it("home 分区应展示默认心智层摘要卡", async () => {
+  it("home 分区应展示灵感总览与风格层摘要", async () => {
     renderPage();
     await flushPageEffects();
 
     const bodyText = document.body.textContent ?? "";
-    expect(bodyText).toContain("默认心智层");
-    expect(bodyText).toContain("先看这轮真实命中");
-    expect(bodyText).toContain("跨会话可复用的沉淀");
-    expect(bodyText).toContain("项目规则与协作上下文");
-    expect(bodyText).toContain("长会话如何续接");
-    expect(bodyText).toContain("最近会话条目 2");
-    expect(bodyText).toContain("1 条长期记忆");
-    expect(bodyText).toContain("规则来源 1 条");
-    expect(bodyText).toContain("最近压缩保留 8 轮");
+    expect(bodyText).toContain("灵感库总览");
+    expect(bodyText).toContain("可继续复用的灵感对象");
+    expect(bodyText).toContain("这次可带上的参考素材");
+    expect(bodyText).toContain("系统已提炼的创作倾向");
+    expect(bodyText).toContain("底层记忆只做事实源");
+    expect(bodyText).toContain("1 条灵感对象");
+    expect(bodyText).toContain("0 条参考素材");
+    expect(bodyText).toContain("4 个风格关键词");
+    expect(bodyText).toContain("1 条来源已接入");
+    expect(bodyText).toContain("风格层摘要");
+    expect(bodyText).toContain("夏日短视频语气");
   });
 
   it("rules 分区应展示来源分类、provider 与 memdir 类型标签", async () => {
@@ -355,7 +358,7 @@ describe("MemoryPage", () => {
     await flushPageEffects();
 
     const bodyText = document.body.textContent ?? "";
-    expect(bodyText).toContain("记忆来源与 memdir");
+    expect(bodyText).toContain("底层记忆来源与 memdir");
     expect(bodyText).toContain("来源分类：记忆目录（memdir）");
     expect(bodyText).toContain("provider：memdir");
     expect(bodyText).toContain("反馈记忆");
@@ -388,8 +391,8 @@ describe("MemoryPage", () => {
     renderPage({ section: "identity", onNavigate });
     await flushPageEffects();
 
-    expect(document.body.textContent ?? "").toContain("Lime 记忆类型");
-    expect(document.body.textContent ?? "").toContain("当前存量条目");
+    expect(document.body.textContent ?? "").toContain("灵感对象分层");
+    expect(document.body.textContent ?? "").toContain("灵感条目明细");
     expect(document.body.textContent ?? "").toContain("夏日短视频语气");
 
     const button = Array.from(document.body.querySelectorAll("button")).find(
@@ -436,6 +439,24 @@ describe("MemoryPage", () => {
           expect.stringContaining("标签：小红书、口播、夏日氛围"),
       }),
     );
+
+    const sceneButton = Array.from(document.body.querySelectorAll("button")).find(
+      (element) => element.textContent?.includes("用于创作场景"),
+    );
+    expect(sceneButton).toBeTruthy();
+
+    await act(async () => {
+      sceneButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("sceneapps", {
+      view: "catalog",
+      projectId: "project-42",
+      referenceMemoryIds: ["memory-1"],
+      search: "夏日短视频语气",
+      prefillIntent: expect.stringContaining("围绕这条风格灵感继续创作：夏日短视频语气"),
+    });
   });
 
   it("应支持带着当前会话上下文打开运行时记忆命中预演", async () => {
@@ -502,7 +523,7 @@ describe("MemoryPage", () => {
     expect(bodyText).toContain("研究输出格式偏好");
     expect(bodyText).toContain("研究协作队");
     expect(bodyText).toContain("【运行时记忆召回】");
-    expect(bodyText).toContain("来自记忆工作台");
+    expect(bodyText).toContain("来自灵感库");
     expect(bodyText).toContain("切换到这次对照");
     expect(mockPrefetchContextMemoryForTurn).toHaveBeenCalledWith({
       session_id: "session-runtime-1",

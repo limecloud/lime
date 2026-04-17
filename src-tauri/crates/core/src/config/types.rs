@@ -722,16 +722,7 @@ pub struct NavigationConfig {
 }
 
 fn default_enabled_nav_items() -> Vec<String> {
-    vec![
-        "home-general".to_string(),
-        "claw".to_string(),
-        "video".to_string(),
-        "image-gen".to_string(),
-        "automation".to_string(),
-        "openclaw".to_string(),
-        "resources".to_string(),
-        "memory".to_string(),
-    ]
+    Vec::new()
 }
 
 impl Default for NavigationConfig {
@@ -767,6 +758,28 @@ const LEGACY_DEFAULT_NAV_ITEM_SETS: &[&[&str]] = &[
     &["home-general", "video", "image-gen", "terminal", "plugins"],
 ];
 
+const STALE_DEFAULT_NAV_ITEM_SETS: &[&[&str]] = &[
+    &[
+        "home-general",
+        "claw",
+        "video",
+        "image-gen",
+        "automation",
+        "openclaw",
+        "resources",
+        "memory",
+    ],
+    &[
+        "home-general",
+        "claw",
+        "video",
+        "automation",
+        "openclaw",
+        "resources",
+        "memory",
+    ],
+];
+
 fn has_same_members(items: &[String], expected: &[&str]) -> bool {
     if items.len() != expected.len() {
         return false;
@@ -774,6 +787,12 @@ fn has_same_members(items: &[String], expected: &[&str]) -> bool {
 
     let item_set: std::collections::HashSet<&str> = items.iter().map(String::as_str).collect();
     expected.iter().all(|item| item_set.contains(item))
+}
+
+fn has_stale_default_nav_items(items: &[String]) -> bool {
+    STALE_DEFAULT_NAV_ITEM_SETS
+        .iter()
+        .any(|stale_items| has_same_members(items, stale_items))
 }
 
 fn should_upgrade_legacy_navigation_defaults(items: &[String]) -> bool {
@@ -2201,6 +2220,11 @@ impl Config {
             changed = true;
         }
 
+        if has_stale_default_nav_items(&self.navigation.enabled_items) {
+            self.navigation.enabled_items = default_enabled_nav_items();
+            changed = true;
+        }
+
         if self.workspace_preferences.schema_version < current_version {
             self.workspace_preferences.schema_version = current_version;
             changed = true;
@@ -2748,19 +2772,7 @@ mod unit_tests {
         assert!(!config.crash_reporting.send_pii);
         assert_eq!(config.workspace_preferences.schema_version, 1);
         assert_eq!(config.navigation.schema_version, 1);
-        assert_eq!(
-            config.navigation.enabled_items,
-            vec![
-                "home-general".to_string(),
-                "claw".to_string(),
-                "video".to_string(),
-                "image-gen".to_string(),
-                "automation".to_string(),
-                "openclaw".to_string(),
-                "resources".to_string(),
-                "memory".to_string(),
-            ]
-        );
+        assert!(config.navigation.enabled_items.is_empty());
         assert!(config.agent.tool_execution.tool_overrides.is_empty());
     }
 
@@ -2844,19 +2856,7 @@ mod unit_tests {
         assert!(changed);
         assert_eq!(config.workspace_preferences.schema_version, 1);
         assert_eq!(config.navigation.schema_version, 1);
-        assert_eq!(
-            config.navigation.enabled_items,
-            vec![
-                "home-general".to_string(),
-                "claw".to_string(),
-                "video".to_string(),
-                "image-gen".to_string(),
-                "automation".to_string(),
-                "openclaw".to_string(),
-                "resources".to_string(),
-                "memory".to_string(),
-            ]
-        );
+        assert!(config.navigation.enabled_items.is_empty());
     }
 
     #[test]
@@ -2885,6 +2885,26 @@ mod unit_tests {
                 "tools".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn test_normalize_workspace_preferences_clears_stale_sidebar_defaults_on_current_schema() {
+        let mut config = Config::default();
+        config.navigation.enabled_items = vec![
+            "home-general".to_string(),
+            "claw".to_string(),
+            "video".to_string(),
+            "image-gen".to_string(),
+            "automation".to_string(),
+            "openclaw".to_string(),
+            "resources".to_string(),
+            "memory".to_string(),
+        ];
+
+        let changed = config.normalize_workspace_preferences();
+
+        assert!(changed);
+        assert!(config.navigation.enabled_items.is_empty());
     }
 
     #[test]

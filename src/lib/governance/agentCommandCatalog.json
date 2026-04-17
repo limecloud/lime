@@ -41,6 +41,7 @@
     "sceneapp_list_catalog",
     "sceneapp_get_descriptor",
     "sceneapp_plan_launch",
+    "sceneapp_save_context_baseline",
     "sceneapp_create_automation_job",
     "sceneapp_list_runs",
     "sceneapp_get_run_summary",

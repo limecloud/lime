@@ -33,6 +33,18 @@ import {
   type DeliveryConfig,
 } from "@/lib/api/automation";
 import type { Project } from "@/lib/api/project";
+import { createRuntimePoliciesFromAccessMode } from "@/components/agent/chat/utils/accessModeRuntime";
+import {
+  DEFAULT_AGENT_ACCESS_MODE,
+  type AgentAccessMode,
+} from "@/components/agent/chat/hooks/agentChatStorage";
+import {
+  AUTOMATION_ACCESS_MODE_OPTIONS,
+  automationAccessModeLabel,
+  automationAccessModePolicySummary,
+  omitLegacyAutomationAccessModeMetadata,
+  resolveAgentTurnAutomationAccessMode,
+} from "./automationAccessMode";
 
 export type AutomationJobDialogSubmit =
   | { mode: "create"; request: AutomationJobRequest }
@@ -56,6 +68,7 @@ type AutomationJobFormState = {
   system_prompt: string;
   web_search: boolean;
   agent_content_id: string;
+  agent_access_mode: AgentAccessMode;
   agent_request_metadata: Record<string, unknown> | null;
   timeout_secs: string;
   max_retries: string;
@@ -102,6 +115,7 @@ function createDefaultForm(workspaces: Project[]): AutomationJobFormState {
     system_prompt: "",
     web_search: false,
     agent_content_id: "",
+    agent_access_mode: DEFAULT_AGENT_ACCESS_MODE,
     agent_request_metadata: null,
     timeout_secs: "",
     max_retries: "3",
@@ -205,6 +219,7 @@ function createFormFromJob(
     form.system_prompt = job.payload.system_prompt ?? "";
     form.web_search = job.payload.web_search;
     form.agent_content_id = job.payload.content_id ?? "";
+    form.agent_access_mode = resolveAgentTurnAutomationAccessMode(job.payload);
     form.agent_request_metadata = job.payload.request_metadata ?? null;
   }
   form.timeout_secs = job.timeout_secs ? String(job.timeout_secs) : "";
@@ -388,7 +403,8 @@ export function AutomationJobDialog({
     form.delivery_channel === TEXT_ONLY_DELIVERY_CHANNEL;
   const workspaceLabel = useMemo(
     () =>
-      workspaces.find((workspace) => workspace.id === form.workspace_id)?.name ??
+      workspaces.find((workspace) => workspace.id === form.workspace_id)
+        ?.name ??
       form.workspace_id ??
       "未选择",
     [form.workspace_id, workspaces],
@@ -406,6 +422,7 @@ export function AutomationJobDialog({
       : form.schedule_kind === "cron"
         ? "Cron"
         : "一次性";
+  const accessModeLabel = automationAccessModeLabel(form.agent_access_mode);
 
   async function handleSubmit() {
     try {
@@ -426,13 +443,20 @@ export function AutomationJobDialog({
       if (!form.prompt.trim()) {
         throw new Error("任务提示词不能为空");
       }
+      const runtimePolicies = createRuntimePoliciesFromAccessMode(
+        form.agent_access_mode,
+      );
       const payload: AutomationPayload = {
         kind: "agent_turn",
         prompt: form.prompt.trim(),
         system_prompt: form.system_prompt.trim() || null,
         web_search: form.web_search,
         content_id: form.agent_content_id.trim() || null,
-        request_metadata: form.agent_request_metadata ?? null,
+        approval_policy: runtimePolicies.approvalPolicy,
+        sandbox_policy: runtimePolicies.sandboxPolicy,
+        request_metadata: omitLegacyAutomationAccessModeMetadata(
+          form.agent_request_metadata,
+        ),
       };
       const timeout_secs = form.timeout_secs.trim()
         ? Number(form.timeout_secs)
@@ -546,6 +570,11 @@ export function AutomationJobDialog({
                   输出投递：
                   {form.delivery_mode === "announce" ? "已启用" : "未启用"}
                 </span>
+                {!isLegacyBrowserJob ? (
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
+                    权限：{accessModeLabel}
+                  </span>
+                ) : null}
                 {!isLegacyBrowserJob ? (
                   <span
                     className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
@@ -845,7 +874,7 @@ export function AutomationJobDialog({
                     className="min-h-[96px] sm:min-h-[110px]"
                   />
                 </div>
-                <div className="mt-5 grid gap-4 rounded-[24px] border border-slate-200/80 bg-white/80 p-4 md:grid-cols-2">
+                <div className="mt-5 grid gap-4 rounded-[24px] border border-slate-200/80 bg-white/80 p-4 md:grid-cols-3">
                   <div className="flex items-center justify-between rounded-[18px] border border-slate-200/80 bg-slate-50/70 px-4 py-3">
                     <div>
                       <div className="text-sm font-medium text-slate-900">
@@ -880,6 +909,38 @@ export function AutomationJobDialog({
                         }))
                       }
                     />
+                  </div>
+                  <div className="rounded-[18px] border border-slate-200/80 bg-slate-50/70 px-4 py-3">
+                    <div className="text-sm font-medium text-slate-900">
+                      权限模式
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {automationAccessModePolicySummary(
+                        form.agent_access_mode,
+                      )}
+                    </div>
+                    <div className="mt-3">
+                      <Select
+                        value={form.agent_access_mode}
+                        onValueChange={(value) =>
+                          setForm((current) => ({
+                            ...current,
+                            agent_access_mode: value as AgentAccessMode,
+                          }))
+                        }
+                      >
+                        <SelectTrigger aria-label="自动化权限模式">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {AUTOMATION_ACCESS_MODE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
 

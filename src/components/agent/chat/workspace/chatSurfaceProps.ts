@@ -370,8 +370,8 @@ export function buildWorkspaceNavbarProps({
   const entryContextCopy =
     navbarContextVariant === "task-center"
       ? {
-          entryContextLabel: "任务中心",
-          entryContextHint: "回到进行中的任务、旧历史和最近工作现场。",
+          entryContextLabel: "生成",
+          entryContextHint: "在这里继续推进当前创作、回看最近结果和旧历史。",
         }
       : {};
 

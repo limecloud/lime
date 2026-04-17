@@ -1,4 +1,6 @@
 use super::*;
+use crate::sceneapp::application::SceneAppService;
+use crate::services::execution_tracker_service::ExecutionTracker;
 use crate::services::runtime_analysis_handoff_service::{
     export_runtime_analysis_handoff, RuntimeAnalysisHandoffExportResult,
 };
@@ -519,7 +521,7 @@ pub async fn agent_runtime_save_review_decision(
     let context =
         load_runtime_export_context(&runtime, &session_id, "保存 review decision 前").await?;
 
-    save_runtime_review_decision(
+    let saved = save_runtime_review_decision(
         &context.detail,
         &context.thread_read,
         &context.workspace_root,
@@ -535,7 +537,22 @@ pub async fn agent_runtime_save_review_decision(
             regression_requirements: request.regression_requirements,
             notes: request.notes,
         },
-    )
+    )?;
+
+    let tracker = ExecutionTracker::new(runtime.db().clone());
+    if let Err(error) = SceneAppService::sync_review_decision_feedback_for_session(
+        &tracker,
+        &session_id,
+        &saved.decision,
+    ) {
+        tracing::warn!(
+            "[AsterAgent] 保存 review decision 后同步 SceneApp feedback 失败: session_id={}, error={}",
+            session_id,
+            error
+        );
+    }
+
+    Ok(saved)
 }
 
 /// 统一运行时：导出当前会话的 replay case。

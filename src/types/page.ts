@@ -11,6 +11,7 @@
 import type { SettingsTabs } from "./settings";
 import type { SkillScaffoldTarget } from "@/lib/api/skills";
 import type { SceneAppsPageParams } from "@/lib/sceneapp/navigation";
+import type { SceneAppExecutionSummaryViewModel } from "@/lib/sceneapp/product";
 
 export type { SceneAppsPageParams } from "@/lib/sceneapp/navigation";
 
@@ -62,10 +63,12 @@ export interface AgentPageParams {
   contentId?: string;
   /** 进入 Agent 后优先恢复到指定会话 */
   initialSessionId?: string;
+  /** 从创作场景进入生成时透传的执行摘要 */
+  initialSceneAppExecutionSummary?: SceneAppExecutionSummaryViewModel;
   initialRequestMetadata?: Record<string, unknown>;
   initialAutoSendRequestMetadata?: Record<string, unknown>;
   autoRunInitialPromptOnMount?: boolean;
-  /** Agent 入口模式：新建任务或任务中心 */
+  /** Agent 入口模式：新建任务或生成 */
   agentEntry?: "new-task" | "claw";
   /** 首页沉浸模式提交后透传的首条图片 */
   initialUserImages?: Array<{

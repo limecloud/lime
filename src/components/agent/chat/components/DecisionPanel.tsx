@@ -563,8 +563,8 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
       : request.actionType === "tool_confirmation"
         ? "border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20"
         : request.actionType === "elicitation"
-          ? "border-indigo-200 bg-indigo-50/50 dark:border-indigo-800 dark:bg-indigo-950/20"
-          : "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20";
+          ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+          : "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20";
 
     return (
       <Card className={submittedClassName} {...requestAnchorProps}>
@@ -614,11 +614,11 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
   if (request.actionType === "elicitation" && !usesQuestionnaireUi) {
     return (
       <Card
-        className="border-indigo-200 bg-indigo-50/50 dark:border-indigo-800 dark:bg-indigo-950/20"
+        className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
         {...requestAnchorProps}
       >
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+          <CardTitle className="flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
             <HelpCircle className="h-4 w-4" />
             需要你提供信息
           </CardTitle>
@@ -645,8 +645,8 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
                     className={cn(
                       "rounded-lg border px-4 py-3 text-left text-sm transition-colors",
                       isSelected
-                        ? "border-indigo-500 bg-indigo-100 dark:border-indigo-400 dark:bg-indigo-900/30"
-                        : "border-border bg-background hover:border-indigo-300 hover:bg-muted",
+                        ? "border-emerald-300 bg-emerald-100 dark:border-emerald-400 dark:bg-emerald-900/30"
+                        : "border-border bg-background hover:border-emerald-300 hover:bg-muted",
                       isSubmitting && "cursor-not-allowed opacity-70",
                     )}
                     disabled={isSubmitting}
@@ -688,7 +688,7 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
               size="sm"
               onClick={handleAllow}
               disabled={!canSubmit || isSubmitting}
-              className="bg-indigo-600 hover:bg-indigo-700"
+              className="border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
             >
               {submissionState?.key === "allow" ? (
                 <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -725,20 +725,19 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
     const questions = request.questions;
     const isQuestionElicitation = request.actionType === "elicitation";
     const cardClassName = isQuestionElicitation
-      ? "border-indigo-200 bg-indigo-50/50 dark:border-indigo-800 dark:bg-indigo-950/20"
-      : "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20";
+      ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+      : "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20";
     const titleClassName = isQuestionElicitation
-      ? "text-indigo-700 dark:text-indigo-300"
-      : "text-blue-700 dark:text-blue-300";
-    const primaryButtonClassName = isQuestionElicitation
-      ? "bg-indigo-600 hover:bg-indigo-700"
-      : "bg-blue-600 hover:bg-blue-700";
+      ? "text-emerald-700 dark:text-emerald-300"
+      : "text-emerald-700 dark:text-emerald-300";
+    const primaryButtonClassName =
+      "border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95";
     const selectedOptionClassName = isQuestionElicitation
-      ? "border-indigo-500 bg-indigo-100 dark:border-indigo-400 dark:bg-indigo-900/30"
-      : "border-blue-500 bg-blue-100 dark:border-blue-400 dark:bg-blue-900/30";
+      ? "border-emerald-300 bg-emerald-100 dark:border-emerald-400 dark:bg-emerald-900/30"
+      : "border-emerald-300 bg-emerald-100 dark:border-emerald-400 dark:bg-emerald-900/30";
     const unselectedOptionClassName = isQuestionElicitation
-      ? "border-border bg-background hover:border-indigo-300 hover:bg-muted"
-      : "border-border bg-background hover:border-blue-300 hover:bg-muted";
+      ? "border-border bg-background hover:border-emerald-300 hover:bg-muted"
+      : "border-border bg-background hover:border-emerald-300 hover:bg-muted";
 
     return (
       <Card className={cardClassName} {...requestAnchorProps}>
@@ -917,7 +916,7 @@ export function DecisionPanel({ request, onSubmit }: DecisionPanelProps) {
           <Button
             size="sm"
             onClick={handleAllow}
-            className="bg-green-600 hover:bg-green-700"
+            className="border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
             disabled={isSubmitting}
           >
             {submissionState?.key === "allow" ? (

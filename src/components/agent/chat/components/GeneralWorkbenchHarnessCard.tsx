@@ -138,7 +138,7 @@ export function GeneralWorkbenchHarnessCard({
       >
         <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-400/15 dark:text-blue-300">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
               <Sparkles className="h-4 w-4" />
             </span>
             <span className="text-sm font-semibold text-foreground">
@@ -219,7 +219,7 @@ export function GeneralWorkbenchHarnessCard({
         className="rounded-xl border border-border/70 bg-card/95 p-3 shadow-sm"
       >
         <div className="flex items-start gap-3">
-          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-400/15 dark:text-blue-300">
+          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
             <Sparkles className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
@@ -305,7 +305,7 @@ export function GeneralWorkbenchHarnessCard({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-400/15 dark:text-blue-300">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
               <Sparkles className="h-4 w-4" />
             </span>
             <div className="min-w-0">

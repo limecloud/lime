@@ -59,6 +59,8 @@ async function renderDialog(props: {
                   system_prompt: null,
                   web_search: false,
                   content_id: null,
+                  approval_policy: "never",
+                  sandbox_policy: "danger-full-access",
                   request_metadata: null,
                 },
                 delivery: {
@@ -151,7 +153,7 @@ describe("AutomationJobDialog", () => {
     await leaveTip(headerTip);
   });
 
-  it("编辑 agent_turn 任务时应保留 content_id 与 request_metadata", async () => {
+  it("编辑 agent_turn 任务时应保留 content_id，并把权限收口到正式策略", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     await renderDialog({
       onSubmit,
@@ -162,6 +164,8 @@ describe("AutomationJobDialog", () => {
           system_prompt: "请保持简洁",
           web_search: false,
           content_id: "content-1",
+          approval_policy: "on-request",
+          sandbox_policy: "read-only",
           request_metadata: {
             artifact: {
               artifact_mode: "draft",
@@ -171,7 +175,9 @@ describe("AutomationJobDialog", () => {
               theme: "general",
               session_mode: "general_workbench",
               content_id: "content-1",
+              access_mode: "full-access",
             },
+            accessMode: "current",
           },
         },
       },
@@ -190,24 +196,26 @@ describe("AutomationJobDialog", () => {
       mode: "edit",
       id: "job-1",
       request: expect.objectContaining({
-        payload: expect.objectContaining({
+        payload: {
           kind: "agent_turn",
           prompt: "生成趋势摘要",
           system_prompt: "请保持简洁",
           web_search: false,
           content_id: "content-1",
-          request_metadata: expect.objectContaining({
-            artifact: expect.objectContaining({
+          approval_policy: "on-request",
+          sandbox_policy: "read-only",
+          request_metadata: {
+            artifact: {
               artifact_mode: "draft",
               artifact_kind: "analysis",
-            }),
-            harness: expect.objectContaining({
+            },
+            harness: {
               theme: "general",
               session_mode: "general_workbench",
               content_id: "content-1",
-            }),
-          }),
-        }),
+            },
+          },
+        },
       }),
     });
   }, 10_000);

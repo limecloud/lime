@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SceneAppsPage } from "./SceneAppsPage";
 import {
+  listSceneAppRecentVisits,
   recordSceneAppRecentVisit,
   type SceneAppCatalog,
   type SceneAppsPageParams,
@@ -29,10 +30,14 @@ const {
   mockPrepareSceneAppRunGovernanceArtifact,
   mockPrepareSceneAppRunGovernanceArtifacts,
   mockPlanSceneAppLaunch,
+  mockSaveSceneAppContextBaseline,
   mockCreateAutomationJob,
+  mockExportAgentRuntimeReviewDecisionTemplate,
+  mockSaveAgentRuntimeReviewDecision,
   mockListProjects,
   mockGetOrCreateDefaultProject,
   latestAutomationDialogProps,
+  latestReviewDecisionDialogProps,
 } = vi.hoisted(() => ({
   mockListSceneAppCatalog: vi.fn(),
   mockGetSceneAppScorecard: vi.fn(),
@@ -41,33 +46,39 @@ const {
   mockPrepareSceneAppRunGovernanceArtifact: vi.fn(),
   mockPrepareSceneAppRunGovernanceArtifacts: vi.fn(),
   mockPlanSceneAppLaunch: vi.fn(),
+  mockSaveSceneAppContextBaseline: vi.fn(),
   mockCreateAutomationJob: vi.fn(),
+  mockExportAgentRuntimeReviewDecisionTemplate: vi.fn(),
+  mockSaveAgentRuntimeReviewDecision: vi.fn(),
   mockListProjects: vi.fn(),
   mockGetOrCreateDefaultProject: vi.fn(),
   latestAutomationDialogProps: {
     value: null as Record<string, unknown> | null,
   },
+  latestReviewDecisionDialogProps: {
+    value: null as Record<string, unknown> | null,
+  },
 }));
 
 vi.mock("@/lib/api/sceneapp", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api/sceneapp")>(
-    "@/lib/api/sceneapp",
-  );
+  const actual =
+    await vi.importActual<typeof import("@/lib/api/sceneapp")>(
+      "@/lib/api/sceneapp",
+    );
   return {
     ...actual,
     listSceneAppCatalog: () => mockListSceneAppCatalog(),
     getSceneAppScorecard: (sceneappId: string) =>
       mockGetSceneAppScorecard(sceneappId),
-    listSceneAppRuns: (sceneappId: string) =>
-      mockListSceneAppRuns(sceneappId),
+    listSceneAppRuns: (sceneappId: string) => mockListSceneAppRuns(sceneappId),
     getSceneAppRunSummary: (runId: string) => mockGetSceneAppRunSummary(runId),
     prepareSceneAppRunGovernanceArtifact: (runId: string, kind: string) =>
       mockPrepareSceneAppRunGovernanceArtifact(runId, kind),
-    prepareSceneAppRunGovernanceArtifacts: (
-      runId: string,
-      kinds: string[],
-    ) => mockPrepareSceneAppRunGovernanceArtifacts(runId, kinds),
+    prepareSceneAppRunGovernanceArtifacts: (runId: string, kinds: string[]) =>
+      mockPrepareSceneAppRunGovernanceArtifacts(runId, kinds),
     planSceneAppLaunch: (intent: unknown) => mockPlanSceneAppLaunch(intent),
+    saveSceneAppContextBaseline: (intent: unknown) =>
+      mockSaveSceneAppContextBaseline(intent),
   };
 });
 
@@ -81,10 +92,24 @@ vi.mock("@/lib/api/automation", async () => {
   };
 });
 
-vi.mock("@/lib/api/project", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api/project")>(
-    "@/lib/api/project",
+vi.mock("@/lib/api/agentRuntime", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api/agentRuntime")>(
+    "@/lib/api/agentRuntime",
   );
+  return {
+    ...actual,
+    exportAgentRuntimeReviewDecisionTemplate: (sessionId: string) =>
+      mockExportAgentRuntimeReviewDecisionTemplate(sessionId),
+    saveAgentRuntimeReviewDecision: (request: unknown) =>
+      mockSaveAgentRuntimeReviewDecision(request),
+  };
+});
+
+vi.mock("@/lib/api/project", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/api/project")>(
+      "@/lib/api/project",
+    );
   return {
     ...actual,
     listProjects: () => mockListProjects(),
@@ -119,6 +144,20 @@ vi.mock(
   }),
 );
 
+vi.mock(
+  "@/components/agent/chat/components/RuntimeReviewDecisionDialog",
+  () => ({
+    RuntimeReviewDecisionDialog: (props: Record<string, unknown>) => {
+      latestReviewDecisionDialogProps.value = props;
+      return props.open ? (
+        <div data-testid="sceneapp-review-decision-dialog">
+          review-decision-dialog
+        </div>
+      ) : null;
+    },
+  }),
+);
+
 vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
@@ -140,6 +179,53 @@ function createProject(id = "project-1") {
     isFavorite: false,
     isArchived: false,
     tags: [],
+  };
+}
+
+function createReviewDecisionTemplate(sessionId = "session-story-video-1") {
+  return {
+    session_id: sessionId,
+    thread_id: `${sessionId}-thread`,
+    workspace_id: "project-1",
+    workspace_root: "/workspace",
+    review_relative_root: `.lime/harness/sessions/${sessionId}/review`,
+    review_absolute_root: `/workspace/.lime/harness/sessions/${sessionId}/review`,
+    analysis_relative_root: `.lime/harness/sessions/${sessionId}/analysis`,
+    analysis_absolute_root: `/workspace/.lime/harness/sessions/${sessionId}/analysis`,
+    handoff_bundle_relative_root: `.lime/harness/sessions/${sessionId}/handoff`,
+    evidence_pack_relative_root: `.lime/harness/sessions/${sessionId}/evidence`,
+    replay_case_relative_root: `.lime/harness/sessions/${sessionId}/replay`,
+    exported_at: "2026-04-15T00:06:00.000Z",
+    title: "短视频编排 / 人工复核",
+    thread_status: "completed",
+    latest_turn_status: "completed",
+    pending_request_count: 0,
+    queued_turn_count: 0,
+    default_decision_status: "pending_review",
+    verification_summary: null,
+    decision: {
+      decision_status: "pending_review",
+      decision_summary: "",
+      chosen_fix_strategy: "",
+      risk_level: "unknown",
+      risk_tags: [],
+      human_reviewer: "",
+      reviewed_at: "2026-04-15T00:06:00.000Z",
+      followup_actions: [],
+      regression_requirements: [],
+      notes: "",
+    },
+    decision_status_options: [
+      "accepted",
+      "deferred",
+      "rejected",
+      "needs_more_evidence",
+      "pending_review",
+    ],
+    risk_level_options: ["low", "medium", "high", "unknown"],
+    review_checklist: [],
+    analysis_artifacts: [],
+    artifacts: [],
   };
 }
 
@@ -393,8 +479,31 @@ function createPlanResult(
         skillRefs: ["sceneapp-demo"],
         memoryRefs: ["workspace:project-1"],
         toolRefs: ["workspace_storage", "cloud_scene"],
-        referenceItems: [],
-        tasteProfile: null,
+        referenceItems: [
+          {
+            id: "ref-1",
+            label: "竞品视频 1",
+            sourceKind: "user_input",
+            contentType: "video",
+            selected: true,
+            summary: "强调前三秒结论感和更强的节奏推进。",
+            usageCount: 3,
+            lastUsedAt: "2026-04-15T00:02:05.000Z",
+            lastFeedbackLabel: "复核阻塞",
+          },
+        ],
+        tasteProfile: {
+          profileId: "taste-sceneapp-demo",
+          summary: "偏好快节奏、结论前置和更强的信息密度。",
+          keywords: ["快节奏", "结论前置"],
+          avoidKeywords: ["冗长铺垫"],
+          derivedFromReferenceIds: ["ref-1"],
+          confidence: 0.72,
+          feedbackSummary:
+            "最近一次运行已交付 2/3 个必含部件，当前主要卡点是复核阻塞，经营上建议优先优化。",
+          feedbackSignals: ["review_blocked", "artifact_validation_issue"],
+          lastFeedbackAt: "2026-04-15T00:03:00.000Z",
+        },
         ...(overrides.contextOverlay?.snapshot ?? {}),
       },
     },
@@ -446,13 +555,17 @@ function renderSceneAppsPage(
   document.body.appendChild(container);
   const root = createRoot(container);
   const onNavigate =
-    (props?.onNavigate as ((page: Page, params?: PageParams) => void) | undefined) ??
-    vi.fn();
+    (props?.onNavigate as
+      | ((page: Page, params?: PageParams) => void)
+      | undefined) ?? vi.fn();
 
   act(() => {
     root.render(
       <SceneAppsPage
         onNavigate={onNavigate}
+        isActive={props?.isActive}
+        isNavigationTargetOwner={props?.isNavigationTargetOwner}
+        navigationRequestId={props?.navigationRequestId}
         pageParams={{
           sceneappId: "story-video-suite",
           projectId: "project-1",
@@ -478,6 +591,9 @@ function renderSceneAppsPage(
                 | ((page: Page, params?: PageParams) => void)
                 | undefined) ?? onNavigate
             }
+            isActive={nextProps?.isActive}
+            isNavigationTargetOwner={nextProps?.isNavigationTargetOwner}
+            navigationRequestId={nextProps?.navigationRequestId}
             pageParams={{
               sceneappId: "story-video-suite",
               projectId: "project-1",
@@ -522,10 +638,7 @@ function renderControlledSceneAppsPage(
     );
 
     return (
-      <SceneAppsPage
-        onNavigate={handleNavigate}
-        pageParams={pageParams}
-      />
+      <SceneAppsPage onNavigate={handleNavigate} pageParams={pageParams} />
     );
   }
 
@@ -587,6 +700,7 @@ describe("SceneAppsPage", () => {
 
     window.localStorage.clear();
     latestAutomationDialogProps.value = null;
+    latestReviewDecisionDialogProps.value = null;
     mockListSceneAppCatalog.mockResolvedValue(createCatalog());
     mockListProjects.mockResolvedValue([createProject()]);
     mockGetOrCreateDefaultProject.mockResolvedValue(createProject());
@@ -594,6 +708,12 @@ describe("SceneAppsPage", () => {
       id: "job-sceneapp-1",
       name: "每日趋势摘要 自动化",
     });
+    mockExportAgentRuntimeReviewDecisionTemplate.mockResolvedValue(
+      createReviewDecisionTemplate(),
+    );
+    mockSaveAgentRuntimeReviewDecision.mockResolvedValue(
+      createReviewDecisionTemplate(),
+    );
     mockGetSceneAppScorecard.mockImplementation(async (sceneappId: string) => ({
       sceneappId,
       updatedAt: "2026-04-15T00:00:00.000Z",
@@ -634,8 +754,66 @@ describe("SceneAppsPage", () => {
       topFailureSignal:
         sceneappId === "story-video-suite" ? "review_blocked" : null,
     }));
-    mockListSceneAppRuns.mockImplementation(async (sceneappId: string) =>
-      sceneappId === "story-video-suite"
+    mockListSceneAppRuns.mockImplementation(async (sceneappId?: string) =>
+      !sceneappId
+        ? [
+            {
+              runId: "story-video-suite-run-2",
+              sceneappId: "story-video-suite",
+              status: "running",
+              source: "chat",
+              sourceRef: "agent-runtime-submit-turn",
+              sessionId: "session-story-video-2",
+              startedAt: "2026-04-15T00:05:00.000Z",
+              finishedAt: null,
+              artifactCount: 1,
+              deliveryRequiredParts: [
+                "brief",
+                "storyboard",
+                "script",
+                "music_refs",
+                "video_draft",
+                "review_note",
+              ],
+              deliveryCompletedParts: [],
+              deliveryMissingParts: [],
+              deliveryCompletionRate: null,
+              deliveryPartCoverageKnown: false,
+              failureSignal: null,
+            },
+            {
+              runId: "daily-trend-briefing-run-1",
+              sceneappId: "daily-trend-briefing",
+              status: "running",
+              source: "automation",
+              sourceRef: "automation-job-daily-trend-briefing",
+              startedAt: "2026-04-15T00:00:00.000Z",
+              finishedAt: null,
+              artifactCount: 1,
+            },
+            {
+              runId: "x-article-export-run-1",
+              sceneappId: "x-article-export",
+              status: "success",
+              source: "skill",
+              sourceRef: "service-skill:x-article-export",
+              sessionId: "agent-session-article-export-1",
+              startedAt: "2026-04-15T00:08:00.000Z",
+              finishedAt: "2026-04-15T00:10:00.000Z",
+              artifactCount: 2,
+            },
+            {
+              runId: "project-analysis-copilot-run-1",
+              sceneappId: "project-analysis-copilot",
+              status: "success",
+              source: "skill",
+              sourceRef: "service-skill:project-analysis",
+              startedAt: "2026-04-15T00:11:00.000Z",
+              finishedAt: "2026-04-15T00:13:00.000Z",
+              artifactCount: 1,
+            },
+          ]
+        : sceneappId === "story-video-suite"
         ? [
             {
               runId: "story-video-suite-run-2",
@@ -679,6 +857,7 @@ describe("SceneAppsPage", () => {
               status: "success",
               source: "automation",
               sourceRef: "automation-job-story-video-1",
+              sessionId: "session-story-video-1",
               startedAt: "2026-04-15T00:00:00.000Z",
               finishedAt: "2026-04-15T00:03:00.000Z",
               artifactCount: 5,
@@ -778,43 +957,43 @@ describe("SceneAppsPage", () => {
                 artifactCount: 2,
               },
             ]
-        : sceneappId === "project-analysis-copilot"
-          ? [
-              {
-                runId: "project-analysis-copilot-run-1",
-                sceneappId,
-                status: "success",
-                source: "skill",
-                sourceRef: "service-skill:project-analysis",
-                sessionId: null,
-                nativeSkillRuntimeRef: {
-                  skillId: "sceneapp-service-analysis",
-                  skillKey: "project-analysis",
-                  projectId: "project-1",
-                  workspaceId: "project-1",
-                  userInput: "请分析当前项目结构",
-                  slots: {
-                    focus: "架构",
-                    depth: "高",
+          : sceneappId === "project-analysis-copilot"
+            ? [
+                {
+                  runId: "project-analysis-copilot-run-1",
+                  sceneappId,
+                  status: "success",
+                  source: "skill",
+                  sourceRef: "service-skill:project-analysis",
+                  sessionId: null,
+                  nativeSkillRuntimeRef: {
+                    skillId: "sceneapp-service-analysis",
+                    skillKey: "project-analysis",
+                    projectId: "project-1",
+                    workspaceId: "project-1",
+                    userInput: "请分析当前项目结构",
+                    slots: {
+                      focus: "架构",
+                      depth: "高",
+                    },
                   },
+                  startedAt: "2026-04-15T00:11:00.000Z",
+                  finishedAt: "2026-04-15T00:13:00.000Z",
+                  artifactCount: 1,
                 },
-                startedAt: "2026-04-15T00:11:00.000Z",
-                finishedAt: "2026-04-15T00:13:00.000Z",
-                artifactCount: 1,
-              },
-            ]
-        : [
-            {
-              runId: `${sceneappId}-run-1`,
-              sceneappId,
-              status: "running",
-              source: "automation",
-              sourceRef: `automation-job-${sceneappId}`,
-              startedAt: "2026-04-15T00:00:00.000Z",
-              finishedAt: null,
-              artifactCount: 1,
-            },
-          ],
+              ]
+            : [
+                {
+                  runId: `${sceneappId}-run-1`,
+                  sceneappId,
+                  status: "running",
+                  source: "automation",
+                  sourceRef: `automation-job-${sceneappId}`,
+                  startedAt: "2026-04-15T00:00:00.000Z",
+                  finishedAt: null,
+                  artifactCount: 1,
+                },
+              ],
     );
     mockGetSceneAppRunSummary.mockImplementation(async (runId: string) => {
       if (runId === "story-video-suite-run-2") {
@@ -863,6 +1042,7 @@ describe("SceneAppsPage", () => {
           status: "success",
           source: "automation",
           sourceRef: "automation-job-story-video-1",
+          sessionId: "session-story-video-1",
           startedAt: "2026-04-15T00:00:00.000Z",
           finishedAt: "2026-04-15T00:03:00.000Z",
           artifactCount: 5,
@@ -1145,6 +1325,9 @@ describe("SceneAppsPage", () => {
         });
       },
     );
+    mockSaveSceneAppContextBaseline.mockImplementation(
+      async (intent: { sceneappId: string }) => mockPlanSceneAppLaunch(intent),
+    );
     mockPrepareSceneAppRunGovernanceArtifact.mockImplementation(
       async (runId: string) => mockGetSceneAppRunSummary(runId),
     );
@@ -1179,13 +1362,13 @@ describe("SceneAppsPage", () => {
     window.localStorage.clear();
   });
 
-  it("应按分页方式拆开展示 SceneApp 目录、详情与治理复盘", async () => {
+  it("应按分页方式拆开展示创作场景目录、生成准备与治理复盘", async () => {
     const { container } = renderSceneAppsPage();
     await flushEffects();
 
-    expect(container.textContent).toContain("在统一 Agent 基建上装配场景应用");
+    expect(container.textContent).toContain("按创作场景组织完整结果链");
     expect(container.textContent).toContain("场景目录");
-    expect(container.textContent).toContain("场景详情");
+    expect(container.textContent).toContain("生成准备");
     expect(container.textContent).toContain("治理复盘");
     expect(
       container.querySelector('[data-testid="sceneapp-detail-title"]')
@@ -1199,7 +1382,9 @@ describe("SceneAppsPage", () => {
     ).not.toBeNull();
     expect(container.textContent).toContain("短视频编排");
     expect(
-      container.querySelector('[data-testid="sceneapp-page-card-story-video-suite"]'),
+      container.querySelector(
+        '[data-testid="sceneapp-page-card-story-video-suite"]',
+      ),
     ).not.toBeNull();
 
     await openSceneAppsView(container, "detail");
@@ -1229,12 +1414,38 @@ describe("SceneAppsPage", () => {
       )?.textContent,
     ).toContain("1 条");
     expect(
+      container.querySelector(
+        '[data-testid="sceneapp-detail-context-reference-items"]',
+      )?.textContent,
+    ).toContain("竞品视频 1");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-detail-context-taste-keywords"]',
+      )?.textContent,
+    ).toContain("快节奏");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-detail-context-feedback-summary"]',
+      )?.textContent,
+    ).toContain("复核阻塞");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-detail-context-feedback-signals"]',
+      )?.textContent,
+    ).toContain("结果结构校验问题");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-detail-context-avoid-keywords"]',
+      )?.textContent,
+    ).toContain("冗长铺垫");
+    expect(
       container.querySelector('[data-testid="sceneapp-detail-pack-strategy"]')
         ?.textContent,
     ).toContain("整包完成度");
     expect(
-      container.querySelector('[data-testid="sceneapp-detail-pack-required-parts"]')
-        ?.textContent,
+      container.querySelector(
+        '[data-testid="sceneapp-detail-pack-required-parts"]',
+      )?.textContent,
     ).toContain("短视频草稿");
     expect(
       container.querySelector('[data-testid="sceneapp-scorecard-profile-ref"]')
@@ -1245,8 +1456,9 @@ describe("SceneAppsPage", () => {
         ?.textContent,
     ).toContain("整包交付率");
     expect(
-      container.querySelector('[data-testid="sceneapp-scorecard-delivery-parts"]')
-        ?.textContent,
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-delivery-parts"]',
+      )?.textContent,
     ).toContain("复核意见");
     expect(
       container.querySelector(
@@ -1257,6 +1469,31 @@ describe("SceneAppsPage", () => {
       container.querySelector('[data-testid="sceneapp-scorecard-pack-notes"]')
         ?.textContent,
     ).toContain("结果包作为默认交付单位");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-context-reference-count"]',
+      )?.textContent,
+    ).toContain("1 条");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-context-reference-items"]',
+      )?.textContent,
+    ).toContain("已用 3 次");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-context-taste-summary"]',
+      )?.textContent,
+    ).toContain("偏好快节奏");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-context-feedback-summary"]',
+      )?.textContent,
+    ).toContain("建议优先优化");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-context-feedback-signals"]',
+      )?.textContent,
+    ).toContain("复核阻塞");
     expect(
       container.querySelector(
         '[data-testid="sceneapp-scorecard-failure-signals"]',
@@ -1270,8 +1507,9 @@ describe("SceneAppsPage", () => {
 
     await openSceneAppsView(container, "governance");
     expect(
-      container.querySelector('[data-testid="sceneapp-governance-status-badge"]')
-        ?.textContent,
+      container.querySelector(
+        '[data-testid="sceneapp-governance-status-badge"]',
+      )?.textContent,
     ).toContain("先补治理材料");
     expect(container.textContent).toContain("story-video-suite-run-1");
     expect(container.textContent).toContain("story-video-suite-run-2");
@@ -1280,8 +1518,9 @@ describe("SceneAppsPage", () => {
         ?.textContent,
     ).toContain("短视频编排");
     expect(
-      container.querySelector('[data-testid="sceneapp-run-detail-pack-strategy"]')
-        ?.textContent,
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-pack-strategy"]',
+      )?.textContent,
     ).toContain("整包完成度");
     expect(
       container.querySelector(
@@ -1292,10 +1531,131 @@ describe("SceneAppsPage", () => {
       container.querySelector('[data-testid="sceneapp-run-detail-pack-notes"]')
         ?.textContent,
     ).toContain("3 个必含部件");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-context-reference-count"]',
+      )?.textContent,
+    ).toContain("1 条");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-context-reference-items"]',
+      )?.textContent,
+    ).toContain("复核阻塞");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-context-taste-summary"]',
+      )?.textContent,
+    ).toContain("偏好快节奏");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-context-feedback-summary"]',
+      )?.textContent,
+    ).toContain("经营上建议优先优化");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-context-feedback-signals"]',
+      )?.textContent,
+    ).toContain("结果结构校验问题");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-context-reference-count"]',
+      )?.textContent,
+    ).toContain("1 条");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-context-reference-items"]',
+      )?.textContent,
+    ).toContain("已用 3 次");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-context-taste-summary"]',
+      )?.textContent,
+    ).toContain("偏好快节奏");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-context-feedback-summary"]',
+      )?.textContent,
+    ).toContain("复核阻塞");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-context-feedback-signals"]',
+      )?.textContent,
+    ).toContain("结果结构校验问题");
     expect(container.textContent).toContain("当前主要阻塞：复核阻塞");
     expect(mockGetSceneAppRunSummary).toHaveBeenCalledWith(
       "story-video-suite-run-2",
     );
+  });
+
+  it("应把已选灵感条目带入 planning，而不只保留 prefill 文本", async () => {
+    const { container } = renderSceneAppsPage({
+      pageParams: {
+        referenceMemoryIds: ["memory-1", "memory-2"],
+        prefillIntent: "继续把这组灵感整理成 30 秒短视频方案",
+      },
+    });
+    await flushEffects();
+
+    expect(container.textContent).toContain("已带入灵感对象：2 条");
+    expect(mockPlanSceneAppLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sceneappId: "story-video-suite",
+        referenceMemoryIds: ["memory-1", "memory-2"],
+      }),
+    );
+  });
+
+  it("场景目录卡片应回流最近运行与经营信号", async () => {
+    const { container } = renderSceneAppsPage();
+    await flushEffects();
+    await openSceneAppsView(container, "catalog");
+
+    const storyVideoCard = container.querySelector(
+      '[data-testid="sceneapp-page-card-story-video-suite"]',
+    );
+    expect(storyVideoCard?.textContent).toContain("先补治理材料");
+    expect(storyVideoCard?.textContent).toContain("建议继续优化");
+    expect(storyVideoCard?.textContent).toContain("复核阻塞");
+    expect(storyVideoCard?.textContent).toContain("最近运行：人工试跑");
+    expect(storyVideoCard?.textContent).toContain(
+      "治理材料还没完全齐，暂时不适合直接放大",
+    );
+  });
+
+  it("生成准备与评分页应提供最近可消费结果入口", async () => {
+    const { container, onNavigate } = renderSceneAppsPage();
+    await flushEffects();
+
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-detail-pack-runtime-fallback-note"]',
+      )?.textContent,
+    ).toContain("先回看最近一轮已交付样本");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-pack-runtime-fallback-note"]',
+      )?.textContent,
+    ).toContain("先回看最近一轮已交付样本");
+
+    const detailArtifactEntryButton = container.querySelector(
+      '[data-testid^="sceneapp-detail-pack-artifact-entry-"]',
+    ) as HTMLButtonElement | null;
+    expect(detailArtifactEntryButton?.textContent).toContain("主稿");
+    expect(detailArtifactEntryButton?.textContent).toContain("任务简报");
+
+    act(() => {
+      detailArtifactEntryButton?.click();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("agent", {
+      agentEntry: "claw",
+      projectId: "project-1",
+      initialProjectFileOpenTarget: {
+        relativePath: "exports/story-video-suite/latest/brief.md",
+        requestKey: expect.any(Number),
+      },
+      entryBannerMessage: "已从创作场景复盘打开结果文件：主稿 · 任务简报。",
+    });
   });
 
   it("点击目录卡片后应直接进入对应 SceneApp 的详情分页", async () => {
@@ -1314,7 +1674,8 @@ describe("SceneAppsPage", () => {
     await flushEffects();
 
     expect(
-      container.querySelector('[data-testid="sceneapp-detail-title"]')?.textContent,
+      container.querySelector('[data-testid="sceneapp-detail-title"]')
+        ?.textContent,
     ).toContain("每日趋势摘要");
     expect(onNavigate).toHaveBeenCalledWith(
       "sceneapps",
@@ -1340,8 +1701,9 @@ describe("SceneAppsPage", () => {
     await flushEffects();
 
     expect(
-      container.querySelector('[data-testid="sceneapp-governance-status-badge"]')
-        ?.textContent,
+      container.querySelector(
+        '[data-testid="sceneapp-governance-status-badge"]',
+      )?.textContent,
     ).toContain("先补治理材料");
     expect(container.textContent).toContain("story-video-suite-run-1");
   });
@@ -1360,7 +1722,7 @@ describe("SceneAppsPage", () => {
       '[data-testid="sceneapps-open-governance"]',
     ) as HTMLButtonElement | null;
     expect(governanceButton).toBeTruthy();
-    expect(governanceButton?.textContent).toContain("先去启动");
+    expect(governanceButton?.textContent).toContain("进入生成");
 
     act(() => {
       governanceButton?.click();
@@ -1368,7 +1730,8 @@ describe("SceneAppsPage", () => {
     await flushEffects();
 
     expect(
-      container.querySelector('[data-testid="sceneapp-detail-title"]')?.textContent,
+      container.querySelector('[data-testid="sceneapp-detail-title"]')
+        ?.textContent,
     ).toContain("短视频编排");
   });
 
@@ -1384,7 +1747,7 @@ describe("SceneAppsPage", () => {
     expect(
       container.querySelector('[data-testid="sceneapps-empty-state"]')
         ?.textContent,
-    ).toContain("当前筛选后还没有可进入详情的 SceneApp");
+    ).toContain("当前筛选后还没有可进入准备页的创作场景");
 
     const resetButton = container.querySelector(
       '[data-testid="sceneapps-empty-reset-filters"]',
@@ -1397,7 +1760,9 @@ describe("SceneAppsPage", () => {
     await flushEffects();
 
     expect(
-      container.querySelector('[data-testid="sceneapp-page-card-story-video-suite"]'),
+      container.querySelector(
+        '[data-testid="sceneapp-page-card-story-video-suite"]',
+      ),
     ).not.toBeNull();
   });
 
@@ -1414,7 +1779,7 @@ describe("SceneAppsPage", () => {
     expect(
       container.querySelector('[data-testid="sceneapps-empty-state"]')
         ?.textContent,
-    ).toContain("这条 SceneApp 还没有首轮治理样本");
+    ).toContain("这条创作场景还没有首轮治理样本");
 
     const openDetailButton = container.querySelector(
       '[data-testid="sceneapps-governance-open-detail"]',
@@ -1427,7 +1792,8 @@ describe("SceneAppsPage", () => {
     await flushEffects();
 
     expect(
-      container.querySelector('[data-testid="sceneapp-detail-title"]')?.textContent,
+      container.querySelector('[data-testid="sceneapp-detail-title"]')
+        ?.textContent,
     ).toContain("短视频编排");
   });
 
@@ -1463,13 +1829,15 @@ describe("SceneAppsPage", () => {
         '[data-testid="sceneapp-run-detail-artifact-validator"]',
       )?.textContent,
     ).toContain("Artifact 校验仍有 1 条未恢复问题");
-    expect(container.textContent).toContain("Artifact 校验存在 1 条未恢复 issues。");
+    expect(container.textContent).toContain(
+      "Artifact 校验存在 1 条未恢复 issues。",
+    );
     expect(
       container.querySelector('[data-testid="sceneapp-governance-summary"]')
         ?.textContent,
     ).toContain("复核阻塞");
-    expect(container.textContent).toContain("任务中心 / 看板");
-    expect(container.textContent).toContain("自动化任务中心");
+    expect(container.textContent).toContain("生成 / 看板");
+    expect(container.textContent).toContain("持续流程 / 自动化");
     expect(mockGetSceneAppRunSummary).toHaveBeenCalledWith(
       "story-video-suite-run-1",
     );
@@ -1503,7 +1871,9 @@ describe("SceneAppsPage", () => {
   });
 
   it("评分接口报错时也应保留基础设置包里的评分口径", async () => {
-    mockGetSceneAppScorecard.mockRejectedValue(new Error("scorecard unavailable"));
+    mockGetSceneAppScorecard.mockRejectedValue(
+      new Error("scorecard unavailable"),
+    );
 
     const { container } = renderSceneAppsPage();
     await flushEffects();
@@ -1590,7 +1960,8 @@ describe("SceneAppsPage", () => {
 
     await openSceneAppsView(container, "detail");
     expect(
-      container.querySelector('[data-testid="sceneapp-detail-title"]')?.textContent,
+      container.querySelector('[data-testid="sceneapp-detail-title"]')
+        ?.textContent,
     ).toContain("每日趋势摘要");
 
     await openSceneAppsView(container, "catalog");
@@ -1599,9 +1970,9 @@ describe("SceneAppsPage", () => {
     ) as HTMLInputElement | null;
 
     await openSceneAppsView(container, "detail");
-    const launchInput = container.querySelector("textarea") as
-      | HTMLTextAreaElement
-      | null;
+    const launchInput = container.querySelector(
+      "textarea",
+    ) as HTMLTextAreaElement | null;
 
     expect(searchInput?.value).toBe("趋势");
     expect(launchInput?.value).toBe("关注云厂商和 Agent 工作流变化");
@@ -1610,6 +1981,43 @@ describe("SceneAppsPage", () => {
       container.querySelector('[data-testid="sceneapp-run-detail-summary"]')
         ?.textContent,
     ).toContain("每日趋势摘要");
+  });
+
+  it("失去当前导航所有权后不应再回写 sceneapps 参数或最近访问", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const { container, onNavigate } = renderSceneAppsPage({
+        isActive: false,
+        isNavigationTargetOwner: false,
+        navigationRequestId: 3,
+      });
+      await flushEffects();
+      await openSceneAppsView(container, "catalog");
+
+      expect(listSceneAppRecentVisits()).toEqual([]);
+
+      const searchInput = container.querySelector(
+        'input[placeholder="搜索场景标题"]',
+      ) as HTMLInputElement | null;
+
+      expect(searchInput).toBeTruthy();
+
+      act(() => {
+        setTextboxValue(searchInput!, "短视频");
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+        await Promise.resolve();
+      });
+      await flushEffects();
+
+      expect(onNavigate).not.toHaveBeenCalled();
+      expect(listSceneAppRecentVisits()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("应展示最近访问入口，并支持一键恢复最近上下文", async () => {
@@ -1651,9 +2059,10 @@ describe("SceneAppsPage", () => {
     ) as HTMLButtonElement | null;
     expect(secondaryRecentButton).toBeTruthy();
 
-    act(() => {
+    await act(async () => {
       secondaryRecentButton?.click();
     });
+    await flushEffects();
 
     expect(onNavigate).toHaveBeenCalledWith(
       "sceneapps",
@@ -1750,6 +2159,100 @@ describe("SceneAppsPage", () => {
         initialUserPrompt: "生成一个 30 秒短视频方案",
         autoRunInitialPromptOnMount: true,
       }),
+    );
+  });
+
+  it("应允许显式写入当前场景基线并刷新详情页上下文经营信息", async () => {
+    mockPlanSceneAppLaunch.mockResolvedValue(
+      createPlanResult({
+        descriptor: {
+          id: "story-video-suite",
+          title: "短视频编排",
+          summary: "把线框图、配乐和剧本串成短视频草稿。",
+        },
+        contextOverlay: {
+          snapshot: {
+            skillRefs: [],
+            memoryRefs: [],
+            toolRefs: [],
+            referenceItems: [
+              {
+                id: "ref-1",
+                label: "竞品视频 1",
+                sourceKind: "reference_library",
+                contentType: "video",
+                selected: true,
+                summary: "强调前三秒结论感和更强的节奏推进。",
+                usageCount: 3,
+                lastUsedAt: "2026-04-15T00:02:05.000Z",
+              },
+            ],
+          },
+        },
+      }),
+    );
+    mockSaveSceneAppContextBaseline.mockResolvedValue(
+      createPlanResult({
+        descriptor: {
+          id: "story-video-suite",
+          title: "短视频编排",
+          summary: "把线框图、配乐和剧本串成短视频草稿。",
+        },
+        contextOverlay: {
+          compilerPlan: {
+            activeLayers: ["memory", "taste"],
+            memoryRefs: [],
+            toolRefs: [],
+            referenceCount: 1,
+            notes: ["当前场景基线已写入项目级 Context Snapshot，后续 planning 会优先复用。"],
+          },
+          snapshot: {
+            skillRefs: [],
+            memoryRefs: [],
+            toolRefs: [],
+            referenceItems: [
+              {
+                id: "ref-1",
+                label: "竞品视频 1",
+                sourceKind: "reference_library",
+                contentType: "video",
+                selected: true,
+                summary: "强调前三秒结论感和更强的节奏推进。",
+                usageCount: 4,
+                lastUsedAt: "2026-04-17T00:00:00.000Z",
+              },
+            ],
+          },
+        },
+      }),
+    );
+
+    const { container } = renderSceneAppsPage();
+    await flushEffects();
+
+    const saveBaselineButton = container.querySelector(
+      '[data-testid="sceneapp-save-context-baseline"]',
+    ) as HTMLButtonElement | null;
+    expect(saveBaselineButton).toBeTruthy();
+    expect(saveBaselineButton?.disabled).toBe(false);
+
+    await act(async () => {
+      saveBaselineButton?.click();
+    });
+    await flushEffects();
+
+    expect(mockSaveSceneAppContextBaseline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sceneappId: "story-video-suite",
+        entrySource: "sceneapp_detail_save_context_baseline",
+        projectId: "project-1",
+        workspaceId: "project-1",
+        userInput: "生成一个 30 秒短视频方案",
+      }),
+    );
+    expect(container.textContent).toContain("已用 4 次");
+    expect(container.textContent).toContain(
+      "当前场景基线已写入项目级 Context Snapshot，后续 planning 会优先复用。",
     );
   });
 
@@ -1901,7 +2404,7 @@ describe("SceneAppsPage", () => {
         relativePath: "exports/story-video-suite/latest/brief.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从 SceneApp 运行复盘打开结果文件：主稿 · 任务简报。",
+      entryBannerMessage: "已从创作场景复盘打开结果文件：主稿 · 任务简报。",
     });
   });
 
@@ -1944,7 +2447,7 @@ describe("SceneAppsPage", () => {
           ".lime/harness/sessions/session-story-video-1/evidence/summary.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从 SceneApp 运行复盘打开治理文件：证据摘要。",
+      entryBannerMessage: "已从创作场景复盘打开治理文件：证据摘要。",
     });
   });
 
@@ -1988,7 +2491,7 @@ describe("SceneAppsPage", () => {
           ".lime/harness/sessions/session-story-video-1/review/review-decision.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从 SceneApp 运行复盘打开治理动作：人工复核记录。",
+      entryBannerMessage: "已从创作场景复盘打开治理动作：人工复核记录。",
     });
   });
 
@@ -2029,8 +2532,109 @@ describe("SceneAppsPage", () => {
           ".lime/harness/sessions/session-story-video-1/review/review-decision.json",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从 SceneApp 运行复盘打开治理动作：复核 JSON。",
+      entryBannerMessage: "已从创作场景复盘打开治理动作：复核 JSON。",
     });
+  });
+
+  it("保存人工复核后应刷新当前场景 planning 基线", async () => {
+    const { container } = renderSceneAppsPage();
+    await flushEffects();
+    await openSceneAppsView(container, "governance");
+
+    const seededRunItem = container.querySelector(
+      '[data-testid="sceneapp-run-item-story-video-suite-run-1"]',
+    ) as HTMLButtonElement | null;
+    act(() => {
+      seededRunItem?.click();
+    });
+    await flushEffects();
+    await flushEffects();
+
+    const reviewButton = container.querySelector(
+      '[data-testid="sceneapp-run-detail-open-human-review"]',
+    ) as HTMLButtonElement | null;
+    act(() => {
+      reviewButton?.click();
+    });
+    await flushEffects();
+
+    const dialogProps = latestReviewDecisionDialogProps.value as {
+      onSave: (request: Record<string, unknown>) => Promise<void>;
+    } | null;
+    expect(dialogProps).not.toBeNull();
+
+    await act(async () => {
+      await dialogProps?.onSave({
+        session_id: "session-story-video-1",
+        decision_status: "accepted",
+        decision_summary: "这轮可以继续推进",
+        chosen_fix_strategy: "补一版封面",
+        risk_level: "medium",
+        risk_tags: [],
+        human_reviewer: "Robin",
+        reviewed_at: "2026-04-15T00:06:00.000Z",
+        followup_actions: ["补封面"],
+        regression_requirements: ["检查字幕"],
+        notes: "先做小流量验证",
+      });
+    });
+    await flushEffects();
+
+    expect(mockSaveAgentRuntimeReviewDecision).toHaveBeenCalledWith({
+      session_id: "session-story-video-1",
+      decision_status: "accepted",
+      decision_summary: "这轮可以继续推进",
+      chosen_fix_strategy: "补一版封面",
+      risk_level: "medium",
+      risk_tags: [],
+      human_reviewer: "Robin",
+      reviewed_at: "2026-04-15T00:06:00.000Z",
+      followup_actions: ["补封面"],
+      regression_requirements: ["检查字幕"],
+      notes: "先做小流量验证",
+    });
+    expect(mockPlanSceneAppLaunch).toHaveBeenCalledTimes(2);
+  });
+
+  it("轻量反馈按钮应复用 review decision 主链并刷新 planning 基线", async () => {
+    const { container } = renderSceneAppsPage();
+    await flushEffects();
+    await openSceneAppsView(container, "governance");
+
+    const seededRunItem = container.querySelector(
+      '[data-testid="sceneapp-run-item-story-video-suite-run-1"]',
+    ) as HTMLButtonElement | null;
+    act(() => {
+      seededRunItem?.click();
+    });
+    await flushEffects();
+    await flushEffects();
+
+    const quickReviewButton = container.querySelector(
+      '[data-testid="sceneapp-run-detail-quick-review-accepted"]',
+    ) as HTMLButtonElement | null;
+    expect(quickReviewButton).not.toBeNull();
+    expect(quickReviewButton?.textContent).toContain("可继续复用");
+
+    act(() => {
+      quickReviewButton?.click();
+    });
+    await flushEffects(12);
+
+    expect(mockExportAgentRuntimeReviewDecisionTemplate).toHaveBeenCalledWith(
+      "session-story-video-1",
+    );
+    expect(mockSaveAgentRuntimeReviewDecision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session_id: "session-story-video-1",
+        decision_status: "accepted",
+        decision_summary: expect.stringContaining("短视频编排"),
+        chosen_fix_strategy: "沿当前参考、风格与结果包基线继续放量。",
+        risk_level: "low",
+        notes: "来自创作场景轻量反馈入口。",
+      }),
+    );
+    expect(mockPlanSceneAppLaunch).toHaveBeenCalledTimes(2);
   });
 
   it("运行详情里的云端 Scene 应支持回到对应会话", async () => {
@@ -2060,7 +2664,7 @@ describe("SceneAppsPage", () => {
     expect(onNavigate).toHaveBeenCalledWith("agent", {
       agentEntry: "claw",
       initialSessionId: "session-story-video-2",
-      entryBannerMessage: "已从 SceneApp 运行复盘恢复云端 Scene 会话。",
+      entryBannerMessage: "已从创作场景复盘恢复云端 Scene 会话。",
     });
   });
 
@@ -2134,7 +2738,7 @@ describe("SceneAppsPage", () => {
       expect.objectContaining({
         agentEntry: "claw",
         projectId: "project-1",
-        entryBannerMessage: "已从 SceneApp 运行复盘恢复本机技能入口。",
+        entryBannerMessage: "已从创作场景复盘恢复本机技能入口。",
         initialPendingServiceSkillLaunch: expect.objectContaining({
           skillId: "sceneapp-service-analysis",
           initialSlotValues: {

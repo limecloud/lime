@@ -249,6 +249,10 @@ const SECTION_TABS_CLASS_NAME =
   "grid w-full max-w-2xl grid-cols-4 rounded-[18px] border border-slate-200 bg-slate-50 p-1";
 const SECTION_TAB_TRIGGER_CLASS_NAME =
   "rounded-[14px] px-3 py-2 text-sm font-medium text-slate-600 transition data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm";
+const ACTIVE_SUBPAGE_BUTTON_CLASS =
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10";
+const PRIMARY_ACTION_BUTTON_CLASS =
+  "flex items-center gap-1.5 rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95 disabled:opacity-50";
 
 interface SurfacePanelProps {
   icon: LucideIcon;
@@ -2397,7 +2401,7 @@ export function ChannelsDebugWorkbench({
                 className={cn(
                   "group flex min-w-[220px] flex-1 items-center gap-3 rounded-[18px] border px-3.5 py-3 text-left transition",
                   isActive
-                    ? "border-slate-300 bg-slate-900 text-white shadow-sm"
+                    ? ACTIVE_SUBPAGE_BUTTON_CLASS
                     : "border-slate-200/80 bg-slate-50/60 text-slate-700 hover:border-slate-300 hover:bg-white",
                 )}
               >
@@ -2405,7 +2409,7 @@ export function ChannelsDebugWorkbench({
                   className={cn(
                     "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
                     isActive
-                      ? "border-white/20 bg-white/10 text-white"
+                      ? "border-emerald-200 bg-white/85 text-emerald-700"
                       : "border-slate-200 bg-white text-slate-700",
                   )}
                 >
@@ -2415,7 +2419,7 @@ export function ChannelsDebugWorkbench({
                   <p
                     className={cn(
                       "text-sm font-semibold",
-                      isActive ? "text-white" : "text-slate-900",
+                      isActive ? "text-slate-900" : "text-slate-900",
                     )}
                   >
                     {page.label}
@@ -2423,7 +2427,7 @@ export function ChannelsDebugWorkbench({
                   <p
                     className={cn(
                       "text-xs leading-5",
-                      isActive ? "text-white/80" : "text-slate-500",
+                      isActive ? "text-slate-600" : "text-slate-500",
                     )}
                   >
                     {page.description}
@@ -2433,7 +2437,7 @@ export function ChannelsDebugWorkbench({
                   className={cn(
                     "rounded-full border px-2.5 py-1 text-[11px] font-medium",
                     isActive
-                      ? "border-white/15 bg-white/10 text-white"
+                      ? "border-emerald-200 bg-white/90 text-emerald-700"
                       : "border-slate-200 bg-white text-slate-500",
                   )}
                 >
@@ -2617,7 +2621,7 @@ export function ChannelsDebugWorkbench({
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+              className={PRIMARY_ACTION_BUTTON_CLASS}
             >
               {saving ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

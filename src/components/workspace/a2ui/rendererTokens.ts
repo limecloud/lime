@@ -4,7 +4,7 @@ export const A2UI_RENDERER_TOKENS = {
   errorText: "text-red-500",
   submitRow: "flex justify-end",
   submitButton:
-    "inline-flex h-11 items-center justify-center rounded-full border border-slate-900 bg-slate-900 px-5 text-sm font-medium text-white shadow-sm transition-colors hover:border-slate-800 hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:bg-slate-200",
+    "inline-flex h-11 items-center justify-center rounded-full border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-5 text-sm font-medium text-white shadow-sm shadow-emerald-950/15 transition-colors hover:opacity-95 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:bg-slate-200",
   textVariants: {
     h1: "text-2xl font-bold",
     h2: "text-xl font-semibold",

@@ -56,6 +56,9 @@ const EMPTY_FORM: PresetFormState = {
   device_scale_factor: "",
 };
 
+const BROWSER_RUNTIME_PRIMARY_ACTION_BUTTON_CLASSNAME =
+  "inline-flex h-9 items-center gap-2 rounded-md border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-3 text-sm text-white shadow-sm shadow-emerald-950/15 transition hover:opacity-95";
+
 function toFormState(preset: BrowserEnvironmentPresetRecord): PresetFormState {
   return {
     id: preset.id,
@@ -319,7 +322,7 @@ export function BrowserEnvironmentPresetManager(
           <button
             type="button"
             onClick={handleCreate}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-900 bg-slate-900 px-3 text-sm text-white transition hover:bg-slate-700 dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+            className={BROWSER_RUNTIME_PRIMARY_ACTION_BUTTON_CLASSNAME}
           >
             <SquarePen className="h-4 w-4" />
             新建预设

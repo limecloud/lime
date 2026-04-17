@@ -105,12 +105,12 @@ export function McpPanel({ hideHeader = false }: McpPanelProps) {
             {tab.label}
             {/* 数量标记 */}
             {tab.id === "tools" && tools.length > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-blue-500/10 text-blue-600">
+              <span className="ml-1.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700">
                 {tools.length}
               </span>
             )}
             {tab.id === "prompts" && prompts.length > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-purple-500/10 text-purple-600">
+              <span className="ml-1.5 rounded-full bg-sky-50 px-1.5 py-0.5 text-xs text-sky-700 dark:bg-sky-950/30 dark:text-sky-300">
                 {prompts.length}
               </span>
             )}

@@ -1,8 +1,503 @@
 # LimeNext 推进日志
 
+> 注：自 2026-04-17 起，LimeNext current 前台主词固定为 `创作场景 / 灵感库 / 生成 / Project Pack / 复盘`。历史日志里若继续出现 `SceneApp / 场景应用 / 记忆工作台` 等词，默认按当时实现阶段或 compat 旧称理解，不再代表 current 产品口径。
+>
+> 补充说明：2026-04-17 中段几次关于“纯标题目录 / 无图场景墙”的尝试，当前都已被后续 `经营信号目录卡片` 方案取代。阅读本日志时，凡旧条目仍写“纯标题目录”，都按已废弃试探理解；current 以最新“目录卡片经营信号回流”条目为准。
+
+## 2026-04-18
+
+### 已完成
+
+- 把 `生成主执行面` 的 `同聊推进` 从“发布前整理”继续扩到现有 `渠道预览 / 上传稿` 主链：
+  - 已更新：
+    - `src/lib/sceneapp/executionPromptActions.ts`
+    - `src/lib/sceneapp/executionPromptActions.test.ts`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `docs/exec-plans/limenext-plan.md`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenext/README.md`
+  - 当前统一结论：
+    - `生成` 页执行摘要卡当前不再只停在 `补齐缺失部件 / 发布前检查 / 进入发布整理`，而是继续补到了 `生成渠道预览稿 / 整理上传稿`
+    - 这两条动作继续复用仓库里已经存在的 `@渠道预览 / @上传` 命令面与 `content_post_with_cover` 主链，不新增新的投放协议或平行发布系统
+    - `生成渠道预览稿 / 整理上传稿` 与 `进入发布整理` 一样，当前都会按缺件和失败信号自动禁用并显式提示阻塞原因
+  - 当前已确认通过：
+    - `npm exec vitest run "src/lib/sceneapp/executionPromptActions.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npx eslint "src/lib/sceneapp/executionPromptActions.ts" "src/lib/sceneapp/executionPromptActions.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+  - 当前补充说明：
+    - 本轮第一次 `verify:gui-smoke` 在 `smoke:agent-runtime-tool-surface-page` 遇到一次 `bridge cooldown active` 环境抖动；未改代码重跑后完整 GUI smoke 已通过
+    - 因此这次结论按“重跑后的完整 smoke 通过”记录，不把第一次环境性抖动误记成主线回归
+
+- 把 `生成主执行面` 的 `生成后动作编排` 继续补到“同聊推进”层，而不再停在治理材料和页面跳转：
+  - 已更新：
+    - `src/lib/sceneapp/executionPromptActions.ts`
+    - `src/lib/sceneapp/executionPromptActions.test.ts`
+    - `src/lib/sceneapp/index.ts`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `docs/exec-plans/limenext-plan.md`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenext/README.md`
+  - 当前统一结论：
+    - `生成` 页执行摘要卡当前已新增 `同聊推进` 分组，可直接触发 `补齐缺失部件 / 发布前检查 / 进入发布整理 / 生成渠道预览稿 / 整理上传稿`
+    - `发布前检查 / 进入发布整理 / 生成渠道预览稿 / 整理上传稿` 继续复用现有 `@发布合规 / @发布 / @渠道预览 / @上传` 主链，`AgentChatWorkspace` 直接把动作 prompt 发送到当前会话，不新增新的 viewer 或发布协议
+    - `进入发布整理 / 生成渠道预览稿 / 整理上传稿` 当前都会按缺件和失败信号自动禁用，并显式提示阻塞原因；因此“先治理、先预览还是先整理上传稿”不再只靠用户自己判断
+    - 旧结论里若继续写“生成后动作编排还停在准备治理材料 + 恢复底层入口”，当前都按已过时理解
+  - 当前已确认通过：
+    - `npm exec vitest run "src/lib/sceneapp/executionPromptActions.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npx eslint "src/lib/sceneapp/executionPromptActions.ts" "src/lib/sceneapp/executionPromptActions.test.ts" "src/lib/sceneapp/index.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+  - 当前补充说明：
+    - 本轮第一次 `verify:gui-smoke` 曾被旧的本地 `lime` 调试进程占住 `3030/8999` 端口，导致新的 headless Tauri 半启动、workspace smoke 长时间挂起；清掉残留验证进程并重跑后，完整 GUI smoke 已通过
+    - 因此这次交付结论以“重跑后的完整 GUI smoke 通过”为准，而不是以第一次被本地残留进程污染的结果为准
+
+- 把 `生成主执行面` 继续补成第一批 `生成后动作编排`，不再只是“打开结果文件 + 跳回创作场景”：
+  - 已更新：
+    - `src/lib/sceneapp/runEntryNavigation.ts`
+    - `src/lib/sceneapp/runEntryNavigation.test.ts`
+    - `src/lib/sceneapp/index.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `docs/exec-plans/limenext-plan.md`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenext/README.md`
+  - 当前统一结论：
+    - `生成` 页执行摘要卡当前会直接展示第一批推荐去向：`周会复盘 / 生成 / 看板 / 持续流程 / 自动化 / 结果编辑 / 发布`
+    - 生成页当前可直接执行 `准备周会复盘包 / 准备结构化治理包 / 打开基础治理材料 / 恢复底层运行入口`
+    - 上面这组动作当前已不再是终点；同一张摘要卡里已经继续补上 `补齐缺失部件 / 发布前检查 / 进入发布整理`
+    - `AgentChatWorkspace` 与 `SceneAppsPage` 当前共享 `resolveSceneAppRunEntryNavigationTarget + prepareSceneAppRunGovernanceArtifact(s)` current 主链，不再各自维护一套 run entry 恢复逻辑
+    - 这一步把 `生成` 从“摘要页 + 导航中转站”推进为第一批真正的统一编排面，也把之前“只支持页面跳转”的旧判断标记为已过时
+  - 当前已确认通过：
+    - `npm exec vitest run "src/lib/sceneapp/runEntryNavigation.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx"`
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint "src/lib/sceneapp/runEntryNavigation.ts" "src/lib/sceneapp/runEntryNavigation.test.ts" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/lib/sceneapp/product.ts"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+  - 当前补充说明：
+    - 本轮 `verify:gui-smoke` 已完整通过，说明这次 `生成后动作编排` 与共享 run entry 导航 helper 没有把 GUI 主路径打断
+    - 旧日志里若继续出现“生成页当前还只支持页面跳转”之类说法，当前都按已被本条替代的过时阶段理解
+
+- 把 `生成主执行面` 正式接到 current `Project Pack` 最近结果入口，而不再只停留在顶部摘要文案：
+  - 已更新：
+    - `src/lib/sceneapp/runtimeResults.ts`
+    - `src/lib/sceneapp/index.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.ts`
+    - `src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/sceneapps/SceneAppProjectPackRuntimePanel.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `docs/exec-plans/limenext-plan.md`
+    - `docs/roadmap/limenext/README.md`
+  - 当前统一结论：
+    - `useSceneAppExecutionSummaryRuntime` 当前不再只回流 `runtimeBackflow`，还会同步回流最近可消费的 `Project Pack` 结果样本，以及“当前 run 无文件时回退到最近已交付样本”的状态
+    - `SceneAppExecutionSummaryCard` 已新增 `最近可消费结果` 区块，`生成` 页可以直接打开结果文件，不再逼用户先跳回 `创作场景` 子页
+    - `SceneAppsPage` 与 `生成主执行面` 当前共享同一套 `findLatestSceneAppPackResultRun + resolveSceneAppRuntimeArtifactOpenTarget + deliveryArtifactEntries` current 打开链，不再各自维护一份结果入口协议
+    - 这一步已经把 `创作场景 -> 生成 -> Project Pack -> 复盘` 里的“结果消费”真正补到 `生成` 主舞台，而不是继续停在准备页、评分页和治理页的旁路消费
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppProjectPackRuntimePanel.tsx" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/runtimeResults.ts"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+  - 当前补充说明：
+    - `npm run verify:gui-smoke` 这轮已实际通过，说明 `生成主执行面` 与 `SceneApps` 共用的 current 结果入口链没有把 GUI 主路径打断
+    - `npm run verify:local` 这轮未能整体通过，但失败点来自仓库里与本轮无关的既有 lint 问题：
+      - `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`
+      - `src/components/agent/chat/workspace/workspaceSendHelpers.ts`
+    - 当前没有证据表明这些失败与本轮 `Project Pack` 结果入口改动相关，因此主线交付结论以 `定向回归 + typecheck + GUI smoke` 为准
+
+- 把 `生成主执行面` 继续补成“结果消费 + 回闭环动作”入口，而不再让用户自己找回 `创作场景` 页：
+  - 已更新：
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `docs/exec-plans/limenext-plan.md`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenext/README.md`
+  - 当前统一结论：
+    - 生成页执行摘要卡当前已新增 `回生成准备 / 去治理复盘` 两个继续动作
+    - `去治理复盘` 当前会优先带到最近可消费样本对应的 run，而不是只盯着当前可能仍在执行的 run；因此结果消费与人工复核、轻量判断、治理动作已经开始接上同一条闭环
+    - 生成页当前还能直接触发 `填写人工复核 / 可继续复用 / 继续观察 / 补证据 / 先别继续`，继续复用现有 `review decision` 主链与 `RuntimeReviewDecisionDialog`
+    - 这一步继续复用 `SceneAppsPage` 既有准备页与治理页，以及已有 `review decision` 协议，不在 `claw` 内再复制一套平行治理 UI，保持 current 事实源单一
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - 定向 `eslint`
+  - 当前补充说明：
+    - 这一步主要补的是 `生成 -> 创作场景` 的回流动作层与直接复盘动作，没有新增新的运行态协议或页面对象
+    - `npm run typecheck` 这轮未能整体通过，但失败点来自仓库里与本轮无关的既有问题：
+      - `src/components/onboarding/steps/VoiceShortcutTestStep.test.tsx`
+    - `npm run verify:gui-smoke` 这轮也未能完成，阻塞点仍是已有 headless 构建环境里的 `libsqlite3-sys` 临时 target `bindgen.rs` 缺失，不是这轮 `生成 -> 创作场景` 深链动作回归
+
+## 2026-04-17
+
+### 已完成
+
+- 把 `Project Pack` 的结果消费入口从 `治理复盘 / 运行详情` 继续扩到 `生成准备 / 经营评分`：
+  - 已更新：
+    - `src/components/sceneapps/SceneAppProjectPackRuntimePanel.tsx`
+    - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppScorecardPanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/roadmap/limenext/README.md`
+    - `docs/exec-plans/limenext-plan.md`
+  - 当前统一结论：
+    - `生成准备` 与 `经营评分` 当前不再只展示 `Project Pack` 的查看方式文案，而会直接回流最近可消费样本的结果入口
+    - 当最新运行仍在执行、或没有带回结果文件路径时，页面会自动回退到最近一轮已交付样本，避免准备页和评分页只剩静态规划信息
+    - 结果入口继续复用 `SceneAppRunDetailViewModel.deliveryArtifactEntries -> Agent 文件预览打开链`，没有新增新的 `Project Pack viewer` 协议
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint "src/components/sceneapps/SceneAppProjectPackRuntimePanel.tsx" "src/components/sceneapps/SceneAppDetailPanel.tsx" "src/components/sceneapps/SceneAppScorecardPanel.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run typecheck`
+  - GUI 续测结论：
+    - `npm run verify:gui-smoke` 当前不再卡 `libsqlite3-sys`；本轮失败点转为复用环境下的 `smoke:browser-runtime` 清理旧 `session_id` 时 `close_cdp_session` 返回“未找到 session”，属于浏览器运行时清理链问题，不是 `sceneapps` 主路径回归
+    - 已改用真实页面续测补一刀：打开 `http://127.0.0.1:1420/`，进入 `创作场景 -> 生成准备 / 治理复盘`，确认 `最近结果入口 / 最近可消费结果` 面板已出现，控制台无新增 error，仅保留既有 `i18n` warn
+    - 当前 seed 运行样本在真实 GUI 环境里还没有带回可打开的结果文件路径，所以真实页面续测主要证明入口渲染与回退语义；“点击主稿文件即可打开”继续由新增的定向 Vitest 回归断言兜底
+
+- 把 `创作场景` 目录分页正式接到 current `descriptor + latest run + scorecard` 同一事实源：
+  - 已更新：
+    - `src/lib/sceneapp/product.ts`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsCatalogPanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/roadmap/limenext/README.md`
+    - `docs/exec-plans/limenext-plan.md`
+  - 当前统一结论：
+    - 场景目录卡片当前不再只是静态标题列表，而会同时回流 `delivery contract / latest run / scorecard action / top failure signal / operating summary`
+    - `useSceneAppsPageRuntime` 当前会在目录层聚合所有 descriptor 对应的 `latest run + scorecard`，并把这些经营信号压到同一份 `SceneAppCatalogCardViewModel`
+    - 目录卡片、生成页顶部执行摘要与自动化详情当前共享同一组 `descriptor + latest run + scorecard` 语义，不再各讲各的“当前状态”
+    - 这意味着 `创作场景` 目录已经从“选一个标题进去”推进到“先看哪条场景值得继续推进、该先补什么”这一层产品判断
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/sceneapp/product.test.ts"`
+    - `npx eslint "src/components/sceneapps/SceneAppsCatalogPanel.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/lib/sceneapp/product.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/sceneapp/product.test.ts"`
+    - `npm run typecheck`
+  - 当前仍待继续：
+    - 本条能力本身已被后续更完整的 GUI 续测覆盖；当前整套 `verify:gui-smoke` 的最新阻塞已不再是 `libsqlite3-sys`，而是复用环境下 `smoke:browser-runtime` 清理旧会话失败
+
+- 把 `持续流程 / 自动化` 详情页正式接到 current `创作场景 -> 生成 -> Project Pack -> 复盘` 同一事实源：
+  - 已更新：
+    - `src/lib/sceneapp/automation.ts`
+    - `src/lib/sceneapp/automation.test.ts`
+    - `src/components/settings-v2/system/automation/useAutomationSceneAppRuntime.ts`
+    - `src/components/settings-v2/system/automation/index.tsx`
+    - `src/components/settings-v2/system/automation/index.test.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx`
+    - `src/components/automation/AutomationPage.tsx`
+    - `docs/roadmap/limenext/README.md`
+    - `docs/exec-plans/limenext-plan.md`
+  - 当前统一结论：
+    - 自动化详情弹窗当前不再只看 `调度状态 / payload / run history`；如果任务来自创作场景派生，它会按 job metadata 回查同一条 `SceneApp descriptor / project pack plan / run summary / scorecard`
+    - 弹窗里已新增 `创作场景闭环` 摘要块，能直接回到 `创作场景准备` 或 `治理复盘`
+    - 结果文件、治理文件与治理动作当前已复用 `SceneAppRunDetailViewModel + sceneapp_prepare_run_governance_artifact(s)` 主链，不再额外发明 automation 专用 pack / governance 协议
+    - `SceneApp` 在这条链里继续只承担内部画像与运行时合同；自动化前台看到的仍是 `创作场景` 闭环，而不是新的对外主词
+  - 当前已确认通过：
+    - `npm exec vitest run "src/lib/sceneapp/automation.test.ts" "src/components/settings-v2/system/automation/index.test.tsx"`
+    - `npm exec vitest run "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.test.tsx"`
+    - `npx eslint "src/lib/sceneapp/automation.ts" "src/lib/sceneapp/automation.test.ts" "src/components/settings-v2/system/automation/useAutomationSceneAppRuntime.ts" "src/components/settings-v2/system/automation/index.tsx" "src/components/settings-v2/system/automation/index.test.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx" "src/components/automation/AutomationPage.tsx"`
+    - `npm run typecheck`
+  - 当前仍待继续：
+    - `npm run verify:gui-smoke` 本轮连续两次都卡在本地 headless Tauri Rust 构建环境，`libsqlite3-sys` 在临时 target 目录缺失 `bindgen.rs`，导致 DevBridge 未就绪；这次阻塞发生在 GUI smoke 启动期，而不是自动化 / 创作场景业务断链
+    - `npm run verify:local` 本轮未继续执行，因为当前会被同一条 GUI smoke 环境故障阻塞
+- 把生成页顶部的 `创作场景执行摘要` 从启动静态卡继续补成“启动基线 + 运行态回流”的 current 主链：
+  - 已更新：
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/product.test.ts`
+    - `src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.ts`
+    - `src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `src/components/AppPageContent.tsx`
+    - `src/components/AppPageContent.test.tsx`
+    - `docs/roadmap/limenext/README.md`
+    - `docs/exec-plans/limenext-plan.md`
+  - 当前统一结论：
+    - `生成` 页顶部的执行摘要当前不再只展示 `sceneapp_plan_launch` 时刻的 planning 快照，还会按当前 `sessionId -> sceneapp run` 回查最近运行，并把交付完成度、证据链、治理材料与失败信号继续回流到同一张摘要卡
+    - `Project Pack / scorecard / governance` 这条运行态回流当前已开始直接进入 `生成主执行面`，用户不用再先跳回 `创作场景 / 复盘` 才能看到最近一次运行的主链状态
+    - 为了守住 keep-alive 主路径，[AppPageContent.tsx](/Users/coso/Documents/dev/ai/aiclientproxy/lime/src/components/AppPageContent.tsx) 当前已把 `sceneapps` 常驻节点固定在稳定树位，`创作场景 -> 持续流程 -> 创作场景` 往返时不会再重挂载目录页
+  - 当前已确认通过：
+    - `npm exec vitest run "src/lib/sceneapp/product.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx" "src/components/AppPageContent.test.tsx"`
+    - `npx eslint "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.ts" "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts" "src/components/AppPageContent.tsx" "src/components/AppPageContent.test.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 `创作场景 -> 生成` 的执行摘要真正接进 current `生成主执行面`，不再只把一段 prompt 丢给 `claw`：
+  - 已更新：
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/launch.ts`
+    - `src/types/page.ts`
+    - `src/components/AppPageContent.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx`
+    - `src/components/agent/chat/workspace/WorkspaceConversationScene.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/lib/sceneapp/launch.test.ts`
+    - `src/components/agent/chat/workspaceEntry.test.ts`
+    - `src/components/AppPageContent.test.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.test.ts`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `docs/roadmap/limenext/README.md`
+    - `docs/exec-plans/limenext-plan.md`
+  - 当前统一结论：
+    - `创作场景` 进入 `生成` 时，`Project Pack / scorecard / context baseline` 已通过 `initialSceneAppExecutionSummary` 进入生成页顶部，而不是再混进 runtime request metadata
+    - `initialAutoSendRequestMetadata` 当前也已显式透传到 `AgentChatPage`，`cloud_scene / browser_assist` 这类自动发送首刀不再丢失 metadata 主链
+    - `生成` 页顶部现在会先展示“创作场景执行摘要”，再进入 step progress、timeline 与继续执行，用户可以直接看见当前场景的执行主链、上下文分层、Project Pack 合同与 scorecard 口径
+  - 当前已确认通过：
+    - `npm exec vitest run "src/lib/sceneapp/launch.test.ts" "src/components/agent/chat/workspaceEntry.test.ts" "src/components/AppPageContent.test.tsx" "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+
+- 修掉 `治理复盘` 带 `runId` 重新进入时会在 runs 列表加载阶段回退到首条运行的状态抖动：
+  - 已更新：
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `src/components/AppPageContent.test.tsx`
+  - 当前统一结论：
+    - 目录刚加载完、场景选择还未落稳的过渡帧，runtime 不会再提前清空已有 `selectedRunId`
+    - 带 `runId` 重进 `治理复盘` 时，右侧运行详情会继续稳定指向该 run，而不是被 runs 列表里的首条记录覆盖
+    - `AppPageContent` 的页面挂载回归也已同步修正，`verify:gui-smoke` 不会再在 `agent-service-skill-entry` 阶段被旧测试写法误伤
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx" -t "带 runId 重新进入治理页时不应在运行列表加载阶段回退到首条运行"`
+    - `npm exec vitest run "src/components/AppPageContent.test.tsx"`
+    - `npm run verify:gui-smoke`
+
+- 把 `agentEntry=claw` 的 current 前台产品定义收口为 `生成主执行面`，不再继续用 `任务中心` 作为主叙事：
+  - 已更新：
+    - `src/lib/navigation/sidebarNav.ts`
+    - `src/types/page.ts`
+    - `src/components/agent/chat/workspace/chatSurfaceProps.ts`
+    - `src/components/agent/chat/components/MessageList.tsx`
+    - `src/components/agent/chat/components/ChatSidebar.tsx`
+    - `src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx`
+    - `src/components/agent/chat/service-skills/skillPresentation.ts`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+    - `src/lib/sceneapp/presentation.ts`
+    - `docs/roadmap/limenext/README.md`
+    - `docs/roadmap/limenext/prd.md`
+    - `docs/roadmap/limenext/architecture.md`
+    - `docs/roadmap/limenext/context-layer.md`
+    - `docs/roadmap/limenext/sceneapp-business-flows.md`
+    - `docs/roadmap/limenext/sceneapp-fullstack-implementation-plan.md`
+    - `docs/roadmap/ribbi/product-positioning-and-ia.md`
+  - 当前统一结论：
+    - 侧边栏与前台 current 主词现在固定为 `新建任务 / 生成 / 我的方法 / 创作场景 / 消息渠道 / 资料库 / 灵感库`
+    - `agentEntry=claw` 继续保留为内部实现 route，但前台已统一按 `生成` 理解
+    - `创作场景` 页当前明确退回执行前选路、planning 和上下文基线装配页，不再承担长期主执行面职责
+    - `生成` 当前是 Lime 创作闭环唯一主执行面，继续承接执行过程、继续旧历史、最近结果与后续结果回流
+
+- 把 `sceneapp_plan_launch` 与 `sceneapp_save_context_baseline` 的语义彻底拆开，收口成 latest-only 的显式场景基线主链：
+  - 已更新：
+    - `src-tauri/src/sceneapp/application.rs`
+    - `src-tauri/src/commands/sceneapp_cmd.rs`
+    - `src-tauri/src/app/runner.rs`
+    - `src-tauri/src/dev_bridge/dispatcher/sceneapp.rs`
+    - `src-tauri/src/dev_bridge/dispatcher.rs`
+    - `src/lib/api/sceneapp.ts`
+    - `src/lib/governance/agentCommandCatalog.json`
+    - `src/lib/dev-bridge/mockPriorityCommands.ts`
+    - `src/lib/tauri-mock/core.ts`
+    - `src/lib/tauri-mock/core.test.ts`
+    - `src/lib/api/sceneapp.test.ts`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/aiprompts/commands.md`
+    - `docs/roadmap/limenext/README.md`
+    - `docs/roadmap/limenext/context-layer.md`
+    - `docs/roadmap/limenext/inspiration-library-and-taste-profile.md`
+    - `docs/roadmap/limenext/sceneapp-fullstack-implementation-plan.md`
+    - `docs/roadmap/limenext/sceneapp-runtime-contract.md`
+  - 当前统一结论：
+    - `sceneapp_plan_launch` 现在只负责 preview 当前 planning，并读取已有项目级 Context Snapshot
+    - `sceneapp_save_context_baseline` 才代表把当前灵感对象、输入摘要与风格偏好显式写回 `.lime/sceneapp/context/<sceneapp-id>.json`
+    - `创作场景` 详情页已新增“写入当前场景基线”按钮，不再把 preview planning 伪装成自动资产沉淀
+    - 浏览器 mock、DevBridge、Tauri 注册、治理目录册与前端 API 网关都已同步到同一条 current 命令链
+  - 当前已确认通过：
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::`
+    - `npm exec vitest run "src/lib/api/sceneapp.test.ts" "src/lib/tauri-mock/core.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+
+- 把 `创作场景治理页 / 运行详情 -> 轻量反馈按钮` 接回 current `review decision` 主链：
+  - 已更新：
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppGovernancePanel.tsx`
+    - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/roadmap/limenext/README.md`
+    - `docs/roadmap/limenext/inspiration-library-and-taste-profile.md`
+    - `docs/roadmap/limenext/metrics-and-selection.md`
+    - `docs/roadmap/limenext/sceneapp-fullstack-implementation-plan.md`
+    - `docs/roadmap/limenext/sceneapp-runtime-contract.md`
+  - 当前统一结论：
+    - `可继续复用 / 继续观察 / 补证据 / 先别继续` 四个轻量判断按钮，当前已经落到治理看板与运行详情
+    - 这些按钮不会新造 `sceneapp_feedback_*` 协议，而是先复用 `agent_runtime_export_review_decision_template / agent_runtime_save_review_decision`
+    - 保存后仍会沿用同一条 `review decision -> Context Snapshot -> planning 刷新` 主链
+    - 完整人工复核入口继续保留；轻量判断只负责把高频结论更快写回 current 资产链
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run typecheck`
+
+- 补齐 `SceneApp current 命令 -> DevBridge browser 开发模式` 的最后一段桥接，修掉创作场景页在浏览器模式下的 `unknown command` 断链：
+  - 已更新：
+    - `src-tauri/src/dev_bridge/dispatcher/sceneapp.rs`
+    - `src-tauri/src/dev_bridge/dispatcher.rs`
+  - 当前统一结论：
+    - `sceneapp_list_catalog / sceneapp_get_descriptor / sceneapp_plan_launch / sceneapp_save_context_baseline / sceneapp_create_automation_job / sceneapp_list_runs / sceneapp_get_run_summary / sceneapp_prepare_run_governance_artifact / sceneapp_get_scorecard` 在 current 不只注册在 Tauri `generate_handler!`，也已显式接入 DevBridge `dispatcher`
+    - 浏览器开发模式下的 `创作场景` 页面已不再出现 `sceneapp_plan_launch / sceneapp_list_runs / sceneapp_get_scorecard` 的 `未知命令`
+    - current `sceneapp_*` 现在在桌面壳与浏览器开发模式下共享同一条 SceneApp 真相链，不再出现“合同存在但 DevBridge 少桥一半”的断层
+  - 当前已确认通过：
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp_`
+    - `npm run test:contracts`
+    - 直接打开 `http://127.0.0.1:1420/`，进入 `创作场景` 页面后，控制台只剩 `i18n` warning，不再出现 `sceneapp_*` unknown command
+    - `npm run verify:gui-smoke -- --reuse-running --timeout-ms 600000`
+  - 本轮额外确认：
+    - 中途曾出现一次 `smoke:agent-service-skill-entry` 串联超时，表面报错是 `src/components/agent/chat/index.test.tsx` 的 `beforeAll` hook timeout
+    - 随后定向复跑 `node scripts/agent-service-skill-entry-smoke.mjs` 与整套 `verify:gui-smoke` 已恢复通过，说明这次更像运行时抖动，而不是 SceneApp / DevBridge current 主链回归
+
+- 把 `review decision -> 项目级 Context Snapshot` 的显式人工复核入口接回 current 主链：
+  - 已更新：
+    - `src-tauri/src/commands/aster_agent_cmd/command_api/runtime_api.rs`
+    - `src-tauri/src/sceneapp/application.rs`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppGovernancePanel.tsx`
+    - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/product.test.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - 当前统一结论：
+    - `agent_runtime_save_review_decision` 保存完成后，会尝试按 `session_id -> sceneapp run` 反查当前运行，并把人工复核结论同步回 `.lime/sceneapp/context/<sceneapp-id>.json`
+    - `ReferenceItem.lastFeedbackLabel` 当前可直接承接 `人工接受 / 人工延后 / 人工否决 / 人工补证据` 等显式人工结论
+    - `TasteProfile.feedbackSummary / feedbackSignals / lastFeedbackAt` 当前会同时承接自动反馈与人工复核，不再额外新增 `sceneapp_feedback_*` 协议
+    - 创作场景治理页已经复用现有 `RuntimeReviewDecisionDialog`，保存后会刷新当前 planning 基线
+  - 当前已确认通过：
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::`
+    - `npm exec vitest run "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run typecheck`
+    - `npm run test:contracts`
+  - 当前仍待继续：
+    - GUI smoke 当前被复用中的 `DevBridge health` 阻塞，尚未完成这轮 GUI 交付验证
+
+- 把 `灵感库 -> 创作场景` 的正式引用对象链补齐到 current 主链：
+  - 已更新：
+    - `src/components/memory/MemoryPage.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/lib/sceneapp/navigation.ts`
+    - `src/lib/sceneapp/launch.ts`
+    - `src/lib/sceneapp/launcher.ts`
+    - `src-tauri/src/sceneapp/application.rs`
+    - `src-tauri/src/sceneapp/context/compiler.rs`
+    - `src-tauri/src/sceneapp/runtime.rs`
+    - `src-tauri/src/sceneapp/adapters.rs`
+    - `src/lib/tauri-mock/core.ts`
+  - 当前统一结论：
+    - `referenceMemoryIds` 已成为 `灵感库 -> 创作场景` 的 current 正式入口
+    - `prefillIntent` 继续保留，但只做输入补充，不再承担“唯一灵感对象载体”
+    - `sceneapp_plan_launch` 已能按 `reference_memory_ids` 读取统一记忆条目，并编译成 `contextOverlay.snapshot.referenceItems`
+    - 编译结果会继续进入 `TasteProfile`、`projectPackPlan` 与 runtime adapter metadata / launch payload；显式落盘当前改由 `sceneapp_save_context_baseline`
+    - 浏览器 mock 已与 Rust current 合同对齐，不再只在真实后端链路里有 `reference_memory_ids`
+  - 当前已确认通过：
+    - `npm exec vitest run "src/lib/tauri-mock/core.test.ts" "src/lib/api/sceneapp.test.ts" "src/components/memory/MemoryPage.test.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/lib/sceneapp/storage.test.ts" "src/lib/sceneapp/launch.test.ts"`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::`
+  - 当前仍待继续：
+    - 如何让自动反馈回写与前台显式操作进一步统一成稳定资产链
+    - provider 裁剪和更稳定的跨场景 taste 经营链
+
+- 把 `运行 / scorecard / governance -> 项目级 Context Snapshot` 的自动反馈回写补齐到 current 主链：
+  - 已更新：
+    - `src-tauri/src/sceneapp/application.rs`
+    - `src-tauri/src/sceneapp/context/dto.rs`
+    - `src-tauri/src/sceneapp/context/compiler.rs`
+    - `src-tauri/src/sceneapp/context/store.rs`
+    - `src/lib/context-layer/types.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppScorecardPanel.tsx`
+    - `src/components/sceneapps/SceneAppGovernancePanel.tsx`
+    - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+  - 当前统一结论：
+    - `ReferenceItem` 已直接承接 `usageCount / lastUsedAt / lastFeedbackLabel`
+    - `TasteProfile` 已直接承接 `feedbackSummary / feedbackSignals / lastFeedbackAt`
+    - `sceneapp_get_run_summary / sceneapp_prepare_run_governance_artifact / sceneapp_get_scorecard` 会把最近运行的交付缺口、失败信号与治理判断自动回写到 `.lime/sceneapp/context/<sceneapp-id>.json`
+    - 详情、评分、运行复盘、治理面当前都会继续消费同一套 `Planning 基线 + 最近反馈` 事实源
+    - V2 current first cut 已不再依赖“像我 / 不像我”按钮才能形成反馈闭环；当前显式人工复核继续复用 review decision 主链补到同一份 snapshot
+  - 当前已确认通过：
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::`
+    - `npm exec vitest run "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run typecheck`
+    - `npm run test:contracts`
+  - 当前仍待继续：
+    - provider 裁剪和更稳定的跨场景 taste 经营链
+
+- 把 LimeNext V2 的 current 文档事实源收口到 `创作场景 / 灵感库` 主线：
+  - 已更新：
+    - `docs/roadmap/limenext/README.md`
+    - `docs/roadmap/limenext/inspiration-library-and-taste-profile.md`
+    - `docs/roadmap/limenext/context-layer.md`
+    - `docs/roadmap/limenext/sceneapp-fullstack-implementation-plan.md`
+  - 当前统一结论：
+    - 前台主词固定为 `创作场景 / 灵感库 / 生成 / Project Pack / 复盘`
+    - `SceneApp` 继续保留为内部场景画像与运行时合同，不再作为前台主叙事
+    - `灵感库` 当前是 `Memory Layer + Taste Layer` 的前台投影层，底层事实源仍在 `Memory Layer`
+    - `灵感库 -> 创作场景` 已进入 current 前台主链：灵感条目可带着 `referenceMemoryIds + prefillIntent` 进入场景 planning
+    - 当前真正缺口已从“有没有前台入口”收口为“如何把前台操作正式回写到 `ReferenceItem / TasteProfile`，以及如何补齐 provider 裁剪与反馈编译”
+  - 本轮额外沉淀：
+    - V2 不应再把“灵感库”与“记忆工作台”混成同一层；前台要讲投影层，底层要讲事实源与诊断层
+    - `SceneApp` 这个词保留工程价值，但不应继续主导对外命名
+
+- 把 compat 旧文档继续标注清理，避免旧图示覆盖 current 口径：
+  - 已更新：
+    - `docs/roadmap/limenext/sequences.md`
+    - `docs/roadmap/limenext/flowcharts.md`
+  - 当前固定规则：
+    - 这两份文档继续保留为 `compat reference`
+    - 文中若继续出现 `场景应用`、旧“场景工厂”等词，只按 compat 旧称理解，不能覆盖 current 的 `创作场景 / 灵感库 / Project Pack / 复盘`
+
+- 收掉 `SceneAppsPage` 剩余两条旧文案测试断言，避免 current 命名继续被旧 `SceneApp` 文案拖回去：
+  - 已更新：
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run typecheck`
+
 ## 2026-04-16
 
 ### 已完成
+
+- 收口 `SceneApp / Context Layer` 当前 latest-only 产品面，不再给旧 `projectPackPlan` 单独消费模型留历史包袱：
+  - `src/lib/sceneapp/product.ts` 已把 `contextPlan` 改成显式复用 `contextBaseline` 组装，清掉依赖隐式 spread 的旧空值心智
+  - `src/lib/sceneapp/product.test.ts` 已统一改到 `planResult` 主签名，并补齐：
+    - `detail / scorecard / run detail / governance` 四个消费面的 `contextBaseline` 断言
+    - `referenceItems / tasteKeywords / avoidKeywords / scopeLabel` 断言
+  - `src/components/sceneapps/SceneAppsPage.test.tsx` 已补齐当前页面事实源断言：
+    - 详情页 `reference items / taste / avoid`
+    - 评分卡 `context baseline`
+    - 治理页 `context baseline`
+    - 运行详情 `context baseline`
+  - 顺手清掉一个测试历史噪音：
+    - “继续最近”用例已补 `act + flushEffects`，不再在定向回归里持续刷 React `act(...)` 警告
+  - 当前已确认通过：
+    - `npm exec vitest run "src/lib/sceneapp/product.test.ts"`
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run typecheck`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" sceneapp::`
+    - `npm run verify:gui-smoke -- --reuse-running --timeout-ms 600000`
+  - 当前额外确认：
+    - `npm run verify:local` 在仓库全量 Rust 阶段失败于未改动模块 `services::site_capability_service::tests::should_report_requires_browser_runtime_when_no_attached_session_exists`
+    - 这轮 `SceneApp / Context Layer` 主线的前端、GUI 与 `sceneapp::` 定向 Rust 校验已通过，当前阻塞不是本轮 latest-only 收口引入
 
 - 收口 `SceneApp / Context Layer` 这轮尾部校验，把最终阻塞从“实现错误”纠偏为“测试契约与 smoke 串联稳定性”：
   - `src/components/agent/chat/utils/clawWorkspaceProviderSelection.test.ts` 已补齐 `normalizeFetchProviderModelsSource` mock，避免 provider API fallback 分支被旧测试契约静默吞掉
@@ -31,7 +526,7 @@
     - `npm test -- "src/components/sceneapps/SceneAppsPage.test.tsx"`
     - `npx eslint --no-warn-ignored "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
 
-- 把 `SceneApps` 目录页从“无图场景墙”进一步纠偏到“纯标题目录”：
+- [已被后续经营信号目录卡片方案替代] 把 `SceneApps` 目录页从“无图场景墙”进一步纠偏到“纯标题目录”：
   - 删除目录分页里大外框、大卡片和“场景选品墙”式陈列
   - 最近访问入口继续保留，但已压缩成同一块目录里的纯文字标题入口
   - 场景目录当前只保留标题点击，不再在目录页展示产出、模式、基础设施与 CTA 块
@@ -93,7 +588,7 @@
     - 页级 runtime smoke 不应继续被旧 session / 孤儿 profile 清理策略拖垮
     - `browser runtime` 的事实源应围绕 `profile_key` 当前活跃会话，而不是某一次 launcher 生命周期
 
-- 把 `SceneApps` 目录页从“最近场景 + 目录卡片”双块结构收口成统一的无图场景选品墙：
+- [已被 current 目录经营卡片方案替代] 把 `SceneApps` 目录页从“最近场景 + 目录卡片”双块结构收口成统一的无图场景选品墙：
   - 最近访问入口不再单独占一块面板，而是并入 `SceneAppsCatalogPanel`
   - 目录卡片已补充：
     - `产出`
@@ -225,7 +720,7 @@
     - `run summary`
     - `scorecard`
     - `evidence / review`
-    收口成同一份业务向治理视图
+      收口成同一份业务向治理视图
   - 页面级治理看板当前已经能表达：
     - 当前治理状态
     - 当前适合投放到哪里
@@ -392,7 +887,7 @@
   - 批量治理仍继续经由 `src/lib/api/sceneapp.ts` 网关串行调用当前 `sceneapp_prepare_run_governance_artifact`，不让页面直接耦合底层 runtime export 命令名
   - 运行详情文案已开始改成业务向表达：
     - 什么动作适合周会复盘
-    - 什么动作适合任务中心 / 看板 / 后续自动治理消费
+    - 什么动作适合生成 / 看板 / 后续自动治理消费
   - 已同步更新：
     - `src/lib/api/sceneapp.ts`
     - `src/lib/api/sceneapp.test.ts`
@@ -469,7 +964,7 @@
     - `required parts`
     - `composition steps`
     - `failure signals`
-    现在都能从编译层一路进入业务向详情面板和经营评分面板
+      现在都能从编译层一路进入业务向详情面板和经营评分面板
   - 目录页不再只展示技术 ref，而会明确表达：
     - 最终交付什么项目包
     - 这条链分几步完成
@@ -760,7 +1255,7 @@
     - 目录页
     - 详情页
     - 未来更多入口
-    都不需要各写一份 `SceneApp` 文案、seed、project gate、automation metadata merge
+      都不需要各写一份 `SceneApp` 文案、seed、project gate、automation metadata merge
 - 把 `SceneApp` 目录页入口继续收口成可恢复的跨入口协议：
   - `src/lib/sceneapp/entry.ts`
   - `src/lib/sceneapp/storage.ts`
@@ -807,7 +1302,7 @@
     - detail panel copy
     - scorecard view
     - run list / run detail
-    都统一收口到 `SceneApp product view model`
+      都统一收口到 `SceneApp product view model`
   - 这让后续首页推荐位、独立详情页、经营面板可以复用同一层业务解释，而不是重复从 `descriptor / run / scorecard` 重新拼 UI
 - 新增产品视图模型回归：
   - `src/lib/sceneapp/product.test.ts`
@@ -966,7 +1461,7 @@
     - 最近访问的 SceneApp 恢复
     - 可复制的目录页深链接
     - 从聊天页/推荐位/运营面板跳回目录的状态保持
-    都可以继续复用当前参数协议
+      都可以继续复用当前参数协议
 - 把 SceneApp 前台继续接到 `Base Setup Package` 的 scorecard / composition 装配层：
   - `src/lib/sceneapp/catalog.ts`
   - `src/lib/sceneapp/product.ts`
@@ -1001,7 +1496,7 @@
     - 侧边栏空参进入后的恢复入口
     - 首页推荐位跳转后的回流继续
     - 场景运营面板的最近活跃列表
-    都可以复用同一套 `SceneApp page state + recent visit` 协议
+      都可以复用同一套 `SceneApp page state + recent visit` 协议
 
 ### 当前判断
 
@@ -1059,7 +1554,7 @@
 - durable 场景的 automation projection / fallback 已收口到装配主链，下一步转为：
   - 基于 `base-setup-implementation.md` 决定第一版真实实现路线：客户端编译，还是服务端预编译 + 客户端 gate
   - 把多模态组合样板的 `project pack` 接到真实 artifact / viewer / scorecard 聚合入口
-  - 把 `SceneScorecard` 与周会模板、场景看板和任务中心口径继续打通
+  - 把 `SceneScorecard` 与周会模板、场景看板和生成口径继续打通
   - 继续把 automation detail / SceneApp run / scorecard 聚合层消费同一组 base-setup refs，而不是各自回退到运行时猜测
 - `SceneApp` 恢复协议当前已稳定收口到：
   - `sourceRef`
@@ -1317,7 +1812,7 @@
 
 ### 下一刀
 
-- 把 `SceneScorecard` 聚合对象继续接到任务中心 / 场景看板 / 周会模板
+- 把 `SceneScorecard` 聚合对象继续接到生成 / 场景看板 / 周会模板
 - 把三条样板的经营信号进一步映射到真实数据源与产品入口
 - 继续把结果卡文案从“技术摘要”升级成“业务可理解的交付说明”
 - 把基础设置包收口成更明确的 schema 与校验规则

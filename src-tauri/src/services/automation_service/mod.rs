@@ -76,6 +76,10 @@ pub enum AutomationPayload {
         #[serde(default)]
         web_search: bool,
         #[serde(default, skip_serializing_if = "Option::is_none")]
+        approval_policy: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sandbox_policy: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         request_metadata: Option<Value>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         content_id: Option<String>,
@@ -794,6 +798,8 @@ fn validate_payload(payload: &AutomationPayload) -> Result<(), String> {
     match payload {
         AutomationPayload::AgentTurn {
             prompt,
+            approval_policy,
+            sandbox_policy,
             request_metadata,
             content_id,
             ..
@@ -811,6 +817,11 @@ fn validate_payload(payload: &AutomationPayload) -> Result<(), String> {
                     return Err("自动化任务 request_metadata 必须为对象".to_string());
                 }
             }
+            executor::resolve_agent_turn_access_mode_from_payload(
+                approval_policy.as_deref(),
+                sandbox_policy.as_deref(),
+                request_metadata.as_ref(),
+            )?;
         }
         AutomationPayload::BrowserSession { .. } => {
             return Err(BROWSER_AUTOMATION_RETIRED_MESSAGE.to_string());
@@ -1600,6 +1611,8 @@ mod tests {
             prompt: "汇总今日异常".to_string(),
             system_prompt: None,
             web_search: false,
+            approval_policy: None,
+            sandbox_policy: None,
             request_metadata: Some(json!({
                 "harness": {
                     "theme": "general",
@@ -1620,6 +1633,8 @@ mod tests {
             prompt: "汇总今日异常".to_string(),
             system_prompt: None,
             web_search: false,
+            approval_policy: None,
+            sandbox_policy: None,
             request_metadata: Some(json!(["invalid"])),
             content_id: Some("content-1".to_string()),
         };
@@ -1645,6 +1660,27 @@ mod tests {
         assert_eq!(
             validate_payload(&payload),
             Err(BROWSER_AUTOMATION_RETIRED_MESSAGE.to_string())
+        );
+    }
+
+    #[test]
+    fn validate_payload_should_reject_invalid_formal_policy_pair() {
+        let payload = AutomationPayload::AgentTurn {
+            prompt: "汇总今日异常".to_string(),
+            system_prompt: None,
+            web_search: false,
+            approval_policy: Some("never".to_string()),
+            sandbox_policy: Some("workspace-write".to_string()),
+            request_metadata: None,
+            content_id: None,
+        };
+
+        assert_eq!(
+            validate_payload(&payload),
+            Err(
+                "自动化任务 approval_policy/sandbox_policy 仅支持 read-only/current/full-access 对应的正式策略组合"
+                    .to_string()
+            )
         );
     }
 }

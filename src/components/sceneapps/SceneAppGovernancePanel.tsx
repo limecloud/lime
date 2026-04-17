@@ -3,12 +3,21 @@ import type {
   SceneAppRunDetailViewModel,
 } from "@/lib/sceneapp";
 import { cn } from "@/lib/utils";
+import type { SceneAppQuickReviewAction } from "./useSceneAppsPageRuntime";
 
 interface SceneAppGovernancePanelProps {
   hasSelectedSceneApp: boolean;
   governanceView: SceneAppGovernancePanelViewModel | null;
   loading: boolean;
   error?: string | null;
+  humanReviewAvailable?: boolean;
+  humanReviewLoading?: boolean;
+  quickReviewActions?: SceneAppQuickReviewAction[];
+  quickReviewPending?: boolean;
+  onOpenHumanReview?: () => void;
+  onApplyQuickReview?: (
+    actionKey: SceneAppQuickReviewAction["key"],
+  ) => void;
   onGovernanceAction?: (
     action: SceneAppRunDetailViewModel["governanceActionEntries"][number],
   ) => void;
@@ -34,11 +43,24 @@ const STATUS_ITEM_CLASSNAMES = {
   risk: "border-rose-200 bg-rose-50/70",
 } as const;
 
+const QUICK_REVIEW_TONE_CLASSNAMES = {
+  positive: "border-emerald-200 bg-emerald-50/80 hover:border-emerald-300",
+  neutral: "border-slate-200 bg-slate-50 hover:border-slate-300",
+  warning: "border-amber-200 bg-amber-50/80 hover:border-amber-300",
+  risk: "border-rose-200 bg-rose-50/80 hover:border-rose-300",
+} as const;
+
 export function SceneAppGovernancePanel({
   hasSelectedSceneApp,
   governanceView,
   loading,
   error,
+  humanReviewAvailable = false,
+  humanReviewLoading = false,
+  quickReviewActions = [],
+  quickReviewPending = false,
+  onOpenHumanReview,
+  onApplyQuickReview,
   onGovernanceAction,
   onGovernanceArtifactAction,
   onEntryAction,
@@ -90,11 +112,22 @@ export function SceneAppGovernancePanel({
         <div>
           <div className="text-sm font-semibold text-slate-900">治理看板</div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            把最近一次运行翻成业务向判断，决定这条 SceneApp 现在适合复盘、推进还是先停下来修。
+            把最近一次运行翻成业务向判断，决定这条 SceneApp
+            现在适合复盘、推进还是先停下来修。
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {humanReviewAvailable ? (
+            <button
+              type="button"
+              data-testid="sceneapp-governance-open-human-review"
+              className="rounded-full border border-lime-200 bg-lime-50 px-3 py-1 text-[11px] font-medium text-lime-800 transition-colors hover:border-lime-300 hover:bg-lime-100"
+              onClick={() => onOpenHumanReview?.()}
+            >
+              {humanReviewLoading ? "准备人工复核…" : "填写人工复核"}
+            </button>
+          ) : null}
           {loading ? (
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
               刷新中
@@ -127,7 +160,9 @@ export function SceneAppGovernancePanel({
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold tracking-[0.08em] text-lime-700">
           <span>GOVERNANCE LOOP</span>
           <span className="text-slate-400">·</span>
-          <span className="text-slate-500">{governanceView.latestRunLabel}</span>
+          <span className="text-slate-500">
+            {governanceView.latestRunLabel}
+          </span>
         </div>
         <p
           data-testid="sceneapp-governance-summary"
@@ -144,11 +179,120 @@ export function SceneAppGovernancePanel({
             {governanceView.topFailureSignalLabel}
           </div>
         ) : null}
+        {humanReviewAvailable && quickReviewActions.length ? (
+          <div className="mt-4">
+            <div className="text-xs font-medium text-slate-500">轻量判断</div>
+            <div className="mt-2 grid gap-3 xl:grid-cols-2">
+              {quickReviewActions.map((action) => (
+                <button
+                  key={action.key}
+                  type="button"
+                  data-testid={`sceneapp-governance-quick-review-${action.key}`}
+                  disabled={quickReviewPending}
+                  className={cn(
+                    "rounded-[18px] border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                    QUICK_REVIEW_TONE_CLASSNAMES[action.tone],
+                  )}
+                  onClick={() => onApplyQuickReview?.(action.key)}
+                >
+                  <div className="text-sm font-medium text-slate-900">
+                    {action.label}
+                  </div>
+                  <div className="mt-2 text-xs leading-5 text-slate-600">
+                    {action.helperText}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {governanceView.contextBaseline ? (
+          <div className="mt-4 rounded-[18px] border border-sky-200 bg-white px-3 py-3">
+            <div className="text-xs font-medium text-slate-500">
+              Planning 基线
+            </div>
+            <div
+              data-testid="sceneapp-governance-context-reference-count"
+              className="mt-2 text-sm text-slate-700"
+            >
+              <span className="font-medium text-slate-900">参考注入：</span>
+              {governanceView.contextBaseline.referenceCount} 条
+            </div>
+            {governanceView.contextBaseline.scopeLabel ? (
+              <div className="mt-2 text-sm text-slate-700">
+                <span className="font-medium text-slate-900">作用域：</span>
+                {governanceView.contextBaseline.scopeLabel}
+              </div>
+            ) : null}
+            {governanceView.contextBaseline.referenceItems.length ? (
+              <div
+                data-testid="sceneapp-governance-context-reference-items"
+                className="mt-3 flex flex-wrap gap-2"
+              >
+                {governanceView.contextBaseline.referenceItems.map((item) => (
+                  <span
+                    key={item.key}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
+                  >
+                    {item.label}
+                    {item.usageLabel ? ` · ${item.usageLabel}` : ""}
+                    {item.feedbackLabel ? ` · ${item.feedbackLabel}` : ""}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {governanceView.contextBaseline.tasteSummary ? (
+              <div
+                data-testid="sceneapp-governance-context-taste-summary"
+                className="mt-3 text-sm leading-6 text-slate-700"
+              >
+                <span className="font-medium text-slate-900">风格摘要：</span>
+                {governanceView.contextBaseline.tasteSummary}
+              </div>
+            ) : null}
+            {governanceView.contextBaseline.feedbackSummary ? (
+              <div
+                data-testid="sceneapp-governance-context-feedback-summary"
+                className="mt-3 text-sm leading-6 text-slate-700"
+              >
+                <span className="font-medium text-slate-900">最近反馈：</span>
+                {governanceView.contextBaseline.feedbackSummary}
+              </div>
+            ) : null}
+            {governanceView.contextBaseline.feedbackUpdatedAtLabel ? (
+              <div className="mt-2 text-sm text-slate-700">
+                <span className="font-medium text-slate-900">
+                  反馈更新时间：
+                </span>
+                {governanceView.contextBaseline.feedbackUpdatedAtLabel}
+              </div>
+            ) : null}
+            {governanceView.contextBaseline.feedbackSignals.length ? (
+              <div
+                data-testid="sceneapp-governance-context-feedback-signals"
+                className="mt-3 flex flex-wrap gap-2"
+              >
+                {governanceView.contextBaseline.feedbackSignals.map(
+                  (signal) => (
+                    <span
+                      key={signal.key}
+                      className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700"
+                    >
+                      {signal.label}
+                    </span>
+                  ),
+                )}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {governanceView.destinations.length ? (
         <div className="mt-4">
-          <div className="text-xs font-medium text-slate-500">当前适合投放到</div>
+          <div className="text-xs font-medium text-slate-500">
+            当前适合投放到
+          </div>
           <div className="mt-2 grid gap-3 md:grid-cols-2">
             {governanceView.destinations.map((destination) => (
               <article
@@ -179,7 +323,9 @@ export function SceneAppGovernancePanel({
               )}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="text-sm font-medium text-slate-900">{item.label}</div>
+                <div className="text-sm font-medium text-slate-900">
+                  {item.label}
+                </div>
                 <span className="rounded-full border border-white/80 bg-white/80 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-slate-700">
                   {item.value}
                 </span>
@@ -192,7 +338,8 @@ export function SceneAppGovernancePanel({
         </div>
       </div>
 
-      {governanceView.governanceActionEntries.length || governanceView.entryAction ? (
+      {governanceView.governanceActionEntries.length ||
+      governanceView.entryAction ? (
         <div className="mt-4">
           <div className="text-xs font-medium text-slate-500">推荐动作</div>
           <div className="mt-2 grid gap-3 xl:grid-cols-2">

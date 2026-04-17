@@ -125,7 +125,7 @@ export function McpToolCaller({
       {/* 标题 */}
       <div className="p-3 border-b flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Play className="h-4 w-4 text-blue-500" />
+          <Play className="h-4 w-4 text-sky-600 dark:text-sky-400" />
           <span className="font-mono text-sm font-medium" title={tool.name}>
             {displayName}
           </span>
@@ -148,10 +148,10 @@ export function McpToolCaller({
           <button
             onClick={() => setJsonMode(false)}
             className={cn(
-              "px-2 py-1 text-xs rounded",
+              "rounded border px-2 py-1 text-xs transition-colors",
               !jsonMode
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground",
+                ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                : "border-border bg-muted text-muted-foreground hover:bg-muted/80",
             )}
           >
             表单模式
@@ -159,10 +159,10 @@ export function McpToolCaller({
           <button
             onClick={() => setJsonMode(true)}
             className={cn(
-              "px-2 py-1 text-xs rounded",
+              "rounded border px-2 py-1 text-xs transition-colors",
               jsonMode
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground",
+                ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                : "border-border bg-muted text-muted-foreground hover:bg-muted/80",
             )}
           >
             JSON 模式
@@ -218,7 +218,7 @@ export function McpToolCaller({
         <button
           onClick={handleCall}
           disabled={calling}
-          className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50"
+          className="rounded border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-3 py-1.5 text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95 disabled:opacity-50"
         >
           {calling ? "调用中..." : "调用工具"}
         </button>

@@ -14,7 +14,7 @@ import { normalizeExecutionStrategy } from "./agentChatCoreUtils";
 export const DEFAULT_AGENT_PROVIDER = "claude";
 export const DEFAULT_AGENT_MODEL = "claude-sonnet-4-5";
 export type AgentAccessMode = "read-only" | "current" | "full-access";
-export const DEFAULT_AGENT_ACCESS_MODE: AgentAccessMode = "current";
+export const DEFAULT_AGENT_ACCESS_MODE: AgentAccessMode = "full-access";
 export const GLOBAL_PROVIDER_PREF_KEY = "agent_pref_provider_global";
 export const GLOBAL_MODEL_PREF_KEY = "agent_pref_model_global";
 export const GLOBAL_MIGRATED_PREF_KEY = "agent_pref_migrated_global";

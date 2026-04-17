@@ -455,8 +455,8 @@ export const ProviderPoolPage = forwardRef<
                   <span
                     className={`min-w-[1.25rem] h-5 flex items-center justify-center rounded-full text-xs font-medium ${
                       isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted-foreground/20 text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-muted-foreground/20 text-muted-foreground group-hover:bg-emerald-100 group-hover:text-emerald-700"
                     }`}
                     data-testid={`oauth-credential-count-${providerType}`}
                   >
@@ -561,7 +561,7 @@ export const ProviderPoolPage = forwardRef<
                     </button>
                     <button
                       onClick={openAddModal}
-                      className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
+                      className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-3 py-1.5 text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
                       data-testid="add-credential-btn"
                     >
                       <Plus className="h-4 w-4" />
@@ -584,7 +584,7 @@ export const ProviderPoolPage = forwardRef<
                 <p className="mt-1 text-sm">点击上方"添加凭证"按钮添加</p>
                 <button
                   onClick={openAddModal}
-                  className="mt-4 flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+                  className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 py-2 text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
                   data-testid="add-first-credential-btn"
                 >
                   <Plus className="h-4 w-4" />

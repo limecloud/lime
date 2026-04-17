@@ -186,8 +186,8 @@ export function McpPromptsBrowser({
                           <div className="p-2.5 pl-8 flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <MessageSquare className="h-3.5 w-3.5 text-purple-500 flex-shrink-0" />
-                                <span className="font-mono text-sm text-purple-600 dark:text-purple-400">
+                                <MessageSquare className="h-3.5 w-3.5 flex-shrink-0 text-sky-600 dark:text-sky-400" />
+                                <span className="font-mono text-sm text-sky-700 dark:text-sky-300">
                                   {prompt.name}
                                 </span>
                               </div>
@@ -273,7 +273,7 @@ export function McpPromptsBrowser({
                               <button
                                 onClick={() => handleCallPrompt(prompt)}
                                 disabled={calling}
-                                className="px-3 py-1.5 rounded bg-purple-600 text-white text-sm hover:bg-purple-700 disabled:opacity-50"
+                                className="rounded border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-3 py-1.5 text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95 disabled:opacity-50"
                               >
                                 {calling ? "获取中..." : "获取提示词"}
                               </button>

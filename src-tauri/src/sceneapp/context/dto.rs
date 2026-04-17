@@ -22,6 +22,12 @@ pub struct ReferenceItem {
     pub uri: Option<String>,
     pub summary: Option<String>,
     pub selected: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_count: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_used_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_feedback_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -33,6 +39,12 @@ pub struct TasteProfile {
     pub avoid_keywords: Vec<String>,
     pub derived_from_reference_ids: Vec<String>,
     pub confidence: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feedback_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub feedback_signals: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_feedback_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

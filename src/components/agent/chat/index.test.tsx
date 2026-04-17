@@ -105,9 +105,13 @@ const {
       </div>
     ),
   ),
-  mockMessageList: vi.fn((_props?: Record<string, unknown>) => (
-    <div data-testid="message-list" />
-  )),
+  mockMessageList: vi.fn(
+    (props?: { leadingContent?: ReactNode | null }) => (
+      <div data-testid="message-list">
+        {props?.leadingContent}
+      </div>
+    ),
+  ),
   mockWorkspacePendingA2UIPanel: vi.fn((_props?: Record<string, unknown>) => (
     <div data-testid="workspace-pending-a2ui-panel" />
   )),

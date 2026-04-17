@@ -61,6 +61,10 @@ const TIME_RANGE_OPTIONS: TimeRangeOption[] = [
 ];
 
 const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
+const ACTIVE_TIME_RANGE_BUTTON_CLASS =
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10";
+const PROGRESS_BAR_FILL_CLASS =
+  "bg-[linear-gradient(90deg,#14b8a6_0%,#10b981_100%)]";
 
 function formatNumber(num: number): string {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -307,7 +311,7 @@ export function StatsSettings() {
                 className={cn(
                   "rounded-full border px-3 py-1.5 text-sm font-medium transition",
                   timeRange === option.key
-                    ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                    ? ACTIVE_TIME_RANGE_BUTTON_CLASS
                     : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:text-slate-900",
                 )}
               >
@@ -482,7 +486,10 @@ export function StatsSettings() {
 
                         <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
                           <div
-                            className="h-full rounded-full bg-slate-900 transition-all"
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              PROGRESS_BAR_FILL_CLASS,
+                            )}
                             style={{
                               width: `${Math.min(topModel?.percentage || 0, 100)}%`,
                             }}
@@ -518,7 +525,10 @@ export function StatsSettings() {
                               </div>
                               <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
                                 <div
-                                  className="h-full rounded-full bg-slate-900 transition-all"
+                                  className={cn(
+                                    "h-full rounded-full transition-all",
+                                    PROGRESS_BAR_FILL_CLASS,
+                                  )}
                                   style={{
                                     width: `${Math.min(model.percentage, 100)}%`,
                                   }}

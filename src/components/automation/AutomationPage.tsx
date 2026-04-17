@@ -18,6 +18,7 @@ export function AutomationPage({
           mode="workspace"
           initialSelectedJobId={pageParams?.selectedJobId}
           initialWorkspaceTab={pageParams?.workspaceTab}
+          onNavigate={onNavigate}
           onOpenSettings={() =>
             onNavigate?.("settings", { tab: SettingsTabs.Automation })
           }

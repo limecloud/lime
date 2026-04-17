@@ -11,6 +11,8 @@ export function GeminiApiKeySection({
   entries = [],
   onChange,
 }: GeminiApiKeySectionProps) {
+  const primaryActionButtonClassName =
+    "rounded-lg border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-sm text-white shadow-sm shadow-emerald-950/15 hover:opacity-95";
   // 确保 entries 是数组
   const safeEntries = Array.isArray(entries) ? entries : [];
   const [showKeys, setShowKeys] = useState<Set<string>>(new Set());
@@ -79,7 +81,7 @@ export function GeminiApiKeySection({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Key className="h-5 w-5 text-blue-500" />
+          <Key className="h-5 w-5 text-sky-600" />
           <div>
             <h3 className="text-sm font-medium">Gemini API Key 多账号</h3>
             <p className="text-xs text-muted-foreground">
@@ -89,7 +91,7 @@ export function GeminiApiKeySection({
         </div>
         <button
           onClick={addEntry}
-          className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
+          className={`flex items-center gap-1 px-3 py-1.5 ${primaryActionButtonClassName}`}
         >
           <Plus className="h-4 w-4" />
           添加
@@ -246,7 +248,7 @@ export function GeminiApiKeySection({
                       />
                       <button
                         onClick={() => addExclusion(entry.id)}
-                        className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs"
+                        className="rounded border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-2 py-1 text-xs text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
                       >
                         添加
                       </button>

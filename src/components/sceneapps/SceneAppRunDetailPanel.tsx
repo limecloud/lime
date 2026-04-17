@@ -1,13 +1,20 @@
-import {
-  type SceneAppRunDetailViewModel,
-} from "@/lib/sceneapp";
+import { type SceneAppRunDetailViewModel } from "@/lib/sceneapp";
 import { cn } from "@/lib/utils";
+import type { SceneAppQuickReviewAction } from "./useSceneAppsPageRuntime";
 
 interface SceneAppRunDetailPanelProps {
   hasSelectedSceneApp: boolean;
   runDetailView: SceneAppRunDetailViewModel | null;
   loading: boolean;
   error?: string | null;
+  humanReviewAvailable?: boolean;
+  humanReviewLoading?: boolean;
+  quickReviewActions?: SceneAppQuickReviewAction[];
+  quickReviewPending?: boolean;
+  onOpenHumanReview?: () => void;
+  onApplyQuickReview?: (
+    actionKey: SceneAppQuickReviewAction["key"],
+  ) => void;
   onDeliveryArtifactAction?: (
     action: SceneAppRunDetailViewModel["deliveryArtifactEntries"][number],
   ) => void;
@@ -31,11 +38,24 @@ const RUN_STATUS_CLASSNAMES = {
   timeout: "border-rose-200 bg-rose-50 text-rose-700",
 } as const;
 
+const QUICK_REVIEW_TONE_CLASSNAMES = {
+  positive: "border-emerald-200 bg-emerald-50/80 hover:border-emerald-300",
+  neutral: "border-slate-200 bg-slate-50 hover:border-slate-300",
+  warning: "border-amber-200 bg-amber-50/80 hover:border-amber-300",
+  risk: "border-rose-200 bg-rose-50/80 hover:border-rose-300",
+} as const;
+
 export function SceneAppRunDetailPanel({
   hasSelectedSceneApp,
   runDetailView,
   loading,
   error,
+  humanReviewAvailable = false,
+  humanReviewLoading = false,
+  quickReviewActions = [],
+  quickReviewPending = false,
+  onOpenHumanReview,
+  onApplyQuickReview,
   onDeliveryArtifactAction,
   onEntryAction,
   onGovernanceAction,
@@ -239,7 +259,9 @@ export function SceneAppRunDetailPanel({
             </div>
 
             <div>
-              <div className="text-xs font-medium text-slate-500">已交付部件</div>
+              <div className="text-xs font-medium text-slate-500">
+                已交付部件
+              </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {runDetailView.deliveryCompletedParts.length ? (
                   runDetailView.deliveryCompletedParts.map((part) => (
@@ -281,7 +303,8 @@ export function SceneAppRunDetailPanel({
         {runDetailView.packCompletionStrategyLabel ||
         runDetailView.packViewerLabel ||
         runDetailView.plannedDeliveryRequiredParts.length ||
-        runDetailView.packPlanNotes.length ? (
+        runDetailView.packPlanNotes.length ||
+        runDetailView.contextBaseline ? (
           <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white p-4">
             <div className="text-xs font-medium text-slate-500">
               规划结果包基线
@@ -348,6 +371,93 @@ export function SceneAppRunDetailPanel({
                 </div>
               </div>
             ) : null}
+
+            {runDetailView.contextBaseline ? (
+              <div className="mt-4 rounded-[18px] border border-sky-200 bg-sky-50/50 p-3">
+                <div className="text-xs font-medium text-slate-500">
+                  Planning 基线
+                </div>
+                <div
+                  data-testid="sceneapp-run-detail-context-reference-count"
+                  className="mt-2 text-sm text-slate-700"
+                >
+                  <span className="font-medium text-slate-900">参考注入：</span>
+                  {runDetailView.contextBaseline.referenceCount} 条
+                </div>
+                {runDetailView.contextBaseline.scopeLabel ? (
+                  <div className="mt-2 text-sm text-slate-700">
+                    <span className="font-medium text-slate-900">作用域：</span>
+                    {runDetailView.contextBaseline.scopeLabel}
+                  </div>
+                ) : null}
+                {runDetailView.contextBaseline.referenceItems.length ? (
+                  <div
+                    data-testid="sceneapp-run-detail-context-reference-items"
+                    className="mt-3 flex flex-wrap gap-2"
+                  >
+                    {runDetailView.contextBaseline.referenceItems.map(
+                      (item) => (
+                        <span
+                          key={item.key}
+                          className="rounded-full border border-white bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700"
+                        >
+                          {item.label}
+                          {item.usageLabel ? ` · ${item.usageLabel}` : ""}
+                          {item.feedbackLabel ? ` · ${item.feedbackLabel}` : ""}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                ) : null}
+                {runDetailView.contextBaseline.tasteSummary ? (
+                  <div
+                    data-testid="sceneapp-run-detail-context-taste-summary"
+                    className="mt-3 text-sm leading-6 text-slate-700"
+                  >
+                    <span className="font-medium text-slate-900">
+                      风格摘要：
+                    </span>
+                    {runDetailView.contextBaseline.tasteSummary}
+                  </div>
+                ) : null}
+                {runDetailView.contextBaseline.feedbackSummary ? (
+                  <div
+                    data-testid="sceneapp-run-detail-context-feedback-summary"
+                    className="mt-3 text-sm leading-6 text-slate-700"
+                  >
+                    <span className="font-medium text-slate-900">
+                      最近反馈：
+                    </span>
+                    {runDetailView.contextBaseline.feedbackSummary}
+                  </div>
+                ) : null}
+                {runDetailView.contextBaseline.feedbackUpdatedAtLabel ? (
+                  <div className="mt-2 text-sm text-slate-700">
+                    <span className="font-medium text-slate-900">
+                      反馈更新时间：
+                    </span>
+                    {runDetailView.contextBaseline.feedbackUpdatedAtLabel}
+                  </div>
+                ) : null}
+                {runDetailView.contextBaseline.feedbackSignals.length ? (
+                  <div
+                    data-testid="sceneapp-run-detail-context-feedback-signals"
+                    className="mt-3 flex flex-wrap gap-2"
+                  >
+                    {runDetailView.contextBaseline.feedbackSignals.map(
+                      (signal) => (
+                        <span
+                          key={signal.key}
+                          className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700"
+                        >
+                          {signal.label}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -395,9 +505,50 @@ export function SceneAppRunDetailPanel({
 
         {runDetailView.governanceArtifactEntries.length ? (
           <div className="mt-4">
+            {humanReviewAvailable ? (
+              <div className="mb-4">
+                <div className="text-xs font-medium text-slate-500">
+                  人工复核
+                </div>
+                <button
+                  type="button"
+                  data-testid="sceneapp-run-detail-open-human-review"
+                  className="mt-2 rounded-[18px] border border-lime-200 bg-lime-50/70 px-3 py-2 text-sm font-medium text-lime-900 transition-colors hover:border-lime-300 hover:bg-white"
+                  onClick={() => onOpenHumanReview?.()}
+                >
+                  {humanReviewLoading ? "准备人工复核…" : "填写人工复核"}
+                </button>
+                {quickReviewActions.length ? (
+                  <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                    {quickReviewActions.map((action) => (
+                      <button
+                        key={action.key}
+                        type="button"
+                        data-testid={`sceneapp-run-detail-quick-review-${action.key}`}
+                        disabled={quickReviewPending}
+                        className={cn(
+                          "rounded-[18px] border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                          QUICK_REVIEW_TONE_CLASSNAMES[action.tone],
+                        )}
+                        onClick={() => onApplyQuickReview?.(action.key)}
+                      >
+                        <div className="text-sm font-medium text-slate-900">
+                          {action.label}
+                        </div>
+                        <div className="mt-2 text-xs leading-5 text-slate-600">
+                          {action.helperText}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {runDetailView.governanceActionEntries.length ? (
               <div>
-                <div className="text-xs font-medium text-slate-500">治理动作</div>
+                <div className="text-xs font-medium text-slate-500">
+                  治理动作
+                </div>
                 <div className="mt-2 grid gap-3 xl:grid-cols-2">
                   {runDetailView.governanceActionEntries.map((entry) => (
                     <button
@@ -458,7 +609,9 @@ export function SceneAppRunDetailPanel({
 
         {runDetailView.verificationFailureOutcomes.length ? (
           <div className="mt-4">
-            <div className="text-xs font-medium text-slate-500">当前复核阻塞</div>
+            <div className="text-xs font-medium text-slate-500">
+              当前复核阻塞
+            </div>
             <div className="mt-2 flex flex-wrap gap-2">
               {runDetailView.verificationFailureOutcomes.map((item) => (
                 <span
@@ -474,7 +627,9 @@ export function SceneAppRunDetailPanel({
 
         {runDetailView.evidenceKnownGaps.length ? (
           <div className="mt-4">
-            <div className="text-xs font-medium text-slate-500">当前证据缺口</div>
+            <div className="text-xs font-medium text-slate-500">
+              当前证据缺口
+            </div>
             <div
               data-testid="sceneapp-run-detail-evidence-gaps"
               className="mt-2 flex flex-wrap gap-2"

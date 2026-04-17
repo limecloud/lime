@@ -129,6 +129,24 @@ describe("useAgentContext", () => {
     document.body.innerHTML = "";
   });
 
+  it("未命中持久化配置时应默认使用完全访问", async () => {
+    const harness = mountHook("workspace-default-access");
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(harness.getValue().accessMode).toBe("full-access");
+    expect(
+      JSON.parse(
+        localStorage.getItem("aster_access_mode_workspace-default-access") ||
+          "null",
+      ),
+    ).toBe("full-access");
+
+    harness.unmount();
+  });
+
   it("切换 provider 和 model 时应同步微信运行时模型", async () => {
     const harness = mountHook();
 

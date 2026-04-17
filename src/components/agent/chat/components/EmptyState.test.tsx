@@ -337,7 +337,7 @@ function createSceneAppEntry(): SceneAppEntryCardItem {
     infraSummary: "组合蓝图 · 项目沉淀 · 云端编排",
     sourceLabel: "将基于当前输入启动",
     sourcePreview: "做一条新品发布短视频",
-    actionLabel: "开始组合",
+    actionLabel: "进入生成",
   };
 }
 
@@ -1341,7 +1341,7 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("场景应用");
+    expect(container.textContent).toContain("创作场景");
     expect(container.textContent).toContain("短视频编排");
     expect(
       container.querySelector('[data-testid="sceneapps-home-directory"]'),

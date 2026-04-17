@@ -17,7 +17,6 @@ use crate::commands::plugin_install_cmd::PluginInstallerState;
 use crate::commands::provider_pool_cmd::{CredentialSyncServiceState, ProviderPoolServiceState};
 use crate::commands::session_files_cmd::SessionFilesState;
 use crate::commands::skill_cmd::SkillServiceState;
-use crate::commands::terminal_cmd::TerminalManagerState;
 use crate::commands::webview_cmd::{
     ChromeProfileManagerWrapper, WebviewManagerState, WebviewManagerWrapper,
 };
@@ -64,7 +63,6 @@ pub struct AppStates {
     pub connect_state: ConnectStateWrapper,
     pub model_registry: ModelRegistryState,
     pub global_config_manager: GlobalConfigManagerState,
-    pub terminal_manager: TerminalManagerState,
     pub webview_manager: WebviewManagerWrapper,
     pub chrome_profile_manager: ChromeProfileManagerWrapper,
     pub update_check_service: UpdateCheckServiceState,
@@ -198,9 +196,6 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
     // 初始化 Model Registry 状态（延迟初始化，在 setup hook 中完成）
     let model_registry_state: ModelRegistryState = Arc::new(RwLock::new(None));
 
-    // 初始化终端管理器状态（延迟初始化，在 setup hook 中完成）
-    let terminal_manager_state = TerminalManagerState(Arc::new(RwLock::new(None)));
-
     // 初始化 Webview 管理器状态
     let webview_manager_state =
         WebviewManagerWrapper(Arc::new(RwLock::new(WebviewManagerState::new())));
@@ -289,7 +284,6 @@ pub fn init_states(config: &Config) -> Result<AppStates, String> {
         connect_state,
         model_registry: model_registry_state,
         global_config_manager: global_config_manager_state,
-        terminal_manager: terminal_manager_state,
         webview_manager: webview_manager_state,
         chrome_profile_manager: chrome_profile_manager_state,
         update_check_service: update_check_service_state,

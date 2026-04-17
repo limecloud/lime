@@ -38,6 +38,35 @@ export function createRuntimePoliciesFromAccessMode(
   }
 }
 
+export function createAccessModeFromRuntimePolicies(
+  approvalPolicy?: AsterApprovalPolicy | string | null,
+  sandboxPolicy?: AsterSandboxPolicy | string | null,
+): AgentAccessMode | null {
+  const normalizedApprovalPolicy =
+    typeof approvalPolicy === "string" ? approvalPolicy.trim() : "";
+  const normalizedSandboxPolicy =
+    typeof sandboxPolicy === "string" ? sandboxPolicy.trim() : "";
+
+  switch (normalizedSandboxPolicy) {
+    case "read-only":
+      return !normalizedApprovalPolicy ||
+        normalizedApprovalPolicy === "on-request"
+        ? "read-only"
+        : null;
+    case "workspace-write":
+      return !normalizedApprovalPolicy ||
+        normalizedApprovalPolicy === "on-request"
+        ? "current"
+        : null;
+    case "danger-full-access":
+      return !normalizedApprovalPolicy || normalizedApprovalPolicy === "never"
+        ? "full-access"
+        : null;
+    default:
+      return null;
+  }
+}
+
 function normalizeExecutionRuntimeAccessMode(
   value?: AsterSessionExecutionRuntimeAccessMode | string | null,
 ): AgentAccessMode | null {

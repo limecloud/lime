@@ -35,6 +35,8 @@ const PATTERN_FILTER_OPTIONS: Array<{
 interface SceneAppsCatalogPanelProps {
   items: SceneAppCatalogCardViewModel[];
   recentItems: SceneAppRecentVisitItem[];
+  runtimeLoading?: boolean;
+  runtimeError?: string | null;
   searchQuery: string;
   typeFilter: SceneAppTypeFilter;
   patternFilter: SceneAppPatternFilter;
@@ -72,7 +74,7 @@ function FilterPill(props: {
       className={cn(
         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
         props.active
-          ? "border-slate-900 bg-slate-900 text-white"
+          ? "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10"
           : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
       )}
       onClick={props.onClick}
@@ -85,6 +87,8 @@ function FilterPill(props: {
 export function SceneAppsCatalogPanel({
   items,
   recentItems,
+  runtimeLoading = false,
+  runtimeError,
   searchQuery,
   typeFilter,
   patternFilter,
@@ -95,6 +99,13 @@ export function SceneAppsCatalogPanel({
   onResumeRecentVisit,
   onSelectSceneApp,
 }: SceneAppsCatalogPanelProps) {
+  const STATUS_CLASSNAMES = {
+    idle: "border-slate-200 bg-slate-50 text-slate-700",
+    good: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    watch: "border-amber-200 bg-amber-50 text-amber-700",
+    risk: "border-rose-200 bg-rose-50 text-rose-700",
+  } as const;
+
   return (
     <section
       data-testid="sceneapps-catalog-directory"
@@ -162,36 +173,159 @@ export function SceneAppsCatalogPanel({
         </div>
       ) : null}
 
+      {runtimeLoading ? (
+        <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+          正在把最近运行和经营信号回流到场景目录…
+        </div>
+      ) : null}
+
+      {runtimeError ? (
+        <div className="rounded-[20px] border border-dashed border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
+          {runtimeError}
+        </div>
+      ) : null}
+
       {items.length === 0 ? (
         <div className="text-sm leading-7 text-slate-500">
           当前筛选条件下还没有匹配的 SceneApp。可以先放宽运行形态或设计模式筛选。
         </div>
       ) : (
-        <div className="space-y-1">
+        <div className="grid gap-3 xl:grid-cols-2">
           {items.map((item) => {
             const isSelected = item.id === selectedSceneAppId;
 
             return (
               <div
                 key={item.id}
-                className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-b-0"
+                className={cn(
+                  "rounded-[24px] border p-4 transition-colors",
+                  isSelected
+                    ? "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10"
+                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                )}
               >
                 <button
                   type="button"
                   data-testid={`sceneapp-page-card-${item.id}`}
-                  className={cn(
-                    "text-left text-base transition-colors",
-                    isSelected
-                      ? "font-semibold text-slate-950"
-                      : "font-medium text-slate-700 hover:text-slate-950",
-                  )}
+                  className="w-full text-left"
                   onClick={() => onSelectSceneApp(item.id)}
                 >
-                  {item.title}
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div
+                          className={cn(
+                            "text-base font-semibold",
+                            "text-slate-950",
+                          )}
+                        >
+                          {item.title}
+                        </div>
+                        {isSelected ? (
+                          <span className="rounded-full border border-emerald-200 bg-white/90 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-emerald-700">
+                            当前
+                          </span>
+                        ) : null}
+                      </div>
+                      <div
+                        className={cn(
+                          "text-xs font-medium",
+                          isSelected ? "text-slate-600" : "text-slate-500",
+                        )}
+                      >
+                        {item.businessLabel} · {item.typeLabel} ·{" "}
+                        {item.deliveryContractLabel}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {item.scorecardActionLabel ? (
+                        <span
+                          className={cn(
+                            "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                            isSelected
+                              ? "border-emerald-200 bg-white/90 text-emerald-700"
+                              : "border-slate-200 bg-slate-50 text-slate-700",
+                          )}
+                        >
+                          {item.scorecardActionLabel}
+                        </span>
+                      ) : null}
+                      <span
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                          isSelected
+                            ? "border-emerald-200 bg-white/90 text-emerald-700"
+                            : STATUS_CLASSNAMES[item.status],
+                        )}
+                      >
+                        {item.statusLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    className={cn(
+                      "mt-3 text-sm leading-6",
+                      isSelected ? "text-slate-700" : "text-slate-700",
+                    )}
+                  >
+                    {item.summary}
+                  </div>
+                  <div
+                    className={cn(
+                      "mt-2 text-sm leading-6",
+                      isSelected ? "text-slate-600" : "text-slate-600",
+                    )}
+                  >
+                    {item.operatingSummary}
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                        isSelected
+                          ? "border-slate-200 bg-white text-slate-700"
+                          : "border-slate-200 bg-white text-slate-700",
+                      )}
+                    >
+                      {item.patternSummary}
+                    </span>
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                        isSelected
+                          ? "border-slate-200 bg-white text-slate-700"
+                          : "border-slate-200 bg-white text-slate-700",
+                      )}
+                    >
+                      {item.infraSummary}
+                    </span>
+                    {item.topFailureSignalLabel ? (
+                      <span
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                          isSelected
+                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                            : "border-amber-200 bg-amber-50 text-amber-700",
+                        )}
+                      >
+                        {item.topFailureSignalLabel}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div
+                    className={cn(
+                      "mt-3 flex flex-wrap items-center gap-3 text-xs",
+                      isSelected ? "text-slate-500" : "text-slate-500",
+                    )}
+                  >
+                    <span>{item.outputHint}</span>
+                    {item.latestRunLabel ? <span>{item.latestRunLabel}</span> : null}
+                  </div>
                 </button>
-                {isSelected ? (
-                  <span className="text-xs text-lime-700">当前</span>
-                ) : null}
               </div>
             );
           })}

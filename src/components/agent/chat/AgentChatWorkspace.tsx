@@ -67,7 +67,17 @@ import {
   createImageGenerationTaskArtifact,
   getMediaTaskArtifact,
 } from "@/lib/api/mediaTasks";
-import { updateAgentRuntimeSession } from "@/lib/api/agentRuntime";
+import {
+  exportAgentRuntimeReviewDecisionTemplate,
+  saveAgentRuntimeReviewDecision,
+  updateAgentRuntimeSession,
+  type AgentRuntimeReviewDecisionTemplate,
+  type AgentRuntimeSaveReviewDecisionRequest,
+} from "@/lib/api/agentRuntime";
+import {
+  prepareSceneAppRunGovernanceArtifact,
+  prepareSceneAppRunGovernanceArtifacts,
+} from "@/lib/api/sceneapp";
 import {
   getProjectMemory,
   type ProjectMemory,
@@ -139,6 +149,7 @@ import {
   mergeMessageArtifactsIntoStore,
   readFirstString,
 } from "./workspace/browserAssistArtifact";
+import { SceneAppExecutionSummaryCard } from "./workspace/SceneAppExecutionSummaryCard";
 import { ServiceSkillExecutionCard } from "./workspace/ServiceSkillExecutionCard";
 import { useWorkspaceBrowserAssistRuntime } from "./workspace/useWorkspaceBrowserAssistRuntime";
 import { useWorkspaceA2UISubmitActions } from "./workspace/useWorkspaceA2UISubmitActions";
@@ -156,6 +167,7 @@ import { useWorkspaceCanvasLayoutRuntime } from "./workspace/useWorkspaceCanvasL
 import { useWorkspaceCanvasTaskFileSync } from "./workspace/useWorkspaceCanvasTaskFileSync";
 import { useWorkspaceGeneralResourceSync } from "./workspace/useWorkspaceGeneralResourceSync";
 import { useWorkspaceArtifactWorkbenchActions } from "./workspace/useWorkspaceArtifactWorkbenchActions";
+import { useSceneAppExecutionSummaryRuntime } from "./workspace/useSceneAppExecutionSummaryRuntime";
 import {
   useWorkspaceImageWorkbenchActionRuntime,
   type SubmitImageWorkbenchAgentCommandParams,
@@ -192,6 +204,7 @@ import { useWorkspaceInitialSessionNavigation } from "./workspace/useWorkspaceIn
 import { WorkspaceGeneralWorkbenchSidebar } from "./workspace/WorkspaceGeneralWorkbenchSidebar";
 import { GeneralWorkbenchHarnessDialogSection } from "./workspace/WorkspaceHarnessDialogs";
 import { WorkspaceShellScene } from "./workspace/WorkspaceShellScene";
+import { RuntimeReviewDecisionDialog } from "./components/RuntimeReviewDecisionDialog";
 import {
   TEAM_PRIMARY_CHAT_PANEL_MIN_WIDTH,
   TEAM_PRIMARY_CHAT_PANEL_WIDTH,
@@ -237,8 +250,15 @@ import { buildSkillsPageParamsFromMessage } from "./utils/skillScaffoldDraft";
 import { AutomationJobDialog } from "@/components/settings-v2/system/automation/AutomationJobDialog";
 import { shouldAutoSelectGeneralArtifact } from "./workspace/generalArtifactAutoSelection";
 import {
+  buildSceneAppExecutionSummaryRunDetailViewModel,
+  type SceneAppExecutionPromptAction,
+  buildSceneAppQuickReviewDecisionRequest,
+  formatSceneAppErrorMessage,
   hasSceneAppRecentVisit,
+  resolveSceneAppRunEntryNavigationTarget,
+  resolveSceneAppRuntimeArtifactOpenTarget,
   resolveSceneAppsPageEntryParams,
+  SCENEAPP_QUICK_REVIEW_ACTIONS,
   subscribeSceneAppRecentVisits,
 } from "@/lib/sceneapp";
 
@@ -363,6 +383,7 @@ export function AgentChatWorkspace({
   projectId: externalProjectId,
   contentId,
   initialSessionId,
+  initialSceneAppExecutionSummary,
   initialRequestMetadata,
   initialAutoSendRequestMetadata,
   autoRunInitialPromptOnMount = false,
@@ -1018,7 +1039,7 @@ export function AgentChatWorkspace({
   }, [_onNavigate]);
   const handleOpenSceneAppsDirectory = useCallback(() => {
     if (!_onNavigate) {
-      toast.error("当前入口暂不支持跳转到 SceneApp 目录");
+      toast.error("当前入口暂不支持跳转到创作场景目录");
       return;
     }
 
@@ -1037,7 +1058,7 @@ export function AgentChatWorkspace({
   }, [_onNavigate, input, projectId]);
   const handleResumeRecentSceneApp = useCallback(() => {
     if (!_onNavigate) {
-      toast.error("当前入口暂不支持跳转到 SceneApp 目录");
+      toast.error("当前入口暂不支持跳转到创作场景目录");
       return;
     }
 
@@ -3143,6 +3164,34 @@ export function AgentChatWorkspace({
     input,
     webSearchPreferenceRef,
   ]);
+  const handleRunSceneAppExecutionPromptAction = useCallback(
+    async (action: SceneAppExecutionPromptAction) => {
+      const prompt = action.prompt.trim();
+      if (!prompt) {
+        toast.error("当前动作缺少可发送内容。");
+        return;
+      }
+
+      if (isSending || queuedTurns.length > 0) {
+        toast.info("当前会话还有执行中的内容，请稍后再继续推进。");
+        return;
+      }
+
+      await handleSendRef.current(
+        [],
+        webSearchPreferenceRef.current,
+        effectiveChatToolPreferences.thinking,
+        prompt,
+      );
+    },
+    [
+      effectiveChatToolPreferences.thinking,
+      handleSendRef,
+      isSending,
+      queuedTurns.length,
+      webSearchPreferenceRef,
+    ],
+  );
   const handleRestartGeneralWorkbenchEntryPrompt = useCallback(() => {
     if (!generalWorkbenchEntryPrompt) {
       return;
@@ -3793,6 +3842,476 @@ export function AgentChatWorkspace({
       handleOpenSavedSiteContent,
       preferredServiceSkillResultFileTarget,
       siteSkillExecutionState,
+    ],
+  );
+  const sceneAppExecutionSummaryState = useSceneAppExecutionSummaryRuntime({
+    initialSummary: initialSceneAppExecutionSummary,
+    sessionId,
+    isSending,
+  });
+  const [sceneAppReviewDecisionDialogOpen, setSceneAppReviewDecisionDialogOpen] =
+    useState(false);
+  const [sceneAppReviewDecisionTemplate, setSceneAppReviewDecisionTemplate] =
+    useState<AgentRuntimeReviewDecisionTemplate | null>(null);
+  const [sceneAppReviewDecisionLoading, setSceneAppReviewDecisionLoading] =
+    useState(false);
+  const [sceneAppReviewDecisionSaving, setSceneAppReviewDecisionSaving] =
+    useState(false);
+  const sceneAppReviewTargetRunSummary =
+    sceneAppExecutionSummaryState?.reviewTargetRunSummary ?? null;
+  const sceneAppReviewTargetSessionId =
+    sceneAppReviewTargetRunSummary?.sessionId?.trim() || "";
+  const canOpenSceneAppExecutionHumanReview =
+    sceneAppReviewTargetSessionId.length > 0 &&
+    Boolean(
+      sceneAppReviewTargetRunSummary &&
+        ["success", "error", "canceled", "timeout"].includes(
+          sceneAppReviewTargetRunSummary.status,
+        ),
+    );
+  const sceneAppExecutionFailureSignal =
+    sceneAppExecutionSummaryState?.latestPackResultDetailView
+      ?.failureSignalLabel ??
+    sceneAppExecutionSummaryState?.summary?.runtimeBackflow
+      ?.topFailureSignalLabel;
+  const resolveSceneAppExecutionReviewDecisionTemplate = useCallback(
+    async () => {
+      if (!sceneAppReviewTargetSessionId) {
+        return null;
+      }
+
+      if (
+        sceneAppReviewDecisionTemplate?.session_id ===
+        sceneAppReviewTargetSessionId
+      ) {
+        return sceneAppReviewDecisionTemplate;
+      }
+
+      setSceneAppReviewDecisionLoading(true);
+      try {
+        const template = await exportAgentRuntimeReviewDecisionTemplate(
+          sceneAppReviewTargetSessionId,
+        );
+        setSceneAppReviewDecisionTemplate(template);
+        return template;
+      } catch (error) {
+        toast.error(formatSceneAppErrorMessage(error));
+        return null;
+      } finally {
+        setSceneAppReviewDecisionLoading(false);
+      }
+    },
+    [sceneAppReviewDecisionTemplate, sceneAppReviewTargetSessionId],
+  );
+  const persistSceneAppExecutionHumanReview = useCallback(
+    async (
+      request: AgentRuntimeSaveReviewDecisionRequest,
+      options?: {
+        closeDialog?: boolean;
+        successMessage?: string;
+      },
+    ) => {
+      setSceneAppReviewDecisionSaving(true);
+      try {
+        const template = await saveAgentRuntimeReviewDecision(request);
+        setSceneAppReviewDecisionTemplate(template);
+        if (options?.closeDialog !== false) {
+          setSceneAppReviewDecisionDialogOpen(false);
+        }
+        toast.success(options?.successMessage ?? "已保存人工复核结果");
+      } catch (error) {
+        toast.error(formatSceneAppErrorMessage(error));
+      } finally {
+        setSceneAppReviewDecisionSaving(false);
+      }
+    },
+    [],
+  );
+  const handleOpenSceneAppExecutionHumanReview = useCallback(() => {
+    if (!sceneAppReviewTargetSessionId) {
+      toast.error("当前运行还没有关联会话，暂时无法填写人工复核。");
+      return;
+    }
+
+    void (async () => {
+      const template = await resolveSceneAppExecutionReviewDecisionTemplate();
+      if (template) {
+        setSceneAppReviewDecisionDialogOpen(true);
+      }
+    })();
+  }, [
+    resolveSceneAppExecutionReviewDecisionTemplate,
+    sceneAppReviewTargetSessionId,
+  ]);
+  const handleSaveSceneAppExecutionHumanReview = useCallback(
+    async (request: AgentRuntimeSaveReviewDecisionRequest) => {
+      await persistSceneAppExecutionHumanReview(request);
+    },
+    [persistSceneAppExecutionHumanReview],
+  );
+  const handleApplySceneAppExecutionQuickReview = useCallback(
+    (actionKey: (typeof SCENEAPP_QUICK_REVIEW_ACTIONS)[number]["key"]) => {
+      if (!canOpenSceneAppExecutionHumanReview || !sceneAppReviewTargetSessionId) {
+        toast.error("当前运行还没有关联会话，暂时无法记录轻量反馈。");
+        return;
+      }
+
+      const action = SCENEAPP_QUICK_REVIEW_ACTIONS.find(
+        (item) => item.key === actionKey,
+      );
+      if (!action) {
+        return;
+      }
+
+      void (async () => {
+        const template =
+          await resolveSceneAppExecutionReviewDecisionTemplate();
+        if (!template) {
+          return;
+        }
+
+        await persistSceneAppExecutionHumanReview(
+          buildSceneAppQuickReviewDecisionRequest({
+            template,
+            action,
+            sceneTitle: sceneAppExecutionSummaryState?.summary?.title,
+            failureSignal: sceneAppExecutionFailureSignal,
+            sourceLabel: "生成主执行面",
+          }),
+          {
+            closeDialog: false,
+            successMessage: `已记录「${action.label}」判断`,
+          },
+        );
+      })();
+    },
+    [
+      canOpenSceneAppExecutionHumanReview,
+      persistSceneAppExecutionHumanReview,
+      resolveSceneAppExecutionReviewDecisionTemplate,
+      sceneAppExecutionFailureSignal,
+      sceneAppExecutionSummaryState?.summary?.title,
+      sceneAppReviewTargetSessionId,
+    ],
+  );
+  const handleOpenSceneAppExecutionDetail = useCallback(() => {
+    const sceneappId = sceneAppExecutionSummaryState?.summary?.sceneappId?.trim();
+    if (!_onNavigate || !sceneappId) {
+      return;
+    }
+
+    _onNavigate(
+      "sceneapps",
+      resolveSceneAppsPageEntryParams(
+        {
+          view: "detail",
+          sceneappId,
+          projectId: projectId || undefined,
+        },
+        {
+          mode: "browse",
+        },
+      ),
+    );
+  }, [_onNavigate, projectId, sceneAppExecutionSummaryState?.summary?.sceneappId]);
+  const handleOpenSceneAppExecutionGovernance = useCallback(() => {
+    const sceneappId = sceneAppExecutionSummaryState?.summary?.sceneappId?.trim();
+    if (!_onNavigate || !sceneappId) {
+      return;
+    }
+
+    _onNavigate(
+      "sceneapps",
+      resolveSceneAppsPageEntryParams(
+        {
+          view: "governance",
+          sceneappId,
+          runId:
+            sceneAppExecutionSummaryState?.latestPackResultDetailView?.runId ||
+            sceneAppExecutionSummaryState?.summary?.runtimeBackflow?.runId ||
+            undefined,
+          projectId: projectId || undefined,
+        },
+        {
+          mode: "browse",
+        },
+      ),
+    );
+  }, [
+    _onNavigate,
+    projectId,
+    sceneAppExecutionSummaryState?.latestPackResultDetailView?.runId,
+    sceneAppExecutionSummaryState?.summary?.runtimeBackflow?.runId,
+    sceneAppExecutionSummaryState?.summary?.sceneappId,
+  ]);
+  const handleOpenSceneAppExecutionDeliveryArtifact = useCallback(
+    (
+      artifactEntry?: NonNullable<
+        NonNullable<
+          typeof sceneAppExecutionSummaryState
+        >["latestPackResultDetailView"]
+      >["deliveryArtifactEntries"][number],
+    ) => {
+      if (!_onNavigate) {
+        return;
+      }
+
+      const target = resolveSceneAppRuntimeArtifactOpenTarget({
+        entry: artifactEntry,
+        fallbackProjectId: projectId,
+        bannerPrefix: "已从生成主执行面打开结果文件",
+      });
+      if (!target) {
+        toast.error("当前这次运行还没有可打开的结果文件路径。");
+        return;
+      }
+
+      _onNavigate("agent", {
+        agentEntry: "claw",
+        projectId: target.projectId,
+        initialProjectFileOpenTarget: {
+          relativePath: target.openTargetPath,
+          requestKey: Date.now(),
+        },
+        entryBannerMessage: target.bannerMessage,
+      });
+    },
+    [_onNavigate, projectId],
+  );
+  const handleOpenSceneAppExecutionGovernanceArtifact = useCallback(
+    (
+      artifactEntry?: NonNullable<
+        NonNullable<
+          typeof sceneAppExecutionSummaryState
+        >["latestPackResultDetailView"]
+      >["governanceArtifactEntries"][number],
+    ) => {
+      if (!_onNavigate || !artifactEntry) {
+        return;
+      }
+
+      const runId =
+        sceneAppExecutionSummaryState?.latestPackResultDetailView?.runId?.trim() ||
+        sceneAppReviewTargetRunSummary?.runId?.trim() ||
+        "";
+
+      void (async () => {
+        let resolvedEntry = artifactEntry;
+        if (runId && sceneAppExecutionSummaryState?.summary) {
+          try {
+            const refreshed = await prepareSceneAppRunGovernanceArtifact(
+              runId,
+              artifactEntry.artifactRef.kind,
+            );
+            if (!refreshed) {
+              toast.error("当前运行已不存在，无法继续准备治理文件。");
+              return;
+            }
+
+            const refreshedDetailView =
+              buildSceneAppExecutionSummaryRunDetailViewModel({
+                summary: sceneAppExecutionSummaryState.summary,
+                run: refreshed,
+              });
+            resolvedEntry =
+              refreshedDetailView.governanceArtifactEntries.find(
+                (entry) => entry.artifactRef.kind === artifactEntry.artifactRef.kind,
+              ) ?? artifactEntry;
+          } catch (error) {
+            toast.error(formatSceneAppErrorMessage(error));
+            return;
+          }
+        }
+
+        const target = resolveSceneAppRuntimeArtifactOpenTarget({
+          entry: resolvedEntry,
+          fallbackProjectId: projectId,
+          bannerPrefix: "已从生成主执行面打开治理文件",
+        });
+        if (!target) {
+          toast.error("当前这次运行还没有可打开的证据或复核文件。");
+          return;
+        }
+
+        _onNavigate("agent", {
+          agentEntry: "claw",
+          projectId: target.projectId,
+          initialProjectFileOpenTarget: {
+            relativePath: target.openTargetPath,
+            requestKey: Date.now(),
+          },
+          entryBannerMessage: target.bannerMessage,
+        });
+      })();
+    },
+    [
+      _onNavigate,
+      projectId,
+      sceneAppExecutionSummaryState?.latestPackResultDetailView?.runId,
+      sceneAppExecutionSummaryState?.summary,
+      sceneAppReviewTargetRunSummary?.runId,
+    ],
+  );
+  const handleRunSceneAppExecutionGovernanceAction = useCallback(
+    (
+      action?: NonNullable<
+        NonNullable<
+          typeof sceneAppExecutionSummaryState
+        >["latestPackResultDetailView"]
+      >["governanceActionEntries"][number],
+    ) => {
+      if (
+        !_onNavigate ||
+        !action ||
+        !sceneAppExecutionSummaryState?.summary
+      ) {
+        return;
+      }
+
+      const runId =
+        sceneAppExecutionSummaryState.latestPackResultDetailView?.runId?.trim() ||
+        sceneAppReviewTargetRunSummary?.runId?.trim() ||
+        "";
+      if (!runId) {
+        toast.error("当前还没有可用于治理动作的运行样本。");
+        return;
+      }
+
+      const sceneAppExecutionSummary = sceneAppExecutionSummaryState.summary;
+
+      void (async () => {
+        try {
+          const refreshed = await prepareSceneAppRunGovernanceArtifacts(
+            runId,
+            action.artifactKinds,
+          );
+          if (!refreshed) {
+            toast.error("当前运行已不存在，无法继续准备治理动作。");
+            return;
+          }
+
+          const refreshedDetailView =
+            buildSceneAppExecutionSummaryRunDetailViewModel({
+              summary: sceneAppExecutionSummary,
+              run: refreshed,
+            });
+          const targetEntry =
+            refreshedDetailView.governanceArtifactEntries.find(
+              (entry) => entry.artifactRef.kind === action.primaryArtifactKind,
+            );
+          const target = resolveSceneAppRuntimeArtifactOpenTarget({
+            entry: targetEntry,
+            fallbackProjectId: projectId,
+            bannerPrefix: "已从生成主执行面打开治理动作",
+          });
+          if (!target) {
+            toast.error(
+              `治理动作已准备完成，但当前没有可打开的${action.primaryArtifactLabel}路径。`,
+            );
+            return;
+          }
+
+          _onNavigate("agent", {
+            agentEntry: "claw",
+            projectId: target.projectId,
+            initialProjectFileOpenTarget: {
+              relativePath: target.openTargetPath,
+              requestKey: Date.now(),
+            },
+            entryBannerMessage: target.bannerMessage,
+          });
+        } catch (error) {
+          toast.error(formatSceneAppErrorMessage(error));
+        }
+      })();
+    },
+    [
+      _onNavigate,
+      projectId,
+      sceneAppExecutionSummaryState,
+      sceneAppReviewTargetRunSummary?.runId,
+    ],
+  );
+  const handleOpenSceneAppExecutionEntryAction = useCallback(
+    (
+      action?: NonNullable<
+        NonNullable<
+          typeof sceneAppExecutionSummaryState
+        >["latestPackResultDetailView"]
+      >["entryAction"],
+    ) => {
+      if (!_onNavigate || !action || !sceneAppExecutionSummaryState?.summary) {
+        return;
+      }
+
+      const target = resolveSceneAppRunEntryNavigationTarget({
+        action,
+        sceneappId: sceneAppExecutionSummaryState.summary.sceneappId,
+        sceneTitle: sceneAppExecutionSummaryState.summary.title,
+        sourceLabel: "生成主执行面",
+        projectId,
+        linkedServiceSkillId:
+          sceneAppExecutionSummaryState.summary.descriptorSnapshot
+            ?.linkedServiceSkillId,
+        linkedSceneKey:
+          sceneAppExecutionSummaryState.summary.descriptorSnapshot?.linkedSceneKey,
+      });
+      if (!target) {
+        toast.error("当前运行缺少可恢复的入口上下文。");
+        return;
+      }
+
+      _onNavigate(target.page, target.params);
+    },
+    [_onNavigate, projectId, sceneAppExecutionSummaryState?.summary],
+  );
+  const sceneAppExecutionSummaryCard = useMemo(
+    () => (
+      <SceneAppExecutionSummaryCard
+        summary={sceneAppExecutionSummaryState?.summary}
+        latestPackResultDetailView={
+          sceneAppExecutionSummaryState?.latestPackResultDetailView
+        }
+        latestPackResultLoading={sceneAppExecutionSummaryState?.loading}
+        latestPackResultUsesFallback={
+          sceneAppExecutionSummaryState?.latestPackResultUsesFallback
+        }
+        onOpenSceneAppDetail={handleOpenSceneAppExecutionDetail}
+        onOpenSceneAppGovernance={handleOpenSceneAppExecutionGovernance}
+        humanReviewAvailable={canOpenSceneAppExecutionHumanReview}
+        humanReviewLoading={sceneAppReviewDecisionLoading}
+        quickReviewActions={SCENEAPP_QUICK_REVIEW_ACTIONS}
+        quickReviewPending={
+          sceneAppReviewDecisionLoading || sceneAppReviewDecisionSaving
+        }
+        onOpenHumanReview={handleOpenSceneAppExecutionHumanReview}
+        onApplyQuickReview={handleApplySceneAppExecutionQuickReview}
+        onDeliveryArtifactAction={handleOpenSceneAppExecutionDeliveryArtifact}
+        onGovernanceAction={handleRunSceneAppExecutionGovernanceAction}
+        onGovernanceArtifactAction={
+          handleOpenSceneAppExecutionGovernanceArtifact
+        }
+        onEntryAction={handleOpenSceneAppExecutionEntryAction}
+        promptActionPending={isSending || queuedTurns.length > 0}
+        onPromptAction={handleRunSceneAppExecutionPromptAction}
+      />
+    ),
+    [
+      canOpenSceneAppExecutionHumanReview,
+      handleApplySceneAppExecutionQuickReview,
+      handleOpenSceneAppExecutionDetail,
+      handleOpenSceneAppExecutionHumanReview,
+      handleOpenSceneAppExecutionGovernance,
+      handleOpenSceneAppExecutionDeliveryArtifact,
+      handleOpenSceneAppExecutionEntryAction,
+      handleOpenSceneAppExecutionGovernanceArtifact,
+      handleRunSceneAppExecutionPromptAction,
+      handleRunSceneAppExecutionGovernanceAction,
+      isSending,
+      queuedTurns.length,
+      sceneAppReviewDecisionLoading,
+      sceneAppReviewDecisionSaving,
+      sceneAppExecutionSummaryState,
     ],
   );
   const handleJumpToTimelineItem = useCallback((itemId: string) => {
@@ -4550,6 +5069,7 @@ export function AgentChatWorkspace({
     handleToggleHarnessPanel: contextHarnessRuntime.handleToggleHarnessPanel,
     entryBannerVisible,
     entryBannerMessage,
+    sceneAppExecutionSummaryCard,
     serviceSkillExecutionCard,
     contextWorkspaceEnabled: contextWorkspace.generalWorkbenchEnabled,
     input,
@@ -4733,6 +5253,13 @@ export function AgentChatWorkspace({
           workspaceSceneAppEntryActions.handleAutomationDialogOpenChange
         }
         onSubmit={workspaceSceneAppEntryActions.handleAutomationDialogSubmit}
+      />
+      <RuntimeReviewDecisionDialog
+        open={sceneAppReviewDecisionDialogOpen}
+        template={sceneAppReviewDecisionTemplate}
+        saving={sceneAppReviewDecisionSaving}
+        onOpenChange={setSceneAppReviewDecisionDialogOpen}
+        onSave={handleSaveSceneAppExecutionHumanReview}
       />
     </>
   );

@@ -11,6 +11,10 @@ import {
   resolveServiceSkillContextFromMetadataRecord,
   type AutomationServiceSkillContext,
 } from "./serviceSkillContext";
+import {
+  automationAccessModeLabel,
+  resolveAgentTurnAutomationAccessMode,
+} from "./automationAccessMode";
 
 export const LEGACY_BROWSER_AUTOMATION_NOTICE =
   "浏览器自动化已下线，系统不会再自动启动 Chrome。请删除旧任务，并改建为 Agent 对话任务。";
@@ -90,6 +94,18 @@ export function describePayload(payload: AutomationPayload): string {
   lines.push(`调试窗口: ${payload.open_window ? "打开" : "关闭"}`);
   lines.push(`流模式: ${payload.stream_mode}`);
   return lines.join("\n");
+}
+
+export function describeAgentTurnAccessMode(
+  payload: AutomationPayload,
+): string {
+  if (payload.kind !== "agent_turn") {
+    return "-";
+  }
+
+  return automationAccessModeLabel(
+    resolveAgentTurnAutomationAccessMode(payload),
+  );
 }
 
 export function isLegacyBrowserAutomation(

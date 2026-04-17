@@ -61,6 +61,7 @@ function createBaseParams(overrides: Record<string, unknown> = {}) {
     generalWorkbenchHarnessDialog: undefined,
     entryBannerVisible: false,
     entryBannerMessage: undefined,
+    sceneAppExecutionSummaryCard: undefined,
     serviceSkillExecutionCard: undefined,
     contextWorkspaceEnabled: false,
     input: "",
@@ -259,7 +260,7 @@ describe("useWorkspaceConversationSceneRuntime", () => {
     expect(sceneProps.canvasWorkbenchLayoutProps.onLayoutModeChange).toBeUndefined();
   });
 
-  it("任务中心场景应继续向页面层透传顶栏上下文变体", () => {
+  it("生成场景应继续向页面层透传顶栏上下文变体", () => {
     const params = createBaseParams({
       navbarContextVariant: "task-center",
     });
@@ -438,6 +439,23 @@ describe("useWorkspaceConversationSceneRuntime", () => {
         emptyText: "当前会话没有绑定可浏览的工作区目录。",
         sectionEyebrow: "项目目录",
       }),
+    );
+  });
+
+  it("应把创作场景执行摘要卡透传给 WorkspaceConversationScene", () => {
+    const sceneAppExecutionSummaryCard = React.createElement(
+      "div",
+      { "data-testid": "sceneapp-summary-card-probe" },
+      "sceneapp summary",
+    );
+    const params = createBaseParams({
+      sceneAppExecutionSummaryCard,
+    });
+
+    const sceneProps = getRenderedSceneProps(params);
+
+    expect(sceneProps.sceneAppExecutionSummaryCard).toBe(
+      sceneAppExecutionSummaryCard,
     );
   });
 });

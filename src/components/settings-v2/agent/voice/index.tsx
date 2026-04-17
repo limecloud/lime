@@ -142,11 +142,15 @@ const PANEL_CARD_CLASS =
 const CHOICE_BUTTON_CLASS =
   "rounded-[18px] border px-3 py-3 text-left text-sm transition";
 const ACTIVE_CHOICE_BUTTON_CLASS =
-  "border-slate-900 bg-slate-900 text-white shadow-sm shadow-slate-950/10";
+  "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_54%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10";
 const INACTIVE_CHOICE_BUTTON_CLASS =
-  "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50";
+  "border-slate-200 bg-white text-slate-700 hover:border-sky-200 hover:bg-sky-50/70 hover:text-slate-900";
 const INFO_CARD_CLASS =
   "flex items-start gap-2 rounded-[22px] border border-slate-200/80 bg-slate-50/85 p-4 text-xs leading-6 text-slate-600";
+const RANGE_INPUT_CLASS =
+  "h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-emerald-500";
+const CHECKBOX_INPUT_CLASS =
+  "h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-200";
 
 export function VoiceSettings() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -532,7 +536,7 @@ export function VoiceSettings() {
                   parseFloat((e.target as HTMLInputElement).value),
                 );
               }}
-              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-slate-900"
+              className={RANGE_INPUT_CLASS}
             />
             <div className="flex justify-between mt-1 text-xs text-muted-foreground">
               <span>0.5x</span>
@@ -565,7 +569,7 @@ export function VoiceSettings() {
                   parseFloat((e.target as HTMLInputElement).value),
                 );
               }}
-              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-slate-900"
+              className={RANGE_INPUT_CLASS}
             />
             <div className="flex justify-between mt-1 text-xs text-muted-foreground">
               <span>低</span>
@@ -598,7 +602,7 @@ export function VoiceSettings() {
                   parseFloat((e.target as HTMLInputElement).value),
                 );
               }}
-              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-slate-900"
+              className={RANGE_INPUT_CLASS}
             />
           </div>
 
@@ -716,7 +720,7 @@ export function VoiceSettings() {
                 saveVoiceConfig("stt_auto_stop", e.target.checked)
               }
               disabled={loading}
-              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+              className={CHECKBOX_INPUT_CLASS}
             />
           </label>
         </div>

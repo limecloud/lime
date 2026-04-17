@@ -405,6 +405,7 @@ struct PreparedRuntimeSubagentSession {
     session: aster::session::Session,
     customization: Option<SubagentCustomizationState>,
     system_prompt: Option<String>,
+    access_mode: lime_agent::SessionExecutionRuntimeAccessMode,
 }
 
 fn build_subagent_runtime_event_name(session_id: &str) -> String {
@@ -419,6 +420,15 @@ fn parse_subagent_runtime_event_session_id(event_name: &str) -> Option<&str> {
     event_name
         .strip_prefix(SUBAGENT_RUNTIME_EVENT_PREFIX)
         .and_then(|rest| rest.strip_prefix(':'))
+}
+
+fn resolve_subagent_request_access_mode(
+    session_id: &str,
+    session: &aster::session::Session,
+) -> lime_agent::SessionExecutionRuntimeAccessMode {
+    lime_agent::build_session_execution_runtime(session_id, Some(session), None, None, None)
+        .and_then(|runtime| runtime.recent_access_mode)
+        .unwrap_or_else(lime_agent::SessionExecutionRuntimeAccessMode::default_for_session)
 }
 
 fn should_emit_subagent_status_for_runtime_event(event: &RuntimeAgentEvent) -> bool {
@@ -666,6 +676,7 @@ async fn create_runtime_subagent_session(
         .as_ref()
         .and_then(|state| state.profile_name.as_deref());
     let role_hint = resolve_subagent_role_hint(request, customization.as_ref());
+    let access_mode = resolve_subagent_request_access_mode(&parent_session_id, &parent_session);
     let working_dir =
         resolve_spawn_working_dir(parent_session.working_dir.as_path(), request.cwd.clone())?;
 
@@ -717,6 +728,7 @@ async fn create_runtime_subagent_session(
         "写入 subagent session metadata",
     )
     .await?;
+    AsterAgentWrapper::persist_session_recent_access_mode(&session.id, access_mode).await?;
     if let (Some(team_name), Some(teammate_name)) = (team_name, teammate_name.clone()) {
         register_spawned_teammate(
             &parent_session_id,
@@ -740,6 +752,7 @@ async fn create_runtime_subagent_session(
         session,
         customization,
         system_prompt,
+        access_mode,
     })
 }
 
@@ -771,6 +784,7 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
         session: child_session,
         customization,
         system_prompt,
+        access_mode,
     } = create_runtime_subagent_session(runtime, &request).await?;
     let child_session_id = child_session.id.clone();
     let workspace_id =
@@ -786,8 +800,8 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
             provider_preference: None,
             model_preference: None,
             thinking_enabled: None,
-            approval_policy: None,
-            sandbox_policy: None,
+            approval_policy: Some(access_mode.approval_policy().to_string()),
+            sandbox_policy: Some(access_mode.sandbox_policy().to_string()),
             project_id: None,
             workspace_id,
             web_search: None,
@@ -853,6 +867,7 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
     }
 
     let (session, _) = read_subagent_control_state(&session_id).await?;
+    let access_mode = resolve_subagent_request_access_mode(&session_id, &session);
     let customization = SubagentCustomizationState::from_session(&session);
     let system_prompt = build_subagent_customization_system_prompt(customization.as_ref())?;
     if request.interrupt {
@@ -873,8 +888,8 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
         provider_preference: None,
         model_preference: None,
         thinking_enabled: None,
-        approval_policy: None,
-        sandbox_policy: None,
+        approval_policy: Some(access_mode.approval_policy().to_string()),
+        sandbox_policy: Some(access_mode.sandbox_policy().to_string()),
         project_id: None,
         workspace_id,
         web_search: None,
@@ -1159,6 +1174,30 @@ mod tests {
         assert_eq!(
             validate_spawn_request_surface(&isolation_request).unwrap_err(),
             "isolation is not supported in the current runtime"
+        );
+    }
+
+    #[test]
+    fn test_resolve_subagent_request_access_mode_defaults_to_full_access() {
+        let session = aster::session::Session::default();
+
+        assert_eq!(
+            resolve_subagent_request_access_mode("child-1", &session),
+            lime_agent::SessionExecutionRuntimeAccessMode::FullAccess
+        );
+    }
+
+    #[test]
+    fn test_resolve_subagent_request_access_mode_prefers_session_recent_access_mode() {
+        let mut session = aster::session::Session::default();
+        session.id = "child-2".to_string();
+        lime_agent::SessionExecutionRuntimeAccessMode::ReadOnly
+            .to_extension_data(&mut session.extension_data)
+            .expect("persist access mode");
+
+        assert_eq!(
+            resolve_subagent_request_access_mode("child-2", &session),
+            lime_agent::SessionExecutionRuntimeAccessMode::ReadOnly
         );
     }
 }

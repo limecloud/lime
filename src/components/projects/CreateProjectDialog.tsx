@@ -294,7 +294,7 @@ export function CreateProjectDialog({
                     className={cn(
                       "flex min-h-[112px] flex-col items-center justify-center gap-2 rounded-[22px] border px-4 py-4 text-center transition",
                       type === t
-                        ? "border-slate-900/20 bg-slate-900/5 shadow-sm shadow-slate-950/5"
+                        ? "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] shadow-sm shadow-emerald-950/10"
                         : "border-slate-200/80 bg-slate-50/70 hover:border-slate-300 hover:bg-white",
                     )}
                     onClick={() => setType(t)}
@@ -304,7 +304,7 @@ export function CreateProjectDialog({
                       {getProjectTypeLabel(t)}
                     </span>
                     {type === t ? (
-                      <Badge className="border-0 bg-slate-900 text-white">
+                      <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">
                         当前选择
                       </Badge>
                     ) : null}
