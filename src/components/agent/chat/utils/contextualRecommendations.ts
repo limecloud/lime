@@ -45,7 +45,7 @@ export function isTeamRuntimeRecommendation(
     shortLabel.includes("多代理") ||
     shortLabel.includes("父子线程") ||
     normalizedPrompt.includes("team runtime") ||
-    fullPrompt.includes("任务工作台") ||
+    fullPrompt.includes("生成工作台") ||
     fullPrompt.includes("任务拆分") ||
     fullPrompt.includes("父子线程联调") ||
     fullPrompt.includes("多代理") ||
@@ -82,7 +82,7 @@ function buildTeamRecommendations(
     ],
     [
       "父子线程联调",
-      `请围绕“${subject}”做一次父子线程联调：主线程只负责分派、等待和汇总；子任务 A 负责整理事实与风险，子任务 B 负责给出落地步骤与验收标准；最终输出任务工作台视角的任务总结。${teamSetupHint}`,
+      `请围绕“${subject}”做一次父子线程联调：主线程只负责分派、等待和汇总；子任务 A 负责整理事实与风险，子任务 B 负责给出落地步骤与验收标准；最终输出生成工作台视角的任务总结。${teamSetupHint}`,
     ],
   ];
 }

@@ -23,6 +23,7 @@ const ISOLATED_GUI_SMOKE_TARGET_DIR = path.join(
   os.tmpdir(),
   "lime-gui-smoke-target",
 );
+const GUI_SMOKE_TARGET_REBUILD_PREFIX = "rebuild";
 const GUI_SMOKE_TEMP_CONFIG_BASENAME_PREFIX = "lime-gui-smoke-tauri-";
 const GUI_SMOKE_COLD_TIMEOUT_MS = 1_800_000;
 const GUI_SMOKE_WARM_TIMEOUT_MS = 600_000;
@@ -98,6 +99,69 @@ function resolveDefaultTimeoutMs(cargoTargetDir) {
     : GUI_SMOKE_COLD_TIMEOUT_MS;
 }
 
+function listSqliteBuildOutputDirs(targetDir) {
+  const buildDir = path.join(targetDir, "debug", "build");
+  if (!fs.existsSync(buildDir)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(buildDir, { withFileTypes: true })
+    .filter(
+      (entry) =>
+        entry.isDirectory() && entry.name.startsWith("libsqlite3-sys-"),
+    )
+    .map((entry) => path.join(buildDir, entry.name, "out"))
+    .filter((outDir) => fs.existsSync(outDir) && fs.statSync(outDir).isDirectory())
+    .sort();
+}
+
+function listCorruptedSqliteBindingOutputs(targetDir) {
+  return listSqliteBuildOutputDirs(targetDir)
+    .filter((outDir) => !fs.existsSync(path.join(outDir, "bindgen.rs")))
+    .map((outDir) => ({
+      outDir,
+      relativeOutDir: path.relative(targetDir, outDir) || outDir,
+    }));
+}
+
+function allocateFreshCargoTargetDir(targetDir) {
+  const parentDir = path.dirname(targetDir);
+  const baseName = path.basename(targetDir);
+  const suffix = `${GUI_SMOKE_TARGET_REBUILD_PREFIX}-${Date.now()}-${process.pid}`;
+  return path.join(parentDir, `${baseName}-${suffix}`);
+}
+
+function normalizeCargoTargetDir(parsedOptions) {
+  const normalizedOptions = {
+    ...parsedOptions,
+    cargoTargetDir: path.resolve(parsedOptions.cargoTargetDir),
+    cargoTargetDirRequested: path.resolve(parsedOptions.cargoTargetDir),
+    cargoTargetDirFallbackReason: "",
+    corruptedSqliteBindingOutputs: [],
+  };
+  const corruptedOutputs = listCorruptedSqliteBindingOutputs(
+    normalizedOptions.cargoTargetDir,
+  );
+
+  if (corruptedOutputs.length > 0) {
+    normalizedOptions.cargoTargetDir = allocateFreshCargoTargetDir(
+      normalizedOptions.cargoTargetDir,
+    );
+    normalizedOptions.cargoTargetDirFallbackReason =
+      "detected-corrupted-sqlite-bindings";
+    normalizedOptions.corruptedSqliteBindingOutputs = corruptedOutputs;
+  }
+
+  if (!normalizedOptions.timeoutExplicit) {
+    normalizedOptions.timeoutMs = resolveDefaultTimeoutMs(
+      normalizedOptions.cargoTargetDir,
+    );
+  }
+
+  return normalizedOptions;
+}
+
 const DEFAULTS = {
   appUrl: "http://127.0.0.1:1420/",
   healthUrl: DEFAULT_HEALTH_URL,
@@ -147,7 +211,7 @@ Lime GUI 冒烟入口
 }
 
 function parseArgs(argv) {
-  const options = { ...DEFAULTS };
+  const options = { ...DEFAULTS, timeoutExplicit: false };
   let invokeUrlExplicit = false;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -174,6 +238,7 @@ function parseArgs(argv) {
 
     if (arg === "--timeout-ms" && argv[index + 1]) {
       options.timeoutMs = Number(argv[index + 1]);
+      options.timeoutExplicit = true;
       index += 1;
       continue;
     }
@@ -1190,10 +1255,22 @@ async function main() {
     throw new Error("当前 Node 运行时不支持 fetch，请使用 Node 18+");
   }
 
-  const options = parseArgs(process.argv.slice(2));
+  const parsedOptions = parseArgs(process.argv.slice(2));
+  const options = normalizeCargoTargetDir(parsedOptions);
   const startupMode = await resolveStartupMode(options);
   const startedByScript = startupMode.shouldStart;
 
+  if (options.cargoTargetDirFallbackReason) {
+    const corruptedDirList = options.corruptedSqliteBindingOutputs
+      .map((item) => item.relativeOutDir)
+      .join(", ");
+    console.warn(
+      `[verify:gui-smoke] 检测到损坏的 sqlite 构建缓存（缺少 bindgen.rs）：${corruptedDirList}`,
+    );
+    console.warn(
+      `[verify:gui-smoke] 为避免复用旧半成品 target，Cargo target 已切换到新的独立目录：${options.cargoTargetDir}`,
+    );
+  }
   console.log(`[verify:gui-smoke] Cargo target: ${options.cargoTargetDir}`);
 
   const handleSignal = async (signal) => {

@@ -366,7 +366,7 @@ export const ProviderPoolPage = forwardRef<
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-500 bg-red-50 p-4 text-red-700 dark:bg-red-950/30">
+        <div className="rounded-lg border border-red-500 bg-red-50 p-4 text-red-700">
           {error}
         </div>
       )}

@@ -637,9 +637,9 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
           </div>
         )}
         {apiError && (
-          <div className="rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-left text-xs text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-300">
+          <div className="rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-left text-xs text-amber-700">
             {apiShouldPromptError ? (
-              <div className="mb-1 font-semibold text-red-600 dark:text-red-400">
+              <div className="mb-1 font-semibold text-red-600">
                 检测到 Provider 配置错误，请优先修正 Base URL 或鉴权配置
               </div>
             ) : null}
@@ -768,9 +768,9 @@ export const ProviderModelList: React.FC<ProviderModelListProps> = ({
 
       {/* API 错误提示 */}
       {apiError && (
-        <div className="mb-2 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-300">
+        <div className="mb-2 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-700">
           {apiShouldPromptError ? (
-            <div className="mb-1 font-semibold text-red-600 dark:text-red-400">
+            <div className="mb-1 font-semibold text-red-600">
               检测到 Provider 配置错误，请优先修正 Base URL 或鉴权配置
             </div>
           ) : null}

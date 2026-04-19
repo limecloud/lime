@@ -19,7 +19,9 @@ export function EmptyStateSceneAppsPanel({
   onResumeRecentSceneApp,
   onOpenSceneAppsDirectory,
 }: EmptyStateSceneAppsPanelProps) {
-  if (!loading && items.length === 0) {
+  const hasLaunchableEntries = items.length > 0;
+
+  if (!loading && !hasLaunchableEntries && !canResumeRecentSceneApp) {
     return null;
   }
 
@@ -27,9 +29,13 @@ export function EmptyStateSceneAppsPanel({
     <section className="space-y-2.5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1.5">
-          <div className="text-sm font-semibold text-slate-900">创作场景</div>
+          <div className="text-sm font-semibold text-slate-900">
+            更多起手方式
+          </div>
           <p className="text-xs leading-5 text-slate-500 md:text-sm">
-            不是单个技能，而是一条完整结果链。先挑一个场景，Lime 会把合适的能力和交付合同组合起来。
+            {hasLaunchableEntries
+              ? "只有当整套做法比直接拿结果更省事时，再从这里进入；已经知道想拿什么结果，优先用上面的结果入口就够了。"
+              : "这次如果只想继续上一套做法，可以直接从这里回到原流程。"}
           </p>
         </div>
         {canResumeRecentSceneApp || onOpenSceneAppsDirectory ? (
@@ -40,7 +46,7 @@ export function EmptyStateSceneAppsPanel({
                 className="font-medium text-lime-700 transition-colors hover:text-lime-800"
                 onClick={onResumeRecentSceneApp}
               >
-                继续最近场景
+                继续最近做法
               </button>
             ) : null}
             {onOpenSceneAppsDirectory ? (
@@ -49,7 +55,7 @@ export function EmptyStateSceneAppsPanel({
                 className="font-medium text-slate-600 transition-colors hover:text-slate-900"
                 onClick={onOpenSceneAppsDirectory}
               >
-                查看全部场景
+                查看全部做法
               </button>
             ) : null}
           </div>
@@ -58,9 +64,9 @@ export function EmptyStateSceneAppsPanel({
 
       {loading && items.length === 0 ? (
         <div className="text-sm leading-6 text-slate-500">
-          正在整理可直接启动的创作场景…
+          正在整理可直接启动的场景做法…
         </div>
-      ) : (
+      ) : hasLaunchableEntries ? (
         <div
           data-testid="sceneapps-home-directory"
           className="flex flex-wrap items-center gap-y-2 text-sm leading-6"
@@ -113,6 +119,10 @@ export function EmptyStateSceneAppsPanel({
               </div>
             );
           })}
+        </div>
+      ) : (
+        <div className="text-sm leading-6 text-slate-500">
+          最近跑过的整套做法可以直接续上，不必重新装配。
         </div>
       )}
     </section>

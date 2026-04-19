@@ -1,0 +1,150 @@
+import {
+  getSeededServiceSkillCatalog,
+  type ServiceSkillExecutorBinding,
+  type ServiceSkillItem,
+  type ServiceSkillSiteCapabilityBinding,
+} from "@/lib/api/serviceSkills";
+import type { SkillCatalogExecutionKind } from "@/lib/api/skillCatalog";
+import { supportsServiceSkillEntrySurface } from "./entryAdapter";
+import { buildServiceSkillRecommendationBuckets } from "./recommendedServiceSkills";
+import {
+  getServiceSkillActionLabel,
+  getServiceSkillRunnerDescription,
+  getServiceSkillRunnerLabel,
+  getServiceSkillRunnerTone,
+} from "./skillPresentation";
+import type { ServiceSkillHomeItem } from "./types";
+
+interface ServiceSkillHomeVisibilityCandidate {
+  defaultExecutorBinding: ServiceSkillExecutorBinding;
+  siteCapabilityBinding?: ServiceSkillSiteCapabilityBinding;
+  execution?: {
+    kind?: SkillCatalogExecutionKind;
+  } | null;
+}
+
+interface ListFeaturedHomeServiceSkillsOptions {
+  fallbackToSeeded?: boolean;
+  limit?: number;
+}
+
+const DEFAULT_FEATURED_HOME_SERVICE_SKILL_LIMIT = 2;
+
+function resolveServiceSkillExecutionKind(
+  skill: Pick<
+    ServiceSkillItem,
+    "defaultExecutorBinding" | "executionLocation"
+  >,
+): SkillCatalogExecutionKind {
+  if (skill.executionLocation === "cloud_required") {
+    return "cloud_scene";
+  }
+
+  switch (skill.defaultExecutorBinding) {
+    case "browser_assist":
+      return "site_adapter";
+    case "automation_job":
+      return "automation_job";
+    case "native_skill":
+      return "native_skill";
+    case "agent_turn":
+      return "agent_turn";
+    case "cloud_scene":
+      return "cloud_scene";
+    default:
+      return "agent_turn";
+  }
+}
+
+function buildSeededHomeServiceSkillItem(
+  skill: ServiceSkillItem,
+): ServiceSkillHomeItem {
+  return {
+    ...skill,
+    executionKind: resolveServiceSkillExecutionKind(skill),
+    badge: skill.source === "cloud_catalog" ? "云目录" : "本地技能",
+    recentUsedAt: null,
+    isRecent: false,
+    runnerLabel: getServiceSkillRunnerLabel(skill),
+    runnerTone: getServiceSkillRunnerTone(skill),
+    runnerDescription: getServiceSkillRunnerDescription(skill),
+    actionLabel: getServiceSkillActionLabel(skill),
+    automationStatus: null,
+    cloudStatus: null,
+  };
+}
+
+function listFeaturedFromCandidates(
+  skills: ServiceSkillHomeItem[],
+  limit: number,
+): ServiceSkillHomeItem[] {
+  if (limit <= 0) {
+    return [];
+  }
+
+  const visibleSkills = skills.filter((skill) =>
+    shouldExposeServiceSkillHomeItem(skill),
+  );
+  const { featuredSkills } = buildServiceSkillRecommendationBuckets(
+    visibleSkills,
+    {
+      featuredLimit: limit,
+      surface: "home",
+    },
+  );
+
+  return featuredSkills.slice(0, limit);
+}
+
+export function shouldExposeServiceSkillHomeItem(
+  item: ServiceSkillHomeVisibilityCandidate,
+): boolean {
+  if (item.execution?.kind === "site_adapter") {
+    return false;
+  }
+
+  if (
+    item.defaultExecutorBinding === "browser_assist" ||
+    item.siteCapabilityBinding
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+export function listFeaturedHomeServiceSkills(
+  skills: ServiceSkillHomeItem[],
+  options: ListFeaturedHomeServiceSkillsOptions = {},
+): ServiceSkillHomeItem[] {
+  const limit = Math.max(
+    options.limit ?? DEFAULT_FEATURED_HOME_SERVICE_SKILL_LIMIT,
+    0,
+  );
+  if (limit === 0) {
+    return [];
+  }
+
+  const featuredRuntimeSkills = listFeaturedFromCandidates(skills, limit);
+  if (
+    featuredRuntimeSkills.length >= limit ||
+    options.fallbackToSeeded === false
+  ) {
+    return featuredRuntimeSkills;
+  }
+
+  const featuredRuntimeSkillIds = new Set(
+    featuredRuntimeSkills.map((skill) => skill.id),
+  );
+  const seededCandidates = getSeededServiceSkillCatalog()
+    .items.filter((skill) => supportsServiceSkillEntrySurface(skill, "home"))
+    .filter((skill) => shouldExposeServiceSkillHomeItem(skill))
+    .filter((skill) => !featuredRuntimeSkillIds.has(skill.id))
+    .map((skill) => buildSeededHomeServiceSkillItem(skill));
+  const remainingSlots = Math.max(limit - featuredRuntimeSkills.length, 0);
+
+  return [
+    ...featuredRuntimeSkills,
+    ...listFeaturedFromCandidates(seededCandidates, remainingSlots),
+  ];
+}

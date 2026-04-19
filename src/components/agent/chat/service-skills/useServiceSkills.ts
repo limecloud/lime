@@ -25,6 +25,7 @@ import {
   getServiceSkillRunnerLabel,
   getServiceSkillRunnerTone,
 } from "./skillPresentation";
+import { shouldExposeServiceSkillHomeItem } from "./homeEntrySkills";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import { supportsServiceSkillLocalAutomation } from "./automationDraft";
 import { getServiceSkillUsageMap, recordServiceSkillUsage } from "./storage";
@@ -37,21 +38,6 @@ import type {
 } from "./types";
 
 const SERVICE_SKILLS_IDLE_TIMEOUT_MS = 1_500;
-
-function shouldExposeServiceSkillHomeItem(item: SkillCatalogItem): boolean {
-  if (item.execution.kind === "site_adapter") {
-    return false;
-  }
-
-  if (
-    item.defaultExecutorBinding === "browser_assist" ||
-    item.siteCapabilityBinding
-  ) {
-    return false;
-  }
-
-  return true;
-}
 
 function getSkillBadge(item: SkillCatalogItem, isRecent: boolean): string {
   if (isRecent) {

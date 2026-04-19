@@ -261,7 +261,7 @@ function resolveTaskCenterContinuationActionLabel(
   if (item.status === "running") {
     return "查看进展";
   }
-  return "打开任务";
+  return "打开现场";
 }
 
 function areProjectNameMapsEqual(
@@ -1300,7 +1300,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                             </Badge>
                           </div>
                           <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
-                            返回主线程，查看完整任务视图和原始上下文。
+                            返回主线程，查看完整进展和原始上下文。
                           </p>
                         </div>
                       </div>

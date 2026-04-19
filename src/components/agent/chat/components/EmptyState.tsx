@@ -19,10 +19,22 @@ import {
   isTeamRuntimeRecommendation,
 } from "../utils/contextualRecommendations";
 import {
-  listEntryRecommendedSolutions,
-  recordEntryRecommendedSolutionUsage,
-  type EntryRecommendedSolutionItem,
-} from "../utils/entryRecommendedSolutions";
+  buildCuratedTaskCapabilityDescription,
+  buildCuratedTaskLaunchPrompt,
+  findCuratedTaskTemplateById,
+  listCuratedTaskTemplates,
+  listFeaturedHomeCuratedTaskTemplates,
+  recordCuratedTaskTemplateUsage,
+  replaceCuratedTaskLaunchPromptInInput,
+  type CuratedTaskInputValues,
+  type CuratedTaskTemplateItem,
+} from "../utils/curatedTaskTemplates";
+import { CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT } from "../utils/curatedTaskRecommendationSignals";
+import type {
+  CuratedTaskReferenceEntry,
+  CuratedTaskReferenceSelection,
+} from "../utils/curatedTaskReferenceSelection";
+import { CuratedTaskLauncherDialog } from "./CuratedTaskLauncherDialog";
 import { EmptyStateComposerPanel } from "./EmptyStateComposerPanel";
 import { EmptyStateHero } from "./EmptyStateHero";
 import { EmptyStateQuickActions } from "./EmptyStateQuickActions";
@@ -31,10 +43,14 @@ import {
   EMPTY_STATE_CONTENT_WRAPPER_CLASSNAME,
   EMPTY_STATE_PAGE_CONTAINER_CLASSNAME,
 } from "./emptyStateSurfaceTokens";
-import { useActiveSkill } from "../skill-selection/useActiveSkill";
-import type { SkillSelectionSourceProps } from "../skill-selection/skillSelectionBindings";
+import {
+  buildSkillSelectionProps,
+  type SkillSelectionSourceProps,
+} from "../skill-selection/skillSelectionBindings";
 import type { Character } from "@/lib/api/memory";
+import type { Skill } from "@/lib/api/skills";
 import type { WorkspaceSettings } from "@/types/workspace";
+import type { ServiceSkillHomeItem } from "../service-skills/types";
 import type { MessageImage } from "../types";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import { isGeneralResearchTheme } from "../utils/generalAgentPrompt";
@@ -47,20 +63,18 @@ import {
   getActiveSkillDisplayLabel,
   getSkillSelectionSummaryLabel,
 } from "../skill-selection/skillSelectionDisplay";
+import {
+  resolveInputCapabilityDispatch,
+  type InputCapabilitySelection,
+} from "../skill-selection/inputCapabilitySelection";
 import { listSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import {
   getSiteSkillAutoLaunchExample,
   hasAutoLaunchableSiteSkill,
 } from "../service-skills/siteSkillExamplePrompts";
-import { getSeededServiceSkillCatalog } from "@/lib/api/serviceSkills";
 import { resolveServiceSkillEntryDescription } from "../service-skills/entryAdapter";
-import {
-  getServiceSkillActionLabel,
-  getServiceSkillRunnerDescription,
-  getServiceSkillRunnerLabel,
-  getServiceSkillRunnerTone,
-} from "../service-skills/skillPresentation";
-import type { ServiceSkillHomeItem } from "../service-skills/types";
+import { listFeaturedHomeServiceSkills } from "../service-skills/homeEntrySkills";
+import { buildServiceSkillCapabilityDescription } from "../service-skills/skillPresentation";
 import capabilitySkillsPlaceholder from "@/assets/entry-surface/capability-skills-lime.png";
 import capabilityAutomationsPlaceholder from "@/assets/entry-surface/capability-automations-lime.png";
 import capabilityAgentTeamsPlaceholder from "@/assets/entry-surface/capability-agent-teams-lime.png";
@@ -68,6 +82,8 @@ import capabilityBrowserAssistPlaceholder from "@/assets/entry-surface/capabilit
 import type { SceneAppEntryCardItem } from "../sceneappEntryTypes";
 import type { RuntimeToolAvailability } from "../utils/runtimeToolAvailability";
 import type { AgentTaskRuntimeCardModel } from "../utils/agentTaskRuntime";
+import type { HandleSendOptions } from "../hooks/handleSendTypes";
+import type { CreationReplaySurfaceModel } from "../utils/creationReplaySurface";
 
 const contentReveal = keyframes`
   from {
@@ -158,13 +174,13 @@ const RecommendationShelfRow = styled.div`
 const RecommendationShelfButton = styled.button`
   display: inline-flex;
   min-width: 0;
-  align-items: center;
-  gap: 0.35rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
   border: none;
   background: transparent;
   padding: 0;
   text-align: left;
-  white-space: nowrap;
   color: rgb(100 116 139);
   transition: color 180ms ease;
 
@@ -173,11 +189,40 @@ const RecommendationShelfButton = styled.button`
   }
 `;
 
+const RecommendationShelfTitleRow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  flex-wrap: wrap;
+`;
+
 const RecommendationShelfTitle = styled.span`
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
   color: currentColor;
+`;
+
+const RecommendationShelfInlineBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(248 250 252);
+  padding: 0.1rem 0.38rem;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: rgb(100 116 139);
+`;
+
+const RecommendationShelfMeta = styled.span`
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: normal;
+  color: rgb(148 163 184);
 `;
 
 const RecommendationShelfHint = styled.span`
@@ -208,6 +253,162 @@ const RecommendationShelfEmptyState = styled.div`
   padding: 0.1rem 0;
 `;
 
+const RecommendationShelfSections = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.45rem;
+`;
+
+const RecommendationShelfSection = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.22rem;
+`;
+
+const RecommendationShelfSectionHeader = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+`;
+
+const RecommendationShelfSectionTitle = styled.div`
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgb(100 116 139);
+`;
+
+const RecommendationShelfSectionDescription = styled.div`
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgb(148 163 184);
+`;
+
+const RecommendationShelfSectionDivider = styled.div`
+  height: 1px;
+  width: 100%;
+  background: rgb(241 245 249);
+`;
+
+const RecommendationShelfSubsection = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.28rem;
+`;
+
+const RecommendationShelfSubsectionHeader = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+`;
+
+const RecommendationShelfSubsectionTitle = styled.div`
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: rgb(71 85 105);
+`;
+
+const RecommendationShelfSubsectionDescription = styled.div`
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgb(148 163 184);
+`;
+
+const RecommendationShelfPrimaryGrid = styled.div`
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr);
+
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+`;
+
+const RecommendationShelfPrimaryCard = styled.button`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.32rem;
+  border-radius: 16px;
+  border: 1px solid rgb(226 232 240);
+  background: linear-gradient(180deg, rgb(255 255 255), rgb(248 250 252));
+  padding: 0.7rem 0.78rem;
+  text-align: left;
+  color: rgb(51 65 85);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+
+  &:hover {
+    border-color: rgb(203 213 225);
+    box-shadow: 0 10px 24px -24px rgba(15, 23, 42, 0.18);
+    transform: translateY(-1px);
+  }
+`;
+
+const RecommendationShelfPrimaryCardTop = styled.div`
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+`;
+
+const RecommendationShelfPrimaryCardTitle = styled.div`
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgb(15 23 42);
+`;
+
+const RecommendationShelfPrimaryCardSummary = styled.div`
+  font-size: 11px;
+  line-height: 1.55;
+  color: rgb(100 116 139);
+`;
+
+const RecommendationShelfPrimaryCardMeta = styled.div`
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgb(148 163 184);
+`;
+
+const RecommendationShelfRouteHint = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding-top: 0.1rem;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgb(148 163 184);
+`;
+
+const RecommendationShelfRouteLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(248 250 252);
+  padding: 0.1rem 0.38rem;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: rgb(100 116 139);
+`;
+
 interface EmptyStateProps extends SkillSelectionSourceProps {
   input: string;
   setInput: (value: string) => void;
@@ -215,6 +416,7 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
     value: string,
     executionStrategy?: "react" | "code_orchestrated" | "auto",
     images?: MessageImage[],
+    sendOptions?: HandleSendOptions,
   ) => void;
   isLoading?: boolean;
   disabled?: boolean;
@@ -291,6 +493,8 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   onOpenChromeRelay?: () => void;
   /** 打开 OpenClaw 兼容入口 */
   onOpenOpenClaw?: () => void;
+  /** 当前带入的 creation replay 前台投影 */
+  creationReplaySurface?: CreationReplaySurfaceModel | null;
 }
 
 type RecommendationShelfItem =
@@ -301,6 +505,7 @@ type RecommendationShelfItem =
       summary: string;
       badge: string;
       hint: string;
+      meta: string;
       testId: string;
       onSelect: () => void;
     }
@@ -311,6 +516,7 @@ type RecommendationShelfItem =
       summary: string;
       badge: string;
       hint: string;
+      meta: string;
       testId: string;
       onSelect: () => void;
     };
@@ -326,73 +532,6 @@ interface ContinuationShelfItem {
 }
 
 const GENERAL_CATEGORY_LABEL = "通用对话";
-const FEATURED_HOME_RECOMMENDED_SOLUTION_IDS = [
-  "web-research-brief",
-  "social-post-starter",
-  "slide-outline",
-  "browser-assist-task",
-] as const;
-const FEATURED_HOME_SERVICE_SKILL_IDS = [
-  "carousel-post-replication",
-  "short-video-script-replication",
-] as const;
-
-function resolveFeaturedSkillExecutionKind(
-  binding: ServiceSkillHomeItem["defaultExecutorBinding"],
-): ServiceSkillHomeItem["executionKind"] {
-  if (binding === "browser_assist") {
-    return "site_adapter";
-  }
-  if (binding === "automation_job") {
-    return "automation_job";
-  }
-  if (binding === "cloud_scene") {
-    return "cloud_scene";
-  }
-  if (binding === "native_skill") {
-    return "native_skill";
-  }
-  return "agent_turn";
-}
-
-function buildSeededFeaturedHomeServiceSkills(): ServiceSkillHomeItem[] {
-  const seededCatalog = getSeededServiceSkillCatalog();
-
-  return FEATURED_HOME_SERVICE_SKILL_IDS.flatMap((skillId) => {
-    const matchedSkill = seededCatalog.items.find(
-      (item) => item.id === skillId,
-    );
-    if (!matchedSkill) {
-      return [];
-    }
-
-    return [
-      {
-        ...matchedSkill,
-        groupKey: "general",
-        executionKind:
-          matchedSkill.executionLocation === "cloud_required"
-            ? "cloud_scene"
-            : resolveFeaturedSkillExecutionKind(
-                matchedSkill.defaultExecutorBinding,
-              ),
-        badge: matchedSkill.source === "cloud_catalog" ? "云目录" : "本地技能",
-        recentUsedAt: null,
-        isRecent: false,
-        runnerLabel: getServiceSkillRunnerLabel(matchedSkill),
-        runnerTone: getServiceSkillRunnerTone(matchedSkill),
-        runnerDescription: getServiceSkillRunnerDescription(matchedSkill),
-        actionLabel: getServiceSkillActionLabel(matchedSkill),
-        automationStatus: null,
-        cloudStatus: null,
-      },
-    ];
-  });
-}
-
-const SEEDED_FEATURED_HOME_SERVICE_SKILLS =
-  buildSeededFeaturedHomeServiceSkills();
-
 // 需要显示创作模式选择器的主题
 const CREATION_THEMES: string[] = [];
 
@@ -505,20 +644,58 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onOpenSettings,
   isLoading = false,
   disabled = false,
+  creationReplaySurface = null,
 }) => {
-  const { wrapTextWithSkill, buildSkillSelection } = useActiveSkill();
-  const skillSelection = buildSkillSelection({
+  const [activeCapability, setActiveCapability] =
+    useState<InputCapabilitySelection | null>(null);
+  const activeCuratedTaskCapability =
+    activeCapability?.kind === "curated_task" ? activeCapability : null;
+  const activeCuratedTask = activeCuratedTaskCapability?.task ?? null;
+  const activeCuratedTaskLaunchInputValues =
+    activeCuratedTaskCapability?.launchInputValues;
+  const activeCuratedTaskReferenceMemoryIds =
+    activeCuratedTaskCapability?.referenceMemoryIds;
+  const activeCuratedTaskReferenceEntries =
+    activeCuratedTaskCapability?.referenceEntries;
+  const currentSkill =
+    activeCapability?.kind === "installed_skill"
+      ? activeCapability.skill
+      : null;
+  const clearSelectedSkill = useCallback(() => {
+    setActiveCapability(null);
+  }, []);
+  const handleSelectInstalledSkill = useCallback((skill: Skill) => {
+    setActiveCapability({
+      kind: "installed_skill",
+      skill,
+    });
+  }, []);
+  const handleSelectInputCapability = useCallback(
+    (capability: InputCapabilitySelection) => {
+      setActiveCapability(capability);
+    },
+    [],
+  );
+  const handleSelectServiceSkill = useCallback(
+    (skill: ServiceSkillHomeItem) => {
+      setActiveCapability(null);
+      onSelectServiceSkill?.(skill);
+    },
+    [onSelectServiceSkill],
+  );
+  const skillSelection = buildSkillSelectionProps({
     skills,
     serviceSkills,
     serviceSkillGroups,
     isSkillsLoading,
-    onSelectServiceSkill,
+    activeSkill: currentSkill,
+    onSelectSkill: handleSelectInstalledSkill,
+    onSelectServiceSkill: handleSelectServiceSkill,
+    onClearSkill: clearSelectedSkill,
     onNavigateToSettings,
     onImportSkill,
     onRefreshSkills,
   });
-  const currentSkill = skillSelection.activeSkill;
-  const clearSelectedSkill = skillSelection.onClearSkill;
   const skillOptionCount =
     skillSelection.skills.length + skillSelection.serviceSkills.length;
   const activeSkillDisplayLabel = getActiveSkillDisplayLabel(currentSkill);
@@ -536,9 +713,28 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     setAppendSelectedTextToRecommendation,
   ] = useState(true);
   const [
-    entryRecommendedSolutionsVersion,
-    setEntryRecommendedSolutionsVersion,
+    curatedTaskTemplatesVersion,
+    setCuratedTaskTemplatesVersion,
   ] = useState(0);
+  const [
+    curatedTaskRecommendationSignalsVersion,
+    setCuratedTaskRecommendationSignalsVersion,
+  ] = useState(0);
+  const [curatedTaskLauncherTask, setCuratedTaskLauncherTask] =
+    useState<CuratedTaskTemplateItem | null>(null);
+  const [
+    curatedTaskLauncherInitialInputValues,
+    setCuratedTaskLauncherInitialInputValues,
+  ] = useState<CuratedTaskInputValues | null>(null);
+  const [
+    curatedTaskLauncherInitialReferenceMemoryIds,
+    setCuratedTaskLauncherInitialReferenceMemoryIds,
+  ] = useState<string[] | null>(null);
+  const [
+    curatedTaskLauncherInitialReferenceEntries,
+    setCuratedTaskLauncherInitialReferenceEntries,
+  ] = useState<CuratedTaskReferenceEntry[] | null>(null);
+  const [showCapabilityCards, setShowCapabilityCards] = useState(false);
 
   useEffect(() => {
     const loadConfigPreferences = async () => {
@@ -570,6 +766,24 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    const handleRecommendationSignalsChange = () => {
+      setCuratedTaskRecommendationSignalsVersion((previous) => previous + 1);
+    };
+
+    window.addEventListener(
+      CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT,
+      handleRecommendationSignalsChange,
+    );
+
+    return () => {
+      window.removeEventListener(
+        CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT,
+        handleRecommendationSignalsChange,
+      );
+    };
+  }, []);
+
   // 使用外部传入的 activeTheme，如果有 onThemeChange 则使用受控模式
   const handleThemeChange = useCallback(
     (theme: string) => {
@@ -586,14 +800,6 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const [pendingImages, setPendingImages] = useState<MessageImage[]>([]);
   const isGeneralTheme = isGeneralResearchTheme(activeTheme);
   const isComposerBusy = isLoading || disabled;
-
-  const wrapTextWithDefaultSkill = (text: string) => {
-    const wrappedByActiveSkill = wrapTextWithSkill(text);
-    if (wrappedByActiveSkill !== text) {
-      return wrappedByActiveSkill;
-    }
-    return text;
-  };
 
   const recommendationSelectedText = appendSelectedTextToRecommendation
     ? selectedText
@@ -619,10 +825,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     subagentEnabled,
   ]);
 
-  const entryRecommendedSolutions = useMemo(() => {
-    void entryRecommendedSolutionsVersion;
-    return listEntryRecommendedSolutions();
-  }, [entryRecommendedSolutionsVersion]);
+  const curatedTaskTemplates = useMemo(() => {
+    void curatedTaskTemplatesVersion;
+    void curatedTaskRecommendationSignalsVersion;
+    return listCuratedTaskTemplates();
+  }, [
+    curatedTaskRecommendationSignalsVersion,
+    curatedTaskTemplatesVersion,
+  ]);
 
   const recentSceneUsageBySceneKey = useMemo(() => {
     return new Map(
@@ -694,15 +904,31 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       return;
     }
     const imagesToSend = pendingImages.length > 0 ? pendingImages : undefined;
+    const capabilityDispatch = resolveInputCapabilityDispatch(
+      activeCapability,
+      input,
+    );
+    const sendOptions =
+      capabilityDispatch.capabilityRoute ||
+      capabilityDispatch.displayContent ||
+      capabilityDispatch.requestMetadata
+        ? {
+            capabilityRoute: capabilityDispatch.capabilityRoute,
+            displayContent: capabilityDispatch.displayContent,
+            requestMetadata: capabilityDispatch.requestMetadata,
+          }
+        : undefined;
 
-    onSend(wrapTextWithDefaultSkill(input), executionStrategy, imagesToSend);
+    if (sendOptions) {
+      onSend(input, executionStrategy, imagesToSend, sendOptions);
+    } else {
+      onSend(input, executionStrategy, imagesToSend);
+    }
     setPendingImages([]);
     clearSelectedSkill?.();
   };
 
   const planEnabled = executionStrategy === "code_orchestrated";
-  const executionModeLabel = planEnabled ? "编排模式已开启" : "对话内开工";
-
   const workbenchCopy =
     THEME_WORKBENCH_COPY[activeTheme] || THEME_WORKBENCH_COPY.general;
 
@@ -743,37 +969,96 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     ],
   );
 
-  const handleApplyEntryRecommendedSolution = useCallback(
-    (solution: EntryRecommendedSolutionItem) => {
-      recordEntryRecommendedSolutionUsage(solution.id);
-      setEntryRecommendedSolutionsVersion((previous) => previous + 1);
+  const handleCuratedTaskLauncherRequest = useCallback(
+    (
+      template: CuratedTaskTemplateItem,
+      initialInputValues?: CuratedTaskInputValues | null,
+      initialReferenceMemoryIds?: string[] | null,
+      initialReferenceEntries?: CuratedTaskReferenceEntry[] | null,
+    ) => {
+      setCuratedTaskLauncherTask(template);
+      setCuratedTaskLauncherInitialInputValues(initialInputValues ?? null);
+      setCuratedTaskLauncherInitialReferenceMemoryIds(
+        initialReferenceMemoryIds ?? null,
+      );
+      setCuratedTaskLauncherInitialReferenceEntries(
+        initialReferenceEntries ?? null,
+      );
+    },
+    [],
+  );
 
-      if (solution.shouldEnableWebSearch && !webSearchEnabled) {
+  const handleCuratedTaskLauncherOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setCuratedTaskLauncherTask(null);
+      setCuratedTaskLauncherInitialInputValues(null);
+      setCuratedTaskLauncherInitialReferenceMemoryIds(null);
+      setCuratedTaskLauncherInitialReferenceEntries(null);
+    }
+  }, []);
+
+  const handleApplyCuratedTaskTemplate = useCallback(
+    (
+      template: CuratedTaskTemplateItem,
+      inputValues: CuratedTaskInputValues,
+      referenceSelection: CuratedTaskReferenceSelection,
+    ) => {
+      recordCuratedTaskTemplateUsage(template.id);
+      setCuratedTaskTemplatesVersion((previous) => previous + 1);
+      setCuratedTaskLauncherTask(null);
+      setCuratedTaskLauncherInitialReferenceMemoryIds(null);
+      setCuratedTaskLauncherInitialReferenceEntries(null);
+
+      if (template.shouldEnableWebSearch && !webSearchEnabled) {
         onWebSearchEnabledChange?.(true);
       }
 
-      if (solution.shouldEnableTeamMode && !subagentEnabled) {
+      if (template.shouldEnableTeamMode && !subagentEnabled) {
         onSubagentEnabledChange?.(true);
       }
 
-      if (solution.themeTarget) {
-        handleThemeChange(solution.themeTarget);
+      if (template.themeTarget) {
+        handleThemeChange(template.themeTarget);
       }
 
-      if (solution.shouldLaunchBrowserAssist) {
+      if (template.shouldLaunchBrowserAssist) {
         void onLaunchBrowserAssist?.();
       }
 
-      const promptWithSelection = buildRecommendationPrompt(
-        solution.prompt,
+      const resolvedTemplate = findCuratedTaskTemplateById(template.id) ?? template;
+      const launchPrompt = buildCuratedTaskLaunchPrompt({
+        task: resolvedTemplate,
+        inputValues,
+        referenceEntries: referenceSelection.referenceEntries,
+      });
+      const nextPrompt = buildRecommendationPrompt(
+        launchPrompt,
         selectedText,
         appendSelectedTextToRecommendation,
       );
+      const promptWithSelection = replaceCuratedTaskLaunchPromptInInput({
+        currentInput: input,
+        previousPrompt:
+          activeCuratedTask?.id === template.id ? activeCuratedTask.prompt : null,
+        nextPrompt,
+      });
+      setActiveCapability({
+        kind: "curated_task",
+        task: {
+          ...resolvedTemplate,
+          prompt: nextPrompt,
+        },
+        launchInputValues: inputValues,
+        referenceMemoryIds: referenceSelection.referenceMemoryIds,
+        referenceEntries: referenceSelection.referenceEntries,
+      });
       setInput(promptWithSelection);
     },
     [
+      activeCuratedTask,
       appendSelectedTextToRecommendation,
       handleThemeChange,
+      input,
       onLaunchBrowserAssist,
       onSubagentEnabledChange,
       onWebSearchEnabledChange,
@@ -795,25 +1080,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         label: GENERAL_CATEGORY_LABEL,
         tone: "lime",
       },
-      {
-        key: "execution",
-        label: executionModeLabel,
-        tone: "lime",
-      },
     ];
 
     if (showCreationModeSelector) {
       badges.push({
         key: "creation-mode",
         label: CREATION_MODE_CONFIG[creationMode].name,
-        tone: "lime",
-      });
-    }
-
-    if (webSearchEnabled) {
-      badges.push({
-        key: "web-search",
-        label: "联网搜索已开启",
         tone: "lime",
       });
     }
@@ -827,13 +1099,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     }
 
     return badges.slice(0, 5);
-  }, [
-    creationMode,
-    executionModeLabel,
-    showCreationModeSelector,
-    webSearchEnabled,
-    activeSkillDisplayLabel,
-  ]);
+  }, [creationMode, showCreationModeSelector, activeSkillDisplayLabel]);
 
   const workspaceCards = useMemo(() => {
     const cards: Array<{
@@ -923,37 +1189,41 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   ]);
 
   const recommendationShelfItems = useMemo<RecommendationShelfItem[]>(() => {
-    const solutionRecommendations = entryRecommendedSolutions
-      .filter((solution) =>
-        FEATURED_HOME_RECOMMENDED_SOLUTION_IDS.includes(
-          solution.id as (typeof FEATURED_HOME_RECOMMENDED_SOLUTION_IDS)[number],
-        ),
-      )
-      .map((solution) => ({
-        kind: "solution" as const,
-        key: solution.id,
-        title: solution.title,
-        summary: solution.summary,
-        badge: solution.badge,
-        hint: solution.outputHint,
-        testId: `entry-recommended-${solution.id}`,
-        onSelect: () => handleApplyEntryRecommendedSolution(solution),
-      }));
-
-    const featuredServiceSkills = FEATURED_HOME_SERVICE_SKILL_IDS.flatMap(
-      (skillId) => {
-        const runtimeSkill = (serviceSkills ?? []).find(
-          (candidate) => candidate.id === skillId,
-        );
-        if (runtimeSkill) {
-          return [runtimeSkill];
-        }
-
-        const seededSkill = SEEDED_FEATURED_HOME_SERVICE_SKILLS.find(
-          (candidate) => candidate.id === skillId,
-        );
-        return seededSkill ? [seededSkill] : [];
+    const curatedTemplateRecommendations = listFeaturedHomeCuratedTaskTemplates(
+      curatedTaskTemplates,
+      {
+        projectId,
+        referenceEntries: creationReplaySurface?.defaultReferenceEntries,
       },
+    ).map((featured) => {
+      const template = featured.template;
+      const metaPrefix = featured.reasonSummary
+        ? `${featured.reasonSummary} · `
+        : "";
+
+      return {
+          kind: "solution" as const,
+          key: template.id,
+          title: template.title,
+          summary: template.summary,
+          badge: featured.badgeLabel,
+          hint: template.outputHint,
+          meta: `${metaPrefix}${buildCuratedTaskCapabilityDescription(template, {
+            includeSummary: false,
+          })}`,
+          testId: `entry-recommended-${template.id}`,
+          onSelect: () =>
+            handleCuratedTaskLauncherRequest(
+              template,
+              null,
+              creationReplaySurface?.defaultReferenceMemoryIds,
+              creationReplaySurface?.defaultReferenceEntries,
+            ),
+        };
+      });
+
+    const featuredServiceSkills = listFeaturedHomeServiceSkills(
+      serviceSkills ?? [],
     );
 
     const serviceSkillRecommendations = isGeneralTheme
@@ -971,37 +1241,71 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             hint: requiresSlots
               ? "对话内补参后开始"
               : `${skill.actionLabel} · 当前对话继续`,
+            meta: buildServiceSkillCapabilityDescription(skill, {
+              includeSummary: false,
+            }),
             testId: `entry-service-skill-${skill.id}`,
             onSelect: () => {
-              onSelectServiceSkill?.(skill);
+              handleSelectServiceSkill(skill);
             },
           };
         })
       : [];
 
-    return [...solutionRecommendations, ...serviceSkillRecommendations];
+    return [...curatedTemplateRecommendations, ...serviceSkillRecommendations];
   }, [
-    entryRecommendedSolutions,
-    handleApplyEntryRecommendedSolution,
+    creationReplaySurface,
+    curatedTaskTemplates,
+    handleCuratedTaskLauncherRequest,
+    handleSelectServiceSkill,
     isGeneralTheme,
-    onSelectServiceSkill,
+    projectId,
     serviceSkills,
   ]);
 
+  const recommendationSolutionItems = useMemo(
+    () => recommendationShelfItems.filter((item) => item.kind === "solution"),
+    [recommendationShelfItems],
+  );
+
+  const recommendationServiceSkillItems = useMemo(
+    () =>
+      recommendationShelfItems.filter((item) => item.kind === "service-skill"),
+    [recommendationShelfItems],
+  );
+
+  const primaryRecommendationItems = useMemo(
+    () => recommendationSolutionItems.slice(0, 2),
+    [recommendationSolutionItems],
+  );
+
+  const secondaryRecommendationItems = useMemo(
+    () => recommendationSolutionItems.slice(2),
+    [recommendationSolutionItems],
+  );
+
   const continuationShelfItems = useMemo<ContinuationShelfItem[]>(() => {
-    const recentSolutionItems = entryRecommendedSolutions
+    const recentTemplateItems = curatedTaskTemplates
       .filter(
-        (solution) =>
-          solution.isRecent && typeof solution.recentUsedAt === "number",
+        (template) =>
+          template.isRecent && typeof template.recentUsedAt === "number",
       )
-      .map((solution) => ({
-        key: `solution-${solution.id}`,
-        title: solution.title,
-        summary: solution.summary,
+      .map((template) => ({
+        key: `solution-${template.id}`,
+        title: template.title,
+        summary: buildCuratedTaskCapabilityDescription(template, {
+          includeSummary: false,
+        }),
         badge: "结果模板",
-        usedAt: solution.recentUsedAt as number,
-        testId: `entry-continuation-solution-${solution.id}`,
-        onSelect: () => handleApplyEntryRecommendedSolution(solution),
+        usedAt: template.recentUsedAt as number,
+        testId: `entry-continuation-solution-${template.id}`,
+        onSelect: () =>
+          handleCuratedTaskLauncherRequest(
+            template,
+            null,
+            creationReplaySurface?.defaultReferenceMemoryIds,
+            creationReplaySurface?.defaultReferenceEntries,
+          ),
       }));
 
     const recentMethodItems =
@@ -1023,28 +1327,40 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               return {
                 key: `method-${skill.id}`,
                 title: skill.title,
-                summary: resolveServiceSkillEntryDescription(skill),
+                summary: buildServiceSkillCapabilityDescription(skill, {
+                  includeSummary: false,
+                }),
                 badge: "我的方法",
                 usedAt,
                 testId: `entry-continuation-method-${skill.id}`,
                 onSelect: () => {
-                  onSelectServiceSkill(skill);
+                  handleSelectServiceSkill(skill);
                 },
               };
             })
             .filter((item): item is ContinuationShelfItem => item !== null)
         : [];
 
-    return [...recentSolutionItems, ...recentMethodItems]
+    return [...recentTemplateItems, ...recentMethodItems]
       .sort(compareRecentShelfItems)
       .slice(0, 4);
   }, [
-    entryRecommendedSolutions,
-    handleApplyEntryRecommendedSolution,
+    creationReplaySurface,
+    curatedTaskTemplates,
+    handleCuratedTaskLauncherRequest,
+    handleSelectServiceSkill,
     onSelectServiceSkill,
     recentSceneUsageBySceneKey,
     serviceSkills,
   ]);
+
+  const hasReusableMethodContinuation = useMemo(
+    () => continuationShelfItems.some((item) => item.badge === "我的方法"),
+    [continuationShelfItems],
+  );
+
+  const shouldShowSceneAppsPanel =
+    sceneAppsLoading || featuredSceneApps.length > 0 || canResumeRecentSceneApp;
 
   const quickActionItems = useMemo(
     () =>
@@ -1135,6 +1451,29 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       isGeneralTheme={isGeneralTheme}
       characters={characters}
       skillSelection={skillSelection}
+      activeCapability={activeCapability}
+      onSelectInputCapability={handleSelectInputCapability}
+      onClearInputCapability={clearSelectedSkill}
+      onEditCuratedTask={
+        activeCuratedTask
+          ? () =>
+              handleCuratedTaskLauncherRequest(
+                activeCuratedTask,
+                activeCuratedTaskLaunchInputValues,
+                activeCuratedTaskReferenceMemoryIds ||
+                  creationReplaySurface?.defaultReferenceMemoryIds,
+                activeCuratedTaskReferenceEntries ||
+                  creationReplaySurface?.defaultReferenceEntries,
+              )
+          : undefined
+      }
+      creationReplaySurface={creationReplaySurface}
+      defaultCuratedTaskReferenceMemoryIds={
+        creationReplaySurface?.defaultReferenceMemoryIds
+      }
+      defaultCuratedTaskReferenceEntries={
+        creationReplaySurface?.defaultReferenceEntries
+      }
       showCreationModeSelector={showCreationModeSelector}
       creationMode={creationMode}
       onCreationModeChange={onCreationModeChange}
@@ -1171,15 +1510,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     />
   );
 
-  const generalRecommendedSolutionsPanel = (
+  const generalResultShelfPanel = (
     <RecommendationShelf>
       <RecommendationShelfHeader>
         <RecommendationShelfHeaderBody>
           <RecommendationShelfHeaderTitle>
-            结果模板
+            结果入口
           </RecommendationShelfHeaderTitle>
           <RecommendationShelfHeaderDescription>
-            先选你想拿到什么结果，具体由 Lime 在当前任务里分发对应能力。
+            先选你想拿到什么结果；最近跑通过的结果模板和常用做法也会留在这里，下一次不用重新开始。
           </RecommendationShelfHeaderDescription>
         </RecommendationShelfHeaderBody>
         {selectedTextPreview ? (
@@ -1189,31 +1528,202 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         ) : null}
       </RecommendationShelfHeader>
 
-      <RecommendationShelfList>
-        {recommendationShelfItems.map((item, index) => (
-          <RecommendationShelfRow key={item.key}>
-            {index > 0 ? (
-              <RecommendationShelfHint aria-hidden="true">
-                |
-              </RecommendationShelfHint>
-            ) : null}
-            <RecommendationShelfButton
-              type="button"
-              data-testid={item.testId}
-              title={`${item.badge} · ${item.summary}`}
-              onClick={() => {
-                item.onSelect();
-              }}
-            >
-              <RecommendationShelfTitle>{item.title}</RecommendationShelfTitle>
-            </RecommendationShelfButton>
-          </RecommendationShelfRow>
-        ))}
-      </RecommendationShelfList>
+      <RecommendationShelfSections>
+        <RecommendationShelfSection>
+          <RecommendationShelfSectionHeader>
+            <RecommendationShelfSectionTitle>
+              结果模板
+            </RecommendationShelfSectionTitle>
+            <RecommendationShelfSectionDescription>
+              先选你想拿到什么结果，再按需要补充快捷做法；首页默认先把最常用的结果放前面。
+            </RecommendationShelfSectionDescription>
+          </RecommendationShelfSectionHeader>
+
+          {primaryRecommendationItems.length > 0 ? (
+            <RecommendationShelfSubsection>
+              <RecommendationShelfSubsectionHeader>
+                <RecommendationShelfSubsectionTitle>
+                  首选结果
+                </RecommendationShelfSubsectionTitle>
+                <RecommendationShelfSubsectionDescription>
+                  默认先看这里，适合直接开工。
+                </RecommendationShelfSubsectionDescription>
+              </RecommendationShelfSubsectionHeader>
+
+              <RecommendationShelfPrimaryGrid>
+                {primaryRecommendationItems.map((item) => (
+                  <RecommendationShelfPrimaryCard
+                    key={item.key}
+                    type="button"
+                    data-testid={item.testId}
+                    title={`${item.badge} · ${item.summary} · ${item.meta}`}
+                    onClick={() => {
+                      item.onSelect();
+                    }}
+                  >
+                    <RecommendationShelfPrimaryCardTop>
+                      <RecommendationShelfPrimaryCardTitle>
+                        {item.title}
+                      </RecommendationShelfPrimaryCardTitle>
+                      <RecommendationShelfInlineBadge>
+                        {item.badge}
+                      </RecommendationShelfInlineBadge>
+                    </RecommendationShelfPrimaryCardTop>
+                    <RecommendationShelfPrimaryCardSummary>
+                      {item.summary}
+                    </RecommendationShelfPrimaryCardSummary>
+                    <RecommendationShelfPrimaryCardMeta>
+                      {item.meta}
+                    </RecommendationShelfPrimaryCardMeta>
+                  </RecommendationShelfPrimaryCard>
+                ))}
+              </RecommendationShelfPrimaryGrid>
+            </RecommendationShelfSubsection>
+          ) : null}
+
+          {secondaryRecommendationItems.length > 0 ? (
+            <RecommendationShelfSubsection>
+              <RecommendationShelfSubsectionHeader>
+                <RecommendationShelfSubsectionTitle>
+                  更多结果
+                </RecommendationShelfSubsectionTitle>
+                <RecommendationShelfSubsectionDescription>
+                  需要更具体的起手结果时，再从这里继续选。
+                </RecommendationShelfSubsectionDescription>
+              </RecommendationShelfSubsectionHeader>
+
+              <RecommendationShelfList>
+                {secondaryRecommendationItems.map((item, index) => (
+                  <RecommendationShelfRow key={item.key}>
+                    {index > 0 ? (
+                      <RecommendationShelfHint aria-hidden="true">
+                        |
+                      </RecommendationShelfHint>
+                    ) : null}
+                    <RecommendationShelfButton
+                      type="button"
+                      data-testid={item.testId}
+                      title={`${item.badge} · ${item.summary} · ${item.meta}`}
+                      onClick={() => {
+                        item.onSelect();
+                      }}
+                    >
+                      <RecommendationShelfTitleRow>
+                        <RecommendationShelfTitle>{item.title}</RecommendationShelfTitle>
+                        <RecommendationShelfInlineBadge>
+                          {item.badge}
+                        </RecommendationShelfInlineBadge>
+                      </RecommendationShelfTitleRow>
+                      <RecommendationShelfMeta>{item.meta}</RecommendationShelfMeta>
+                    </RecommendationShelfButton>
+                  </RecommendationShelfRow>
+                ))}
+              </RecommendationShelfList>
+            </RecommendationShelfSubsection>
+          ) : null}
+
+          {recommendationServiceSkillItems.length > 0 ? (
+            <RecommendationShelfSubsection>
+              <RecommendationShelfSubsectionHeader>
+                <RecommendationShelfSubsectionTitle>
+                  快捷做法
+                </RecommendationShelfSubsectionTitle>
+                <RecommendationShelfSubsectionDescription>
+                  已经有现成做法时，可以直接走捷径，不必重选结果模板。
+                </RecommendationShelfSubsectionDescription>
+              </RecommendationShelfSubsectionHeader>
+
+              <RecommendationShelfList>
+                {recommendationServiceSkillItems.map((item, index) => (
+                  <RecommendationShelfRow key={item.key}>
+                    {index > 0 ? (
+                      <RecommendationShelfHint aria-hidden="true">
+                        |
+                      </RecommendationShelfHint>
+                    ) : null}
+                    <RecommendationShelfButton
+                      type="button"
+                      data-testid={item.testId}
+                      title={`${item.badge} · ${item.summary} · ${item.meta}`}
+                      onClick={() => {
+                        item.onSelect();
+                      }}
+                    >
+                      <RecommendationShelfTitleRow>
+                        <RecommendationShelfTitle>{item.title}</RecommendationShelfTitle>
+                        <RecommendationShelfInlineBadge>
+                          {item.badge}
+                        </RecommendationShelfInlineBadge>
+                      </RecommendationShelfTitleRow>
+                      <RecommendationShelfMeta>{item.meta}</RecommendationShelfMeta>
+                    </RecommendationShelfButton>
+                  </RecommendationShelfRow>
+                ))}
+              </RecommendationShelfList>
+            </RecommendationShelfSubsection>
+          ) : null}
+        </RecommendationShelfSection>
+
+        <RecommendationShelfSectionDivider aria-hidden="true" />
+
+        <RecommendationShelfSection>
+          <RecommendationShelfSectionHeader>
+            <RecommendationShelfSectionTitle>
+              继续上次做法
+            </RecommendationShelfSectionTitle>
+            <RecommendationShelfSectionDescription>
+              {continuationShelfItems.length > 0
+                ? "最近跑通过的结果模板和常用做法会留在这里，这次可以直接续上。"
+                : "最近跑通过的结果模板和常用做法会留在这里，下一次不用重新开始。"}
+            </RecommendationShelfSectionDescription>
+          </RecommendationShelfSectionHeader>
+
+          {continuationShelfItems.length > 0 ? (
+            <RecommendationShelfList>
+              {continuationShelfItems.map((item, index) => (
+                <RecommendationShelfRow key={item.key}>
+                  {index > 0 ? (
+                    <RecommendationShelfHint aria-hidden="true">
+                      |
+                    </RecommendationShelfHint>
+                  ) : null}
+                  <RecommendationShelfButton
+                    type="button"
+                    data-testid={item.testId}
+                    title={`${item.badge} · ${item.summary}`}
+                    onClick={() => {
+                      item.onSelect();
+                    }}
+                  >
+                    <RecommendationShelfBadge>
+                      {item.badge}
+                    </RecommendationShelfBadge>
+                    <RecommendationShelfTitle>
+                      {item.title}
+                    </RecommendationShelfTitle>
+                    <RecommendationShelfMeta>{item.summary}</RecommendationShelfMeta>
+                  </RecommendationShelfButton>
+                </RecommendationShelfRow>
+              ))}
+            </RecommendationShelfList>
+          ) : (
+            <RecommendationShelfEmptyState>
+              你最近跑通过的结果模板和方法，会出现在这里。
+            </RecommendationShelfEmptyState>
+          )}
+        </RecommendationShelfSection>
+      </RecommendationShelfSections>
+
+      <RecommendationShelfRouteHint data-testid="entry-result-destination-hint">
+        <RecommendationShelfRouteLabel>结果去向</RecommendationShelfRouteLabel>
+        {projectId
+          ? "本轮产出会沉淀到当前项目；跑通过的方法会回到“继续上次做法”；参考与反馈会继续影响下一轮推荐。"
+          : "本轮产出会沉淀到当前任务；跑通过的方法会回到“继续上次做法”；参考与反馈会继续影响下一轮推荐。"}
+      </RecommendationShelfRouteHint>
     </RecommendationShelf>
   );
 
-  const generalSceneAppsPanel = (
+  const generalSceneAppsPanel = shouldShowSceneAppsPanel ? (
     <EmptyStateSceneAppsPanel
       items={featuredSceneApps}
       loading={sceneAppsLoading}
@@ -1223,55 +1733,56 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       onResumeRecentSceneApp={onResumeRecentSceneApp}
       onOpenSceneAppsDirectory={onOpenSceneAppsDirectory}
     />
-  );
+  ) : null;
 
-  const generalContinuationPanel = (
+  const shouldShowCapabilitySummaryPanel =
+    showCapabilityCards ||
+    Boolean(onLaunchBrowserAssist) ||
+    hasAutoLaunchSiteSkill ||
+    hasReusableMethodContinuation;
+
+  const generalCapabilitySummaryPanel = (
     <RecommendationShelf>
       <RecommendationShelfHeader>
         <RecommendationShelfHeaderBody>
           <RecommendationShelfHeaderTitle>
-            继续上次做法
+            支撑能力
           </RecommendationShelfHeaderTitle>
           <RecommendationShelfHeaderDescription>
-            {continuationShelfItems.length > 0
-              ? "最近跑通过的结果模板和常用做法会留在这里，这次可以直接续上。"
-              : "最近跑通过的结果模板和常用做法会留在这里，下一次不用重新开始。"}
+            当前已有 {methodSummaryLabel}
+            ；持续流程、任务拆分和浏览器接入会按需要自动挂上，你不用先选能力。
           </RecommendationShelfHeaderDescription>
         </RecommendationShelfHeaderBody>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {onLaunchBrowserAssist ? (
+            <button
+              type="button"
+              data-testid="entry-connect-browser"
+              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+              onClick={() => {
+                void onLaunchBrowserAssist();
+              }}
+            >
+              连接浏览器
+            </button>
+          ) : null}
+          <button
+            type="button"
+            data-testid="entry-capability-toggle"
+            className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-900"
+            onClick={() => {
+              setShowCapabilityCards((previous) => !previous);
+            }}
+          >
+            {showCapabilityCards ? "收起支撑能力" : "查看支撑能力"}
+          </button>
+        </div>
       </RecommendationShelfHeader>
-
-      {continuationShelfItems.length > 0 ? (
-        <RecommendationShelfList>
-          {continuationShelfItems.map((item, index) => (
-            <RecommendationShelfRow key={item.key}>
-              {index > 0 ? (
-                <RecommendationShelfHint aria-hidden="true">
-                  |
-                </RecommendationShelfHint>
-              ) : null}
-              <RecommendationShelfButton
-                type="button"
-                data-testid={item.testId}
-                title={`${item.badge} · ${item.summary}`}
-                onClick={() => {
-                  item.onSelect();
-                }}
-              >
-                <RecommendationShelfBadge>
-                  {item.badge}
-                </RecommendationShelfBadge>
-                <RecommendationShelfTitle>
-                  {item.title}
-                </RecommendationShelfTitle>
-              </RecommendationShelfButton>
-            </RecommendationShelfRow>
-          ))}
-        </RecommendationShelfList>
-      ) : (
-        <RecommendationShelfEmptyState>
-          你最近跑通过的结果模板和方法，会出现在这里。
-        </RecommendationShelfEmptyState>
-      )}
+      <RecommendationShelfEmptyState>
+        {showCapabilityCards
+          ? "下方已展开当前会自动接入的能力说明。"
+          : "默认先聚焦结果入口，只有在你想确认能力边界时再展开。"}
+      </RecommendationShelfEmptyState>
     </RecommendationShelf>
   );
 
@@ -1323,14 +1834,16 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           description={workbenchCopy.description}
           supportingDescription={workbenchCopy.supportingDescription}
           badges={workspaceBadges}
-          cards={workspaceCards}
+          cards={isGeneralTheme && !showCapabilityCards ? [] : workspaceCards}
           prioritySlot={composerPanel}
           supportingSlot={
             isGeneralTheme ? (
               <>
+                {generalResultShelfPanel}
                 {generalSceneAppsPanel}
-                {generalContinuationPanel}
-                {generalRecommendedSolutionsPanel}
+                {shouldShowCapabilitySummaryPanel
+                  ? generalCapabilitySummaryPanel
+                  : null}
               </>
             ) : (
               defaultQuickActionsPanel
@@ -1339,6 +1852,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           headerControls={headerControls}
         />
       </ContentWrapper>
+      <CuratedTaskLauncherDialog
+        open={Boolean(curatedTaskLauncherTask)}
+        task={curatedTaskLauncherTask}
+        initialInputValues={curatedTaskLauncherInitialInputValues}
+        initialReferenceMemoryIds={curatedTaskLauncherInitialReferenceMemoryIds}
+        initialReferenceEntries={curatedTaskLauncherInitialReferenceEntries}
+        onOpenChange={handleCuratedTaskLauncherOpenChange}
+        onConfirm={handleApplyCuratedTaskTemplate}
+      />
     </PageContainer>
   );
 };

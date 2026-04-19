@@ -95,6 +95,9 @@ const WORKFLOW_TASK_SUMMARY_CLASSNAME =
 const WORKFLOW_TASK_SUMMARY_PILL_CLASSNAME =
   "inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500";
 
+const WORKFLOW_RESULT_HANDOFF_HINT_CLASSNAME =
+  "mt-2 rounded-[12px] border border-slate-200/80 bg-white/90 px-3 py-2";
+
 const TOGGLE_BUTTON_CLASSNAME =
   "inline-flex items-center text-slate-500 transition-colors hover:text-slate-900";
 
@@ -411,31 +414,31 @@ function getWorkflowStepIconClassName(status: StepStatus) {
 
 function getBranchStatusText(status: TopicBranchStatus): string {
   if (status === "in_progress") return "进行中";
-  if (status === "pending") return "待评审";
-  if (status === "merged") return "已合并";
-  return "备选";
+  if (status === "pending") return "稍后再看";
+  if (status === "merged") return "已收进主稿";
+  return "候选";
 }
 
 function getBranchSectionTitle(isVersionMode: boolean): string {
-  return isVersionMode ? "相关版本" : "相关分支";
+  return isVersionMode ? "可继续版本" : "可继续稿件";
 }
 
 function getBranchCreateLabel(isVersionMode: boolean): string {
-  return isVersionMode ? "新增版本" : "新增分支";
+  return isVersionMode ? "留一版" : "留一稿";
 }
 
 function getBranchPrimaryActionLabel(isVersionMode: boolean): string {
-  return isVersionMode ? "设为主稿" : "采纳";
+  return isVersionMode ? "设为主稿" : "收进主稿";
 }
 
 function getBranchSecondaryActionLabel(isVersionMode: boolean): string {
-  return isVersionMode ? "待评审" : "待决策";
+  return isVersionMode ? "稍后再看" : "稍后再看";
 }
 
 function getEmptyBranchText(isVersionMode: boolean): string {
   return isVersionMode
-    ? "暂无相关版本，当前任务还没有沉淀出可切换记录"
-    : "暂无相关分支，当前任务还在主线上推进";
+    ? "还没有可继续的版本，当前内容仍在主线上推进。"
+    : "还没有可继续的稿件，当前内容仍在主线上推进。";
 }
 
 function getBranchMetaText(
@@ -444,23 +447,21 @@ function getBranchMetaText(
 ): string {
   if (item.isCurrent) {
     return isVersionMode
-      ? "当前任务正在围绕这一版内容继续推进"
-      : "当前任务正在围绕这条分支继续推进";
+      ? "当前正在沿着这一版内容继续打磨"
+      : "当前正在沿着这一稿继续打磨";
   }
   if (item.status === "merged") {
-    return isVersionMode ? "这版内容已经收进主稿" : "这条分支已经并入主稿";
+    return isVersionMode ? "这版内容已经收进主稿" : "这一稿已经收进主稿";
   }
   if (item.status === "pending") {
-    return isVersionMode
-      ? "等待评审后再决定是否继续推进"
-      : "等待决策后再决定是否继续推进";
+    return "先保留下来，稍后再决定是否继续推进";
   }
   if (item.status === "candidate") {
-    return isVersionMode ? "保留为可回看的候选版本" : "保留为可回看的候选分支";
+    return isVersionMode ? "保留为可回看的候选版本" : "保留为可回看的候选稿件";
   }
   return isVersionMode
-    ? "记录一版正在推进中的内容"
-    : "记录一条正在推进中的相关分支";
+    ? "记录一版仍在推进中的内容"
+    : "记录一稿仍在推进中的内容";
 }
 
 function buildBranchSectionSummaryText(params: {
@@ -469,16 +470,15 @@ function buildBranchSectionSummaryText(params: {
   isVersionMode: boolean;
 }): string {
   const { currentBranch, relatedCount, isVersionMode } = params;
-  const recordLabel = isVersionMode ? "版本" : "分支";
   if (!currentBranch) {
     return isVersionMode
-      ? "当前任务还没有沉淀出相关版本记录"
-      : "当前任务还没有拆出相关分支记录";
+      ? "当前还没有沉淀出可继续的版本。"
+      : "当前还没有沉淀出可继续的稿件。";
   }
   if (relatedCount <= 0) {
-    return `当前焦点落在「${currentBranch.title}」，目前只保留这一条${recordLabel}记录。`;
+    return `当前焦点落在「${currentBranch.title}」，目前只保留这一${isVersionMode ? "版" : "稿"}可继续打磨。`;
   }
-  return `当前焦点落在「${currentBranch.title}」，另有 ${relatedCount} 条${recordLabel}记录可在需要时展开查看。`;
+  return `当前焦点落在「${currentBranch.title}」，另有 ${relatedCount} ${isVersionMode ? "个可继续版本" : "个可继续稿件"}可在需要时切换。`;
 }
 
 function buildCreationTaskSectionSummary(params: {
@@ -491,8 +491,8 @@ function buildCreationTaskSectionSummary(params: {
   const { groups, totalCount } = params;
   if (totalCount <= 0 || groups.length === 0) {
     return {
-      title: "最近还没有新的任务记录",
-      meta: "后续生成的任务文件会按类型归档在这里。",
+      title: "最近还没有新的产出记录",
+      meta: "后续生成的任务文件与结果索引会按类型留在这里。",
     };
   }
 
@@ -500,12 +500,21 @@ function buildCreationTaskSectionSummary(params: {
   const latestTime = latestGroup.latestTimeLabel || "最近";
   return {
     title: `最近一次：${latestGroup.label}`,
-    meta: `${latestTime} · 共 ${totalCount} 条任务记录，按 ${groups.length} 类归档。`,
+    meta: `${latestTime} · 共 ${totalCount} 条产出记录，按 ${groups.length} 类归档。`,
   };
 }
 
 function formatCreationTaskCountLabel(count: number): string {
   return `${count} 条记录`;
+}
+
+function buildWorkflowResultHandoffText(params: {
+  branchSectionTitle: string;
+  hasRecordedOutputs: boolean;
+}): string {
+  const { branchSectionTitle, hasRecordedOutputs } = params;
+  const recordVerb = hasRecordedOutputs ? "会继续收进" : "会收进";
+  return `主稿、任务文件和运行产物${recordVerb}下方“产出记录 / 执行经过”；需要继续改写时，可从${branchSectionTitle}或首页“继续上次做法”接着跑。`;
 }
 
 function getCreationTaskTitle(path: string): string {
@@ -660,7 +669,7 @@ function buildActivitySectionSummary(params: {
   const { groups, activeRunDetail } = params;
   if (groups.length === 0) {
     return {
-      title: "最近还没有过程记录",
+      title: "最近还没有执行经过",
       meta: "技能调用、工具步骤与运行详情会按组收纳在这里。",
     };
   }
@@ -687,7 +696,7 @@ function buildActivitySectionSummary(params: {
   ].filter(Boolean);
 
   return {
-    title: `最近一组：${primaryLog?.name || "过程记录"}`,
+    title: `最近一组：${primaryLog?.name || "执行经过"}`,
     meta: metaParts.join(" · "),
   };
 }
@@ -723,7 +732,7 @@ function renderActivityLogItem(
           {formatActivityStatusLabel(group.status)}
         </div>
         <ActivityLogTitleBlock>
-          <ActivityLogTitle>{primaryLog?.name || "过程记录"}</ActivityLogTitle>
+          <ActivityLogTitle>{primaryLog?.name || "执行经过"}</ActivityLogTitle>
           <ActivityLogMetaRow>
             {sourceLabel ? <ActivityLogBadge>{sourceLabel}</ActivityLogBadge> : null}
             {gateLabel ? <ActivityLogBadge>{gateLabel}</ActivityLogBadge> : null}
@@ -911,6 +920,13 @@ function GeneralWorkbenchWorkflowPanelComponent({
     groups: groupedCreationTaskEvents,
     totalCount: creationTaskEventsCount,
   });
+  const workflowResultHandoffText = buildWorkflowResultHandoffText({
+    branchSectionTitle,
+    hasRecordedOutputs:
+      creationTaskEventsCount > 0 ||
+      groupedActivityLogs.length > 0 ||
+      runMetadataSummary.artifactPaths.length > 0,
+  });
   const activitySectionSummary = buildActivitySectionSummary({
     groups: groupedActivityLogs,
     activeRunDetail,
@@ -923,7 +939,7 @@ function GeneralWorkbenchWorkflowPanelComponent({
         data-testid="workflow-sidebar-task-section"
       >
         <div className={WORKFLOW_SECTION_TITLE_CLASSNAME}>
-          <span>任务视图</span>
+          <span>当前进展</span>
           <span className={WORKFLOW_SECTION_BADGE_CLASSNAME}>
             {remainingSteps}
           </span>
@@ -987,6 +1003,17 @@ function GeneralWorkbenchWorkflowPanelComponent({
                   </span>
                   {Math.max(0, Math.min(100, Math.round(progressPercent)))}%
                 </span>
+              </div>
+              <div
+                className={WORKFLOW_RESULT_HANDOFF_HINT_CLASSNAME}
+                data-testid="workflow-sidebar-result-destination-hint"
+              >
+                <div className="text-[10px] font-semibold text-slate-500">
+                  结果去向
+                </div>
+                <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                  {workflowResultHandoffText}
+                </div>
               </div>
             </div>
           </div>
@@ -1059,7 +1086,7 @@ function GeneralWorkbenchWorkflowPanelComponent({
             </span>
             <button
               type="button"
-              aria-label="切换相关记录"
+              aria-label="切换可继续记录"
               className={TOGGLE_BUTTON_CLASSNAME}
               onClick={onToggleBranchRecords}
             >
@@ -1156,7 +1183,7 @@ function GeneralWorkbenchWorkflowPanelComponent({
                             </TinyButton>
                           </ActionRow>
                         ) : (
-                          <BranchHint>切换为当前焦点后再继续处理这条记录</BranchHint>
+                          <BranchHint>切到当前焦点后再继续处理这一条记录</BranchHint>
                         )}
                       </div>
                     </BranchHead>
@@ -1170,14 +1197,14 @@ function GeneralWorkbenchWorkflowPanelComponent({
 
       <section className={WORKFLOW_SECTION_CLASSNAME}>
         <div className={WORKFLOW_SECTION_TITLE_CLASSNAME}>
-          <span>任务记录</span>
+          <span>产出记录</span>
           <span className="inline-flex items-center gap-1.5">
             <span className={WORKFLOW_SECTION_BADGE_CLASSNAME}>
               {creationTaskEventsCount}
             </span>
             <button
               type="button"
-              aria-label="切换任务提交记录"
+              aria-label="切换产出记录"
               className={TOGGLE_BUTTON_CLASSNAME}
               onClick={onToggleCreationTasks}
             >
@@ -1200,7 +1227,7 @@ function GeneralWorkbenchWorkflowPanelComponent({
         {showCreationTasks ? (
           <ActivityList className="custom-scrollbar">
             {groupedCreationTaskEvents.length === 0 ? (
-              <ActivityMeta>最近还没有新的任务记录</ActivityMeta>
+              <ActivityMeta>最近还没有新的产出记录</ActivityMeta>
             ) : (
               groupedCreationTaskEvents.map((group) => (
                 <CreationTaskGroupCard key={`creation-task-${group.key}`}>
@@ -1250,14 +1277,14 @@ function GeneralWorkbenchWorkflowPanelComponent({
 
       <section className={WORKFLOW_SECTION_CLASSNAME}>
         <div className={WORKFLOW_SECTION_TITLE_CLASSNAME}>
-          <span>过程记录</span>
+          <span>执行经过</span>
           <span className="inline-flex items-center gap-1.5">
             <span className={WORKFLOW_SECTION_BADGE_CLASSNAME}>
               {groupedActivityLogs.length}
             </span>
             <button
               type="button"
-              aria-label="切换活动日志"
+              aria-label="切换执行经过"
               className={TOGGLE_BUTTON_CLASSNAME}
               onClick={onToggleActivityLogs}
             >
@@ -1281,7 +1308,7 @@ function GeneralWorkbenchWorkflowPanelComponent({
           <>
             <ActivityList className="custom-scrollbar">
               {groupedActivityLogs.length === 0 ? (
-                <ActivityMeta>最近还没有过程记录</ActivityMeta>
+                <ActivityMeta>最近还没有执行经过</ActivityMeta>
               ) : (
                 groupedActivityLogs.map((group) =>
                   renderActivityLogItem(

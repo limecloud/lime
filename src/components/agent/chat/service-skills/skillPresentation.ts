@@ -1,3 +1,4 @@
+import { resolveServiceSkillEntryDescription } from "./entryAdapter";
 import { isServiceSkillExecutableAsSiteAdapter } from "./siteCapabilityBinding";
 import type {
   ServiceSkillHomeItem,
@@ -37,6 +38,13 @@ const SERVICE_SKILL_TYPE_LABELS: Record<ServiceSkillType, string> = {
   prompt: "提示技能",
 };
 
+interface BuildServiceSkillCapabilityDescriptionOptions {
+  includeSummary?: boolean;
+  includeRequiredInputs?: boolean;
+  includeOutputHint?: boolean;
+  requiredInputsLimit?: number;
+}
+
 function uniqueStrings(values: string[]): string[] {
   return Array.from(
     new Set(
@@ -49,6 +57,22 @@ function hasRequiredSlots(
   item: Pick<ServiceSkillItem, "slotSchema">,
 ): boolean {
   return item.slotSchema.some((slot) => slot.required);
+}
+
+function summarizeServiceSkillFactItems(
+  items: string[],
+  limit = 2,
+): string {
+  const normalizedItems = uniqueStrings(items);
+  if (normalizedItems.length === 0) {
+    return "";
+  }
+
+  if (normalizedItems.length <= limit) {
+    return normalizedItems.join("、");
+  }
+
+  return `${normalizedItems.slice(0, limit).join("、")} 等 ${normalizedItems.length} 项`;
 }
 
 function readServiceSkillBundleMetadata(
@@ -107,6 +131,47 @@ export function resolveServiceSkillType(
 
 export function getServiceSkillTypeLabel(item: ServiceSkillItem): string {
   return SERVICE_SKILL_TYPE_LABELS[resolveServiceSkillType(item)];
+}
+
+export function summarizeServiceSkillRequiredInputs(
+  item: Pick<ServiceSkillItem, "slotSchema">,
+  limit = 2,
+): string {
+  const requiredInputLabels = item.slotSchema
+    .filter((slot) => slot.required)
+    .map((slot) => slot.label);
+
+  if (requiredInputLabels.length === 0) {
+    return "当前无必填信息";
+  }
+
+  return summarizeServiceSkillFactItems(requiredInputLabels, limit);
+}
+
+export function buildServiceSkillCapabilityDescription(
+  item: Pick<ServiceSkillItem, "entryHint" | "summary" | "slotSchema" | "outputHint">,
+  options: BuildServiceSkillCapabilityDescriptionOptions = {},
+): string {
+  const segments: string[] = [];
+
+  if (options.includeSummary ?? true) {
+    segments.push(resolveServiceSkillEntryDescription(item));
+  }
+
+  if (options.includeRequiredInputs ?? true) {
+    segments.push(
+      `需要：${summarizeServiceSkillRequiredInputs(
+        item,
+        options.requiredInputsLimit,
+      )}`,
+    );
+  }
+
+  if (options.includeOutputHint ?? true) {
+    segments.push(`交付：${item.outputHint.trim()}`);
+  }
+
+  return segments.join(" · ");
 }
 
 export function getServiceSkillRunnerLabel(item: ServiceSkillItem): string {

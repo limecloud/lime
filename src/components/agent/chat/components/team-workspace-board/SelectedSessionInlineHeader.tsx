@@ -103,7 +103,7 @@ export function SelectedSessionInlineHeader({
               variant="outline"
               onClick={() => void onOpenSelectedSession?.()}
             >
-              {isChildSession ? "切换任务" : "打开任务"}
+              {isChildSession ? "切换进展" : "打开进展"}
             </Button>
           ) : null}
         </div>

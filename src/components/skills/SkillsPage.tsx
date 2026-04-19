@@ -540,7 +540,7 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
         </section>
 
         {error && (
-          <div className="rounded-[22px] border border-red-200 bg-red-50/90 p-4 text-red-700 shadow-sm dark:bg-red-950/30">
+          <div className="rounded-[22px] border border-red-200 bg-red-50/90 p-4 text-red-700 shadow-sm">
             {error}
           </div>
         )}

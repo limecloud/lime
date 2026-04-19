@@ -2486,8 +2486,7 @@
         "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
         "src/components/agent/chat/components/Inputbar/components/BuiltinCommandBadge.tsx",
         "src/components/agent/chat/components/Inputbar/components/TeamSelector.tsx",
-        "src/components/smart-input/ChatInput.tsx",
-        "src/components/workspace/video/PromptInput.tsx"
+        "src/components/smart-input/ChatInput.tsx"
       ],
       "allowedPaths": []
     },
@@ -2552,15 +2551,14 @@
     {
       "id": "skill-selection-direct-construction-runtime-usage",
       "classification": "dead-candidate",
-      "description": "运行时代码不允许绕过 useActiveSkill 直接构造 createSkillSelectionProps，必须收敛到共享激活态边界",
+      "description": "运行时代码不允许绕过共享绑定边界直接构造 createSkillSelectionProps，必须收敛到 skillSelectionBindings",
       "patterns": ["createSkillSelectionProps("],
       "includePathPrefixes": [
         "src/components/agent/chat/components",
         "src/components/agent/chat/skill-selection"
       ],
       "allowedPaths": [
-        "src/components/agent/chat/skill-selection/skillSelectionBindings.ts",
-        "src/components/agent/chat/skill-selection/useActiveSkill.ts"
+        "src/components/agent/chat/skill-selection/skillSelectionBindings.ts"
       ]
     },
     {

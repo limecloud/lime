@@ -226,13 +226,11 @@
 
 ### `compat`
 
-- `docs/roadmap/lime-conversation-execution-efficiency-roadmap.md`
 - `docs/roadmap/lime-aster-codex-alignment-roadmap.md`
-- `docs/roadmap/lime-aster-codex-state-model-implementation-plan.md`
 - `src-tauri/src/commands/persona_cmd.rs::generate_persona`
 - `src-tauri/src/commands/theme_context_cmd.rs::aster_agent_theme_context_search`
 
-这些文档与专用命令仍可保留各自职责，但不再承担 Query Loop 唯一事实源职责。
+这份历史档案与专用命令仍可保留各自职责，但不再承担 Query Loop 唯一事实源职责。
 这两条命令属于专用一次性会话能力：允许显式拼自己的临时 `SessionConfig`，但不能参与 submit turn、runtime queue、turn context snapshot 或 evidence 真相定义。
 当前命令层允许保留的原始执行面只剩这 3 处：`action_runtime` 属于 current 恢复链，`persona_cmd` 与 `theme_context_cmd` 属于受控 compat 一次性命令。
 

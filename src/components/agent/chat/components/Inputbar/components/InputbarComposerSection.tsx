@@ -10,7 +10,6 @@ import type { MessageImage } from "../../../types";
 import { CharacterMention } from "../../../skill-selection/CharacterMention";
 import { InputbarCore } from "./InputbarCore";
 import { SkillSelector } from "../../../skill-selection/SkillSelector";
-import type { BuiltinInputCommand } from "../../../skill-selection/builtinCommands";
 import { TeamSelector } from "./TeamSelector";
 import { InputbarWorkflowStatusPanel } from "./InputbarWorkflowStatusPanel";
 import { InputbarModelExtra } from "./InputbarModelExtra";
@@ -24,7 +23,12 @@ import {
   buildSkillSelectionBindings,
   type SkillSelectionProps,
 } from "../../../skill-selection/skillSelectionBindings";
+import type {
+  InputCapabilitySelection,
+  SelectInputCapabilityHandler,
+} from "../../../skill-selection/inputCapabilitySelection";
 import type { AgentAccessMode } from "../../../hooks/agentChatStorage";
+import type { CuratedTaskReferenceEntry } from "../../../utils/curatedTaskReferenceSelection";
 import type {
   WorkflowGateState,
   WorkflowQuickAction,
@@ -56,7 +60,10 @@ interface InputbarComposerSectionProps {
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   input: string;
   onSelectCharacter?: (character: Character) => void;
-  onSelectBuiltinCommand: (command: BuiltinInputCommand | null) => void;
+  onSelectInputCapability: SelectInputCapabilityHandler;
+  activeCapability?: InputCapabilitySelection | null;
+  defaultCuratedTaskReferenceMemoryIds?: string[];
+  defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
   selectedTeam?: TeamDefinition | null;
   onSelectTeam?: (team: TeamDefinition | null) => void;
   teamWorkspaceSettings?: WorkspaceSettings | null;
@@ -104,7 +111,10 @@ export const InputbarComposerSection: React.FC<
   textareaRef,
   input,
   onSelectCharacter,
-  onSelectBuiltinCommand,
+  onSelectInputCapability,
+  activeCapability,
+  defaultCuratedTaskReferenceMemoryIds = [],
+  defaultCuratedTaskReferenceEntries = [],
   selectedTeam,
   onSelectTeam,
   teamWorkspaceSettings,
@@ -331,7 +341,19 @@ export const InputbarComposerSection: React.FC<
         value={input}
         onChange={inputAdapter.actions.setText}
         onSelectCharacter={onSelectCharacter}
-        onSelectBuiltinCommand={onSelectBuiltinCommand}
+        onSelectInputCapability={onSelectInputCapability}
+        defaultCuratedTaskReferenceMemoryIds={
+          activeCapability?.kind === "curated_task"
+            ? activeCapability.referenceMemoryIds ||
+              defaultCuratedTaskReferenceMemoryIds
+            : defaultCuratedTaskReferenceMemoryIds
+        }
+        defaultCuratedTaskReferenceEntries={
+          activeCapability?.kind === "curated_task"
+            ? activeCapability.referenceEntries ||
+              defaultCuratedTaskReferenceEntries
+            : defaultCuratedTaskReferenceEntries
+        }
       />
       <InputbarCore
         textareaRef={textareaRef}

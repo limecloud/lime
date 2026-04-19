@@ -200,7 +200,7 @@
 
 ### `compat`
 
-- `docs/roadmap/lime-aster-codex-state-model-implementation-plan.md`
+- `docs/roadmap/lime-aster-codex-alignment-roadmap.md`
 - `docs/roadmap/reliability/README.md`
 - `docs/roadmap/reliability/*`
 - `src-tauri/src/commands/telemetry_cmd.rs`

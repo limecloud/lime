@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./docs/images/lime-claw-readme.png" alt="Lime Logo" width="180" />
+<img src="./docs/images/logo-v6.svg" alt="Lime Logo" width="180" />
 
 # Lime
 

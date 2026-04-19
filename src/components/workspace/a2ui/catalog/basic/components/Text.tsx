@@ -87,7 +87,7 @@ const A2UI_MARKDOWN_COMPONENTS: Components = {
     </blockquote>
   ),
   pre: ({ children }) => (
-    <pre className="m-0 overflow-x-auto rounded-xl border border-slate-200 bg-slate-950/95 p-3 text-[0.8125rem] text-slate-100">
+    <pre className="m-0 overflow-x-auto rounded-xl border border-sky-100 bg-[linear-gradient(180deg,rgba(248,255,254,0.98)_0%,rgba(255,255,255,0.98)_55%,rgba(240,249,255,0.96)_100%)] p-3 text-[0.8125rem] text-slate-700 shadow-sm shadow-sky-950/5">
       {children}
     </pre>
   ),

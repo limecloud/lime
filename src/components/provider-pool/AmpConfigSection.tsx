@@ -91,7 +91,7 @@ export function AmpConfigSection({
           className={`rounded-lg border p-3 text-sm flex items-center gap-2 ${
             message.type === "error"
               ? "border-destructive bg-destructive/10 text-destructive"
-              : "border-green-500 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+              : "border-green-500 bg-green-50 text-green-700"
           }`}
         >
           {message.type === "success" ? (
@@ -159,11 +159,11 @@ export function AmpConfigSection({
                   key={mapping.from}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 text-sm"
                 >
-                  <span className="font-mono text-xs bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded text-red-700 dark:text-red-400">
+                  <span className="rounded bg-red-100 px-2 py-0.5 font-mono text-xs text-red-700">
                     {mapping.from}
                   </span>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-mono text-xs bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded text-green-700 dark:text-green-400">
+                  <span className="rounded bg-green-100 px-2 py-0.5 font-mono text-xs text-green-700">
                     {mapping.to}
                   </span>
                   <button

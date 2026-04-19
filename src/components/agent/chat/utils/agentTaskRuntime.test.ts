@@ -193,7 +193,7 @@ describe("agentTaskRuntime", () => {
         {
           id: "msg-assistant-1",
           role: "assistant",
-          content: "已经定位到主问题，并完成前端任务视图补齐。",
+          content: "已经定位到主问题，并完成前端当前进展补齐。",
           timestamp: new Date("2026-04-14T10:00:08.000Z"),
           usage: {
             input_tokens: 1200,

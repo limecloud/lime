@@ -159,7 +159,7 @@ const CONTEXT_DETAIL_SOURCE_ITEM_CLASSNAME =
   "flex items-center gap-1.5 text-[11px] text-sky-700 hover:underline";
 
 const CONTEXT_MODAL_OVERLAY_CLASSNAME =
-  "fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 p-6 backdrop-blur-sm";
+  "fixed inset-0 z-[70] flex items-center justify-center bg-[linear-gradient(180deg,rgba(240,249,255,0.82)_0%,rgba(236,253,245,0.74)_52%,rgba(255,255,255,0.86)_100%)] p-6 backdrop-blur-[2px]";
 
 const CONTEXT_MODAL_CARD_CLASSNAME =
   "w-[min(500px,calc(100vw-48px))] overflow-hidden rounded-[20px] border border-slate-200/80 bg-white shadow-[0_24px_48px_rgba(15,23,42,0.22)]";

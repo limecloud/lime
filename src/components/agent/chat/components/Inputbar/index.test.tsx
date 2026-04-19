@@ -6,6 +6,9 @@ import { Inputbar } from "./index";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
+import type { BuiltinInputCommand, RuntimeSceneSlashCommand } from "../../skill-selection/builtinCommands";
+import type { InputCapabilitySelection } from "../../skill-selection/inputCapabilitySelection";
+import { buildCuratedTaskLaunchPrompt } from "../../utils/curatedTaskTemplates";
 
 const mockCharacterMention =
   vi.fn<
@@ -13,7 +16,20 @@ const mockCharacterMention =
       characters?: Character[];
       skills?: Skill[];
       serviceSkills?: ServiceSkillHomeItem[];
+      onSelectInputCapability?: (
+        capability: InputCapabilitySelection,
+        options?: { replayText?: string },
+      ) => void;
       onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+      defaultCuratedTaskReferenceMemoryIds?: string[];
+      defaultCuratedTaskReferenceEntries?: Array<{
+        id: string;
+        title: string;
+        summary: string;
+        category: string;
+        categoryLabel: string;
+        tags: string[];
+      }>;
     }) => React.ReactNode
   >();
 const mockInputbarCore = vi.fn(
@@ -83,7 +99,20 @@ vi.mock("../../skill-selection/CharacterMention", () => ({
     characters?: Character[];
     skills?: Skill[];
     serviceSkills?: ServiceSkillHomeItem[];
+    onSelectInputCapability?: (
+      capability: InputCapabilitySelection,
+      options?: { replayText?: string },
+    ) => void;
     onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+    defaultCuratedTaskReferenceMemoryIds?: string[];
+    defaultCuratedTaskReferenceEntries?: Array<{
+      id: string;
+      title: string;
+      summary: string;
+      category: string;
+      categoryLabel: string;
+      tags: string[];
+    }>;
   }) => {
     mockCharacterMention(props);
     return <div data-testid="character-mention-stub" />;
@@ -94,36 +123,176 @@ vi.mock("../TaskFiles", () => ({
   TaskFileList: () => <div data-testid="task-file-list" />,
 }));
 
-vi.mock("../../skill-selection/useActiveSkill", () => ({
-  useActiveSkill: () => ({
-    activeSkill: null,
-    setActiveSkill: vi.fn(),
-    clearActiveSkill: vi.fn(),
-    buildSkillSelection: (source: {
-      skills?: Skill[];
-      serviceSkills?: ServiceSkillHomeItem[];
-      isSkillsLoading?: boolean;
-      onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
-      onNavigateToSettings?: () => void;
-      onImportSkill?: () => void | Promise<void>;
-      onRefreshSkills?: () => void | Promise<void>;
-    }) => ({
-      skills: source.skills ?? [],
-      serviceSkills: source.serviceSkills ?? [],
-      activeSkill: null,
-      isSkillsLoading: source.isSkillsLoading ?? false,
-      onSelectSkill: vi.fn(),
-      onSelectServiceSkill: source.onSelectServiceSkill,
-      onClearSkill: vi.fn(),
-      onNavigateToSettings: source.onNavigateToSettings,
-      onImportSkill: source.onImportSkill,
-      onRefreshSkills: source.onRefreshSkills,
-    }),
-  }),
-}));
-
 vi.mock("../../skill-selection/SkillBadge", () => ({
   SkillBadge: () => <div data-testid="skill-badge" />,
+}));
+
+vi.mock("../../skill-selection/CuratedTaskBadge", () => ({
+  CuratedTaskBadge: (props: {
+    onEdit?: () => void;
+    onClear?: () => void;
+  }) => (
+    <div data-testid="curated-task-badge">
+      <button
+        type="button"
+        data-testid="curated-task-badge-edit"
+        onClick={props.onEdit}
+      >
+        编辑
+      </button>
+      <button
+        type="button"
+        data-testid="curated-task-badge-clear"
+        onClick={props.onClear}
+      >
+        清除
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("../CuratedTaskLauncherDialog", () => ({
+  CuratedTaskLauncherDialog: (props: {
+    open: boolean;
+    task: {
+      id: string;
+      requiredInputFields: Array<{
+        key: string;
+        label: string;
+      }>;
+    } | null;
+    initialInputValues?: Record<string, string> | null;
+    initialReferenceMemoryIds?: string[] | null;
+    initialReferenceEntries?: Array<{
+      id: string;
+      title: string;
+      summary: string;
+      category: string;
+      categoryLabel: string;
+      tags: string[];
+    }> | null;
+    onOpenChange?: (open: boolean) => void;
+    onConfirm?: (
+      task: {
+        id: string;
+        requiredInputFields: Array<{
+          key: string;
+          label: string;
+        }>;
+      },
+      inputValues: Record<string, string>,
+      referenceSelection: {
+        referenceMemoryIds: string[];
+        referenceEntries: Array<{
+          id: string;
+          title: string;
+          summary: string;
+          category: string;
+          categoryLabel: string;
+          tags: string[];
+        }>;
+      },
+    ) => void;
+  }) => {
+    const [inputValues, setInputValues] = React.useState<Record<string, string>>(
+      {},
+    );
+    const [referenceMemoryIds, setReferenceMemoryIds] = React.useState<string[]>(
+      [],
+    );
+
+    React.useEffect(() => {
+      if (!props.open || !props.task) {
+        setInputValues({});
+        setReferenceMemoryIds([]);
+        return;
+      }
+
+      setInputValues(
+        Object.fromEntries(
+          props.task.requiredInputFields.map((field) => [
+            field.key,
+            String(props.initialInputValues?.[field.key] ?? ""),
+          ]),
+        ),
+      );
+      setReferenceMemoryIds(props.initialReferenceMemoryIds ?? []);
+    }, [
+      props.initialInputValues,
+      props.initialReferenceMemoryIds,
+      props.open,
+      props.task,
+    ]);
+
+    if (!props.open || !props.task) {
+      return null;
+    }
+
+    return (
+      <div data-testid="curated-task-launcher-dialog">
+        {props.task.requiredInputFields.map((field) => (
+          <label key={field.key}>
+            {field.label}
+            <input
+              data-testid={`curated-task-dialog-field-${field.key}`}
+              value={inputValues[field.key] ?? ""}
+              onChange={(event) =>
+                setInputValues((current) => ({
+                  ...current,
+                  [field.key]: event.target.value,
+                }))
+              }
+            />
+          </label>
+        ))}
+        <button
+          type="button"
+          data-testid="curated-task-dialog-reference-toggle"
+          onClick={() =>
+            setReferenceMemoryIds((current) =>
+              current.includes("memory-1") ? [] : ["memory-1"],
+            )
+          }
+        >
+          切换引用
+        </button>
+        <button
+          type="button"
+          data-testid="curated-task-dialog-confirm"
+          onClick={() =>
+            props.onConfirm?.(props.task!, inputValues, {
+              referenceMemoryIds,
+              referenceEntries: referenceMemoryIds.includes("memory-1")
+                ? [
+                    {
+                      id: "memory-1",
+                      title: "品牌风格样本",
+                      summary: "保留轻盈但专业的表达。",
+                      category: "context",
+                      categoryLabel: "参考",
+                      tags: ["品牌", "语气"],
+                    },
+                  ]
+                : [],
+            })
+          }
+        >
+          确认
+        </button>
+        <button
+          type="button"
+          data-testid="curated-task-dialog-close"
+          onClick={() => props.onOpenChange?.(false)}
+        >
+          关闭
+        </button>
+      </div>
+    );
+  },
+}));
+
+vi.mock("./components/RuntimeSceneBadge", () => ({
+  RuntimeSceneBadge: () => <div data-testid="runtime-scene-badge" />,
 }));
 
 vi.mock("./components/TeamSelector", () => ({
@@ -272,6 +441,26 @@ function expandAdvancedControls(container: HTMLDivElement) {
 
   return toggleButton;
 }
+
+function updateFieldValue(
+  element: HTMLInputElement | HTMLTextAreaElement | null,
+  value: string,
+) {
+  expect(element).toBeTruthy();
+  if (!element) {
+    return;
+  }
+
+  const prototype =
+    element instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  setter?.call(element, value);
+  element.dispatchEvent(new Event("input", { bubbles: true }));
+  element.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 describe("Inputbar", () => {
   it("即使角色和技能为空，也应挂载 CharacterMention", async () => {
     const { container } = renderInputbar();
@@ -290,6 +479,41 @@ describe("Inputbar", () => {
       ][0];
     expect(latestCall.characters).toEqual([]);
     expect(latestCall.skills).toEqual([]);
+  });
+
+  it("应把当前带入的灵感引用默认值透传给 CharacterMention", async () => {
+    renderInputbar({
+      defaultCuratedTaskReferenceMemoryIds: ["memory-1"],
+      defaultCuratedTaskReferenceEntries: [
+        {
+          id: "memory-1",
+          title: "品牌风格样本",
+          summary: "保留轻盈但专业的表达。",
+          category: "context",
+          categoryLabel: "参考",
+          tags: ["品牌", "语气"],
+        },
+      ],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ][0];
+
+    expect(latestCall.defaultCuratedTaskReferenceMemoryIds).toEqual([
+      "memory-1",
+    ]);
+    expect(latestCall.defaultCuratedTaskReferenceEntries).toEqual([
+      expect.objectContaining({
+        id: "memory-1",
+        title: "品牌风格样本",
+      }),
+    ]);
   });
 
   it("应将服务型技能目录与选择回调透传给 CharacterMention", async () => {
@@ -317,7 +541,871 @@ describe("Inputbar", () => {
       ][0];
 
     expect(latestCall.serviceSkills).toBe(serviceSkills);
-    expect(latestCall.onSelectServiceSkill).toBe(onSelectServiceSkill);
+    expect(latestCall.onSelectServiceSkill).toBeTypeOf("function");
+
+    await act(async () => {
+      latestCall.onSelectServiceSkill?.(serviceSkills[0] as ServiceSkillHomeItem);
+      await Promise.resolve();
+    });
+
+    expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkills[0]);
+  });
+
+  it("先选内建命令再选技能时，应以后一次 capability 为准发送", async () => {
+    const onSend = vi.fn();
+    const skill = {
+      key: "writer",
+      name: "写作助手",
+      description: "用于写作",
+      directory: "writer",
+      installed: true,
+      sourceKind: "builtin",
+    } as Skill;
+    renderInputbar({
+      input: "整理最近发布计划",
+      onSend,
+      activeTheme: "general",
+      skills: [skill],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const builtinCommand: BuiltinInputCommand = {
+      key: "research",
+      label: "搜索",
+      mentionLabel: "搜索",
+      commandPrefix: "@搜索",
+      description: "搜索资料",
+      aliases: [],
+    };
+    const firstCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+    expect(firstCall?.onSelectInputCapability).toBeTypeOf("function");
+
+    await act(async () => {
+      firstCall?.onSelectInputCapability?.({
+        kind: "builtin_command",
+        command: builtinCommand,
+      });
+      await Promise.resolve();
+    });
+
+    const secondCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+
+    await act(async () => {
+      secondCall?.onSelectInputCapability?.({
+        kind: "installed_skill",
+        skill,
+      });
+      await Promise.resolve();
+    });
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      {
+        capabilityRoute: {
+          kind: "installed_skill",
+          skillKey: "writer",
+          skillName: "写作助手",
+        },
+        displayContent: "整理最近发布计划",
+      },
+    );
+  });
+
+  it("带着初始已安装技能进入时，应恢复 capability badge 并继续按 route 发送", async () => {
+    const onSend = vi.fn();
+    const skill = {
+      key: "writer",
+      name: "写作助手",
+      description: "用于写作",
+      directory: "writer",
+      installed: true,
+      sourceKind: "builtin",
+    } as Skill;
+    renderInputbar({
+      input: "整理最近发布计划",
+      onSend,
+      activeTheme: "general",
+      skills: [skill],
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "installed_skill",
+          skillKey: "writer",
+          skillName: "写作助手",
+        },
+        requestKey: 20260418,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.querySelector('[data-testid="skill-badge"]')).toBeTruthy();
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      {
+        capabilityRoute: {
+          kind: "installed_skill",
+          skillKey: "writer",
+          skillName: "写作助手",
+        },
+        displayContent: "整理最近发布计划",
+      },
+    );
+  });
+
+  it("选择结果模板发送时，应透传 curated_task capability route", async () => {
+    const onSend = vi.fn();
+    renderInputbar({
+      input: "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构、核心观点和可继续扩写的角度，并给我一版适合继续打磨的正文。",
+      onSend,
+      activeTheme: "general",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+
+    await act(async () => {
+      latestCall?.onSelectInputCapability?.({
+        kind: "curated_task",
+        task: {
+          id: "social-post-starter",
+          title: "内容主稿生成",
+          summary: "生成一版可继续打磨的内容首稿。",
+          outputHint: "内容首稿 + 结构提纲",
+          categoryLabel: "内容起稿",
+          prompt:
+            "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构、核心观点和可继续扩写的角度，并给我一版适合继续打磨的正文。",
+          requiredInputs: ["主题或产品信息", "目标受众"],
+          requiredInputFields: [
+            {
+              key: "subject_or_product",
+              label: "主题或产品信息",
+              placeholder: "输入主题、产品、活动或你已经掌握的关键信息",
+              type: "textarea",
+            },
+            {
+              key: "target_audience",
+              label: "目标受众",
+              placeholder:
+                "例如 25-35 岁新消费品牌运营，或 正在找 AI 剪辑工具的创作者",
+              type: "text",
+            },
+          ],
+          optionalReferences: ["品牌语气", "参考案例或灵感图片"],
+          outputContract: ["内容首稿", "结构提纲", "可继续扩写角度"],
+          followUpActions: ["改成多平台版本", "转成口播/字幕稿"],
+          badge: "结果模板",
+          actionLabel: "进入生成",
+          statusLabel: "可直接开始",
+          statusTone: "emerald",
+          recentUsedAt: null,
+          isRecent: false,
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(document.querySelector('[data-testid="curated-task-badge"]')).toBeTruthy();
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      expect.objectContaining({
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "social-post-starter",
+          taskTitle: "内容主稿生成",
+          prompt:
+            "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构、核心观点和可继续扩写的角度，并给我一版适合继续打磨的正文。",
+        },
+        displayContent:
+          "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构、核心观点和可继续扩写的角度，并给我一版适合继续打磨的正文。",
+        requestMetadata: {
+          harness: {
+            curated_task: expect.objectContaining({
+              task_id: "social-post-starter",
+              task_title: "内容主稿生成",
+            }),
+          },
+        },
+      }),
+    );
+  });
+
+  it("带着初始结果模板进入时，应恢复 capability badge 并在输入为空时预填 prompt", async () => {
+    const onSend = vi.fn();
+    const setInput = vi.fn();
+    const rendered = renderInputbar({
+      input: "",
+      setInput,
+      onSend,
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt:
+            "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+        },
+        requestKey: 20260418,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(setInput).toHaveBeenCalledWith(
+      "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+    );
+    expect(document.querySelector('[data-testid="curated-task-badge"]')).toBeTruthy();
+
+    rendered.rerender({
+      input:
+        "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+      setInput,
+      onSend,
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt:
+            "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+        },
+        requestKey: 20260418,
+      },
+    });
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      expect.objectContaining({
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt:
+            "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+        },
+        displayContent:
+          "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+        requestMetadata: {
+          harness: {
+            curated_task: expect.objectContaining({
+              task_id: "daily-trend-briefing",
+              task_title: "每日趋势摘要",
+            }),
+          },
+        },
+      }),
+    );
+  });
+
+  it("结果模板带着灵感引用发送时，应附带结构化 request metadata", async () => {
+    const onSend = vi.fn();
+    renderInputbar({
+      input: "请先给我做一版每日趋势摘要",
+      onSend,
+      activeTheme: "general",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+
+    await act(async () => {
+      latestCall?.onSelectInputCapability?.({
+        kind: "curated_task",
+        task: {
+          id: "daily-trend-briefing",
+          title: "每日趋势摘要",
+          summary: "先收一版趋势摘要。",
+          outputHint: "趋势摘要 + 选题方向",
+          categoryLabel: "趋势与选题",
+          prompt: "请先给我做一版每日趋势摘要",
+          requiredInputs: ["主题或赛道", "希望关注的平台/地域"],
+          requiredInputFields: [],
+          optionalReferences: ["已有账号方向", "过去爆款链接"],
+          outputContract: ["趋势摘要", "3 个优先选题"],
+          followUpActions: ["继续展开其中一个选题"],
+          badge: "结果模板",
+          actionLabel: "进入生成",
+          statusLabel: "可直接开始",
+          statusTone: "emerald",
+          recentUsedAt: null,
+          isRecent: false,
+        },
+        referenceMemoryIds: ["memory-1"],
+        referenceEntries: [
+          {
+            id: "memory-1",
+            title: "品牌风格样本",
+            summary: "保留轻盈但专业的表达。",
+            category: "context",
+            categoryLabel: "参考",
+            tags: ["品牌", "语气"],
+          },
+        ],
+      });
+      await Promise.resolve();
+    });
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      expect.objectContaining({
+        capabilityRoute: expect.objectContaining({
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          referenceMemoryIds: ["memory-1"],
+        }),
+        requestMetadata: {
+          harness: {
+            creation_replay: expect.objectContaining({
+              kind: "memory_entry",
+            }),
+            curated_task: expect.objectContaining({
+              task_id: "daily-trend-briefing",
+              reference_memory_ids: ["memory-1"],
+            }),
+          },
+        },
+      }),
+    );
+  });
+
+  it("已激活结果模板后重新编辑启动信息时，应更新输入与 curated_task route", async () => {
+    const setInput = vi.fn();
+    const onSend = vi.fn();
+    const initialLaunchInputValues = {
+      theme_target: "AI 内容创作",
+      platform_region: "X 与 TikTok 北美区",
+    };
+    const editedLaunchInputValues = {
+      theme_target: "品牌内容中台",
+      platform_region: "LinkedIn 与 X（海外）",
+    };
+    const taskDefinition = {
+      prompt:
+        "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+      requiredInputFields: [
+        {
+          key: "theme_target",
+          label: "主题或赛道",
+          placeholder: "",
+          type: "text" as const,
+        },
+        {
+          key: "platform_region",
+          label: "希望关注的平台/地域",
+          placeholder: "",
+          type: "text" as const,
+        },
+      ],
+      outputContract: ["趋势摘要", "3 个优先选题", "代表案例线索"],
+    };
+    const initialPrompt = buildCuratedTaskLaunchPrompt({
+      task: taskDefinition,
+      inputValues: initialLaunchInputValues,
+    });
+    const editedPrompt = buildCuratedTaskLaunchPrompt({
+      task: taskDefinition,
+      inputValues: editedLaunchInputValues,
+    });
+    const rendered = renderInputbar({
+      input: initialPrompt,
+      setInput,
+      onSend,
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt: initialPrompt,
+          launchInputValues: initialLaunchInputValues,
+        },
+        requestKey: 20260419,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const editButton = document.querySelector(
+      '[data-testid="curated-task-badge-edit"]',
+    ) as HTMLButtonElement | null;
+    expect(editButton).toBeTruthy();
+
+    await act(async () => {
+      editButton?.click();
+      await Promise.resolve();
+    });
+
+    const themeInput = document.querySelector(
+      '[data-testid="curated-task-dialog-field-theme_target"]',
+    ) as HTMLInputElement | null;
+    const platformInput = document.querySelector(
+      '[data-testid="curated-task-dialog-field-platform_region"]',
+    ) as HTMLInputElement | null;
+
+    expect(themeInput?.value).toBe("AI 内容创作");
+    expect(platformInput?.value).toBe("X 与 TikTok 北美区");
+
+    await act(async () => {
+      updateFieldValue(themeInput, editedLaunchInputValues.theme_target);
+      updateFieldValue(platformInput, editedLaunchInputValues.platform_region);
+      await Promise.resolve();
+    });
+
+    const confirmButton = document.querySelector(
+      '[data-testid="curated-task-dialog-confirm"]',
+    ) as HTMLButtonElement | null;
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(setInput).toHaveBeenLastCalledWith(editedPrompt);
+
+    rendered.rerender({
+      input: editedPrompt,
+      setInput,
+      onSend,
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt: initialPrompt,
+          launchInputValues: initialLaunchInputValues,
+        },
+        requestKey: 20260419,
+      },
+    });
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      expect.objectContaining({
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt: editedPrompt,
+          launchInputValues: editedLaunchInputValues,
+        },
+        displayContent: editedPrompt,
+        requestMetadata: {
+          harness: {
+            curated_task: expect.objectContaining({
+              task_id: "daily-trend-briefing",
+              launch_input_values: editedLaunchInputValues,
+            }),
+          },
+        },
+      }),
+    );
+  });
+
+  it("选择内建命令发送时，应透传 capability route 与原始显示文案", async () => {
+    const onSend = vi.fn();
+    renderInputbar({
+      input: "整理最近发布计划",
+      onSend,
+      activeTheme: "general",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const builtinCommand: BuiltinInputCommand = {
+      key: "research",
+      label: "搜索",
+      mentionLabel: "搜索",
+      commandPrefix: "@搜索",
+      description: "搜索资料",
+      aliases: [],
+    };
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+
+    await act(async () => {
+      latestCall?.onSelectInputCapability?.({
+        kind: "builtin_command",
+        command: builtinCommand,
+      });
+      await Promise.resolve();
+    });
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      {
+        capabilityRoute: {
+          kind: "builtin_command",
+          commandKey: "research",
+          commandPrefix: "@搜索",
+        },
+        displayContent: "整理最近发布计划",
+      },
+    );
+  });
+
+  it("选择运行时场景发送时，应透传 runtime scene route 与原始显示文案", async () => {
+    const onSend = vi.fn();
+    renderInputbar({
+      input: "帮我做一版新品活动启动方案",
+      onSend,
+      activeTheme: "general",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const runtimeScene: RuntimeSceneSlashCommand = {
+      key: "campaign-launch",
+      label: "活动启动场景",
+      commandPrefix: "/campaign-launch",
+      description: "围绕活动目标生成启动方案",
+      aliases: [],
+    };
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+
+    await act(async () => {
+      latestCall?.onSelectInputCapability?.({
+        kind: "runtime_scene",
+        command: runtimeScene,
+      });
+      await Promise.resolve();
+    });
+
+    expect(document.querySelector('[data-testid="runtime-scene-badge"]')).toBeTruthy();
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      {
+        capabilityRoute: {
+          kind: "runtime_scene",
+          sceneKey: "campaign-launch",
+          commandPrefix: "/campaign-launch",
+        },
+        displayContent: "帮我做一版新品活动启动方案",
+      },
+    );
+  });
+
+  it("先选内建命令再切到运行时场景时，不应继续残留旧命令 route", async () => {
+    const onSend = vi.fn();
+    renderInputbar({
+      input: "帮我做一版新品活动启动方案",
+      onSend,
+      activeTheme: "general",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const builtinCommand: BuiltinInputCommand = {
+      key: "research",
+      label: "搜索",
+      mentionLabel: "搜索",
+      commandPrefix: "@搜索",
+      description: "搜索资料",
+      aliases: [],
+    };
+    const runtimeScene: RuntimeSceneSlashCommand = {
+      key: "campaign-launch",
+      label: "活动启动场景",
+      commandPrefix: "/campaign-launch",
+      description: "围绕活动目标生成启动方案",
+      aliases: [],
+    };
+    const firstCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+
+    await act(async () => {
+      firstCall?.onSelectInputCapability?.({
+        kind: "builtin_command",
+        command: builtinCommand,
+      });
+      await Promise.resolve();
+    });
+
+    const secondCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+
+    await act(async () => {
+      secondCall?.onSelectInputCapability?.({
+        kind: "runtime_scene",
+        command: runtimeScene,
+      });
+      await Promise.resolve();
+    });
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      {
+        capabilityRoute: {
+          kind: "runtime_scene",
+          sceneKey: "campaign-launch",
+          commandPrefix: "/campaign-launch",
+        },
+        displayContent: "帮我做一版新品活动启动方案",
+      },
+    );
+  });
+
+  it("先选内建命令再切到服务技能入口时，不应继续残留旧命令前缀", async () => {
+    const onSend = vi.fn();
+    const onSelectServiceSkill = vi.fn();
+    const serviceSkill = {
+      id: "daily-trend-briefing",
+      title: "每日趋势摘要",
+    } as ServiceSkillHomeItem;
+    renderInputbar({
+      input: "整理最近发布计划",
+      onSend,
+      onSelectServiceSkill,
+      serviceSkills: [serviceSkill],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const builtinCommand: BuiltinInputCommand = {
+      key: "research",
+      label: "搜索",
+      mentionLabel: "搜索",
+      commandPrefix: "@搜索",
+      description: "搜索资料",
+      aliases: [],
+    };
+    const firstCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+
+    expect(firstCall?.onSelectInputCapability).toBeTypeOf("function");
+    expect(firstCall?.onSelectServiceSkill).toBeTypeOf("function");
+
+    await act(async () => {
+      firstCall?.onSelectInputCapability?.({
+        kind: "builtin_command",
+        command: builtinCommand,
+      });
+      await Promise.resolve();
+    });
+
+    const secondCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+
+    await act(async () => {
+      secondCall?.onSelectServiceSkill?.(serviceSkill);
+      await Promise.resolve();
+    });
+
+    expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkill);
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      undefined,
+    );
   });
 
   it("应把任务文件与额外浮层控件放进同一条输入栏 overlay row", async () => {
@@ -782,6 +1870,8 @@ describe("Inputbar", () => {
       false,
       undefined,
       "react",
+      undefined,
+      undefined,
     );
   });
 
@@ -814,6 +1904,8 @@ describe("Inputbar", () => {
       false,
       undefined,
       "react",
+      undefined,
+      undefined,
     );
   });
 
@@ -962,7 +2054,7 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("任务视图");
+    expect(container.textContent).toContain("当前进展");
     expect(container.textContent).toContain("检索项目素材");
     expect(container.textContent).toContain("任务队列");
     expect(container.querySelector('[data-testid="inputbar-core"]')).toBeNull();
@@ -1066,7 +2158,7 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("任务视图");
+    expect(container.textContent).toContain("当前进展");
     expect(container.textContent).toContain("检索项目素材");
     expect(container.querySelector('[data-testid="inputbar-core"]')).toBeNull();
   });
@@ -1095,7 +2187,7 @@ describe("Inputbar", () => {
     expect(
       container.querySelector('[data-testid="inputbar-core"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain("任务视图");
+    expect(container.textContent).toContain("当前进展");
     expect(container.textContent).toContain("等待用户确认选题");
     expect(container.textContent).not.toContain("正在生成中");
   });

@@ -12,25 +12,6 @@ import {
   type MountedRoot,
 } from "@/components/workspace/hooks/testUtils";
 
-const { mockGetAll } = vi.hoisted(() => ({
-  mockGetAll: vi.fn(),
-}));
-
-vi.mock("@/lib/api/skills", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/skills")>(
-      "@/lib/api/skills",
-    );
-
-  return {
-    ...actual,
-    skillsApi: {
-      ...actual.skillsApi,
-      getAll: (...args: unknown[]) => mockGetAll(...args),
-    },
-  };
-});
-
 const mountedRoots: MountedRoot[] = [];
 
 function getBodyText(): string {
@@ -62,7 +43,6 @@ describe("视频工作台 tips 收口", () => {
   beforeEach(() => {
     setupReactActEnvironment();
     vi.clearAllMocks();
-    mockGetAll.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -76,7 +56,6 @@ describe("视频工作台 tips 收口", () => {
         state: createInitialVideoState(),
         onStateChange: vi.fn(),
         onGenerate: vi.fn(),
-        skills: [],
       },
       mountedRoots,
     );
@@ -97,9 +76,7 @@ describe("视频工作台 tips 收口", () => {
     );
 
     const shortcutTip = await hoverTip("快捷键说明");
-    expect(getBodyText()).toContain(
-      "按 Enter 直接生成，Shift + Enter 换行；输入 @ 可以插入技能辅助改写提示词。",
-    );
+    expect(getBodyText()).toContain("按 Enter 直接生成，Shift + Enter 换行。");
     await leaveTip(shortcutTip);
     expect(getBodyText()).not.toContain("按 Enter 直接生成");
   });
@@ -152,7 +129,6 @@ describe("视频工作台 tips 收口", () => {
     );
     await flushEffects(6);
 
-    expect(mockGetAll).toHaveBeenCalledWith("lime");
     expect(getBodyText()).not.toContain(
       "用一句清晰的场景描述启动视频生成，再逐步补充镜头运动、情绪和画面锚点。",
     );

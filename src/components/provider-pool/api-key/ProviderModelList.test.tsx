@@ -464,6 +464,15 @@ describe("ProviderModelList", () => {
     expect(container.textContent).toContain(
       "当前 Anthropic 兼容入口未提供标准 /models 接口，已保留当前 Provider 的自定义模型。",
     );
+    const warningBanner = Array.from(container.querySelectorAll("div")).find(
+      (element) =>
+        element.textContent?.includes(
+          "当前 Anthropic 兼容入口未提供标准 /models 接口",
+        ) && element.className.includes("bg-amber-50/80"),
+    );
+    expect(warningBanner).toBeTruthy();
+    expect(warningBanner?.className).toContain("bg-amber-50/80");
+    expect(warningBanner?.className).not.toContain("dark:bg-amber-950/20");
   });
 
   it("Provider 模型缓存应在 TTL 后过期", () => {

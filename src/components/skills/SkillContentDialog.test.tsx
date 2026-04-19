@@ -23,6 +23,7 @@ function createInspection(
 ): LocalSkillInspection {
   return {
     content: "# 标题\n正文内容",
+    license: "MIT",
     metadata: {
       lime_category: "social",
       lime_workflow_ref: "references/workflow.json",
@@ -107,6 +108,13 @@ describe("SkillContentDialog", () => {
     expect(document.body.textContent).toContain("web.search");
     expect(document.body.textContent).toContain("标题");
     expect(document.body.textContent).toContain("正文内容");
+
+    const licenseTag = Array.from(document.body.querySelectorAll("span")).find(
+      (element) => element.textContent?.includes("License:"),
+    );
+    expect(licenseTag).toBeTruthy();
+    expect(licenseTag?.className).toContain("bg-slate-100");
+    expect(licenseTag?.className).not.toContain("dark:bg-slate-800");
   });
 
   it("有校验错误时应显示待修复状态和错误明细", () => {

@@ -190,7 +190,7 @@ export function useWorkspaceTopicSwitch({
           },
           { level: "error" },
         );
-        toast.error("切换任务失败，请稍后重试");
+        toast.error("切换会话失败，请稍后重试");
       } finally {
         finishTopicProjectResolution();
       }
@@ -235,7 +235,7 @@ export function useWorkspaceTopicSwitch({
         },
         { level: "error" },
       );
-      toast.error("加载任务失败，请重试");
+      toast.error("加载会话失败，请重试");
     });
   }, [consumePendingTopicSwitch, projectId, runTopicSwitch]);
 

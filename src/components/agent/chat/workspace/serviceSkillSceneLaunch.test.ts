@@ -192,6 +192,32 @@ describe("serviceSkillSceneLaunch", () => {
     expect(matchesRuntimeSceneEntry(entry as never, "other")).toBe(false);
   });
 
+  it("scene entry 缺失 linkedSkillId 时，仍应通过 service skill 的 sceneBinding 回落命中", async () => {
+    mockGetSkillCatalog.mockResolvedValueOnce({ entries: [] });
+    mockListSkillCatalogSceneEntries.mockReturnValueOnce([
+      {
+        id: "scene:x-article-export",
+        kind: "scene",
+        title: "X文章转存",
+        summary: "把 X 长文导出成 Markdown。",
+        sceneKey: "x-article-export",
+        commandPrefix: "/x文章转存",
+        aliases: ["x转存"],
+        executionKind: "browser_assist",
+      },
+    ]);
+
+    const request = await resolveRuntimeSceneLaunchRequest({
+      rawText: "/x转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
+      serviceSkills: [createXArticleExportSkill()],
+      projectId: "project-1",
+      contentId: "content-1",
+    });
+
+    expect(request).not.toBeNull();
+    expect(request?.skill.id).toBe("x-article-export");
+  });
+
   it("应构建统一的 service scene launch request metadata", async () => {
     mockGetSkillCatalog.mockResolvedValueOnce({ entries: [] });
     mockListSkillCatalogSceneEntries.mockReturnValueOnce([

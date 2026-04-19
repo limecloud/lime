@@ -329,8 +329,8 @@ export const ImportExportDialog: React.FC<ImportExportDialogProps> = ({
               <div
                 className={`p-3 rounded-lg text-sm ${
                   importResult.success
-                    ? "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400"
-                    : "bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400"
+                    ? "bg-green-50 text-green-700"
+                    : "bg-yellow-50 text-yellow-700"
                 }`}
                 data-testid="import-result"
               >
@@ -341,7 +341,7 @@ export const ImportExportDialog: React.FC<ImportExportDialogProps> = ({
                   <li>导入 Provider: {importResult.imported_providers} 个</li>
                   <li>跳过（已存在）: {importResult.skipped_providers} 个</li>
                   {importResult.errors.length > 0 && (
-                    <li className="text-red-600 dark:text-red-400">
+                    <li className="text-red-600">
                       错误: {importResult.errors.join(", ")}
                     </li>
                   )}
@@ -354,7 +354,7 @@ export const ImportExportDialog: React.FC<ImportExportDialogProps> = ({
         {/* 错误提示 */}
         {error && (
           <div
-            className="flex items-center gap-2 p-3 rounded-lg bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400 text-sm"
+            className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700"
             data-testid="error-message"
           >
             <AlertCircle className="h-4 w-4 flex-shrink-0" />

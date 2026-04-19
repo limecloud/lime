@@ -93,7 +93,7 @@ export function TeamWorkspaceCanvasViewButtons({
         className={buttonClassName}
         onClick={onFitCanvasView}
       >
-        聚焦任务
+        聚焦进展
       </Button>
       <Button
         type="button"

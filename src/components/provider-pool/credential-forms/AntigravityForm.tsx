@@ -118,12 +118,12 @@ export function AntigravityForm({
 
         {mode === "login" ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30">
-              <p className="text-sm text-emerald-700 dark:text-emerald-300">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-sm text-emerald-700">
                 点击下方按钮获取授权
                 URL，然后复制到浏览器（支持指纹浏览器）完成登录。
               </p>
-              <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+              <p className="mt-2 text-xs text-emerald-600">
                 授权成功后，凭证将自动保存并添加到凭证池。
               </p>
             </div>

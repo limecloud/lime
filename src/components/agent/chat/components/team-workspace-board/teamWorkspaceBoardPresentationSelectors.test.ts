@@ -19,7 +19,7 @@ describe("teamWorkspaceBoardPresentationSelectors", () => {
     ).toMatchObject({
       detailToggleLabel: "查看细节",
       detailVisible: false,
-      memberCanvasTitle: "任务视图",
+      memberCanvasTitle: "当前进展",
     });
 
     expect(
@@ -65,7 +65,7 @@ describe("teamWorkspaceBoardPresentationSelectors", () => {
       useCompactCanvasChrome: true,
     });
 
-    expect(copyState.memberCanvasSubtitle).toContain("3 项任务已接入");
+    expect(copyState.memberCanvasSubtitle).toContain("3 条当前进展已接入");
     expect(classNames.boardShellClassName).toContain("rounded-[24px]");
     expect(classNames.boardShellClassName).toContain("border-slate-200");
     expect(classNames.boardShellClassName).toContain("bg-white");

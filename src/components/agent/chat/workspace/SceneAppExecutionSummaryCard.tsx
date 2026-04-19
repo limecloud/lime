@@ -11,6 +11,7 @@ import {
   type SceneAppExecutionPromptAction,
   type SceneAppQuickReviewAction,
 } from "@/lib/sceneapp";
+import type { SceneAppExecutionContentPostEntry } from "./sceneAppExecutionContentPosts";
 
 interface SceneAppExecutionSummaryCardProps {
   summary?: SceneAppExecutionSummaryViewModel | null;
@@ -39,6 +40,8 @@ interface SceneAppExecutionSummaryCardProps {
   onEntryAction?: (
     action: NonNullable<SceneAppRunDetailViewModel["entryAction"]>,
   ) => void;
+  contentPostEntries?: SceneAppExecutionContentPostEntry[];
+  onContentPostAction?: (entry: SceneAppExecutionContentPostEntry) => void;
   promptActionPending?: boolean;
   onPromptAction?: (action: SceneAppExecutionPromptAction) => void;
 }
@@ -110,6 +113,20 @@ function resolvePromptActionToneClass(
     case "neutral":
     default:
       return "border-slate-200 bg-white text-slate-900 hover:border-slate-300 hover:bg-slate-50";
+  }
+}
+
+function resolveContentPostReadinessToneClass(
+  tone: SceneAppExecutionContentPostEntry["readinessTone"],
+): string {
+  switch (tone) {
+    case "success":
+      return "border-lime-200 bg-lime-50 text-lime-700";
+    case "watch":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "default":
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-600";
   }
 }
 
@@ -191,6 +208,8 @@ export function SceneAppExecutionSummaryCard({
   onGovernanceAction,
   onGovernanceArtifactAction,
   onEntryAction,
+  contentPostEntries = [],
+  onContentPostAction,
   promptActionPending = false,
   onPromptAction,
 }: SceneAppExecutionSummaryCardProps) {
@@ -722,6 +741,65 @@ export function SceneAppExecutionSummaryCard({
                           </button>
                         );
                       })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {contentPostEntries.length ? (
+                  <div
+                    className="mt-4"
+                    data-testid="sceneapp-execution-summary-content-posts"
+                  >
+                    <div className="text-xs font-medium text-slate-500">
+                      最近发布产物
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      当前会话里刚整理出来的发布稿、渠道预览稿和上传稿，会直接回流到这里继续复核，不需要离开生成主执行面。
+                    </p>
+                    <div className="mt-3 grid gap-3 xl:grid-cols-3">
+                      {contentPostEntries.map((entry) => (
+                        <button
+                          key={entry.key}
+                          type="button"
+                          data-testid={`sceneapp-execution-summary-content-post-${entry.key}`}
+                          className="rounded-[18px] border border-slate-200 bg-white p-3 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
+                          onClick={() => onContentPostAction?.(entry)}
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-slate-900">
+                              {entry.label}
+                            </span>
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] ${resolveContentPostReadinessToneClass(entry.readinessTone)}`}
+                            >
+                              {entry.readinessLabel}
+                            </span>
+                            {entry.platformLabel ? (
+                              <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-sky-700">
+                                {entry.platformLabel}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-2 text-xs leading-5 text-slate-600">
+                            {entry.helperText}
+                          </div>
+                          {entry.companionEntries.length ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {entry.companionEntries.map((companion) => (
+                                <span
+                                  key={companion.key}
+                                  className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600"
+                                >
+                                  {companion.label}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          <div className="mt-2 truncate text-[11px] leading-5 text-slate-500">
+                            {entry.pathLabel}
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 ) : null}

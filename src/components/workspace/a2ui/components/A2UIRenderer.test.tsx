@@ -241,7 +241,22 @@ describe("TextRenderer", () => {
         component: {
           id: "markdown-text",
           component: "Text",
-          text: "# 标题\n\n这是 **重点**。\n\n- 第一项\n- 第二项\n\n[查看说明](https://example.com)\n第一行  \n第二行",
+          text: [
+            "# 标题",
+            "",
+            "这是 **重点**。",
+            "",
+            "- 第一项",
+            "- 第二项",
+            "",
+            "```ts",
+            "const answer = 42;",
+            "```",
+            "",
+            "[查看说明](https://example.com)",
+            "第一行  ",
+            "第二行",
+          ].join("\n"),
           variant: "body",
         },
         data: {},
@@ -261,5 +276,8 @@ describe("TextRenderer", () => {
     );
     expect(container.querySelector("br")).not.toBeNull();
     expect(container.textContent).not.toContain("**重点**");
+    const codeBlock = container.querySelector("pre");
+    expect(codeBlock?.className).toContain("border-sky-100");
+    expect(codeBlock?.textContent).toContain("const answer = 42;");
   });
 });

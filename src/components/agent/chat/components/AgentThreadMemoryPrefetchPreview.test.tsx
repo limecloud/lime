@@ -58,7 +58,7 @@ describe("AgentThreadMemoryPrefetchPreview", () => {
         durable_memories: [],
         team_memory_entries: [],
         latest_compaction: null,
-        prompt: null,
+        prompt: "【运行时记忆召回】补上本轮风险摘要。",
       },
     });
 
@@ -70,6 +70,10 @@ describe("AgentThreadMemoryPrefetchPreview", () => {
     expect(panel?.textContent).toContain("记忆命中预演");
     expect(panel?.textContent).toContain("规则 1");
     expect(panel?.textContent).toContain("会话 已命中");
+    const promptBlock = container.querySelector("pre");
+    expect(promptBlock?.className).toContain("border-sky-100");
+    expect(promptBlock?.className).not.toContain("bg-slate-950");
+    expect(promptBlock?.textContent).toContain("【运行时记忆召回】");
   });
 
   it("error 状态应保留 amber 提醒色", () => {

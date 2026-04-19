@@ -2,11 +2,13 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Skill } from "@/lib/api/skills";
+import type { UnifiedMemory } from "@/lib/api/unifiedMemory";
 import type {
   ServiceSkillGroup,
   ServiceSkillHomeItem,
 } from "@/components/agent/chat/service-skills/types";
 import { recordServiceSkillUsage } from "@/components/agent/chat/service-skills/storage";
+import { recordCuratedTaskRecommendationSignalFromMemory } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import type { SkillsPageParams } from "@/types/page";
 import { SkillsWorkspacePage } from "./SkillsWorkspacePage";
 
@@ -141,6 +143,9 @@ function createDefaultSkillGroups(): ServiceSkillGroup[] {
 
 let mockServiceSkills = createDefaultServiceSkills();
 let mockSkillGroups = createDefaultSkillGroups();
+const mockListUnifiedMemories = vi.hoisted(() =>
+  vi.fn<() => Promise<UnifiedMemory[]>>(async () => []),
+);
 
 vi.mock("sonner", () => ({
   toast: {
@@ -182,6 +187,10 @@ vi.mock("@/hooks/useSkills", () => ({
         installed: true,
         sourceKind: "other",
         catalogSource: "user",
+        metadata: {
+          lime_when_to_use: "当你需要复用本地写作方法时使用。",
+          lime_argument_hint: "主题、受众与语气要求",
+        },
       },
     ] as Skill[],
     repos: [],
@@ -194,6 +203,10 @@ vi.mock("@/hooks/useSkills", () => ({
     addRepo: vi.fn(),
     removeRepo: vi.fn(),
   }),
+}));
+
+vi.mock("@/lib/api/unifiedMemory", () => ({
+  listUnifiedMemories: mockListUnifiedMemories,
 }));
 
 vi.mock("./SkillsPage", () => ({
@@ -210,6 +223,9 @@ vi.mock("@/components/ui/dialog", () => ({
     <div>{children}</div>
   ),
   DialogHeader: ({ children }: { children: ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogFooter: ({ children }: { children: ReactNode }) => (
     <div>{children}</div>
   ),
   DialogTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -255,6 +271,25 @@ function getLatestNavigationPayload(onNavigate: ReturnType<typeof vi.fn>) {
     | undefined;
 }
 
+function updateFieldValue(
+  element: HTMLInputElement | HTMLTextAreaElement | null,
+  value: string,
+) {
+  expect(element).toBeTruthy();
+  if (!element) {
+    return;
+  }
+
+  const prototype =
+    element instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  setter?.call(element, value);
+  element.dispatchEvent(new Event("input", { bubbles: true }));
+  element.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 async function hoverTip(ariaLabel: string) {
   const trigger = document.body.querySelector(
     `button[aria-label='${ariaLabel}']`,
@@ -292,6 +327,7 @@ describe("SkillsWorkspacePage", () => {
     mockRefreshLocalSkills.mockReset();
     mockRefreshLocalSkills.mockResolvedValue(undefined);
     mockAdvancedSkillsPage.mockReset();
+    mockListUnifiedMemories.mockResolvedValue([]);
     window.localStorage.clear();
   });
 
@@ -313,17 +349,68 @@ describe("SkillsWorkspacePage", () => {
     const { container } = renderPage();
 
     expect(container.textContent).toContain("我的方法");
+    expect(container.textContent).toContain("先拿结果");
     expect(container.textContent).toContain("方法目录");
     expect(container.textContent).toContain("继续常用做法");
     expect(container.textContent).toContain("我的方法库");
+    expect(container.textContent).toContain("每日趋势摘要");
+    expect(container.textContent).toContain("你来给");
+    expect(container.textContent).toContain("会拿到");
+    expect(container.textContent).toContain("下一步可继续");
+    expect(container.textContent).toContain("主题或赛道、希望关注的平台/地域");
     expect(container.textContent).toContain(
       "这里收的是已经跑通过的做法；不确定从哪开始时，先回首页结果模板。",
     );
     expect(container.textContent).toContain("GitHub");
     expect(container.textContent).toContain("写作助手");
+    expect(container.textContent).toContain("你来给：当前无必填信息");
+    expect(container.textContent).toContain("会拿到：研究摘要");
+    expect(container.textContent).toContain(
+      "结果去向：结果会写回当前工作区，方便继续编辑。",
+    );
+    expect(container.textContent).toContain("当你需要复用本地写作方法时使用。");
+    expect(container.textContent).toContain("主题、受众与语气要求");
+    expect(container.textContent).toContain("带着该方法进入生成主执行面");
     expect(container.textContent).not.toContain(
       "GitHub 仓库检索围绕关键词采集",
     );
+  });
+
+  it("最近保存到灵感库的成果信号应影响技能页的结果模板推荐", () => {
+    recordCuratedTaskRecommendationSignalFromMemory(
+      {
+        id: "memory-review-1",
+        session_id: "session-review-1",
+        memory_type: "project",
+        category: "experience",
+        title: "账号复盘结论",
+        summary: "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
+        content:
+          "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
+        tags: ["复盘", "反馈", "增长"],
+        metadata: {
+          confidence: 0.92,
+          importance: 8,
+          access_count: 2,
+          last_accessed_at: null,
+          source: "manual",
+          embedding: null,
+        },
+        created_at: 1_712_345_670_000,
+        updated_at: 1_712_345_678_000,
+        archived: false,
+      },
+      {
+        projectId: "project-review",
+      },
+    );
+
+    const { container } = renderPage({
+      creationProjectId: "project-review",
+    });
+
+    expect(container.textContent).toContain("复盘这个账号/项目");
+    expect(container.textContent).toContain("围绕最近成果");
   });
 
   it("推荐技能组卡片不应重复展示已进入继续常用做法的技能", () => {
@@ -375,6 +462,11 @@ describe("SkillsWorkspacePage", () => {
     });
 
     expect(container.textContent).toContain("GitHub 仓库检索");
+    expect(container.textContent).toContain("你来给：检索主题");
+    expect(container.textContent).toContain("会拿到：仓库列表");
+    expect(container.textContent).toContain(
+      "结果去向：结果会优先写回当前内容，继续在当前工作区整理。",
+    );
 
     const launchButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("对话内补参"),
@@ -397,6 +489,187 @@ describe("SkillsWorkspacePage", () => {
       }),
     );
     expect(mockRecordUsage).not.toHaveBeenCalled();
+  });
+
+  it("点击结果模板时，应先补齐最小启动输入，再把 curated task 带回生成主执行面", async () => {
+    const { container, onNavigate } = renderPage();
+
+    const launchButton = Array.from(container.querySelectorAll("button")).find(
+      (button) =>
+        button.textContent?.includes("进入生成") &&
+        button
+          .closest("article")
+          ?.textContent?.includes("每日趋势摘要"),
+    );
+    expect(launchButton).toBeTruthy();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    expect(container.textContent).toContain("先补最少启动信息，再统一进入生成主执行面。");
+    expect(onNavigate).not.toHaveBeenCalled();
+
+    const themeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(themeInput, "AI 内容创作");
+      updateFieldValue(platformInput, "X 与 TikTok 北美区");
+      await Promise.resolve();
+    });
+
+    const confirmButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("带着启动信息进入生成"),
+    );
+    expect(confirmButton).toBeTruthy();
+    expect((confirmButton as HTMLButtonElement).disabled).toBe(false);
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agentEntry: "new-task",
+        theme: "general",
+        initialInputCapability: {
+          capabilityRoute: {
+            kind: "curated_task",
+            taskId: "daily-trend-briefing",
+            taskTitle: "每日趋势摘要",
+            prompt: expect.stringContaining("主题或赛道：AI 内容创作"),
+          },
+          requestKey: expect.any(Number),
+        },
+        entryBannerMessage:
+          "已从结果模板“每日趋势摘要”带着启动信息进入生成，可继续补充后发送。",
+      }),
+    );
+    expect(
+      (
+        getLatestNavigationPayload(onNavigate)?.initialInputCapability as
+          | { capabilityRoute?: { prompt?: string } }
+          | undefined
+      )?.capabilityRoute?.prompt,
+    ).toContain("希望关注的平台/地域：X 与 TikTok 北美区");
+  });
+
+  it("结果模板带上灵感引用进入生成时，应同时透传 route 与 request metadata", async () => {
+    mockListUnifiedMemories.mockResolvedValue([
+      {
+        id: "memory-1",
+        session_id: "session-1",
+        memory_type: "project",
+        category: "context",
+        title: "品牌风格样本",
+        content: "保留轻盈、专业、对比清晰的表达方式。",
+        summary: "轻盈但专业的品牌语气参考。",
+        tags: ["品牌", "语气"],
+        metadata: {
+          confidence: 0.92,
+          importance: 8,
+          access_count: 3,
+          last_accessed_at: 1_712_345_678_000,
+          source: "manual",
+          embedding: null,
+        },
+        created_at: 1_712_345_670_000,
+        updated_at: 1_712_345_678_000,
+        archived: false,
+      },
+    ]);
+
+    const { container, onNavigate } = renderPage();
+
+    const launchButton = Array.from(container.querySelectorAll("button")).find(
+      (button) =>
+        button.textContent?.includes("进入生成") &&
+        button
+          .closest("article")
+          ?.textContent?.includes("每日趋势摘要"),
+    );
+    expect(launchButton).toBeTruthy();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    const themeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      updateFieldValue(themeInput, "AI 内容创作");
+      updateFieldValue(platformInput, "X 与 TikTok 北美区");
+      await Promise.resolve();
+    });
+
+    const referenceButton = document.body.querySelector(
+      '[data-testid="curated-task-reference-option-memory-1"]',
+    ) as HTMLButtonElement | null;
+    expect(referenceButton).toBeTruthy();
+
+    await act(async () => {
+      referenceButton?.click();
+      await Promise.resolve();
+    });
+
+    const confirmButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("带着启动信息进入生成"),
+    );
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    const payload = getLatestNavigationPayload(onNavigate);
+    expect(payload).toMatchObject({
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          referenceMemoryIds: ["memory-1"],
+          referenceEntries: [
+            expect.objectContaining({
+              id: "memory-1",
+              title: "品牌风格样本",
+              category: "context",
+            }),
+          ],
+        },
+      },
+      initialRequestMetadata: {
+        harness: {
+          curated_task: {
+            task_id: "daily-trend-briefing",
+            reference_memory_ids: ["memory-1"],
+          },
+          creation_replay: expect.objectContaining({
+            kind: "memory_entry",
+            data: expect.objectContaining({
+              title: "品牌风格样本",
+              category: "context",
+            }),
+          }),
+        },
+      },
+    });
   });
 
   it("做法组只剩最近使用时，打开后仍应回退展示该技能", () => {
@@ -591,10 +864,44 @@ describe("SkillsWorkspacePage", () => {
     expect(mockRefreshLocalSkills).toHaveBeenCalledTimes(1);
   });
 
+  it("点击我的方法库中的已安装技能时，应带着初始输入能力进入生成", () => {
+    const { container, onNavigate } = renderPage();
+
+    const launchButton = Array.from(container.querySelectorAll("button")).find(
+      (button) =>
+        button.textContent?.includes("进入生成") &&
+        button.closest("article")?.textContent?.includes("写作助手"),
+    );
+    expect(launchButton).toBeTruthy();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agentEntry: "new-task",
+        theme: "general",
+        initialInputCapability: {
+          capabilityRoute: {
+            kind: "installed_skill",
+            skillKey: "local:writer",
+            skillName: "写作助手",
+          },
+          requestKey: expect.any(Number),
+        },
+      }),
+    );
+  });
+
   it("应默认展示本地已安装技能，并可打开导入与整理", () => {
     const { container } = renderPage();
 
     expect(container.textContent).toContain("写作助手");
+    expect(container.textContent).toContain("当你需要复用本地写作方法时使用。");
+    expect(container.textContent).toContain("你来给：主题、受众与语气要求");
+    expect(container.textContent).toContain("会拿到：带着该方法进入生成主执行面");
 
     const manageButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("导入与整理"),

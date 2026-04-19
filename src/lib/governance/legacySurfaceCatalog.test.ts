@@ -1389,7 +1389,7 @@ describe("legacySurfaceCatalog", () => {
     ]);
   });
 
-  it("应禁止运行时代码绕过 useActiveSkill 直接构造 skillSelection", () => {
+  it("应禁止运行时代码绕过共享绑定边界直接构造 skillSelection", () => {
     const monitor = legacySurfaceCatalogJson.frontendText.find(
       (entry) =>
         entry.id === "skill-selection-direct-construction-runtime-usage",
@@ -1404,7 +1404,6 @@ describe("legacySurfaceCatalog", () => {
     ]);
     expect(monitor?.allowedPaths).toEqual([
       "src/components/agent/chat/skill-selection/skillSelectionBindings.ts",
-      "src/components/agent/chat/skill-selection/useActiveSkill.ts",
     ]);
   });
 
@@ -1429,7 +1428,6 @@ describe("legacySurfaceCatalog", () => {
       "src/components/agent/chat/components/Inputbar/components/BuiltinCommandBadge.tsx",
       "src/components/agent/chat/components/Inputbar/components/TeamSelector.tsx",
       "src/components/smart-input/ChatInput.tsx",
-      "src/components/workspace/video/PromptInput.tsx",
     ]);
     expect(monitor?.patterns).toEqual(
       expect.arrayContaining([

@@ -11,6 +11,13 @@ const latestAgentChatProps = vi.hoisted(
       value: null as Record<string, unknown> | null,
     }) as { value: Record<string, unknown> | null },
 );
+const agentChatLifecycle = vi.hoisted(
+  () =>
+    ({
+      mounts: 0,
+      unmounts: 0,
+    }) as { mounts: number; unmounts: number },
+);
 const latestSkillsWorkspaceProps = vi.hoisted(
   () =>
     ({
@@ -40,6 +47,15 @@ const sceneAppsLifecycle = vi.hoisted(
 vi.mock("./agent/chat", () => ({
   AgentChatPage: (props: Record<string, unknown>) => {
     latestAgentChatProps.value = props;
+
+    useEffect(() => {
+      agentChatLifecycle.mounts += 1;
+
+      return () => {
+        agentChatLifecycle.unmounts += 1;
+      };
+    }, []);
+
     return <div data-testid="agent-chat-page" />;
   },
 }));
@@ -160,6 +176,8 @@ describe("AppPageContent", () => {
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     latestAgentChatProps.value = null;
+    agentChatLifecycle.mounts = 0;
+    agentChatLifecycle.unmounts = 0;
     latestSkillsWorkspaceProps.value = null;
     latestMemoryPageProps.value = null;
     latestSceneAppsPageProps.value = null;
@@ -303,6 +321,130 @@ describe("AppPageContent", () => {
         prefillHint: "已根据最近一次创作自动预填。",
       },
     });
+  });
+
+  it("agent 页面应把 initialInputCapability 透传给 AgentChatPage", async () => {
+    const pageParams: AgentPageParams = {
+      agentEntry: "new-task",
+      projectId: "project-3",
+      theme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "installed_skill",
+          skillKey: "local:writer",
+          skillName: "写作助手",
+        },
+        requestKey: 20260418,
+      },
+    };
+
+    renderContent("agent", pageParams);
+    await flushEffects();
+
+    expect(latestAgentChatProps.value).toMatchObject({
+      projectId: "project-3",
+      agentEntry: "new-task",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "installed_skill",
+          skillKey: "local:writer",
+          skillName: "写作助手",
+        },
+        requestKey: 20260418,
+      },
+    });
+  });
+
+  it("agent 页面切换 initialInputCapability 时应重建 AgentChatPage 实例", async () => {
+    const rendered = renderContentWithNavigationState({
+      currentPage: "agent",
+      pageParams: {
+        agentEntry: "new-task",
+        projectId: "project-3",
+        theme: "general",
+        initialInputCapability: {
+          capabilityRoute: {
+            kind: "installed_skill",
+            skillKey: "local:writer",
+            skillName: "写作助手",
+          },
+          requestKey: 20260418,
+        },
+      } satisfies AgentPageParams,
+    });
+    await flushEffects();
+
+    expect(agentChatLifecycle.mounts).toBe(1);
+    expect(agentChatLifecycle.unmounts).toBe(0);
+
+    rendered.rerender({
+      currentPage: "agent",
+      pageParams: {
+        agentEntry: "new-task",
+        projectId: "project-3",
+        theme: "general",
+        initialInputCapability: {
+          capabilityRoute: {
+            kind: "installed_skill",
+            skillKey: "local:analyst",
+            skillName: "分析助手",
+          },
+          requestKey: 20260419,
+        },
+      } satisfies AgentPageParams,
+    });
+    await flushEffects();
+
+    expect(agentChatLifecycle.mounts).toBe(2);
+    expect(agentChatLifecycle.unmounts).toBe(1);
+  });
+
+  it("agent 页面切换结果模板 initialInputCapability 时也应重建 AgentChatPage 实例", async () => {
+    const rendered = renderContentWithNavigationState({
+      currentPage: "agent",
+      pageParams: {
+        agentEntry: "new-task",
+        projectId: "project-3",
+        theme: "general",
+        initialInputCapability: {
+          capabilityRoute: {
+            kind: "curated_task",
+            taskId: "daily-trend-briefing",
+            taskTitle: "每日趋势摘要",
+            prompt:
+              "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+          },
+          requestKey: 20260418,
+        },
+      } satisfies AgentPageParams,
+    });
+    await flushEffects();
+
+    expect(agentChatLifecycle.mounts).toBe(1);
+    expect(agentChatLifecycle.unmounts).toBe(0);
+
+    rendered.rerender({
+      currentPage: "agent",
+      pageParams: {
+        agentEntry: "new-task",
+        projectId: "project-3",
+        theme: "general",
+        initialInputCapability: {
+          capabilityRoute: {
+            kind: "curated_task",
+            taskId: "social-post-starter",
+            taskTitle: "内容主稿生成",
+            prompt:
+              "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构、核心观点和可继续扩写的角度，并给我一版适合继续打磨的正文。",
+          },
+          requestKey: 20260419,
+        },
+      } satisfies AgentPageParams,
+    });
+    await flushEffects();
+
+    expect(agentChatLifecycle.mounts).toBe(2);
+    expect(agentChatLifecycle.unmounts).toBe(1);
   });
 
   it("agent 页面应把创作场景执行摘要与自动发送 metadata 透传给 AgentChatPage", async () => {

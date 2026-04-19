@@ -21,6 +21,10 @@ import { useInputbarController } from "./hooks/useInputbarController";
 import type { TeamDefinition } from "../../utils/teamDefinitions";
 import type { WorkspaceSettings } from "@/types/workspace";
 import type { AgentAccessMode } from "../../hooks/agentChatStorage";
+import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
+import type { HandleSendOptions } from "../../hooks/handleSendTypes";
+import type { AgentInitialInputCapabilityParams } from "@/types/page";
+import type { CuratedTaskReferenceEntry } from "../../utils/curatedTaskReferenceSelection";
 
 const SecondaryControlsRow = styled.div`
   position: absolute;
@@ -50,6 +54,8 @@ interface InputbarProps extends SkillSelectionSourceProps {
     thinking?: boolean,
     textOverride?: string,
     executionStrategy?: "react" | "code_orchestrated" | "auto",
+    autoContinuePayload?: AutoContinueRequestPayload,
+    sendOptions?: HandleSendOptions,
   ) => void | Promise<boolean> | boolean;
   /** 停止生成回调 */
   onStop?: () => void;
@@ -86,6 +92,7 @@ interface InputbarProps extends SkillSelectionSourceProps {
   onToolStatesChange?: (states: InputbarToolStates) => void;
   activeTheme?: string;
   onManageProviders?: () => void;
+  initialInputCapability?: AgentInitialInputCapabilityParams;
   variant?: "default" | "workspace";
   workflowGate?: WorkflowGateState | null;
   workflowSteps?: WorkflowStep[];
@@ -99,6 +106,8 @@ interface InputbarProps extends SkillSelectionSourceProps {
   teamWorkspaceSettings?: WorkspaceSettings | null;
   onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
   contextVariant?: "default" | "task-center";
+  defaultCuratedTaskReferenceMemoryIds?: string[];
+  defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
 }
 
 export const Inputbar: React.FC<InputbarProps> = ({
@@ -137,6 +146,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
   onToolStatesChange,
   activeTheme,
   onManageProviders,
+  initialInputCapability,
   variant = "default",
   workflowGate,
   workflowSteps = [],
@@ -150,6 +160,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
   teamWorkspaceSettings,
   onPersistCustomTeams,
   contextVariant = "default",
+  defaultCuratedTaskReferenceMemoryIds = [],
+  defaultCuratedTaskReferenceEntries = [],
 }) => {
   const {
     textareaRef,
@@ -172,6 +184,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
     handleSend,
     inputAdapter,
     topExtra,
+    dialogLayer,
     workflowQuickActions,
     workflowQueueItems,
     workflowActiveItem,
@@ -182,7 +195,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
     workflowSummaryLabel,
     renderWorkflowGeneratingPanel,
     skillSelection,
-    setActiveBuiltinCommand,
+    handleSelectInputCapability,
+    activeCapability,
   } = useInputbarController({
     input,
     setInput,
@@ -198,6 +212,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
     toolStates,
     onToolStatesChange,
     activeTheme,
+    initialInputCapability,
     variant,
     workflowGate,
     workflowSteps,
@@ -264,7 +279,12 @@ export const Inputbar: React.FC<InputbarProps> = ({
         textareaRef={textareaRef}
         input={input}
         onSelectCharacter={onSelectCharacter}
-        onSelectBuiltinCommand={setActiveBuiltinCommand}
+        onSelectInputCapability={handleSelectInputCapability}
+        activeCapability={activeCapability}
+        defaultCuratedTaskReferenceMemoryIds={
+          defaultCuratedTaskReferenceMemoryIds
+        }
+        defaultCuratedTaskReferenceEntries={defaultCuratedTaskReferenceEntries}
         selectedTeam={selectedTeam}
         onSelectTeam={onSelectTeam}
         teamWorkspaceSettings={teamWorkspaceSettings}
@@ -290,6 +310,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         onRemoveQueuedTurn={onRemoveQueuedTurn}
         contextVariant={contextVariant}
       />
+      {dialogLayer}
     </InputbarSurface>
   );
 };

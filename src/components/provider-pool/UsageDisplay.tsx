@@ -49,7 +49,7 @@ export function UsageDisplay({ usage, loading }: UsageDisplayProps) {
     <div
       className={`rounded-lg border p-4 ${
         usage.isLowBalance
-          ? "border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/30"
+          ? "border-amber-300 bg-amber-50/50"
           : "border-border bg-card"
       }`}
     >
@@ -62,7 +62,7 @@ export function UsageDisplay({ usage, loading }: UsageDisplayProps) {
           </span>
         </div>
         {usage.isLowBalance && (
-          <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+          <div className="flex items-center gap-1 text-amber-600">
             <AlertTriangle className="h-4 w-4" />
             <span className="text-xs font-medium">余额不足</span>
           </div>
@@ -112,14 +112,14 @@ export function UsageDisplay({ usage, loading }: UsageDisplayProps) {
         <div
           className={`text-center p-2 rounded-lg ${
             usage.isLowBalance
-              ? "bg-amber-100 dark:bg-amber-900/30"
+              ? "bg-amber-100"
               : "bg-muted/50"
           }`}
         >
           <div
             className={`flex items-center justify-center gap-1 mb-1 ${
               usage.isLowBalance
-                ? "text-amber-600 dark:text-amber-400"
+                ? "text-amber-600"
                 : "text-muted-foreground"
             }`}
           >
@@ -128,7 +128,7 @@ export function UsageDisplay({ usage, loading }: UsageDisplayProps) {
           </div>
           <div
             className={`font-semibold text-sm ${
-              usage.isLowBalance ? "text-amber-600 dark:text-amber-400" : ""
+              usage.isLowBalance ? "text-amber-600" : ""
             }`}
           >
             {formatNumber(usage.balance)}

@@ -79,8 +79,8 @@ function renderChrome(
       embedded: true,
       formatUpdatedAt: () => "刚刚",
       memberCanvasSubtitle:
-        "2 项任务已接入，当前焦点会优先落在正在处理的任务上。",
-      memberCanvasTitle: "任务视图",
+        "2 条当前进展已接入，当前焦点会优先落在正在处理的分工上。",
+      memberCanvasTitle: "当前进展",
       onAutoArrangeCanvas: vi.fn(),
       onCloseCompletedTeamSessions: vi.fn(),
       onFitCanvasView: vi.fn(),
@@ -126,11 +126,11 @@ describe("TeamWorkspaceTeamOverviewChrome", () => {
       '[data-testid="team-workspace-compact-controls"]',
     ) as HTMLElement | null;
 
-    expect(summary?.textContent).toContain("任务视图");
+    expect(summary?.textContent).toContain("当前进展");
     expect(summary?.textContent).toContain("研究员");
     expect(summary?.textContent).toContain("当前焦点");
     expect(summary?.textContent).toContain(
-      "当前焦点会优先落在正在处理的任务上。",
+      "当前焦点会优先落在正在处理的分工上。",
     );
     expect(summary?.textContent).toContain("更新于 刚刚");
     expect(summary?.textContent).toContain("当前任务");
@@ -143,7 +143,7 @@ describe("TeamWorkspaceTeamOverviewChrome", () => {
     expect(controls?.textContent).toContain("视图");
     expect(controls?.textContent).toContain("等待任一任务结果");
     expect(controls?.textContent).toContain("收起已完成任务");
-    expect(controls?.textContent).toContain("聚焦任务");
+    expect(controls?.textContent).toContain("聚焦进展");
     expect(controls?.textContent).toContain("整理布局");
     expect(controls?.textContent).not.toContain("缩小");
     expect(controls?.textContent).not.toContain("放大");

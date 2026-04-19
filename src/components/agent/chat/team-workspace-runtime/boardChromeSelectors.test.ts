@@ -27,7 +27,7 @@ describe("boardChromeSelectors", () => {
 
     expect(state.boardHeadline).toBe("任务进行中 · 1 项处理中 / 1 项稍后开始");
     expect(state.boardHint).toBe(
-      "这里只展示当前有哪些任务在处理、状态如何，以及最近更新到了哪里。",
+      "这里只展示当前有哪些分工在处理、状态如何，以及最近更新到了哪里。",
     );
     expect(state.compactBoardHeadline).toBe(
       "任务进行中 · 1 项处理中 / 1 项稍后开始",

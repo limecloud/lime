@@ -49,6 +49,12 @@ export function createSkillSelectionProps({
   };
 }
 
+export function buildSkillSelectionProps(
+  props: SkillSelectionSourceProps & SkillSelectionControllerProps,
+): SkillSelectionProps {
+  return createSkillSelectionProps(props);
+}
+
 export function buildSkillSelectionBindings({
   skills,
   serviceSkills = [],
@@ -67,7 +73,6 @@ export function buildSkillSelectionBindings({
       skills,
       serviceSkills,
       serviceSkillGroups,
-      onSelectSkill,
       onSelectServiceSkill,
       onNavigateToSettings,
     },

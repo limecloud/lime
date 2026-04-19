@@ -76,6 +76,7 @@ pub struct AnthropicProvider {
     api_client: ApiClient,
     model: ModelConfig,
     supports_streaming: bool,
+    automatic_prompt_cache: bool,
     name: String,
 }
 
@@ -99,6 +100,7 @@ impl AnthropicProvider {
         };
 
         let auth = resolve_anthropic_auth(&host, api_key);
+        let automatic_prompt_cache = supports_automatic_prompt_cache_for_host(&host);
 
         let api_client =
             ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
@@ -107,6 +109,7 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: true,
+            automatic_prompt_cache,
             name: Self::metadata().name,
         })
     }
@@ -120,6 +123,7 @@ impl AnthropicProvider {
             .get_secret(&config.api_key_env)
             .map_err(|_| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
 
+        let automatic_prompt_cache = supports_automatic_prompt_cache_for_host(&config.base_url);
         let auth = resolve_anthropic_auth(&config.base_url, api_key);
 
         let api_client = ApiClient::new(config.base_url, auth)?
@@ -129,8 +133,34 @@ impl AnthropicProvider {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            automatic_prompt_cache,
             name: config.name.clone(),
         })
+    }
+
+    fn strip_cache_control_markers(value: &mut Value) {
+        match value {
+            Value::Object(map) => {
+                map.remove("cache_control");
+                for nested in map.values_mut() {
+                    Self::strip_cache_control_markers(nested);
+                }
+            }
+            Value::Array(items) => {
+                for item in items {
+                    Self::strip_cache_control_markers(item);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn normalize_payload_for_runtime(&self, payload: &mut Value) {
+        if self.automatic_prompt_cache {
+            return;
+        }
+
+        Self::strip_cache_control_markers(payload);
     }
 
     fn get_conditional_headers(&self) -> Vec<(&str, &str)> {
@@ -246,7 +276,8 @@ impl Provider for AnthropicProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools)?;
+        let mut payload = create_request(model_config, system, messages, tools)?;
+        self.normalize_payload_for_runtime(&mut payload);
 
         let response = self
             .with_retry(|| async { self.post(&payload).await })
@@ -301,6 +332,7 @@ impl Provider for AnthropicProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = create_request(&self.model, system, messages, tools)?;
+        self.normalize_payload_for_runtime(&mut payload);
         payload
             .as_object_mut()
             .unwrap()
@@ -339,10 +371,26 @@ impl Provider for AnthropicProvider {
     }
 }
 
+fn supports_automatic_prompt_cache_for_host(host: &str) -> bool {
+    let normalized_host = normalize_anthropic_host(host);
+    if normalized_host.is_empty() {
+        return true;
+    }
+
+    normalized_host.contains("api.anthropic.com") || should_use_bearer_auth_for_anthropic_host(host)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{resolve_anthropic_auth, should_use_bearer_auth_for_anthropic_host};
+    use super::{
+        resolve_anthropic_auth, should_use_bearer_auth_for_anthropic_host,
+        supports_automatic_prompt_cache_for_host, AnthropicProvider,
+    };
+    use crate::conversation::message::Message;
+    use crate::model::ModelConfig;
     use crate::providers::api_client::AuthMethod;
+    use crate::providers::formats::anthropic::create_request;
+    use rmcp::model::{CallToolRequestParam, ErrorCode, ErrorData, Tool};
 
     #[test]
     fn test_known_official_anthropic_compatible_hosts_use_bearer_auth() {
@@ -375,5 +423,87 @@ mod tests {
             }
             _ => panic!("expected x-api-key auth"),
         }
+    }
+
+    #[test]
+    fn test_official_or_known_compatible_hosts_keep_automatic_prompt_cache() {
+        assert!(supports_automatic_prompt_cache_for_host(
+            "https://api.anthropic.com"
+        ));
+        assert!(supports_automatic_prompt_cache_for_host(
+            "https://api.minimaxi.com/anthropic"
+        ));
+    }
+
+    #[test]
+    fn test_unknown_compatible_host_disables_automatic_prompt_cache() {
+        assert!(!supports_automatic_prompt_cache_for_host(
+            "https://example.com/anthropic"
+        ));
+    }
+
+    #[test]
+    fn test_strip_cache_control_markers_for_non_automatic_runtime() {
+        let model_config = ModelConfig::new("claude-sonnet-4-5").expect("valid anthropic model");
+        let messages = vec![
+            Message::user().with_text("请输出结构化结果"),
+            Message::assistant().with_tool_request(
+                "tool_1",
+                Ok(CallToolRequestParam {
+                    name: "StructuredOutput".into(),
+                    arguments: Some(rmcp::object!({
+                        "answer": "draft"
+                    })),
+                }),
+            ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Err(ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    "Validation failed".to_string(),
+                    None,
+                )),
+            ),
+        ];
+        let tools = vec![Tool::new(
+            "StructuredOutput".to_string(),
+            "Return the final JSON object".to_string(),
+            rmcp::object!({
+                "type": "object",
+                "properties": {
+                    "answer": { "type": "string" }
+                },
+                "required": ["answer"]
+            }),
+        )];
+
+        let mut payload =
+            create_request(&model_config, "你必须输出 JSON。", &messages, &tools).expect("request");
+
+        assert_eq!(
+            payload["messages"][2]["content"][0]["cache_control"]["type"],
+            "ephemeral"
+        );
+        assert_eq!(payload["tools"][0]["cache_control"]["type"], "ephemeral");
+        assert_eq!(payload["system"][0]["cache_control"]["type"], "ephemeral");
+
+        AnthropicProvider::strip_cache_control_markers(&mut payload);
+
+        assert!(payload["messages"][2]["content"][0]
+            .get("cache_control")
+            .is_none());
+        assert!(payload["tools"][0].get("cache_control").is_none());
+        assert!(payload["system"][0].get("cache_control").is_none());
+        assert_eq!(payload["messages"][2]["content"][0]["type"], "tool_result");
+        assert_eq!(
+            payload["messages"][2]["content"][0]["tool_use_id"],
+            "tool_1"
+        );
+        assert_eq!(
+            payload["messages"][2]["content"][0]["content"],
+            "Error: -32602: Validation failed"
+        );
+        assert_eq!(payload["messages"][2]["content"][0]["is_error"], true);
+        assert_eq!(payload["messages"][1]["content"][0]["id"], "tool_1");
     }
 }

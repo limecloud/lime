@@ -267,20 +267,17 @@ export function CredentialCard({
       manual: {
         text: "手动添加",
         icon: User,
-        color:
-          "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
+        color: "bg-sky-100 text-sky-700",
       },
       imported: {
         text: "导入",
         icon: Upload,
-        color:
-          "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+        color: "bg-emerald-100 text-emerald-700",
       },
       private: {
         text: "私有",
         icon: Lock,
-        color:
-          "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+        color: "bg-amber-100 text-amber-700",
       },
     };
     return labels[source] || labels.manual;
@@ -297,12 +294,12 @@ export function CredentialCard({
     <div
       className={`rounded-xl border-2 transition-all hover:shadow-md ${
         credential.is_disabled
-          ? "border-slate-200 bg-slate-50/80 opacity-70 dark:border-slate-700 dark:bg-slate-900/60"
+          ? "border-slate-200 bg-slate-50/80 opacity-70"
           : isLocalActive
-            ? "border-amber-400 bg-gradient-to-r from-amber-50/80 to-white dark:border-amber-500 dark:bg-gradient-to-r dark:from-amber-950/40 dark:to-transparent"
+            ? "border-amber-400 bg-gradient-to-r from-amber-50/80 to-white"
             : isHealthy
-              ? "border-emerald-200 bg-gradient-to-r from-emerald-50/80 to-white dark:border-emerald-800 dark:bg-gradient-to-r dark:from-emerald-950/40 dark:to-transparent"
-              : "border-red-200 bg-gradient-to-r from-red-50/80 to-white dark:border-red-800 dark:bg-gradient-to-r dark:from-red-950/40 dark:to-transparent"
+              ? "border-emerald-200 bg-gradient-to-r from-emerald-50/80 to-white"
+              : "border-red-200 bg-gradient-to-r from-red-50/80 to-white"
       }`}
     >
       {/* 第一行：状态图标 + 名称 + 标签 + 操作按钮 */}
@@ -311,18 +308,18 @@ export function CredentialCard({
         <div
           className={`shrink-0 rounded-full p-3 ${
             credential.is_disabled
-              ? "bg-slate-100 dark:bg-slate-800"
+              ? "bg-slate-100"
               : isHealthy
-                ? "bg-emerald-100 dark:bg-emerald-900/30"
-                : "bg-red-100 dark:bg-red-900/30"
+                ? "bg-emerald-100"
+                : "bg-red-100"
           }`}
         >
           {credential.is_disabled ? (
             <PowerOff className="h-6 w-6 text-slate-400" />
           ) : isHealthy ? (
-            <Heart className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+            <Heart className="h-6 w-6 text-emerald-600" />
           ) : (
-            <HeartOff className="h-6 w-6 text-red-600 dark:text-red-400" />
+            <HeartOff className="h-6 w-6 text-red-600" />
           )}
         </div>
 
@@ -343,7 +340,7 @@ export function CredentialCard({
             </span>
             {credential.proxy_url && (
               <span
-                className="rounded-full px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                className="rounded-full px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap bg-orange-100 text-orange-700"
                 title={`代理: ${credential.proxy_url}`}
               >
                 <Globe className="h-3 w-3 shrink-0" />
@@ -359,8 +356,8 @@ export function CredentialCard({
             onClick={onToggle}
             className={`rounded-lg p-2.5 text-xs font-medium transition-colors ${
               credential.is_disabled
-                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
             title={credential.is_disabled ? "启用" : "禁用"}
           >
@@ -373,7 +370,7 @@ export function CredentialCard({
 
           <button
             onClick={onEdit}
-            className="rounded-lg bg-sky-100 p-2.5 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300 transition-colors"
+            className="rounded-lg bg-sky-100 p-2.5 text-sky-700 transition-colors hover:bg-sky-200"
             title="编辑"
           >
             <Settings className="h-4 w-4" />
@@ -382,7 +379,7 @@ export function CredentialCard({
           <button
             onClick={onCheckHealth}
             disabled={checkingHealth}
-            className="rounded-lg bg-emerald-100 p-2.5 text-emerald-700 hover:bg-emerald-200 disabled:opacity-50 dark:bg-emerald-900/30 dark:text-emerald-400 transition-colors"
+            className="rounded-lg bg-emerald-100 p-2.5 text-emerald-700 transition-colors hover:bg-emerald-200 disabled:opacity-50"
             title="检测"
           >
             <Activity
@@ -394,7 +391,7 @@ export function CredentialCard({
             <button
               onClick={onRefreshToken}
               disabled={refreshingToken}
-              className="rounded-lg bg-sky-100 p-2.5 text-sky-700 hover:bg-sky-200 disabled:opacity-50 dark:bg-sky-900/30 dark:text-sky-300 transition-colors"
+              className="rounded-lg bg-sky-100 p-2.5 text-sky-700 transition-colors hover:bg-sky-200 disabled:opacity-50"
               title="刷新 Token"
             >
               <RefreshCw
@@ -410,8 +407,8 @@ export function CredentialCard({
               disabled={fingerprintLoading}
               className={`rounded-lg p-2.5 transition-colors ${
                 fingerprintExpanded
-                  ? "bg-sky-200 text-sky-800 dark:bg-sky-800 dark:text-sky-200"
-                  : "bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300"
+                  ? "bg-sky-200 text-sky-800"
+                  : "bg-sky-100 text-sky-700 hover:bg-sky-200"
               } disabled:opacity-50`}
               title="查看设备指纹"
             >
@@ -428,8 +425,8 @@ export function CredentialCard({
               disabled={usageLoading}
               className={`rounded-lg p-2.5 transition-colors ${
                 usageExpanded
-                  ? "bg-sky-200 text-sky-800 dark:bg-sky-800 dark:text-sky-200"
-                  : "bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300"
+                  ? "bg-sky-200 text-sky-800"
+                  : "bg-sky-100 text-sky-700 hover:bg-sky-200"
               } disabled:opacity-50`}
               title="查看用量"
             >
@@ -446,8 +443,8 @@ export function CredentialCard({
               disabled={kiroStatusLoading}
               className={`rounded-lg p-2.5 transition-colors ${
                 kiroStatusExpanded
-                  ? "bg-emerald-200 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-200"
-                  : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  ? "bg-emerald-200 text-emerald-800"
+                  : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
               } disabled:opacity-50`}
               title="查看详细状态和健康分数"
             >
@@ -464,8 +461,8 @@ export function CredentialCard({
               disabled={kiroRefreshing}
               className={`rounded-lg p-2.5 transition-colors ${
                 kiroRefreshing
-                  ? "bg-sky-200 text-sky-800 dark:bg-sky-800 dark:text-sky-200"
-                  : "bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-300"
+                  ? "bg-sky-200 text-sky-800"
+                  : "bg-sky-100 text-sky-700 hover:bg-sky-200"
               } disabled:opacity-50`}
               title="快速刷新 Token"
             >
@@ -482,8 +479,8 @@ export function CredentialCard({
               disabled={switchingToLocal}
               className={`rounded-lg p-2.5 transition-colors ${
                 switchingToLocal
-                  ? "bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200"
-                  : "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
+                  ? "bg-amber-200 text-amber-800"
+                  : "bg-amber-100 text-amber-700 hover:bg-amber-200"
               } disabled:opacity-50`}
               title="切换到本地 Kiro IDE"
             >
@@ -495,7 +492,7 @@ export function CredentialCard({
 
           <button
             onClick={onReset}
-            className="rounded-lg bg-orange-100 p-2.5 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 transition-colors"
+            className="rounded-lg bg-orange-100 p-2.5 text-orange-700 transition-colors hover:bg-orange-200"
             title="重置"
           >
             <RotateCcw className="h-4 w-4" />
@@ -504,7 +501,7 @@ export function CredentialCard({
           <button
             onClick={onDelete}
             disabled={deleting}
-            className="rounded-lg bg-red-100 p-2.5 text-red-700 hover:bg-red-200 disabled:opacity-50 dark:bg-red-900/30 dark:text-red-400 transition-colors"
+            className="rounded-lg bg-red-100 p-2.5 text-red-700 transition-colors hover:bg-red-200 disabled:opacity-50"
             title="删除"
           >
             <Trash2 className="h-4 w-4" />
@@ -572,10 +569,10 @@ export function CredentialCard({
                   <div
                     className={`font-medium text-sm ${
                       credential.token_cache_status.is_expiring_soon
-                        ? "text-amber-600 dark:text-amber-400"
+                        ? "text-amber-600"
                         : credential.token_cache_status.is_valid
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-red-600 dark:text-red-400"
+                          ? "text-emerald-600"
+                          : "text-red-600"
                     }`}
                   >
                     {formatDate(credential.token_cache_status.expiry_time)}
@@ -611,12 +608,12 @@ export function CredentialCard({
                 <div
                   className={`font-bold text-xl tabular-nums ${
                     kiroHealthScore >= 80
-                      ? "text-emerald-600 dark:text-emerald-400"
+                      ? "text-emerald-600"
                       : kiroHealthScore >= 60
-                        ? "text-amber-600 dark:text-amber-400"
+                        ? "text-amber-600"
                         : kiroHealthScore >= 40
-                          ? "text-orange-600 dark:text-orange-400"
-                          : "text-red-600 dark:text-red-400"
+                          ? "text-orange-600"
+                          : "text-red-600"
                   }`}
                 >
                   {Math.round(kiroHealthScore)}
@@ -677,8 +674,8 @@ export function CredentialCard({
             credential.last_error_message.includes("invalid_grant") ||
             credential.last_error_message.includes("重新授权") ||
             credential.last_error_message.includes("凭证已过期")
-              ? "bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700"
-              : "bg-red-100 dark:bg-red-900/30"
+              ? "border border-amber-300 bg-amber-100"
+              : "bg-red-100"
           }`}
         >
           <div
@@ -686,8 +683,8 @@ export function CredentialCard({
               credential.last_error_message.includes("invalid_grant") ||
               credential.last_error_message.includes("重新授权") ||
               credential.last_error_message.includes("凭证已过期")
-                ? "text-amber-700 dark:text-amber-300"
-                : "text-red-700 dark:text-red-300"
+                ? "text-amber-700"
+                : "text-red-700"
             }`}
           >
             {credential.last_error_message.slice(0, 150)}
@@ -697,9 +694,9 @@ export function CredentialCard({
           {(credential.last_error_message.includes("invalid_grant") ||
             credential.last_error_message.includes("重新授权") ||
             credential.last_error_message.includes("凭证已过期")) && (
-            <div className="mt-2 pt-2 border-t border-amber-300 dark:border-amber-700">
+            <div className="mt-2 border-t border-amber-300 pt-2">
               <div className="flex items-center justify-between">
-                <span className="text-amber-600 dark:text-amber-400 font-medium">
+                <span className="font-medium text-amber-600">
                   💡 需要重新授权
                 </span>
                 {onRefreshToken && (
@@ -712,7 +709,7 @@ export function CredentialCard({
                   </button>
                 )}
               </div>
-              <p className="mt-1 text-amber-600/80 dark:text-amber-400/80">
+              <p className="mt-1 text-amber-600/80">
                 请删除此凭证并重新添加，或尝试刷新 Token
               </p>
             </div>
@@ -725,8 +722,8 @@ export function CredentialCard({
         <div
           className={`mx-4 mb-3 rounded-lg p-3 text-sm ${
             switchResult.success
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-              : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-red-100 text-red-700"
           }`}
         >
           <div className="flex items-center gap-2">
@@ -747,22 +744,22 @@ export function CredentialCard({
 
       {/* 指纹信息展示区域 - 仅 Kiro 凭证 */}
       {isKiroCredential && fingerprintExpanded && (
-        <div className="mx-4 mb-4 rounded-lg border border-sky-200 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-950/30">
+        <div className="mx-4 mb-4 rounded-lg border border-sky-200 bg-sky-50 p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="flex items-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-300">
+            <span className="flex items-center gap-2 text-sm font-medium text-sky-700">
               <Fingerprint className="h-4 w-4" />
               设备指纹
             </span>
             <button
               onClick={() => setFingerprintExpanded(false)}
-              className="text-sky-500 hover:text-sky-700 dark:hover:text-sky-300"
+              className="text-sky-500 hover:text-sky-700"
             >
               <ChevronUp className="h-4 w-4" />
             </button>
           </div>
 
           {fingerprintLoading ? (
-            <div className="flex items-center gap-2 text-sm text-sky-600 dark:text-sky-400">
+            <div className="flex items-center gap-2 text-sm text-sky-600">
               <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
               加载中...
             </div>
@@ -772,12 +769,12 @@ export function CredentialCard({
                 <span className="text-sm text-muted-foreground">
                   Machine ID:
                 </span>
-                <code className="text-sm font-mono bg-white dark:bg-gray-800 px-2 py-1 rounded border">
+                <code className="rounded border bg-white px-2 py-1 text-sm font-mono">
                   {fingerprintInfo.machine_id_short}...
                 </code>
                 <button
                   onClick={handleCopyMachineId}
-                  className="p-1.5 rounded hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
+                  className="rounded p-1.5 transition-colors hover:bg-sky-100"
                   title="复制完整 Machine ID"
                 >
                   {fingerprintCopied ? (
@@ -793,10 +790,10 @@ export function CredentialCard({
                   <span
                     className={`px-2 py-0.5 rounded font-medium ${
                       fingerprintInfo.source === "profileArn"
-                        ? "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+                        ? "bg-sky-100 text-sky-700"
                         : fingerprintInfo.source === "clientId"
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                          : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-slate-100 text-slate-700"
                     }`}
                   >
                     {fingerprintInfo.source}
@@ -807,8 +804,8 @@ export function CredentialCard({
                   <span
                     className={`px-2 py-0.5 rounded font-medium ${
                       fingerprintInfo.auth_method.toLowerCase() === "idc"
-                        ? "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
-                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                        ? "bg-sky-100 text-sky-700"
+                        : "bg-amber-100 text-amber-700"
                     }`}
                   >
                     {fingerprintInfo.auth_method}
@@ -826,42 +823,42 @@ export function CredentialCard({
 
       {/* Kiro 详细状态面板 - 仅 Kiro 凭证 */}
       {isKiroCredential && kiroStatusExpanded && (
-        <div className="mx-4 mb-4 p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+        <div className="mx-4 mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-emerald-700">
               <Activity className="h-4 w-4" />
               Kiro 详细状态
             </span>
             <button
               onClick={() => setKiroStatusExpanded(false)}
-              className="text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300"
+              className="text-emerald-500 hover:text-emerald-700"
             >
               <ChevronUp className="h-4 w-4" />
             </button>
           </div>
 
           {kiroStatusLoading ? (
-            <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+            <div className="flex items-center gap-2 text-sm text-emerald-600">
               <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
               加载中...
             </div>
           ) : kiroHealthScore !== null ? (
             <div className="space-y-4">
               {/* 健康分数详情 */}
-              <div className="bg-white dark:bg-emerald-950/50 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+              <div className="rounded-lg border border-emerald-200 bg-white p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                  <span className="text-sm font-medium text-emerald-700">
                     健康分数
                   </span>
                   <div
                     className={`px-3 py-1 rounded-full text-sm font-bold ${
                       kiroHealthScore >= 80
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                        ? "bg-emerald-100 text-emerald-700"
                         : kiroHealthScore >= 60
-                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                          ? "bg-amber-100 text-amber-700"
                           : kiroHealthScore >= 40
-                            ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-red-100 text-red-700"
                     }`}
                   >
                     {Math.round(kiroHealthScore)} / 100
@@ -869,7 +866,7 @@ export function CredentialCard({
                 </div>
 
                 {/* 健康分数条 */}
-                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                <div className="h-2 w-full rounded-full bg-slate-200">
                   <div
                     className={`h-2 rounded-full transition-all duration-300 ${
                       kiroHealthScore >= 80
@@ -902,10 +899,10 @@ export function CredentialCard({
 
               {/* 状态指标 */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white dark:bg-emerald-950/50 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+                <div className="rounded-lg border border-emerald-200 bg-white p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <Timer className="h-4 w-4 text-emerald-600" />
-                    <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                    <span className="text-sm font-medium text-emerald-700">
                       冷却时间
                     </span>
                   </div>
@@ -914,10 +911,10 @@ export function CredentialCard({
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-emerald-950/50 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+                <div className="rounded-lg border border-emerald-200 bg-white p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <BarChart3 className="h-4 w-4 text-emerald-600" />
-                    <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                    <span className="text-sm font-medium text-emerald-700">
                       使用权重
                     </span>
                   </div>
@@ -928,7 +925,7 @@ export function CredentialCard({
               </div>
 
               {/* 快速操作 */}
-              <div className="flex gap-2 pt-2 border-t border-emerald-200 dark:border-emerald-800">
+              <div className="flex gap-2 border-t border-emerald-200 pt-2">
                 {credential.is_disabled ? (
                   // 已禁用凭证显示重新启用按钮
                   <button
@@ -954,7 +951,7 @@ export function CredentialCard({
                     <button
                       onClick={onCheckHealth}
                       disabled={checkingHealth}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                      className="flex-1 flex items-center justify-center gap-2 rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Activity
                         className={`h-4 w-4 ${checkingHealth ? "animate-pulse" : ""}`}
@@ -975,22 +972,22 @@ export function CredentialCard({
 
       {/* 用量信息展示区域 - 仅 Kiro 凭证 */}
       {isKiroCredential && usageExpanded && (
-        <div className="mx-4 mb-4 rounded-lg border border-sky-200 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-950/30">
+        <div className="mx-4 mb-4 rounded-lg border border-sky-200 bg-sky-50 p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="flex items-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-300">
+            <span className="flex items-center gap-2 text-sm font-medium text-sky-700">
               <BarChart3 className="h-4 w-4" />
               Kiro 用量
             </span>
             <button
               onClick={() => setUsageExpanded(false)}
-              className="text-sky-500 hover:text-sky-700 dark:hover:text-sky-300"
+              className="text-sky-500 hover:text-sky-700"
             >
               <ChevronUp className="h-4 w-4" />
             </button>
           </div>
 
           {usageError ? (
-            <div className="rounded-lg bg-red-100 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
+            <div className="rounded-lg bg-red-100 p-3 text-sm text-red-700">
               {usageError}
             </div>
           ) : usageInfo ? (

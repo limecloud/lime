@@ -67,7 +67,7 @@ Lime 当前不是“能力不够”，而是“主链不够单一”。
 
 | 文档群 | 归属主链 | 角色 |
 | --- | --- | --- |
-| `docs/roadmap/lime-aster-codex-alignment-roadmap.md`、`docs/roadmap/lime-aster-codex-state-model-implementation-plan.md` | `Query Loop`、`State / History / Telemetry` | Aster/Codex 历史专项档案，不再承担仓库级总排期或 current 实施入口职责 |
+| `docs/roadmap/lime-aster-codex-alignment-roadmap.md` | `Query Loop`、`State / History / Telemetry` | Aster/Codex umbrella 历史专项档案，已吸收原状态模型与执行效率子专题，不再承担仓库级总排期或 current 实施入口职责 |
 | `docs/roadmap/reliability/*` | `State / History / Telemetry` | Reliability control plane 专项 |
 | `docs/tech/harness/*`、`docs/roadmap/harness-engine/*` | `State / History / Telemetry`、`Memory / Compaction` | Evidence / replay / review / observability / cleanup 专项 |
 | `docs/develop/execution-tracker-technical-plan.md`、`docs/develop/execution-tracker-p1-p2-roadmap.md`、`docs/develop/scheduler-task-governance-p1.md` | `Task / Agent / Coordinator` | 长时执行与治理专项 |
@@ -182,15 +182,15 @@ Lime 当前不是“能力不够”，而是“主链不够单一”。
 
 - 已完成第一刀：`docs/aiprompts/state-history-telemetry.md` 已成为 State / History / Telemetry current 入口
 - 已完成第二刀：`agent_sessions / agent_messages -> SessionDetail -> AgentRuntimeThreadReadModel -> RequestLog 关联键 -> handoff/evidence/replay/analysis/review -> history-record/trend/cleanup/dashboard -> HarnessStatusPanel / AgentThreadReliabilityPanel` 已明确为 current 主链
-- 已完成第三刀：`docs/roadmap/lime-aster-codex-state-model-implementation-plan.md`、`docs/roadmap/reliability/*` 与 `telemetry_cmd.rs` 已明确退回 compat；cleanup 报表里残留的 `requestTelemetry:unlinked` 旧语义已明确为 deprecated
+- 已完成第三刀：原 `state-model` 历史子专题、`docs/roadmap/reliability/*` 与 `telemetry_cmd.rs` 已明确退回 compat；cleanup 报表里残留的 `requestTelemetry:unlinked` 旧语义已明确为 deprecated
 - 已完成第四刀：`docs/README.md`、`docs/aiprompts/README.md`、`docs/aiprompts/overview.md`、`AGENTS.md` 已同步回挂新入口，仓库导航不再继续把状态模型专题计划、reliability 计划或原始 request log 控制台误当成 current 主链
 - 已完成第五刀：`docs/roadmap/reliability/README.md` 已补成 compat 目录入口；cleanup 核心脚本已把旧 `requestTelemetry:unlinked` 样本折叠为 `known_gap`，避免旧历史语义继续充当现役状态类别
 - 已完成第六刀：`docs/roadmap/reliability/*.md` 全部补上 compat 提示，正文开头先回挂 `state-history-telemetry.md`；`telemetry_cmd.rs` 也已明确只暴露原始 `RequestLog` 与聚合统计，不再和 thread read / evidence 主链抢解释权
 - 已完成第七刀：`docs/roadmap/reliability/*.md` 顶部重复的上位文档列表已压成统一 `README + current 主链 + PR 对应映射` 导航，专项正文不再继续堆叠第二套入口说明
 - 已完成第八刀：整组 `docs/roadmap/reliability/*` 已进一步压缩为 compat 历史摘要档案，只保留落地结果、current 映射与延后增强项；重复的目标/问题/范围/实施清单正文已回退到仓库历史
-- 已完成第九刀：`docs/roadmap/lime-aster-codex-state-model-implementation-plan.md` 已进一步压缩为 compat 历史摘要档案，`alignment-roadmap` 顶部导航也已改回 `query-loop / state-history-telemetry / upstream-runtime-alignment-plan` 这组 current 入口
-- 已完成第十刀：`docs/roadmap/lime-aster-codex-alignment-roadmap.md` 已进一步压缩为 compat 历史摘要档案，只保留阶段映射、历史判断与 current 回看入口
-- 已完成第十一刀：`docs/roadmap/lime-conversation-execution-efficiency-roadmap.md` 已进一步压缩为 compat 历史摘要档案，`docs/roadmap/artifacts/*` 对运行时边界的引用也已统一改回 `query-loop / task-agent-taxonomy / state-history-telemetry / upstream-runtime-alignment-plan`
+- 已完成第九刀：原 `state-model` 历史摘要已完成压缩并最终并入 `docs/roadmap/lime-aster-codex-alignment-roadmap.md`，current 入口固定回到 `query-loop / state-history-telemetry / upstream-runtime-alignment-plan`
+- 已完成第十刀：`docs/roadmap/lime-aster-codex-alignment-roadmap.md` 已固定为 compat umbrella 历史档案，只保留阶段映射、状态模型与执行效率的核心判断
+- 已完成第十一刀：原 `conversation-execution-efficiency` 历史摘要已并入 `alignment-roadmap`，`docs/roadmap/artifacts/*` 对运行时边界的引用也已统一改回 `query-loop / task-agent-taxonomy / state-history-telemetry / upstream-runtime-alignment-plan`
 - `M5` 退出判断：已满足“session / thread / turn / request / evidence / history 的读模型叙事收口”的出口条件，后续只允许在 current 边界上继续长能力
 
 ## 7. 当前默认判断

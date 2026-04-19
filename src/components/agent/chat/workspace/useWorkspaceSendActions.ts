@@ -4,10 +4,6 @@ import type { Dispatch, SetStateAction } from "react";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { getOrCreateDefaultProject } from "@/lib/api/project";
-import {
-  getCurrentSkillCatalogSnapshot,
-  listSkillCatalogCommandEntries,
-} from "@/lib/api/skillCatalog";
 import { parseAnalysisWorkbenchCommand } from "../utils/analysisWorkbenchCommand";
 import { parseBrowserWorkbenchCommand } from "../utils/browserWorkbenchCommand";
 import { parseBroadcastWorkbenchCommand } from "../utils/broadcastWorkbenchCommand";
@@ -103,12 +99,17 @@ import {
   RuntimeSceneLaunchValidationError,
   resolveRuntimeSceneLaunchRequest,
 } from "./serviceSkillSceneLaunch";
+import {
+  resolveInputCapabilityDispatchContext,
+  type CompletedInputCapabilitySlashUsage,
+} from "./inputCapabilityRouting";
 import type { RuntimeSceneGateRequest } from "./sceneSkillGate";
 import {
   getMentionEntryUsageMap,
   getMentionEntryUsageRecordKey,
   recordMentionEntryUsage,
 } from "../skill-selection/mentionEntryUsage";
+import { useRuntimeMentionCommandCatalog } from "../skill-selection/runtimeInputCapabilityCatalog";
 import { recordServiceSkillUsage } from "../service-skills/storage";
 import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import { CONTENT_POST_SKILL_KEY } from "../utils/contentPostSkill";
@@ -201,14 +202,6 @@ type CompletedMentionCommandUsage = {
   slotValues?: ServiceSkillSlotValues;
 };
 
-function normalizeMentionCommandPrefix(value?: string | null): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return value.trim().toLowerCase();
-}
-
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
@@ -223,41 +216,6 @@ function normalizeOptionalText(value?: string | null): string | undefined {
 
   const normalized = value.trim();
   return normalized ? normalized : undefined;
-}
-
-function buildMentionCommandSkillIdMap(): Map<string, string> {
-  return new Map(
-    listSkillCatalogCommandEntries(getCurrentSkillCatalogSnapshot())
-      .filter((entry) =>
-        entry.triggers.some((trigger) => trigger.mode === "mention"),
-      )
-      .flatMap((entry) => {
-        const commandKey = entry.commandKey.trim();
-        const skillId = entry.binding?.skillId?.trim();
-
-        return commandKey && skillId ? [[commandKey, skillId] as const] : [];
-      }),
-  );
-}
-
-function buildMentionCommandPrefixKeyMap(): Map<string, string> {
-  return new Map(
-    listSkillCatalogCommandEntries(getCurrentSkillCatalogSnapshot()).flatMap(
-      (entry) => {
-        const commandKey = entry.commandKey.trim();
-        if (!commandKey) {
-          return [];
-        }
-
-        return entry.triggers
-          .filter((trigger) => trigger.mode === "mention")
-          .flatMap((trigger) => {
-            const prefix = normalizeMentionCommandPrefix(trigger.prefix);
-            return prefix ? [[prefix, commandKey] as const] : [];
-          });
-      },
-    ),
-  );
 }
 
 function normalizeServiceSkillUsageSlotValue(
@@ -575,7 +533,6 @@ function resolveImageMentionCommandKey(
 }
 
 const MAX_MENTION_COMMAND_REPLAY_TEXT_LENGTH = 400;
-const MAX_SLASH_COMMAND_REPLAY_TEXT_LENGTH = 400;
 
 function normalizeMentionCommandReplayText(
   value: string | null | undefined,
@@ -586,23 +543,6 @@ function normalizeMentionCommandReplayText(
   }
 
   return trimmed.slice(0, MAX_MENTION_COMMAND_REPLAY_TEXT_LENGTH).trim();
-}
-
-function normalizeSlashCommandReplayText(
-  value: string | null | undefined,
-): string | undefined {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-
-  return trimmed.slice(0, MAX_SLASH_COMMAND_REPLAY_TEXT_LENGTH).trim();
-}
-
-function resolveRuntimeSceneReplayText(rawText: string): string | undefined {
-  return normalizeSlashCommandReplayText(
-    parseRuntimeSceneCommand(rawText)?.userInput,
-  );
 }
 
 function resolveMentionCommandReplayText(parsedCommand: {
@@ -627,7 +567,7 @@ function resolveBareMentionCommandPrefillSourceText(
 
   const commandPrefix = matched[1];
   const commandKey = mentionCommandPrefixKeyMap.get(
-    normalizeMentionCommandPrefix(commandPrefix),
+    commandPrefix.trim().toLowerCase(),
   );
   if (!commandKey) {
     return undefined;
@@ -2385,11 +2325,7 @@ interface WorkspaceSendPlan extends WorkspaceResolvedSendState {
   sendOptions?: HandleSendOptions;
   completedMentionCommandUsage: CompletedMentionCommandUsage | null;
   completedMentionUsage: CompletedMentionUsage | null;
-  completedSlashUsage?: {
-    kind: "scene";
-    entryId: string;
-    replayText?: string;
-  } | null;
+  completedSlashUsage?: CompletedInputCapabilitySlashUsage | null;
 }
 
 type WorkspaceSendResolution =
@@ -2461,8 +2397,8 @@ export function useWorkspaceSendActions({
     useState<SubmissionPreviewSnapshot | null>(null);
   const [isPreparingSend, setIsPreparingSend] = useState(false);
   const isPreparingSendRef = useRef(false);
-  const mentionCommandSkillIdMap = buildMentionCommandSkillIdMap();
-  const mentionCommandPrefixKeyMap = buildMentionCommandPrefixKeyMap();
+  const { mentionCommandSkillIdMap, mentionCommandPrefixKeyMap } =
+    useRuntimeMentionCommandCatalog();
   const clearRuntimeTeamDispatchPreview = useCallback(() => {
     setRuntimeTeamDispatchPreview(null);
   }, []);
@@ -2541,7 +2477,12 @@ export function useWorkspaceSendActions({
       autoContinuePayload?: AutoContinueRequestPayload,
       sendOptions?: HandleSendOptions,
     ): Promise<WorkspaceSendResolution> => {
-      let sourceText = textOverride ?? input;
+      const inputCapabilityDispatch = resolveInputCapabilityDispatchContext({
+        sourceText: textOverride ?? input,
+        capabilityRoute: sendOptions?.capabilityRoute,
+        displayContent: sendOptions?.displayContent,
+      });
+      let sourceText = inputCapabilityDispatch.sourceText;
       if (!sourceText.trim() && (!images || images.length === 0)) {
         return { kind: "done", result: false };
       }
@@ -2662,7 +2603,14 @@ export function useWorkspaceSendActions({
         | null = null;
       let completedMentionUsage: WorkspaceSendPlan["completedMentionUsage"] =
         null;
-      let completedSlashUsage: WorkspaceSendPlan["completedSlashUsage"] = null;
+      let completedSlashUsage: WorkspaceSendPlan["completedSlashUsage"] =
+        inputCapabilityDispatch.completedSlashUsage;
+      sendOptions = inputCapabilityDispatch.capabilityRoute
+        ? {
+            ...(sendOptions || {}),
+            capabilityRoute: inputCapabilityDispatch.capabilityRoute,
+          }
+        : sendOptions;
       let submissionPreviewKey: string | null = null;
       const ensureSubmissionPreview = (previewImages = effectiveImages) => {
         if (submissionPreviewKey) {
@@ -4211,7 +4159,9 @@ export function useWorkspaceSendActions({
           completedSlashUsage = {
             kind: "scene",
             entryId: sceneLaunchRequest.sceneEntry.sceneKey,
-            replayText: resolveRuntimeSceneReplayText(sourceText),
+            replayText:
+              completedSlashUsage?.replayText ??
+              parseRuntimeSceneCommand(sourceText)?.userInput,
           };
         }
       }
@@ -4410,7 +4360,7 @@ export function useWorkspaceSendActions({
           ...(sendOptions || {}),
           displayContent:
             dispatchText !== sourceText
-              ? sourceText
+              ? sendOptions?.displayContent ?? sourceText
               : sendOptions?.displayContent,
           requestMetadata: nextRequestMetadata,
         };

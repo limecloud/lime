@@ -21,6 +21,8 @@ const EMERALD_OUTLINE_BADGE_CLASS_NAME =
   "border-emerald-200 bg-white text-emerald-700";
 const SLATE_PANEL_CLASS_NAME = "border-slate-200/80 bg-white";
 const SLATE_TITLE_CLASS_NAME = "text-slate-700";
+const MEMORY_PROMPT_SURFACE_CLASS_NAME =
+  "overflow-x-auto rounded-lg border border-sky-100 bg-[linear-gradient(180deg,rgba(248,255,254,0.98)_0%,rgba(255,255,255,0.98)_55%,rgba(240,249,255,0.96)_100%)] px-3 py-2 text-xs leading-6 text-slate-700 shadow-sm shadow-sky-950/5";
 
 const DURABLE_CATEGORY_LABELS: Record<string, string> = {
   identity: "风格",
@@ -379,7 +381,7 @@ export function AgentThreadMemoryPrefetchPreview({
               emptyText="当前没有返回组装后的运行时记忆片段。"
             >
               {result.prompt ? (
-                <pre className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-950 px-3 py-2 text-xs leading-6 text-slate-100">
+                <pre className={MEMORY_PROMPT_SURFACE_CLASS_NAME}>
                   {truncateText(result.prompt, 500)}
                 </pre>
               ) : null}

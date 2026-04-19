@@ -321,7 +321,7 @@ export function AboutSection() {
             <div className="flex items-start gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-slate-900 to-slate-700 shadow-sm shadow-slate-950/20">
                 <img
-                  src="/logo.png"
+                  src="/logo-v6.svg"
                   alt="Lime"
                   className="h-10 w-10 object-contain"
                 />

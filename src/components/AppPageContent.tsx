@@ -84,6 +84,26 @@ const SkillsWorkspacePage = lazy(loadSkillsWorkspacePage);
 const BrowserRuntimeWorkspace = lazy(loadBrowserRuntimeWorkspace);
 const AgentChatPage = lazy(loadAgentChatPage);
 
+function serializeInitialInputCapabilityKey(
+  params: AgentPageParams,
+): string {
+  const route = params.initialInputCapability?.capabilityRoute;
+  if (!route) {
+    return "::0";
+  }
+
+  const routeKey =
+    route.kind === "installed_skill"
+      ? route.skillKey
+      : route.kind === "builtin_command"
+        ? route.commandKey
+        : route.kind === "runtime_scene"
+          ? route.sceneKey
+          : route.taskId;
+
+  return `${route.kind}:${routeKey}:${params.initialInputCapability?.requestKey ?? 0}`;
+}
+
 interface AppPageContentProps {
   currentPage: Page;
   pageParams: PageParams;
@@ -195,7 +215,7 @@ export function AppPageContent({
     const content = (
       <div style={columnPageStyle}>
         <AgentChatPage
-          key={`${agentPageParams.projectId || ""}:${agentPageParams.contentId || ""}:${agentPageParams.theme || ""}:${agentPageParams.lockTheme ? "1" : "0"}:${agentPageParams.agentEntry || "claw"}:${agentPageParams.immersiveHome ? "immersive" : "standard"}:${agentPageParams.newChatAt ?? 0}:${agentPageParams.initialPendingServiceSkillLaunch?.skillId || ""}:${agentPageParams.initialPendingServiceSkillLaunch?.requestKey ?? 0}:${agentPageParams.initialProjectFileOpenTarget?.relativePath || ""}:${agentPageParams.initialProjectFileOpenTarget?.requestKey ?? 0}`}
+          key={`${agentPageParams.projectId || ""}:${agentPageParams.contentId || ""}:${agentPageParams.theme || ""}:${agentPageParams.lockTheme ? "1" : "0"}:${agentPageParams.agentEntry || "claw"}:${agentPageParams.immersiveHome ? "immersive" : "standard"}:${agentPageParams.newChatAt ?? 0}:${agentPageParams.initialPendingServiceSkillLaunch?.skillId || ""}:${agentPageParams.initialPendingServiceSkillLaunch?.requestKey ?? 0}:${serializeInitialInputCapabilityKey(agentPageParams)}:${agentPageParams.initialProjectFileOpenTarget?.relativePath || ""}:${agentPageParams.initialProjectFileOpenTarget?.requestKey ?? 0}`}
           onNavigate={onNavigate}
           projectId={agentPageParams.projectId}
           contentId={agentPageParams.contentId}
@@ -218,6 +238,7 @@ export function AppPageContent({
           initialPendingServiceSkillLaunch={
             agentPageParams.initialPendingServiceSkillLaunch
           }
+          initialInputCapability={agentPageParams.initialInputCapability}
           initialProjectFileOpenTarget={
             agentPageParams.initialProjectFileOpenTarget
           }

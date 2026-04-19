@@ -474,7 +474,7 @@ vi.mock("./components/TeamWorkspaceDock", () => ({
             onActivateWorkbench();
           }}
         >
-          打开任务工作台
+          打开生成工作台
         </button>
       ) : null}
     </div>

@@ -5,10 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EmptyState } from "./EmptyState";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import type { UnifiedMemory } from "@/lib/api/unifiedMemory";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
 import type { SceneAppEntryCardItem } from "../sceneappEntryTypes";
+import type { InputCapabilitySelection } from "../skill-selection/inputCapabilitySelection";
 import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
-import { recordEntryRecommendedSolutionUsage } from "../utils/entryRecommendedSolutions";
+import {
+  buildCuratedTaskLaunchPrompt,
+  findCuratedTaskTemplateById,
+  recordCuratedTaskTemplateUsage,
+} from "../utils/curatedTaskTemplates";
+import { recordCuratedTaskRecommendationSignalFromMemory } from "../utils/curatedTaskRecommendationSignals";
 
 const { mockGetConfig, mockProjectSelector } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(async () => ({})),
@@ -25,6 +32,10 @@ const {
   mockGetChromeBridgeStatus: vi.fn(),
 }));
 
+const mockListUnifiedMemories = vi.hoisted(() =>
+  vi.fn<() => Promise<UnifiedMemory[]>>(async () => []),
+);
+
 const mockCharacterMention =
   vi.fn<
     (props: {
@@ -32,7 +43,20 @@ const mockCharacterMention =
       skills?: Skill[];
       serviceSkills?: ServiceSkillHomeItem[];
       onSelectSkill?: (skill: Skill) => void;
+      onSelectInputCapability?: (
+        capability: InputCapabilitySelection,
+        options?: { replayText?: string },
+      ) => void;
       onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+      defaultCuratedTaskReferenceMemoryIds?: string[];
+      defaultCuratedTaskReferenceEntries?: Array<{
+        id: string;
+        title: string;
+        summary: string;
+        category: string;
+        categoryLabel: string;
+        tags: string[];
+      }>;
       value: string;
       onChange: (value: string) => void;
     }) => React.ReactNode
@@ -44,6 +68,10 @@ vi.mock("@/lib/api/appConfig", () => ({
 
 vi.mock("@/lib/api/channelsRuntime", () => ({
   gatewayChannelStatus: mockGatewayChannelStatus,
+}));
+
+vi.mock("@/lib/api/unifiedMemory", () => ({
+  listUnifiedMemories: mockListUnifiedMemories,
 }));
 
 vi.mock("@/lib/webview-api", () => ({
@@ -81,7 +109,20 @@ vi.mock("../skill-selection/CharacterMention", () => ({
     skills?: Skill[];
     serviceSkills?: ServiceSkillHomeItem[];
     onSelectSkill?: (skill: Skill) => void;
+    onSelectInputCapability?: (
+      capability: InputCapabilitySelection,
+      options?: { replayText?: string },
+    ) => void;
     onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+    defaultCuratedTaskReferenceMemoryIds?: string[];
+    defaultCuratedTaskReferenceEntries?: Array<{
+      id: string;
+      title: string;
+      summary: string;
+      category: string;
+      categoryLabel: string;
+      tags: string[];
+    }>;
     value: string;
     onChange: (value: string) => void;
   }) => {
@@ -117,11 +158,20 @@ vi.mock("@/components/ui/input", () => ({
     value,
     onChange,
     placeholder,
+    ...rest
   }: {
     value?: string;
     onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
     placeholder?: string;
-  }) => <input value={value} onChange={onChange} placeholder={placeholder} />,
+    [key: string]: unknown;
+  }) => (
+    <input
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      {...rest}
+    />
+  ),
 }));
 
 vi.mock("@/components/ui/textarea", () => {
@@ -131,6 +181,29 @@ vi.mock("@/components/ui/textarea", () => {
   >((props, ref) => <textarea ref={ref} {...props} />);
   return { Textarea };
 });
+
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({
+    open,
+    children,
+  }: {
+    open: boolean;
+    children: React.ReactNode;
+  }) => (open ? <div>{children}</div> : null),
+  DialogContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+}));
 
 vi.mock("@/components/ui/select", () => ({
   Select: ({ children }: { children: React.ReactNode }) => (
@@ -208,6 +281,7 @@ beforeEach(() => {
     observer_count: 1,
     control_count: 0,
   });
+  mockListUnifiedMemories.mockResolvedValue([]);
   window.localStorage.clear();
 });
 
@@ -247,6 +321,31 @@ function renderEmptyState(
 
   mountedRoots.push({ root, container });
   return container;
+}
+
+function updateFieldValue(
+  element: HTMLInputElement | HTMLTextAreaElement | null,
+  value: string,
+) {
+  expect(element).toBeTruthy();
+  if (!element) {
+    return;
+  }
+
+  const prototype =
+    element instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  setter?.call(element, value);
+  element.dispatchEvent(new Event("input", { bubbles: true }));
+  element.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function findLauncherConfirmButton() {
+  return Array.from(document.body.querySelectorAll("button")).find((button) =>
+    button.textContent?.includes("带着启动信息进入生成"),
+  ) as HTMLButtonElement | undefined;
 }
 
 function createGithubSearchServiceSkill(): ServiceSkillHomeItem {
@@ -375,9 +474,16 @@ describe("EmptyState", () => {
     });
 
     expect(container.textContent).toContain("结果模板");
+    expect(container.textContent).toContain("首选结果");
+    expect(container.textContent).toContain("更多结果");
+    expect(container.textContent).toContain("快捷做法");
     expect(container.textContent).toContain("继续上次做法");
     expect(container.textContent).toContain(
-      "先选你想拿到什么结果，具体由 Lime 在当前任务里分发对应能力。",
+      "首页默认先把最常用的结果放前面。",
+    );
+    expect(container.textContent).toContain("默认先看这里，适合直接开工。");
+    expect(container.textContent).toContain(
+      "已经有现成做法时，可以直接走捷径，不必重选结果模板。",
     );
     expect(container.textContent).toContain(
       "最近跑通过的结果模板和常用做法会留在这里，下一次不用重新开始。",
@@ -385,43 +491,142 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain(
       "你最近跑通过的结果模板和方法，会出现在这里。",
     );
-    expect(container.textContent).toContain("网页研究简报");
+    expect(container.textContent).toContain("结果去向");
+    expect(container.textContent).toContain("本轮产出会沉淀到当前任务");
+    expect(container.textContent).toContain("参考与反馈会继续影响下一轮推荐。");
+    expect(container.textContent).toContain("每日趋势摘要");
     expect(container.textContent).toContain("内容主稿生成");
-    expect(container.textContent).toContain("演示提纲草案");
-    expect(container.textContent).toContain("网页登录与采集");
+    expect(container.textContent).toContain("拆解一条爆款内容");
+    expect(container.textContent).toContain("长文转多平台发布稿");
     expect(container.textContent).toContain("复制轮播帖");
     expect(container.textContent).toContain("复制视频脚本");
-    expect(container.textContent).not.toContain("前端概念方案");
-    expect(container.textContent).not.toContain("多代理拆任务");
-    expect(container.textContent).not.toContain("文章转 Slide 视频提纲");
-    expect(container.textContent).not.toContain("云端视频配音");
-    expect(container.textContent).not.toContain("视频配音成其他语言");
-    expect(container.textContent).not.toContain("每日趋势摘要");
-    expect(container.textContent).not.toContain("账号增长跟踪");
+    expect(container.textContent).not.toContain("脚本转口播/字幕稿");
+    expect(container.textContent).not.toContain("复盘这个账号/项目");
     expect(container.textContent).not.toContain("从这里开始");
     expect(container.textContent).not.toContain("快速启动");
     expect(container.textContent).not.toContain("生成配图");
-    expect(container.textContent).not.toContain("浏览器任务起步");
     expect(container.textContent).not.toContain("任务拆分冒烟测试");
     expect(container.textContent).not.toContain("推荐方案");
 
-    const recommendationTitles = Array.from(
+    const recommendationItems = Array.from(
       container.querySelectorAll(
         '[data-testid^="entry-recommended-"], [data-testid^="entry-service-skill-"]',
       ),
-    ).map((element) => element.textContent?.trim());
+    ).map((element) => element.textContent?.trim() ?? "");
 
-    expect(recommendationTitles).toEqual([
-      "网页研究简报",
-      "内容主稿生成",
-      "演示提纲草案",
-      "网页登录与采集",
-      "复制轮播帖",
-      "复制视频脚本",
-    ]);
+    expect(recommendationItems).toHaveLength(6);
+    expect(recommendationItems[0]).toContain("每日趋势摘要");
+    expect(recommendationItems[0]).toContain("趋势与选题");
+    expect(recommendationItems[0]).toContain(
+      "需要：主题或赛道、希望关注的平台/地域",
+    );
+    expect(recommendationItems[1]).toContain("内容主稿生成");
+    expect(recommendationItems[2]).toContain("拆解一条爆款内容");
+    expect(recommendationItems[3]).toContain("长文转多平台发布稿");
+    expect(recommendationItems[4]).toContain("复制轮播帖");
+    expect(recommendationItems[5]).toContain("复制视频脚本");
     expect(
       container.querySelector('[data-testid^="entry-continuation-"]'),
     ).toBeNull();
+  });
+
+  it("无浏览器入口且无可挂方法时，不应默认渲染支撑能力摘要层", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("支撑能力");
+    expect(
+      container.querySelector('[data-testid="entry-capability-toggle"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="entry-connect-browser"]'),
+    ).toBeNull();
+  });
+
+  it("只有未形成直接收益的方法目录时，不应默认渲染支撑能力摘要层", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      serviceSkills: [createSceneBoundServiceSkill()],
+      onSelectServiceSkill: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("支撑能力");
+    expect(
+      container.querySelector('[data-testid="entry-capability-toggle"]'),
+    ).toBeNull();
+  });
+
+  it("首页快捷做法应复用 service skill 的统一合同缩略", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      serviceSkills: [
+        {
+          id: "daily-trend-briefing",
+          title: "每日趋势摘要",
+          summary: "围绕指定平台与关键词输出趋势摘要。",
+          entryHint: "把平台和关键词给我，我先整理一份趋势报告。",
+          category: "内容运营",
+          outputHint: "趋势摘要 + 调度建议",
+          source: "cloud_catalog",
+          runnerType: "scheduled",
+          defaultExecutorBinding: "automation_job",
+          executionLocation: "client_default",
+          slotSchema: [],
+          version: "seed-v1",
+          badge: "云目录",
+          recentUsedAt: null,
+          isRecent: false,
+          runnerLabel: "本地计划任务",
+          runnerTone: "sky",
+          runnerDescription:
+            "当前先进入工作区生成首版任务方案，后续再接本地自动化。",
+          actionLabel: "先做方案",
+          automationStatus: null,
+        },
+        {
+          ...createSceneBoundServiceSkill(),
+          id: "project-insight-flow",
+          title: "项目线索整理",
+          entryHint: "给我一个项目目标，我先把线索和下一步整理出来。",
+          slotSchema: [
+            {
+              key: "project_goal",
+              label: "项目目标",
+              type: "text",
+              required: true,
+              placeholder: "例如 新品发布前的竞品和内容线索",
+            },
+          ],
+        },
+      ],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const trendCard = container.querySelector(
+      '[data-testid="entry-service-skill-daily-trend-briefing"]',
+    );
+    expect(trendCard?.textContent).toContain("每日趋势摘要");
+    expect(trendCard?.textContent).toContain("需要：当前无必填信息");
+    expect(trendCard?.textContent).toContain("交付：趋势摘要 + 调度建议");
+
+    const projectCard = container.querySelector(
+      '[data-testid="entry-service-skill-project-insight-flow"]',
+    );
+    expect(projectCard?.textContent).toContain("项目线索整理");
+    expect(projectCard?.textContent).toContain("需要：项目目标");
+    expect(projectCard?.textContent).toContain("交付：线索清单 + 下一步建议");
   });
 
   it("runtime tool surface 告警不应再透传到首页空态输入区", async () => {
@@ -448,9 +653,11 @@ describe("EmptyState", () => {
   });
 
   it("有最近记录时应展示继续上次做法入口，并允许直接继续模板与方法", async () => {
-    recordEntryRecommendedSolutionUsage("social-post-starter");
+    recordCuratedTaskTemplateUsage("social-post-starter");
     const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
     const setInput = vi.fn<(value: string) => void>();
+    const template = findCuratedTaskTemplateById("social-post-starter");
+    expect(template).toBeTruthy();
     const recentMethod: ServiceSkillHomeItem = {
       ...createSceneBoundServiceSkill(),
       id: "content-iteration-flow",
@@ -488,19 +695,61 @@ describe("EmptyState", () => {
       '[data-testid="entry-continuation-solution-social-post-starter"]',
     ) as HTMLButtonElement | null;
     expect(recentTemplateButton).toBeTruthy();
+    expect(recentTemplateButton?.textContent).toContain("内容主稿生成");
+    expect(recentTemplateButton?.textContent).toContain(
+      "需要：主题或产品信息、目标受众",
+    );
+    expect(recentTemplateButton?.textContent).toContain(
+      "交付：内容首稿、结构提纲 等 3 项",
+    );
 
     act(() => {
       recentTemplateButton?.click();
     });
 
+    expect(container.textContent).toContain("先补最少启动信息，再统一进入生成主执行面。");
+    expect(setInput).not.toHaveBeenCalled();
+
+    const subjectInput = document.body.querySelector(
+      "#curated-task-social-post-starter-subject_or_product",
+    ) as HTMLTextAreaElement | null;
+    const audienceInput = document.body.querySelector(
+      "#curated-task-social-post-starter-target_audience",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(subjectInput, "Lime 的内容创作主链升级");
+      updateFieldValue(audienceInput, "内容负责人");
+      await Promise.resolve();
+    });
+
+    const confirmButton = findLauncherConfirmButton();
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
     expect(setInput).toHaveBeenCalledWith(
-      "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构和可继续扩写的角度。",
+      buildCuratedTaskLaunchPrompt({
+        task: template!,
+        inputValues: {
+          subject_or_product: "Lime 的内容创作主链升级",
+          target_audience: "内容负责人",
+        },
+      }),
     );
 
     const recentMethodButton = container.querySelector(
       '[data-testid="entry-continuation-method-content-iteration-flow"]',
     ) as HTMLButtonElement | null;
     expect(recentMethodButton).toBeTruthy();
+    expect(recentMethodButton?.textContent).toContain("内容迭代整理");
+    expect(recentMethodButton?.textContent).toContain("需要：当前无必填信息");
+    expect(recentMethodButton?.textContent).toContain(
+      "交付：线索清单 + 下一步建议",
+    );
 
     act(() => {
       recentMethodButton?.click();
@@ -564,13 +813,13 @@ describe("EmptyState", () => {
     expect(
       container.querySelector('[data-testid="project-selector-stub"]'),
     ).toBeTruthy();
-    expect(container.textContent).not.toContain("当前项目");
+    expect(container.textContent).toContain("本轮产出会沉淀到当前项目");
     expect(
       container.querySelector('[data-testid^="entry-project-continuation-"]'),
     ).toBeNull();
   });
 
-  it("通用首页应继续渲染 4 个带视觉预览的支撑能力入口", async () => {
+  it("通用首页默认收起支撑能力卡，展开后才显示 4 个能力入口", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       onLaunchBrowserAssist: vi.fn(),
@@ -588,6 +837,25 @@ describe("EmptyState", () => {
       "浏览器接入能力卡占位图",
     ];
 
+    expect(container.textContent).toContain("支撑能力");
+    expect(container.textContent).toContain("查看支撑能力");
+    expect(
+      container.querySelector('[data-testid="entry-connect-browser"]'),
+    ).toBeTruthy();
+
+    for (const alt of expectedAlts) {
+      expect(container.querySelector(`img[alt="${alt}"]`)).toBeNull();
+    }
+
+    const toggleButton = container.querySelector(
+      '[data-testid="entry-capability-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(toggleButton).toBeTruthy();
+
+    act(() => {
+      toggleButton?.click();
+    });
+
     for (const label of expectedLabels) {
       expect(container.textContent).toContain(label);
     }
@@ -601,8 +869,6 @@ describe("EmptyState", () => {
       expect(image).toBeTruthy();
       expect(image?.getAttribute("src")).toBeTruthy();
     }
-
-    expect(container.textContent).not.toContain("连接浏览器");
   });
 
   it("通用首页不再渲染 runtime 总览层", async () => {
@@ -682,6 +948,15 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
+    const toggleButton = container.querySelector(
+      '[data-testid="entry-capability-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(toggleButton).toBeTruthy();
+
+    act(() => {
+      toggleButton?.click();
+    });
+
     const mediaButton = container.querySelector(
       'button[aria-label="连接浏览器"]',
     ) as HTMLButtonElement | null;
@@ -694,9 +969,11 @@ describe("EmptyState", () => {
     expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
   });
 
-  it("点击网页研究简报应开启联网搜索并记录最近使用", async () => {
+  it("点击每日趋势摘要应开启联网搜索并记录最近使用", async () => {
     const setInput = vi.fn<(value: string) => void>();
     const onWebSearchEnabledChange = vi.fn<(enabled: boolean) => void>();
+    const template = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(template).toBeTruthy();
     const container = renderEmptyState({
       activeTheme: "general",
       setInput,
@@ -708,7 +985,7 @@ describe("EmptyState", () => {
     });
 
     const card = container.querySelector(
-      '[data-testid="entry-recommended-web-research-brief"]',
+      '[data-testid="entry-recommended-daily-trend-briefing"]',
     ) as HTMLDivElement | null;
     expect(card).toBeTruthy();
 
@@ -716,15 +993,49 @@ describe("EmptyState", () => {
       card?.click();
     });
 
+    expect(container.textContent).toContain("先补最少启动信息，再统一进入生成主执行面。");
+    expect(onWebSearchEnabledChange).not.toHaveBeenCalled();
+    expect(setInput).not.toHaveBeenCalled();
+
+    const themeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(themeInput, "AI 内容创作");
+      updateFieldValue(platformInput, "X 与 TikTok 北美区");
+      await Promise.resolve();
+    });
+
+    const confirmButton = findLauncherConfirmButton();
+    expect(confirmButton).toBeTruthy();
+    expect(confirmButton?.disabled).toBe(false);
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
     expect(onWebSearchEnabledChange).toHaveBeenCalledWith(true);
     expect(setInput).toHaveBeenCalledWith(
-      "请围绕这个主题先给我做一版网页研究简报：明确研究目标、关键信息来源、核心发现、风险点，以及接下来最值得继续追踪的问题。",
+      buildCuratedTaskLaunchPrompt({
+        task: template!,
+        inputValues: {
+          theme_target: "AI 内容创作",
+          platform_region: "X 与 TikTok 北美区",
+        },
+      }),
     );
   });
 
   it("点击内容主稿生成应直接写入起始动作，不再切换旧主题", async () => {
     const setInput = vi.fn<(value: string) => void>();
     const onThemeChange = vi.fn<(theme: string) => void>();
+    const template = findCuratedTaskTemplateById("social-post-starter");
+    expect(template).toBeTruthy();
     const container = renderEmptyState({
       activeTheme: "general",
       setInput,
@@ -744,19 +1055,48 @@ describe("EmptyState", () => {
       card?.click();
     });
 
+    const subjectInput = document.body.querySelector(
+      "#curated-task-social-post-starter-subject_or_product",
+    ) as HTMLTextAreaElement | null;
+    const audienceInput = document.body.querySelector(
+      "#curated-task-social-post-starter-target_audience",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(subjectInput, "Lime 的 AI 内容创作闭环升级");
+      updateFieldValue(audienceInput, "内容团队负责人");
+      await Promise.resolve();
+    });
+
+    const confirmButton = findLauncherConfirmButton();
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
     expect(onThemeChange).not.toHaveBeenCalled();
     expect(setInput).toHaveBeenCalledWith(
-      "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构和可继续扩写的角度。",
+      buildCuratedTaskLaunchPrompt({
+        task: template!,
+        inputValues: {
+          subject_or_product: "Lime 的 AI 内容创作闭环升级",
+          target_audience: "内容团队负责人",
+        },
+      }),
     );
   });
 
-  it("点击网页登录与采集应触发浏览器接入并写入起始动作", async () => {
+  it("点击长文转多平台发布稿应直接写入起始动作", async () => {
     const setInput = vi.fn<(value: string) => void>();
-    const onLaunchBrowserAssist = vi.fn();
+    const template = findCuratedTaskTemplateById(
+      "longform-multiplatform-rewrite",
+    );
+    expect(template).toBeTruthy();
     const container = renderEmptyState({
       activeTheme: "general",
       setInput,
-      onLaunchBrowserAssist,
     });
 
     await act(async () => {
@@ -764,7 +1104,7 @@ describe("EmptyState", () => {
     });
 
     const card = container.querySelector(
-      '[data-testid="entry-recommended-browser-assist-task"]',
+      '[data-testid="entry-recommended-longform-multiplatform-rewrite"]',
     ) as HTMLDivElement | null;
     expect(card).toBeTruthy();
 
@@ -772,9 +1112,35 @@ describe("EmptyState", () => {
       card?.click();
     });
 
-    expect(onLaunchBrowserAssist).toHaveBeenCalledTimes(1);
+    const sourceInput = document.body.querySelector(
+      "#curated-task-longform-multiplatform-rewrite-source_article",
+    ) as HTMLTextAreaElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-longform-multiplatform-rewrite-target_platform",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(sourceInput, "这是一篇关于品牌内容中台升级的长文。");
+      updateFieldValue(platformInput, "X、LinkedIn");
+      await Promise.resolve();
+    });
+
+    const confirmButton = findLauncherConfirmButton();
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
     expect(setInput).toHaveBeenCalledWith(
-      "请协助我完成一个浏览器任务：先明确目标网页、目标动作、约束条件和预期结果，并在当前对话里继续执行。",
+      buildCuratedTaskLaunchPrompt({
+        task: template!,
+        inputValues: {
+          source_article: "这是一篇关于品牌内容中台升级的长文。",
+          target_platform: "X、LinkedIn",
+        },
+      }),
     );
   });
 
@@ -918,7 +1284,7 @@ describe("EmptyState", () => {
     expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkills[0]!);
   });
 
-  it("选择技能后发送应自动附加 skill 前缀，且发送后清除激活技能", async () => {
+  it("首页安装技能选择应走统一 capability 回调，且发送后清除激活态", async () => {
     const onSend =
       vi.fn<
         (
@@ -949,10 +1315,13 @@ describe("EmptyState", () => {
       mockCharacterMention.mock.calls[
         mockCharacterMention.mock.calls.length - 1
       ][0];
-    expect(typeof latestCall.onSelectSkill).toBe("function");
+    expect(typeof latestCall.onSelectInputCapability).toBe("function");
 
     act(() => {
-      latestCall.onSelectSkill?.(skill);
+      latestCall.onSelectInputCapability?.({
+        kind: "installed_skill",
+        skill,
+      });
     });
 
     await act(async () => {
@@ -970,9 +1339,17 @@ describe("EmptyState", () => {
       sendButton?.click();
     });
     expect(onSend).toHaveBeenCalledWith(
-      "/canvas-design 帮我设计封面",
+      "帮我设计封面",
       "react",
       undefined,
+      {
+        capabilityRoute: {
+          kind: "installed_skill",
+          skillKey: "canvas-design",
+          skillName: "canvas-design",
+        },
+        displayContent: "帮我设计封面",
+      },
     );
 
     act(() => {
@@ -981,8 +1358,517 @@ describe("EmptyState", () => {
     expect(onSend).toHaveBeenCalledWith("帮我设计封面", "react", undefined);
   });
 
+  it("首页选择 builtin command 后发送应透传结构化 capability route", async () => {
+    const onSend = vi.fn();
+    const command = {
+      key: "image-compose",
+      label: "配图",
+      mentionLabel: "配图",
+      commandPrefix: "@配图",
+      description: "输出配图方向。",
+      aliases: [],
+    };
+    const container = renderEmptyState({
+      input: "帮我整理这篇文章的配图方向",
+      onSend,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ][0];
+
+    act(() => {
+      latestCall.onSelectInputCapability?.({
+        kind: "builtin_command",
+        command,
+      });
+    });
+
+    const sendButton = container.querySelector(
+      'button[aria-label="发送"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    act(() => {
+      sendButton?.click();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      "帮我整理这篇文章的配图方向",
+      "react",
+      undefined,
+      {
+        capabilityRoute: {
+          kind: "builtin_command",
+          commandKey: "image-compose",
+          commandPrefix: "@配图",
+        },
+        displayContent: "帮我整理这篇文章的配图方向",
+      },
+    );
+  });
+
+  it("首页点击结果模板后发送时，应透传 curated_task capability route", async () => {
+    const template = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(template).toBeTruthy();
+    const prompt = buildCuratedTaskLaunchPrompt({
+      task: template!,
+      inputValues: {
+        theme_target: "AI 内容创作",
+        platform_region: "X 与 TikTok 北美区",
+      },
+    });
+    const onSend = vi.fn();
+    const setInput = vi.fn();
+    const container = renderEmptyState({
+      input: prompt,
+      setInput,
+      onSend,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const templateButton = container.querySelector(
+      '[data-testid="entry-recommended-daily-trend-briefing"]',
+    ) as HTMLButtonElement | null;
+    expect(templateButton).toBeTruthy();
+
+    act(() => {
+      templateButton?.click();
+    });
+
+    const themeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(themeInput, "AI 内容创作");
+      updateFieldValue(platformInput, "X 与 TikTok 北美区");
+      await Promise.resolve();
+    });
+
+    const confirmButton = findLauncherConfirmButton();
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(setInput).toHaveBeenCalledWith(prompt);
+
+    const sendButton = container.querySelector(
+      'button[aria-label="发送"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    act(() => {
+      sendButton?.click();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      prompt,
+      "react",
+      undefined,
+      expect.objectContaining({
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt,
+          launchInputValues: {
+            theme_target: "AI 内容创作",
+            platform_region: "X 与 TikTok 北美区",
+          },
+        },
+        displayContent: prompt,
+        requestMetadata: {
+          harness: {
+            curated_task: expect.objectContaining({
+              task_id: "daily-trend-briefing",
+              launch_input_values: {
+                theme_target: "AI 内容创作",
+                platform_region: "X 与 TikTok 北美区",
+              },
+            }),
+          },
+        },
+      }),
+    );
+  });
+
+  it("首页结果模板带着灵感引用发送时，应附带引用 route 与 request metadata", async () => {
+    const referenceMemory = {
+      id: "memory-1",
+      session_id: "session-1",
+      memory_type: "project" as const,
+      category: "context" as const,
+      title: "品牌风格样本",
+      content: "保留轻盈、专业、对比清晰的表达方式。",
+      summary: "轻盈但专业的品牌语气参考。",
+      tags: ["品牌", "语气"],
+      metadata: {
+        confidence: 0.92,
+        importance: 8,
+        access_count: 2,
+        last_accessed_at: 1_712_345_678_000,
+        source: "manual" as const,
+        embedding: null,
+      },
+      created_at: 1_712_345_670_000,
+      updated_at: 1_712_345_678_000,
+      archived: false,
+    };
+    mockListUnifiedMemories.mockResolvedValue([referenceMemory]);
+
+    const template = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(template).toBeTruthy();
+    const promptWithReference = buildCuratedTaskLaunchPrompt({
+      task: template!,
+      inputValues: {
+        theme_target: "AI 内容创作",
+        platform_region: "X 与 TikTok 北美区",
+      },
+      referenceEntries: [
+        {
+          id: "memory-1",
+          title: "品牌风格样本",
+          summary: "轻盈但专业的品牌语气参考。",
+          category: "context",
+          categoryLabel: "参考",
+          tags: ["品牌", "语气"],
+        },
+      ],
+    });
+    const onSend = vi.fn();
+    const setInput = vi.fn();
+    const container = renderEmptyState({
+      input: promptWithReference,
+      setInput,
+      onSend,
+    });
+
+    const templateButton = container.querySelector(
+      '[data-testid="entry-recommended-daily-trend-briefing"]',
+    ) as HTMLButtonElement | null;
+    expect(templateButton).toBeTruthy();
+
+    act(() => {
+      templateButton?.click();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const themeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+    const referenceButton = document.body.querySelector(
+      '[data-testid="curated-task-reference-option-memory-1"]',
+    ) as HTMLButtonElement | null;
+
+    await act(async () => {
+      updateFieldValue(themeInput, "AI 内容创作");
+      updateFieldValue(platformInput, "X 与 TikTok 北美区");
+      referenceButton?.click();
+      await Promise.resolve();
+    });
+
+    const confirmButton = findLauncherConfirmButton();
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    const sendButton = container.querySelector(
+      'button[aria-label="发送"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    act(() => {
+      sendButton?.click();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      expect.stringContaining("本轮可优先参考这些灵感"),
+      "react",
+      undefined,
+      expect.objectContaining({
+        capabilityRoute: expect.objectContaining({
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          referenceMemoryIds: ["memory-1"],
+        }),
+        requestMetadata: {
+          harness: {
+            creation_replay: expect.objectContaining({
+              kind: "memory_entry",
+            }),
+            curated_task: expect.objectContaining({
+              task_id: "daily-trend-briefing",
+              reference_memory_ids: ["memory-1"],
+            }),
+          },
+        },
+      }),
+    );
+  });
+
+  it("首页结果模板启动时，应默认沿用当前带入的灵感引用", async () => {
+    mockListUnifiedMemories.mockResolvedValue([
+      {
+        id: "memory-1",
+        session_id: "session-1",
+        memory_type: "project",
+        title: "品牌风格样本",
+        category: "context",
+        summary: "保留轻盈但专业的表达。",
+        content: "保留轻盈但专业的表达。",
+        tags: ["品牌", "语气"],
+        metadata: {
+          confidence: 0.9,
+          importance: 7,
+          access_count: 1,
+          last_accessed_at: null,
+          source: "manual",
+          embedding: null,
+        },
+        created_at: 1_712_345_670_000,
+        updated_at: 1_712_345_678_000,
+        archived: false,
+      },
+    ]);
+
+    const container = renderEmptyState({
+      creationReplaySurface: {
+        kind: "memory_entry",
+        eyebrow: "当前带入灵感",
+        badgeLabel: "参考",
+        title: "品牌风格样本",
+        summary: "保留轻盈但专业的表达。",
+        hint: "后续结果模板会默认把它一起带入。",
+        defaultReferenceMemoryIds: ["memory-1"],
+        defaultReferenceEntries: [
+          {
+            id: "memory-1",
+            title: "品牌风格样本",
+            summary: "保留轻盈但专业的表达。",
+            category: "context",
+            categoryLabel: "参考",
+            tags: ["品牌", "语气"],
+          },
+        ],
+      },
+    });
+
+    const templateButton = container.querySelector(
+      '[data-testid="entry-recommended-daily-trend-briefing"]',
+    ) as HTMLButtonElement | null;
+    expect(templateButton).toBeTruthy();
+
+    act(() => {
+      templateButton?.click();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain(
+      "已选择 1 条灵感引用，本轮会一起带入生成。",
+    );
+  });
+
+  it("当前带入参考灵感时，结果模板推荐应显式标记为围绕当前参考", async () => {
+    const container = renderEmptyState({
+      creationReplaySurface: {
+        kind: "memory_entry",
+        eyebrow: "当前带入灵感",
+        badgeLabel: "参考",
+        title: "品牌风格样本",
+        summary: "保留轻盈但专业的表达。",
+        hint: "后续结果模板会默认把它一起带入。",
+        defaultReferenceMemoryIds: ["memory-1"],
+        defaultReferenceEntries: [
+          {
+            id: "memory-1",
+            title: "品牌风格样本",
+            summary: "保留轻盈但专业的表达。",
+            category: "context",
+            categoryLabel: "参考",
+            tags: ["品牌", "语气"],
+          },
+        ],
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("围绕当前参考");
+    expect(container.textContent).toContain("内容主稿生成");
+  });
+
+  it("最近保存到灵感库的成果信号应影响首页结果模板推荐", async () => {
+    recordCuratedTaskRecommendationSignalFromMemory(
+      {
+        id: "memory-review-1",
+        session_id: "session-review-1",
+        memory_type: "project",
+        category: "experience",
+        title: "账号复盘结论",
+        summary: "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
+        content:
+          "最近两次反馈都提示封面信息过密，需要继续复盘增长数据并优化结构。",
+        tags: ["复盘", "反馈", "增长"],
+        metadata: {
+          confidence: 0.92,
+          importance: 8,
+          access_count: 2,
+          last_accessed_at: null,
+          source: "manual",
+          embedding: null,
+        },
+        created_at: 1_712_345_670_000,
+        updated_at: 1_712_345_678_000,
+        archived: false,
+      },
+      {
+        projectId: "project-review",
+      },
+    );
+
+    const container = renderEmptyState({
+      projectId: "project-review",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("围绕最近成果");
+    expect(container.textContent).toContain("复盘这个账号/项目");
+  });
+
+  it("已激活结果模板后重新编辑启动信息时，应回填并更新输入", async () => {
+    const template = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(template).toBeTruthy();
+    const initialInputValues = {
+      theme_target: "AI 内容创作",
+      platform_region: "X 与 TikTok 北美区",
+    };
+    const editedInputValues = {
+      theme_target: "品牌内容中台",
+      platform_region: "LinkedIn 与 X（海外）",
+    };
+    const initialPrompt = buildCuratedTaskLaunchPrompt({
+      task: template!,
+      inputValues: initialInputValues,
+    });
+    const editedPrompt = buildCuratedTaskLaunchPrompt({
+      task: template!,
+      inputValues: editedInputValues,
+    });
+    const setInput = vi.fn();
+    const container = renderEmptyState({
+      input: initialPrompt,
+      setInput,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const templateButton = container.querySelector(
+      '[data-testid="entry-recommended-daily-trend-briefing"]',
+    ) as HTMLButtonElement | null;
+    expect(templateButton).toBeTruthy();
+
+    act(() => {
+      templateButton?.click();
+    });
+
+    const initialThemeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const initialPlatformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(initialThemeInput, initialInputValues.theme_target);
+      updateFieldValue(initialPlatformInput, initialInputValues.platform_region);
+      await Promise.resolve();
+    });
+
+    const firstConfirmButton = findLauncherConfirmButton();
+    expect(firstConfirmButton).toBeTruthy();
+
+    await act(async () => {
+      firstConfirmButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(setInput).toHaveBeenLastCalledWith(initialPrompt);
+
+    const editButton = Array.from(container.querySelectorAll("button")).find(
+      (button) =>
+        button.getAttribute("aria-label") === "编辑 每日趋势摘要 启动信息",
+    ) as HTMLButtonElement | undefined;
+    expect(editButton).toBeTruthy();
+
+    await act(async () => {
+      editButton?.click();
+      await Promise.resolve();
+    });
+
+    const themeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+
+    expect(themeInput?.value).toBe(initialInputValues.theme_target);
+    expect(platformInput?.value).toBe(initialInputValues.platform_region);
+
+    await act(async () => {
+      updateFieldValue(themeInput, editedInputValues.theme_target);
+      updateFieldValue(platformInput, editedInputValues.platform_region);
+      await Promise.resolve();
+    });
+
+    const secondConfirmButton = findLauncherConfirmButton();
+    expect(secondConfirmButton).toBeTruthy();
+
+    await act(async () => {
+      secondConfirmButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(setInput).toHaveBeenLastCalledWith(editedPrompt);
+  });
+
   it("首页方法卡应复用统一的做法数量文案", async () => {
     const container = renderEmptyState({
+      activeTheme: "general",
+      onLaunchBrowserAssist: vi.fn(),
       skills: [
         {
           key: "writer",
@@ -1130,6 +2016,8 @@ describe("EmptyState", () => {
       container.querySelector('[data-testid="chat-model-selector"]'),
     ).toBeNull();
     expect(container.textContent).not.toContain("通用任务上下文");
+    expect(container.textContent).not.toContain("当前模型");
+    expect(container.textContent).not.toContain("gpt-4.1");
 
     act(() => {
       advancedToggle?.click();
@@ -1182,6 +2070,23 @@ describe("EmptyState", () => {
     expect(setExecutionStrategy).toHaveBeenCalledWith("code_orchestrated");
     expect(onSubagentEnabledChange).toHaveBeenCalledWith(true);
     expect(setAccessMode).toHaveBeenCalledWith("full-access");
+  });
+
+  it("首页默认不再把执行模式和联网状态作为 hero 徽标暴露", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      executionStrategy: "code_orchestrated",
+      webSearchEnabled: true,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("编排模式已开启");
+    expect(container.textContent).not.toContain("联网搜索已开启");
+    expect(container.textContent).toContain("结果模板");
+    expect(container.textContent).toContain("继续上次做法");
   });
 
   it("通用首页发送时不应自动注入任何历史默认 skill", async () => {
@@ -1256,7 +2161,7 @@ describe("EmptyState", () => {
     );
   });
 
-  it("手动选择 skill 后发送时仍应优先使用手动 skill", async () => {
+  it("首页手动选择安装技能后发送时仍应优先使用 capability route", async () => {
     const onSend =
       vi.fn<
         (
@@ -1289,7 +2194,10 @@ describe("EmptyState", () => {
         mockCharacterMention.mock.calls.length - 1
       ][0];
     act(() => {
-      latestCall.onSelectSkill?.(skill);
+      latestCall.onSelectInputCapability?.({
+        kind: "installed_skill",
+        skill,
+      });
     });
 
     const sendButton = container.querySelector(
@@ -1302,7 +2210,73 @@ describe("EmptyState", () => {
     });
 
     expect(onSend).toHaveBeenCalledWith(
-      "/custom-writing-skill 请输出一篇品牌故事",
+      "请输出一篇品牌故事",
+      "react",
+      undefined,
+      {
+        capabilityRoute: {
+          kind: "installed_skill",
+          skillKey: "custom-writing-skill",
+          skillName: "custom-writing-skill",
+        },
+        displayContent: "请输出一篇品牌故事",
+      },
+    );
+  });
+
+  it("首页先选 capability 再切到服务技能入口时，不应继续残留旧 capability route", async () => {
+    const onSend = vi.fn();
+    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+    const installedSkill: Skill = {
+      key: "canvas-design",
+      name: "canvas-design",
+      description: "desc",
+      directory: "canvas-design",
+      installed: true,
+      sourceKind: "builtin",
+    };
+    const serviceSkill = createGithubSearchServiceSkill();
+
+    const container = renderEmptyState({
+      input: "整理最近发布计划",
+      onSend,
+      skills: [installedSkill],
+      serviceSkills: [serviceSkill],
+      onSelectServiceSkill,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ][0];
+
+    act(() => {
+      latestCall.onSelectInputCapability?.({
+        kind: "installed_skill",
+        skill: installedSkill,
+      });
+    });
+
+    act(() => {
+      latestCall.onSelectServiceSkill?.(serviceSkill);
+    });
+
+    expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkill);
+
+    const sendButton = container.querySelector(
+      'button[aria-label="发送"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    act(() => {
+      sendButton?.click();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      "整理最近发布计划",
       "react",
       undefined,
     );
@@ -1319,7 +2293,7 @@ describe("EmptyState", () => {
     });
 
     const launchButton = container.querySelector(
-      'button[aria-label="连接浏览器"]',
+      '[data-testid="entry-connect-browser"]',
     ) as HTMLButtonElement | null;
     expect(launchButton).toBeTruthy();
 
@@ -1341,7 +2315,7 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("创作场景");
+    expect(container.textContent).toContain("更多起手方式");
     expect(container.textContent).toContain("短视频编排");
     expect(
       container.querySelector('[data-testid="sceneapps-home-directory"]'),
@@ -1371,7 +2345,7 @@ describe("EmptyState", () => {
     });
 
     const browseButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("查看全部场景"),
+      (button) => button.textContent?.includes("查看全部做法"),
     );
     expect(browseButton).toBeTruthy();
 
@@ -1382,11 +2356,25 @@ describe("EmptyState", () => {
     expect(onOpenSceneAppsDirectory).toHaveBeenCalledTimes(1);
   });
 
-  it("存在最近 SceneApp 时应提供继续最近场景入口", async () => {
+  it("仅有目录入口但没有可直接收益时，不应默认渲染更多起手方式", async () => {
+    const container = renderEmptyState({
+      activeTheme: "general",
+      onOpenSceneAppsDirectory: vi.fn(),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("更多起手方式");
+    expect(
+      container.querySelector('[data-testid="sceneapps-home-directory"]'),
+    ).toBeNull();
+  });
+
+  it("存在最近 SceneApp 时，即使没有推荐做法也应提供继续最近做法入口", async () => {
     const onResumeRecentSceneApp = vi.fn();
     const container = renderEmptyState({
       activeTheme: "general",
-      featuredSceneApps: [createSceneAppEntry()],
       canResumeRecentSceneApp: true,
       onResumeRecentSceneApp,
     });
@@ -1394,8 +2382,9 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
+    expect(container.textContent).toContain("更多起手方式");
     const resumeButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("继续最近场景"),
+      (button) => button.textContent?.includes("继续最近做法"),
     );
     expect(resumeButton).toBeTruthy();
 

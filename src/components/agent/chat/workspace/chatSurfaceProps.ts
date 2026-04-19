@@ -5,6 +5,7 @@ import { ChatSidebar } from "../components/ChatSidebar";
 import { EmptyState } from "../components/EmptyState";
 import { TeamWorkspaceBoard } from "../components/TeamWorkspaceBoard";
 import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
+import type { CreationReplaySurfaceModel } from "../utils/creationReplaySurface";
 
 export type TeamWorkbenchSurfaceProps = Omit<
   ComponentProps<typeof TeamWorkspaceBoard>,
@@ -170,6 +171,7 @@ interface BuildWorkspaceEmptyStatePropsParams {
   onOpenChannels?: ComponentProps<typeof EmptyState>["onOpenChannels"];
   onOpenChromeRelay?: ComponentProps<typeof EmptyState>["onOpenChromeRelay"];
   onOpenOpenClaw?: ComponentProps<typeof EmptyState>["onOpenOpenClaw"];
+  creationReplaySurface?: CreationReplaySurfaceModel | null;
 }
 
 export function buildWorkspaceEmptyStateProps({
@@ -227,6 +229,7 @@ export function buildWorkspaceEmptyStateProps({
   onOpenChannels,
   onOpenChromeRelay,
   onOpenOpenClaw,
+  creationReplaySurface,
 }: BuildWorkspaceEmptyStatePropsParams): ComponentProps<typeof EmptyState> {
   return {
     input,
@@ -293,6 +296,7 @@ export function buildWorkspaceEmptyStateProps({
     onOpenChannels,
     onOpenChromeRelay,
     onOpenOpenClaw,
+    creationReplaySurface,
   };
 }
 

@@ -136,32 +136,27 @@ const sourceConfig: Record<
 > = {
   builtin: {
     label: "内置",
-    className:
-      "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
+    className: "bg-orange-100 text-orange-800",
     surfaceClassName: "from-orange-200/70 via-orange-50 to-white",
   },
   project: {
     label: "项目",
-    className:
-      "bg-stone-100 text-stone-800 dark:bg-stone-900/30 dark:text-stone-300",
+    className: "bg-stone-100 text-stone-800",
     surfaceClassName: "from-stone-200/70 via-stone-50 to-white",
   },
   official: {
     label: "官方",
-    className:
-      "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+    className: "bg-green-100 text-green-800",
     surfaceClassName: "from-emerald-200/70 via-emerald-50 to-white",
   },
   community: {
     label: "社区",
-    className:
-      "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
+    className: "bg-sky-100 text-sky-800",
     surfaceClassName: "from-sky-200/70 via-sky-50 to-white",
   },
   local: {
     label: "本地",
-    className:
-      "bg-slate-100 text-slate-800 dark:bg-slate-800/50 dark:text-slate-400",
+    className: "bg-slate-100 text-slate-800",
     surfaceClassName: "from-slate-200/70 via-slate-50 to-white",
   },
 };
@@ -193,7 +188,7 @@ function StandardBadge({ skill }: { skill: Skill }) {
 
   if (!compliance.isStandard) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
         <AlertTriangle className="h-3 w-3" />
         待修复
       </span>
@@ -202,7 +197,7 @@ function StandardBadge({ skill }: { skill: Skill }) {
 
   if (deprecatedFields.length > 0) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
         <AlertTriangle className="h-3 w-3" />
         含兼容字段
       </span>
@@ -210,7 +205,7 @@ function StandardBadge({ skill }: { skill: Skill }) {
   }
 
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
       <CheckCircle2 className="h-3 w-3" />
       标准
     </span>
@@ -253,7 +248,7 @@ function ResourceBadges({ skill }: { skill: Skill }) {
       {resources.map((resource) => (
         <span
           key={resource}
-          className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+          className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
         >
           {resource}
         </span>
@@ -358,7 +353,7 @@ export function SkillCard({
               <SourceBadge source={source} />
               <StandardBadge skill={skill} />
               {categoryLabel && (
-                <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
                   {categoryLabel}
                 </span>
               )}
@@ -376,7 +371,7 @@ export function SkillCard({
           </div>
 
           {skill.installed && (
-            <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 shadow-sm dark:bg-emerald-900/30 dark:text-emerald-400">
+            <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 shadow-sm">
               {source === "project" ? "项目可用" : "已安装"}
             </span>
           )}
@@ -393,7 +388,7 @@ export function SkillCard({
         )}
 
         {validationSummary && (
-          <div className="mt-4 rounded-2xl border border-dashed border-amber-300 bg-amber-50/90 px-3 py-2.5 text-xs leading-5 text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+          <div className="mt-4 rounded-2xl border border-dashed border-amber-300 bg-amber-50/90 px-3 py-2.5 text-xs leading-5 text-amber-700">
             {validationSummary}
           </div>
         )}
@@ -406,7 +401,7 @@ export function SkillCard({
                 disabled={installing}
                 className={`min-w-[120px] flex-1 ${actionButtonBaseClassName} ${
                   skill.installed
-                    ? "border border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/30"
+                    ? "border border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100"
                     : "border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >

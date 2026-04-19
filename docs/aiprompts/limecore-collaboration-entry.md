@@ -7,6 +7,18 @@
 - 绝对路径：`/Users/coso/Documents/dev/ai/limecloud/limecore/docs/aiprompts/lime-limecore-collaboration.md`
 - 在 `limecore` 仓库内的相对路径：`docs/aiprompts/lime-limecore-collaboration.md`
 
+已确认的服务端真实落点：
+
+- `/Users/coso/Documents/dev/ai/limecloud/limecore/services/control-plane-svc`
+- `/Users/coso/Documents/dev/ai/limecloud/limecore/services/gateway-svc`
+- `/Users/coso/Documents/dev/ai/limecloud/limecore/services/scene-orchestrator-svc`
+- `/Users/coso/Documents/dev/ai/limecloud/limecore/services/worker-svc`
+
+固定纠偏：
+
+- 不要再把控制面写成 “`lime` 仓库内待新建本地模块”
+- `lime` 仓库默认是消费方，不是控制面唯一背景事实源
+
 ## 什么时候先读主文档
 
 遇到下面这些任务时，默认先读 `limecore` 主文档：

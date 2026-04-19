@@ -19,12 +19,15 @@ import {
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { CuratedTaskLauncherDialog } from "@/components/agent/chat/components/CuratedTaskLauncherDialog";
 import { resolveServiceSkillEntryDescription } from "@/components/agent/chat/service-skills/entryAdapter";
 import { buildServiceSkillRecommendationBuckets } from "@/components/agent/chat/service-skills/recommendedServiceSkills";
 import { resolveServiceSkillLaunchPrefill } from "@/components/agent/chat/service-skills/serviceSkillLaunchPrefill";
 import {
+  buildServiceSkillCapabilityDescription,
   getServiceSkillOutputDestination,
   getServiceSkillTypeLabel,
+  summarizeServiceSkillRequiredInputs,
 } from "@/components/agent/chat/service-skills/skillPresentation";
 import type {
   ServiceSkillHomeItem,
@@ -33,9 +36,33 @@ import type {
 import { useServiceSkills } from "@/components/agent/chat/service-skills/useServiceSkills";
 import { SkillsPage } from "./SkillsPage";
 import { getSkillSource } from "./SkillCard";
+import {
+  buildInstalledSkillCapabilityDescription,
+  getInstalledSkillOutputHint,
+  resolveInstalledSkillPromise,
+  summarizeInstalledSkillRequiredInputs,
+} from "./installedSkillPresentation";
 import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { buildSkillScaffoldCreationReplayRequestMetadata } from "@/components/agent/chat/utils/creationReplayMetadata";
 import { buildSkillScaffoldCreationSeed } from "./skillScaffoldCreationSeed";
+import {
+  buildCuratedTaskLaunchPrompt,
+  filterCuratedTaskTemplates,
+  listCuratedTaskTemplates,
+  listFeaturedHomeCuratedTaskTemplates,
+  recordCuratedTaskTemplateUsage,
+  summarizeCuratedTaskFollowUpActions,
+  summarizeCuratedTaskOptionalReferences,
+  summarizeCuratedTaskOutputContract,
+  summarizeCuratedTaskRequiredInputs,
+  type CuratedTaskInputValues,
+  type CuratedTaskTemplateItem,
+} from "@/components/agent/chat/utils/curatedTaskTemplates";
+import {
+  buildCuratedTaskLaunchRequestMetadata,
+  type CuratedTaskReferenceSelection,
+} from "@/components/agent/chat/utils/curatedTaskReferenceSelection";
+import { CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 
 interface SkillsWorkspacePageProps {
   onNavigate: (page: Page, params?: PageParams) => void;
@@ -172,6 +199,12 @@ export function SkillsWorkspacePage({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
   const [advancedManagerOpen, setAdvancedManagerOpen] = useState(false);
+  const [curatedTaskLauncherTask, setCuratedTaskLauncherTask] =
+    useState<CuratedTaskTemplateItem | null>(null);
+  const [
+    curatedTaskRecommendationSignalsVersion,
+    setCuratedTaskRecommendationSignalsVersion,
+  ] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const lastHandledScaffoldRequestKeyRef = useRef<number | null>(null);
 
@@ -238,6 +271,24 @@ export function SkillsWorkspacePage({
       setSelectedGroupKey(null);
     }
   }, [selectedGroup, selectedGroupKey]);
+
+  useEffect(() => {
+    const handleRecommendationSignalsChange = () => {
+      setCuratedTaskRecommendationSignalsVersion((previous) => previous + 1);
+    };
+
+    window.addEventListener(
+      CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT,
+      handleRecommendationSignalsChange,
+    );
+
+    return () => {
+      window.removeEventListener(
+        CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT,
+        handleRecommendationSignalsChange,
+      );
+    };
+  }, []);
 
   useEffect(() => {
     const requestKey = pageParams?.initialScaffoldRequestKey ?? null;
@@ -308,7 +359,8 @@ export function SkillsWorkspacePage({
         skill.outputHint,
         skill.badge,
         skill.skillKey,
-        resolveServiceSkillEntryDescription(skill),
+        buildServiceSkillCapabilityDescription(skill),
+        getServiceSkillOutputDestination(skill),
         getServiceSkillTypeLabel(skill),
       ),
     );
@@ -322,7 +374,7 @@ export function SkillsWorkspacePage({
         skill.summary,
         skill.category,
         skill.outputHint,
-        resolveServiceSkillEntryDescription(skill),
+        buildServiceSkillCapabilityDescription(skill),
       ),
     );
   }, [recentServiceSkills, searchQuery]);
@@ -337,9 +389,25 @@ export function SkillsWorkspacePage({
         skill.repoOwner,
         skill.repoName,
         resolveLocalSkillSourceLabel(skill),
+        buildInstalledSkillCapabilityDescription(skill),
       ),
     );
   }, [installedLocalSkills, searchQuery]);
+  const visibleCuratedTaskTemplates = useMemo(
+    () => {
+      void curatedTaskRecommendationSignalsVersion;
+      return filterCuratedTaskTemplates(searchQuery, listCuratedTaskTemplates());
+    },
+    [curatedTaskRecommendationSignalsVersion, searchQuery],
+  );
+  const visibleFeaturedCuratedTaskTemplates = useMemo(
+    () =>
+      listFeaturedHomeCuratedTaskTemplates(visibleCuratedTaskTemplates, {
+        projectId: pageParams?.creationProjectId,
+        limit: 4,
+      }),
+    [pageParams?.creationProjectId, visibleCuratedTaskTemplates],
+  );
   const visibleRecentPreview = useMemo(
     () => visibleRecentSkills.slice(0, 4),
     [visibleRecentSkills],
@@ -396,10 +464,93 @@ export function SkillsWorkspacePage({
     });
   };
 
+  const handleInstalledSkillSelect = useCallback(
+    (skill: Skill) => {
+      onNavigate("agent", {
+        ...buildHomeAgentParams(),
+        initialInputCapability: {
+          capabilityRoute: {
+            kind: "installed_skill",
+            skillKey: skill.key,
+            skillName: skill.name,
+          },
+          requestKey: Date.now(),
+        },
+      });
+    },
+    [onNavigate],
+  );
+
+  const handleCuratedTaskTemplateLauncherRequest = useCallback(
+    (template: CuratedTaskTemplateItem) => {
+      setCuratedTaskLauncherTask(template);
+    },
+    [],
+  );
+
+  const handleCuratedTaskLauncherOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setCuratedTaskLauncherTask(null);
+    }
+  }, []);
+
+  const handleCuratedTaskTemplateSelect = useCallback(
+    (
+      template: CuratedTaskTemplateItem,
+      inputValues: CuratedTaskInputValues,
+      referenceSelection: CuratedTaskReferenceSelection,
+    ) => {
+      recordCuratedTaskTemplateUsage(template.id);
+      setCuratedTaskLauncherTask(null);
+      const resolvedTemplate = template;
+      const requestMetadata = buildCuratedTaskLaunchRequestMetadata({
+        taskId: resolvedTemplate.id,
+        taskTitle: resolvedTemplate.title,
+        inputValues,
+        referenceMemoryIds: referenceSelection.referenceMemoryIds,
+        referenceEntries: referenceSelection.referenceEntries,
+      });
+      onNavigate(
+        "agent",
+        buildHomeAgentParams({
+          initialRequestMetadata: requestMetadata,
+          initialInputCapability: {
+            capabilityRoute: {
+              kind: "curated_task",
+              taskId: resolvedTemplate.id,
+              taskTitle: resolvedTemplate.title,
+              prompt: buildCuratedTaskLaunchPrompt({
+                task: resolvedTemplate,
+                inputValues,
+                referenceEntries: referenceSelection.referenceEntries,
+              }),
+              ...(referenceSelection.referenceMemoryIds.length > 0
+                ? {
+                    referenceMemoryIds: referenceSelection.referenceMemoryIds,
+                  }
+                : {}),
+              ...(referenceSelection.referenceEntries.length > 0
+                ? {
+                    referenceEntries: referenceSelection.referenceEntries,
+                  }
+                : {}),
+            },
+            requestKey: Date.now(),
+          },
+          entryBannerMessage: `已从结果模板“${resolvedTemplate.title}”带着启动信息进入生成，可继续补充后发送。`,
+        }),
+      );
+    },
+    [onNavigate],
+  );
+
   const renderSkillCard = (skill: ServiceSkillHomeItem) => {
     const tone = resolveSkillCardTone(skill);
     const statusLabel = resolveSkillCardStatusLabel(skill);
     const statusDetail = resolveSkillCardStatusDetail(skill);
+    const promise = resolveServiceSkillEntryDescription(skill);
+    const requiredInputs = summarizeServiceSkillRequiredInputs(skill);
+    const outputDestination = getServiceSkillOutputDestination(skill);
 
     return (
       <article
@@ -429,7 +580,7 @@ export function SkillsWorkspacePage({
               {skill.title}
             </h3>
             <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">
-              {skill.summary || resolveServiceSkillEntryDescription(skill)}
+              {skill.summary || promise}
             </p>
           </div>
 
@@ -439,12 +590,16 @@ export function SkillsWorkspacePage({
               {skill.category}
             </div>
             <div>
-              <span className="font-medium text-slate-700">入口：</span>
-              {resolveServiceSkillEntryDescription(skill)}
+              <span className="font-medium text-slate-700">你来给：</span>
+              {requiredInputs}
             </div>
             <div>
-              <span className="font-medium text-slate-700">去向：</span>
-              {getServiceSkillOutputDestination(skill)}
+              <span className="font-medium text-slate-700">会拿到：</span>
+              {skill.outputHint}
+            </div>
+            <div>
+              <span className="font-medium text-slate-700">结果去向：</span>
+              {outputDestination}
             </div>
           </div>
 
@@ -453,8 +608,7 @@ export function SkillsWorkspacePage({
           </div>
         </div>
 
-        <div className="mt-auto flex items-center justify-between gap-3 pt-5">
-          <div className="text-xs text-slate-400">{skill.outputHint}</div>
+        <div className="mt-auto flex justify-end pt-5">
           <Button
             type="button"
             className={SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME}
@@ -778,6 +932,106 @@ export function SkillsWorkspacePage({
               <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-semibold text-slate-900">
+                    先拿结果
+                  </h2>
+                  <WorkbenchInfoTip
+                    ariaLabel="结果模板桥接说明"
+                    content="结果模板和方法目录现在共享同一套 curated task 事实源；如果你还没想好做法，先拿一个结果起手式进入生成。"
+                    tone="mint"
+                  />
+                  {visibleCuratedTaskTemplates.length > 0 ? (
+                    <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
+                      {visibleCuratedTaskTemplates.length} 个
+                    </span>
+                  ) : null}
+                </div>
+
+                {visibleFeaturedCuratedTaskTemplates.length > 0 ? (
+                  <div className="mt-4 space-y-3">
+                    {visibleFeaturedCuratedTaskTemplates.map((featured) => {
+                      const template = featured.template;
+
+                      return (
+                      <article
+                        key={template.id}
+                        className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
+                            {featured.badgeLabel}
+                          </span>
+                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                            {template.outputHint}
+                          </span>
+                        </div>
+                        <div className="mt-3 text-base font-semibold text-slate-900">
+                          {template.title}
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                          {template.summary}
+                        </p>
+                        {featured.reasonSummary ? (
+                          <div className="mt-2 text-xs leading-5 text-slate-500">
+                            {featured.reasonSummary}
+                          </div>
+                        ) : null}
+                        <div className="mt-3 space-y-2">
+                          <div className="rounded-[18px] border border-slate-200 bg-white/70 px-3 py-2.5">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                              你来给
+                            </div>
+                            <div className="mt-1 text-xs leading-5 text-slate-600">
+                              {summarizeCuratedTaskRequiredInputs(template)}
+                            </div>
+                          </div>
+                          <div className="rounded-[18px] border border-slate-200 bg-white/70 px-3 py-2.5">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                              可选参考
+                            </div>
+                            <div className="mt-1 text-xs leading-5 text-slate-600">
+                              {summarizeCuratedTaskOptionalReferences(template)}
+                            </div>
+                          </div>
+                          <div className="rounded-[18px] border border-slate-200 bg-white/70 px-3 py-2.5">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                              会拿到
+                            </div>
+                            <div className="mt-1 text-xs leading-5 text-slate-600">
+                              {summarizeCuratedTaskOutputContract(template)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-4 flex items-center justify-between gap-3">
+                          <div className="text-xs leading-5 text-slate-400">
+                            下一步可继续：
+                            {summarizeCuratedTaskFollowUpActions(template)}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-auto rounded-2xl px-0 text-sm font-medium text-slate-900 hover:bg-transparent hover:text-slate-950"
+                            onClick={() =>
+                              handleCuratedTaskTemplateLauncherRequest(template)
+                            }
+                          >
+                            进入生成
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
+                        </div>
+                      </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+                    当前搜索下暂无结果模板。可以先清掉关键词，或直接从左侧做法目录继续找具体方法。
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-semibold text-slate-900">
                     继续常用做法
                   </h2>
                   <WorkbenchInfoTip
@@ -815,6 +1069,26 @@ export function SkillsWorkspacePage({
                         <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
                           {skill.summary}
                         </p>
+                        <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
+                          <div>
+                            <span className="font-medium text-slate-700">
+                              你来给：
+                            </span>
+                            {summarizeServiceSkillRequiredInputs(skill)}
+                          </div>
+                          <div>
+                            <span className="font-medium text-slate-700">
+                              会拿到：
+                            </span>
+                            {skill.outputHint}
+                          </div>
+                          <div>
+                            <span className="font-medium text-slate-700">
+                              结果去向：
+                            </span>
+                            {getServiceSkillOutputDestination(skill)}
+                          </div>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -856,7 +1130,7 @@ export function SkillsWorkspacePage({
                 {visibleInstalledPreview.length > 0 ? (
                   <div className="mt-4 space-y-3">
                     {visibleInstalledPreview.map((skill) => (
-                      <div
+                      <article
                         key={skill.directory}
                         className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4"
                       >
@@ -872,15 +1146,45 @@ export function SkillsWorkspacePage({
                           {skill.name}
                         </div>
                         <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
-                          {skill.description || "暂无描述"}
+                          {resolveInstalledSkillPromise(skill)}
                         </p>
-                        <div className="mt-3 text-xs leading-5 text-slate-500">
-                          /{skill.key}
-                          {skill.repoOwner && skill.repoName
-                            ? ` · ${skill.repoOwner}/${skill.repoName}`
-                            : ""}
+                        <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
+                          <div>
+                            <span className="font-medium text-slate-700">
+                              你来给：
+                            </span>
+                            {summarizeInstalledSkillRequiredInputs(skill)}
+                          </div>
+                          <div>
+                            <span className="font-medium text-slate-700">
+                              会拿到：
+                            </span>
+                            {getInstalledSkillOutputHint(skill)}
+                          </div>
+                          <div>
+                            <span className="font-medium text-slate-700">
+                              方法入口：
+                            </span>
+                            /{skill.key}
+                            {skill.repoOwner && skill.repoName
+                              ? ` · ${skill.repoOwner}/${skill.repoName}`
+                              : ""}
+                          </div>
                         </div>
-                      </div>
+                        <div className="mt-4 flex items-center justify-between gap-3">
+                          <div className="text-xs text-slate-400">
+                            会带着这套方法进入生成主执行面，后续结果继续沉淀到当前工作区。
+                          </div>
+                          <Button
+                            type="button"
+                            className={SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME}
+                            onClick={() => handleInstalledSkillSelect(skill)}
+                          >
+                            进入生成
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
+                        </div>
+                      </article>
                     ))}
                   </div>
                 ) : (
@@ -920,6 +1224,13 @@ export function SkillsWorkspacePage({
           </div>
         </DialogContent>
       </Dialog>
+
+      <CuratedTaskLauncherDialog
+        open={Boolean(curatedTaskLauncherTask)}
+        task={curatedTaskLauncherTask}
+        onOpenChange={handleCuratedTaskLauncherOpenChange}
+        onConfirm={handleCuratedTaskTemplateSelect}
+      />
     </>
   );
 }

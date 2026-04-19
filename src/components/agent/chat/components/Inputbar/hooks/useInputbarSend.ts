@@ -1,7 +1,11 @@
 import { useCallback } from "react";
-import type { Skill } from "@/lib/api/skills";
+import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import type { MessageImage } from "../../../types";
-import type { BuiltinInputCommand } from "../../../skill-selection/builtinCommands";
+import type { HandleSendOptions } from "../../../hooks/handleSendTypes";
+import {
+  resolveInputCapabilityDispatch,
+  type InputCapabilitySelection,
+} from "../../../skill-selection/inputCapabilitySelection";
 
 interface UseInputbarSendParams {
   input: string;
@@ -9,18 +13,18 @@ interface UseInputbarSendParams {
   webSearchEnabled: boolean;
   thinkingEnabled: boolean;
   executionStrategy?: "react" | "code_orchestrated" | "auto";
-  activeSkill: Skill | null;
-  activeBuiltinCommand: BuiltinInputCommand | null;
+  activeCapability: InputCapabilitySelection | null;
   onSend: (
     images?: MessageImage[],
     webSearch?: boolean,
     thinking?: boolean,
     textOverride?: string,
     executionStrategy?: "react" | "code_orchestrated" | "auto",
+    autoContinuePayload?: AutoContinueRequestPayload,
+    sendOptions?: HandleSendOptions,
   ) => void | Promise<boolean> | boolean;
   clearPendingImages: () => void;
-  clearActiveSkill: () => void;
-  clearActiveBuiltinCommand: () => void;
+  clearActiveCapability: () => void;
 }
 
 export function useInputbarSend({
@@ -29,12 +33,10 @@ export function useInputbarSend({
   webSearchEnabled,
   thinkingEnabled,
   executionStrategy,
-  activeSkill,
-  activeBuiltinCommand,
+  activeCapability,
   onSend,
   clearPendingImages,
-  clearActiveSkill,
-  clearActiveBuiltinCommand,
+  clearActiveCapability,
 }: UseInputbarSendParams) {
   return useCallback(async () => {
     if (!input.trim() && pendingImages.length === 0) {
@@ -49,35 +51,40 @@ export function useInputbarSend({
       strategy = "react";
     }
 
-    let textOverride: string | undefined;
-    if (activeBuiltinCommand) {
-      textOverride = `${activeBuiltinCommand.commandPrefix} ${input}`.trim();
-    } else if (activeSkill) {
-      textOverride = `/${activeSkill.key} ${input}`.trim();
-    }
+    const capabilityDispatch = resolveInputCapabilityDispatch(
+      activeCapability,
+      input,
+    );
 
     try {
       const result = await onSend(
         pendingImages.length > 0 ? pendingImages : undefined,
         webSearch,
         thinking,
-        textOverride,
+        undefined,
         strategy,
+        undefined,
+        capabilityDispatch.capabilityRoute ||
+          capabilityDispatch.displayContent ||
+          capabilityDispatch.requestMetadata
+          ? {
+              capabilityRoute: capabilityDispatch.capabilityRoute,
+              displayContent: capabilityDispatch.displayContent,
+              requestMetadata: capabilityDispatch.requestMetadata,
+            }
+          : undefined,
       );
       if (result === false) {
         return;
       }
       clearPendingImages();
-      clearActiveSkill();
-      clearActiveBuiltinCommand();
+      clearActiveCapability();
     } catch {
       // 发送失败时保留图片与技能，交由上层 toast / 恢复逻辑处理。
     }
   }, [
-    activeBuiltinCommand,
-    activeSkill,
-    clearActiveBuiltinCommand,
-    clearActiveSkill,
+    activeCapability,
+    clearActiveCapability,
     clearPendingImages,
     executionStrategy,
     input,

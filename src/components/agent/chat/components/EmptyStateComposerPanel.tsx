@@ -9,10 +9,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { TeamSuggestionBar } from "./TeamSuggestionBar";
 import { CharacterMention } from "../skill-selection/CharacterMention";
+import { BuiltinCommandBadge } from "./Inputbar/components/BuiltinCommandBadge";
 import { InputbarAccessModeSelect } from "./Inputbar/components/InputbarAccessModeSelect";
 import { InputbarCore } from "./Inputbar/components/InputbarCore";
 import { InputbarExecutionStrategySelect } from "./Inputbar/components/InputbarExecutionStrategySelect";
 import { InputbarModelExtra } from "./Inputbar/components/InputbarModelExtra";
+import { RuntimeSceneBadge } from "./Inputbar/components/RuntimeSceneBadge";
+import { CuratedTaskBadge } from "../skill-selection/CuratedTaskBadge";
 import { SkillBadge } from "../skill-selection/SkillBadge";
 import { SkillSelector } from "../skill-selection/SkillSelector";
 import { TeamSelector } from "./Inputbar/components/TeamSelector";
@@ -38,7 +41,12 @@ import {
   type SkillSelectionProps,
 } from "../skill-selection/skillSelectionBindings";
 import type { AgentAccessMode } from "../hooks/agentChatStorage";
-import { getProviderLabel } from "@/lib/constants/providerMappings";
+import type {
+  InputCapabilitySelection,
+  SelectInputCapabilityHandler,
+} from "../skill-selection/inputCapabilitySelection";
+import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
+import type { CreationReplaySurfaceModel } from "../utils/creationReplaySurface";
 
 interface EmptyStateComposerPanelProps {
   input: string;
@@ -62,6 +70,13 @@ interface EmptyStateComposerPanelProps {
   isGeneralTheme: boolean;
   characters: Character[];
   skillSelection: SkillSelectionProps;
+  activeCapability?: InputCapabilitySelection | null;
+  onSelectInputCapability?: SelectInputCapabilityHandler;
+  onClearInputCapability?: () => void;
+  onEditCuratedTask?: () => void;
+  creationReplaySurface?: CreationReplaySurfaceModel | null;
+  defaultCuratedTaskReferenceMemoryIds?: string[];
+  defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
   showCreationModeSelector: boolean;
   creationMode: CreationMode;
   onCreationModeChange?: (mode: CreationMode) => void;
@@ -102,6 +117,13 @@ export function EmptyStateComposerPanel({
   isGeneralTheme,
   characters,
   skillSelection,
+  activeCapability = null,
+  onSelectInputCapability,
+  onClearInputCapability,
+  onEditCuratedTask,
+  creationReplaySurface = null,
+  defaultCuratedTaskReferenceMemoryIds = [],
+  defaultCuratedTaskReferenceEntries = [],
   showCreationModeSelector,
   creationMode,
   onCreationModeChange,
@@ -130,7 +152,20 @@ export function EmptyStateComposerPanel({
     number | null
   >(null);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
-  const activeSkill = skillSelection.activeSkill ?? null;
+  const activeBuiltinCommand =
+    activeCapability?.kind === "builtin_command"
+      ? activeCapability.command
+      : null;
+  const activeRuntimeScene =
+    activeCapability?.kind === "runtime_scene"
+      ? activeCapability.command
+      : null;
+  const activeCuratedTask =
+    activeCapability?.kind === "curated_task" ? activeCapability.task : null;
+  const activeSkill =
+    activeCapability?.kind === "installed_skill"
+      ? activeCapability.skill
+      : skillSelection.activeSkill ?? null;
   const clearActiveSkill = skillSelection.onClearSkill;
   const { mentionProps: mentionSkillProps, selectorProps: skillSelectorProps } =
     buildSkillSelectionBindings(skillSelection);
@@ -188,13 +223,54 @@ export function EmptyStateComposerPanel({
   };
 
   const topExtra =
-    Boolean(activeSkill) || shouldShowTeamSuggestion ? (
+    activeBuiltinCommand ||
+    activeRuntimeScene ||
+    activeCuratedTask ||
+    activeSkill ||
+    creationReplaySurface ||
+    shouldShowTeamSuggestion ? (
       <>
+        {activeBuiltinCommand ? (
+          <BuiltinCommandBadge
+            command={activeBuiltinCommand}
+            onClear={onClearInputCapability ?? (() => undefined)}
+          />
+        ) : null}
+
+        {activeRuntimeScene ? (
+          <RuntimeSceneBadge
+            command={activeRuntimeScene}
+            onClear={onClearInputCapability ?? (() => undefined)}
+          />
+        ) : null}
+
         {activeSkill ? (
           <SkillBadge
             skill={activeSkill}
-            onClear={clearActiveSkill ?? (() => undefined)}
+            onClear={
+              onClearInputCapability || clearActiveSkill || (() => undefined)
+            }
           />
+        ) : null}
+
+        {activeCuratedTask ? (
+          <CuratedTaskBadge
+            task={activeCuratedTask}
+            onEdit={onEditCuratedTask}
+            onClear={onClearInputCapability ?? (() => undefined)}
+          />
+        ) : null}
+
+        {creationReplaySurface ? (
+          <Badge
+            className={`${EMPTY_STATE_PASSIVE_BADGE_CLASSNAME} max-w-[320px] justify-start gap-1.5`}
+            title={`${creationReplaySurface.eyebrow} · ${creationReplaySurface.title} · ${creationReplaySurface.summary}`}
+          >
+            <span className="shrink-0 text-emerald-700">
+              {creationReplaySurface.badgeLabel}
+            </span>
+            <span className="truncate">{creationReplaySurface.title}</span>
+          </Badge>
         ) : null}
 
         {shouldShowTeamSuggestion ? (
@@ -212,13 +288,7 @@ export function EmptyStateComposerPanel({
     ) : undefined;
 
   const shouldShowThemeSpecificExtra = showCreationModeSelector;
-  const trimmedProviderType = providerType.trim();
-  const trimmedModel = model.trim();
-  const hasConfiguredModel = Boolean(trimmedProviderType && trimmedModel);
   const shouldShowModelControls = true;
-  const currentModelSummary = hasConfiguredModel
-    ? `${getProviderLabel(trimmedProviderType)} / ${trimmedModel}`
-    : null;
   const hasHighlightedAdvancedPreference =
     thinkingEnabled ||
     webSearchEnabled ||
@@ -258,28 +328,6 @@ export function EmptyStateComposerPanel({
           <ChevronDown className="h-3.5 w-3.5" aria-hidden />
         )}
       </MetaToggleButton>
-
-      {!showAdvancedControls && currentModelSummary ? (
-        <Badge
-          variant="outline"
-          className={EMPTY_STATE_PASSIVE_BADGE_CLASSNAME}
-          title={`当前模型：${currentModelSummary}`}
-        >
-          <span className="mr-1 text-slate-500">当前模型</span>
-          <span className="max-w-[220px] truncate">{trimmedModel}</span>
-        </Badge>
-      ) : null}
-
-      {!showAdvancedControls && !hasConfiguredModel ? (
-        <InputbarModelExtra
-          providerType={providerType}
-          setProviderType={setProviderType}
-          model={model}
-          setModel={setModel}
-          activeTheme={activeTheme}
-          onManageProviders={onManageProviders}
-        />
-      ) : null}
 
       {showAdvancedControls ? (
         <>
@@ -374,6 +422,19 @@ export function EmptyStateComposerPanel({
         inputRef={textareaRef}
         value={input}
         onChange={setInput}
+        onSelectInputCapability={onSelectInputCapability}
+        defaultCuratedTaskReferenceMemoryIds={
+          activeCapability?.kind === "curated_task"
+            ? activeCapability.referenceMemoryIds ||
+              defaultCuratedTaskReferenceMemoryIds
+            : defaultCuratedTaskReferenceMemoryIds
+        }
+        defaultCuratedTaskReferenceEntries={
+          activeCapability?.kind === "curated_task"
+            ? activeCapability.referenceEntries ||
+              defaultCuratedTaskReferenceEntries
+            : defaultCuratedTaskReferenceEntries
+        }
       />
 
       <input

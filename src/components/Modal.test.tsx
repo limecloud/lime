@@ -114,6 +114,8 @@ describe("Modal", () => {
     ) as HTMLDivElement | null;
 
     expect(overlay?.className).toContain("overflow-y-auto");
+    expect(overlay?.className).toContain("backdrop-blur-[2px]");
+    expect(overlay?.className).not.toContain("bg-black/50");
     expect(dialog?.className).toContain("max-h-[calc(100vh-2rem)]");
     expect(dialog?.className).toContain("flex-col");
     expect(body?.className).toContain("flex-1");

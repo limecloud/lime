@@ -260,7 +260,7 @@ export function SplashScreen({
       <Stage>
         <LogoStack>
           <LogoGlow />
-          <Logo src="/logo-splash.png" alt="Lime" />
+          <Logo src="/logo-v6.svg" alt="Lime" />
         </LogoStack>
         <CopyBlock>
           <Slogan>青柠一下，灵感即来</Slogan>

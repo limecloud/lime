@@ -329,7 +329,7 @@ describe("useTeamWorkspaceBoardCanvasRuntime", () => {
       }),
     ]);
     expect(harness.getValue().canvasStageHint).toBe(
-      "这里会先展示当前任务分工，任务拆出后会切换为独立的任务视图。",
+      "这里会先展示当前任务分工，任务拆出后会切换为独立的当前进展。",
     );
   });
 });

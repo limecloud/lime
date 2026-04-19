@@ -169,6 +169,10 @@ import { useWorkspaceGeneralResourceSync } from "./workspace/useWorkspaceGeneral
 import { useWorkspaceArtifactWorkbenchActions } from "./workspace/useWorkspaceArtifactWorkbenchActions";
 import { useSceneAppExecutionSummaryRuntime } from "./workspace/useSceneAppExecutionSummaryRuntime";
 import {
+  buildSceneAppExecutionContentPostEntries,
+  type SceneAppExecutionContentPostEntry,
+} from "./workspace/sceneAppExecutionContentPosts";
+import {
   useWorkspaceImageWorkbenchActionRuntime,
   type SubmitImageWorkbenchAgentCommandParams,
 } from "./workspace/useWorkspaceImageWorkbenchActionRuntime";
@@ -245,7 +249,9 @@ import {
 } from "./agentChatWorkspaceShared";
 import type { AgentChatWorkspaceProps } from "./agentChatWorkspaceContract";
 import { extractCreationReplayMetadata } from "./utils/creationReplayMetadata";
+import { buildCreationReplaySurfaceModel } from "./utils/creationReplaySurface";
 import { buildMessageInspirationDraft } from "./utils/messageInspirationDraft";
+import { recordCuratedTaskRecommendationSignalFromMemory } from "./utils/curatedTaskRecommendationSignals";
 import { buildSkillsPageParamsFromMessage } from "./utils/skillScaffoldDraft";
 import { AutomationJobDialog } from "@/components/settings-v2/system/automation/AutomationJobDialog";
 import { shouldAutoSelectGeneralArtifact } from "./workspace/generalArtifactAutoSelection";
@@ -404,6 +410,7 @@ export function AgentChatWorkspace({
   initialSessionName,
   entryBannerMessage,
   initialPendingServiceSkillLaunch,
+  initialInputCapability,
   initialProjectFileOpenTarget,
   onInitialUserPromptConsumed,
   newChatAt,
@@ -725,6 +732,10 @@ export function AgentChatWorkspace({
   const initialCreationReplay = useMemo(
     () => extractCreationReplayMetadata(initialRequestMetadata),
     [initialRequestMetadata],
+  );
+  const initialCreationReplaySurface = useMemo(
+    () => buildCreationReplaySurfaceModel(initialCreationReplay),
+    [initialCreationReplay],
   );
 
   useEffect(() => {
@@ -3849,6 +3860,15 @@ export function AgentChatWorkspace({
     sessionId,
     isSending,
   });
+  const sceneAppExecutionContentPostEntries = useMemo(
+    () =>
+      buildSceneAppExecutionContentPostEntries({
+        taskFiles,
+        sessionFiles,
+        artifacts,
+      }),
+    [artifacts, sessionFiles, taskFiles],
+  );
   const [sceneAppReviewDecisionDialogOpen, setSceneAppReviewDecisionDialogOpen] =
     useState(false);
   const [sceneAppReviewDecisionTemplate, setSceneAppReviewDecisionTemplate] =
@@ -4265,6 +4285,70 @@ export function AgentChatWorkspace({
     },
     [_onNavigate, projectId, sceneAppExecutionSummaryState?.summary],
   );
+  const handleOpenSceneAppExecutionContentPost = useCallback(
+    (entry: SceneAppExecutionContentPostEntry) => {
+      if (entry.source.kind === "task_file") {
+        handleTaskFileClick(entry.source.file);
+        return;
+      }
+
+      if (entry.source.kind === "artifact") {
+        handleArtifactClick(entry.source.artifact);
+        return;
+      }
+
+      void (async () => {
+        try {
+          const matchedTaskFile = taskFiles.find((file) =>
+            doesWorkspaceFileCandidateMatch(file.name, entry.pathLabel),
+          );
+          if (matchedTaskFile) {
+            handleTaskFileClick(matchedTaskFile);
+            return;
+          }
+
+          const matchedArtifact = artifacts.find((artifact) =>
+            doesWorkspaceFileCandidateMatch(
+              resolveArtifactProtocolFilePath(artifact),
+              entry.pathLabel,
+            ),
+          );
+          if (matchedArtifact) {
+            handleArtifactClick(matchedArtifact);
+            return;
+          }
+
+          const matchedSessionFile = sessionFiles.find((file) =>
+            doesWorkspaceFileCandidateMatch(file.name, entry.pathLabel),
+          );
+          if (!matchedSessionFile) {
+            toast.error("当前发布产物已不存在，暂时无法打开。");
+            return;
+          }
+
+          const content = await readSessionFile(matchedSessionFile.name);
+          if (typeof content !== "string" || !content.trim()) {
+            toast.info("该发布产物当前没有可直接预览的正文内容。");
+            return;
+          }
+
+          handleWorkspaceFileClick(matchedSessionFile.name, content);
+        } catch (error) {
+          console.error("[AgentChatPage] 打开发布产物失败:", error);
+          toast.error("打开发布产物失败，请稍后重试。");
+        }
+      })();
+    },
+    [
+      artifacts,
+      handleArtifactClick,
+      handleTaskFileClick,
+      handleWorkspaceFileClick,
+      readSessionFile,
+      sessionFiles,
+      taskFiles,
+    ],
+  );
   const sceneAppExecutionSummaryCard = useMemo(
     () => (
       <SceneAppExecutionSummaryCard
@@ -4292,6 +4376,8 @@ export function AgentChatWorkspace({
           handleOpenSceneAppExecutionGovernanceArtifact
         }
         onEntryAction={handleOpenSceneAppExecutionEntryAction}
+        contentPostEntries={sceneAppExecutionContentPostEntries}
+        onContentPostAction={handleOpenSceneAppExecutionContentPost}
         promptActionPending={isSending || queuedTurns.length > 0}
         onPromptAction={handleRunSceneAppExecutionPromptAction}
       />
@@ -4299,6 +4385,7 @@ export function AgentChatWorkspace({
     [
       canOpenSceneAppExecutionHumanReview,
       handleApplySceneAppExecutionQuickReview,
+      handleOpenSceneAppExecutionContentPost,
       handleOpenSceneAppExecutionDetail,
       handleOpenSceneAppExecutionHumanReview,
       handleOpenSceneAppExecutionGovernance,
@@ -4311,6 +4398,7 @@ export function AgentChatWorkspace({
       queuedTurns.length,
       sceneAppReviewDecisionLoading,
       sceneAppReviewDecisionSaving,
+      sceneAppExecutionContentPostEntries,
       sceneAppExecutionSummaryState,
     ],
   );
@@ -4839,7 +4927,11 @@ export function AgentChatWorkspace({
       }
 
       void createUnifiedMemory(draft.request)
-        .then(() => {
+        .then((memory) => {
+          recordCuratedTaskRecommendationSignalFromMemory(memory, {
+            projectId,
+            sessionId,
+          });
           toast.success("已保存到灵感库", {
             description: `${draft.categoryLabel} · ${draft.title}`,
           });
@@ -4849,7 +4941,7 @@ export function AgentChatWorkspace({
           toast.error("保存到灵感库失败，请稍后重试");
         });
     },
-    [initialCreationReplay, sessionId],
+    [initialCreationReplay, projectId, sessionId],
   );
 
   const inputbarScene = useWorkspaceInputbarSceneRuntime({
@@ -4929,6 +5021,7 @@ export function AgentChatWorkspace({
     skillsLoading: combinedSkillsLoading,
     onSelectServiceSkill:
       workspaceServiceSkillEntryActions.handleServiceSkillSelect,
+    initialInputCapability,
     setChatToolPreferences,
     handleNavigateToSkillSettings,
     handleRefreshSkills,
@@ -4967,6 +5060,10 @@ export function AgentChatWorkspace({
       shellChromeRuntime.shouldShowGeneralWorkbenchFloatingInputOverlay,
     handleActivateTeamWorkbench,
     chatToolPreferences: effectiveChatToolPreferences,
+    defaultCuratedTaskReferenceMemoryIds:
+      initialCreationReplaySurface?.defaultReferenceMemoryIds,
+    defaultCuratedTaskReferenceEntries:
+      initialCreationReplaySurface?.defaultReferenceEntries,
   });
 
   const canvasScene = useWorkspaceCanvasSceneRuntime({
@@ -5034,6 +5131,7 @@ export function AgentChatWorkspace({
       text: string,
       sendExecutionStrategy?: "react" | "code_orchestrated" | "auto",
       images?: MessageImage[],
+      sendOptions?: HandleSendOptions,
     ) => {
       void handleSend(
         images || [],
@@ -5041,6 +5139,8 @@ export function AgentChatWorkspace({
         effectiveChatToolPreferences.thinking,
         text,
         sendExecutionStrategy,
+        undefined,
+        sendOptions,
       );
     },
     [
@@ -5069,6 +5169,7 @@ export function AgentChatWorkspace({
     handleToggleHarnessPanel: contextHarnessRuntime.handleToggleHarnessPanel,
     entryBannerVisible,
     entryBannerMessage,
+    creationReplaySurface: initialCreationReplaySurface,
     sceneAppExecutionSummaryCard,
     serviceSkillExecutionCard,
     contextWorkspaceEnabled: contextWorkspace.generalWorkbenchEnabled,

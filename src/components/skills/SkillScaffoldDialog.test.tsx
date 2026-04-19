@@ -205,5 +205,13 @@ describe("SkillScaffoldDialog", () => {
 
     expect(onCreate).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain("请输入目录名");
+    const errorBanner = Array.from(document.body.querySelectorAll("div")).find(
+      (element) =>
+        element.textContent?.includes("请输入目录名") &&
+        element.className.includes("bg-red-50"),
+    );
+    expect(errorBanner).toBeTruthy();
+    expect(errorBanner?.className).toContain("bg-red-50");
+    expect(errorBanner?.className).not.toContain("dark:bg-red-950/30");
   });
 });

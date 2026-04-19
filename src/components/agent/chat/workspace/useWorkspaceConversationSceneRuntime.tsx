@@ -25,10 +25,12 @@ import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
 import type { Artifact } from "@/lib/artifact/types";
 import type { Character } from "@/lib/api/memory";
 import type { TaskFile } from "../components/TaskFiles";
+import type { HandleSendOptions } from "../hooks/handleSendTypes";
 import type { WorkspacePathMissingState } from "../hooks/agentChatShared";
 import type { SyncStatus } from "../hooks/useContentSync";
 import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
 import { buildAgentTaskRuntimeCardModel } from "../utils/agentTaskRuntime";
+import type { CreationReplaySurfaceModel } from "../utils/creationReplaySurface";
 import {
   buildStepProgressProps,
   buildTeamWorkspaceDockProps,
@@ -222,11 +224,13 @@ interface UseWorkspaceConversationSceneRuntimeParams {
     text: string,
     sendExecutionStrategy?: "react" | "code_orchestrated" | "auto",
     images?: MessageImage[],
+    sendOptions?: HandleSendOptions,
   ) => void;
   shellChromeRuntime: ShellChromeRuntime;
   generalWorkbenchHarnessDialog: ConversationScenePresentationParams["scene"]["generalWorkbenchHarnessDialog"];
   entryBannerVisible: ConversationScenePresentationParams["scene"]["entryBannerVisible"];
   entryBannerMessage: ConversationScenePresentationParams["scene"]["entryBannerMessage"];
+  creationReplaySurface?: CreationReplaySurfaceModel | null;
   sceneAppExecutionSummaryCard?: ConversationScenePresentationParams["scene"]["sceneAppExecutionSummaryCard"];
   serviceSkillExecutionCard?: ConversationScenePresentationParams["scene"]["serviceSkillExecutionCard"];
   contextWorkspaceEnabled: boolean;
@@ -367,6 +371,7 @@ export function useWorkspaceConversationSceneRuntime({
   generalWorkbenchHarnessDialog,
   entryBannerVisible,
   entryBannerMessage,
+  creationReplaySurface,
   sceneAppExecutionSummaryCard,
   serviceSkillExecutionCard,
   contextWorkspaceEnabled,
@@ -742,6 +747,7 @@ export function useWorkspaceConversationSceneRuntime({
       entryBannerVisible,
       entryBannerMessage,
       onDismissEntryBanner: navigationActions.handleDismissEntryBanner,
+      creationReplaySurface,
       sceneAppExecutionSummaryCard,
       serviceSkillExecutionCard,
       showChatLayout: shellChromeRuntime.showChatLayout,

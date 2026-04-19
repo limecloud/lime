@@ -9,6 +9,7 @@ import {
 import { Info } from "lucide-react";
 import styled from "styled-components";
 import type { Character } from "@/lib/api/memory";
+import type { AgentInitialInputCapabilityParams } from "@/types/page";
 import { Inputbar } from "../components/Inputbar";
 import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
 import { useWorkspaceNavigationActions } from "./useWorkspaceNavigationActions";
@@ -28,6 +29,7 @@ import { isRenderableTaskFile } from "./generalWorkbenchHelpers";
 import { GeneralWorkbenchDialogSection } from "./WorkspaceHarnessDialogs";
 import type { TeamWorkbenchSurfaceProps } from "./chatSurfaceProps";
 import type { GeneralWorkbenchEntryPromptState } from "./workspaceSendHelpers";
+import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
 
 interface GeneralWorkbenchEntryPromptAccessoryProps {
   prompt: GeneralWorkbenchEntryPromptState;
@@ -499,6 +501,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   serviceSkillGroups: InputbarParams["serviceSkillGroups"];
   skillsLoading: InputbarParams["isSkillsLoading"];
   onSelectServiceSkill: InputbarParams["onSelectServiceSkill"];
+  initialInputCapability?: AgentInitialInputCapabilityParams;
   setChatToolPreferences: Dispatch<SetStateAction<ChatToolPreferences>>;
   handleNavigateToSkillSettings: InputbarParams["onNavigateToSettings"];
   handleRefreshSkills: InputbarParams["onRefreshSkills"];
@@ -539,6 +542,8 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   showGeneralWorkbenchFloatingInputOverlay: FloatingTeamWorkspaceDockParams["showFloatingInputOverlay"];
   handleActivateTeamWorkbench: FloatingTeamWorkspaceDockParams["onActivateWorkbench"];
   chatToolPreferences?: ChatToolPreferences;
+  defaultCuratedTaskReferenceMemoryIds?: string[];
+  defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
 }
 
 export function useWorkspaceInputbarSceneRuntime({
@@ -607,6 +612,7 @@ export function useWorkspaceInputbarSceneRuntime({
   serviceSkillGroups,
   skillsLoading,
   onSelectServiceSkill,
+  initialInputCapability,
   setChatToolPreferences,
   handleNavigateToSkillSettings,
   handleRefreshSkills,
@@ -644,6 +650,8 @@ export function useWorkspaceInputbarSceneRuntime({
   showGeneralWorkbenchFloatingInputOverlay,
   handleActivateTeamWorkbench,
   chatToolPreferences,
+  defaultCuratedTaskReferenceMemoryIds = [],
+  defaultCuratedTaskReferenceEntries = [],
 }: UseWorkspaceInputbarSceneRuntimeParams) {
   const resolvedQueuedTurns = useMemo(() => queuedTurns ?? [], [queuedTurns]);
   const resolvedChatToolPreferences =
@@ -743,6 +751,7 @@ export function useWorkspaceInputbarSceneRuntime({
         serviceSkillGroups,
         isSkillsLoading: skillsLoading,
         onSelectServiceSkill,
+        initialInputCapability,
         toolStates: {
           webSearch: resolvedChatToolPreferences.webSearch,
           thinking: resolvedChatToolPreferences.thinking,
@@ -758,6 +767,8 @@ export function useWorkspaceInputbarSceneRuntime({
             }
           : undefined,
         onRemoveQueuedTurn: removeQueuedTurn,
+        defaultCuratedTaskReferenceMemoryIds,
+        defaultCuratedTaskReferenceEntries,
       },
       floatingTeamWorkspaceDock: {
         enabled: teamWorkspaceEnabled,

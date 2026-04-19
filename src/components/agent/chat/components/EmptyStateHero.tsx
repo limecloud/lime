@@ -419,76 +419,78 @@ export function EmptyStateHero({
           </SupportingShell>
         ) : null}
 
-        <CardsShell>
-          {cards.map((card, index) => (
-            <HeroCard key={card.key} $index={index}>
-              <div className="flex items-start justify-between gap-3">
-                <div
-                  className={`card-icon flex h-9 w-9 items-center justify-center rounded-2xl border ${
-                    EMPTY_STATE_ICON_TONE_CLASSNAMES[card.tone || "slate"]
-                  }`}
-                >
-                  {card.icon}
-                </div>
-                <CardEyebrow>{card.eyebrow}</CardEyebrow>
-              </div>
-
-              <div className="card-content mt-2.5">
-                <CardTitleRow>
-                  <div className="card-title text-sm font-semibold text-slate-900">
-                    {card.title}
+        {cards.length > 0 ? (
+          <CardsShell>
+            {cards.map((card, index) => (
+              <HeroCard key={card.key} $index={index}>
+                <div className="flex items-start justify-between gap-3">
+                  <div
+                    className={`card-icon flex h-9 w-9 items-center justify-center rounded-2xl border ${
+                      EMPTY_STATE_ICON_TONE_CLASSNAMES[card.tone || "slate"]
+                    }`}
+                  >
+                    {card.icon}
                   </div>
-                  <WorkbenchInfoTip
-                    ariaLabel={`${card.title}说明`}
-                    variant="icon"
-                    tone={card.tone === "emerald" ? "mint" : "slate"}
-                    side="top"
-                    align="end"
-                    content={
-                      <div style={{ width: "220px" }} className="space-y-1">
-                        <p className="m-0">{card.value}</p>
-                        <p className="m-0">{card.description}</p>
-                      </div>
-                    }
-                  />
-                </CardTitleRow>
-                <CardValueText>{card.value}</CardValueText>
-              </div>
-
-              {card.imageSrc || card.action ? (
-                <div className="card-media mt-3 space-y-2.5">
-                  {card.imageSrc ? (
-                    card.onMediaAction ? (
-                      <button
-                        type="button"
-                        onClick={card.onMediaAction}
-                        disabled={card.mediaActionDisabled}
-                        aria-label={card.mediaActionLabel || card.title}
-                        className="card-preview block overflow-hidden rounded-[16px] border border-slate-200/70 bg-slate-50/88 text-left transition hover:border-slate-300/90 disabled:cursor-default disabled:opacity-70"
-                      >
-                        <img
-                          src={card.imageSrc}
-                          alt={card.imageAlt || card.title}
-                          className="block h-[82px] w-full object-cover object-center opacity-95 md:h-[90px] xl:h-[86px]"
-                        />
-                      </button>
-                    ) : (
-                      <div className="card-preview overflow-hidden rounded-[16px] border border-slate-200/70 bg-slate-50/88">
-                        <img
-                          src={card.imageSrc}
-                          alt={card.imageAlt || card.title}
-                          className="block h-[82px] w-full object-cover object-center opacity-95 md:h-[90px] xl:h-[86px]"
-                        />
-                      </div>
-                    )
-                  ) : null}
-
-                  {card.action ? <div>{card.action}</div> : null}
+                  <CardEyebrow>{card.eyebrow}</CardEyebrow>
                 </div>
-              ) : null}
-            </HeroCard>
-          ))}
-        </CardsShell>
+
+                <div className="card-content mt-2.5">
+                  <CardTitleRow>
+                    <div className="card-title text-sm font-semibold text-slate-900">
+                      {card.title}
+                    </div>
+                    <WorkbenchInfoTip
+                      ariaLabel={`${card.title}说明`}
+                      variant="icon"
+                      tone={card.tone === "emerald" ? "mint" : "slate"}
+                      side="top"
+                      align="end"
+                      content={
+                        <div style={{ width: "220px" }} className="space-y-1">
+                          <p className="m-0">{card.value}</p>
+                          <p className="m-0">{card.description}</p>
+                        </div>
+                      }
+                    />
+                  </CardTitleRow>
+                  <CardValueText>{card.value}</CardValueText>
+                </div>
+
+                {card.imageSrc || card.action ? (
+                  <div className="card-media mt-3 space-y-2.5">
+                    {card.imageSrc ? (
+                      card.onMediaAction ? (
+                        <button
+                          type="button"
+                          onClick={card.onMediaAction}
+                          disabled={card.mediaActionDisabled}
+                          aria-label={card.mediaActionLabel || card.title}
+                          className="card-preview block overflow-hidden rounded-[16px] border border-slate-200/70 bg-slate-50/88 text-left transition hover:border-slate-300/90 disabled:cursor-default disabled:opacity-70"
+                        >
+                          <img
+                            src={card.imageSrc}
+                            alt={card.imageAlt || card.title}
+                            className="block h-[82px] w-full object-cover object-center opacity-95 md:h-[90px] xl:h-[86px]"
+                          />
+                        </button>
+                      ) : (
+                        <div className="card-preview overflow-hidden rounded-[16px] border border-slate-200/70 bg-slate-50/88">
+                          <img
+                            src={card.imageSrc}
+                            alt={card.imageAlt || card.title}
+                            className="block h-[82px] w-full object-cover object-center opacity-95 md:h-[90px] xl:h-[86px]"
+                          />
+                        </div>
+                      )
+                    ) : null}
+
+                    {card.action ? <div>{card.action}</div> : null}
+                  </div>
+                ) : null}
+              </HeroCard>
+            ))}
+          </CardsShell>
+        ) : null}
       </HeroContent>
     </HeroSection>
   );

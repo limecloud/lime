@@ -769,8 +769,8 @@ export function TeamWorkspaceDock({
     teamQueueBadgeText,
     runtimeTeamLabel,
   ]);
-  const launcherPrimaryLabel = runtimeTeamLabel || "任务视图";
-  const dockPrimaryLabel = "任务视图";
+  const launcherPrimaryLabel = runtimeTeamLabel || "当前进展";
+  const dockPrimaryLabel = "当前进展";
 
   useEffect(() => {
     const normalizedSessionId = currentSessionId ?? null;
@@ -1075,10 +1075,10 @@ export function TeamWorkspaceDock({
         aria-expanded={launcherOnly ? false : expanded}
         aria-label={
           launcherOnly
-            ? "打开任务视图"
+            ? "打开当前进展"
             : expanded
-              ? "收起任务视图"
-              : "展开任务视图"
+              ? "收起当前进展"
+              : "展开当前进展"
         }
         $active={hasRuntimeSessions}
         $expanded={expanded}

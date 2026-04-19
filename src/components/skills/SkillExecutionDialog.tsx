@@ -115,7 +115,7 @@ function SkillDetailHeader({ skill }: { skill: SkillDetailInfo }) {
         <ModeIcon className="h-5 w-5 text-muted-foreground" />
         <span className="text-sm text-muted-foreground">{modeLabel}</span>
         {skill.has_workflow && (
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
             包含工作流
           </span>
         )}
@@ -153,29 +153,29 @@ function ExecutionResultDisplay({
       className={cn(
         "rounded-lg border p-4 space-y-2",
         isSuccess
-          ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30"
-          : "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30",
+          ? "border-green-200 bg-green-50"
+          : "border-red-200 bg-red-50",
       )}
     >
       <div className="flex items-center gap-2">
         {isSuccess ? (
           <>
-            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-            <span className="font-medium text-green-700 dark:text-green-300">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <span className="font-medium text-green-700">
               执行成功
             </span>
           </>
         ) : (
           <>
-            <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-            <span className="font-medium text-red-700 dark:text-red-300">
+            <XCircle className="h-5 w-5 text-red-600" />
+            <span className="font-medium text-red-700">
               执行失败
             </span>
           </>
         )}
       </div>
       {displayError && (
-        <p className="text-sm text-red-600 dark:text-red-400">{displayError}</p>
+        <p className="text-sm text-red-600">{displayError}</p>
       )}
       {displayOutput && (
         <div className="mt-2">

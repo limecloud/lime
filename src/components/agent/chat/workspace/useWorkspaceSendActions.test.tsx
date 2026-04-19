@@ -1811,6 +1811,212 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
+  it("通过 active installed skill route 发送时，应保留原始显示文案并回写 slash skill 最近使用", async () => {
+    const harness = mountHook({
+      input: "整理最近发布计划",
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness
+          .getValue()
+          .handleSend(
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "react",
+            undefined,
+            {
+              capabilityRoute: {
+                kind: "installed_skill",
+                skillKey: "writer",
+                skillName: "写作助手",
+              },
+              displayContent: "整理最近发布计划",
+            },
+          );
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe("/writer 整理最近发布计划");
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        displayContent: "整理最近发布计划",
+        capabilityRoute: {
+          kind: "installed_skill",
+          skillKey: "writer",
+          skillName: "写作助手",
+        },
+      });
+      expect(listSlashEntryUsage()).toEqual([
+        expect.objectContaining({
+          kind: "skill",
+          entryId: "writer",
+          replayText: "整理最近发布计划",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("通过 active builtin command route 发送时，应由发送链还原内部命令文本并保留原始显示文案", async () => {
+    const harness = mountHook({
+      input: "GitHub 最近一周 openai agents sdk issue 讨论",
+      serviceSkills: [
+        createGeneralServiceSkill({
+          id: "research",
+          title: "搜索",
+        }),
+      ],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness
+          .getValue()
+          .handleSend(
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "react",
+            undefined,
+            {
+              capabilityRoute: {
+                kind: "builtin_command",
+                commandKey: "research",
+                commandPrefix: "@搜索",
+              },
+              displayContent: "GitHub 最近一周 openai agents sdk issue 讨论",
+            },
+          );
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "@搜索 GitHub 最近一周 openai agents sdk issue 讨论",
+      );
+      expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        displayContent: "GitHub 最近一周 openai agents sdk issue 讨论",
+        capabilityRoute: {
+          kind: "builtin_command",
+          commandKey: "research",
+          commandPrefix: "@搜索",
+        },
+      });
+      expect(listMentionEntryUsage()).toEqual([
+        expect.objectContaining({
+          kind: "builtin_command",
+          entryId: "research",
+          replayText:
+            "关键词:openai agents sdk issue 讨论 站点:GitHub 时间:最近一周 深度:标准",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("通过 active runtime scene route 发送时，应由发送链还原 scene 命令文本并回写 scene 最近使用", async () => {
+    mockGetSkillCatalog.mockResolvedValueOnce({
+      entries: [
+        {
+          id: "scene:campaign-launch",
+        },
+      ],
+    });
+    mockListSkillCatalogSceneEntries.mockReturnValueOnce([
+      {
+        id: "scene:campaign-launch",
+        kind: "scene",
+        title: "活动启动场景",
+        summary: "围绕活动目标生成启动方案。",
+        sceneKey: "campaign-launch",
+        commandPrefix: "/campaign-launch",
+        linkedSkillId: "cloud-video-dubbing",
+        executionKind: "cloud_scene",
+      },
+    ]);
+    mockResolveOemCloudRuntimeContext.mockReturnValue({
+      baseUrl: "https://user.limeai.run",
+      controlPlaneBaseUrl: "https://user.limeai.run/api",
+      sceneBaseUrl: "https://user.limeai.run/scene-api",
+      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
+      tenantId: "tenant-demo",
+      sessionToken: "session-token-demo",
+      hubProviderName: null,
+      loginPath: "/login",
+      desktopClientId: "desktop-client",
+      desktopOauthRedirectUrl: "lime://oauth/callback",
+      desktopOauthNextPath: "/welcome",
+    });
+    const harness = mountHook({
+      input: "帮我做一版新品活动启动方案",
+      serviceSkills: [createCloudSceneSkill()],
+    });
+
+    try {
+      await act(async () => {
+        const started = await harness
+          .getValue()
+          .handleSend(
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            "react",
+            undefined,
+            {
+              capabilityRoute: {
+                kind: "runtime_scene",
+                sceneKey: "campaign-launch",
+                commandPrefix: "/campaign-launch",
+              },
+              displayContent: "帮我做一版新品活动启动方案",
+            },
+          );
+        expect(started).toBe(true);
+      });
+
+      expect(mockSendMessage).toHaveBeenCalledTimes(1);
+      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
+        "/campaign-launch 帮我做一版新品活动启动方案",
+      );
+      const sendOptions = mockSendMessage.mock.calls[0]?.[8];
+      expect(sendOptions).toMatchObject({
+        displayContent: "帮我做一版新品活动启动方案",
+        capabilityRoute: {
+          kind: "runtime_scene",
+          sceneKey: "campaign-launch",
+          commandPrefix: "/campaign-launch",
+        },
+      });
+      expect(sendOptions?.requestMetadata).toMatchObject({
+        harness: {
+          service_scene_launch: {
+            kind: "cloud_scene",
+            service_scene_run: expect.objectContaining({
+              scene_key: "campaign-launch",
+              user_input: "帮我做一版新品活动启动方案",
+            }),
+          },
+        },
+      });
+      expect(listSlashEntryUsage()).toEqual([
+        expect.objectContaining({
+          kind: "scene",
+          entryId: "campaign-launch",
+          replayText: "帮我做一版新品活动启动方案",
+        }),
+      ]);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("@深搜 应保留原始消息，并通过 deep_search_skill_launch metadata 交给 Agent 调度 research 技能", async () => {
     const harness = mountHook({
       input:
@@ -3921,6 +4127,11 @@ describe("useWorkspaceSendActions", () => {
         "/campaign-launch 帮我做一版新品活动启动方案",
       );
       expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        capabilityRoute: {
+          kind: "runtime_scene",
+          sceneKey: "campaign-launch",
+          commandPrefix: "/campaign-launch",
+        },
         requestMetadata: {
           harness: {
             service_scene_launch: {

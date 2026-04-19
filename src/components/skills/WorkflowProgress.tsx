@@ -161,10 +161,8 @@ function StepItem({ step }: { step: StepDisplayInfo }) {
     <div
       className={cn(
         "flex items-start gap-3 p-3 rounded-lg transition-colors",
-        isActive &&
-          "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800",
-        isFailed &&
-          "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800",
+        isActive && "border border-emerald-200 bg-emerald-50",
+        isFailed && "border border-red-200 bg-red-50",
         !isActive && !isFailed && "hover:bg-muted/50",
       )}
     >
@@ -175,21 +173,19 @@ function StepItem({ step }: { step: StepDisplayInfo }) {
         <p
           className={cn(
             "text-sm font-medium",
-            isActive && "text-emerald-700 dark:text-emerald-300",
-            isFailed && "text-red-700 dark:text-red-300",
-            step.status === "completed" && "text-green-700 dark:text-green-300",
+            isActive && "text-emerald-700",
+            isFailed && "text-red-700",
+            step.status === "completed" && "text-green-700",
             step.status === "pending" && "text-muted-foreground",
           )}
         >
           {step.name}
         </p>
         {step.error && (
-          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-            {step.error}
-          </p>
+          <p className="mt-1 text-xs text-red-600">{step.error}</p>
         )}
         {step.status === "retrying" && (
-          <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+          <p className="mt-1 text-xs text-yellow-600">
             正在重试...
           </p>
         )}
@@ -283,11 +279,11 @@ export function WorkflowProgress({
                 执行中: 步骤 {currentStepIndex}/{effectiveTotalSteps}
               </>
             ) : failedCount > 0 ? (
-              <span className="text-red-600 dark:text-red-400">
+              <span className="text-red-600">
                 执行失败: {failedCount} 个步骤出错
               </span>
             ) : completedCount === effectiveTotalSteps ? (
-              <span className="text-green-600 dark:text-green-400">
+              <span className="text-green-600">
                 执行完成
               </span>
             ) : (
@@ -312,8 +308,8 @@ export function WorkflowProgress({
 
       {/* 全局错误信息 */}
       {error && !isRetrying && (
-        <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3">
-          <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+          <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
 

@@ -16,6 +16,10 @@ import {
   resolveServiceSkillSiteCapabilityExecution,
   type ServiceSkillClawLaunchContext,
 } from "../service-skills/siteCapabilityBinding";
+import {
+  matchesRuntimeSceneEntry,
+  resolveRuntimeSceneSkillFromEntry,
+} from "../service-skills/runtimeSceneBinding";
 import type { ServiceSkillSlotValues } from "../service-skills/types";
 import {
   buildRuntimeSceneGateRequest,
@@ -82,14 +86,6 @@ function isServiceSkillClawLaunchContext(
   );
 }
 
-function normalizeCommandToken(value?: string | null): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return value.trim().replace(/^\/+/, "").toLowerCase();
-}
-
 export function parseRuntimeSceneCommand(
   rawText: string,
 ): ParsedRuntimeSceneCommand | null {
@@ -105,64 +101,23 @@ export function parseRuntimeSceneCommand(
   };
 }
 
-export function matchesRuntimeSceneEntry(
-  entry: SkillCatalogSceneEntry,
-  sceneKey: string,
-): boolean {
-  const normalizedSceneKey = normalizeCommandToken(sceneKey);
-  if (!normalizedSceneKey) {
-    return false;
-  }
-
-  if (normalizeCommandToken(entry.sceneKey) === normalizedSceneKey) {
-    return true;
-  }
-
-  if (normalizeCommandToken(entry.commandPrefix) === normalizedSceneKey) {
-    return true;
-  }
-
-  return (entry.aliases ?? []).some(
-    (alias) => normalizeCommandToken(alias) === normalizedSceneKey,
-  );
-}
-
-function resolveRuntimeSceneSkill(
-  serviceSkills: ServiceSkillItem[],
-  entry: SkillCatalogSceneEntry,
-): ServiceSkillItem | null {
-  const normalizedSceneKey = normalizeCommandToken(entry.sceneKey);
-  if (!normalizedSceneKey) {
-    return null;
-  }
-
-  return (
-    serviceSkills.find((skill) => skill.id === entry.linkedSkillId) ||
-    serviceSkills.find(
-      (skill) => normalizeCommandToken(skill.skillKey) === normalizedSceneKey,
-    ) ||
-    serviceSkills.find(
-      (skill) => normalizeCommandToken(skill.id) === normalizedSceneKey,
-    ) ||
-    null
-  );
-}
-
 async function resolveRuntimeSceneSkillWithCatalogFallback(
   serviceSkills: ServiceSkillItem[],
   entry: SkillCatalogSceneEntry,
 ): Promise<ServiceSkillItem | null> {
-  const matchedSkill = resolveRuntimeSceneSkill(serviceSkills, entry);
+  const matchedSkill = resolveRuntimeSceneSkillFromEntry(serviceSkills, entry);
   if (matchedSkill) {
     return matchedSkill;
   }
 
   try {
-    return resolveRuntimeSceneSkill(await listServiceSkills(), entry);
+    return resolveRuntimeSceneSkillFromEntry(await listServiceSkills(), entry);
   } catch {
     return null;
   }
 }
+
+export { matchesRuntimeSceneEntry };
 
 function extractFirstUrl(value: string): string | undefined {
   const match = value.match(/https?:\/\/[^\s<>"')）]+/i);

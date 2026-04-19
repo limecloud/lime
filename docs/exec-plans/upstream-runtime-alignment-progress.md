@@ -274,7 +274,7 @@
 - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" hooks::tests:: --lib -- --nocapture`
 - 建立 State / History / Telemetry current 文档 [state-history-telemetry.md](../aiprompts/state-history-telemetry.md)，把 `session / thread / turn / request / evidence / history` 收口成单一状态地图
 - 将 `agent_sessions / agent_messages -> SessionDetail -> AgentRuntimeThreadReadModel -> RequestLog 关联键 -> handoff/evidence/replay/analysis/review -> history-record/trend/cleanup/dashboard -> HarnessStatusPanel / AgentThreadReliabilityPanel` 明确归到 state/history/telemetry current 主链
-- 将 [lime-aster-codex-state-model-implementation-plan.md](../roadmap/lime-aster-codex-state-model-implementation-plan.md)、`docs/roadmap/reliability/*` 与 [telemetry_cmd.rs](../../src-tauri/src/commands/telemetry_cmd.rs) 明确归到 compat，并把 cleanup 报表里残留的 `requestTelemetry:unlinked` 旧语义标记为 deprecated
+- 将原 `state-model` 历史子专题、`docs/roadmap/reliability/*` 与 [telemetry_cmd.rs](../../src-tauri/src/commands/telemetry_cmd.rs) 明确归到 compat，并把 cleanup 报表里残留的 `requestTelemetry:unlinked` 旧语义标记为 deprecated
 - 将 state/history/telemetry 入口同步回 [docs/README.md](../README.md)、[docs/aiprompts/README.md](../aiprompts/README.md)、[docs/aiprompts/overview.md](../aiprompts/overview.md) 与 [AGENTS.md](../../AGENTS.md)，仓库导航不再继续把旧状态模型方案或 reliability 计划当成 current 主线
 - 再次执行 `npm run harness:doc-freshness` 并通过（`clean`）
 - 新增 [docs/roadmap/reliability/README.md](../roadmap/reliability/README.md)，把 reliability 目录补成明确的 compat 入口，不再让分阶段计划文件继续承担 current 导航职责
@@ -282,10 +282,10 @@
 - 在 `docs/roadmap/reliability/*.md` 全部补上 compat 提示，正文开头统一先回挂 [state-history-telemetry.md](../aiprompts/state-history-telemetry.md)，避免专项正文继续被误读成 current 主入口
 - 在 `docs/roadmap/reliability/*.md` 进一步压缩顶部导航：把重复的上位文档长列表统一收口为 `README + current 主链 + PR 对应映射`，减少专项正文重复解释
 - 将整组 `docs/roadmap/reliability/*` 进一步压缩为 compat 历史摘要档案：只保留落地结果、current 映射与延后增强项，重复的目标/问题/范围/实施清单正文统一回退到仓库历史
-- 将 [lime-aster-codex-state-model-implementation-plan.md](../roadmap/lime-aster-codex-state-model-implementation-plan.md) 进一步压缩为 compat 历史摘要档案：只保留状态边界判断、current 映射与延后增强项，不再把它当 current 实施入口
+- 将原状态模型历史子专题进一步压缩并最终并入 [lime-aster-codex-alignment-roadmap.md](../roadmap/lime-aster-codex-alignment-roadmap.md)：只保留状态边界判断、current 映射与延后增强项，不再保留独立顶层路线图
 - 在 [lime-aster-codex-alignment-roadmap.md](../roadmap/lime-aster-codex-alignment-roadmap.md) 收紧顶部导航：当前入口统一回挂到 [query-loop.md](../aiprompts/query-loop.md)、[state-history-telemetry.md](../aiprompts/state-history-telemetry.md) 与 [upstream-runtime-alignment-plan.md](./upstream-runtime-alignment-plan.md)
 - 将 [lime-aster-codex-alignment-roadmap.md](../roadmap/lime-aster-codex-alignment-roadmap.md) 进一步压缩为 compat 历史摘要档案：只保留阶段映射、历史判断与 current 回看入口，不再继续承载长篇阶段任务与验证流水
-- 将 [lime-conversation-execution-efficiency-roadmap.md](../roadmap/lime-conversation-execution-efficiency-roadmap.md) 进一步压缩为 compat 历史摘要档案：只保留历史主题、current 映射与延后方向，不再继续承载运行时边界总入口职责
+- 将原对话执行效率历史子专题进一步压缩并并入 [lime-aster-codex-alignment-roadmap.md](../roadmap/lime-aster-codex-alignment-roadmap.md)：只保留历史主题、current 映射与延后方向，不再保留独立顶层路线图
 - 将 `docs/roadmap/artifacts/*` 中仍把旧执行效率路线图当 current 运行时依据的说明，统一改回 `query-loop / task-agent-taxonomy / state-history-telemetry / upstream-runtime-alignment-plan`
 - 在 [telemetry_cmd.rs](../../src-tauri/src/commands/telemetry_cmd.rs) 收紧命令注释：这些命令只暴露原始 `RequestLog` 与聚合统计，不负责定义 session/thread current 状态真相
 - 继续对齐 team / task tool surface：
@@ -340,7 +340,7 @@
 - `M1` Query Loop 收口：已完成第二十五刀实现，并继续收口 `TurnInputEnvelope -> SessionConfig` 的 turn context snapshot 分叉、`action_runtime` 辅助恢复链的 turn context 旁路，以及 `compact_session` 控制回合的最小上下文边界；当前主路径已压成 `execute_aster_chat_request -> execute_runtime_turn_pipeline -> entry/ingress/submit_preparation/session_scope_execute`，turn context 的 output schema / auto_compact / request metadata 也已进一步收紧到共享 snapshot helper
 - `M2` Task / Agent taxonomy 收口：已完成 current taxonomy 文档、索引回挂与分类判断；当前长时执行入口统一按 `agent turn / subagent turn / automation job` 解释，`ExecutionTracker` 只作为统一执行摘要层，`SchedulerService` 只作为 compat 触发壳
 - `M3` Remote runtime 收口：已完成 current remote 文档、索引回挂与分类判断；当前远程入口统一按 `消息渠道 runtime + 浏览器连接器 / ChromeBridge` 解释，`DevBridge` 与 `OpenClaw` 只作为 compat 支撑，`telegram_remote_cmd` 只作为 deprecated 单通道入口
-- `M5` State / History / Telemetry 收口：已完成 current 状态地图、索引回挂与分类判断；当前状态链统一按 `SessionDetail -> AgentRuntimeThreadReadModel -> RequestLog 关联键 -> export/history` 解释，旧状态模型方案、reliability 计划、Aster/Codex 联合路线图、旧执行效率路线图与原始 request log 浏览面只作为 compat 附属层，其中 `docs/roadmap/reliability/*`、[lime-aster-codex-state-model-implementation-plan.md](../roadmap/lime-aster-codex-state-model-implementation-plan.md)、[lime-aster-codex-alignment-roadmap.md](../roadmap/lime-aster-codex-alignment-roadmap.md) 与 [lime-conversation-execution-efficiency-roadmap.md](../roadmap/lime-conversation-execution-efficiency-roadmap.md) 已进一步压成历史摘要档案
+- `M5` State / History / Telemetry 收口：已完成 current 状态地图、索引回挂与分类判断；当前状态链统一按 `SessionDetail -> AgentRuntimeThreadReadModel -> RequestLog 关联键 -> export/history` 解释，旧状态模型方案、reliability 计划、Aster/Codex 联合路线图与原始 request log 浏览面只作为 compat 附属层，其中 `docs/roadmap/reliability/*` 与 [lime-aster-codex-alignment-roadmap.md](../roadmap/lime-aster-codex-alignment-roadmap.md) 已进一步压成 umbrella 历史摘要档案
 - `M1` 退出判断：已满足“不再需要横跳多份文档才能解释 Lime 主循环”的出口条件，后续默认不再继续微切 `runtime_turn.rs`
 - `M2` 退出判断：已满足“所有长时执行入口都能归到唯一 taxonomy”的出口条件，后续不再继续把 execution tracker、scheduler、subagent、automation 当作多条平级主线分别排期
 - `M3` 退出判断：已满足“remote 不再是多个并列产品旁路”的出口条件，后续只允许在 `gateway_channel_*` 与 `browser connector / ChromeBridge` current ingress 上继续长能力
@@ -349,5 +349,5 @@
 
 ### 下一刀
 
-- `docs/roadmap/reliability/*`、[lime-aster-codex-state-model-implementation-plan.md](../roadmap/lime-aster-codex-state-model-implementation-plan.md)、[lime-aster-codex-alignment-roadmap.md](../roadmap/lime-aster-codex-alignment-roadmap.md) 与 [lime-conversation-execution-efficiency-roadmap.md](../roadmap/lime-conversation-execution-efficiency-roadmap.md) 的 compat 历史档案化已完成；当前又收口了 `TurnInputEnvelope -> SessionConfig` 的 turn context 分叉、`action_runtime` 辅助恢复链旁路，并显式化了 `compact_session` 控制回合的最小上下文边界；剩余散落在 `persona_cmd` / `theme_context_cmd` 的一次性临时会话配置也已收回专用 helper，零入口旧发送壳已删除，Tauri 命令层 raw execution 也已经固定为 3 处并补了源码扫描守卫。下一刀转向继续盘点 `src-tauri/src` 非命令层与 README/示例面是否还残留会误导实现者的原始执行旁路叙事
+- `docs/roadmap/reliability/*` 与 [lime-aster-codex-alignment-roadmap.md](../roadmap/lime-aster-codex-alignment-roadmap.md) 的 compat 历史档案化已完成；其中原 `state-model` 与 `conversation-execution-efficiency` 子专题已经并入 `alignment-roadmap`。当前又收口了 `TurnInputEnvelope -> SessionConfig` 的 turn context 分叉、`action_runtime` 辅助恢复链旁路，并显式化了 `compact_session` 控制回合的最小上下文边界；剩余散落在 `persona_cmd` / `theme_context_cmd` 的一次性临时会话配置也已收回专用 helper，零入口旧发送壳已删除，Tauri 命令层 raw execution 也已经固定为 3 处并补了源码扫描守卫。下一刀转向继续盘点 `src-tauri/src` 非命令层与 README/示例面是否还残留会误导实现者的原始执行旁路叙事
 - 后续若出现 `runtime_turn` 行为回退，再回到 `M1` current 主路径做定点修复，而不是继续常态化微切

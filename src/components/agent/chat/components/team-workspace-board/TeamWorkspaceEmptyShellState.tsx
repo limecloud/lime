@@ -51,7 +51,7 @@ export function TeamWorkspaceEmptyShellState({
             <span className="text-sm font-semibold text-slate-900">
               {hasRuntimeFormation
                 ? runtimeFormationDisplay.panelHeadline
-                : "任务面板已就绪"}
+                : "当前进展已就绪"}
             </span>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-600">
               {runtimeFormationDisplay.panelStatusLabel ||
@@ -61,7 +61,7 @@ export function TeamWorkspaceEmptyShellState({
           <p className="mt-1 text-xs leading-5 text-slate-500">
             {hasRuntimeFormation
               ? runtimeFormationDisplay.hint
-              : "这里先保持简洁，避免遮挡消息区；只有真正需要任务分工时才会展开完整面板。"}
+              : "这里先保持简洁，避免遮挡消息区；只有真正需要分工时才会展开完整面板。"}
           </p>
           {summaryBadges.length > 0 ? (
             <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
@@ -81,7 +81,7 @@ export function TeamWorkspaceEmptyShellState({
           data-testid="team-workspace-detail-toggle"
         >
           <ChevronDown className="mr-1.5 h-3.5 w-3.5" />
-          查看任务视图
+          查看当前进展
         </Button>
       </div>
     </section>

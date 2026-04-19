@@ -119,6 +119,6 @@ describe("buildCanvasTeamWorkbenchView", () => {
       value: "2 项",
       detail: "等待结果超时，建议重新检查任务状态。",
     });
-    expect(view.panelCopy?.emptyText).toBe("当前没有可展示的任务工作台。");
+    expect(view.panelCopy?.emptyText).toBe("当前没有可展示的生成工作台。");
   });
 });

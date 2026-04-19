@@ -464,7 +464,7 @@ describe("AutomationSettings", () => {
     });
 
     expect(container.textContent).toContain("自动化设置");
-    expect(container.textContent).toContain("打开任务工作台");
+    expect(container.textContent).toContain("打开自动化工作台");
     expect(container.textContent).not.toContain("任务详情与历史");
     expect(container.textContent).not.toContain("新建任务");
     expect(container.textContent).toContain("启用调度器");
@@ -475,7 +475,7 @@ describe("AutomationSettings", () => {
     expect(mockGetAutomationRunHistory).not.toHaveBeenCalled();
   });
 
-  it("workspace 模式应显示任务工作台并隐藏调度器编辑", async () => {
+  it("workspace 模式应显示自动化工作台并隐藏调度器编辑", async () => {
     const container = await renderSettings({
       mode: "workspace",
       onOpenSettings: vi.fn(),

@@ -2952,7 +2952,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                           : ""}
                       </p>
                       {source.preview ? (
-                        <pre className="mt-3 overflow-x-auto rounded-2xl bg-slate-950 p-3 text-xs leading-6 text-slate-100">
+                        <pre className="mt-3 overflow-x-auto rounded-2xl border border-sky-100 bg-[linear-gradient(180deg,rgba(248,255,254,0.98)_0%,rgba(255,255,255,0.98)_55%,rgba(240,249,255,0.96)_100%)] p-3 text-xs leading-6 text-slate-700 shadow-sm shadow-sky-950/5">
                           {source.preview}
                         </pre>
                       ) : null}

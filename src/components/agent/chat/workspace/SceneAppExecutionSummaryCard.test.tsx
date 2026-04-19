@@ -278,6 +278,7 @@ describe("SceneAppExecutionSummaryCard", () => {
     const onGovernanceAction = vi.fn();
     const onGovernanceArtifactAction = vi.fn();
     const onEntryAction = vi.fn();
+    const onContentPostAction = vi.fn();
     const onPromptAction = vi.fn();
     const container = renderCard({
       latestPackResultDetailView: createLatestPackResultDetailView(),
@@ -299,6 +300,69 @@ describe("SceneAppExecutionSummaryCard", () => {
       onGovernanceAction,
       onGovernanceArtifactAction,
       onEntryAction,
+      contentPostEntries: [
+        {
+          key: "publish",
+          label: "发布稿",
+          helperText: "直接复核标题、摘要、封面文案和发布备注。",
+          pathLabel: "content-posts/final-publish.md",
+          readinessLabel: "可继续发布",
+          readinessTone: "success",
+          companionEntries: [
+            {
+              key: "cover_meta",
+              label: "封面信息",
+              pathLabel: "content-posts/final-publish.cover.json",
+            },
+            {
+              key: "publish_pack",
+              label: "发布包",
+              pathLabel: "content-posts/final-publish.publish-pack.json",
+            },
+          ],
+          updatedAt: 1,
+          source: {
+            kind: "session_file",
+            file: {
+              name: "content-posts/final-publish.md",
+              fileType: "document",
+              size: 128,
+              createdAt: 1,
+              updatedAt: 1,
+              metadata: {
+                contentPostIntent: "publish",
+                contentPostLabel: "发布稿",
+              },
+            },
+          },
+        },
+        {
+          key: "preview",
+          label: "渠道预览稿",
+          helperText: "直接复核首屏摘要、排版层级和封面建议。",
+          pathLabel: "content-posts/preview.md",
+          platformLabel: "小红书",
+          readinessLabel: "优先渠道预览",
+          readinessTone: "success",
+          companionEntries: [],
+          updatedAt: 2,
+          source: {
+            kind: "session_file",
+            file: {
+              name: "content-posts/preview.md",
+              fileType: "document",
+              size: 96,
+              createdAt: 2,
+              updatedAt: 2,
+              metadata: {
+                contentPostIntent: "preview",
+                contentPostLabel: "渠道预览稿",
+              },
+            },
+          },
+        },
+      ],
+      onContentPostAction,
       onPromptAction,
     });
 
@@ -320,6 +384,17 @@ describe("SceneAppExecutionSummaryCard", () => {
     ).toContain("生成后动作编排");
     expect(container.textContent).toContain("周会复盘");
     expect(container.textContent).toContain("同聊推进");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-execution-summary-content-posts"]',
+      )?.textContent,
+    ).toContain("最近发布产物");
+    expect(container.textContent).toContain("发布稿");
+    expect(container.textContent).toContain("渠道预览稿");
+    expect(container.textContent).toContain("可继续发布");
+    expect(container.textContent).toContain("优先渠道预览");
+    expect(container.textContent).toContain("封面信息");
+    expect(container.textContent).toContain("发布包");
 
     const button = container.querySelector(
       '[data-testid="sceneapp-execution-summary-artifact-entry-brief-0"]',
@@ -345,6 +420,12 @@ describe("SceneAppExecutionSummaryCard", () => {
     const entryActionButton = container.querySelector(
       '[data-testid="sceneapp-execution-summary-entry-action"]',
     );
+    const publishArtifactButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-content-post-publish"]',
+    );
+    const previewArtifactButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-content-post-preview"]',
+    );
     const publishCheckButton = container.querySelector(
       '[data-testid="sceneapp-execution-summary-prompt-action-publish_check"]',
     );
@@ -365,6 +446,8 @@ describe("SceneAppExecutionSummaryCard", () => {
     expect(governanceActionButton).not.toBeNull();
     expect(governanceArtifactButton).not.toBeNull();
     expect(entryActionButton).not.toBeNull();
+    expect(publishArtifactButton).not.toBeNull();
+    expect(previewArtifactButton).not.toBeNull();
     expect(publishCheckButton).not.toBeNull();
     expect(publishPrepareButton).not.toBeNull();
     expect(channelPreviewButton).not.toBeNull();
@@ -389,6 +472,12 @@ describe("SceneAppExecutionSummaryCard", () => {
         new MouseEvent("click", { bubbles: true }),
       );
       entryActionButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      publishArtifactButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      previewArtifactButton?.dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
       );
       publishCheckButton?.dispatchEvent(
@@ -427,6 +516,18 @@ describe("SceneAppExecutionSummaryCard", () => {
     expect(onEntryAction).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "open_agent_session",
+      }),
+    );
+    expect(onContentPostAction).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        key: "publish",
+      }),
+    );
+    expect(onContentPostAction).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        key: "preview",
       }),
     );
     expect(onPromptAction).toHaveBeenNthCalledWith(

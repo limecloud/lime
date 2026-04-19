@@ -119,12 +119,12 @@ export function CodexForm({
 
         {mode === "login" ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950/30">
-              <p className="text-sm text-green-700 dark:text-green-300">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+              <p className="text-sm text-green-700">
                 点击下方按钮获取授权 URL，然后复制到浏览器（支持指纹浏览器）完成
                 OpenAI 登录。
               </p>
-              <p className="mt-2 text-xs text-green-600 dark:text-green-400">
+              <p className="mt-2 text-xs text-green-600">
                 授权成功后，凭证将自动保存并添加到凭证池。
               </p>
             </div>

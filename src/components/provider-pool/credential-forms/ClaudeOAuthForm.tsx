@@ -133,7 +133,7 @@ export function ClaudeOAuthForm({
         onClick={() => setMode("cookie")}
         className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
           mode === "cookie"
-            ? "border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+            ? "border-amber-500 bg-amber-50 text-amber-700"
             : "hover:bg-muted"
         }`}
       >
@@ -145,7 +145,7 @@ export function ClaudeOAuthForm({
         onClick={() => setMode("login")}
         className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
           mode === "login"
-            ? "border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+            ? "border-amber-500 bg-amber-50 text-amber-700"
             : "hover:bg-muted"
         }`}
       >
@@ -157,7 +157,7 @@ export function ClaudeOAuthForm({
         onClick={() => setMode("file")}
         className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
           mode === "file"
-            ? "border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+            ? "border-amber-500 bg-amber-50 text-amber-700"
             : "hover:bg-muted"
         }`}
       >
@@ -170,12 +170,12 @@ export function ClaudeOAuthForm({
   // Cookie 授权表单
   const renderCookieForm = () => (
     <div className="space-y-4">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-        <p className="text-sm text-amber-700 dark:text-amber-300">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <p className="text-sm text-amber-700">
           使用浏览器 Cookie 中的 sessionKey 自动完成 OAuth
           授权，无需手动复制授权码。
         </p>
-        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+        <p className="mt-2 text-xs text-amber-600">
           获取方式：在 claude.ai 登录后，打开开发者工具 → Application → Cookies
           → 复制 sessionKey 的值
         </p>
@@ -212,12 +212,12 @@ export function ClaudeOAuthForm({
   // OAuth 登录表单
   const renderLoginForm = () => (
     <div className="space-y-4">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
-        <p className="text-sm text-amber-700 dark:text-amber-300">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <p className="text-sm text-amber-700">
           点击下方按钮获取授权 URL，然后复制到浏览器（支持指纹浏览器）完成
           Claude 登录。
         </p>
-        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+        <p className="mt-2 text-xs text-amber-600">
           授权成功后，从页面复制授权码粘贴回应用。
         </p>
       </div>

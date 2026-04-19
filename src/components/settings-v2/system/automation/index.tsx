@@ -983,7 +983,7 @@ export function AutomationSettings({
   const heroDescription = settingsOnly
     ? "这里只管理全局调度器开关、轮询间隔和执行历史保留。任务创建和运行处理都在左侧自动化工作台完成。"
     : workspaceOnly
-      ? "默认进入任务视图，当前只保留 Agent 对话任务的创建与运行。统计和风险提醒收进单独的概览页。"
+      ? "默认进入当前进展，当前只保留 Agent 对话任务的创建与运行。统计和风险提醒收进单独的概览页。"
       : "统一管理 Agent 自动化任务的创建、运行历史和调度器配置。";
   const headerSummary = settingsOnly
     ? "管理调度器开关、轮询间隔和历史保留。"
@@ -1047,7 +1047,7 @@ export function AutomationSettings({
             ) : null}
             {settingsOnly && onOpenWorkspace ? (
               <Button variant="outline" onClick={onOpenWorkspace}>
-                打开任务工作台
+                打开自动化工作台
               </Button>
             ) : null}
             <Button

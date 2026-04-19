@@ -20,7 +20,6 @@ import {
   videoGenerationApi,
   type VideoGenerationTask,
 } from "@/lib/api/videoGeneration";
-import { skillsApi, type Skill } from "@/lib/api/skills";
 
 interface VideoWorkspaceProps {
   state: VideoCanvasState;
@@ -939,7 +938,6 @@ function resolveTaskSyncCopy(task: WorkspaceTask): {
 export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
   ({ state, projectId, onStateChange }) => {
     const [tasks, setTasks] = useState<WorkspaceTask[]>([]);
-    const [skills, setSkills] = useState<Skill[]>([]);
     const pollingGuard = useRef(false);
     const savingTaskIdsRef = useRef<Set<string>>(new Set());
     const materialRefCache = useRef<Map<string, string>>(new Map());
@@ -956,13 +954,6 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
       },
       [onStateChange],
     );
-
-    useEffect(() => {
-      skillsApi
-        .getAll("lime")
-        .then(setSkills)
-        .catch((err) => console.error("加载技能列表失败:", err));
-    }, []);
 
     useEffect(() => {
       materialRefCache.current.clear();
@@ -1533,7 +1524,6 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                   state={state}
                   onStateChange={onStateChange}
                   onGenerate={handleGenerate}
-                  skills={skills}
                 />
               </PromptBlock>
             </HeroPanel>
@@ -1589,7 +1579,6 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                   state={state}
                   onStateChange={onStateChange}
                   onGenerate={handleGenerate}
-                  skills={skills}
                 />
               </WorkspaceHeaderCard>
 

@@ -432,6 +432,70 @@ describe("workspaceEntry", () => {
     });
   });
 
+  it("初始输入能力入口允许无 prompt 直接进入 Claw 工作区", () => {
+    expect(
+      resolveWorkspaceEntry({
+        projectId: "project-1",
+        activeTheme: "general",
+        creationMode: "guided",
+        defaultToolPreferences,
+        payload: {
+          initialInputCapability: {
+            capabilityRoute: {
+              kind: "installed_skill",
+              skillKey: "writer",
+              skillName: "写作助手",
+            },
+          },
+        },
+        now: () => 741,
+      }),
+    ).toEqual({
+      ok: true,
+      toolPreferences: defaultToolPreferences,
+      targetTheme: "general",
+      nextNewChatAt: 741,
+      navigationParams: {
+        agentEntry: "claw",
+        immersiveHome: false,
+        projectId: "project-1",
+        theme: "general",
+        initialCreationMode: "guided",
+        initialUserPrompt: undefined,
+        initialUserImages: undefined,
+        openBrowserAssistOnMount: undefined,
+        initialInputCapability: {
+          capabilityRoute: {
+            kind: "installed_skill",
+            skillKey: "writer",
+            skillName: "写作助手",
+          },
+          requestKey: 741,
+        },
+        newChatAt: 741,
+        lockTheme: false,
+      },
+      workspaceBootstrap: {
+        projectId: "project-1",
+        initialUserPrompt: undefined,
+        initialUserImages: undefined,
+        theme: "general",
+        lockTheme: false,
+        initialCreationMode: "guided",
+        openBrowserAssistOnMount: undefined,
+        initialInputCapability: {
+          capabilityRoute: {
+            kind: "installed_skill",
+            skillKey: "writer",
+            skillName: "写作助手",
+          },
+          requestKey: 741,
+        },
+        newChatAt: 741,
+      },
+    });
+  });
+
   it("站点技能 metadata 启动时也应自动锁定 general 主题", () => {
     expect(
       resolveWorkspaceEntry({

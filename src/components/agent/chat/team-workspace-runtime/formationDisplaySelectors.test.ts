@@ -32,7 +32,7 @@ describe("formationDisplaySelectors", () => {
     ]);
   });
 
-  it("runtime formation 已就绪时，应产出状态、任务与参考分工", () => {
+  it("runtime formation 已就绪时，应产出状态、当前进展与参考分工", () => {
     const state = buildRuntimeFormationDisplayState({
       teamDispatchPreviewState: {
         requestId: "runtime-1",
@@ -68,7 +68,7 @@ describe("formationDisplaySelectors", () => {
     expect(state.summaryBadges.map((badge) => badge.text)).toEqual([
       "任务方案 · 修复任务方案",
       "已就绪",
-      "1 项当前任务",
+      "1 条当前进展",
       "参考方案 · 代码排障团队",
     ]);
     expect(state.panelHeadline).toBe("任务分工已准备好");
@@ -82,7 +82,7 @@ describe("formationDisplaySelectors", () => {
     });
     expect(state.noticeText).toContain("当前任务方案已就绪");
     expect(state.noticeText).toContain("任务拆出后");
-    expect(state.noticeText).toContain("任务视图");
+    expect(state.noticeText).toContain("当前进展");
   });
 
   it("runtime formation 失败时，应优先使用失败原因", () => {

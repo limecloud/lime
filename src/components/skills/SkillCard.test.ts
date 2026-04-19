@@ -356,6 +356,32 @@ describe("SkillCard", () => {
     expect(() => renderSkillCard(skill)).not.toThrow();
     expect(document.body.textContent).toContain("标准");
   });
+
+  it("来源与标准徽标应保持浅色主题样式", () => {
+    const { container } = renderSkillCard(
+      createSkill({
+        installed: true,
+        sourceKind: "other",
+        standardCompliance: {
+          isStandard: true,
+          deprecatedFields: [],
+          validationErrors: [],
+        },
+      }),
+    );
+
+    const localBadge = Array.from(container.querySelectorAll("span")).find(
+      (element) => element.textContent?.trim() === "本地",
+    );
+    const standardBadge = Array.from(container.querySelectorAll("span")).find(
+      (element) => element.textContent?.includes("标准"),
+    );
+
+    expect(localBadge?.className).toContain("bg-slate-100");
+    expect(localBadge?.className).not.toContain("dark:bg-slate-800/50");
+    expect(standardBadge?.className).toContain("bg-emerald-100");
+    expect(standardBadge?.className).not.toContain("dark:bg-emerald-900/30");
+  });
 });
 
 it("内置技能应优先返回 'builtin'", () => {

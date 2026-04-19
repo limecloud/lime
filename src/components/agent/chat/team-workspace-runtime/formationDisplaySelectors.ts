@@ -67,7 +67,7 @@ export function buildRuntimeFormationHint(
     case "failed":
       return "当前任务的分工准备失败，但你仍然可以继续在当前任务里推进。";
     default:
-      return "需要时这里会自动展开成任务面板。";
+      return "需要时这里会自动展开成当前进展面板。";
   }
 }
 
@@ -80,13 +80,13 @@ export function buildRuntimeFormationEmptyDetail(
 
   switch (teamDispatchPreviewState?.status) {
     case "forming":
-      return "系统正在根据当前任务准备分工。完成后，这里会先展示任务卡片，再接入真实处理进展。";
+      return "系统正在根据当前任务准备分工。完成后，这里会先展示分工卡片，再接入真实处理进展。";
     case "formed":
-      return "当前任务方案已经准备好。画布会先展示当前分工，等任务真正开始处理后，再自动切换为任务视图。";
+      return "当前任务方案已经准备好。画布会先展示当前分工，等任务真正开始处理后，再自动切换为当前进展。";
     case "failed":
-      return errorMessage || "当前任务分工准备失败，暂时无法展示当前任务。";
+      return errorMessage || "当前任务分工准备失败，暂时无法展示当前进展。";
     default:
-      return `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，详情区会切换为任务摘要视图。`;
+      return `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，详情区会切换为进展摘要视图。`;
   }
 }
 
@@ -178,12 +178,12 @@ export function buildRuntimeFormationDisplayState(params: {
 
   const noticeText =
     state?.status === "forming"
-      ? "系统正在准备当前任务分工，完成后会先展示任务卡片，后续再切换为独立的任务视图。"
+      ? "系统正在准备当前任务分工，完成后会先展示分工卡片，后续再切换为独立的当前进展。"
       : state?.status === "formed"
-        ? "当前任务方案已就绪。任务拆出后，这里会从方案视图过渡到任务视图。"
+        ? "当前任务方案已就绪。任务拆出后，这里会从方案视图过渡到当前进展。"
         : state?.status === "failed"
           ? errorMessage || "当前任务分工准备失败，暂时还没有任务接手。"
-          : `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，这里会生成独立的任务视图。`;
+          : `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，这里会生成独立的当前进展。`;
 
   return {
     hasRuntimeFormation: Boolean(state),
@@ -214,7 +214,7 @@ export function buildRuntimeFormationDisplayState(params: {
         ? [
             {
               key: "runtime-member-count",
-              text: `${memberCards.length} 项当前任务`,
+              text: `${memberCards.length} 条当前进展`,
               className:
                 "rounded-full border border-slate-200 bg-white px-2.5 py-1",
             },
@@ -239,7 +239,7 @@ export function buildRuntimeFormationDisplayState(params: {
     panelDescription:
       state?.status === "failed"
         ? errorMessage || "当前任务分工准备失败，暂时无法展示更多内容。"
-        : summary || "这里会先展示当前任务方案，任务拆出后再切换成任务视图。",
+        : summary || "这里会先展示当前任务方案，任务拆出后再切换成当前进展。",
     referenceLabel,
     memberCards,
     blueprintRoleCards,

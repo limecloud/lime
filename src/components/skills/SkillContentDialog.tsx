@@ -83,7 +83,7 @@ export function SkillContentDialog({
 
     if (!compliance.isStandard) {
       return (
-        <InlineTag className="gap-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        <InlineTag className="gap-1 bg-red-100 text-red-700">
           <AlertTriangle className="h-3 w-3" />
           待修复
         </InlineTag>
@@ -92,7 +92,7 @@ export function SkillContentDialog({
 
     if (deprecatedFields.length > 0) {
       return (
-        <InlineTag className="gap-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <InlineTag className="gap-1 bg-amber-100 text-amber-700">
           <AlertTriangle className="h-3 w-3" />
           含兼容字段
         </InlineTag>
@@ -100,7 +100,7 @@ export function SkillContentDialog({
     }
 
     return (
-      <InlineTag className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+      <InlineTag className="gap-1 bg-emerald-100 text-emerald-700">
         <CheckCircle2 className="h-3 w-3" />
         标准
       </InlineTag>
@@ -154,14 +154,14 @@ export function SkillContentDialog({
                     <div className="flex flex-wrap items-center gap-2">
                       {complianceBadge}
                       {inspection.license && (
-                        <InlineTag className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        <InlineTag className="bg-slate-100 text-slate-700">
                           License: {inspection.license}
                         </InlineTag>
                       )}
                       {resourceTags.map((tag) => (
                         <InlineTag
                           key={tag}
-                          className="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+                          className="bg-sky-100 text-sky-700"
                         >
                           {tag}
                         </InlineTag>
@@ -202,7 +202,7 @@ export function SkillContentDialog({
                         {validationErrors.map((message) => (
                           <div
                             key={message}
-                            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+                            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
                           >
                             {message}
                           </div>
@@ -217,7 +217,7 @@ export function SkillContentDialog({
                         {deprecatedFields.map((field) => (
                           <InlineTag
                             key={field}
-                            className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                            className="bg-amber-100 text-amber-700"
                           >
                             {field}
                           </InlineTag>
@@ -257,7 +257,7 @@ export function SkillContentDialog({
                           {allowedTools.map((tool) => (
                             <InlineTag
                               key={tool}
-                              className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                              className="bg-slate-100 text-slate-700"
                             >
                               {tool}
                             </InlineTag>

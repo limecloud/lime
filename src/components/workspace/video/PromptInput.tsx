@@ -2,17 +2,12 @@ import React, { memo, KeyboardEvent, useMemo, useRef } from "react";
 import styled from "styled-components";
 import { Sparkles } from "lucide-react";
 import { VideoCanvasState } from "./types";
-import { CharacterMention } from "@/components/agent/chat/skill-selection/CharacterMention";
-import { SkillBadge } from "@/components/agent/chat/skill-selection/SkillBadge";
-import { useActiveSkill } from "@/components/agent/chat/skill-selection/useActiveSkill";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
-import type { Skill } from "@/lib/api/skills";
 
 interface PromptInputProps {
   state: VideoCanvasState;
   onStateChange: (state: VideoCanvasState) => void;
   onGenerate: (textOverride?: string) => void;
-  skills?: Skill[];
 }
 
 const PromptWrapper = styled.div`
@@ -100,14 +95,6 @@ const MetaChip = styled.span`
   font-size: 12px;
   font-weight: 600;
   color: hsl(var(--muted-foreground));
-`;
-
-const ActiveSkillRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: -4px 0 2px;
 `;
 
 const TextareaSurface = styled.div`
@@ -206,10 +193,8 @@ const GenerateButton = styled.button<{ $generating?: boolean }>`
 `;
 
 export const PromptInput: React.FC<PromptInputProps> = memo(
-  ({ state, onStateChange, onGenerate, skills = [] }) => {
+  ({ state, onStateChange, onGenerate }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const { activeSkill, setActiveSkill, wrapTextWithSkill, clearActiveSkill } =
-      useActiveSkill();
 
     const promptMeta = useMemo(() => {
       const referenceCount = [state.startImage, state.endImage].filter(
@@ -240,9 +225,7 @@ export const PromptInput: React.FC<PromptInputProps> = memo(
     };
 
     const handleGenerate = () => {
-      const text = activeSkill ? wrapTextWithSkill(state.prompt) : undefined;
-      onGenerate(text);
-      clearActiveSkill();
+      onGenerate();
     };
 
     return (
@@ -267,23 +250,6 @@ export const PromptInput: React.FC<PromptInputProps> = memo(
             </MetaRow>
           </InputHeader>
 
-          {skills.length > 0 ? (
-            <CharacterMention
-              characters={[]}
-              skills={skills}
-              inputRef={textareaRef}
-              value={state.prompt}
-              onChange={(val) => onStateChange({ ...state, prompt: val })}
-              onSelectSkill={setActiveSkill}
-            />
-          ) : null}
-
-          {activeSkill ? (
-            <ActiveSkillRow>
-              <SkillBadge skill={activeSkill} onClear={clearActiveSkill} />
-            </ActiveSkillRow>
-          ) : null}
-
           <TextareaSurface>
             <StyledTextarea
               ref={textareaRef}
@@ -307,7 +273,7 @@ export const PromptInput: React.FC<PromptInputProps> = memo(
                 variant="pill"
                 tone="sky"
                 align="start"
-                content="按 Enter 直接生成，Shift + Enter 换行；输入 @ 可以插入技能辅助改写提示词。"
+                content="按 Enter 直接生成，Shift + Enter 换行。"
               />
             </FooterTips>
             <GenerateButton

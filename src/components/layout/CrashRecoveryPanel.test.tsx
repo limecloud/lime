@@ -137,5 +137,10 @@ describe("CrashRecoveryPanel", () => {
     expect(text).toContain("强制刷新资源");
     expect(text).toContain("仅重试恢复");
     expect(text).toContain("node_modules/.vite-tauri");
+
+    const codeTags = Array.from(container.querySelectorAll("code"));
+    expect(codeTags).toHaveLength(2);
+    expect(codeTags[0]?.className).toContain("bg-slate-100");
+    expect(codeTags[0]?.className).not.toContain("bg-black/5");
   });
 });

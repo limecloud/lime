@@ -20,6 +20,10 @@ vi.mock("../skill-selection/SkillBadge", () => ({
   SkillBadge: () => <div data-testid="empty-state-skill-badge" />,
 }));
 
+vi.mock("../skill-selection/CuratedTaskBadge", () => ({
+  CuratedTaskBadge: () => <div data-testid="empty-state-curated-task-badge" />,
+}));
+
 vi.mock("../skill-selection/SkillSelector", () => ({
   SkillSelector: () => <div data-testid="empty-state-skill-selector" />,
 }));
@@ -310,6 +314,33 @@ describe("EmptyStateComposerPanel", () => {
 
     expect(composer).toBeTruthy();
     expect(composer?.className).toContain("floating-composer");
+  });
+
+  it("存在当前带入的灵感时，应在输入区顶部展示被带入的参考对象", () => {
+    const container = renderPanel({
+      creationReplaySurface: {
+        kind: "memory_entry",
+        eyebrow: "当前带入灵感",
+        badgeLabel: "参考",
+        title: "品牌风格样本",
+        summary: "保留轻盈但专业的表达。",
+        hint: "后续结果模板会默认把它一起带入。",
+        defaultReferenceMemoryIds: ["memory-1"],
+        defaultReferenceEntries: [
+          {
+            id: "memory-1",
+            title: "品牌风格样本",
+            summary: "保留轻盈但专业的表达。",
+            category: "context",
+            categoryLabel: "参考",
+            tags: ["品牌", "语气"],
+          },
+        ],
+      },
+    });
+
+    expect(container.textContent).toContain("参考");
+    expect(container.textContent).toContain("品牌风格样本");
   });
 
   it("通用对话且存在站点型 service skill 时不应再展示首页专属提示按钮", () => {
@@ -647,14 +678,14 @@ describe("EmptyStateComposerPanel", () => {
     expect(suggestionBar?.textContent).toContain("分工建议");
   });
 
-  it("折叠态应保留当前模型轻提示，展开高级设置后再允许修改", () => {
+  it("折叠态不应暴露模型信息，展开高级设置后再允许修改", () => {
     const container = renderPanel({
       providerType: "claude",
       model: "claude-sonnet-4-5",
     });
 
-    expect(container.textContent).toContain("当前模型");
-    expect(container.textContent).toContain("claude-sonnet-4-5");
+    expect(container.textContent).not.toContain("当前模型");
+    expect(container.textContent).not.toContain("claude-sonnet-4-5");
     expect(
       container.querySelector('[data-testid="empty-state-model-selector"]'),
     ).toBeNull();

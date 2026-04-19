@@ -590,6 +590,52 @@ describe("ToolCallDisplay", () => {
     });
   });
 
+  it("工具结果图片预览浮层应使用浅色主题遮罩", () => {
+    const { container } = renderTool({
+      id: "tool-image-preview-1",
+      name: "lime_image_search",
+      arguments: JSON.stringify({ query: "青绿色海报" }),
+      status: "completed",
+      result: {
+        success: true,
+        output: "已返回 1 张图片",
+        images: [
+          {
+            src: "https://example.com/poster.png",
+            mimeType: "image/png",
+            origin: "tool_payload",
+          },
+        ],
+      },
+      startTime: new Date("2026-04-11T03:00:00.000Z"),
+      endTime: new Date("2026-04-11T03:00:01.000Z"),
+    });
+
+    const previewButton = container.querySelector(
+      'button[title="点击查看大图"]',
+    ) as HTMLButtonElement | null;
+    expect(previewButton).not.toBeNull();
+
+    act(() => {
+      previewButton?.click();
+    });
+
+    const overlayButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) =>
+      button.querySelector('img[alt="工具结果图片大图"]'),
+    ) as HTMLButtonElement | undefined;
+
+    expect(overlayButton).toBeTruthy();
+    expect(overlayButton?.className).toContain("backdrop-blur-[2px]");
+    expect(overlayButton?.className).not.toContain("bg-black/70");
+    expect(
+      document.body
+        .querySelector('img[alt="工具结果图片大图"]')
+        ?.getAttribute("src"),
+    ).toBe("https://example.com/poster.png");
+  });
+
   it("ToolSearch 展开后应展示结构化工具摘要，而不是原始 JSON", () => {
     const { container } = renderTool({
       id: "tool-search-bridge-1",

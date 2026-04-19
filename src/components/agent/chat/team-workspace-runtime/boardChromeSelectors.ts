@@ -90,7 +90,7 @@ function buildBoardHeadline(params: {
       : "任务需重试";
   }
   return totalTeamSessions > 0
-    ? `${totalTeamSessions} 项任务已接入`
+    ? `${totalTeamSessions} 条当前进展已接入`
     : TEAM_WORKSPACE_SURFACE_TITLE;
 }
 
@@ -109,7 +109,7 @@ function buildBoardHint(params: {
   if (!hasRuntimeSessions) {
     return "系统会在需要时自动拆出任务、安排处理顺序，并把结果回流到当前任务。";
   }
-  return "这里只展示当前有哪些任务在处理、状态如何，以及最近更新到了哪里。";
+  return "这里只展示当前有哪些分工在处理、状态如何，以及最近更新到了哪里。";
 }
 
 export function buildTeamWorkspaceBoardChromeDisplayState(params: {

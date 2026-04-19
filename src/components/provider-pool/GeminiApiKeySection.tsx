@@ -220,7 +220,7 @@ export function GeminiApiKeySection({
                     {excludedModels.map((model) => (
                       <span
                         key={model}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs dark:bg-red-900/30 dark:text-red-400"
+                        className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700"
                       >
                         {model}
                         <button

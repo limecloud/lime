@@ -1,12 +1,1012 @@
 # LimeNext 推进日志
 
-> 注：自 2026-04-17 起，LimeNext current 前台主词固定为 `创作场景 / 灵感库 / 生成 / Project Pack / 复盘`。历史日志里若继续出现 `SceneApp / 场景应用 / 记忆工作台` 等词，默认按当时实现阶段或 compat 旧称理解，不再代表 current 产品口径。
+> 注：自 2026-04-19 起，LimeNext current 前台主词固定为 `技能 / 灵感库 / 生成`。历史日志里若继续出现 `SceneApp / 创作场景 / Project Pack / 复盘 / 记忆工作台 / 任务工作台 / 任务视图` 等词，默认按当时实现阶段或 compat 旧称理解，不再代表 current 产品口径。
 >
 > 补充说明：2026-04-17 中段几次关于“纯标题目录 / 无图场景墙”的尝试，当前都已被后续 `经营信号目录卡片` 方案取代。阅读本日志时，凡旧条目仍写“纯标题目录”，都按已废弃试探理解；current 以最新“目录卡片经营信号回流”条目为准。
+>
+> 补充说明（2026-04-18）：旧 Ribbi 过渡目录已清理。历史条目若继续出现旧 Ribbi 路径，默认按“当时旧路径、现已由 `docs/research/ribbi/*` 替代”理解。
+
+## 2026-04-19
+
+### 已完成
+
+- 把 `P2：Skill-First 前台` 当前被环境级验证阻塞的 `verify:gui-smoke` 恢复到“能自我避开损坏 cargo target”的状态，避免 GUI 交付链继续被旧 sqlite 半成品缓存卡死：
+  - 已更新：
+    - `scripts/verify-gui-smoke.mjs`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `verify:gui-smoke` 当前新增 sqlite 构建产物自检；若目标 `cargo target` 下存在 `debug/build/libsqlite3-sys-*/out` 但缺少 `bindgen.rs`，脚本不再复用该目录，也不做破坏性删除，而是自动切到同级新的 `*-rebuild-<timestamp>-<pid>` target
+    - 默认超时当前也会基于“最终实际使用的 cargo target”重新计算；未显式传 `--timeout-ms` 时，切到 fresh target 后会自动回到冷启动超时，不再沿用旧 warm target 的较短等待
+    - 这一步属于 `P2` 的交付支撑修复，不是继续扩前台功能，而是把 current 主线从“代码已收口但 GUI smoke 受旧缓存污染”拉回“脚本可自我避险”
+  - 当前已确认通过：
+    - `node --check "scripts/verify-gui-smoke.mjs"`
+    - `npx eslint "scripts/verify-gui-smoke.mjs"`
+    - `node scripts/verify-gui-smoke.mjs --app-url "http://127.0.0.1:1421/" --timeout-ms 600000 --cargo-target-dir "/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/lime-gui-smoke-target"` 已实际打印：
+      - 发现损坏 sqlite 构建缓存
+      - 自动切换到新的 `lime-gui-smoke-target-rebuild-*` 目录
+      - 开始用 fresh target 拉起 headless Tauri 编译链
+  - 当前剩余阻塞说明：
+    - 在当前机器上，fresh headless 链继续向前时，`beforeDevCommand` 虽然已按 `http://127.0.0.1:1421/` 等待新前端，但 Vite 实际仍报告 `Port 1420 is already in use`，说明本机已有 dev server / Vite 端口复用链还在影响隔离 smoke
+    - 另一路复用现有 `1420 + 3030` 环境执行 `npm run verify:gui-smoke -- --timeout-ms 1200000` 时，链路已能稳定走到 `smoke:agent-runtime-tool-surface-page`，但最后仍卡在 `Runtime 能力摘要出现`，最后结果为 `hasWorkbench=true` 且其余摘要标记均为 `false`
+    - 因此这次已确认“损坏 sqlite target”不再是当前唯一阻塞；剩余问题已收敛为两个独立问题：
+      - 新链路隔离启动仍受本机现有 Vite/前端端口占用影响
+      - 复用现有 dev 环境时，`agent-runtime-tool-surface-page` 仍未看到 runtime 摘要，需要单独检查 `toolInventory / harness panel` 页面态是否与 current 环境一致
+
+- 把 `P2：Skill-First 前台` 里最后几条还没进入合同层的 current 前台入口继续收口，避免首页 continuation、技能页最近做法、我的方法库和输入层 installed skill 继续各说各的：
+  - 已更新：
+    - `src/components/skills/installedSkillPresentation.ts`
+    - `src/components/skills/installedSkillPresentation.test.ts`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `installed skill` 当前新增共享的轻量 projection helper，优先复用 `metadata.lime_when_to_use / lime_argument_hint`，兜底到 `description + 对话里继续补充目标与约束 + 带着该方法进入生成主执行面`
+    - 首页 `继续上次做法` 当前不再只留标题；结果模板与 service skill 都会直接显示 `需要 / 交付` 缩略事实
+    - 技能页 `继续常用做法` 当前补齐 `你来给 / 会拿到 / 结果去向`，`我的方法库` 也不再只是 `名字 + 描述 + /key`
+    - `@ / /` 输入层里的 installed skill 当前也回到同一套轻量 skill 合同，不再保留一条纯 description 链
+    - 这一步继续服务 `P2` 的主目标：让首页、技能页和输入层共享的不只是 capability id，而是统一的 current 前台 skill 解释层
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/skills/installedSkillPresentation.test.ts" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npx eslint "src/components/skills/installedSkillPresentation.ts" "src/components/skills/installedSkillPresentation.test.ts" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run verify:local`
+  - 当前阻塞说明：
+    - `verify:local` 的前端、Vitest 与 `cargo test --manifest-path src-tauri/Cargo.toml` 均已实际通过
+    - 但末尾 `verify:gui-smoke` 在独立临时 target 编译阶段失败，错误为 `libsqlite3-sys` 读取临时 `OUT_DIR` 下的 `bindgen.rs` 失败，导致 headless Tauri 在 DevBridge 就绪前退出
+    - 因此本轮当前已达到“代码、类型、定向回归、Rust 单测通过”的门槛，但 GUI smoke 仍受环境级编译问题阻塞，需单独处理该 smoke target 的 sqlite/bindgen 构建稳定性
+
+- 把 `P2：Skill-First 前台` 的 `service skill` 前台合同投影接回与 `curated_task` 同一套 current 事实源，避免首页、输入层、技能页继续各讲各的：
+  - 已更新：
+    - `src/components/agent/chat/service-skills/skillPresentation.ts`
+    - `src/components/agent/chat/service-skills/skillPresentation.test.ts`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `service skill` 当前新增共享的 capability description helper，统一输出 `promise + 需要 + 交付`
+    - 首页 `快捷做法` 的缩略 meta、`@` 面板里的 service skill 描述、技能页组内做法卡片，当前都改成围绕同一套合同事实表达
+    - 技能页组内卡片当前不再写 `入口`，而是显式展示 `你来给 / 会拿到 / 结果去向`，开始和 `curated_task` 的 skill 合同体验靠拢
+    - 这一步继续服务 `P2` 第 2 条目标：让技能页、新建任务页和输入层共享的不只是 skill id，而是统一的 current 前台 skill 解释层
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/service-skills/skillPresentation.test.ts" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npx eslint "src/components/agent/chat/service-skills/skillPresentation.ts" "src/components/agent/chat/service-skills/skillPresentation.test.ts" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run verify:local`
+    - 本次 `verify:local` 已实际覆盖 `verify:gui-smoke`，并跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 把 `P2：Skill-First 前台` 里的 `curated_task` 启动事实与 skill 合同缩略投影继续收口到同一条 current 主链，避免首页、技能页、输入层只是“都能打开”，但仍各讲各的 skill：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页 `结果入口` 的缩略 meta 与 slash 面板里的结果模板描述，当前都改成共享 `buildCuratedTaskCapabilityDescription`；输入层里的结果模板不再只有一句 summary，而会同步暴露 `需要 / 交付` 的 current 缩略事实
+    - 技能页桥接 `curated_task` 进入 `生成` 时，当前也会把 `referenceEntries` 一并带进 `initialInputCapability.capabilityRoute`，不再只有 `referenceMemoryIds`
+    - 到这里为止，首页、slash、技能页三条结果模板入口共享的不只是 `taskId + prompt`，还包括可回放的引用对象事实；首屏恢复与二次编辑 launcher 时，不会再出现某条链只剩 id 的分叉
+    - 这一步继续服务 `P2` 第 2 条目标：让技能页、新建任务页和输入层共享同一 skill 事实源，而不是只共享模板目录
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run verify:local`
+    - `npm run verify:gui-smoke` 已包含在本次 `verify:local` 中，并实际跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+    - 这意味着之前日志里提到的 `site_capability_service` Rust 既有失败，当前已不再是本轮主线的有效阻塞状态
+
+- 把 `生成` 后的 Team / Canvas / Inputbar 首层提示继续收口到和 GeneralWorkbench 一致的 current 主执行面，避免刚把工作台改成结果对象视角，team runtime 首层又长回第二套任务命名：
+  - 已更新：
+    - `src/components/agent/chat/utils/teamWorkspaceCopy.ts`
+    - `src/components/agent/chat/components/TeamWorkbenchSummaryPanel.tsx`
+    - `src/components/agent/chat/components/TeamWorkspaceDock.tsx`
+    - `src/components/agent/chat/components/ChatSidebar.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceCanvasSceneRuntime.tsx`
+    - `src/components/agent/chat/components/Inputbar/components/InputbarWorkflowStatusPanel.tsx`
+    - `src/components/agent/chat/components/CanvasWorkbenchLayout.tsx`
+    - `src/components/agent/chat/components/team-workspace-board/TeamWorkspaceEmptyShellState.tsx`
+    - `src/components/agent/chat/components/team-workspace-board/TeamWorkspaceCanvasToolbar.tsx`
+    - `src/components/agent/chat/components/team-workspace-board/TeamWorkspaceCanvasStage.tsx`
+    - `src/components/agent/chat/components/team-workspace-board/teamWorkspaceBoardPresentationSelectors.ts`
+    - `src/components/agent/chat/team-workspace-runtime/formationDisplaySelectors.ts`
+    - `src/components/agent/chat/utils/teamWorkspaceCanvas.ts`
+    - `src/components/agent/chat/utils/contextualRecommendations.ts`
+    - `src/components/agent/chat/utils/contextualRecommendations.test.ts`
+    - `src/components/agent/chat/utils/agentTaskRuntime.test.ts`
+    - `docs/exec-plans/claude-code-agent-task-runtime-alignment-plan.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - Team Summary / Team Dock / Canvas team tab / workflow status 当前统一使用 `生成工作台 / 当前进展`，空态按钮与进入提示也不再把 team runtime 包装成另一套平级“任务视图”
+    - `可继续稿件 / 可继续版本 / 产出记录 / 执行经过` 这套结果对象语言，当前已经从首页、GeneralWorkbench 继续接到了 Team / Canvas / Inputbar 首层提示
+    - 在用户已明确“不做兼容”的前提下，`contextualRecommendations` 当前也已删掉把 `任务工作台` 当成 team runtime 触发词的历史容忍，只保留 current 文案与真实 team 语义
+    - 这一步继续服务 `P1：前台口径收口`，让 `生成` 后首层路径不再同时存在两套执行命名；current 事实源现在收敛为 `生成 -> 生成工作台 -> 当前进展`
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/TeamWorkspaceDock.test.tsx" "src/components/agent/chat/components/TeamWorkspaceBoard.test.tsx" "src/components/agent/chat/components/TeamWorkbenchSummaryPanel.test.tsx" "src/components/agent/chat/components/CanvasWorkbenchLayout.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/workspace/useWorkspaceCanvasSceneRuntime.test.ts" "src/components/agent/chat/components/team-workspace-board/TeamWorkspaceCanvasSurfaceCopy.test.tsx" "src/components/agent/chat/components/team-workspace-board/TeamWorkspaceTeamOverviewChrome.test.tsx" "src/components/agent/chat/components/team-workspace-board/teamWorkspaceBoardPresentationSelectors.test.ts" "src/components/agent/chat/components/team-workspace-board/useTeamWorkspaceBoardShellProps.test.tsx" "src/components/agent/chat/components/team-workspace-board/teamWorkspaceBoardPropBuilders.test.ts" "src/components/agent/chat/components/team-workspace-board/useTeamWorkspaceBoardCanvasRuntime.test.tsx" "src/components/agent/chat/team-workspace-runtime/formationDisplaySelectors.test.ts" "src/components/agent/chat/utils/contextualRecommendations.test.ts" "src/components/agent/chat/utils/agentTaskRuntime.test.ts"`
+    - `npm run verify:local`
+
+- 把仓库其余仍会直接暴露给用户的旧 `任务工作台 / 任务视图` 文案继续收尾一刀，避免主链已换成 current 口径，旁路设置页还把用户拉回旧语境：
+  - 已更新：
+    - `src/components/settings-v2/system/automation/index.tsx`
+    - `src/components/settings-v2/system/automation/index.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 自动化设置页当前不再暴露 `打开任务工作台`，而是统一改成 `打开自动化工作台`
+    - workspace-only 描述当前也不再写 `默认进入任务视图`，而是改成 `默认进入当前进展`
+    - 这一步属于 P1 的旁路收尾：不是继续扩主链，而是防止 current 主词在其他真实前台页面被旧词反向污染
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/settings-v2/system/automation/index.test.tsx"`
+    - `npx eslint "src/components/settings-v2/system/automation/index.tsx" "src/components/settings-v2/system/automation/index.test.tsx"`
+
+- 把 team runtime 里仍像“第二套任务面板系统”的 copy 继续收口到 `当前进展` 语义，避免 `生成工作台` 下面又长出另一套旧前台命名：
+  - 已更新：
+    - `src/components/agent/chat/team-workspace-runtime/formationDisplaySelectors.ts`
+    - `src/components/agent/chat/team-workspace-runtime/formationDisplaySelectors.test.ts`
+    - `src/components/agent/chat/team-workspace-runtime/boardChromeSelectors.ts`
+    - `src/components/agent/chat/team-workspace-runtime/boardChromeSelectors.test.ts`
+    - `src/components/agent/chat/components/team-workspace-board/TeamWorkspaceCanvasToolbar.tsx`
+    - `src/components/agent/chat/components/team-workspace-board/TeamWorkspaceEmptyShellState.tsx`
+    - `src/components/agent/chat/components/team-workspace-board/SelectedSessionInlineHeader.tsx`
+    - `src/components/agent/chat/components/team-workspace-board/teamWorkspaceBoardPresentationSelectors.ts`
+    - `src/components/agent/chat/components/team-workspace-board/TeamWorkspaceTeamOverviewControls.tsx`
+    - `src/components/agent/chat/components/team-workspace-board/TeamWorkspaceCanvasSurfaceCopy.test.tsx`
+    - `src/components/agent/chat/components/team-workspace-board/TeamWorkspaceTeamOverviewChrome.test.tsx`
+    - `src/components/agent/chat/components/team-workspace-board/teamWorkspaceBoardPresentationSelectors.test.ts`
+    - `src/components/agent/chat/components/TeamWorkspaceBoard.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - Team runtime 默认空态与画布提示当前不再写 `任务面板 / 任务摘要视图`，而是统一改成 `当前进展面板 / 进展摘要视图`
+    - canvas toolbar 与紧凑控制条当前不再写 `聚焦任务`，而是统一改成 `聚焦进展`
+    - lane 数、overview subtitle 与 selected session CTA 当前也不再写 `X 项任务已接入 / 打开任务 / 切换任务`，而是统一改成 `X 条当前进展已接入 / 打开进展 / 切换进展`
+    - 这一步继续服务 P1：不是否认 team runtime 里真实存在的任务拆分，而是把用户一眼看到的执行对象继续固定回 `当前进展`
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/team-workspace-runtime/formationDisplaySelectors.test.ts" "src/components/agent/chat/team-workspace-runtime/boardChromeSelectors.test.ts" "src/components/agent/chat/components/team-workspace-board/TeamWorkspaceCanvasSurfaceCopy.test.tsx" "src/components/agent/chat/components/team-workspace-board/TeamWorkspaceTeamOverviewChrome.test.tsx" "src/components/agent/chat/components/team-workspace-board/teamWorkspaceBoardPresentationSelectors.test.ts" "src/components/agent/chat/components/team-workspace-board/useTeamWorkspaceBoardCanvasRuntime.test.tsx" "src/components/agent/chat/components/TeamWorkspaceBoard.test.tsx"`
+    - `npx eslint "src/components/agent/chat/team-workspace-runtime/formationDisplaySelectors.ts" "src/components/agent/chat/team-workspace-runtime/boardChromeSelectors.ts" "src/components/agent/chat/components/team-workspace-board/TeamWorkspaceCanvasToolbar.tsx" "src/components/agent/chat/components/team-workspace-board/TeamWorkspaceEmptyShellState.tsx" "src/components/agent/chat/components/team-workspace-board/SelectedSessionInlineHeader.tsx" "src/components/agent/chat/components/team-workspace-board/teamWorkspaceBoardPresentationSelectors.ts" "src/components/agent/chat/components/team-workspace-board/TeamWorkspaceTeamOverviewControls.tsx" "src/components/agent/chat/team-workspace-runtime/formationDisplaySelectors.test.ts" "src/components/agent/chat/team-workspace-runtime/boardChromeSelectors.test.ts" "src/components/agent/chat/components/team-workspace-board/TeamWorkspaceCanvasSurfaceCopy.test.tsx" "src/components/agent/chat/components/team-workspace-board/TeamWorkspaceTeamOverviewChrome.test.tsx" "src/components/agent/chat/components/team-workspace-board/teamWorkspaceBoardPresentationSelectors.test.ts" "src/components/agent/chat/components/TeamWorkspaceBoard.test.tsx"`
+
+- 把 `生成现场` 与 topic switch 的边缘提示继续去任务化，避免主流程已经换词，继续入口和错误提示还在回退旧任务系统语境：
+  - 已更新：
+    - `src/components/agent/chat/components/ChatSidebar.tsx`
+    - `src/components/agent/chat/components/ChatSidebar.test.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceTopicSwitch.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - task-center continuation 的 fallback 动作当前不再写 `打开任务`，而是改成和 `生成现场` 对齐的 `打开现场`
+    - topic switch 失败 toast 当前也不再写 `切换任务失败 / 加载任务失败`，而是统一改成 `切换会话失败 / 加载会话失败`
+    - 这一步继续服务 P1 的边缘收口：哪怕只是在失败或 fallback 场景里，也尽量避免把默认 `生成` 链重新讲成任务系统
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/team-workspace-runtime/boardChromeSelectors.test.ts" "src/components/agent/chat/components/ChatSidebar.test.tsx"`
+    - `npx eslint "src/components/agent/chat/team-workspace-runtime/boardChromeSelectors.ts" "src/components/agent/chat/team-workspace-runtime/boardChromeSelectors.test.ts" "src/components/agent/chat/components/ChatSidebar.tsx" "src/components/agent/chat/components/ChatSidebar.test.tsx" "src/components/agent/chat/workspace/useWorkspaceTopicSwitch.ts"`
+
+- 把 `生成` 后工作台里偏工程的对象名继续收口成结果对象视角，避免首页已经在讲“结果去向 / 继续上次做法”，一进入工作台又退回 `任务 / 分支 / 过程记录` 语境：
+  - 已更新：
+    - `src/components/agent/chat/components/GeneralWorkbenchSidebarShell.tsx`
+    - `src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx`
+    - `src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `任务工作台` 当前已改成 `生成工作台`，`任务视图` 当前已改成 `当前进展`，把 `生成` 固定为用户理解里的主执行面
+    - `相关分支 / 相关版本` 当前已收成 `可继续稿件 / 可继续版本`，让用户优先理解“从哪一稿继续”，而不是先理解工程分支对象
+    - `任务记录 / 过程记录` 当前已收成 `产出记录 / 执行经过`，并继续与首页 `结果去向` 的说明保持同一套结果对象语言
+    - 这一步继续服务 `P1：首页默认复杂度收口`，但重点已经从首页进一步推进到 `生成` 后第一屏，让用户在执行面里也默认看到“结果 / 下一步 / 继续入口”，而不是后台对象名
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/GeneralWorkbenchSidebarShell.tsx" "src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx" "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx"`
+    - `npm run verify:local`
+    - `npm run verify:gui-smoke` 已包含在本次 `verify:local` 中，并实际跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 把 `生成` 后的进展摘要卡补成“结果去向 / 从哪里继续”的轻接线，避免首页提示一消失，用户又不知道结果会去哪：
+  - 已更新：
+    - `src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx`
+    - `src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 顶部摘要卡当前会继续提示：主稿、任务文件和运行产物会沉淀到下方 `产出记录 / 执行经过`
+    - 需要继续修改时，用户当前也能直接从 `可继续稿件/版本` 或首页 `继续上次做法` 这两个入口理解“从哪里接着跑”
+    - 这一步继续服务 `P1：首页默认复杂度收口`，但落点已经从首页延伸到 `生成` 后的结果/工作台首屏，让“结果不会丢、下次从哪里继续”不再只停留在首页一句提示里
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx" "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx"`
+    - `npm run verify:local`
+    - `npm run verify:gui-smoke` 已包含在本次 `verify:local` 中，并实际跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 把 `新建任务` 首页剩余非核心块继续收成“有真实收益才露出”的 current 显隐规则：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `更多起手方式` 当前不再因为“还有目录页可进”就默认露出；只有当前真有可直接启动的整套做法，或用户确实可以“继续最近做法”时，这块才出现
+    - `支撑能力` 当前也不再因为“系统里有技能”就默认露出；只有浏览器接入、站点自动接入型做法，或最近沉淀出的复用方法形成直接收益时，才继续显示摘要层
+    - 这一步继续服务 `P1：首页默认复杂度收口`，目标是避免首页在推荐层收完之后，又被“目录入口 / 能力目录”重新长回平台分层感
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm run verify:local`
+    - `npm run verify:gui-smoke` 已包含在本次 `verify:local` 中，并实际跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 把 `新建任务` 首页 `结果模板` 从同权 6 条入口继续收成“首选结果 + 更多结果 + 快捷做法”的强弱分层：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `结果模板` 当前不再把 4 条 curated task 与 2 条 service skill 以同一层级平铺给用户，而是改成：
+      - `首选结果`：默认先看最常用、最泛用的 2 条结果入口
+      - `更多结果`：保留其余结果模板，作为第二层补充选择
+      - `快捷做法`：把现成 service skill 收成捷径层，不再与结果模板混成同一层
+    - 这一步继续服务 P1 的首页默认复杂度收口，只做首页结果 shelf 的层级优化，不改运行时协议、不改 skill / launcher 主链
+    - 首页当前更接近“先给用户一个最该点的结果入口”，而不是“把所有能点的入口平铺出来”
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm run verify:local`
+    - `npm run verify:gui-smoke` 已包含在本次 `verify:local` 中，并实际跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 把 `新建任务` 首页 `结果入口` 继续补成“知道怎么开始，也知道结果会去哪”的轻闭环提示：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `结果入口` 当前已新增轻量 `结果去向` 提示，明确本轮产出会沉淀到当前任务/项目，跑通过的方法会回到 `继续上次做法`，参考与反馈会继续影响下一轮推荐
+    - 这一步继续服务 P1 的首页默认复杂度收口：不是再开一个结果面，而是在首页先把“结果不会丢、下次从哪继续”说清楚
+    - `更多起手方式` 当前也把说明文案再压短一层，继续保持补位入口，不重新长成解释性大块
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm run verify:local`
+    - `npm run verify:gui-smoke` 已包含在本次 `verify:local` 中，并实际跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 把 `新建任务` 首页原来平级的 `结果模板` + `继续上次做法` 收成同一个 `结果入口` shelf，继续减少首页块级切换感：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页 supporting 区当前不再把 `结果模板` 和 `继续上次做法` 渲染成两个平级面板，而是先收成一个总标题为 `结果入口` 的 unified shelf
+    - `结果入口` 内部当前分成两个 section：上半段负责“先拿什么结果”，下半段负责“最近跑过什么做法”；空态时也在同一个容器里提示，不再额外长出独立空块
+    - `更多起手方式` 与 `支撑能力` 当前都退到 `结果入口` 后面，首页默认视觉重心继续稳定在 `目标输入 + 当前项目 + 结果入口`
+    - 这一步仍属于 P1 的首页默认复杂度收口，只改前台组合层，不改协议、不改后端、不改 `curated_task capability route`
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm run verify:local`
+    - `npm run verify:gui-smoke` 已包含在本次 `verify:local` 中，并实际跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 把 `新建任务` 首页底部的能力目录感继续收口一刀，改成“默认结果入口 + 按需展开支撑能力”的 current 前台结构：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyStateHero.tsx`
+    - `src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页底部 `我的方法 / 持续流程 / 任务拆分 / 浏览器接入` 4 张大卡当前不再默认常显，而是收成一个轻量 `支撑能力` 摘要层；用户需要时再手动展开
+    - `支撑能力` 摘要层当前会保留 `methodSummaryLabel`，并继续提供轻量 `连接浏览器` 快捷入口，避免把能力完全藏死
+    - `EmptyStateHero` 当前只会在确实有卡片需要显示时才渲染底部卡片区，不再为空壳占位
+    - 原 `创作场景` 区当前进一步降成 `更多起手方式`，明确它只是补位入口；如果用户已经知道想拿什么结果，优先走上方结果模板
+    - 这一步仍属于 P1 的首页默认复杂度收口，不改协议、不改后端，只继续压低首页“能力超市 / 平台目录”观感
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyStateHero.tsx" "src/components/agent/chat/components/EmptyStateSceneAppsPanel.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm run verify:local`
+    - `npm run verify:gui-smoke` 已包含在本次 `verify:local` 中，并实际跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 把 `新建任务` 首页默认复杂度继续收口一刀，减少折叠态运行时噪音，稳住 `目标输入 + 项目 + 结果模板` 主入口：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页输入区折叠态当前不再暴露 `当前模型` 轻提示，也不再在未展开时直接露出模型选择器；`Provider / Model / 权限模式 / Team` 继续统一收在 `高级设置`
+    - 首页 hero 徽标当前不再默认暴露 `执行模式 / 联网搜索` 等运行时状态，减少“系统控制台”观感
+    - supporting 区当前改成 `结果模板 -> 继续上次做法 -> 创作场景补位` 的顺序，先让默认视觉重心回到结果入口
+    - 这一步属于 P1 的首页默认复杂度收口，不改协议、不改后端，只继续压缩前台默认暴露
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm run verify:local`
+    - `npm run verify:gui-smoke` 已包含在本次 `verify:local` 中，并实际跑通 `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface / agent-runtime-tool-surface-page`
+
+- 把 `curated task` featured 推荐从“固定 4 张卡”推进成“静态 base + 当前参考/最近保存信号”的 P3 第二刀，打通 `当前参考 / 保存灵感 -> 下一轮推荐` 回流：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskRecommendationSignals.ts`
+    - `src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts`
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页空态与技能页 `先拿结果` 当前都会围绕 `projectId + 当前 referenceEntries + 最近保存灵感` 重新计算 featured 推荐
+    - 推荐信号当前分成两类：`active_reference` 负责表达当前线程/launcher 已带入的参考对象；`saved_inspiration` 负责表达最近保存到灵感库的条目
+    - `保存到灵感库` 成功后，当前会立刻记录推荐信号并广播刷新事件；featured 推荐不再依赖 memory 的旧 `updated_at`
+    - 推荐排序继续保留默认 4 张结果模板的 base 骨架，但强信号可以把 `account-project-review` 等非默认模板抬进前排，并给出“围绕当前参考 / 围绕最近收藏或偏好”等理由提示
+    - 到这里为止，P3 已从“灵感带入生成”继续推进到“生成内保存与当前带入，都会影响下一轮结果模板建议”
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskRecommendationSignals.ts" "src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts" "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:local`
+
+- 把 `creation_replay` 从“后台预填对象”推进成 `生成主执行面` 里的 current 前台对象，并打通 `灵感库 -> 生成 -> 结果模板默认引用回流` 这条 P3 第一刀：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskReferenceSelection.ts`
+    - `src/components/agent/chat/utils/creationReplaySurface.ts`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/Inputbar/index.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx`
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/workspace/chatSurfaceProps.ts`
+    - `src/components/agent/chat/workspace/WorkspaceConversationScene.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx`
+    - `src/components/agent/chat/workspace/WorkspaceConversationScene.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `creation_replay` 当前不再只在 scene gate / service skill 里被内部消费；`生成主执行面` 已开始把它显影成“当前带入灵感 / 技能草稿”对象
+    - 首页空态输入区当前也会露出同一条轻量提示，避免用户只在 entry banner 里看一次就丢
+    - 从灵感库进入 `生成` 时带入的 `memory_entry creation_replay`，当前会自动成为结果模板 launcher 的默认 reference seed
+    - 这条默认 seed 既会作用于首页结果模板，也会作用于 slash 面板里的结果模板
+    - launcher 当前会合并保留 seed entry 与最近灵感列表；即使该条灵感不在最近列表中，也不会被静默丢掉
+    - `curated_task capabilityRoute` 当前也已开始保留 `referenceEntries`，保证页面 bootstrap / 首屏恢复 / 再次编辑 launcher 时不只剩 id
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx" "src/components/agent/chat/workspace/WorkspaceConversationScene.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskReferenceSelection.ts" "src/components/agent/chat/utils/creationReplaySurface.ts" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/index.tsx" "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/workspace/chatSurfaceProps.ts" "src/components/agent/chat/workspace/WorkspaceConversationScene.tsx" "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx" "src/components/agent/chat/workspace/WorkspaceConversationScene.test.tsx"`
+
+- 把 `curated task` 的“可选灵感引用”从静态文案补成 current typed contract，打通 `launcher -> route -> request metadata -> 生成` 最小闭环：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskReferenceSelection.ts`
+    - `src/components/agent/chat/utils/curatedTaskReferenceSelection.test.ts`
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - launcher 当前会从灵感库最近更新中拉取候选项，允许在启动时附带轻量灵感引用
+    - 这些引用会一起编进首轮 prompt，不再只是“可选参考”的说明文案
+    - `curated_task capabilityRoute` 当前会正式保留 `referenceMemoryIds`
+    - 发送时会同步写入 `requestMetadata.harness.curated_task`
+    - 若存在引用，当前会把首条引用写进 `creation_replay`，以便后续主链继续消费
+    - 到这里为止，`首页 / 技能页 / slash / 生成内编辑` 四个结果模板入口，当前都已经共享 `catalog + launcher + prompt compile + route + metadata` 这条 current 主链
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskReferenceSelection.test.ts" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskReferenceSelection.ts" "src/components/agent/chat/utils/curatedTaskReferenceSelection.test.ts" "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm run verify:local`
+
+- 把 `生成主执行面` 里已经激活的 `curated task`，补成“可重新编辑启动信息”的完整闭环，不再只支持首发 launcher：
+  - 已更新：
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/Inputbar/index.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/skill-selection/CuratedTaskBadge.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+  - 当前统一结论：
+    - `curated_task capabilityRoute` 当前会正式保留 `launchInputValues`
+    - 首页、slash、技能页桥接进 `生成` 后，active `curated_task` badge 都能重新打开同一套 launcher
+    - 重新编辑时会回填原始启动字段，并基于目录模板重新编译 prompt，不再拿“已经编译过一次的 prompt”继续套娃
+    - `Inputbar` 与首页空态当前都共享这条“编辑 -> 回填 -> 更新 route”的 current 主链
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/index.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/skill-selection/CuratedTaskBadge.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/utils/curatedTaskTemplates.ts"`
+
+- 把 slash 输入层里的 `curated task` 结果模板，也正式收口到同一套 `launcher -> curated_task capability -> 生成主执行面` 主链，不再保留“选择即写 base prompt”的输入层例外：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+  - 当前统一结论：
+    - slash 面板里的结果模板当前不再在选择瞬间把模板 prompt 直接塞回输入框
+    - 选择后会先打开和首页、技能页同一套轻量 launcher，补齐 1 到 2 个最小启动字段
+    - 确认后才会把编译后的 prompt 回填到输入框，并继续挂上 typed `curated_task capability`
+    - 到这里为止，`首页 / 技能页 / slash 输入层` 三个结果模板入口，当前已经同时共享 `catalog + launcher + capability route` 三层协议
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+
+- 把首页 `结果模板` 与 `继续上次做法` 里的结果模板，也正式收口到同一套 `curated task launcher -> 生成主执行面` 主链，不再保留“点卡片即直接写 prompt”的首页例外：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+  - 当前统一结论：
+    - 首页 `结果模板`、`继续上次做法` 里的结果模板，以及技能页 `先拿结果`，当前都已对齐到同一个轻量 launcher
+    - launcher 仍只负责补 1 到 2 个最小启动字段，然后把编译后的 prompt 通过 typed `curated_task capability` 带进 `生成`
+    - 因此首页不再是 `curated task` 主链里的特例；`skill-first` 前台当前对结果模板只有一条 current 启动协议
+    - 文档里关于“首页继续快速起手、不走 launcher”的旧描述，当前也已同步清理
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm run verify:local`
+
+- 把 `curated task` 从“展示 skill 合同”继续推进成“技能页可填写的最小 launcher”，让 `requiredInputs` 不再只是说明文案：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+  - 当前统一结论：
+    - `curated task` 现在除了 `requiredInputs` 文案，还新增了真实可填写的 `requiredInputFields`
+    - 技能页 `先拿结果` 点击后，不再直接把模板 prompt 裸带进 `生成`，而是先打开轻量 launcher dialog
+    - 当前每条 curated task 只收 1 到 2 个最小启动字段，避免在技能页复制一整套重型 slot gate
+    - launcher 会通过 `buildCuratedTaskLaunchPrompt(...)` 把用户填写的启动信息编译进首轮 prompt，再继续走 typed `curated_task capability`
+    - 这意味着 P2 当前已经从“skill 合同可见”推进到“skill 合同可启动”，而不是继续停留在卡片说明层
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npm run typecheck`
+    - `npm run governance:legacy-report`
+    - `npm run verify:local`
 
 ## 2026-04-18
 
 ### 已完成
+
+- 把 `curated task` 从“typed capability 可发送”继续推进成“前台可理解的 skill 合同对象”，补齐 `你来给 / 可选参考 / 会拿到 / 下一步` 四类事实，并同步回首页与技能页：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+  - 当前统一结论：
+    - `curated task` 当前不再只有 `title / summary / prompt` 这类轻量模板字段，而是已补齐：
+      - `requiredInputs`
+      - `optionalReferences`
+      - `outputContract`
+      - `followUpActions`
+    - 首页 `结果模板` 当前已开始展示“需要什么输入、会拿到什么交付”的缩略事实，不再只是标题列表
+    - 技能页 `先拿结果` 当前已开始展示更完整的 skill 合同视图，用户能在进入 `生成` 之前先理解：
+      - 自己需要补什么
+      - 可选参考能带什么
+      - 这条 skill 会产出什么
+      - 产出后还能怎么继续
+    - 因此 `curated task` 当前已更接近 V2 设定里的正式 skill launcher，而不是仅靠 prompt 命名的“结果模板按钮”
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/components/EmptyState.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npm run typecheck`
+    - `npm run governance:legacy-report`
+    - `npm run verify:gui-smoke`
+
+- 把 `curated task` 从共享 prompt catalog 继续推进成 current typed capability，补齐 `首页 / 技能页 / slash / Inputbar 首屏恢复` 同一条 route：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/agent/chat/workspace/inputCapabilityRouting.ts`
+    - `src/components/agent/chat/skill-selection/CuratedTaskBadge.tsx`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/AppPageContent.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `src/components/AppPageContent.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+  - 当前统一结论：
+    - `curated task` 当前已正式进入 `InputCapabilitySelection / InputCapabilitySendRoute / initialInputCapability` 主链，不再只是 prompt catalog
+    - 首页点结果模板后，当前不只是把 prompt 写进输入框，也会挂上 `curated_task` active capability；发送时会透传结构化 route
+    - 技能页 `先拿结果` 当前不再依赖 `initialUserPrompt` 进 `生成`，而是像 installed skill 一样走 typed `initialInputCapability`
+    - slash 面板里的结果模板当前会同时做两件事：回填用户可见 prompt，并激活 `curated_task` capability
+    - `Inputbar` 首屏恢复当前已支持 `curated_task`；如果输入为空，会自动预填 route 内 prompt，并展示 badge
+    - `AppPageContent` 当前也已把 `curated_task` 纳入页面 key 序列化；切换不同模板时不会复用旧工作区实例
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/AppPageContent.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/workspace/inputCapabilityRouting.ts" "src/components/agent/chat/skill-selection/CuratedTaskBadge.tsx" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/EmptyStateComposerPanel.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/AppPageContent.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/AppPageContent.test.tsx"`
+    - `npm run typecheck`
+    - `npm run governance:legacy-report`
+    - `npm run verify:gui-smoke`
+
+- 把 `结果模板` 从首页私有推荐 util 提升成共享 `curated task catalog`，并同时接回 `新建任务 / 我的方法 / slash 输入层` 三个前台入口：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+  - 当前统一结论：
+    - 首页里的 `结果模板` 不再只是一组 `EmptyState` 私有 prompt 推荐；现在它已经被收成共享 `curated task catalog`
+    - `我的方法` 页右侧新增了 `先拿结果` 桥接区；因此结果模板不再只存在于首页，技能页也能用同一套 curated task 把用户带回 `生成`
+    - `@ / /` 输入层当前也会展示同一套 curated task；slash 选择后会把模板 prompt 回填到输入框并记录最近使用，不再只有 runtime scene 能占据 `结果模板` 分组
+    - 到这里为止，`首页结果模板 / 技能页桥接入口 / slash 结果模板` 已共用同一份前台事实源；`结果模板` 不再在三个入口里各讲各的话
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm run typecheck`
+
+- 把 `AppPageContent` 这一层壳也补回 `initialInputCapability` current 主链，避免技能页直达生成时在页面分发层丢参或错误复用旧工作区实例：
+  - 已更新：
+    - `src/components/AppPageContent.tsx`
+    - `src/components/AppPageContent.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+  - 当前统一结论：
+    - `AgentPageParams.initialInputCapability` 当前不再只停留在页面参数类型和 `AgentChatPage` 直接测试里；`AppPageContent` 已正式透传这层 bootstrap 给 `AgentChatPage`
+    - `AppPageContent` 当前也已把 `initialInputCapability` 纳入 `AgentChatPage` key；因此从技能页或其他入口连续切换不同 installed skill / capability 时，会重建对应工作区实例，而不是偷偷复用上一条 current capability
+    - 到这里为止，`技能页 -> 页面路由 -> Agent 壳 -> Inputbar 首屏恢复` 这条 current 主链已经闭合，不再只有中间层正确、页面壳层漏参
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/AppPageContent.test.tsx" "src/components/agent/chat/index.shell-routing.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npx eslint "src/components/AppPageContent.tsx" "src/components/AppPageContent.test.tsx"`
+    - `npm run typecheck`
+    - `npm run governance:legacy-report`
+    - `npm run verify:gui-smoke`
+
+- 把 `技能页 / 新建任务页 -> 生成` 的 installed skill 入口也收口到 typed capability bootstrap，不再让“我的方法库”继续停留在被动展示：
+  - 已更新：
+    - `src/types/page.ts`
+    - `src/components/agent/chat/agentChatWorkspaceContract.ts`
+    - `src/components/agent/chat/workspaceEntry.ts`
+    - `src/components/agent/chat/index.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.tsx`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/workspaceEntry.test.ts`
+    - `src/components/agent/chat/index.shell-routing.test.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+  - 当前统一结论：
+    - `service skill` 继续通过 `initialPendingServiceSkillLaunch` 进入 `生成` 内 A2UI 补参主链；而 `installed skill` 当前则统一通过 `initialInputCapability` 恢复首屏 active capability
+    - `Inputbar` 当前可以在首屏根据 typed `capabilityRoute` 恢复 `builtin_command / installed_skill / runtime_scene`，因此从技能页进入 `生成` 不再需要伪造 `/<skill-key>` 文本
+    - `我的方法库` 里的已安装 skill 当前已经不再只是目录卡，而是可以像 current curated service skill 一样，直接把用户带进 `生成` 主执行面
+    - `AgentChatPage` / `workspaceEntry` 当前也已把 `initialInputCapability` 视为 direct workspace intent；因此新建任务入口不会再把这类请求误判成“空白首页”
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/workspaceEntry.test.ts" "src/components/agent/chat/index.shell-routing.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run typecheck`
+    - `npx eslint "src/types/page.ts" "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/agentChatWorkspaceContract.ts" "src/components/agent/chat/workspaceEntry.ts" "src/components/agent/chat/index.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx" "src/components/agent/chat/components/Inputbar/index.tsx" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/workspaceEntry.test.ts" "src/components/agent/chat/index.shell-routing.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run governance:legacy-report`
+    - `npm run verify:gui-smoke`
+
+- 把 `EmptyStateComposerPanel -> CharacterMention` 也收口到统一 capability 选择边界，不再让首页输入壳保留旧 `onSelectSkill` 主语义：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+  - 当前统一结论：
+    - 首页输入壳当前也会像工作区 `Inputbar` 一样，把 `CharacterMention` 选择统一回调为 `onSelectInputCapability`
+    - 首页当前不只支持已安装 skill 的结构化发送，也支持 builtin command / runtime scene 的激活态显示、清除与结构化 route 透传
+    - 因此 `EmptyState` 不再是“发送链统一、输入选择层仍旧语义”的半收口状态；首页 capability 主链当前已从选择、展示到发送保持同一套判断
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx"`
+    - `npm run typecheck`
+
+- 把 `Inputbar / EmptyState` 运行时页面里的 `skillSelection` 直构造也回收到共享绑定边界，补齐 governance 收口：
+  - 已更新：
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/skill-selection/skillSelectionBindings.ts`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+  - 当前统一结论：
+    - `Inputbar / EmptyState` 当前不再在运行时代码里 direct `createSkillSelectionProps(...)`，而是统一回到共享 `skillSelectionBindings` 边界
+    - 因此 current 主路径的页面层不再一边走 `activeCapability`，一边再偷偷拼一套旧 `skill selection` 运行时模型
+    - 这一步补齐了治理守卫要求的 `skill-selection-direct-construction-runtime-usage`，避免后续 AI 继续从页面层长回旧选择协议
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/EmptyStateComposerPanel.tsx" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/skill-selection/skillSelectionBindings.ts"`
+    - `npm run governance:legacy-report`
+    - `npm run typecheck`
+
+- 把 `EmptyState` 首页入口也接回统一 capability 主链，不再把已安装 skill 降级成文本前缀发送：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+  - 当前统一结论：
+    - 首页空态当前不再使用 `useActiveSkill / wrapTextWithSkill` 把已安装 skill 拼成 `/<skill-key> ...` 文本后再发送，而是改为与 `Inputbar` 同源的 `capabilityRoute + displayContent`
+    - `handleSendFromEmptyState` 当前已支持把结构化 `sendOptions` 继续交给主发送链；因此首页入口与工作区输入栏不再各说一套发送协议
+    - 首页在“先选 installed skill，再切到 service skill / 做法卡 / 服务技能入口”时，当前会主动清掉旧 capability，不再残留过期 skill route
+    - 到这里为止，`生成` current 主路径里至少两条核心入口已经统一到同一套 capability 语义：
+      - 工作区 `Inputbar`
+      - 首页 `EmptyState`
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.test.ts"`
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 `CharacterMention -> Inputbar` 的能力选择事件也收口成单一 current 边界，不再让 builtin / scene / installed skill 在主路径里各走一套接线：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/Inputbar/index.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+  - 当前统一结论：
+    - `Inputbar` 当前不再分别向 `CharacterMention` 透传 `onSelectBuiltinCommand / onSelectSceneCommand / onSelectSkill` 三套能力选择回调，而是统一改用 `onSelectInputCapability`
+    - `CharacterMention` 当前已支持把 `builtin_command / installed_skill / runtime_scene` 统一回调给父层 current 主路径；因此 `InputbarController` 内部的 active capability 不再需要靠三条并行接线去维持
+    - `service skill / A2UI` 补参分支仍然保持独立入口；这条例外只服务必填 slot gate，不再影响“生成只有一条 capability 主链”的判断
+    - 到这里为止，current 主路径的统一 capability 边界已经同时进入：
+      - 输入层 active capability 状态
+      - 面板到输入栏的选择事件边界
+      - 发送链的结构化 route 恢复
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/index.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 slash 面板里的已安装技能也接回 `activeCapability`，继续压缩“输入层文本回填”和“发送链结构化路由”之间的缝：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+  - 当前统一结论：
+    - slash 面板里的 `installed skill` 当前在存在父层 `onSelectSkill` 接管时，不再默认回填 `/<skill-key>` 文本，而是改成与 `runtime_scene` 相同的 active capability 语义
+    - 最近使用的 slash skill 当前也会优先把 `replayText` 回填为用户可见正文，再切到 active skill；因此“最近使用”不再偷偷把内部 `/skill-key` 路由文本重新写回输入框
+    - 未提供父层接管时，slash installed skill 仍保持原 fallback：继续回填 `/<skill-key>`，所以这刀没有打断独立 `CharacterMention` 的旧使用方式
+    - 到这里为止，输入层的 current capability 语义已经对齐到三类主对象：
+      - `builtin_command`
+      - `installed_skill`
+      - `runtime_scene`
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 slash 面板里的 runtime scene 选择正式接进 `activeCapability`，让输入层与发送层对 scene 的理解不再分叉：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `src/components/agent/chat/components/Inputbar/components/RuntimeSceneBadge.tsx`
+    - `src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/Inputbar/index.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - slash 面板里选择 `scene command` 时，如果不是“必填 slot 先交给 A2UI 补参”的场景，当前会像 builtin command 一样切换成 `activeCapability`，而不是继续把 `/scene-key` 前缀回填进输入框
+    - runtime scene 当前已拥有和 builtin command / installed skill 对齐的输入层语义：
+      - 选择后保留用户正文输入
+      - 顶部显示可清除 badge
+      - 发送时由 `capabilityRoute` 恢复内部路由文本
+      - 成功后由发送链统一回写 slash recent usage
+    - 最近使用的 scene 当前也会优先把 `replayText` 回填为用户可见正文，并同时挂上 `runtime_scene` active capability，不再重新把 `/scene-key replayText` 写回输入框
+    - 需要 `slot gate / A2UI` 的 scene 当前保持原路径：仍优先交给 `onSelectServiceSkill`，这刀不把 scene 补参 UX 和 active capability 混成一团
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/Inputbar/components/RuntimeSceneBadge.tsx" "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/index.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 `capabilityRoute` 从“发送前的结构化提示”继续推进成发送链内的第一版统一 capability router，并把 runtime scene 也纳入同一入口：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/agent/chat/workspace/inputCapabilityRouting.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+  - 当前统一结论：
+    - `Inputbar` 继续只传 `displayContent + capabilityRoute`，不再回退去预拼 `@前缀`、`/skill-key` 或 scene 文本；真正的内部执行文本恢复点现在固定在 `useWorkspaceSendActions -> inputCapabilityRouting`
+    - `inputCapabilityRouting` 当前已统一承担三件事：恢复 builtin command / installed skill / runtime scene 的内部执行文本、推导 runtime scene 的结构化 route、产出 slash recent usage 的第一版统一结果
+    - 纯文本输入的 `/scene-key ...` 当前也会在发送链内被推导成 `runtime_scene` route，再继续进入 `service_scene_launch` 主链；后续输入层如果直接给 scene route，也能复用同一条恢复逻辑
+    - `executeSendPlan` 当前不再在发送后额外补一层“installed skill fallback usage”旁路；slash usage 统一从 plan 内的 `completedSlashUsage` 回写，避免 route 恢复与 usage 记录再次分叉
+    - 当发送链因为默认参数补全等原因改写了真正 dispatch 文本时，`displayContent` 当前也会优先保留用户原始可见文案，不再被内部路由前缀污染
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/workspace/inputCapabilityRouting.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把输入栏里“已选 capability 只是偷偷改写前缀文本”的旧做法继续收口成显式 dispatch route，并让发送链第一次吃到结构化的 active capability：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/agent/chat/hooks/handleSendTypes.ts`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/Inputbar/index.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `Inputbar` 当前在发送 active capability 时，不再只把能力压扁成 `@前缀` 或 `/skill-key` 文本；现在会同时透传结构化 `capabilityRoute`
+    - 已选 builtin command / installed skill 当前都会把原始输入保存在 `displayContent` 里，因此线程里展示给用户看的文案可以继续保持“我真正输入了什么”，而不是被路由前缀污染
+    - `useWorkspaceSendActions` 当前已经开始消费这层 route：installed skill 成功发送后，会按显式 `capabilityRoute` 回写 slash 最近使用，不再只能依赖“用户是否手动输入了 `/skill-key ...`”去猜测
+    - 这一步把 `active capability -> 发送链` 从“文本技巧”推进成了第一版结构化 current 路由，也给后面继续抽统一 capability router 留出了明确边界
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/hooks/handleSendTypes.ts" "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/index.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/workspace/useWorkspaceSendActions.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 runtime scene 的匹配规则从“面板一套、发送链一套”收口成共享 scene binding helper，并补上完整 current 门槛验证：
+  - 已更新：
+    - `src/components/agent/chat/service-skills/runtimeSceneBinding.ts`
+    - `src/components/agent/chat/service-skills/runtimeSceneBinding.test.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/workspace/serviceSkillSceneLaunch.ts`
+    - `src/components/agent/chat/workspace/serviceSkillSceneLaunch.test.ts`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `CharacterMention` 当前不再自己维护 scene -> service skill 的匹配规则，slash 面板里“这个 scene 是否应回落成 service skill / A2UI 补参”统一改读 `runtimeSceneBinding`
+    - `serviceSkillSceneLaunch` 当前也不再单独维护 scene token、alias 与 `linkedSkillId` 的另一套判断；UI 面板和发送链对 `sceneKey / commandPrefix / aliases / linkedSkillId` 的理解已对齐
+    - 这一步把 `生成` 主链里最容易漂移的一段 current 事实源先钉住：slash 发现面、scene 发射器和后续 service skill 回落不再各自解释“什么叫同一个场景”
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/service-skills/runtimeSceneBinding.test.ts" "src/components/agent/chat/workspace/serviceSkillSceneLaunch.test.ts" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npx eslint "src/components/agent/chat/service-skills/runtimeSceneBinding.ts" "src/components/agent/chat/service-skills/runtimeSceneBinding.test.ts" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/workspace/serviceSkillSceneLaunch.ts" "src/components/agent/chat/workspace/serviceSkillSceneLaunch.test.ts"`
+    - `npm run typecheck`
+    - `npm run verify:local`
+
+- 把 runtime capability catalog 从组件私有拼装继续收口成共享模块，并让输入面板与发送链各自读取同一套 current 目录选择器：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.ts`
+    - `src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `CharacterMention` 当前不再自己订阅和组装 runtime skill catalog，而是统一改读 `useRuntimeInputCapabilityCatalog`；因此 `@` / `/` 面板里的 builtin command 与 runtime scene 列表不再是组件内私有事实源
+    - `useWorkspaceSendActions` 当前也不再直接扫 `skillCatalog` 自建 mention command 两张 Map，而是改读同模块下的 `useRuntimeMentionCommandCatalog`
+    - 这一步特意把发送链做成“只拿自己真正需要的 mention 路由映射”，不再为了发送前补全 `@命令` 最近输入而顺手依赖整份 scene 列表；因此 current 主线更接近我们要的 typed capability registry，而不是继续把 UI 搜索目录和发送路由耦在一起
+    - 到这里为止，`@ / /` current 主线已经形成三层同源收口：输入分组与激活态共享 capability section builder、scene 回落共享 runtime scene binding、发送链共享 runtime mention catalog
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.ts" "src/components/agent/chat/skill-selection/runtimeInputCapabilityCatalog.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/workspace/useWorkspaceSendActions.ts"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 `生成` 输入层的选择态与分组态往统一 capability registry 收口了一刀，不再让内建命令与已安装 skill 各持一套独立选择状态：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `@ / /` 面板当前已开始消费同一份前端 capability section builder：最近使用、内建命令、推荐技能、技能组、快捷操作、结果模板等分组不再散落在 `CharacterMentionPanel` 内部各自维护
+    - 输入栏当前的“已选 capability”不再拆成 `activeBuiltinCommand + activeSkill` 两套状态，而是统一收口成单一 active capability；因此“先选内建命令再选 skill”这类链路会以后一次选择为准，不会再残留旧能力覆盖发送文本
+    - 这一步仍属于前端 current 路径的第一版 unified capability registry：先收口输入层事实源与激活态，不引入新的后端协议，也不扩第二套执行系统
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/inputCapabilitySelection.ts" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+
+- 把 unified capability registry 这一刀补齐到“能完整过当前统一门槛”，并顺手修掉服务技能入口残留旧 capability 的发送链污染：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/skills/WorkflowProgress.test.tsx`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `inputCapabilitySections` 里最近使用分组的联合类型已经显式收口，不再因为 `flatMap` 首分支推断过窄，把 `service_skill / scene_command / installed_skill` 误判成非法返回值
+    - `WorkflowProgress.test.tsx` 已补齐当前 `WorkflowStepInfo.dependencies` 与 `StepResult.step_name` 契约，`verify:local` 不再被落后的测试夹具卡住
+    - 输入栏当前在“先选 `@命令`，再切到服务技能入口”时会主动清掉旧 active capability，不再把前一次 builtin command 前缀偷偷带进后续发送
+    - 这一步继续沿着 V2 的同一条主线推进：`@ / /` 不只是 UI 分组统一，还要保证 capability 激活态、服务技能入口和最终发送链属于同一套 current 行为
+  - 当前已确认通过：
+    - `npm run verify:local`
+    - `npm run typecheck`
+    - `npm exec vitest run "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/skills/WorkflowProgress.test.tsx"`
+    - `npx eslint "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/skills/WorkflowProgress.test.tsx"`
+  - 当前补充说明：
+    - `npm run verify:local` 是在“服务技能入口清空旧 capability”这一记收尾补丁之前启动的，但该补丁只落在输入栏前端 current 主链；补丁本身已经额外通过定向 `typecheck / vitest / eslint`，因此本轮交付按“统一入口通过 + 收尾补丁定向门槛通过”共同记录
+
+- 把 Ribbi 命令研究正式收口成统一事实源，并同步回挂到 LimeNext V2 路线图，避免研究层与规划层再次分叉：
+  - 已更新：
+    - `docs/research/ribbi/command-inventory.md`
+    - `docs/research/ribbi/README.md`
+    - `docs/research/ribbi/agent-tool-orchestration.md`
+    - `docs/roadmap/limenextv2/README.md`
+    - `docs/roadmap/limenextv2/product-principles.md`
+    - `docs/roadmap/limenextv2/information-architecture.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/lime-vs-ribbi.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - Ribbi 的命令、agent、tool、sandbox、preview、publish 当前统一以 `docs/research/ribbi/command-inventory.md` 为唯一研究事实源，不再允许在其他文档里散写另一套命令口径
+    - LimeNext V2 当前已明确：`生成` 不只是主执行面，还是统一调用面；`@ / /` 只是 `生成` 内的 typed capability registry 交互壳，不再被写成第二套执行系统
+    - `技能` 与 `命令层` 当前已被明确拆分：`技能` 负责发现与启动，`命令层` 负责在线程内调用 skill、model agent、sandbox、search/read、media transform、preview/publish 等具体能力
+    - 这一步把 V2 从“像 Ribbi 一样做闭环”的抽象描述，推进到了“Ribbi 的命令层如何影响 Lime 前台、IA 和运行时骨架”的可执行规划阶段
+
+- 把 `新建任务` 首页里落后的硬编码精选 skill 逻辑收口成共享的 current curated helper，不再单独维护一套首页 skill 事实源：
+  - 已更新：
+    - `src/components/agent/chat/service-skills/homeEntrySkills.ts`
+    - `src/components/agent/chat/service-skills/useServiceSkills.ts`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页精选 service skill 当前不再依赖硬编码 skill ID，而是复用同一份 service skill 目录、surface scope 与推荐分桶规则
+    - 首页若当前运行时目录里没有可展示的 `home` 精选 skill，会用同一条 seeded service skill 事实源补齐精选位，而不是在 `EmptyState` 里手写一套单独对象
+    - `useServiceSkills` 与 `新建任务` 首页当前共享同一条“首页可展示 skill”过滤规则；旧的首页精选硬编码实现已移除
+    - 这一步把 `技能页 / 新建任务` 的 skill-first 收口往前推进了一刀：至少首页精选 skill 不再是独立维护的旧链
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/service-skills/useServiceSkills.test.tsx"`
+    - `npx eslint "src/components/agent/chat/service-skills/homeEntrySkills.ts" "src/components/agent/chat/service-skills/useServiceSkills.ts" "src/components/agent/chat/components/EmptyState.tsx"`
+  - 当前补充说明：
+    - `npm run typecheck` 这轮未通过，但阻塞点在既有 `src/components/skills/WorkflowProgress.test.tsx` 类型不匹配：`WorkflowStepInfo.dependencies` 与 `StepResult.step_name` 缺失，当前判断不是这次首页 skill 收口改动引入的新问题
+
+- 把“上一版无人使用时不背历史包袱”的原则正式写回仓库级约束，避免后续继续给旧实现续命：
+  - 已更新：
+    - `AGENTS.md`
+    - `docs/aiprompts/governance.md`
+    - `.codex/skills/lime-governance/SKILL.md`
+    - `.codex/skills/lime-command-boundary/SKILL.md`
+    - `.codex/skills/lime-quality-workflow/SKILL.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 当用户已明确“上一版无人使用 / 不用兼容 / 旧实现阻碍主线”时，旧实现默认不再继续修补，而是按 `dead` 或带退出条件的 `deprecated` 收口
+    - `legacy current reference` 统一只表示历史实现锚点，不再被解释成可以继续往旧页面、旧命令、旧协议上加功能
+    - 后续若命中旧实现与 current 规划冲突，默认动作应先删旧实现和封旧路，再继续补主链
+
+- 把 `生成主执行面` 的 `最近发布产物` 从“只列出文件”继续补成“带轻量发布态判断”的 current 结果区：
+  - 已更新：
+    - `src/components/agent/chat/workspace/sceneAppExecutionContentPosts.ts`
+    - `src/components/agent/chat/workspace/sceneAppExecutionContentPosts.test.ts`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `docs/exec-plans/limenext-plan.md`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenext/README.md`
+  - 当前统一结论：
+    - `sceneAppExecutionContentPosts` 当前不再只聚合 `发布稿 / 渠道预览稿 / 上传稿` 三张文稿，还会顺手检查同名 `*.cover.json / *.publish-pack.json` 伴随文件
+    - `生成` 页执行摘要卡里的 `最近发布产物` 现在会直接显示 `可继续发布 / 优先渠道预览 / 优先上传整理 / 待补封面信息、发布包` 等轻量就绪态，并把 `封面信息 / 发布包` 作为 companion 芯片带出来
+    - 这一步仍只消费现有 `content-posts` 文件命名约定与 metadata，不新增新的发布状态协议；旧日志里若继续写“最近发布产物当前只是三个文件入口”，都按已过时理解
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/workspace/sceneAppExecutionContentPosts.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npx eslint "src/components/agent/chat/workspace/sceneAppExecutionContentPosts.ts" "src/components/agent/chat/workspace/sceneAppExecutionContentPosts.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npm run typecheck`
+
+- 把 `生成主执行面` 从“能发起发布后动作”继续补成“也能直接消费这些动作产物”：
+  - 已更新：
+    - `src/components/agent/chat/workspace/sceneAppExecutionContentPosts.ts`
+    - `src/components/agent/chat/workspace/sceneAppExecutionContentPosts.test.ts`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `docs/exec-plans/limenext-plan.md`
+    - `docs/exec-plans/limenext-progress.md`
+    - `docs/roadmap/limenext/README.md`
+  - 当前统一结论：
+    - `生成` 页执行摘要卡当前已新增 `最近发布产物` 区块，会直接聚合当前会话里的 `发布稿 / 渠道预览稿 / 上传稿`
+    - 聚合逻辑当前只消费带 `contentPostIntent / contentPostLabel` metadata 的 current 发布产物，不会把普通 `content-posts/*.md` 误判成投放结果
+    - 打开链继续复用现有工作区预览主链：优先打开当前内存里的 `task file / artifact`，没有时再回落到 `session file` 读取；因此这一步没有新增新的 viewer 或发布协议
+    - 旧日志里若继续写“生成页当前只能触发发布动作、不能直接消费发布稿结果”，当前都按已被本条替代的过时阶段理解
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/workspace/sceneAppExecutionContentPosts.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npx eslint "src/components/agent/chat/workspace/sceneAppExecutionContentPosts.ts" "src/components/agent/chat/workspace/sceneAppExecutionContentPosts.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx"`
+    - `npm run typecheck`
+  - GUI 校验补充说明：
+    - `npm run verify:gui-smoke` 这轮未通过，阻塞在启动期环境探测：脚本先误判 `http://127.0.0.1:1420/` 存在可复用前端壳，但 180 秒内实际无法连通该地址，随后 headless Tauri 在 `DevBridge` 就绪前提前退出（`exitCode=1`）
+    - 同轮补查 `1420 / 3030` 端口时都无法直接连接，说明这次失败属于本地 GUI smoke 环境启动问题，而不是“最近发布产物”这一条业务链本身在断
+
+- 把 `创作场景 -> 持续流程 -> 创作场景` 的快速切换从局部 pending 修补收口成全局导航事务：
+  - 已更新：
+    - `src/hooks/useAppNavigation.ts`
+    - `src/hooks/useAppNavigation.test.tsx`
+    - `src/App.tsx`
+    - `src/components/AppSidebar.tsx`
+    - `src/components/AppPageContent.tsx`
+    - `src/components/AppPageContent.test.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/exec-plans/limenext-plan.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 全局导航当前固定为 `requestedPage / requestedPageParams` 与 `currentPage / pageParams` 双态；侧栏高亮与主内容区优先按最新请求态渲染，快速连点时以最后一次点击为准
+    - `SceneAppsPage` 保留 keep-alive，但旧页失去导航所有权后不再回写 `sceneapps` 参数、也不再写 recent visit，因此不会再把页面抢回 `创作场景`
+    - `创作场景 -> 持续流程 -> 创作场景` 的快切链路当前已从“局部 pending 态互相覆盖”收口到“单一全局导航事实源”，不再出现闪动、空白或左侧导航短暂消失
+  - 当前已确认通过：
+    - `npm exec vitest run "src/hooks/useAppNavigation.test.tsx" "src/components/AppSidebar.test.tsx" "src/components/AppPageContent.test.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run verify:local`
+    - `npm run verify:gui-smoke`
+  - 当前补充说明：
+    - 额外盘点了仓库里其余 `onNavigate(...)` 调用点；当前未发现第二条与 `SceneApps keep-alive + 非激活态异步回写` 同型的导航抢写链路
+    - 2026-04-18 追加复跑最新工作树的 `npm run verify:gui-smoke` 时，headless Tauri 启动阶段一直未等到 `DevBridge` 健康检查就绪，最终按 `bridge:health` 超时退出；当前判断这次阻塞发生在环境 / 启动期，不是导航链路的定向回归，因为同轮导航 Vitest 仍是 `58/58` 通过
+    - 如果后续再出现同类闪回，下一步应优先继续排查是否还有页面在非激活态 effect 中自动回写全局导航
 
 - 把 `生成主执行面` 的 `同聊推进` 从“发布前整理”继续扩到现有 `渠道预览 / 上传稿` 主链：
   - 已更新：
@@ -290,7 +1290,7 @@
     - `docs/roadmap/limenext/context-layer.md`
     - `docs/roadmap/limenext/sceneapp-business-flows.md`
     - `docs/roadmap/limenext/sceneapp-fullstack-implementation-plan.md`
-    - `docs/roadmap/ribbi/product-positioning-and-ia.md`
+    - 旧 Ribbi 对位文档已清理；相关判断现统一收口到 `docs/research/ribbi/*` 与 `docs/roadmap/limenextv2/*`
   - 当前统一结论：
     - 侧边栏与前台 current 主词现在固定为 `新建任务 / 生成 / 我的方法 / 创作场景 / 消息渠道 / 资料库 / 灵感库`
     - `agentEntry=claw` 继续保留为内部实现 route，但前台已统一按 `生成` 理解

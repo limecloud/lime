@@ -60,6 +60,9 @@ const IMAGE_GALLERY_SELECTED_SURFACE_CLASSNAME =
 const IMAGE_GALLERY_SELECTED_BADGE_CLASSNAME =
   "border border-emerald-200 bg-white/90 text-emerald-700 shadow-sm shadow-emerald-950/10";
 
+const IMAGE_GALLERY_INFO_SURFACE_CLASSNAME =
+  "pointer-events-none absolute inset-x-2 bottom-2 rounded-[1rem] border border-white/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_48%,rgba(240,249,255,0.96)_100%)] p-3 text-slate-800 shadow-sm shadow-sky-950/10";
+
 function getMaterialPreviewUrl(material: GalleryMaterial): string | null {
   if (material.metadata?.thumbnail) {
     return material.metadata.thumbnail;
@@ -309,11 +312,11 @@ export function ImageGallery({
                     </div>
                   )}
 
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/78 via-slate-950/42 to-transparent p-3 text-white">
+                  <div className={IMAGE_GALLERY_INFO_SURFACE_CLASSNAME}>
                     <div className="truncate text-sm font-semibold">
                       {material.name}
                     </div>
-                    <div className="mt-1 flex items-center gap-2 text-[11px] text-white/72">
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-600">
                       {material.metadata?.width &&
                         material.metadata?.height && (
                           <span>

@@ -363,6 +363,13 @@ describe("MemoryPage", () => {
     expect(bodyText).toContain("provider：memdir");
     expect(bodyText).toContain("反馈记忆");
     expect(bodyText).toContain("最近更新：");
+
+    const previewBlock = Array.from(document.body.querySelectorAll("pre")).find(
+      (element) => element.textContent?.includes("# AGENTS"),
+    );
+    expect(previewBlock).toBeTruthy();
+    expect(previewBlock?.className).toContain("border-sky-100");
+    expect(previewBlock?.className).not.toContain("bg-slate-950");
   });
 
   it("rules 分区应支持整理 memdir 并复用同一条治理能力", async () => {

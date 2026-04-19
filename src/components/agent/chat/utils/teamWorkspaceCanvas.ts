@@ -178,15 +178,15 @@ export function buildCanvasStageHint(params: {
   if (teamDispatchPreviewState?.status === "failed") {
     return (
       teamDispatchPreviewState.errorMessage?.trim() ||
-      "当前任务分工准备失败，暂时无法生成任务视图。"
+      "当前任务分工准备失败，暂时无法生成当前进展。"
     );
   }
 
   if (hasRuntimeFormation || hasSelectedTeamPlan) {
-    return "这里会先展示当前任务分工，任务拆出后会切换为独立的任务视图。";
+    return "这里会先展示当前任务分工，任务拆出后会切换为独立的当前进展。";
   }
 
-  return "任务拆出后，这里会切换成独立的任务视图。";
+  return "任务拆出后，这里会切换成独立的当前进展。";
 }
 
 export function resolveCanvasLaneBounds(

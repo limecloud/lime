@@ -77,9 +77,9 @@ function resolveSidebarTitle(
     return "上下文管理";
   }
   if (activeTab === "workflow") {
-    return "任务视图";
+    return "当前进展";
   }
-  return isVersionMode ? "版本记录" : "运行记录";
+  return isVersionMode ? "版本记录" : "执行记录";
 }
 
 function resolveSidebarDescription(
@@ -91,10 +91,10 @@ function resolveSidebarDescription(
   }
   if (activeTab === "workflow") {
     return isVersionMode
-      ? "聚焦当前任务、后续节点与相关版本。"
-      : "聚焦当前任务、后续节点与相关分支。";
+      ? "聚焦当前结果、下一步与可继续的版本。"
+      : "聚焦当前结果、下一步与可继续的稿件。";
   }
-  return "查看技能调用、工具输出与运行记录。";
+  return "查看技能调用、工具产物与运行详情。";
 }
 
 export function GeneralWorkbenchSidebarShell({
@@ -119,7 +119,7 @@ export function GeneralWorkbenchSidebarShell({
         data-testid="general-workbench-sidebar-header"
       >
         <div className={SIDEBAR_HEADER_META_ROW_CLASSNAME}>
-          <div className={SIDEBAR_EYEBROW_CLASSNAME}>任务工作台</div>
+          <div className={SIDEBAR_EYEBROW_CLASSNAME}>生成工作台</div>
           {headerActionSlot ? (
             <div
               className={SIDEBAR_HEADER_ACTION_SLOT_CLASSNAME}
@@ -155,12 +155,12 @@ export function GeneralWorkbenchSidebarShell({
           </button>
           <button
             type="button"
-            aria-label="打开任务视图"
-            title="任务视图"
+            aria-label="打开当前进展"
+            title="当前进展"
             className={getSidebarTabButtonClassName(activeTab === "workflow")}
             onClick={() => onTabChange("workflow")}
           >
-            <span className={SIDEBAR_TAB_LABEL_CLASSNAME}>任务</span>
+            <span className={SIDEBAR_TAB_LABEL_CLASSNAME}>进展</span>
             <span
               className={getSidebarTabCountClassName(activeTab === "workflow")}
             >

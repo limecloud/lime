@@ -57,18 +57,18 @@ export function resolveTeamWorkspaceBoardCopyState({
   return {
     detailToggleLabel: detailVisible ? "收起细节" : "查看细节",
     detailVisible,
-    memberCanvasTitle: "任务视图",
+    memberCanvasTitle: "当前进展",
     memberCanvasSubtitle: hasRuntimeSessions
       ? isChildSession
         ? "并行任务会在各自面板里持续更新进展和结果，主对话只保留必要摘要。"
-        : `${visibleSessionsCount} 项任务已接入，当前焦点会优先落在正在处理的任务上。`
+        : `${visibleSessionsCount} 条当前进展已接入，当前焦点会优先落在正在处理的分工上。`
       : dispatchPreviewStatus === "forming"
         ? "正在准备当前任务分工，任务拆出后会在这里独立更新进展。"
         : dispatchPreviewStatus === "formed"
-          ? "当前任务分工已经就绪，任务拆出后会在各自面板里开始处理。"
+          ? "当前任务分工已经就绪，任务拆出后会在各自进展面板里开始处理。"
         : dispatchPreviewStatus === "failed"
-            ? "这次任务分工准备失败，暂时无法生成任务面板。"
-            : "任务拆出后，这里会展开为独立的任务视图。",
+            ? "这次任务分工准备失败，暂时无法生成当前进展面板。"
+            : "任务拆出后，这里会展开为独立的当前进展。",
   };
 }
 

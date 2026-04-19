@@ -112,7 +112,7 @@ function renderHook(props?: Partial<HookProps>) {
       inlineTimelineEntryClassName: "inline-entry",
       inlineTimelineFeedClassName: "inline-feed",
       memberCanvasSubtitle: "子任务会持续更新任务进展。",
-      memberCanvasTitle: "任务视图",
+      memberCanvasTitle: "当前进展",
       railCardClassName: "rail-card",
       selectedSessionDetailDisplay: {
         summary: "资料整理正在推进。",

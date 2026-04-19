@@ -1,5 +1,6 @@
 import type { SlashSkillRequest } from "./agentChatShared";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
+import type { InputCapabilitySendRoute } from "../skill-selection/inputCapabilitySelection";
 
 export interface HandleSendObserver {
   onComplete?: (content: string) => void;
@@ -15,4 +16,5 @@ export interface HandleSendOptions {
   toolPreferencesOverride?: ChatToolPreferences;
   displayContent?: string;
   skillRequest?: SlashSkillRequest;
+  capabilityRoute?: InputCapabilitySendRoute;
 }

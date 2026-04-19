@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CharacterMention } from "./CharacterMention";
 import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
+import type { UnifiedMemory } from "@/lib/api/unifiedMemory";
 import {
   clearSkillCatalogCache,
   getSeededSkillCatalog,
@@ -16,11 +17,23 @@ import type {
   ServiceSkillGroup,
   ServiceSkillHomeItem,
 } from "@/components/agent/chat/service-skills/types";
-import type { BuiltinInputCommand } from "./builtinCommands";
+import type {
+  BuiltinInputCommand,
+  RuntimeSceneSlashCommand,
+} from "./builtinCommands";
+import type { InputCapabilitySelection } from "./inputCapabilitySelection";
 import { recordMentionEntryUsage } from "./mentionEntryUsage";
 import { recordSlashEntryUsage } from "./slashEntryUsage";
+import {
+  buildCuratedTaskLaunchPrompt,
+  findCuratedTaskTemplateById,
+  recordCuratedTaskTemplateUsage,
+} from "../utils/curatedTaskTemplates";
 
 const mockListServiceSkills = vi.hoisted(() => vi.fn());
+const mockListUnifiedMemories = vi.hoisted(() =>
+  vi.fn<() => Promise<UnifiedMemory[]>>(async () => []),
+);
 
 vi.mock("sonner", () => ({
   toast: {
@@ -37,6 +50,10 @@ vi.mock("@/lib/api/serviceSkills", async (importOriginal) => {
     listServiceSkills: () => mockListServiceSkills(),
   };
 });
+
+vi.mock("@/lib/api/unifiedMemory", () => ({
+  listUnifiedMemories: mockListUnifiedMemories,
+}));
 
 vi.mock("@/components/ui/popover", () => {
   const Popover = ({
@@ -162,6 +179,92 @@ vi.mock("@/components/ui/command", () => {
   };
 });
 
+vi.mock("@/components/ui/button", () => ({
+  Button: ({
+    children,
+    onClick,
+    disabled,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+    [key: string]: unknown;
+  }) => (
+    <button type="button" onClick={onClick} disabled={disabled} {...rest}>
+      {children}
+    </button>
+  ),
+}));
+
+vi.mock("@/components/ui/input", () => ({
+  Input: ({
+    value,
+    onChange,
+    placeholder,
+    ...rest
+  }: {
+    value?: string;
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    placeholder?: string;
+    [key: string]: unknown;
+  }) => (
+    <input
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      {...rest}
+    />
+  ),
+}));
+
+vi.mock("@/components/ui/textarea", () => {
+  const Textarea = React.forwardRef<
+    HTMLTextAreaElement,
+    React.TextareaHTMLAttributes<HTMLTextAreaElement>
+  >((props, ref) => <textarea ref={ref} {...props} />);
+  return { Textarea };
+});
+
+vi.mock("@/components/ui/label", () => ({
+  Label: ({
+    children,
+    htmlFor,
+    className,
+  }: {
+    children: React.ReactNode;
+    htmlFor?: string;
+    className?: string;
+  }) => (
+    <label htmlFor={htmlFor} className={className}>
+      {children}
+    </label>
+  ),
+}));
+
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({
+    open,
+    children,
+  }: {
+    open: boolean;
+    children: React.ReactNode;
+  }) => (open ? <div>{children}</div> : null),
+  DialogContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+}));
+
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
 beforeEach(() => {
@@ -190,6 +293,7 @@ afterEach(() => {
 
 beforeEach(() => {
   mockListServiceSkills.mockResolvedValue([]);
+  mockListUnifiedMemories.mockResolvedValue([]);
 });
 
 interface HarnessProps {
@@ -204,7 +308,25 @@ interface HarnessProps {
     command: BuiltinInputCommand,
     options?: { replayText?: string },
   ) => void;
+  onSelectInputCapability?: (
+    capability: InputCapabilitySelection,
+    options?: { replayText?: string },
+  ) => void;
+  onSelectSkill?: (skill: Skill) => void;
+  onSelectSceneCommand?: (
+    command: RuntimeSceneSlashCommand,
+    options?: { replayText?: string },
+  ) => void;
   onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+  defaultCuratedTaskReferenceMemoryIds?: string[];
+  defaultCuratedTaskReferenceEntries?: Array<{
+    id: string;
+    title: string;
+    summary: string;
+    category: "identity" | "context" | "preference" | "experience" | "activity";
+    categoryLabel: string;
+    tags: string[];
+  }>;
 }
 
 const Harness: React.FC<HarnessProps> = ({
@@ -216,7 +338,12 @@ const Harness: React.FC<HarnessProps> = ({
   onNavigateToSettings,
   onChangeSpy,
   onSelectBuiltinCommand,
+  onSelectInputCapability,
+  onSelectSkill,
+  onSelectSceneCommand,
   onSelectServiceSkill,
+  defaultCuratedTaskReferenceMemoryIds = [],
+  defaultCuratedTaskReferenceEntries = [],
 }) => {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -247,7 +374,16 @@ const Harness: React.FC<HarnessProps> = ({
           }
         }}
         onSelectBuiltinCommand={onSelectBuiltinCommand}
+        onSelectInputCapability={onSelectInputCapability}
+        onSelectSkill={onSelectSkill}
+        onSelectSceneCommand={onSelectSceneCommand}
         onSelectServiceSkill={onSelectServiceSkill}
+        defaultCuratedTaskReferenceMemoryIds={
+          defaultCuratedTaskReferenceMemoryIds
+        }
+        defaultCuratedTaskReferenceEntries={
+          defaultCuratedTaskReferenceEntries
+        }
         onNavigateToSettings={onNavigateToSettings}
       />
     </div>
@@ -340,7 +476,37 @@ async function typeSlashAndWait(textarea: HTMLTextAreaElement, value = "/") {
   });
 }
 
-function createSkill(name: string, key: string, installed: boolean): Skill {
+function updateFieldValue(
+  element: HTMLInputElement | HTMLTextAreaElement | null,
+  value: string,
+) {
+  expect(element).toBeTruthy();
+  if (!element) {
+    return;
+  }
+
+  const prototype =
+    element instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  setter?.call(element, value);
+  element.dispatchEvent(new Event("input", { bubbles: true }));
+  element.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function findLauncherConfirmButton() {
+  return Array.from(document.body.querySelectorAll("button")).find((button) =>
+    button.textContent?.includes("带着启动信息进入生成"),
+  ) as HTMLButtonElement | undefined;
+}
+
+function createSkill(
+  name: string,
+  key: string,
+  installed: boolean,
+  overrides: Partial<Skill> = {},
+): Skill {
   return {
     key,
     name,
@@ -348,6 +514,7 @@ function createSkill(name: string, key: string, installed: boolean): Skill {
     directory: `${key}-dir`,
     installed,
     sourceKind: "builtin",
+    ...overrides,
   };
 }
 
@@ -574,6 +741,44 @@ describe("CharacterMention", () => {
         commandPrefix: "@配图",
       }),
     );
+  });
+
+  it("提供 onSelectInputCapability 时，选择配图命令应走统一 capability 回调", async () => {
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectInputCapability = vi.fn<
+      (
+        capability: InputCapabilitySelection,
+        options?: { replayText?: string },
+      ) => void
+    >();
+    const container = renderHarness({
+      onChangeSpy,
+      onSelectInputCapability,
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    const builtinButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("@配图"));
+    expect(builtinButton).toBeTruthy();
+
+    act(() => {
+      builtinButton?.click();
+    });
+
+    expect(onSelectInputCapability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "builtin_command",
+        command: expect.objectContaining({
+          key: "image_generate",
+          commandPrefix: "@配图",
+        }),
+      }),
+      undefined,
+    );
+    expect(onChangeSpy).toHaveBeenLastCalledWith("");
   });
 
   it("提供 onSelectBuiltinCommand 时，选择海报命令应交给父组件接管", async () => {
@@ -1210,6 +1415,15 @@ describe("CharacterMention", () => {
           category: "GitHub",
           runnerType: "instant",
           defaultExecutorBinding: "browser_assist",
+          slotSchema: [
+            {
+              key: "repository_query",
+              label: "仓库关键词",
+              type: "text",
+              required: true,
+              placeholder: "例如 AI Agent",
+            },
+          ],
           runnerLabel: "浏览器协助",
           runnerTone: "sky",
           runnerDescription: "进入真实浏览器执行只读采集。",
@@ -1225,6 +1439,9 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("推荐技能");
     expect(document.body.textContent).toContain("每日趋势摘要");
     expect(document.body.textContent).toContain("GitHub 仓库雷达");
+    expect(document.body.textContent).toContain("需要：当前无必填信息");
+    expect(document.body.textContent).toContain("交付：趋势摘要 + 调度建议");
+    expect(document.body.textContent).toContain("需要：仓库关键词");
   });
 
   it("最近使用的服务技能应优先显示在独立分组，且不在技能组里重复", async () => {
@@ -1476,6 +1693,29 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).not.toContain("最近使用");
     expect(document.body.textContent).toContain("内建命令");
     expect(document.body.textContent).toContain("@搜索");
+  });
+
+  it("@ 面板中的已安装技能应展示统一的轻量 skill 合同", async () => {
+    const container = renderHarness({
+      skills: [
+        createSkill("写作助手", "skill-writer", true, {
+          description: "本地补充技能",
+          metadata: {
+            lime_when_to_use: "当你需要复用本地写作方法时使用。",
+            lime_argument_hint: "主题、受众与语气要求",
+          },
+        }),
+      ],
+    });
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    expect(document.body.textContent).toContain("已安装技能");
+    expect(document.body.textContent).toContain("写作助手");
+    expect(document.body.textContent).toContain("当你需要复用本地写作方法时使用。");
+    expect(document.body.textContent).toContain("需要：主题、受众与语气要求");
+    expect(document.body.textContent).toContain("交付：带着该方法进入生成主执行面");
   });
 
   it("只有最近使用的服务技能时，不应同时出现空态文案", async () => {
@@ -2010,6 +2250,203 @@ describe("CharacterMention", () => {
     );
   });
 
+  it("共享 curated task 结果模板也应出现在 slash 面板里，并通过 launcher 回填启动提示", async () => {
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const template = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(template).toBeTruthy();
+    const container = renderHarness({
+      onChangeSpy,
+      syncValue: true,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/趋势");
+
+    expect(document.body.textContent).toContain("结果模板");
+    expect(document.body.textContent).toContain(
+      "需要：主题或赛道、希望关注的平台/地域",
+    );
+    expect(document.body.textContent).toContain("交付：趋势摘要、3 个优先选题");
+    const templateButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("每日趋势摘要"));
+    expect(templateButton).toBeTruthy();
+
+    act(() => {
+      templateButton?.click();
+    });
+
+    expect(document.body.textContent).toContain("先补最少启动信息，再统一进入生成主执行面。");
+    expect(onChangeSpy).not.toHaveBeenCalled();
+
+    const themeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(themeInput, "AI 内容创作");
+      updateFieldValue(platformInput, "X 与 TikTok 北美区");
+      await Promise.resolve();
+    });
+
+    const confirmButton = findLauncherConfirmButton();
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(onChangeSpy).toHaveBeenCalledWith(
+      buildCuratedTaskLaunchPrompt({
+        task: template!,
+        inputValues: {
+          theme_target: "AI 内容创作",
+          platform_region: "X 与 TikTok 北美区",
+        },
+      }),
+    );
+  });
+
+  it("提供 onSelectInputCapability 时，slash 面板选择结果模板应在 launcher 确认后走统一 capability 回调", async () => {
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectInputCapability = vi.fn<
+      (
+        capability: InputCapabilitySelection,
+        options?: { replayText?: string },
+      ) => void
+    >();
+    const template = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(template).toBeTruthy();
+    const container = renderHarness({
+      onChangeSpy,
+      onSelectInputCapability,
+      syncValue: true,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/趋势");
+
+    const templateButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("每日趋势摘要"));
+    expect(templateButton).toBeTruthy();
+
+    act(() => {
+      templateButton?.click();
+    });
+
+    expect(onChangeSpy).not.toHaveBeenCalled();
+    expect(onSelectInputCapability).not.toHaveBeenCalled();
+
+    const themeInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-theme_target",
+    ) as HTMLInputElement | null;
+    const platformInput = document.body.querySelector(
+      "#curated-task-daily-trend-briefing-platform_region",
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      updateFieldValue(themeInput, "AI 内容创作");
+      updateFieldValue(platformInput, "X 与 TikTok 北美区");
+      await Promise.resolve();
+    });
+
+    const confirmButton = findLauncherConfirmButton();
+    expect(confirmButton).toBeTruthy();
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    const prompt = buildCuratedTaskLaunchPrompt({
+      task: template!,
+      inputValues: {
+        theme_target: "AI 内容创作",
+        platform_region: "X 与 TikTok 北美区",
+      },
+    });
+
+    expect(onChangeSpy).toHaveBeenCalledWith(prompt);
+    expect(onSelectInputCapability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "curated_task",
+        task: expect.objectContaining({
+          id: "daily-trend-briefing",
+          title: "每日趋势摘要",
+          prompt,
+        }),
+      }),
+      {
+        replayText: prompt,
+      },
+    );
+  });
+
+  it("slash 面板启动结果模板时，应默认沿用当前带入的灵感引用", async () => {
+    mockListUnifiedMemories.mockResolvedValue([
+      {
+        id: "memory-1",
+        session_id: "session-1",
+        memory_type: "project",
+        title: "品牌风格样本",
+        category: "context",
+        summary: "保留轻盈但专业的表达。",
+        content: "保留轻盈但专业的表达。",
+        tags: ["品牌", "语气"],
+        metadata: {
+          confidence: 0.9,
+          importance: 7,
+          access_count: 1,
+          last_accessed_at: null,
+          source: "manual",
+          embedding: null,
+        },
+        created_at: 1_712_345_670_000,
+        updated_at: 1_712_345_678_000,
+        archived: false,
+      },
+    ]);
+
+    const container = renderHarness({
+      defaultCuratedTaskReferenceMemoryIds: ["memory-1"],
+      defaultCuratedTaskReferenceEntries: [
+        {
+          id: "memory-1",
+          title: "品牌风格样本",
+          summary: "保留轻盈但专业的表达。",
+          category: "context",
+          categoryLabel: "参考",
+          tags: ["品牌", "语气"],
+        },
+      ],
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/趋势");
+
+    const templateButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("每日趋势摘要"));
+    expect(templateButton).toBeTruthy();
+
+    act(() => {
+      templateButton?.click();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain(
+      "已选择 1 条灵感引用，本轮会一起带入生成。",
+    );
+  });
+
   it("搜索未接入的 slash 命令时，应单独显示暂未接入分组", async () => {
     const container = renderHarness();
     const textarea = getTextarea(container);
@@ -2039,6 +2476,7 @@ describe("CharacterMention", () => {
         entryId: "skill-a",
         usedAt: 1_712_345_678_700,
       });
+      recordCuratedTaskTemplateUsage("social-post-starter");
     });
 
     const container = renderHarness({
@@ -2064,6 +2502,44 @@ describe("CharacterMention", () => {
       document.body.querySelectorAll("button"),
     ).filter((button) => button.textContent?.includes("技能A"));
     expect(skillButtons).toHaveLength(1);
+
+    const curatedTaskButtons = Array.from(
+      document.body.querySelectorAll("button"),
+    ).filter((button) => button.textContent?.includes("内容主稿生成"));
+    expect(curatedTaskButtons).toHaveLength(1);
+  });
+
+  it("slash 面板中的已安装技能与最近 skill 应展示统一轻合同", async () => {
+    act(() => {
+      recordSlashEntryUsage({
+        kind: "skill",
+        entryId: "skill-writer",
+        usedAt: 1_712_345_678_900,
+      });
+    });
+
+    const container = renderHarness({
+      skills: [
+        createSkill("写作助手", "skill-writer", true, {
+          description: "本地补充技能",
+          metadata: {
+            lime_when_to_use: "当你需要复用本地写作方法时使用。",
+            lime_argument_hint: "主题、受众与语气要求",
+          },
+        }),
+      ],
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    expect(document.body.textContent).toContain("最近使用");
+    expect(document.body.textContent).toContain("/skill-writer");
+    expect(document.body.textContent).toContain(
+      "写作助手 · 当你需要复用本地写作方法时使用。",
+    );
+    expect(document.body.textContent).toContain("需要：主题、受众与语气要求");
+    expect(document.body.textContent).toContain("交付：带着该方法进入生成主执行面");
   });
 
   it("选择最近使用的 slash 命令时应回填上次成功参数", async () => {
@@ -2139,6 +2615,90 @@ describe("CharacterMention", () => {
     expect(onSelectServiceSkill).not.toHaveBeenCalled();
   });
 
+  it("提供 onSelectSkill 时，最近使用的 slash skill 应回填 replayText 并切到 active capability", async () => {
+    act(() => {
+      recordSlashEntryUsage({
+        kind: "skill",
+        entryId: "skill-a",
+        usedAt: 1_712_345_678_900,
+        replayText: "整理最近发布计划",
+      });
+    });
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectSkill = vi.fn<(skill: Skill) => void>();
+    const container = renderHarness({
+      skills: [createSkill("技能A", "skill-a", true)],
+      onChangeSpy,
+      onSelectSkill,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    const recentSkillButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("/skill-a"));
+    expect(recentSkillButton).toBeTruthy();
+
+    act(() => {
+      recentSkillButton?.click();
+    });
+
+    expect(onSelectSkill).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "skill-a",
+        name: "技能A",
+      }),
+    );
+    expect(onChangeSpy).toHaveBeenLastCalledWith("整理最近发布计划");
+  });
+
+  it("提供 onSelectSceneCommand 时，最近使用的 scene 应回填 replayText 并切到 active capability", async () => {
+    act(() => {
+      saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
+      recordSlashEntryUsage({
+        kind: "scene",
+        entryId: "campaign-launch",
+        usedAt: 1_712_345_678_900,
+        replayText: "帮我做一版新品活动启动方案",
+      });
+    });
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectSceneCommand = vi.fn<
+      (
+        command: RuntimeSceneSlashCommand,
+        options?: { replayText?: string },
+      ) => void
+    >();
+    const container = renderHarness({
+      onChangeSpy,
+      onSelectSceneCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    const recentSceneButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("/campaign-launch"));
+    expect(recentSceneButton).toBeTruthy();
+
+    act(() => {
+      recentSceneButton?.click();
+    });
+
+    expect(onSelectSceneCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "campaign-launch",
+        commandPrefix: "/campaign-launch",
+      }),
+      { replayText: "帮我做一版新品活动启动方案" },
+    );
+    expect(onChangeSpy).toHaveBeenLastCalledWith("帮我做一版新品活动启动方案");
+  });
+
   it("slash 搜索时不应显示最近使用，而应回到搜索结果分组", async () => {
     act(() => {
       recordSlashEntryUsage({
@@ -2204,6 +2764,83 @@ describe("CharacterMention", () => {
     expect(onChangeSpy).toHaveBeenCalledWith("/campaign-launch ");
   });
 
+  it("提供 onSelectSceneCommand 时，slash 面板选择 scene 应切换为 active capability 而不是回填命令前缀", async () => {
+    act(() => {
+      saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
+    });
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectSceneCommand = vi.fn<
+      (command: RuntimeSceneSlashCommand) => void
+    >();
+    const container = renderHarness({
+      onChangeSpy,
+      onSelectSceneCommand,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/camp");
+
+    const sceneButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("/campaign-launch"));
+    expect(sceneButton).toBeTruthy();
+
+    act(() => {
+      sceneButton?.click();
+    });
+
+    expect(onSelectSceneCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "campaign-launch",
+        commandPrefix: "/campaign-launch",
+      }),
+    );
+    expect(onChangeSpy).toHaveBeenCalledWith("");
+  });
+
+  it("提供 onSelectInputCapability 时，slash 面板选择 scene 应走统一 capability 回调", async () => {
+    act(() => {
+      saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
+    });
+
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectInputCapability = vi.fn<
+      (
+        capability: InputCapabilitySelection,
+        options?: { replayText?: string },
+      ) => void
+    >();
+    const container = renderHarness({
+      onChangeSpy,
+      onSelectInputCapability,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/camp");
+
+    const sceneButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("/campaign-launch"));
+    expect(sceneButton).toBeTruthy();
+
+    act(() => {
+      sceneButton?.click();
+    });
+
+    expect(onSelectInputCapability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "runtime_scene",
+        command: expect.objectContaining({
+          key: "campaign-launch",
+          commandPrefix: "/campaign-launch",
+        }),
+      }),
+      undefined,
+    );
+    expect(onChangeSpy).toHaveBeenCalledWith("");
+  });
+
   it("slash 面板选择带必填参数的 scene 时应交给父层 A2UI 补参接管", async () => {
     act(() => {
       saveSkillCatalog(buildCatalogWithXSceneEntry(), "bootstrap_sync");
@@ -2261,6 +2898,75 @@ describe("CharacterMention", () => {
     });
 
     expect(onChangeSpy).toHaveBeenCalledWith("/skill-a ");
+  });
+
+  it("提供 onSelectSkill 时，slash 面板选择已安装技能应切换为 active capability 而不是回填 slash skill", async () => {
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectSkill = vi.fn<(skill: Skill) => void>();
+    const container = renderHarness({
+      skills: [createSkill("技能A", "skill-a", true)],
+      onChangeSpy,
+      onSelectSkill,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/ski");
+
+    const skillButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("技能A"));
+    expect(skillButton).toBeTruthy();
+
+    act(() => {
+      skillButton?.click();
+    });
+
+    expect(onSelectSkill).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "skill-a",
+        name: "技能A",
+      }),
+    );
+    expect(onChangeSpy).toHaveBeenCalledWith("");
+  });
+
+  it("提供 onSelectInputCapability 时，slash 面板选择已安装技能应走统一 capability 回调", async () => {
+    const onChangeSpy = vi.fn<(value: string) => void>();
+    const onSelectInputCapability = vi.fn<
+      (
+        capability: InputCapabilitySelection,
+        options?: { replayText?: string },
+      ) => void
+    >();
+    const container = renderHarness({
+      skills: [createSkill("技能A", "skill-a", true)],
+      onChangeSpy,
+      onSelectInputCapability,
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea, "/ski");
+
+    const skillButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("技能A"));
+    expect(skillButton).toBeTruthy();
+
+    act(() => {
+      skillButton?.click();
+    });
+
+    expect(onSelectInputCapability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "installed_skill",
+        skill: expect.objectContaining({
+          key: "skill-a",
+          name: "技能A",
+        }),
+      }),
+      undefined,
+    );
+    expect(onChangeSpy).toHaveBeenCalledWith("");
   });
 
   it("提及面板应锚定在输入框正上方，并禁止自动翻转到下方", async () => {

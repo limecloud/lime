@@ -12,6 +12,7 @@ import type { SettingsTabs } from "./settings";
 import type { SkillScaffoldTarget } from "@/lib/api/skills";
 import type { SceneAppsPageParams } from "@/lib/sceneapp/navigation";
 import type { SceneAppExecutionSummaryViewModel } from "@/lib/sceneapp/product";
+import type { InputCapabilitySendRoute } from "@/components/agent/chat/skill-selection/inputCapabilitySelection";
 
 export type { SceneAppsPageParams } from "@/lib/sceneapp/navigation";
 
@@ -52,6 +53,11 @@ export interface AgentPendingServiceSkillLaunchParams {
   initialSlotValues?: Record<string, string>;
   prefillHint?: string;
   launchUserInput?: string;
+}
+
+export interface AgentInitialInputCapabilityParams {
+  capabilityRoute: InputCapabilitySendRoute;
+  requestKey?: number;
 }
 
 /**
@@ -97,6 +103,8 @@ export interface AgentPageParams {
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
   /** 进入 Agent 后在当前对话挂起或继续一次服务技能启动 */
   initialPendingServiceSkillLaunch?: AgentPendingServiceSkillLaunchParams;
+  /** 进入 Agent 后优先恢复一条输入能力路由 */
+  initialInputCapability?: AgentInitialInputCapabilityParams;
   /** 进入 Agent 后自动打开项目内某个文件 */
   initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   /** 首页点击触发的新会话标记（时间戳） */

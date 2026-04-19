@@ -177,7 +177,7 @@ function renderSidebar(
 }
 
 describe("GeneralWorkbenchSidebar", () => {
-  it("任务视图面板应突出当前任务并按状态优先级排序", () => {
+  it("当前进展面板应突出当前任务并按状态优先级排序", () => {
     const { container } = renderSidebar({
       workflowSteps: [
         { id: "done", title: "完成提纲", status: "completed" },
@@ -188,25 +188,28 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     expect(workflowTab).toBeTruthy();
-    expect(workflowTab?.textContent).toContain("任务");
+    expect(workflowTab?.textContent).toContain("进展");
     if (workflowTab) {
       act(() => {
         workflowTab.click();
       });
     }
 
-    expect(container.textContent).toContain("任务工作台");
-    expect(container.textContent).toContain("聚焦当前任务、后续节点与相关版本。");
-    expect(container.textContent).toContain("任务视图");
+    expect(container.textContent).toContain("生成工作台");
+    expect(container.textContent).toContain("聚焦当前结果、下一步与可继续的版本。");
+    expect(container.textContent).toContain("当前进展");
     expect(container.textContent).toContain("当前焦点");
     expect(container.textContent).toContain("撰写主稿");
     expect(container.textContent).toContain("后续任务");
     expect(container.textContent).toContain("已完成 1/4");
     expect(container.textContent).toContain("已完成 1 项");
-    expect(container.textContent).toMatch(/相关分支|相关版本/);
+    expect(container.textContent).toContain("结果去向");
+    expect(container.textContent).toContain("产出记录 / 执行经过");
+    expect(container.textContent).toContain("继续上次做法");
+    expect(container.textContent).toMatch(/可继续稿件|可继续版本/);
 
     const stepNodes = Array.from(
       container.querySelectorAll('[data-testid="workflow-sidebar-step"]'),
@@ -227,6 +230,11 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(branchSection).toBeTruthy();
     expect(taskSection?.textContent).toContain("当前焦点");
     expect(taskSection?.textContent).toContain("后续任务");
+    expect(
+      taskSection?.querySelector(
+        '[data-testid="workflow-sidebar-result-destination-hint"]',
+      ),
+    ).toBeTruthy();
     const taskSectionOrder =
       taskSection && branchSection
         ? taskSection.compareDocumentPosition(branchSection) &
@@ -347,7 +355,7 @@ describe("GeneralWorkbenchSidebar", () => {
       container.querySelector('button[aria-label="打开上下文管理"]'),
     ).toBeTruthy();
     expect(
-      container.querySelector('button[aria-label="打开任务视图"]'),
+      container.querySelector('button[aria-label="打开当前进展"]'),
     ).toBeTruthy();
     expect(
       container.querySelector('button[aria-label="打开执行日志"]'),
@@ -760,7 +768,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -768,12 +776,12 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.querySelector("button[aria-label='切换相关记录']")).toBeTruthy();
+    expect(container.querySelector("button[aria-label='切换可继续记录']")).toBeTruthy();
     expect(container.querySelector("button[aria-label='删除分支']")).toBeNull();
     expect(container.textContent).toContain("当前焦点落在");
 
     const branchToggle = container.querySelector(
-      "button[aria-label='切换相关记录']",
+      "button[aria-label='切换可继续记录']",
     ) as HTMLButtonElement | null;
     if (branchToggle) {
       act(() => {
@@ -782,7 +790,7 @@ describe("GeneralWorkbenchSidebar", () => {
     }
 
     const mergeButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent === "采纳",
+      (button) => button.textContent === "收进主稿",
     );
     expect(mergeButton).toBeTruthy();
     if (mergeButton) {
@@ -793,7 +801,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(onSetBranchStatus).toHaveBeenCalledWith("topic-a", "merged");
   });
 
-  it("版本模式应展示相关版本语义", () => {
+  it("版本模式应展示可继续版本语义", () => {
     const onSetBranchStatus = vi.fn();
     const { container } = renderSidebar({
       branchMode: "version",
@@ -801,7 +809,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -809,12 +817,12 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.textContent).toContain("相关版本");
-    expect(container.textContent).toContain("新增版本");
+    expect(container.textContent).toContain("可继续版本");
+    expect(container.textContent).toContain("留一版");
     expect(container.textContent).toContain("当前焦点落在");
 
     const branchToggle = container.querySelector(
-      "button[aria-label='切换相关记录']",
+      "button[aria-label='切换可继续记录']",
     ) as HTMLButtonElement | null;
     if (branchToggle) {
       act(() => {
@@ -838,7 +846,7 @@ describe("GeneralWorkbenchSidebar", () => {
   it("活动日志应展示后端闸门与运行标识", () => {
     const { container } = renderSidebar();
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -849,7 +857,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(container.textContent).toContain("最近一组：content_post_with_cover");
 
     const activityToggle = container.querySelector(
-      "button[aria-label='切换活动日志']",
+      "button[aria-label='切换执行经过']",
     ) as HTMLButtonElement | null;
     if (activityToggle) {
       act(() => {
@@ -857,7 +865,7 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.textContent).toContain("过程记录");
+    expect(container.textContent).toContain("执行经过");
     expect(container.textContent).toContain("写作闸门");
     expect(container.textContent).toContain("技能");
     expect(container.textContent).toContain("查看运行 run-abcd…");
@@ -895,7 +903,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -905,7 +913,7 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(container.textContent).toContain("最近一组：research_topic");
 
     const activityToggle = container.querySelector(
-      "button[aria-label='切换活动日志']",
+      "button[aria-label='切换执行经过']",
     ) as HTMLButtonElement | null;
     if (activityToggle) {
       act(() => {
@@ -934,7 +942,7 @@ describe("GeneralWorkbenchSidebar", () => {
     const onViewRunDetail = vi.fn();
     const { container } = renderSidebar({ onViewRunDetail });
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -943,7 +951,7 @@ describe("GeneralWorkbenchSidebar", () => {
     }
 
     const activityToggle = container.querySelector(
-      "button[aria-label='切换活动日志']",
+      "button[aria-label='切换执行经过']",
     ) as HTMLButtonElement | null;
     if (activityToggle) {
       act(() => {
@@ -984,7 +992,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -993,7 +1001,7 @@ describe("GeneralWorkbenchSidebar", () => {
     }
 
     const activityToggle = container.querySelector(
-      "button[aria-label='切换活动日志']",
+      "button[aria-label='切换执行经过']",
     ) as HTMLButtonElement | null;
     if (activityToggle) {
       act(() => {
@@ -1026,7 +1034,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -1035,7 +1043,7 @@ describe("GeneralWorkbenchSidebar", () => {
     }
 
     const activityToggle = container.querySelector(
-      "button[aria-label='切换活动日志']",
+      "button[aria-label='切换执行经过']",
     ) as HTMLButtonElement | null;
     if (activityToggle) {
       act(() => {
@@ -1101,7 +1109,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -1110,7 +1118,7 @@ describe("GeneralWorkbenchSidebar", () => {
     }
 
     const activityToggle = container.querySelector(
-      "button[aria-label='切换活动日志']",
+      "button[aria-label='切换执行经过']",
     ) as HTMLButtonElement | null;
     if (activityToggle) {
       act(() => {
@@ -1203,7 +1211,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -1212,7 +1220,7 @@ describe("GeneralWorkbenchSidebar", () => {
     }
 
     const activityToggle = container.querySelector(
-      "button[aria-label='切换活动日志']",
+      "button[aria-label='切换执行经过']",
     ) as HTMLButtonElement | null;
     if (activityToggle) {
       act(() => {
@@ -1286,7 +1294,7 @@ describe("GeneralWorkbenchSidebar", () => {
     });
 
     const workflowTab = container.querySelector(
-      'button[aria-label="打开任务视图"]',
+      'button[aria-label="打开当前进展"]',
     ) as HTMLButtonElement | null;
     if (workflowTab) {
       act(() => {
@@ -1294,11 +1302,11 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
 
-    expect(container.textContent).toContain("任务记录");
+    expect(container.textContent).toContain("产出记录");
     expect(container.textContent).toContain("最近一次：排版优化");
-    expect(container.textContent).toContain("共 3 条任务记录，按 2 类归档。");
+    expect(container.textContent).toContain("共 3 条产出记录，按 2 类归档。");
     const toggleCreationTasksButton = container.querySelector(
-      "button[aria-label='切换任务提交记录']",
+      "button[aria-label='切换产出记录']",
     ) as HTMLButtonElement | null;
     expect(toggleCreationTasksButton).toBeTruthy();
     if (toggleCreationTasksButton) {
@@ -1354,7 +1362,7 @@ describe("GeneralWorkbenchSidebar", () => {
       });
 
       const workflowTab = container.querySelector(
-        'button[aria-label="打开任务视图"]',
+        'button[aria-label="打开当前进展"]',
       ) as HTMLButtonElement | null;
       if (workflowTab) {
         act(() => {
@@ -1363,7 +1371,7 @@ describe("GeneralWorkbenchSidebar", () => {
       }
 
       const activityToggle = container.querySelector(
-        "button[aria-label='切换活动日志']",
+        "button[aria-label='切换执行经过']",
       ) as HTMLButtonElement | null;
       if (activityToggle) {
         act(() => {

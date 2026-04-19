@@ -299,6 +299,30 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("更早记录");
   });
 
+  it("生成侧栏 continuation fallback 应使用打开现场口径", async () => {
+    const container = renderSidebar({
+      contextVariant: "task-center",
+      currentTopicId: null,
+      topics: [
+        {
+          ...defaultTopics[0],
+          id: "topic-draft",
+          title: "待整理现场",
+          updatedAt: new Date(),
+          status: "draft",
+          lastPreview: "先补齐创作需求，再继续生成。",
+          sourceSessionId: "topic-draft",
+        },
+      ],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("打开现场");
+  });
+
   it("子任务和任务列表应处于同一滚动区域", () => {
     const container = renderSidebar({
       childSubagentSessions: [

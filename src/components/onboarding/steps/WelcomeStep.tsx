@@ -129,7 +129,7 @@ export function WelcomeStep({ onNext, onSkip }: WelcomeStepProps) {
   return (
     <Container>
       <LogoContainer>
-        <Logo src="/logo.png" alt="Lime" />
+        <Logo src="/logo-v6.svg" alt="Lime" />
       </LogoContainer>
 
       <Title>欢迎使用 Lime</Title>

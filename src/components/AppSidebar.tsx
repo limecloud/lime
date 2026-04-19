@@ -911,7 +911,7 @@ export function AppSidebar({
                 title="返回 Lime 首页"
               >
                 <Avatar>
-                  <img src="/logo.png" alt="Lime" />
+                  <img src="/logo-v6.svg" alt="Lime" />
                 </Avatar>
                 <UserName $collapsed={collapsed}>Lime</UserName>
               </UserButton>,

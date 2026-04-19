@@ -330,7 +330,7 @@ export function EditCredentialModal({
                 </button>
               </div>
               {newCredFilePath && (
-                <div className="mt-2 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                <div className="mt-2 flex items-center gap-1 text-xs text-green-600">
                   <CheckCircle className="h-3 w-3" />
                   新文件已选择: {newCredFilePath.split("/").pop()}
                 </div>
@@ -423,7 +423,7 @@ export function EditCredentialModal({
                   key={model}
                   className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
                     notSupportedModels.includes(model)
-                      ? "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30"
+                      ? "border-red-300 bg-red-50"
                       : "border-border hover:bg-muted/50"
                   }`}
                 >
@@ -471,11 +471,11 @@ export function EditCredentialModal({
                   </p>
                 )}
               </div>
-              <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-3 text-xs">
-                <p className="font-medium text-emerald-700 dark:text-emerald-300">
+              <div className="rounded-lg bg-emerald-50 p-3 text-xs">
+                <p className="font-medium text-emerald-700">
                   代理优先级说明：
                 </p>
-                <ul className="mt-1 list-inside list-disc text-emerald-600 dark:text-emerald-400">
+                <ul className="mt-1 list-inside list-disc text-emerald-600">
                   <li>此凭证代理优先于全局代理</li>
                   <li>留空时使用全局代理设置</li>
                   <li>全局代理可在「设置 → 通用」中配置</li>
@@ -513,7 +513,7 @@ export function EditCredentialModal({
 
           {/* Error */}
           {error && (
-            <div className="rounded-lg border border-red-500 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30">
+            <div className="rounded-lg border border-red-500 bg-red-50 p-3 text-sm text-red-700">
               {error}
             </div>
           )}

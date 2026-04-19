@@ -1,53 +1,36 @@
 ---
-title: Lime 文档中心
-description: 创作类 AI Agent 平台文档，从灵感到发布的一站式指南
+title: Lime 文档站
+description: LimeNext V2 对外文档正在重建，当前只保留少量进阶页与法律说明
 navigation: false
 ---
 
-# Lime 文档中心
+# Lime 文档站重建中
 
-Lime 是创作类 AI Agent 平台。  
-你可以在同一个工作台里完成对话、创作、Claw 素材与图片任务、项目沉淀和资源复用。
+`content/` 已进入 LimeNext V2 重建阶段。  
+旧版围绕 `AI Agent / 工作台 / 项目 / 资源库 / Claw` 的入门与导航文档已下线，避免继续传播过时的产品结构与命名。
 
-## 从这里开始
+## 当前口径
 
-1. [概述](/introduction/overview)：先了解平台能帮你完成什么
-2. [安装指南](/introduction/installation)：安装到本地桌面
-3. [快速开始](/introduction/quickstart)：3 步走完首次创作
+当前对外文档默认采用以下口径：
 
-## 九类工作区主题
+1. Lime 是“本地优先的内容闭环 Agent 系统”
+2. 前台主词固定为 `技能 / 灵感库 / 生成`
+3. `生成` 是唯一主执行面
+4. 先讲任务闭环与结果推进，再讲连接、协议和扩展能力
 
-| 主题 | 常见产出 |
-|------|----------|
-| 通用对话 | 灵感梳理、问题分析、方案草稿 |
-| 社媒内容 | 选题、标题、多平台文案 |
-| 图文海报 | 主视觉文案、配图方向、活动海报内容 |
-| 歌词曲谱 | 主题歌词、段落续写、风格改编 |
-| 知识探索 | 知识卡片、结构化总结、学习资料 |
-| 计划规划 | 周计划、项目拆解、执行清单 |
-| 办公文档 | 报告、方案、邮件、纪要 |
-| 短视频 | 脚本、分镜、口播稿 |
-| 小说创作 | 设定、章节、人物对白 |
+## 当前保留内容
 
-## 常用功能入口
+当前仅保留仍与实现锚点对齐、且不会直接误导前台叙事的少量页面：
 
-- [首页与工作台](/user-guide/dashboard)
-- [资源库](/user-guide/resources)
 - [运行时 AGENTS 规则](/user-guide/runtime-agents)
-- [图片生成与素材链路](/user-guide/image-generation)
-- [设置](/user-guide/settings)
+- [MCP 工具扩展](/user-guide/mcp)
 - [插件中心](/user-guide/plugins)
+- [Gateway 公共隧道与飞书 Webhook](/user-guide/gateway-tunnel-webhook)
+- [模型连接概览](/providers/overview)
+- [API 概览](/api-reference/overview)
+- [扩展接入概览](/open-platform/overview)
+- [免责声明](/legal/disclaimer)
 
-## 进阶能力（可选）
+## 后续说明
 
-当你需要更深度的模型接入或工程能力时，可继续阅读：
-
-- [Provider 概述](/providers/overview)
-- [API 参考](/api-reference/overview)
-- [开放平台](/open-platform/overview)
-- [故障排查](/troubleshooting/common-issues)
-
-## 免责声明
-
-请在合法合规前提下使用本产品。  
-完整说明见 [免责声明](/legal/disclaimer)。
+后续若继续恢复普通创作者向的对外文档，应直接按 LimeNext V2 当前路线重写，不再回收旧版 `content/` 页面。

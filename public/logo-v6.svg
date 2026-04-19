@@ -1,0 +1,90 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Supreme Lime Gradient: Waxy Emerald Peel cascading into acidic vibrant juice pool -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064E3B" /> <!-- Deep Pine/Rind -->
+      <stop offset="35%" stop-color="#10B981" /> <!-- Emerald Flesh -->
+      <stop offset="70%" stop-color="#84CC16" /> <!-- Lime Burst -->
+      <stop offset="100%" stop-color="#D9F99D" /> <!-- Acidic Juice Reflection -->
+    </linearGradient>
+
+    <!-- Star Glow: Intense snapshot of generative inspiration -->
+    <linearGradient id="starGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#ECFCCB" /> <!-- Blinding white-green -->
+    </linearGradient>
+
+    <!-- macOS Big Sur Volumetric Glass Extrusion Filter -->
+    <!-- This dynamic engine reads the exact alpha boundaries and raises perfectly physical 3D bevels -->
+    <filter id="macOSVolume" x="-15%" y="-15%" width="130%" height="130%">
+      <!-- 1. Inner Highlight (Light gleaming from Top-Left onto the juicy edges) -->
+      <feOffset dx="2" dy="2" in="SourceAlpha" result="lightOffset" />
+      <feComposite operator="out" in="SourceAlpha" in2="lightOffset" result="lightEdge" />
+      <feFlood flood-color="#ffffff" flood-opacity="0.6" result="lightColor" />
+      <feComposite operator="in" in="lightColor" in2="lightEdge" result="lightRim" />
+      
+      <!-- 2. Inner Shadow (Depth and weight settling into the Bottom-Right edges) -->
+      <feOffset dx="-3" dy="-3" in="SourceAlpha" result="darkOffset" />
+      <feComposite operator="out" in="SourceAlpha" in2="darkOffset" result="darkEdge" />
+      <feFlood flood-color="#022C22" flood-opacity="0.5" result="darkColor" />
+      <feComposite operator="in" in="darkColor" in2="darkEdge" result="darkRim" />
+
+      <!-- 3. Classic Apple physical ambient drop shadow -->
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#022C22" flood-opacity="0.15" in="SourceGraphic" result="shadowedGraphic" />
+      
+      <!-- Merge Everything into one hyper-realistic cohesive object -->
+      <feMerge>
+        <feMergeNode in="shadowedGraphic" />
+        <feMergeNode in="lightRim" />
+        <feMergeNode in="darkRim" />
+      </feMerge>
+    </filter>
+
+    <mask id="ringMask">
+      <rect width="512" height="512" fill="white" />
+      <!-- Sharp vector segment cuts (The Pith of the Lime) -->
+      <line x1="256" y1="256" x2="-20" y2="256" stroke="black" stroke-width="14" />
+      <line x1="256" y1="256" x2="-20" y2="532" stroke="black" stroke-width="14" />
+      <line x1="256" y1="256" x2="256" y2="532" stroke="black" stroke-width="14" />
+    </mask>
+  </defs>
+
+  <!-- Apply the mighty macOS rendering engine globally so all elements light perfectly and uniformly -->
+  <g filter="url(#macOSVolume)">
+    
+    <!-- Base 3/4 Segmented Ring (The Body of the Citrus) -->
+    <g mask="url(#ringMask)">
+      <path d="M 256 56 
+               A 200 200 0 0 0 56 256 
+               A 200 200 0 0 0 256 456 
+               A 200 200 0 0 0 456 256 
+               L 336 256 
+               A 80 80 0 0 1 256 336 
+               A 80 80 0 0 1 176 256 
+               A 80 80 0 0 1 256 176 
+               Z" 
+            fill="url(#ringGrad)" />
+    </g>
+
+    <!-- Core Hub (The Inner Seed) -->
+    <path d="M 256 220 
+             Q 256 256 292 256 
+             Q 256 256 256 292 
+             Q 256 256 220 256 
+             Q 256 256 256 220 Z" 
+          fill="#10B981" />
+
+    <!-- Generation Star (The Spark of Zest bursting out the right side) -->
+    <path d="M 356 92 
+             Q 356 156 420 156 
+             Q 356 156 356 220 
+             Q 356 156 292 156 
+             Q 356 156 356 92 Z" 
+          fill="url(#starGrad)" />
+
+    <!-- Splashing Juice Dew / Secondary Sparks (Lime Context) -->
+    <circle cx="436" cy="62" r="10" fill="#D9F99D" />
+    <circle cx="456" cy="100" r="5" fill="#84CC16" />
+    
+  </g>
+</svg>

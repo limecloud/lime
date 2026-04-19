@@ -383,6 +383,32 @@ describe("SkillsPage", () => {
     expect(text).toContain('点击"刷新"同步已启用仓库');
   });
 
+  it("skills 读取错误时应使用浅色错误横幅", () => {
+    mockUseSkills.mockReturnValue({
+      skills: [],
+      repos: [],
+      loading: false,
+      remoteLoading: false,
+      error: "远程仓库读取失败",
+      refresh: vi.fn(),
+      install: vi.fn(),
+      uninstall: vi.fn(),
+      addRepo: vi.fn(),
+      removeRepo: vi.fn(),
+    });
+
+    const { container } = renderSkillsPage();
+    const errorBanner = Array.from(container.querySelectorAll("div")).find(
+      (element) =>
+        element.textContent?.includes("远程仓库读取失败") &&
+        element.className.includes("bg-red-50/90"),
+    );
+
+    expect(errorBanner).toBeTruthy();
+    expect(errorBanner?.className).toContain("bg-red-50/90");
+    expect(errorBanner?.className).not.toContain("dark:bg-red-950/30");
+  });
+
   it("点击本地 skill 的查看内容应调用本地 inspection", async () => {
     mockUseSkills.mockReturnValue({
       skills: [

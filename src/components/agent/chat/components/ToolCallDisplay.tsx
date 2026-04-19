@@ -1022,7 +1022,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
       {previewImageSrc && (
         <button
           type="button"
-          className="fixed inset-0 z-50 bg-black/70 p-6"
+          className="fixed inset-0 z-50 bg-[linear-gradient(180deg,rgba(240,249,255,0.88)_0%,rgba(236,253,245,0.8)_52%,rgba(255,255,255,0.92)_100%)] p-6 backdrop-blur-[2px]"
           onClick={() => setPreviewImageSrc(null)}
         >
           <img

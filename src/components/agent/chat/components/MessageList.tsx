@@ -81,7 +81,7 @@ import {
   resolveSiteSavedContentTargetDisplayName,
   resolveSiteSavedContentTargetRelativePath,
 } from "../utils/siteToolResultSummary";
-import logoImg from "/logo.png";
+import logoImg from "/logo-v6.svg";
 import { type ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
 
 interface MessageListProps {

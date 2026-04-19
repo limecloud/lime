@@ -128,11 +128,11 @@ export function KiroForm({
   // JSON 粘贴表单
   const renderJsonForm = () => (
     <div className="space-y-4">
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30">
-        <p className="text-sm text-emerald-700 dark:text-emerald-300">
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+        <p className="text-sm text-emerald-700">
           直接粘贴 Kiro 凭证 JSON 内容，无需选择文件。
         </p>
-        <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+        <p className="mt-2 text-xs text-emerald-600">
           凭证 JSON 通常包含 accessToken、refreshToken 等字段。
         </p>
       </div>

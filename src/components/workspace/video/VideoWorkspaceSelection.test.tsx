@@ -14,25 +14,9 @@ import {
   type VideoCanvasState,
 } from "@/components/workspace/video/types";
 
-const { mockGetAll, mockListTasks } = vi.hoisted(() => ({
-  mockGetAll: vi.fn(),
+const { mockListTasks } = vi.hoisted(() => ({
   mockListTasks: vi.fn(),
 }));
-
-vi.mock("@/lib/api/skills", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/api/skills")>(
-      "@/lib/api/skills",
-    );
-
-  return {
-    ...actual,
-    skillsApi: {
-      ...actual.skillsApi,
-      getAll: (...args: unknown[]) => mockGetAll(...args),
-    },
-  };
-});
 
 vi.mock("@/lib/api/videoGeneration", async () => {
   const actual = await vi.importActual<
@@ -86,7 +70,6 @@ describe("VideoWorkspace 任务聚焦", () => {
   beforeEach(() => {
     setupReactActEnvironment();
     vi.clearAllMocks();
-    mockGetAll.mockResolvedValue([]);
     mockListTasks.mockResolvedValue([
       {
         id: "task-latest",
@@ -144,7 +127,6 @@ describe("VideoWorkspace 任务聚焦", () => {
 
     await flushEffects(8);
 
-    expect(mockGetAll).toHaveBeenCalledWith("lime");
     expect(mockListTasks).toHaveBeenCalledWith("project-video-1", {
       limit: 50,
     });

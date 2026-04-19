@@ -207,4 +207,42 @@ describe("AgentChatPage 工作区路由", () => {
       showChatPanel: true,
     });
   });
+
+  it("new-task 携带初始输入能力时也应直接进入工作区", async () => {
+    const container = renderPage({
+      agentEntry: "new-task",
+      projectId: "project-standard",
+      showChatPanel: false,
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "installed_skill",
+          skillKey: "writer",
+          skillName: "写作助手",
+        },
+        requestKey: 20260418,
+      },
+    });
+
+    await flushEffects();
+
+    const workspace = container.querySelector(
+      '[data-testid="workspace"]',
+    ) as HTMLDivElement | null;
+
+    expect(workspace).not.toBeNull();
+    expect(workspace?.dataset.agentEntry).toBe("claw");
+    expect(workspace?.dataset.showChatPanel).toBe("true");
+    expect(latestWorkspaceProps.value).toMatchObject({
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "installed_skill",
+          skillKey: "writer",
+          skillName: "写作助手",
+        },
+        requestKey: 20260418,
+      },
+      agentEntry: "claw",
+      showChatPanel: true,
+    });
+  });
 });

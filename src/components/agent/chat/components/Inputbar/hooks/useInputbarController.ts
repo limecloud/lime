@@ -1,7 +1,9 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BuiltinCommandBadge } from "../components/BuiltinCommandBadge";
+import { RuntimeSceneBadge } from "../components/RuntimeSceneBadge";
+import { CuratedTaskBadge } from "../../../skill-selection/CuratedTaskBadge";
 import { SkillBadge } from "../../../skill-selection/SkillBadge";
-import { useActiveSkill } from "../../../skill-selection/useActiveSkill";
+import { CuratedTaskLauncherDialog } from "../../CuratedTaskLauncherDialog";
 import { useHintRoutes } from "./useHintRoutes";
 import { useImageAttachments } from "./useImageAttachments";
 import { useInputbarAdapter } from "./useInputbarAdapter";
@@ -10,7 +12,10 @@ import {
   type InputbarToolStates,
   useInputbarToolState,
 } from "./useInputbarToolState";
-import type { SkillSelectionSourceProps } from "../../../skill-selection/skillSelectionBindings";
+import {
+  buildSkillSelectionProps,
+  type SkillSelectionSourceProps,
+} from "../../../skill-selection/skillSelectionBindings";
 import type {
   WorkflowGateState,
   WorkflowStep,
@@ -18,8 +23,23 @@ import type {
 import { useWorkflowInputState } from "../../../utils/workflowInputState";
 import { TeamSuggestionBar } from "@/components/agent/chat/components/TeamSuggestionBar";
 import { getTeamSuggestion } from "@/components/agent/chat/utils/teamSuggestion";
+import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import type { MessageImage } from "../../../types";
-import type { BuiltinInputCommand } from "../../../skill-selection/builtinCommands";
+import type { Skill } from "@/lib/api/skills";
+import {
+  resolveInputCapabilitySelectionFromRoute,
+  type InputCapabilitySelection,
+} from "../../../skill-selection/inputCapabilitySelection";
+import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
+import type { HandleSendOptions } from "../../../hooks/handleSendTypes";
+import type { AgentInitialInputCapabilityParams } from "@/types/page";
+import {
+  buildCuratedTaskLaunchPrompt,
+  findCuratedTaskTemplateById,
+  replaceCuratedTaskLaunchPromptInInput,
+  type CuratedTaskInputValues,
+} from "../../../utils/curatedTaskTemplates";
+import type { CuratedTaskReferenceSelection } from "../../../utils/curatedTaskReferenceSelection";
 
 interface UseInputbarControllerParams {
   input: string;
@@ -30,6 +50,8 @@ interface UseInputbarControllerParams {
     thinking?: boolean,
     textOverride?: string,
     executionStrategy?: "react" | "code_orchestrated" | "auto",
+    autoContinuePayload?: AutoContinueRequestPayload,
+    sendOptions?: HandleSendOptions,
   ) => void | Promise<boolean> | boolean;
   onStop?: () => void;
   isLoading: boolean;
@@ -42,6 +64,7 @@ interface UseInputbarControllerParams {
   toolStates?: Partial<InputbarToolStates>;
   onToolStatesChange?: (states: InputbarToolStates) => void;
   activeTheme?: string;
+  initialInputCapability?: AgentInitialInputCapabilityParams;
   variant?: "default" | "workspace";
   workflowGate?: WorkflowGateState | null;
   workflowSteps?: WorkflowStep[];
@@ -64,6 +87,7 @@ export function useInputbarController({
   toolStates,
   onToolStatesChange,
   activeTheme,
+  initialInputCapability,
   variant = "default",
   workflowGate,
   workflowSteps = [],
@@ -78,10 +102,13 @@ export function useInputbarController({
   onImportSkill,
   onRefreshSkills,
 }: UseInputbarControllerParams & SkillSelectionSourceProps) {
-  const { activeSkill, clearActiveSkill, buildSkillSelection } =
-    useActiveSkill();
-  const [activeBuiltinCommand, setActiveBuiltinCommand] =
-    useState<BuiltinInputCommand | null>(null);
+  const [activeCapability, setActiveCapability] =
+    useState<InputCapabilitySelection | null>(null);
+  const [editingCuratedTaskCapability, setEditingCuratedTaskCapability] =
+    useState<Extract<InputCapabilitySelection, { kind: "curated_task" }> | null>(
+      null,
+    );
+  const handledInitialInputCapabilitySignatureRef = useRef("");
   const {
     pendingImages,
     fileInputRef,
@@ -95,6 +122,72 @@ export function useInputbarController({
   } = useImageAttachments();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isWorkspaceVariant = variant === "workspace";
+  const activeSkill =
+    activeCapability?.kind === "installed_skill"
+      ? activeCapability.skill
+      : null;
+  const activeBuiltinCommand =
+    activeCapability?.kind === "builtin_command"
+      ? activeCapability.command
+      : null;
+  const activeRuntimeScene =
+    activeCapability?.kind === "runtime_scene"
+      ? activeCapability.command
+      : null;
+  const activeCuratedTask =
+    activeCapability?.kind === "curated_task" ? activeCapability.task : null;
+  const initialInputCapabilitySignature = useMemo(() => {
+    const route = initialInputCapability?.capabilityRoute;
+    if (!route) {
+      return "";
+    }
+
+    return JSON.stringify({
+      requestKey: initialInputCapability.requestKey ?? 0,
+      route,
+    });
+  }, [initialInputCapability]);
+
+  useEffect(() => {
+    if (!initialInputCapabilitySignature) {
+      handledInitialInputCapabilitySignatureRef.current = "";
+      return;
+    }
+
+    if (
+      handledInitialInputCapabilitySignatureRef.current ===
+      initialInputCapabilitySignature
+    ) {
+      return;
+    }
+
+    const route = initialInputCapability?.capabilityRoute;
+    if (!route) {
+      return;
+    }
+
+    handledInitialInputCapabilitySignatureRef.current =
+      initialInputCapabilitySignature;
+    if (
+      route.kind === "curated_task" &&
+      !input.trim() &&
+      route.prompt.trim().length > 0
+    ) {
+      setInput(route.prompt);
+    }
+    setActiveCapability(
+      resolveInputCapabilitySelectionFromRoute({
+        route,
+        skills,
+      }),
+    );
+  }, [
+    initialInputCapability,
+    initialInputCapabilitySignature,
+    input,
+    setInput,
+    skills,
+  ]);
 
   const {
     activeTools,
@@ -128,12 +221,10 @@ export function useInputbarController({
     webSearchEnabled,
     thinkingEnabled,
     executionStrategy,
-    activeSkill,
-    activeBuiltinCommand,
+    activeCapability,
     onSend,
     clearPendingImages,
-    clearActiveSkill,
-    clearActiveBuiltinCommand: () => setActiveBuiltinCommand(null),
+    clearActiveCapability: () => setActiveCapability(null),
   });
 
   const inputAdapter = useInputbarAdapter({
@@ -189,20 +280,42 @@ export function useInputbarController({
     dismissedTeamSuggestionKey !== teamSuggestionKey;
 
   const topExtra =
-    activeSkill || activeBuiltinCommand || shouldShowTeamSuggestion
+    activeSkill ||
+    activeBuiltinCommand ||
+    activeRuntimeScene ||
+    activeCuratedTask ||
+    shouldShowTeamSuggestion
       ? React.createElement(
           React.Fragment,
           null,
           activeBuiltinCommand
             ? React.createElement(BuiltinCommandBadge, {
                 command: activeBuiltinCommand,
-                onClear: () => setActiveBuiltinCommand(null),
+                onClear: () => setActiveCapability(null),
+              })
+            : null,
+          activeRuntimeScene
+            ? React.createElement(RuntimeSceneBadge, {
+                command: activeRuntimeScene,
+                onClear: () => setActiveCapability(null),
               })
             : null,
           activeSkill
             ? React.createElement(SkillBadge, {
                 skill: activeSkill,
-                onClear: clearActiveSkill,
+                onClear: () => setActiveCapability(null),
+              })
+            : null,
+          activeCuratedTask
+            ? React.createElement(CuratedTaskBadge, {
+                task: activeCuratedTask,
+                onEdit: () => {
+                  if (activeCapability?.kind !== "curated_task") {
+                    return;
+                  }
+                  setEditingCuratedTaskCapability(activeCapability);
+                },
+                onClear: () => setActiveCapability(null),
               })
             : null,
           shouldShowTeamSuggestion
@@ -224,12 +337,81 @@ export function useInputbarController({
             : null,
         )
       : undefined;
-  const skillSelection = buildSkillSelection({
+  const handleCuratedTaskEditorOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setEditingCuratedTaskCapability(null);
+    }
+  }, []);
+  const handleConfirmCuratedTaskEdit = useCallback(
+    (
+      task: NonNullable<typeof editingCuratedTaskCapability>["task"],
+      inputValues: CuratedTaskInputValues,
+      referenceSelection: CuratedTaskReferenceSelection,
+    ) => {
+      const previousPrompt = editingCuratedTaskCapability?.task.prompt;
+      const resolvedTask = findCuratedTaskTemplateById(task.id) ?? task;
+      const nextPrompt = buildCuratedTaskLaunchPrompt({
+        task: resolvedTask,
+        inputValues,
+        referenceEntries: referenceSelection.referenceEntries,
+      });
+      setInput(
+        replaceCuratedTaskLaunchPromptInInput({
+          currentInput: input,
+          previousPrompt,
+          nextPrompt,
+        }),
+      );
+      setActiveCapability({
+        kind: "curated_task",
+        task: {
+          ...resolvedTask,
+          prompt: nextPrompt,
+        },
+        launchInputValues: inputValues,
+        referenceMemoryIds: referenceSelection.referenceMemoryIds,
+        referenceEntries: referenceSelection.referenceEntries,
+      });
+      setEditingCuratedTaskCapability(null);
+    },
+    [editingCuratedTaskCapability, input, setInput],
+  );
+  const dialogLayer = editingCuratedTaskCapability
+    ? React.createElement(CuratedTaskLauncherDialog, {
+        open: true,
+        task: editingCuratedTaskCapability.task,
+        initialInputValues: editingCuratedTaskCapability.launchInputValues,
+        initialReferenceMemoryIds:
+          editingCuratedTaskCapability.referenceMemoryIds,
+        initialReferenceEntries: editingCuratedTaskCapability.referenceEntries,
+        onOpenChange: handleCuratedTaskEditorOpenChange,
+        onConfirm: handleConfirmCuratedTaskEdit,
+      })
+    : undefined;
+  const handleSelectSkill = (skill: Skill) => {
+    setActiveCapability({
+      kind: "installed_skill",
+      skill,
+    });
+  };
+  const handleSelectServiceSkill = (skill: ServiceSkillHomeItem) => {
+    setActiveCapability(null);
+    onSelectServiceSkill?.(skill);
+  };
+  const handleSelectInputCapability = (
+    capability: InputCapabilitySelection,
+  ) => {
+    setActiveCapability(capability);
+  };
+  const skillSelection = buildSkillSelectionProps({
     skills,
     serviceSkills,
     serviceSkillGroups,
+    activeSkill,
     isSkillsLoading,
-    onSelectServiceSkill,
+    onSelectSkill: handleSelectSkill,
+    onSelectServiceSkill: handleSelectServiceSkill,
+    onClearSkill: () => setActiveCapability(null),
     onNavigateToSettings,
     onImportSkill,
     onRefreshSkills,
@@ -256,6 +438,7 @@ export function useInputbarController({
     handleSend,
     inputAdapter,
     topExtra,
+    dialogLayer,
     workflowQuickActions,
     workflowQueueItems,
     workflowActiveItem,
@@ -266,11 +449,7 @@ export function useInputbarController({
     workflowSummaryLabel,
     renderWorkflowGeneratingPanel,
     skillSelection,
-    setActiveBuiltinCommand: (command: BuiltinInputCommand | null) => {
-      if (command) {
-        clearActiveSkill();
-      }
-      setActiveBuiltinCommand(command);
-    },
+    handleSelectInputCapability,
+    activeCapability,
   };
 }

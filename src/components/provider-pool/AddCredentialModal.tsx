@@ -512,7 +512,7 @@ export function AddCredentialModal({
 
         {/* 错误提示 */}
         {error && (
-          <div className="rounded-lg border border-red-500 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30">
+          <div className="rounded-lg border border-red-500 bg-red-50 p-3 text-sm text-red-700">
             {error}
           </div>
         )}

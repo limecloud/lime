@@ -330,11 +330,11 @@ export function CrashRecoveryPanel({
         {isModuleImportFailure && (
           <div className="mb-4 rounded-md border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
             检测到前端模块资源加载失败。请优先点击“强制刷新资源”，让应用重新请求最新模块；若仍反复出现，再清理
-            <code className="mx-1 rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">
+            <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 text-slate-700 dark:bg-white/10 dark:text-slate-100">
               node_modules/.vite
             </code>
             和
-            <code className="mx-1 rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">
+            <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 text-slate-700 dark:bg-white/10 dark:text-slate-100">
               node_modules/.vite-tauri
             </code>
             后重启。

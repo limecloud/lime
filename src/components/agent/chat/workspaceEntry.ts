@@ -1,5 +1,6 @@
 import { buildClawAgentParams } from "@/lib/workspace/navigation";
 import type {
+  AgentInitialInputCapabilityParams,
   AgentPageParams,
   AgentPendingServiceSkillLaunchParams,
   AgentProjectFileOpenTarget,
@@ -25,6 +26,7 @@ export interface AgentChatWorkspaceBootstrap {
   openBrowserAssistOnMount?: boolean;
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
   initialPendingServiceSkillLaunch?: AgentPendingServiceSkillLaunchParams;
+  initialInputCapability?: AgentInitialInputCapabilityParams;
   initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   newChatAt?: number;
 }
@@ -41,6 +43,7 @@ export interface WorkspaceEntryPayload {
   openBrowserAssistOnMount?: boolean;
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
   initialPendingServiceSkillLaunch?: AgentPendingServiceSkillLaunchParams;
+  initialInputCapability?: AgentInitialInputCapabilityParams;
   initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   toolPreferences?: ChatToolPreferences;
   themeOverride?: string;
@@ -121,6 +124,9 @@ export function resolveWorkspaceEntry(
   const hasPendingServiceSkillLaunch = Boolean(
     payload.initialPendingServiceSkillLaunch?.skillId?.trim(),
   );
+  const hasInitialInputCapability = Boolean(
+    payload.initialInputCapability?.capabilityRoute,
+  );
   const toolPreferences = payload.toolPreferences ?? defaultToolPreferences;
   const targetTheme = payload.themeOverride ?? activeTheme;
   const lockTheme =
@@ -135,6 +141,7 @@ export function resolveWorkspaceEntry(
   if (
     !openBrowserAssistOnMount &&
     !hasSiteSkillLaunch &&
+    !hasInitialInputCapability &&
     !resolvedProjectId
   ) {
     return {
@@ -147,6 +154,7 @@ export function resolveWorkspaceEntry(
     !openBrowserAssistOnMount &&
     !hasSiteSkillLaunch &&
     !hasPendingServiceSkillLaunch &&
+    !hasInitialInputCapability &&
     !hasPrompt &&
     !hasImages &&
     !hasContentId
@@ -188,6 +196,15 @@ export function resolveWorkspaceEntry(
             requestKey:
               payload.initialPendingServiceSkillLaunch.requestKey ??
               nextNewChatAt,
+          },
+        }
+      : {}),
+    ...(payload.initialInputCapability
+      ? {
+          initialInputCapability: {
+            ...payload.initialInputCapability,
+            requestKey:
+              payload.initialInputCapability.requestKey ?? nextNewChatAt,
           },
         }
       : {}),
@@ -233,6 +250,15 @@ export function resolveWorkspaceEntry(
               requestKey:
                 payload.initialPendingServiceSkillLaunch.requestKey ??
                 nextNewChatAt,
+            },
+          }
+        : {}),
+      ...(payload.initialInputCapability
+        ? {
+            initialInputCapability: {
+              ...payload.initialInputCapability,
+              requestKey:
+                payload.initialInputCapability.requestKey ?? nextNewChatAt,
             },
           }
         : {}),

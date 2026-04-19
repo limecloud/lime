@@ -58,10 +58,10 @@ export function OAuthUrlDisplay({
       </div>
 
       {waitingForCallback && (
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-800 dark:bg-yellow-950/30">
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
           <div className="flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />
-            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+            <p className="text-sm text-yellow-700">
               请复制上方 URL 到浏览器完成登录，正在等待授权回调...
             </p>
           </div>
