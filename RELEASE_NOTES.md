@@ -1,18 +1,17 @@
-## Lime v1.13.0
+## Lime v1.14.0
 
 ### 主要更新
 
-- 收口 `SceneApp / Context Layer` 当前 latest-only 产品面，`detail / scorecard / run detail / governance` 统一改为消费同一份 `planResult / contextBaseline` 事实源
-- SceneApp planning、runtime、Tauri mock 与前端运行时已补齐显式灵感引用、项目级 Context Snapshot 基线、人工复核与轻量反馈沉淀链路
-- 修复 macOS 发布工作流：notarization 所需 secrets 缺失时直接阻断发布，不再继续产出 signed-only 但未 notarize 的安装包
-- 调整 macOS 发布校验顺序：在上传产物前增加 `.app` 的 `spctl` 和 `xcrun stapler validate` 检查，确保发布资产符合签名与公证预期
-- 统一同步应用、Rust workspace、Tauri 配置、锁文件和 CLI npm wrapper 版本到 `1.13.0`
+- 统一同步应用、Rust workspace、Tauri 配置、锁文件和 CLI npm wrapper 版本到 `1.14.0`
+- 更新 GitHub Release 优先读取的 `RELEASE_NOTES.md`，补齐本次版本发布说明入口
+- 更新 CLI npm wrapper 的示例版本与发布元信息，保持发布文档和产物命名约定一致
+- 本次发布说明仅记录当前已确认的版本同步与校验事实，功能级变更请以最终合入内容为准
 
 ### 版本与发布同步
 
 - 应用版本入口已对齐到 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`、`src-tauri/tauri.conf.headless.json`
-- `package-lock.json`、`src-tauri/Cargo.lock`、`packages/lime-cli-npm/package.json` 与 `packages/lime-cli-npm/README.md` 已同步到 `1.13.0`
-- 本次发布目标 tag 为 `v1.13.0`
+- `package-lock.json`、`src-tauri/Cargo.lock`、`packages/lime-cli-npm/package.json` 与 `packages/lime-cli-npm/README.md` 已同步到 `1.14.0`
+- 本次发布目标 tag 为 `v1.14.0`
 
 ### 已执行校验
 
@@ -24,9 +23,9 @@
 
 ### 发布说明
 
-- 这是一次以 `SceneApp / Context Layer` 主线收口和发布链路修复为主的小版本发布，既覆盖场景规划与复盘事实源统一，也继续补齐 macOS 发版门禁
-- 若 macOS notarization 再次失败，CI 现在会直接失败并阻止发布，需要先修复签名或公证环境后再重新发版
+- 这是一次以 `v1.14.0` 版本同步和发布元信息收口为主的发布准备更新
+- 本轮已完成版本一致性、Rust 格式化、Rust 单测、Rust lint 与前端 lint 校验；用户可见功能变更请以最终合入内容为准
 
 ---
 
-**完整变更**: `v1.12.3` -> `v1.13.0`
+**完整变更**: `v1.13.0` -> `v1.14.0`
