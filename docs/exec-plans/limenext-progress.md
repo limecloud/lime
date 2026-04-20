@@ -10,6 +10,25 @@
 
 ### 已完成
 
+- 把首页 `结果入口` 与 `CuratedTaskLauncherDialog` 一起继续收口，避免 current 主路径虽然已经 skill-first，但前台仍像“结果模板货架 + 重表单弹窗”：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页 `结果入口` 当前已从“首选结果 / 更多结果 / 快捷做法 / 继续上次做法”的多段货架，收成了 `1 个主推荐结果 + 轻量备选结果 + 辅助起手层`
+    - `CuratedTaskLauncherDialog` 当前已从“大块合同弹窗”收成更轻的启动确认卡；只先确认最少必填信息，参考对象仍保留，但不再和合同说明一起平铺
+    - 这一步没有改推荐排序、typed capability、recent continuation 或 reference live refresh 的 current 主链；只是把前台投影进一步对齐到 Ribbi 式“Agent 引导起手”
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+
 - 把 `curated_task` 的 bootstrap 恢复再补一刀，避免官网 deep link 或其他外部入口虽然已经带着结果模板 route 进入 `生成`，却在还没确认启动槽位时被直接退回成 prompt 起手：
   - 已更新：
     - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
