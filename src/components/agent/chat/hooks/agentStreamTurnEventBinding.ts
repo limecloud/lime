@@ -36,6 +36,11 @@ interface RegisterAgentStreamTurnEventBindingOptions {
   runtime: AgentRuntimeAdapter;
   eventName: string;
   requestState: StreamRequestState;
+  attemptSilentTurnRecovery?: (
+    sessionId: string,
+    requestStartedAt: number,
+    promptText: string,
+  ) => Promise<boolean>;
   skipUserMessage: boolean;
   effectiveProviderType: string;
   effectiveModel: string;
@@ -101,6 +106,7 @@ export async function registerAgentStreamTurnEventBinding(
     runtime,
     eventName,
     requestState,
+    attemptSilentTurnRecovery,
     skipUserMessage,
     effectiveProviderType,
     effectiveModel,
@@ -156,6 +162,7 @@ export async function registerAgentStreamTurnEventBinding(
   });
 
   let firstEventReceived = false;
+  let lastEventReceivedAt = 0;
   let inactivityWatchdogId: ReturnType<typeof setTimeout> | null = null;
   const clearInactivityWatchdog = () => {
     if (inactivityWatchdogId) {
@@ -169,8 +176,21 @@ export async function registerAgentStreamTurnEventBinding(
       if (firstEventReceived || requestState.requestFinished) {
         return;
       }
-      firstEventReceived = true;
-      dispatchSyntheticError(STREAM_FIRST_EVENT_TIMEOUT_MESSAGE);
+      void (async () => {
+        const recovered = await tryRecoverSilentTurn();
+        if (firstEventReceived || requestState.requestFinished) {
+          return;
+        }
+        if (recovered) {
+          console.warn(
+            `[AsterChat] 首个运行时事件静默，已降级切换为会话快照同步: ${eventName}`,
+          );
+          finalizeSilentTurnRecovery();
+          return;
+        }
+        firstEventReceived = true;
+        dispatchSyntheticError(STREAM_FIRST_EVENT_TIMEOUT_MESSAGE);
+      })();
     }, STREAM_FIRST_EVENT_TIMEOUT_MS);
 
   const clearFirstEventWatchdog = () => {
@@ -183,6 +203,22 @@ export async function registerAgentStreamTurnEventBinding(
     clearFirstEventWatchdog();
     clearInactivityWatchdog();
     callbacks.disposeListener();
+  };
+  const finalizeSilentTurnRecovery = () => {
+    firstEventReceived = true;
+    callbacks.clearActiveStreamIfMatch(eventName);
+    disposeListenerWithWatchdogs();
+    setIsSending(false);
+  };
+  const tryRecoverSilentTurn = async () => {
+    if (!attemptSilentTurnRecovery) {
+      return false;
+    }
+    return await attemptSilentTurnRecovery(
+      activeSessionId,
+      requestState.requestStartedAt,
+      content,
+    );
   };
   const dispatchSyntheticError = (message: string) => {
     handleTurnStreamEvent({
@@ -250,7 +286,25 @@ export async function registerAgentStreamTurnEventBinding(
       if (requestState.requestFinished || !callbacks.isStreamActivated()) {
         return;
       }
-      dispatchSyntheticError(STREAM_INACTIVITY_TIMEOUT_MESSAGE);
+      const timeoutStartedAt = Date.now();
+      void (async () => {
+        const recovered = await tryRecoverSilentTurn();
+        if (
+          requestState.requestFinished ||
+          !callbacks.isStreamActivated() ||
+          lastEventReceivedAt > timeoutStartedAt
+        ) {
+          return;
+        }
+        if (recovered) {
+          console.warn(
+            `[AsterChat] 运行时事件静默，已降级切换为会话快照同步: ${eventName}`,
+          );
+          finalizeSilentTurnRecovery();
+          return;
+        }
+        dispatchSyntheticError(STREAM_INACTIVITY_TIMEOUT_MESSAGE);
+      })();
     }, STREAM_INACTIVITY_TIMEOUT_MS);
   };
 
@@ -265,6 +319,7 @@ export async function registerAgentStreamTurnEventBinding(
         firstEventReceived = true;
         clearFirstEventWatchdog();
       }
+      lastEventReceivedAt = Date.now();
 
       handleTurnStreamEvent({
         data,

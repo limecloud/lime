@@ -103,6 +103,7 @@ export function useGeneralWorkbenchSidebarOrchestration({
       branchItems: workflow.branchItems,
       creationTaskEventsCount: workflow.creationTaskEvents.length,
       onAddImage: workflow.onAddImage,
+      onApplyFollowUpAction: workflow.onApplyFollowUpAction,
       onDeleteTopic: workflow.onDeleteTopic,
       onImportDocument: workflow.onImportDocument,
       onNewTopic: workflow.onNewTopic,

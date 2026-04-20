@@ -172,6 +172,12 @@ interface BuildWorkspaceEmptyStatePropsParams {
   onOpenChromeRelay?: ComponentProps<typeof EmptyState>["onOpenChromeRelay"];
   onOpenOpenClaw?: ComponentProps<typeof EmptyState>["onOpenOpenClaw"];
   creationReplaySurface?: CreationReplaySurfaceModel | null;
+  defaultCuratedTaskReferenceMemoryIds?: ComponentProps<
+    typeof EmptyState
+  >["defaultCuratedTaskReferenceMemoryIds"];
+  defaultCuratedTaskReferenceEntries?: ComponentProps<
+    typeof EmptyState
+  >["defaultCuratedTaskReferenceEntries"];
 }
 
 export function buildWorkspaceEmptyStateProps({
@@ -230,6 +236,8 @@ export function buildWorkspaceEmptyStateProps({
   onOpenChromeRelay,
   onOpenOpenClaw,
   creationReplaySurface,
+  defaultCuratedTaskReferenceMemoryIds,
+  defaultCuratedTaskReferenceEntries,
 }: BuildWorkspaceEmptyStatePropsParams): ComponentProps<typeof EmptyState> {
   return {
     input,
@@ -297,6 +305,8 @@ export function buildWorkspaceEmptyStateProps({
     onOpenChromeRelay,
     onOpenOpenClaw,
     creationReplaySurface,
+    defaultCuratedTaskReferenceMemoryIds,
+    defaultCuratedTaskReferenceEntries,
   };
 }
 

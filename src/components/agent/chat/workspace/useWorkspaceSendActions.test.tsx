@@ -2202,7 +2202,11 @@ describe("useWorkspaceSendActions", () => {
       expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
         "@站点搜索 站点:GitHub 关键词:openai agents sdk issue 数量:8",
       );
+      expect(mockSendMessage.mock.calls[0]?.[2]).toBe(false);
       expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        toolPreferencesOverride: {
+          webSearch: false,
+        },
         requestMetadata: {
           harness: {
             allow_model_skills: true,

@@ -1,5 +1,14 @@
 import { extractArtifactProtocolPathsFromRecord } from "@/lib/artifact-protocol";
 import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import { findCuratedTaskTemplateById } from "../utils/curatedTaskTemplates";
+import type { CuratedTaskInputValues } from "../utils/curatedTaskTemplates";
+import {
+  extractCuratedTaskReferenceMemoryIds,
+  mergeCuratedTaskReferenceEntries,
+  normalizeCuratedTaskLaunchInputValues,
+  normalizeCuratedTaskReferenceMemoryIds,
+  type CuratedTaskReferenceEntry,
+} from "../utils/curatedTaskReferenceSelection";
 
 export interface GeneralWorkbenchCreationTaskEvent {
   taskId: string;
@@ -39,6 +48,15 @@ export interface GeneralWorkbenchRunMetadataSummary {
   versionId: string | null;
   stages: string[];
   artifactPaths: string[];
+  curatedTask: {
+    taskId: string | null;
+    taskTitle: string | null;
+    resultDestination: string | null;
+    followUpActions: string[];
+    launchInputValues?: CuratedTaskInputValues;
+    referenceMemoryIds?: string[];
+    referenceEntries?: CuratedTaskReferenceEntry[];
+  } | null;
 }
 
 export function formatGeneralWorkbenchRunMetadata(raw: string | null): string {
@@ -109,6 +127,109 @@ function resolveActivityGroupIdentity(log: SidebarActivityLog): {
   };
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function isCuratedTaskReferenceCategory(
+  value: unknown,
+): value is CuratedTaskReferenceEntry["category"] {
+  return (
+    value === "identity" ||
+    value === "context" ||
+    value === "preference" ||
+    value === "experience" ||
+    value === "activity"
+  );
+}
+
+function normalizeCuratedTaskReferenceSourceKind(
+  value: unknown,
+): CuratedTaskReferenceEntry["sourceKind"] {
+  return value === "sceneapp_execution_summary"
+    ? "sceneapp_execution_summary"
+    : "memory";
+}
+
+function readCuratedTaskLaunchInputValues(
+  value: unknown,
+): CuratedTaskInputValues | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+
+  return normalizeCuratedTaskLaunchInputValues(
+    Object.fromEntries(
+      Object.entries(record).map(([key, item]) => [key, String(item ?? "")]),
+    ),
+  );
+}
+
+function readCuratedTaskReferenceEntries(
+  value: unknown,
+): CuratedTaskReferenceEntry[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalizedEntries = mergeCuratedTaskReferenceEntries(
+    value.map((item) => {
+      const record = asRecord(item);
+      if (!record) {
+        return null;
+      }
+
+      const category = record.category;
+      if (!isCuratedTaskReferenceCategory(category)) {
+        return null;
+      }
+
+      return {
+        id: typeof record.id === "string" ? record.id : "",
+        sourceKind: normalizeCuratedTaskReferenceSourceKind(
+          record.source_kind ?? record.sourceKind,
+        ),
+        title: typeof record.title === "string" ? record.title : "",
+        summary: typeof record.summary === "string" ? record.summary : "",
+        category,
+        categoryLabel: "",
+        tags: Array.isArray(record.tags)
+          ? record.tags
+              .map((tag) => (typeof tag === "string" ? tag : ""))
+              .filter((tag) => tag.trim().length > 0)
+          : [],
+        taskPrefillByTaskId: asRecord(
+          record.task_prefill_by_task_id ?? record.taskPrefillByTaskId,
+        )
+          ? Object.fromEntries(
+              Object.entries(
+                asRecord(
+                  record.task_prefill_by_task_id ?? record.taskPrefillByTaskId,
+                ) ?? {},
+              )
+                .map(([taskId, inputValues]) => [
+                  taskId,
+                  readCuratedTaskLaunchInputValues(inputValues),
+                ] as const)
+                .filter(
+                  (
+                    item,
+                  ): item is [string, CuratedTaskInputValues] =>
+                    Boolean(item[0]) && Boolean(item[1]),
+                ),
+            )
+          : undefined,
+      };
+    }),
+  );
+
+  return normalizedEntries.length > 0 ? normalizedEntries : undefined;
+}
+
 function formatCreationTaskTypeLabel(taskType: string): string {
   const normalized = taskType.trim().toLowerCase();
   if (normalized === "video_generate") {
@@ -147,6 +268,7 @@ export function parseGeneralWorkbenchRunMetadataSummary(
     versionId: null,
     stages: [],
     artifactPaths: [],
+    curatedTask: null,
   };
   if (!raw || !raw.trim()) {
     return fallback;
@@ -169,6 +291,70 @@ export function parseGeneralWorkbenchRunMetadataSummary(
         .map((item) => (typeof item === "string" ? item.trim() : ""))
         .filter((item) => item.length > 0);
     };
+    const harness = asRecord(parsed.harness);
+    const curatedTaskRecord =
+      asRecord(harness?.curated_task) ?? asRecord(harness?.curatedTask);
+    const curatedTaskId = readString(
+      curatedTaskRecord?.task_id ?? curatedTaskRecord?.taskId,
+    );
+    const curatedTaskTitle = readString(
+      curatedTaskRecord?.task_title ?? curatedTaskRecord?.taskTitle,
+    );
+    const curatedTaskResultDestination = readString(
+      curatedTaskRecord?.result_destination ?? curatedTaskRecord?.resultDestination,
+    );
+    const curatedTaskFollowUpActions = readStringArray(
+      curatedTaskRecord?.follow_up_actions ?? curatedTaskRecord?.followUpActions,
+    );
+    const launchInputValues = readCuratedTaskLaunchInputValues(
+      curatedTaskRecord?.launch_input_values ?? curatedTaskRecord?.launchInputValues,
+    );
+    const referenceEntries = readCuratedTaskReferenceEntries(
+      curatedTaskRecord?.reference_entries ??
+        curatedTaskRecord?.referenceEntries ??
+        curatedTaskRecord?.reference_memory_entries ??
+        curatedTaskRecord?.referenceMemoryEntries,
+    );
+    const referenceMemoryIds = normalizeCuratedTaskReferenceMemoryIds([
+      ...readStringArray(
+        curatedTaskRecord?.reference_memory_ids ??
+          curatedTaskRecord?.referenceMemoryIds,
+      ),
+      ...(extractCuratedTaskReferenceMemoryIds(referenceEntries) ?? []),
+    ]);
+    const curatedTaskTemplate = curatedTaskId
+      ? findCuratedTaskTemplateById(curatedTaskId)
+      : null;
+    const curatedTask =
+      curatedTaskTemplate ||
+      curatedTaskId ||
+      curatedTaskTitle
+        ? {
+            taskId: curatedTaskTemplate?.id ?? curatedTaskId,
+            taskTitle: curatedTaskTemplate?.title ?? curatedTaskTitle,
+            resultDestination:
+              curatedTaskTemplate?.resultDestination.trim() ||
+              curatedTaskResultDestination,
+            followUpActions:
+              curatedTaskTemplate?.followUpActions ??
+              curatedTaskFollowUpActions,
+            ...(launchInputValues
+              ? {
+                  launchInputValues,
+                }
+              : {}),
+            ...(referenceMemoryIds
+              ? {
+                  referenceMemoryIds,
+                }
+              : {}),
+            ...(referenceEntries
+              ? {
+                  referenceEntries,
+                }
+              : {}),
+          }
+        : null;
 
     return {
       workflow: readString(parsed.workflow),
@@ -176,6 +362,7 @@ export function parseGeneralWorkbenchRunMetadataSummary(
       versionId: readString(parsed.version_id),
       stages: readStringArray(parsed.stages),
       artifactPaths: extractArtifactProtocolPathsFromRecord(parsed),
+      curatedTask,
     };
   } catch {
     return fallback;

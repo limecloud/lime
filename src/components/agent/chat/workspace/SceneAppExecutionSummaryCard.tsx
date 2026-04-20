@@ -18,6 +18,8 @@ interface SceneAppExecutionSummaryCardProps {
   latestPackResultDetailView?: SceneAppRunDetailViewModel | null;
   latestPackResultLoading?: boolean;
   latestPackResultUsesFallback?: boolean;
+  onReviewCurrentProject?: () => void;
+  onSaveAsSkill?: () => void;
   onOpenSceneAppDetail?: () => void;
   onOpenSceneAppGovernance?: () => void;
   humanReviewAvailable?: boolean;
@@ -196,6 +198,8 @@ export function SceneAppExecutionSummaryCard({
   latestPackResultDetailView = null,
   latestPackResultLoading = false,
   latestPackResultUsesFallback = false,
+  onReviewCurrentProject,
+  onSaveAsSkill,
   onOpenSceneAppDetail,
   onOpenSceneAppGovernance,
   humanReviewAvailable = false,
@@ -224,6 +228,8 @@ export function SceneAppExecutionSummaryCard({
     ? buildSceneAppExecutionPromptActions(latestPackResultDetailView)
     : [];
   const hasFollowupSection = Boolean(
+    onReviewCurrentProject ||
+      onSaveAsSkill ||
     onOpenSceneAppDetail ||
       onOpenSceneAppGovernance ||
       humanReviewAvailable ||
@@ -555,6 +561,26 @@ export function SceneAppExecutionSummaryCard({
               如果要补上下文、查看经营口径或继续做人工复核，直接回到同一条创作场景闭环。
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
+              {onReviewCurrentProject ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  data-testid="sceneapp-execution-summary-review-current-project"
+                  onClick={onReviewCurrentProject}
+                >
+                  复盘当前项目
+                </Button>
+              ) : null}
+              {onSaveAsSkill ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  data-testid="sceneapp-execution-summary-save-as-skill"
+                  onClick={onSaveAsSkill}
+                >
+                  沉淀为做法
+                </Button>
+              ) : null}
               {onOpenSceneAppDetail ? (
                 <Button
                   type="button"

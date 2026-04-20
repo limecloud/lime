@@ -3,13 +3,19 @@ import { buildMemoryEntryCreationReplayRequestMetadata } from "./creationReplayM
 import type { CreationReplayMetadata } from "./creationReplayMetadata";
 import type { CuratedTaskInputValues } from "./curatedTaskTemplates";
 
+export type CuratedTaskReferenceSourceKind =
+  | "memory"
+  | "sceneapp_execution_summary";
+
 export interface CuratedTaskReferenceEntry {
   id: string;
+  sourceKind?: CuratedTaskReferenceSourceKind;
   title: string;
   summary: string;
   category: MemoryCategory;
   categoryLabel: string;
   tags: string[];
+  taskPrefillByTaskId?: Record<string, CuratedTaskInputValues>;
 }
 
 export interface CuratedTaskReferenceSelection {
@@ -24,6 +30,18 @@ const CATEGORY_LABELS: Record<MemoryCategory, string> = {
   experience: "成果",
   activity: "收藏",
 };
+
+export function getCuratedTaskReferenceCategoryLabel(
+  category: MemoryCategory,
+): string {
+  return CATEGORY_LABELS[category];
+}
+
+export function getCuratedTaskReferenceFallbackTitle(
+  category: MemoryCategory,
+): string {
+  return `未命名${getCuratedTaskReferenceCategoryLabel(category)}`;
+}
 
 function normalizeOptionalText(value?: string | null): string | undefined {
   if (typeof value !== "string") {
@@ -60,7 +78,9 @@ function normalizeCuratedTaskReferenceEntry(
     return null;
   }
 
-  const title = normalizeOptionalText(entry.title) || "未命名灵感";
+  const title =
+    normalizeOptionalText(entry.title) ||
+    getCuratedTaskReferenceFallbackTitle(entry.category);
   const summary =
     normalizeOptionalText(entry.summary) || "等待补充摘要";
   const tags = Array.from(
@@ -70,14 +90,39 @@ function normalizeCuratedTaskReferenceEntry(
         .filter((tag): tag is string => Boolean(tag)),
     ),
   ).slice(0, 6);
+  const sourceKind =
+    entry.sourceKind === "sceneapp_execution_summary"
+      ? "sceneapp_execution_summary"
+      : "memory";
+  const taskPrefillByTaskId = Object.fromEntries(
+    Object.entries(entry.taskPrefillByTaskId ?? {})
+      .map(([taskId, inputValues]) => [
+        normalizeOptionalText(taskId),
+        normalizeCuratedTaskLaunchInputValues(inputValues),
+      ] as const)
+      .filter(
+        (
+          item,
+        ): item is [
+          string,
+          CuratedTaskInputValues,
+        ] => Boolean(item[0]) && Boolean(item[1]),
+      ),
+  );
 
   return {
     id,
+    sourceKind,
     title,
     summary: truncateText(summary, 120),
     category: entry.category,
     categoryLabel: CATEGORY_LABELS[entry.category],
     tags,
+    ...(Object.keys(taskPrefillByTaskId).length > 0
+      ? {
+          taskPrefillByTaskId,
+        }
+      : {}),
   };
 }
 
@@ -89,7 +134,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
-function normalizeLaunchInputValues(
+export function normalizeCuratedTaskLaunchInputValues(
   inputValues?: CuratedTaskInputValues | null,
 ): CuratedTaskInputValues | undefined {
   if (!inputValues) {
@@ -125,10 +170,70 @@ export function normalizeCuratedTaskReferenceMemoryIds(
   return normalized.length > 0 ? normalized : undefined;
 }
 
-export function getCuratedTaskReferenceCategoryLabel(
-  category: MemoryCategory,
+export function getCuratedTaskReferenceSourceKind(
+  entry?: Pick<CuratedTaskReferenceEntry, "sourceKind"> | null,
+): CuratedTaskReferenceSourceKind {
+  return entry?.sourceKind === "sceneapp_execution_summary"
+    ? "sceneapp_execution_summary"
+    : "memory";
+}
+
+export function getCuratedTaskReferenceSourceLabel(
+  entry?: Pick<CuratedTaskReferenceEntry, "sourceKind"> | null,
 ): string {
-  return CATEGORY_LABELS[category];
+  return getCuratedTaskReferenceSourceKind(entry) ===
+    "sceneapp_execution_summary"
+    ? "项目结果"
+    : "灵感库";
+}
+
+export function getCuratedTaskReferenceMemoryId(
+  entry?: Pick<CuratedTaskReferenceEntry, "id" | "sourceKind"> | null,
+): string | undefined {
+  if (!entry || getCuratedTaskReferenceSourceKind(entry) !== "memory") {
+    return undefined;
+  }
+
+  return normalizeOptionalText(entry.id);
+}
+
+export function extractCuratedTaskReferenceMemoryIds(
+  entries?: Array<CuratedTaskReferenceEntry | null | undefined> | null,
+): string[] | undefined {
+  return normalizeCuratedTaskReferenceMemoryIds(
+    (entries ?? []).map((entry) => getCuratedTaskReferenceMemoryId(entry)),
+  );
+}
+
+export function buildCuratedTaskLaunchInputPrefillFromReferenceEntries(params: {
+  taskId: string;
+  inputValues?: CuratedTaskInputValues | null;
+  referenceEntries?: CuratedTaskReferenceEntry[] | null;
+}): CuratedTaskInputValues | undefined {
+  const normalizedInputValues = normalizeCuratedTaskLaunchInputValues(
+    params.inputValues,
+  );
+  const mergedInputValues: CuratedTaskInputValues = {
+    ...(normalizedInputValues ?? {}),
+  };
+
+  for (const entry of params.referenceEntries ?? []) {
+    const taskPrefill =
+      entry.taskPrefillByTaskId?.[params.taskId];
+    if (!taskPrefill) {
+      continue;
+    }
+
+    for (const [key, value] of Object.entries(taskPrefill)) {
+      if (normalizeOptionalText(mergedInputValues[key])) {
+        continue;
+      }
+
+      mergedInputValues[key] = value;
+    }
+  }
+
+  return normalizeCuratedTaskLaunchInputValues(mergedInputValues);
 }
 
 export function mergeCuratedTaskReferenceEntries(
@@ -162,7 +267,10 @@ export function buildCuratedTaskReferenceEntries(
 
       return {
         id: memory.id,
-        title: normalizeOptionalText(memory.title) || "未命名灵感",
+        sourceKind: "memory",
+        title:
+          normalizeOptionalText(memory.title) ||
+          getCuratedTaskReferenceFallbackTitle(memory.category),
         summary,
         category: memory.category,
         categoryLabel: CATEGORY_LABELS[memory.category],
@@ -181,8 +289,10 @@ export function buildCuratedTaskReferenceEntryFromCreationReplay(
 
   return normalizeCuratedTaskReferenceEntry({
     id: creationReplay.source.entry_id || "",
+    sourceKind: "memory",
     title:
-      normalizeOptionalText(creationReplay.data.title) || "未命名灵感",
+      normalizeOptionalText(creationReplay.data.title) ||
+      getCuratedTaskReferenceFallbackTitle(creationReplay.data.category),
     summary:
       normalizeOptionalText(creationReplay.data.summary) ||
       normalizeOptionalText(creationReplay.data.content_excerpt) ||
@@ -207,7 +317,9 @@ export function buildCuratedTaskReferenceSelectionFromCreationReplay(
   }
 
   return {
-    referenceMemoryIds: [referenceEntry.id],
+    referenceMemoryIds: extractCuratedTaskReferenceMemoryIds([
+      referenceEntry,
+    ]) ?? [],
     referenceEntries: [referenceEntry],
   };
 }
@@ -233,7 +345,7 @@ export function buildCuratedTaskReferencePromptBlock(
     return null;
   }
 
-  return `本轮可优先参考这些灵感：\n${entries
+  return `本轮可优先参考这些参考基线：\n${entries
     .slice(0, 3)
     .map((entry) => buildReferencePromptLine(entry))
     .join("\n")}`;
@@ -247,21 +359,21 @@ export function buildCuratedTaskLaunchRequestMetadata(params: {
   referenceEntries?: CuratedTaskReferenceEntry[];
   baseRequestMetadata?: Record<string, unknown>;
 }): Record<string, unknown> {
+  const normalizedReferenceEntries = mergeCuratedTaskReferenceEntries(
+    params.referenceEntries ?? [],
+  ).slice(0, 3);
   const inferredReferenceIds = normalizeCuratedTaskReferenceMemoryIds([
     ...(params.referenceMemoryIds ?? []),
-    ...(params.referenceEntries?.map((entry) => entry.id) ?? []),
+    ...(extractCuratedTaskReferenceMemoryIds(
+      normalizedReferenceEntries,
+    ) ?? []),
   ]);
-  const referenceEntryMap = new Map(
-    (params.referenceEntries ?? []).map((entry) => [entry.id, entry]),
+  const primaryReference = normalizedReferenceEntries.find(
+    (entry) => getCuratedTaskReferenceSourceKind(entry) === "memory",
   );
-  const normalizedReferenceEntries = (inferredReferenceIds ?? [])
-    .map((id) => referenceEntryMap.get(id))
-    .filter((entry): entry is CuratedTaskReferenceEntry => Boolean(entry))
-    .slice(0, 3);
-  const primaryReference = normalizedReferenceEntries[0];
   const primaryCreationReplay = primaryReference
     ? buildMemoryEntryCreationReplayRequestMetadata({
-        id: primaryReference.id,
+        id: getCuratedTaskReferenceMemoryId(primaryReference),
         category: primaryReference.category,
         title: primaryReference.title,
         summary: primaryReference.summary,
@@ -283,17 +395,32 @@ export function buildCuratedTaskLaunchRequestMetadata(params: {
       curated_task: compactRecord({
         task_id: normalizeOptionalText(params.taskId),
         task_title: normalizeOptionalText(params.taskTitle),
-        launch_input_values: normalizeLaunchInputValues(params.inputValues),
+        launch_input_values: normalizeCuratedTaskLaunchInputValues(
+          params.inputValues,
+        ),
         reference_memory_ids: inferredReferenceIds,
-        reference_memory_entries:
+        reference_entries:
           normalizedReferenceEntries.length > 0
             ? normalizedReferenceEntries.map((entry) =>
                 compactRecord({
                   id: entry.id,
+                  source_kind: getCuratedTaskReferenceSourceKind(entry),
                   title: normalizeOptionalText(entry.title),
                   summary: normalizeOptionalText(entry.summary),
                   category: entry.category,
                   tags: entry.tags.slice(0, 4),
+                  task_prefill_by_task_id:
+                    entry.taskPrefillByTaskId &&
+                    Object.keys(entry.taskPrefillByTaskId).length > 0
+                      ? Object.fromEntries(
+                          Object.entries(entry.taskPrefillByTaskId).map(
+                            ([taskId, inputValues]) => [
+                              taskId,
+                              normalizeCuratedTaskLaunchInputValues(inputValues),
+                            ],
+                          ),
+                        )
+                      : undefined,
                 }),
               )
             : undefined,

@@ -81,8 +81,8 @@ import {
   resolveSiteSavedContentTargetDisplayName,
   resolveSiteSavedContentTargetRelativePath,
 } from "../utils/siteToolResultSummary";
-import logoImg from "/logo-v6.svg";
 import { type ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
+import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 
 interface MessageListProps {
   messages: Message[];
@@ -1387,8 +1387,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
                 <div className="flex items-start gap-4">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-slate-200/80 bg-slate-50/80">
                     <img
-                      src={logoImg}
-                      alt="Lime"
+                      src={LIME_BRAND_LOGO_SRC}
+                      alt={LIME_BRAND_NAME}
                       className="h-7 w-7 opacity-80"
                     />
                   </div>
@@ -1427,8 +1427,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
           ) : (
             <div className="flex flex-col items-center justify-center h-64 text-muted-foreground opacity-50">
               <img
-                src={logoImg}
-                alt="Lime"
+                src={LIME_BRAND_LOGO_SRC}
+                alt={LIME_BRAND_NAME}
                 className="w-12 h-12 mb-4 opacity-20"
               />
               <p className="text-lg font-medium">开始一段新的对话吧</p>

@@ -125,6 +125,7 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     systemPrompt,
     onWriteFile,
     ensureSession: session.ensureSession,
+    attemptSilentTurnRecovery: session.attemptSilentTurnRecovery,
     sessionIdRef,
     executionStrategy: context.executionStrategy,
     accessMode: context.accessMode,

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Lime Browser Bridge",
   "description": "Attach Lime to your current Chrome tab via the Lime browser bridge.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",

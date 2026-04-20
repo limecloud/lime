@@ -22,6 +22,7 @@ type GeneralWorkbenchSidebarWorkflowProps = Pick<
   | "onImportDocument"
   | "activityLogs"
   | "creationTaskEvents"
+  | "onApplyFollowUpAction"
   | "onViewRunDetail"
   | "activeRunDetail"
   | "activeRunDetailLoading"
@@ -67,6 +68,7 @@ interface WorkspaceGeneralWorkbenchSidebarProps {
     onImportDocument: GeneralWorkbenchSidebarWorkflowProps["onImportDocument"];
     activityLogs: GeneralWorkbenchSidebarWorkflowProps["activityLogs"];
     creationTaskEvents: GeneralWorkbenchSidebarWorkflowProps["creationTaskEvents"];
+    onApplyFollowUpAction: GeneralWorkbenchSidebarWorkflowProps["onApplyFollowUpAction"];
     onViewRunDetail: GeneralWorkbenchSidebarWorkflowProps["onViewRunDetail"];
     activeRunDetail: GeneralWorkbenchSidebarWorkflowProps["activeRunDetail"];
     activeRunDetailLoading: GeneralWorkbenchSidebarWorkflowProps["activeRunDetailLoading"];
@@ -126,6 +128,7 @@ export function WorkspaceGeneralWorkbenchSidebar({
       workflowSteps={workflow.workflowSteps}
       onAddImage={workflow.onAddImage}
       onImportDocument={workflow.onImportDocument}
+      onApplyFollowUpAction={workflow.onApplyFollowUpAction}
       activityLogs={workflow.activityLogs}
       creationTaskEvents={workflow.creationTaskEvents}
       onViewRunDetail={workflow.onViewRunDetail}

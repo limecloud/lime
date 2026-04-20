@@ -46,6 +46,7 @@ function applyStatus(status) {
   const controlConnected = Boolean(status?.isControlConnected);
   const controlConnecting = Boolean(status?.isControlConnecting);
   const enabled = status?.enabled !== false;
+  const configured = status?.isConfigured !== false;
   const monitoring = Boolean(status?.monitoringEnabled);
   const errorText =
     typeof status?.lastError === "string" ? status.lastError.trim() : "";
@@ -54,7 +55,9 @@ function applyStatus(status) {
       ? status.controlLastError.trim()
       : "";
 
-  if (connected) {
+  if (enabled && !configured) {
+    setBadge(bridgeStatusEl, "未配置", "warn");
+  } else if (connected) {
     setBadge(bridgeStatusEl, "已连接", "on");
   } else if (enabled && connecting) {
     setBadge(bridgeStatusEl, "连接中", "warn");
@@ -70,7 +73,10 @@ function applyStatus(status) {
   toggleConnBtnEl.textContent = enabled ? "停止自动连接" : "启用并连接";
   toggleMonitorBtnEl.textContent = monitoring ? "关闭页面监控" : "开启页面监控";
 
-  if (connected && controlConnected) {
+  if (enabled && !configured) {
+    statusHintEl.textContent =
+      "当前扩展还没有拿到 Lime 的连接配置。请回到 Lime 的“连接器”页重新同步扩展，或把复制的配置粘贴到下方后保存。";
+  } else if (connected && controlConnected) {
     statusHintEl.textContent =
       "浏览器扩展的 observer/control 双通道都已接入当前 Lime 运行时，后续会持续复用你当前已登录的 Chrome 标签页。";
   } else if (connected && (controlConnecting || controlErrorText)) {

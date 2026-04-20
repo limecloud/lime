@@ -208,6 +208,7 @@ import { useWorkspaceInitialSessionNavigation } from "./workspace/useWorkspaceIn
 import { WorkspaceGeneralWorkbenchSidebar } from "./workspace/WorkspaceGeneralWorkbenchSidebar";
 import { GeneralWorkbenchHarnessDialogSection } from "./workspace/WorkspaceHarnessDialogs";
 import { WorkspaceShellScene } from "./workspace/WorkspaceShellScene";
+import type { GeneralWorkbenchFollowUpActionPayload } from "./components/generalWorkbenchSidebarContract";
 import { RuntimeReviewDecisionDialog } from "./components/RuntimeReviewDecisionDialog";
 import {
   TEAM_PRIMARY_CHAT_PANEL_MIN_WIDTH,
@@ -248,10 +249,30 @@ import {
   projectTypeToTheme,
 } from "./agentChatWorkspaceShared";
 import type { AgentChatWorkspaceProps } from "./agentChatWorkspaceContract";
+import type { AgentInitialInputCapabilityParams } from "@/types/page";
 import { extractCreationReplayMetadata } from "./utils/creationReplayMetadata";
 import { buildCreationReplaySurfaceModel } from "./utils/creationReplaySurface";
+import {
+  extractCuratedTaskReferenceMemoryIds,
+  mergeCuratedTaskReferenceEntries,
+  normalizeCuratedTaskReferenceMemoryIds,
+} from "./utils/curatedTaskReferenceSelection";
+import {
+  buildRuntimeInitialInputCapabilityFromFollowUpAction,
+  resolveEffectiveInitialInputCapability,
+} from "./utils/inputCapabilityBootstrap";
 import { buildMessageInspirationDraft } from "./utils/messageInspirationDraft";
-import { recordCuratedTaskRecommendationSignalFromMemory } from "./utils/curatedTaskRecommendationSignals";
+import {
+  listCuratedTaskRecommendationSignals,
+  recordCuratedTaskRecommendationSignalFromMemory,
+  recordCuratedTaskRecommendationSignalFromReviewDecision,
+} from "./utils/curatedTaskRecommendationSignals";
+import {
+  buildCuratedTaskReferenceEntryFromSceneAppExecution,
+  buildSceneAppExecutionReviewFollowUpAction,
+} from "./utils/sceneAppCuratedTaskReference";
+import { buildSceneAppExecutionPromptActionPayload } from "./utils/sceneAppExecutionPromptContinuation";
+import { buildSkillsPageParamsFromSceneAppExecution } from "./utils/sceneAppSkillScaffoldDraft";
 import { buildSkillsPageParamsFromMessage } from "./utils/skillScaffoldDraft";
 import { AutomationJobDialog } from "@/components/settings-v2/system/automation/AutomationJobDialog";
 import { shouldAutoSelectGeneralArtifact } from "./workspace/generalArtifactAutoSelection";
@@ -430,6 +451,8 @@ export function AgentChatWorkspace({
     () => defaultTopicSidebarVisible,
   );
   const [input, setInput] = useState("");
+  const [runtimeInitialInputCapability, setRuntimeInitialInputCapability] =
+    useState<AgentInitialInputCapabilityParams>();
   const [selectedText, setSelectedText] = useState("");
   const [entryBannerVisible, setEntryBannerVisible] = useState(
     Boolean(entryBannerMessage),
@@ -3175,33 +3198,24 @@ export function AgentChatWorkspace({
     input,
     webSearchPreferenceRef,
   ]);
-  const handleRunSceneAppExecutionPromptAction = useCallback(
-    async (action: SceneAppExecutionPromptAction) => {
-      const prompt = action.prompt.trim();
-      if (!prompt) {
-        toast.error("当前动作缺少可发送内容。");
+  const applyWorkbenchFollowUpActionPayload = useCallback(
+    (payload: GeneralWorkbenchFollowUpActionPayload) => {
+      const normalizedPrompt = payload.prompt.trim();
+      if (!normalizedPrompt) {
         return;
       }
-
-      if (isSending || queuedTurns.length > 0) {
-        toast.info("当前会话还有执行中的内容，请稍后再继续推进。");
+      setInput(normalizedPrompt);
+      const nextRuntimeInitialInputCapability =
+        buildRuntimeInitialInputCapabilityFromFollowUpAction({
+          payload,
+          requestKey: Date.now(),
+        });
+      if (!nextRuntimeInitialInputCapability) {
         return;
       }
-
-      await handleSendRef.current(
-        [],
-        webSearchPreferenceRef.current,
-        effectiveChatToolPreferences.thinking,
-        prompt,
-      );
+      setRuntimeInitialInputCapability(nextRuntimeInitialInputCapability);
     },
-    [
-      effectiveChatToolPreferences.thinking,
-      handleSendRef,
-      isSending,
-      queuedTurns.length,
-      webSearchPreferenceRef,
-    ],
+    [],
   );
   const handleRestartGeneralWorkbenchEntryPrompt = useCallback(() => {
     if (!generalWorkbenchEntryPrompt) {
@@ -3860,6 +3874,58 @@ export function AgentChatWorkspace({
     sessionId,
     isSending,
   });
+  const requestRefreshSceneAppExecutionSummary =
+    sceneAppExecutionSummaryState?.requestRefresh;
+  const sceneAppExecutionReferenceEntry = useMemo(
+    () =>
+      buildCuratedTaskReferenceEntryFromSceneAppExecution({
+        summary: sceneAppExecutionSummaryState?.summary,
+        latestRunDetailView:
+          sceneAppExecutionSummaryState?.latestPackResultDetailView,
+      }),
+    [
+      sceneAppExecutionSummaryState?.latestPackResultDetailView,
+      sceneAppExecutionSummaryState?.summary,
+    ],
+  );
+  const defaultCuratedTaskReferenceEntries = useMemo(
+    () =>
+      mergeCuratedTaskReferenceEntries([
+        ...(initialCreationReplaySurface?.defaultReferenceEntries ?? []),
+        sceneAppExecutionReferenceEntry,
+      ]).slice(0, 3),
+    [
+      initialCreationReplaySurface?.defaultReferenceEntries,
+      sceneAppExecutionReferenceEntry,
+    ],
+  );
+  const defaultCuratedTaskReferenceMemoryIds = useMemo(
+    () =>
+      normalizeCuratedTaskReferenceMemoryIds([
+        ...(initialCreationReplaySurface?.defaultReferenceMemoryIds ?? []),
+        ...(extractCuratedTaskReferenceMemoryIds(
+          defaultCuratedTaskReferenceEntries,
+        ) ?? []),
+      ]) ?? [],
+    [
+      defaultCuratedTaskReferenceEntries,
+      initialCreationReplaySurface?.defaultReferenceMemoryIds,
+    ],
+  );
+  const handleReviewCurrentSceneAppExecution = useCallback(() => {
+    const followUpAction = buildSceneAppExecutionReviewFollowUpAction({
+      referenceEntries: defaultCuratedTaskReferenceEntries,
+    });
+    if (!followUpAction) {
+      toast.error("当前还没有足够的项目结果基线，暂时无法直接进入复盘。");
+      return;
+    }
+
+    applyWorkbenchFollowUpActionPayload(followUpAction);
+  }, [
+    applyWorkbenchFollowUpActionPayload,
+    defaultCuratedTaskReferenceEntries,
+  ]);
   const sceneAppExecutionContentPostEntries = useMemo(
     () =>
       buildSceneAppExecutionContentPostEntries({
@@ -3935,6 +4001,12 @@ export function AgentChatWorkspace({
       try {
         const template = await saveAgentRuntimeReviewDecision(request);
         setSceneAppReviewDecisionTemplate(template);
+        recordCuratedTaskRecommendationSignalFromReviewDecision(request, {
+          projectId,
+          sessionId,
+          sceneTitle: sceneAppExecutionSummaryState?.summary?.title,
+        });
+        requestRefreshSceneAppExecutionSummary?.();
         if (options?.closeDialog !== false) {
           setSceneAppReviewDecisionDialogOpen(false);
         }
@@ -3945,7 +4017,12 @@ export function AgentChatWorkspace({
         setSceneAppReviewDecisionSaving(false);
       }
     },
-    [],
+    [
+      projectId,
+      requestRefreshSceneAppExecutionSummary,
+      sceneAppExecutionSummaryState?.summary?.title,
+      sessionId,
+    ],
   );
   const handleOpenSceneAppExecutionHumanReview = useCallback(() => {
     if (!sceneAppReviewTargetSessionId) {
@@ -4349,6 +4426,83 @@ export function AgentChatWorkspace({
       taskFiles,
     ],
   );
+  const handleRunSceneAppExecutionPromptAction = useCallback(
+    async (action: SceneAppExecutionPromptAction) => {
+      const followUpAction =
+        buildSceneAppExecutionPromptActionPayload({
+          action,
+          summary: sceneAppExecutionSummaryState?.summary,
+          detailView: sceneAppExecutionSummaryState?.latestPackResultDetailView,
+        });
+      if (!followUpAction) {
+        toast.error("当前动作缺少可发送内容。");
+        return;
+      }
+
+      if (isSending || queuedTurns.length > 0) {
+        toast.info("当前会话还有执行中的内容，请稍后再继续推进。");
+        return;
+      }
+
+      if (followUpAction.capabilityRoute) {
+        applyWorkbenchFollowUpActionPayload(followUpAction);
+        return;
+      }
+
+      await handleSendRef.current(
+        [],
+        webSearchPreferenceRef.current,
+        effectiveChatToolPreferences.thinking,
+        followUpAction.prompt,
+      );
+    },
+    [
+      applyWorkbenchFollowUpActionPayload,
+      effectiveChatToolPreferences.thinking,
+      handleSendRef,
+      isSending,
+      queuedTurns.length,
+      sceneAppExecutionSummaryState?.latestPackResultDetailView,
+      sceneAppExecutionSummaryState?.summary,
+      webSearchPreferenceRef,
+    ],
+  );
+  const handleSaveSceneAppExecutionAsSkill = useCallback(() => {
+    if (!_onNavigate) {
+      toast.error("当前入口暂不支持直接跳转到 Skill 页面");
+      return;
+    }
+
+    const latestReviewSignal =
+      listCuratedTaskRecommendationSignals({
+        projectId,
+        sessionId,
+      })
+        .filter((signal) => signal.source === "review_feedback")
+        .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
+
+    const nextPageParams = buildSkillsPageParamsFromSceneAppExecution(
+      sceneAppExecutionSummaryState?.summary,
+      sceneAppExecutionSummaryState?.latestPackResultDetailView,
+      {
+        projectId,
+        reviewSignal: latestReviewSignal,
+      },
+    );
+    if (!nextPageParams?.initialScaffoldDraft) {
+      toast.error("当前这轮结果还不足以沉淀为做法");
+      return;
+    }
+
+    _onNavigate("skills", nextPageParams);
+    toast.success("已带着这轮结果去整理做法");
+  }, [
+    _onNavigate,
+    projectId,
+    sceneAppExecutionSummaryState?.latestPackResultDetailView,
+    sceneAppExecutionSummaryState?.summary,
+    sessionId,
+  ]);
   const sceneAppExecutionSummaryCard = useMemo(
     () => (
       <SceneAppExecutionSummaryCard
@@ -4360,6 +4514,8 @@ export function AgentChatWorkspace({
         latestPackResultUsesFallback={
           sceneAppExecutionSummaryState?.latestPackResultUsesFallback
         }
+        onReviewCurrentProject={handleReviewCurrentSceneAppExecution}
+        onSaveAsSkill={handleSaveSceneAppExecutionAsSkill}
         onOpenSceneAppDetail={handleOpenSceneAppExecutionDetail}
         onOpenSceneAppGovernance={handleOpenSceneAppExecutionGovernance}
         humanReviewAvailable={canOpenSceneAppExecutionHumanReview}
@@ -4392,6 +4548,8 @@ export function AgentChatWorkspace({
       handleOpenSceneAppExecutionDeliveryArtifact,
       handleOpenSceneAppExecutionEntryAction,
       handleOpenSceneAppExecutionGovernanceArtifact,
+      handleReviewCurrentSceneAppExecution,
+      handleSaveSceneAppExecutionAsSkill,
       handleRunSceneAppExecutionPromptAction,
       handleRunSceneAppExecutionGovernanceAction,
       isSending,
@@ -4756,6 +4914,16 @@ export function AgentChatWorkspace({
   const handleExpandGeneralWorkbenchSidebar = useCallback(() => {
     generalWorkbenchScaffoldRuntime.setGeneralWorkbenchSidebarCollapsed(false);
   }, [generalWorkbenchScaffoldRuntime]);
+  const handleApplyGeneralWorkbenchFollowUpAction =
+    applyWorkbenchFollowUpActionPayload;
+  const effectiveInitialInputCapability = useMemo(
+    () =>
+      resolveEffectiveInitialInputCapability({
+        bootstrap: initialInputCapability,
+        runtime: runtimeInitialInputCapability,
+      }),
+    [initialInputCapability, runtimeInitialInputCapability],
+  );
   const generalWorkbenchHarnessDialog = (
     <GeneralWorkbenchHarnessDialogSection
       enabled={
@@ -4803,6 +4971,7 @@ export function AgentChatWorkspace({
           generalWorkbenchSidebarRuntime.generalWorkbenchWorkflowSteps,
         onAddImage: handleAddImage,
         onImportDocument: handleImportDocument,
+        onApplyFollowUpAction: handleApplyGeneralWorkbenchFollowUpAction,
         activityLogs: generalWorkbenchSidebarRuntime.generalWorkbenchActivityLogs,
         creationTaskEvents:
           generalWorkbenchScaffoldRuntime.generalWorkbenchCreationTaskEvents,
@@ -5021,7 +5190,7 @@ export function AgentChatWorkspace({
     skillsLoading: combinedSkillsLoading,
     onSelectServiceSkill:
       workspaceServiceSkillEntryActions.handleServiceSkillSelect,
-    initialInputCapability,
+    initialInputCapability: effectiveInitialInputCapability,
     setChatToolPreferences,
     handleNavigateToSkillSettings,
     handleRefreshSkills,
@@ -5061,9 +5230,8 @@ export function AgentChatWorkspace({
     handleActivateTeamWorkbench,
     chatToolPreferences: effectiveChatToolPreferences,
     defaultCuratedTaskReferenceMemoryIds:
-      initialCreationReplaySurface?.defaultReferenceMemoryIds,
-    defaultCuratedTaskReferenceEntries:
-      initialCreationReplaySurface?.defaultReferenceEntries,
+      defaultCuratedTaskReferenceMemoryIds,
+    defaultCuratedTaskReferenceEntries: defaultCuratedTaskReferenceEntries,
   });
 
   const canvasScene = useWorkspaceCanvasSceneRuntime({
@@ -5170,6 +5338,8 @@ export function AgentChatWorkspace({
     entryBannerVisible,
     entryBannerMessage,
     creationReplaySurface: initialCreationReplaySurface,
+    defaultCuratedTaskReferenceMemoryIds,
+    defaultCuratedTaskReferenceEntries,
     sceneAppExecutionSummaryCard,
     serviceSkillExecutionCard,
     contextWorkspaceEnabled: contextWorkspace.generalWorkbenchEnabled,

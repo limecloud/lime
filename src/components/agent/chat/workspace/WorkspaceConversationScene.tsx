@@ -260,6 +260,12 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
   entryBannerMessage?: string;
   onDismissEntryBanner: () => void;
   creationReplaySurface?: CreationReplaySurfaceModel | null;
+  defaultCuratedTaskReferenceMemoryIds?: ComponentProps<
+    typeof EmptyState
+  >["defaultCuratedTaskReferenceMemoryIds"];
+  defaultCuratedTaskReferenceEntries?: ComponentProps<
+    typeof EmptyState
+  >["defaultCuratedTaskReferenceEntries"];
   sceneAppExecutionSummaryCard?: WorkspaceChatContentParams["sceneAppExecutionSummaryCard"];
   serviceSkillExecutionCard?: WorkspaceChatContentParams["serviceSkillExecutionCard"];
   stepProgressProps?: WorkspaceChatContentParams["stepProgressProps"];
@@ -412,6 +418,8 @@ export function WorkspaceConversationScene({
   entryBannerMessage,
   onDismissEntryBanner,
   creationReplaySurface,
+  defaultCuratedTaskReferenceMemoryIds,
+  defaultCuratedTaskReferenceEntries,
   sceneAppExecutionSummaryCard,
   serviceSkillExecutionCard,
   stepProgressProps,
@@ -580,6 +588,8 @@ export function WorkspaceConversationScene({
     onOpenChromeRelay,
     onOpenOpenClaw,
     creationReplaySurface,
+    defaultCuratedTaskReferenceMemoryIds,
+    defaultCuratedTaskReferenceEntries,
   });
 
   const chatContent = renderWorkspaceChatContent({

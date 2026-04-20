@@ -27,6 +27,7 @@ function isLikelyLocalHost(apiHost?: string | null): boolean {
 interface ProviderModelAutoFetchCapability {
   supported: boolean;
   requiresApiKey: boolean;
+  requiresLiveModelTruth: boolean;
   unsupportedReason?: string;
 }
 
@@ -50,23 +51,37 @@ export function getProviderModelAutoFetchCapability(input: {
         supported: true,
         requiresApiKey:
           !LOCAL_OPENAI_LIKE_PROVIDER_IDS.has(providerId) && !localHost,
+        requiresLiveModelTruth: true,
       };
     case "anthropic":
+      return {
+        supported: true,
+        requiresApiKey: true,
+        requiresLiveModelTruth: true,
+      };
     case "anthropic-compatible":
+      return {
+        supported: true,
+        requiresApiKey: true,
+        requiresLiveModelTruth: false,
+      };
     case "gemini":
       return {
         supported: true,
         requiresApiKey: true,
+        requiresLiveModelTruth: true,
       };
     case "ollama":
       return {
         supported: true,
         requiresApiKey: false,
+        requiresLiveModelTruth: true,
       };
     case "azure-openai":
       return {
         supported: false,
         requiresApiKey: true,
+        requiresLiveModelTruth: false,
         unsupportedReason:
           "Azure OpenAI 的模型枚举仍需单独适配资源端点与 API Version，当前不展示自动获取入口。",
       };
@@ -74,6 +89,7 @@ export function getProviderModelAutoFetchCapability(input: {
       return {
         supported: false,
         requiresApiKey: false,
+        requiresLiveModelTruth: false,
         unsupportedReason:
           "Vertex AI 需要单独的云端认证与项目上下文，当前不展示自动获取入口。",
       };
@@ -81,6 +97,7 @@ export function getProviderModelAutoFetchCapability(input: {
       return {
         supported: false,
         requiresApiKey: false,
+        requiresLiveModelTruth: false,
         unsupportedReason:
           "AWS Bedrock 需要专门的云凭证签名流程，当前不展示自动获取入口。",
       };
@@ -88,6 +105,7 @@ export function getProviderModelAutoFetchCapability(input: {
       return {
         supported: false,
         requiresApiKey: true,
+        requiresLiveModelTruth: false,
         unsupportedReason: "当前协议暂不支持自动获取最新模型。",
       };
   }

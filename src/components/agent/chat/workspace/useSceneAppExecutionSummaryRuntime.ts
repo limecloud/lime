@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getSceneAppScorecard,
   listSceneAppRuns,
@@ -77,12 +77,13 @@ export interface SceneAppExecutionSummaryRuntimeState {
   latestPackResultUsesFallback: boolean;
   reviewTargetRunSummary: SceneAppRunSummary | null;
   loading: boolean;
+  requestRefresh: () => void;
 }
 
 function createInitialRuntimeState(params: {
   initialSummary?: SceneAppExecutionSummaryViewModel | null;
   sessionId?: string | null;
-}): SceneAppExecutionSummaryRuntimeState {
+}): Omit<SceneAppExecutionSummaryRuntimeState, "requestRefresh"> {
   return {
     summary: params.initialSummary,
     latestPackResultDetailView: null,
@@ -100,20 +101,30 @@ export function useSceneAppExecutionSummaryRuntime({
   | SceneAppExecutionSummaryRuntimeState
   | undefined {
   const [state, setState] = useState<SceneAppExecutionSummaryRuntimeState>(() =>
-    createInitialRuntimeState({
-      initialSummary,
-      sessionId,
-    }),
-  );
-
-  useEffect(() => {
-    setState(
-      createInitialRuntimeState({
+    ({
+      ...createInitialRuntimeState({
         initialSummary,
         sessionId,
       }),
+      requestRefresh: () => undefined,
+    }),
+  );
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const requestRefresh = useCallback(() => {
+    setRefreshNonce((current) => current + 1);
+  }, []);
+
+  useEffect(() => {
+    setState(
+      {
+        ...createInitialRuntimeState({
+          initialSummary,
+          sessionId,
+        }),
+        requestRefresh,
+      },
     );
-  }, [initialSummary, sessionId]);
+  }, [initialSummary, requestRefresh, sessionId]);
 
   useEffect(() => {
     const baseSummary = initialSummary;
@@ -163,6 +174,7 @@ export function useSceneAppExecutionSummaryRuntime({
           latestPackResultRun?.runId !== matchedRun?.runId,
         reviewTargetRunSummary: latestPackResultRun ?? matchedRun ?? null,
         loading: false,
+        requestRefresh,
       });
 
       if (
@@ -184,7 +196,13 @@ export function useSceneAppExecutionSummaryRuntime({
         clearTimeout(pollTimer);
       }
     };
-  }, [initialSummary, isSending, sessionId]);
+  }, [initialSummary, isSending, refreshNonce, requestRefresh, sessionId]);
 
-  return state;
+  return useMemo(
+    () => ({
+      ...state,
+      requestRefresh,
+    }),
+    [requestRefresh, state],
+  );
 }

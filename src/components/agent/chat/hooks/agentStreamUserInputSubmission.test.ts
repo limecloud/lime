@@ -59,6 +59,7 @@ describe("agentStreamUserInputSubmission", () => {
     const env: AgentStreamPreparedSendEnv = {
       runtime,
       ensureSession: async () => "session-1",
+      attemptSilentTurnRecovery: async () => false,
       executionStrategy: "react",
       accessMode: "current",
       providerTypeRef: { current: "openai" } as MutableRefObject<string>,

@@ -50,7 +50,10 @@ import {
   LazyCharacterMentionPanel,
   preloadCharacterMentionPanel,
 } from "./characterMentionPanelLoader";
-import { recordSlashEntryUsage } from "./slashEntryUsage";
+import {
+  recordSlashEntryUsage,
+  subscribeSlashEntryUsageChanged,
+} from "./slashEntryUsage";
 import { partitionMentionableSkills } from "./skillQuery";
 import { useRuntimeInputCapabilityCatalog } from "./runtimeInputCapabilityCatalog";
 import { useIdleModulePreload } from "./useIdleModulePreload";
@@ -60,7 +63,13 @@ import {
   type CuratedTaskInputValues,
   type CuratedTaskTemplateItem,
 } from "../utils/curatedTaskTemplates";
+import { subscribeCuratedTaskRecommendationSignalsChanged } from "../utils/curatedTaskRecommendationSignals";
 import { CuratedTaskLauncherDialog } from "../components/CuratedTaskLauncherDialog";
+import {
+  extractCuratedTaskReferenceMemoryIds,
+  mergeCuratedTaskReferenceEntries,
+  normalizeCuratedTaskReferenceMemoryIds,
+} from "../utils/curatedTaskReferenceSelection";
 import type {
   CuratedTaskReferenceEntry,
   CuratedTaskReferenceSelection,
@@ -93,9 +102,19 @@ interface CharacterMentionProps {
     options?: InputCapabilityActivationOptions,
   ) => void;
   /** 选择结果模板回调 */
-  onSelectCuratedTask?: (task: CuratedTaskTemplateItem) => void;
+  onSelectCuratedTask?: (
+    task: CuratedTaskTemplateItem,
+    options?: {
+      launchInputValues?: CuratedTaskInputValues;
+      referenceMemoryIds?: string[];
+      referenceEntries?: CuratedTaskReferenceEntry[];
+      launcherPrefillHint?: string;
+    },
+  ) => void;
   /** 选择技能目录项回调 */
   onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+  projectId?: string | null;
+  sessionId?: string | null;
   /** 当前默认带入的灵感引用 */
   defaultCuratedTaskReferenceMemoryIds?: string[];
   /** 当前默认带入的灵感引用对象 */
@@ -122,6 +141,10 @@ interface PendingCuratedTaskLaunch {
   leadingText: string;
   trailingText: string;
   restoreCursorPos: number;
+  initialInputValues?: CuratedTaskInputValues;
+  initialReferenceMemoryIds?: string[];
+  initialReferenceEntries?: CuratedTaskReferenceEntry[];
+  launcherPrefillHint?: string;
 }
 
 function resolveMentionTrigger(textBeforeCursor: string): ActiveTrigger | null {
@@ -239,6 +262,8 @@ export function CharacterMention({
   onSelectSceneCommand,
   onSelectCuratedTask,
   onSelectServiceSkill,
+  projectId,
+  sessionId,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
   onSelectBuiltinCommand,
@@ -258,6 +283,9 @@ export function CharacterMention({
   });
   const commandRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [curatedTaskRecommendationSignalsVersion, setCuratedTaskRecommendationSignalsVersion] =
+    useState(0);
+  const [slashEntryUsageVersion, setSlashEntryUsageVersion] = useState(0);
   const { builtinCommands: runtimeBuiltinCommands, sceneCommands: runtimeSceneCommands } =
     useRuntimeInputCapabilityCatalog();
 
@@ -401,6 +429,18 @@ export function CharacterMention({
       document.removeEventListener("mousedown", handlePointerDown);
     };
   }, [inputRef, showMentions]);
+
+  useEffect(() => {
+    return subscribeCuratedTaskRecommendationSignalsChanged(() => {
+      setCuratedTaskRecommendationSignalsVersion((previous) => previous + 1);
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeSlashEntryUsageChanged(() => {
+      setSlashEntryUsageVersion((previous) => previous + 1);
+    });
+  }, []);
 
   const handleSelectCharacter = (character: Character) => {
     const textarea = inputRef.current;
@@ -859,7 +899,15 @@ export function CharacterMention({
     }, 0);
   };
 
-  const handleSelectCuratedTask = (task: CuratedTaskTemplateItem) => {
+  const handleSelectCuratedTask = (
+    task: CuratedTaskTemplateItem,
+    options?: {
+      launchInputValues?: CuratedTaskInputValues;
+      referenceMemoryIds?: string[];
+      referenceEntries?: CuratedTaskReferenceEntry[];
+      launcherPrefillHint?: string;
+    },
+  ) => {
     const textarea = inputRef.current;
     if (!textarea) return;
 
@@ -871,12 +919,29 @@ export function CharacterMention({
       return;
     }
 
+    const mergedReferenceEntries = mergeCuratedTaskReferenceEntries([
+      ...(options?.referenceEntries ?? []),
+      ...defaultCuratedTaskReferenceEntries,
+    ]);
+    const mergedReferenceMemoryIds =
+      normalizeCuratedTaskReferenceMemoryIds([
+        ...(options?.referenceMemoryIds ?? []),
+        ...(extractCuratedTaskReferenceMemoryIds(
+          mergedReferenceEntries,
+        ) ?? []),
+        ...defaultCuratedTaskReferenceMemoryIds,
+      ]) ?? [];
+
     setShowMentions(false);
     setPendingCuratedTaskLaunch({
       task,
       leadingText: currentValue.slice(0, activeTrigger.triggerIndex),
       trailingText: textAfterCursor,
       restoreCursorPos: cursorPos,
+      initialInputValues: options?.launchInputValues,
+      initialReferenceMemoryIds: mergedReferenceMemoryIds,
+      initialReferenceEntries: mergedReferenceEntries,
+      launcherPrefillHint: options?.launcherPrefillHint,
     });
   };
 
@@ -934,7 +999,12 @@ export function CharacterMention({
       };
 
       onChange(nextSelection.value);
-      recordCuratedTaskTemplateUsage(task.id);
+      recordCuratedTaskTemplateUsage({
+        templateId: task.id,
+        launchInputValues: inputValues,
+        referenceMemoryIds: referenceSelection.referenceMemoryIds,
+        referenceEntries: referenceSelection.referenceEntries,
+      });
       setPendingCuratedTaskLaunch(null);
 
       if (onSelectInputCapability) {
@@ -1058,6 +1128,13 @@ export function CharacterMention({
                 filteredCharacters={filteredCharacters}
                 installedSkills={installedSkills}
                 availableSkills={availableSkills}
+                projectId={projectId}
+                sessionId={sessionId}
+                referenceEntries={defaultCuratedTaskReferenceEntries}
+                curatedTaskRecommendationSignalsVersion={
+                  curatedTaskRecommendationSignalsVersion
+                }
+                slashEntryUsageVersion={slashEntryUsageVersion}
                 commandRef={commandRef}
                 onQueryChange={setMentionQuery}
                 onSelectBuiltinCommand={handleSelectBuiltinCommand}
@@ -1084,8 +1161,21 @@ export function CharacterMention({
       <CuratedTaskLauncherDialog
         open={Boolean(pendingCuratedTaskLaunch)}
         task={pendingCuratedTaskLaunch?.task ?? null}
-        initialReferenceMemoryIds={defaultCuratedTaskReferenceMemoryIds}
-        initialReferenceEntries={defaultCuratedTaskReferenceEntries}
+        initialInputValues={pendingCuratedTaskLaunch?.initialInputValues}
+        initialReferenceMemoryIds={
+          pendingCuratedTaskLaunch?.initialReferenceMemoryIds ??
+          normalizeCuratedTaskReferenceMemoryIds([
+            ...defaultCuratedTaskReferenceMemoryIds,
+            ...(extractCuratedTaskReferenceMemoryIds(
+              defaultCuratedTaskReferenceEntries,
+            ) ?? []),
+          ])
+        }
+        initialReferenceEntries={
+          pendingCuratedTaskLaunch?.initialReferenceEntries ??
+          mergeCuratedTaskReferenceEntries(defaultCuratedTaskReferenceEntries)
+        }
+        prefillHint={pendingCuratedTaskLaunch?.launcherPrefillHint}
         onOpenChange={handleCuratedTaskLauncherOpenChange}
         onConfirm={handleConfirmCuratedTaskLaunch}
       />

@@ -36,6 +36,7 @@ import type { AgentInitialInputCapabilityParams } from "@/types/page";
 import {
   buildCuratedTaskLaunchPrompt,
   findCuratedTaskTemplateById,
+  hasFilledAllCuratedTaskRequiredInputs,
   replaceCuratedTaskLaunchPromptInInput,
   type CuratedTaskInputValues,
 } from "../../../utils/curatedTaskTemplates";
@@ -168,19 +169,34 @@ export function useInputbarController({
 
     handledInitialInputCapabilitySignatureRef.current =
       initialInputCapabilitySignature;
+    const resolvedCapability = resolveInputCapabilitySelectionFromRoute({
+      route,
+      skills,
+    });
+    const shouldOpenCuratedTaskLauncherOnBootstrap =
+      resolvedCapability.kind === "curated_task" &&
+      resolvedCapability.task.requiredInputFields.length > 0 &&
+      !hasFilledAllCuratedTaskRequiredInputs({
+        task: resolvedCapability.task,
+        inputValues: resolvedCapability.launchInputValues ?? {},
+      });
+
     if (
       route.kind === "curated_task" &&
+      !shouldOpenCuratedTaskLauncherOnBootstrap &&
       !input.trim() &&
       route.prompt.trim().length > 0
     ) {
       setInput(route.prompt);
     }
-    setActiveCapability(
-      resolveInputCapabilitySelectionFromRoute({
-        route,
-        skills,
-      }),
-    );
+
+    setActiveCapability(resolvedCapability);
+    if (
+      shouldOpenCuratedTaskLauncherOnBootstrap &&
+      resolvedCapability.kind === "curated_task"
+    ) {
+      setEditingCuratedTaskCapability(resolvedCapability);
+    }
   }, [
     initialInputCapability,
     initialInputCapabilitySignature,

@@ -1,5 +1,295 @@
 # 参考运行时主链对齐进度日志
 
+## 2026-04-20
+
+### 已完成
+
+- 基于本地参考运行时源码镜像 `/Users/coso/Documents/dev/js/claudecode` 与用户提供的 Claude Code runtime 架构图，重新按 `Query Loop / Tool Runtime / Memory / Remote / Task / State / Host Product Surface` 七组能力做了一次全局差距盘点，避免后续继续把“产品壳差异”和“运行时主链未对齐”混为一谈。
+- 重新核对现有总计划与仓库 current 文档后，确认 `Query Loop / Tool Runtime / Memory / Task / State` 六条运行时主链的判断不需要回退：
+  - [upstream-runtime-alignment-plan.md](./upstream-runtime-alignment-plan.md) 里已有的 `aligned` 结论仍然成立。
+  - [task-agent-taxonomy.md](../aiprompts/task-agent-taxonomy.md) 与 [state-history-telemetry.md](../aiprompts/state-history-telemetry.md) 定义的 current 边界仍是正确事实源。
+  - 这次差距盘点的重点应从“再补一套 runtime”转向“补宿主 surface 或明确不对齐的产品层选择”。
+- 明确当前最值得继续推进的 `current gap`：
+  - `ConfigTool` 仍缺少参考运行时那组宿主配置闭环：`classifierPermissionsEnabled / remoteControlAtStartup / taskCompleteNotifEnabled / inputNeededNotifEnabled / agentPushNotifEnabled` 当前仍是“已知上游 setting，但 Lime runtime 未实现”的状态；`permissions.defaultMode` 也尚未对齐参考运行时的 `plan / dontAsk` 口径。
+  - `voiceEnabled` 已不再是完全缺失：`runtime_turn` 当前已经通过宿主 callback 回填 `ConfigTool` 读写链路，但它仍只覆盖语音开关本身，没有连带补齐参考运行时那组 remote-control / push-notification 宿主配置矩阵。
+  - `SendMessage / ListPeers` 仍只覆盖 team 内 peers；参考运行时支持的 `uds:` / `bridge:` cross-session peer address 目前在 Lime 里仍是受控失败，说明 team runtime 的当前事实源虽然已收口，但跨会话协作 surface 还没补齐。
+  - `hooks` 与 `skills` 仍是明显半成品：`MCP hook / Prompt hook / Agent hook` 还是占位实现，`SkillExecutionMode::Agent` 依旧未实现；这说明 Lime 已经有工具层 current surface，但还没补齐参考运行时图里那层可执行的 extension / hook orchestration。
+  - 浏览器宿主工具面仍有明确缺口：`shortcuts_list` 还返回“当前后端尚未实现”，说明 browser / desktop host integration 仍未闭环。
+- 明确本轮盘点中不应被误判成“运行时未对齐”的部分：
+  - `OpenClaw / DevBridge / telegram_remote_cmd` 仍按 [remote-runtime.md](../aiprompts/remote-runtime.md) 的既有判断处理：它们属于 `compat / deprecated` 支撑面，不应再被拔高成需要追平参考运行时的 current remote control plane。
+  - `channels_cmd.rs` 这组 AI / 通知渠道 CRUD 目前大多还是 `暂未实现` 空壳；由于仓库已明确“多渠道 current 主链已经迁到 gateway_channel_cmd.rs”，这组命令更像需要重新分类并收口的 legacy surface，而不是值得继续扩展的 current 功能。
+  - `Buddy / Kairos / Ultraplan` 这类 feature-flagged 产品壳在参考运行时中属于宿主产品选择；Lime 当前源码里没有对应实现，这件事应先作为产品路线判断，而不是默认归入“主链未对齐”。
+
+### 当前判断
+
+- 这一步服务于运行时主链对齐的关系是：把“主链已对齐”与“宿主 surface 未补齐”明确拆开，避免后续继续在已完成的 `M1-M5` 主链上空转。
+- 目前最值得继续推进的一刀固定为：
+  - 先补 `ConfigTool + Remote Control / Push Notification` 这一组宿主配置 surface，再补 `SendMessage / ListPeers` 的 cross-session peer messaging。
+  - 只有补完这两刀，参考运行时架构图里最关键的 `permissions/config/remote-control/team-runtime` 宿主面才会真正进入 Lime 的 `current` 主链，而不再停留在“工具存在、文档对齐、产品层仍缺口”的状态。
+- 后续默认顺序：
+  1. `ConfigTool` 宿主配置矩阵收口。
+  2. `SendMessage / ListPeers` 的 `uds:` / `bridge:` peer transport 判断与实现。
+  3. `hooks / skills` 从占位实现推进到至少一条可执行 current 主链。
+  4. 再决定 `Buddy / Kairos / Ultraplan` 是否属于 Lime 产品路线，不默认把它们当作 runtime 对齐任务。
+
+### 继续推进（ConfigTool / classifierPermissionsEnabled）
+
+- 在 [config_tool.rs](../../src-tauri/crates/aster-rust/crates/aster/src/tools/config_tool.rs) 把 `classifierPermissionsEnabled` 从“已知上游 setting，但固定 unsupported”提升为真正可读写的 current setting：
+  - `ConfigTool` 现在直接读写用户面 key `classifierPermissionsEnabled`
+  - 默认读取值收口为 `false`
+  - 读取时兼容旧内部 key `SECURITY_PROMPT_CLASSIFIER_ENABLED`
+  - 写入 current key 后会清掉旧内部 key，避免继续停留在“一套工具面、一套内部键”的双轨状态
+- 在 [security/mod.rs](../../src-tauri/crates/aster-rust/crates/aster/src/security/mod.rs) 把安全扫描 ML toggle 的事实源切到 current key，并把旧内部 key 降回 compat fallback：
+  - 当前 runtime 先读 `classifierPermissionsEnabled`
+  - 只有 current key 缺失时才回退 `SECURITY_PROMPT_CLASSIFIER_ENABLED`
+  - 这样 `ConfigTool` 写入的值会真实影响 `SecurityManager::is_ml_scanning_enabled()`，不再出现“Config 改了但安全扫描不认”的断层
+- 补定向回归：
+  - `ConfigTool` 新增 default false、legacy fallback、rewrite current key 的测试
+  - `security/mod.rs` 新增 default false、legacy fallback、current precedence 的测试
+- 已执行校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/aster-rust/crates/aster/src/security/mod.rs" "src-tauri/crates/aster-rust/crates/aster/src/tools/config_tool.rs"` 通过
+  - `env CARGO_TARGET_DIR="/tmp/lime-target-configtool-check" cargo check --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" --lib` 通过
+  - `env CARGO_TARGET_DIR="/tmp/lime-target-configtool" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" config_tool --lib` 未能完成：当前工作区存在与本轮无关的既有编译错误 [execution/manager.rs](../../src-tauri/crates/aster-rust/crates/aster/src/execution/manager.rs) `query_session` 未导入，导致 test target 在进入 `ConfigTool` 测试前就失败
+
+### 当前判断补充
+
+- `CCD-006` 已从“整组 setting 都停留在 unsupported”前进到“至少 `classifierPermissionsEnabled` 已进入 current 主链并接上真实宿主行为”。
+- 这一步服务路线图主目标的关系是：先把确实已有宿主落点的配置面收回 current，避免继续把所有 host surface 缺口打成一个大包。
+- 当前 `Config / Host Surface` 剩余最值得继续推进的缺口变为：
+  - `remoteControlAtStartup`
+  - `taskCompleteNotifEnabled / inputNeededNotifEnabled / agentPushNotifEnabled`
+  - `permissions.defaultMode` 的 `plan / dontAsk` 语义
+  这些项仍不能硬映射到 Lime 现有的 OS 自启动、桌面通知或现有 runtime mode；下一刀应继续按“先找真实宿主落点，再决定 current / compat / deprecated”推进。
+
+### 继续推进（ConfigTool / host audit）
+
+- 继续核对剩余 host settings 对应的真实宿主落点后，确认 `remoteControlAtStartup` 仍不能进入 `current`：
+  - Lime 当前只有 [config_cmd.rs](../../src-tauri/src/commands/config_cmd.rs) 的 `get_auto_launch_status / set_auto_launch` 这条 OS 登录项 `current` 主链。
+  - 它控制的是“开机自启动”，不是参考运行时 `remoteControlAtStartup` 那种“默认是否为所有 session 开启 Remote Control”的语义。
+  - 因此这项 setting 继续明确维持为 `unsupported`；不能把 `remoteControlAtStartup` 硬映射到 `auto_launch`。
+- 继续核对通知相关 surface 后，确认 `taskCompleteNotifEnabled / inputNeededNotifEnabled / agentPushNotifEnabled` 也还没有可接入的 `current` 宿主面：
+  - Lime 当前确实有 [update_cmd.rs](../../src-tauri/src/commands/update_cmd.rs) / [update_window.rs](../../src-tauri/src/services/update_window.rs) 这条更新提醒通知面，但它只服务“版本更新提醒”，不是 remote-control / mobile push。
+  - [channels_cmd.rs](../../src-tauri/src/commands/channels_cmd.rs) 这组通知渠道 CRUD 仍主要返回 `暂未实现`，更接近 `deprecated` 候选 stub，而不是可复用的 mobile push control plane。
+  - 因此这三项 setting 继续明确维持为 `unsupported`；不能把它们误判成“只差 Config 映射”。
+- 这次审计后，`CCD-006` 的事实源分类进一步收敛为：
+  - `classifierPermissionsEnabled`：`current`
+  - `voiceEnabled`：`current`（宿主 callback）
+  - `remoteControlAtStartup`：`current gap`，当前无真实宿主面
+  - `taskCompleteNotifEnabled / inputNeededNotifEnabled / agentPushNotifEnabled`：`current gap`，当前无 mobile push control plane
+  - `get_auto_launch_status / set_auto_launch`：`current`，但仅属于 OS auto-launch，不属于 remote-control config
+  - `channels_cmd.rs` 通知渠道 CRUD：`deprecated` 候选，不作为这组 setting 的事实源
+- 这一步服务路线图主目标的关系是：继续把“宿主产品面缺口”和“还能在 current 主链补的 runtime 对齐项”拆开，避免后续再把现有 OS 自启动、更新提醒或 stub 渠道面误当成参考运行时的 remote-control / push-notification 对齐。
+- 当前 `CCD-006` 的下一刀收敛为两类选择：
+  - 真正新增 remote-control / mobile push 宿主面，再回头把这些 setting 接入 `current`
+  - 或把这组差异明确沉淀为产品层不对齐，不再把它们当成“只差一层映射”的 runtime 缺口
+- `permissions.defaultMode` 的 `plan / dontAsk` 仍单独保留：
+  - 仓库内部虽然已有 prompt 侧 `PermissionMode::Plan / DontAsk` 文本能力
+  - 但 runtime config、provider flag 与 permission inspector 还没有等价 `current` 语义，暂时不能直接在 `ConfigTool` 放行
+
+### 继续推进（ConfigTool / permissions.defaultMode 审计）
+
+- 继续沿 `permissions.defaultMode` 深挖后，确认 `plan / dontAsk` 仍不能进入 Lime `current`：
+  - [plan_mode_tool.rs](../../src-tauri/crates/aster-rust/crates/aster/src/tools/plan_mode_tool.rs) 的 `plan` 当前是显式 `EnterPlanMode / ExitPlanMode` 工具流，不是持久化的全局默认权限模式。
+  - [claude_code.rs](../../src-tauri/crates/aster-rust/crates/aster/src/providers/claude_code.rs) 与 [codex.rs](../../src-tauri/crates/aster-rust/crates/aster/src/providers/codex.rs) 的 provider flag 仍只围绕 `ASTER_MODE = Auto / SmartApprove / Approve / Chat` 做映射，没有 `plan / dontAsk` 的全局执行语义。
+  - [permission_inspector.rs](../../src-tauri/crates/aster-rust/crates/aster/src/permission/permission_inspector.rs) 的工具审批主链也只分支 `Chat / Auto / Approve / SmartApprove` 四类，没有 `dontAsk` 对应的全局判断分支。
+- 因此这次没有去“补 enum 让 ConfigTool 通过”，而是继续把边界收紧成真实语义：
+  - `plan` 的失败提示现在明确说明：它当前是工具驱动的 plan flow，不是 persisted default mode。
+  - `dontAsk` 的失败提示现在明确说明：它当前缺少 provider flag + `PermissionInspector` 的全局 runtime 支撑。
+- 补定向回归：
+  - `ConfigTool` 新增 `plan` 专项失败断言，锁住它必须继续指向 `EnterPlanMode / ExitPlanMode`
+  - `ConfigTool` 新增 `dontAsk` 专项失败断言，锁住它必须继续暴露“缺少 provider / inspector runtime”
+- 这一步服务路线图主目标的关系是：把 `permissions.defaultMode` 从“模糊地未实现”推进成“缺哪条 current 主链就明确说哪条”，避免后续 AI 或人工把 prompt 文本能力误判成已经具备可持久化的全局权限模式。
+
+### 继续推进（CCD-009 / channels_cmd 治理守卫）
+
+- 顺手继续推进 `CCD-009` 后，确认 [ImConfigPage.tsx](../../src/components/channels/ImConfigPage.tsx) 当前走的是 [channelsRuntime.ts](../../src/lib/api/channelsRuntime.ts) 暴露的 `gateway_channel_* / *_channel_probe / wechat_channel_*` current API，而不是 `channels_cmd.rs` 那组旧 CRUD 命令。
+- 因此本轮没有去扩或修 [channels_cmd.rs](../../src-tauri/src/commands/channels_cmd.rs) 的 `暂未实现` stub，而是先把它纳入仓库治理守卫：
+  - 在 [legacySurfaceCatalog.json](../../src/lib/governance/legacySurfaceCatalog.json) 新增 `channels-crud-stub-commands`
+  - 把 `get_ai_channels / create_ai_channel / get_notification_channels / create_notification_channel` 等整组旧命令标成 `dead-candidate`
+  - 允许引用路径保持为空，意味着任何前端 `safeInvoke/invoke` 若再接回这组命令，`governance:legacy-report` 都会直接报违规
+- 补定向目录册测试：
+  - [legacySurfaceCatalog.test.ts](../../src/lib/governance/legacySurfaceCatalog.test.ts) 新增 `channels_cmd` 命令组断言，锁住分类、命令集合与 `allowedPaths=[]`
+- 这一步服务路线图主目标的关系是：先封住旧 remote / notification CRUD 命令回流，避免后续 AI 在 current remote 主链已固定到 `gateway_channel_*` 的情况下，又从 `channels_cmd.rs` 这层 stub surface 重新长功能。
+
+### 继续推进（CCD-009 / channels_cmd 下线）
+
+- 在确认 current 前端没有任何 `safeInvoke/invoke` 依赖这组命令后，本轮继续把 [channels_cmd.rs](../../src-tauri/src/commands/channels_cmd.rs) 从宿主命令面正式下线：
+  - 从 [runner.rs](../../src-tauri/src/app/runner.rs) 的 `tauri::generate_handler!` 移除了整组 `get_ai_channels / create_ai_channel / get_notification_channels / create_notification_channel` 等旧 CRUD 注册
+  - 从 [commands/mod.rs](../../src-tauri/src/commands/mod.rs) 移除了 `pub mod channels_cmd;`
+  - 删除了 [channels_cmd.rs](../../src-tauri/src/commands/channels_cmd.rs) 文件本体，不再让这组 `暂未实现` stub 继续进入编译图
+- 为了防止这条旧路再次回流，又补了 Rust 侧治理守卫：
+  - 在 [legacySurfaceCatalog.json](../../src/lib/governance/legacySurfaceCatalog.json) 新增 `rust-channels-cmd-legacy-surfaces`
+  - 明确禁止 `commands::channels_cmd::` 与 `pub mod channels_cmd;` 重新出现在 Rust 代码中
+  - 在 [legacySurfaceCatalog.test.ts](../../src/lib/governance/legacySurfaceCatalog.test.ts) 补了对应断言
+- 补了删除后的最小收尾验证：
+  - `npx vitest run "src/lib/governance/legacySurfaceCatalog.test.ts"` 通过（`129 passed`）
+  - `npm run governance:legacy-report` 通过；`rust-channels-cmd-legacy-surfaces` 命中为 `0`，整体 `边界违规=0`
+  - `npm run test:contracts` 通过；命令契约、Harness 契约与 cleanup contract 全部通过
+  - `env CARGO_TARGET_DIR="/tmp/lime-target-channels-governance-check" cargo check --manifest-path "src-tauri/Cargo.toml" -p lime --lib` 通过，确认 `runner.rs / commands/mod.rs` 删除 `channels_cmd` 后没有新增编译悬挂
+- 当前分类已收口为：
+  - `src/lib/api/channelsRuntime.ts + gateway_channel_* + browser connector / ChromeBridge`：`current`
+  - `channels_cmd.rs` 旧 AI / 通知渠道 CRUD stub surface：`dead`
+  - `legacySurfaceCatalog` 中的 `channels-crud-stub-commands` 与 `rust-channels-cmd-legacy-surfaces`：继续保留为防回流守卫
+- 这一步服务路线图主目标的关系是：把 `channels_cmd.rs` 从“口头上判成 stub / deprecated 候选”推进成“宿主命令面已实际下线”，让 current remote 主链只剩 `gateway_channel_* + browser connector / ChromeBridge`。
+- `CCD-009` 至此可以视为已完成；下一刀应回到 `CCD-007`，继续判断 `SendMessage / ListPeers` 的 `uds:` / `bridge:` cross-session peer transport 是否进入 Lime `current`。
+
+### 继续推进（CCD-007 / peer transport 可行性审计）
+
+- 继续对照参考运行时后，确认 `CCD-007` 当前缺的不是“把 `SendMessage` 放开到 `uds:` / `bridge:`”这一层，而是缺少 upstream 那套 cross-session peer transport 底座：
+  - 参考运行时在 `UDS_INBOX` 打开时会启动本地 UDS messaging server，提供 `uds:` ingress。
+  - 参考运行时还会持续写 PID/session registry，并回填 session name 与 `bridgeSessionId`，供 `ListPeers` 发现本机会话与 remote peer。
+  - 参考运行时的 `SendMessage` 也不是只做字符串判断；它会把 `bridge:` 真正投递到 remote peer channel，把 `uds:` 真正投递到本地 socket。
+- Lime 当前的 `current` 事实源还停留在 team runtime 内部：
+  - [subagent_tools.rs](../../src-tauri/src/commands/aster_agent_cmd/tool_runtime/subagent_tools.rs) 里 `SendMessage` / `SendInput` callback 最终只会走 `agent_runtime_send_subagent_input_internal(...)`
+  - [execution/manager.rs](../../src-tauri/crates/aster-rust/crates/aster/src/execution/manager.rs) 的 `send_input_with_runtime(...)` 只能把消息排进已存在的 session runtime queue，本质上还是“对现有 session_id 排队 turn”
+  - [team_tools.rs](../../src-tauri/crates/aster-rust/crates/aster/src/tools/team_tools.rs) 的 `ListPeers` 只从 `TeamSessionState` 枚举 team 内成员，`send_to` 也只有 teammate name；没有 session registry、没有 socket 地址、没有 remote bridge peer id
+  - [agent_control.rs](../../src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs) 对 `uds:` / `bridge:` 目前仍是正确的“受控失败”，它只是防止误投，不代表已经具备 transport
+- 因此 `CCD-007` 的下一刀不该再表述为“是否要支持两个地址前缀”，而应收敛成先选 transport 底座：
+  - 若要补本机 cross-session peer messaging，至少需要一套 Lime 自己的 session discovery / reachability registry，并定义与 upstream `uds:` 的兼容映射
+  - 若要补 remote peer messaging，至少需要一套独立于 `browser connector / ChromeBridge` 的 remote session identity + ingress 当前事实源；现有 browser bridge 不能直接冒充 `bridge:session_*`
+  - 在这两套底座都不存在之前，继续保持 `uds:` / `bridge:` 受控失败是正确的 current 行为
+- 这一步服务路线图主目标的关系是：把 `CCD-007` 从“看起来像一个小工具参数差异”重新校准为“缺 session registry / local ingress / remote ingress 三块底座”，避免后续继续在错误抽象层空转。
+- 当前最值得继续推进的一刀变为：
+  - 优先判断 Lime 是否真的需要“本机跨会话 peer messaging”这条产品能力；若需要，先设计 Lime 自己的 local session registry，再决定是否对外兼容 `uds:` 语义
+  - `bridge:` remote peer messaging 暂不建议先做，因为 Lime 当前 remote `current` 主链仍是 browser connector / ChromeBridge，而不是参考仓库的 Remote Control peer session
+
+### 继续推进（CCD-007 / local session peer 最小 current）
+
+- 在不引入新 socket/remote transport 的前提下，先把 Lime 已有 `session_id + runtime queue` 收成一条最小本机 cross-session `current`：
+  - [ListPeers](../../src-tauri/crates/aster-rust/crates/aster/src/tools/team_tools.rs) 不再只返回 team 成员；现在会继续保留活跃 team peers，并额外枚举同一 `working_dir` 下最近 `12` 个本机顶层 session（`User / Scheduled / Terminal`），其 `send_to` 固定为 synthetic `uds:<session-id>`
+  - 这条 `uds:` 目前不是参考运行时那种真实 socket path，而是 Lime current 的兼容地址语义，用来把“本机会话 peer”稳定映射到现有 `session_id`
+  - team peers 仍保持原状：`send_to=name`、`agent_id=name@team`；因此现有 team runtime surface 没有回退
+- [SendMessage](../../src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs) 现在正式接住这条本地 peer surface：
+  - `to="uds:<session-id>"` 会先校验目标 session 存在，随后复用现有 `send_input` callback，把消息排进目标 session 的 runtime queue
+  - 这条本机 cross-session 路径只接受纯文本消息；结构化 `shutdown_request / shutdown_response / plan_approval_response` 仍明确拒绝，避免误把 team protocol 平移到跨会话 session
+  - 为了保留 reply 语义，投递到目标 session 前会把正文包装成 `<cross-session-message from="uds:<source-session-id>">...</cross-session-message>`；接收侧至少能看见来源地址，而不会和普通用户输入完全混在一起
+  - `bridge:` 仍保持受控失败，继续明确为“remote peer messaging 未进入 current”
+- 这一步的边界结论也更清楚了：
+  - `current`：team peer messaging、同一 `working_dir` 下的 synthetic `uds:<session-id>` local session peer messaging
+  - `current gap`：真实 live session registry、真正的 UDS socket ingress、`bridge:` remote peer identity / ingress
+  - `deprecated / dead`：无新增；本轮没有回流旧 remote surface
+- 这一步服务路线图主目标的关系是：先把参考运行时图里“本机跨会话协作”压缩成一条 Lime 能真实交付的 current 路径，不再停留在“只会识别前缀但始终失败”的半成品状态；下一刀应继续判断是否需要把 synthetic local registry 提升成真正的 live registry，以及是否值得单独实现 `bridge:` remote peer transport。
+
+### 继续推进（CCD-008 / SkillTool current）
+
+- 继续对照参考运行时后，确认 Lime 在 `skills` 这一层的最大假对齐点其实不是 `WorkflowTool`，而是 [tool.rs](../../src-tauri/crates/aster-rust/crates/aster/src/skills/tool.rs) 里的 `SkillTool`：
+  - 参考运行时里，skills 并不是只登记一次调用意图；它们会真正进入 prompt / workflow / agent 执行链。
+  - Lime 之前的 `SkillTool` 只会返回 `Launching skill: ...`，本质上还是占位壳；即使 skill frontmatter 已声明 `execution-mode: workflow`，工具面也没有真实执行。
+- 本轮先把这条最显眼的占位执行链收成最小 `current`：
+  - [tool.rs](../../src-tauri/crates/aster-rust/crates/aster/src/skills/tool.rs) 现在改为持有显式 registry，不再把 `SkillTool` 绑定死在全局单例，后续也更适合定向测试和局部收口。
+  - `SkillTool` 现在会像 [workflow_tool.rs](../../src-tauri/crates/aster-rust/crates/aster/src/tools/workflow_tool.rs) 一样解析当前 session provider；若 skill 自己绑定 provider，也会复用当前 provider 或按绑定名创建 provider，不再只回一句“已启动”。
+  - `Prompt` 与 `Workflow` 两种 `execution_mode` 现在都会通过 `SkillExecutor` 真实执行，输出会回带 `success / output / error / stepsCompleted` 元数据；`Workflow` 不再只是“另有 WorkflowTool 可用”的旁路能力。
+  - `SkillExecutionMode::Agent` 仍保持明确失败：当前 runtime 继续返回“尚未实现 SkillExecutionMode::Agent”，避免把多轮 agent orchestration 假装成已经 current。
+- 这一步后的分类也更清楚了：
+  - `current`：`SkillTool` 的 prompt/workflow 执行、`WorkflowTool` 的 workflow 执行、基于当前 session/provider 的 skill 执行解析
+  - `current gap`：`SkillExecutionMode::Agent`、skill frontmatter hooks、skill 级 hook 注册与执行编排
+  - `compat / deprecated / dead`：无新增；本轮没有再引入第二套 skill 执行壳
+- 已执行校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/aster-rust/crates/aster/src/skills/tool.rs"` 通过
+  - `env CARGO_INCREMENTAL=0 RUSTFLAGS="-Cdebuginfo=0" CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_skill_tool_executes_prompt_skill_with_provider --lib --no-default-features -- --nocapture` 通过（`1 passed`）
+  - `env CARGO_INCREMENTAL=0 RUSTFLAGS="-Cdebuginfo=0" CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_skill_tool_executes_workflow_skill_with_provider --lib --no-default-features -- --nocapture` 通过（`1 passed`）
+  - `env CARGO_INCREMENTAL=0 RUSTFLAGS="-Cdebuginfo=0" CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_skill_tool_rejects_agent_mode_skill --lib --no-default-features -- --nocapture` 通过（`1 passed`）
+  - `env CARGO_INCREMENTAL=0 RUSTFLAGS="-Cdebuginfo=0" CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo check --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" --lib --tests --no-default-features` 已尝试执行；当前阻塞来自现有 `providers.rs` 集成测试在关闭 `provider-aws` feature 时仍引用 `bedrock / sagemaker_tgi`，不是本轮 `SkillTool` 改动引入
+- 这一步服务路线图主目标的关系是：先把参考运行时图里“skills 真正可执行”这条主链从 placeholder 推进成 current，避免 `CCD-008` 长期停留在“工具名看起来对齐、实际没有执行”的假完成状态；下一刀应回到 hooks 的真实加载与执行链。
+
+### 继续推进（CCD-008 / hooks-skills gap 审计）
+
+- 继续对照 `/Users/coso/Documents/dev/js/claudecode` 后，`hooks / skills` 的剩余差距已经可以拆成 4 条具体链路，而不再只是笼统一句“hooks 半成品”：
+  - 参考运行时在 [loadSkillsDir.ts](/Users/coso/Documents/dev/js/claudecode/src/skills/loadSkillsDir.ts) 与 [loadAgentsDir.ts](/Users/coso/Documents/dev/js/claudecode/src/tools/AgentTool/loadAgentsDir.ts) 会从 frontmatter 解析 `hooks`；Lime 当前 [types.rs](../../src-tauri/crates/aster-rust/crates/aster/src/skills/types.rs) 的 `SkillFrontmatter` 还没有 `hooks` 字段，[loader.rs](../../src-tauri/crates/aster-rust/crates/aster/src/skills/loader.rs) 也不会解析这层配置。
+  - 参考运行时在 [hooks.ts](/Users/coso/Documents/dev/js/claudecode/src/utils/hooks.ts)、[execPromptHook.ts](/Users/coso/Documents/dev/js/claudecode/src/utils/hooks/execPromptHook.ts) 与 [execAgentHook.ts](/Users/coso/Documents/dev/js/claudecode/src/utils/hooks/execAgentHook.ts) 里会真实执行 `prompt / agent` hooks；Lime 当前 [executor.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs) 只有 `command / url` 进入真实执行，`mcp / prompt / agent` 仍然是 `warn! + success(None)` 的占位实现。
+  - 参考运行时不仅能加载 hooks，还会从 plugin / settings / frontmatter 合并并热更新；Lime 当前虽然有 [loader.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/loader.rs) 能读 `.claude/settings.json` 与 `.claude/hooks/*.json`，但仓库里还没有稳定 `current` bootstrap 在 session 启动时调用 `load_project_hooks(...)`，也没有 plugin hook load / hot reload 主链。
+  - 参考运行时的 hook event 面更宽，包含 `Setup / CwdChanged / FileChanged / PermissionDenied / Elicitation / WorktreeCreate` 等；Lime 当前 [types.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/types.rs) 还缺这一整批 event，现有真实调用点基本只落在 [task_list_tools.rs](../../src-tauri/crates/aster-rust/crates/aster/src/tools/task_list_tools.rs) 的 `TaskCreated / TaskCompleted`。
+- 因此 `CCD-008` 当前更准确的边界应该是：
+  - `current`：`TaskCreated / TaskCompleted` hooks、`command / url` hook executor、`SkillTool` prompt/workflow execution
+  - `current gap`：project hooks 加载入口、hook event 矩阵、`prompt / mcp / agent` hook executor、skill/agent frontmatter hooks、plugin hooks/hot reload、`SkillExecutionMode::Agent`
+  - `compat / deprecated / dead`：暂无额外 legacy surface 需要回流；当前主要问题是执行链缺失，而不是旧链未删干净
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“好像哪里都缺一点”收敛成可下刀的 4 条执行链，避免后续又去补 schema、枚举或文案，却没有真的补到 hooks/skills 的 current 主路径。
+- 当前最值得继续推进的一刀也更明确了：
+  - 先把 `load_project_hooks(...) + 一个已存在 executor-backed event` 收成第一条真正的 hooks current 主链，优先考虑 `UserPromptSubmit` 或 `SessionStart`
+  - 等加载入口与第一条 event 跑通后，再决定是补 `Prompt hook` 还是继续上探 `Agent hook / MCP hook`
+
+### 继续推进（CCD-008 / UserPromptSubmit hooks current）
+
+- 这一轮继续沿上一刀确定的主线，把 project hooks 的第一条真实运行时链路收成 `UserPromptSubmit current`，而不是继续停留在“loader 有了、executor 有了、runtime 没人调用”的半成品：
+  - [loader.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/loader.rs) 新增 `load_project_hooks_to_registry(...)`，并让现有 `load_hooks_from_file(...) / load_project_hooks(...)` 都回收到底层 `*_to_registry` 路径，避免再维持“一套全局加载逻辑 + 一套局部加载逻辑”的双轨。
+  - [executor.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs) 新增 `run_hooks_with_registry(...)` 与 `run_user_prompt_submit_hooks_with_registry(...)`；现有全局 helper 现在只是委托到 registry-aware 执行器，不再把“只能跑全局注册表”当成 hooks 的隐式前提。
+  - [runtime_turn.rs](../../src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs) 现在会在 `prepare_runtime_turn_ingress_context(...)` 之后、`prepare_runtime_turn_submit_preparation(...)` 之前，为当前 `workspace_root` 创建临时 registry，加载 `.claude/settings.json` 与 `.claude/hooks/*.json`，然后对 `request.message` 执行 `UserPromptSubmit`；若 hook 返回 block，则在真正 submit 前直接短路返回错误。
+- 这一步后的分类再次收紧为：
+  - `current`：`TaskCreated / TaskCompleted` hooks、`command / url` hook executor、project-level `UserPromptSubmit` hooks、`SkillTool` prompt/workflow execution
+  - `current gap`：`SessionStart` 等更多 event 的 runtime bootstrap、`prompt / mcp / agent` hook executor、skill/agent frontmatter hooks、plugin hooks/hot reload、`SkillExecutionMode::Agent`
+  - `compat / deprecated / dead`：无新增；本轮没有为了接 runtime 而把 hooks 再接回全局共享状态
+- 已执行校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/aster-rust/crates/aster/src/hooks/loader.rs" "src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs" "src-tauri/crates/aster-rust/crates/aster/src/hooks/tests.rs" "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs"` 通过
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_run_user_prompt_submit_hooks_with_registry_blocks_project_hook --lib --no-default-features` 通过（`1 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" enforce_runtime_turn_user_prompt_submit_hooks_should_ --lib` 通过（`2 passed`）
+- 这一步服务路线图主目标的关系是：把参考运行时图里“project hooks 真能拦截用户提交”这条最贴主链的 extension path 收成 Lime 的第一条 hooks `current`，避免 `CCD-008` 继续停在“只有 task hooks 真执行，用户输入主链仍完全绕过 hooks”。
+- 下一刀应继续回到同一主线：
+  - 优先把 `SessionStart` 接到这条新的 per-registry runtime bootstrap 上
+  - 然后再决定是继续扩 event 矩阵，还是开始把 `Prompt hook` 从占位 executor 推进成真实执行
+
+### 继续推进（CCD-008 / SessionStart hooks current）
+
+- 这一轮继续沿同一条 per-registry hooks 主链，把 `SessionStart` 收到 Lime 的 runtime session 创建入口上，而不是把 hook 语义下沉到 `SessionManager::create_session(...)` 这种底层公共能力：
+  - 新增 [runtime_project_hooks.rs](../../src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs)，把“按 `workspace_root` 创建临时 registry、加载 project hooks、执行指定 event”收成单一 helper；`runtime_turn` 的 `UserPromptSubmit` 现在也复用这层，不再自己拼 registry。
+  - [executor.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs) 新增 `run_session_start_hooks_with_registry(...)`，让 `SessionStart` 也能像 `UserPromptSubmit` 一样基于指定 registry 执行，而不是只能依赖全局注册表。
+  - [session_runtime.rs](../../src-tauri/src/commands/aster_agent_cmd/session_runtime.rs) 的 `create_runtime_session_internal(...)` 现在会在创建 session 并持久化默认 access mode 后，对当前 workspace 运行 project-level `SessionStart`，其 `source` 固定落为 `startup`；hook 执行失败或返回 block 只记录 warning，不会反向阻断 session 创建。
+- 这一步后的分类继续收紧为：
+  - `current`：`TaskCreated / TaskCompleted` hooks、project-level `UserPromptSubmit` hooks、project-level `SessionStart` hooks、`command / url` hook executor、`SkillTool` prompt/workflow execution
+  - `current gap`：`SessionStart` 的 `resume / clear / compact` 复用、更多 runtime event bootstrap、`prompt / mcp / agent` hook executor、skill/agent frontmatter hooks、plugin hooks/hot reload、`SkillExecutionMode::Agent`
+  - `compat / deprecated / dead`：无新增；本轮没有把 hooks 再扩散到底层 `SessionManager` 或其它非主路径
+- 已执行校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs" "src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs" "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs" "src-tauri/src/commands/aster_agent_cmd/session_runtime.rs" "src-tauri/src/commands/aster_agent_cmd/mod.rs"` 通过
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" create_runtime_session_internal_should_run_project_session_start_hooks --lib` 通过（`1 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" enforce_runtime_turn_user_prompt_submit_hooks_should_ --lib` 通过（`2 passed`）
+- 这一步服务路线图主目标的关系是：把参考运行时图里“session start 也会经过 project hooks”这条 extension 主链补进 Lime 的 current，而不是继续停留在“只有用户提交会经过 hooks，创建新 session 仍完全绕过 hooks”的半成品状态。
+- 下一刀应继续回到同一条主链：
+  - 优先把 `SessionStart` 的 `resume / clear / compact` 也复用到这套 per-registry bootstrap
+  - 或者开始把 `Prompt hook` 从占位 executor 推进成真实执行，但不建议两条线同时铺开
+
+### 继续推进（CCD-008 / SessionStart compact hooks current）
+
+- 这一轮继续沿同一条 per-registry hooks 主链，把 `SessionStart(compact)` 也接进 Lime 的 runtime `current`，并且仍然只落在宿主入口，不把 hooks 语义下沉到更底层公共能力：
+  - [runtime_project_hooks.rs](../../src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs) 新增 `resolve_runtime_project_hook_workspace_root(...)` 与 `run_runtime_session_start_project_hooks_for_session(...)`，先按 `session_id -> runtime session detail -> workspace_id` 反查当前 workspace；若 workspace 已缺失，再显式回退 `working_dir`，避免 compact 阶段重新散落一套“自己猜 project root”的旁路。
+  - [runtime_turn.rs](../../src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs) 的 `compact_runtime_session_with_trigger(...)` 现在会在压缩成功、终态事件写回后，继续对当前 session 执行 project-level `SessionStart`，其 `source` 固定落为 `compact`；hook 执行失败或返回 block 仍只记 warning，不会反向破坏 compact 成功结果。
+  - [runtime_project_hooks.rs](../../src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs) 也补了两组定向测试，分别覆盖：
+    - 正常 `workspace_id -> workspace_root` 路径会收到 `source=compact`
+    - workspace 缺失时会回退 `working_dir`，而不是直接让 compact hook 静默失效
+- 这一步后的分类继续收紧为：
+  - `current`：`TaskCreated / TaskCompleted` hooks、project-level `UserPromptSubmit` hooks、project-level `SessionStart(startup / compact)` hooks、`command / url` hook executor、`SkillTool` prompt/workflow execution
+  - `current gap`：`SessionStart(resume)` 是否存在真实 current 入口仍待确认；`/clear` 当前只是前端本地状态清空，不应再伪造为后端 `SessionStart(clear)`。除此之外，更多 runtime event bootstrap、`prompt / mcp / agent` hook executor、skill/agent frontmatter hooks、plugin hooks/hot reload、`SkillExecutionMode::Agent` 仍缺席
+  - `compat / deprecated / dead`：无新增；本轮没有把 hooks 回流到底层 `SessionManager`，也没有为了凑齐 event 枚举去伪造 `clear` 生命周期
+- 已执行校验：
+  - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs" "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs"` 通过
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" run_runtime_session_start_project_hooks_for_session_should_ --lib` 通过（`2 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" create_runtime_session_internal_should_run_project_session_start_hooks --lib` 通过（`1 passed`）
+- 这一步服务路线图主目标的关系是：把参考运行时图里 `SessionStart(compact)` 这条 extension 主链真正补进 Lime 的宿主 `current`，不再停留在“新建 session 会走 hooks，但 compact 后的新上下文不会重新经过 project hooks”的半成品状态。
+- 下一刀应继续回到同一条主链：
+  - 优先判断 Lime 当前是否存在可被接受为 `SessionStart(resume)` 的真实 session 恢复入口；若没有，就不要硬映射
+  - 或者开始把 `Prompt hook` 从占位 executor 推进成真实执行，但不建议与 `resume` 语义判定并行铺开
+
+### 继续推进（CCD-008 / Prompt hook current）
+
+- 这一轮继续沿 `hooks / skills` 主链往前推，但没有把 `agent_runtime_resume_thread` 硬映射成 `SessionStart(resume)`：
+  - 重新核对 [command_api/runtime_api.rs](../../src-tauri/src/commands/aster_agent_cmd/command_api/runtime_api.rs) 后，确认 Lime 当前公开的是“恢复排队线程执行”，不是 Claude Code 那种明确的 session lifecycle resume；因此 `SessionStart(resume)` 继续保留为 `current gap`，不做假对齐。
+  - [executor.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs) 的 `Prompt hook` 已从 `warn! + success(None)` 占位实现推进成真实执行：
+    - 新增 prompt 参数注入与 JSON 结果解析 helper，支持 `$ARGUMENTS` 替换；未显式使用占位符时会把 hook input JSON 追加到 prompt 尾部。
+    - 新增按 `session_id -> query_session(...)` 解析当前 session `provider_name / model_config` 的 provider 选择逻辑；有 session 上下文时优先复用当前 session provider，没有 session 时才回退 `ASTER_PROVIDER / ASTER_MODEL`。
+    - 新增最小 `output_schema` turn context，把 hook 输出约束到 `{"ok":true}` / `{"ok":false,"reason":"..."}` 两种 JSON 形态；解析失败会返回显式 failure，`ok=false` 时会产出真实的 blocked 结果。
+- 这一步后的分类继续收紧为：
+  - `current`：`TaskCreated / TaskCompleted` hooks、project-level `UserPromptSubmit` hooks、project-level `SessionStart(startup / compact)` hooks、`command / url / prompt` hook executor、`SkillTool` prompt/workflow execution
+  - `current gap`：`SessionStart(resume)` 是否存在真实入口仍待确认；`MCP hook / Agent hook` 仍是占位实现；skill/agent frontmatter hooks、plugin hooks/hot reload、`SkillExecutionMode::Agent` 仍缺席
+  - `compat / deprecated / dead`：无新增；本轮没有为了凑齐 prompt hook 去引入第二套 provider 选择壳，也没有把 queue resume 伪装成 session lifecycle
+- 已执行校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs"` 通过
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" execute_prompt_hook_with_provider_should_ --lib --no-default-features` 通过（`2 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" replace_prompt_hook_arguments_should_append_json_when_no_placeholder --lib --no-default-features` 通过（`1 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" parse_prompt_hook_response_should_accept_fenced_json --lib --no-default-features` 通过（`1 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_run_user_prompt_submit_hooks_with_registry_blocks_project_hook --lib --no-default-features` 通过（`1 passed`）
+- 这一步服务路线图主目标的关系是：把参考运行时图里 `Prompt hook` 这条扩展执行链从“类型存在、执行器空壳”推进到 Lime 的 current，不再停留在“只有 command/url hook 能真正做判断，prompt hook 永远只是占位”的半成品状态。
+- 下一刀应继续回到同一条主链：
+  - 优先判断 `Agent hook` 能否沿同样的 provider / JSON decision 边界推进成最小 current
+  - 或继续核定 `SessionStart(resume)` 是否有真实宿主入口；若没有，就明确保留为 gap，不再反复犹豫
+
 ## 2026-04-16
 
 ### 已完成
@@ -351,3 +641,71 @@
 
 - `docs/roadmap/reliability/*` 与 [lime-aster-codex-alignment-roadmap.md](../roadmap/lime-aster-codex-alignment-roadmap.md) 的 compat 历史档案化已完成；其中原 `state-model` 与 `conversation-execution-efficiency` 子专题已经并入 `alignment-roadmap`。当前又收口了 `TurnInputEnvelope -> SessionConfig` 的 turn context 分叉、`action_runtime` 辅助恢复链旁路，并显式化了 `compact_session` 控制回合的最小上下文边界；剩余散落在 `persona_cmd` / `theme_context_cmd` 的一次性临时会话配置也已收回专用 helper，零入口旧发送壳已删除，Tauri 命令层 raw execution 也已经固定为 3 处并补了源码扫描守卫。下一刀转向继续盘点 `src-tauri/src` 非命令层与 README/示例面是否还残留会误导实现者的原始执行旁路叙事
 - 后续若出现 `runtime_turn` 行为回退，再回到 `M1` current 主路径做定点修复，而不是继续常态化微切
+
+### 继续推进（CCD-008 / Agent hook current）
+
+- 继续沿 `hooks / skills` 主线推进后，`Agent hook` 已从占位实现推进成真实 current 执行，不再只是 `warn! + success(None)`：
+  - [types.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/types.rs) 里的 `AgentHookConfig` 已补 direct `prompt / model` 字段，作为 current 事实源；原有 `agent_type / agent_config` 继续保留为 compat，其中 `agent_config.prompt / model / max_turns` 仍可回退解析，避免直接打断旧草案配置。
+  - [executor.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs) 里的 `Agent hook` 现在会复用与 `Prompt hook` 相同的 provider 解析优先级：先按 `session_id -> query_session(...) -> provider_name / model_config`，命不中当前 session 上下文时才回退 `ASTER_PROVIDER / ASTER_MODEL`。
+  - `Agent hook` 的实际执行不再另造 query loop，而是接入现有 [agent.rs](../../src-tauri/crates/aster-rust/crates/aster/src/agents/agent.rs) `Agent.reply(...)` 主链：运行时会为 hook 创建隔离的临时 subagent session store，复用现有 tool surface、StructuredOutput/output schema 与 turn runtime，而不把一次 hook 验证写进正式 session 存储。
+  - 为了避免 non-interactive hook verifier 卡死在审批流，本轮新增 `Agent::set_permission_mode(...)`，并在 hook agent 上显式切到 `AsterMode::Auto`；这样 hook verifier 会保持 headless current 行为，不会因为 `AskUserQuestion / confirmation_rx` 进入等待。
+  - `Agent hook` 现同样使用最小 JSON decision contract：最终通过 `StructuredOutput` 返回 `{"ok":true}` 或 `{"ok":false,"reason":"..."}`；`ok=false` 会真实映射到 `HookResult::blocked(...)`。
+- 这一步后的 `CCD-008` 边界进一步收紧为：
+  - `current`：`TaskCreated / TaskCompleted` hooks、project-level `UserPromptSubmit`、`SessionStart(startup / compact)`、`command / url / prompt / agent` hook executor、`SkillTool` prompt/workflow execution。
+  - `current gap`：`MCP hook`、`SessionStart(resume)`、skill frontmatter hooks、plugin hook load/hot reload、更多 event bootstrap、`SkillExecutionMode::Agent`。
+  - `compat`：`agent_type / agent_config` 继续保留，但不再主导 `Agent hook` current 行为。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 从“prompt hook 已 current、agent hook 仍是假实现”的断层，推进成“扩展体系至少已有两条真实 LLM hook current 主链”；这样后续剩余差距就集中到 `MCP hook + 更多 event bootstrap + skill frontmatter/plugin hooks`，不再混着一个明显的执行空洞。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs" "src-tauri/crates/aster-rust/crates/aster/src/hooks/types.rs" "src-tauri/crates/aster-rust/crates/aster/src/hooks/registry.rs" "src-tauri/crates/aster-rust/crates/aster/src/hooks/tests.rs" "src-tauri/crates/aster-rust/crates/aster/src/agents/agent.rs"` 通过
+  - `env CARGO_INCREMENTAL=0 RUSTFLAGS="-Cdebuginfo=0" CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" execute_agent_hook_with_provider_should_ --lib --no-default-features` 通过（`3 passed`）
+  - `env CARGO_INCREMENTAL=0 RUSTFLAGS="-Cdebuginfo=0" CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_agent_hook_config_ --lib --no-default-features` 通过（`2 passed`）
+  - `env CARGO_INCREMENTAL=0 RUSTFLAGS="-Cdebuginfo=0" CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" execute_prompt_hook_with_provider_should_ --lib --no-default-features` 通过（`2 passed`）
+  - `env CARGO_INCREMENTAL=0 RUSTFLAGS="-Cdebuginfo=0" CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" parse_prompt_hook_response_should_accept_fenced_json --lib --no-default-features` 通过（`1 passed`）
+  - `env CARGO_INCREMENTAL=0 RUSTFLAGS="-Cdebuginfo=0" CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" replace_prompt_hook_arguments_should_append_json_when_no_placeholder --lib --no-default-features` 通过（`1 passed`）
+  - 运行时仍会看到工作区既有 `unused import` warning：`task_list_tools.rs`、`worktree_tools.rs`；与本轮 `Agent hook` 改动无关，继续不顺手扩大范围清理。
+- 当前最值得继续推进的一刀也已变化：
+  - `SessionStart(resume)` 继续明确保留为 gap，不再回头把 queue resume 或前端 `/clear` 硬映射成 session lifecycle resume。
+  - 下一刀优先转向 `MCP hook current`，这样 `CCD-008` 剩余 executor placeholder 就只剩一类，而不是继续卡在 `command/url/prompt/agent` 四种里只差一个。
+
+### 继续推进（CCD-008 / MCP hook current）
+
+- 继续沿 `hooks / skills` 主线推进后，`MCP hook` 已从占位实现推进成真实 current 执行，不再只是 `warn! + success(None)`：
+  - [types.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/types.rs) 新增 `HookRuntimeContext` 与 `McpHookExecutor`，让 `aster hooks` 可以显式接收宿主 runtime 提供的 MCP dispatcher，而不是在 `aster` crate 里直接耦合 Tauri 层状态。
+  - [executor.rs](../../src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs) 的 `MCP hook` 现在会真正执行 runtime dispatcher，并在 hook 边界统一处理 timeout / missing-dispatcher；`run_hooks_with_registry(...)`、`UserPromptSubmit` 与 `SessionStart` 也都补了 `*_with_registry_and_context(...)` 入口，避免再把“只能跑无上下文 hook”当成默认前提。
+  - [runtime_project_hooks.rs](../../src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs) 新增 Lime current runtime 注入层：执行 `MCP hook` 前会先确保 `Agent` 已初始化，再按现有主链做 `ensure_lime_mcp_servers_running(...) + inject_mcp_extensions(...)`，随后复用当前 [extension_manager.rs](../../src-tauri/crates/aster-rust/crates/aster/src/agents/extension_manager.rs) `dispatch_tool_call(...)` 分发真实 `mcp__<server>__<tool>` 调用，而不是绕到底层另造一套 MCP lifecycle。
+  - 同一层还补了 `CallToolResult -> HookResult` 收口：若 MCP 返回 `structured_content` 或文本 JSON 中带 `{"blocked":true,"message":"..."}`，现在会真实映射到 `HookResult::blocked(...)`；普通文本/structured payload 则回传为 hook output。
+  - [runtime_turn.rs](../../src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs) 的 `UserPromptSubmit`，以及 [session_runtime.rs](../../src-tauri/src/commands/aster_agent_cmd/session_runtime.rs) / compact `SessionStart` 入口，现在都会带着 runtime context 跑 project hooks，确保 Lime 当前宿主主路径上的 `MCP hook` 真能命中 current MCP bridge。
+- 这一步后的 `CCD-008` 边界进一步收紧为：
+  - `current`：`TaskCreated / TaskCompleted` hooks、project-level `UserPromptSubmit`、`SessionStart(startup / compact)`、`command / url / prompt / agent / mcp` hook executor、`SkillTool` prompt/workflow execution。
+  - `current gap`：`SessionStart(resume)`、skill frontmatter hooks、plugin hook load/hot reload、更多 event bootstrap、`SkillExecutionMode::Agent`。
+  - `compat`：`agent_type / agent_config` 继续只作为 `Agent hook` fallback；没有新增兼容 MCP 路径。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 剩余最后一类明显的 executor placeholder 推成 Lime current，避免扩展体系继续停留在“command/url/prompt/agent 都能真执行，唯独 MCP hook 还是空壳”的断层状态。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/aster-rust/crates/aster/src/hooks/types.rs" "src-tauri/crates/aster-rust/crates/aster/src/hooks/executor.rs" "src-tauri/src/commands/aster_agent_cmd/runtime_project_hooks.rs" "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs" "src-tauri/src/commands/aster_agent_cmd/session_runtime.rs" "src-tauri/src/commands/aster_agent_cmd/command_api/session_api.rs" "src-tauri/src/commands/aster_agent_cmd/command_api.rs" "src-tauri/src/dev_bridge/dispatcher/agent_sessions.rs"` 通过
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" execute_mcp_hook_should_ --lib --no-default-features` 通过（`4 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" convert_runtime_mcp_call_result_should_ --lib` 通过（`2 passed`）
+  - `env CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/Cargo.toml" create_runtime_session_internal_should_run_project_session_start_hooks --lib` 通过（`1 passed`）
+- 当前最值得继续推进的一刀也已变化：
+  - `SessionStart(resume)` 继续明确保留为 gap，不再回头把 queue resume 或前端 `/clear` 硬映射成 session lifecycle resume。
+  - 下一刀优先转向 `SkillExecutionMode::Agent` 或 skill frontmatter hooks，这样 `CCD-008` 剩余差距会进一步集中到 skill/plugin/event bootstrap，而不再混着 executor 空洞。
+
+### 继续推进（CCD-008 / SkillExecutionMode::Agent current）
+
+- 继续对照本地参考运行时 `"/Users/coso/Documents/dev/js/claudecode/src/tools/SkillTool/SkillTool.ts"` 与 `"/Users/coso/Documents/dev/js/claudecode/src/utils/forkedAgent.ts"` 后，确认 `SkillExecutionMode::Agent` 不该再往 `SkillExecutor` 里补一套平行 runtime：
+  - upstream 的 forked skill 本质是“先构造 skill content，再起隔离子 agent，上到既有 agent query loop”；
+  - 因此 Lime 本轮把 `Agent` skill 的 current 事实源固定到 [`skills/tool.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/skills/tool.rs) + [`agent.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/agents/agent.rs) `Agent.reply(...)` 主链，而不是继续扩 `SkillExecutor`。
+- [`skills/tool.rs`](../../src-tauri/crates/aster-rust/crates/aster/src/skills/tool.rs) 现已完成这条收口：
+  - `SkillTool.execute_skill(...)` 遇到 `SkillExecutionMode::Agent` 时不再直接报“未实现”，而是进入新的 `execute_agent_skill(...)`。
+  - skill prompt 构造已向 upstream 靠拢：会注入 `Base directory for this skill: ...` 头部，并替换 `${CLAUDE_SKILL_DIR}` / `${CLAUDE_SESSION_ID}`；参数仍保持当前最小行为，继续追加 `**ARGUMENTS:** ...`，没有为了统一接口再倒腾一套假命令插值层。
+  - provider 解析收回到单一 `resolve_skill_provider(...)`：优先复用当前 session provider；skill 自带 provider 时按绑定名创建或复用同名 provider；`Prompt / Workflow` 继续包进 `SessionLlmProvider`，`Agent` 直接消费真实 `Arc<dyn Provider>`。
+  - agent skill 会创建隔离的 `SkillAgentSessionStore` 与临时 `SubAgent` session，并显式把权限模式切到 `AsterMode::Auto`，然后直接复用 `Agent.reply(...)` 执行；这样 skill agent 不会污染正式 session 存储，也不会卡在交互式审批流。
+  - `Prompt / Workflow` 继续保持在 `SkillExecutor` current 边界，没有为了“看起来统一”把 agent path 再塞回 executor。
+- 这一步后的 `CCD-008` 边界继续收紧为：
+  - `current`：`TaskCreated / TaskCompleted` hooks、project-level `UserPromptSubmit`、`SessionStart(startup / compact)`、`command / url / prompt / agent / mcp` hook executor、`SkillTool` prompt/workflow/agent execution。
+  - `current gap`：`SessionStart(resume)`、skill frontmatter hooks、plugin hook load/hot reload、更多 event bootstrap，以及 agent skill 的 `allowed_tools` 真实权限收紧目前仍未接入 runtime permission context。
+  - `compat / deprecated / dead`：无新增；本轮没有为了“兼容旧 executor”再引入第二套 skill runtime。
+- 这一步服务路线图主目标的关系是：把 `CCD-008` 最后一个明显的 skill executor 空洞补到 current，让 Lime 不再停在“hooks 都能真执行，但 agent skill 仍是假实现”的断层状态；下一刀应优先回到 skill/plugin/event bootstrap 缺口，而不是再回头发明 compat 包装层。
+- 已执行定向校验：
+  - `rustfmt --edition 2021 "src-tauri/crates/aster-rust/crates/aster/src/skills/tool.rs"` 通过
+  - `env CARGO_INCREMENTAL=0 RUSTFLAGS="-Cdebuginfo=0" CARGO_TARGET_DIR="/Users/coso/Documents/dev/ai/aiclientproxy/lime/.codex-target" cargo test --manifest-path "src-tauri/crates/aster-rust/crates/aster/Cargo.toml" test_skill_tool_ --lib --no-default-features` 通过（`9 passed`）
+  - 运行时仍会看到工作区既有 `unused import` warning：`task_list_tools.rs`、`worktree_tools.rs`；与本轮 `SkillExecutionMode::Agent` 收口无关，继续不顺手扩大范围清理。

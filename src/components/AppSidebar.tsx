@@ -40,6 +40,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
+import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 
 interface AppSidebarProps {
@@ -275,16 +276,14 @@ const Avatar = styled.div`
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   flex-shrink: 0;
-  box-shadow:
-    0 8px 18px -14px rgba(15, 23, 42, 0.35),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.78);
 
   img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    display: block;
+    object-fit: contain;
   }
 `;
 
@@ -911,9 +910,9 @@ export function AppSidebar({
                 title="返回 Lime 首页"
               >
                 <Avatar>
-                  <img src="/logo-v6.svg" alt="Lime" />
+                  <img src={LIME_BRAND_LOGO_SRC} alt={LIME_BRAND_NAME} />
                 </Avatar>
-                <UserName $collapsed={collapsed}>Lime</UserName>
+                <UserName $collapsed={collapsed}>{LIME_BRAND_NAME}</UserName>
               </UserButton>,
               "Lime 首页",
             )}

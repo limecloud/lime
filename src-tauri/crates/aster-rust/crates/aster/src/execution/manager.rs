@@ -11,8 +11,6 @@ use crate::session::{
     RuntimeQueueSubmitResult, SessionRuntimeQueueService, SubagentSessionMetadata, TeamMember,
     TeamMembershipState, TeamSessionState, ThreadRuntimeStore,
 };
-#[cfg(test)]
-use crate::session::{SessionManager, SessionType};
 use crate::tools::{
     AgentControlToolConfig, SendInputRequest, SendInputResponse, SpawnAgentRequest,
     SpawnAgentResponse, ToolRegistrationConfig,
@@ -829,7 +827,7 @@ mod tests {
     #[serial]
     async fn test_team_spawned_agent_can_list_peers_and_receive_named_send_message() {
         use crate::providers::testprovider::TestProvider;
-        use crate::session::{SessionManager, SessionType};
+        use crate::session::{query_session, SessionManager, SessionType};
         use crate::tools::{ListPeersTool, SpawnAgentRequest, TeamCreateTool, Tool, ToolContext};
         use rmcp::model::CallToolRequestParam;
         use serde_json::json;

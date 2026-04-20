@@ -53,6 +53,9 @@ interface ToolProcessInput {
   metadata?: unknown;
 }
 
+const WEB_SEARCH_RUNTIME_UNAVAILABLE_MESSAGE =
+  "当前联网搜索链路未接通，请检查 Runtime 是否接通 WebSearch，或关闭联网搜索后重试。";
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -141,6 +144,72 @@ function normalizePlainResultLine(
   }
 
   return shorten(line, maxLength);
+}
+
+function extractToolResultText(value: string | null | undefined): string | null {
+  const raw = value?.trim();
+  if (!raw) {
+    return null;
+  }
+
+  const normalized = extractLimeToolMetadataBlock(raw).text.trim();
+  return normalized || null;
+}
+
+function isLikelyWebSearchRuntimeUnavailable(
+  toolName: string,
+  value: string,
+): boolean {
+  if (!isUnifiedWebSearchToolName(toolName)) {
+    return false;
+  }
+
+  const normalized = collapseWhitespace(value).toLowerCase();
+  if (!normalized.includes("websearch")) {
+    return false;
+  }
+
+  return (
+    (normalized.includes("-32603") && normalized.includes("-32002")) ||
+    normalized.includes("tool not found") ||
+    normalized.includes("tool failed") ||
+    normalized.includes("未找到可执行的必需工具定义") ||
+    normalized.includes("执行 websearch 预调用失败") ||
+    normalized.includes("websearch 预调用失败")
+  );
+}
+
+export function resolveToolErrorSummaryText(
+  toolName: string,
+  value: string | null | undefined,
+  maxLength = 88,
+): string | null {
+  const normalized = extractToolResultText(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (isLikelyWebSearchRuntimeUnavailable(toolName, normalized)) {
+    return shorten(WEB_SEARCH_RUNTIME_UNAVAILABLE_MESSAGE, maxLength);
+  }
+
+  return normalizePlainResultLine(value, maxLength);
+}
+
+export function resolveToolErrorDetailText(
+  toolName: string,
+  value: string | null | undefined,
+): string | null {
+  const normalized = extractToolResultText(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (!isLikelyWebSearchRuntimeUnavailable(toolName, normalized)) {
+    return normalized;
+  }
+
+  return `${WEB_SEARCH_RUNTIME_UNAVAILABLE_MESSAGE}\n\n原始错误：${normalized}`;
 }
 
 function normalizeArgumentsRecord(
@@ -879,8 +948,13 @@ function buildNarrative(input: ToolProcessInput): ToolProcessNarrative {
   });
   const normalizedName = normalizeToolNameKey(input.toolName);
   const resultOutput = input.output || "";
-  const plainError = normalizePlainResultLine(input.error, 88);
+  const plainError = resolveToolErrorSummaryText(input.toolName, input.error, 88);
   const plainOutput = normalizePlainResultLine(resultOutput, 96);
+  const failedOutputSummary =
+    input.status === "failed"
+      ? resolveToolErrorSummaryText(input.toolName, resultOutput, 96) ||
+        plainOutput
+      : plainOutput;
   const args = normalizeArgumentsRecord(input.argumentsValue);
   const metadata = asRecord(input.metadata);
   const subject = resolveToolSubject(input.toolName, input.argumentsValue);
@@ -890,7 +964,8 @@ function buildNarrative(input: ToolProcessInput): ToolProcessNarrative {
 
   if (input.status === "failed") {
     postSummary =
-      plainError || (plainOutput ? `执行失败：${plainOutput}` : null);
+      plainError ||
+      (failedOutputSummary ? `执行失败：${failedOutputSummary}` : null);
     if (postSummary) {
       if (!postSummary.startsWith("执行失败：")) {
         postSummary = `执行失败：${postSummary}`;

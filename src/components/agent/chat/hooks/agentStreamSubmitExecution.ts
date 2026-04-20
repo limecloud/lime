@@ -25,6 +25,11 @@ type MessageParts = NonNullable<Message["contentParts"]>;
 interface ExecuteAgentStreamSubmitOptions {
   runtime: AgentRuntimeAdapter;
   ensureSession: () => Promise<string | null>;
+  attemptSilentTurnRecovery: (
+    sessionId: string,
+    requestStartedAt: number,
+    promptText: string,
+  ) => Promise<boolean>;
   sessionIdRef: MutableRefObject<string | null>;
   getRequiredWorkspaceId: () => string;
   getSyncedSessionExecutionStrategy: (
@@ -107,6 +112,7 @@ export async function executeAgentStreamSubmit(
   const {
     runtime,
     ensureSession,
+    attemptSilentTurnRecovery,
     sessionIdRef,
     getRequiredWorkspaceId,
     getSyncedSessionExecutionStrategy,
@@ -178,6 +184,7 @@ export async function executeAgentStreamSubmit(
     runtime,
     eventName,
     requestState,
+    attemptSilentTurnRecovery,
     skipUserMessage,
     effectiveProviderType,
     effectiveModel,

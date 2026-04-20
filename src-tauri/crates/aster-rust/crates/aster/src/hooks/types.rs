@@ -1,8 +1,10 @@
 //! Hook 类型定义
 //!
 
+use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Hook 事件类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -144,9 +146,16 @@ pub struct PromptHookConfig {
 /// Agent Hook 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentHookConfig {
-    /// 代理类型或名称
+    /// 代理类型或名称（兼容旧配置；current 事实源优先看 prompt/model）
+    #[serde(default = "default_agent_type")]
     pub agent_type: String,
-    /// 代理配置
+    /// 直接描述验证目标的 prompt（current 事实源）
+    #[serde(default)]
+    pub prompt: Option<String>,
+    /// 使用的模型（current 事实源）
+    #[serde(default)]
+    pub model: Option<String>,
+    /// 代理配置（兼容旧配置；可回退解析 prompt/model/max_turns）
     #[serde(default)]
     pub agent_config: Option<serde_json::Value>,
     /// 超时时间（毫秒）
@@ -440,6 +449,29 @@ impl HookResult {
     }
 }
 
+pub type McpHookExecutor =
+    Arc<dyn Fn(McpHookConfig, HookInput) -> BoxFuture<'static, HookResult> + Send + Sync>;
+
+#[derive(Clone, Default)]
+pub struct HookRuntimeContext {
+    mcp_executor: Option<McpHookExecutor>,
+}
+
+impl HookRuntimeContext {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_mcp_executor(mut self, executor: McpHookExecutor) -> Self {
+        self.mcp_executor = Some(executor);
+        self
+    }
+
+    pub fn mcp_executor(&self) -> Option<&McpHookExecutor> {
+        self.mcp_executor.as_ref()
+    }
+}
+
 // 默认值函数
 fn default_timeout() -> u64 {
     DEFAULT_HOOK_TIMEOUT
@@ -447,6 +479,10 @@ fn default_timeout() -> u64 {
 
 fn default_agent_timeout() -> u64 {
     60000
+}
+
+fn default_agent_type() -> String {
+    "verifier".to_string()
 }
 
 fn default_url_timeout() -> u64 {

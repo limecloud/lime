@@ -1014,6 +1014,307 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(container.textContent).toContain("处理中");
   });
 
+  it("运行 metadata 带着 curated task 时，应在当前进展里展示建议下一步", () => {
+    const { container } = renderSidebar({
+      activeRunDetail: {
+        id: "run-curated-task-1",
+        source: "skill",
+        source_ref: "daily-trend-briefing",
+        session_id: "session-curated-task",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "daily-trend-briefing",
+              task_title: "每日趋势摘要",
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    expect(container.textContent).toContain("建议下一步");
+    expect(container.textContent).toContain("每日趋势摘要");
+    expect(container.textContent).toContain("继续展开其中一个选题");
+    expect(container.textContent).toContain("生成首条内容主稿");
+
+    const followUpHint = container.querySelector(
+      '[data-testid="workflow-sidebar-follow-up-hint"]',
+    ) as HTMLElement | null;
+    expect(followUpHint).toBeTruthy();
+    expect(followUpHint?.textContent).toContain("每日趋势摘要");
+  });
+
+  it("点击建议下一步应把 continuation prompt 回传给工作区", () => {
+    const onApplyFollowUpAction = vi.fn();
+    const { container } = renderSidebar({
+      onApplyFollowUpAction,
+      activeRunDetail: {
+        id: "run-curated-task-follow-up",
+        source: "skill",
+        source_ref: "daily-trend-briefing",
+        session_id: "session-curated-task-follow-up",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "daily-trend-briefing",
+              task_title: "每日趋势摘要",
+              launch_input_values: {
+                theme_target: "AI 内容创作",
+                platform_region: "X 与 TikTok 北美区",
+              },
+              reference_entries: [
+                {
+                  id: "memory-1",
+                  title: "品牌风格样本",
+                  summary: "保留轻盈但专业的表达。",
+                  category: "context",
+                  tags: ["品牌", "语气"],
+                },
+              ],
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    const followUpButton = container.querySelector(
+      'button[aria-label="应用建议下一步-继续展开其中一个选题"]',
+    ) as HTMLButtonElement | null;
+    expect(followUpButton).toBeTruthy();
+    if (followUpButton) {
+      act(() => {
+        followUpButton.click();
+      });
+    }
+
+    expect(onApplyFollowUpAction).toHaveBeenCalledWith(
+      {
+        prompt: "请基于「每日趋势摘要」这轮结果继续：继续展开其中一个选题",
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt: "请基于「每日趋势摘要」这轮结果继续：继续展开其中一个选题",
+          launchInputValues: {
+            theme_target: "AI 内容创作",
+            platform_region: "X 与 TikTok 北美区",
+          },
+          referenceMemoryIds: ["memory-1"],
+          referenceEntries: [
+            {
+              id: "memory-1",
+              sourceKind: "memory",
+              title: "品牌风格样本",
+              summary: "保留轻盈但专业的表达。",
+              category: "context",
+              categoryLabel: "参考",
+              tags: ["品牌", "语气"],
+            },
+          ],
+        },
+      },
+    );
+  });
+
+  it("复盘结果点击建议下一步时，应切到下游结果模板而不是继续停在复盘模板", () => {
+    const onApplyFollowUpAction = vi.fn();
+    const { container } = renderSidebar({
+      onApplyFollowUpAction,
+      activeRunDetail: {
+        id: "run-review-follow-up-route",
+        source: "skill",
+        source_ref: "account-project-review",
+        session_id: "session-review-follow-up-route",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "account-project-review",
+              task_title: "复盘这个账号/项目",
+              reference_entries: [
+                {
+                  id: "memory-review-1",
+                  title: "本周账号复盘线索",
+                  summary: "封面信息过密，转化动作不够聚焦。",
+                  category: "experience",
+                  tags: ["复盘", "增长"],
+                },
+              ],
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    const followUpButton = container.querySelector(
+      'button[aria-label="应用建议下一步-生成下一轮内容方案"]',
+    ) as HTMLButtonElement | null;
+    expect(followUpButton).toBeTruthy();
+    if (followUpButton) {
+      act(() => {
+        followUpButton.click();
+      });
+    }
+
+    expect(onApplyFollowUpAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining(
+          "请承接这轮复盘结论，直接生成下一轮最值得执行的内容方案。",
+        ),
+        capabilityRoute: expect.objectContaining({
+          kind: "curated_task",
+          taskId: "social-post-starter",
+          taskTitle: "内容主稿生成",
+          prompt: expect.stringContaining("请先帮我起草一版内容首稿"),
+          referenceMemoryIds: ["memory-review-1"],
+          referenceEntries: [
+            {
+              id: "memory-review-1",
+              sourceKind: "memory",
+              title: "本周账号复盘线索",
+              summary: "封面信息过密，转化动作不够聚焦。",
+              category: "experience",
+              categoryLabel: "成果",
+              tags: ["复盘", "增长"],
+            },
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("跨模板建议下一步应继续保留当前启动参数，并和目标模板参考预填合并", () => {
+    const onApplyFollowUpAction = vi.fn();
+    const { container } = renderSidebar({
+      onApplyFollowUpAction,
+      activeRunDetail: {
+        id: "run-review-follow-up-launch-context",
+        source: "skill",
+        source_ref: "account-project-review",
+        session_id: "session-review-follow-up-launch-context",
+        status: "success",
+        started_at: "2026-03-06T01:12:03Z",
+        finished_at: "2026-03-06T01:12:10Z",
+        duration_ms: 7000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          harness: {
+            curated_task: {
+              task_id: "account-project-review",
+              task_title: "复盘这个账号/项目",
+              launch_input_values: {
+                target_audience: "关注 AI 内容的品牌运营",
+              },
+              reference_entries: [
+                {
+                  id: "memory-review-2",
+                  title: "本周账号复盘线索",
+                  summary: "封面信息过密，转化动作不够聚焦。",
+                  category: "experience",
+                  tags: ["复盘", "增长"],
+                  task_prefill_by_task_id: {
+                    "social-post-starter": {
+                      subject_or_product: "基于本周账号复盘，整理下一轮内容方向与重点动作。",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }),
+        created_at: "2026-03-06T01:12:03Z",
+        updated_at: "2026-03-06T01:12:10Z",
+      },
+    });
+
+    const workflowTab = container.querySelector(
+      'button[aria-label="打开当前进展"]',
+    ) as HTMLButtonElement | null;
+    if (workflowTab) {
+      act(() => {
+        workflowTab.click();
+      });
+    }
+
+    const followUpButton = container.querySelector(
+      'button[aria-label="应用建议下一步-生成下一轮内容方案"]',
+    ) as HTMLButtonElement | null;
+    expect(followUpButton).toBeTruthy();
+    if (followUpButton) {
+      act(() => {
+        followUpButton.click();
+      });
+    }
+
+    expect(onApplyFollowUpAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        capabilityRoute: expect.objectContaining({
+          kind: "curated_task",
+          taskId: "social-post-starter",
+          launchInputValues: {
+            subject_or_product:
+              "基于本周账号复盘，整理下一轮内容方向与重点动作。",
+            target_audience: "关注 AI 内容的品牌运营",
+          },
+          prompt: expect.stringContaining(
+            "主题或产品信息：基于本周账号复盘，整理下一轮内容方向与重点动作。",
+          ),
+        }),
+      }),
+    );
+  });
+
   it("运行详情应支持复制运行ID与原始记录", async () => {
     const { container } = renderSidebar({
       activeRunDetail: {

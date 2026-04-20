@@ -353,4 +353,81 @@ describe("useSceneAppExecutionSummaryRuntime", () => {
       }),
     );
   });
+
+  it("请求刷新时应重新拉取最新运行摘要与 scorecard", async () => {
+    listSceneAppRunsMock.mockResolvedValue([
+      {
+        runId: "run-1",
+        sceneappId: "story-video-suite",
+        status: "success",
+        source: "chat",
+        sourceRef: "source-1",
+        sessionId: "session-1",
+        startedAt: "2026-04-17T12:00:00.000Z",
+        finishedAt: "2026-04-17T12:03:00.000Z",
+        artifactCount: 2,
+        deliveryRequiredParts: ["brief", "storyboard"],
+        deliveryCompletedParts: ["brief", "storyboard"],
+        deliveryMissingParts: [],
+        deliveryPartCoverageKnown: true,
+        runtimeEvidenceUsed: true,
+        deliveryArtifactRefs: [
+          {
+            partKey: "brief",
+            relativePath: "packs/run-1/brief.md",
+            absolutePath: "/tmp/packs/run-1/brief.md",
+            projectId: "project-1",
+            source: "runtime_evidence",
+          },
+        ],
+      },
+    ]);
+    getSceneAppScorecardMock.mockResolvedValueOnce({
+      sceneappId: "story-video-suite",
+      updatedAt: "2026-04-17T12:04:00.000Z",
+      summary: "当前建议继续保留，先观察下一轮样本。",
+      metrics: [],
+      recommendedAction: "keep",
+      observedFailureSignals: [],
+      topFailureSignal: null,
+    });
+
+    const { getValue } = renderHook({
+      initialSummary: createInitialSummary(),
+      sessionId: "session-1",
+      isSending: false,
+    });
+
+    await flushEffects();
+
+    expect(getValue()?.summary?.runtimeBackflow).toEqual(
+      expect.objectContaining({
+        scorecardActionLabel: "建议维持现状",
+      }),
+    );
+
+    getSceneAppScorecardMock.mockResolvedValueOnce({
+      sceneappId: "story-video-suite",
+      updatedAt: "2026-04-17T12:08:00.000Z",
+      summary: "当前建议继续优化后再放量。",
+      metrics: [],
+      recommendedAction: "optimize",
+      observedFailureSignals: ["artifact_validation_issue"],
+      topFailureSignal: "artifact_validation_issue",
+    });
+
+    await act(async () => {
+      getValue()?.requestRefresh();
+    });
+    await flushEffects();
+
+    expect(listSceneAppRunsMock).toHaveBeenCalledTimes(2);
+    expect(getSceneAppScorecardMock).toHaveBeenCalledTimes(2);
+    expect(getValue()?.summary?.runtimeBackflow).toEqual(
+      expect.objectContaining({
+        scorecardActionLabel: "建议继续优化",
+        topFailureSignalLabel: "结果结构校验问题",
+      }),
+    );
+  });
 });

@@ -27,6 +27,12 @@ import type {
 } from "../hooks/useTopicBranchBoard";
 import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
 import {
+  buildCuratedTaskFollowUpDescription,
+  buildCuratedTaskLaunchPrompt,
+  resolveCuratedTaskFollowUpActionTarget,
+} from "../utils/curatedTaskTemplates";
+import { buildCuratedTaskLaunchInputPrefillFromReferenceEntries } from "../utils/curatedTaskReferenceSelection";
+import {
   buildWorkflowStepSnapshot,
   buildWorkflowSummaryText,
   formatWorkflowProgressLabel,
@@ -37,6 +43,7 @@ import type {
   GeneralWorkbenchCreationTaskGroup,
   GeneralWorkbenchRunMetadataSummary,
 } from "./generalWorkbenchWorkflowData";
+import type { GeneralWorkbenchFollowUpActionPayload } from "./generalWorkbenchSidebarContract";
 
 interface GeneralWorkbenchWorkflowPanelProps {
   isVersionMode: boolean;
@@ -45,6 +52,9 @@ interface GeneralWorkbenchWorkflowPanelProps {
   onDeleteTopic: (topicId: string) => void;
   branchItems: TopicBranchItem[];
   onSetBranchStatus: (topicId: string, status: TopicBranchStatus) => void;
+  onApplyFollowUpAction?: (
+    payload: GeneralWorkbenchFollowUpActionPayload,
+  ) => void;
   workflowSteps: Array<{ id: string; title: string; status: StepStatus }>;
   completedSteps: number;
   progressPercent: number;
@@ -511,10 +521,158 @@ function formatCreationTaskCountLabel(count: number): string {
 function buildWorkflowResultHandoffText(params: {
   branchSectionTitle: string;
   hasRecordedOutputs: boolean;
+  resultDestination?: string | null;
 }): string {
-  const { branchSectionTitle, hasRecordedOutputs } = params;
+  const { branchSectionTitle, hasRecordedOutputs, resultDestination } = params;
   const recordVerb = hasRecordedOutputs ? "会继续收进" : "会收进";
+  const normalizedResultDestination = resultDestination?.trim() || null;
+  if (normalizedResultDestination) {
+    return `${normalizedResultDestination} 需要继续改写时，可从${branchSectionTitle}或首页“继续上次做法”接着跑。`;
+  }
   return `主稿、任务文件和运行产物${recordVerb}下方“产出记录 / 执行经过”；需要继续改写时，可从${branchSectionTitle}或首页“继续上次做法”接着跑。`;
+}
+
+function buildCuratedTaskFollowUpHintText(
+  curatedTask: GeneralWorkbenchRunMetadataSummary["curatedTask"],
+): string | null {
+  if (!curatedTask) {
+    return null;
+  }
+
+  const followUpSummary = buildCuratedTaskFollowUpDescription(
+    {
+      followUpActions: curatedTask.followUpActions,
+    },
+    {
+      limit: 2,
+      prefix: "",
+    },
+  );
+
+  if (followUpSummary) {
+    return curatedTask.taskTitle
+      ? `按「${curatedTask.taskTitle}」这条结果模板的常见闭环，建议先做：${followUpSummary}。`
+      : `这轮结果的常见下一步是：${followUpSummary}。`;
+  }
+
+  if (curatedTask.taskTitle) {
+    return `当前结果来自「${curatedTask.taskTitle}」，可继续围绕这轮产出补充下一稿、拆成更多版本，或回到首页继续下一轮。`;
+  }
+
+  return null;
+}
+
+function listVisibleCuratedTaskFollowUpActions(
+  curatedTask: GeneralWorkbenchRunMetadataSummary["curatedTask"],
+  limit = 2,
+): string[] {
+  if (!curatedTask) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      curatedTask.followUpActions
+        .map((action) => action.trim())
+        .filter((action) => action.length > 0),
+    ),
+  ).slice(0, Math.max(0, limit));
+}
+
+function buildCuratedTaskFollowUpPrompt(params: {
+  action: string;
+  curatedTask: GeneralWorkbenchRunMetadataSummary["curatedTask"];
+}): string {
+  const normalizedAction = params.action.trim();
+  if (!normalizedAction) {
+    return "";
+  }
+
+  const taskTitle = params.curatedTask?.taskTitle?.trim();
+  if (taskTitle) {
+    return `请基于「${taskTitle}」这轮结果继续：${normalizedAction}`;
+  }
+  return `请基于当前结果继续：${normalizedAction}`;
+}
+
+function buildCuratedTaskFollowUpActionPayload(params: {
+  action: string;
+  curatedTask: GeneralWorkbenchRunMetadataSummary["curatedTask"];
+}): GeneralWorkbenchFollowUpActionPayload | null {
+  const normalizedAction = params.action.trim();
+  if (!normalizedAction) {
+    return null;
+  }
+
+  const currentTaskId = params.curatedTask?.taskId?.trim();
+  const currentTaskTitle = params.curatedTask?.taskTitle?.trim();
+  const mappedTarget = resolveCuratedTaskFollowUpActionTarget({
+    taskId: currentTaskId,
+    action: normalizedAction,
+  });
+  const targetTask = mappedTarget?.task ?? null;
+  const referenceEntries = params.curatedTask?.referenceEntries;
+  const referenceMemoryIds = params.curatedTask?.referenceMemoryIds;
+  const launchInputValues = targetTask
+    ? buildCuratedTaskLaunchInputPrefillFromReferenceEntries({
+        taskId: targetTask.id,
+        inputValues: params.curatedTask?.launchInputValues,
+        referenceEntries,
+      })
+    : params.curatedTask?.launchInputValues;
+  const targetPrompt = targetTask
+    ? buildCuratedTaskLaunchPrompt({
+        task: targetTask,
+        inputValues: launchInputValues ?? {},
+        referenceEntries,
+      }).trim()
+    : "";
+  const prompt =
+    targetTask && targetPrompt
+      ? [mappedTarget?.promptHint?.trim(), targetPrompt]
+          .filter((segment): segment is string => Boolean(segment))
+          .join("\n\n")
+      : buildCuratedTaskFollowUpPrompt({
+          action: normalizedAction,
+          curatedTask: params.curatedTask,
+        });
+  if (!prompt) {
+    return null;
+  }
+
+  const capabilityRoute =
+    (targetTask?.id && targetTask.title.trim()) || (currentTaskId && currentTaskTitle)
+      ? {
+          kind: "curated_task" as const,
+          taskId: targetTask?.id ?? currentTaskId!,
+          taskTitle: targetTask?.title.trim() || currentTaskTitle!,
+          prompt,
+          ...(launchInputValues
+            ? {
+                launchInputValues,
+              }
+            : {}),
+          ...(referenceMemoryIds
+            ? {
+                referenceMemoryIds,
+              }
+            : {}),
+          ...(referenceEntries
+            ? {
+                referenceEntries,
+              }
+            : {}),
+        }
+      : undefined;
+
+  return {
+    prompt,
+    ...(capabilityRoute
+      ? {
+          capabilityRoute,
+        }
+      : {}),
+  };
 }
 
 function getCreationTaskTitle(path: string): string {
@@ -622,6 +780,9 @@ function buildRunDetailSummaryText(params: {
 }): string {
   const { runMetadataSummary, activeRunStagesLabel } = params;
   const parts: string[] = [];
+  if (runMetadataSummary.curatedTask?.taskTitle) {
+    parts.push(`结果模板 ${runMetadataSummary.curatedTask.taskTitle}`);
+  }
   if (activeRunStagesLabel) {
     parts.push(activeRunStagesLabel);
   }
@@ -833,6 +994,46 @@ function ActivityMetaFragment({
   );
 }
 
+function CuratedTaskFollowUpActions({
+  curatedTask,
+  onApplyFollowUpAction,
+}: {
+  curatedTask: GeneralWorkbenchRunMetadataSummary["curatedTask"];
+  onApplyFollowUpAction?: GeneralWorkbenchWorkflowPanelProps["onApplyFollowUpAction"];
+}) {
+  const visibleActions = listVisibleCuratedTaskFollowUpActions(curatedTask);
+  if (!onApplyFollowUpAction || visibleActions.length === 0) {
+    return null;
+  }
+
+  return (
+    <ActionRow data-testid="workflow-sidebar-follow-up-actions">
+      {visibleActions.map((action) => {
+        const payload = buildCuratedTaskFollowUpActionPayload({
+          action,
+          curatedTask,
+        });
+        if (!payload) {
+          return null;
+        }
+
+        return (
+          <TinyButton
+            key={action}
+            type="button"
+            aria-label={`应用建议下一步-${action}`}
+            onClick={() => {
+              onApplyFollowUpAction(payload);
+            }}
+          >
+            {action}
+          </TinyButton>
+        );
+      })}
+    </ActionRow>
+  );
+}
+
 function GeneralWorkbenchWorkflowPanelComponent({
   isVersionMode,
   onNewTopic,
@@ -840,6 +1041,7 @@ function GeneralWorkbenchWorkflowPanelComponent({
   onDeleteTopic,
   branchItems,
   onSetBranchStatus,
+  onApplyFollowUpAction,
   workflowSteps,
   completedSteps,
   progressPercent,
@@ -926,7 +1128,11 @@ function GeneralWorkbenchWorkflowPanelComponent({
       creationTaskEventsCount > 0 ||
       groupedActivityLogs.length > 0 ||
       runMetadataSummary.artifactPaths.length > 0,
+    resultDestination: runMetadataSummary.curatedTask?.resultDestination,
   });
+  const curatedTaskFollowUpHintText = buildCuratedTaskFollowUpHintText(
+    runMetadataSummary.curatedTask,
+  );
   const activitySectionSummary = buildActivitySectionSummary({
     groups: groupedActivityLogs,
     activeRunDetail,
@@ -1015,6 +1221,30 @@ function GeneralWorkbenchWorkflowPanelComponent({
                   {workflowResultHandoffText}
                 </div>
               </div>
+              {curatedTaskFollowUpHintText ? (
+                <div
+                  className={WORKFLOW_RESULT_HANDOFF_HINT_CLASSNAME}
+                  data-testid="workflow-sidebar-follow-up-hint"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-[10px] font-semibold text-slate-500">
+                      建议下一步
+                    </div>
+                    {runMetadataSummary.curatedTask?.taskTitle ? (
+                      <span className={WORKFLOW_TASK_SUMMARY_PILL_CLASSNAME}>
+                        {runMetadataSummary.curatedTask.taskTitle}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                    {curatedTaskFollowUpHintText}
+                  </div>
+                  <CuratedTaskFollowUpActions
+                    curatedTask={runMetadataSummary.curatedTask}
+                    onApplyFollowUpAction={onApplyFollowUpAction}
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1344,6 +1574,11 @@ function GeneralWorkbenchWorkflowPanelComponent({
                           {runMetadataSummary.workflow}
                         </RunDetailBadge>
                       ) : null}
+                      {runMetadataSummary.curatedTask?.taskTitle ? (
+                        <RunDetailBadge>
+                          {runMetadataSummary.curatedTask.taskTitle}
+                        </RunDetailBadge>
+                      ) : null}
                       {runMetadataSummary.artifactPaths.length > 0 ? (
                         <RunDetailBadge>
                           {runMetadataSummary.artifactPaths.length === 1
@@ -1360,6 +1595,15 @@ function GeneralWorkbenchWorkflowPanelComponent({
                     activeRunStagesLabel,
                   })}
                 </RunDetailSummary>
+                {curatedTaskFollowUpHintText ? (
+                  <>
+                    <RunDetailSummary>{curatedTaskFollowUpHintText}</RunDetailSummary>
+                    <CuratedTaskFollowUpActions
+                      curatedTask={runMetadataSummary.curatedTask}
+                      onApplyFollowUpAction={onApplyFollowUpAction}
+                    />
+                  </>
+                ) : null}
                 <RunDetailRow>运行ID：{activeRunDetail.id}</RunDetailRow>
                 <RunDetailActions>
                   <RunDetailActionButton

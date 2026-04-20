@@ -201,6 +201,102 @@ describe("agentStreamTurnEventBinding", () => {
     expect(disposeListener).toHaveBeenCalled();
   });
 
+  it("首个运行时事件静默但后台已有 turn 活动时，应降级切换为快照同步", async () => {
+    vi.useFakeTimers();
+
+    let messages: Message[] = [
+      {
+        id: "assistant-recovery",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-14T10:00:00.000Z"),
+        isThinking: true,
+      },
+    ];
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+    const attemptSilentTurnRecovery = vi.fn(async () => true);
+    const clearActiveStreamIfMatch = vi.fn(() => true);
+    const disposeListener = vi.fn();
+    const setIsSending = vi.fn();
+    const runtime = {
+      listenToTurnEvents: vi.fn(async () => vi.fn()),
+    } as unknown as AgentRuntimeAdapter;
+    const requestState: StreamRequestState = {
+      accumulatedContent: "",
+      requestLogId: null,
+      requestStartedAt: 0,
+      requestFinished: false,
+      queuedTurnId: null,
+    };
+
+    await registerAgentStreamTurnEventBinding({
+      runtime,
+      eventName: "event-recovery",
+      requestState,
+      attemptSilentTurnRecovery,
+      skipUserMessage: false,
+      effectiveProviderType: "anthropic",
+      effectiveModel: "astron-code-latest",
+      effectiveExecutionStrategy: "react",
+      content: "你好",
+      expectingQueue: false,
+      activeSessionId: "session-recovery",
+      resolvedWorkspaceId: "workspace-recovery",
+      assistantMsgId: "assistant-recovery",
+      pendingTurnKey: "pending-turn-recovery",
+      pendingItemKey: "pending-item-recovery",
+      effectiveWaitingRuntimeStatus: {
+        phase: "preparing",
+        title: "处理中",
+        detail: "正在准备执行上下文",
+      },
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      callbacks: {
+        activateStream: () => {},
+        isStreamActivated: () => true,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener,
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch,
+        upsertQueuedTurn: (_queuedTurn: QueuedTurnSnapshot) => {},
+        removeQueuedTurnState: () => {},
+      },
+      sounds: {
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+      },
+      appendThinkingToParts: (parts) => parts,
+      setMessages: setMessages as never,
+      setPendingActions: noopDispatch<ActionRequired[]>(),
+      setThreadItems: noopDispatch<AgentThreadItem[]>(),
+      setThreadTurns: noopDispatch<AgentThreadTurn[]>(),
+      setCurrentTurnId: noopDispatch<string | null>(),
+      setExecutionRuntime: noopDispatch<AsterSessionExecutionRuntime | null>(),
+      setIsSending: setIsSending as never,
+    });
+
+    await vi.advanceTimersByTimeAsync(12_100);
+
+    expect(attemptSilentTurnRecovery).toHaveBeenCalledWith(
+      "session-recovery",
+      expect.any(Number),
+      "你好",
+    );
+    expect(messages[0]?.content).toBe("");
+    expect(clearActiveStreamIfMatch).toHaveBeenCalledWith("event-recovery");
+    expect(disposeListener).toHaveBeenCalled();
+    expect(setIsSending).toHaveBeenCalledWith(false);
+  });
+
   it("首包后长时间没有新事件时，应把助手消息收口为失败态", async () => {
     vi.useFakeTimers();
 

@@ -90,6 +90,8 @@ interface InputbarComposerSectionProps {
   onPromoteQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   onRemoveQueuedTurn?: (queuedTurnId: string) => void | Promise<boolean>;
   contextVariant?: "default" | "task-center";
+  projectId?: string | null;
+  sessionId?: string | null;
 }
 
 export const InputbarComposerSection: React.FC<
@@ -139,6 +141,8 @@ export const InputbarComposerSection: React.FC<
   onPromoteQueuedTurn,
   onRemoveQueuedTurn,
   contextVariant = "default",
+  projectId = null,
+  sessionId = null,
 }) => {
   const [teamSelectorAutoOpenToken, setTeamSelectorAutoOpenToken] = useState<
     number | null
@@ -342,6 +346,8 @@ export const InputbarComposerSection: React.FC<
         onChange={inputAdapter.actions.setText}
         onSelectCharacter={onSelectCharacter}
         onSelectInputCapability={onSelectInputCapability}
+        projectId={projectId}
+        sessionId={sessionId}
         defaultCuratedTaskReferenceMemoryIds={
           activeCapability?.kind === "curated_task"
             ? activeCapability.referenceMemoryIds ||

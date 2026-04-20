@@ -23,6 +23,11 @@ export type AppendThinkingToPartsFn = (
 export interface AgentStreamPreparedSendEnv {
   runtime: AgentRuntimeAdapter;
   ensureSession: () => Promise<string | null>;
+  attemptSilentTurnRecovery: (
+    sessionId: string,
+    requestStartedAt: number,
+    promptText: string,
+  ) => Promise<boolean>;
   executionStrategy: AsterExecutionStrategy;
   accessMode: AgentAccessMode;
   providerTypeRef: MutableRefObject<string>;

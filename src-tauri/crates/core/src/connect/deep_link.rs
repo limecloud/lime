@@ -39,6 +39,26 @@ pub struct ConnectPayload {
     pub ref_code: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum OpenDeepLinkKind {
+    Skill,
+    Prompt,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OpenDeepLinkPayload {
+    pub kind: OpenDeepLinkKind,
+    pub slug: String,
+    pub source: Option<String>,
+    pub version: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum LimeDeepLinkPayload {
+    Connect(ConnectPayload),
+    Open(OpenDeepLinkPayload),
+}
+
 /// Deep Link 解析错误
 ///
 /// 表示解析 Deep Link URL 时可能发生的各种错误。
@@ -50,6 +70,12 @@ pub enum DeepLinkError {
     MissingRelay,
     /// 缺少必填的 key 参数
     MissingKey,
+    /// 缺少必填的 kind 参数
+    MissingKind,
+    /// 缺少必填的 slug 参数
+    MissingSlug,
+    /// open 链路里的 kind 无效
+    InvalidOpenKind(String),
 }
 
 impl std::fmt::Display for DeepLinkError {
@@ -58,6 +84,11 @@ impl std::fmt::Display for DeepLinkError {
             DeepLinkError::InvalidUrl(msg) => write!(f, "无效的 URL: {msg}"),
             DeepLinkError::MissingRelay => write!(f, "缺少必填参数: relay"),
             DeepLinkError::MissingKey => write!(f, "缺少必填参数: key"),
+            DeepLinkError::MissingKind => write!(f, "缺少必填参数: kind"),
+            DeepLinkError::MissingSlug => write!(f, "缺少必填参数: slug"),
+            DeepLinkError::InvalidOpenKind(kind) => {
+                write!(f, "无效的 open kind: {kind}")
+            }
         }
     }
 }
@@ -91,10 +122,26 @@ impl std::error::Error for DeepLinkError {}
 /// assert!(result.is_err());
 /// ```
 pub fn parse_deep_link(url: &str) -> Result<ConnectPayload, DeepLinkError> {
-    // 解析 URL
+    match parse_lime_deep_link(url)? {
+        LimeDeepLinkPayload::Connect(payload) => Ok(payload),
+        LimeDeepLinkPayload::Open(_) => Err(DeepLinkError::InvalidUrl(
+            "当前链接不是 connect 协议".to_string(),
+        )),
+    }
+}
+
+pub fn parse_open_deep_link(url: &str) -> Result<OpenDeepLinkPayload, DeepLinkError> {
+    match parse_lime_deep_link(url)? {
+        LimeDeepLinkPayload::Open(payload) => Ok(payload),
+        LimeDeepLinkPayload::Connect(_) => Err(DeepLinkError::InvalidUrl(
+            "当前链接不是 open 协议".to_string(),
+        )),
+    }
+}
+
+pub fn parse_lime_deep_link(url: &str) -> Result<LimeDeepLinkPayload, DeepLinkError> {
     let parsed = Url::parse(url).map_err(|e| DeepLinkError::InvalidUrl(e.to_string()))?;
 
-    // 验证协议
     if parsed.scheme() != "lime" {
         return Err(DeepLinkError::InvalidUrl(format!(
             "无效的协议: {}，期望 lime",
@@ -102,18 +149,19 @@ pub fn parse_deep_link(url: &str) -> Result<ConnectPayload, DeepLinkError> {
         )));
     }
 
-    // 验证路径（host 在自定义协议中作为路径的一部分）
-    if parsed.host_str() != Some("connect") {
-        return Err(DeepLinkError::InvalidUrl(format!(
-            "无效的路径: {:?}，期望 connect",
-            parsed.host_str()
-        )));
+    match parsed.host_str() {
+        Some("connect") => parse_connect_payload(parsed).map(LimeDeepLinkPayload::Connect),
+        Some("open") => parse_open_payload(parsed).map(LimeDeepLinkPayload::Open),
+        other => Err(DeepLinkError::InvalidUrl(format!(
+            "无效的路径: {:?}，期望 connect 或 open",
+            other
+        ))),
     }
+}
 
-    // 提取查询参数
+fn parse_connect_payload(parsed: Url) -> Result<ConnectPayload, DeepLinkError> {
     let params: HashMap<String, String> = parsed.query_pairs().into_owned().collect();
 
-    // 验证并提取必填参数
     let relay = params
         .get("relay")
         .filter(|s| !s.is_empty())
@@ -126,7 +174,6 @@ pub fn parse_deep_link(url: &str) -> Result<ConnectPayload, DeepLinkError> {
         .ok_or(DeepLinkError::MissingKey)?
         .clone();
 
-    // 提取可选参数
     let name = params.get("name").filter(|s| !s.is_empty()).cloned();
     let ref_code = params.get("ref").filter(|s| !s.is_empty()).cloned();
 
@@ -135,6 +182,42 @@ pub fn parse_deep_link(url: &str) -> Result<ConnectPayload, DeepLinkError> {
         key,
         name,
         ref_code,
+    })
+}
+
+fn parse_open_payload(parsed: Url) -> Result<OpenDeepLinkPayload, DeepLinkError> {
+    let params: HashMap<String, String> = parsed.query_pairs().into_owned().collect();
+
+    let kind = match params
+        .get("kind")
+        .filter(|value| !value.is_empty())
+        .map(|value| value.trim().to_ascii_lowercase())
+        .ok_or(DeepLinkError::MissingKind)?
+        .as_str()
+    {
+        "skill" => OpenDeepLinkKind::Skill,
+        "prompt" => OpenDeepLinkKind::Prompt,
+        other => return Err(DeepLinkError::InvalidOpenKind(other.to_string())),
+    };
+
+    let slug = params
+        .get("slug")
+        .filter(|value| !value.is_empty())
+        .ok_or(DeepLinkError::MissingSlug)?
+        .trim()
+        .to_string();
+
+    let source = params
+        .get("source")
+        .filter(|value| !value.is_empty())
+        .cloned();
+    let version = params.get("v").filter(|value| !value.is_empty()).cloned();
+
+    Ok(OpenDeepLinkPayload {
+        kind,
+        slug,
+        source,
+        version,
     })
 }
 
@@ -228,6 +311,45 @@ mod tests {
         assert_eq!(result.relay, "test relay");
         assert_eq!(result.key, "sk-xxx");
         assert_eq!(result.name, Some("My Key".to_string()));
+    }
+
+    #[test]
+    fn test_parse_open_skill_url() {
+        let url = "lime://open?kind=skill&slug=daily-trend-briefing&source=website&v=1";
+        let result = parse_open_deep_link(url).unwrap();
+
+        assert_eq!(result.kind, OpenDeepLinkKind::Skill);
+        assert_eq!(result.slug, "daily-trend-briefing");
+        assert_eq!(result.source, Some("website".to_string()));
+        assert_eq!(result.version, Some("1".to_string()));
+    }
+
+    #[test]
+    fn test_parse_open_prompt_url() {
+        let url = "lime://open?kind=prompt&slug=gemini-longform-master";
+        let result = parse_open_deep_link(url).unwrap();
+
+        assert_eq!(result.kind, OpenDeepLinkKind::Prompt);
+        assert_eq!(result.slug, "gemini-longform-master");
+        assert_eq!(result.source, None);
+    }
+
+    #[test]
+    fn test_parse_open_missing_kind() {
+        let result = parse_open_deep_link("lime://open?slug=test");
+        assert!(matches!(result, Err(DeepLinkError::MissingKind)));
+    }
+
+    #[test]
+    fn test_parse_open_missing_slug() {
+        let result = parse_open_deep_link("lime://open?kind=skill");
+        assert!(matches!(result, Err(DeepLinkError::MissingSlug)));
+    }
+
+    #[test]
+    fn test_parse_open_invalid_kind() {
+        let result = parse_open_deep_link("lime://open?kind=other&slug=test");
+        assert!(matches!(result, Err(DeepLinkError::InvalidOpenKind(_))));
     }
 }
 

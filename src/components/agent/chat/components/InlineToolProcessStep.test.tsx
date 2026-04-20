@@ -283,6 +283,35 @@ describe("InlineToolProcessStep", () => {
     expect(container.querySelector('[data-testid="markdown-renderer"]')).toBeNull();
   });
 
+  it("WebSearch 协议错误应展示可操作提示，并保留原始错误供排查", () => {
+    const { container } = renderTool({
+      id: "tool-search-web-failed-1",
+      name: "WebSearch",
+      arguments: JSON.stringify({ query: "AI Agent trends X Twitter April 2026" }),
+      status: "failed",
+      result: {
+        success: false,
+        error: "-32603: -32002: WebSearch",
+        output: "",
+      },
+      startTime: new Date("2026-04-13T10:22:00.000Z"),
+      endTime: new Date("2026-04-13T10:22:01.000Z"),
+    });
+
+    expect(container.textContent).toContain(
+      "当前联网搜索链路未接通，请检查 Runtime 是否接通 WebSearch，或关闭联网搜索后重试。",
+    );
+
+    act(() => {
+      const toggle = container.querySelector(
+        'button[title="展开过程详情"]',
+      ) as HTMLButtonElement | null;
+      toggle?.click();
+    });
+
+    expect(container.textContent).toContain("原始错误：-32603: -32002: WebSearch");
+  });
+
   it("完成态过程卡不应重复展示执行完成与原始工具名", () => {
     const { container } = renderTool({
       id: "tool-inline-ask-user-1",

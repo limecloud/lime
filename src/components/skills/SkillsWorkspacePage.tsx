@@ -46,8 +46,10 @@ import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { buildSkillScaffoldCreationReplayRequestMetadata } from "@/components/agent/chat/utils/creationReplayMetadata";
 import { buildSkillScaffoldCreationSeed } from "./skillScaffoldCreationSeed";
 import {
+  FEATURED_HOME_CURATED_TASK_TEMPLATE_IDS,
   buildCuratedTaskLaunchPrompt,
   filterCuratedTaskTemplates,
+  getCuratedTaskOutputDestination,
   listCuratedTaskTemplates,
   listFeaturedHomeCuratedTaskTemplates,
   recordCuratedTaskTemplateUsage,
@@ -60,9 +62,10 @@ import {
 } from "@/components/agent/chat/utils/curatedTaskTemplates";
 import {
   buildCuratedTaskLaunchRequestMetadata,
+  normalizeCuratedTaskLaunchInputValues,
   type CuratedTaskReferenceSelection,
 } from "@/components/agent/chat/utils/curatedTaskReferenceSelection";
-import { CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
+import { subscribeCuratedTaskRecommendationSignalsChanged } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 
 interface SkillsWorkspacePageProps {
   onNavigate: (page: Page, params?: PageParams) => void;
@@ -206,11 +209,30 @@ export function SkillsWorkspacePage({
     setCuratedTaskRecommendationSignalsVersion,
   ] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [highlightedInstalledSkillDirectory, setHighlightedInstalledSkillDirectory] =
+    useState<string | null>(null);
+  const [optimisticInstalledSkill, setOptimisticInstalledSkill] =
+    useState<Skill | null>(null);
+  const [consumedScaffoldRequestKey, setConsumedScaffoldRequestKey] =
+    useState<number | null>(null);
   const lastHandledScaffoldRequestKeyRef = useRef<number | null>(null);
 
   const installedLocalSkills = useMemo(
-    () => localSkills.filter((skill) => skill.installed),
-    [localSkills],
+    () => {
+      const installedSkills = localSkills.filter((skill) => skill.installed);
+
+      if (!optimisticInstalledSkill) {
+        return installedSkills;
+      }
+
+      return [
+        optimisticInstalledSkill,
+        ...installedSkills.filter(
+          (skill) => skill.directory !== optimisticInstalledSkill.directory,
+        ),
+      ];
+    },
+    [localSkills, optimisticInstalledSkill],
   );
   const serviceSkillRecommendationBuckets = useMemo(
     () =>
@@ -273,21 +295,9 @@ export function SkillsWorkspacePage({
   }, [selectedGroup, selectedGroupKey]);
 
   useEffect(() => {
-    const handleRecommendationSignalsChange = () => {
+    return subscribeCuratedTaskRecommendationSignalsChanged(() => {
       setCuratedTaskRecommendationSignalsVersion((previous) => previous + 1);
-    };
-
-    window.addEventListener(
-      CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT,
-      handleRecommendationSignalsChange,
-    );
-
-    return () => {
-      window.removeEventListener(
-        CURATED_TASK_RECOMMENDATION_SIGNAL_EVENT,
-        handleRecommendationSignalsChange,
-      );
-    };
+    });
   }, []);
 
   useEffect(() => {
@@ -380,7 +390,7 @@ export function SkillsWorkspacePage({
   }, [recentServiceSkills, searchQuery]);
 
   const visibleInstalledLocalSkills = useMemo(() => {
-    return installedLocalSkills.filter((skill) =>
+    const filteredSkills = installedLocalSkills.filter((skill) =>
       matchesText(
         searchQuery,
         skill.name,
@@ -392,7 +402,24 @@ export function SkillsWorkspacePage({
         buildInstalledSkillCapabilityDescription(skill),
       ),
     );
-  }, [installedLocalSkills, searchQuery]);
+
+    if (!highlightedInstalledSkillDirectory) {
+      return filteredSkills;
+    }
+
+    return [...filteredSkills].sort((left, right) => {
+      const leftHighlighted =
+        left.directory === highlightedInstalledSkillDirectory ? 1 : 0;
+      const rightHighlighted =
+        right.directory === highlightedInstalledSkillDirectory ? 1 : 0;
+
+      if (leftHighlighted !== rightHighlighted) {
+        return rightHighlighted - leftHighlighted;
+      }
+
+      return left.name.localeCompare(right.name, "zh-CN");
+    });
+  }, [highlightedInstalledSkillDirectory, installedLocalSkills, searchQuery]);
   const visibleCuratedTaskTemplates = useMemo(
     () => {
       void curatedTaskRecommendationSignalsVersion;
@@ -404,7 +431,7 @@ export function SkillsWorkspacePage({
     () =>
       listFeaturedHomeCuratedTaskTemplates(visibleCuratedTaskTemplates, {
         projectId: pageParams?.creationProjectId,
-        limit: 4,
+        limit: FEATURED_HOME_CURATED_TASK_TEMPLATE_IDS.length,
       }),
     [pageParams?.creationProjectId, visibleCuratedTaskTemplates],
   );
@@ -481,6 +508,35 @@ export function SkillsWorkspacePage({
     [onNavigate],
   );
 
+  const handleScaffoldCreated = useCallback(
+    async (skill: Skill) => {
+      setOptimisticInstalledSkill(skill);
+      try {
+        await refreshLocalSkills();
+      } catch (error) {
+        toast.error(`同步我的方法库失败：${String(error)}`);
+      }
+
+      setSearchQuery("");
+      setHighlightedInstalledSkillDirectory(skill.directory);
+      setAdvancedManagerOpen(false);
+      setConsumedScaffoldRequestKey(
+        pageParams?.initialScaffoldRequestKey ?? null,
+      );
+      toast.success(`已创建“${skill.name}”并加入我的方法库`);
+    },
+    [pageParams?.initialScaffoldRequestKey, refreshLocalSkills],
+  );
+
+  const activeScaffoldRequestKey =
+    pageParams?.initialScaffoldRequestKey === consumedScaffoldRequestKey
+      ? null
+      : (pageParams?.initialScaffoldRequestKey ?? null);
+  const activeScaffoldDraft =
+    pageParams?.initialScaffoldRequestKey === consumedScaffoldRequestKey
+      ? null
+      : (pageParams?.initialScaffoldDraft ?? null);
+
   const handleCuratedTaskTemplateLauncherRequest = useCallback(
     (template: CuratedTaskTemplateItem) => {
       setCuratedTaskLauncherTask(template);
@@ -500,7 +556,14 @@ export function SkillsWorkspacePage({
       inputValues: CuratedTaskInputValues,
       referenceSelection: CuratedTaskReferenceSelection,
     ) => {
-      recordCuratedTaskTemplateUsage(template.id);
+      const normalizedLaunchInputValues =
+        normalizeCuratedTaskLaunchInputValues(inputValues);
+      recordCuratedTaskTemplateUsage({
+        templateId: template.id,
+        launchInputValues: inputValues,
+        referenceMemoryIds: referenceSelection.referenceMemoryIds,
+        referenceEntries: referenceSelection.referenceEntries,
+      });
       setCuratedTaskLauncherTask(null);
       const resolvedTemplate = template;
       const requestMetadata = buildCuratedTaskLaunchRequestMetadata({
@@ -524,6 +587,11 @@ export function SkillsWorkspacePage({
                 inputValues,
                 referenceEntries: referenceSelection.referenceEntries,
               }),
+              ...(normalizedLaunchInputValues
+                ? {
+                    launchInputValues: normalizedLaunchInputValues,
+                  }
+                : {}),
               ...(referenceSelection.referenceMemoryIds.length > 0
                 ? {
                     referenceMemoryIds: referenceSelection.referenceMemoryIds,
@@ -1000,6 +1068,14 @@ export function SkillsWorkspacePage({
                               {summarizeCuratedTaskOutputContract(template)}
                             </div>
                           </div>
+                          <div className="rounded-[18px] border border-slate-200 bg-white/70 px-3 py-2.5">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                              结果去向
+                            </div>
+                            <div className="mt-1 text-xs leading-5 text-slate-600">
+                              {getCuratedTaskOutputDestination(template)}
+                            </div>
+                          </div>
                         </div>
                         <div className="mt-4 flex items-center justify-between gap-3">
                           <div className="text-xs leading-5 text-slate-400">
@@ -1129,63 +1205,92 @@ export function SkillsWorkspacePage({
 
                 {visibleInstalledPreview.length > 0 ? (
                   <div className="mt-4 space-y-3">
-                    {visibleInstalledPreview.map((skill) => (
-                      <article
-                        key={skill.directory}
-                        className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                            {resolveLocalSkillSourceLabel(skill)}
-                          </span>
-                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                            已安装
-                          </span>
-                        </div>
-                        <div className="mt-3 text-base font-semibold text-slate-900">
-                          {skill.name}
-                        </div>
-                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
-                          {resolveInstalledSkillPromise(skill)}
-                        </p>
-                        <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
-                          <div>
-                            <span className="font-medium text-slate-700">
-                              你来给：
+                    {visibleInstalledPreview.map((skill) => {
+                      const isHighlighted =
+                        skill.directory === highlightedInstalledSkillDirectory;
+
+                      return (
+                        <article
+                          key={skill.directory}
+                          className={cn(
+                            "rounded-[24px] border bg-slate-50 px-4 py-4 transition",
+                            isHighlighted
+                              ? "border-emerald-300 bg-emerald-50/70 shadow-sm shadow-emerald-950/5"
+                              : "border-slate-200",
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span
+                              className={cn(
+                                "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                                isHighlighted
+                                  ? "border-emerald-200 bg-white text-emerald-700"
+                                  : "border-slate-200 bg-white text-slate-600",
+                              )}
+                            >
+                              {resolveLocalSkillSourceLabel(skill)}
                             </span>
-                            {summarizeInstalledSkillRequiredInputs(skill)}
+                            <div className="flex items-center gap-2">
+                              {isHighlighted ? (
+                                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
+                                  刚沉淀
+                                </span>
+                              ) : null}
+                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                                已安装
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <span className="font-medium text-slate-700">
-                              会拿到：
-                            </span>
-                            {getInstalledSkillOutputHint(skill)}
+                          <div className="mt-3 text-base font-semibold text-slate-900">
+                            {skill.name}
                           </div>
-                          <div>
-                            <span className="font-medium text-slate-700">
-                              方法入口：
-                            </span>
-                            /{skill.key}
-                            {skill.repoOwner && skill.repoName
-                              ? ` · ${skill.repoOwner}/${skill.repoName}`
-                              : ""}
+                          <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
+                            {resolveInstalledSkillPromise(skill)}
+                          </p>
+                          {isHighlighted ? (
+                            <div className="mt-3 rounded-2xl border border-emerald-200 bg-white/80 px-3 py-2 text-xs leading-5 text-emerald-800">
+                              这套做法刚从当前结果沉淀下来，已经回到你的方法库，可以直接带去生成继续跑下一轮。
+                            </div>
+                          ) : null}
+                          <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                你来给：
+                              </span>
+                              {summarizeInstalledSkillRequiredInputs(skill)}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                会拿到：
+                              </span>
+                              {getInstalledSkillOutputHint(skill)}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                方法入口：
+                              </span>
+                              /{skill.key}
+                              {skill.repoOwner && skill.repoName
+                                ? ` · ${skill.repoOwner}/${skill.repoName}`
+                                : ""}
+                            </div>
                           </div>
-                        </div>
-                        <div className="mt-4 flex items-center justify-between gap-3">
-                          <div className="text-xs text-slate-400">
-                            会带着这套方法进入生成主执行面，后续结果继续沉淀到当前工作区。
+                          <div className="mt-4 flex items-center justify-between gap-3">
+                            <div className="text-xs text-slate-400">
+                              会带着这套方法进入生成主执行面，后续结果继续沉淀到当前工作区。
+                            </div>
+                            <Button
+                              type="button"
+                              className={SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME}
+                              onClick={() => handleInstalledSkillSelect(skill)}
+                            >
+                              进入生成
+                              <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
                           </div>
-                          <Button
-                            type="button"
-                            className={SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME}
-                            onClick={() => handleInstalledSkillSelect(skill)}
-                          >
-                            进入生成
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                          </Button>
-                        </div>
-                      </article>
-                    ))}
+                        </article>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="mt-4 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
@@ -1214,11 +1319,10 @@ export function SkillsWorkspacePage({
             <div className="min-h-0 flex-1 overflow-auto px-6 py-6">
               <SkillsPage
                 hideHeader
-                initialScaffoldDraft={pageParams?.initialScaffoldDraft}
-                initialScaffoldRequestKey={
-                  pageParams?.initialScaffoldRequestKey ?? null
-                }
+                initialScaffoldDraft={activeScaffoldDraft}
+                initialScaffoldRequestKey={activeScaffoldRequestKey}
                 onBringScaffoldToCreation={handleBringScaffoldToCreation}
+                onScaffoldCreated={handleScaffoldCreated}
               />
             </div>
           </div>

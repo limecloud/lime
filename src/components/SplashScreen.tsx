@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from "react";
 import styled, { keyframes } from "styled-components";
+import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 
 const sceneEnter = keyframes`
   from { opacity: 0; transform: scale(0.985); }
@@ -260,7 +261,7 @@ export function SplashScreen({
       <Stage>
         <LogoStack>
           <LogoGlow />
-          <Logo src="/logo-v6.svg" alt="Lime" />
+          <Logo src={LIME_BRAND_LOGO_SRC} alt={LIME_BRAND_NAME} />
         </LogoStack>
         <CopyBlock>
           <Slogan>青柠一下，灵感即来</Slogan>

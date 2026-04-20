@@ -66,6 +66,7 @@ function areGeneralWorkbenchSidebarWorkflowPropsEqual(
     previous.onDeleteTopic === next.onDeleteTopic &&
     previous.branchItems === next.branchItems &&
     previous.onSetBranchStatus === next.onSetBranchStatus &&
+    previous.onApplyFollowUpAction === next.onApplyFollowUpAction &&
     previous.workflowSteps === next.workflowSteps &&
     previous.onAddImage === next.onAddImage &&
     previous.onImportDocument === next.onImportDocument &&

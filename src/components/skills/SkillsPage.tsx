@@ -43,6 +43,7 @@ interface SkillsPageProps {
   initialScaffoldDraft?: SkillScaffoldDraft | null;
   initialScaffoldRequestKey?: number | null;
   onBringScaffoldToCreation?: (draft: SkillScaffoldDraft) => void;
+  onScaffoldCreated?: (skill: Skill) => void;
 }
 
 export interface SkillsPageRef {
@@ -94,6 +95,7 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
       initialScaffoldDraft = null,
       initialScaffoldRequestKey = null,
       onBringScaffoldToCreation,
+      onScaffoldCreated,
     },
     ref,
   ) => {
@@ -194,14 +196,7 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
       setScaffoldCreating(true);
       try {
         const inspection = await skillsApi.createSkillScaffold(request, app);
-        try {
-          await refresh();
-        } catch (refreshError) {
-          console.error("刷新 Skills 列表失败:", refreshError);
-        }
-
-        contentRequestIdRef.current += 1;
-        setSelectedSkillForContent({
+        const createdSkill: Skill = {
           key: `local:${request.directory}`,
           name: request.name,
           description: request.description,
@@ -214,7 +209,16 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
           allowedTools: inspection.allowedTools,
           resourceSummary: inspection.resourceSummary,
           standardCompliance: inspection.standardCompliance,
-        });
+        };
+        try {
+          await refresh();
+        } catch (refreshError) {
+          console.error("刷新 Skills 列表失败:", refreshError);
+        }
+        onScaffoldCreated?.(createdSkill);
+
+        contentRequestIdRef.current += 1;
+        setSelectedSkillForContent(createdSkill);
         setSkillInspection(inspection);
         setContentError(null);
         setContentLoading(false);

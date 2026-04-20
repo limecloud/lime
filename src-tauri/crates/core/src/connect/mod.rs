@@ -29,7 +29,10 @@ pub mod registry;
 pub mod webhook;
 
 // 重新导出核心类型
-pub use deep_link::{parse_deep_link, ConnectPayload, DeepLinkError};
+pub use deep_link::{
+    parse_deep_link, parse_open_deep_link, ConnectPayload, DeepLinkError, LimeDeepLinkPayload,
+    OpenDeepLinkKind, OpenDeepLinkPayload,
+};
 pub use registry::{
     RegistryData, RegistryError, RelayApi, RelayBranding, RelayContact, RelayFeatures, RelayInfo,
     RelayLinks, RelayRegistry, RelayWebhook,

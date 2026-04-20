@@ -723,6 +723,8 @@ export function useWorkspaceInputbarSceneRuntime({
         setInput,
         contextVariant,
         variant: isThemeWorkbench ? "workspace" : "default",
+        projectId,
+        sessionId,
         workflowGate: isThemeWorkbench ? currentGate : null,
         workflowSteps: isThemeWorkbench ? generalWorkbenchWorkflowSteps : steps,
         workflowRunState,

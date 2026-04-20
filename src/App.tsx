@@ -35,7 +35,9 @@ import { useOemLimeHubProviderSync } from "./hooks/useOemLimeHubProviderSync";
 import { ComponentDebugProvider } from "./contexts/ComponentDebugContext";
 import { SoundProvider } from "./contexts/SoundProvider";
 import { ComponentDebugOverlay } from "./components/dev";
+import type { OpenDeepLinkPayload } from "./hooks/useDeepLink";
 import { buildClawAgentParams } from "./lib/workspace/navigation";
+import { resolveWebsiteOpenNavigation } from "./lib/deepLink/websiteLaunch";
 import { toast } from "sonner";
 import { SettingsTabs } from "./types/settings";
 import { hasTauriInvokeCapability } from "./lib/tauri-runtime";
@@ -200,6 +202,22 @@ function AppContent() {
     [handleNavigate],
   );
 
+  const handleOpenWebsiteDeepLink = useCallback(
+    (payload: OpenDeepLinkPayload) => {
+      const resolved = resolveWebsiteOpenNavigation(payload);
+
+      if (!resolved) {
+        toast.error("无法打开这个官网入口", {
+          description: "当前 slug 没有对应到桌面端可用能力，请同步官网与客户端目录。",
+        });
+        return;
+      }
+
+      handleNavigate(resolved.page, resolved.params);
+    },
+    [handleNavigate],
+  );
+
   const {
     connectPayload,
     relayInfo,
@@ -211,6 +229,7 @@ function AppContent() {
     handleCancel,
   } = useDeepLink({
     onOpenBrowserConnectorSettings: handleOpenBrowserConnectorSettings,
+    onOpenWebsiteDeepLink: handleOpenWebsiteDeepLink,
   });
 
   const { error: registryError, refresh: _refreshRegistry } = useRelayRegistry({

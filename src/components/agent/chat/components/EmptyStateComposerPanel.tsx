@@ -47,6 +47,7 @@ import type {
 } from "../skill-selection/inputCapabilitySelection";
 import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
 import type { CreationReplaySurfaceModel } from "../utils/creationReplaySurface";
+import { getProviderLabel } from "@/lib/constants/providerMappings";
 
 interface EmptyStateComposerPanelProps {
   input: string;
@@ -75,6 +76,7 @@ interface EmptyStateComposerPanelProps {
   onClearInputCapability?: () => void;
   onEditCuratedTask?: () => void;
   creationReplaySurface?: CreationReplaySurfaceModel | null;
+  projectId?: string | null;
   defaultCuratedTaskReferenceMemoryIds?: string[];
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
   showCreationModeSelector: boolean;
@@ -122,6 +124,7 @@ export function EmptyStateComposerPanel({
   onClearInputCapability,
   onEditCuratedTask,
   creationReplaySurface = null,
+  projectId = null,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
   showCreationModeSelector,
@@ -289,6 +292,12 @@ export function EmptyStateComposerPanel({
 
   const shouldShowThemeSpecificExtra = showCreationModeSelector;
   const shouldShowModelControls = true;
+  const trimmedProviderType = providerType.trim();
+  const trimmedModel = model.trim();
+  const hasConfiguredModel = Boolean(trimmedProviderType && trimmedModel);
+  const currentModelSummary = hasConfiguredModel
+    ? `${getProviderLabel(trimmedProviderType)} / ${trimmedModel}`
+    : null;
   const hasHighlightedAdvancedPreference =
     thinkingEnabled ||
     webSearchEnabled ||
@@ -328,6 +337,17 @@ export function EmptyStateComposerPanel({
           <ChevronDown className="h-3.5 w-3.5" aria-hidden />
         )}
       </MetaToggleButton>
+
+      {!showAdvancedControls && currentModelSummary ? (
+        <Badge
+          variant="outline"
+          className={`${EMPTY_STATE_PASSIVE_BADGE_CLASSNAME} max-w-[240px] items-center overflow-hidden`}
+          title={`当前模型：${currentModelSummary}`}
+        >
+          <span className="mr-1 text-slate-500">当前模型</span>
+          <span className="truncate">{trimmedModel}</span>
+        </Badge>
+      ) : null}
 
       {showAdvancedControls ? (
         <>
@@ -423,6 +443,7 @@ export function EmptyStateComposerPanel({
         value={input}
         onChange={setInput}
         onSelectInputCapability={onSelectInputCapability}
+        projectId={projectId}
         defaultCuratedTaskReferenceMemoryIds={
           activeCapability?.kind === "curated_task"
             ? activeCapability.referenceMemoryIds ||

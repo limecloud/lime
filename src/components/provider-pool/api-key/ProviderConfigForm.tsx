@@ -234,7 +234,8 @@ export const ProviderConfigForm = forwardRef<
         }),
       [formState.apiHost, formState.providerType, provider.id],
     );
-    const requiresLiveModelTruth = modelAutoFetchCapability.supported;
+    const requiresLiveModelTruth =
+      modelAutoFetchCapability.requiresLiveModelTruth;
     const canReadLiveModels =
       !requiresLiveModelTruth ||
       !modelAutoFetchCapability.requiresApiKey ||

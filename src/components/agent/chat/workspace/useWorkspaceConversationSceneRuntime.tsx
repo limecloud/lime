@@ -231,6 +231,8 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   entryBannerVisible: ConversationScenePresentationParams["scene"]["entryBannerVisible"];
   entryBannerMessage: ConversationScenePresentationParams["scene"]["entryBannerMessage"];
   creationReplaySurface?: CreationReplaySurfaceModel | null;
+  defaultCuratedTaskReferenceMemoryIds?: ConversationScenePresentationParams["scene"]["defaultCuratedTaskReferenceMemoryIds"];
+  defaultCuratedTaskReferenceEntries?: ConversationScenePresentationParams["scene"]["defaultCuratedTaskReferenceEntries"];
   sceneAppExecutionSummaryCard?: ConversationScenePresentationParams["scene"]["sceneAppExecutionSummaryCard"];
   serviceSkillExecutionCard?: ConversationScenePresentationParams["scene"]["serviceSkillExecutionCard"];
   contextWorkspaceEnabled: boolean;
@@ -372,6 +374,8 @@ export function useWorkspaceConversationSceneRuntime({
   entryBannerVisible,
   entryBannerMessage,
   creationReplaySurface,
+  defaultCuratedTaskReferenceMemoryIds,
+  defaultCuratedTaskReferenceEntries,
   sceneAppExecutionSummaryCard,
   serviceSkillExecutionCard,
   contextWorkspaceEnabled,
@@ -748,6 +752,8 @@ export function useWorkspaceConversationSceneRuntime({
       entryBannerMessage,
       onDismissEntryBanner: navigationActions.handleDismissEntryBanner,
       creationReplaySurface,
+      defaultCuratedTaskReferenceMemoryIds,
+      defaultCuratedTaskReferenceEntries,
       sceneAppExecutionSummaryCard,
       serviceSkillExecutionCard,
       showChatLayout: shellChromeRuntime.showChatLayout,

@@ -5,6 +5,7 @@
 import styled from "styled-components";
 import { Button } from "@/components/ui/button";
 import { Cpu, LayoutDashboard, Mic } from "lucide-react";
+import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 
 const Container = styled.div`
   display: flex;
@@ -129,7 +130,7 @@ export function WelcomeStep({ onNext, onSkip }: WelcomeStepProps) {
   return (
     <Container>
       <LogoContainer>
-        <Logo src="/logo-v6.svg" alt="Lime" />
+        <Logo src={LIME_BRAND_LOGO_SRC} alt={LIME_BRAND_NAME} />
       </LogoContainer>
 
       <Title>欢迎使用 Lime</Title>

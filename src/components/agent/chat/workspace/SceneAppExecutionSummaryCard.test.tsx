@@ -271,6 +271,8 @@ describe("SceneAppExecutionSummaryCard", () => {
 
   it("应在生成主执行面展示最近可消费结果并支持打开文件", () => {
     const onDeliveryArtifactAction = vi.fn();
+    const onReviewCurrentProject = vi.fn();
+    const onSaveAsSkill = vi.fn();
     const onOpenSceneAppDetail = vi.fn();
     const onOpenSceneAppGovernance = vi.fn();
     const onOpenHumanReview = vi.fn();
@@ -283,6 +285,8 @@ describe("SceneAppExecutionSummaryCard", () => {
     const container = renderCard({
       latestPackResultDetailView: createLatestPackResultDetailView(),
       latestPackResultUsesFallback: true,
+      onReviewCurrentProject,
+      onSaveAsSkill,
       onOpenSceneAppDetail,
       onOpenSceneAppGovernance,
       humanReviewAvailable: true,
@@ -402,6 +406,12 @@ describe("SceneAppExecutionSummaryCard", () => {
     const detailButton = container.querySelector(
       '[data-testid="sceneapp-execution-summary-open-detail"]',
     );
+    const reviewCurrentProjectButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-review-current-project"]',
+    );
+    const saveAsSkillButton = container.querySelector(
+      '[data-testid="sceneapp-execution-summary-save-as-skill"]',
+    );
     const governanceButton = container.querySelector(
       '[data-testid="sceneapp-execution-summary-open-governance"]',
     );
@@ -439,6 +449,8 @@ describe("SceneAppExecutionSummaryCard", () => {
       '[data-testid="sceneapp-execution-summary-prompt-action-upload_prepare"]',
     );
     expect(button).not.toBeNull();
+    expect(reviewCurrentProjectButton).not.toBeNull();
+    expect(saveAsSkillButton).not.toBeNull();
     expect(detailButton).not.toBeNull();
     expect(governanceButton).not.toBeNull();
     expect(humanReviewButton).not.toBeNull();
@@ -455,6 +467,12 @@ describe("SceneAppExecutionSummaryCard", () => {
 
     act(() => {
       button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      reviewCurrentProjectButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      saveAsSkillButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
       detailButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       governanceButton?.dispatchEvent(
         new MouseEvent("click", { bubbles: true }),
@@ -499,6 +517,8 @@ describe("SceneAppExecutionSummaryCard", () => {
         key: "brief-0",
       }),
     );
+    expect(onReviewCurrentProject).toHaveBeenCalledTimes(1);
+    expect(onSaveAsSkill).toHaveBeenCalledTimes(1);
     expect(onOpenSceneAppDetail).toHaveBeenCalledTimes(1);
     expect(onOpenSceneAppGovernance).toHaveBeenCalledTimes(1);
     expect(onOpenHumanReview).toHaveBeenCalledTimes(1);

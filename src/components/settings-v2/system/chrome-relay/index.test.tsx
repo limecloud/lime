@@ -504,6 +504,18 @@ describe("ChromeRelaySettings", () => {
     await leaveTip(installTip);
   });
 
+  it("应明确提示不要直接加载仓库源码目录", async () => {
+    const container = renderComponent();
+    await flushEffects();
+
+    expect(container.textContent).toContain(
+      "不要直接加载仓库源码里的 `extensions/lime-chrome`",
+    );
+    expect(container.textContent).toContain(
+      "源码目录不带 `auto_config.json`，扩展会提示缺少 `serverUrl / bridgeKey`。",
+    );
+  });
+
   it("选择目录后应安装浏览器连接器到固定子目录", async () => {
     const container = renderComponent();
     await flushEffects();

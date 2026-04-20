@@ -7,8 +7,9 @@
 ## 当前状态
 
 - 已确认扩展目录：`extensions/lime-chrome`
-- 已确认扩展版本：`0.3.0`
-- 已生成上传包：`tmp/lime-chrome-0.3.0.zip`
+- 已确认扩展版本：`0.4.0`
+- 已生成上传包：`tmp/lime-chrome-0.4.0.zip`
+- 已确认上传包 SHA-256：`059b6c17a8fea130d78709cd85e3cc16e687438da4ab4aab6bd0ed898bd3818b`
 - 已发现安装页内预留商店链接：`https://chromewebstore.google.com/detail/lime-chrome/cpidmllglbedhpombjibeoalnafofipo`
 - 公开链接当前未返回可见上架页，需在开发者后台确认该条目是草稿、私有条目还是无效占位
 
@@ -34,12 +35,19 @@
 ## 下一步
 
 1. 进入 Chrome Web Store 开发者后台，确认 `cpidmllglbedhpombjibeoalnafofipo` 对应条目状态
-2. 使用 `tmp/lime-chrome-0.3.0.zip` 上传扩展包
+2. 使用 `tmp/lime-chrome-0.4.0.zip` 上传扩展包
 3. 将 `extensions/lime-chrome/CHROME_WEB_STORE_SUBMISSION.md` 中的文案和权限说明填入后台
 4. 将 `extensions/lime-chrome/PRIVACY_POLICY.md` 对应的公开 URL 填入隐私政策字段
 5. 完成数据使用问卷、截图与可见性配置后提交审核或发布
 
 ## 进度日志
+
+### 2026-04-20
+
+- 补齐扩展 options 页中英文切换，并把缺配置状态改成明确的“需要配置 / Setup Required”
+- 重新生成 `tmp/lime-chrome-0.4.0.zip`，剔除测试文件后记录正式 SHA-256
+- 将 Chrome 商店提交底稿与发布计划同步到 `0.4.0` 事实源
+- 将扩展 `icons/icon16.png`、`icon32.png`、`icon48.png`、`icon128.png` 全部替换为 `public/logo.png` 缩放版本，并重新打包上传产物
 
 ### 2026-04-13
 

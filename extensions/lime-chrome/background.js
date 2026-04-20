@@ -8,6 +8,8 @@ const KEEPALIVE_ALARM_NAME = "limeBridgeKeepAlive";
 const KEEPALIVE_PERIOD_MINUTES = 1;
 const DEBUGGER_PROTOCOL_VERSION = "1.3";
 const MAX_LOG_ENTRIES = 200;
+const MISSING_OBSERVER_CONFIG_ERROR = "缺少 serverUrl 或 bridgeKey，无法建立连接";
+const MISSING_CONTROL_CONFIG_ERROR = "缺少 serverUrl 或 bridgeKey，无法建立控制通道";
 
 const DEFAULT_SETTINGS = {
   serverUrl: "ws://127.0.0.1:8999",
@@ -110,6 +112,13 @@ function applySettingsState(settings) {
   isEnabled = settings.enabled !== false;
 }
 
+function hasRequiredSettings(settings) {
+  return Boolean(
+    String(settings?.serverUrl || "").trim() &&
+      String(settings?.bridgeKey || "").trim(),
+  );
+}
+
 function buildObserverUrl(settings) {
   const serverUrl = String(settings.serverUrl || "").trim();
   const bridgeKey = String(settings.bridgeKey || "").trim();
@@ -153,6 +162,9 @@ function getRelayState() {
   if (!isEnabled) {
     return "disabled";
   }
+  if (!hasRequiredSettings(lastSettings)) {
+    return "unconfigured";
+  }
   if (isConnected && isControlConnected) {
     return "connected";
   }
@@ -162,6 +174,7 @@ function getRelayState() {
 function buildRelayCompatibilityPayload() {
   return {
     state: getRelayState(),
+    isConfigured: hasRequiredSettings(lastSettings),
     connected: isConnected && isControlConnected,
     active: isConnected,
     reconnecting:
@@ -195,6 +208,7 @@ function buildStatusPayload(extra) {
     lastError,
     controlLastError,
     relayState: getRelayState(),
+    isConfigured: hasRequiredSettings(lastSettings),
     settings: maskSettings(lastSettings),
     ...extra,
   };
@@ -397,7 +411,7 @@ async function connectObserver(forceReconnect = false) {
   if (!url) {
     isConnecting = false;
     isConnected = false;
-    rememberLastError("缺少 serverUrl 或 bridgeKey，无法建立连接");
+    rememberLastError(MISSING_OBSERVER_CONFIG_ERROR);
     broadcastStatus();
     return;
   }
@@ -486,7 +500,7 @@ async function connectControl(forceReconnect = false) {
   if (!url) {
     isControlConnecting = false;
     isControlConnected = false;
-    rememberControlLastError("缺少 serverUrl 或 bridgeKey，无法建立控制通道");
+    rememberControlLastError(MISSING_CONTROL_CONFIG_ERROR);
     broadcastStatus();
     return;
   }
@@ -1614,8 +1628,13 @@ async function init(forceReconnect = false) {
     isConnected = false;
     isControlConnecting = false;
     isControlConnected = false;
-    clearLastError();
-    clearControlLastError();
+    if (isEnabled) {
+      rememberLastError(MISSING_OBSERVER_CONFIG_ERROR);
+      rememberControlLastError(MISSING_CONTROL_CONFIG_ERROR);
+    } else {
+      clearLastError();
+      clearControlLastError();
+    }
     broadcastStatus();
   }
 }

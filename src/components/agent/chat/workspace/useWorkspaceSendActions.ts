@@ -3207,8 +3207,14 @@ export function useWorkspaceSendActions({
         if (!requestContext) {
           return { kind: "done", result: false };
         }
+        effectiveToolPreferences = {
+          ...effectiveToolPreferences,
+          webSearch: false,
+        };
+        effectiveWebSearch = false;
         sendOptions = {
           ...(sendOptions || {}),
+          toolPreferencesOverride: effectiveToolPreferences,
           requestMetadata: buildSiteSearchSkillLaunchRequestMetadata(
             sendOptions?.requestMetadata,
             requestContext,

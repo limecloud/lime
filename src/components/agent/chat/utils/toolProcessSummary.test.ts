@@ -273,4 +273,25 @@ describe("toolProcessSummary", () => {
     );
     expect(typesettingNarrative.preSummary).toBe("先提交 小红书 的排版任务");
   });
+
+  it("应把 WebSearch 协议错误翻译成可操作提示", () => {
+    const narrative = resolveToolProcessNarrative(
+      createToolCall({
+        name: "WebSearch",
+        status: "failed",
+        result: {
+          success: false,
+          error: "-32603: -32002: WebSearch",
+          output: "",
+        },
+      }),
+    );
+
+    expect(narrative.postSummary).toBe(
+      "执行失败：当前联网搜索链路未接通，请检查 Runtime 是否接通 WebSearch，或关闭联网搜索后重试。",
+    );
+    expect(narrative.summary).toBe(
+      "执行失败：当前联网搜索链路未接通，请检查 Runtime 是否接通 WebSearch，或关闭联网搜索后重试。",
+    );
+  });
 });

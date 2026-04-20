@@ -24,11 +24,15 @@ import type {
   BuiltinInputCommand,
   RuntimeSceneSlashCommand,
 } from "./builtinCommands";
-import type { CuratedTaskTemplateItem } from "../utils/curatedTaskTemplates";
+import type {
+  CuratedTaskInputValues,
+  CuratedTaskTemplateItem,
+} from "../utils/curatedTaskTemplates";
 import {
   buildInputCapabilitySections,
   type InputCapabilityDescriptor,
 } from "./inputCapabilitySections";
+import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
 
 interface CharacterMentionPanelProps {
   mode: "mention" | "slash";
@@ -41,6 +45,11 @@ interface CharacterMentionPanelProps {
   filteredCharacters: Character[];
   installedSkills: Skill[];
   availableSkills: Skill[];
+  projectId?: string | null;
+  sessionId?: string | null;
+  referenceEntries?: CuratedTaskReferenceEntry[];
+  curatedTaskRecommendationSignalsVersion?: number;
+  slashEntryUsageVersion?: number;
   commandRef: React.RefObject<HTMLDivElement>;
   onQueryChange: (query: string) => void;
   onSelectBuiltinCommand: (
@@ -56,7 +65,15 @@ interface CharacterMentionPanelProps {
     command: RuntimeSceneSlashCommand,
     options?: { replayText?: string },
   ) => void;
-  onSelectCuratedTask?: (task: CuratedTaskTemplateItem) => void;
+  onSelectCuratedTask?: (
+    task: CuratedTaskTemplateItem,
+    options?: {
+      launchInputValues?: CuratedTaskInputValues;
+      referenceMemoryIds?: string[];
+      referenceEntries?: CuratedTaskReferenceEntry[];
+      launcherPrefillHint?: string;
+    },
+  ) => void;
   onSelectCharacter: (character: Character) => void;
   onSelectInstalledSkill: (
     skill: Skill,
@@ -77,6 +94,11 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   filteredCharacters,
   installedSkills,
   availableSkills,
+  projectId,
+  sessionId,
+  referenceEntries = [],
+  curatedTaskRecommendationSignalsVersion = 0,
+  slashEntryUsageVersion = 0,
   commandRef,
   onQueryChange,
   onSelectBuiltinCommand,
@@ -90,8 +112,10 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   onNavigateToSettings,
 }) => {
   const sections = React.useMemo(
-    () =>
-      buildInputCapabilitySections({
+    () => {
+      void curatedTaskRecommendationSignalsVersion;
+      void slashEntryUsageVersion;
+      return buildInputCapabilitySections({
         mode,
         mentionQuery,
         builtinCommands,
@@ -102,17 +126,26 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
         filteredCharacters,
         installedSkills,
         availableSkills,
-      }),
+        projectId,
+        sessionId,
+        referenceEntries,
+      });
+    },
     [
       availableSkills,
       builtinCommands,
+      curatedTaskRecommendationSignalsVersion,
       filteredCharacters,
       installedSkills,
       mentionQuery,
       mentionServiceSkills,
       mode,
+      projectId,
+      referenceEntries,
       sceneCommands,
       serviceSkillGroups,
+      sessionId,
+      slashEntryUsageVersion,
       slashCommands,
     ],
   );
@@ -133,7 +166,12 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
         onSelectSceneCommand(item.command, { replayText: item.replayText });
         return;
       case "curated_task":
-        onSelectCuratedTask?.(item.task);
+        onSelectCuratedTask?.(item.task, {
+          launchInputValues: item.launchInputValues,
+          referenceMemoryIds: item.referenceMemoryIds,
+          referenceEntries: item.referenceEntries,
+          launcherPrefillHint: item.launcherPrefillHint,
+        });
         return;
       case "character":
         onSelectCharacter(item.character);

@@ -97,6 +97,44 @@ describe("legacySurfaceCatalog", () => {
     expect(rustEventMonitor?.allowedPaths).toEqual([]);
   });
 
+  it("应将 channels_cmd 旧 CRUD stub 命令标记为 dead-candidate", () => {
+    const monitor = legacySurfaceCatalogJson.commands.find(
+      (entry) => entry.id === "channels-crud-stub-commands",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.commands).toEqual([
+      "get_ai_channels",
+      "get_ai_channel",
+      "create_ai_channel",
+      "update_ai_channel",
+      "delete_ai_channel",
+      "test_ai_channel",
+      "get_notification_channels",
+      "get_notification_channel",
+      "create_notification_channel",
+      "update_notification_channel",
+      "delete_notification_channel",
+      "test_notification_channel",
+    ]);
+  });
+
+  it("应禁止 channels_cmd 旧 Rust 模块与注册面重新回流", () => {
+    const monitor = legacySurfaceCatalogJson.rustText.find(
+      (entry) => entry.id === "rust-channels-cmd-legacy-surfaces",
+    );
+
+    expect(monitor).toBeTruthy();
+    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.patterns).toEqual([
+      "commands::channels_cmd::",
+      "pub mod channels_cmd;",
+    ]);
+  });
+
   it("应禁止 SkillSelectorPanel 旧面板路径重新回流", () => {
     const legacyPanelPath = `./${"SkillSelectorPanel"}`;
     const monitor = legacySurfaceCatalogJson.frontendText.find(

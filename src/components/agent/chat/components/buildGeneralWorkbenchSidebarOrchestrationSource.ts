@@ -45,6 +45,7 @@ export function buildGeneralWorkbenchSidebarOrchestrationSource({
       branchItems: props.branchItems,
       creationTaskEvents: props.creationTaskEvents,
       onAddImage: props.onAddImage,
+      onApplyFollowUpAction: props.onApplyFollowUpAction,
       onDeleteTopic: props.onDeleteTopic,
       onImportDocument: props.onImportDocument,
       onNewTopic: props.onNewTopic,

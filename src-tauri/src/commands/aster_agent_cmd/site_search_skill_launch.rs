@@ -79,6 +79,18 @@ pub(crate) fn prepare_site_search_skill_launch_request_metadata(
     Some(metadata)
 }
 
+pub(crate) fn apply_site_search_skill_launch_to_request_tool_policy(
+    request_metadata: Option<&serde_json::Value>,
+    request_web_search: Option<bool>,
+    request_search_mode: Option<RequestToolPolicyMode>,
+) -> (Option<bool>, Option<RequestToolPolicyMode>) {
+    if should_lock_site_search_skill_launch_to_site_tools(request_metadata) {
+        return (Some(false), Some(RequestToolPolicyMode::Disabled));
+    }
+
+    (request_web_search, request_search_mode)
+}
+
 pub(crate) fn merge_system_prompt_with_site_search_skill_launch(
     base_prompt: Option<String>,
     request_metadata: Option<&serde_json::Value>,

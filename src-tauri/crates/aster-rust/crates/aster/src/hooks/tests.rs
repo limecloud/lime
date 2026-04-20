@@ -1,6 +1,8 @@
 //! Hooks 模块测试
 
 use super::*;
+use std::fs;
+use std::sync::Arc;
 
 #[test]
 fn test_hook_event_display() {
@@ -132,6 +134,54 @@ fn test_hook_config_serialization() {
 }
 
 #[test]
+fn test_agent_hook_config_supports_current_prompt_fields() {
+    let parsed: HookConfig = serde_json::from_value(serde_json::json!({
+        "type": "agent",
+        "prompt": "Verify tests passed",
+        "model": "gpt-5.4",
+        "timeout": 60000,
+        "blocking": true
+    }))
+    .expect("agent hook config should deserialize");
+
+    match parsed {
+        HookConfig::Agent(config) => {
+            assert_eq!(config.prompt.as_deref(), Some("Verify tests passed"));
+            assert_eq!(config.model.as_deref(), Some("gpt-5.4"));
+            assert_eq!(config.agent_type, "verifier");
+        }
+        _ => panic!("Expected Agent config"),
+    }
+}
+
+#[test]
+fn test_agent_hook_config_keeps_compat_agent_config_fields() {
+    let parsed: HookConfig = serde_json::from_value(serde_json::json!({
+        "type": "agent",
+        "agent_type": "compat-agent",
+        "agent_config": {
+            "prompt": "Verify via compat config",
+            "model": "gpt-4o"
+        }
+    }))
+    .expect("compat agent hook config should deserialize");
+
+    match parsed {
+        HookConfig::Agent(config) => {
+            assert_eq!(config.agent_type, "compat-agent");
+            assert_eq!(
+                config.agent_config,
+                Some(serde_json::json!({
+                    "prompt": "Verify via compat config",
+                    "model": "gpt-4o"
+                }))
+            );
+        }
+        _ => panic!("Expected Agent config"),
+    }
+}
+
+#[test]
 fn test_hook_input_serialization() {
     let input = HookInput {
         event: Some(HookEvent::PreToolUse),
@@ -193,4 +243,43 @@ fn test_legacy_hook_conversion() {
         }
         _ => panic!("Expected Command config"),
     }
+}
+
+#[tokio::test]
+async fn test_run_user_prompt_submit_hooks_with_registry_blocks_project_hook() {
+    let temp_dir = tempfile::TempDir::new().expect("create temp dir");
+    let claude_dir = temp_dir.path().join(".claude");
+    fs::create_dir_all(&claude_dir).expect("create .claude dir");
+    fs::write(
+        claude_dir.join("settings.json"),
+        r#"{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "printf '%s' '{\"blocked\":true,\"message\":\"project hook blocked\"}'; exit 2",
+        "blocking": true
+      }
+    ]
+  }
+}
+"#,
+    )
+    .expect("write settings.json");
+
+    let registry = Arc::new(HookRegistry::new());
+    load_project_hooks_to_registry(temp_dir.path(), &registry)
+        .expect("load project hooks to registry");
+
+    assert_eq!(registry.count_for_event(HookEvent::UserPromptSubmit), 1);
+
+    let (allowed, message) = run_user_prompt_submit_hooks_with_registry(
+        "请继续提交",
+        Some("session-hook-test".to_string()),
+        &registry,
+    )
+    .await;
+
+    assert!(!allowed);
+    assert_eq!(message.as_deref(), Some("project hook blocked"));
 }

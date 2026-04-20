@@ -178,7 +178,30 @@ describe("ProviderConfigForm", () => {
     expect(container.textContent ?? "").not.toContain("当前默认模型：gpt-4.1");
   });
 
-  it("实时拉模型渠道在拿到真实目录后应自动纠正历史错误默认模型", async () => {
+  it("anthropic-compatible 渠道在未返回模型目录时仍应允许保留和手动补充模型", () => {
+    const provider = createProvider({
+      id: "custom-xfyun-coding-plan",
+      name: "讯飞 Coding Plan",
+      is_system: false,
+      type: "anthropic-compatible",
+      api_host: "https://spark-api-open.xf-yun.com/v1/anthropic",
+      custom_models: ["astron-code-latest"],
+      api_keys: [],
+    });
+    const { container } = renderForm(provider);
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="custom-models-input"]',
+    );
+
+    expect(container.textContent ?? "").not.toContain("先补一把可用 API Key");
+    expect(container.textContent ?? "").toContain("当前：astron-code-latest");
+    expect(container.textContent ?? "").toContain("astron-code-latest");
+    expect(input?.disabled).toBe(false);
+    expect(input?.getAttribute("placeholder")).toContain("手动输入模型 ID");
+  });
+
+  it("anthropic-compatible 渠道在拿到真实目录后不应自动覆盖已填写模型", async () => {
     mockUseProviderModels.mockReturnValue({
       modelIds: ["MiniMax-M2.1", "MiniMax-M2.7"],
       models: [
@@ -207,16 +230,9 @@ describe("ProviderConfigForm", () => {
       await Promise.resolve();
     });
 
-    expect(onUpdate).toHaveBeenCalledWith(
-      "custom-minimax",
-      expect.objectContaining({
-        type: "anthropic-compatible",
-        custom_models: ["MiniMax-M2.7"],
-      }),
-    );
-    expect(container.textContent ?? "").toContain("当前：MiniMax-M2.7");
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(container.textContent ?? "").toContain("当前：claude-opus-4-6");
     expect(container.textContent ?? "").toContain("推荐最新：MiniMax-M2.7");
-    expect(container.textContent ?? "").not.toContain("当前：claude-opus-4-6");
   });
 
   it("自定义 Provider 应允许切换兼容协议并保存", async () => {

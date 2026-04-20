@@ -129,10 +129,16 @@ vi.mock("../../skill-selection/SkillBadge", () => ({
 
 vi.mock("../../skill-selection/CuratedTaskBadge", () => ({
   CuratedTaskBadge: (props: {
+    task?: {
+      title?: string;
+      followUpActions?: string[];
+    };
     onEdit?: () => void;
     onClear?: () => void;
   }) => (
     <div data-testid="curated-task-badge">
+      <span>{props.task?.title}</span>
+      <span>{props.task?.followUpActions?.join("、")}</span>
       <button
         type="button"
         data-testid="curated-task-badge-edit"
@@ -721,6 +727,8 @@ describe("Inputbar", () => {
           title: "内容主稿生成",
           summary: "生成一版可继续打磨的内容首稿。",
           outputHint: "内容首稿 + 结构提纲",
+          resultDestination:
+            "首版主稿会先进入当前内容，方便继续改写、拆成多平台版本。",
           categoryLabel: "内容起稿",
           prompt:
             "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构、核心观点和可继续扩写的角度，并给我一版适合继续打磨的正文。",
@@ -795,13 +803,12 @@ describe("Inputbar", () => {
     );
   });
 
-  it("带着初始结果模板进入时，应恢复 capability badge 并在输入为空时预填 prompt", async () => {
-    const onSend = vi.fn();
+  it("带着缺少启动槽位的初始结果模板进入时，应先打开 launcher 而不是直接预填 prompt", async () => {
     const setInput = vi.fn();
-    const rendered = renderInputbar({
+    renderInputbar({
       input: "",
       setInput,
-      onSend,
+      onSend: vi.fn(),
       activeTheme: "general",
       initialInputCapability: {
         capabilityRoute: {
@@ -819,14 +826,64 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(setInput).toHaveBeenCalledWith(
-      "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
-    );
-    expect(document.querySelector('[data-testid="curated-task-badge"]')).toBeTruthy();
+    expect(setInput).not.toHaveBeenCalled();
+    expect(
+      document.querySelector(
+        '[data-testid="curated-task-dialog-field-theme_target"]',
+      ),
+    ).toBeTruthy();
+    expect(
+      document.querySelector(
+        '[data-testid="curated-task-dialog-field-platform_region"]',
+      ),
+    ).toBeTruthy();
 
-    rendered.rerender({
-      input:
-        "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+    const confirmButton = document.querySelector(
+      '[data-testid="curated-task-dialog-confirm"]',
+    );
+    expect(confirmButton).toBeTruthy();
+
+    const curatedTaskBadge = document.querySelector(
+      '[data-testid="curated-task-badge"]',
+    ) as HTMLElement | null;
+    expect(curatedTaskBadge).toBeTruthy();
+    expect(curatedTaskBadge?.textContent).toContain("每日趋势摘要");
+    expect(curatedTaskBadge?.textContent).toContain(
+      "继续展开其中一个选题、生成首条内容主稿",
+    );
+  });
+
+  it("带着已确认启动信息的初始结果模板进入时，应恢复 capability badge 并在输入为空时预填 prompt", async () => {
+    const onSend = vi.fn();
+    const setInput = vi.fn();
+    const initialLaunchInputValues = {
+      theme_target: "AI 内容创作",
+      platform_region: "X 与 TikTok 北美区",
+    };
+    const initialPrompt = buildCuratedTaskLaunchPrompt({
+      task: {
+        prompt:
+          "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+        requiredInputFields: [
+          {
+            key: "theme_target",
+            label: "主题或赛道",
+            placeholder: "",
+            type: "text",
+          },
+          {
+            key: "platform_region",
+            label: "希望关注的平台/地域",
+            placeholder: "",
+            type: "text",
+          },
+        ],
+        outputContract: ["趋势摘要", "3 个优先选题", "代表案例线索"],
+      },
+      inputValues: initialLaunchInputValues,
+    });
+    const rendered = renderInputbar({
+      input: "",
       setInput,
       onSend,
       activeTheme: "general",
@@ -835,8 +892,36 @@ describe("Inputbar", () => {
           kind: "curated_task",
           taskId: "daily-trend-briefing",
           taskTitle: "每日趋势摘要",
-          prompt:
-            "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+          prompt: initialPrompt,
+          launchInputValues: initialLaunchInputValues,
+        },
+        requestKey: 20260418,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(setInput).toHaveBeenCalledWith(initialPrompt);
+    expect(
+      document.querySelector(
+        '[data-testid="curated-task-dialog-field-theme_target"]',
+      ),
+    ).toBeFalsy();
+
+    rendered.rerender({
+      input: initialPrompt,
+      setInput,
+      onSend,
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt: initialPrompt,
+          launchInputValues: initialLaunchInputValues,
         },
         requestKey: 20260418,
       },
@@ -864,16 +949,16 @@ describe("Inputbar", () => {
           kind: "curated_task",
           taskId: "daily-trend-briefing",
           taskTitle: "每日趋势摘要",
-          prompt:
-            "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+          prompt: initialPrompt,
+          launchInputValues: initialLaunchInputValues,
         },
-        displayContent:
-          "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
+        displayContent: initialPrompt,
         requestMetadata: {
           harness: {
             curated_task: expect.objectContaining({
               task_id: "daily-trend-briefing",
               task_title: "每日趋势摘要",
+              launch_input_values: initialLaunchInputValues,
             }),
           },
         },
@@ -906,6 +991,8 @@ describe("Inputbar", () => {
           title: "每日趋势摘要",
           summary: "先收一版趋势摘要。",
           outputHint: "趋势摘要 + 选题方向",
+          resultDestination:
+            "趋势摘要会先写回当前内容，方便继续展开选题和主稿。",
           categoryLabel: "趋势与选题",
           prompt: "请先给我做一版每日趋势摘要",
           requiredInputs: ["主题或赛道", "希望关注的平台/地域"],
@@ -966,6 +1053,11 @@ describe("Inputbar", () => {
             curated_task: expect.objectContaining({
               task_id: "daily-trend-briefing",
               reference_memory_ids: ["memory-1"],
+              reference_entries: [
+                expect.objectContaining({
+                  id: "memory-1",
+                }),
+              ],
             }),
           },
         },

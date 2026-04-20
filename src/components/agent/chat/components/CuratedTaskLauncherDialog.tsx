@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, LoaderCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,8 +20,12 @@ import {
 } from "@/components/agent/chat/utils/curatedTaskTemplates";
 import { listUnifiedMemories } from "@/lib/api/unifiedMemory";
 import { cn } from "@/lib/utils";
+import { subscribeCuratedTaskRecommendationSignalsChanged } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import {
+  buildCuratedTaskLaunchInputPrefillFromReferenceEntries,
   buildCuratedTaskReferenceEntries,
+  extractCuratedTaskReferenceMemoryIds,
+  getCuratedTaskReferenceSourceLabel,
   mergeCuratedTaskReferenceEntries,
   normalizeCuratedTaskReferenceMemoryIds,
   type CuratedTaskReferenceEntry,
@@ -34,6 +38,7 @@ interface CuratedTaskLauncherDialogProps {
   initialInputValues?: CuratedTaskInputValues | null;
   initialReferenceMemoryIds?: string[] | null;
   initialReferenceEntries?: CuratedTaskReferenceEntry[] | null;
+  prefillHint?: string | null;
   onOpenChange: (open: boolean) => void;
   onConfirm: (
     task: CuratedTaskTemplateItem,
@@ -50,6 +55,7 @@ export function CuratedTaskLauncherDialog({
   initialInputValues,
   initialReferenceMemoryIds,
   initialReferenceEntries,
+  prefillHint,
   onOpenChange,
   onConfirm,
 }: CuratedTaskLauncherDialogProps) {
@@ -57,7 +63,7 @@ export function CuratedTaskLauncherDialog({
   const [referenceEntries, setReferenceEntries] = useState<
     CuratedTaskReferenceEntry[]
   >([]);
-  const [selectedReferenceMemoryIds, setSelectedReferenceMemoryIds] = useState<
+  const [selectedReferenceEntryIds, setSelectedReferenceEntryIds] = useState<
     string[]
   >([]);
   const [isReferenceEntriesLoading, setIsReferenceEntriesLoading] =
@@ -65,6 +71,31 @@ export function CuratedTaskLauncherDialog({
   const [referenceEntriesError, setReferenceEntriesError] = useState<
     string | null
   >(null);
+  const [referenceEntriesVersion, setReferenceEntriesVersion] = useState(0);
+  const selectedReferenceEntryIdsRef = useRef<string[]>([]);
+
+  const seededReferenceEntries = useMemo(
+    () => mergeCuratedTaskReferenceEntries(initialReferenceEntries ?? []),
+    [initialReferenceEntries],
+  );
+  const seededReferenceEntryIds = useMemo(
+    () =>
+      normalizeCuratedTaskReferenceMemoryIds([
+        ...(initialReferenceMemoryIds ?? []),
+        ...seededReferenceEntries.map((entry) => entry.id),
+      ]) ?? [],
+    [initialReferenceMemoryIds, seededReferenceEntries],
+  );
+
+  useEffect(() => {
+    return subscribeCuratedTaskRecommendationSignalsChanged(() => {
+      setReferenceEntriesVersion((previous) => previous + 1);
+    });
+  }, []);
+
+  useEffect(() => {
+    selectedReferenceEntryIdsRef.current = selectedReferenceEntryIds;
+  }, [selectedReferenceEntryIds]);
 
   useEffect(() => {
     if (!task || !open) {
@@ -75,33 +106,35 @@ export function CuratedTaskLauncherDialog({
     setInputValues(
       resolveCuratedTaskInputValues({
         task,
-        inputValues: initialInputValues,
+        inputValues: buildCuratedTaskLaunchInputPrefillFromReferenceEntries({
+          taskId: task.id,
+          inputValues: initialInputValues,
+          referenceEntries: initialReferenceEntries,
+        }),
       }),
     );
-  }, [initialInputValues, open, task]);
+  }, [initialInputValues, initialReferenceEntries, open, task]);
 
   useEffect(() => {
     if (!task || !open) {
       setReferenceEntries([]);
-      setSelectedReferenceMemoryIds([]);
+      setSelectedReferenceEntryIds([]);
       setIsReferenceEntriesLoading(false);
       setReferenceEntriesError(null);
       return;
     }
 
-    const seededReferenceEntries = mergeCuratedTaskReferenceEntries(
-      initialReferenceEntries ?? [],
-    );
-    const seededReferenceMemoryIds =
-      normalizeCuratedTaskReferenceMemoryIds([
-        ...(initialReferenceMemoryIds ?? []),
-        ...seededReferenceEntries.map((entry) => entry.id),
-      ]) ?? [];
-
     setReferenceEntries(seededReferenceEntries);
-    setSelectedReferenceMemoryIds(
-      seededReferenceMemoryIds,
-    );
+    setSelectedReferenceEntryIds(seededReferenceEntryIds);
+    setReferenceEntriesError(null);
+  }, [open, seededReferenceEntries, seededReferenceEntryIds, task]);
+
+  useEffect(() => {
+    if (!task || !open) {
+      setIsReferenceEntriesLoading(false);
+      return;
+    }
+
     setIsReferenceEntriesLoading(true);
     setReferenceEntriesError(null);
 
@@ -118,20 +151,36 @@ export function CuratedTaskLauncherDialog({
           return;
         }
 
-        setReferenceEntries(
-          mergeCuratedTaskReferenceEntries([
+        setReferenceEntries((current) => {
+          const selectedReferenceEntries = current.filter((entry) =>
+            selectedReferenceEntryIdsRef.current.includes(entry.id),
+          );
+
+          return mergeCuratedTaskReferenceEntries([
             ...seededReferenceEntries,
+            ...selectedReferenceEntries,
             ...buildCuratedTaskReferenceEntries(memories),
-          ]),
-        );
+          ]);
+        });
       })
       .catch(() => {
         if (cancelled) {
           return;
         }
 
-        setReferenceEntries([]);
-        setReferenceEntriesError("暂时没拿到灵感库，仍然可以直接进入生成。");
+        setReferenceEntries((current) => {
+          const selectedReferenceEntries = current.filter((entry) =>
+            selectedReferenceEntryIdsRef.current.includes(entry.id),
+          );
+
+          return mergeCuratedTaskReferenceEntries([
+            ...seededReferenceEntries,
+            ...selectedReferenceEntries,
+          ]);
+        });
+        setReferenceEntriesError(
+          "暂时没拿到最近参考列表，仍然可以直接进入生成。",
+        );
       })
       .finally(() => {
         if (cancelled) {
@@ -144,7 +193,7 @@ export function CuratedTaskLauncherDialog({
     return () => {
       cancelled = true;
     };
-  }, [initialReferenceEntries, initialReferenceMemoryIds, open, task]);
+  }, [open, referenceEntriesVersion, seededReferenceEntries, task]);
 
   const isLaunchDisabled = useMemo(() => {
     if (!task) {
@@ -162,13 +211,38 @@ export function CuratedTaskLauncherDialog({
       referenceEntries.map((entry) => [entry.id, entry]),
     );
 
-    return selectedReferenceMemoryIds
+    return selectedReferenceEntryIds
       .map((id) => referenceEntryMap.get(id))
       .filter((entry): entry is CuratedTaskReferenceEntry => Boolean(entry));
-  }, [referenceEntries, selectedReferenceMemoryIds]);
+  }, [referenceEntries, selectedReferenceEntryIds]);
 
   const missingSelectedReferenceCount =
-    selectedReferenceMemoryIds.length - selectedReferenceEntries.length;
+    selectedReferenceEntryIds.length - selectedReferenceEntries.length;
+
+  const requiredFieldCount = task?.requiredInputFields.length ?? 0;
+  const filledRequiredFieldCount = useMemo(() => {
+    if (!task) {
+      return 0;
+    }
+
+    return task.requiredInputFields.filter((field) => {
+      const value = inputValues[field.key];
+      return typeof value === "string" && value.trim().length > 0;
+    }).length;
+  }, [inputValues, task]);
+
+  const launcherOutcomeSummary = useMemo(() => {
+    if (!task) {
+      return "";
+    }
+
+    const followUp = task.followUpActions[0];
+    if (followUp) {
+      return `我会先给你 ${task.outputHint}，接着可以继续${followUp}。`;
+    }
+
+    return `我会先给你 ${task.outputHint}。`;
+  }, [task]);
 
   const handleValueChange = (key: string, value: string) => {
     setInputValues((current) => ({
@@ -178,7 +252,7 @@ export function CuratedTaskLauncherDialog({
   };
 
   const handleToggleReferenceEntry = (entryId: string) => {
-    setSelectedReferenceMemoryIds((current) => {
+    setSelectedReferenceEntryIds((current) => {
       if (current.includes(entryId)) {
         return current.filter((id) => id !== entryId);
       }
@@ -197,58 +271,82 @@ export function CuratedTaskLauncherDialog({
     }
 
     onConfirm(task, inputValues, {
-      referenceMemoryIds: selectedReferenceMemoryIds,
+      referenceMemoryIds:
+        extractCuratedTaskReferenceMemoryIds(selectedReferenceEntries) ?? [],
       referenceEntries: selectedReferenceEntries,
     });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(780px,calc(100vw-32px))] max-w-none border-slate-200 bg-white p-0">
+      <DialogContent className="w-[min(640px,calc(100vw-32px))] max-w-none overflow-hidden border-slate-200 bg-white p-0">
         {task ? (
-          <div className="overflow-hidden rounded-[28px] bg-white">
-            <DialogHeader className="border-b border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.98)_0%,rgba(255,255,255,1)_100%)] px-6 py-5">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] bg-white">
+            <DialogHeader className="shrink-0 border-b border-slate-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(255,255,255,1)_100%)] px-5 py-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
                   {task.badge}
                 </span>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                  {task.requiredInputFields.length} 项必填
-                </span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                  {task.outputHint}
+                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                  已补 {filledRequiredFieldCount}/{requiredFieldCount}
                 </span>
               </div>
               <div className="space-y-2 pt-3">
-                <DialogTitle className="text-2xl font-semibold text-slate-950">
+                <DialogTitle className="text-[22px] font-semibold leading-8 text-slate-950">
                   {task.title}
                 </DialogTitle>
-                <DialogDescription className="max-w-2xl leading-6 text-slate-600">
-                  先补最少启动信息，再统一进入生成主执行面。{task.summary}
+                <DialogDescription className="max-w-2xl text-sm leading-6 text-slate-600">
+                  开始这一步前，我先确认几件事。{task.summary}
                 </DialogDescription>
+                <div className="rounded-[18px] border border-slate-200 bg-white/90 px-3.5 py-3 text-xs leading-5 text-slate-500">
+                  {launcherOutcomeSummary}
+                </div>
               </div>
             </DialogHeader>
 
-            <div className="space-y-5 px-6 py-6">
-              <div className="grid gap-4 md:grid-cols-2">
+            <div
+              className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5"
+              data-testid="curated-task-launcher-scroll-body"
+            >
+              {prefillHint ? (
+                <div className="rounded-[18px] border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-xs leading-5 text-emerald-700">
+                  {prefillHint}
+                </div>
+              ) : null}
+              <section className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-slate-900">
+                    先给我这些信息
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    缺的越少，起第一版越快
+                  </div>
+                </div>
+              </section>
+
+              <div className="grid gap-3">
                 {task.requiredInputFields.map((field) => {
                   const fieldId = `curated-task-${task.id}-${field.key}`;
                   const value = inputValues[field.key] ?? "";
                   const commonClassName =
-                    "mt-2 rounded-[18px] border-slate-200 bg-slate-50 focus-visible:ring-emerald-300";
+                    "mt-2 rounded-[16px] border-slate-200 bg-slate-50 focus-visible:ring-emerald-300";
 
                   return (
                     <div
                       key={field.key}
-                      className={field.type === "textarea" ? "md:col-span-2" : ""}
                     >
-                      <div className="rounded-[22px] border border-slate-200 bg-white px-4 py-4">
-                        <Label
-                          htmlFor={fieldId}
-                          className="text-sm font-semibold text-slate-900"
-                        >
-                          {field.label}
-                        </Label>
+                      <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Label
+                            htmlFor={fieldId}
+                            className="text-sm font-semibold text-slate-900"
+                          >
+                            {field.label}
+                          </Label>
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                            必填
+                          </span>
+                        </div>
                         {field.helperText ? (
                           <div className="mt-1 text-xs leading-5 text-slate-500">
                             {field.helperText}
@@ -259,7 +357,7 @@ export function CuratedTaskLauncherDialog({
                             id={fieldId}
                             value={value}
                             placeholder={field.placeholder}
-                            className={`${commonClassName} min-h-[120px] resize-y`}
+                            className={`${commonClassName} min-h-[112px] resize-y`}
                             onChange={(event) =>
                               handleValueChange(field.key, event.target.value)
                             }
@@ -281,30 +379,27 @@ export function CuratedTaskLauncherDialog({
                 })}
               </div>
 
-              <section className="rounded-[24px] border border-slate-200 bg-white px-4 py-4">
+              <section className="rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
-                        可选灵感引用
-                      </span>
-                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
                         最多 {MAX_REFERENCE_SELECTION_COUNT} 条
                       </span>
                     </div>
                     <div className="text-sm font-semibold text-slate-900">
-                      从灵感库最近更新里挑几条，直接带进这一轮生成
+                      想的话，再带几条参考
                     </div>
                     <div className="text-xs leading-5 text-slate-500">
-                      这一步不强制。你可以先空着开工，也可以把风格、参考或过去成果一起带进去。
+                      风格、偏好、项目结果和当前上下文都可以。不是必填，但会让这一轮更贴近你的目标。
                     </div>
                   </div>
-                  {selectedReferenceMemoryIds.length > 0 ? (
+                  {selectedReferenceEntryIds.length > 0 ? (
                     <Button
                       type="button"
                       variant="outline"
                       className="rounded-2xl border-slate-200"
-                      onClick={() => setSelectedReferenceMemoryIds([])}
+                      onClick={() => setSelectedReferenceEntryIds([])}
                     >
                       清空已选
                     </Button>
@@ -312,19 +407,21 @@ export function CuratedTaskLauncherDialog({
                 </div>
 
                 {isReferenceEntriesLoading ? (
-                  <div className="mt-4 flex items-center gap-2 rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  <div className="mt-4 flex items-center gap-2 rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
                     <LoaderCircle className="h-4 w-4 animate-spin text-slate-500" />
-                    正在读取最近灵感…
+                    正在读取最近参考对象…
                   </div>
                 ) : null}
 
                 {!isReferenceEntriesLoading && referenceEntries.length > 0 ? (
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="mt-4 grid gap-2.5">
                     {referenceEntries.map((entry) => {
-                      const selected = selectedReferenceMemoryIds.includes(entry.id);
+                      const selected = selectedReferenceEntryIds.includes(
+                        entry.id,
+                      );
                       const selectionFull =
                         !selected &&
-                        selectedReferenceMemoryIds.length >=
+                        selectedReferenceEntryIds.length >=
                           MAX_REFERENCE_SELECTION_COUNT;
 
                       return (
@@ -333,10 +430,10 @@ export function CuratedTaskLauncherDialog({
                           type="button"
                           data-testid={`curated-task-reference-option-${entry.id}`}
                           className={cn(
-                            "rounded-[22px] border px-4 py-4 text-left transition",
+                            "rounded-[18px] border px-4 py-3.5 text-left transition",
                             selected
                               ? "border-emerald-300 bg-emerald-50 shadow-sm shadow-emerald-950/5"
-                              : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white",
+                              : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
                             selectionFull
                               ? "cursor-not-allowed opacity-55"
                               : "cursor-pointer",
@@ -347,13 +444,16 @@ export function CuratedTaskLauncherDialog({
                           <div className="flex items-start justify-between gap-3">
                             <div className="space-y-2">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                  {getCuratedTaskReferenceSourceLabel(entry)}
+                                </span>
+                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
                                   {entry.categoryLabel}
                                 </span>
                                 {entry.tags.slice(0, 2).map((tag) => (
                                   <span
                                     key={`${entry.id}-${tag}`}
-                                    className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500"
+                                    className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500"
                                   >
                                     {tag}
                                   </span>
@@ -390,20 +490,20 @@ export function CuratedTaskLauncherDialog({
                 {!isReferenceEntriesLoading &&
                 referenceEntries.length === 0 &&
                 !referenceEntriesError ? (
-                  <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                    灵感库里还没有可选条目，后面补进来也可以。
+                  <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+                    当前还没有可选参考条目，后面补进来也可以。
                   </div>
                 ) : null}
 
                 {referenceEntriesError ? (
-                  <div className="mt-4 rounded-[20px] border border-dashed border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <div className="mt-4 rounded-[18px] border border-dashed border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     {referenceEntriesError}
                   </div>
                 ) : null}
 
-                {selectedReferenceMemoryIds.length > 0 ? (
-                  <div className="mt-4 rounded-[20px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    已选择 {selectedReferenceMemoryIds.length} 条灵感引用，本轮会一起带入生成。
+                {selectedReferenceEntryIds.length > 0 ? (
+                  <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    已选择 {selectedReferenceEntryIds.length} 条参考基线，本轮会一起带入生成。
                     {missingSelectedReferenceCount > 0
                       ? ` 其中 ${missingSelectedReferenceCount} 条未出现在最近列表里，但发送时仍会保留。`
                       : ""}
@@ -411,35 +511,20 @@ export function CuratedTaskLauncherDialog({
                 ) : null}
               </section>
 
-              <div className="grid gap-3 md:grid-cols-3">
-                <section className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                    参考类型
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-600">
-                    {task.optionalReferences.join("、")}
-                  </div>
-                </section>
-                <section className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                    会拿到
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-600">
-                    {task.outputContract.join("、")}
-                  </div>
-                </section>
-                <section className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                    下一步
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-600">
-                    {task.followUpActions.join("、")}
-                  </div>
-                </section>
-              </div>
+              <section className="rounded-[20px] border border-slate-200 bg-white px-4 py-4">
+                <div className="text-sm font-semibold text-slate-900">
+                  这一轮会先拿到什么
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-600">
+                  {task.outputContract.join("、")}
+                </div>
+                <div className="mt-2 text-xs leading-5 text-slate-500">
+                  {task.resultDestination}
+                </div>
+              </section>
             </div>
 
-            <DialogFooter className="border-t border-slate-200 bg-slate-50/70 px-6 py-4">
+            <DialogFooter className="shrink-0 border-t border-slate-200 bg-white px-5 py-4">
               <Button
                 type="button"
                 variant="outline"
@@ -450,11 +535,12 @@ export function CuratedTaskLauncherDialog({
               </Button>
               <Button
                 type="button"
-                className="rounded-2xl border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] px-4 text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
+                data-testid="curated-task-launcher-confirm"
+                className="rounded-2xl border border-slate-900 bg-slate-900 px-4 text-white shadow-sm shadow-slate-950/10 hover:bg-slate-800"
                 disabled={isLaunchDisabled}
                 onClick={handleConfirm}
               >
-                带着启动信息进入生成
+                开始生成
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </DialogFooter>

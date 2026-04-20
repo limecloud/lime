@@ -17,6 +17,8 @@ export interface RecordSlashEntryUsageInput {
 const SLASH_ENTRY_USAGE_STORAGE_KEY = "lime:slash-entry-usage:v1";
 const MAX_SLASH_ENTRY_USAGE_RECORDS = 12;
 const MAX_SLASH_ENTRY_REPLAY_TEXT_LENGTH = 400;
+export const SLASH_ENTRY_USAGE_CHANGED_EVENT =
+  "lime:slash-entry-usage-changed";
 
 export function getSlashEntryUsageRecordKey(
   kind: SlashEntryUsageKind,
@@ -56,6 +58,14 @@ function normalizeSlashEntryReplayText(
   return trimmed.slice(0, MAX_SLASH_ENTRY_REPLAY_TEXT_LENGTH).trim();
 }
 
+function emitSlashEntryUsageChanged(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(SLASH_ENTRY_USAGE_CHANGED_EVENT));
+}
+
 export function listSlashEntryUsage(): SlashEntryUsageRecord[] {
   if (typeof window === "undefined") {
     return [];
@@ -90,6 +100,39 @@ export function getSlashEntryUsageMap(): Map<string, SlashEntryUsageRecord> {
   );
 }
 
+export function subscribeSlashEntryUsageChanged(
+  callback: () => void,
+): () => void {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const customEventHandler = () => {
+    callback();
+  };
+
+  const storageHandler = (event: StorageEvent) => {
+    if (event.key !== SLASH_ENTRY_USAGE_STORAGE_KEY) {
+      return;
+    }
+    callback();
+  };
+
+  window.addEventListener(
+    SLASH_ENTRY_USAGE_CHANGED_EVENT,
+    customEventHandler,
+  );
+  window.addEventListener("storage", storageHandler);
+
+  return () => {
+    window.removeEventListener(
+      SLASH_ENTRY_USAGE_CHANGED_EVENT,
+      customEventHandler,
+    );
+    window.removeEventListener("storage", storageHandler);
+  };
+}
+
 export function recordSlashEntryUsage(
   input: RecordSlashEntryUsageInput,
 ): SlashEntryUsageRecord[] {
@@ -120,6 +163,7 @@ export function recordSlashEntryUsage(
       SLASH_ENTRY_USAGE_STORAGE_KEY,
       JSON.stringify(nextRecords),
     );
+    emitSlashEntryUsageChanged();
   } catch {
     // ignore write errors
   }

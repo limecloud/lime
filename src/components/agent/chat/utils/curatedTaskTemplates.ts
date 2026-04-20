@@ -1,5 +1,9 @@
 import {
   buildCuratedTaskReferencePromptBlock,
+  extractCuratedTaskReferenceMemoryIds,
+  getCuratedTaskReferenceCategoryLabel,
+  mergeCuratedTaskReferenceEntries,
+  normalizeCuratedTaskReferenceMemoryIds,
   type CuratedTaskReferenceEntry,
 } from "./curatedTaskReferenceSelection";
 import {
@@ -13,6 +17,7 @@ export interface CuratedTaskTemplateItem {
   title: string;
   summary: string;
   outputHint: string;
+  resultDestination: string;
   categoryLabel: string;
   prompt: string;
   requiredInputs: string[];
@@ -30,6 +35,7 @@ export interface CuratedTaskTemplateItem {
   shouldEnableWebSearch?: boolean;
   shouldEnableTeamMode?: boolean;
   shouldLaunchBrowserAssist?: boolean;
+  followUpActionTargets?: Record<string, CuratedTaskFollowUpActionTarget>;
 }
 
 export type CuratedTaskInputFieldType = "text" | "textarea";
@@ -51,11 +57,17 @@ export interface FeaturedCuratedTaskTemplateItem {
   reasonSummary?: string;
 }
 
+export interface CuratedTaskFollowUpActionTarget {
+  taskId: string;
+  promptHint?: string;
+}
+
 interface CuratedTaskTemplateDefinition {
   id: string;
   title: string;
   summary: string;
   outputHint: string;
+  resultDestination: string;
   categoryLabel: string;
   prompt: string;
   requiredInputFields: CuratedTaskInputField[];
@@ -66,16 +78,27 @@ interface CuratedTaskTemplateDefinition {
   shouldEnableWebSearch?: boolean;
   shouldEnableTeamMode?: boolean;
   shouldLaunchBrowserAssist?: boolean;
+  followUpActionTargets?: Record<string, CuratedTaskFollowUpActionTarget>;
 }
 
 interface CuratedTaskTemplateUsageRecord {
   templateId: string;
   usedAt: number;
+  launchInputValues?: CuratedTaskInputValues;
+  referenceMemoryIds?: string[];
+  referenceEntries?: CuratedTaskReferenceEntry[];
 }
 
 const CURATED_TASK_TEMPLATE_USAGE_STORAGE_KEY =
-  "lime:curated-task-template-usage:v1";
+  "lime:curated-task-template-usage:v2";
 const MAX_CURATED_TASK_TEMPLATE_USAGE_RECORDS = 12;
+
+export interface CuratedTaskTemplateLaunchPrefill {
+  inputValues?: CuratedTaskInputValues;
+  referenceMemoryIds?: string[];
+  referenceEntries?: CuratedTaskReferenceEntry[];
+  hint?: string;
+}
 
 const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
   {
@@ -84,6 +107,7 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     summary:
       "先收一版内容趋势、热点方向和值得继续跟进的切口，适合每天快速开工前拉一遍。",
     outputHint: "趋势摘要 + 选题方向",
+    resultDestination: "趋势摘要会先写回当前内容，方便继续展开选题和主稿。",
     categoryLabel: "趋势与选题",
     prompt:
       "请先给我做一版每日趋势摘要：围绕当前主题梳理最近值得关注的趋势、热点内容方向、代表案例、用户正在关心的问题，以及最值得立即开工的 3 个选题。",
@@ -114,6 +138,7 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     summary:
       "围绕目标受众、表达结构和关键信息，先生成一版可继续迭代的内容首稿。",
     outputHint: "内容首稿 + 结构提纲",
+    resultDestination: "首版主稿会先进入当前内容，方便继续改写、拆成多平台版本。",
     categoryLabel: "内容起稿",
     prompt:
       "请先帮我起草一版内容首稿：明确目标受众、标题方向、正文结构、核心观点和可继续扩写的角度，并给我一版适合继续打磨的正文。",
@@ -143,6 +168,7 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     summary:
       "把一条高表现内容拆成标题钩子、结构节奏、素材手法和可复用套路，方便快速复刻。",
     outputHint: "爆款拆解 + 可复用模板",
+    resultDestination: "拆解结论会先沉淀到当前内容，方便马上复刻成你的版本。",
     categoryLabel: "爆款拆解",
     prompt:
       "请帮我拆解这条爆款内容：识别它的目标受众、标题钩子、开场方式、结构节奏、视觉/素材手法、情绪推动点和转化动作，并总结一版可复用模板。",
@@ -173,6 +199,7 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     summary:
       "把长文、资料或文章整理成多平台可直接发布的版本，不用再自己拆标题和结构。",
     outputHint: "多平台发布稿 + 标题组",
+    resultDestination: "多平台发布稿会先写回当前内容，继续在当前工作区整理和拆分。",
     categoryLabel: "多平台改写",
     prompt:
       "请把这篇长文整理成多平台发布稿：先提炼核心观点，再给我输出标题组、摘要、正文结构，以及适合不同平台的发布版本和 CTA 建议。",
@@ -202,6 +229,8 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     summary:
       "把现有脚本整理成更适合口播和字幕的版本，补齐停顿、节奏和适合出镜表达的语气。",
     outputHint: "口播稿 + 字幕稿",
+    resultDestination:
+      "口播稿和字幕稿会先写回当前内容，方便继续改分镜、配音或多语言版本。",
     categoryLabel: "视频脚本",
     prompt:
       "请把这份脚本整理成适合口播和字幕的版本：优化句长、停顿、重音提示、镜头感表达和字幕切分，并附上适合配音录制的版本。",
@@ -231,6 +260,8 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     summary:
       "围绕目标、已有结果和下一步动作做一次结构化复盘，适合内容账号、项目推进和运营回看。",
     outputHint: "复盘摘要 + 下一步建议",
+    resultDestination:
+      "复盘摘要会先回到当前内容，并把下一轮动作继续带回生成工作台。",
     categoryLabel: "复盘与优化",
     prompt:
       "请帮我复盘这个账号或项目：先明确目标、当前结果、关键问题、哪些动作有效、哪些地方拖后腿，再给出下一轮最值得执行的优化建议。",
@@ -253,6 +284,18 @@ const CURATED_TASK_TEMPLATES: CuratedTaskTemplateDefinition[] = [
     optionalReferences: ["最近内容链接", "本轮想解决的问题"],
     outputContract: ["复盘摘要", "关键问题", "下一轮动作建议"],
     followUpActions: ["继续做趋势摘要", "生成下一轮内容方案"],
+    followUpActionTargets: {
+      "继续做趋势摘要": {
+        taskId: "daily-trend-briefing",
+        promptHint:
+          "请承接这轮复盘结论，先补一轮值得继续跟进的趋势与机会窗口。",
+      },
+      "生成下一轮内容方案": {
+        taskId: "social-post-starter",
+        promptHint:
+          "请承接这轮复盘结论，直接生成下一轮最值得执行的内容方案。",
+      },
+    },
     shouldEnableTeamMode: true,
   },
 ];
@@ -262,6 +305,8 @@ export const FEATURED_HOME_CURATED_TASK_TEMPLATE_IDS = [
   "social-post-starter",
   "viral-content-breakdown",
   "longform-multiplatform-rewrite",
+  "script-to-voiceover",
+  "account-project-review",
 ] as const;
 
 const CURATED_TASK_RECOMMENDATION_LABELS = {
@@ -398,6 +443,67 @@ function isValidUsageRecord(
   );
 }
 
+function normalizeCuratedTaskUsageInputValues(
+  inputValues?: CuratedTaskInputValues | null,
+): CuratedTaskInputValues | undefined {
+  if (!inputValues || typeof inputValues !== "object") {
+    return undefined;
+  }
+
+  const normalizedEntries = Object.entries(inputValues)
+    .map(([key, value]) => [
+      key.trim(),
+      normalizeCuratedTaskInputValue(String(value ?? "")),
+    ] as const)
+    .filter(
+      (entry): entry is [string, string] =>
+        entry[0].length > 0 && entry[1].length > 0,
+    );
+
+  if (normalizedEntries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(normalizedEntries);
+}
+
+function normalizeCuratedTaskUsageRecord(
+  record: CuratedTaskTemplateUsageRecord,
+): CuratedTaskTemplateUsageRecord {
+  const normalizedReferenceEntries = mergeCuratedTaskReferenceEntries(
+    record.referenceEntries ?? [],
+  ).slice(0, 3);
+  const normalizedReferenceMemoryIds = normalizeCuratedTaskReferenceMemoryIds([
+    ...(record.referenceMemoryIds ?? []),
+    ...(extractCuratedTaskReferenceMemoryIds(
+      normalizedReferenceEntries,
+    ) ?? []),
+  ]);
+  const normalizedLaunchInputValues = normalizeCuratedTaskUsageInputValues(
+    record.launchInputValues,
+  );
+
+  return {
+    templateId: record.templateId.trim(),
+    usedAt: record.usedAt,
+    ...(normalizedLaunchInputValues
+      ? {
+          launchInputValues: normalizedLaunchInputValues,
+        }
+      : {}),
+    ...(normalizedReferenceMemoryIds
+      ? {
+          referenceMemoryIds: normalizedReferenceMemoryIds,
+        }
+      : {}),
+    ...(normalizedReferenceEntries.length > 0
+      ? {
+          referenceEntries: normalizedReferenceEntries,
+        }
+      : {}),
+  };
+}
+
 function listCuratedTaskTemplateUsage(): CuratedTaskTemplateUsageRecord[] {
   if (typeof window === "undefined") {
     return [];
@@ -418,6 +524,7 @@ function listCuratedTaskTemplateUsage(): CuratedTaskTemplateUsageRecord[] {
 
     return parsed
       .filter(isValidUsageRecord)
+      .map(normalizeCuratedTaskUsageRecord)
       .sort((left, right) => right.usedAt - left.usedAt)
       .slice(0, MAX_CURATED_TASK_TEMPLATE_USAGE_RECORDS);
   } catch {
@@ -435,6 +542,37 @@ function getCuratedTaskTemplateUsageMap(): Map<
       record,
     ]),
   );
+}
+
+export function resolveCuratedTaskTemplateLaunchPrefill(
+  task:
+    | Pick<CuratedTaskTemplateItem, "id" | "title">
+    | Pick<CuratedTaskTemplateDefinition, "id" | "title">
+    | null,
+): CuratedTaskTemplateLaunchPrefill | null {
+  if (!task) {
+    return null;
+  }
+
+  const recentRecord = getCuratedTaskTemplateUsageMap().get(task.id);
+  if (!recentRecord) {
+    return null;
+  }
+
+  const hasPrefill =
+    Boolean(recentRecord.launchInputValues) ||
+    Boolean(recentRecord.referenceMemoryIds?.length) ||
+    Boolean(recentRecord.referenceEntries?.length);
+  if (!hasPrefill) {
+    return null;
+  }
+
+  return {
+    inputValues: recentRecord.launchInputValues,
+    referenceMemoryIds: recentRecord.referenceMemoryIds,
+    referenceEntries: recentRecord.referenceEntries,
+    hint: `已根据你上次启动 ${task.title} 时的参数自动预填，可继续修改后进入生成。`,
+  };
 }
 
 function resolveCuratedTaskTemplateBadge(
@@ -459,6 +597,7 @@ function matchesTemplateQuery(
     | "title"
     | "summary"
     | "outputHint"
+    | "resultDestination"
     | "categoryLabel"
     | "prompt"
     | "requiredInputs"
@@ -476,6 +615,7 @@ function matchesTemplateQuery(
     template.title,
     template.summary,
     template.outputHint,
+    template.resultDestination,
     template.categoryLabel,
     template.prompt,
     ...template.requiredInputs,
@@ -535,15 +675,37 @@ export function summarizeCuratedTaskFollowUpActions(
   return summarizeCuratedTaskFactItems(task.followUpActions, limit);
 }
 
+export function buildCuratedTaskFollowUpDescription(
+  task: Pick<CuratedTaskTemplateItem, "followUpActions">,
+  options: {
+    limit?: number;
+    prefix?: string;
+  } = {},
+): string {
+  const summary = summarizeCuratedTaskFollowUpActions(task, options.limit);
+  if (!summary) {
+    return "";
+  }
+
+  return `${options.prefix ?? "下一步："}${summary}`;
+}
+
 export function buildCuratedTaskCapabilityDescription(
   task: Pick<
     CuratedTaskTemplateItem,
-    "summary" | "requiredInputs" | "outputContract"
+    | "summary"
+    | "requiredInputs"
+    | "outputContract"
+    | "resultDestination"
+    | "followUpActions"
   >,
   options: {
     includeSummary?: boolean;
     requiredLimit?: number;
     outputLimit?: number;
+    includeResultDestination?: boolean;
+    includeFollowUpActions?: boolean;
+    followUpLimit?: number;
   } = {},
 ): string {
   const segments: string[] = [];
@@ -569,7 +731,29 @@ export function buildCuratedTaskCapabilityDescription(
     segments.push(`交付：${outputSummary}`);
   }
 
+  if (options.includeResultDestination) {
+    const resultDestination = task.resultDestination.trim();
+    if (resultDestination.length > 0) {
+      segments.push(`去向：${resultDestination}`);
+    }
+  }
+
+  if (options.includeFollowUpActions) {
+    const followUpSummary = buildCuratedTaskFollowUpDescription(task, {
+      limit: options.followUpLimit,
+    });
+    if (followUpSummary) {
+      segments.push(followUpSummary);
+    }
+  }
+
   return segments.join(" · ");
+}
+
+export function getCuratedTaskOutputDestination(
+  task: Pick<CuratedTaskTemplateItem, "resultDestination">,
+): string {
+  return task.resultDestination.trim();
 }
 
 export function createEmptyCuratedTaskInputValues(
@@ -721,7 +905,7 @@ function buildFeaturedTemplateBaseScore(
     (templateId) => templateId === template.id,
   );
   if (featuredIndex >= 0) {
-    return 100 - featuredIndex * 10;
+    return 72 - featuredIndex * 7;
   }
 
   const nonFeaturedTemplateIds = CURATED_TASK_TEMPLATES.map(
@@ -736,7 +920,7 @@ function buildFeaturedTemplateBaseScore(
     (templateId) => templateId === template.id,
   );
 
-  return nonFeaturedIndex >= 0 ? 58 - nonFeaturedIndex * 3 : 48;
+  return nonFeaturedIndex >= 0 ? 30 - nonFeaturedIndex * 3 : 24;
 }
 
 function buildRecommendationSignalText(
@@ -751,6 +935,10 @@ function buildRecommendationSignalText(
 function resolveRecommendationReasonLabel(
   signal: CuratedTaskRecommendationSignal,
 ): string {
+  if (signal.source === "review_feedback") {
+    return "围绕最近复盘";
+  }
+
   const categoryLabel =
     CURATED_TASK_RECOMMENDATION_LABELS[signal.category] || "灵感";
 
@@ -764,9 +952,17 @@ function resolveRecommendationReasonLabel(
 function resolveRecommendationReasonSummary(
   signal: CuratedTaskRecommendationSignal,
 ): string {
+  if (signal.source === "review_feedback") {
+    return signal.title.length > 20
+      ? `复盘：${signal.title.slice(0, 20).trimEnd()}…`
+      : `复盘：${signal.title}`;
+  }
+
+  const categoryLabel = getCuratedTaskReferenceCategoryLabel(signal.category);
+
   return signal.title.length > 18
-    ? `参考：${signal.title.slice(0, 18).trimEnd()}…`
-    : `参考：${signal.title}`;
+    ? `${categoryLabel}：${signal.title.slice(0, 18).trimEnd()}…`
+    : `${categoryLabel}：${signal.title}`;
 }
 
 function scoreTemplateForRecommendationSignal(params: {
@@ -791,10 +987,14 @@ function scoreTemplateForRecommendationSignal(params: {
     .slice(0, 3).length;
 
   const activeReferenceBonus = signal.source === "active_reference" ? 8 : 0;
+  const reviewFeedbackBonus = signal.source === "review_feedback" ? 6 : 0;
+  const preferredTaskBonus =
+    signal.preferredTaskIds?.includes(template.id) ? 30 : 0;
   const projectMatchBonus =
     projectId && signal.projectId && projectId === signal.projectId ? 4 : 0;
   const recentSignalBonus =
-    signal.source === "saved_inspiration"
+    signal.source === "saved_inspiration" ||
+    signal.source === "review_feedback"
       ? Math.max(
           0,
           5 -
@@ -807,6 +1007,8 @@ function scoreTemplateForRecommendationSignal(params: {
       categoryWeight +
       keywordScore * 4 +
       activeReferenceBonus +
+      reviewFeedbackBonus +
+      preferredTaskBonus +
       projectMatchBonus +
       recentSignalBonus,
     reasonLabel: resolveRecommendationReasonLabel(signal),
@@ -823,7 +1025,8 @@ export function listFeaturedHomeCuratedTaskTemplates(
     limit?: number;
   } = {},
 ): FeaturedCuratedTaskTemplateItem[] {
-  const limit = options.limit ?? 4;
+  const limit =
+    options.limit ?? FEATURED_HOME_CURATED_TASK_TEMPLATE_IDS.length;
   const signals = [
     ...buildCuratedTaskRecommendationSignalsFromReferenceEntries(
       options.referenceEntries,
@@ -864,7 +1067,10 @@ export function listFeaturedHomeCuratedTaskTemplates(
         badgeLabel: bestSignalMatch.reasonLabel || template.badge,
         reasonLabel: bestSignalMatch.reasonLabel,
         reasonSummary: bestSignalMatch.reasonSummary,
-        _score: buildFeaturedTemplateBaseScore(template) + bestSignalMatch.score,
+        _score:
+          buildFeaturedTemplateBaseScore(template) +
+          bestSignalMatch.score +
+          (bestSignalMatch.score >= 20 ? 24 : 0),
       };
     })
     .sort((left, right) => {
@@ -886,16 +1092,89 @@ export function findCuratedTaskTemplateById(
   );
 }
 
-export function recordCuratedTaskTemplateUsage(templateId: string): void {
-  const nextRecord: CuratedTaskTemplateUsageRecord = {
-    templateId,
-    usedAt: Date.now(),
+export function resolveCuratedTaskFollowUpActionTarget(params: {
+  taskId?: string | null;
+  action: string;
+}): {
+  task: CuratedTaskTemplateItem;
+  promptHint?: string;
+} | null {
+  const taskId = params.taskId?.trim();
+  const action = params.action.trim();
+  if (!taskId || !action) {
+    return null;
+  }
+
+  const sourceTask = findCuratedTaskTemplateById(taskId);
+  const target = sourceTask?.followUpActionTargets?.[action];
+  if (!target?.taskId) {
+    return null;
+  }
+
+  const task = findCuratedTaskTemplateById(target.taskId);
+  if (!task) {
+    return null;
+  }
+
+  return {
+    task,
+    ...(target.promptHint?.trim()
+      ? {
+          promptHint: target.promptHint.trim(),
+        }
+      : {}),
   };
+}
+
+export function recordCuratedTaskTemplateUsage(
+  input:
+    | string
+    | {
+        templateId: string;
+        usedAt?: number;
+        launchInputValues?: CuratedTaskInputValues | null;
+        referenceMemoryIds?: string[] | null;
+        referenceEntries?: CuratedTaskReferenceEntry[] | null;
+      },
+): void {
+  const normalizedInput =
+    typeof input === "string" ? { templateId: input } : input;
+  const normalizedReferenceEntries = mergeCuratedTaskReferenceEntries(
+    normalizedInput.referenceEntries ?? [],
+  ).slice(0, 3);
+  const normalizedReferenceMemoryIds = normalizeCuratedTaskReferenceMemoryIds([
+    ...(normalizedInput.referenceMemoryIds ?? []),
+    ...(extractCuratedTaskReferenceMemoryIds(
+      normalizedReferenceEntries,
+    ) ?? []),
+  ]);
+  const normalizedLaunchInputValues = normalizeCuratedTaskUsageInputValues(
+    normalizedInput.launchInputValues,
+  );
+  const nextRecord = normalizeCuratedTaskUsageRecord({
+    templateId: normalizedInput.templateId,
+    usedAt: normalizedInput.usedAt ?? Date.now(),
+    ...(normalizedLaunchInputValues
+      ? {
+          launchInputValues: normalizedLaunchInputValues,
+        }
+      : {}),
+    ...(normalizedReferenceMemoryIds
+      ? {
+          referenceMemoryIds: normalizedReferenceMemoryIds,
+        }
+      : {}),
+    ...(normalizedReferenceEntries.length > 0
+      ? {
+          referenceEntries: normalizedReferenceEntries,
+        }
+      : {}),
+  });
 
   const nextRecords = [
     nextRecord,
     ...listCuratedTaskTemplateUsage().filter(
-      (record) => record.templateId !== templateId,
+      (record) => record.templateId !== nextRecord.templateId,
     ),
   ].slice(0, MAX_CURATED_TASK_TEMPLATE_USAGE_RECORDS);
 

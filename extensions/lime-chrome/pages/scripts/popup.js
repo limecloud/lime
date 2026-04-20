@@ -10,6 +10,7 @@ const tabsList = document.getElementById('tabs-list')
 
 const STATE_LABELS = {
   [RelayState.DISABLED]: 'Offline',
+  [RelayState.UNCONFIGURED]: 'Setup Required',
   [RelayState.DISCONNECTED]: 'Connecting…',
   [RelayState.CONNECTED]: 'Connected',
 }

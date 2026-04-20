@@ -678,14 +678,14 @@ describe("EmptyStateComposerPanel", () => {
     expect(suggestionBar?.textContent).toContain("分工建议");
   });
 
-  it("折叠态不应暴露模型信息，展开高级设置后再允许修改", () => {
+  it("折叠态应显示只读模型信息，展开高级设置后再允许修改", () => {
     const container = renderPanel({
       providerType: "claude",
       model: "claude-sonnet-4-5",
     });
 
-    expect(container.textContent).not.toContain("当前模型");
-    expect(container.textContent).not.toContain("claude-sonnet-4-5");
+    expect(container.textContent).toContain("当前模型");
+    expect(container.textContent).toContain("claude-sonnet-4-5");
     expect(
       container.querySelector('[data-testid="empty-state-model-selector"]'),
     ).toBeNull();

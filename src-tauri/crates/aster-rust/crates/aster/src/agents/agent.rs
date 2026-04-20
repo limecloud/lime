@@ -3996,6 +3996,12 @@ impl Agent {
         .context("Failed to persist provider config to session")
     }
 
+    pub async fn set_permission_mode(&self, mode: AsterMode) {
+        self.tool_inspection_manager
+            .update_permission_inspector_mode(mode)
+            .await;
+    }
+
     /// Override the system prompt with a custom template
     pub async fn override_system_prompt(&self, template: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;

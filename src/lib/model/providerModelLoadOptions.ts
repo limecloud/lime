@@ -33,7 +33,10 @@ export function resolveProviderModelLoadOptions(
   });
 
   return {
-    liveFetchOnly: managedProvider && capability.supported,
+    liveFetchOnly:
+      managedProvider &&
+      capability.supported &&
+      capability.requiresLiveModelTruth,
     hasApiKey: managedProvider,
   };
 }

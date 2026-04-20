@@ -1947,6 +1947,26 @@
         "sync_from_external_config"
       ],
       "allowedPaths": []
+    },
+    {
+      "id": "channels-crud-stub-commands",
+      "classification": "dead-candidate",
+      "description": "已偏离 current remote 主链的旧 channels_cmd CRUD stub 命令边界",
+      "commands": [
+        "get_ai_channels",
+        "get_ai_channel",
+        "create_ai_channel",
+        "update_ai_channel",
+        "delete_ai_channel",
+        "test_ai_channel",
+        "get_notification_channels",
+        "get_notification_channel",
+        "create_notification_channel",
+        "update_notification_channel",
+        "delete_notification_channel",
+        "test_notification_channel"
+      ],
+      "allowedPaths": []
     }
   ],
   "frontendText": [
@@ -4094,6 +4114,13 @@
         "pub mod switch_cmd;",
         "pub mod switch;"
       ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-channels-cmd-legacy-surfaces",
+      "classification": "dead-candidate",
+      "description": "Rust 不允许恢复旧 channels_cmd CRUD stub 命令模块与注册面",
+      "patterns": ["commands::channels_cmd::", "pub mod channels_cmd;"],
       "allowedPaths": []
     }
   ],

@@ -19,6 +19,7 @@ use crate::config::paths::Paths;
 const TEAM_CREATE_TOOL_NAME: &str = "TeamCreate";
 const TEAM_DELETE_TOOL_NAME: &str = "TeamDelete";
 const LIST_PEERS_TOOL_NAME: &str = "ListPeers";
+const MAX_LOCAL_SESSION_PEERS: usize = 12;
 const TEAM_CREATE_TOOL_ALIASES: &[&str] = &["TeamCreateTool"];
 const TEAM_DELETE_TOOL_ALIASES: &[&str] = &["TeamDeleteTool"];
 const LIST_PEERS_TOOL_ALIASES: &[&str] = &["ListPeersTool"];
@@ -380,7 +381,7 @@ impl Tool for ListPeersTool {
     }
 
     fn description(&self) -> &str {
-        "列出当前 team 中可通过 SendMessage 直接通信的 peers。当前 Lime runtime 只返回 team 内可达成员的名字与 `name@team` display id，不枚举上游 `uds:` / `bridge:` 这类跨会话 peer surface。"
+        "列出当前可通过 SendMessage 直接通信的 peers。当前 Lime runtime 会先返回活跃 team 内成员，并额外暴露同一 working_dir 下最近的本机顶层 session；本机会话的 `send_to` 为 synthetic `uds:<session-id>`。`bridge:` remote peer 仍未进入 current。"
     }
 
     fn input_schema(&self) -> Value {
@@ -394,6 +395,7 @@ impl Tool for ListPeersTool {
         let _: ListPeersInput = serde_json::from_value(params)
             .map_err(|error| ToolError::invalid_params(format!("ListPeers 参数无效: {error}")))?;
         let session_id = require_session_id(context)?;
+        let local_peers = resolve_local_session_peers(&session_id).await?;
         let peers = if let Some(team_context) = resolve_team_context(&session_id)
             .await
             .map_err(|error| ToolError::execution_failed(format!("读取 team 状态失败: {error}")))?
@@ -417,12 +419,13 @@ impl Tool for ListPeersTool {
                             is_lead: member.member.is_lead,
                         }
                     })
+                    .chain(local_peers.into_iter())
                     .collect(),
             }
         } else {
             ListPeersOutput {
                 team_name: None,
-                peers: Vec::new(),
+                peers: local_peers,
             }
         };
 
@@ -589,6 +592,35 @@ async fn resolve_team_member_state(
         member: member.clone(),
         is_active,
     }))
+}
+
+async fn resolve_local_session_peers(
+    current_session_id: &str,
+) -> Result<Vec<PeerDescriptor>, ToolError> {
+    let current_session = query_session(current_session_id, false)
+        .await
+        .map_err(|error| ToolError::execution_failed(format!("读取当前 session 失败: {error}")))?;
+    let sessions = SessionManager::list_sessions_by_types(&[
+        SessionType::User,
+        SessionType::Scheduled,
+        SessionType::Terminal,
+    ])
+    .await
+    .map_err(|error| ToolError::execution_failed(format!("列出本机会话 peers 失败: {error}")))?;
+
+    Ok(sessions
+        .into_iter()
+        .filter(|session| session.id != current_session_id)
+        .filter(|session| session.working_dir == current_session.working_dir)
+        .take(MAX_LOCAL_SESSION_PEERS)
+        .map(|session| PeerDescriptor {
+            name: session.name,
+            agent_id: session.id.clone(),
+            agent_type: None,
+            is_lead: false,
+            send_to: format!("uds:{}", session.id),
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -914,6 +946,42 @@ mod tests {
         assert_eq!(peers.len(), 1);
         assert_eq!(peers[0]["name"], json!(TEAM_LEAD_NAME));
         assert_eq!(peers[0]["agentId"], json!("team-lead@alpha"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn list_peers_returns_recent_local_sessions_as_uds_targets() -> anyhow::Result<()> {
+        let temp_dir = tempdir()?;
+        let current = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            format!("local-peer-current-{}", Uuid::new_v4()),
+            SessionType::User,
+        )
+        .await?;
+        let local_peer = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            "another-workspace".to_string(),
+            SessionType::User,
+        )
+        .await?;
+        let _subagent = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            format!("local-peer-subagent-{}", Uuid::new_v4()),
+            SessionType::SubAgent,
+        )
+        .await?;
+
+        let context = ToolContext::new(temp_dir.path().to_path_buf()).with_session_id(&current.id);
+        let result = ListPeersTool::new().execute(json!({}), &context).await?;
+
+        assert!(result.success);
+        let peers = result.metadata["peers"]
+            .as_array()
+            .expect("peers metadata should be an array");
+        assert_eq!(peers.len(), 1);
+        assert_eq!(peers[0]["name"], json!("another-workspace"));
+        assert_eq!(peers[0]["agentId"], json!(local_peer.id));
+        assert_eq!(peers[0]["sendTo"], json!(format!("uds:{}", local_peer.id)));
         Ok(())
     }
 

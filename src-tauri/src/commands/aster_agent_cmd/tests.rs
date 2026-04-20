@@ -3476,6 +3476,53 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_site_search_skill_launch_to_request_tool_policy_forces_web_search_off() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "site_search_skill_launch": {
+                    "skill_name": "site_search",
+                    "kind": "site_search_request",
+                    "site_search_request": {
+                        "site": "GitHub",
+                        "query": "openai agents sdk issue",
+                    }
+                }
+            }
+        });
+
+        let (request_web_search, request_search_mode) =
+            apply_site_search_skill_launch_to_request_tool_policy(
+                Some(&metadata),
+                Some(true),
+                Some(RequestToolPolicyMode::Required),
+            );
+
+        assert_eq!(request_web_search, Some(false));
+        assert_eq!(request_search_mode, Some(RequestToolPolicyMode::Disabled));
+    }
+
+    #[test]
+    fn test_apply_site_search_skill_launch_to_request_tool_policy_preserves_other_turns() {
+        let metadata = serde_json::json!({
+            "harness": {
+                "preferences": {
+                    "web_search": true
+                }
+            }
+        });
+
+        let (request_web_search, request_search_mode) =
+            apply_site_search_skill_launch_to_request_tool_policy(
+                Some(&metadata),
+                Some(true),
+                Some(RequestToolPolicyMode::Required),
+            );
+
+        assert_eq!(request_web_search, Some(true));
+        assert_eq!(request_search_mode, Some(RequestToolPolicyMode::Required));
+    }
+
+    #[test]
     fn test_build_chat_run_metadata_base_flattens_nested_preferences() {
         let metadata = build_chat_run_metadata_base(
             &AsterChatRequest {

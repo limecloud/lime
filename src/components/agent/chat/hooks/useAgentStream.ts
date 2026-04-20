@@ -76,6 +76,11 @@ interface UseAgentStreamOptions {
     context?: import("../types").WriteArtifactContext,
   ) => void;
   ensureSession: () => Promise<string | null>;
+  attemptSilentTurnRecovery: (
+    sessionId: string,
+    requestStartedAt: number,
+    promptText: string,
+  ) => Promise<boolean>;
   sessionIdRef: MutableRefObject<string | null>;
   executionStrategy: AsterExecutionStrategy;
   accessMode: AgentAccessMode;
@@ -119,6 +124,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
     systemPrompt,
     onWriteFile,
     ensureSession,
+    attemptSilentTurnRecovery,
     sessionIdRef,
     executionStrategy,
     accessMode,
@@ -169,6 +175,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         threadBusy,
         runtime,
         ensureSession,
+        attemptSilentTurnRecovery,
         executionStrategy,
         accessMode,
         providerTypeRef,
@@ -204,6 +211,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
     [
       activeStreamRef,
       accessMode,
+      attemptSilentTurnRecovery,
       clearActiveStreamIfMatch,
       executionStrategy,
       ensureSession,

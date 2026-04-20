@@ -4,7 +4,7 @@ exclude = ["crates/aster", "crates/aster-models", "crates/aster-rust"]
 resolver = "2"
 
 [workspace.package]
-version = "1.14.0"
+version = "1.15.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -188,7 +188,7 @@ version = "2.4"
 
 [package]
 name = "lime"
-version = "1.14.0"
+version = "1.15.0"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"

@@ -3,12 +3,23 @@ use super::*;
 /// 创建新会话
 #[tauri::command]
 pub async fn agent_runtime_create_session(
+    state: State<'_, AsterAgentState>,
     db: State<'_, DbConnection>,
+    mcp_manager: State<'_, McpManagerState>,
     workspace_id: String,
     name: Option<String>,
     execution_strategy: Option<AsterExecutionStrategy>,
 ) -> Result<String, String> {
-    create_runtime_session_internal(db.inner(), None, workspace_id, name, execution_strategy).await
+    create_runtime_session_internal_with_runtime(
+        db.inner(),
+        state.inner(),
+        mcp_manager.inner(),
+        None,
+        workspace_id,
+        name,
+        execution_strategy,
+    )
+    .await
 }
 
 #[tauri::command]

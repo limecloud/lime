@@ -139,7 +139,12 @@ impl HookRegistry {
             (HookConfig::Url(a), HookConfig::Url(b)) => a.url == b.url,
             (HookConfig::Mcp(a), HookConfig::Mcp(b)) => a.server == b.server && a.tool == b.tool,
             (HookConfig::Prompt(a), HookConfig::Prompt(b)) => a.prompt == b.prompt,
-            (HookConfig::Agent(a), HookConfig::Agent(b)) => a.agent_type == b.agent_type,
+            (HookConfig::Agent(a), HookConfig::Agent(b)) => {
+                a.agent_type == b.agent_type
+                    && a.prompt == b.prompt
+                    && a.model == b.model
+                    && a.agent_config == b.agent_config
+            }
             _ => false,
         }
     }

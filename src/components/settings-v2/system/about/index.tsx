@@ -20,6 +20,7 @@ import {
   type DownloadUpdateResult,
   type VersionInfo,
 } from "@/lib/api/appUpdate";
+import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 
@@ -321,15 +322,15 @@ export function AboutSection() {
             <div className="flex items-start gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-slate-900 to-slate-700 shadow-sm shadow-slate-950/20">
                 <img
-                  src="/logo-v6.svg"
-                  alt="Lime"
+                  src={LIME_BRAND_LOGO_SRC}
+                  alt={LIME_BRAND_NAME}
                   className="h-10 w-10 object-contain"
                 />
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-xl font-semibold tracking-tight text-slate-900">
-                    Lime
+                    {LIME_BRAND_NAME}
                   </h3>
                   <WorkbenchInfoTip
                     ariaLabel="Lime 产品定位说明"

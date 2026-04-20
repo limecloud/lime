@@ -2099,6 +2099,11 @@ export function ChromeRelaySettings() {
                         <p>
                           3. 选择刚同步出来的 `Lime Browser Connector` 目录。
                         </p>
+                        <p className="text-xs text-slate-500">
+                          不要直接加载仓库源码里的 `extensions/lime-chrome`；
+                          源码目录不带 `auto_config.json`，扩展会提示缺少
+                          `serverUrl / bridgeKey`。
+                        </p>
                       </div>
 
                       <div className="mt-4 flex flex-wrap items-center gap-2">

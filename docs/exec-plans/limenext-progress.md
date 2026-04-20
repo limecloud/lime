@@ -6,18 +6,592 @@
 >
 > 补充说明（2026-04-18）：旧 Ribbi 过渡目录已清理。历史条目若继续出现旧 Ribbi 路径，默认按“当时旧路径、现已由 `docs/research/ribbi/*` 替代”理解。
 
+## 2026-04-20
+
+### 已完成
+
+- 把 `curated_task` 的 bootstrap 恢复再补一刀，避免官网 deep link 或其他外部入口虽然已经带着结果模板 route 进入 `生成`，却在还没确认启动槽位时被直接退回成 prompt 起手：
+  - 已更新：
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 当 `initialInputCapability.capabilityRoute.kind === "curated_task"` 且该模板本身存在必填槽位、但 route 还没带 `launchInputValues` 时，输入层当前会先自动打开 launcher，而不是直接把 `route.prompt` 塞进输入框
+    - 当 route 已经带着 `launchInputValues` 时，输入层仍会按 current 主链恢复 badge，并在输入为空时自动回填 launch prompt
+    - 因此 `curated_task bootstrap` 当前已经开始区分“尚未确认启动信息”和“已确认启动信息”；外部入口也开始回到 launcher-first，而不再绕开最小启动合同
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npm run verify:gui-smoke`
+
+- 把技能页 `先拿结果 -> 进入生成` 这条 bridge 再补一刀，避免结果模板 launcher 虽然已经把启动槽位写进 `requestMetadata`，但 `initialInputCapability.capabilityRoute` 仍退回只剩 prompt 与 reference：
+  - 已更新：
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 技能页 launcher 确认进入 `生成` 时，当前会把 `launchInputValues` 和 `referenceEntries` 一起写进 `initialInputCapability.capabilityRoute`
+    - 因此从技能页进入 `生成` 后，首屏 active capability 与后续重开 launcher 不再只靠首轮 prompt 文本恢复；已经确认过的槽位值会继续留在同一条 typed contract 里
+    - 这一步继续服务 `P2` 主线：让首页、slash、技能页三条结果模板入口共享的不只是模板 id 与 prompt，而是完整启动事实
+  - 当前已确认通过：
+    - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run verify:gui-smoke`
+
+- 把 `GeneralWorkbench` 里的跨模板 continuation 再补一刀，避免 `复盘 -> 下一轮内容方案` 虽然已经能切到下游结果模板，但启动参数只剩 reference prefill、把上一轮已确认的 launch context 丢掉：
+  - 已更新：
+    - `src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx`
+    - `src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `GeneralWorkbench` 的 follow-up action 在切到下游 `curated_task` 时，当前会把已有 `launchInputValues` 一并并入目标模板的 reference prefill
+    - 因此 `复盘 -> 下一轮内容方案` 这类跨模板闭环，不再只靠 `referenceEntries` 重建启动信息；上一轮已经确认过的启动上下文会继续带过去
+    - 这一步继续服务 `P4` 的 current 主线：让 `复盘 -> 再生成` 不只“跳得到下游模板”，也“保得住上一轮上下文”
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx" "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx"`
+
+- 把首页、技能页、slash 与 launcher 的推荐信号监听边界继续收口到统一订阅入口，避免同一条 `curated task recommendation signal` 主链在页面层仍保留三套手写事件接线：
+  - 已更新：
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页 `结果模板`、技能页 `先拿结果`、slash `结果模板` 与 launcher 当前都通过 `subscribeCuratedTaskRecommendationSignalsChanged(...)` 订阅同一条推荐信号变化
+    - 因此除了原有自定义事件外，storage 变更也会沿同一条 current 订阅边界回流，不再只有 launcher 走统一入口、其余页面各自手写监听
+    - 这一步没有改变推荐排序规则，只是把 `saved_inspiration / review_feedback / active_reference` 的前台回流边界继续收成一条 current 主链
+  - 当前已确认通过：
+    - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts"`
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+
+- 把打开中的 `CuratedTaskLauncherDialog` 再补一刀，避免 recent references 刷新时只保住 seed reference、却把用户刚手动勾选的非 seed 参考静默挤掉：
+  - 已更新：
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - launcher 在收到推荐信号后重拉 recent references 时，当前会把“已带入线程的 seed reference”和“用户手动勾选的参考对象”一起并回候选列表
+    - 因此用户在弹窗打开态下先选了一条最近参考，再触发一次 `saved_inspiration` 回流时，先前勾选不会因为 recent list 旋转而消失
+    - confirm payload 当前也会继续保留这批手动勾选 reference entries，不再只保留还留在 recent list 里的部分
+    - 这一步继续服务 `P3` 的 current 主线：让 launcher live refresh 从“看得到新的参考对象”推进到“保得住已经选好的参考对象”
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx"`
+    - `npm run verify:gui-smoke`
+
+- 把 `CuratedTaskLauncherDialog` 的参考对象区继续补成“打开中也会回流”的 live 版本，避免用户保存了新的灵感后，当前已经打开的结果模板 launcher 仍停在旧快照：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskRecommendationSignals.ts`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `curatedTaskRecommendationSignals` 当前新增统一订阅入口，`CuratedTaskLauncherDialog` 会在打开态监听同一条推荐信号变更
+    - launcher 不再只在打开瞬间拉一次最近参考对象；收到 `saved_inspiration` 等回流信号后，会重新拉取 recent references
+    - 这次 live refresh 当前刻意只刷新 recent reference cards，不重置 `selectedReferenceEntryIds`
+    - 因此已经带入线程的 seed reference 不会被静默冲掉，哪怕它来自 `sceneapp_execution_summary` 这类项目结果，确认启动时也仍会保留在 `referenceEntries` payload 里
+    - 这一步继续服务 `P3` 的 current 主线：让“保存到灵感库”不只影响首页/技能页/slash 的下一轮推荐，也开始影响当前已经打开、仍在准备启动的结果模板 launcher
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskRecommendationSignals.ts" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx"`
+    - `npm run verify:gui-smoke`
+
+- 把 `taste/reference` 的 category-aware 口径继续接回推荐理由与结果模板 launcher，避免前台只在“当前带入对象”横条里分得清 `风格 / 偏好 / 参考 / 成果 / 收藏`，到了推荐和启动层又退回“灵感/参考”泛称：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskReferenceSelection.ts`
+    - `src/components/agent/chat/utils/creationReplaySurface.ts`
+    - `src/components/agent/chat/utils/creationReplaySurface.test.ts`
+    - `src/components/agent/chat/utils/curatedTaskRecommendationSignals.ts`
+    - `src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts`
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `CuratedTaskRecommendationSignal` 的理由摘要当前不再一律写成 `参考：...`，而会按 `风格 / 偏好 / 参考 / 成果 / 收藏` 直接显影
+    - reference entry 的 fallback title 当前也不再统一退回 `未命名灵感`，而会回到 `未命名风格 / 未命名偏好 / 未命名成果` 这类 category-aware 兜底
+    - `CuratedTaskLauncherDialog` 的引用区当前开始统一使用“参考对象”口径，并明确告诉用户可以带入风格参考、偏好基线与项目结果，而不是继续把它们都叫作“灵感”
+    - launcher 里的 reference 卡片当前也已显式区分 `灵感库` 与 `项目结果` 来源，不再要求用户靠标题猜来源
+    - 这一步继续服务 `P3` 的 current 主线：让 taste/reference 不只停在后台事实源和主执行面横条，而是正式进入推荐与启动层的前台语言
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskReferenceSelection.ts" "src/components/agent/chat/utils/creationReplaySurface.ts" "src/components/agent/chat/utils/creationReplaySurface.test.ts" "src/components/agent/chat/utils/curatedTaskRecommendationSignals.ts" "src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts" "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/utils/creationReplaySurface.test.ts" "src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm run verify:gui-smoke`
+
+- 把 `creation_replay(memory_entry)` 的前台投影补成 category-aware 的 taste/reference 对象，避免 `生成` 主执行面把 `风格 / 偏好 / 参考 / 成果 / 收藏` 全都泛化成“当前带入灵感”：
+  - 已更新：
+    - `src/components/agent/chat/utils/creationReplaySurface.ts`
+    - `src/components/agent/chat/utils/creationReplaySurface.test.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `creation_replay(memory_entry)` 当前会按 `identity / preference / context / experience / activity` 分别显影为 `风格参考 / 偏好基线 / 参考素材 / 成果样本 / 收藏线索`
+    - 前台横条与首页输入区轻提示因此不再只会说“当前带入灵感”，而开始把 taste/reference 作为正式对象给用户看见
+    - 这一步没有新增长期对象或新协议；只是继续复用现有 `creation_replay + reference entry` 事实源，把异步 taste/reference 层更准确地投到 `生成` 主执行面
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/utils/creationReplaySurface.ts" "src/components/agent/chat/utils/creationReplaySurface.test.ts"`
+    - `npm exec vitest run "src/components/agent/chat/utils/creationReplaySurface.test.ts"`
+
+- 把 `P5` 的第六刀补成“recent usage 同页即时回流”，避免首页 `继续上次做法` 虽然已经能读到本地做法，但刚跑过的方法仍然要等重进页面才出现：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/slashEntryUsage.ts`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `slashEntryUsage` 当前新增统一 changed event 与订阅函数，不再只是 `localStorage` 静态快照
+    - 首页 `EmptyState` 当前会在 recent usage 变化时立即重算 `继续上次做法`
+    - slash 输入层当前也会在面板打开状态下即时刷新 `最近使用`，不再出现“首页变了、slash 还没变”的分叉
+    - 这一步属于 `P5` 的 current 第六刀：把 `recent usage` 从存量记录推进成主链可感知信号
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/skill-selection/slashEntryUsage.ts" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm run verify:gui-smoke`
+  - 当前补充说明：
+    - 这轮仍然没有新增第二套 recent cache，也没有引入 polling
+    - 只是把现有 `slash usage` 升级成同页实时回流信号，继续服务 `技能 / 灵感库 / 生成` 主叙事
+    - 最新一次 `verify:gui-smoke` 已完整通过，说明这轮 recent usage 实时回流没有破坏当前 `生成` 主执行面、slash 输入层或页面级 runtime tool surface 主路径
+
+- 把 `P5` 的第五刀补成“我的方法库回到首页继续层”的前台闭环，避免本地已安装 Skill 虽然已经能从技能页进入 `生成`，但回到首页后仍然消失在 `继续上次做法` 之外：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `EmptyState` 当前会从已有 `slashEntryUsage(kind = "skill")` 读取最近用过的本地做法，并把它们并入首页 `继续上次做法`
+    - 这批本地做法继续复用 installed skill 的统一轻合同投影，不再为首页再拼一套特供文案
+    - 点击最近本地做法时，当前会直接恢复 `installed_skill` active capability；如果上次运行留下了 `replayText`，当前还会一并回填到输入框
+    - 这一步属于 `P5` 的 current 第五刀：把 `我的方法库 -> 进入生成 -> 首页继续上次做法` 正式接成同一条主链
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+  - 当前补充说明：
+    - 这一步刻意不新增 `recent installed skill` 专用存储，而是复用现有 `slash usage + installed skill capability route`
+    - 因此这轮是 current 主链收口，不是再造一套 recent/replay 子系统
+
+- 把 `P5` 的第四刀补成“创建后回到我的方法库”的前台闭环，避免 `SceneApp -> 沉淀为做法` 虽然已经能产出技能草稿，但创建成功后仍然停在导入整理弹窗内部：
+  - 已更新：
+    - `src/components/skills/SkillsPage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsPage.test.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `SkillsPage` 当前在创建 scaffold 成功后，会把新 Skill 事实回调给外层工作台，而不再只是自己打开检查弹窗
+    - `SkillsWorkspacePage` 当前会立刻刷新本地已安装技能、关闭 `导入与整理`，并把这条新做法高亮到 `我的方法库`
+    - 为了避免刷新稍慢时出现空档，当前还会先用 optimistic skill 把这条新做法插回列表，因此用户创建成功后能马上看到“刚沉淀”的方法卡
+    - 已消费成功的 `initialScaffoldDraft` 当前不会在下次再次打开 `导入与整理` 时重复自动弹出
+    - 这一步属于 `P5` 的 current 第四刀：把 `SceneApp 结果 -> 沉淀为做法 -> 创建 Skill -> 我的方法库 -> 进入生成` 补成正式主链
+  - 当前已确认通过：
+    - `npx eslint "src/components/skills/SkillsPage.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsPage.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm exec vitest run "src/components/skills/SkillsPage.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run verify:gui-smoke`
+  - 当前补充说明：
+    - 这轮 `verify:gui-smoke` 已重新完整通过，说明 `我的方法库 / 导入与整理 / 生成` 这条工作台主路径没有被这次闭环收口破坏
+    - 最新一次 `verify:local` 未能全绿，但这次不再是之前的 `chrome-relay` 文案断言，而是被现存的 Rust 编译错误阻塞：
+      - `src-tauri/crates/aster-rust/crates/aster/src/tools/agent_control.rs:951`
+      - 错误为缺少 `query_session` 导入，并伴随 `type annotations needed`
+    - 因此本轮关于 `P5` 第四刀的结论应更新为：`skills` 工作台 current 主链已通过定向回归与 GUI smoke，仓库级 `verify:local` 仍受一条与本刀无关的 Rust 编译问题阻塞
+
+- 把 `P5` 的第三刀补成最小 skill 演化种子，避免 `SceneApp` 结果虽然已经能复盘、推荐下一轮结果模板，但还不能把这轮成功路径整理成可编辑做法：
+  - 已更新：
+    - `src/components/agent/chat/utils/sceneAppSkillScaffoldDraft.ts`
+    - `src/components/agent/chat/utils/sceneAppSkillScaffoldDraft.test.ts`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `SceneAppExecutionSummaryCard` 当前新增 `沉淀为做法`，用户不需要先回消息流找一条合适的助手结果，才能开始整理技能草稿
+    - 这条入口当前会把 `scene summary + latest pack result detail + latest review_feedback` 编译成一版 `initialScaffoldDraft`，并直接带去 `skills` 页
+    - 草稿里当前会显式补出 `适用场景 / 输入骨架 / 输出合同 / 执行步骤 / 回退策略`，因此“复盘过的结果路径”第一次开始以可编辑做法的形式显影
+    - 这一步仍然故意停在人工确认层：不会自动安装 skill，不会自动写进 `我的方法库`，也不会另起一套 skill evolution 工作台
+    - 这一步属于 `P5` 的 current 第三刀：把 `当前结果 -> 人工复盘 -> 做法草稿` 补成正式主链，开始验证 Lime 的 skill 演化是否值得继续做深
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/utils/sceneAppSkillScaffoldDraft.ts" "src/components/agent/chat/utils/sceneAppSkillScaffoldDraft.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/utils/sceneAppSkillScaffoldDraft.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/index.test.tsx" --testNamePattern="页面参数带着 pending service skill 时，应在当前对话挂起服务技能 A2UI"`
+    - `npm run verify:gui-smoke`
+  - 当前补充说明：
+    - 这轮 `verify:gui-smoke` 已重新完整通过，说明 `SceneApp -> 沉淀为做法` 没有再次破坏 `AgentChatWorkspace` 的主路径初始化顺序
+    - 最新一次 `verify:local` 未能全绿，但失败项落在与本刀无关的 [chrome-relay 文案断言](/Users/coso/Documents/dev/ai/aiclientproxy/lime/src/components/settings-v2/system/chrome-relay/index.test.tsx#L511)；当前报错为期待文案中没有空格版 `extensions/lime-chrome` 提示，而实际渲染内容多了一处空格
+    - 因此这轮关于 `P5` 第三刀的结论应更新为：`SceneApp / Skills / AgentChatWorkspace` 主链已通过定向回归与 GUI smoke，仓库级 `verify:local` 仍受一条不相干设置页断言阻塞
+
+- 把 `P5` 的第二刀补成共享推荐信号回路，避免人工复盘虽然已经写回 `SceneApp` 摘要，但首页 / 技能页 / slash 的下一轮结果入口仍旧和复盘结论脱节：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskRecommendationSignals.ts`
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/runtime-architecture.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `SceneApp` 结果卡保存人工复核结论后，当前除了刷新 `sceneApp execution summary runtime`，还会同步写入 `review_feedback` 推荐信号
+    - 这条信号当前会按复盘状态映射 `preferredTaskIds`，并携带 `sceneTitle / riskLevel / riskTags / followUpActions` 等摘要事实，直接进入现有 `curated task recommendation signals` 主链
+    - 首页 `结果入口`、技能页 `先拿结果` 与 slash `结果模板` 当前继续共用同一份 featured 排序逻辑，因此最近复盘会真实影响下一轮前排结果模板，而不是只停在某个局部视图里
+    - 前台当前会显式显示 `围绕最近复盘` 与 `复盘：...`，因此“人工复盘已经开始影响下一轮推荐”对用户也是可感知的，不再只是 util 层静默生效
+    - 这一步属于 `P5` 的 current 第二刀：把 `当前结果 -> 人工复盘 -> 下一轮结果模板前排` 接成共享异步增益链，而不是再做一套 review 专属前台对象
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskRecommendationSignals.ts" "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm run verify:gui-smoke`
+    - `npm run verify:local`
+  - 当前补充说明：
+    - 最新 `verify:local` 已实际通过 `verify:app-version`、`lint`、`typecheck`、smart vitest、`cargo test --manifest-path src-tauri/Cargo.toml` 与 `verify:gui-smoke`
+    - `verify:gui-smoke` 末尾 `agent-runtime-tool-surface-page` 当前继续通过，且 `hasRuntimeSummary=true`、`hasWorkbench=true`
+    - 说明这次 P5 改动已经通过 Lime current GUI 主路径验证，不是只在推荐 util 或测试桩层成立
+
+- 把 `P4` 再补一段：让 `SceneApp` 结果卡里的“同聊推进”不再退回裸 prompt，而是接回统一 typed continuation 主链：
+  - 已更新：
+    - `src/components/agent/chat/utils/sceneAppExecutionPromptContinuation.ts`
+    - `src/components/agent/chat/utils/sceneAppExecutionPromptContinuation.test.ts`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `SceneAppExecutionSummaryCard` 里的 `发布前检查 / 进入发布整理 / 生成渠道预览稿 / 整理上传稿`，当前会先被编译成统一 `prompt + capabilityRoute` payload
+    - 上述四类动作当前分别恢复到：
+      - `publish_compliance`
+      - `publish_runtime`
+      - `channel_preview_runtime`
+      - `upload_runtime`
+    - 因此用户点击这些动作后，会继续回到同一个 `生成` 主执行面与 active capability，而不是看起来在同聊推进、实际已经退回普通 prompt
+    - `补齐缺失部件` 当前也会优先恢复 `runtime_scene capability`，复用当前 SceneApp 的 `linkedSceneKey` 回到原场景主链继续补件
+    - 只有拿不到稳定 `sceneKey` 的结果样本，当前才会继续回退到 prompt fallback
+    - 这一步继续服务 `P4` 的 current 目标：让 `项目结果 -> 发布/预览/上传下一步` 也和 `复盘 -> 再生成` 一样进入真实闭环，而不是另一处假闭环
+
+- 收掉上一刀 `typed continuation` 带来的初始化顺序回归，避免 `fill_missing_parts -> runtime_scene` 已经接通，但 `生成` 主执行面本身因为 TDZ 在 GUI smoke 里起不来：
+  - 已更新：
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `handleRunSceneAppExecutionPromptAction` 当前已下移到 `sceneAppExecutionSummaryState` 初始化之后，不再在 hook 初始化阶段提前捕获未完成声明的摘要状态
+    - 因此 `SceneAppExecutionSummaryCard` 的 `发布前检查 / 进入发布整理 / 生成渠道预览稿 / 整理上传稿 / 补齐缺失部件` 这组 continuation action，当前不仅类型上已回到统一路由，GUI 主路径上也不再触发 `Cannot access 'sceneAppExecutionSummaryState' before initialization`
+    - 这一步不是新功能扩展，而是把上一刀真正推到 Lime current 可交付门槛
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/utils/sceneAppExecutionPromptContinuation.ts" "src/components/agent/chat/utils/sceneAppExecutionPromptContinuation.test.ts" "src/components/agent/chat/AgentChatWorkspace.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/utils/sceneAppExecutionPromptContinuation.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/index.test.tsx" --testNamePattern="页面参数带着 pending service skill 时，应在当前对话挂起服务技能 A2UI"`
+    - `npm run verify:gui-smoke`
+
+- 把 `P5` 的第一条反馈回流补到 current 主执行面，避免人工复核虽然已经保存成功，但 `SceneApp` 摘要与下一轮基线仍停在旧状态：
+  - 已更新：
+    - `src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.ts`
+    - `src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `useSceneAppExecutionSummaryRuntime` 当前新增稳定 `requestRefresh()`，允许外部在不重建页面的前提下主动重新拉取 `SceneApp` 最新 `runs + scorecard`
+    - `SceneApp` 结果卡里的人工复核 / 轻量反馈保存成功后，`AgentChatWorkspace` 当前会立刻触发这次 refresh
+    - 因此 `runtimeBackflow`、`latestPackResultDetailView` 与后续 continuation 会消费的结果基线，当前会立即拿到最新 scorecard action 与 failure signal，不再要求用户手动重进页面
+    - 这一步属于 `P5` 的 current 第一刀：先让显式反馈真正反哺主执行面，而不是停在 review decision 落盘这一层
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.ts" "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/workspace/useSceneAppExecutionSummaryRuntime.test.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npm run verify:gui-smoke`
+    - `npm run verify:local`
+
+- 把 `P4：项目结果与复盘视角收口` 的 current 主链正式补成统一 `reference entry`，不再让 `sceneApp` 结果走一条单独的 review 专线：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskReferenceSelection.ts`
+    - `src/components/agent/chat/utils/sceneAppCuratedTaskReference.ts`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/components/generalWorkbenchWorkflowData.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `sceneApp execution summary` 当前会被包装成 `source_kind = "sceneapp_execution_summary"` 的统一 `reference entry`
+    - 首页空态、输入层、slash launcher 与结果模板启动层当前都会消费同一组 `defaultReferenceEntries`，不再拆成“灵感 seed”和“项目结果 seed”两套对象
+    - `account-project-review` 当前可直接从 `taskPrefillByTaskId` 自动拿到 `project_goal + existing_results`，因此“复盘这个账号/项目”已经开始吃当前项目结果基线
+    - `request metadata` 当前以 `reference_entries` 为 canonical 事实源；`reference_memory_ids` 只保留真实 memory id，旧 `reference_memory_entries` 只继续作为内部读取 fallback
+    - 因此 `结果模板 -> 生成 -> 当前进展/运行详情 -> 继续复盘/继续生成` 这条 P4 current 主链，当前已经开始围绕同一份参考基线闭环
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskReferenceSelection.test.ts" "src/components/agent/chat/utils/sceneAppCuratedTaskReference.test.ts" "src/components/agent/chat/components/generalWorkbenchWorkflowData.test.ts" "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx"`
+    - `npm run verify:local`
+  - 当前补充说明：
+    - 最新 `verify:local` 已实际通过 `verify:app-version`、`lint`、`typecheck`、smart vitest、`cargo test --manifest-path src-tauri/Cargo.toml` 与 `verify:gui-smoke`
+    - `smoke:agent-runtime-tool-surface-page` 最新 summary 仍为 `hasRuntimeSummary=true` 且 `hasWorkbench=true`，说明这条 P4 主链没有破坏 current GUI 主路径
+
+- 修复 `CuratedTaskLauncherDialog` 在内容较长时无法下拉的问题，避免像“每日趋势摘要”这类结果模板因为参考区过长而把整窗内容裁掉：
+  - 已更新：
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - launcher 当前改成 `头部固定 + 中间滚动 + 底部固定` 的结构，中间主体会落在独立的 `overflow-y-auto` 容器里
+    - 因此在小窗口或参考条目较多时，用户现在可以继续下拉查看完整表单、参考基线列表和底部操作按钮，不会再被 modal 外层直接裁掉
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/CuratedTaskLauncherDialog.test.tsx"`
+    - `npm run verify:local`
+
+- 把 `P4` 再往前台推进一刀：让 `sceneApp` 当前结果卡可以直接进入 `复盘这个账号/项目`，不再要求用户先回首页再找结果模板：
+  - 已更新：
+    - `src/components/agent/chat/utils/sceneAppCuratedTaskReference.ts`
+    - `src/components/agent/chat/utils/sceneAppCuratedTaskReference.test.ts`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `SceneAppExecutionSummaryCard` 当前新增 `复盘当前项目` 动作，但没有新开 `sceneApp -> review` 专线
+    - 这颗按钮当前会把同一份 `sceneapp_execution_summary reference entry` 编译成 `curated_task(account-project-review)` continuation payload
+    - 因此用户点击后会直接回到 `生成` 主执行面，并挂上同一个 `curated_task` active capability；`project_goal + existing_results + reference_entries` 也会一并保留
+    - 这一步继续服务 `P4` 的 current 目标：让 `当前结果 -> 复盘 -> 下一轮生成` 成为显式前台动作，而不是只停在后台 metadata 已经连通
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/utils/sceneAppCuratedTaskReference.ts" "src/components/agent/chat/utils/sceneAppCuratedTaskReference.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/utils/sceneAppCuratedTaskReference.test.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx"`
+    - `npm run verify:local`
+
+- 把 `P4` 的“复盘 -> 再生成”从假闭环补成真闭环，避免 `复盘这个账号/项目` 的建议下一步仍旧挂在 review 模板下继续说话：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/utils/curatedTaskTemplates.test.ts`
+    - `src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx`
+    - `src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `account-project-review` 当前可以给 follow-up action 显式声明下游结果模板，不再把所有“建议下一步”都硬塞回原模板
+    - 当用户在 `生成工作台` 的复盘结果里点击 `继续做趋势摘要` 或 `生成下一轮内容方案` 时，当前会分别切到 `daily-trend-briefing` 与 `social-post-starter`
+    - 这类 continuation 当前仍保留同一份 `reference_entries / reference_memory_ids`，并会按目标模板重新组织 prompt；因此复盘输出终于开始真正回到下一轮生成，而不是继续停留在 review 语境里兜圈
+    - 这一步继续服务 `P4` 的 current 目标：让 `当前结果 -> 复盘 -> 下一轮生成` 成为真实的前台闭环，而不是只有按钮长得像闭环
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/utils/curatedTaskTemplates.test.ts" "src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx" "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskTemplates.test.ts" "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx"`
+    - `npm run verify:local`
+
 ## 2026-04-19
 
 ### 已完成
 
-- 把 `P2：Skill-First 前台` 当前被环境级验证阻塞的 `verify:gui-smoke` 恢复到“能自我避开损坏 cargo target”的状态，避免 GUI 交付链继续被旧 sqlite 半成品缓存卡死：
+- 把 `recent continuation` 里的 `curated task` 从“最近点过什么”继续推进成“最近那版方法可以回来”，避免首页 `继续上次做法` 与 slash `最近使用` 仍然只会重新打开空白模板：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - recent `curated_task` 当前不再只记最近使用时间，也会保留最近一次成功启动该结果模板时的 `launchInputValues + referenceEntries`
+    - 首页 `继续上次做法` 与 slash `最近使用` 里点这类结果模板时，当前都会重开同一套 launcher，但已经带着上次那版参数和引用
+    - launcher 顶部当前会显式提示“已根据你上次启动时的参数自动预填”，让“方法留下来了”变成前台可感知能力
+    - 这样 `技能页/首页/输入层 启动结果模板 -> recent continuation -> 同一 launcher 带上次参数回来` 这条 current skill-first 主链继续闭合
+  - 当前已确认通过：
+    - `npm run test -- src/components/agent/chat/components/EmptyState.test.tsx src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm run verify:local`
+  - 当前补充说明：
+    - 本轮 `verify:local` 已实际覆盖 `verify:app-version`、`lint`、`typecheck`、smart vitest、`cargo test --manifest-path src-tauri/Cargo.toml` 与 `verify:gui-smoke`
+    - `verify:gui-smoke` 末尾 `agent-runtime-tool-surface-page` 当前继续通过，且 `hasRuntimeSummary=true`、`hasWorkbench=true`
+    - 说明这次 recent prefill 改动不只是局部交互增强，而是已经保持住 current GUI 主路径可交付
+
+- 把 `recent continuation` 里的 `curated task` 也收回完整 current skill 合同，避免首页 `继续上次做法` 与 slash 最近使用还停在旧摘要层：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页 `继续上次做法` 里的 recent `curated task`，当前不再只显示 `需要 / 交付`，也会继续带出 `去向 / 下一步` 的缩略投影
+    - slash 面板 `最近使用` 里的 recent `curated task` 当前也复用同一份 capability description，不再只回退到模板 summary
+    - 因此 `结果模板 / recent continuation / slash recent curated task / 生成工作台` 四条 current 前台入口，当前已经开始围绕同一份 `需要 / 交付 / 去向 / 下一步` 事实源收口
+  - 当前已确认通过：
+    - `npm run test -- src/components/agent/chat/components/EmptyState.test.tsx`
+    - `npm run test -- src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+
+- 把 `GeneralWorkbench` 里的 `建议下一步` 从“可见提示”继续推进成“可操作 continuation action”，避免 `followUpActions` 到了工作台又停在说明文案：
+  - 已更新：
+    - `src/components/agent/chat/components/generalWorkbenchSidebarContract.ts`
+    - `src/components/agent/chat/components/generalWorkbenchWorkflowData.ts`
+    - `src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx`
+    - `src/components/agent/chat/components/generalWorkbenchWorkflowData.test.ts`
+    - `src/components/agent/chat/utils/curatedTaskReferenceSelection.ts`
+    - `src/components/agent/chat/utils/inputCapabilityBootstrap.ts`
+    - `src/components/agent/chat/utils/inputCapabilityBootstrap.test.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `GeneralWorkbench` 当前会把运行 metadata 里解析出的前两条 `followUpActions` 投成轻量按钮，不再只是展示“建议下一步”
+    - 运行 metadata 里的 `launch_input_values + reference_memory_ids + reference_entries` 当前也会被一并解析出来；旧 `reference_memory_entries` 只继续作为内部读取 fallback，不再是 current 写入口径
+    - 点击后不再只是把 continuation prompt 写回输入框；它会继续恢复同一个 `curated_task capabilityRoute`，因此 `Inputbar` 会重新挂回 active capability badge
+    - `当前进展` 与 `当前查看运行` 两处都会共享这组 continuation action，因此 `首页结果入口 -> 输入激活态 -> 运行 metadata -> 生成工作台 -> 输入继续生成` 这条闭环当前已经正式接通，而且 continuation 的上下文没有在工作台丢失
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/generalWorkbenchWorkflowData.test.ts" "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx" "src/components/agent/chat/utils/inputCapabilityBootstrap.test.ts"`
+    - `npx eslint "src/components/agent/chat/components/generalWorkbenchSidebarContract.ts" "src/components/agent/chat/components/generalWorkbenchWorkflowData.ts" "src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/utils/curatedTaskReferenceSelection.ts" "src/components/agent/chat/utils/inputCapabilityBootstrap.ts" "src/components/agent/chat/utils/inputCapabilityBootstrap.test.ts" "src/components/agent/chat/components/generalWorkbenchWorkflowData.test.ts" "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx"`
+    - `npm run verify:local`
+  - 当前补充说明：
+    - 本轮 `verify:local` 已实际通过 `lint`、`typecheck`、smart vitest、`cargo test --manifest-path src-tauri/Cargo.toml` 与 `verify:gui-smoke`
+    - `smoke:agent-runtime-tool-surface-page` 最新 summary 已明确为 `hasRuntimeSummary=true`、`hasWorkbench=true`，说明这次 continuation capability 恢复已经通过 current GUI 主路径验证
+
+- 把 `P3 / P4` 之间一直停留在模板里的 `followUpActions` 正式接回 current 前台主链，不再只在 launcher 合同区里出现一次：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/skill-selection/CuratedTaskBadge.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx`
+    - `src/components/agent/chat/components/generalWorkbenchWorkflowData.ts`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx`
+    - `src/components/agent/chat/components/generalWorkbenchWorkflowData.test.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页 `结果模板` 卡片当前会显式带出 `下一步`，不再只有 `需要 / 交付 / 去向`
+    - 输入区里已激活的 `curated_task` badge 当前会显示下一步摘要，让“结果模板正在接管这一轮生成”的后续方向可见
+    - `GeneralWorkbench` 当前会从 `activeRunDetail.metadata.harness.curated_task` 解析当前结果模板，并在 `当前进展` 与 `当前查看运行` 里继续显示 `建议下一步`
+    - 这意味着 `curated task` 的 `resultDestination + followUpActions` 当前已经开始跨越 `首页结果入口 -> 输入激活态 -> 运行 metadata -> 生成工作台` 形成同一条闭环
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx" "src/components/agent/chat/components/generalWorkbenchWorkflowData.test.ts"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/skill-selection/CuratedTaskBadge.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/GeneralWorkbenchWorkflowPanel.tsx" "src/components/agent/chat/components/generalWorkbenchWorkflowData.ts" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/GeneralWorkbenchSidebar.test.tsx" "src/components/agent/chat/components/generalWorkbenchWorkflowData.test.ts"`
+    - `npm run verify:local`
+
+- 把 `P3：灵感库与 taste/reference 回流` 继续推进到输入层，让 slash 面板里的 `结果模板` 不再停留在静态目录顺序，而是正式接回与首页、技能页一致的推荐排序：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.tsx`
+    - `src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx`
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - slash 面板当前会和首页、技能页一样，按 `projectId / sessionId / referenceEntries / saved_inspiration` 共同影响 `curated task` 排序
+    - `CharacterMention` 当前会监听推荐信号变更事件，打开中的 slash 面板也能重算，不再只有重开页面后才看到推荐变化
+    - 为了让强信号真正能抬升非默认模板，`featured` 的默认骨架分值当前已继续收轻，并给强匹配结果模板增加额外 signal lift；像 `复盘这个账号/项目` 这类入口，当前不再只是“有推荐理由但排不上来”
+  - 当前已确认通过：
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts"`
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+
+- 把前台品牌入口继续收回单一 current logo 事实源，避免侧边栏、欢迎页、关于页、消息空态仍各自直连旧 `/logo-v6.svg`，导致用户已切换 Lime 新品牌但主导航仍显示旧图标：
+  - 已更新：
+    - `src/lib/branding.ts`
+    - `src/components/AppSidebar.tsx`
+    - `src/components/onboarding/steps/WelcomeStep.tsx`
+    - `src/components/SplashScreen.tsx`
+    - `src/components/agent/chat/components/MessageList.tsx`
+    - `src/components/settings-v2/system/about/index.tsx`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 前台品牌展示当前统一走 `LIME_BRAND_LOGO_SRC = "/logo.png"`，不再让多个页面各自引用旧 logo 资源
+    - `public/logo.png` 当前已恢复为 `logo-v6` 主图；左上角返回首页入口、欢迎页、Splash、About 和消息空态/任务中心空态都会回到同一张 `logo-v6`
+    - `src-tauri/icons/tray/tray-running.png`、`tray-warning.png`、`tray-error.png`、`tray-stopped.png` 当前也已回到 `logo-v6` 底图，只保留状态点颜色区分运行态
+    - 侧边栏品牌入口当前也已去掉过重的外框阴影与高光描边，避免 `logo-v6` 在浅色侧栏里继续像一张独立小卡片，改回更轻的直接落版效果
+    - 这样后续只要替换 `public/logo.png`，品牌主图、favicon 和前台入口就会一起收口，不再发生“只改一处、别处漏掉”的漂移
+
+- 把首页空态输入区的运行时可见性从“收得过头”拉回 current 平衡点：恢复折叠态只读 `当前模型` pill，但继续把真正的模型切换收在 `高级设置`，避免首页和工作区输入栏继续出现状态感知不一致：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.tsx`
+    - `src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页折叠态当前会和工作区输入栏一样显示只读 `当前模型` badge，帮助用户在发出第一句前确认本轮运行基线
+    - badge 当前只承担“可见但不打扰”的状态确认职责，不恢复旧版折叠态下的模型选择器，也不把 `Provider / Model` 再抬回首页主路径
+    - 因此 `P1` 的 current 口径应修正为：默认继续隐藏进阶控制，但不再把模型状态藏到完全不可见
+
+- 把 `P2：Skill-First 前台` 里首批 curated skills 真正推进到“默认前台可发现 + 完整合同表达”，不再停留在“catalog 里有 6 个定义，但首页默认只露 4 个，且缺少结果去向”的半收口状态：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/CuratedTaskLauncherDialog.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySelection.ts`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/lib/deepLink/websiteLaunch.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `curatedTaskTemplates` 当前新增 `resultDestination`，并把它和 `requiredInputs / optionalReferences / outputContract / followUpActions` 一起收成同一份 current skill 合同事实源
+    - 首页 `结果模板` 当前默认展示完整首批 6 个 curated skills，不再只有 4 个默认前排、另外 2 个只在推荐信号抬升时才露出
+    - 技能页 `先拿结果` 当前也同步展示这 6 个入口；`脚本转口播/字幕稿` 与 `复盘这个账号/项目` 不再处于半隐藏状态
+    - 首页缩略 meta、slash 面板里的结果模板描述、技能页 `先拿结果` 卡片，以及 `CuratedTaskLauncherDialog` 底部合同区，当前都会显式展示 `结果去向`
+    - 这一步继续服务 `P2` 主目标：让首页、技能页和输入层共享的不只是 `curated_task` id，而是完整的 current 前台 skill 合同与默认发现面
+  - 当前已确认通过：
+    - `npx vitest run "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/agent/chat/utils/curatedTaskRecommendationSignals.test.ts"`
+    - `npm run typecheck`
+    - `npm run verify:local`
+  - 当前补充说明：
+    - 本轮 `verify:local` 已实际覆盖版本一致性、`lint`、`typecheck`、Vitest smart 40/40、`cargo test --manifest-path src-tauri/Cargo.toml`、以及 `verify:gui-smoke`
+    - `verify:gui-smoke` 末尾的 `agent-runtime-tool-surface-page` 本轮继续打印 `hasRuntimeSummary=true`，说明这次不只是列表层或卡片层修改，而是 current GUI 主路径完整可交付
+
+- 把 `P2：Skill-First 前台` 当前主链最后的 GUI 交付门槛恢复到可用状态：`verify:gui-smoke` 现在既能自我避开损坏 cargo target，也已经重新通过完整 smoke 链：
   - 已更新：
     - `scripts/verify-gui-smoke.mjs`
     - `docs/exec-plans/limenext-progress.md`
   - 当前统一结论：
     - `verify:gui-smoke` 当前新增 sqlite 构建产物自检；若目标 `cargo target` 下存在 `debug/build/libsqlite3-sys-*/out` 但缺少 `bindgen.rs`，脚本不再复用该目录，也不做破坏性删除，而是自动切到同级新的 `*-rebuild-<timestamp>-<pid>` target
     - 默认超时当前也会基于“最终实际使用的 cargo target”重新计算；未显式传 `--timeout-ms` 时，切到 fresh target 后会自动回到冷启动超时，不再沿用旧 warm target 的较短等待
-    - 这一步属于 `P2` 的交付支撑修复，不是继续扩前台功能，而是把 current 主线从“代码已收口但 GUI smoke 受旧缓存污染”拉回“脚本可自我避险”
+    - `agent-runtime-tool-surface-page` 当前已被页面级 smoke 与整套 GUI smoke 双重证明真实包含 `Runtime 能力摘要`；先前“摘要未出现”的判断已确认是环境/时序波动，不再构成 current 阻塞
+    - 这一步属于 `P2` 的交付支撑修复，不是继续扩前台功能，而是把 current 主线从“代码已收口但 GUI smoke 被旧缓存与时序抖动误伤”拉回“统一门槛重新可交付”
   - 当前已确认通过：
     - `node --check "scripts/verify-gui-smoke.mjs"`
     - `npx eslint "scripts/verify-gui-smoke.mjs"`
@@ -25,12 +599,13 @@
       - 发现损坏 sqlite 构建缓存
       - 自动切换到新的 `lime-gui-smoke-target-rebuild-*` 目录
       - 开始用 fresh target 拉起 headless Tauri 编译链
-  - 当前剩余阻塞说明：
-    - 在当前机器上，fresh headless 链继续向前时，`beforeDevCommand` 虽然已按 `http://127.0.0.1:1421/` 等待新前端，但 Vite 实际仍报告 `Port 1420 is already in use`，说明本机已有 dev server / Vite 端口复用链还在影响隔离 smoke
-    - 另一路复用现有 `1420 + 3030` 环境执行 `npm run verify:gui-smoke -- --timeout-ms 1200000` 时，链路已能稳定走到 `smoke:agent-runtime-tool-surface-page`，但最后仍卡在 `Runtime 能力摘要出现`，最后结果为 `hasWorkbench=true` 且其余摘要标记均为 `false`
-    - 因此这次已确认“损坏 sqlite target”不再是当前唯一阻塞；剩余问题已收敛为两个独立问题：
-      - 新链路隔离启动仍受本机现有 Vite/前端端口占用影响
-      - 复用现有 dev 环境时，`agent-runtime-tool-surface-page` 仍未看到 runtime 摘要，需要单独检查 `toolInventory / harness panel` 页面态是否与 current 环境一致
+    - `node scripts/agent-runtime-tool-surface-page-smoke.mjs --timeout-ms 180000`
+    - `npm run verify:gui-smoke -- --timeout-ms 1200000`
+    - `npm run verify:local`
+  - 当前补充说明：
+    - 本机在强制 fresh 前端链路时，仍可能观察到 `Port 1420 is already in use` 这类 Vite 端口复用现象；但这已不再阻塞 current 统一校验，因为脚本现在会自动切开损坏 sqlite target，并优先复用健康的 headless 环境
+    - `agent-runtime-tool-surface-page` 最近一次页面级 smoke 的总结值已明确为 `hasRuntimeSummary=true`，且 `hasSubagentGap / hasTaskGap / hasTeamGap / hasWebSearchGap / hasWorkbench` 均为 `true`
+    - 因此 `P2` 当前关于 GUI 交付的统一结论应更新为“脚本层自愈 + 完整 smoke 恢复”，而不是“仍受 sqlite / runtime summary 阻塞”
 
 - 把 `P2：Skill-First 前台` 里最后几条还没进入合同层的 current 前台入口继续收口，避免首页 continuation、技能页最近做法、我的方法库和输入层 installed skill 继续各说各的：
   - 已更新：
@@ -55,10 +630,9 @@
     - `npm exec vitest run "src/components/skills/installedSkillPresentation.test.ts" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
     - `npx eslint "src/components/skills/installedSkillPresentation.ts" "src/components/skills/installedSkillPresentation.test.ts" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
     - `npm run verify:local`
-  - 当前阻塞说明：
-    - `verify:local` 的前端、Vitest 与 `cargo test --manifest-path src-tauri/Cargo.toml` 均已实际通过
-    - 但末尾 `verify:gui-smoke` 在独立临时 target 编译阶段失败，错误为 `libsqlite3-sys` 读取临时 `OUT_DIR` 下的 `bindgen.rs` 失败，导致 headless Tauri 在 DevBridge 就绪前退出
-    - 因此本轮当前已达到“代码、类型、定向回归、Rust 单测通过”的门槛，但 GUI smoke 仍受环境级编译问题阻塞，需单独处理该 smoke target 的 sqlite/bindgen 构建稳定性
+  - 当前补充说明：
+    - `verify:local` 当前已经完整通过；前端、Vitest、`cargo test --manifest-path src-tauri/Cargo.toml` 与末尾 `verify:gui-smoke` 均为绿色
+    - 因此这条 `installed skill` 合同收口当前已达到 Lime 的 current 可交付门槛，不再保留“GUI smoke 仍受 sqlite/bindgen 阻塞”的旧结论
 
 - 把 `P2：Skill-First 前台` 的 `service skill` 前台合同投影接回与 `curated_task` 同一套 current 事实源，避免首页、输入层、技能页继续各讲各的：
   - 已更新：

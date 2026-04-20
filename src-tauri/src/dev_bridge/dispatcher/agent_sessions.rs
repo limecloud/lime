@@ -151,10 +151,14 @@ pub(super) async fn try_handle(
                 )
                 .transpose()?;
             let db = app_handle.state::<crate::database::DbConnection>();
+            let aster_state = app_handle.state::<crate::agent::AsterAgentState>();
+            let mcp_manager = app_handle.state::<crate::mcp::McpManagerState>();
 
             serde_json::to_value(
                 crate::commands::aster_agent_cmd::agent_runtime_create_session(
+                    aster_state,
                     db,
+                    mcp_manager,
                     workspace_id,
                     name,
                     execution_strategy,

@@ -1,5 +1,12 @@
+#[cfg(test)]
+use super::runtime_project_hooks::enforce_runtime_turn_user_prompt_submit_hooks;
+use super::runtime_project_hooks::{
+    enforce_runtime_turn_user_prompt_submit_hooks_with_runtime,
+    run_runtime_session_start_project_hooks_for_session_with_runtime,
+};
 use super::service_skill_launch::build_service_skill_preload_tool_projection;
 use super::*;
+use aster::hooks::SessionSource;
 use aster::session::TurnContextOverride;
 use aster::tools::ConfigTool;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
@@ -1313,6 +1320,12 @@ fn prepare_runtime_turn_policy(
             resolved_request_web_search,
             request.search_mode,
         );
+    let (request_web_search, request_search_mode) =
+        apply_site_search_skill_launch_to_request_tool_policy(
+            request.metadata.as_ref(),
+            request_web_search,
+            request_search_mode,
+        );
 
     let request_tool_policy = resolve_request_tool_policy_with_mode(
         request_web_search,
@@ -2178,6 +2191,16 @@ async fn execute_runtime_turn_pipeline(
         logs,
         config_manager,
         &mut request,
+    )
+    .await?;
+
+    enforce_runtime_turn_user_prompt_submit_hooks_with_runtime(
+        &request.message,
+        owned_session_id.as_str(),
+        workspace_root.as_str(),
+        db,
+        state,
+        mcp_manager,
     )
     .await?;
 
@@ -4143,6 +4166,14 @@ async fn compact_runtime_session_with_trigger(
             if let Ok(events) = terminal_events {
                 emit_runtime_events(app, &event_name, events);
             }
+            run_runtime_session_start_project_hooks_for_session_with_runtime(
+                db,
+                state,
+                app.state::<crate::mcp::McpManagerState>().inner(),
+                &session_id,
+                SessionSource::Compact,
+            )
+            .await;
             let done_event = resolve_runtime_final_done_event(&session_id, None).await;
             if let Err(error) = app.emit(&event_name, &done_event) {
                 tracing::error!("[AsterAgent] 发送压缩完成事件失败: {}", error);
@@ -4751,6 +4782,33 @@ mod tests {
         }
     }
 
+    fn write_blocking_user_prompt_submit_hook(workspace_root: &std::path::Path, message: &str) {
+        let claude_dir = workspace_root.join(".claude");
+        fs::create_dir_all(&claude_dir).expect("创建 .claude 目录失败");
+
+        let blocking_payload = serde_json::json!({
+            "blocked": true,
+            "message": message,
+        })
+        .to_string();
+        let settings = serde_json::json!({
+            "hooks": {
+                "UserPromptSubmit": [
+                    {
+                        "type": "command",
+                        "command": format!("printf '%s' '{blocking_payload}'; exit 2"),
+                        "blocking": true,
+                    }
+                ]
+            }
+        });
+        fs::write(
+            claude_dir.join("settings.json"),
+            serde_json::to_string_pretty(&settings).expect("序列化 settings 失败"),
+        )
+        .expect("写入 settings.json 失败");
+    }
+
     #[test]
     fn resolve_turn_execution_profile_should_use_fast_chat_for_plain_general_message() {
         let request = build_runtime_turn_test_request(
@@ -4939,6 +4997,42 @@ mod tests {
         assert!(merged.contains(TURN_LOCAL_PATH_FOCUS_PROMPT_MARKER));
         assert!(merged.contains(&repo_dir.to_string_lossy().to_string()));
         assert!(merged.contains("不要先扫描当前默认工作目录 /tmp/lime/workspaces/default"));
+    }
+
+    #[tokio::test]
+    async fn enforce_runtime_turn_user_prompt_submit_hooks_should_allow_without_project_hooks() {
+        let temp_dir = tempfile::TempDir::new().expect("create temp dir");
+
+        enforce_runtime_turn_user_prompt_submit_hooks(
+            "继续执行",
+            "session-runtime-hook-allow",
+            temp_dir
+                .path()
+                .to_str()
+                .expect("temp dir path should be utf-8"),
+        )
+        .await
+        .expect("没有项目 hooks 时不应阻止提交");
+    }
+
+    #[tokio::test]
+    async fn enforce_runtime_turn_user_prompt_submit_hooks_should_block_when_project_hook_blocks() {
+        let temp_dir = tempfile::TempDir::new().expect("create temp dir");
+        write_blocking_user_prompt_submit_hook(temp_dir.path(), "runtime project hook blocked");
+
+        let error = enforce_runtime_turn_user_prompt_submit_hooks(
+            "继续执行",
+            "session-runtime-hook-blocked",
+            temp_dir
+                .path()
+                .to_str()
+                .expect("temp dir path should be utf-8"),
+        )
+        .await
+        .expect_err("阻塞型项目 hook 应阻止提交");
+
+        assert!(error.contains("UserPromptSubmit hook 已阻止本次提交"));
+        assert!(error.contains("runtime project hook blocked"));
     }
 
     #[test]

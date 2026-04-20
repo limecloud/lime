@@ -61,6 +61,7 @@ describe("agentStreamPreparedSendDispatch", () => {
     return {
       runtime: {} as never,
       ensureSession: async () => "session-1",
+      attemptSilentTurnRecovery: async () => false,
       executionStrategy: "react",
       accessMode: "current",
       providerTypeRef: { current: "openai" } as MutableRefObject<string>,

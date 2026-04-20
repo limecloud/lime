@@ -15,6 +15,9 @@ use std::sync::Arc;
 
 use crate::config::{AsterMode, Config, ConfigError};
 use crate::model::ModelConfig;
+use crate::security::{
+    read_classifier_permissions_enabled, LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY,
+};
 
 const CONFIG_TOOL_NAME: &str = "Config";
 const CONFIG_TOOL_DESCRIPTION: &str = "Get or set supported runtime configuration settings.";
@@ -259,7 +262,7 @@ impl SupportedSetting {
             }
             Self::AlwaysThinkingEnabled => "Enable extended thinking.",
             Self::PermissionsDefaultMode => {
-                "Default permission mode for tool execution. Current Lime runtime supports \"default\", \"acceptEdits\", \"auto\", \"approve\", and \"chat\". Upstream aliases \"plan\" and \"dontAsk\" are not implemented yet."
+                "Default permission mode for tool execution. Current Lime runtime supports \"default\", \"acceptEdits\", \"auto\", \"approve\", and \"chat\". Upstream alias \"plan\" currently exists only as the explicit EnterPlanMode/ExitPlanMode flow, and \"dontAsk\" does not yet have a global provider/permission-inspector runtime."
             }
             Self::Language => {
                 "Preferred language for assistant responses and related features."
@@ -309,23 +312,20 @@ impl SupportedSetting {
 
     fn unsupported_message(self) -> Option<&'static str> {
         match self {
-            Self::ClassifierPermissionsEnabled => Some(
-                "Known upstream setting, but the current Lime runtime does not expose transcript-classifier permission toggles through Config yet.",
-            ),
             Self::VoiceEnabled => Some(
                 "Known upstream setting, but the current Lime runtime needs a host-backed callback to keep persisted voice config and global shortcut registration in sync.",
             ),
             Self::RemoteControlAtStartup => Some(
-                "Known upstream setting, but Lime only exposes OS auto-launch today; that is not the same as upstream remote-control-at-startup semantics.",
+                "Known upstream setting, but Lime's current host surface only exposes OS auto-launch; it does not have an upstream-style remote-control-at-startup session default.",
             ),
             Self::TaskCompleteNotifEnabled => Some(
-                "Known upstream setting, but the current Lime runtime does not expose task-complete mobile notification toggles through Config yet.",
+                "Known upstream setting, but Lime does not have a remote-control-backed mobile push control plane for task-complete notifications.",
             ),
             Self::InputNeededNotifEnabled => Some(
-                "Known upstream setting, but the current Lime runtime does not expose input-needed mobile notification toggles through Config yet.",
+                "Known upstream setting, but Lime does not have a remote-control-backed mobile push control plane for input-needed notifications.",
             ),
             Self::AgentPushNotifEnabled => Some(
-                "Known upstream setting, but the current Lime runtime does not expose agent-push mobile notification toggles through Config yet.",
+                "Known upstream setting, but Lime does not have a remote-control-backed mobile push control plane for agent-authored notifications.",
             ),
             _ => None,
         }
@@ -344,12 +344,18 @@ impl SupportedSetting {
         match self {
             Self::Theme => Some(Value::String(THEME_DEFAULT_VALUE.to_string())),
             Self::TeammateMode => Some(Value::String(TEAMMATE_MODE_DEFAULT_VALUE.to_string())),
+            Self::ClassifierPermissionsEnabled => Some(Value::Bool(false)),
             _ => None,
         }
     }
 
     fn read_value(self, config: &Config) -> Result<Value, ToolError> {
         match self {
+            Self::ClassifierPermissionsEnabled => {
+                let enabled = read_classifier_permissions_enabled(config)
+                    .map_err(|error| map_config_error("读取", self.key(), error))?;
+                Ok(Value::Bool(enabled))
+            }
             Self::Model => match config.get_aster_model() {
                 Ok(model) => Ok(Value::String(model)),
                 Err(ConfigError::NotFound(_)) => Ok(Value::String(MODEL_DEFAULT_VALUE.to_string())),
@@ -383,10 +389,30 @@ impl SupportedSetting {
 
     fn write_value(self, config: &Config, value: Value) -> Result<Value, SettingWriteError> {
         match self {
+            Self::ClassifierPermissionsEnabled => {
+                self.write_classifier_permissions_enabled(config, value)
+            }
             Self::Model => self.write_model_value(config, value),
             Self::PermissionsDefaultMode => self.write_permission_mode_value(config, value),
             _ => self.write_generic_value(config, value),
         }
+    }
+
+    fn write_classifier_permissions_enabled(
+        self,
+        config: &Config,
+        value: Value,
+    ) -> Result<Value, SettingWriteError> {
+        let enabled = expect_boolean_value(self.key(), value)?;
+        config.set_param(self.key(), enabled).map_err(|error| {
+            SettingWriteError::system(map_config_error("更新", self.key(), error))
+        })?;
+        config
+            .delete(LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY)
+            .map_err(|error| {
+                SettingWriteError::system(map_config_error("更新", self.key(), error))
+            })?;
+        Ok(Value::Bool(enabled))
     }
 
     fn write_generic_value(
@@ -492,16 +518,18 @@ impl SupportedSetting {
                 })?;
                 Value::String(PERMISSION_MODE_CHAT_VALUE.to_string())
             }
-            "plan" | "dontask" => {
-                return Err(SettingWriteError::validation(format!(
-                    "Unsupported value for {}: \"{}\". Upstream values \"{}\" and \"{}\" are not implemented in the current Lime runtime. Supported values: {}.",
-                    self.key(),
-                    raw_mode,
-                    PERMISSION_MODE_PLAN_VALUE,
-                    PERMISSION_MODE_DONT_ASK_VALUE,
-                    PERMISSION_MODE_SUPPORTED_VALUES.join(", ")
-                )))
-            }
+            "plan" => return Err(SettingWriteError::validation(format!(
+                "Unsupported value for {}: \"{}\". Lime plan mode is currently an explicit tool-mediated flow via EnterPlanMode/ExitPlanMode, not a persisted global default permission mode. Supported values: {}.",
+                self.key(),
+                raw_mode,
+                PERMISSION_MODE_SUPPORTED_VALUES.join(", ")
+            ))),
+            "dontask" => return Err(SettingWriteError::validation(format!(
+                "Unsupported value for {}: \"{}\". Lime does not yet have a global dontAsk runtime across provider flags and PermissionInspector. Supported values: {}.",
+                self.key(),
+                raw_mode,
+                PERMISSION_MODE_SUPPORTED_VALUES.join(", ")
+            ))),
             _ => {
                 return Err(SettingWriteError::validation(format!(
                     "Unsupported value for {}: \"{}\". Supported values: {}.",
@@ -943,15 +971,17 @@ mod tests {
     }
 
     fn create_test_tool() -> ConfigTool {
+        ConfigTool::with_config(create_test_config())
+    }
+
+    fn create_test_config() -> Arc<Config> {
         let root = tempdir().expect("temp dir").keep();
         let config_path = root.join("config.yaml");
         let secrets_path = root.join("secrets.yaml");
-        let config = Arc::new(
+        Arc::new(
             Config::new_with_file_secrets(&config_path, &secrets_path)
                 .expect("test config should be created"),
-        );
-
-        ConfigTool::with_config(config)
+        )
     }
 
     #[test]
@@ -1257,7 +1287,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_config_tool_rejects_unimplemented_upstream_permission_modes() {
+    async fn test_config_tool_rejects_plan_permission_mode_without_global_runtime() {
         let _guard = lock_env([("ASTER_MODE", None::<&str>)]);
         let tool = create_test_tool();
 
@@ -1280,7 +1310,161 @@ mod tests {
             .error
             .as_deref()
             .expect("error message")
-            .contains("not implemented in the current Lime runtime"));
+            .contains("EnterPlanMode/ExitPlanMode"));
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_rejects_dont_ask_permission_mode_without_global_runtime() {
+        let _guard = lock_env([("ASTER_MODE", None::<&str>)]);
+        let tool = create_test_tool();
+
+        let result = tool
+            .execute(
+                json!({
+                    "setting": PERMISSION_MODE_SETTING_KEY,
+                    "value": PERMISSION_MODE_DONT_ASK_VALUE
+                }),
+                &ToolContext::default(),
+            )
+            .await
+            .expect("tool should return structured failure");
+        let output = parse_output(result);
+
+        assert!(!output.success);
+        assert_eq!(output.operation, Some("set".to_string()));
+        assert_eq!(output.setting.as_deref(), Some(PERMISSION_MODE_SETTING_KEY));
+        assert!(output
+            .error
+            .as_deref()
+            .expect("error message")
+            .contains("PermissionInspector"));
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_classifier_permissions_enabled_round_trip() {
+        let _guard = lock_env([
+            ("CLASSIFIERPERMISSIONSENABLED", None::<&str>),
+            (
+                LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY,
+                None::<&str>,
+            ),
+        ]);
+        let tool = create_test_tool();
+        let context = ToolContext::default();
+
+        let get_default_result = tool
+            .execute(
+                json!({ "setting": CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY }),
+                &context,
+            )
+            .await
+            .expect("get classifier setting should succeed");
+        let get_default_output = parse_output(get_default_result);
+        assert_eq!(
+            get_default_output,
+            ConfigToolOutput::get_success(
+                CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY,
+                Value::Bool(false)
+            )
+        );
+
+        let set_result = tool
+            .execute(
+                json!({
+                    "setting": CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY,
+                    "value": true
+                }),
+                &context,
+            )
+            .await
+            .expect("set classifier setting should succeed");
+        let set_output = parse_output(set_result);
+        assert_eq!(
+            set_output,
+            ConfigToolOutput::set_success(
+                CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY,
+                Value::Bool(false),
+                Value::Bool(true)
+            )
+        );
+
+        let get_result = tool
+            .execute(
+                json!({ "setting": CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY }),
+                &context,
+            )
+            .await
+            .expect("get classifier setting should succeed");
+        let get_output = parse_output(get_result);
+        assert_eq!(
+            get_output,
+            ConfigToolOutput::get_success(
+                CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY,
+                Value::Bool(true)
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_classifier_permissions_enabled_reads_legacy_key_and_rewrites_current_key(
+    ) {
+        let _guard = lock_env([
+            ("CLASSIFIERPERMISSIONSENABLED", None::<&str>),
+            (
+                LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY,
+                None::<&str>,
+            ),
+        ]);
+        let config = create_test_config();
+        config
+            .set_param(LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY, true)
+            .expect("legacy key should be written");
+        let tool = ConfigTool::with_config(config.clone());
+        let context = ToolContext::default();
+
+        let get_result = tool
+            .execute(
+                json!({ "setting": CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY }),
+                &context,
+            )
+            .await
+            .expect("legacy classifier setting should be readable");
+        let get_output = parse_output(get_result);
+        assert_eq!(
+            get_output,
+            ConfigToolOutput::get_success(
+                CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY,
+                Value::Bool(true)
+            )
+        );
+
+        let set_result = tool
+            .execute(
+                json!({
+                    "setting": CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY,
+                    "value": false
+                }),
+                &context,
+            )
+            .await
+            .expect("current classifier setting should be writable");
+        let set_output = parse_output(set_result);
+        assert_eq!(
+            set_output,
+            ConfigToolOutput::set_success(
+                CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY,
+                Value::Bool(true),
+                Value::Bool(false)
+            )
+        );
+
+        assert!(!config
+            .get_param::<bool>(CLASSIFIER_PERMISSIONS_ENABLED_SETTING_KEY)
+            .expect("current classifier key should exist"));
+        assert!(matches!(
+            config.get_param::<bool>(LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY),
+            Err(ConfigError::NotFound(_))
+        ));
     }
 
     #[tokio::test]
@@ -1386,7 +1570,63 @@ mod tests {
             .error
             .as_deref()
             .expect("error message")
-            .contains("Known upstream setting"));
+            .contains("mobile push control plane"));
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_remote_control_at_startup_does_not_alias_os_auto_launch() {
+        let tool = create_test_tool();
+
+        let result = tool
+            .execute(
+                json!({ "setting": REMOTE_CONTROL_AT_STARTUP_SETTING_KEY }),
+                &ToolContext::default(),
+            )
+            .await
+            .expect("tool should return structured failure");
+        let output = parse_output(result);
+
+        assert!(!output.success);
+        assert_eq!(output.operation.as_deref(), Some("get"));
+        assert_eq!(
+            output.setting.as_deref(),
+            Some(REMOTE_CONTROL_AT_STARTUP_SETTING_KEY)
+        );
+        let error = output.error.as_deref().expect("error message");
+        assert!(error.contains("OS auto-launch"));
+        assert!(error.contains("remote-control-at-startup"));
+    }
+
+    #[tokio::test]
+    async fn test_config_tool_mobile_push_settings_remain_unsupported_without_control_plane() {
+        let tool = create_test_tool();
+
+        for setting in [
+            TASK_COMPLETE_NOTIF_ENABLED_SETTING_KEY,
+            INPUT_NEEDED_NOTIF_ENABLED_SETTING_KEY,
+            AGENT_PUSH_NOTIF_ENABLED_SETTING_KEY,
+        ] {
+            let result = tool
+                .execute(
+                    json!({
+                        "setting": setting,
+                        "value": true
+                    }),
+                    &ToolContext::default(),
+                )
+                .await
+                .expect("tool should return structured failure");
+            let output = parse_output(result);
+
+            assert!(!output.success, "{setting} should remain unsupported");
+            assert_eq!(output.operation.as_deref(), Some("set"));
+            assert_eq!(output.setting.as_deref(), Some(setting));
+            assert!(output
+                .error
+                .as_deref()
+                .expect("error message")
+                .contains("mobile push control plane"));
+        }
     }
 
     #[tokio::test]

@@ -12,6 +12,10 @@ use scanner::PromptInjectionScanner;
 use std::sync::OnceLock;
 use uuid::Uuid;
 
+pub(crate) const LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY: &str =
+    "SECURITY_PROMPT_CLASSIFIER_ENABLED";
+const CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY: &str = "classifierPermissionsEnabled";
+
 pub struct SecurityManager {
     scanner: OnceLock<PromptInjectionScanner>,
 }
@@ -43,10 +47,7 @@ impl SecurityManager {
 
     fn is_ml_scanning_enabled(&self) -> bool {
         let config = Config::global();
-
-        config
-            .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
-            .unwrap_or(false)
+        read_classifier_permissions_enabled(config).unwrap_or(false)
     }
 
     pub async fn analyze_tool_requests(
@@ -181,5 +182,92 @@ impl SecurityManager {
 impl Default for SecurityManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub(crate) fn read_classifier_permissions_enabled(
+    config: &Config,
+) -> Result<bool, crate::config::ConfigError> {
+    match config.get_param::<bool>(CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY) {
+        Ok(enabled) => Ok(enabled),
+        Err(crate::config::ConfigError::NotFound(_)) => config
+            .get_param::<bool>(LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY)
+            .or_else(|error| match error {
+                crate::config::ConfigError::NotFound(_) => Ok(false),
+                other => Err(other),
+            }),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use env_lock::lock_env;
+    use std::sync::Arc;
+    use tempfile::tempdir;
+
+    fn create_test_config() -> Arc<Config> {
+        let root = tempdir().expect("temp dir").keep();
+        let config_path = root.join("config.yaml");
+        let secrets_path = root.join("secrets.yaml");
+        Arc::new(
+            Config::new_with_file_secrets(&config_path, &secrets_path)
+                .expect("test config should be created"),
+        )
+    }
+
+    #[test]
+    fn test_read_classifier_permissions_enabled_defaults_false() {
+        let _guard = lock_env([
+            ("CLASSIFIERPERMISSIONSENABLED", None::<&str>),
+            (
+                LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY,
+                None::<&str>,
+            ),
+        ]);
+        let config = create_test_config();
+
+        assert!(!read_classifier_permissions_enabled(config.as_ref())
+            .expect("default classifier setting should resolve"));
+    }
+
+    #[test]
+    fn test_read_classifier_permissions_enabled_falls_back_to_legacy_key() {
+        let _guard = lock_env([
+            ("CLASSIFIERPERMISSIONSENABLED", None::<&str>),
+            (
+                LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY,
+                None::<&str>,
+            ),
+        ]);
+        let config = create_test_config();
+        config
+            .set_param(LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY, true)
+            .expect("legacy key should be written");
+
+        assert!(read_classifier_permissions_enabled(config.as_ref())
+            .expect("legacy classifier setting should resolve"));
+    }
+
+    #[test]
+    fn test_read_classifier_permissions_enabled_prefers_current_key() {
+        let _guard = lock_env([
+            ("CLASSIFIERPERMISSIONSENABLED", None::<&str>),
+            (
+                LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY,
+                None::<&str>,
+            ),
+        ]);
+        let config = create_test_config();
+        config
+            .set_param(LEGACY_CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY, true)
+            .expect("legacy key should be written");
+        config
+            .set_param(CLASSIFIER_PERMISSIONS_ENABLED_CONFIG_KEY, false)
+            .expect("current key should be written");
+
+        assert!(!read_classifier_permissions_enabled(config.as_ref())
+            .expect("current classifier setting should win"));
     }
 }

@@ -278,6 +278,7 @@ mod request_model_resolution;
 mod research_skill_launch;
 mod resource_search_skill_launch;
 mod run_metadata;
+mod runtime_project_hooks;
 mod runtime_turn;
 mod service_skill_launch;
 mod session_runtime;
@@ -468,6 +469,7 @@ pub(crate) use session_runtime::{
 };
 pub(crate) use site_search_skill_launch::{
     append_site_search_skill_launch_session_permissions,
+    apply_site_search_skill_launch_to_request_tool_policy,
     merge_system_prompt_with_site_search_skill_launch,
     prepare_site_search_skill_launch_request_metadata,
     prune_site_search_skill_launch_detour_tools_from_registry,

@@ -190,6 +190,18 @@ export interface UseDeepLinkReturn {
 
 export interface UseDeepLinkOptions {
   onOpenBrowserConnectorSettings?: (params: { enable: boolean }) => void;
+  onOpenWebsiteDeepLink?: (payload: OpenDeepLinkPayload) => void;
+}
+
+export interface OpenDeepLinkPayload {
+  kind: "skill" | "prompt";
+  slug: string;
+  source?: string | null;
+  version?: string | null;
+}
+
+export interface OpenDeepLinkResult {
+  payload: OpenDeepLinkPayload;
 }
 
 function parseBrowserConnectorDeepLink(
@@ -256,6 +268,7 @@ function parseBrowserConnectorDeepLink(
 export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
   const onOpenBrowserConnectorSettings =
     options?.onOpenBrowserConnectorSettings;
+  const onOpenWebsiteDeepLink = options?.onOpenWebsiteDeepLink;
 
   // 状态
   const [connectPayload, setConnectPayload] = useState<ConnectPayload | null>(
@@ -341,6 +354,14 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
     return true;
   }, []);
 
+  const handleOpenDeepLinkEvent = useCallback(
+    (result: OpenDeepLinkResult) => {
+      console.log("[useDeepLink] 收到 lime://open Deep Link:", result);
+      onOpenWebsiteDeepLink?.(result.payload);
+    },
+    [onOpenWebsiteDeepLink],
+  );
+
   const processDeepLinkUrl = useCallback(
     async (url: string) => {
       const normalizedUrl = String(url || "").trim();
@@ -370,6 +391,23 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
         return;
       }
 
+      if (normalizedUrl.startsWith("lime://open")) {
+        try {
+          const result = await safeInvoke<OpenDeepLinkResult>(
+            "handle_open_deep_link",
+            {
+              url: normalizedUrl,
+            },
+          );
+          handleOpenDeepLinkEvent(result);
+        } catch (err) {
+          console.error("[useDeepLink] 处理官网 Deep Link 失败:", err);
+          const connectError = err as ConnectError;
+          showDeepLinkError(connectError.message, connectError.code);
+        }
+        return;
+      }
+
       if (!normalizedUrl.startsWith("lime://connect")) {
         return;
       }
@@ -387,6 +425,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
     },
     [
       handleDeepLinkEvent,
+      handleOpenDeepLinkEvent,
       handleOauthCallbackUrl,
       onOpenBrowserConnectorSettings,
     ],
@@ -588,6 +627,7 @@ export function useDeepLink(options?: UseDeepLinkOptions): UseDeepLinkReturn {
     handleOauthCallbackUrl,
     processDeepLinkUrl,
     onOpenBrowserConnectorSettings,
+    onOpenWebsiteDeepLink,
   ]);
 
   return {

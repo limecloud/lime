@@ -34,7 +34,10 @@ import {
   normalizeToolSearchResultSummary,
   resolveUserFacingToolSearchItemLabel,
 } from "../utils/toolSearchResultSummary";
-import { resolveToolProcessNarrative } from "../utils/toolProcessSummary";
+import {
+  resolveToolErrorDetailText,
+  resolveToolProcessNarrative,
+} from "../utils/toolProcessSummary";
 
 interface InlineToolProcessStepProps {
   toolCall: ToolCallState;
@@ -212,10 +215,17 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
       }),
     [subject, toolCall.name, toolDisplay],
   );
-  const resultText = useMemo(() => {
+  const rawResultText = useMemo(() => {
     const rawText = toolCall.result?.error || toolCall.result?.output || "";
     return extractLimeToolMetadataBlock(rawText).text.trim();
   }, [toolCall.result?.error, toolCall.result?.output]);
+  const resultText = useMemo(() => {
+    if (toolCall.status !== "failed") {
+      return rawResultText;
+    }
+
+    return resolveToolErrorDetailText(toolCall.name, rawResultText) || rawResultText;
+  }, [rawResultText, toolCall.name, toolCall.status]);
   const resultDetailMarkdown = useMemo(
     () => sanitizeToolResultDetailMarkdown(resultText),
     [resultText],
@@ -225,24 +235,25 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
     [resultText],
   );
   const resultImages = useMemo(
-    () => normalizeToolResultImages(toolCall.result?.images, resultText) || [],
-    [resultText, toolCall.result?.images],
+    () => normalizeToolResultImages(toolCall.result?.images, rawResultText) || [],
+    [rawResultText, toolCall.result?.images],
   );
   const isToolSearch = useMemo(
     () => normalizeToolNameKey(toolCall.name) === "toolsearch",
     [toolCall.name],
   );
   const toolSearchSummary = useMemo(
-    () => (isToolSearch ? normalizeToolSearchResultSummary(resultText) : null),
-    [isToolSearch, resultText],
+    () =>
+      isToolSearch ? normalizeToolSearchResultSummary(rawResultText) : null,
+    [isToolSearch, rawResultText],
   );
   const searchResultItems = useMemo(() => {
     if (!isUnifiedWebSearchToolName(toolCall.name)) {
       return [];
     }
 
-    return resolveSearchResultPreviewItemsFromText(resultText);
-  }, [resultText, toolCall.name]);
+    return resolveSearchResultPreviewItemsFromText(rawResultText);
+  }, [rawResultText, toolCall.name]);
   const structuredResultPreview = useMemo(() => {
     if (toolSearchSummary) {
       return summarizeToolSearchPreview(toolSearchSummary);

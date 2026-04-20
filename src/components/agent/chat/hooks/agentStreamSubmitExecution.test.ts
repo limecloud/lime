@@ -40,6 +40,7 @@ describe("agentStreamSubmitExecution", () => {
     await executeAgentStreamSubmit({
       runtime,
       ensureSession: async () => "session-1",
+      attemptSilentTurnRecovery: async () => false,
       sessionIdRef: { current: null } as MutableRefObject<string | null>,
       getRequiredWorkspaceId: () => "workspace-1",
       getSyncedSessionExecutionStrategy: () => "react",

@@ -13,6 +13,7 @@ describe("providerModelFetchSupport", () => {
     ).toEqual({
       supported: true,
       requiresApiKey: true,
+      requiresLiveModelTruth: true,
     });
   });
 
@@ -26,10 +27,11 @@ describe("providerModelFetchSupport", () => {
     ).toEqual({
       supported: true,
       requiresApiKey: true,
+      requiresLiveModelTruth: true,
     });
   });
 
-  it("官方 Anthropic 兼容 Host 应支持通过模型接口获取真实模型列表", () => {
+  it("Anthropic 兼容 Host 应保留自动获取入口，但不应强制依赖实时模型目录", () => {
     expect(
       getProviderModelAutoFetchCapability({
         providerId: "minimax-test",
@@ -39,6 +41,7 @@ describe("providerModelFetchSupport", () => {
     ).toEqual({
       supported: true,
       requiresApiKey: true,
+      requiresLiveModelTruth: false,
     });
   });
 
@@ -52,6 +55,7 @@ describe("providerModelFetchSupport", () => {
     ).toEqual({
       supported: true,
       requiresApiKey: true,
+      requiresLiveModelTruth: true,
     });
   });
 
@@ -65,6 +69,7 @@ describe("providerModelFetchSupport", () => {
     ).toEqual({
       supported: true,
       requiresApiKey: false,
+      requiresLiveModelTruth: true,
     });
   });
 
@@ -78,6 +83,7 @@ describe("providerModelFetchSupport", () => {
     ).toEqual({
       supported: true,
       requiresApiKey: false,
+      requiresLiveModelTruth: true,
     });
   });
 
@@ -89,6 +95,7 @@ describe("providerModelFetchSupport", () => {
     });
 
     expect(capability.supported).toBe(false);
+    expect(capability.requiresLiveModelTruth).toBe(false);
     expect(capability.unsupportedReason).toContain("当前不展示自动获取入口");
   });
 });

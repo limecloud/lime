@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCuratedTaskLaunchInputPrefillFromReferenceEntries,
   buildCuratedTaskLaunchRequestMetadata,
   buildCuratedTaskReferencePromptBlock,
 } from "./curatedTaskReferenceSelection";
@@ -60,7 +61,7 @@ describe("buildCuratedTaskLaunchRequestMetadata", () => {
             platform_region: "X 与 TikTok 北美区",
           },
           reference_memory_ids: ["memory-1"],
-          reference_memory_entries: [
+          reference_entries: [
             expect.objectContaining({
               id: "memory-1",
               title: "品牌风格样本",
@@ -68,6 +69,81 @@ describe("buildCuratedTaskLaunchRequestMetadata", () => {
           ],
         },
       },
+    });
+  });
+
+  it("应只把 memory reference 写入 reference_memory_ids", () => {
+    const result = buildCuratedTaskLaunchRequestMetadata({
+      taskId: "account-project-review",
+      taskTitle: "复盘这个账号/项目",
+      referenceEntries: [
+        {
+          id: "sceneapp:content-pack:run:1",
+          sourceKind: "sceneapp_execution_summary",
+          title: "AI 内容周报",
+          summary: "当前已有一轮运行结果，可直接作为复盘基线。",
+          category: "experience",
+          categoryLabel: "成果",
+          tags: ["复盘"],
+          taskPrefillByTaskId: {
+            "account-project-review": {
+              project_goal: "AI 内容周报",
+              existing_results: "当前已有一轮运行结果。",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      harness: {
+        curated_task: {
+          task_id: "account-project-review",
+          reference_entries: [
+            expect.objectContaining({
+              id: "sceneapp:content-pack:run:1",
+              source_kind: "sceneapp_execution_summary",
+            }),
+          ],
+        },
+      },
+    });
+    expect(
+      (result.harness as { curated_task: { reference_memory_ids?: string[] } })
+        .curated_task.reference_memory_ids,
+    ).toBeUndefined();
+    expect(
+      (result.harness as { creation_replay?: unknown }).creation_replay,
+    ).toBeUndefined();
+  });
+});
+
+describe("buildCuratedTaskLaunchInputPrefillFromReferenceEntries", () => {
+  it("应把 sceneapp reference 的 task prefill 回填到 launcher 输入", () => {
+    expect(
+      buildCuratedTaskLaunchInputPrefillFromReferenceEntries({
+        taskId: "account-project-review",
+        referenceEntries: [
+          {
+            id: "sceneapp:content-pack:run:1",
+            sourceKind: "sceneapp_execution_summary",
+            title: "AI 内容周报",
+            summary: "当前已有一轮运行结果，可直接作为复盘基线。",
+            category: "experience",
+            categoryLabel: "成果",
+            tags: ["复盘"],
+            taskPrefillByTaskId: {
+              "account-project-review": {
+                project_goal: "AI 内容周报",
+                existing_results: "当前已有一轮运行结果。",
+              },
+            },
+          },
+        ],
+      }),
+    ).toEqual({
+      project_goal: "AI 内容周报",
+      existing_results: "当前已有一轮运行结果。",
     });
   });
 });

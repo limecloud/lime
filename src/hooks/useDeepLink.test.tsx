@@ -48,13 +48,15 @@ vi.mock("@/lib/oemLimeHubProvider", () => ({
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];
 
-function renderHook() {
+function renderHook(
+  options?: Parameters<typeof useDeepLink>[0],
+) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
 
   function Probe() {
-    useDeepLink();
+    useDeepLink(options);
     return null;
   }
 
@@ -101,5 +103,40 @@ describe("useDeepLink", () => {
 
     expect(safeListen).not.toHaveBeenCalled();
     expect(getCurrent).not.toHaveBeenCalled();
+  });
+
+  it("应解析官网 open deep link 并回调前端导航", async () => {
+    const onOpenWebsiteDeepLink = vi.fn();
+    vi.mocked(getCurrent).mockResolvedValue([
+      "lime://open?kind=prompt&slug=gemini-longform-master&source=website&v=1",
+    ]);
+    vi.mocked(safeInvoke).mockImplementation(async (command) => {
+      if (command === "handle_open_deep_link") {
+        return {
+          payload: {
+            kind: "prompt",
+            slug: "gemini-longform-master",
+            source: "website",
+            version: "1",
+          },
+        };
+      }
+
+      return {};
+    });
+
+    await renderHook({
+      onOpenWebsiteDeepLink,
+    });
+
+    expect(safeInvoke).toHaveBeenCalledWith("handle_open_deep_link", {
+      url: "lime://open?kind=prompt&slug=gemini-longform-master&source=website&v=1",
+    });
+    expect(onOpenWebsiteDeepLink).toHaveBeenCalledWith({
+      kind: "prompt",
+      slug: "gemini-longform-master",
+      source: "website",
+      version: "1",
+    });
   });
 });

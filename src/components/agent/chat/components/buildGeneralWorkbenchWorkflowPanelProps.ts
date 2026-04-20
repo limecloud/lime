@@ -9,6 +9,7 @@ export interface BuildGeneralWorkbenchWorkflowPanelPropsParams {
   branchItems: GeneralWorkbenchSidebarWorkflowPanelProps["branchItems"];
   creationTaskEventsCount: GeneralWorkbenchSidebarWorkflowPanelProps["creationTaskEventsCount"];
   onAddImage?: GeneralWorkbenchSidebarWorkflowPanelProps["onAddImage"];
+  onApplyFollowUpAction?: GeneralWorkbenchSidebarWorkflowPanelProps["onApplyFollowUpAction"];
   onDeleteTopic: GeneralWorkbenchSidebarWorkflowPanelProps["onDeleteTopic"];
   onImportDocument?: GeneralWorkbenchSidebarWorkflowPanelProps["onImportDocument"];
   onNewTopic: GeneralWorkbenchSidebarWorkflowPanelProps["onNewTopic"];
@@ -32,6 +33,7 @@ export function buildGeneralWorkbenchWorkflowPanelProps({
   branchItems,
   creationTaskEventsCount,
   onAddImage,
+  onApplyFollowUpAction,
   onDeleteTopic,
   onImportDocument,
   onNewTopic,
@@ -56,6 +58,7 @@ export function buildGeneralWorkbenchWorkflowPanelProps({
     completedSteps: workflowPanelState.completedSteps,
     progressPercent: workflowPanelState.progressPercent,
     onAddImage,
+    onApplyFollowUpAction,
     onImportDocument,
     creationTaskEventsCount,
     showBranchRecords: workflowPanelState.showBranchRecords,

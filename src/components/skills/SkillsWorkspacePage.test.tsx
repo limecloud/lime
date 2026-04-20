@@ -16,6 +16,26 @@ const mockRefreshServiceSkills = vi.fn();
 const mockRecordUsage = vi.fn();
 const mockRefreshLocalSkills = vi.fn();
 const mockAdvancedSkillsPage = vi.fn();
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+
+function createDefaultLocalSkills(): Skill[] {
+  return [
+    {
+      key: "local:writer",
+      name: "写作助手",
+      description: "本地补充技能",
+      directory: "writer",
+      installed: true,
+      sourceKind: "other",
+      catalogSource: "user",
+      metadata: {
+        lime_when_to_use: "当你需要复用本地写作方法时使用。",
+        lime_argument_hint: "主题、受众与语气要求",
+      },
+    },
+  ] as Skill[];
+}
 
 function createDefaultServiceSkills(): ServiceSkillHomeItem[] {
   return [
@@ -143,14 +163,15 @@ function createDefaultSkillGroups(): ServiceSkillGroup[] {
 
 let mockServiceSkills = createDefaultServiceSkills();
 let mockSkillGroups = createDefaultSkillGroups();
+let mockLocalSkills = createDefaultLocalSkills();
 const mockListUnifiedMemories = vi.hoisted(() =>
   vi.fn<() => Promise<UnifiedMemory[]>>(async () => []),
 );
 
 vi.mock("sonner", () => ({
   toast: {
-    success: vi.fn(),
-    error: vi.fn(),
+    success: (...args: unknown[]) => mockToastSuccess(...args),
+    error: (...args: unknown[]) => mockToastError(...args),
     info: vi.fn(),
     loading: vi.fn(() => "toast-id"),
   },
@@ -178,21 +199,7 @@ vi.mock("@/components/agent/chat/service-skills/useServiceSkills", () => ({
 
 vi.mock("@/hooks/useSkills", () => ({
   useSkills: () => ({
-    skills: [
-      {
-        key: "local:writer",
-        name: "写作助手",
-        description: "本地补充技能",
-        directory: "writer",
-        installed: true,
-        sourceKind: "other",
-        catalogSource: "user",
-        metadata: {
-          lime_when_to_use: "当你需要复用本地写作方法时使用。",
-          lime_argument_hint: "主题、受众与语气要求",
-        },
-      },
-    ] as Skill[],
+    skills: mockLocalSkills,
     repos: [],
     loading: false,
     remoteLoading: false,
@@ -321,12 +328,15 @@ describe("SkillsWorkspacePage", () => {
 
     mockServiceSkills = createDefaultServiceSkills();
     mockSkillGroups = createDefaultSkillGroups();
+    mockLocalSkills = createDefaultLocalSkills();
     mockRefreshServiceSkills.mockReset();
     mockRefreshServiceSkills.mockResolvedValue(undefined);
     mockRecordUsage.mockReset();
     mockRefreshLocalSkills.mockReset();
     mockRefreshLocalSkills.mockResolvedValue(undefined);
     mockAdvancedSkillsPage.mockReset();
+    mockToastSuccess.mockReset();
+    mockToastError.mockReset();
     mockListUnifiedMemories.mockResolvedValue([]);
     window.localStorage.clear();
   });
@@ -354,10 +364,16 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("继续常用做法");
     expect(container.textContent).toContain("我的方法库");
     expect(container.textContent).toContain("每日趋势摘要");
+    expect(container.textContent).toContain("脚本转口播/字幕稿");
+    expect(container.textContent).toContain("复盘这个账号/项目");
     expect(container.textContent).toContain("你来给");
     expect(container.textContent).toContain("会拿到");
+    expect(container.textContent).toContain("结果去向");
     expect(container.textContent).toContain("下一步可继续");
     expect(container.textContent).toContain("主题或赛道、希望关注的平台/地域");
+    expect(container.textContent).toContain(
+      "趋势摘要会先写回当前内容，方便继续展开选题和主稿。",
+    );
     expect(container.textContent).toContain(
       "这里收的是已经跑通过的做法；不确定从哪开始时，先回首页结果模板。",
     );
@@ -507,7 +523,7 @@ describe("SkillsWorkspacePage", () => {
       launchButton?.click();
     });
 
-    expect(container.textContent).toContain("先补最少启动信息，再统一进入生成主执行面。");
+    expect(container.textContent).toContain("开始这一步前，我先确认几件事。");
     expect(onNavigate).not.toHaveBeenCalled();
 
     const themeInput = document.body.querySelector(
@@ -523,9 +539,13 @@ describe("SkillsWorkspacePage", () => {
       await Promise.resolve();
     });
 
-    const confirmButton = Array.from(document.body.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("带着启动信息进入生成"),
-    );
+    const confirmButton =
+      (document.body.querySelector(
+        '[data-testid="curated-task-launcher-confirm"]',
+      ) as HTMLButtonElement | null) ??
+      Array.from(document.body.querySelectorAll("button")).find((button) =>
+        button.textContent?.includes("开始生成"),
+      );
     expect(confirmButton).toBeTruthy();
     expect((confirmButton as HTMLButtonElement).disabled).toBe(false);
 
@@ -539,15 +559,19 @@ describe("SkillsWorkspacePage", () => {
       expect.objectContaining({
         agentEntry: "new-task",
         theme: "general",
-        initialInputCapability: {
-          capabilityRoute: {
+        initialInputCapability: expect.objectContaining({
+          capabilityRoute: expect.objectContaining({
             kind: "curated_task",
             taskId: "daily-trend-briefing",
             taskTitle: "每日趋势摘要",
             prompt: expect.stringContaining("主题或赛道：AI 内容创作"),
-          },
+            launchInputValues: {
+              theme_target: "AI 内容创作",
+              platform_region: "X 与 TikTok 北美区",
+            },
+          }),
           requestKey: expect.any(Number),
-        },
+        }),
         entryBannerMessage:
           "已从结果模板“每日趋势摘要”带着启动信息进入生成，可继续补充后发送。",
       }),
@@ -628,9 +652,13 @@ describe("SkillsWorkspacePage", () => {
       await Promise.resolve();
     });
 
-    const confirmButton = Array.from(document.body.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("带着启动信息进入生成"),
-    );
+    const confirmButton =
+      (document.body.querySelector(
+        '[data-testid="curated-task-launcher-confirm"]',
+      ) as HTMLButtonElement | null) ??
+      Array.from(document.body.querySelectorAll("button")).find((button) =>
+        button.textContent?.includes("开始生成"),
+      );
     expect(confirmButton).toBeTruthy();
 
     await act(async () => {
@@ -644,6 +672,10 @@ describe("SkillsWorkspacePage", () => {
         capabilityRoute: {
           kind: "curated_task",
           taskId: "daily-trend-briefing",
+          launchInputValues: {
+            theme_target: "AI 内容创作",
+            platform_region: "X 与 TikTok 北美区",
+          },
           referenceMemoryIds: ["memory-1"],
           referenceEntries: [
             expect.objectContaining({
@@ -937,8 +969,93 @@ describe("SkillsWorkspacePage", () => {
         }),
         initialScaffoldRequestKey: 20260408,
         onBringScaffoldToCreation: expect.any(Function),
+        onScaffoldCreated: expect.any(Function),
       }),
     );
+  });
+
+  it("技能草稿创建成功后应回到我的方法库并高亮新做法", async () => {
+    const { container } = renderPage({
+      initialScaffoldDraft: {
+        target: "project",
+        directory: "saved-skill-demo",
+        name: "结果沉淀技能",
+        description: "沉淀自一次成功结果",
+        sourceExcerpt: "一段结果摘要",
+      },
+      initialScaffoldRequestKey: 20260410,
+    });
+
+    mockRefreshLocalSkills.mockImplementation(async () => {
+      mockLocalSkills = [
+        {
+          key: "local:saved-skill-demo",
+          name: "结果沉淀技能",
+          description: "沉淀自一次成功结果",
+          directory: "saved-skill-demo",
+          installed: true,
+          sourceKind: "other",
+          catalogSource: "project",
+          metadata: {
+            lime_when_to_use: "当你需要继续复用这套结果做法时使用。",
+            lime_argument_hint: "目标、参考和复盘约束",
+          },
+        },
+        ...createDefaultLocalSkills(),
+      ];
+    });
+
+    const latestProps = mockAdvancedSkillsPage.mock.lastCall?.[0] as
+      | {
+          onScaffoldCreated?: (skill: Skill) => Promise<void> | void;
+        }
+      | undefined;
+
+    await act(async () => {
+      await latestProps?.onScaffoldCreated?.({
+        key: "local:saved-skill-demo",
+        name: "结果沉淀技能",
+        description: "沉淀自一次成功结果",
+        directory: "saved-skill-demo",
+        installed: true,
+        sourceKind: "other",
+        catalogSource: "project",
+        metadata: {
+          lime_when_to_use: "当你需要继续复用这套结果做法时使用。",
+          lime_argument_hint: "目标、参考和复盘约束",
+        },
+      });
+    });
+
+    expect(mockRefreshLocalSkills).toHaveBeenCalledTimes(1);
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "已创建“结果沉淀技能”并加入我的方法库",
+    );
+    expect(container.textContent).toContain("结果沉淀技能");
+    expect(container.textContent).toContain("刚沉淀");
+    expect(container.textContent).toContain(
+      "这套做法刚从当前结果沉淀下来，已经回到你的方法库，可以直接带去生成继续跑下一轮。",
+    );
+    expect(document.body.textContent).not.toContain("advanced skills page");
+
+    const manageButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("导入与整理"),
+    );
+    expect(manageButton).toBeTruthy();
+
+    act(() => {
+      manageButton?.click();
+    });
+
+    const reopenedProps = mockAdvancedSkillsPage.mock.lastCall?.[0] as
+      | {
+          initialScaffoldDraft?: Record<string, unknown> | null;
+          initialScaffoldRequestKey?: number | null;
+        }
+      | undefined;
+
+    expect(reopenedProps?.initialScaffoldDraft).toBeNull();
+    expect(reopenedProps?.initialScaffoldRequestKey).toBeNull();
   });
 
   it("技能草稿应支持从导入与整理弹窗带回创作输入", () => {

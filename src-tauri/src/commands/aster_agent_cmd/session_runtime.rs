@@ -1,4 +1,8 @@
+use super::runtime_project_hooks::{
+    run_runtime_session_start_project_hooks, run_runtime_session_start_project_hooks_with_runtime,
+};
 use super::*;
+use aster::hooks::SessionSource;
 use aster::session::load_shared_session_runtime_snapshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,6 +175,45 @@ pub(crate) async fn create_runtime_session_internal(
     name: Option<String>,
     execution_strategy: Option<AsterExecutionStrategy>,
 ) -> Result<String, String> {
+    create_runtime_session_internal_impl(
+        db,
+        working_dir,
+        workspace_id,
+        name,
+        execution_strategy,
+        None,
+    )
+    .await
+}
+
+pub(crate) async fn create_runtime_session_internal_with_runtime(
+    db: &DbConnection,
+    state: &AsterAgentState,
+    mcp_manager: &McpManagerState,
+    working_dir: Option<String>,
+    workspace_id: String,
+    name: Option<String>,
+    execution_strategy: Option<AsterExecutionStrategy>,
+) -> Result<String, String> {
+    create_runtime_session_internal_impl(
+        db,
+        working_dir,
+        workspace_id,
+        name,
+        execution_strategy,
+        Some((state, mcp_manager)),
+    )
+    .await
+}
+
+async fn create_runtime_session_internal_impl(
+    db: &DbConnection,
+    working_dir: Option<String>,
+    workspace_id: String,
+    name: Option<String>,
+    execution_strategy: Option<AsterExecutionStrategy>,
+    runtime: Option<(&AsterAgentState, &McpManagerState)>,
+) -> Result<String, String> {
     tracing::info!("[AsterAgent] 创建会话: name={:?}", name);
 
     let workspace_id = workspace_id.trim().to_string();
@@ -224,6 +267,25 @@ pub(crate) async fn create_runtime_session_internal(
     )
     .await?;
 
+    if let Some((state, mcp_manager)) = runtime {
+        run_runtime_session_start_project_hooks_with_runtime(
+            &session_id,
+            &workspace_root,
+            SessionSource::Startup,
+            db,
+            state,
+            mcp_manager,
+        )
+        .await;
+    } else {
+        run_runtime_session_start_project_hooks(
+            &session_id,
+            &workspace_root,
+            SessionSource::Startup,
+        )
+        .await;
+    }
+
     Ok(session_id)
 }
 
@@ -262,4 +324,106 @@ pub(crate) async fn delete_runtime_session_internal(
     tracing::info!("[AsterAgent] 删除会话: {}", session_id);
     AsterAgentWrapper::delete_session(db, session_id).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::runtime_test_support::shared_aster_runtime_test_root;
+    use aster::session::{
+        delete_managed_session, initialize_shared_session_runtime_with_root,
+        is_global_session_store_set,
+    };
+    use lime_core::database::schema::create_tables;
+    use lime_services::aster_session_store::LimeSessionStore;
+    use rusqlite::Connection;
+    use tokio::sync::OnceCell;
+
+    async fn ensure_session_runtime_test_manager() {
+        static INIT: OnceCell<()> = OnceCell::const_new();
+
+        INIT.get_or_init(|| async {
+            if is_global_session_store_set() {
+                return;
+            }
+
+            let conn = Connection::open_in_memory().expect("创建内存数据库失败");
+            create_tables(&conn).expect("初始化表结构失败");
+
+            let runtime_root = shared_aster_runtime_test_root();
+            std::fs::create_dir_all(&runtime_root).expect("创建 runtime 测试目录失败");
+
+            let session_store = Arc::new(LimeSessionStore::new(Arc::new(Mutex::new(conn))));
+            initialize_shared_session_runtime_with_root(runtime_root, Some(session_store))
+                .await
+                .expect("初始化测试 session manager 失败");
+        })
+        .await;
+    }
+
+    fn write_session_start_hook(workspace_root: &Path, output_path: &Path) {
+        let claude_dir = workspace_root.join(".claude");
+        std::fs::create_dir_all(&claude_dir).expect("创建 .claude 目录失败");
+
+        let settings = serde_json::json!({
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "type": "command",
+                        "command": "printf '%s' \"$CLAUDE_HOOK_SESSION_ID\" > \"$HOOK_OUTPUT_PATH\"",
+                        "blocking": true,
+                        "env": {
+                            "HOOK_OUTPUT_PATH": output_path.to_string_lossy().to_string(),
+                        }
+                    }
+                ]
+            }
+        });
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            serde_json::to_string_pretty(&settings).expect("序列化 settings 失败"),
+        )
+        .expect("写入 settings.json 失败");
+    }
+
+    #[tokio::test]
+    async fn create_runtime_session_internal_should_run_project_session_start_hooks() {
+        ensure_session_runtime_test_manager().await;
+
+        let conn = Connection::open_in_memory().expect("创建内存数据库失败");
+        create_tables(&conn).expect("初始化表结构失败");
+        let db = Arc::new(Mutex::new(conn));
+
+        let temp_dir = tempfile::TempDir::new().expect("create temp dir");
+        let workspace_root = temp_dir.path().join("workspace");
+        std::fs::create_dir_all(&workspace_root).expect("创建 workspace 目录失败");
+        let hook_output_path = temp_dir.path().join("session-start-hook.txt");
+        write_session_start_hook(&workspace_root, &hook_output_path);
+
+        let manager = WorkspaceManager::new(db.clone());
+        let workspace = manager
+            .create(
+                "Session Start Hook Workspace".to_string(),
+                workspace_root.clone(),
+            )
+            .expect("创建 workspace 失败");
+
+        let session_id = create_runtime_session_internal(
+            &db,
+            None,
+            workspace.id.clone(),
+            Some("Session Start Hook Test".to_string()),
+            Some(AsterExecutionStrategy::React),
+        )
+        .await
+        .expect("创建 runtime session 失败");
+
+        let hook_output =
+            std::fs::read_to_string(&hook_output_path).expect("应能读取 SessionStart hook 输出");
+        assert_eq!(hook_output, session_id);
+
+        delete_managed_session(&session_id)
+            .await
+            .expect("清理测试 session 失败");
+    }
 }

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { StepStatus } from "@/lib/workspace/workbenchContract";
 import type { SkillDetailInfo } from "@/lib/api/skill-execution";
 import type { AgentRun } from "@/lib/api/executionRun";
+import type { InputCapabilitySendRoute } from "../skill-selection/inputCapabilitySelection";
 import type {
   TopicBranchItem,
   TopicBranchStatus,
@@ -21,6 +22,11 @@ import type {
 
 export type BranchMode = "topic" | "version";
 
+export interface GeneralWorkbenchFollowUpActionPayload {
+  prompt: string;
+  capabilityRoute?: InputCapabilitySendRoute;
+}
+
 export interface GeneralWorkbenchSidebarShellContract {
   branchMode?: BranchMode;
   onRequestCollapse?: () => void;
@@ -34,6 +40,9 @@ export interface GeneralWorkbenchSidebarWorkflowContract {
   onDeleteTopic: (topicId: string) => void;
   branchItems: TopicBranchItem[];
   onSetBranchStatus: (topicId: string, status: TopicBranchStatus) => void;
+  onApplyFollowUpAction?: (
+    payload: GeneralWorkbenchFollowUpActionPayload,
+  ) => void;
   workflowSteps: Array<{ id: string; title: string; status: StepStatus }>;
   onAddImage?: () => Promise<void> | void;
   onImportDocument?: () => Promise<void> | void;

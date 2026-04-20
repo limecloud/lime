@@ -15,7 +15,10 @@ import {
   findCuratedTaskTemplateById,
   recordCuratedTaskTemplateUsage,
 } from "../utils/curatedTaskTemplates";
-import { recordCuratedTaskRecommendationSignalFromMemory } from "../utils/curatedTaskRecommendationSignals";
+import {
+  recordCuratedTaskRecommendationSignalFromMemory,
+  recordCuratedTaskRecommendationSignalFromReviewDecision,
+} from "../utils/curatedTaskRecommendationSignals";
 
 const { mockGetConfig, mockProjectSelector } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(async () => ({})),
@@ -343,9 +346,14 @@ function updateFieldValue(
 }
 
 function findLauncherConfirmButton() {
-  return Array.from(document.body.querySelectorAll("button")).find((button) =>
-    button.textContent?.includes("带着启动信息进入生成"),
-  ) as HTMLButtonElement | undefined;
+  return (
+    (document.body.querySelector(
+      '[data-testid="curated-task-launcher-confirm"]',
+    ) as HTMLButtonElement | null) ??
+    (Array.from(document.body.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("开始生成"),
+    ) as HTMLButtonElement | undefined)
+  );
 }
 
 function createGithubSearchServiceSkill(): ServiceSkillHomeItem {
@@ -462,7 +470,7 @@ describe("EmptyState", () => {
     expect(container.textContent).not.toContain("新建任务");
   });
 
-  it("通用首页应展示收口后的结果模板条", async () => {
+  it("通用首页应展示更简洁的 Agent 引导式结果入口", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       onLaunchBrowserAssist: vi.fn(),
@@ -473,38 +481,29 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("结果模板");
-    expect(container.textContent).toContain("首选结果");
-    expect(container.textContent).toContain("更多结果");
-    expect(container.textContent).toContain("快捷做法");
-    expect(container.textContent).toContain("继续上次做法");
+    expect(container.textContent).toContain("从这里开始");
     expect(container.textContent).toContain(
-      "首页默认先把最常用的结果放前面。",
+      "先拿一个结果开工，后面继续补参考、改方向、扩成更多版本，都还在同一轮里推进。",
     );
-    expect(container.textContent).toContain("默认先看这里，适合直接开工。");
+    expect(container.textContent).toContain("我建议先做这个");
+    expect(container.textContent).toContain("也可以换个结果开始");
     expect(container.textContent).toContain(
-      "已经有现成做法时，可以直接走捷径，不必重选结果模板。",
+      "已经知道做法时，也可以直接这样开工",
     );
     expect(container.textContent).toContain(
-      "最近跑通过的结果模板和常用做法会留在这里，下一次不用重新开始。",
+      "本轮产出会先写回当前任务，跑通过的方法会继续留在这里。",
     );
-    expect(container.textContent).toContain(
-      "你最近跑通过的结果模板和方法，会出现在这里。",
-    );
-    expect(container.textContent).toContain("结果去向");
-    expect(container.textContent).toContain("本轮产出会沉淀到当前任务");
-    expect(container.textContent).toContain("参考与反馈会继续影响下一轮推荐。");
     expect(container.textContent).toContain("每日趋势摘要");
     expect(container.textContent).toContain("内容主稿生成");
     expect(container.textContent).toContain("拆解一条爆款内容");
     expect(container.textContent).toContain("长文转多平台发布稿");
+    expect(container.textContent).toContain("脚本转口播/字幕稿");
+    expect(container.textContent).toContain("复盘这个账号/项目");
     expect(container.textContent).toContain("复制轮播帖");
     expect(container.textContent).toContain("复制视频脚本");
-    expect(container.textContent).not.toContain("脚本转口播/字幕稿");
-    expect(container.textContent).not.toContain("复盘这个账号/项目");
-    expect(container.textContent).not.toContain("从这里开始");
-    expect(container.textContent).not.toContain("快速启动");
-    expect(container.textContent).not.toContain("生成配图");
+    expect(container.textContent).not.toContain("首选结果");
+    expect(container.textContent).not.toContain("更多结果");
+    expect(container.textContent).not.toContain("快捷做法");
     expect(container.textContent).not.toContain("任务拆分冒烟测试");
     expect(container.textContent).not.toContain("推荐方案");
 
@@ -514,20 +513,82 @@ describe("EmptyState", () => {
       ),
     ).map((element) => element.textContent?.trim() ?? "");
 
-    expect(recommendationItems).toHaveLength(6);
+    expect(recommendationItems).toHaveLength(8);
     expect(recommendationItems[0]).toContain("每日趋势摘要");
-    expect(recommendationItems[0]).toContain("趋势与选题");
+    expect(recommendationItems[0]).toContain("我建议先做这个");
+    expect(recommendationItems[0]).toContain("趋势摘要、3 个优先选题");
     expect(recommendationItems[0]).toContain(
-      "需要：主题或赛道、希望关注的平台/地域",
+      "趋势摘要会先写回当前内容，方便继续展开选题和主稿。",
     );
     expect(recommendationItems[1]).toContain("内容主稿生成");
     expect(recommendationItems[2]).toContain("拆解一条爆款内容");
     expect(recommendationItems[3]).toContain("长文转多平台发布稿");
-    expect(recommendationItems[4]).toContain("复制轮播帖");
-    expect(recommendationItems[5]).toContain("复制视频脚本");
+    expect(recommendationItems[4]).toContain("脚本转口播/字幕稿");
+    expect(recommendationItems[5]).toContain("复盘这个账号/项目");
+    expect(recommendationItems[6]).toContain("复制轮播帖");
+    expect(recommendationItems[7]).toContain("复制视频脚本");
     expect(
       container.querySelector('[data-testid^="entry-continuation-"]'),
     ).toBeNull();
+  });
+
+  it("保存复盘结论后首页应围绕最近复盘重排结果模板", async () => {
+    const projectId = "project-review-recommendation";
+    const container = renderEmptyState({
+      activeTheme: "general",
+      projectId,
+      onLaunchBrowserAssist: vi.fn(),
+      onSelectServiceSkill: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("围绕最近复盘");
+
+    await act(async () => {
+      recordCuratedTaskRecommendationSignalFromReviewDecision(
+        {
+          session_id: "session-review-needs-evidence",
+          decision_status: "needs_more_evidence",
+          decision_summary: "这轮结果还缺证据，需要回到账号表现和爆款样本继续补证据。",
+          chosen_fix_strategy: "先补账号数据复盘，再拆一轮高表现内容做对照。",
+          risk_level: "medium",
+          risk_tags: ["证据不足", "需要复盘"],
+          followup_actions: ["补账号数据复盘", "拆解一条高表现内容"],
+        },
+        {
+          projectId,
+          sceneTitle: "短视频编排",
+        },
+      );
+      await Promise.resolve();
+    });
+
+    const recommendationItems = Array.from(
+      container.querySelectorAll('[data-testid^="entry-recommended-"]'),
+    ).map((element) => element.getAttribute("data-testid"));
+
+    expect(recommendationItems[0]).toBe(
+      "entry-recommended-account-project-review",
+    );
+    expect(recommendationItems[1]).toBe(
+      "entry-recommended-viral-content-breakdown",
+    );
+
+    const reviewCard = container.querySelector(
+      '[data-testid="entry-recommended-account-project-review"]',
+    );
+    const breakdownCard = container.querySelector(
+      '[data-testid="entry-recommended-viral-content-breakdown"]',
+    );
+
+    expect(reviewCard?.textContent).toContain("复盘这个账号/项目");
+    expect(reviewCard?.textContent).toContain("围绕最近复盘");
+    expect(reviewCard?.textContent).toContain("复盘：短视频编排");
+    expect(breakdownCard?.textContent).toContain("拆解一条爆款内容");
+    expect(breakdownCard?.textContent).toContain("围绕最近复盘");
   });
 
   it("无浏览器入口且无可挂方法时，不应默认渲染支撑能力摘要层", async () => {
@@ -614,6 +675,8 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
+    expect(container.textContent).toContain("已经知道做法时，也可以直接这样开工");
+
     const trendCard = container.querySelector(
       '[data-testid="entry-service-skill-daily-trend-briefing"]',
     );
@@ -653,7 +716,24 @@ describe("EmptyState", () => {
   });
 
   it("有最近记录时应展示继续上次做法入口，并允许直接继续模板与方法", async () => {
-    recordCuratedTaskTemplateUsage("social-post-starter");
+    recordCuratedTaskTemplateUsage({
+      templateId: "social-post-starter",
+      launchInputValues: {
+        subject_or_product: "上次沉淀的主线升级",
+        target_audience: "品牌内容负责人",
+      },
+      referenceMemoryIds: ["memory-idea-1"],
+      referenceEntries: [
+        {
+          id: "memory-idea-1",
+          title: "上次主稿参考",
+          summary: "保留品牌调性与平台拆分思路",
+          category: "context",
+          categoryLabel: "参考",
+          tags: ["品牌", "拆分"],
+        },
+      ],
+    });
     const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
     const setInput = vi.fn<(value: string) => void>();
     const template = findCuratedTaskTemplateById("social-post-starter");
@@ -678,9 +758,6 @@ describe("EmptyState", () => {
     });
 
     expect(container.textContent).toContain("继续上次做法");
-    expect(container.textContent).toContain(
-      "最近跑通过的结果模板和常用做法会留在这里，这次可以直接续上。",
-    );
 
     const continuationItems = Array.from(
       container.querySelectorAll('[data-testid^="entry-continuation-"]'),
@@ -702,12 +779,22 @@ describe("EmptyState", () => {
     expect(recentTemplateButton?.textContent).toContain(
       "交付：内容首稿、结构提纲 等 3 项",
     );
+    expect(recentTemplateButton?.textContent).toContain(
+      "去向：首版主稿会先进入当前内容，方便继续改写、拆成多平台版本。",
+    );
+    expect(recentTemplateButton?.textContent).toContain(
+      "下一步：改成多平台版本",
+    );
 
-    act(() => {
+    await act(async () => {
       recentTemplateButton?.click();
+      await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("先补最少启动信息，再统一进入生成主执行面。");
+    expect(container.textContent).toContain("开始这一步前，我先确认几件事。");
+    expect(container.textContent).toContain(
+      "已根据你上次启动 内容主稿生成 时的参数自动预填，可继续修改后进入生成。",
+    );
     expect(setInput).not.toHaveBeenCalled();
 
     const subjectInput = document.body.querySelector(
@@ -716,6 +803,12 @@ describe("EmptyState", () => {
     const audienceInput = document.body.querySelector(
       "#curated-task-social-post-starter-target_audience",
     ) as HTMLInputElement | null;
+
+    expect(subjectInput?.value).toBe("上次沉淀的主线升级");
+    expect(audienceInput?.value).toBe("品牌内容负责人");
+    expect(document.body.textContent).toContain(
+      "已选择 1 条参考基线，本轮会一起带入生成。",
+    );
 
     await act(async () => {
       updateFieldValue(subjectInput, "Lime 的内容创作主链升级");
@@ -738,6 +831,16 @@ describe("EmptyState", () => {
           subject_or_product: "Lime 的内容创作主链升级",
           target_audience: "内容负责人",
         },
+        referenceEntries: [
+          {
+            id: "memory-idea-1",
+            title: "上次主稿参考",
+            summary: "保留品牌调性与平台拆分思路",
+            category: "context",
+            categoryLabel: "参考",
+            tags: ["品牌", "拆分"],
+          },
+        ],
       }),
     );
 
@@ -797,6 +900,107 @@ describe("EmptyState", () => {
         title: "项目线索整理",
       }),
     );
+  });
+
+  it("最近使用的本地已安装 skill 也应回到首页继续层，并恢复上次目标", async () => {
+    recordSlashEntryUsage({
+      kind: "skill",
+      entryId: "content-playbook",
+      usedAt: 1_900_000_000_000,
+      replayText: "继续优化这套内容主稿",
+    });
+    const setInput = vi.fn<(value: string) => void>();
+    const installedSkill: Skill = {
+      key: "content-playbook",
+      name: "内容主稿方法",
+      description: "本地补充技能",
+      directory: "content-playbook",
+      installed: true,
+      sourceKind: "other",
+      metadata: {
+        lime_when_to_use: "当你需要继续复用这套内容主稿方法时使用。",
+        lime_argument_hint: "主题、受众与复盘约束",
+        lime_output_hint: "带着这套内容主稿方法进入生成主执行面",
+      },
+    };
+
+    const container = renderEmptyState({
+      activeTheme: "general",
+      setInput,
+      skills: [installedSkill],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("继续上次做法");
+
+    const installedSkillButton = container.querySelector(
+      '[data-testid="entry-continuation-method-content-playbook"]',
+    ) as HTMLButtonElement | null;
+    expect(installedSkillButton).toBeTruthy();
+    expect(installedSkillButton?.textContent).toContain("内容主稿方法");
+    expect(installedSkillButton?.textContent).toContain(
+      "当你需要继续复用这套内容主稿方法时使用。",
+    );
+    expect(installedSkillButton?.textContent).toContain(
+      "需要：主题、受众与复盘约束",
+    );
+    expect(installedSkillButton?.textContent).toContain(
+      "交付：带着这套内容主稿方法进入生成主执行面",
+    );
+
+    await act(async () => {
+      installedSkillButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(setInput).toHaveBeenCalledWith("继续优化这套内容主稿");
+    expect(container.textContent).toContain("已挂载 内容主稿方法");
+  });
+
+  it("同页内新增本地 skill 使用记录后，首页继续上次做法应即时刷新", async () => {
+    const installedSkill: Skill = {
+      key: "content-playbook",
+      name: "内容主稿方法",
+      description: "本地补充技能",
+      directory: "content-playbook",
+      installed: true,
+      sourceKind: "other",
+    };
+
+    const container = renderEmptyState({
+      activeTheme: "general",
+      skills: [installedSkill],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector(
+        '[data-testid="entry-continuation-method-content-playbook"]',
+      ),
+    ).toBeNull();
+
+    await act(async () => {
+      recordSlashEntryUsage({
+        kind: "skill",
+        entryId: "content-playbook",
+        usedAt: 1_900_000_000_100,
+        replayText: "继续完善这套内容方法",
+      });
+      await Promise.resolve();
+    });
+
+    const installedSkillButton = container.querySelector(
+      '[data-testid="entry-continuation-method-content-playbook"]',
+    ) as HTMLButtonElement | null;
+    expect(installedSkillButton).toBeTruthy();
+    expect(container.textContent).toContain("继续上次做法");
+    expect(installedSkillButton?.textContent).toContain("内容主稿方法");
   });
 
   it("传入项目切换能力时应继续保留项目选择器入口", async () => {
@@ -993,7 +1197,7 @@ describe("EmptyState", () => {
       card?.click();
     });
 
-    expect(container.textContent).toContain("先补最少启动信息，再统一进入生成主执行面。");
+    expect(container.textContent).toContain("开始这一步前，我先确认几件事。");
     expect(onWebSearchEnabledChange).not.toHaveBeenCalled();
     expect(setInput).not.toHaveBeenCalled();
 
@@ -1605,7 +1809,7 @@ describe("EmptyState", () => {
     });
 
     expect(onSend).toHaveBeenCalledWith(
-      expect.stringContaining("本轮可优先参考这些灵感"),
+      expect.stringContaining("本轮可优先参考这些参考基线"),
       "react",
       undefined,
       expect.objectContaining({
@@ -1622,6 +1826,11 @@ describe("EmptyState", () => {
             curated_task: expect.objectContaining({
               task_id: "daily-trend-briefing",
               reference_memory_ids: ["memory-1"],
+              reference_entries: [
+                expect.objectContaining({
+                  id: "memory-1",
+                }),
+              ],
             }),
           },
         },
@@ -1690,8 +1899,72 @@ describe("EmptyState", () => {
     });
 
     expect(document.body.textContent).toContain(
-      "已选择 1 条灵感引用，本轮会一起带入生成。",
+      "已选择 1 条参考基线，本轮会一起带入生成。",
     );
+  });
+
+  it("首页复盘模板启动时，应默认带入当前项目结果基线", async () => {
+    const onSend = vi.fn();
+    const setInput = vi.fn();
+    const container = renderEmptyState({
+      onSend,
+      setInput,
+      defaultCuratedTaskReferenceEntries: [
+        {
+          id: "sceneapp:content-pack:run:1",
+          sourceKind: "sceneapp_execution_summary",
+          title: "AI 内容周报",
+          summary: "当前已有一轮运行结果，可直接作为复盘基线。",
+          category: "experience",
+          categoryLabel: "成果",
+          tags: ["复盘", "项目结果"],
+          taskPrefillByTaskId: {
+            "account-project-review": {
+              project_goal: "AI 内容周报",
+              existing_results:
+                "这轮运行已产出项目结果，但仍需补齐复核意见。",
+            },
+          },
+        },
+      ],
+    });
+
+    const templateButton = container.querySelector(
+      '[data-testid="entry-recommended-account-project-review"]',
+    ) as HTMLButtonElement | null;
+    expect(templateButton).toBeTruthy();
+
+    act(() => {
+      templateButton?.click();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const goalInput = document.body.querySelector(
+      "#curated-task-account-project-review-project_goal",
+    ) as HTMLInputElement | null;
+    const resultsInput = document.body.querySelector(
+      "#curated-task-account-project-review-existing_results",
+    ) as HTMLTextAreaElement | null;
+
+    expect(goalInput?.value).toBe("AI 内容周报");
+    expect(resultsInput?.value).toContain("这轮运行已产出项目结果");
+
+    const confirmButton = findLauncherConfirmButton();
+    expect(confirmButton).toBeTruthy();
+    expect(confirmButton?.disabled).toBe(false);
+
+    await act(async () => {
+      confirmButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(setInput).toHaveBeenCalledWith(
+      expect.stringContaining("AI 内容周报"),
+    );
+    expect(onSend).not.toHaveBeenCalled();
   });
 
   it("当前带入参考灵感时，结果模板推荐应显式标记为围绕当前参考", async () => {
@@ -2016,8 +2289,8 @@ describe("EmptyState", () => {
       container.querySelector('[data-testid="chat-model-selector"]'),
     ).toBeNull();
     expect(container.textContent).not.toContain("通用任务上下文");
-    expect(container.textContent).not.toContain("当前模型");
-    expect(container.textContent).not.toContain("gpt-4.1");
+    expect(container.textContent).toContain("当前模型");
+    expect(container.textContent).toContain("gpt-4.1");
 
     act(() => {
       advancedToggle?.click();
@@ -2085,8 +2358,8 @@ describe("EmptyState", () => {
 
     expect(container.textContent).not.toContain("编排模式已开启");
     expect(container.textContent).not.toContain("联网搜索已开启");
-    expect(container.textContent).toContain("结果模板");
-    expect(container.textContent).toContain("继续上次做法");
+    expect(container.textContent).toContain("从这里开始");
+    expect(container.textContent).toContain("我建议先做这个");
   });
 
   it("通用首页发送时不应自动注入任何历史默认 skill", async () => {

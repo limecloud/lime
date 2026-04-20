@@ -78,6 +78,7 @@ export async function submitAgentStreamUserInput(
     await executeAgentStreamSubmit({
       runtime: env.runtime,
       ensureSession: env.ensureSession,
+      attemptSilentTurnRecovery: env.attemptSilentTurnRecovery,
       sessionIdRef: env.sessionIdRef,
       getRequiredWorkspaceId: env.getRequiredWorkspaceId,
       getSyncedSessionExecutionStrategy: env.getSyncedSessionExecutionStrategy,

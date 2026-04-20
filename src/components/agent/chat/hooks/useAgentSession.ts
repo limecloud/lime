@@ -72,6 +72,54 @@ import { normalizeLegacyThreadItems } from "@/lib/api/agentTextNormalization";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 
 const INITIAL_TOPICS_IDLE_TIMEOUT_MS = 1_500;
+const SILENT_TURN_RECOVERY_GRACE_MS = 15_000;
+
+function parseRecoveryTimestampMs(
+  value: string | number | null | undefined,
+): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return Number.NaN;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function hasRecoverableSilentTurnActivity(
+  detail: Awaited<ReturnType<AgentRuntimeAdapter["getSession"]>>,
+  requestStartedAt: number,
+  promptText: string,
+): boolean {
+  const recoveryThresholdMs = requestStartedAt - SILENT_TURN_RECOVERY_GRACE_MS;
+  const normalizedPrompt = promptText.trim();
+  const hasRecentMatchingTurn = (detail.turns ?? []).some((turn) => {
+    const promptMatches =
+      normalizedPrompt.length > 0 && turn.prompt_text.trim() === normalizedPrompt;
+    const latestTurnTimestampMs = Math.max(
+      parseRecoveryTimestampMs(turn.started_at),
+      parseRecoveryTimestampMs(turn.updated_at),
+      parseRecoveryTimestampMs(turn.completed_at),
+    );
+    return promptMatches && latestTurnTimestampMs >= recoveryThresholdMs;
+  });
+  if (hasRecentMatchingTurn) {
+    return true;
+  }
+
+  return normalizeLegacyThreadItems(detail.items ?? []).some((item) => {
+    if (item.type !== "user_message" || item.content.trim() !== normalizedPrompt) {
+      return false;
+    }
+    const latestItemTimestampMs = Math.max(
+      parseRecoveryTimestampMs(item.started_at),
+      parseRecoveryTimestampMs(item.updated_at),
+      parseRecoveryTimestampMs(item.completed_at),
+    );
+    return latestItemTimestampMs >= recoveryThresholdMs;
+  });
+}
 
 interface UseAgentSessionOptions {
   runtime: AgentRuntimeAdapter;
@@ -1187,6 +1235,55 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     [applyReadModelSnapshot, runtime, sessionIdRef],
   );
 
+  const attemptSilentTurnRecovery = useCallback(
+    async (
+      targetSessionId: string,
+      requestStartedAt: number,
+      promptText: string,
+    ) => {
+      const resolvedSessionId = targetSessionId.trim();
+      if (!resolvedSessionId) {
+        return false;
+      }
+
+      try {
+        const detail = await runtime.getSession(resolvedSessionId);
+        if (sessionIdRef.current !== resolvedSessionId) {
+          return false;
+        }
+        if (
+          !hasRecoverableSilentTurnActivity(
+            detail,
+            requestStartedAt,
+            promptText,
+          )
+        ) {
+          return false;
+        }
+
+        applySessionDetail(resolvedSessionId, detail, {
+          preserveExecutionStrategyOnMissingDetail: true,
+        });
+        if (detail.execution_strategy) {
+          markSessionExecutionStrategySynced(
+            resolvedSessionId,
+            normalizeExecutionStrategy(detail.execution_strategy),
+          );
+        }
+        return true;
+      } catch (error) {
+        console.warn("[AsterChat] 静默 turn 恢复失败:", error);
+        return false;
+      }
+    },
+    [
+      applySessionDetail,
+      markSessionExecutionStrategySynced,
+      runtime,
+      sessionIdRef,
+    ],
+  );
+
   useEffect(() => {
     const resolvedWorkspaceId = workspaceId?.trim();
     if (!resolvedWorkspaceId) return;
@@ -1611,6 +1708,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     renameTopic,
     refreshSessionDetail,
     refreshSessionReadModel,
+    attemptSilentTurnRecovery,
     clearMessages,
     deleteMessage,
     editMessage,

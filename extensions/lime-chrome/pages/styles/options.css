@@ -59,9 +59,16 @@ body {
 
 .header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 16px;
   margin-bottom: 40px;
+}
+
+.header-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .header-icon {
@@ -95,6 +102,29 @@ body {
   margin-top: 1px;
 }
 
+.language-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.language-switch select {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
 /* ── Status card ── */
 
 .status-card {
@@ -111,6 +141,11 @@ body {
 .status-card[data-state="connected"] {
   border-color: rgba(52, 211, 153, 0.25);
   box-shadow: 0 2px 16px -4px var(--green-glow);
+}
+
+.status-card[data-state="unconfigured"] {
+  border-color: rgba(239, 68, 68, 0.24);
+  box-shadow: 0 2px 16px -6px rgba(239, 68, 68, 0.18);
 }
 
 .status-card[data-state="disconnected"] {
@@ -133,6 +168,11 @@ body {
 .status-card[data-state="connected"] .status-glow {
   opacity: 1;
   background: linear-gradient(135deg, var(--green-soft), transparent 60%);
+}
+
+.status-card[data-state="unconfigured"] .status-glow {
+  opacity: 1;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), transparent 60%);
 }
 
 .status-card[data-state="disconnected"] .status-glow {
@@ -175,6 +215,11 @@ body {
   0% { transform: scale(1); opacity: 0.7; }
   50% { transform: scale(1.5); opacity: 0; }
   100% { transform: scale(1.5); opacity: 0; }
+}
+
+.status-card[data-state="unconfigured"] .status-indicator {
+  background: var(--red);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.18);
 }
 
 .status-card[data-state="disconnected"] .status-indicator {
@@ -481,6 +526,11 @@ body {
 .indicator-dot--yellow {
   background: var(--yellow);
   box-shadow: 0 0 8px var(--yellow-glow);
+}
+
+.indicator-dot--red {
+  background: var(--red);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.18);
 }
 
 .indicator-dot--dim {

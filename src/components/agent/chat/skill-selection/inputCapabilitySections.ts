@@ -25,10 +25,14 @@ import {
 import {
   buildCuratedTaskCapabilityDescription,
   filterCuratedTaskTemplates,
+  listFeaturedHomeCuratedTaskTemplates,
   listCuratedTaskTemplates,
+  resolveCuratedTaskTemplateLaunchPrefill,
+  type CuratedTaskInputValues,
   type CuratedTaskTemplateItem,
 } from "../utils/curatedTaskTemplates";
 import { buildInstalledSkillCapabilityDescription } from "@/components/skills/installedSkillPresentation";
+import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
 
 const FEATURED_SERVICE_SKILL_LIMIT = 4;
 const RECENT_REPLAY_TEXT_PREVIEW_LIMIT = 48;
@@ -67,6 +71,10 @@ export type InputCapabilityDescriptor =
   | (InputCapabilityBase & {
       kind: "curated_task";
       task: CuratedTaskTemplateItem;
+      launchInputValues?: CuratedTaskInputValues;
+      referenceMemoryIds?: string[];
+      referenceEntries?: CuratedTaskReferenceEntry[];
+      launcherPrefillHint?: string;
     })
   | (InputCapabilityBase & {
       kind: "character";
@@ -131,6 +139,9 @@ interface BuildInputCapabilitySectionsParams {
   filteredCharacters: Character[];
   installedSkills: Skill[];
   availableSkills: Skill[];
+  projectId?: string | null;
+  sessionId?: string | null;
+  referenceEntries?: CuratedTaskReferenceEntry[];
 }
 
 function compareRecentSlashEntries(
@@ -550,9 +561,24 @@ function buildSlashCapabilitySections(
   params: BuildInputCapabilitySectionsParams,
   isEmptyQuery: boolean,
 ): InputCapabilitySection[] {
-  const curatedTaskTemplates = filterCuratedTaskTemplates(
+  const filteredCuratedTaskTemplates = filterCuratedTaskTemplates(
     params.mentionQuery,
     listCuratedTaskTemplates(),
+  );
+  const featuredCuratedTaskTemplates = listFeaturedHomeCuratedTaskTemplates(
+    filteredCuratedTaskTemplates,
+    {
+      projectId: params.projectId,
+      sessionId: params.sessionId,
+      referenceEntries: params.referenceEntries,
+      limit: filteredCuratedTaskTemplates.length,
+    },
+  );
+  const curatedTaskTemplates = featuredCuratedTaskTemplates.map(
+    (item) => item.template,
+  );
+  const featuredCuratedTaskTemplateMap = new Map(
+    featuredCuratedTaskTemplates.map((item) => [item.template.id, item] as const),
   );
   const allSupportedSlashCommands = params.slashCommands.filter(
     (command) => command.support === "supported",
@@ -644,7 +670,12 @@ function buildSlashCapabilitySections(
         kindLabel: "结果模板",
         title: template.title,
         description: resolveRecentSlashEntryDescription({
-          fallbackDescription: template.summary,
+          fallbackDescription: buildCuratedTaskCapabilityDescription(template, {
+            includeSummary: false,
+            includeResultDestination: true,
+            includeFollowUpActions: true,
+            followUpLimit: 1,
+          }),
           fallbackTitle: template.title,
         }),
         usedAt: template.recentUsedAt,
@@ -749,17 +780,24 @@ function buildSlashCapabilitySections(
           const task = curatedTaskTemplates.find(
             (item) => item.id === entry.taskId,
           );
+          const launchPrefill = resolveCuratedTaskTemplateLaunchPrefill(
+            task ?? null,
+          );
           return task
             ? [
                 {
                   key: entry.key,
                   kind: "curated_task" as const,
                   title: task.title,
-                  description: buildCuratedTaskCapabilityDescription(task),
+                  description: entry.description,
                   icon: "sparkles" as const,
                   iconClassName: "mr-2 h-4 w-4 text-amber-600",
                   kindLabel: entry.kindLabel,
                   task,
+                  launchInputValues: launchPrefill?.inputValues,
+                  referenceMemoryIds: launchPrefill?.referenceMemoryIds,
+                  referenceEntries: launchPrefill?.referenceEntries,
+                  launcherPrefillHint: launchPrefill?.hint,
                 },
               ]
             : [];
@@ -835,10 +873,18 @@ function buildSlashCapabilitySections(
       key: task.id,
       kind: "curated_task" as const,
       title: task.title,
-      description: buildCuratedTaskCapabilityDescription(task),
+      description: [
+        featuredCuratedTaskTemplateMap.get(task.id)?.reasonSummary,
+        buildCuratedTaskCapabilityDescription(task, {
+          includeResultDestination: true,
+        }),
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" · "),
       icon: "sparkles" as const,
       iconClassName: "mr-2 h-4 w-4 text-amber-600",
-      kindLabel: task.badge,
+      kindLabel:
+        featuredCuratedTaskTemplateMap.get(task.id)?.badgeLabel ?? task.badge,
       task,
     })),
   ];

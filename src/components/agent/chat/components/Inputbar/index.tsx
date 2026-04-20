@@ -106,6 +106,8 @@ interface InputbarProps extends SkillSelectionSourceProps {
   teamWorkspaceSettings?: WorkspaceSettings | null;
   onPersistCustomTeams?: (teams: TeamDefinition[]) => void | Promise<void>;
   contextVariant?: "default" | "task-center";
+  projectId?: string | null;
+  sessionId?: string | null;
   defaultCuratedTaskReferenceMemoryIds?: string[];
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
 }
@@ -160,6 +162,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
   teamWorkspaceSettings,
   onPersistCustomTeams,
   contextVariant = "default",
+  projectId = null,
+  sessionId = null,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
 }) => {
@@ -281,6 +285,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
         onSelectCharacter={onSelectCharacter}
         onSelectInputCapability={handleSelectInputCapability}
         activeCapability={activeCapability}
+        projectId={projectId}
+        sessionId={sessionId}
         defaultCuratedTaskReferenceMemoryIds={
           defaultCuratedTaskReferenceMemoryIds
         }

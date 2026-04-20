@@ -10,13 +10,22 @@
     <div class="page">
 
       <div class="header anim-entrance" style="--delay:0">
-        <div class="header-icon" aria-hidden="true">
-          <img src="../icons/icon128.png" alt="" />
+        <div class="header-main">
+          <div class="header-icon" aria-hidden="true">
+            <img src="../icons/icon128.png" alt="" />
+          </div>
+          <div class="header-text">
+            <h1 data-i18n="page_title_text">Lime Browser Bridge</h1>
+            <p data-i18n="page_subtitle">Connect your browser to Lime.</p>
+          </div>
         </div>
-        <div class="header-text">
-          <h1>Lime Browser Bridge</h1>
-          <p>Connect your browser to Lime.</p>
-        </div>
+        <label class="language-switch">
+          <span data-i18n="language_label">Language</span>
+          <select id="language-select">
+            <option value="en">English</option>
+            <option value="zh">中文</option>
+          </select>
+        </label>
       </div>
 
       <!-- Toggle + status -->
@@ -37,10 +46,10 @@
 
       <!-- Attached tabs -->
       <div class="section anim-entrance" style="--delay:2; display:none" id="tabs-section">
-        <div class="section-label">Attached Tabs</div>
+        <div class="section-label" data-i18n="section_attached_tabs">Attached Tabs</div>
         <div class="card">
           <div id="tabs-list" class="tab-list"></div>
-          <div id="tabs-empty" class="tab-list-empty">No tabs attached</div>
+          <div id="tabs-empty" class="tab-list-empty" data-i18n="tabs_empty">No tabs attached</div>
         </div>
       </div>
 
@@ -48,14 +57,14 @@
       <details class="collapsible anim-entrance" style="--delay:2">
         <summary class="collapsible-trigger">
           <svg class="collapsible-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 4 10 8 6 12"/></svg>
-          <span>Quick Start</span>
+          <span data-i18n="section_quick_start">Quick Start</span>
         </summary>
         <div class="collapsible-body">
           <div class="card">
             <ol class="steps">
-              <li>Make sure <strong>Lime</strong> is running with browser control enabled.</li>
-              <li>The relay connects automatically — a green dot on the icon means ready.</li>
-              <li>Ask Lime a browser-related question — it can now see and control your tabs.</li>
+              <li data-i18n="quick_start_1">Make sure <strong>Lime</strong> is running with browser control enabled.</li>
+              <li data-i18n="quick_start_2">The relay connects automatically — a green dot on the icon means ready.</li>
+              <li data-i18n="quick_start_3">Ask Lime a browser-related question — it can now see and control your tabs.</li>
             </ol>
           </div>
         </div>
@@ -65,20 +74,20 @@
       <details class="collapsible anim-entrance" style="--delay:3">
         <summary class="collapsible-trigger">
           <svg class="collapsible-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 4 10 8 6 12"/></svg>
-          <span>How It Works</span>
+          <span data-i18n="section_how_it_works">How It Works</span>
         </summary>
         <div class="collapsible-body">
           <div class="card">
-            <div class="card-title">Always-on relay</div>
-            <div class="card-body">The relay is enabled by default and connects automatically when Lime is running. Use the toggle above to pause if needed. Agent-opened tabs are grouped under an <strong>"Lime Agent"</strong> tab group.</div>
+            <div class="card-title" data-i18n="how_always_on_title">Always-on relay</div>
+            <div class="card-body" data-i18n="how_always_on_body">The relay is enabled by default and connects automatically when Lime is running. Use the toggle above to pause if needed. Agent-opened tabs are grouped under an <strong>"Lime Agent"</strong> tab group.</div>
           </div>
           <div class="card">
-            <div class="card-title">Auto-reconnect</div>
-            <div class="card-body">If the connection drops, the extension reconnects automatically. No manual intervention needed.</div>
+            <div class="card-title" data-i18n="how_auto_reconnect_title">Auto-reconnect</div>
+            <div class="card-body" data-i18n="how_auto_reconnect_body">If the connection drops, the extension reconnects automatically. No manual intervention needed.</div>
           </div>
           <div class="card">
-            <div class="card-title">Tab safety</div>
-            <div class="card-body">Your existing tabs are protected — the agent can only close tabs it opened. Personal tabs are never affected.</div>
+            <div class="card-title" data-i18n="how_tab_safety_title">Tab safety</div>
+            <div class="card-body" data-i18n="how_tab_safety_body">Your existing tabs are protected — the agent can only close tabs it opened. Personal tabs are never affected.</div>
           </div>
         </div>
       </details>
@@ -87,17 +96,19 @@
       <details class="collapsible anim-entrance" style="--delay:4">
         <summary class="collapsible-trigger">
           <svg class="collapsible-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 4 10 8 6 12"/></svg>
-          <span>Status Indicators</span>
+          <span data-i18n="section_status_indicators">Status Indicators</span>
         </summary>
         <div class="collapsible-body">
           <div class="card">
             <div class="badge-grid">
               <span class="indicator-dot indicator-dot--green"></span>
-              <span class="badge-text">Connected — agent can control your tabs</span>
+              <span class="badge-text" data-i18n="indicator_connected">Connected — agent can control your tabs</span>
+              <span class="indicator-dot indicator-dot--red"></span>
+              <span class="badge-text" data-i18n="indicator_setup_required">Setup required — sync config from Lime or paste config in the toolbar popup</span>
               <span class="indicator-dot indicator-dot--yellow"></span>
-              <span class="badge-text">Connecting / reconnecting to local relay server</span>
+              <span class="badge-text" data-i18n="indicator_connecting">Connecting / reconnecting to local relay server</span>
               <span class="indicator-dot indicator-dot--dim"></span>
-              <span class="badge-text">Relay disabled — no indicator</span>
+              <span class="badge-text" data-i18n="indicator_disabled">Relay disabled — no indicator</span>
             </div>
           </div>
         </div>
@@ -107,16 +118,20 @@
       <details class="collapsible anim-entrance" style="--delay:5">
         <summary class="collapsible-trigger">
           <svg class="collapsible-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 4 10 8 6 12"/></svg>
-          <span>Troubleshooting</span>
+          <span data-i18n="section_troubleshooting">Troubleshooting</span>
         </summary>
         <div class="collapsible-body">
           <div class="card">
-            <div class="card-title">Stays on yellow dot (connecting)</div>
-            <div class="card-body">Relay server not reachable. Ensure Lime is running with browser control enabled.</div>
+            <div class="card-title" data-i18n="troubleshooting_setup_title">Shows setup required</div>
+            <div class="card-body" data-i18n="troubleshooting_setup_body">This extension does not have <code>serverUrl</code> / <code>bridgeKey</code> yet. Load the exported <code>Lime Browser Connector</code> folder from Lime, or open the toolbar popup and paste the config copied from Lime.</div>
           </div>
           <div class="card">
-            <div class="card-title">Pages not responding</div>
-            <div class="card-body">Internal Chrome pages (<code>chrome://</code>) cannot be controlled. Navigate to a regular webpage.</div>
+            <div class="card-title" data-i18n="troubleshooting_connecting_title">Stays on yellow dot (connecting)</div>
+            <div class="card-body" data-i18n="troubleshooting_connecting_body">Relay server not reachable. Ensure Lime is running with browser control enabled.</div>
+          </div>
+          <div class="card">
+            <div class="card-title" data-i18n="troubleshooting_pages_title">Pages not responding</div>
+            <div class="card-body" data-i18n="troubleshooting_pages_body">Internal Chrome pages (<code>chrome://</code>) cannot be controlled. Navigate to a regular webpage.</div>
           </div>
         </div>
       </details>
@@ -125,13 +140,13 @@
       <details class="collapsible anim-entrance" style="--delay:6">
         <summary class="collapsible-trigger">
           <svg class="collapsible-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 4 10 8 6 12"/></svg>
-          <span>Settings</span>
+          <span data-i18n="section_settings">Settings</span>
         </summary>
         <div class="collapsible-body">
           <div class="card">
-            <div class="card-title">Tab Group Behavior</div>
+            <div class="card-title" data-i18n="settings_tab_group_title">Tab Group Behavior</div>
             <div class="setting-row">
-              <span class="setting-label">Close "Lime Agent" tab group when relay is disabled</span>
+              <span class="setting-label" data-i18n="settings_tab_group_label">Close "Lime Agent" tab group when relay is disabled</span>
               <label class="mini-toggle">
                 <input type="checkbox" id="closeGroupOnDisable" />
                 <span class="mini-toggle-track"></span>
@@ -139,22 +154,22 @@
             </div>
           </div>
           <div class="card">
-            <div class="card-title">Control Port</div>
-            <div class="card-body">Only change if you use a custom port in Lime config.</div>
+            <div class="card-title" data-i18n="settings_control_port_title">Control Port</div>
+            <div class="card-body" data-i18n="settings_control_port_body">Only change if you use a custom port in Lime config.</div>
             <div class="port-row">
               <input id="port" inputmode="numeric" pattern="[0-9]*" placeholder="9234" />
-              <button id="save" type="button">Save</button>
+              <button id="save" type="button" data-i18n="settings_save">Save</button>
             </div>
-            <div class="port-hint">Default: <code>9234</code>. Relay = control port + 2.</div>
+            <div class="port-hint" data-i18n="settings_control_port_hint">Default: <code>9234</code>. Relay = control port + 2.</div>
             <div class="port-status" id="port-status"></div>
           </div>
           <div class="card">
             <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
-              CDP Logs
-              <button id="logs-refresh" type="button" class="logs-refresh-btn">Refresh</button>
+              <span data-i18n="settings_logs_title">CDP Logs</span>
+              <button id="logs-refresh" type="button" class="logs-refresh-btn" data-i18n="settings_logs_refresh">Refresh</button>
             </div>
             <div id="logs-container" class="logs-container">
-              <div class="logs-empty">No log entries yet</div>
+              <div class="logs-empty" data-i18n="logs_empty">No log entries yet</div>
             </div>
           </div>
         </div>
@@ -162,6 +177,7 @@
 
     </div>
 
+    <script src="scripts/install-i18n.js"></script>
     <script type="module" src="scripts/options.js"></script>
   </body>
 </html>

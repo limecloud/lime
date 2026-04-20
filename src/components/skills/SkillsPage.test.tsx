@@ -671,6 +671,43 @@ describe("SkillsPage", () => {
     );
   });
 
+  it("创建脚手架成功后应把新 Skill 回调给外层工作台", async () => {
+    const onScaffoldCreated = vi.fn();
+
+    renderSkillsPage({
+      initialScaffoldDraft: {
+        target: "project",
+        directory: "saved-skill-draft",
+        name: "沉淀后的技能",
+        description: "沉淀自一次成功结果",
+      },
+      initialScaffoldRequestKey: 20260411,
+      onScaffoldCreated,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const createButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((item) => item.textContent?.trim() === "创建 Skill");
+
+    await act(async () => {
+      createButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onScaffoldCreated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "local:saved-skill-draft",
+        name: "沉淀后的技能",
+        directory: "saved-skill-draft",
+        installed: true,
+        catalogSource: "project",
+      }),
+    );
+  });
+
   it("点击导入 Skill 应调用导入 API 并刷新列表", async () => {
     const refresh = vi.fn().mockResolvedValue(undefined);
     mockUseSkills.mockReturnValue({

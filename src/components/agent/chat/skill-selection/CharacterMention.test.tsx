@@ -29,6 +29,7 @@ import {
   findCuratedTaskTemplateById,
   recordCuratedTaskTemplateUsage,
 } from "../utils/curatedTaskTemplates";
+import { recordCuratedTaskRecommendationSignalFromMemory } from "../utils/curatedTaskRecommendationSignals";
 
 const mockListServiceSkills = vi.hoisted(() => vi.fn());
 const mockListUnifiedMemories = vi.hoisted(() =>
@@ -318,6 +319,8 @@ interface HarnessProps {
     options?: { replayText?: string },
   ) => void;
   onSelectServiceSkill?: (skill: ServiceSkillHomeItem) => void;
+  projectId?: string | null;
+  sessionId?: string | null;
   defaultCuratedTaskReferenceMemoryIds?: string[];
   defaultCuratedTaskReferenceEntries?: Array<{
     id: string;
@@ -342,6 +345,8 @@ const Harness: React.FC<HarnessProps> = ({
   onSelectSkill,
   onSelectSceneCommand,
   onSelectServiceSkill,
+  projectId = null,
+  sessionId = null,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
 }) => {
@@ -378,6 +383,8 @@ const Harness: React.FC<HarnessProps> = ({
         onSelectSkill={onSelectSkill}
         onSelectSceneCommand={onSelectSceneCommand}
         onSelectServiceSkill={onSelectServiceSkill}
+        projectId={projectId}
+        sessionId={sessionId}
         defaultCuratedTaskReferenceMemoryIds={
           defaultCuratedTaskReferenceMemoryIds
         }
@@ -496,9 +503,14 @@ function updateFieldValue(
 }
 
 function findLauncherConfirmButton() {
-  return Array.from(document.body.querySelectorAll("button")).find((button) =>
-    button.textContent?.includes("带着启动信息进入生成"),
-  ) as HTMLButtonElement | undefined;
+  return (
+    (document.body.querySelector(
+      '[data-testid="curated-task-launcher-confirm"]',
+    ) as HTMLButtonElement | null) ??
+    (Array.from(document.body.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("开始生成"),
+    ) as HTMLButtonElement | undefined)
+  );
 }
 
 function createSkill(
@@ -2267,6 +2279,9 @@ describe("CharacterMention", () => {
       "需要：主题或赛道、希望关注的平台/地域",
     );
     expect(document.body.textContent).toContain("交付：趋势摘要、3 个优先选题");
+    expect(document.body.textContent).toContain(
+      "去向：趋势摘要会先写回当前内容，方便继续展开选题和主稿。",
+    );
     const templateButton = Array.from(
       document.body.querySelectorAll("button"),
     ).find((button) => button.textContent?.includes("每日趋势摘要"));
@@ -2276,7 +2291,7 @@ describe("CharacterMention", () => {
       templateButton?.click();
     });
 
-    expect(document.body.textContent).toContain("先补最少启动信息，再统一进入生成主执行面。");
+    expect(document.body.textContent).toContain("开始这一步前，我先确认几件事。");
     expect(onChangeSpy).not.toHaveBeenCalled();
 
     const themeInput = document.body.querySelector(
@@ -2443,8 +2458,66 @@ describe("CharacterMention", () => {
     });
 
     expect(document.body.textContent).toContain(
-      "已选择 1 条灵感引用，本轮会一起带入生成。",
+      "已选择 1 条参考基线，本轮会一起带入生成。",
     );
+  });
+
+  it("slash 面板的结果模板应复用保存到灵感库后的推荐信号排序", async () => {
+    recordCuratedTaskRecommendationSignalFromMemory(
+      {
+        id: "memory-review-1",
+        session_id: "session-review-1",
+        memory_type: "project",
+        title: "本周账号复盘线索",
+        category: "experience",
+        summary: "内容表现、增长拐点和掉量问题都在这里。",
+        content: "内容表现、增长拐点和掉量问题都在这里。",
+        tags: ["复盘", "增长", "账号"],
+        metadata: {
+          confidence: 0.96,
+          importance: 8,
+          access_count: 1,
+          last_accessed_at: null,
+          source: "manual",
+          embedding: null,
+        },
+        created_at: 1_712_345_670_000,
+        updated_at: 1_712_345_678_000,
+        archived: false,
+      },
+      {
+        projectId: "project-review-1",
+      },
+    );
+
+    const container = renderHarness({
+      projectId: "project-review-1",
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    expect(document.body.textContent).toContain("围绕最近成果");
+    expect(document.body.textContent).toContain("成果：本周账号复盘线索");
+
+    const resultTemplateSection = Array.from(
+      document.body.querySelectorAll("section"),
+    ).find((section) => section.textContent?.includes("结果模板"));
+    expect(resultTemplateSection).toBeTruthy();
+
+    const buttonTexts = Array.from(
+      resultTemplateSection?.querySelectorAll("button") ?? [],
+    ).map((button) => button.textContent ?? "");
+    const reviewIndex = buttonTexts.findIndex((text) =>
+      text.includes("复盘这个账号/项目"),
+    );
+    const trendIndex = buttonTexts.findIndex((text) =>
+      text.includes("每日趋势摘要"),
+    );
+
+    expect(reviewIndex).toBeGreaterThanOrEqual(0);
+    expect(trendIndex).toBeGreaterThanOrEqual(0);
+    expect(reviewIndex).toBeLessThan(trendIndex);
   });
 
   it("搜索未接入的 slash 命令时，应单独显示暂未接入分组", async () => {
@@ -2507,6 +2580,12 @@ describe("CharacterMention", () => {
       document.body.querySelectorAll("button"),
     ).filter((button) => button.textContent?.includes("内容主稿生成"));
     expect(curatedTaskButtons).toHaveLength(1);
+    expect(document.body.textContent).toContain(
+      "去向：首版主稿会先进入当前内容，方便继续改写、拆成多平台版本。",
+    );
+    expect(document.body.textContent).toContain(
+      "下一步：改成多平台版本",
+    );
   });
 
   it("slash 面板中的已安装技能与最近 skill 应展示统一轻合同", async () => {
@@ -2540,6 +2619,38 @@ describe("CharacterMention", () => {
     );
     expect(document.body.textContent).toContain("需要：主题、受众与语气要求");
     expect(document.body.textContent).toContain("交付：带着该方法进入生成主执行面");
+  });
+
+  it("slash 面板打开后新增本地 skill 使用记录时，应即时刷新最近使用分组", async () => {
+    const container = renderHarness({
+      skills: [
+        createSkill("写作助手", "skill-writer", true, {
+          description: "本地补充技能",
+          metadata: {
+            lime_when_to_use: "当你需要复用本地写作方法时使用。",
+            lime_argument_hint: "主题、受众与语气要求",
+          },
+        }),
+      ],
+    });
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    expect(document.body.textContent).not.toContain("最近使用");
+
+    await act(async () => {
+      recordSlashEntryUsage({
+        kind: "skill",
+        entryId: "skill-writer",
+        usedAt: 1_712_345_678_901,
+      });
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("最近使用");
+    expect(document.body.textContent).toContain("/skill-writer");
+    expect(document.body.textContent).toContain("写作助手");
   });
 
   it("选择最近使用的 slash 命令时应回填上次成功参数", async () => {
@@ -2613,6 +2724,61 @@ describe("CharacterMention", () => {
       "/x文章转存 https://x.com/GoogleCloudTech/article/2033953579824758855",
     );
     expect(onSelectServiceSkill).not.toHaveBeenCalled();
+  });
+
+  it("选择最近使用的结果模板时应预填上次启动参数与引用", async () => {
+    act(() => {
+      recordCuratedTaskTemplateUsage({
+        templateId: "social-post-starter",
+        launchInputValues: {
+          subject_or_product: "上次的品牌 campaign 主线",
+          target_audience: "海外增长负责人",
+        },
+        referenceMemoryIds: ["memory-idea-1"],
+        referenceEntries: [
+          {
+            id: "memory-idea-1",
+            title: "上次 campaign 参考",
+            summary: "延续上次的品牌表达和平台拆分方式",
+            category: "context",
+            categoryLabel: "参考",
+            tags: ["campaign", "品牌"],
+          },
+        ],
+      });
+    });
+
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await typeSlashAndWait(textarea);
+
+    const recentCuratedTaskButton = Array.from(
+      document.body.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("内容主稿生成"));
+    expect(recentCuratedTaskButton).toBeTruthy();
+
+    await act(async () => {
+      recentCuratedTaskButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain(
+      "已根据你上次启动 内容主稿生成 时的参数自动预填，可继续修改后进入生成。",
+    );
+
+    const subjectInput = document.body.querySelector(
+      "#curated-task-social-post-starter-subject_or_product",
+    ) as HTMLTextAreaElement | null;
+    const audienceInput = document.body.querySelector(
+      "#curated-task-social-post-starter-target_audience",
+    ) as HTMLInputElement | null;
+
+    expect(subjectInput?.value).toBe("上次的品牌 campaign 主线");
+    expect(audienceInput?.value).toBe("海外增长负责人");
+    expect(document.body.textContent).toContain(
+      "已选择 1 条参考基线，本轮会一起带入生成。",
+    );
   });
 
   it("提供 onSelectSkill 时，最近使用的 slash skill 应回填 replayText 并切到 active capability", async () => {

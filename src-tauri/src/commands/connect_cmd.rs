@@ -20,8 +20,9 @@
 //! _Requirements: 1.4, 2.3, 4.1, 5.3_
 
 use crate::connect::{
-    parse_deep_link, send_cancelled_callback, send_error_callback, send_success_callback,
-    ConnectPayload, DeepLinkError, RelayInfo, RelayRegistry,
+    parse_deep_link, parse_open_deep_link, send_cancelled_callback, send_error_callback,
+    send_success_callback, ConnectPayload, DeepLinkError, OpenDeepLinkPayload, RelayInfo,
+    RelayRegistry,
 };
 use crate::database::dao::api_key_provider::ApiProviderType;
 use crate::database::DbConnection;
@@ -55,6 +56,11 @@ pub struct DeepLinkResult {
     pub is_verified: bool,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OpenDeepLinkResult {
+    pub payload: OpenDeepLinkPayload,
+}
+
 /// 命令错误类型
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectError {
@@ -73,6 +79,16 @@ impl From<DeepLinkError> for ConnectError {
             DeepLinkError::MissingKey => {
                 ("MISSING_KEY".to_string(), "缺少必填参数: key".to_string())
             }
+            DeepLinkError::MissingKind => {
+                ("MISSING_KIND".to_string(), "缺少必填参数: kind".to_string())
+            }
+            DeepLinkError::MissingSlug => {
+                ("MISSING_SLUG".to_string(), "缺少必填参数: slug".to_string())
+            }
+            DeepLinkError::InvalidOpenKind(kind) => (
+                "INVALID_OPEN_KIND".to_string(),
+                format!("无效的 open kind: {kind}"),
+            ),
         };
         ConnectError { code, message }
     }
@@ -148,6 +164,14 @@ pub async fn handle_deep_link(
     }
 
     Ok(result)
+}
+
+#[tauri::command]
+pub async fn handle_open_deep_link(url: String) -> Result<OpenDeepLinkResult, ConnectError> {
+    tracing::info!("[Connect] 处理官网 Deep Link: {}", url);
+    let payload = parse_open_deep_link(&url)?;
+
+    Ok(OpenDeepLinkResult { payload })
 }
 
 /// 查询中转商信息

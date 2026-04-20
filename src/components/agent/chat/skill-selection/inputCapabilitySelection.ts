@@ -185,6 +185,7 @@ function createFallbackCuratedTask(
     title: route.taskTitle || route.taskId,
     summary: "",
     outputHint: "",
+    resultDestination: "结果会先写回当前内容，方便继续补充和改写。",
     categoryLabel: "结果模板",
     prompt: route.prompt,
     requiredInputs: [],

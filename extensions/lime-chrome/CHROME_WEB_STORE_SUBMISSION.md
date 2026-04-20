@@ -5,9 +5,9 @@
 ## 基础信息
 
 - 扩展名称：`Lime Browser Bridge`
-- 当前版本：`0.3.0`
-- 上传包：`tmp/lime-chrome-0.3.0.zip`
-- 上传包 SHA-256：`65838b438f96bcd58ebd8464bd92ba2aeb362512fe99ea1f857a631330d4f542`
+- 当前版本：`0.4.0`
+- 上传包：`tmp/lime-chrome-0.4.0.zip`
+- 上传包 SHA-256：`059b6c17a8fea130d78709cd85e3cc16e687438da4ab4aab6bd0ed898bd3818b`
 - 建议分类：`Productivity`
 - 建议语言：`English`
 
