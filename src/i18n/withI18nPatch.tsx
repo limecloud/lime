@@ -17,11 +17,12 @@
 import React, { useEffect, useState } from "react";
 import { getConfig, type Config } from "@/lib/api/appConfig";
 import { I18nPatchProvider } from "./I18nPatchProvider";
+import { StartupLoadingScreen } from "./StartupLoadingScreen";
 import { Language } from "./text-map";
-import { replaceTextInDOM } from "./dom-replacer";
 import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 
 const CONFIG_LOAD_TIMEOUT_MS = 2500;
+const READY_COMMIT_TIMEOUT_MS = 48;
 
 /**
  * 检查是否在 Tauri 环境中运行
@@ -55,6 +56,15 @@ export function withI18nPatch<P extends object>(
     useEffect(() => {
       let cancelled = false;
       let timeoutId: number | null = null;
+      let readyCommitTimeoutId: number | null = null;
+      let readyRafId: number | null = null;
+
+      const markReady = () => {
+        if (cancelled) {
+          return;
+        }
+        setIsReady(true);
+      };
 
       const applyConfig = (nextConfig: Config) => {
         if (cancelled) {
@@ -62,12 +72,31 @@ export function withI18nPatch<P extends object>(
         }
 
         setConfig(nextConfig);
-        replaceTextInDOM((nextConfig.language || "zh") as Language);
-        requestAnimationFrame(() => {
-          if (!cancelled) {
-            setIsReady(true);
-          }
-        });
+
+        if (typeof window.requestAnimationFrame === "function") {
+          readyCommitTimeoutId = window.setTimeout(() => {
+            if (
+              readyRafId !== null &&
+              typeof window.cancelAnimationFrame === "function"
+            ) {
+              window.cancelAnimationFrame(readyRafId);
+            }
+            readyRafId = null;
+            markReady();
+          }, READY_COMMIT_TIMEOUT_MS);
+
+          readyRafId = window.requestAnimationFrame(() => {
+            if (readyCommitTimeoutId !== null) {
+              window.clearTimeout(readyCommitTimeoutId);
+              readyCommitTimeoutId = null;
+            }
+            readyRafId = null;
+            markReady();
+          });
+          return;
+        }
+
+        markReady();
       };
 
       const fallbackToDefault = (reason: string, error?: unknown) => {
@@ -112,12 +141,20 @@ export function withI18nPatch<P extends object>(
         if (timeoutId !== null) {
           window.clearTimeout(timeoutId);
         }
+        if (readyCommitTimeoutId !== null) {
+          window.clearTimeout(readyCommitTimeoutId);
+        }
+        if (
+          readyRafId !== null &&
+          typeof window.cancelAnimationFrame === "function"
+        ) {
+          window.cancelAnimationFrame(readyRafId);
+        }
       };
     }, []);
 
     if (!config) {
-      // Return null or minimal loading state
-      return null;
+      return <StartupLoadingScreen />;
     }
 
     return (

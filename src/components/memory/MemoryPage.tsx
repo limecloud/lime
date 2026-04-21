@@ -1904,7 +1904,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                               handleOpenInScene(sourceEntry);
                             }}
                           >
-                            去创作场景
+                            去做法目录
                           </button>
                         </div>
                       </article>
@@ -1921,7 +1921,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
               <MemorySurfacePanel
                 title="风格层摘要"
-                description="这层不是模型训练，而是当前可解释、可带入创作场景 planning 的 taste 摘要。"
+                description="这层不是模型训练，而是当前可解释、可带入做法 planning 的 taste 摘要。"
               >
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
                   <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
@@ -1932,7 +1932,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                       {tasteSummary.summary}
                     </p>
                     <p className="mt-3 text-sm leading-6 text-slate-500">
-                      这份摘要会优先服务创作场景 planning；如果后续你继续收藏、筛掉或认可结果，这里的关键词会继续变化。
+                      这份摘要会优先服务做法 planning；如果后续你继续收藏、筛掉或认可结果，这里的关键词会继续变化。
                     </p>
                   </div>
 
@@ -3055,7 +3055,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
               <MemorySurfacePanel
                 title="灵感条目明细"
-                description="这里展示当前灵感库真正可复用的条目，同时保留带回创作输入和进入创作场景两条动作。"
+                description="这里展示当前灵感库真正可复用的条目，同时保留带回创作输入和进入做法目录两条动作。"
                 actions={
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -3162,7 +3162,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                 className={BUTTON_CLASS_NAME}
                                 onClick={() => handleOpenInScene(memory)}
                               >
-                                用于创作场景
+                                去做法目录
                               </button>
                             </div>
                           </div>

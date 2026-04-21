@@ -64,7 +64,7 @@ export function SceneAppRunDetailPanel({
   if (!hasSelectedSceneApp) {
     return (
       <section className="rounded-[28px] border border-dashed border-slate-200 bg-white p-5 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-        先选择一个 SceneApp，运行详情才会跟着回流到这里。
+        先选一套做法，这里才会带出最近一轮结果。
       </section>
     );
   }
@@ -72,9 +72,9 @@ export function SceneAppRunDetailPanel({
   if (loading && !runDetailView) {
     return (
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="text-sm font-semibold text-slate-900">运行详情</div>
+        <div className="text-sm font-semibold text-slate-900">这轮结果</div>
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-          正在加载运行详情…
+          正在加载这轮结果…
         </div>
       </section>
     );
@@ -83,7 +83,7 @@ export function SceneAppRunDetailPanel({
   if (error && !runDetailView) {
     return (
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="text-sm font-semibold text-slate-900">运行详情</div>
+        <div className="text-sm font-semibold text-slate-900">这轮结果</div>
         <div className="mt-5 rounded-[22px] border border-dashed border-rose-200 bg-rose-50 px-4 py-5 text-sm text-rose-700">
           {error}
         </div>
@@ -94,9 +94,9 @@ export function SceneAppRunDetailPanel({
   if (!runDetailView) {
     return (
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="text-sm font-semibold text-slate-900">运行详情</div>
+        <div className="text-sm font-semibold text-slate-900">这轮结果</div>
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-          当前还没有可查看的运行详情，先试跑一轮再回来复盘。
+          当前还没有可查看的这轮结果，先试跑一轮再回来复盘。
         </div>
       </section>
     );
@@ -108,9 +108,9 @@ export function SceneAppRunDetailPanel({
     <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-slate-900">运行详情</div>
+          <div className="text-sm font-semibold text-slate-900">这轮结果</div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            用业务解释看这次运行，而不是只看底层状态字段。
+            先看这一轮拿到了什么、卡在哪里，以及下一步该怎么接。
           </p>
         </div>
 
@@ -148,42 +148,42 @@ export function SceneAppRunDetailPanel({
 
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <article className="rounded-[22px] border border-slate-200 bg-white p-4">
-          <div className="text-xs font-medium text-slate-500">运行 ID</div>
+          <div className="text-xs font-medium text-slate-500">这轮记录</div>
           <div className="mt-2 text-sm font-medium text-slate-900">
             {runDetailView.runId}
           </div>
         </article>
 
         <article className="rounded-[22px] border border-slate-200 bg-white p-4">
-          <div className="text-xs font-medium text-slate-500">来源</div>
+          <div className="text-xs font-medium text-slate-500">来自哪里</div>
           <div className="mt-2 text-sm font-medium text-slate-900">
             {runDetailView.sourceLabel}
           </div>
         </article>
 
         <article className="rounded-[22px] border border-slate-200 bg-white p-4">
-          <div className="text-xs font-medium text-slate-500">结果数</div>
+          <div className="text-xs font-medium text-slate-500">已回流结果</div>
           <div className="mt-2 text-sm font-medium text-slate-900">
             {runDetailView.artifactCount} 份
           </div>
         </article>
 
         <article className="rounded-[22px] border border-slate-200 bg-white p-4">
-          <div className="text-xs font-medium text-slate-500">开始时间</div>
+          <div className="text-xs font-medium text-slate-500">开始于</div>
           <div className="mt-2 text-sm font-medium text-slate-900">
             {runDetailView.startedAtLabel}
           </div>
         </article>
 
         <article className="rounded-[22px] border border-slate-200 bg-white p-4">
-          <div className="text-xs font-medium text-slate-500">结束时间</div>
+          <div className="text-xs font-medium text-slate-500">结束于</div>
           <div className="mt-2 text-sm font-medium text-slate-900">
             {runDetailView.finishedAtLabel}
           </div>
         </article>
 
         <article className="rounded-[22px] border border-slate-200 bg-white p-4">
-          <div className="text-xs font-medium text-slate-500">运行时长</div>
+          <div className="text-xs font-medium text-slate-500">这轮用时</div>
           <div className="mt-2 text-sm font-medium text-slate-900">
             {runDetailView.durationLabel}
           </div>
@@ -193,7 +193,7 @@ export function SceneAppRunDetailPanel({
       <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-medium text-slate-500">交付复盘</div>
+            <div className="text-xs font-medium text-slate-500">这轮拿到了什么</div>
             <div className="mt-2 text-sm font-medium text-slate-900">
               {runDetailView.deliveryCompletionLabel}
             </div>
@@ -210,7 +210,7 @@ export function SceneAppRunDetailPanel({
 
         {runDetailView.deliveryArtifactEntries.length ? (
           <div className="mt-4">
-            <div className="text-xs font-medium text-slate-500">结果入口</div>
+            <div className="text-xs font-medium text-slate-500">可直接打开</div>
             <div className="mt-2 grid gap-3 xl:grid-cols-2">
               {runDetailView.deliveryArtifactEntries.map((entry) => (
                 <button
@@ -226,7 +226,7 @@ export function SceneAppRunDetailPanel({
                     </span>
                     {entry.isPrimary ? (
                       <span className="rounded-full border border-lime-200 bg-lime-50 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-lime-700">
-                        PRIMARY
+                        主结果
                       </span>
                     ) : null}
                   </div>
@@ -245,7 +245,7 @@ export function SceneAppRunDetailPanel({
         {runDetailView.deliveryRequiredParts.length ? (
           <div className="mt-4 grid gap-3 lg:grid-cols-3">
             <div>
-              <div className="text-xs font-medium text-slate-500">交付合同</div>
+              <div className="text-xs font-medium text-slate-500">原本约定</div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {runDetailView.deliveryRequiredParts.map((part) => (
                   <span
@@ -259,9 +259,7 @@ export function SceneAppRunDetailPanel({
             </div>
 
             <div>
-              <div className="text-xs font-medium text-slate-500">
-                已交付部件
-              </div>
+              <div className="text-xs font-medium text-slate-500">已经拿到</div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {runDetailView.deliveryCompletedParts.length ? (
                   runDetailView.deliveryCompletedParts.map((part) => (
@@ -279,7 +277,7 @@ export function SceneAppRunDetailPanel({
             </div>
 
             <div>
-              <div className="text-xs font-medium text-slate-500">缺失部件</div>
+              <div className="text-xs font-medium text-slate-500">还缺什么</div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {runDetailView.deliveryMissingParts.length ? (
                   runDetailView.deliveryMissingParts.map((part) => (
@@ -306,11 +304,9 @@ export function SceneAppRunDetailPanel({
         runDetailView.packPlanNotes.length ||
         runDetailView.contextBaseline ? (
           <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white p-4">
-            <div className="text-xs font-medium text-slate-500">
-              规划结果包基线
-            </div>
+            <div className="text-xs font-medium text-slate-500">启动前约定</div>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              这部分展示预规划阶段承诺的结果包口径，方便和当前真实回流的交付覆盖率对照。
+              这部分展示开始前约定的结果标准，方便和当前真实回流的覆盖率对照。
             </p>
 
             {runDetailView.packCompletionStrategyLabel ? (
@@ -325,16 +321,14 @@ export function SceneAppRunDetailPanel({
 
             {runDetailView.packViewerLabel ? (
               <div className="mt-2 text-sm text-slate-700">
-                <span className="font-medium text-slate-900">规划入口：</span>
+                <span className="font-medium text-slate-900">默认入口：</span>
                 {runDetailView.packViewerLabel}
               </div>
             ) : null}
 
             {runDetailView.plannedDeliveryRequiredParts.length ? (
               <div className="mt-3">
-                <div className="text-xs font-medium text-slate-500">
-                  规划必含部件
-                </div>
+                <div className="text-xs font-medium text-slate-500">原定必含</div>
                 <div
                   data-testid="sceneapp-run-detail-pack-required-parts"
                   className="mt-2 flex flex-wrap gap-2"
@@ -353,9 +347,7 @@ export function SceneAppRunDetailPanel({
 
             {runDetailView.packPlanNotes.length ? (
               <div className="mt-3">
-                <div className="text-xs font-medium text-slate-500">
-                  规划备注
-                </div>
+                <div className="text-xs font-medium text-slate-500">约定备注</div>
                 <div
                   data-testid="sceneapp-run-detail-pack-notes"
                   className="mt-2 flex flex-wrap gap-2"
@@ -375,18 +367,18 @@ export function SceneAppRunDetailPanel({
             {runDetailView.contextBaseline ? (
               <div className="mt-4 rounded-[18px] border border-sky-200 bg-sky-50/50 p-3">
                 <div className="text-xs font-medium text-slate-500">
-                  Planning 基线
+                  这轮带入的参考
                 </div>
                 <div
                   data-testid="sceneapp-run-detail-context-reference-count"
                   className="mt-2 text-sm text-slate-700"
                 >
-                  <span className="font-medium text-slate-900">参考注入：</span>
+                  <span className="font-medium text-slate-900">参考对象：</span>
                   {runDetailView.contextBaseline.referenceCount} 条
                 </div>
                 {runDetailView.contextBaseline.scopeLabel ? (
                   <div className="mt-2 text-sm text-slate-700">
-                    <span className="font-medium text-slate-900">作用域：</span>
+                    <span className="font-medium text-slate-900">作用范围：</span>
                     {runDetailView.contextBaseline.scopeLabel}
                   </div>
                 ) : null}
@@ -414,9 +406,7 @@ export function SceneAppRunDetailPanel({
                     data-testid="sceneapp-run-detail-context-taste-summary"
                     className="mt-3 text-sm leading-6 text-slate-700"
                   >
-                    <span className="font-medium text-slate-900">
-                      风格摘要：
-                    </span>
+                    <span className="font-medium text-slate-900">风格方向：</span>
                     {runDetailView.contextBaseline.tasteSummary}
                   </div>
                 ) : null}
@@ -425,9 +415,7 @@ export function SceneAppRunDetailPanel({
                     data-testid="sceneapp-run-detail-context-feedback-summary"
                     className="mt-3 text-sm leading-6 text-slate-700"
                   >
-                    <span className="font-medium text-slate-900">
-                      最近反馈：
-                    </span>
+                    <span className="font-medium text-slate-900">最近反馈：</span>
                     {runDetailView.contextBaseline.feedbackSummary}
                   </div>
                 ) : null}
@@ -465,7 +453,7 @@ export function SceneAppRunDetailPanel({
       <div className="mt-4 rounded-[22px] border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-medium text-slate-500">证据与复核</div>
+            <div className="text-xs font-medium text-slate-500">复核与证据</div>
             <div className="mt-2 text-sm font-medium text-slate-900">
               {runDetailView.evidenceSourceLabel}
             </div>
@@ -480,7 +468,7 @@ export function SceneAppRunDetailPanel({
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           <article className="rounded-[18px] border border-slate-200 bg-slate-50 p-3">
             <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
-              请求遥测
+              关联记录
             </div>
             <p
               data-testid="sceneapp-run-detail-request-telemetry"
@@ -492,7 +480,7 @@ export function SceneAppRunDetailPanel({
 
           <article className="rounded-[18px] border border-slate-200 bg-slate-50 p-3">
             <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-500">
-              Artifact 校验
+              结果校验
             </div>
             <p
               data-testid="sceneapp-run-detail-artifact-validator"
@@ -516,7 +504,7 @@ export function SceneAppRunDetailPanel({
                   className="mt-2 rounded-[18px] border border-lime-200 bg-lime-50/70 px-3 py-2 text-sm font-medium text-lime-900 transition-colors hover:border-lime-300 hover:bg-white"
                   onClick={() => onOpenHumanReview?.()}
                 >
-                  {humanReviewLoading ? "准备人工复核…" : "填写人工复核"}
+                  {humanReviewLoading ? "准备人工复核…" : "补人工复核"}
                 </button>
                 {quickReviewActions.length ? (
                   <div className="mt-3 grid gap-3 xl:grid-cols-2">
@@ -546,9 +534,7 @@ export function SceneAppRunDetailPanel({
             ) : null}
             {runDetailView.governanceActionEntries.length ? (
               <div>
-                <div className="text-xs font-medium text-slate-500">
-                  治理动作
-                </div>
+                <div className="text-xs font-medium text-slate-500">继续处理</div>
                 <div className="mt-2 grid gap-3 xl:grid-cols-2">
                   {runDetailView.governanceActionEntries.map((entry) => (
                     <button
@@ -581,7 +567,7 @@ export function SceneAppRunDetailPanel({
                 runDetailView.governanceActionEntries.length ? "mt-4" : "",
               )}
             >
-              治理入口
+              可打开材料
             </div>
             <div className="mt-2 grid gap-3 xl:grid-cols-2">
               {runDetailView.governanceArtifactEntries.map((entry) => (
@@ -649,7 +635,7 @@ export function SceneAppRunDetailPanel({
 
       {entryAction ? (
         <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50/80 p-4">
-          <div className="text-xs font-medium text-slate-500">继续动作</div>
+          <div className="text-xs font-medium text-slate-500">回到来源继续</div>
           <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <p className="text-sm leading-6 text-slate-600">
               {entryAction.helperText}
@@ -668,7 +654,7 @@ export function SceneAppRunDetailPanel({
 
       {error ? (
         <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
-          详情接口暂时不可用，当前先展示列表里的摘要信息。{error}
+          这轮详情接口暂时不可用，当前先展示列表里的摘要信息。{error}
         </div>
       ) : null}
     </section>

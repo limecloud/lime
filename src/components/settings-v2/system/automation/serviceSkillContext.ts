@@ -6,11 +6,16 @@ export interface AutomationServiceSkillSummaryItem {
   value: string;
 }
 
+export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL = "旧目录兼容";
+export const LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE =
+  "沿用旧目录兼容标记，实际仍在客户端执行。";
+
 export interface AutomationServiceSkillContext {
   id: string | null;
   title: string;
   runnerLabel: string;
   executionLocationLabel: string;
+  executionLocationLegacyCompat: boolean;
   sourceLabel: string;
   theme: string | null;
   contentId: string | null;
@@ -52,10 +57,14 @@ function resolveExecutionLocationLabel(value: unknown): string {
     case "client_default":
       return "客户端执行";
     case "cloud_required":
-      return "云端执行";
+      return "客户端执行";
     default:
       return UNKNOWN_SERVICE_SKILL_LABEL;
   }
+}
+
+function resolveExecutionLocationLegacyCompat(value: unknown): boolean {
+  return value === "cloud_required";
 }
 
 function resolveSourceLabel(value: unknown): string {
@@ -153,6 +162,9 @@ function resolveServiceSkillContextFromRecord(
     executionLocationLabel: resolveExecutionLocationLabel(
       serviceSkillValue.execution_location,
     ),
+    executionLocationLegacyCompat: resolveExecutionLocationLegacyCompat(
+      serviceSkillValue.execution_location,
+    ),
     sourceLabel: resolveSourceLabel(serviceSkillValue.source),
     theme: normalizeOptionalText(harnessValue?.theme),
     contentId:
@@ -200,6 +212,9 @@ export function mergeAutomationServiceSkillContexts(
     )
       ? fallback.executionLocationLabel
       : primary.executionLocationLabel,
+    executionLocationLegacyCompat:
+      primary.executionLocationLegacyCompat ||
+      fallback.executionLocationLegacyCompat,
     sourceLabel: shouldUseFallbackLabel(primary.sourceLabel)
       ? fallback.sourceLabel
       : primary.sourceLabel,

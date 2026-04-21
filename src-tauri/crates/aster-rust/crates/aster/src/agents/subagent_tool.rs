@@ -86,6 +86,10 @@ struct AgentToolParams {
     #[serde(default)]
     cwd: Option<String>,
     #[serde(default)]
+    allowed_tools: Vec<String>,
+    #[serde(default)]
+    disallowed_tools: Vec<String>,
+    #[serde(default)]
     images: Option<Vec<ImageData>>,
 }
 
@@ -160,6 +164,16 @@ pub fn create_subagent_tool(sub_recipes: &[SubRecipe]) -> Tool {
             "cwd": {
                 "type": "string",
                 "description": "Optional working directory override for the agent. The current runtime accepts an absolute path to an existing directory."
+            },
+            "allowed_tools": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Optional explicit tool allowlist. In callback-backed runtimes, this is enforced as session-scoped permissions."
+            },
+            "disallowed_tools": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Optional explicit tool denylist. Takes precedence over allowed_tools in callback-backed runtimes."
             },
             "images": {
                 "type": "array",
@@ -372,6 +386,8 @@ fn map_agent_tool_params(
         mode,
         isolation,
         cwd: _,
+        allowed_tools,
+        disallowed_tools,
         images,
     } = params;
 
@@ -388,6 +404,16 @@ fn map_agent_tool_params(
     }
     if normalize_optional_text(isolation).is_some() {
         return Err(anyhow!("isolation is not supported in the current runtime"));
+    }
+    if !allowed_tools.is_empty() {
+        return Err(anyhow!(
+            "allowed_tools is only supported in callback-backed runtimes"
+        ));
+    }
+    if !disallowed_tools.is_empty() {
+        return Err(anyhow!(
+            "disallowed_tools is only supported in callback-backed runtimes"
+        ));
     }
 
     let description = normalize_required_text(description, "description")?;
@@ -925,6 +951,8 @@ mod tests {
                 mode: None,
                 isolation: None,
                 cwd: None,
+                allowed_tools: Vec::new(),
+                disallowed_tools: Vec::new(),
                 images: None,
             },
             &sub_recipes,
@@ -958,6 +986,8 @@ mod tests {
                 mode: None,
                 isolation: None,
                 cwd: None,
+                allowed_tools: Vec::new(),
+                disallowed_tools: Vec::new(),
                 images: None,
             },
             &HashMap::new(),
@@ -993,6 +1023,8 @@ mod tests {
                 mode: None,
                 isolation: None,
                 cwd: None,
+                allowed_tools: Vec::new(),
+                disallowed_tools: Vec::new(),
                 images: Some(images.clone()),
             },
             &HashMap::new(),

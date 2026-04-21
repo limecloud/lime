@@ -82,11 +82,11 @@ describe("TeamMemoryShadowCard", () => {
     ).not.toBeNull();
     expect(container.textContent).toContain("任务记忆影子");
     expect(container.textContent).toContain(
-      "当前仓库已缓存 3 条任务续接上下文",
+      "当前仓库已缓存 3 条分工续接上下文",
     );
     expect(container.textContent).toContain("/workspace/lime");
-    expect(container.textContent).toContain("当前任务方案");
-    expect(container.textContent).toContain("任务方案：研究双人组");
+    expect(container.textContent).toContain("当前分工方案");
+    expect(container.textContent).toContain("分工方案：研究双人组");
     expect(container.textContent).toContain("子任务概览");
     expect(container.textContent).toContain("子任务：");
     expect(container.textContent).toContain("父会话上下文");

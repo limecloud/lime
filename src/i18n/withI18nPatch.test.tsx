@@ -8,12 +8,10 @@ import {
   type MountedRoot,
 } from "@/components/workspace/hooks/testUtils";
 
-const { mockGetConfig, mockHasTauriInvokeCapability, mockReplaceTextInDOM } =
-  vi.hoisted(() => ({
-    mockGetConfig: vi.fn(),
-    mockHasTauriInvokeCapability: vi.fn(),
-    mockReplaceTextInDOM: vi.fn(),
-  }));
+const { mockGetConfig, mockHasTauriInvokeCapability } = vi.hoisted(() => ({
+  mockGetConfig: vi.fn(),
+  mockHasTauriInvokeCapability: vi.fn(),
+}));
 
 vi.mock("@/lib/api/appConfig", () => ({
   getConfig: (...args: unknown[]) => mockGetConfig(...args),
@@ -22,10 +20,6 @@ vi.mock("@/lib/api/appConfig", () => ({
 vi.mock("@/lib/tauri-runtime", () => ({
   hasTauriInvokeCapability: (...args: unknown[]) =>
     mockHasTauriInvokeCapability(...args),
-}));
-
-vi.mock("./dom-replacer", () => ({
-  replaceTextInDOM: (...args: unknown[]) => mockReplaceTextInDOM(...args),
 }));
 
 import { withI18nPatch } from "./withI18nPatch";
@@ -66,7 +60,7 @@ describe("withI18nPatch", () => {
     const mounted = mountHarness(PatchedComponent, {}, mountedRoots);
 
     await flushEffects(2);
-    expect(mounted.container.textContent).toBe("");
+    expect(mounted.container.textContent).toContain("正在启动 Lime");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2600);
@@ -75,7 +69,6 @@ describe("withI18nPatch", () => {
 
     try {
       expect(mounted.container.textContent).toContain("应用已就绪");
-      expect(mockReplaceTextInDOM).toHaveBeenCalledWith("zh");
     } finally {
       consoleWarnSpy.mockRestore();
     }

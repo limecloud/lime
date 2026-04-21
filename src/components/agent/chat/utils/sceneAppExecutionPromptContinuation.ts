@@ -17,8 +17,8 @@ function resolveSceneAppExecutionRuntimeSceneKey(params: {
   }
 
   const entryAction = params.detailView?.entryAction;
-  if (entryAction?.kind === "open_cloud_scene_session") {
-    const sceneKey = entryAction.cloudSceneRuntimeRef.sceneKey?.trim() || "";
+  if (entryAction?.kind === "open_service_scene_session") {
+    const sceneKey = entryAction.serviceSceneRuntimeRef.sceneKey?.trim() || "";
     if (sceneKey) {
       return sceneKey;
     }

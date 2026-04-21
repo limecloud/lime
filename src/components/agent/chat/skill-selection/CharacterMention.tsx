@@ -54,12 +54,14 @@ import {
   recordSlashEntryUsage,
   subscribeSlashEntryUsageChanged,
 } from "./slashEntryUsage";
+import { subscribeMentionEntryUsageChanged } from "./mentionEntryUsage";
 import { partitionMentionableSkills } from "./skillQuery";
 import { useRuntimeInputCapabilityCatalog } from "./runtimeInputCapabilityCatalog";
 import { useIdleModulePreload } from "./useIdleModulePreload";
 import {
   buildCuratedTaskLaunchPrompt,
   recordCuratedTaskTemplateUsage,
+  subscribeCuratedTaskTemplateUsageChanged,
   type CuratedTaskInputValues,
   type CuratedTaskTemplateItem,
 } from "../utils/curatedTaskTemplates";
@@ -243,8 +245,6 @@ function toServiceSkillHomeItem(skill: ServiceSkillItem): ServiceSkillHomeItem {
     runnerDescription: getServiceSkillRunnerDescription(skill),
     actionLabel: getServiceSkillActionLabel(skill),
     automationStatus: null,
-    cloudStatus:
-      skill.executionLocation === "cloud_required" ? null : undefined,
   };
 }
 
@@ -285,6 +285,9 @@ export function CharacterMention({
   const panelRef = useRef<HTMLDivElement>(null);
   const [curatedTaskRecommendationSignalsVersion, setCuratedTaskRecommendationSignalsVersion] =
     useState(0);
+  const [curatedTaskTemplatesVersion, setCuratedTaskTemplatesVersion] =
+    useState(0);
+  const [mentionEntryUsageVersion, setMentionEntryUsageVersion] = useState(0);
   const [slashEntryUsageVersion, setSlashEntryUsageVersion] = useState(0);
   const { builtinCommands: runtimeBuiltinCommands, sceneCommands: runtimeSceneCommands } =
     useRuntimeInputCapabilityCatalog();
@@ -431,8 +434,20 @@ export function CharacterMention({
   }, [inputRef, showMentions]);
 
   useEffect(() => {
+    return subscribeCuratedTaskTemplateUsageChanged(() => {
+      setCuratedTaskTemplatesVersion((previous) => previous + 1);
+    });
+  }, []);
+
+  useEffect(() => {
     return subscribeCuratedTaskRecommendationSignalsChanged(() => {
       setCuratedTaskRecommendationSignalsVersion((previous) => previous + 1);
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeMentionEntryUsageChanged(() => {
+      setMentionEntryUsageVersion((previous) => previous + 1);
     });
   }, []);
 
@@ -1131,9 +1146,11 @@ export function CharacterMention({
                 projectId={projectId}
                 sessionId={sessionId}
                 referenceEntries={defaultCuratedTaskReferenceEntries}
+                curatedTaskTemplatesVersion={curatedTaskTemplatesVersion}
                 curatedTaskRecommendationSignalsVersion={
                   curatedTaskRecommendationSignalsVersion
                 }
+                mentionEntryUsageVersion={mentionEntryUsageVersion}
                 slashEntryUsageVersion={slashEntryUsageVersion}
                 commandRef={commandRef}
                 onQueryChange={setMentionQuery}

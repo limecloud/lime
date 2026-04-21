@@ -16,10 +16,6 @@ import {
   subscribeServiceSkillAutomationLinksChanged,
 } from "./automationLinkStorage";
 import {
-  getServiceSkillCloudRunStatusMap,
-  subscribeServiceSkillCloudRunsChanged,
-} from "./cloudRunStorage";
-import {
   getServiceSkillActionLabel,
   getServiceSkillRunnerDescription,
   getServiceSkillRunnerLabel,
@@ -28,12 +24,15 @@ import {
 import { shouldExposeServiceSkillHomeItem } from "./homeEntrySkills";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import { supportsServiceSkillLocalAutomation } from "./automationDraft";
-import { getServiceSkillUsageMap, recordServiceSkillUsage } from "./storage";
+import {
+  getServiceSkillUsageMap,
+  recordServiceSkillUsage,
+  subscribeServiceSkillUsageChanged,
+} from "./storage";
 import type {
   RecordServiceSkillUsageInput,
   ServiceSkillAutomationStatus,
   ServiceSkillCatalogMeta,
-  ServiceSkillCloudRunStatus,
   ServiceSkillHomeItem,
 } from "./types";
 
@@ -52,7 +51,6 @@ function getSkillBadge(item: SkillCatalogItem, isRecent: boolean): string {
 function buildHomeItems(
   items: SkillCatalogItem[],
   automationStatusMap: Record<string, ServiceSkillAutomationStatus>,
-  cloudRunStatusMap: Record<string, ServiceSkillCloudRunStatus>,
 ): ServiceSkillHomeItem[] {
   const usageMap = getServiceSkillUsageMap();
   const mapped: Array<ServiceSkillHomeItem & { _sortIndex: number }> =
@@ -73,10 +71,6 @@ function buildHomeItems(
         runnerDescription: getServiceSkillRunnerDescription(item),
         actionLabel: getServiceSkillActionLabel(item),
         automationStatus: automationStatusMap[item.id] ?? null,
-        cloudStatus:
-          item.executionLocation === "cloud_required"
-            ? (cloudRunStatusMap[item.id] ?? null)
-            : null,
         _sortIndex: index,
       };
     });
@@ -141,9 +135,6 @@ export function useServiceSkills(
   const [groups, setGroups] = useState<SkillCatalogGroup[]>([]);
   const [automationStatusMap, setAutomationStatusMap] = useState<
     Record<string, ServiceSkillAutomationStatus>
-  >({});
-  const [cloudRunStatusMap, setCloudRunStatusMap] = useState<
-    Record<string, ServiceSkillCloudRunStatus>
   >({});
   const [catalogMeta, setCatalogMeta] =
     useState<ServiceSkillCatalogMeta | null>(null);
@@ -276,26 +267,6 @@ export function useServiceSkills(
   }, [enabled, loadCurrentCatalog]);
 
   useEffect(() => {
-    if (!enabled) {
-      setCloudRunStatusMap({});
-      return;
-    }
-
-    const syncCloudRuns = () => {
-      setCloudRunStatusMap(getServiceSkillCloudRunStatusMap());
-    };
-
-    syncCloudRuns();
-    const unsubscribeCloudRuns = subscribeServiceSkillCloudRunsChanged(() => {
-      syncCloudRuns();
-    });
-
-    return () => {
-      unsubscribeCloudRuns();
-    };
-  }, [enabled]);
-
-  useEffect(() => {
     if (!enabled || automationLinkCount === 0) {
       return;
     }
@@ -309,18 +280,27 @@ export function useServiceSkills(
     };
   }, [automationLinkCount, enabled, refresh]);
 
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    return subscribeServiceSkillUsageChanged(() => {
+      setUsageVersion((previous) => previous + 1);
+    });
+  }, [enabled]);
+
   const recordUsageAndRefresh = useCallback(
     (input: RecordServiceSkillUsageInput) => {
       recordServiceSkillUsage(input);
-      setUsageVersion((previous) => previous + 1);
     },
     [],
   );
 
   const skills = useMemo(() => {
     void usageVersion;
-    return buildHomeItems(items, automationStatusMap, cloudRunStatusMap);
-  }, [items, usageVersion, automationStatusMap, cloudRunStatusMap]);
+    return buildHomeItems(items, automationStatusMap);
+  }, [items, usageVersion, automationStatusMap]);
 
   return {
     skills,

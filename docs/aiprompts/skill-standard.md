@@ -251,8 +251,12 @@ Lime 的技能标准必须分成五层：
 - `agent_turn`
 - `browser_assist`
 - `automation_job`
-- `cloud_scene`
 - `native_skill`
+
+兼容说明：
+
+- `cloud_scene` 只允许作为历史目录输入或 compat binding family 理解
+- current 客户端主链必须先把它正规化为 `agent_turn / service_scene` 语义，再继续进入工作区执行
 
 运行时层回答的是“怎么执行”，不是“对用户如何命名”。
 
@@ -345,10 +349,10 @@ Lime 技能能力必须明确区分四个对象：
 | 模式 | 回答什么 | 什么时候优先用 | 常用目录 | 常见运行时搭配 |
 |------|------|------|------|------|
 | `Tool Wrapper` | 如何把某个库、站点、协议、规范封装成专家上下文 | 封装 framework、site adapter、browser protocol、内部规范 | `references/`、`scripts/` | `browser_assist`、`native_skill`、`agent_turn` |
-| `Generator` | 如何稳定地产出结构化结果 | 输出模板固定、格式不能漂移 | `assets/`、`references/` | `agent_turn`、`cloud_scene`、Artifact |
+| `Generator` | 如何稳定地产出结构化结果 | 输出模板固定、格式不能漂移 | `assets/`、`references/` | `agent_turn`、Artifact |
 | `Reviewer` | 如何按 checklist 打分、归类严重性、提出修复建议 | QA、合规、发布前复核、代码审查 | `references/checklist*.md` | `agent_turn`、review/evidence |
 | `Inversion` | 如何先提问、补参、过 gate，再继续执行 | 需求不完整、项目/权限/账号/审批门禁 | 问题清单、gate template | `slotSchema`、`scene gate`、`a2ui` |
-| `Pipeline` | 如何强制按顺序执行多步流程，并在 checkpoint 处停住 | 多步任务、外部依赖多、不能跳步 | `references/`、`assets/`、`scripts/` 全部都可能 | `agent_turn`、`browser_assist`、`automation_job`、`cloud_scene` |
+| `Pipeline` | 如何强制按顺序执行多步流程，并在 checkpoint 处停住 | 多步任务、外部依赖多、不能跳步 | `references/`、`assets/`、`scripts/` 全部都可能 | `agent_turn`、`browser_assist`、`automation_job`、`native_skill` |
 
 固定规则：
 
@@ -594,16 +598,17 @@ ClaudeCode 对 Lime 最值得借鉴的，不是“再做一个 ClaudeCode skills
 
 - 必须说明首轮结果、后续调度、失败处理和结果回流方式
 
-### 4. `cloud_scene`
+### 4. compat：`cloud_scene`
 
 适用于：
 
-- 必须由云端托管执行的技能
+- 只用于读取历史目录、旧 planner 或旧 skill 包里的 compat binding
 
 要求：
 
-- 客户端默认只做目录消费、提交和结果回流
-- 不把普通本地即时技能错误迁成云端必跑
+- current 文档、当前前台对象和当前运行时都不应再把它描述成“云端托管执行”
+- 客户端命中后必须先正规化成 `agent_turn / service_scene` 语义，再继续本地执行
+- 不把普通本地即时技能错误迁回旧 `cloud_scene` 叙事
 
 ## UI 表达标准
 

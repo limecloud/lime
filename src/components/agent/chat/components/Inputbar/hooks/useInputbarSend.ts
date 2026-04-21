@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import type { MessageImage } from "../../../types";
 import type { HandleSendOptions } from "../../../hooks/handleSendTypes";
+import { recordCuratedTaskTemplateUsage } from "../../../utils/curatedTaskTemplates";
 import {
   resolveInputCapabilityDispatch,
   type InputCapabilitySelection,
@@ -76,6 +77,14 @@ export function useInputbarSend({
       );
       if (result === false) {
         return;
+      }
+      if (activeCapability?.kind === "curated_task") {
+        recordCuratedTaskTemplateUsage({
+          templateId: activeCapability.task.id,
+          launchInputValues: activeCapability.launchInputValues,
+          referenceMemoryIds: activeCapability.referenceMemoryIds,
+          referenceEntries: activeCapability.referenceEntries,
+        });
       }
       clearPendingImages();
       clearActiveCapability();

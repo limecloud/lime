@@ -82,7 +82,7 @@ export function buildRuntimeFormationEmptyDetail(
     case "forming":
       return "系统正在根据当前任务准备分工。完成后，这里会先展示分工卡片，再接入真实处理进展。";
     case "formed":
-      return "当前任务方案已经准备好。画布会先展示当前分工，等任务真正开始处理后，再自动切换为当前进展。";
+      return "当前分工方案已经准备好。画布会先展示当前分工，等任务真正开始处理后，再自动切换为当前进展。";
     case "failed":
       return errorMessage || "当前任务分工准备失败，暂时无法展示当前进展。";
     default:
@@ -180,7 +180,7 @@ export function buildRuntimeFormationDisplayState(params: {
     state?.status === "forming"
       ? "系统正在准备当前任务分工，完成后会先展示分工卡片，后续再切换为独立的当前进展。"
       : state?.status === "formed"
-        ? "当前任务方案已就绪。任务拆出后，这里会从方案视图过渡到当前进展。"
+        ? "当前分工方案已就绪。任务拆出后，这里会从方案视图过渡到当前进展。"
         : state?.status === "failed"
           ? errorMessage || "当前任务分工准备失败，暂时还没有任务接手。"
           : `${TEAM_WORKSPACE_IDLE_STATUS_LABEL}。系统开始分工后，这里会生成独立的当前进展。`;
@@ -239,7 +239,7 @@ export function buildRuntimeFormationDisplayState(params: {
     panelDescription:
       state?.status === "failed"
         ? errorMessage || "当前任务分工准备失败，暂时无法展示更多内容。"
-        : summary || "这里会先展示当前任务方案，任务拆出后再切换成当前进展。",
+        : summary || "这里会先展示当前分工方案，任务拆出后再切换成当前进展。",
     referenceLabel,
     memberCards,
     blueprintRoleCards,

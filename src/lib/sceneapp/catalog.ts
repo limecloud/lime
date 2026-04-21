@@ -30,6 +30,16 @@ interface SceneProjectionGroup {
   sceneProjection?: BaseSetupCatalogProjection;
 }
 
+function normalizeCompatSceneAppBindingFamily(
+  bindingFamily: SceneAppBindingFamily,
+): SceneAppBindingFamily {
+  return bindingFamily === "cloud_scene" ? "agent_turn" : bindingFamily;
+}
+
+function normalizeCompatSceneAppCapabilityRef(capabilityRef: string): string {
+  return capabilityRef === "cloud_scene" ? "agent_turn" : capabilityRef;
+}
+
 function normalizeString(value?: string): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
@@ -112,7 +122,10 @@ function resolveDistinctBindingFamilies(
     .map((step) => step.bindingProfileRef)
     .filter((value): value is string => Boolean(value))
     .map((ref) => bindingProfileMap.get(ref)?.bindingFamily)
-    .filter((value): value is SceneAppBindingFamily => Boolean(value));
+    .filter((value): value is SceneAppBindingFamily => Boolean(value))
+    .map((bindingFamily) =>
+      normalizeCompatSceneAppBindingFamily(bindingFamily),
+    );
 
   return Array.from(new Set(families));
 }
@@ -130,11 +143,9 @@ function inferSceneAppType(
     return "hybrid";
   }
 
-  switch (binding.bindingFamily) {
+  switch (normalizeCompatSceneAppBindingFamily(binding.bindingFamily)) {
     case "browser_assist":
       return "browser_grounded";
-    case "cloud_scene":
-      return "cloud_managed";
     case "automation_job":
       return "local_durable";
     case "native_skill":
@@ -204,20 +215,21 @@ function inferInfraProfile(
   artifact: BaseSetupArtifactProfile,
   blueprint: BaseSetupCompositionBlueprint | undefined,
 ): string[] {
-  const infra = new Set<string>(binding.capabilityRefs ?? []);
-  infra.add(binding.bindingFamily);
+  const bindingFamily = normalizeCompatSceneAppBindingFamily(
+    binding.bindingFamily,
+  );
+  const infra = new Set<string>(
+    (binding.capabilityRefs ?? []).map((capabilityRef) =>
+      normalizeCompatSceneAppCapabilityRef(capabilityRef),
+    ),
+  );
+  infra.add(bindingFamily);
 
-  if (binding.bindingFamily === "browser_assist") {
+  if (bindingFamily === "browser_assist") {
     infra.add("browser_connector");
   }
   if (
-    binding.bindingFamily === "cloud_scene" ||
-    binding.executionLocation === "cloud_required"
-  ) {
-    infra.add("cloud_runtime");
-  }
-  if (
-    binding.bindingFamily === "automation_job" ||
+    bindingFamily === "automation_job" ||
     binding.runnerType === "scheduled"
   ) {
     infra.add("automation_schedule");
@@ -269,7 +281,8 @@ function buildLaunchRequirements(
   }
   if (
     projection.readinessRequirements?.requiresBrowser ||
-    binding.bindingFamily === "browser_assist"
+    normalizeCompatSceneAppBindingFamily(binding.bindingFamily) ===
+      "browser_assist"
   ) {
     requirements.push({
       kind: "browser_session",
@@ -277,16 +290,8 @@ function buildLaunchRequirements(
     });
   }
   if (
-    binding.executionLocation === "cloud_required" ||
-    binding.bindingFamily === "cloud_scene"
-  ) {
-    requirements.push({
-      kind: "cloud_session",
-      message: "该场景需要云端运行时或 OEM 托管会话。",
-    });
-  }
-  if (
-    binding.bindingFamily === "automation_job" ||
+    normalizeCompatSceneAppBindingFamily(binding.bindingFamily) ===
+      "automation_job" ||
     binding.runnerType === "scheduled"
   ) {
     requirements.push({
@@ -306,11 +311,14 @@ function buildEntryBindings(
   },
 ): SceneAppEntryBinding[] {
   const bindings: SceneAppEntryBinding[] = [];
+  const bindingFamily = normalizeCompatSceneAppBindingFamily(
+    params.bindingFamily,
+  );
 
   if (params.serviceSkillProjection) {
     bindings.push({
       kind: "service_skill",
-      bindingFamily: params.bindingFamily,
+      bindingFamily,
       serviceSkillId: params.serviceSkillProjection.id,
       skillKey: params.serviceSkillProjection.skillKey,
       aliases: params.serviceSkillProjection.aliases,
@@ -323,7 +331,7 @@ function buildEntryBindings(
   if (sceneBinding) {
     bindings.push({
       kind: "scene",
-      bindingFamily: params.bindingFamily,
+      bindingFamily,
       sceneKey: sceneBinding.sceneKey,
       commandPrefix: sceneBinding.commandPrefix,
       aliases: sceneBinding.aliases,
@@ -366,7 +374,14 @@ function buildCompositionProfile(
       order: index + 1,
       bindingProfileRef: step.bindingProfileRef,
       bindingFamily: step.bindingProfileRef
-        ? bindingProfileMap.get(step.bindingProfileRef)?.bindingFamily
+        ? (() => {
+            const bindingFamily = bindingProfileMap.get(
+              step.bindingProfileRef,
+            )?.bindingFamily;
+            return bindingFamily
+              ? normalizeCompatSceneAppBindingFamily(bindingFamily)
+              : undefined;
+          })()
         : undefined,
     }),
   );
@@ -471,7 +486,9 @@ function compileSceneAppDescriptor(params: {
       blueprint: compositionBlueprint,
       requiredSlotCount,
     }),
-    capabilityRefs: bindingProfile.capabilityRefs ?? [],
+    capabilityRefs: (bindingProfile.capabilityRefs ?? []).map((capabilityRef) =>
+      normalizeCompatSceneAppCapabilityRef(capabilityRef),
+    ),
     infraProfile: inferInfraProfile(
       bindingProfile,
       artifactProfile,

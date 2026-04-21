@@ -137,7 +137,7 @@ export function useWorkspaceSceneAppEntryActions({
     async (sceneappId: string) => {
       const descriptor = descriptorMap.get(sceneappId);
       if (!descriptor) {
-        toast.error("当前创作场景目录尚未就绪，请稍后重试");
+        toast.error("当前做法目录尚未就绪，请稍后重试");
         return;
       }
 
@@ -148,7 +148,7 @@ export function useWorkspaceSceneAppEntryActions({
         urlCandidate,
       });
       if (!seed) {
-        toast.error("当前创作场景还缺少启动内容，请先补充输入");
+        toast.error("当前这套做法还缺少启动内容，请先补充输入");
         return;
       }
 

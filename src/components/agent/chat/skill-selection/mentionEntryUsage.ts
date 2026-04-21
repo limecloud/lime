@@ -21,6 +21,8 @@ export interface RecordMentionEntryUsageInput {
 const MENTION_ENTRY_USAGE_STORAGE_KEY = "lime:mention-entry-usage:v1";
 const MAX_MENTION_ENTRY_USAGE_RECORDS = 12;
 const MAX_MENTION_ENTRY_REPLAY_TEXT_LENGTH = 400;
+export const MENTION_ENTRY_USAGE_CHANGED_EVENT =
+  "lime:mention-entry-usage-changed";
 
 function normalizeOptionalText(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -133,6 +135,47 @@ export function getMentionEntryUsageMap(): Map<
   );
 }
 
+function emitMentionEntryUsageChanged(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(MENTION_ENTRY_USAGE_CHANGED_EVENT));
+}
+
+export function subscribeMentionEntryUsageChanged(
+  callback: () => void,
+): () => void {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const customEventHandler = () => {
+    callback();
+  };
+
+  const storageHandler = (event: StorageEvent) => {
+    if (event.key !== MENTION_ENTRY_USAGE_STORAGE_KEY) {
+      return;
+    }
+    callback();
+  };
+
+  window.addEventListener(
+    MENTION_ENTRY_USAGE_CHANGED_EVENT,
+    customEventHandler,
+  );
+  window.addEventListener("storage", storageHandler);
+
+  return () => {
+    window.removeEventListener(
+      MENTION_ENTRY_USAGE_CHANGED_EVENT,
+      customEventHandler,
+    );
+    window.removeEventListener("storage", storageHandler);
+  };
+}
+
 export function recordMentionEntryUsage(
   input: RecordMentionEntryUsageInput,
 ): MentionEntryUsageRecord[] {
@@ -165,6 +208,7 @@ export function recordMentionEntryUsage(
       MENTION_ENTRY_USAGE_STORAGE_KEY,
       JSON.stringify(nextRecords),
     );
+    emitMentionEntryUsageChanged();
   } catch {
     // ignore write errors
   }

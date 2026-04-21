@@ -10,6 +10,7 @@ pub enum SceneAppType {
     LocalInstant,
     LocalDurable,
     BrowserGrounded,
+    // legacy compat only：current 不再把 SceneApp 解释成云端托管执行面。
     CloudManaged,
     Hybrid,
 }
@@ -30,6 +31,7 @@ pub enum SceneAppBindingFamily {
     AgentTurn,
     BrowserAssist,
     AutomationJob,
+    // legacy compat only：current 执行仍收敛到本地主链，cloud_scene 只保留历史目录输入。
     CloudScene,
     NativeSkill,
 }
@@ -57,6 +59,7 @@ pub enum SceneAppLaunchRequirementKind {
     UserInput,
     Project,
     BrowserSession,
+    // legacy compat only：current 不再把云端会话当成启动门槛。
     CloudSession,
     Automation,
 }
@@ -170,6 +173,7 @@ pub struct SceneAppCatalog {
 #[serde(rename_all = "camelCase")]
 pub struct SceneAppRuntimeContext {
     pub browser_session_attached: bool,
+    // legacy compat only：保留旧目录/旧计划输入，不参与 current readiness。
     pub cloud_session_ready: bool,
     pub automation_enabled: bool,
 }
@@ -294,7 +298,8 @@ pub enum SceneAppRuntimeAction {
     SubmitAgentTurn,
     LaunchBrowserAssist,
     CreateAutomationJob,
-    LaunchCloudScene,
+    #[serde(alias = "launch_cloud_scene")]
+    OpenServiceSceneSession,
     LaunchNativeSkill,
 }
 
@@ -323,7 +328,7 @@ pub struct SceneAppBrowserRuntimeRef {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct SceneAppCloudSceneRuntimeRef {
+pub struct SceneAppServiceSceneRuntimeRef {
     pub scene_key: Option<String>,
     pub skill_id: Option<String>,
     pub project_id: Option<String>,
@@ -388,7 +393,13 @@ pub struct SceneAppRunSummary {
     pub source_ref: Option<String>,
     pub session_id: Option<String>,
     pub browser_runtime_ref: Option<SceneAppBrowserRuntimeRef>,
-    pub cloud_scene_runtime_ref: Option<SceneAppCloudSceneRuntimeRef>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "cloudSceneRuntimeRef",
+        alias = "cloud_scene_runtime_ref"
+    )]
+    pub service_scene_runtime_ref: Option<SceneAppServiceSceneRuntimeRef>,
     pub native_skill_runtime_ref: Option<SceneAppNativeSkillRuntimeRef>,
     pub started_at: String,
     pub finished_at: Option<String>,

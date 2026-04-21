@@ -126,7 +126,7 @@ describe("compileCommandCatalogProjection", () => {
         ],
         binding: {
           skillId: "voice-runtime-service",
-          executionKind: "cloud_scene",
+          executionKind: "agent_turn",
         },
         renderContract: expect.objectContaining({
           resultKind: "tool_timeline",

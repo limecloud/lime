@@ -1685,6 +1685,9 @@ mod tests {
                 source: Some("builtin".to_string()),
                 directory: None,
             }],
+            hooks: None,
+            allowed_tools: Vec::new(),
+            disallowed_tools: Vec::new(),
         }
         .into_updated_extension_data(&session)
         .expect("merge customization");
@@ -1804,6 +1807,9 @@ mod tests {
                 source: Some("builtin".to_string()),
                 directory: None,
             }],
+            hooks: None,
+            allowed_tools: Vec::new(),
+            disallowed_tools: Vec::new(),
         }
         .into_updated_extension_data(&session)
         .expect("merge customization");

@@ -216,8 +216,12 @@ describe("toolProcessSummary", () => {
       }),
     );
 
-    expect(serviceSkillNarrative.preSummary).toBe("先执行服务技能 渠道预览");
-    expect(serviceSkillNarrative.summary).toBe("先执行服务技能 渠道预览");
+    expect(serviceSkillNarrative.preSummary).toBe(
+      "先走服务技能兼容执行 渠道预览",
+    );
+    expect(serviceSkillNarrative.summary).toBe(
+      "先走服务技能兼容执行 渠道预览",
+    );
     expect(siteRecommendNarrative.preSummary).toBe(
       "先推荐适合 GitHub issue 搜索 的站点能力",
     );
@@ -226,7 +230,7 @@ describe("toolProcessSummary", () => {
     );
   });
 
-  it("应为新补齐的任务工具生成任务提交文案", () => {
+  it("应为新补齐的任务工具生成更贴近当前前台的发起文案", () => {
     const transcriptionNarrative = resolveToolProcessNarrative(
       createToolCall({
         name: "lime_create_transcription_task",
@@ -257,21 +261,21 @@ describe("toolProcessSummary", () => {
     );
 
     expect(transcriptionNarrative.preSummary).toBe(
-      "先提交 /tmp/interview.mp4 的转写任务",
+      "先发起 /tmp/interview.mp4 的转写",
     );
     expect(transcriptionNarrative.postSummary).toBe(
-      "已提交 /tmp/interview.mp4 的转写任务",
+      "已发起 /tmp/interview.mp4 的转写",
     );
     expect(resourceNarrative.preSummary).toBe(
-      "先提交 科技播客 BGM 的素材检索任务",
+      "先发起 科技播客 BGM 的素材检索",
     );
     expect(resourceNarrative.summary).toBe(
-      "先提交 科技播客 BGM 的素材检索任务",
+      "先发起 科技播客 BGM 的素材检索",
     );
     expect(urlParseNarrative.postSummary).toBe(
-      "已提交 https://example.com/report 的链接解析任务",
+      "已发起 https://example.com/report 的链接解析",
     );
-    expect(typesettingNarrative.preSummary).toBe("先提交 小红书 的排版任务");
+    expect(typesettingNarrative.preSummary).toBe("先发起 小红书 的排版");
   });
 
   it("应把 WebSearch 协议错误翻译成可操作提示", () => {

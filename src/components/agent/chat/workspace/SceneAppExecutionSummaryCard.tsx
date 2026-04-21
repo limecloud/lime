@@ -169,8 +169,9 @@ function buildExecutionFollowupDestinations(
   ) {
     destinations.push({
       key: "task-center",
-      label: "生成 / 看板",
-      description: "结构化治理材料已经就绪，后续更适合继续喂给生成页、看板统计或自动治理。",
+      label: "生成工作台",
+      description:
+        "这轮结果的复盘材料已经整理好，后续更适合回到生成工作台继续推进下一步。",
     });
   }
 
@@ -227,10 +228,19 @@ export function SceneAppExecutionSummaryCard({
   const promptActions = latestPackResultDetailView
     ? buildSceneAppExecutionPromptActions(latestPackResultDetailView)
     : [];
+  const deliveryContractLabel =
+    summary.projectPackPlan?.packKindLabel ?? summary.deliveryContractLabel;
+  const deliveryDestinationLabel =
+    summary.projectPackPlan?.viewerLabel || deliveryContractLabel || "待补齐";
+  const scorecardSummaryLabel =
+    summary.scorecardProfileRef ||
+    (summary.scorecardMetricKeys.length > 0
+      ? `${summary.scorecardMetricKeys.length} 项判断指标`
+      : "待补齐");
   const hasFollowupSection = Boolean(
     onReviewCurrentProject ||
       onSaveAsSkill ||
-    onOpenSceneAppDetail ||
+      onOpenSceneAppDetail ||
       onOpenSceneAppGovernance ||
       humanReviewAvailable ||
       quickReviewActions.length ||
@@ -246,7 +256,7 @@ export function SceneAppExecutionSummaryCard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-medium tracking-[0.08em] text-sky-700">
-              创作场景执行摘要
+              做法执行摘要
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-semibold text-slate-900">
@@ -265,7 +275,7 @@ export function SceneAppExecutionSummaryCard({
               {summary.typeLabel}
             </span>
             <span className="rounded-full border border-lime-200 bg-lime-50 px-2.5 py-1 text-[11px] font-medium text-lime-700">
-              {summary.deliveryContractLabel}
+              {deliveryContractLabel}
             </span>
             <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
               {summary.planningStatusLabel}
@@ -286,16 +296,16 @@ export function SceneAppExecutionSummaryCard({
               {summary.executionChainLabel}
             </div>
             <div data-testid="sceneapp-execution-summary-reference-count">
-              <span className="font-medium text-slate-900">参考注入：</span>
-              {summary.referenceCount} 条
+              <span className="font-medium text-slate-900">当前带入：</span>
+              {summary.referenceCount} 条参考对象
             </div>
             <div>
-              <span className="font-medium text-slate-900">Project Pack：</span>
-              {summary.projectPackPlan?.packKindLabel || "待补齐"}
+              <span className="font-medium text-slate-900">结果去向：</span>
+              {deliveryDestinationLabel}
             </div>
             <div>
-              <span className="font-medium text-slate-900">Scorecard：</span>
-              {summary.scorecardProfileRef || "待补齐"}
+              <span className="font-medium text-slate-900">判断口径：</span>
+              {scorecardSummaryLabel}
             </div>
           </div>
         </div>
@@ -397,7 +407,7 @@ export function SceneAppExecutionSummaryCard({
             {summary.runtimeBackflow.governanceArtifacts.length ? (
               <div className="mt-3">
                 <div className="text-xs font-medium text-slate-500">
-                  治理材料
+                  复盘材料
                 </div>
                 {renderPartChips(
                   summary.runtimeBackflow.governanceArtifacts,
@@ -412,10 +422,10 @@ export function SceneAppExecutionSummaryCard({
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
           <section className="rounded-[20px] border border-slate-200 bg-slate-50/70 p-4">
             <div className="text-sm font-medium text-slate-900">
-              Context Layer
+              当前带入对象
             </div>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              当前场景进入生成前，已把上下文分层压缩成一份稳定的执行摘要。
+              这一轮开工前，参考、风格、偏好和项目结果已经被压成同一份可继续复用的准备基线。
             </p>
             {renderPartChips(
               summary.activeLayers,
@@ -462,28 +472,28 @@ export function SceneAppExecutionSummaryCard({
             data-testid="sceneapp-execution-summary-project-pack"
           >
             <div className="text-sm font-medium text-slate-900">
-              Project Pack
+              结果去向与交付
             </div>
             {summary.projectPackPlan ? (
               <>
                 <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
                   <div>
-                    <span className="font-medium text-slate-900">包类型：</span>
+                    <span className="font-medium text-slate-900">结果形态：</span>
                     {summary.projectPackPlan.packKindLabel}
                   </div>
                   <div>
-                    <span className="font-medium text-slate-900">完成口径：</span>
+                    <span className="font-medium text-slate-900">完成判断：</span>
                     {summary.projectPackPlan.completionStrategyLabel}
                   </div>
                   {summary.projectPackPlan.primaryPart ? (
                     <div>
-                      <span className="font-medium text-slate-900">默认主件：</span>
+                      <span className="font-medium text-slate-900">默认主结果：</span>
                       {summary.projectPackPlan.primaryPart}
                     </div>
                   ) : null}
                   {summary.projectPackPlan.viewerLabel ? (
                     <div>
-                      <span className="font-medium text-slate-900">查看方式：</span>
+                      <span className="font-medium text-slate-900">查看入口：</span>
                       {summary.projectPackPlan.viewerLabel}
                     </div>
                   ) : null}
@@ -507,7 +517,7 @@ export function SceneAppExecutionSummaryCard({
               </>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前场景还没有显式声明 Project Pack 合同，后续需要继续补齐。
+                当前这套做法还没有明确结果去向，后续需要继续补齐。
               </p>
             )}
           </section>
@@ -516,13 +526,15 @@ export function SceneAppExecutionSummaryCard({
             className="rounded-[20px] border border-slate-200 bg-white p-4"
             data-testid="sceneapp-execution-summary-scorecard"
           >
-            <div className="text-sm font-medium text-slate-900">Scorecard</div>
+            <div className="text-sm font-medium text-slate-900">
+              这轮怎么判断
+            </div>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              生成页现在可以直接看到当前场景的经营口径，而不是只接一段 prompt。
+              这里保留继续复核、放量或回退时最关键的判断线索，不把经营判断藏在后台。
             </p>
             {summary.scorecardProfileRef ? (
               <div className="mt-3 text-sm leading-6 text-slate-700">
-                <span className="font-medium text-slate-900">Profile：</span>
+                <span className="font-medium text-slate-900">判断基线：</span>
                 {summary.scorecardProfileRef}
               </div>
             ) : null}
@@ -542,7 +554,7 @@ export function SceneAppExecutionSummaryCard({
         <SceneAppProjectPackRuntimePanel
           title="最近可消费结果"
           description="生成主执行面直接回看最近一轮可继续编辑、复核或发布的结果样本，不再只停留在摘要说明。"
-          emptyMessage="当前还没有可直接打开的结果样本，先继续跑出一轮带真实文件回流的 Project Pack。"
+          emptyMessage="当前还没有可直接打开的结果样本，先继续跑出一轮带真实结果文件回流的结果包。"
           testIdPrefix="sceneapp-execution-summary"
           className="border-slate-200 bg-slate-50/70"
           runDetailView={latestPackResultDetailView}
@@ -558,7 +570,7 @@ export function SceneAppExecutionSummaryCard({
           >
             <div className="text-xs font-medium text-slate-500">继续动作</div>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              如果要补上下文、查看经营口径或继续做人工复核，直接回到同一条创作场景闭环。
+              如果要补上下文、查看经营口径或继续做人工复核，直接回到同一套做法闭环。
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {onReviewCurrentProject ? (
@@ -598,7 +610,7 @@ export function SceneAppExecutionSummaryCard({
                   data-testid="sceneapp-execution-summary-open-governance"
                   onClick={onOpenSceneAppGovernance}
                 >
-                  去治理复盘
+                  去做法复盘
                 </Button>
               ) : null}
               {humanReviewAvailable ? (
@@ -614,7 +626,7 @@ export function SceneAppExecutionSummaryCard({
             </div>
             {latestPackResultUsesFallback ? (
               <p className="mt-3 text-xs leading-5 text-slate-500">
-                当前主运行还在继续，治理复盘会优先定位到最近一轮已交付样本，方便直接延续结果消费与放量判断。
+                当前主运行还在继续，做法复盘会优先定位到最近一轮已交付样本，方便直接延续结果消费与放量判断。
               </p>
             ) : null}
             {humanReviewAvailable && quickReviewActions.length ? (
@@ -653,7 +665,7 @@ export function SceneAppExecutionSummaryCard({
                   生成后动作编排
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  同一轮结果现在可以直接进入复盘、治理材料准备或底层运行入口恢复，不再只是回页面找下一步。
+                  同一轮结果现在可以直接进入复盘、复盘材料准备或底层运行入口恢复，不再只是回页面找下一步。
                 </p>
 
                 {followupDestinations.length ? (
@@ -833,7 +845,7 @@ export function SceneAppExecutionSummaryCard({
                 {latestPackResultDetailView.governanceArtifactEntries.length ? (
                   <div className="mt-4">
                     <div className="text-xs font-medium text-slate-500">
-                      基础治理材料
+                      基础复盘材料
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {latestPackResultDetailView.governanceArtifactEntries.map(

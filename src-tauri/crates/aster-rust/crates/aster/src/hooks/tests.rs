@@ -134,6 +134,49 @@ fn test_hook_config_serialization() {
 }
 
 #[test]
+fn test_frontmatter_command_hook_converts_to_current_config() {
+    let hook: FrontmatterHookCommand = serde_json::from_value(serde_json::json!({
+        "type": "command",
+        "command": "echo session",
+        "timeout": 5,
+        "once": true,
+        "async": true
+    }))
+    .expect("frontmatter command hook should deserialize");
+
+    let registration = hook
+        .to_registration(Some("Bash"))
+        .expect("frontmatter command hook should convert");
+
+    assert!(registration.once);
+    match registration.config {
+        HookConfig::Command(config) => {
+            assert_eq!(config.command, "echo session");
+            assert_eq!(config.timeout, 5000);
+            assert!(!config.blocking);
+            assert_eq!(config.matcher.as_deref(), Some("Bash"));
+        }
+        _ => panic!("Expected Command config"),
+    }
+}
+
+#[test]
+fn test_frontmatter_hook_rejects_if_condition_until_runtime_supports_it() {
+    let hook: FrontmatterHookCommand = serde_json::from_value(serde_json::json!({
+        "type": "prompt",
+        "prompt": "Verify",
+        "if": "Bash(git status)"
+    }))
+    .expect("frontmatter prompt hook should deserialize");
+
+    let error = hook
+        .to_registration(Some("Bash"))
+        .expect_err("frontmatter hook.if should remain unsupported for now");
+
+    assert!(error.contains("hook.if"));
+}
+
+#[test]
 fn test_agent_hook_config_supports_current_prompt_fields() {
     let parsed: HookConfig = serde_json::from_value(serde_json::json!({
         "type": "agent",
@@ -243,6 +286,70 @@ fn test_legacy_hook_conversion() {
         }
         _ => panic!("Expected Command config"),
     }
+}
+
+#[tokio::test]
+async fn test_session_frontmatter_once_hook_is_removed_after_success() {
+    clear_session_hooks("session-once-hook");
+    let hooks: FrontmatterHooks = serde_yaml::from_str(
+        r#"
+PreToolUse:
+  - matcher: Bash
+    hooks:
+      - type: command
+        command: "printf 'ok'"
+        once: true
+"#,
+    )
+    .expect("frontmatter hooks should parse");
+
+    let report = register_session_frontmatter_hooks("session-once-hook", &hooks);
+    assert_eq!(report.registered, 1);
+    assert!(report.skipped.is_empty());
+    assert_eq!(get_session_hook_count("session-once-hook"), 1);
+
+    let registry = Arc::new(HookRegistry::new());
+    let results = run_hooks_with_registry(
+        HookInput {
+            event: Some(HookEvent::PreToolUse),
+            tool_name: Some("Bash".to_string()),
+            session_id: Some("session-once-hook".to_string()),
+            ..Default::default()
+        },
+        &registry,
+    )
+    .await;
+
+    assert_eq!(results.len(), 1);
+    assert!(results[0].success);
+    assert_eq!(get_session_hook_count("session-once-hook"), 0);
+    clear_session_hooks("session-once-hook");
+}
+
+#[test]
+fn test_agent_frontmatter_hooks_rewrite_stop_to_subagent_stop() {
+    clear_session_hooks("session-agent-hook");
+    let hooks: FrontmatterHooks = serde_yaml::from_str(
+        r#"
+Stop:
+  - hooks:
+      - type: prompt
+        prompt: "summarize stop"
+"#,
+    )
+    .expect("frontmatter hooks should parse");
+
+    let report = register_agent_session_frontmatter_hooks("session-agent-hook", &hooks);
+
+    assert_eq!(report.registered, 1);
+    assert!(report.skipped.is_empty());
+    assert!(get_matching_session_hooks("session-agent-hook", HookEvent::Stop, None).is_empty());
+    assert_eq!(
+        get_matching_session_hooks("session-agent-hook", HookEvent::SubagentStop, None).len(),
+        1
+    );
+
+    clear_session_hooks("session-agent-hook");
 }
 
 #[tokio::test]

@@ -153,7 +153,7 @@ describe("workspaceEntry", () => {
     });
   });
 
-  it("应透传创作场景执行摘要与自动发送 metadata", () => {
+  it("应透传做法执行摘要与自动发送 metadata", () => {
     expect(
       resolveWorkspaceEntry({
         projectId: "project-1",
@@ -168,7 +168,7 @@ describe("workspaceEntry", () => {
             summary: "把线框图、脚本与配乐压成同一条结果链。",
             businessLabel: "内容闭环",
             typeLabel: "多模态组合",
-            executionChainLabel: "创作场景 -> 生成 -> Project Pack",
+            executionChainLabel: "做法 -> 生成 -> Project Pack",
             deliveryContractLabel: "Project Pack",
             planningStatusLabel: "已就绪",
             planningSummary: "当前可直接进入生成。",

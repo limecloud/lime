@@ -242,7 +242,7 @@ function createCatalog(): SceneAppCatalog {
         sceneappType: "hybrid",
         patternPrimary: "pipeline",
         patternStack: ["pipeline", "generator", "inversion"],
-        capabilityRefs: ["cloud_scene"],
+        capabilityRefs: ["agent_turn"],
         infraProfile: [
           "composition_blueprint",
           "project_pack",
@@ -289,14 +289,14 @@ function createCatalog(): SceneAppCatalog {
             {
               id: "music_refs",
               order: 4,
-              bindingProfileRef: "story-video-cloud-binding",
-              bindingFamily: "cloud_scene",
+              bindingProfileRef: "story-video-agent-binding",
+              bindingFamily: "agent_turn",
             },
             {
               id: "video_draft",
               order: 5,
-              bindingProfileRef: "story-video-cloud-binding",
-              bindingFamily: "cloud_scene",
+              bindingProfileRef: "story-video-agent-binding",
+              bindingFamily: "agent_turn",
             },
             {
               id: "review_note",
@@ -322,7 +322,7 @@ function createCatalog(): SceneAppCatalog {
         entryBindings: [
           {
             kind: "service_skill",
-            bindingFamily: "cloud_scene",
+            bindingFamily: "agent_turn",
           },
         ],
         launchRequirements: [
@@ -468,7 +468,7 @@ function createPlanResult(
       compilerPlan: {
         activeLayers: ["skill", "memory", "tool"],
         memoryRefs: ["workspace:project-1"],
-        toolRefs: ["workspace_storage", "cloud_scene"],
+        toolRefs: ["workspace_storage", "agent_turn"],
         referenceCount: 1,
         notes: ["已装配 1 条参考素材和 1 条 memory 引用。"],
         ...(overrides.contextOverlay?.compilerPlan ?? {}),
@@ -478,7 +478,7 @@ function createPlanResult(
         projectId: "project-1",
         skillRefs: ["sceneapp-demo"],
         memoryRefs: ["workspace:project-1"],
-        toolRefs: ["workspace_storage", "cloud_scene"],
+        toolRefs: ["workspace_storage", "agent_turn"],
         referenceItems: [
           {
             id: "ref-1",
@@ -514,7 +514,7 @@ function createPlanResult(
       viewerKind: "artifact_bundle",
       completionStrategy: "required_parts_complete",
       notes: [
-        "当前 SceneApp 以结果包作为默认交付单位。",
+        "当前做法以结果包作为默认交付单位。",
         "完整度将按 3 个必含部件判断。",
       ],
       ...(overrides.projectPackPlan ?? {}),
@@ -822,7 +822,7 @@ describe("SceneAppsPage", () => {
               source: "chat",
               sourceRef: "agent-runtime-submit-turn",
               sessionId: "session-story-video-2",
-              cloudSceneRuntimeRef: {
+              serviceSceneRuntimeRef: {
                 sceneKey: "story-video-suite",
                 skillId: "sceneapp-service-story-video",
                 projectId: "project-1",
@@ -1004,7 +1004,7 @@ describe("SceneAppsPage", () => {
           source: "chat",
           sourceRef: "agent-runtime-submit-turn",
           sessionId: "session-story-video-2",
-          cloudSceneRuntimeRef: {
+          serviceSceneRuntimeRef: {
             sceneKey: "story-video-suite",
             skillId: "sceneapp-service-story-video",
             projectId: "project-1",
@@ -1288,7 +1288,7 @@ describe("SceneAppsPage", () => {
             entryBindings: [
               {
                 kind: "scene",
-                bindingFamily: "cloud_scene",
+                bindingFamily: "agent_turn",
                 sceneKey: "story-video-suite",
               },
             ],
@@ -1297,17 +1297,17 @@ describe("SceneAppsPage", () => {
           },
           plan: {
             sceneappId: "story-video-suite",
-            executorKind: "cloud_scene",
-            bindingFamily: "cloud_scene",
+            executorKind: "agent_turn",
+            bindingFamily: "agent_turn",
             adapterPlan: {
-              adapterKind: "cloud_scene",
-              runtimeAction: "launch_cloud_scene",
+              adapterKind: "agent_turn",
+              runtimeAction: "open_service_scene_session",
               targetRef: "sceneapp-service-story-video",
               targetLabel: "短视频编排",
               requestMetadata: {
                 harness: {
                   service_scene_launch: {
-                    kind: "cloud_scene",
+                    kind: "local_service_skill",
                   },
                 },
               },
@@ -1362,14 +1362,14 @@ describe("SceneAppsPage", () => {
     window.localStorage.clear();
   });
 
-  it("应按分页方式拆开展示创作场景目录、生成准备与治理复盘", async () => {
+  it("应按分页方式拆开展示全部做法、生成准备与做法复盘", async () => {
     const { container } = renderSceneAppsPage();
     await flushEffects();
 
-    expect(container.textContent).toContain("按创作场景组织完整结果链");
-    expect(container.textContent).toContain("场景目录");
+    expect(container.textContent).toContain("全部做法");
+    expect(container.textContent).toContain("做法目录");
     expect(container.textContent).toContain("生成准备");
-    expect(container.textContent).toContain("治理复盘");
+    expect(container.textContent).toContain("做法复盘");
     expect(
       container.querySelector('[data-testid="sceneapp-detail-title"]')
         ?.textContent,
@@ -1510,7 +1510,7 @@ describe("SceneAppsPage", () => {
       container.querySelector(
         '[data-testid="sceneapp-governance-status-badge"]',
       )?.textContent,
-    ).toContain("先补治理材料");
+    ).toContain("先补复盘材料");
     expect(container.textContent).toContain("story-video-suite-run-1");
     expect(container.textContent).toContain("story-video-suite-run-2");
     expect(
@@ -1581,7 +1581,7 @@ describe("SceneAppsPage", () => {
         '[data-testid="sceneapp-governance-context-feedback-signals"]',
       )?.textContent,
     ).toContain("结果结构校验问题");
-    expect(container.textContent).toContain("当前主要阻塞：复核阻塞");
+    expect(container.textContent).toContain("现在最卡的一点：复核阻塞");
     expect(mockGetSceneAppRunSummary).toHaveBeenCalledWith(
       "story-video-suite-run-2",
     );
@@ -1596,7 +1596,8 @@ describe("SceneAppsPage", () => {
     });
     await flushEffects();
 
-    expect(container.textContent).toContain("已带入灵感对象：2 条");
+    expect(container.textContent).toContain("当前已带入");
+    expect(container.textContent).toContain("灵感对象：2条");
     expect(mockPlanSceneAppLaunch).toHaveBeenCalledWith(
       expect.objectContaining({
         sceneappId: "story-video-suite",
@@ -1613,12 +1614,12 @@ describe("SceneAppsPage", () => {
     const storyVideoCard = container.querySelector(
       '[data-testid="sceneapp-page-card-story-video-suite"]',
     );
-    expect(storyVideoCard?.textContent).toContain("先补治理材料");
+    expect(storyVideoCard?.textContent).toContain("先补复盘材料");
     expect(storyVideoCard?.textContent).toContain("建议继续优化");
     expect(storyVideoCard?.textContent).toContain("复核阻塞");
     expect(storyVideoCard?.textContent).toContain("最近运行：人工试跑");
     expect(storyVideoCard?.textContent).toContain(
-      "治理材料还没完全齐，暂时不适合直接放大",
+      "复盘材料还没完全齐，暂时不适合直接放大",
     );
   });
 
@@ -1654,7 +1655,7 @@ describe("SceneAppsPage", () => {
         relativePath: "exports/story-video-suite/latest/brief.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从创作场景复盘打开结果文件：主稿 · 任务简报。",
+      entryBannerMessage: "已从做法复盘打开结果文件：主稿 · 任务简报。",
     });
   });
 
@@ -1704,7 +1705,7 @@ describe("SceneAppsPage", () => {
       container.querySelector(
         '[data-testid="sceneapp-governance-status-badge"]',
       )?.textContent,
-    ).toContain("先补治理材料");
+    ).toContain("先补复盘材料");
     expect(container.textContent).toContain("story-video-suite-run-1");
   });
 
@@ -1722,7 +1723,7 @@ describe("SceneAppsPage", () => {
       '[data-testid="sceneapps-open-governance"]',
     ) as HTMLButtonElement | null;
     expect(governanceButton).toBeTruthy();
-    expect(governanceButton?.textContent).toContain("进入生成");
+    expect(governanceButton?.textContent).toContain("先去生成准备");
 
     act(() => {
       governanceButton?.click();
@@ -1747,7 +1748,7 @@ describe("SceneAppsPage", () => {
     expect(
       container.querySelector('[data-testid="sceneapps-empty-state"]')
         ?.textContent,
-    ).toContain("当前筛选后还没有可进入准备页的创作场景");
+    ).toContain("当前筛选后还没有可进入准备页的整套做法");
 
     const resetButton = container.querySelector(
       '[data-testid="sceneapps-empty-reset-filters"]',
@@ -1779,7 +1780,7 @@ describe("SceneAppsPage", () => {
     expect(
       container.querySelector('[data-testid="sceneapps-empty-state"]')
         ?.textContent,
-    ).toContain("这条创作场景还没有首轮治理样本");
+    ).toContain("这套做法还没有首轮治理样本");
 
     const openDetailButton = container.querySelector(
       '[data-testid="sceneapps-governance-open-detail"]',
@@ -1902,7 +1903,7 @@ describe("SceneAppsPage", () => {
       await openSceneAppsView(container, "catalog");
 
       const searchInput = container.querySelector(
-        'input[placeholder="搜索场景标题"]',
+        'input[placeholder="搜索做法标题"]',
       ) as HTMLInputElement | null;
 
       expect(searchInput).toBeTruthy();
@@ -1966,7 +1967,7 @@ describe("SceneAppsPage", () => {
 
     await openSceneAppsView(container, "catalog");
     const searchInput = container.querySelector(
-      'input[placeholder="搜索场景标题"]',
+      'input[placeholder="搜索做法标题"]',
     ) as HTMLInputElement | null;
 
     await openSceneAppsView(container, "detail");
@@ -1998,7 +1999,7 @@ describe("SceneAppsPage", () => {
       expect(listSceneAppRecentVisits()).toEqual([]);
 
       const searchInput = container.querySelector(
-        'input[placeholder="搜索场景标题"]',
+        'input[placeholder="搜索做法标题"]',
       ) as HTMLInputElement | null;
 
       expect(searchInput).toBeTruthy();
@@ -2162,7 +2163,7 @@ describe("SceneAppsPage", () => {
     );
   });
 
-  it("应允许显式写入当前场景基线并刷新详情页上下文经营信息", async () => {
+  it("应允许显式写入当前做法基线并刷新详情页上下文经营信息", async () => {
     mockPlanSceneAppLaunch.mockResolvedValue(
       createPlanResult({
         descriptor: {
@@ -2204,7 +2205,7 @@ describe("SceneAppsPage", () => {
             memoryRefs: [],
             toolRefs: [],
             referenceCount: 1,
-            notes: ["当前场景基线已写入项目级 Context Snapshot，后续 planning 会优先复用。"],
+            notes: ["当前做法基线已写入项目级 Context Snapshot，后续 planning 会优先复用。"],
           },
           snapshot: {
             skillRefs: [],
@@ -2252,7 +2253,7 @@ describe("SceneAppsPage", () => {
     );
     expect(container.textContent).toContain("已用 4 次");
     expect(container.textContent).toContain(
-      "当前场景基线已写入项目级 Context Snapshot，后续 planning 会优先复用。",
+      "当前做法基线已写入项目级 Context Snapshot，后续 planning 会优先复用。",
     );
   });
 
@@ -2404,7 +2405,7 @@ describe("SceneAppsPage", () => {
         relativePath: "exports/story-video-suite/latest/brief.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从创作场景复盘打开结果文件：主稿 · 任务简报。",
+      entryBannerMessage: "已从做法复盘打开结果文件：主稿 · 任务简报。",
     });
   });
 
@@ -2447,7 +2448,7 @@ describe("SceneAppsPage", () => {
           ".lime/harness/sessions/session-story-video-1/evidence/summary.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从创作场景复盘打开治理文件：证据摘要。",
+      entryBannerMessage: "已从做法复盘打开治理文件：证据摘要。",
     });
   });
 
@@ -2491,7 +2492,7 @@ describe("SceneAppsPage", () => {
           ".lime/harness/sessions/session-story-video-1/review/review-decision.md",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从创作场景复盘打开治理动作：人工复核记录。",
+      entryBannerMessage: "已从做法复盘打开治理动作：人工复核记录。",
     });
   });
 
@@ -2532,11 +2533,11 @@ describe("SceneAppsPage", () => {
           ".lime/harness/sessions/session-story-video-1/review/review-decision.json",
         requestKey: expect.any(Number),
       },
-      entryBannerMessage: "已从创作场景复盘打开治理动作：复核 JSON。",
+      entryBannerMessage: "已从做法复盘打开治理动作：复核 JSON。",
     });
   });
 
-  it("保存人工复核后应刷新当前场景 planning 基线", async () => {
+  it("保存人工复核后应刷新当前做法 planning 基线", async () => {
     const { container } = renderSceneAppsPage();
     await flushEffects();
     await openSceneAppsView(container, "governance");
@@ -2629,15 +2630,15 @@ describe("SceneAppsPage", () => {
         session_id: "session-story-video-1",
         decision_status: "accepted",
         decision_summary: expect.stringContaining("短视频编排"),
-        chosen_fix_strategy: "沿当前参考、风格与结果包基线继续放量。",
+        chosen_fix_strategy: "沿当前参考、风格与这轮结果基线继续放量。",
         risk_level: "low",
-        notes: "来自创作场景轻量反馈入口。",
+        notes: "来自整套做法轻量反馈入口。",
       }),
     );
     expect(mockPlanSceneAppLaunch).toHaveBeenCalledTimes(2);
   });
 
-  it("运行详情里的云端 Scene 应支持回到对应会话", async () => {
+  it("运行详情里的生成上下文应支持回到对应会话", async () => {
     const { container, onNavigate } = renderSceneAppsPage();
     await flushEffects();
     await openSceneAppsView(container, "governance");
@@ -2655,7 +2656,7 @@ describe("SceneAppsPage", () => {
     const entryActionButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-entry-action"]',
     ) as HTMLButtonElement | null;
-    expect(entryActionButton?.textContent).toContain("回到云端 Scene 会话");
+    expect(entryActionButton?.textContent).toContain("回到生成会话");
 
     act(() => {
       entryActionButton?.click();
@@ -2664,7 +2665,7 @@ describe("SceneAppsPage", () => {
     expect(onNavigate).toHaveBeenCalledWith("agent", {
       agentEntry: "claw",
       initialSessionId: "session-story-video-2",
-      entryBannerMessage: "已从创作场景复盘恢复云端 Scene 会话。",
+      entryBannerMessage: "已从做法复盘恢复生成会话。",
     });
   });
 
@@ -2738,7 +2739,7 @@ describe("SceneAppsPage", () => {
       expect.objectContaining({
         agentEntry: "claw",
         projectId: "project-1",
-        entryBannerMessage: "已从创作场景复盘恢复本机技能入口。",
+        entryBannerMessage: "已从做法复盘恢复本机技能入口。",
         initialPendingServiceSkillLaunch: expect.objectContaining({
           skillId: "sceneapp-service-analysis",
           initialSlotValues: {

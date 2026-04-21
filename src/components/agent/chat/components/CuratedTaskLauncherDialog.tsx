@@ -388,7 +388,7 @@ export function CuratedTaskLauncherDialog({
                       </span>
                     </div>
                     <div className="text-sm font-semibold text-slate-900">
-                      想的话，再带几条参考
+                      想的话，再带几条参考对象
                     </div>
                     <div className="text-xs leading-5 text-slate-500">
                       风格、偏好、项目结果和当前上下文都可以。不是必填，但会让这一轮更贴近你的目标。
@@ -491,7 +491,7 @@ export function CuratedTaskLauncherDialog({
                 referenceEntries.length === 0 &&
                 !referenceEntriesError ? (
                   <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
-                    当前还没有可选参考条目，后面补进来也可以。
+                    当前还没有可选参考对象，后面补进来也可以。
                   </div>
                 ) : null}
 
@@ -503,7 +503,7 @@ export function CuratedTaskLauncherDialog({
 
                 {selectedReferenceEntryIds.length > 0 ? (
                   <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    已选择 {selectedReferenceEntryIds.length} 条参考基线，本轮会一起带入生成。
+                    已选择 {selectedReferenceEntryIds.length} 条参考对象，本轮会一起带入生成。
                     {missingSelectedReferenceCount > 0
                       ? ` 其中 ${missingSelectedReferenceCount} 条未出现在最近列表里，但发送时仍会保留。`
                       : ""}

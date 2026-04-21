@@ -416,7 +416,7 @@ describe("CuratedTaskLauncherDialog", () => {
     });
 
     expect(document.body.textContent).toContain("品牌语气偏好");
-    expect(document.body.textContent).toContain("已选择 2 条参考基线");
+    expect(document.body.textContent).toContain("已选择 2 条参考对象");
 
     await act(async () => {
       window.dispatchEvent(

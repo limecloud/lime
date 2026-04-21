@@ -8,7 +8,11 @@ import type { Skill } from "@/lib/api/skills";
 import type { ServiceSkillHomeItem } from "@/components/agent/chat/service-skills/types";
 import type { BuiltinInputCommand, RuntimeSceneSlashCommand } from "../../skill-selection/builtinCommands";
 import type { InputCapabilitySelection } from "../../skill-selection/inputCapabilitySelection";
-import { buildCuratedTaskLaunchPrompt } from "../../utils/curatedTaskTemplates";
+import {
+  buildCuratedTaskLaunchPrompt,
+  findCuratedTaskTemplateById,
+  resolveCuratedTaskTemplateLaunchPrefill,
+} from "../../utils/curatedTaskTemplates";
 
 const mockCharacterMention =
   vi.fn<
@@ -386,6 +390,7 @@ beforeEach(() => {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     }
   ).IS_REACT_ACT_ENVIRONMENT = true;
+  window.localStorage.clear();
 });
 
 afterEach(() => {
@@ -801,6 +806,128 @@ describe("Inputbar", () => {
         },
       }),
     );
+  });
+
+  it("Generate 内发送 curated_task 后，应把最新启动事实写回 recent usage", async () => {
+    const template = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(template).toBeTruthy();
+
+    const launchInputValues = {
+      theme_target: "AI 内容创作",
+      platform_region: "X 与 TikTok 北美区",
+    };
+    const referenceEntries = [
+      {
+        id: "memory-1",
+        sourceKind: "memory" as const,
+        title: "品牌风格样本",
+        summary: "轻盈但专业的品牌语气参考。",
+        category: "context" as const,
+        categoryLabel: "参考",
+        tags: ["品牌", "语气"],
+      },
+    ];
+    const prompt = buildCuratedTaskLaunchPrompt({
+      task: template!,
+      inputValues: launchInputValues,
+      referenceEntries,
+    });
+    const onSend = vi.fn().mockResolvedValue(true);
+
+    renderInputbar({
+      input: prompt,
+      onSend,
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt,
+          launchInputValues,
+          referenceMemoryIds: ["memory-1"],
+          referenceEntries,
+        },
+        requestKey: 2026042101,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(resolveCuratedTaskTemplateLaunchPrefill(template!)).toEqual(
+      expect.objectContaining({
+        inputValues: launchInputValues,
+        referenceMemoryIds: ["memory-1"],
+        hint: expect.stringContaining("已根据你上次启动"),
+        referenceEntries: [
+          expect.objectContaining({
+            id: "memory-1",
+            sourceKind: "memory",
+            title: "品牌风格样本",
+            summary: "轻盈但专业的品牌语气参考。",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("发送被上层拦截时，不应写入 curated task recent usage", async () => {
+    const template = findCuratedTaskTemplateById("daily-trend-briefing");
+    expect(template).toBeTruthy();
+
+    const prompt = buildCuratedTaskLaunchPrompt({
+      task: template!,
+      inputValues: {
+        theme_target: "AI 内容创作",
+      },
+    });
+    const onSend = vi.fn().mockResolvedValue(false);
+
+    renderInputbar({
+      input: prompt,
+      onSend,
+      activeTheme: "general",
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "curated_task",
+          taskId: "daily-trend-briefing",
+          taskTitle: "每日趋势摘要",
+          prompt,
+          launchInputValues: {
+            theme_target: "AI 内容创作",
+          },
+        },
+        requestKey: 2026042102,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sendButton = document.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.click();
+      await Promise.resolve();
+    });
+
+    expect(resolveCuratedTaskTemplateLaunchPrefill(template!)).toBeNull();
   });
 
   it("带着缺少启动槽位的初始结果模板进入时，应先打开 launcher 而不是直接预填 prompt", async () => {
@@ -2066,9 +2193,7 @@ describe("Inputbar", () => {
     const latestCall =
       mockInputbarCore.mock.calls[mockInputbarCore.mock.calls.length - 1]?.[0];
     expect(latestCall).toBeTruthy();
-    expect(latestCall.placeholder).toContain(
-      "继续补充当前生成任务，或回到左侧继续旧历史",
-    );
+    expect(latestCall.placeholder).toContain("继续补充这轮生成，或回到左侧继续旧历史");
   });
 
   it("工作区工作流在待启动状态下不应显示闸门条", async () => {

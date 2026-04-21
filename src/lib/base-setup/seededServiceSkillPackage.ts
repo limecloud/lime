@@ -204,18 +204,18 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       entryKey: "cloud-video-dubbing",
       skillKey: "cloud-video-dubbing",
       skillType: "service",
-      title: "云端视频配音",
+      title: "视频配音",
       summary:
-        "把视频素材、语言要求与旁白意图提交到云端，生成一版可继续加工的配音结果。",
+        "围绕视频素材、语言要求与旁白意图，先在本地工作区整理一版可继续加工的配音稿。",
       category: "视频创作",
-      outputHint: "配音脚本 + 云端运行状态",
+      outputHint: "配音脚本 + 本地执行稿",
       triggerHints: [
-        "已有视频素材，希望直接提交一版配音任务时使用。",
-        "需要围绕目标语言、旁白风格快速进入云端配音流程时使用。",
+        "已有视频素材，希望直接整理一版可继续加工的配音稿时使用。",
+        "需要围绕目标语言、旁白风格快速进入本地配音工作流时使用。",
       ],
       bundleRefId: "cloud-video-dubbing-bundle",
       slotProfileRef: "cloud-video-dubbing-slots",
-      bindingProfileRef: "cloud-scene-instant",
+      bindingProfileRef: "agent-turn-instant",
       artifactProfileRef: "cloud-video-dubbing-artifact",
       scorecardProfileRef: "seeded-service-skill-scorecard",
       policyProfileRef: "seeded-all-surfaces",
@@ -224,12 +224,12 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
         requiresProject: true,
       },
       usageGuidelines: [
-        "适合已经有视频素材或旁白目标，希望直接提交一版云端配音任务。",
-        "如果有目标语言、声线或字幕偏好，建议直接写在命令里一起提交。",
+        "适合已经有视频素材或旁白目标，希望先整理一版本地可编辑的配音稿。",
+        "如果有目标语言、声线或字幕偏好，建议直接写在命令里一起补齐。",
       ],
       setupRequirements: [
-        "需要已登录 OEM 云端并具备有效 Session Token。",
-        "建议在视频项目内启动，方便结果回流到当前工作区。",
+        "需要已选择可用模型。",
+        "建议在视频项目内启动，方便配音稿直接回到当前工作区。",
       ],
       examples: [
         "给这条新品视频做一版英文配音，保留中英双语字幕。",
@@ -635,12 +635,6 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       executionLocation: "client_default",
     },
     {
-      id: "cloud-scene-instant",
-      bindingFamily: "cloud_scene",
-      runnerType: "instant",
-      executionLocation: "cloud_required",
-    },
-    {
       id: "automation-job-scheduled",
       bindingFamily: "automation_job",
       runnerType: "scheduled",
@@ -688,7 +682,7 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       viewerKind: "artifact_bundle",
       defaultArtifactKind: "brief",
       outputDestination:
-        "任务会提交到 OEM 云端执行，结果状态与回流摘要会展示在当前工作区。",
+        "配音稿会直接写回当前工作区，方便继续补字幕、旁白和镜头节奏。",
     },
     {
       id: "video-dubbing-language-artifact",
@@ -775,7 +769,6 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       "agent_turn",
       "native_skill",
       "automation_job",
-      "cloud_scene",
       "artifact_viewer",
       "workspace_storage",
     ],

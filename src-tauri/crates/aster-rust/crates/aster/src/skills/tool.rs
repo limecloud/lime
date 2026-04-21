@@ -2,7 +2,7 @@
 //!
 //! Tool implementation for executing skills.
 
-use super::registry::global_registry;
+use super::registry::{global_registry, refresh_shared_registry_if_needed};
 use super::{
     LlmProvider, SharedSkillRegistry, SkillDefinition, SkillError, SkillExecutionMode,
     SkillExecutionResult, SkillExecutor,
@@ -12,6 +12,7 @@ use crate::config::AsterMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::execution::manager::AgentManager;
+use crate::hooks::register_session_frontmatter_hooks;
 use crate::model::ModelConfig;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
@@ -72,6 +73,8 @@ impl SkillTool {
         args: Option<&str>,
         context: &ToolContext,
     ) -> Result<SkillExecutionResult, String> {
+        refresh_shared_registry_if_needed(&self.registry)?;
+
         // First, get all the data we need from the skill
         let skill = {
             let registry_guard = self.registry.read().map_err(|e| e.to_string())?;
@@ -111,6 +114,35 @@ impl SkillTool {
             registry_write.record_invoked(&skill.skill_name, &skill.file_path, &skill_content);
         }
 
+        if let Some(frontmatter_hooks) = skill.hooks.as_ref() {
+            if context.session_id.trim().is_empty() {
+                tracing::warn!(
+                    "[SkillTool] skill '{}' 声明了 frontmatter hooks，但当前调用缺少 session_id，已跳过注册",
+                    skill.skill_name
+                );
+            } else {
+                let report = register_session_frontmatter_hooks(
+                    context.session_id.trim(),
+                    frontmatter_hooks,
+                );
+                if report.registered > 0 {
+                    tracing::info!(
+                        "[SkillTool] 已为 session={} 注册 {} 个 skill frontmatter hooks: {}",
+                        context.session_id,
+                        report.registered,
+                        skill.skill_name
+                    );
+                }
+                for skipped in report.skipped {
+                    tracing::warn!(
+                        "[SkillTool] 跳过 skill '{}' 的 frontmatter hook: {}",
+                        skill.skill_name,
+                        skipped
+                    );
+                }
+            }
+        }
+
         if skill.execution_mode == SkillExecutionMode::Agent {
             return Ok(self
                 .execute_agent_skill(&skill, &skill_content, context)
@@ -128,6 +160,10 @@ impl SkillTool {
 
     /// Generate tool description with available skills
     fn generate_description(&self) -> String {
+        if let Err(error) = refresh_shared_registry_if_needed(&self.registry) {
+            tracing::warn!("[SkillTool] 刷新 plugin skill 注册表失败: {}", error);
+        }
+
         let skills_xml = if let Ok(registry_guard) = self.registry.read() {
             registry_guard
                 .get_all()
@@ -873,6 +909,10 @@ impl Tool for SkillTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hooks::{
+        clear_session_hooks, get_session_hook_count, is_blocked, run_hooks_with_registry,
+        FrontmatterHooks, HookEvent, HookInput, HookRegistry,
+    };
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use crate::skills::new_shared_registry;
     use crate::skills::types::{
@@ -903,6 +943,7 @@ mod tests {
             execution_mode: SkillExecutionMode::default(),
             provider: None,
             workflow: None,
+            hooks: None,
         }
     }
 
@@ -1177,5 +1218,63 @@ mod tests {
                 .contains("当前 session 没有关联可用 provider"),
             "应返回 provider 缺失错误"
         );
+    }
+
+    #[tokio::test]
+    async fn test_skill_tool_registers_session_frontmatter_hooks_for_current_session() {
+        clear_session_hooks("skill-session");
+
+        let registry = new_shared_registry();
+        {
+            let mut guard = registry.write().expect("registry write");
+            let mut skill = create_test_skill();
+            skill.hooks = Some(
+                serde_yaml::from_str::<FrontmatterHooks>(
+                    r#"
+PreToolUse:
+  - matcher: Bash
+    hooks:
+      - type: command
+        command: "printf '%s' '{\"blocked\":true,\"message\":\"skill hook blocked\"}'; exit 2"
+"#,
+                )
+                .expect("frontmatter hooks should parse"),
+            );
+            guard.register(skill);
+        }
+        let tool = SkillTool::with_registry(registry);
+        let provider: Arc<dyn Provider> = Arc::new(MockProvider::new("openai", "gpt-4o"));
+
+        let result = tool
+            .execute(
+                serde_json::json!({
+                    "skill": "test:example",
+                    "args": "注册 session hooks"
+                }),
+                &build_tool_context(provider),
+            )
+            .await
+            .expect("skill result");
+
+        assert!(result.success);
+        assert_eq!(get_session_hook_count("skill-session"), 1);
+
+        let empty_registry = Arc::new(HookRegistry::new());
+        let hook_results = run_hooks_with_registry(
+            HookInput {
+                event: Some(HookEvent::PreToolUse),
+                tool_name: Some("Bash".to_string()),
+                session_id: Some("skill-session".to_string()),
+                ..Default::default()
+            },
+            &empty_registry,
+        )
+        .await;
+
+        let (blocked, message) = is_blocked(&hook_results);
+        assert!(blocked);
+        assert_eq!(message.as_deref(), Some("skill hook blocked"));
+
+        clear_session_hooks("skill-session");
     }
 }

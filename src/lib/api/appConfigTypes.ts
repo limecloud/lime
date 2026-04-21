@@ -71,9 +71,11 @@ export interface WorkspacePreferencesConfig {
   companion_defaults?: CompanionDefaultsConfig;
 }
 
+export type NavigationEnabledItemId = "plugins" | "openclaw" | "companion";
+
 export interface NavigationConfig {
   schema_version?: number;
-  enabled_items: string[];
+  enabled_items: NavigationEnabledItemId[];
 }
 
 export interface ChatAppearanceConfig {

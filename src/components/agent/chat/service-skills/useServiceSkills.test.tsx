@@ -8,7 +8,7 @@ import {
   type SkillCatalog,
 } from "@/lib/api/skillCatalog";
 import { recordServiceSkillAutomationLink } from "./automationLinkStorage";
-import { recordServiceSkillCloudRun } from "./cloudRunStorage";
+import { recordServiceSkillUsage } from "./storage";
 import { useServiceSkills } from "./useServiceSkills";
 
 interface HookHarness {
@@ -74,16 +74,15 @@ function buildCloudCatalog(): SkillCatalog {
       {
         ...seeded.items[1]!,
         id: "cloud-video-dubbing",
-        title: "云端视频配音",
-        summary:
-          "把参考视频与文案提交到 OEM 云端执行，并把结果回流到本地工作区。",
+        title: "视频配音",
+        summary: "围绕参考视频与文案整理一版本地可继续加工的配音稿。",
         executionLocation: "cloud_required",
         defaultExecutorBinding: "cloud_scene",
         themeTarget: "general",
         version: "tenant-2026-03-30",
         groupKey: "general",
         execution: {
-          kind: "cloud_scene",
+          kind: "agent_turn",
         },
       },
     ],
@@ -409,7 +408,7 @@ describe("useServiceSkills", () => {
     }
   });
 
-  it("cloud_required 技能状态变更后应回灌到首页技能列表", async () => {
+  it("legacy cloud_required 技能进入首页后也应按本地执行语义展示", async () => {
     const harness = mountHook();
 
     try {
@@ -421,37 +420,51 @@ describe("useServiceSkills", () => {
 
       await flushEffects();
 
-      act(() => {
-        recordServiceSkillCloudRun("cloud-video-dubbing", {
-          id: "cloud-run-1",
-          status: "success",
-          outputSummary: "云端结果已生成",
-          finishedAt: "2026-03-30T12:03:00.000Z",
-          updatedAt: "2026-03-30T12:03:00.000Z",
-        });
-      });
-
-      await flushEffects();
-
-      expect(
-        harness
-          .getValue()
-          .skills.find((skill) => skill.id === "cloud-video-dubbing")
-          ?.cloudStatus,
-      ).toEqual(
-        expect.objectContaining({
-          runId: "cloud-run-1",
-          statusLabel: "成功",
-          tone: "emerald",
-          detail: "云端结果已生成",
-        }),
-      );
       expect(
         harness
           .getValue()
           .skills.find((skill) => skill.id === "cloud-video-dubbing")
           ?.runnerLabel,
-      ).toBe("云端执行");
+      ).toBe("立即开始");
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("外部写入 service skill usage 后应即时刷新 recent 排序与徽标", async () => {
+    const harness = mountHook();
+
+    try {
+      await flushEffects();
+
+      const targetSkill = harness.getValue().skills[1];
+      expect(targetSkill).toBeTruthy();
+      expect(targetSkill?.recentUsedAt).toBeNull();
+      expect(targetSkill?.badge).not.toBe("最近使用");
+
+      act(() => {
+        recordServiceSkillUsage({
+          skillId: targetSkill!.id,
+          runnerType: targetSkill!.runnerType,
+          slotValues: {
+            article_source: "沿着这条增长主线继续展开",
+          },
+        });
+      });
+
+      await flushEffects();
+
+      expect(harness.getValue().skills[0]?.id).toBe(targetSkill?.id);
+      expect(
+        harness.getValue().skills.find((skill) => skill.id === targetSkill?.id),
+      ).toEqual(
+        expect.objectContaining({
+          id: targetSkill?.id,
+          badge: "最近使用",
+          isRecent: true,
+          recentUsedAt: expect.any(Number),
+        }),
+      );
     } finally {
       harness.unmount();
     }

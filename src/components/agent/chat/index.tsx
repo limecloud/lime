@@ -1,13 +1,17 @@
 import { Suspense, lazy, useEffect } from "react";
 import type { AgentChatWorkspaceProps } from "./agentChatWorkspaceContract";
+import { loadAgentChatWorkspaceModule } from "./agentChatWorkspaceLoader";
 
 const WORKSPACE_PREFETCH_IDLE_TIMEOUT_MS = 1_500;
 const WORKSPACE_PREFETCH_FALLBACK_DELAY_MS = 180;
-
-const loadAgentChatWorkspace = () => import("./AgentChatWorkspace");
+const WORKSPACE_LOADING_FALLBACK = (
+  <div className="flex h-full min-h-[320px] items-center justify-center text-sm text-slate-500">
+    正在准备生成工作区...
+  </div>
+);
 
 const LazyAgentChatWorkspace = lazy(async () => {
-  const module = await loadAgentChatWorkspace();
+  const module = await loadAgentChatWorkspaceModule();
   return { default: module.AgentChatWorkspace };
 });
 
@@ -73,7 +77,7 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
 
   useEffect(() => {
     return scheduleWorkspacePrefetch(() => {
-      void loadAgentChatWorkspace();
+      void loadAgentChatWorkspaceModule().catch(() => undefined);
     });
   }, []);
 
@@ -93,7 +97,7 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
   ]);
 
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={WORKSPACE_LOADING_FALLBACK}>
       <LazyAgentChatWorkspace
         {...props}
         agentEntry={effectiveAgentEntry}

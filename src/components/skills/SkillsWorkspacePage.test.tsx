@@ -9,6 +9,8 @@ import type {
 } from "@/components/agent/chat/service-skills/types";
 import { recordServiceSkillUsage } from "@/components/agent/chat/service-skills/storage";
 import { recordCuratedTaskRecommendationSignalFromMemory } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
+import { recordSlashEntryUsage } from "@/components/agent/chat/skill-selection/slashEntryUsage";
+import { recordCuratedTaskTemplateUsage } from "@/components/agent/chat/utils/curatedTaskTemplates";
 import type { SkillsPageParams } from "@/types/page";
 import { SkillsWorkspacePage } from "./SkillsWorkspacePage";
 
@@ -75,7 +77,6 @@ function createDefaultServiceSkills(): ServiceSkillHomeItem[] {
       runnerDescription: "会直接在当前工作区生成首版结果。",
       actionLabel: "对话内补参",
       automationStatus: null,
-      cloudStatus: null,
       groupKey: "general",
     },
     {
@@ -98,7 +99,6 @@ function createDefaultServiceSkills(): ServiceSkillHomeItem[] {
       runnerDescription: "会直接在当前工作区生成首版结果。",
       actionLabel: "对话内补参",
       automationStatus: null,
-      cloudStatus: null,
       groupKey: "general",
     },
     {
@@ -129,7 +129,6 @@ function createDefaultServiceSkills(): ServiceSkillHomeItem[] {
       runnerDescription: "会复用当前浏览器里的真实登录态执行站点任务。",
       actionLabel: "对话内补参",
       automationStatus: null,
-      cloudStatus: null,
       groupKey: "github",
       siteCapabilityBinding: {
         adapterName: "github/search",
@@ -361,6 +360,7 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("我的方法");
     expect(container.textContent).toContain("先拿结果");
     expect(container.textContent).toContain("方法目录");
+    expect(container.textContent).toContain("查看全部做法");
     expect(container.textContent).toContain("继续常用做法");
     expect(container.textContent).toContain("我的方法库");
     expect(container.textContent).toContain("每日趋势摘要");
@@ -390,6 +390,31 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).not.toContain(
       "GitHub 仓库检索围绕关键词采集",
     );
+  });
+
+  it("查看全部做法应带着当前搜索进入 sceneapps 目录", () => {
+    const { container, onNavigate } = renderPage();
+
+    const searchInput = container.querySelector(
+      'input[placeholder="搜索结果方向、站点或做法标题"]',
+    ) as HTMLInputElement | null;
+    act(() => {
+      updateFieldValue(searchInput, "GitHub");
+    });
+
+    const openDirectoryButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("查看全部做法"));
+    expect(openDirectoryButton).toBeTruthy();
+
+    act(() => {
+      openDirectoryButton?.click();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("sceneapps", {
+      view: "catalog",
+      search: "GitHub",
+    });
   });
 
   it("最近保存到灵感库的成果信号应影响技能页的结果模板推荐", () => {
@@ -427,6 +452,79 @@ describe("SkillsWorkspacePage", () => {
 
     expect(container.textContent).toContain("复盘这个账号/项目");
     expect(container.textContent).toContain("围绕最近成果");
+  });
+
+  it("应在方法页显影最近一次的结果模板、常用做法和本地方法输入摘要", async () => {
+    recordCuratedTaskTemplateUsage({
+      templateId: "daily-trend-briefing",
+      usedAt: 1_800_000_000_000,
+      launchInputValues: {
+        theme_target: "AI 内容创作",
+        platform_region: "X + TikTok（北美）",
+      },
+      referenceEntries: [
+        {
+          id: "memory-reference-1",
+          title: "品牌定位卡",
+          summary: "偏实验感、偏高频更新的内容品牌方向。",
+          category: "identity",
+          categoryLabel: "风格",
+          tags: ["品牌", "风格"],
+        },
+      ],
+    });
+    recordServiceSkillUsage({
+      skillId: "service-skill-1",
+      runnerType: "instant",
+      usedAt: 1_800_000_000_100,
+      slotValues: {
+        article_source: "https://example.com/article",
+        target_duration: "90 秒",
+      },
+      launchUserInput: "保留对团队协作方式的强调",
+    });
+    recordSlashEntryUsage({
+      kind: "skill",
+      entryId: "local:writer",
+      usedAt: 1_800_000_000_200,
+      replayText: "继续优化这套写作方法",
+    });
+
+    const { container } = renderPage();
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain(
+      "上次填写：主题或赛道=AI 内容创作；希望关注的平台/地域=X + TikTok（北美）",
+    );
+    expect(container.textContent).toContain("参考：品牌定位卡");
+    expect(container.textContent).toContain(
+      "上次填写：文章链接/正文=https://example.com/article；目标时长=90 秒",
+    );
+    expect(container.textContent).toContain(
+      "上次补充：保留对团队协作方式的强调",
+    );
+    expect(container.textContent).toContain("上次目标：继续优化这套写作方法");
+  });
+
+  it("页面打开后新增本地方法 recent usage 时应即时刷新我的方法库", async () => {
+    const { container } = renderPage();
+
+    expect(container.textContent).not.toContain("上次目标：继续优化这套写作方法");
+
+    await act(async () => {
+      recordSlashEntryUsage({
+        kind: "skill",
+        entryId: "local:writer",
+        usedAt: 1_800_000_000_300,
+        replayText: "继续优化这套写作方法",
+      });
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("上次目标：继续优化这套写作方法");
   });
 
   it("推荐技能组卡片不应重复展示已进入继续常用做法的技能", () => {
@@ -791,6 +889,7 @@ describe("SkillsWorkspacePage", () => {
         article_source: "上次沉淀的文章摘要",
         target_duration: "120 秒",
       },
+      launchUserInput: "保留更强的团队协作视角",
     });
 
     const { container, onNavigate } = renderPage();
@@ -814,6 +913,7 @@ describe("SkillsWorkspacePage", () => {
             article_source: "上次沉淀的文章摘要",
             target_duration: "120 秒",
           },
+          launchUserInput: "保留更强的团队协作视角",
           prefillHint:
             "已根据你上次成功执行 深度研究 时的参数自动预填，可继续修改后执行。",
         },
@@ -915,6 +1015,45 @@ describe("SkillsWorkspacePage", () => {
       expect.objectContaining({
         agentEntry: "new-task",
         theme: "general",
+        initialInputCapability: {
+          capabilityRoute: {
+            kind: "installed_skill",
+            skillKey: "local:writer",
+            skillName: "写作助手",
+          },
+          requestKey: expect.any(Number),
+        },
+      }),
+    );
+  });
+
+  it("我的方法库卡片若已有上次目标，进入生成时应一并恢复这条目标", () => {
+    recordSlashEntryUsage({
+      kind: "skill",
+      entryId: "local:writer",
+      usedAt: 1_800_000_000_400,
+      replayText: "继续优化这套写作方法",
+    });
+
+    const { container, onNavigate } = renderPage();
+
+    const launchButton = Array.from(container.querySelectorAll("button")).find(
+      (button) =>
+        button.textContent?.includes("进入生成") &&
+        button.closest("article")?.textContent?.includes("写作助手"),
+    );
+    expect(launchButton).toBeTruthy();
+
+    act(() => {
+      launchButton?.click();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        agentEntry: "new-task",
+        theme: "general",
+        initialUserPrompt: "继续优化这套写作方法",
         initialInputCapability: {
           capabilityRoute: {
             kind: "installed_skill",

@@ -1,6 +1,8 @@
+use super::session_runtime::delete_runtime_session_internal_with_runtime;
 use super::*;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
 use lime_core::workspace::WorkspaceSettings;
+use tauri::Manager;
 
 /// 统一运行时：删除会话。
 #[tauri::command]
@@ -13,7 +15,13 @@ pub async fn agent_runtime_delete_session(
     let trimmed_session_id = session_id.trim().to_string();
     let _ = state.cancel_session(&trimmed_session_id).await;
     let _ = clear_runtime_queue_service(&app, &trimmed_session_id).await;
-    delete_runtime_session_internal(db.inner(), &trimmed_session_id).await
+    delete_runtime_session_internal_with_runtime(
+        db.inner(),
+        state.inner(),
+        app.state::<crate::mcp::McpManagerState>().inner(),
+        &trimmed_session_id,
+    )
+    .await
 }
 
 /// 确认权限请求

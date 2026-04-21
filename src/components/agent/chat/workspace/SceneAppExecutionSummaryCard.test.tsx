@@ -129,7 +129,7 @@ function renderCard(
           summary: "把线框图、脚本、配乐和短视频草稿压成同一条结果链。",
           businessLabel: "内容闭环",
           typeLabel: "多模态组合",
-          executionChainLabel: "创作场景 -> 生成 -> Project Pack",
+          executionChainLabel: "做法 -> 生成 -> Project Pack",
           deliveryContractLabel: "Project Pack",
           planningStatusLabel: "已就绪",
           planningSummary: "当前已经带入 2 条参考与 1 条风格偏好，可直接进入生成。",
@@ -242,13 +242,17 @@ afterEach(() => {
 });
 
 describe("SceneAppExecutionSummaryCard", () => {
-  it("应展示创作场景执行摘要的核心合同信息", () => {
+  it("应展示做法执行摘要的核心合同信息", () => {
     const container = renderCard();
 
-    expect(container.textContent).toContain("创作场景执行摘要");
+    expect(container.textContent).toContain("做法执行摘要");
     expect(container.textContent).toContain("短视频编排");
-    expect(container.textContent).toContain("创作场景 -> 生成 -> Project Pack");
+    expect(container.textContent).toContain("做法 -> 生成 -> Project Pack");
     expect(container.textContent).toContain("当前已经带入 2 条参考与 1 条风格偏好");
+    expect(container.textContent).toContain("当前带入对象");
+    expect(container.textContent).toContain("结果去向与交付");
+    expect(container.textContent).toContain("这轮怎么判断");
+    expect(container.textContent).toContain("当前带入：2 条参考对象");
     expect(
       container.querySelector('[data-testid="sceneapp-execution-summary-project-pack"]')
         ?.textContent,

@@ -69,7 +69,7 @@ export function SceneAppProjectPackRuntimePanel({
 
       {loading && !runDetailView ? (
         <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-          正在回流最近可消费结果…
+          正在整理最近结果样本…
         </div>
       ) : !runDetailView ? (
         <div className="mt-4 rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500">
@@ -82,7 +82,7 @@ export function SceneAppProjectPackRuntimePanel({
               data-testid={`${testIdPrefix}-runtime-fallback-note`}
               className="mt-4 rounded-[18px] border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800"
             >
-              当前最近一次运行还在继续，这里先回看最近一轮已交付样本，避免准备页和评分页只剩查看方式文案、没有实际结果入口。
+              当前最近一次运行还在继续，这里先回看最近一轮已交付样本，避免页面只剩说明、没有真实结果可看。
             </div>
           ) : null}
 
@@ -92,17 +92,17 @@ export function SceneAppProjectPackRuntimePanel({
               {runDetailView.sourceLabel}
             </div>
             <div>
-              <span className="font-medium text-slate-900">交付完成：</span>
+              <span className="font-medium text-slate-900">完成情况：</span>
               {runDetailView.deliveryCompletionLabel}
             </div>
             <div>
-              <span className="font-medium text-slate-900">查看方式：</span>
+              <span className="font-medium text-slate-900">打开方式：</span>
               {runDetailView.deliveryViewerLabel ??
                 runDetailView.packViewerLabel ??
                 "沿当前结果文件打开"}
             </div>
             <div>
-              <span className="font-medium text-slate-900">结果时间：</span>
+              <span className="font-medium text-slate-900">完成时间：</span>
               {runDetailView.finishedAtLabel || runDetailView.startedAtLabel}
             </div>
           </div>
@@ -136,7 +136,7 @@ export function SceneAppProjectPackRuntimePanel({
                     </span>
                     {entry.isPrimary ? (
                       <span className="rounded-full border border-lime-200 bg-lime-50 px-2 py-0.5 text-[10px] font-semibold tracking-[0.08em] text-lime-700">
-                        PRIMARY
+                        主结果
                       </span>
                     ) : null}
                   </div>
@@ -151,7 +151,7 @@ export function SceneAppProjectPackRuntimePanel({
             </div>
           ) : (
             <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-500">
-              当前最近可参考的样本还没有可直接打开的结果文件路径，先继续跑出一份带真实文件回流的结果包。
+              当前最近可参考的样本还没有可直接打开的结果文件路径，先继续跑出一份带真实文件回流的结果。
             </div>
           )}
         </>

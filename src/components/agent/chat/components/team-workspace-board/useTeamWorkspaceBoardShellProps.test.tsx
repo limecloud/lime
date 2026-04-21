@@ -95,7 +95,7 @@ function renderHook(props?: Partial<HookProps>) {
     presentationState: {
       boardBodyClassName: "board-body",
       boardChromeDisplay: {
-        boardHeadline: "主任务总览",
+        boardHeadline: "主助手总览",
         boardHint: "主线程会持续汇总子任务进展。",
         compactBoardHeadline: "任务进行中 · 2 项处理中",
         compactToolbarChips: [],

@@ -1414,7 +1414,7 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
       return {
         label: "待开始",
         tone: "neutral" as const,
-        detail: "先在提示框描述画面，再提交一次生成任务。",
+        detail: "先在提示框描述画面，再发起一次生成。",
       };
     }, [
       focusedTask,

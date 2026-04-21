@@ -185,7 +185,7 @@ describe("workspaceSendHelpers runtime team preview", () => {
       title: "任务分工已准备好",
       detail: "分析、执行、验证三段式推进。",
       checkpoints: [
-        "当前方案：修复任务方案",
+        "当前方案：修复分工方案",
         "已安排 2 项任务",
         "主对话会持续同步关键进展",
       ],

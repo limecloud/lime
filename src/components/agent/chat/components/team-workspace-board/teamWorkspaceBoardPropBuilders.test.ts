@@ -47,7 +47,7 @@ describe("teamWorkspaceBoardPropBuilders", () => {
 
     const headerProps = buildTeamWorkspaceBoardHeaderProps({
       boardChromeDisplay: {
-        boardHeadline: "主任务总览",
+        boardHeadline: "主助手总览",
         boardHint: "主线程会持续汇总子任务进展。",
         compactBoardHeadline: "任务进行中 · 3 项处理中",
         compactToolbarChips: [],
@@ -101,7 +101,7 @@ describe("teamWorkspaceBoardPropBuilders", () => {
         },
         overviewChromeProps: {
           boardChromeDisplay: {
-            boardHeadline: "主任务总览",
+            boardHeadline: "主助手总览",
             boardHint: "主线程会持续汇总子任务进展。",
             compactBoardHeadline: "任务进行中 · 3 项处理中",
             compactToolbarChips: [],
@@ -168,7 +168,7 @@ describe("teamWorkspaceBoardPropBuilders", () => {
     const props = buildTeamWorkspaceBoardCanvasSectionProps({
       boardChromeDisplay: {
         boardHeadline: "任务进行中 · 1 项处理中 / 1 项稍后开始",
-        boardHint: "当前主任务会继续汇总进展。",
+        boardHint: "当前主助手会继续汇总进展。",
         compactBoardHeadline: "任务进行中 · 1 项处理中 / 1 项稍后开始",
         compactToolbarChips: [
           {

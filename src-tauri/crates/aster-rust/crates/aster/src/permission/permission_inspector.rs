@@ -103,6 +103,10 @@ impl PermissionInspector {
         *mode = new_mode;
     }
 
+    pub async fn current_mode(&self) -> AsterMode {
+        *self.mode.lock().await
+    }
+
     /// Create a permission context for the current request
     fn create_permission_context(&self, tool_name: &str) -> PermissionContext {
         PermissionContext {

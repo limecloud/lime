@@ -47,12 +47,15 @@ import { buildSkillScaffoldCreationReplayRequestMetadata } from "@/components/ag
 import { buildSkillScaffoldCreationSeed } from "./skillScaffoldCreationSeed";
 import {
   FEATURED_HOME_CURATED_TASK_TEMPLATE_IDS,
+  buildCuratedTaskRecentUsageDescription,
   buildCuratedTaskLaunchPrompt,
   filterCuratedTaskTemplates,
   getCuratedTaskOutputDestination,
   listCuratedTaskTemplates,
   listFeaturedHomeCuratedTaskTemplates,
   recordCuratedTaskTemplateUsage,
+  resolveCuratedTaskTemplateLaunchPrefill,
+  subscribeCuratedTaskTemplateUsageChanged,
   summarizeCuratedTaskFollowUpActions,
   summarizeCuratedTaskOptionalReferences,
   summarizeCuratedTaskOutputContract,
@@ -66,6 +69,13 @@ import {
   type CuratedTaskReferenceSelection,
 } from "@/components/agent/chat/utils/curatedTaskReferenceSelection";
 import { subscribeCuratedTaskRecommendationSignalsChanged } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
+import {
+  getSlashEntryUsageMap,
+  getSlashEntryUsageRecordKey,
+  subscribeSlashEntryUsageChanged,
+} from "@/components/agent/chat/skill-selection/slashEntryUsage";
+import { buildServiceSkillLaunchPrefillSummary } from "@/components/agent/chat/service-skills/serviceSkillLaunchPrefill";
+import { resolveSceneAppsPageEntryParams } from "@/lib/sceneapp";
 
 interface SkillsWorkspacePageProps {
   onNavigate: (page: Page, params?: PageParams) => void;
@@ -114,10 +124,27 @@ function resolveLocalSkillSourceLabel(skill: Skill): string {
   return LOCAL_SKILL_SOURCE_LABELS[getSkillSource(skill)];
 }
 
-function resolveSkillCardTone(skill: ServiceSkillHomeItem): ServiceSkillTone {
-  if (skill.cloudStatus?.tone) {
-    return skill.cloudStatus.tone;
+function summarizeRecentReplayText(value: string, maxLength = 56): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
   }
+
+  return `${normalized.slice(0, maxLength).trimEnd()}...`;
+}
+
+function buildInstalledSkillRecentUsageDescription(
+  replayText: string | undefined,
+): string {
+  const normalizedReplayText = replayText?.trim();
+  if (!normalizedReplayText) {
+    return "";
+  }
+
+  return `上次目标：${summarizeRecentReplayText(normalizedReplayText)}`;
+}
+
+function resolveSkillCardTone(skill: ServiceSkillHomeItem): ServiceSkillTone {
   if (skill.automationStatus?.tone) {
     return skill.automationStatus.tone;
   }
@@ -125,9 +152,6 @@ function resolveSkillCardTone(skill: ServiceSkillHomeItem): ServiceSkillTone {
 }
 
 function resolveSkillCardStatusLabel(skill: ServiceSkillHomeItem): string {
-  if (skill.cloudStatus?.statusLabel) {
-    return skill.cloudStatus.statusLabel;
-  }
   if (skill.automationStatus?.statusLabel) {
     return skill.automationStatus.statusLabel;
   }
@@ -135,9 +159,6 @@ function resolveSkillCardStatusLabel(skill: ServiceSkillHomeItem): string {
 }
 
 function resolveSkillCardStatusDetail(skill: ServiceSkillHomeItem): string {
-  if (skill.cloudStatus?.detail) {
-    return skill.cloudStatus.detail;
-  }
   if (skill.automationStatus?.detail) {
     return skill.automationStatus.detail;
   }
@@ -208,6 +229,9 @@ export function SkillsWorkspacePage({
     curatedTaskRecommendationSignalsVersion,
     setCuratedTaskRecommendationSignalsVersion,
   ] = useState(0);
+  const [curatedTaskTemplatesVersion, setCuratedTaskTemplatesVersion] =
+    useState(0);
+  const [slashEntryUsageVersion, setSlashEntryUsageVersion] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [highlightedInstalledSkillDirectory, setHighlightedInstalledSkillDirectory] =
     useState<string | null>(null);
@@ -295,8 +319,20 @@ export function SkillsWorkspacePage({
   }, [selectedGroup, selectedGroupKey]);
 
   useEffect(() => {
+    return subscribeCuratedTaskTemplateUsageChanged(() => {
+      setCuratedTaskTemplatesVersion((previous) => previous + 1);
+    });
+  }, []);
+
+  useEffect(() => {
     return subscribeCuratedTaskRecommendationSignalsChanged(() => {
       setCuratedTaskRecommendationSignalsVersion((previous) => previous + 1);
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribeSlashEntryUsageChanged(() => {
+      setSlashEntryUsageVersion((previous) => previous + 1);
     });
   }, []);
 
@@ -422,10 +458,11 @@ export function SkillsWorkspacePage({
   }, [highlightedInstalledSkillDirectory, installedLocalSkills, searchQuery]);
   const visibleCuratedTaskTemplates = useMemo(
     () => {
+      void curatedTaskTemplatesVersion;
       void curatedTaskRecommendationSignalsVersion;
       return filterCuratedTaskTemplates(searchQuery, listCuratedTaskTemplates());
     },
-    [curatedTaskRecommendationSignalsVersion, searchQuery],
+    [curatedTaskRecommendationSignalsVersion, curatedTaskTemplatesVersion, searchQuery],
   );
   const visibleFeaturedCuratedTaskTemplates = useMemo(
     () =>
@@ -443,6 +480,10 @@ export function SkillsWorkspacePage({
     () => visibleInstalledLocalSkills.slice(0, 4),
     [visibleInstalledLocalSkills],
   );
+  const installedSkillUsageMap = useMemo(() => {
+    void slashEntryUsageVersion;
+    return getSlashEntryUsageMap();
+  }, [slashEntryUsageVersion]);
 
   const syncedAtLabel = useMemo(() => {
     if (!catalogMeta?.syncedAt) {
@@ -487,14 +528,22 @@ export function SkillsWorkspacePage({
         requestKey: Date.now(),
         initialSlotValues: prefill?.slotValues,
         prefillHint: prefill?.hint,
+        launchUserInput: prefill?.launchUserInput,
       },
     });
   };
 
   const handleInstalledSkillSelect = useCallback(
-    (skill: Skill) => {
+    (skill: Skill, replayText?: string) => {
+      const normalizedReplayText = replayText?.trim() || undefined;
       onNavigate("agent", {
-        ...buildHomeAgentParams(),
+        ...buildHomeAgentParams({
+          ...(normalizedReplayText
+            ? {
+                initialUserPrompt: normalizedReplayText,
+              }
+            : {}),
+        }),
         initialInputCapability: {
           capabilityRoute: {
             kind: "installed_skill",
@@ -507,6 +556,26 @@ export function SkillsWorkspacePage({
     },
     [onNavigate],
   );
+
+  const handleOpenSceneAppsDirectory = useCallback(() => {
+    const normalizedSearchQuery = searchQuery.trim();
+    onNavigate(
+      "sceneapps",
+      resolveSceneAppsPageEntryParams(
+        {
+          view: "catalog",
+          ...(normalizedSearchQuery
+            ? {
+                search: normalizedSearchQuery,
+              }
+            : {}),
+        },
+        {
+          mode: "browse",
+        },
+      ),
+    );
+  }, [onNavigate, searchQuery]);
 
   const handleScaffoldCreated = useCallback(
     async (skill: Skill) => {
@@ -810,8 +879,126 @@ export function SkillsWorkspacePage({
             </div>
           )}
 
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.82fr)]">
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
             <div className="space-y-4">
+              <section className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-950/5">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+                        先拿结果
+                      </h2>
+                      {visibleCuratedTaskTemplates.length > 0 ? (
+                        <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
+                          {visibleCuratedTaskTemplates.length} 个
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-sm leading-6 text-slate-500">
+                      还没想好具体做法时，先拿一个结果起手式；启动时再补最少信息。
+                    </p>
+                  </div>
+                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-500">
+                    统一进入生成主执行面
+                  </div>
+                </div>
+
+                {visibleFeaturedCuratedTaskTemplates.length > 0 ? (
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                    {visibleFeaturedCuratedTaskTemplates.map((featured) => {
+                      const template = featured.template;
+                      const launchPrefill =
+                        resolveCuratedTaskTemplateLaunchPrefill(template);
+                      const recentUsageDescription =
+                        buildCuratedTaskRecentUsageDescription({
+                          task: template,
+                          prefill: launchPrefill,
+                        });
+
+                      return (
+                        <article
+                          key={template.id}
+                          className="flex h-full flex-col rounded-[26px] border border-slate-200 bg-slate-50 px-4 py-4 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-sm hover:shadow-slate-950/5"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
+                              {featured.badgeLabel}
+                            </span>
+                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                              {template.outputHint}
+                            </span>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            <h3 className="text-lg font-semibold text-slate-950">
+                              {template.title}
+                            </h3>
+                            <p className="text-sm leading-6 text-slate-600">
+                              {template.summary}
+                            </p>
+                            {featured.reasonSummary ? (
+                              <div className="text-xs leading-5 text-slate-500">
+                                {featured.reasonSummary}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="mt-4 space-y-1.5 text-xs leading-5 text-slate-500">
+                            {recentUsageDescription ? (
+                              <div>{recentUsageDescription}</div>
+                            ) : null}
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                你来给：
+                              </span>
+                              {summarizeCuratedTaskRequiredInputs(template)}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                可选参考：
+                              </span>
+                              {summarizeCuratedTaskOptionalReferences(template)}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                会拿到：
+                              </span>
+                              {summarizeCuratedTaskOutputContract(template)}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                结果去向：
+                              </span>
+                              {getCuratedTaskOutputDestination(template)}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                下一步可继续：
+                              </span>
+                              {summarizeCuratedTaskFollowUpActions(template)}
+                            </div>
+                          </div>
+                          <div className="mt-auto flex justify-end pt-4">
+                            <Button
+                              type="button"
+                              className={SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME}
+                              onClick={() =>
+                                handleCuratedTaskTemplateLauncherRequest(template)
+                              }
+                            >
+                              进入生成
+                              <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="mt-5 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+                    当前搜索下暂无结果模板。可以先清掉关键词，或直接从下方方法目录继续找具体做法。
+                  </div>
+                )}
+              </section>
+
               {selectedGroup ? (
                 <>
                   <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
@@ -825,23 +1012,17 @@ export function SkillsWorkspacePage({
                             <h2 className="text-2xl font-semibold text-slate-950">
                               {selectedGroup.title}
                             </h2>
-                            <WorkbenchInfoTip
-                              ariaLabel={`${selectedGroup.title}做法组说明`}
-                              content={selectedGroup.summary}
-                              tone="slate"
-                            />
-                            {selectedGroup.entryHint ? (
-                              <WorkbenchInfoTip
-                                ariaLabel={`${selectedGroup.title}入口提示`}
-                                content={selectedGroup.entryHint}
-                                tone="mint"
-                                variant="pill"
-                                label="入口提示"
-                              />
-                            ) : null}
                           </div>
                           <p className="text-sm leading-6 text-slate-500">
-                            先在这个做法组里选一个具体做法，再决定是否继续扩展到更多技能。
+                            {selectedGroup.summary}
+                          </p>
+                          {selectedGroup.entryHint ? (
+                            <p className="text-sm leading-6 text-emerald-700">
+                              入口提示：{selectedGroup.entryHint}
+                            </p>
+                          ) : null}
+                          <p className="text-sm leading-6 text-slate-500">
+                            先在这个做法组里选一个具体做法，再进入生成继续补参和执行。
                           </p>
                         </div>
                       </div>
@@ -878,11 +1059,14 @@ export function SkillsWorkspacePage({
                       <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
                         方法目录
                       </h2>
-                      <WorkbenchInfoTip
-                        ariaLabel="做法组说明"
-                        content="首页先看结果模板；当你已经知道要找哪类做法时，再从这里进入对应技能组。"
-                        tone="mint"
-                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 rounded-2xl border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50"
+                        onClick={handleOpenSceneAppsDirectory}
+                      >
+                        查看全部做法
+                      </Button>
                     </div>
                     <p className="text-sm leading-6 text-slate-500">
                       先按目标方向找一组做法，不必先理解目录结构。
@@ -898,7 +1082,7 @@ export function SkillsWorkspacePage({
                       return (
                         <article
                           key={group.key}
-                          className="flex h-full flex-col rounded-[28px] border border-slate-200/80 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-sm hover:shadow-slate-950/5"
+                          className="flex h-full flex-col rounded-[26px] border border-slate-200/80 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-sm hover:shadow-slate-950/5"
                         >
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
@@ -920,22 +1104,9 @@ export function SkillsWorkspacePage({
                               <h3 className="text-xl font-semibold text-slate-950">
                                 {group.title}
                               </h3>
-                              <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <WorkbenchInfoTip
-                                  ariaLabel={`${group.title}做法组摘要`}
-                                  content={group.summary}
-                                  tone="slate"
-                                />
-                                {group.entryHint ? (
-                                  <WorkbenchInfoTip
-                                    ariaLabel={`${group.title}入口提示`}
-                                    content={group.entryHint}
-                                    tone="mint"
-                                    variant="pill"
-                                    label="入口提示"
-                                  />
-                                ) : null}
-                              </div>
+                              <p className="mt-2 text-sm leading-6 text-slate-600">
+                                {group.summary}
+                              </p>
                             </div>
                             <div className="space-y-2 text-xs leading-5 text-slate-500">
                               {hasRecommendedGroupSkills ? (
@@ -960,6 +1131,14 @@ export function SkillsWorkspacePage({
                                     主题：
                                   </span>
                                   {group.themeTarget}
+                                </div>
+                              ) : null}
+                              {group.entryHint ? (
+                                <div>
+                                  <span className="font-medium text-slate-700">
+                                    入口提示：
+                                  </span>
+                                  {group.entryHint}
                                 </div>
                               ) : null}
                             </div>
@@ -1000,114 +1179,6 @@ export function SkillsWorkspacePage({
               <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-semibold text-slate-900">
-                    先拿结果
-                  </h2>
-                  <WorkbenchInfoTip
-                    ariaLabel="结果模板桥接说明"
-                    content="结果模板和方法目录现在共享同一套 curated task 事实源；如果你还没想好做法，先拿一个结果起手式进入生成。"
-                    tone="mint"
-                  />
-                  {visibleCuratedTaskTemplates.length > 0 ? (
-                    <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
-                      {visibleCuratedTaskTemplates.length} 个
-                    </span>
-                  ) : null}
-                </div>
-
-                {visibleFeaturedCuratedTaskTemplates.length > 0 ? (
-                  <div className="mt-4 space-y-3">
-                    {visibleFeaturedCuratedTaskTemplates.map((featured) => {
-                      const template = featured.template;
-
-                      return (
-                      <article
-                        key={template.id}
-                        className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
-                            {featured.badgeLabel}
-                          </span>
-                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                            {template.outputHint}
-                          </span>
-                        </div>
-                        <div className="mt-3 text-base font-semibold text-slate-900">
-                          {template.title}
-                        </div>
-                        <p className="mt-2 text-sm leading-6 text-slate-600">
-                          {template.summary}
-                        </p>
-                        {featured.reasonSummary ? (
-                          <div className="mt-2 text-xs leading-5 text-slate-500">
-                            {featured.reasonSummary}
-                          </div>
-                        ) : null}
-                        <div className="mt-3 space-y-2">
-                          <div className="rounded-[18px] border border-slate-200 bg-white/70 px-3 py-2.5">
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                              你来给
-                            </div>
-                            <div className="mt-1 text-xs leading-5 text-slate-600">
-                              {summarizeCuratedTaskRequiredInputs(template)}
-                            </div>
-                          </div>
-                          <div className="rounded-[18px] border border-slate-200 bg-white/70 px-3 py-2.5">
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                              可选参考
-                            </div>
-                            <div className="mt-1 text-xs leading-5 text-slate-600">
-                              {summarizeCuratedTaskOptionalReferences(template)}
-                            </div>
-                          </div>
-                          <div className="rounded-[18px] border border-slate-200 bg-white/70 px-3 py-2.5">
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                              会拿到
-                            </div>
-                            <div className="mt-1 text-xs leading-5 text-slate-600">
-                              {summarizeCuratedTaskOutputContract(template)}
-                            </div>
-                          </div>
-                          <div className="rounded-[18px] border border-slate-200 bg-white/70 px-3 py-2.5">
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
-                              结果去向
-                            </div>
-                            <div className="mt-1 text-xs leading-5 text-slate-600">
-                              {getCuratedTaskOutputDestination(template)}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex items-center justify-between gap-3">
-                          <div className="text-xs leading-5 text-slate-400">
-                            下一步可继续：
-                            {summarizeCuratedTaskFollowUpActions(template)}
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="h-auto rounded-2xl px-0 text-sm font-medium text-slate-900 hover:bg-transparent hover:text-slate-950"
-                            onClick={() =>
-                              handleCuratedTaskTemplateLauncherRequest(template)
-                            }
-                          >
-                            进入生成
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                          </Button>
-                        </div>
-                      </article>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
-                    当前搜索下暂无结果模板。可以先清掉关键词，或直接从左侧做法目录继续找具体方法。
-                  </div>
-                )}
-              </section>
-
-              <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold text-slate-900">
                     继续常用做法
                   </h2>
                   <WorkbenchInfoTip
@@ -1124,49 +1195,64 @@ export function SkillsWorkspacePage({
 
                 {visibleRecentPreview.length > 0 ? (
                   <div className="mt-4 space-y-3">
-                    {visibleRecentPreview.map((skill) => (
-                      <button
-                        key={skill.id}
-                        type="button"
-                        onClick={() => handleServiceSkillSelect(skill)}
-                        className="w-full rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-slate-300 hover:bg-white"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                            最近成功
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            {skill.actionLabel}
-                          </span>
-                        </div>
-                        <div className="mt-3 text-base font-semibold text-slate-900">
-                          {skill.title}
-                        </div>
-                        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
-                          {skill.summary}
-                        </p>
-                        <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
-                          <div>
-                            <span className="font-medium text-slate-700">
-                              你来给：
+                    {visibleRecentPreview.map((skill) => {
+                      const recentPrefill = resolveServiceSkillLaunchPrefill({
+                        skill,
+                      });
+                      const recentPrefillSummary =
+                        buildServiceSkillLaunchPrefillSummary({
+                          skill,
+                          slotValues: recentPrefill?.slotValues,
+                          launchUserInput: recentPrefill?.launchUserInput,
+                        });
+
+                      return (
+                        <button
+                          key={skill.id}
+                          type="button"
+                          onClick={() => handleServiceSkillSelect(skill)}
+                          className="w-full rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-slate-300 hover:bg-white"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                              最近成功
                             </span>
-                            {summarizeServiceSkillRequiredInputs(skill)}
-                          </div>
-                          <div>
-                            <span className="font-medium text-slate-700">
-                              会拿到：
+                            <span className="text-[11px] text-slate-400">
+                              {skill.actionLabel}
                             </span>
-                            {skill.outputHint}
                           </div>
-                          <div>
-                            <span className="font-medium text-slate-700">
-                              结果去向：
-                            </span>
-                            {getServiceSkillOutputDestination(skill)}
+                          <div className="mt-3 text-base font-semibold text-slate-900">
+                            {skill.title}
                           </div>
-                        </div>
-                      </button>
-                    ))}
+                          <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
+                            {skill.summary}
+                          </p>
+                          <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
+                            {recentPrefillSummary ? (
+                              <div>{recentPrefillSummary}</div>
+                            ) : null}
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                你来给：
+                              </span>
+                              {summarizeServiceSkillRequiredInputs(skill)}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                会拿到：
+                              </span>
+                              {skill.outputHint}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">
+                                结果去向：
+                              </span>
+                              {getServiceSkillOutputDestination(skill)}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="mt-4 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
@@ -1208,6 +1294,13 @@ export function SkillsWorkspacePage({
                     {visibleInstalledPreview.map((skill) => {
                       const isHighlighted =
                         skill.directory === highlightedInstalledSkillDirectory;
+                      const usage = installedSkillUsageMap.get(
+                        getSlashEntryUsageRecordKey("skill", skill.key),
+                      );
+                      const recentUsageDescription =
+                        buildInstalledSkillRecentUsageDescription(
+                          usage?.replayText,
+                        );
 
                       return (
                         <article
@@ -1253,6 +1346,9 @@ export function SkillsWorkspacePage({
                             </div>
                           ) : null}
                           <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
+                            {recentUsageDescription ? (
+                              <div>{recentUsageDescription}</div>
+                            ) : null}
                             <div>
                               <span className="font-medium text-slate-700">
                                 你来给：
@@ -1282,7 +1378,12 @@ export function SkillsWorkspacePage({
                             <Button
                               type="button"
                               className={SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME}
-                              onClick={() => handleInstalledSkillSelect(skill)}
+                              onClick={() =>
+                                handleInstalledSkillSelect(
+                                  skill,
+                                  usage?.replayText,
+                                )
+                              }
                             >
                               进入生成
                               <ArrowRight className="ml-2 h-4 w-4" />

@@ -1,6 +1,10 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::config::paths::Paths;
+use crate::skills::{
+    global_registry as global_skill_registry, refresh_shared_registry_if_needed,
+    SharedSkillRegistry, SkillDefinition,
+};
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
@@ -16,6 +20,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+use tracing::warn;
 
 pub static EXTENSION_NAME: &str = "skills";
 
@@ -41,10 +46,16 @@ struct Skill {
 pub struct SkillsClient {
     info: InitializeResult,
     skills: HashMap<String, Skill>,
+    registry: Option<SharedSkillRegistry>,
 }
 
 impl SkillsClient {
     pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
+        let registry = global_skill_registry().clone();
+        if let Err(error) = refresh_shared_registry_if_needed(&registry) {
+            warn!("[SkillsExtension] 刷新共享 skill 注册表失败: {}", error);
+        }
+
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
@@ -64,18 +75,14 @@ impl SkillsClient {
                 icons: None,
                 website_url: None,
             },
-            instructions: Some(String::new()),
+            instructions: Some(Self::generate_instructions_from_registry(&registry)),
         };
 
-        let directories = Self::get_default_skill_directories()
-            .into_iter()
-            .filter(|d| d.exists())
-            .collect::<Vec<_>>();
-        let skills = Self::discover_skills_in_directories(&directories);
-
-        let mut client = Self { info, skills };
-        client.info.instructions = Some(client.generate_instructions());
-        Ok(client)
+        Ok(Self {
+            info,
+            skills: HashMap::new(),
+            registry: Some(registry),
+        })
     }
 
     fn get_default_skill_directories() -> Vec<PathBuf> {
@@ -179,6 +186,10 @@ impl SkillsClient {
     }
 
     fn generate_instructions(&self) -> String {
+        if let Some(registry) = self.registry.as_ref() {
+            return Self::generate_instructions_from_registry(registry);
+        }
+
         if self.skills.is_empty() {
             return String::new();
         }
@@ -195,6 +206,82 @@ impl SkillsClient {
         instructions
     }
 
+    fn generate_instructions_from_registry(registry: &SharedSkillRegistry) -> String {
+        if let Err(error) = refresh_shared_registry_if_needed(registry) {
+            warn!("[SkillsExtension] 刷新共享 skill 注册表失败: {}", error);
+            return String::new();
+        }
+
+        let Ok(registry_guard) = registry.read() else {
+            return String::new();
+        };
+        let mut skill_list = registry_guard
+            .get_all()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        if skill_list.is_empty() {
+            return String::new();
+        }
+
+        let mut instructions = String::from(
+            "You have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:\n\n",
+        );
+        skill_list.sort_by(|left, right| left.skill_name.cmp(&right.skill_name));
+
+        for skill in skill_list {
+            instructions.push_str(&format!("- {}: {}\n", skill.skill_name, skill.description));
+        }
+
+        instructions
+    }
+
+    fn build_skill_response(
+        skill_name: &str,
+        body: &str,
+        directory: &Path,
+        supporting_files: &[PathBuf],
+    ) -> String {
+        let mut response = format!("# Skill: {}\n\n{}\n\n", skill_name, body);
+
+        if !supporting_files.is_empty() {
+            response.push_str(&format!(
+                "## Supporting Files\n\nSkill directory: {}\n\n",
+                directory.display()
+            ));
+            response.push_str("The following supporting files are available:\n");
+            for file in supporting_files {
+                if let Ok(relative) = file.strip_prefix(directory) {
+                    response.push_str(&format!("- {}\n", relative.display()));
+                }
+            }
+            response.push_str("\nUse the view file tools to access these files as needed, or run scripts as directed with dev extension.\n");
+        }
+
+        response
+    }
+
+    fn skill_from_definition(skill: &SkillDefinition) -> Skill {
+        Skill {
+            metadata: SkillMetadata {
+                name: skill.skill_name.clone(),
+                description: skill.description.clone(),
+            },
+            body: skill.markdown_content.clone(),
+            directory: skill.base_dir.clone(),
+            supporting_files: skill.supporting_files.clone(),
+        }
+    }
+
+    fn registry_has_skills(&self) -> Result<Option<bool>, String> {
+        let Some(registry) = self.registry.as_ref() else {
+            return Ok(None);
+        };
+        refresh_shared_registry_if_needed(registry)?;
+        let registry_guard = registry.read().map_err(|error| error.to_string())?;
+        Ok(Some(!registry_guard.is_empty()))
+    }
+
     async fn handle_load_skill(
         &self,
         arguments: Option<JsonObject>,
@@ -206,28 +293,33 @@ impl SkillsClient {
             .and_then(|v| v.as_str())
             .ok_or("Missing required parameter: name")?;
 
+        if let Some(registry) = self.registry.as_ref() {
+            refresh_shared_registry_if_needed(registry)?;
+            let registry_guard = registry.read().map_err(|error| error.to_string())?;
+            let skill = registry_guard
+                .find(skill_name)
+                .ok_or_else(|| format!("Skill '{}' not found", skill_name))?;
+            let skill = Self::skill_from_definition(skill);
+
+            return Ok(vec![Content::text(Self::build_skill_response(
+                &skill.metadata.name,
+                &skill.body,
+                &skill.directory,
+                &skill.supporting_files,
+            ))]);
+        }
+
         let skill = self
             .skills
             .get(skill_name)
             .ok_or_else(|| format!("Skill '{}' not found", skill_name))?;
 
-        let mut response = format!("# Skill: {}\n\n{}\n\n", skill.metadata.name, skill.body);
-
-        if !skill.supporting_files.is_empty() {
-            response.push_str(&format!(
-                "## Supporting Files\n\nSkill directory: {}\n\n",
-                skill.directory.display()
-            ));
-            response.push_str("The following supporting files are available:\n");
-            for file in &skill.supporting_files {
-                if let Ok(relative) = file.strip_prefix(&skill.directory) {
-                    response.push_str(&format!("- {}\n", relative.display()));
-                }
-            }
-            response.push_str("\nUse the view file tools to access these files as needed, or run scripts as directed with dev extension.\n");
-        }
-
-        Ok(vec![Content::text(response)])
+        Ok(vec![Content::text(Self::build_skill_response(
+            &skill.metadata.name,
+            &skill.body,
+            &skill.directory,
+            &skill.supporting_files,
+        ))])
     }
 
     fn get_tools() -> Vec<Tool> {
@@ -284,10 +376,19 @@ impl McpClientTrait for SkillsClient {
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
-        let tools = if self.skills.is_empty() {
-            Vec::new()
-        } else {
+        let has_skills = match self.registry_has_skills() {
+            Ok(Some(value)) => value,
+            Ok(None) => !self.skills.is_empty(),
+            Err(error) => {
+                warn!("[SkillsExtension] 读取共享 skill 注册表失败: {}", error);
+                !self.skills.is_empty()
+            }
+        };
+
+        let tools = if has_skills {
             Self::get_tools()
+        } else {
+            Vec::new()
         };
         Ok(ListToolsResult {
             tools,
@@ -592,6 +693,7 @@ Content from dir3
                 instructions: Some(String::new()),
             },
             skills,
+            registry: None,
         };
 
         let instructions = client.generate_instructions();
@@ -634,6 +736,7 @@ Content from dir3
                 instructions: Some(String::new()),
             },
             skills,
+            registry: None,
         };
 
         let result = client
@@ -688,6 +791,7 @@ Content
                 instructions: Some(String::new()),
             },
             skills,
+            registry: None,
         };
 
         let result = client
@@ -756,6 +860,7 @@ Content
                 instructions: Some(String::new()),
             },
             skills,
+            registry: None,
         };
 
         let instructions = client.generate_instructions();

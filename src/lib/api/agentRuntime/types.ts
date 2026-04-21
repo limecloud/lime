@@ -776,6 +776,56 @@ export interface AgentRuntimeUpdateSessionRequest {
   recent_team_selection?: AsterSessionExecutionRuntimeRecentTeamSelection;
 }
 
+export interface AgentRuntimeFrontmatterHookMatcher {
+  matcher?: string;
+  hooks: AgentRuntimeFrontmatterHook[];
+}
+
+export type AgentRuntimeFrontmatterHook =
+  | {
+      type: "command";
+      command: string;
+      timeout?: number;
+      once?: boolean;
+      shell?: string;
+      if?: string;
+      statusMessage?: string;
+      async?: boolean;
+      asyncRewake?: boolean;
+    }
+  | {
+      type: "prompt";
+      prompt: string;
+      timeout?: number;
+      model?: string;
+      once?: boolean;
+      if?: string;
+      statusMessage?: string;
+    }
+  | {
+      type: "agent";
+      prompt: string;
+      timeout?: number;
+      model?: string;
+      once?: boolean;
+      if?: string;
+      statusMessage?: string;
+    }
+  | {
+      type: "http" | "url";
+      url: string;
+      timeout?: number;
+      headers?: Record<string, string>;
+      once?: boolean;
+      if?: string;
+      statusMessage?: string;
+      allowedEnvVars?: string[];
+    };
+
+export type AgentRuntimeFrontmatterHooks = Partial<
+  Record<string, AgentRuntimeFrontmatterHookMatcher[]>
+>;
+
 export interface AgentRuntimeSpawnSubagentRequest {
   parent_session_id: string;
   message: string;
@@ -799,6 +849,9 @@ export interface AgentRuntimeSpawnSubagentRequest {
   theme?: string;
   system_overlay?: string;
   output_contract?: string;
+  hooks?: AgentRuntimeFrontmatterHooks;
+  allowed_tools?: string[];
+  disallowed_tools?: string[];
   cwd?: string;
 }
 

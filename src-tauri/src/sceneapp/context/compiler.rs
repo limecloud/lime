@@ -249,9 +249,6 @@ fn build_tool_refs(descriptor: &SceneAppDescriptor, intent: &SceneAppLaunchInten
         if runtime_context.browser_session_attached {
             push_unique(&mut refs, Some("browser_session".to_string()));
         }
-        if runtime_context.cloud_session_ready {
-            push_unique(&mut refs, Some("cloud_session".to_string()));
-        }
         if runtime_context.automation_enabled {
             push_unique(&mut refs, Some("automation".to_string()));
         }
@@ -670,6 +667,11 @@ mod tests {
             .reference_items
             .iter()
             .any(|item| item.id == "memory:memory-1" && item.label == "夏日短视频语气"));
+        assert!(!overlay
+            .snapshot
+            .tool_refs
+            .iter()
+            .any(|item| item == "cloud_session"));
         assert!(overlay
             .snapshot
             .taste_profile

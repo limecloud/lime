@@ -11,8 +11,8 @@ use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::providers::{create_with_default_model, create_with_named_model};
 use crate::skills::{
-    global_registry, LlmProvider, SharedSkillRegistry, SkillDefinition, SkillError,
-    SkillExecutionMode, SkillExecutionResult, SkillExecutor,
+    global_registry, refresh_shared_registry_if_needed, LlmProvider, SharedSkillRegistry,
+    SkillDefinition, SkillError, SkillExecutionMode, SkillExecutionResult, SkillExecutor,
 };
 use crate::tools::base::{PermissionCheckResult, Tool};
 use crate::tools::context::{ToolContext, ToolResult};
@@ -56,6 +56,10 @@ impl WorkflowTool {
     }
 
     fn list_workflow_skills(&self) -> Result<Vec<SkillDefinition>, ToolError> {
+        refresh_shared_registry_if_needed(&self.registry).map_err(|error| {
+            ToolError::execution_failed(format!("刷新 workflow 注册表失败: {error}"))
+        })?;
+
         let registry = self.registry.read().map_err(|error| {
             ToolError::execution_failed(format!("读取 workflow 注册表失败: {error}"))
         })?;
@@ -74,6 +78,10 @@ impl WorkflowTool {
     }
 
     fn find_workflow_skill(&self, workflow_name: &str) -> Result<SkillDefinition, ToolError> {
+        refresh_shared_registry_if_needed(&self.registry).map_err(|error| {
+            ToolError::execution_failed(format!("刷新 workflow 注册表失败: {error}"))
+        })?;
+
         let registry = self.registry.read().map_err(|error| {
             ToolError::execution_failed(format!("读取 workflow 注册表失败: {error}"))
         })?;
@@ -541,6 +549,7 @@ mod tests {
                 WorkflowStep::new("step2", "步骤二", "继续 ${result1}", "result2")
                     .with_dependency("step1"),
             ])),
+            hooks: None,
         }
     }
 

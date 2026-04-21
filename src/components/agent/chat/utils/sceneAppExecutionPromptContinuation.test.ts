@@ -96,7 +96,7 @@ describe("sceneAppExecutionPromptContinuation", () => {
           summary: "当前结果已进入补件阶段。",
           businessLabel: "内容闭环",
           typeLabel: "多模态组合",
-          executionChainLabel: "创作场景 -> 生成 -> Project Pack",
+          executionChainLabel: "做法 -> 生成 -> Project Pack",
           deliveryContractLabel: "Project Pack",
           planningStatusLabel: "已就绪",
           planningSummary: "已装配上下文。",

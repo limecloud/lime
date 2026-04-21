@@ -448,7 +448,7 @@ describe("MemoryPage", () => {
     );
 
     const sceneButton = Array.from(document.body.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("用于创作场景"),
+      (element) => element.textContent?.includes("去做法目录"),
     );
     expect(sceneButton).toBeTruthy();
 

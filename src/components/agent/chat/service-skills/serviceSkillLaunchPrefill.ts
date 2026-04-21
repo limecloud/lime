@@ -13,7 +13,17 @@ import type {
 
 export interface ServiceSkillLaunchPrefillResult {
   slotValues?: ServiceSkillSlotValues;
+  launchUserInput?: string;
   hint?: string;
+}
+
+function summarizePrefillValue(value: string, maxLength = 32): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength).trimEnd()}...`;
 }
 
 function normalizeOptionalText(value: unknown): string | undefined {
@@ -41,17 +51,65 @@ function compactSlotValues(
   return Object.keys(nextValues).length > 0 ? nextValues : undefined;
 }
 
+export function buildServiceSkillLaunchPrefillSummary(params: {
+  skill: Pick<ServiceSkillHomeItem, "slotSchema">;
+  slotValues?: ServiceSkillSlotValues;
+  launchUserInput?: string;
+  limit?: number;
+}): string {
+  const limit = params.limit ?? 2;
+  const summaryItems = params.skill.slotSchema
+    .map((slot) => {
+      const value = compactSlotValues(params.slotValues)?.[slot.key];
+      if (!value) {
+        return null;
+      }
+
+      return `${slot.label}=${summarizePrefillValue(value)}`;
+    })
+    .filter((item): item is string => Boolean(item));
+  const launchUserInput = normalizeOptionalText(params.launchUserInput);
+  const hasDuplicatedLaunchUserInput = launchUserInput
+    ? Object.values(compactSlotValues(params.slotValues) ?? {}).some(
+        (value) => value === launchUserInput,
+      )
+    : false;
+
+  if (summaryItems.length === 0 && !launchUserInput) {
+    return "";
+  }
+
+  const segments: string[] = [];
+
+  if (summaryItems.length > 0) {
+    const visibleItems = summaryItems.slice(0, limit);
+    segments.push(
+      `上次填写：${visibleItems.join("；")}${
+        summaryItems.length > limit ? ` 等 ${summaryItems.length} 项` : ""
+      }`,
+    );
+  }
+
+  if (launchUserInput && !hasDuplicatedLaunchUserInput) {
+    segments.push(`上次补充：${summarizePrefillValue(launchUserInput, 40)}`);
+  }
+
+  return segments.join(" · ");
+}
+
 function resolveRecentServiceSkillPrefill(
   skill: ServiceSkillHomeItem,
 ): ServiceSkillLaunchPrefillResult | undefined {
   const recentUsage = getServiceSkillUsageMap().get(skill.id);
   const slotValues = compactSlotValues(recentUsage?.slotValues);
-  if (!slotValues) {
+  const launchUserInput = normalizeOptionalText(recentUsage?.launchUserInput);
+  if (!slotValues && !launchUserInput) {
     return undefined;
   }
 
   return {
-    slotValues,
+    ...(slotValues ? { slotValues } : {}),
+    ...(launchUserInput ? { launchUserInput } : {}),
     hint: `已根据你上次成功执行 ${skill.title} 时的参数自动预填，可继续修改后执行。`,
   };
 }
@@ -118,6 +176,7 @@ export function resolveServiceSkillLaunchPrefill(params: {
 
   return {
     slotValues,
+    launchUserInput: recentServicePrefill?.launchUserInput,
     hint:
       creationReplayPrefill?.hint ??
       recentServicePrefill?.hint ??

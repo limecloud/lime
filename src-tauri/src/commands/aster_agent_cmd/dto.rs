@@ -1672,6 +1672,12 @@ pub struct AgentRuntimeSpawnSubagentRequest {
     #[serde(default, alias = "outputContract")]
     pub output_contract: Option<String>,
     #[serde(default)]
+    pub hooks: Option<aster::hooks::FrontmatterHooks>,
+    #[serde(default, alias = "allowedTools")]
+    pub allowed_tools: Vec<String>,
+    #[serde(default, alias = "disallowedTools")]
+    pub disallowed_tools: Vec<String>,
+    #[serde(default)]
     pub mode: Option<String>,
     #[serde(default)]
     pub isolation: Option<String>,
@@ -1918,6 +1924,20 @@ mod tests {
             "teamName": "delivery-team",
             "agentType": "explorer",
             "runInBackground": true,
+            "hooks": {
+                "Stop": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "prompt",
+                                "prompt": "Summarize the delegated result"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "allowedTools": ["Read", "Bash"],
+            "disallowedTools": ["WebSearch"],
             "mode": "plan",
             "isolation": "worktree",
             "cwd": "/tmp/workspace"
@@ -1930,6 +1950,14 @@ mod tests {
         assert_eq!(request.team_name.as_deref(), Some("delivery-team"));
         assert_eq!(request.agent_type.as_deref(), Some("explorer"));
         assert!(request.run_in_background);
+        assert_eq!(request.hooks.as_ref().map(|hooks| hooks.len()), Some(1));
+        assert!(request
+            .hooks
+            .as_ref()
+            .and_then(|hooks| hooks.get(&aster::hooks::HookEvent::Stop))
+            .is_some());
+        assert_eq!(request.allowed_tools, vec!["Read", "Bash"]);
+        assert_eq!(request.disallowed_tools, vec!["WebSearch"]);
         assert_eq!(request.mode.as_deref(), Some("plan"));
         assert_eq!(request.isolation.as_deref(), Some("worktree"));
         assert_eq!(request.cwd.as_deref(), Some("/tmp/workspace"));

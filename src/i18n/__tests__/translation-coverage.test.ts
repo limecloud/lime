@@ -72,7 +72,18 @@ describe("Translation Coverage", () => {
     });
 
     it("should have translations for main navigation", () => {
-      const navItems = ["凭证池", "工具", "插件中心"];
+      const navItems = [
+        "新建任务",
+        "我的方法",
+        "创作场景",
+        "持续流程",
+        "消息渠道",
+        "资料库",
+        "灵感库",
+        "插件中心",
+        "OpenClaw",
+        "桌宠",
+      ];
 
       navItems.forEach((item) => {
         expect(enPatch).toHaveProperty(item);

@@ -258,6 +258,229 @@ impl HookConfig {
     }
 }
 
+/// Skill / agent frontmatter hooks 配置
+///
+/// 对齐参考运行时的 `event -> matcher[] -> hooks[]` 结构，
+/// 但最终仍会收口到 Lime 当前的 `HookConfig` 执行边界。
+pub type FrontmatterHooks = HashMap<HookEvent, Vec<FrontmatterHookMatcher>>;
+
+/// frontmatter hook matcher
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrontmatterHookMatcher {
+    /// 可选的外层 matcher
+    #[serde(default)]
+    pub matcher: Option<String>,
+    /// 命中的 hook 列表
+    #[serde(default)]
+    pub hooks: Vec<FrontmatterHookCommand>,
+}
+
+/// frontmatter hook 注册结果
+#[derive(Debug, Clone)]
+pub struct FrontmatterHookRegistration {
+    pub config: HookConfig,
+    pub once: bool,
+}
+
+/// frontmatter command hook 配置
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrontmatterCommandHookConfig {
+    pub command: String,
+    #[serde(default)]
+    pub timeout: Option<u64>,
+    #[serde(default)]
+    pub once: bool,
+    #[serde(default)]
+    pub shell: Option<String>,
+    #[serde(default, rename = "if")]
+    pub if_condition: Option<String>,
+    #[serde(default, rename = "statusMessage")]
+    pub status_message: Option<String>,
+    #[serde(default, rename = "async")]
+    pub async_mode: bool,
+    #[serde(default, rename = "asyncRewake")]
+    pub async_rewake: bool,
+}
+
+/// frontmatter prompt hook 配置
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrontmatterPromptHookConfig {
+    pub prompt: String,
+    #[serde(default)]
+    pub timeout: Option<u64>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub once: bool,
+    #[serde(default, rename = "if")]
+    pub if_condition: Option<String>,
+    #[serde(default, rename = "statusMessage")]
+    pub status_message: Option<String>,
+}
+
+/// frontmatter agent hook 配置
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrontmatterAgentHookConfig {
+    pub prompt: String,
+    #[serde(default)]
+    pub timeout: Option<u64>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub once: bool,
+    #[serde(default, rename = "if")]
+    pub if_condition: Option<String>,
+    #[serde(default, rename = "statusMessage")]
+    pub status_message: Option<String>,
+}
+
+/// frontmatter http hook 配置
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FrontmatterHttpHookConfig {
+    pub url: String,
+    #[serde(default)]
+    pub timeout: Option<u64>,
+    #[serde(default)]
+    pub headers: HashMap<String, String>,
+    #[serde(default)]
+    pub once: bool,
+    #[serde(default, rename = "if")]
+    pub if_condition: Option<String>,
+    #[serde(default, rename = "statusMessage")]
+    pub status_message: Option<String>,
+    #[serde(default, rename = "allowedEnvVars")]
+    pub allowed_env_vars: Option<Vec<String>>,
+}
+
+/// frontmatter hook 命令
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum FrontmatterHookCommand {
+    Command(FrontmatterCommandHookConfig),
+    Prompt(FrontmatterPromptHookConfig),
+    Agent(FrontmatterAgentHookConfig),
+    #[serde(alias = "url")]
+    Http(FrontmatterHttpHookConfig),
+}
+
+impl FrontmatterHookCommand {
+    pub fn to_registration(
+        &self,
+        matcher: Option<&str>,
+    ) -> Result<FrontmatterHookRegistration, String> {
+        match self {
+            FrontmatterHookCommand::Command(config) => {
+                if config.async_rewake {
+                    return Err(
+                        "暂不支持 skill frontmatter command hook.asyncRewake；当前 runtime 还没有对应唤醒语义"
+                            .to_string(),
+                    );
+                }
+
+                if let Some(shell) = normalize_optional_text(config.shell.as_deref()) {
+                    if !shell.eq_ignore_ascii_case("bash") {
+                        return Err(format!(
+                            "暂不支持 skill frontmatter command hook.shell='{}'；当前 runtime 只支持默认 shell 执行",
+                            shell
+                        ));
+                    }
+                }
+
+                let resolved_matcher =
+                    resolve_frontmatter_matcher(matcher, config.if_condition.as_deref())?;
+
+                Ok(FrontmatterHookRegistration {
+                    config: HookConfig::Command(CommandHookConfig {
+                        command: config.command.clone(),
+                        args: Vec::new(),
+                        env: HashMap::new(),
+                        timeout: timeout_secs_to_millis(config.timeout, default_timeout()),
+                        blocking: !config.async_mode,
+                        matcher: resolved_matcher,
+                    }),
+                    once: config.once,
+                })
+            }
+            FrontmatterHookCommand::Prompt(config) => Ok(FrontmatterHookRegistration {
+                config: HookConfig::Prompt(PromptHookConfig {
+                    prompt: config.prompt.clone(),
+                    model: normalize_optional_text(config.model.as_deref()),
+                    timeout: timeout_secs_to_millis(config.timeout, default_timeout()),
+                    blocking: true,
+                    matcher: resolve_frontmatter_matcher(matcher, config.if_condition.as_deref())?,
+                }),
+                once: config.once,
+            }),
+            FrontmatterHookCommand::Agent(config) => Ok(FrontmatterHookRegistration {
+                config: HookConfig::Agent(AgentHookConfig {
+                    agent_type: default_agent_type(),
+                    prompt: Some(config.prompt.clone()),
+                    model: normalize_optional_text(config.model.as_deref()),
+                    agent_config: None,
+                    timeout: timeout_secs_to_millis(config.timeout, default_agent_timeout()),
+                    blocking: true,
+                    matcher: resolve_frontmatter_matcher(matcher, config.if_condition.as_deref())?,
+                }),
+                once: config.once,
+            }),
+            FrontmatterHookCommand::Http(config) => {
+                if config
+                    .allowed_env_vars
+                    .as_ref()
+                    .is_some_and(|items| !items.is_empty())
+                {
+                    return Err(
+                        "暂不支持 skill frontmatter http hook.allowedEnvVars；当前 runtime 还没有 header env 白名单插值语义"
+                            .to_string(),
+                    );
+                }
+
+                Ok(FrontmatterHookRegistration {
+                    config: HookConfig::Url(UrlHookConfig {
+                        url: config.url.clone(),
+                        method: HttpMethod::Post,
+                        headers: config.headers.clone(),
+                        timeout: timeout_secs_to_millis(config.timeout, default_url_timeout()),
+                        blocking: true,
+                        matcher: resolve_frontmatter_matcher(
+                            matcher,
+                            config.if_condition.as_deref(),
+                        )?,
+                    }),
+                    once: config.once,
+                })
+            }
+        }
+    }
+}
+
+fn normalize_optional_text(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn resolve_frontmatter_matcher(
+    matcher: Option<&str>,
+    if_condition: Option<&str>,
+) -> Result<Option<String>, String> {
+    if let Some(condition) = normalize_optional_text(if_condition) {
+        return Err(format!(
+            "暂不支持 skill frontmatter hook.if='{}'；当前 runtime 还没有 permission-rule 过滤器",
+            condition
+        ));
+    }
+
+    Ok(normalize_optional_text(matcher))
+}
+
+fn timeout_secs_to_millis(timeout_secs: Option<u64>, default_millis: u64) -> u64 {
+    timeout_secs
+        .map(|seconds| seconds.saturating_mul(1000))
+        .unwrap_or(default_millis)
+}
+
 /// 错误类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -338,9 +561,18 @@ pub struct HookInput {
     /// 消息
     #[serde(default)]
     pub message: Option<String>,
+    /// Stop hook 是否已在上层激活
+    #[serde(default)]
+    pub stop_hook_active: Option<bool>,
+    /// Stop 前最后一条 assistant 文本
+    #[serde(default)]
+    pub last_assistant_message: Option<String>,
     /// 会话 ID
     #[serde(default)]
     pub session_id: Option<String>,
+    /// 权限模式
+    #[serde(default)]
+    pub permission_mode: Option<String>,
     /// 工具使用 ID
     #[serde(default)]
     pub tool_use_id: Option<String>,

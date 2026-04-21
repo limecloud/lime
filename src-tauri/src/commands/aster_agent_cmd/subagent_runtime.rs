@@ -184,6 +184,57 @@ fn normalize_optional_vec(values: &[String]) -> Vec<String> {
     normalized
 }
 
+fn normalize_frontmatter_hooks(
+    hooks: Option<aster::hooks::FrontmatterHooks>,
+) -> Option<aster::hooks::FrontmatterHooks> {
+    let hooks = hooks?;
+    let normalized = hooks
+        .into_iter()
+        .filter_map(|(event, matchers)| {
+            let matchers = matchers
+                .into_iter()
+                .filter(|matcher| !matcher.hooks.is_empty())
+                .collect::<Vec<_>>();
+            if matchers.is_empty() {
+                None
+            } else {
+                Some((event, matchers))
+            }
+        })
+        .collect::<aster::hooks::FrontmatterHooks>();
+
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(normalized)
+    }
+}
+
+fn register_runtime_subagent_frontmatter_hooks(
+    session_id: &str,
+    hooks: Option<&aster::hooks::FrontmatterHooks>,
+) {
+    let Some(hooks) = hooks else {
+        return;
+    };
+
+    let report = aster::hooks::register_agent_session_frontmatter_hooks(session_id, hooks);
+    if report.registered > 0 {
+        tracing::info!(
+            "[AsterAgent][Subagent] 已为 child session={} 注册 {} 个 agent frontmatter hooks",
+            session_id,
+            report.registered
+        );
+    }
+    for skipped in report.skipped {
+        tracing::warn!(
+            "[AsterAgent][Subagent] 跳过 child session={} 的 agent frontmatter hook: {}",
+            session_id,
+            skipped
+        );
+    }
+}
+
 fn validate_spawn_request_surface(
     request: &AgentRuntimeSpawnSubagentRequest,
 ) -> Result<(), String> {
@@ -332,6 +383,9 @@ pub(crate) fn build_subagent_customization_state(
     skill_ids.extend(normalize_optional_vec(&request.skill_ids));
     let skill_ids = normalize_optional_vec(&skill_ids);
     let skill_directories = normalize_optional_vec(&request.skill_directories);
+    let hooks = normalize_frontmatter_hooks(request.hooks.clone());
+    let allowed_tools = normalize_optional_vec(&request.allowed_tools);
+    let disallowed_tools = normalize_optional_vec(&request.disallowed_tools);
 
     let mut skills = skill_ids
         .iter()
@@ -369,6 +423,9 @@ pub(crate) fn build_subagent_customization_state(
             .or_else(|| profile.map(|descriptor| descriptor.system_overlay.to_string())),
         skill_ids,
         skills,
+        hooks,
+        allowed_tools,
+        disallowed_tools,
     };
 
     if state.is_empty() {
@@ -747,6 +804,12 @@ async fn create_runtime_subagent_session(
         request.model.as_deref(),
     )
     .await?;
+    register_runtime_subagent_frontmatter_hooks(
+        &session.id,
+        customization
+            .as_ref()
+            .and_then(|state| state.hooks.as_ref()),
+    );
 
     Ok(PreparedRuntimeSubagentSession {
         session,
@@ -832,6 +895,8 @@ pub(crate) async fn agent_runtime_spawn_subagent_internal(
                     "output_contract": customization.as_ref().and_then(|state| state.output_contract.clone()),
                     "skill_ids": customization.as_ref().map(|state| state.skill_ids.clone()).unwrap_or_default(),
                     "skills": customization.as_ref().map(|state| state.skills.clone()).unwrap_or_default(),
+                    "allowed_tools": customization.as_ref().map(|state| state.allowed_tools.clone()).unwrap_or_default(),
+                    "disallowed_tools": customization.as_ref().map(|state| state.disallowed_tools.clone()).unwrap_or_default(),
                 }
             })),
             turn_id: None,
@@ -911,6 +976,8 @@ pub(crate) async fn agent_runtime_send_subagent_input_internal(
                 "output_contract": customization.as_ref().and_then(|state| state.output_contract.clone()),
                 "skill_ids": customization.as_ref().map(|state| state.skill_ids.clone()).unwrap_or_default(),
                 "skills": customization.as_ref().map(|state| state.skills.clone()).unwrap_or_default(),
+                "allowed_tools": customization.as_ref().map(|state| state.allowed_tools.clone()).unwrap_or_default(),
+                "disallowed_tools": customization.as_ref().map(|state| state.disallowed_tools.clone()).unwrap_or_default(),
             }
         })),
         turn_id: None,
@@ -1109,6 +1176,9 @@ mod tests {
             theme: None,
             system_overlay: None,
             output_contract: None,
+            hooks: None,
+            allowed_tools: Vec::new(),
+            disallowed_tools: Vec::new(),
             mode: None,
             isolation: None,
             cwd: None,
@@ -1155,6 +1225,9 @@ mod tests {
             theme: None,
             system_overlay: None,
             output_contract: None,
+            hooks: None,
+            allowed_tools: Vec::new(),
+            disallowed_tools: Vec::new(),
             mode: Some("plan".to_string()),
             isolation: None,
             cwd: None,
@@ -1199,5 +1272,97 @@ mod tests {
             resolve_subagent_request_access_mode("child-2", &session),
             lime_agent::SessionExecutionRuntimeAccessMode::ReadOnly
         );
+    }
+
+    #[test]
+    fn test_build_subagent_customization_state_keeps_frontmatter_hooks() {
+        let customization = build_subagent_customization_state(&AgentRuntimeSpawnSubagentRequest {
+            parent_session_id: "parent-1".to_string(),
+            message: "检查 agent hooks".to_string(),
+            name: None,
+            team_name: None,
+            agent_type: None,
+            model: None,
+            run_in_background: false,
+            reasoning_effort: None,
+            fork_context: false,
+            blueprint_role_id: None,
+            blueprint_role_label: None,
+            profile_id: None,
+            profile_name: None,
+            role_key: None,
+            skill_ids: Vec::new(),
+            skill_directories: Vec::new(),
+            team_preset_id: None,
+            theme: None,
+            system_overlay: None,
+            output_contract: None,
+            hooks: Some(
+                serde_json::from_value(serde_json::json!({
+                    "Stop": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "prompt",
+                                    "prompt": "Summarize before exit"
+                                }
+                            ]
+                        }
+                    ]
+                }))
+                .expect("hooks should deserialize"),
+            ),
+            allowed_tools: Vec::new(),
+            disallowed_tools: Vec::new(),
+            mode: None,
+            isolation: None,
+            cwd: None,
+        })
+        .expect("build customization state")
+        .expect("customization should exist");
+
+        assert!(customization
+            .hooks
+            .as_ref()
+            .and_then(|hooks| hooks.get(&aster::hooks::HookEvent::Stop))
+            .is_some());
+    }
+
+    #[test]
+    fn test_register_runtime_subagent_frontmatter_hooks_rewrites_stop_event() {
+        aster::hooks::clear_session_hooks("runtime-subagent-hook");
+        let hooks: aster::hooks::FrontmatterHooks = serde_json::from_value(serde_json::json!({
+            "Stop": [
+                {
+                    "hooks": [
+                        {
+                            "type": "prompt",
+                            "prompt": "Summarize before exit"
+                        }
+                    ]
+                }
+            ]
+        }))
+        .expect("hooks should deserialize");
+
+        register_runtime_subagent_frontmatter_hooks("runtime-subagent-hook", Some(&hooks));
+
+        assert!(aster::hooks::get_matching_session_hooks(
+            "runtime-subagent-hook",
+            aster::hooks::HookEvent::Stop,
+            None,
+        )
+        .is_empty());
+        assert_eq!(
+            aster::hooks::get_matching_session_hooks(
+                "runtime-subagent-hook",
+                aster::hooks::HookEvent::SubagentStop,
+                None,
+            )
+            .len(),
+            1
+        );
+
+        aster::hooks::clear_session_hooks("runtime-subagent-hook");
     }
 }

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { convertLocalFileSrc } from "@/lib/api/fileSystem";
 import {
   SearchIcon,
   ImageIcon,
@@ -63,16 +64,31 @@ const IMAGE_GALLERY_SELECTED_BADGE_CLASSNAME =
 const IMAGE_GALLERY_INFO_SURFACE_CLASSNAME =
   "pointer-events-none absolute inset-x-2 bottom-2 rounded-[1rem] border border-white/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98)_0%,rgba(248,250,252,0.96)_48%,rgba(240,249,255,0.96)_100%)] p-3 text-slate-800 shadow-sm shadow-sky-950/10";
 
+function normalizePreviewSrc(src?: string | null): string | null {
+  const normalized = src?.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    normalized.startsWith("data:") ||
+    normalized.startsWith("http://") ||
+    normalized.startsWith("https://") ||
+    normalized.startsWith("blob:") ||
+    normalized.startsWith("asset:") ||
+    normalized.startsWith("file:")
+  ) {
+    return normalized;
+  }
+
+  return convertLocalFileSrc(normalized);
+}
+
 function getMaterialPreviewUrl(material: GalleryMaterial): string | null {
-  if (material.metadata?.thumbnail) {
-    return material.metadata.thumbnail;
-  }
-
-  if (material.filePath) {
-    return `asset://localhost/${material.filePath}`;
-  }
-
-  return null;
+  return (
+    normalizePreviewSrc(material.metadata?.thumbnail) ??
+    normalizePreviewSrc(material.filePath)
+  );
 }
 
 /**
@@ -275,7 +291,8 @@ export function ImageGallery({
                 暂无图片素材
               </p>
               <p className="text-sm">
-                可以先在 Claw 用 @素材 搜图，或到资料库上传本地图片，再回到这里筛选和插入。
+                可以先在 Claw 用 @素材
+                搜图，或到资料库上传本地图片，再回到这里筛选和插入。
               </p>
             </div>
           </div>

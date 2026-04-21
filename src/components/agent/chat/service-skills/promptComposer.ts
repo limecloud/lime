@@ -23,7 +23,7 @@ const RUNNER_LABELS = {
 
 const EXECUTION_LOCATION_LABELS = {
   client_default: "客户端默认执行",
-  cloud_required: "服务端特例执行",
+  cloud_required: "客户端执行（兼容旧目录标记）",
 } as const;
 
 function resolvePromptTemplateKey(

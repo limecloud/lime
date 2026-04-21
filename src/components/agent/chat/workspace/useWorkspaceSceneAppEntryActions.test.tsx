@@ -228,7 +228,7 @@ function createPlanResult(
       adapterPlan: {
         adapterKind: adapterPlanOverrides.adapterKind ?? "cloud_scene",
         runtimeAction:
-          adapterPlanOverrides.runtimeAction ?? "launch_cloud_scene",
+          adapterPlanOverrides.runtimeAction ?? "open_service_scene_session",
         targetRef:
           adapterPlanOverrides.targetRef ?? "sceneapp-service-story-video",
         targetLabel: adapterPlanOverrides.targetLabel ?? "短视频编排",
@@ -363,11 +363,11 @@ describe("useWorkspaceSceneAppEntryActions", () => {
         },
         plan: {
           sceneappId: "story-video-suite",
-          executorKind: "cloud_scene",
-          bindingFamily: "cloud_scene",
+          executorKind: "agent_turn",
+          bindingFamily: "agent_turn",
           adapterPlan: {
-            adapterKind: "cloud_scene",
-            runtimeAction: "launch_cloud_scene",
+            adapterKind: "agent_turn",
+            runtimeAction: "open_service_scene_session",
             targetRef: "sceneapp-service-story-video",
             targetLabel: "短视频编排",
             requestMetadata: {

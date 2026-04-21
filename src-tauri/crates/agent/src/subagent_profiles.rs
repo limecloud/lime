@@ -1,3 +1,4 @@
+use aster::hooks::FrontmatterHooks;
 use aster::session::extension_data::{ExtensionData, ExtensionState};
 use aster::session::Session;
 
@@ -65,6 +66,12 @@ pub struct SubagentCustomizationState {
     pub skill_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub skills: Vec<SubagentSkillSummary>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hooks: Option<FrontmatterHooks>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed_tools: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub disallowed_tools: Vec<String>,
 }
 
 impl ExtensionState for SubagentCustomizationState {
@@ -104,6 +111,13 @@ impl SubagentCustomizationState {
             && self.system_overlay.is_none()
             && self.skill_ids.is_empty()
             && self.skills.is_empty()
+            && self
+                .hooks
+                .as_ref()
+                .map(|hooks| hooks.is_empty())
+                .unwrap_or(true)
+            && self.allowed_tools.is_empty()
+            && self.disallowed_tools.is_empty()
     }
 }
 
@@ -406,6 +420,18 @@ pub fn build_subagent_customization_prompt(
     }
     if let Some(output_contract) = customization.output_contract.as_deref() {
         header_lines.push(format!("- 输出契约：{output_contract}"));
+    }
+    if !customization.allowed_tools.is_empty() {
+        header_lines.push(format!(
+            "- Allowed Tools：{}",
+            customization.allowed_tools.join(", ")
+        ));
+    }
+    if !customization.disallowed_tools.is_empty() {
+        header_lines.push(format!(
+            "- Disallowed Tools：{}",
+            customization.disallowed_tools.join(", ")
+        ));
     }
     sections.push(header_lines.join("\n"));
 

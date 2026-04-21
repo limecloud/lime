@@ -21,7 +21,7 @@ function resolveSceneExecutionKind(
     case "automation_job":
       return "automation_job";
     case "cloud_scene":
-      return "cloud_scene";
+      return "agent_turn";
     default:
       return "agent_turn";
   }

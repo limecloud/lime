@@ -6,6 +6,7 @@ import type { AutomationJobRecord } from "../api/automation";
 import type { CompanionPetStatus } from "../api/companion";
 import type { AgentRun } from "../api/executionRun";
 import type {
+  SceneAppBindingFamily,
   SceneAppCatalog,
   SceneAppContextOverlay,
   SceneAppDescriptor,
@@ -1086,7 +1087,7 @@ const mockSceneAppCatalog: SceneAppCatalog = {
       patternPrimary: "pipeline",
       patternStack: ["pipeline", "inversion", "generator", "reviewer"],
       capabilityRefs: [
-        "cloud_scene",
+        "agent_turn",
         "native_skill",
         "workspace_storage",
         "artifact_viewer",
@@ -1095,7 +1096,7 @@ const mockSceneAppCatalog: SceneAppCatalog = {
         "composition_blueprint",
         "project_pack",
         "workspace_storage",
-        "cloud_runtime",
+        "agent_turn",
         "timeline",
       ],
       deliveryContract: "project_pack",
@@ -1140,13 +1141,13 @@ const mockSceneAppCatalog: SceneAppCatalog = {
             id: "music_refs",
             order: 4,
             bindingProfileRef: "story-video-cloud-binding",
-            bindingFamily: "cloud_scene",
+            bindingFamily: "agent_turn",
           },
           {
             id: "video_draft",
             order: 5,
             bindingProfileRef: "story-video-cloud-binding",
-            bindingFamily: "cloud_scene",
+            bindingFamily: "agent_turn",
           },
           {
             id: "review_note",
@@ -1172,14 +1173,14 @@ const mockSceneAppCatalog: SceneAppCatalog = {
       entryBindings: [
         {
           kind: "service_skill",
-          bindingFamily: "cloud_scene",
+          bindingFamily: "agent_turn",
           serviceSkillId: "sceneapp-service-story-video",
           skillKey: "story-video-suite",
           aliases: ["story-video", "mv-pipeline"],
         },
         {
           kind: "scene",
-          bindingFamily: "cloud_scene",
+          bindingFamily: "agent_turn",
           sceneKey: "story-video-suite",
           commandPrefix: "/story-video-suite",
           aliases: ["story-video-scene"],
@@ -1193,10 +1194,6 @@ const mockSceneAppCatalog: SceneAppCatalog = {
         {
           kind: "project",
           message: "需要项目目录承接线框图、脚本和媒体结果。",
-        },
-        {
-          kind: "cloud_session",
-          message: "需要可用的云端运行时来完成多模态媒体处理。",
         },
       ],
       linkedServiceSkillId: "sceneapp-service-story-video",
@@ -1783,8 +1780,17 @@ function buildMockSceneAppAdapterPlan(
   const slots = resolveMockSceneAppSlots(intent);
   const runtimeContext = resolveMockSceneAppRuntimeContext(intent);
   const referenceMemoryIds = resolveMockSceneAppReferenceMemoryIds(intent);
-  const adapterKind =
+  const adapterKind: SceneAppBindingFamily =
     descriptor.entryBindings[0]?.bindingFamily ?? "agent_turn";
+  const shouldOpenServiceSceneSession =
+    (adapterKind === "cloud_scene" ||
+      adapterKind === "agent_turn") &&
+    (descriptor.sceneappType === "local_instant" ||
+      descriptor.sceneappType === "hybrid") &&
+    Boolean(descriptor.linkedServiceSkillId || descriptor.linkedSceneKey) &&
+    descriptor.entryBindings.some(
+      (binding) => binding.kind === "service_skill" || binding.kind === "scene",
+    );
   const baseRequestMetadata = {
     harness: {
       sceneapp_id: descriptor.id,
@@ -1877,7 +1883,7 @@ function buildMockSceneAppAdapterPlan(
           ...baseRequestMetadata.harness,
           browser_requirement: "required",
           browser_requirement_reason:
-            "当前 SceneApp 依赖真实浏览器上下文与登录态，不应回退到纯 WebSearch。",
+            "当前做法依赖真实浏览器上下文与登录态，不应回退到纯 WebSearch。",
           browser_assist: {
             enabled: true,
             profile_key: "general_browser_assist",
@@ -1908,7 +1914,7 @@ function buildMockSceneAppAdapterPlan(
         save_mode: "project_resource",
       },
       notes: [
-        "当前 SceneApp 规划先映射到 browser_assist 主链，再由后续 runtime adapter 负责真实执行。",
+        "当前做法规划先映射到 browser_assist 主链，再由后续 runtime adapter 负责真实执行。",
         ...(url
           ? []
           : [
@@ -1964,16 +1970,16 @@ function buildMockSceneAppAdapterPlan(
         },
       },
       notes: [
-        "当前 SceneApp 规划先映射到 automation_job 主链，再由后续 runtime adapter 负责真实执行。",
+        "当前做法规划先映射到 automation_job 主链，再由后续 runtime adapter 负责真实执行。",
         "当前 planner 只生成 durable automation draft；具体 schedule、delivery 与 run-now 策略可继续由 UI 调整。",
       ],
     };
   }
 
-  if (adapterKind === "cloud_scene") {
+  if (shouldOpenServiceSceneSession) {
     return {
       adapterKind,
-      runtimeAction: "launch_cloud_scene",
+      runtimeAction: "open_service_scene_session",
       targetRef:
         descriptor.linkedServiceSkillId ??
         descriptor.linkedSceneKey ??
@@ -1986,7 +1992,7 @@ function buildMockSceneAppAdapterPlan(
         harness: {
           ...baseRequestMetadata.harness,
           service_scene_launch: {
-            kind: "cloud_scene",
+            kind: "local_service_skill",
             service_scene_run: {
               sceneapp_id: descriptor.id,
               scene_key: descriptor.linkedSceneKey ?? null,
@@ -1994,7 +2000,8 @@ function buildMockSceneAppAdapterPlan(
               skill_id: descriptor.linkedServiceSkillId ?? null,
               skill_title: descriptor.title,
               skill_summary: descriptor.summary,
-              execution_kind: "cloud_scene",
+              execution_kind: "local_service_skill",
+              execution_location: "client_default",
               entry_source:
                 typeof intent.entrySource === "string"
                   ? intent.entrySource
@@ -2023,10 +2030,10 @@ function buildMockSceneAppAdapterPlan(
         slots,
       },
       notes: [
-        "当前 SceneApp 规划先映射到 cloud_scene 主链，再由后续 runtime adapter 负责真实执行。",
+        "当前做法规划会收敛到 Agent 工作区主链，并由客户端继续执行。",
         ...(descriptor.sceneappType === "hybrid"
           ? [
-              "当前 SceneApp 属于 hybrid，但首发执行仍先收敛到 cloud_scene；本地编排步骤由后续 composition blueprint 接续。",
+              "当前做法属于 hybrid，但首发执行会先进入 Agent 工作区入口；后续本地编排步骤由 composition blueprint 接续。",
             ]
           : []),
       ],
@@ -2071,7 +2078,7 @@ function buildMockSceneAppAdapterPlan(
         slots,
       },
       notes: [
-        "当前 SceneApp 规划先映射到 native_skill 主链，再由后续 runtime adapter 负责真实执行。",
+        "当前做法规划先映射到 native_skill 主链，再由后续 runtime adapter 负责真实执行。",
         "native_skill 目前仍建议由统一 SceneApp UI 继续补参后，再把 draft 投递给本地 skill 执行入口。",
       ],
     };
@@ -2100,7 +2107,7 @@ function buildMockSceneAppAdapterPlan(
       slots,
     },
     notes: [
-      "当前 SceneApp 规划先映射到 agent_turn 主链，再由后续 runtime adapter 负责真实执行。",
+      "当前做法规划先映射到 agent_turn 主链，再由后续 runtime adapter 负责真实执行。",
       "agent_turn 类型 SceneApp 当前仍建议走统一聊天 turn，并把 sceneapp_launch metadata 合并进 request_metadata。",
     ],
   };
@@ -2202,7 +2209,7 @@ function buildMockSceneAppPlanResult(
 
   const warnings =
     unmetRequirements.length > 0
-      ? ["当前 SceneApp 仍有未满足的启动前置条件。"]
+      ? ["当前做法仍有未满足的启动前置条件。"]
       : [];
   if (shouldPersistContext && !persistedContextKey) {
     warnings.push("当前未解析到项目目录，暂未写入项目级 Context Snapshot。");
@@ -2281,8 +2288,8 @@ function buildMockSceneAppProjectPackPlan(
           : "artifact_writeback",
     notes: [
       descriptor.deliveryContract === "project_pack"
-        ? "当前 SceneApp 以结果包作为默认交付单位。"
-        : "当前 SceneApp 会沿现有结果交付主链回写。",
+        ? "当前做法以结果包作为默认交付单位。"
+        : "当前做法会沿现有结果交付主链回写。",
       requiredParts.length > 0
         ? `完整度将按 ${requiredParts.length} 个必含部件判断。`
         : "当前场景暂按结果文件回流判断交付。",
@@ -2538,7 +2545,7 @@ function createMockSceneAppAutomationJob(args?: Record<string, unknown>) {
   }
   if (descriptor.sceneappType === "browser_grounded") {
     throw new Error(
-      "当前 SceneApp 依赖浏览器上下文，暂不支持直接转为 automation job",
+      "当前做法依赖浏览器上下文，暂不支持直接转为 automation job",
     );
   }
 
@@ -3286,7 +3293,7 @@ const WORKBENCH_MOCK_TOOL_SPECS: MockToolSpec[] = [
   },
   {
     name: "lime_create_video_generation_task",
-    description: "创建视频生成任务。",
+    description: "发起视频生成。",
     capabilities: ["content_creation"],
     source: "lime_injected",
     tags: ["content", "video", "task"],
@@ -3302,7 +3309,7 @@ const WORKBENCH_MOCK_TOOL_SPECS: MockToolSpec[] = [
   },
   {
     name: "lime_create_broadcast_generation_task",
-    description: "创建播报生成任务。",
+    description: "发起口播生成。",
     capabilities: ["content_creation"],
     source: "lime_injected",
     tags: ["content", "audio", "broadcast"],
@@ -3310,7 +3317,7 @@ const WORKBENCH_MOCK_TOOL_SPECS: MockToolSpec[] = [
   },
   {
     name: "lime_create_cover_generation_task",
-    description: "创建封面生成任务。",
+    description: "发起封面生成。",
     capabilities: ["content_creation"],
     source: "lime_injected",
     tags: ["content", "image", "cover"],
@@ -3334,7 +3341,7 @@ const WORKBENCH_MOCK_TOOL_SPECS: MockToolSpec[] = [
   },
   {
     name: "lime_create_image_generation_task",
-    description: "创建图片生成任务。",
+    description: "发起图片生成。",
     capabilities: ["content_creation"],
     source: "lime_injected",
     tags: ["content", "image", "task"],
@@ -3358,10 +3365,11 @@ const WORKBENCH_MOCK_TOOL_SPECS: MockToolSpec[] = [
   },
   {
     name: "lime_run_service_skill",
-    description: "执行当前绑定的服务型场景技能。",
+    description:
+      "兼容旧会话的服务型做法工具。current 主链改为本地 Agent 直接执行。",
     capabilities: ["execution"],
     source: "lime_injected",
-    tags: ["service_skill", "runtime"],
+    tags: ["service_skill", "compat"],
     input_examples_count: 1,
   },
 ];

@@ -114,17 +114,17 @@ describe("sceneAppLaunch", () => {
       },
       plan: {
         sceneappId: "story-video-suite",
-        executorKind: "cloud_scene",
-        bindingFamily: "cloud_scene",
+        executorKind: "agent_turn",
+        bindingFamily: "agent_turn",
         adapterPlan: {
-          adapterKind: "cloud_scene",
-          runtimeAction: "launch_cloud_scene",
+          adapterKind: "agent_turn",
+          runtimeAction: "open_service_scene_session",
           targetRef: "sceneapp-service-story-video",
           targetLabel: "短视频编排",
           requestMetadata: {
             harness: {
               service_scene_launch: {
-                kind: "cloud_scene",
+                kind: "local_service_skill",
               },
             },
           },
@@ -155,7 +155,7 @@ describe("sceneAppLaunch", () => {
         kind: "navigate_agent",
         executionDraft: expect.objectContaining({
           kind: "workspace_entry",
-          runtimeAction: "launch_cloud_scene",
+          runtimeAction: "open_service_scene_session",
         }),
         resolvedEntry: expect.objectContaining({
           navigationParams: expect.objectContaining({
@@ -211,7 +211,7 @@ describe("sceneAppLaunch", () => {
         runtimeAction: "launch_native_skill",
       }),
       reason: "missing_project",
-      message: "SceneApp「本地分析场景」需要项目工作区，请先选择项目后再启动。",
+      message: "做法「本地分析场景」需要项目工作区，请先选择项目后再启动。",
     });
   });
 
@@ -509,7 +509,7 @@ describe("sceneAppLaunch", () => {
         bindingFamily: "cloud_scene",
         adapterPlan: {
           adapterKind: "cloud_scene",
-          runtimeAction: "launch_cloud_scene",
+          runtimeAction: "open_service_scene_session",
           targetRef: "sceneapp-service-story-video",
           targetLabel: "短视频编排",
           requestMetadata: {},
@@ -537,10 +537,10 @@ describe("sceneAppLaunch", () => {
       kind: "workspace_entry",
       executionDraft: expect.objectContaining({
         kind: "workspace_entry",
-        runtimeAction: "launch_cloud_scene",
+        runtimeAction: "open_service_scene_session",
       }),
       reason: "missing_navigate",
-      message: "当前入口暂不支持切换到 SceneApp 工作区，请从桌面主界面重试。",
+      message: "当前入口暂不支持切换到做法工作区，请从桌面主界面重试。",
     });
   });
 });

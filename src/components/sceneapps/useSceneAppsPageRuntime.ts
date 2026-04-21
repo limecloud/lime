@@ -1112,7 +1112,7 @@ export function useSceneAppsPageRuntime({
             failureSignal:
               selectedRunDetailView?.failureSignalLabel ??
               governanceView?.topFailureSignalLabel,
-            sourceLabel: "创作场景",
+            sourceLabel: "整套做法",
           }),
           {
             closeDialog: false,
@@ -1191,7 +1191,7 @@ export function useSceneAppsPageRuntime({
         sceneappId:
           selectedRunSummary?.sceneappId ?? selectedDescriptor?.id ?? "",
         sceneTitle: selectedDescriptor?.title,
-        sourceLabel: "创作场景复盘",
+        sourceLabel: "做法复盘",
         projectId: selectedProjectId,
         linkedServiceSkillId: selectedDescriptor?.linkedServiceSkillId,
         linkedSceneKey: selectedDescriptor?.linkedSceneKey,
@@ -1222,7 +1222,7 @@ export function useSceneAppsPageRuntime({
     ) => {
       openSelectedRunFileEntry(artifactEntry, {
         missingPathMessage: "当前这次运行还没有可打开的结果文件路径。",
-        bannerPrefix: "已从创作场景复盘打开结果文件",
+        bannerPrefix: "已从做法复盘打开结果文件",
       });
     },
     [openSelectedRunFileEntry],
@@ -1261,7 +1261,7 @@ export function useSceneAppsPageRuntime({
 
         openSelectedRunFileEntry(artifactEntry, {
           missingPathMessage: "当前这次运行还没有可打开的证据或复核文件。",
-          bannerPrefix: "已从创作场景复盘打开治理文件",
+          bannerPrefix: "已从做法复盘打开治理文件",
         });
       })();
     },
@@ -1304,7 +1304,7 @@ export function useSceneAppsPageRuntime({
             );
           openSelectedRunFileEntry(targetEntry, {
             missingPathMessage: `治理动作已准备完成，但当前没有可打开的${action.primaryArtifactLabel}路径。`,
-            bannerPrefix: "已从创作场景复盘打开治理动作",
+            bannerPrefix: "已从做法复盘打开治理动作",
           });
         } catch (error) {
           toast.error(formatSceneAppErrorMessage(error));
@@ -1346,25 +1346,25 @@ export function useSceneAppsPageRuntime({
 
   const launchDisabledReason = useMemo(() => {
     if (!selectedDescriptor) {
-      return "先选择一个创作场景";
+      return "先选择一套做法";
     }
     if (selectedEntryCard?.disabledReason) {
       return selectedEntryCard.disabledReason;
     }
     if (!launchSeed) {
-      return "这个场景需要在输入里包含明确的 URL";
+      return "这套做法需要在输入里包含明确的 URL";
     }
     return undefined;
   }, [launchSeed, selectedDescriptor, selectedEntryCard?.disabledReason]);
   const saveContextBaselineDisabledReason = useMemo(() => {
     if (!selectedDescriptor) {
-      return "先选择一个创作场景";
+      return "先选择一套做法";
     }
     if (!selectedProjectId?.trim()) {
-      return "先绑定项目工作区，才能写入当前场景基线";
+      return "先绑定项目工作区，才能写入当前做法基线";
     }
     if (!launchInput.trim() && selectedReferenceMemoryIds.length === 0) {
-      return "先带入灵感对象或启动输入，再写入当前场景基线";
+      return "先带入灵感对象或启动输入，再写入当前做法基线";
     }
     return undefined;
   }, [
@@ -1381,11 +1381,11 @@ export function useSceneAppsPageRuntime({
       const businessLabel = descriptor
         ? getSceneAppPresentationCopy(descriptor).businessLabel
         : "最近访问";
-      const title = descriptor?.title ?? record.sceneappId ?? "未命名创作场景";
+      const title = descriptor?.title ?? record.sceneappId ?? "未命名做法";
       const summary =
         record.prefillIntent && record.prefillIntent.trim()
           ? truncateSingleLine(record.prefillIntent)
-          : (descriptor?.summary ?? "继续上一次创作场景上下文");
+          : (descriptor?.summary ?? "继续上一次做法上下文");
 
       return {
         key: `${record.sceneappId}:${record.projectId ?? ""}`,
@@ -1479,12 +1479,12 @@ export function useSceneAppsPageRuntime({
 
   const handleLaunchSelected = useCallback(async () => {
     if (!selectedDescriptor) {
-      toast.error("请先选择一个创作场景");
+      toast.error("请先选择一套做法");
       return;
     }
 
     if (!launchSeed) {
-      toast.error("当前场景需要明确链接或启动输入，请先补齐后再继续");
+      toast.error("这套做法需要明确链接或启动输入，请先补齐后再继续");
       return;
     }
 
@@ -1503,18 +1503,18 @@ export function useSceneAppsPageRuntime({
 
   const handleSaveContextBaseline = useCallback(async () => {
     if (!selectedDescriptor) {
-      toast.error("请先选择一个创作场景");
+      toast.error("请先选择一套做法");
       return;
     }
 
     const trimmedProjectId = selectedProjectId?.trim();
     if (!trimmedProjectId) {
-      toast.error("请先绑定项目工作区，再写入当前场景基线。");
+      toast.error("请先绑定项目工作区，再写入当前做法基线。");
       return;
     }
 
     if (!launchInput.trim() && selectedReferenceMemoryIds.length === 0) {
-      toast.error("请先带入灵感对象或启动输入，再写入当前场景基线。");
+      toast.error("请先带入灵感对象或启动输入，再写入当前做法基线。");
       return;
     }
 
@@ -1531,7 +1531,7 @@ export function useSceneAppsPageRuntime({
       });
       setSelectedPlanResult(savedPlanResult);
       setSelectedPlanError(null);
-      toast.success("已写入当前场景基线");
+      toast.success("已写入当前做法基线");
     } catch (error) {
       toast.error(formatSceneAppErrorMessage(error));
     } finally {

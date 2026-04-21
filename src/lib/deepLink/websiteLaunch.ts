@@ -112,7 +112,7 @@ const WEBSITE_SKILL_LAUNCH_ENTRIES: WebsiteSkillLaunchEntry[] = [
   },
   {
     slug: "cloud-video-dubbing",
-    title: "云端视频配音",
+    title: "视频配音",
     target: {
       type: "service_skill",
       skillId: "cloud-video-dubbing",

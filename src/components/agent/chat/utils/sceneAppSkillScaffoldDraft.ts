@@ -130,9 +130,9 @@ export function buildSkillsPageParamsFromSceneAppExecution(
       ], 3).join(" "),
       whenToUse: dedupeItems([
         `当你需要继续产出“${summary.title}”这类${summary.businessLabel}结果时使用。`,
-        `适合继续沿用这轮已验证过的 ${summary.executionChainLabel} 执行路径与 ${summary.deliveryContractLabel} 交付合同。`,
+        `适合继续沿用这轮已验证过的 ${summary.executionChainLabel} 执行路径与当前结果交付约定。`,
         summary.referenceCount > 0
-          ? `当前这轮已经验证过 ${summary.referenceCount} 条参考基线，适合在相近题材、平台或项目约束下继续复用。`
+          ? `当前这轮已经验证过 ${summary.referenceCount} 条参考对象，适合在相近题材、平台或项目约束下继续复用。`
           : null,
         reviewSnippet,
       ]),
@@ -141,8 +141,8 @@ export function buildSkillsPageParamsFromSceneAppExecution(
           `目标与结果方向：${summarySnippet}`,
           `执行骨架：${summary.executionChainLabel}`,
           summary.referenceCount > 0
-            ? `参考基线：${summary.referenceCount} 条参考对象已被验证可继续沿用。`
-            : "参考基线：按当前项目上下文补充最关键的素材、示例或历史结果。",
+            ? `参考对象：${summary.referenceCount} 条参考对象已被验证可继续沿用。`
+            : "参考对象：按当前项目上下文补充最关键的素材、示例或历史结果。",
           reviewSignalSummary
             ? `人工复盘：${truncate(reviewSignalSummary, 88)}`
             : null,
@@ -152,21 +152,21 @@ export function buildSkillsPageParamsFromSceneAppExecution(
         5,
       ),
       outputs: dedupeItems([
-        `交付一份与“${summary.title}”同类型、可直接继续消费的${summary.deliveryContractLabel}结果。`,
+        `交付一份与“${summary.title}”同类型、可直接继续消费的结果。`,
         `结果状态参考：${deliverySnippet}`,
         `后续建议：${nextActionSnippet}`,
       ]),
       steps: dedupeItems([
-        "先确认这次任务是否仍适合同一条场景执行路径与交付合同。",
-        "沿用当前 Context Layer 的参考、风格摘要与项目结果基线，补齐最少必要输入。",
-        "输出后按当前 Scorecard 与人工复盘结论，继续进入复核、发布或下一轮生成。",
+        "先确认这次任务是否仍适合同一条场景执行路径与当前结果交付约定。",
+        "沿用当前已验证过的参考对象、风格摘要与项目结果基线，补齐最少必要输入。",
+        "输出后按当前结果判断线索与人工复盘结论，继续进入复核、发布或下一轮生成。",
       ]),
       fallbackStrategy: dedupeItems([
         missingPartsLabel
           ? `如果仍缺少${missingPartsLabel}，先补齐缺失部件，再把整套做法沉淀下来。`
           : null,
         failureSignalLabel
-          ? `如果再次出现${failureSignalLabel}，先回看证据与治理材料，不要直接放大复用。`
+          ? `如果再次出现${failureSignalLabel}，先回看证据与复盘材料，不要直接放大复用。`
           : null,
         reviewSignalSummary
           ? `如果最近人工复盘提出新的约束，优先按“${truncate(reviewSignalSummary, 72)}”处理后再继续复用。`

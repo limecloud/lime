@@ -19,19 +19,53 @@ vi.mock("@/lib/dev-bridge", () => ({
 
 describe("sceneapp API", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   it("应通过统一命令获取 SceneApp 目录", async () => {
     vi.mocked(safeInvoke).mockResolvedValueOnce({
       version: "2026-04-15",
       generatedAt: "2026-04-15T00:00:00.000Z",
-      items: [],
+      items: [
+        {
+          id: "story-video-suite",
+          title: "短视频编排",
+          summary: "测试目录项",
+          category: "测试",
+          sceneappType: "hybrid",
+          patternPrimary: "pipeline",
+          patternStack: ["pipeline"],
+          capabilityRefs: ["cloud_scene", "timeline"],
+          infraProfile: ["cloud_runtime", "workspace_storage"],
+          deliveryContract: "artifact_bundle",
+          outputHint: "短视频结果包",
+          entryBindings: [
+            {
+              kind: "scene",
+              bindingFamily: "cloud_scene",
+            },
+          ],
+          launchRequirements: [],
+          sourcePackageId: "lime-core-sceneapps",
+          sourcePackageVersion: "2026-04-15",
+        },
+      ],
     });
 
     await expect(listSceneAppCatalog()).resolves.toEqual(
       expect.objectContaining({
         version: "2026-04-15",
+        items: [
+          expect.objectContaining({
+            capabilityRefs: ["agent_turn", "timeline"],
+            infraProfile: ["workspace_storage"],
+            entryBindings: [
+              expect.objectContaining({
+                bindingFamily: "agent_turn",
+              }),
+            ],
+          }),
+        ],
       }),
     );
     expect(vi.mocked(safeInvoke)).toHaveBeenCalledWith("sceneapp_list_catalog");
@@ -181,8 +215,11 @@ describe("sceneapp API", () => {
           id: "story-video-suite",
         }),
         plan: expect.objectContaining({
+          executorKind: "agent_turn",
+          bindingFamily: "agent_turn",
           adapterPlan: expect.objectContaining({
-            runtimeAction: "launch_cloud_scene",
+            runtimeAction: "open_service_scene_session",
+            adapterKind: "agent_turn",
           }),
         }),
         projectPackPlan: expect.objectContaining({

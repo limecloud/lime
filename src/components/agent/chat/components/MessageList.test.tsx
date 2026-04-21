@@ -287,9 +287,9 @@ describe("MessageList", () => {
       "这里是 Lime 的生成主执行面，可以继续进行中的创作、回看最近结果和旧历史。",
     );
     expect(container.textContent).toContain(
-      "还没有生成任务时，从新建任务开始也很自然；跑过的结果、做法和中间素材后面都会继续留在这里。",
+      "还没开始生成时，从“开始生成”发起也很自然；跑过的结果、做法和中间素材后面都会继续留在这里。",
     );
-    expect(container.textContent).toContain("左侧会继续显示正在推进的生成任务");
+    expect(container.textContent).toContain("左侧会继续显示待继续的生成记录");
     expect(container.textContent).toContain("最近结果会继续在这里回访");
     expect(container.textContent).toContain(
       "常用做法和恢复中的会话会自动回到这里",

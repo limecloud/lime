@@ -75,7 +75,7 @@ describe("TeamWorkbenchSummaryPanel", () => {
     expect(container.textContent).toContain("生成工作台");
     expect(container.textContent).toContain("任务记忆影子");
     expect(container.textContent).toContain("/workspace/lime");
-    expect(container.textContent).toContain("当前任务方案");
+    expect(container.textContent).toContain("当前分工方案");
     expect(container.textContent).toContain("研究双人组");
   });
 
@@ -118,7 +118,7 @@ describe("TeamWorkbenchSummaryPanel", () => {
     expect(container.textContent).toContain("任务分工已准备好");
     expect(container.textContent).toContain("当前任务分工");
     expect(container.textContent).toContain(
-      "当前任务方案已就绪。任务拆出后，这里会从方案视图过渡到当前进展。",
+      "当前分工方案已就绪。任务拆出后，这里会从方案视图过渡到当前进展。",
     );
     expect(container.textContent).toContain("参考方案：代码排障团队");
   });

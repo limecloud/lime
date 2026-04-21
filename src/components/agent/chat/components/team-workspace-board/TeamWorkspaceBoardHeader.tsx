@@ -120,7 +120,7 @@ export function TeamWorkspaceBoardHeader({
             onClick={() => void onReturnToParentSession()}
           >
             <ArrowUpLeft className="mr-1.5 h-3.5 w-3.5" />
-            返回主任务
+            返回主助手
           </Button>
         ) : null}
       </div>

@@ -1104,6 +1104,7 @@ mod tests {
             execution_mode: mode,
             provider: None,
             workflow: None,
+            hooks: None,
         }
     }
 

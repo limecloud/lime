@@ -850,7 +850,7 @@ function buildRuntimeTeamAssistantDraft(
 
   const teamLabel =
     normalizeTeamWorkspaceDisplayValue(state.label || state.blueprint?.label) ||
-    "当前任务方案";
+    "当前分工方案";
   const summary =
     normalizeTeamWorkspaceDisplayValue(
       state.summary || state.blueprint?.summary,
@@ -907,7 +907,7 @@ export function buildRuntimeTeamDispatchPreviewMessages(
     normalizeTeamWorkspaceDisplayValue(
       snapshot.formationState?.label || snapshot.formationState?.blueprint?.label,
     ) ||
-    "当前任务方案";
+    "当前分工方案";
   const formedSummary =
     normalizeTeamWorkspaceDisplayValue(
       snapshot.formationState?.summary ||

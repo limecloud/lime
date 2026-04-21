@@ -1132,8 +1132,8 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "limecreatevideogenerationtask",
     {
       family: "task",
-      label: "视频生成任务",
-      verb: "创建任务",
+      label: "视频生成",
+      verb: "发起",
       icon: FilePlus,
       groupTitle: "任务",
       actionKey: "task",
@@ -1143,8 +1143,8 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "limecreatetranscriptiontask",
     {
       family: "task",
-      label: "转写任务",
-      verb: "创建任务",
+      label: "转写",
+      verb: "发起",
       icon: FilePlus,
       groupTitle: "任务",
       actionKey: "task",
@@ -1154,8 +1154,8 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "limecreatebroadcastgenerationtask",
     {
       family: "task",
-      label: "口播生成任务",
-      verb: "创建任务",
+      label: "口播生成",
+      verb: "发起",
       icon: FilePlus,
       groupTitle: "任务",
       actionKey: "task",
@@ -1165,8 +1165,8 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "limecreatecovergenerationtask",
     {
       family: "task",
-      label: "封面生成任务",
-      verb: "创建任务",
+      label: "封面生成",
+      verb: "发起",
       icon: FilePlus,
       groupTitle: "任务",
       actionKey: "task",
@@ -1176,8 +1176,8 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "limecreateresourcesearchtask",
     {
       family: "task",
-      label: "素材检索任务",
-      verb: "创建任务",
+      label: "素材检索",
+      verb: "发起",
       icon: FilePlus,
       groupTitle: "任务",
       actionKey: "task",
@@ -1187,8 +1187,8 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "limecreatemodalresourcesearchtask",
     {
       family: "task",
-      label: "素材检索任务",
-      verb: "创建任务",
+      label: "素材检索",
+      verb: "发起",
       icon: FilePlus,
       groupTitle: "任务",
       actionKey: "task",
@@ -1198,8 +1198,8 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "limecreateimagegenerationtask",
     {
       family: "task",
-      label: "图片生成任务",
-      verb: "创建任务",
+      label: "图片生成",
+      verb: "发起",
       icon: FilePlus,
       groupTitle: "任务",
       actionKey: "task",
@@ -1209,8 +1209,8 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "limecreateurlparsetask",
     {
       family: "task",
-      label: "链接解析任务",
-      verb: "创建任务",
+      label: "链接解析",
+      verb: "发起",
       icon: FilePlus,
       groupTitle: "任务",
       actionKey: "task",
@@ -1220,8 +1220,8 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "limecreatetypesettingtask",
     {
       family: "task",
-      label: "排版任务",
-      verb: "创建任务",
+      label: "排版",
+      verb: "发起",
       icon: FilePlus,
       groupTitle: "任务",
       actionKey: "task",
@@ -1231,7 +1231,7 @@ const EXACT_TOOL_CONFIGS = new Map<string, ToolDisplayConfig>([
     "limerunserviceskill",
     {
       family: "generic",
-      label: "服务技能执行",
+      label: "服务技能兼容执行",
       verb: "执行",
       icon: Globe,
       groupTitle: "服务技能",
@@ -1804,7 +1804,7 @@ const USER_FACING_TOOL_LABELS: Record<string, string> = {
   站点能力搜索: "搜索站点能力",
   站点能力详情: "查看站点能力",
   站点能力执行: "运行站点能力",
-  服务技能执行: "运行服务技能",
+  服务技能兼容执行: "运行兼容服务技能",
 };
 
 export const normalizeToolNameKey = (value: string): string => {

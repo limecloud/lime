@@ -42,14 +42,14 @@ function resolvePrimaryResultSummary(
 function buildResultContextSentence(detailView: SceneAppRunDetailViewModel): string {
   const primaryResult = resolvePrimaryResultSummary(detailView);
   if (!primaryResult) {
-    return "当前 Project Pack 结果";
+    return "当前这轮结果";
   }
 
   if (primaryResult.pathLabel?.trim()) {
-    return `当前 Project Pack 的主稿「${primaryResult.label}」（项目文件：${primaryResult.pathLabel.trim()}）`;
+    return `当前这轮结果里的主稿「${primaryResult.label}」（项目文件：${primaryResult.pathLabel.trim()}）`;
   }
 
-  return `当前 Project Pack 的主稿「${primaryResult.label}」`;
+  return `当前这轮结果里的主稿「${primaryResult.label}」`;
 }
 
 export function buildSceneAppExecutionPromptActions(
@@ -71,8 +71,8 @@ export function buildSceneAppExecutionPromptActions(
     actions.push({
       key: "fill_missing_parts",
       label: "补齐缺失部件",
-      helperText: `继续沿当前结果包补齐 ${missingPartsSummary}，而不是重新起一条平行链路。`,
-      prompt: `请基于${resultContext}继续补齐缺失部件：${missingPartsSummary}。优先复用已完成部件、当前参考和风格基线；补齐后请说明每个缺件如何回写到结果包。`,
+      helperText: `继续沿当前结果补齐 ${missingPartsSummary}，而不是重新起一条平行链路。`,
+      prompt: `请基于${resultContext}继续补齐缺失部件：${missingPartsSummary}。优先复用已完成部件、当前参考和风格基线；补齐后请说明每个缺件如何回写到当前结果。`,
       tone: "warning",
     });
   }

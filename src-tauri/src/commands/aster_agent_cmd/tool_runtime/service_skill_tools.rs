@@ -5,11 +5,6 @@ use crate::commands::aster_agent_cmd::service_skill_launch::{
 };
 use aster::session::{load_shared_session_runtime_snapshot, SessionRuntimeSnapshot};
 
-const DEFAULT_SERVICE_SKILL_POLL_ATTEMPTS: u32 = 6;
-const DEFAULT_SERVICE_SKILL_POLL_INTERVAL_MS: u64 = 1_500;
-const MAX_SERVICE_SKILL_POLL_ATTEMPTS: u32 = 20;
-const MAX_SERVICE_SKILL_POLL_INTERVAL_MS: u64 = 8_000;
-const TERMINAL_SERVICE_SKILL_STATUSES: &[&str] = &["success", "failed", "canceled", "timeout"];
 const SERVICE_SCENE_LAUNCH_CONTEXT_ENV_KEYS: &[&str] = &[
     "LIME_SERVICE_SCENE_LAUNCH_CONTEXT",
     "PROXYCAST_SERVICE_SCENE_LAUNCH_CONTEXT",
@@ -20,60 +15,12 @@ const SERVICE_SCENE_LAUNCH_CONTEXT_ENV_KEYS: &[&str] = &[
 struct ServiceSkillRunToolInput {
     #[serde(default)]
     input: Option<String>,
-    #[serde(default)]
-    wait_for_completion: Option<bool>,
-    #[serde(default)]
-    poll_attempts: Option<u32>,
-    #[serde(default)]
-    poll_interval_ms: Option<u64>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-struct ServiceSkillRunRecord {
-    id: String,
-    #[serde(default)]
-    status: String,
-    #[serde(default)]
-    run_type: Option<String>,
-    #[serde(default)]
-    scene_id: Option<String>,
-    #[serde(default)]
-    service_skill_id: Option<String>,
-    #[serde(default)]
-    service_skill_key: Option<String>,
-    #[serde(default)]
-    executor_kind: Option<String>,
-    #[serde(default)]
-    input_summary: Option<String>,
-    #[serde(default)]
-    output_summary: Option<String>,
-    #[serde(default)]
-    output_text: Option<String>,
-    #[serde(default)]
-    error_code: Option<String>,
-    #[serde(default)]
-    error_message: Option<String>,
-    #[serde(default)]
-    fallback_applied: Option<bool>,
-    #[serde(default)]
-    fallback_kind: Option<String>,
-    #[serde(default)]
-    started_at: Option<String>,
-    #[serde(default)]
-    finished_at: Option<String>,
-    #[serde(default)]
-    updated_at: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ServiceSkillRunEnvelope {
-    #[serde(default)]
-    code: Option<i64>,
-    #[serde(default)]
-    message: Option<String>,
-    #[serde(default)]
-    data: Option<ServiceSkillRunRecord>,
+    #[serde(default, rename = "waitForCompletion")]
+    _wait_for_completion: Option<bool>,
+    #[serde(default, rename = "pollAttempts")]
+    _poll_attempts: Option<u32>,
+    #[serde(default, rename = "pollIntervalMs")]
+    _poll_interval_ms: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -89,17 +36,6 @@ impl LimeRunServiceSkillTool {
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(ToString::to_string)
-    }
-
-    fn normalize_status(status: &str) -> String {
-        status.trim().to_ascii_lowercase()
-    }
-
-    fn is_terminal_status(status: &str) -> bool {
-        let normalized = Self::normalize_status(status);
-        TERMINAL_SERVICE_SKILL_STATUSES
-            .iter()
-            .any(|candidate| normalized == *candidate)
     }
 
     fn build_request_metadata_value(
@@ -212,94 +148,13 @@ impl LimeRunServiceSkillTool {
         Ok(effective_input)
     }
 
-    fn resolve_scene_base_url(
+    fn build_compat_payload(
         launch_context: &ServiceSceneLaunchContext,
-    ) -> Result<String, ToolError> {
-        Self::normalize_optional_text(launch_context.oem_runtime.scene_base_url.as_deref())
-            .ok_or_else(|| {
-                ToolError::execution_failed(
-                    "缺少 OEM sceneBaseUrl，请先完成 OEM 云端接线".to_string(),
-                )
-            })
-    }
-
-    fn resolve_session_token(
-        launch_context: &ServiceSceneLaunchContext,
-    ) -> Result<String, ToolError> {
-        Self::normalize_optional_text(launch_context.oem_runtime.session_token.as_deref())
-            .ok_or_else(|| {
-                ToolError::execution_failed(
-                    "缺少 OEM Session Token，请先登录或注入 OEM 云端会话".to_string(),
-                )
-            })
-    }
-
-    async fn request_run(
-        client: &reqwest::Client,
-        scene_base_url: &str,
-        session_token: &str,
-        path: &str,
-        method: reqwest::Method,
-        body: Option<serde_json::Value>,
-    ) -> Result<ServiceSkillRunRecord, ToolError> {
-        let url = format!("{}{}", scene_base_url.trim_end_matches('/'), path);
-        let mut request = client
-            .request(method, &url)
-            .header(reqwest::header::ACCEPT, "application/json")
-            .bearer_auth(session_token)
-            .header(reqwest::header::CONTENT_TYPE, "application/json");
-
-        if let Some(body) = body {
-            request = request.json(&body);
-        }
-
-        let response = request.send().await.map_err(|error| {
-            ToolError::execution_failed(format!("请求服务型技能运行时失败: {error}"))
-        })?;
-        let status = response.status();
-        let payload = response
-            .json::<ServiceSkillRunEnvelope>()
-            .await
-            .map_err(|error| {
-                ToolError::execution_failed(format!("解析服务型技能运行结果失败: {error}"))
-            })?;
-
-        if !status.is_success() {
-            let message = payload
-                .message
-                .as_deref()
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .unwrap_or("服务端返回失败");
-            return Err(ToolError::execution_failed(format!(
-                "服务型技能运行请求失败 ({}): {}",
-                status.as_u16(),
-                message
-            )));
-        }
-
-        if let Some(code) = payload.code {
-            if code >= 400 {
-                return Err(ToolError::execution_failed(
-                    payload
-                        .message
-                        .unwrap_or_else(|| "服务端返回非法运行结果".to_string()),
-                ));
-            }
-        }
-
-        payload.data.ok_or_else(|| {
-            ToolError::execution_failed("服务端返回的 service skill run 记录为空".to_string())
-        })
-    }
-
-    fn build_success_payload(
-        launch_context: &ServiceSceneLaunchContext,
-        run: &ServiceSkillRunRecord,
         submitted_input: &str,
     ) -> serde_json::Value {
         serde_json::json!({
-            "ok": run.status == "success",
+            "ok": false,
+            "compatOnly": true,
             "submittedInput": submitted_input,
             "serviceSkill": {
                 "id": launch_context.service_skill_id,
@@ -311,39 +166,29 @@ impl LimeRunServiceSkillTool {
                 "sceneKey": launch_context.scene_key,
                 "commandPrefix": launch_context.command_prefix,
             },
-            "run": run,
+            "execution": {
+                "launchKind": launch_context.launch_kind,
+                "runnerType": launch_context.runner_type,
+                "executionKind": launch_context.execution_kind,
+                "executionLocation": launch_context.execution_location,
+            },
+            "message": "lime_run_service_skill 仅为历史兼容保留；current 服务型做法应直接在当前本地回合执行。",
         })
     }
 
-    fn build_result_summary(
-        launch_context: &ServiceSceneLaunchContext,
-        run: &ServiceSkillRunRecord,
-    ) -> String {
+    fn build_compat_summary(launch_context: &ServiceSceneLaunchContext) -> String {
         let title = launch_context
             .skill_title
             .as_deref()
             .filter(|value| !value.trim().is_empty())
             .unwrap_or("服务型技能");
-        let status = run.status.trim();
-
-        if status == "success" {
-            if let Some(summary) = Self::normalize_optional_text(run.output_summary.as_deref()) {
-                return format!("{title} 执行完成：{summary}");
-            }
-            return format!("{title} 执行完成");
+        if launch_context.execution_kind.as_deref() == Some("automation_job") {
+            return format!(
+                "{title} 已切到本地主链：请直接在当前回合产出首轮结果或调度建议，不要再调用 lime_run_service_skill。"
+            );
         }
 
-        if Self::is_terminal_status(status) {
-            if let Some(message) = Self::normalize_optional_text(run.error_message.as_deref()) {
-                return format!("{title} 执行失败：{message}");
-            }
-            return format!("{title} 已结束，状态为 {status}");
-        }
-
-        if let Some(summary) = Self::normalize_optional_text(run.output_summary.as_deref()) {
-            return format!("{title} 当前状态 {status}：{summary}");
-        }
-        format!("{title} 已提交云端，当前状态 {status}")
+        format!("{title} 已切到本地主链：请直接在当前回合继续执行，不再提交 OEM 云端运行。")
     }
 }
 
@@ -354,7 +199,7 @@ impl Tool for LimeRunServiceSkillTool {
     }
 
     fn description(&self) -> &str {
-        "运行当前回合绑定的服务型技能场景，提交到 OEM Scene Runtime 并返回最新运行状态。"
+        "兼容旧会话的服务型做法运行工具。current 主链已改为本地 Agent 直接执行，不再提交 OEM 云端运行。"
     }
 
     fn input_schema(&self) -> serde_json::Value {
@@ -363,29 +208,29 @@ impl Tool for LimeRunServiceSkillTool {
             "properties": {
                 "input": {
                     "type": "string",
-                    "description": "可选补充输入。默认取当前 scene launch 里的 user_input 或 raw_text。"
+                    "description": "兼容参数：可选补充输入，默认取当前 scene launch 里的 user_input 或 raw_text。"
                 },
                 "waitForCompletion": {
                     "type": "boolean",
-                    "description": "是否在当前工具调用内短轮询等待一轮结果，默认 true。"
+                    "description": "兼容参数：当前已忽略，不再触发云端轮询。"
                 },
                 "pollAttempts": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 20,
-                    "description": "短轮询次数，默认 6。"
+                    "description": "兼容参数：当前已忽略。"
                 },
                 "pollIntervalMs": {
                     "type": "integer",
                     "minimum": 200,
                     "maximum": 8000,
-                    "description": "轮询间隔毫秒数，默认 1500。"
+                    "description": "兼容参数：当前已忽略。"
                 }
             },
             "additionalProperties": false,
             "x-lime": {
                 "always_visible": true,
-                "tags": ["service-skill", "scene", "cloud-runtime"],
+                "tags": ["service-skill", "scene", "compat"],
                 "allowed_callers": ["assistant", "skill"]
             }
         })
@@ -400,74 +245,15 @@ impl Tool for LimeRunServiceSkillTool {
             .map_err(|error| ToolError::invalid_params(format!("参数解析失败: {error}")))?;
         let launch_context = Self::resolve_launch_context(context).await?;
         let effective_input = Self::resolve_effective_input(&launch_context, &input)?;
-        let scene_base_url = Self::resolve_scene_base_url(&launch_context)?;
-        let session_token = Self::resolve_session_token(&launch_context)?;
-        let wait_for_completion = input.wait_for_completion.unwrap_or(true);
-        let poll_attempts = input
-            .poll_attempts
-            .unwrap_or(DEFAULT_SERVICE_SKILL_POLL_ATTEMPTS)
-            .clamp(1, MAX_SERVICE_SKILL_POLL_ATTEMPTS);
-        let poll_interval_ms = input
-            .poll_interval_ms
-            .unwrap_or(DEFAULT_SERVICE_SKILL_POLL_INTERVAL_MS)
-            .clamp(200, MAX_SERVICE_SKILL_POLL_INTERVAL_MS);
-        let client = reqwest::Client::new();
-
-        let create_path = format!(
-            "/v1/service-skills/{}/runs",
-            urlencoding::encode(&launch_context.service_skill_id)
-        );
-        let mut run = Self::request_run(
-            &client,
-            &scene_base_url,
-            &session_token,
-            &create_path,
-            reqwest::Method::POST,
-            Some(serde_json::json!({
-                "input": effective_input,
-            })),
-        )
-        .await?;
-
-        if wait_for_completion && !Self::is_terminal_status(&run.status) {
-            for _ in 0..poll_attempts {
-                tokio::time::sleep(std::time::Duration::from_millis(poll_interval_ms)).await;
-                let run_path = format!(
-                    "/v1/service-skills/runs/{}",
-                    urlencoding::encode(run.id.as_str())
-                );
-                run = Self::request_run(
-                    &client,
-                    &scene_base_url,
-                    &session_token,
-                    &run_path,
-                    reqwest::Method::GET,
-                    None,
-                )
-                .await?;
-                if Self::is_terminal_status(&run.status) {
-                    break;
-                }
-            }
-        }
-
-        let payload = Self::build_success_payload(&launch_context, &run, &effective_input);
-        let summary = Self::build_result_summary(&launch_context, &run);
-        let serialized =
-            serde_json::to_string_pretty(&payload).unwrap_or_else(|_| payload.to_string());
-        let mut result = if Self::normalize_status(&run.status) == "failed"
-            || Self::normalize_status(&run.status) == "canceled"
-            || Self::normalize_status(&run.status) == "timeout"
-        {
-            ToolResult::error(summary)
-        } else {
-            ToolResult::success(serialized)
-        };
+        let payload = Self::build_compat_payload(&launch_context, &effective_input);
+        let summary = Self::build_compat_summary(&launch_context);
+        let mut result = ToolResult::error(summary.clone());
 
         result = result
             .with_metadata("tool_family", serde_json::json!("service_skill"))
+            .with_metadata("compat_only", serde_json::json!(true))
             .with_metadata("result", payload)
-            .with_metadata("run_status", serde_json::json!(run.status))
+            .with_metadata("compat_summary", serde_json::json!(summary))
             .with_metadata(
                 "service_skill_id",
                 serde_json::json!(launch_context.service_skill_id),
@@ -519,9 +305,9 @@ mod tests {
             Some("旧 turn".to_string()),
             Some(TurnContextOverride {
                 metadata: metadata_map(serde_json::json!({
-                    "harness": {
-                        "service_scene_launch": {
-                            "kind": "cloud_scene",
+                        "harness": {
+                            "service_scene_launch": {
+                            "kind": "local_service_skill",
                             "service_scene_run": {
                                 "skill_id": "skill-older",
                                 "scene_key": "scene-older",
@@ -546,9 +332,9 @@ mod tests {
             Some("新 turn".to_string()),
             Some(TurnContextOverride {
                 metadata: metadata_map(serde_json::json!({
-                    "harness": {
-                        "service_scene_launch": {
-                            "kind": "cloud_scene",
+                        "harness": {
+                            "service_scene_launch": {
+                            "kind": "local_service_skill",
                             "service_scene_run": {
                                 "skill_id": "skill-latest",
                                 "scene_key": "scene-latest",
@@ -622,6 +408,46 @@ mod tests {
         assert_eq!(
             launch_context.oem_runtime.scene_base_url.as_deref(),
             Some("https://example.com/scene-api")
+        );
+    }
+
+    #[tokio::test]
+    async fn should_return_compat_guard_result_when_tool_is_called() {
+        let tool = LimeRunServiceSkillTool::new();
+        let context = ToolContext::new(PathBuf::from("/tmp/service-scene")).with_environment(
+            HashMap::from([(
+                SERVICE_SCENE_LAUNCH_CONTEXT_ENV_KEYS[0].to_string(),
+                serde_json::json!({
+                    "kind": "local_service_skill",
+                    "service_scene_run": {
+                        "skill_id": "skill-local",
+                        "skill_title": "趋势日报",
+                        "scene_key": "daily-trend-brief",
+                        "execution_kind": "agent_turn",
+                        "user_input": "帮我整理今天的 AI Agent 趋势"
+                    }
+                })
+                .to_string(),
+            )]),
+        );
+
+        let result = tool
+            .execute(serde_json::json!({}), &context)
+            .await
+            .expect("tool should return compat guard result");
+
+        assert!(!result.success);
+        assert!(result
+            .error
+            .as_deref()
+            .is_some_and(|value| value.contains("已切到本地主链")));
+        assert_eq!(
+            result.metadata.get("compat_only"),
+            Some(&serde_json::json!(true))
+        );
+        assert_eq!(
+            result.metadata.get("service_skill_id"),
+            Some(&serde_json::json!("skill-local"))
         );
     }
 }

@@ -1,7 +1,7 @@
 import type {
   SceneAppDeliveryArtifactRef,
   SceneAppBrowserRuntimeRef,
-  SceneAppCloudSceneRuntimeRef,
+  SceneAppServiceSceneRuntimeRef,
   SceneAppDeliveryContract,
   SceneAppDescriptor,
   SceneAppGovernanceArtifactKind,
@@ -26,11 +26,11 @@ import {
   getSceneAppViewerKindLabel,
 } from "./presentation";
 
+// compat binding family 应在 API / 目录归一化层收口；产品层只展示 current 名称。
 const BINDING_FAMILY_LABELS: Record<string, string> = {
   agent_turn: "Agent 工作区",
   native_skill: "本机技能",
   browser_assist: "浏览器上下文",
-  cloud_scene: "云端 Scene",
   automation_job: "自动化调度",
 };
 
@@ -439,11 +439,11 @@ export interface SceneAppRunDetailViewModel {
         browserRuntimeRef: SceneAppBrowserRuntimeRef;
       }
     | {
-        kind: "open_cloud_scene_session";
+        kind: "open_service_scene_session";
         label: string;
         helperText: string;
         sessionId?: string;
-        cloudSceneRuntimeRef: SceneAppCloudSceneRuntimeRef;
+        serviceSceneRuntimeRef: SceneAppServiceSceneRuntimeRef;
       }
     | {
         kind: "open_native_skill_session";
@@ -1330,12 +1330,12 @@ function buildSceneAppDeliveryNarrative(
 
   switch (descriptor.deliveryContract) {
     case "project_pack":
-      return `这条 SceneApp 会把结果收口成一份可继续编辑的项目资料包，${partsSummary}。`;
+      return `这套做法会把结果收口成一份可继续编辑的项目资料包，${partsSummary}。`;
     case "table_report":
-      return `这条 SceneApp 会把结果稳定回流成结构化表格或摘要报告，${partsSummary}。`;
+      return `这套做法会把结果稳定回流成结构化表格或摘要报告，${partsSummary}。`;
     case "artifact_bundle":
     default:
-      return `这条 SceneApp 会把结果整理成统一结果包，${partsSummary}。`;
+      return `这套做法会把结果整理成统一结果包，${partsSummary}。`;
   }
 }
 
@@ -1425,16 +1425,16 @@ function resolveSceneAppRunEntryAction(params: {
     };
   }
 
-  const cloudSceneRuntimeRef = normalizeCloudSceneRuntimeRef(
-    run.cloudSceneRuntimeRef,
+  const serviceSceneRuntimeRef = normalizeServiceSceneRuntimeRef(
+    run.serviceSceneRuntimeRef,
   );
-  if (cloudSceneRuntimeRef) {
+  if (serviceSceneRuntimeRef) {
     return {
-      kind: "open_cloud_scene_session",
-      label: run.sessionId?.trim() ? "回到云端 Scene 会话" : "恢复云端 Scene",
-      helperText: `继续回到「${descriptor.title}」最近一次运行保存的云端 Scene 上下文。`,
+      kind: "open_service_scene_session",
+      label: run.sessionId?.trim() ? "回到生成会话" : "恢复生成上下文",
+      helperText: `继续把「${descriptor.title}」最近一次运行保留的启动信息带回生成。`,
       sessionId: run.sessionId?.trim() || undefined,
-      cloudSceneRuntimeRef,
+      serviceSceneRuntimeRef,
     };
   }
 
@@ -1508,9 +1508,9 @@ function normalizeStringRecord(
   return Object.fromEntries(normalizedEntries);
 }
 
-function normalizeCloudSceneRuntimeRef(
-  ref: SceneAppCloudSceneRuntimeRef | null | undefined,
-): SceneAppCloudSceneRuntimeRef | null {
+function normalizeServiceSceneRuntimeRef(
+  ref: SceneAppServiceSceneRuntimeRef | null | undefined,
+): SceneAppServiceSceneRuntimeRef | null {
   const sceneKey = ref?.sceneKey?.trim() || null;
   const skillId = ref?.skillId?.trim() || null;
   const projectId = ref?.projectId?.trim() || null;
@@ -1593,7 +1593,7 @@ export function buildSceneAppWorkbenchStatItems(
       key: "type-count",
       label: "运行形态",
       value: uniqueTypes,
-      description: "本地即时、浏览器、持续运行与云端托管都在同一目录里。",
+      description: "本地即时、浏览器、持续运行与多能力做法都在同一目录里。",
     },
     {
       key: "infra-count",
@@ -1778,7 +1778,7 @@ export function buildSceneAppDetailViewModel(params: {
       (requirement) => requirement.message,
     ),
     launchInputPlaceholder: copy.fallbackPrompt,
-    launchSeedLabel: launchSeed?.sourceLabel ?? "当前场景需要更明确的启动信息",
+    launchSeedLabel: launchSeed?.sourceLabel ?? "当前这套做法还需要更明确的启动信息",
     launchSeedPreview:
       launchSeed?.sourcePreview ?? "例如补一个 URL，或明确要追踪的主题与目标。",
     launchActionLabel: entryCard?.actionLabel ?? copy.actionLabel,
@@ -2220,7 +2220,7 @@ function buildSceneAppGovernanceDestinations(params: {
         key: "first-run",
         label: "首轮试跑",
         description:
-          "先跑出一轮结果包、证据摘要和复核结论，再决定是否进入治理闭环。",
+          "先跑出一轮结果、证据摘要和复核结论，再决定是否进入复盘闭环。",
       },
     ];
   }
@@ -2254,7 +2254,7 @@ function buildSceneAppGovernanceDestinations(params: {
       key: "task-center",
       label: "生成 / 看板",
       description:
-        "结构化治理材料已经适合继续被生成页、看板统计或后续自动治理消费。",
+        "结构化复盘材料已经适合继续被生成页、看板统计或后续自动治理消费。",
     });
   }
 
@@ -2263,7 +2263,7 @@ function buildSceneAppGovernanceDestinations(params: {
       key: "automation-job",
       label: "持续流程 / 自动化",
       description:
-        "这条 SceneApp 已接到持续任务，可回到持续流程查看历史、频率和交付状态。",
+        "这套做法已接到持续任务，可回到持续流程查看历史、频率和交付状态。",
     });
   }
 
@@ -2298,7 +2298,7 @@ function buildSceneAppGovernanceStatusItems(params: {
         label: "结构化治理",
         value: "待首轮样本",
         description:
-          "先跑出一轮结果，后续才能判断这条 SceneApp 是否适合被生成页和看板继续消费。",
+          "先跑出一轮结果，后续才能判断这套做法是否适合被生成页和看板继续消费。",
         tone: "idle",
       },
       {
@@ -2314,7 +2314,7 @@ function buildSceneAppGovernanceStatusItems(params: {
         label: "结果校验",
         value: "待首轮样本",
         description:
-          "先让这条 SceneApp 产出第一份结果包，再判断交付件是否可直接进入后续发布。",
+          "先让这套做法产出第一份结果，再判断交付件是否可直接进入后续发布。",
         tone: "idle",
       },
     ];
@@ -2473,7 +2473,7 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
       status: "idle",
       statusLabel: "等待首轮运行",
       summary:
-        "这条 SceneApp 还没有首轮治理样本，当前适合先跑出一份正式结果包和复核材料。",
+        "这套做法还没有首轮复盘样本，当前适合先跑出一份正式结果和复核材料。",
       nextAction:
         "先试跑一轮，让结果、证据摘要和复核结论都落下来，再决定是否进入生成页或看板放大。",
       scorecardActionLabel,
@@ -2504,36 +2504,36 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
     validatorIssueCount > 0;
 
   let status: SceneAppOperatingSummaryViewModel["status"] = "good";
-  let statusLabel = "治理已可复用";
+  let statusLabel = "复盘已可复用";
   let summary =
-    "这条 SceneApp 最近一次运行已经带齐结果、证据和结构化治理材料，可以继续进入周会、生成页或场景看板。";
+    "这套做法最近一轮已经带齐结果、证据和结构化复盘材料，可以继续进入周会、生成页或做法看板。";
   let nextAction =
     scorecardActionLabel != null
-      ? `${scorecardActionLabel}，并把这次治理材料继续沉淀为后续复盘与统计的基线。`
-      : "继续把这次治理材料沉淀为后续复盘、统计和场景选品的基线。";
+      ? `${scorecardActionLabel}，并把这次复盘材料继续沉淀为后续复盘与统计的基线。`
+      : "继续把这次复盘材料沉淀为后续复盘、统计和做法选品的基线。";
 
   if (scorecard?.recommendedAction === "retire") {
     status = "risk";
     statusLabel = "建议限制投入";
     summary =
-      "这条 SceneApp 当前的经营信号更像是该限制投入，而不是继续扩大曝光或新增长尾入口。";
+      "这套做法当前的经营信号更像是该限制投入，而不是继续扩大曝光或新增长尾入口。";
     nextAction =
-      "先准备结构化治理包，把失败信号和复核结论带到看板，再决定是重做、降级还是退出主推目录。";
+      "先准备结构化复盘包，把失败信号和复核结论带到看板，再决定是重做、降级还是退出主推目录。";
   } else if (hasBlockingIssues) {
     status = "risk";
     statusLabel = "先补复核与修复";
     summary = topFailureSignalLabel
-      ? `这条 SceneApp 最近一次运行还没形成可直接放大的治理闭环，当前主要卡在${topFailureSignalLabel}。`
-      : "这条 SceneApp 最近一次运行还没形成可直接放大的治理闭环，当前仍有复核或结果质量问题需要先处理。";
+      ? `这套做法最近一轮还没形成可直接放大的复盘闭环，当前主要卡在${topFailureSignalLabel}。`
+      : "这套做法最近一轮还没形成可直接放大的复盘闭环，当前仍有复核或结果质量问题需要先处理。";
     nextAction =
-      "优先准备周会复盘包，补齐复核结论、Artifact 问题或验证失败项，再决定是否继续放大这条场景。";
+      "优先准备周会复盘包，补齐复核结论、结果校验问题或验证失败项，再决定是否继续放大这套做法。";
   } else if (governanceMaterialIncomplete) {
     status = "watch";
-    statusLabel = "先补治理材料";
+    statusLabel = "先补复盘材料";
     summary =
-      "这条 SceneApp 已有可复盘的运行结果，但看板和生成页需要的治理材料还没完全齐，暂时不适合直接放大。";
+      "这套做法已有可复盘的运行结果，但看板和生成页需要的复盘材料还没完全齐，暂时不适合直接放大。";
     nextAction =
-      "先准备结构化治理包，把证据摘要、复核记录和结构化 JSON 一次补齐，再继续进入周会、生成页或统计面。";
+      "先准备结构化复盘包，把证据摘要、复核记录和结构化 JSON 一次补齐，再继续进入周会、生成页或统计面。";
   }
 
   return {

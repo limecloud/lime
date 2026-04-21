@@ -287,7 +287,7 @@ export const AgentRuntimeStrip: React.FC<AgentRuntimeStripProps> = ({
             {selectedTeamSummary?.trim() ||
               (hasSelectedTeam
                 ? `已配置 ${selectedTeamRoleCount} 个角色，系统会按需拆出子任务。`
-                : "已开启分工模式，本次可选择或自定义任务方案。")}
+                : "已开启分工模式，本次可选择或自定义分工方案。")}
           </span>
         </div>
       ) : null}

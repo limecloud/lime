@@ -126,14 +126,14 @@ export function useSceneAppLaunchRuntime({
 
         if (!onNavigate) {
           toast.error(
-            "当前入口暂不支持切换到 SceneApp 工作区，请从桌面主界面重试。",
+            "当前入口暂不支持切换到做法工作区，请从桌面主界面重试。",
           );
           return;
         }
 
         onNavigate("agent", resolvedAction.resolvedEntry.navigationParams);
       } catch (error) {
-        toast.error(`启动 SceneApp 失败：${formatSceneAppErrorMessage(error)}`);
+        toast.error(`启动做法失败：${formatSceneAppErrorMessage(error)}`);
       } finally {
         setSceneAppLaunchingId(null);
       }

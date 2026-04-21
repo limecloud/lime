@@ -110,6 +110,9 @@ fn unregister_named_tools(registry: &mut aster::tools::ToolRegistry, tool_names:
 
 const FAST_CHAT_DISABLED_WEB_TOOL_PATTERNS: &[&str] =
     &["WebSearch", "web_search", "WebFetch", "web_fetch"];
+const SUBAGENT_TOOL_SCOPE_DEFAULT_DENY_PRIORITY: i32 = 1298;
+const SUBAGENT_TOOL_SCOPE_ALLOW_PRIORITY: i32 = 1299;
+const SUBAGENT_TOOL_SCOPE_DISALLOW_PRIORITY: i32 = 1300;
 
 fn build_tool_runtime_session_scoped_permission_conditions(
     session_id: &str,
@@ -127,6 +130,109 @@ fn build_tool_runtime_session_scoped_permission_conditions(
         validator: None,
         description: Some("仅对当前聊天会话生效".to_string()),
     }]
+}
+
+fn normalize_tool_scope_list(values: &[serde_json::Value]) -> Vec<String> {
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+
+    for value in values {
+        let Some(raw) = value.as_str() else {
+            continue;
+        };
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if seen.insert(trimmed.to_string()) {
+            normalized.push(trimmed.to_string());
+        }
+    }
+
+    normalized
+}
+
+fn extract_subagent_tool_scope_lists(
+    request_metadata: Option<&serde_json::Value>,
+) -> (Vec<String>, Vec<String>) {
+    let subagent = request_metadata
+        .and_then(|value| value.get("subagent"))
+        .and_then(serde_json::Value::as_object);
+    let allowed_tools = subagent
+        .and_then(|value| {
+            value
+                .get("allowed_tools")
+                .or_else(|| value.get("allowedTools"))
+        })
+        .and_then(serde_json::Value::as_array)
+        .map(|values| normalize_tool_scope_list(values))
+        .unwrap_or_default();
+    let disallowed_tools = subagent
+        .and_then(|value| {
+            value
+                .get("disallowed_tools")
+                .or_else(|| value.get("disallowedTools"))
+        })
+        .and_then(serde_json::Value::as_array)
+        .map(|values| normalize_tool_scope_list(values))
+        .unwrap_or_default();
+
+    (allowed_tools, disallowed_tools)
+}
+
+pub(crate) fn append_subagent_tool_scope_session_permissions(
+    permissions: &mut Vec<ToolPermission>,
+    session_id: &str,
+    request_metadata: Option<&serde_json::Value>,
+) {
+    let (allowed_tools, disallowed_tools) = extract_subagent_tool_scope_lists(request_metadata);
+    if allowed_tools.is_empty() && disallowed_tools.is_empty() {
+        return;
+    }
+
+    let conditions = build_tool_runtime_session_scoped_permission_conditions(session_id);
+
+    if !allowed_tools.is_empty() {
+        permissions.push(ToolPermission {
+            tool: "*".to_string(),
+            allowed: false,
+            priority: SUBAGENT_TOOL_SCOPE_DEFAULT_DENY_PRIORITY,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some("subagent current surface 已启用 allowed_tools 白名单".to_string()),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+
+        for tool_name in allowed_tools {
+            permissions.push(ToolPermission {
+                tool: tool_name,
+                allowed: true,
+                priority: SUBAGENT_TOOL_SCOPE_ALLOW_PRIORITY,
+                conditions: conditions.clone(),
+                parameter_restrictions: Vec::new(),
+                scope: PermissionScope::Session,
+                reason: Some("subagent current surface 显式允许该工具".to_string()),
+                expires_at: None,
+                metadata: HashMap::new(),
+            });
+        }
+    }
+
+    for tool_name in disallowed_tools {
+        permissions.push(ToolPermission {
+            tool: tool_name,
+            allowed: false,
+            priority: SUBAGENT_TOOL_SCOPE_DISALLOW_PRIORITY,
+            conditions: conditions.clone(),
+            parameter_restrictions: Vec::new(),
+            scope: PermissionScope::Session,
+            reason: Some("subagent current surface 显式禁止该工具".to_string()),
+            expires_at: None,
+            metadata: HashMap::new(),
+        });
+    }
 }
 
 fn should_hide_fast_chat_web_tools(
@@ -304,6 +410,7 @@ pub(crate) async fn apply_workspace_sandbox_permissions(
         execution_profile,
         request_tool_policy,
     );
+    append_subagent_tool_scope_session_permissions(&mut permissions, session_id, request_metadata);
     append_image_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
     append_cover_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);
     append_video_skill_launch_session_permissions(&mut permissions, session_id, request_metadata);

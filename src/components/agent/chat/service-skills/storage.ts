@@ -6,6 +6,8 @@ import type {
 
 const SERVICE_SKILL_USAGE_STORAGE_KEY = "lime:service-skill-usage:v1";
 const MAX_SERVICE_SKILL_USAGE_RECORDS = 12;
+export const SERVICE_SKILL_USAGE_CHANGED_EVENT =
+  "lime:service-skill-usage-changed";
 
 function normalizeOptionalText(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -50,12 +52,14 @@ function readUsageRecord(value: unknown): ServiceSkillUsageRecord | null {
   }
 
   const slotValues = normalizeServiceSkillSlotValues(record.slotValues);
+  const launchUserInput = normalizeOptionalText(record.launchUserInput);
 
   return {
     skillId,
     usedAt: record.usedAt,
     runnerType: runnerType as ServiceSkillUsageRecord["runnerType"],
     ...(slotValues ? { slotValues } : {}),
+    ...(launchUserInput ? { launchUserInput } : {}),
   };
 }
 
@@ -94,15 +98,58 @@ export function getServiceSkillUsageMap(): Map<
   );
 }
 
+function emitServiceSkillUsageChanged(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(SERVICE_SKILL_USAGE_CHANGED_EVENT));
+}
+
+export function subscribeServiceSkillUsageChanged(
+  callback: () => void,
+): () => void {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const customEventHandler = () => {
+    callback();
+  };
+
+  const storageHandler = (event: StorageEvent) => {
+    if (event.key !== SERVICE_SKILL_USAGE_STORAGE_KEY) {
+      return;
+    }
+    callback();
+  };
+
+  window.addEventListener(
+    SERVICE_SKILL_USAGE_CHANGED_EVENT,
+    customEventHandler,
+  );
+  window.addEventListener("storage", storageHandler);
+
+  return () => {
+    window.removeEventListener(
+      SERVICE_SKILL_USAGE_CHANGED_EVENT,
+      customEventHandler,
+    );
+    window.removeEventListener("storage", storageHandler);
+  };
+}
+
 export function recordServiceSkillUsage(
   input: RecordServiceSkillUsageInput,
 ): ServiceSkillUsageRecord[] {
   const slotValues = normalizeServiceSkillSlotValues(input.slotValues);
+  const launchUserInput = normalizeOptionalText(input.launchUserInput);
   const nextRecord: ServiceSkillUsageRecord = {
     skillId: input.skillId,
     usedAt: input.usedAt ?? Date.now(),
     runnerType: input.runnerType,
     ...(slotValues ? { slotValues } : {}),
+    ...(launchUserInput ? { launchUserInput } : {}),
   };
 
   const nextRecords = [
@@ -121,6 +168,7 @@ export function recordServiceSkillUsage(
       SERVICE_SKILL_USAGE_STORAGE_KEY,
       JSON.stringify(nextRecords),
     );
+    emitServiceSkillUsageChanged();
   } catch {
     // ignore write errors
   }

@@ -26,7 +26,7 @@ function resolveCommandExecutionKind(
     case "automation_job":
       return "automation_job";
     case "cloud_scene":
-      return "cloud_scene";
+      return "agent_turn";
     default:
       return "agent_turn";
   }
@@ -35,6 +35,7 @@ function resolveCommandExecutionKind(
 function resolveCommandRenderContract(
   executionKind: NonNullable<SkillCatalogCommandEntry["binding"]>["executionKind"],
   projection: BaseSetupCatalogProjection,
+  bindingProfile: BaseSetupBindingProfile,
 ): SkillCatalogCommandEntry["renderContract"] {
   if (projection.commandRenderContract) {
     return {
@@ -42,19 +43,19 @@ function resolveCommandRenderContract(
     };
   }
 
-  if (executionKind === "native_skill") {
+  if (bindingProfile.bindingFamily === "cloud_scene") {
     return {
-      resultKind: "artifact",
-      detailKind: "artifact_detail",
+      resultKind: "tool_timeline",
+      detailKind: "scene_detail",
       supportsStreaming: true,
       supportsTimeline: true,
     };
   }
 
-  if (executionKind === "cloud_scene") {
+  if (executionKind === "native_skill") {
     return {
-      resultKind: "tool_timeline",
-      detailKind: "scene_detail",
+      resultKind: "artifact",
+      detailKind: "artifact_detail",
       supportsStreaming: true,
       supportsTimeline: true,
     };
@@ -187,7 +188,11 @@ function compileCommandProjectionEntry(params: {
       skillId: linkedSkillId,
       executionKind,
     },
-    renderContract: resolveCommandRenderContract(executionKind, projection),
+    renderContract: resolveCommandRenderContract(
+      executionKind,
+      projection,
+      bindingProfile,
+    ),
   };
 }
 

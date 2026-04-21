@@ -288,7 +288,7 @@ describe("TeamWorkspaceBoard", () => {
       ],
     });
 
-    expect(container.textContent).toContain("临时修复任务方案");
+    expect(container.textContent).toContain("临时修复分工方案");
     expect(container.textContent).toContain("2 个计划分工");
 
     const expandButton = container.querySelector(
@@ -713,7 +713,7 @@ describe("TeamWorkspaceBoard", () => {
     );
 
     const returnButton = Array.from(container.querySelectorAll("button")).find(
-      (element) => element.textContent?.includes("返回主任务"),
+      (element) => element.textContent?.includes("返回主助手"),
     );
     expect(returnButton).toBeTruthy();
 
@@ -2104,7 +2104,7 @@ describe("TeamWorkspaceBoard", () => {
 
     expect(container.textContent).toContain("正在准备任务分工");
     expect(container.textContent).toContain("准备中");
-    expect(container.textContent).toContain("任务方案 · 排障任务方案");
+    expect(container.textContent).toContain("分工方案 · 排障分工方案");
     expect(container.textContent).toContain("参考方案 · 代码排障团队");
   });
 
@@ -2184,7 +2184,7 @@ describe("TeamWorkspaceBoard", () => {
 
     expect(container.textContent).toContain("任务分工准备失败");
     expect(container.textContent).toContain(
-      "Provider 认证失败，无法生成任务方案。",
+      "Provider 认证失败，无法生成分工方案。",
     );
   });
 });

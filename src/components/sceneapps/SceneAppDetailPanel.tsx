@@ -52,7 +52,7 @@ export function SceneAppDetailPanel({
   if (!detailView) {
     return (
       <section className="rounded-[28px] border border-dashed border-slate-200 bg-white p-6 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-        先回到场景目录选择一条创作场景，再补齐进入生成前的意图和项目工作区。
+        先回到做法目录选一套做法，再来补参考、启动信息和结果落点。
       </section>
     );
   }
@@ -92,15 +92,15 @@ export function SceneAppDetailPanel({
           </div>
           <div className="mt-2 grid gap-2 text-sm text-slate-500 md:grid-cols-2">
             <div>
-              <span className="font-medium text-slate-700">产出：</span>
+              <span className="font-medium text-slate-700">会拿到：</span>
               {detailView.outputHint}
             </div>
             <div>
-              <span className="font-medium text-slate-700">执行主链：</span>
+              <span className="font-medium text-slate-700">推进方式：</span>
               {detailView.executionChainLabel}
             </div>
             <div>
-              <span className="font-medium text-slate-700">来源包：</span>
+              <span className="font-medium text-slate-700">做法来源：</span>
               {detailView.sourcePackageId}
             </div>
             <div>
@@ -112,7 +112,9 @@ export function SceneAppDetailPanel({
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-            <div className="text-sm font-medium text-slate-900">设计模式</div>
+            <div className="text-sm font-medium text-slate-900">
+              这套做法擅长
+            </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {detailView.patternLabels.map((patternLabel) => (
                 <span
@@ -126,10 +128,12 @@ export function SceneAppDetailPanel({
           </div>
 
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-            <div className="text-sm font-medium text-slate-900">启动前置</div>
+            <div className="text-sm font-medium text-slate-900">
+              启动前先确认
+            </div>
             {detailView.launchRequirements.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                这条创作场景没有额外前置条件，可以直接进入生成。
+                这套做法没有额外前置条件，可以直接进入生成。
               </p>
             ) : (
               <div className="mt-3 flex flex-col gap-2">
@@ -148,13 +152,15 @@ export function SceneAppDetailPanel({
 
         <div className="grid gap-4 xl:grid-cols-3">
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-            <div className="text-sm font-medium text-slate-900">交付合同</div>
+            <div className="text-sm font-medium text-slate-900">
+              默认会拿到
+            </div>
             <p className="mt-3 text-sm leading-6 text-slate-600">
               {detailView.deliveryNarrative}
             </p>
             <div className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
               <div>
-                <span className="font-medium text-slate-700">主结果：</span>
+                <span className="font-medium text-slate-700">默认主结果：</span>
                 {detailView.outputHint}
               </div>
               {detailView.deliveryPrimaryPart ? (
@@ -165,13 +171,13 @@ export function SceneAppDetailPanel({
               ) : null}
               {detailView.deliveryViewerLabel ? (
                 <div>
-                  <span className="font-medium text-slate-700">查看方式：</span>
+                  <span className="font-medium text-slate-700">默认入口：</span>
                   {detailView.deliveryViewerLabel}
                 </div>
               ) : null}
               {detailView.artifactProfileRef ? (
                 <div data-testid="sceneapp-detail-artifact-ref">
-                  <span className="font-medium text-slate-700">Artifact：</span>
+                  <span className="font-medium text-slate-700">结果说明：</span>
                   {detailView.artifactProfileRef}
                 </div>
               ) : null}
@@ -192,20 +198,22 @@ export function SceneAppDetailPanel({
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前还没有显式声明必含交付部件，后续需要继续补齐。
+                当前这套做法还没有明确必含结果，后续需要继续补齐。
               </p>
             )}
           </div>
 
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-            <div className="text-sm font-medium text-slate-900">组合步骤</div>
+            <div className="text-sm font-medium text-slate-900">
+              通常会这样推进
+            </div>
             {detailView.compositionBlueprintRef ? (
               <div className="mt-3 space-y-3">
                 <div
                   data-testid="sceneapp-detail-blueprint-ref"
                   className="text-sm leading-6 text-slate-600"
                 >
-                  <span className="font-medium text-slate-700">蓝图：</span>
+                  <span className="font-medium text-slate-700">步骤说明：</span>
                   {detailView.compositionBlueprintRef}
                 </div>
                 <div className="text-sm leading-6 text-slate-600">
@@ -224,7 +232,7 @@ export function SceneAppDetailPanel({
                         </div>
                         {step.bindingLabel ? (
                           <div className="mt-1 text-xs text-slate-500">
-                            执行面：{step.bindingLabel}
+                            承接面：{step.bindingLabel}
                           </div>
                         ) : null}
                       </div>
@@ -234,13 +242,15 @@ export function SceneAppDetailPanel({
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前创作场景还没有显式组合蓝图，继续按单阶段 binding 运行。
+                当前这套做法还没有拆出明确步骤，先按当前默认路径继续推进。
               </p>
             )}
           </div>
 
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-            <div className="text-sm font-medium text-slate-900">评分口径</div>
+            <div className="text-sm font-medium text-slate-900">
+              默认怎么判断
+            </div>
             <p className="mt-3 text-sm leading-6 text-slate-600">
               {detailView.scorecardNarrative}
             </p>
@@ -249,7 +259,7 @@ export function SceneAppDetailPanel({
                 data-testid="sceneapp-detail-scorecard-ref"
                 className="mt-3 text-sm leading-6 text-slate-600"
               >
-                <span className="font-medium text-slate-700">Profile：</span>
+                <span className="font-medium text-slate-700">判断说明：</span>
                 {detailView.scorecardProfileRef}
               </div>
             ) : null}
@@ -266,15 +276,12 @@ export function SceneAppDetailPanel({
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前 profile
-                还没有显式暴露指标键，后续会继续和真实评分聚合对齐。
+                当前这套做法还没有整理出显式判断指标，后续会继续和真实结果对齐。
               </p>
             )}
             {detailView.scorecardFailureSignals.length ? (
               <div className="mt-3">
-                <div className="text-xs font-medium text-slate-500">
-                  重点关注
-                </div>
+                <div className="text-xs font-medium text-slate-500">先盯这些</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {detailView.scorecardFailureSignals.map((signal) => (
                     <span
@@ -294,7 +301,7 @@ export function SceneAppDetailPanel({
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="text-sm font-medium text-slate-900">
-                执行预规划
+                这轮准备情况
               </div>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600">
                 {detailView.planning.statusLabel}
@@ -305,7 +312,7 @@ export function SceneAppDetailPanel({
             </p>
             {planLoading ? (
               <p className="mt-3 text-xs font-medium text-lime-700">
-                正在根据当前项目与输入刷新预规划…
+                正在根据当前项目与输入刷新准备情况…
               </p>
             ) : null}
             {planError ? (
@@ -315,9 +322,7 @@ export function SceneAppDetailPanel({
             ) : null}
             {detailView.planning.unmetRequirements.length ? (
               <div className="mt-4">
-                <div className="text-xs font-medium text-slate-500">
-                  仍待补齐
-                </div>
+                <div className="text-xs font-medium text-slate-500">还差这些</div>
                 <div
                   data-testid="sceneapp-detail-planning-unmet"
                   className="mt-2 flex flex-col gap-2"
@@ -340,7 +345,7 @@ export function SceneAppDetailPanel({
                 {detailView.contextPlan.activeLayers.length ? (
                   <div>
                     <div className="text-xs font-medium text-slate-500">
-                      活跃层
+                      这轮已带入
                     </div>
                     <div
                       data-testid="sceneapp-detail-context-layers"
@@ -361,7 +366,7 @@ export function SceneAppDetailPanel({
                   data-testid="sceneapp-detail-context-reference-count"
                   className="text-sm leading-6 text-slate-600"
                 >
-                  <span className="font-medium text-slate-700">参考注入：</span>
+                  <span className="font-medium text-slate-700">参考对象：</span>
                   {detailView.contextPlan.referenceCount} 条
                 </div>
                 {detailView.contextPlan.scopeLabel ? (
@@ -369,14 +374,14 @@ export function SceneAppDetailPanel({
                     data-testid="sceneapp-detail-context-scope"
                     className="text-sm leading-6 text-slate-600"
                   >
-                    <span className="font-medium text-slate-700">作用域：</span>
+                    <span className="font-medium text-slate-700">作用范围：</span>
                     {detailView.contextPlan.scopeLabel}
                   </div>
                 ) : null}
                 {detailView.contextPlan.skillRefs.length ? (
                   <div>
                     <div className="text-xs font-medium text-slate-500">
-                      场景绑定
+                      已接入做法
                     </div>
                     <div
                       data-testid="sceneapp-detail-context-skill-refs"
@@ -396,7 +401,7 @@ export function SceneAppDetailPanel({
                 {detailView.contextPlan.memoryRefs.length ? (
                   <div>
                     <div className="text-xs font-medium text-slate-500">
-                      记忆引用
+                      历史经验
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {detailView.contextPlan.memoryRefs.map((memoryRef) => (
@@ -413,7 +418,7 @@ export function SceneAppDetailPanel({
                 {detailView.contextPlan.toolRefs.length ? (
                   <div>
                     <div className="text-xs font-medium text-slate-500">
-                      工具开放面
+                      可用能力
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {detailView.contextPlan.toolRefs.map((toolRef) => (
@@ -488,7 +493,7 @@ export function SceneAppDetailPanel({
                     data-testid="sceneapp-detail-context-taste-summary"
                     className="rounded-[18px] border border-lime-200 bg-lime-50/70 px-3 py-2 text-sm leading-6 text-lime-900"
                   >
-                    <span className="font-medium">风格摘要：</span>
+                    <span className="font-medium">当前风格方向：</span>
                     {detailView.contextPlan.tasteSummary}
                   </div>
                 ) : null}
@@ -497,7 +502,7 @@ export function SceneAppDetailPanel({
                     data-testid="sceneapp-detail-context-feedback-summary"
                     className="rounded-[18px] border border-sky-200 bg-sky-50/70 px-3 py-2 text-sm leading-6 text-sky-900"
                   >
-                    <span className="font-medium">最近反馈：</span>
+                    <span className="font-medium">最近复盘：</span>
                     {detailView.contextPlan.feedbackSummary}
                   </div>
                 ) : null}
@@ -512,7 +517,7 @@ export function SceneAppDetailPanel({
                 {detailView.contextPlan.feedbackSignals.length ? (
                   <div>
                     <div className="text-xs font-medium text-slate-500">
-                      反馈信号
+                      复盘信号
                     </div>
                     <div
                       data-testid="sceneapp-detail-context-feedback-signals"
@@ -584,7 +589,7 @@ export function SceneAppDetailPanel({
               </div>
             ) : (
               <p className="mt-4 text-sm leading-6 text-slate-500">
-                当前还没有生成上下文覆盖层，继续补项目或启动输入后会自动刷新。
+                当前还没有整理出这轮带入对象，继续补项目或启动输入后会自动刷新。
               </p>
             )}
             {detailView.planning.warnings.length ? (
@@ -603,20 +608,18 @@ export function SceneAppDetailPanel({
 
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
             <div className="text-sm font-medium text-slate-900">
-              Project Pack 规划
+              默认结果去向
             </div>
             {detailView.projectPackPlan ? (
               <>
                 <div className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
                   <div>
-                    <span className="font-medium text-slate-700">
-                      交付形态：
-                    </span>
+                    <span className="font-medium text-slate-700">结果形态：</span>
                     {detailView.projectPackPlan.packKindLabel}
                   </div>
                   <div data-testid="sceneapp-detail-pack-strategy">
                     <span className="font-medium text-slate-700">
-                      完成策略：
+                      完成口径：
                     </span>
                     {detailView.projectPackPlan.completionStrategyLabel}
                   </div>
@@ -628,9 +631,7 @@ export function SceneAppDetailPanel({
                   ) : null}
                   {detailView.projectPackPlan.viewerLabel ? (
                     <div>
-                      <span className="font-medium text-slate-700">
-                        查看方式：
-                      </span>
+                      <span className="font-medium text-slate-700">默认入口：</span>
                       {detailView.projectPackPlan.viewerLabel}
                     </div>
                   ) : null}
@@ -651,7 +652,7 @@ export function SceneAppDetailPanel({
                   </div>
                 ) : (
                   <p className="mt-3 text-sm leading-6 text-slate-500">
-                    当前规划还没有显式声明整包部件，继续沿现有结果回流主链执行。
+                    当前这套做法还没有明确整套结果的必含部分，继续沿现有结果回流主链执行。
                   </p>
                 )}
                 {detailView.projectPackPlan.notes.length ? (
@@ -669,16 +670,15 @@ export function SceneAppDetailPanel({
               </>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前规划还没有显式暴露 Project Pack
-                结果，继续沿现有交付合同运行。
+                当前这套做法还没有明确结果去向，继续沿现有结果约定运行。
               </p>
             )}
           </div>
 
           <SceneAppProjectPackRuntimePanel
-            title="最近结果入口"
-            description="把 Project Pack 的查看方式落到真实结果入口，而不只是停留在规划文案。"
-            emptyMessage="当前还没有可直接消费的 Project Pack 结果文件。先跑出一轮正式样本，再回来从准备页直接打开结果。"
+            title="最近结果样本"
+            description="先看最近一轮真实拿到了什么，避免准备页只剩说明，没有样本可对照。"
+            emptyMessage="当前还没有可直接消费的结果文件。先跑出一轮正式样本，再回来从准备页直接打开结果。"
             testIdPrefix="sceneapp-detail-pack"
             runDetailView={packRuntimeView}
             loading={packRuntimeLoading}
@@ -688,19 +688,21 @@ export function SceneAppDetailPanel({
         </div>
 
         <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-          <div className="text-sm font-medium text-slate-900">启动输入</div>
+          <div className="text-sm font-medium text-slate-900">
+            开始这次生成
+          </div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            这一步只负责补齐场景意图和上下文基线；真正执行会进入生成主执行面，继续复用 Agent 或自动化主链。
+            这一步只负责补齐你这次的目标、参考和结果落点；真正执行会进入生成主执行面。
           </p>
 
           <div className="mt-4">
             <div className="mb-2 text-xs font-medium text-slate-500">
-              项目工作区
+              结果沉淀到
             </div>
             <ProjectSelector
               value={projectId}
               workspaceType="general"
-              placeholder="选择项目工作区"
+              placeholder="选择结果要落到的项目"
               dropdownSide="bottom"
               onChange={onProjectChange}
             />
@@ -708,7 +710,7 @@ export function SceneAppDetailPanel({
 
           <div className="mt-4">
             <div className="mb-2 text-xs font-medium text-slate-500">
-              启动意图
+              这次想让它做什么
             </div>
             <Textarea
               value={launchInput}
@@ -728,7 +730,7 @@ export function SceneAppDetailPanel({
           </div>
 
           <p className="mt-4 text-xs leading-5 text-slate-500">
-            写入当前场景基线会把这次显式带入的灵感对象、输入摘要和风格偏好沉淀到项目目录，供后续 planning 继续复用。
+            保存这次带入对象后，当前参考、输入摘要和风格偏好会一起沉淀到项目目录，方便下次继续沿用。
           </p>
           {saveBaselineDisabledReason ? (
             <p className="mt-2 text-xs text-amber-600">
@@ -753,7 +755,7 @@ export function SceneAppDetailPanel({
                 }
                 onClick={onSaveContextBaseline}
               >
-                {savingContextBaseline ? "写入中…" : "写入当前场景基线"}
+                {savingContextBaseline ? "保存中…" : "保存这次带入"}
               </Button>
               <Button
                 type="button"

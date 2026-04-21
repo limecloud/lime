@@ -23,7 +23,9 @@ use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::subagent_tool::{create_subagent_tool, handle_subagent_tool, AGENT_TOOL_NAME};
 use crate::agents::types::SessionConfig;
-use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
+use crate::agents::types::{
+    FrontendTool, PermissionRequestHookHandler, SharedProvider, ToolResultReceiver,
+};
 use crate::config::{get_enabled_extensions, AsterMode, Config};
 use crate::context::ContextTraceStep;
 use crate::context_mgmt::{
@@ -155,6 +157,10 @@ struct CurrentAgentToolRequest {
     isolation: Option<String>,
     #[serde(default)]
     cwd: Option<String>,
+    #[serde(default)]
+    allowed_tools: Vec<String>,
+    #[serde(default)]
+    disallowed_tools: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -646,6 +652,22 @@ fn normalize_agent_cwd(value: Option<String>) -> Result<Option<String>, ErrorDat
     Ok(Some(cwd))
 }
 
+fn normalize_agent_tool_list(values: &[String]) -> Vec<String> {
+    let mut normalized = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+
+    for value in values {
+        let Some(item) = normalize_agent_optional_text(Some(value.clone())) else {
+            continue;
+        };
+        if seen.insert(item.clone()) {
+            normalized.push(item);
+        }
+    }
+
+    normalized
+}
+
 fn parse_current_agent_tool_request(
     arguments: Value,
 ) -> Result<CurrentAgentToolRequest, ErrorData> {
@@ -683,6 +705,8 @@ fn prepare_callback_backed_agent_spawn(
     let name = normalize_agent_optional_text(request.name.clone());
     let team_name = normalize_agent_optional_text(request.team_name.clone());
     let cwd = normalize_agent_cwd(request.cwd.clone())?;
+    let allowed_tools = normalize_agent_tool_list(&request.allowed_tools);
+    let disallowed_tools = normalize_agent_tool_list(&request.disallowed_tools);
     let team_subagent = session_allows_subagent_teammate_tools(session);
     if team_subagent && request.run_in_background {
         return Err(ErrorData::new(
@@ -701,7 +725,12 @@ fn prepare_callback_backed_agent_spawn(
     }
 
     let should_use_callback = !team_subagent
-        && (request.run_in_background || name.is_some() || team_name.is_some() || cwd.is_some());
+        && (request.run_in_background
+            || name.is_some()
+            || team_name.is_some()
+            || cwd.is_some()
+            || !allowed_tools.is_empty()
+            || !disallowed_tools.is_empty());
     if !should_use_callback {
         return Ok(None);
     }
@@ -736,6 +765,9 @@ fn prepare_callback_backed_agent_spawn(
         theme: None,
         system_overlay: None,
         output_contract: None,
+        hooks: None,
+        allowed_tools,
+        disallowed_tools,
         mode,
         isolation,
         cwd,
@@ -844,6 +876,7 @@ pub struct Agent {
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
+    pub(super) permission_request_hook_handler: Option<PermissionRequestHookHandler>,
 
     /// Tool registry for native tools (Requirements: 11.3, 11.4, 11.5)
     pub(super) tool_registry: Arc<RwLock<ToolRegistry>>,
@@ -1398,6 +1431,7 @@ impl Agent {
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
+            permission_request_hook_handler: None,
             tool_registry: Arc::new(RwLock::new(tool_registry)),
             file_read_history,
             session_store: None, // 默认使用全局 SessionManager
@@ -1433,6 +1467,13 @@ impl Agent {
     pub fn with_thread_runtime_store(mut self, store: Arc<dyn ThreadRuntimeStore>) -> Self {
         self.thread_runtime_store = store;
         self
+    }
+
+    pub fn set_permission_request_hook_handler(
+        &mut self,
+        handler: Option<PermissionRequestHookHandler>,
+    ) {
+        self.permission_request_hook_handler = handler;
     }
 
     /// 设置 Agent 身份配置（Builder 模式）
@@ -1521,6 +1562,7 @@ impl Agent {
             scheduler_service: Mutex::new(scheduler),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
+            permission_request_hook_handler: None,
             tool_registry: Arc::new(RwLock::new(tool_registry)),
             file_read_history,
             session_store: None,
@@ -6308,6 +6350,90 @@ mod tests {
         assert_eq!(captured_request.parent_session_id, session.id);
         assert_eq!(captured_request.message, "检查这个改动是否会影响子代理通信");
         assert_eq!(captured_request.name.as_deref(), Some("verifier"));
+        assert!(captured_request.allowed_tools.is_empty());
+        assert!(captured_request.disallowed_tools.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_agent_tool_routes_tool_scope_through_callbacks() -> Result<()> {
+        initialize_session_runtime_store(Arc::new(InMemoryThreadRuntimeStore::default()));
+
+        let captured = Arc::new(std::sync::Mutex::new(None::<SpawnAgentRequest>));
+        let captured_clone = captured.clone();
+        let spawn_agent_callback = Arc::new(move |request: SpawnAgentRequest| {
+            *captured_clone.lock().expect("capture lock") = Some(request.clone());
+            Box::pin(async move {
+                Ok(SpawnAgentResponse {
+                    agent_id: "agent-tools".to_string(),
+                    nickname: Some("tool-scope-agent".to_string()),
+                    extra: std::collections::BTreeMap::new(),
+                })
+            })
+                as Pin<Box<dyn Future<Output = Result<SpawnAgentResponse, String>> + Send>>
+        });
+
+        let agent =
+            Agent::with_tool_config(ToolRegistrationConfig::new().with_agent_control_tools(
+                AgentControlToolConfig::new().with_spawn_agent_callback(spawn_agent_callback),
+            ));
+        let session = SessionManager::create_session(
+            PathBuf::from("."),
+            "agent-tool-scope-callback".to_string(),
+            SessionType::User,
+        )
+        .await?;
+        agent
+            .update_provider(Arc::new(NativeOutputSchemaProvider), &session.id)
+            .await?;
+
+        let arguments = serde_json::json!({
+            "description": "工具白名单",
+            "prompt": "把工具限制同步给子代理",
+            "allowed_tools": ["Read", "Bash", "Read", " "],
+            "disallowed_tools": ["WebSearch", "WebSearch"]
+        });
+        let tool_call = CallToolRequestParam {
+            name: AGENT_TOOL_NAME.into(),
+            arguments: Some(
+                arguments
+                    .as_object()
+                    .cloned()
+                    .expect("agent tool arguments should be an object"),
+            ),
+        };
+
+        let (_request_id, tool_result) = agent
+            .dispatch_tool_call(
+                tool_call,
+                "req-agent-tool-scope".to_string(),
+                None,
+                &session,
+            )
+            .await;
+        let tool_result = tool_result.expect("agent dispatch should succeed");
+        let call_result = tool_result
+            .result
+            .await
+            .expect("callback-backed agent result");
+
+        assert_eq!(
+            call_result
+                .structured_content
+                .as_ref()
+                .and_then(|value| value.get("status"))
+                .and_then(Value::as_str),
+            Some("async_launched")
+        );
+
+        let captured_request = captured
+            .lock()
+            .expect("capture lock")
+            .clone()
+            .expect("spawn callback should capture request");
+        assert_eq!(captured_request.allowed_tools, vec!["Read", "Bash"]);
+        assert_eq!(captured_request.disallowed_tools, vec!["WebSearch"]);
 
         Ok(())
     }

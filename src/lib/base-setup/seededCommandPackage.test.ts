@@ -15,8 +15,10 @@ describe("seededCommandPackage", () => {
       expect.arrayContaining([
         "agent-turn-instant",
         "native-skill-instant",
-        "cloud-scene-instant",
       ]),
+    );
+    expect(pkg.compatibility.requiredKernelCapabilities).not.toContain(
+      "cloud_scene",
     );
   });
 
@@ -46,7 +48,7 @@ describe("seededCommandPackage", () => {
           commandKey: "voice_runtime",
           binding: {
             skillId: "cloud-video-dubbing",
-            executionKind: "cloud_scene",
+            executionKind: "agent_turn",
           },
           renderContract: expect.objectContaining({
             resultKind: "tool_timeline",

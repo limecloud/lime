@@ -8,9 +8,6 @@ import type { ServiceSkillHomeItem } from "../service-skills/types";
 import { useWorkspaceServiceSkillEntryActions } from "./useWorkspaceServiceSkillEntryActions";
 
 const mockCreateAutomationJob = vi.fn();
-const mockCreateServiceSkillRun = vi.fn();
-const mockGetServiceSkillRun = vi.fn();
-const mockIsTerminalServiceSkillRunStatus = vi.fn();
 const mockCreateContent = vi.fn();
 const mockListProjects = vi.fn();
 const mockGetOrCreateDefaultProject = vi.fn();
@@ -32,14 +29,6 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/lib/api/automation", () => ({
   createAutomationJob: (request: unknown) => mockCreateAutomationJob(request),
-}));
-
-vi.mock("@/lib/api/serviceSkillRuns", () => ({
-  createServiceSkillRun: (...args: unknown[]) =>
-    mockCreateServiceSkillRun(...args),
-  getServiceSkillRun: (...args: unknown[]) => mockGetServiceSkillRun(...args),
-  isTerminalServiceSkillRunStatus: (status: unknown) =>
-    mockIsTerminalServiceSkillRunStatus(status),
 }));
 
 vi.mock("@/lib/api/project", () => ({
@@ -217,12 +206,12 @@ function createScheduledServiceSkill(): ServiceSkillHomeItem {
   };
 }
 
-function createCloudServiceSkill(): ServiceSkillHomeItem {
+function createLegacyCompatServiceSkill(): ServiceSkillHomeItem {
   return {
     id: "cloud-video-dubbing",
     skillKey: "campaign-launch",
-    title: "云端视频配音",
-    summary: "把视频文案与素材提交到云端，生成一版可继续加工的配音结果。",
+    title: "视频配音",
+    summary: "围绕视频文案与素材整理一版可继续加工的配音稿。",
     category: "视频创作",
     outputHint: "配音文案 + 结果摘要",
     source: "cloud_catalog",
@@ -244,10 +233,10 @@ function createCloudServiceSkill(): ServiceSkillHomeItem {
     badge: "云目录",
     recentUsedAt: null,
     isRecent: false,
-    runnerLabel: "云端托管执行",
+    runnerLabel: "立即开始",
     runnerTone: "slate",
-    runnerDescription: "提交到 OEM 云端执行，结果由服务端异步返回。",
-    actionLabel: "提交云端",
+    runnerDescription: "直接在当前工作区整理首版配音稿。",
+    actionLabel: "对话内补参",
     automationStatus: null,
   };
 }
@@ -316,12 +305,6 @@ beforeEach(() => {
     id: "automation-job-1",
     name: "每日趋势摘要｜定时执行",
   });
-  mockCreateServiceSkillRun.mockReset();
-  mockGetServiceSkillRun.mockReset();
-  mockIsTerminalServiceSkillRunStatus.mockReset();
-  mockIsTerminalServiceSkillRunStatus.mockImplementation((status: string) =>
-    ["success", "failed", "canceled", "timeout"].includes(status),
-  );
   mockCreateContent.mockResolvedValue({
     id: "content-created-by-service-skill",
   });
@@ -691,6 +674,37 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     });
   });
 
+  it("显式透传的 launchUserInput 应随 recent usage 一起记录下来", async () => {
+    const onNavigate = vi.fn();
+    const recordServiceSkillUsage = vi.fn();
+    const { render, getValue } = renderHook({
+      onNavigate,
+      recordServiceSkillUsage,
+    });
+    await render();
+
+    await act(async () => {
+      await getValue().handleServiceSkillLaunch(
+        createBrowserServiceSkill(),
+        {
+          repository_query: "browser assist mcp",
+        },
+        {
+          launchUserInput: "优先看最近 30 天仍在活跃更新的仓库",
+        },
+      );
+    });
+
+    expect(recordServiceSkillUsage).toHaveBeenCalledWith({
+      skillId: "github-repo-radar",
+      runnerType: "instant",
+      slotValues: {
+        repository_query: "browser assist mcp",
+      },
+      launchUserInput: "优先看最近 30 天仍在活跃更新的仓库",
+    });
+  });
+
   it("站点型技能缺少附着会话时应留在入口层并提示先准备浏览器", async () => {
     const onNavigate = vi.fn();
     const { render, getValue } = renderHook({
@@ -719,16 +733,9 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
-  it("cloud_required 服务型技能成功后应回流本地工作区", async () => {
+  it("legacy cloud_required 服务型技能当前也应按本地执行主链进入工作区", async () => {
     const onNavigate = vi.fn();
     const recordServiceSkillUsage = vi.fn();
-    mockCreateServiceSkillRun.mockResolvedValue({
-      id: "service-skill-run-cloud-1",
-      status: "success",
-      outputSummary: "云端结果已生成",
-      outputText: "# 云端视频配音\n\n第一版成稿",
-      finishedAt: "2026-03-26T01:02:03.000Z",
-    });
 
     const { render, getValue } = renderHook({
       activeTheme: "general",
@@ -738,48 +745,20 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
     await render();
 
     await act(async () => {
-      await getValue().handleServiceSkillLaunch(createCloudServiceSkill(), {
-        reference_video: "https://example.com/cloud-video",
-      });
+      await getValue().handleServiceSkillLaunch(
+        createLegacyCompatServiceSkill(),
+        {
+          reference_video: "https://example.com/cloud-video",
+        },
+      );
     });
 
-    expect(mockCreateServiceSkillRun).toHaveBeenCalledWith(
-      "cloud-video-dubbing",
-      expect.stringContaining("[技能任务] 云端视频配音"),
-    );
-    expect(mockCreateServiceSkillRun).toHaveBeenCalledWith(
-      "cloud-video-dubbing",
-      expect.stringContaining(
-        "- 参考视频链接/素材: https://example.com/cloud-video",
-      ),
-    );
-    expect(mockCreateContent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        project_id: "project-1",
-        title: "云端视频配音",
-        content_type: "post",
-        body: "# 云端视频配音\n\n第一版成稿",
-        metadata: expect.objectContaining({
-          source: "service_skill",
-          serviceSkill: expect.objectContaining({
-            id: "cloud-video-dubbing",
-            executionLocation: "cloud_required",
-            themeTarget: "general",
-          }),
-          cloudRun: expect.objectContaining({
-            id: "service-skill-run-cloud-1",
-            status: "success",
-            outputSummary: "云端结果已生成",
-            finishedAt: "2026-03-26T01:02:03.000Z",
-          }),
-        }),
-      }),
-    );
+    expect(mockCreateContent).not.toHaveBeenCalled();
     expect(onNavigate).toHaveBeenCalledWith(
       "agent",
       expect.objectContaining({
         projectId: "project-1",
-        contentId: "content-created-by-service-skill",
+        contentId: "content-current",
         theme: "general",
         initialCreationMode: "guided",
         initialRequestMetadata: {
@@ -798,15 +777,8 @@ describe("useWorkspaceServiceSkillEntryActions", () => {
         reference_video: "https://example.com/cloud-video",
       },
     });
-    expect(mockToastLoading).toHaveBeenCalledWith(
-      "正在开始 云端视频配音 的云端执行...",
-    );
-    expect(mockToastSuccess).toHaveBeenCalledWith(
-      "云端视频配音 云端运行完成：云端结果已生成，正在回流本地工作区。",
-      {
-        id: "toast-loading",
-      },
-    );
+    expect(mockToastLoading).not.toHaveBeenCalled();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
   it("普通技能进入工作区时应在保留 seed metadata 的同时注入当前 Team", async () => {

@@ -45,15 +45,28 @@ function inferSkillType(
   return "service";
 }
 
+function normalizeExecutorBinding(
+  bindingProfile: BaseSetupBindingProfile,
+): ServiceSkillItem["defaultExecutorBinding"] {
+  if (bindingProfile.bindingFamily === "cloud_scene") {
+    return "agent_turn";
+  }
+
+  return bindingProfile.bindingFamily;
+}
+
 function inferExecutionLocation(
   projection: BaseSetupCatalogProjection,
   bindingProfile: BaseSetupBindingProfile,
 ): ServiceSkillExecutionLocation {
+  if (
+    bindingProfile.executionLocation === "cloud_required" ||
+    bindingProfile.bindingFamily === "cloud_scene"
+  ) {
+    return "client_default";
+  }
   if (bindingProfile.executionLocation) {
     return bindingProfile.executionLocation;
-  }
-  if (bindingProfile.bindingFamily === "cloud_scene") {
-    return "cloud_required";
   }
   return "client_default";
 }
@@ -68,6 +81,7 @@ function buildBundleSummary(
 ): ServiceSkillBundleSummary {
   const skillType = inferSkillType(projection, bindingProfile);
   const executionLocation = inferExecutionLocation(projection, bindingProfile);
+  const executorBinding = normalizeExecutorBinding(bindingProfile);
 
   const metadata: Record<string, string> = {
     Lime_base_setup_package_id: pkg.id,
@@ -82,7 +96,7 @@ function buildBundleSummary(
     Lime_category: projection.category,
     Lime_runner_type: bindingProfile.runnerType ?? "instant",
     Lime_execution_location: executionLocation,
-    Lime_executor_binding: bindingProfile.bindingFamily,
+    Lime_executor_binding: executorBinding,
     Lime_output_destination: artifactProfile.outputDestination ?? "",
     Lime_output_hint: projection.outputHint,
     Lime_entry_hint: projection.entryHint ?? "",
@@ -176,7 +190,7 @@ function createServiceSkillItem(params: {
     triggerHints: projection.triggerHints ? [...projection.triggerHints] : undefined,
     source: projection.source ?? mapBundleSourceToServiceSkillSource(bundleRef),
     runnerType: bindingProfile.runnerType ?? "instant",
-    defaultExecutorBinding: bindingProfile.bindingFamily,
+    defaultExecutorBinding: normalizeExecutorBinding(bindingProfile),
     executionLocation: inferExecutionLocation(projection, bindingProfile),
     defaultArtifactKind: artifactProfile.defaultArtifactKind,
     readinessRequirements: projection.readinessRequirements

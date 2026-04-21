@@ -9,6 +9,7 @@ import type { AgentPendingServiceSkillLaunchParams } from "@/types/page";
 import type {
   SceneAppAutomationIntent,
   SceneAppBindingFamily,
+  SceneAppCurrentRuntimeAction,
   SceneAppPlanResult,
   SceneAppRuntimeAction,
 } from "./types";
@@ -18,7 +19,7 @@ import {
 } from "./product";
 
 type SceneAppWorkspaceRuntimeAction = Exclude<
-  SceneAppRuntimeAction,
+  SceneAppCurrentRuntimeAction,
   "create_automation_job"
 >;
 
@@ -191,15 +192,37 @@ function readRequestMetadata(
   return asRecord(result.plan.adapterPlan.requestMetadata) ?? {};
 }
 
+function normalizeWorkspaceAdapterKind(
+  adapterKind: SceneAppBindingFamily,
+): SceneAppBindingFamily {
+  return adapterKind === "cloud_scene" ? "agent_turn" : adapterKind;
+}
+
+function normalizeSceneAppRuntimeAction(
+  runtimeAction: SceneAppRuntimeAction,
+): SceneAppCurrentRuntimeAction {
+  return runtimeAction === "launch_cloud_scene"
+    ? "open_service_scene_session"
+    : runtimeAction;
+}
+
+function normalizeSceneAppNote(note: string): string {
+  return note
+    .replace(/场景技能主链/g, "Agent 工作区主链")
+    .replace(/场景技能入口/g, "Agent 工作区入口");
+}
+
 function resolveSceneAppNotes(result: SceneAppPlanResult): string[] {
   return dedupeStrings([
-    ...(result.contextOverlay?.compilerPlan.notes ?? []),
-    ...(result.projectPackPlan?.notes ?? []),
-    ...result.plan.warnings,
-    ...result.plan.adapterPlan.notes,
+    ...(result.contextOverlay?.compilerPlan.notes ?? []).map(
+      normalizeSceneAppNote,
+    ),
+    ...(result.projectPackPlan?.notes ?? []).map(normalizeSceneAppNote),
+    ...result.plan.warnings.map(normalizeSceneAppNote),
+    ...result.plan.adapterPlan.notes.map(normalizeSceneAppNote),
     result.readiness.ready
       ? undefined
-      : "当前 SceneApp 仍有未满足的启动前置条件。",
+      : "当前做法仍有未满足的启动前置条件。",
   ]);
 }
 
@@ -370,6 +393,9 @@ function buildSceneAppIntentSummary(
 
 function buildWorkspacePrompt(result: SceneAppPlanResult): string {
   const launchPayload = readLaunchPayload(result);
+  const runtimeAction = normalizeSceneAppRuntimeAction(
+    result.plan.adapterPlan.runtimeAction,
+  );
   const directInput = readText(
     launchPayload,
     "message",
@@ -379,36 +405,36 @@ function buildWorkspacePrompt(result: SceneAppPlanResult): string {
   );
   const summary = buildSceneAppIntentSummary(result, launchPayload);
 
-  if (result.plan.adapterPlan.runtimeAction === "launch_browser_assist") {
+  if (runtimeAction === "launch_browser_assist") {
     return summary
-      ? `请执行创作场景「${result.descriptor.title}」。${summary}。`
-      : `请执行创作场景「${result.descriptor.title}」，并复用当前浏览器上下文完成任务。`;
+      ? `请执行做法「${result.descriptor.title}」。${summary}。`
+      : `请执行做法「${result.descriptor.title}」，并复用当前浏览器上下文完成任务。`;
   }
 
-  if (result.plan.adapterPlan.runtimeAction === "launch_cloud_scene") {
+  if (runtimeAction === "open_service_scene_session") {
     if (directInput) {
       return directInput;
     }
 
     return summary
-      ? `请启动创作场景「${result.descriptor.title}」。${summary}。`
-      : `请启动创作场景「${result.descriptor.title}」，并按当前 SceneApp launch metadata 继续执行。`;
+      ? `请执行做法「${result.descriptor.title}」。${summary}。`
+      : `请执行做法「${result.descriptor.title}」，并按当前启动上下文继续在 Agent 工作区推进。`;
   }
 
-  if (result.plan.adapterPlan.runtimeAction === "launch_native_skill") {
+  if (runtimeAction === "launch_native_skill") {
     if (directInput) {
       return directInput;
     }
 
     return summary
-      ? `请执行创作场景「${result.descriptor.title}」。${summary}。`
-      : `请执行创作场景「${result.descriptor.title}」，并把结果回写到当前工作区。`;
+      ? `请执行做法「${result.descriptor.title}」。${summary}。`
+      : `请执行做法「${result.descriptor.title}」，并把结果回写到当前工作区。`;
   }
 
   return directInput
     ? directInput
     : (summary ??
-        `请继续执行创作场景「${result.descriptor.title}」，并遵循当前 SceneApp launch metadata。`);
+        `请继续执行做法「${result.descriptor.title}」，并遵循当前启动上下文。`);
 }
 
 function buildAutomationPrompt(result: SceneAppPlanResult): string {
@@ -459,7 +485,12 @@ function buildWorkspaceExecutionDraft(
 ): SceneAppWorkspaceExecutionDraft {
   const requestMetadata = readRequestMetadata(result);
   const launchPayload = readLaunchPayload(result);
-  const runtimeAction = result.plan.adapterPlan.runtimeAction;
+  const runtimeAction = normalizeSceneAppRuntimeAction(
+    result.plan.adapterPlan.runtimeAction,
+  );
+  if (runtimeAction === "create_automation_job") {
+    throw new Error("automation runtimeAction 不应进入 workspace 执行草稿分支");
+  }
   const nativeSkillId =
     readText(
       launchPayload,
@@ -495,8 +526,10 @@ function buildWorkspaceExecutionDraft(
     return {
       kind: "workspace_entry",
       sceneappId: result.descriptor.id,
-      runtimeAction: runtimeAction as SceneAppWorkspaceRuntimeAction,
-      adapterKind: result.plan.adapterPlan.adapterKind,
+      runtimeAction,
+      adapterKind: normalizeWorkspaceAdapterKind(
+        result.plan.adapterPlan.adapterKind,
+      ),
       targetRef: result.plan.adapterPlan.targetRef,
       targetLabel: result.plan.adapterPlan.targetLabel,
       workspaceId: readText(launchPayload, "workspace_id", "workspaceId"),
@@ -528,8 +561,10 @@ function buildWorkspaceExecutionDraft(
   return {
     kind: "workspace_entry",
     sceneappId: result.descriptor.id,
-    runtimeAction: runtimeAction as SceneAppWorkspaceRuntimeAction,
-    adapterKind: result.plan.adapterPlan.adapterKind,
+    runtimeAction,
+    adapterKind: normalizeWorkspaceAdapterKind(
+      result.plan.adapterPlan.adapterKind,
+    ),
     targetRef: result.plan.adapterPlan.targetRef,
     targetLabel: result.plan.adapterPlan.targetLabel,
     workspaceId: readText(launchPayload, "workspace_id", "workspaceId"),

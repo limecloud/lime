@@ -2,7 +2,10 @@
 //!
 //! Manages skill discovery, registration, and lookup.
 
-use super::loader::{load_skills_from_directory, load_skills_from_plugin_cache};
+use super::loader::{
+    build_plugin_skill_registry_snapshot_with_context, load_skills_from_directory,
+    load_skills_from_plugin_cache_with_context,
+};
 use super::types::{InvokedSkill, SkillDefinition, SkillSource};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -16,6 +19,8 @@ pub struct SkillRegistry {
     skills: HashMap<String, SkillDefinition>,
     /// Invoked skills history
     invoked: HashMap<String, InvokedSkill>,
+    /// Plugin skills snapshot for on-demand refresh
+    plugin_snapshot: Option<String>,
     /// Whether skills have been loaded
     loaded: bool,
 }
@@ -120,24 +125,59 @@ impl SkillRegistry {
     pub fn clear(&mut self) {
         self.skills.clear();
         self.invoked.clear();
+        self.plugin_snapshot = None;
         self.loaded = false;
     }
 
     /// Get default skill directories
     pub fn get_default_directories() -> Vec<(PathBuf, SkillSource)> {
+        let workspace_root = std::env::current_dir().ok();
+        let home_dir = dirs::home_dir();
+        Self::get_default_directories_with_context(workspace_root.as_deref(), home_dir.as_deref())
+    }
+
+    /// Get default skill directories with explicit context
+    pub fn get_default_directories_with_context(
+        workspace_root: Option<&Path>,
+        home_dir: Option<&Path>,
+    ) -> Vec<(PathBuf, SkillSource)> {
         let mut dirs = Vec::new();
 
         // User-level directories
-        if let Some(home) = dirs::home_dir() {
+        if let Some(home) = home_dir {
             dirs.push((home.join(".claude/skills"), SkillSource::User));
         }
 
         // Project-level directories
-        if let Ok(cwd) = std::env::current_dir() {
-            dirs.push((cwd.join(".claude/skills"), SkillSource::Project));
+        if let Some(workspace_root) = workspace_root {
+            dirs.push((workspace_root.join(".claude/skills"), SkillSource::Project));
         }
 
         dirs
+    }
+
+    fn load_all_skills_with_context(
+        &mut self,
+        workspace_root: Option<&Path>,
+        home_dir: Option<&Path>,
+        plugin_snapshot: Option<String>,
+    ) {
+        self.skills.clear();
+        self.plugin_snapshot = Some(plugin_snapshot.unwrap_or_else(|| {
+            build_plugin_skill_registry_snapshot_with_context(workspace_root, home_dir)
+        }));
+
+        for skill in load_skills_from_plugin_cache_with_context(workspace_root, home_dir) {
+            self.skills.insert(skill.skill_name.clone(), skill);
+        }
+
+        for (dir, source) in Self::get_default_directories_with_context(workspace_root, home_dir) {
+            for skill in load_skills_from_directory(&dir, source) {
+                self.skills.insert(skill.skill_name.clone(), skill);
+            }
+        }
+
+        self.loaded = true;
     }
 
     /// Initialize and load all skills
@@ -147,31 +187,63 @@ impl SkillRegistry {
     /// 2. User skills (~/.claude/skills/)
     /// 3. Project skills (.claude/skills/) (highest priority)
     pub fn initialize(&mut self) {
+        let workspace_root = std::env::current_dir().ok();
+        let home_dir = dirs::home_dir();
+        self.initialize_with_context(workspace_root.as_deref(), home_dir.as_deref());
+    }
+
+    pub fn initialize_with_context(
+        &mut self,
+        workspace_root: Option<&Path>,
+        home_dir: Option<&Path>,
+    ) {
         if self.loaded {
             return;
         }
-
-        self.skills.clear();
-
-        // 1. Load plugin skills (lowest priority)
-        for skill in load_skills_from_plugin_cache() {
-            self.skills.insert(skill.skill_name.clone(), skill);
-        }
-
-        // 2. Load from default directories
-        for (dir, source) in Self::get_default_directories() {
-            for skill in load_skills_from_directory(&dir, source) {
-                self.skills.insert(skill.skill_name.clone(), skill);
-            }
-        }
-
-        self.loaded = true;
+        self.load_all_skills_with_context(workspace_root, home_dir, None);
     }
 
     /// Reload skills (clear and reinitialize)
     pub fn reload(&mut self) {
+        let workspace_root = std::env::current_dir().ok();
+        let home_dir = dirs::home_dir();
+        self.reload_with_context(workspace_root.as_deref(), home_dir.as_deref());
+    }
+
+    pub fn reload_with_context(&mut self, workspace_root: Option<&Path>, home_dir: Option<&Path>) {
         self.loaded = false;
-        self.initialize();
+        self.load_all_skills_with_context(workspace_root, home_dir, None);
+    }
+
+    pub fn refresh_plugin_skills_if_needed(&mut self) -> bool {
+        let workspace_root = std::env::current_dir().ok();
+        let home_dir = dirs::home_dir();
+        self.refresh_plugin_skills_if_needed_with_context(
+            workspace_root.as_deref(),
+            home_dir.as_deref(),
+        )
+    }
+
+    pub fn refresh_plugin_skills_if_needed_with_context(
+        &mut self,
+        workspace_root: Option<&Path>,
+        home_dir: Option<&Path>,
+    ) -> bool {
+        let next_snapshot =
+            build_plugin_skill_registry_snapshot_with_context(workspace_root, home_dir);
+
+        if !self.loaded {
+            self.load_all_skills_with_context(workspace_root, home_dir, Some(next_snapshot));
+            return true;
+        }
+
+        if self.plugin_snapshot.as_deref() == Some(next_snapshot.as_str()) {
+            return false;
+        }
+
+        self.loaded = false;
+        self.load_all_skills_with_context(workspace_root, home_dir, Some(next_snapshot));
+        true
     }
 
     /// Generate instructions for available skills
@@ -202,6 +274,11 @@ pub fn new_shared_registry() -> SharedSkillRegistry {
     Arc::new(RwLock::new(SkillRegistry::new()))
 }
 
+pub fn refresh_shared_registry_if_needed(registry: &SharedSkillRegistry) -> Result<bool, String> {
+    let mut guard = registry.write().map_err(|error| error.to_string())?;
+    Ok(guard.refresh_plugin_skills_if_needed())
+}
+
 /// Global skill registry instance
 static GLOBAL_REGISTRY: std::sync::OnceLock<SharedSkillRegistry> = std::sync::OnceLock::new();
 
@@ -220,6 +297,7 @@ pub fn global_registry() -> &'static SharedSkillRegistry {
 mod tests {
     use super::*;
     use crate::skills::types::SkillExecutionMode;
+    use std::collections::BTreeSet;
     #[allow(unused_imports)]
     use std::fs;
     #[allow(unused_imports)]
@@ -246,7 +324,52 @@ mod tests {
             execution_mode: SkillExecutionMode::default(),
             provider: None,
             workflow: None,
+            hooks: None,
         }
+    }
+
+    fn create_plugin_skill_fixture(
+        home_dir: &Path,
+        plugin_id: &str,
+        skill_name: &str,
+        skill_content: &str,
+    ) -> PathBuf {
+        let (plugin_name, marketplace) = plugin_id
+            .rsplit_once('@')
+            .expect("plugin fixture must use plugin@marketplace format");
+        let plugin_root = home_dir
+            .join(".claude/plugins/cache")
+            .join(marketplace)
+            .join(plugin_name)
+            .join("1.0.0");
+        let skill_dir = plugin_root.join("skills").join(skill_name);
+        fs::create_dir_all(&skill_dir).unwrap();
+        let skill_path = skill_dir.join("SKILL.md");
+        fs::write(&skill_path, skill_content).unwrap();
+        skill_path
+    }
+
+    fn write_enabled_plugin_settings(path: &Path, entries: &[(&str, bool)]) {
+        let enabled_plugins = entries
+            .iter()
+            .map(|(plugin_id, enabled)| {
+                ((*plugin_id).to_string(), serde_json::Value::Bool(*enabled))
+            })
+            .collect::<serde_json::Map<_, _>>();
+        let settings = serde_json::json!({ "enabledPlugins": enabled_plugins });
+
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, serde_json::to_vec(&settings).unwrap()).unwrap();
+    }
+
+    fn collect_skill_names(registry: &SkillRegistry) -> BTreeSet<String> {
+        registry
+            .get_all()
+            .into_iter()
+            .map(|skill| skill.skill_name.clone())
+            .collect()
     }
 
     #[test]
@@ -361,5 +484,101 @@ mod tests {
             let r = registry.read().unwrap();
             assert_eq!(r.len(), 1);
         }
+    }
+
+    #[test]
+    fn test_refresh_plugin_skills_if_needed_with_context_detects_noop_snapshot() {
+        let workspace_dir = TempDir::new().unwrap();
+        let home_dir = TempDir::new().unwrap();
+        create_plugin_skill_fixture(
+            home_dir.path(),
+            "plugin-a@acme",
+            "alpha",
+            "---\nname: alpha\ndescription: first\n---\n\nbody\n",
+        );
+        write_enabled_plugin_settings(
+            &home_dir.path().join(".claude/settings.json"),
+            &[("plugin-a@acme", true)],
+        );
+
+        let mut registry = SkillRegistry::new();
+        registry.initialize_with_context(Some(workspace_dir.path()), Some(home_dir.path()));
+
+        assert!(registry.find("plugin-a:alpha").is_some());
+        assert!(!registry.refresh_plugin_skills_if_needed_with_context(
+            Some(workspace_dir.path()),
+            Some(home_dir.path())
+        ));
+    }
+
+    #[test]
+    fn test_refresh_plugin_skills_if_needed_with_context_reloads_when_skill_content_changes() {
+        let workspace_dir = TempDir::new().unwrap();
+        let home_dir = TempDir::new().unwrap();
+        let skill_path = create_plugin_skill_fixture(
+            home_dir.path(),
+            "plugin-a@acme",
+            "alpha",
+            "---\nname: alpha\ndescription: first\n---\n\nbody v1\n",
+        );
+        write_enabled_plugin_settings(
+            &home_dir.path().join(".claude/settings.json"),
+            &[("plugin-a@acme", true)],
+        );
+
+        let mut registry = SkillRegistry::new();
+        registry.initialize_with_context(Some(workspace_dir.path()), Some(home_dir.path()));
+        registry.record_invoked("plugin-a:alpha", &skill_path, "before-refresh");
+
+        fs::write(
+            &skill_path,
+            "---\nname: alpha\ndescription: updated version\n---\n\nbody v2 changed\n",
+        )
+        .unwrap();
+
+        assert!(registry.refresh_plugin_skills_if_needed_with_context(
+            Some(workspace_dir.path()),
+            Some(home_dir.path())
+        ));
+
+        let skill = registry.find("plugin-a:alpha").unwrap();
+        assert_eq!(skill.description, "updated version");
+        assert_eq!(registry.get_invoked().len(), 1);
+        assert!(registry.get_invoked().contains_key("plugin-a:alpha"));
+    }
+
+    #[test]
+    fn test_refresh_plugin_skills_if_needed_with_context_prunes_disabled_plugin_skills() {
+        let workspace_dir = TempDir::new().unwrap();
+        let home_dir = TempDir::new().unwrap();
+        create_plugin_skill_fixture(
+            home_dir.path(),
+            "plugin-a@acme",
+            "alpha",
+            "---\nname: alpha\ndescription: first\n---\n\nbody\n",
+        );
+        write_enabled_plugin_settings(
+            &home_dir.path().join(".claude/settings.json"),
+            &[("plugin-a@acme", true)],
+        );
+
+        let mut registry = SkillRegistry::new();
+        registry.initialize_with_context(Some(workspace_dir.path()), Some(home_dir.path()));
+        assert_eq!(
+            collect_skill_names(&registry),
+            BTreeSet::from(["plugin-a:alpha".to_string()])
+        );
+
+        write_enabled_plugin_settings(
+            &workspace_dir.path().join(".claude/settings.json"),
+            &[("plugin-a@acme", false)],
+        );
+
+        assert!(registry.refresh_plugin_skills_if_needed_with_context(
+            Some(workspace_dir.path()),
+            Some(home_dir.path())
+        ));
+        assert!(registry.find("plugin-a:alpha").is_none());
+        assert!(registry.is_empty());
     }
 }

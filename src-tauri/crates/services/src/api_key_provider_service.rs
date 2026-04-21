@@ -951,6 +951,69 @@ impl ApiKeyProviderService {
         Ok(result.plaintext)
     }
 
+    fn next_round_robin_candidate_indices(
+        &self,
+        scope: &str,
+        len: usize,
+    ) -> Result<Vec<usize>, String> {
+        if len == 0 {
+            return Ok(Vec::new());
+        }
+
+        let start = {
+            let mut indices = self.round_robin_index.write().map_err(|e| e.to_string())?;
+            indices
+                .entry(scope.to_string())
+                .or_insert_with(|| AtomicUsize::new(0))
+                .fetch_add(1, Ordering::SeqCst)
+        };
+
+        Ok((0..len).map(|offset| (start + offset) % len).collect())
+    }
+
+    fn log_skipped_invalid_api_key(&self, key: &ApiKeyEntry, error: &str) {
+        tracing::warn!(
+            "[ApiKeyProviderService] 跳过不可解密 API Key {} (provider={}): {}",
+            key.id,
+            key.provider_id,
+            error
+        );
+    }
+
+    fn select_next_decryptable_api_key<'a>(
+        &self,
+        conn: &rusqlite::Connection,
+        scope: &str,
+        keys: &'a [ApiKeyEntry],
+    ) -> Result<Option<(&'a ApiKeyEntry, String)>, String> {
+        for index in self.next_round_robin_candidate_indices(scope, keys.len())? {
+            let candidate = &keys[index];
+            match self.decrypt_api_key_entry_with_migration(conn, candidate) {
+                Ok(api_key) => return Ok(Some((candidate, api_key))),
+                Err(error) => self.log_skipped_invalid_api_key(candidate, &error),
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn select_next_decryptable_api_key_with_provider<'a>(
+        &self,
+        conn: &rusqlite::Connection,
+        scope: &str,
+        keys: &'a [(ApiKeyEntry, ApiKeyProvider)],
+    ) -> Result<Option<(&'a ApiKeyEntry, &'a ApiKeyProvider, String)>, String> {
+        for index in self.next_round_robin_candidate_indices(scope, keys.len())? {
+            let (candidate, provider) = &keys[index];
+            match self.decrypt_api_key_entry_with_migration(conn, candidate) {
+                Ok(api_key) => return Ok(Some((candidate, provider, api_key))),
+                Err(error) => self.log_skipped_invalid_api_key(candidate, &error),
+            }
+        }
+
+        Ok(None)
+    }
+
     pub fn migrate_legacy_api_key_encryption(&self, db: &DbConnection) -> Result<usize, String> {
         let conn = lime_core::database::lock_db(db)?;
         let providers = ApiKeyProviderDao::get_all_providers_with_keys(&conn)
@@ -1987,20 +2050,14 @@ impl ApiKeyProviderService {
             return Ok(None);
         }
 
-        // 获取或创建轮询索引
-        let index = {
-            let mut indices = self.round_robin_index.write().map_err(|e| e.to_string())?;
-            indices
-                .entry(provider_id.to_string())
-                .or_insert_with(|| AtomicUsize::new(0))
-                .fetch_add(1, Ordering::SeqCst)
+        let Some((_selected_key, decrypted)) =
+            self.select_next_decryptable_api_key(&conn, provider_id, &keys)?
+        else {
+            return Err(format!(
+                "Provider {provider_id} 的所有已启用 API Key 都无法解密"
+            ));
         };
 
-        // 选择 API Key
-        let selected_key = &keys[index % keys.len()];
-
-        // 解密并返回
-        let decrypted = self.decrypt_api_key_entry_with_migration(&conn, selected_key)?;
         Ok(Some(decrypted))
     }
 
@@ -2020,20 +2077,14 @@ impl ApiKeyProviderService {
             return Ok(None);
         }
 
-        // 获取或创建轮询索引
-        let index = {
-            let mut indices = self.round_robin_index.write().map_err(|e| e.to_string())?;
-            indices
-                .entry(provider_id.to_string())
-                .or_insert_with(|| AtomicUsize::new(0))
-                .fetch_add(1, Ordering::SeqCst)
+        let Some((selected_key, decrypted)) =
+            self.select_next_decryptable_api_key(&conn, provider_id, &keys)?
+        else {
+            return Err(format!(
+                "Provider {provider_id} 的所有已启用 API Key 都无法解密"
+            ));
         };
 
-        // 选择 API Key
-        let selected_key = &keys[index % keys.len()];
-
-        // 解密并返回
-        let decrypted = self.decrypt_api_key_entry_with_migration(&conn, selected_key)?;
         Ok(Some((selected_key.id.clone(), decrypted)))
     }
 
@@ -2078,20 +2129,14 @@ impl ApiKeyProviderService {
             return Ok(None);
         }
 
-        // 获取或创建轮询索引
-        let index = {
-            let mut indices = self.round_robin_index.write().map_err(|e| e.to_string())?;
-            indices
-                .entry(provider_id.to_string())
-                .or_insert_with(|| AtomicUsize::new(0))
-                .fetch_add(1, Ordering::SeqCst)
+        let Some((_selected_key, decrypted)) =
+            self.select_next_decryptable_api_key(&conn, provider_id, &keys)?
+        else {
+            return Err(format!(
+                "Provider {provider_id} 的所有已启用 API Key 都无法解密"
+            ));
         };
 
-        // 选择 API Key
-        let selected_key = &keys[index % keys.len()];
-
-        // 解密并返回
-        let decrypted = self.decrypt_api_key_entry_with_migration(&conn, selected_key)?;
         Ok(Some((decrypted, provider)))
     }
 
@@ -2112,21 +2157,15 @@ impl ApiKeyProviderService {
             return Ok(None);
         }
 
-        // 使用类型名称作为轮询索引的 key
         let type_key = format!("type:{provider_type}");
-        let index = {
-            let mut indices = self.round_robin_index.write().map_err(|e| e.to_string())?;
-            indices
-                .entry(type_key)
-                .or_insert_with(|| AtomicUsize::new(0))
-                .fetch_add(1, Ordering::SeqCst)
+        let Some((selected_key, provider, decrypted)) =
+            self.select_next_decryptable_api_key_with_provider(&conn, &type_key, &keys)?
+        else {
+            return Err(format!(
+                "Provider 类型 {provider_type} 的所有已启用 API Key 都无法解密"
+            ));
         };
 
-        // 选择 API Key
-        let (selected_key, provider) = &keys[index % keys.len()];
-
-        // 解密并返回
-        let decrypted = self.decrypt_api_key_entry_with_migration(&conn, selected_key)?;
         Ok(Some((selected_key.id.clone(), decrypted, provider.clone())))
     }
 

@@ -461,11 +461,10 @@ pub(crate) use service_skill_launch::{
     ServiceSkillLaunchPreloadExecution,
 };
 pub(crate) use session_runtime::{
-    delete_runtime_session_internal, persist_session_provider_routing,
-    resolve_recent_preference_from_sources, resolve_session_provider_selector,
-    resolve_session_recent_harness_context, resolve_session_recent_preferences,
-    resolve_session_recent_runtime_context, SessionRecentHarnessContext,
-    SessionRecentRuntimeContext,
+    persist_session_provider_routing, resolve_recent_preference_from_sources,
+    resolve_session_provider_selector, resolve_session_recent_harness_context,
+    resolve_session_recent_preferences, resolve_session_recent_runtime_context,
+    SessionRecentHarnessContext, SessionRecentRuntimeContext,
 };
 pub(crate) use site_search_skill_launch::{
     append_site_search_skill_launch_session_permissions,
@@ -488,16 +487,16 @@ pub(crate) use summary_skill_launch::{
 };
 #[allow(unused_imports)]
 pub(crate) use tool_runtime::social_generate_cover_image_cmd;
+#[cfg(test)]
+#[allow(unused_imports)]
+pub(crate) use tool_runtime::{
+    append_subagent_tool_scope_session_permissions, extract_runtime_subagent_result_text,
+    LimeBrowserMcpTool, SocialGenerateCoverImageTool, ToolSearchBridgeTool,
+};
 pub(crate) use tool_runtime::{apply_workspace_sandbox_permissions, ImageInput};
 pub(crate) use tool_runtime::{
     ensure_browser_mcp_tools_registered, ensure_creation_task_tools_registered,
     ensure_runtime_support_tools_registered, ensure_social_image_tool_registered,
-};
-#[cfg(test)]
-#[allow(unused_imports)]
-pub(crate) use tool_runtime::{
-    extract_runtime_subagent_result_text, LimeBrowserMcpTool, SocialGenerateCoverImageTool,
-    ToolSearchBridgeTool,
 };
 pub(crate) use transcription_skill_launch::{
     append_transcription_skill_launch_session_permissions,

@@ -453,7 +453,7 @@ fn resolve_feedback_scope_from_run(run: &SceneAppRunSummary) -> (Option<String>,
                 .find_map(|artifact| normalize_optional_id(artifact.project_id.as_deref()))
         })
         .or_else(|| {
-            run.cloud_scene_runtime_ref
+            run.service_scene_runtime_ref
                 .as_ref()
                 .and_then(|runtime| normalize_optional_id(runtime.project_id.as_deref()))
         })
@@ -473,7 +473,7 @@ fn resolve_feedback_scope_from_run(run: &SceneAppRunSummary) -> (Option<String>,
                 .find_map(|artifact| normalize_optional_id(artifact.workspace_id.as_deref()))
         })
         .or_else(|| {
-            run.cloud_scene_runtime_ref
+            run.service_scene_runtime_ref
                 .as_ref()
                 .and_then(|runtime| normalize_optional_id(runtime.workspace_id.as_deref()))
         })
@@ -793,7 +793,7 @@ impl SceneAppService {
                 source_ref: None,
                 session_id: None,
                 browser_runtime_ref: None,
-                cloud_scene_runtime_ref: None,
+                service_scene_runtime_ref: None,
                 native_skill_runtime_ref: None,
                 started_at: "2026-04-15T00:00:00.000Z".to_string(),
                 finished_at: Some("2026-04-15T00:08:00.000Z".to_string()),
@@ -838,7 +838,7 @@ impl SceneAppService {
                 source_ref: None,
                 session_id: None,
                 browser_runtime_ref: None,
-                cloud_scene_runtime_ref: None,
+                service_scene_runtime_ref: None,
                 native_skill_runtime_ref: None,
                 started_at: "2026-04-15T00:12:00.000Z".to_string(),
                 finished_at: None,
@@ -1168,7 +1168,7 @@ mod tests {
             source_ref: Some("job-story-video".to_string()),
             session_id: Some("session-story-video".to_string()),
             browser_runtime_ref: None,
-            cloud_scene_runtime_ref: Some(SceneAppCloudSceneRuntimeRef {
+            service_scene_runtime_ref: Some(SceneAppServiceSceneRuntimeRef {
                 scene_key: Some("story-video".to_string()),
                 skill_id: Some("skill-story-video".to_string()),
                 project_id: Some(workspace_id.to_string()),
@@ -1239,10 +1239,7 @@ mod tests {
                 user_input: Some("根据发布会亮点生成 30 秒短视频草稿".to_string()),
                 reference_memory_ids: Vec::new(),
                 slots: Default::default(),
-                runtime_context: Some(SceneAppRuntimeContext {
-                    cloud_session_ready: true,
-                    ..Default::default()
-                }),
+                runtime_context: Some(SceneAppRuntimeContext::default()),
             },
         )
         .expect("planning 失败");
@@ -1273,10 +1270,7 @@ mod tests {
                 user_input: Some("根据发布会亮点生成 30 秒短视频草稿".to_string()),
                 reference_memory_ids: Vec::new(),
                 slots: Default::default(),
-                runtime_context: Some(SceneAppRuntimeContext {
-                    cloud_session_ready: true,
-                    ..Default::default()
-                }),
+                runtime_context: Some(SceneAppRuntimeContext::default()),
             },
         )
         .expect("写入场景基线失败");

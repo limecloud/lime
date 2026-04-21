@@ -20,6 +20,7 @@ export type ServiceSkillType = "service" | "site" | "prompt";
 
 export type ServiceSkillRunnerType = "instant" | "scheduled" | "managed";
 
+// legacy compat only：current 执行面固定回到客户端，cloud_required 只再表示旧目录标记。
 export type ServiceSkillExecutionLocation = "client_default" | "cloud_required";
 
 export type ServiceSkillArtifactKind =
@@ -37,6 +38,7 @@ export type ServiceSkillExecutorBinding =
   | "agent_turn"
   | "browser_assist"
   | "automation_job"
+  // legacy compat only：仅允许作为旧目录输入，不再代表 current 执行面。
   | "cloud_scene";
 
 export type ServiceSkillSlotType =
@@ -216,6 +218,22 @@ function trimToUndefined(value?: string): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+function resolveCurrentServiceSkillExecutionLocation(
+  item: ServiceSkillItem,
+): ServiceSkillExecutionLocation {
+  return item.executionLocation === "cloud_required"
+    ? "client_default"
+    : item.executionLocation;
+}
+
+function resolveCurrentServiceSkillExecutorBinding(
+  item: ServiceSkillItem,
+): Exclude<ServiceSkillExecutorBinding, "cloud_scene"> {
+  return item.defaultExecutorBinding === "cloud_scene"
+    ? "agent_turn"
+    : item.defaultExecutorBinding;
+}
+
 function toServiceSkillBundleMetadata(
   item: ServiceSkillItem,
 ): Record<string, string> | undefined {
@@ -227,13 +245,15 @@ function toServiceSkillBundleMetadata(
       ? "site"
       : "service");
   const outputDestination = resolveDerivedServiceSkillOutputDestination(item);
+  const executionLocation = resolveCurrentServiceSkillExecutionLocation(item);
+  const executorBinding = resolveCurrentServiceSkillExecutorBinding(item);
 
   const candidates: Record<string, string | undefined> = {
     Lime_skill_type: skillType,
     Lime_category: trimToUndefined(item.category),
     Lime_runner_type: item.runnerType,
-    Lime_execution_location: item.executionLocation,
-    Lime_executor_binding: item.defaultExecutorBinding,
+    Lime_execution_location: executionLocation,
+    Lime_executor_binding: executorBinding,
     Lime_output_destination: trimToUndefined(outputDestination),
     Lime_output_hint: trimToUndefined(item.outputHint),
     Lime_entry_hint: trimToUndefined(item.entryHint),
@@ -279,7 +299,7 @@ function resolveDerivedServiceSkillOutputDestination(
   }
 
   if (item.executionLocation === "cloud_required") {
-    return "运行结果会在云端完成后回流到当前工作区。";
+    return "结果仍会写回当前工作区；旧目录中的云端标记仅作兼容，不代表当前执行边界。";
   }
 
   if (item.siteCapabilityBinding) {
@@ -312,7 +332,7 @@ function buildDerivedServiceSkillCompatibility(item: ServiceSkillItem): string {
     parts.push("建议在项目上下文中启动");
   }
   if (item.executionLocation === "cloud_required") {
-    parts.push("需要云端执行");
+    parts.push("沿用旧目录兼容标记，实际仍在客户端执行");
   }
   if (item.defaultExecutorBinding === "browser_assist") {
     parts.push("会复用浏览器站点上下文");

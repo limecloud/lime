@@ -345,7 +345,7 @@ export function buildCuratedTaskReferencePromptBlock(
     return null;
   }
 
-  return `本轮可优先参考这些参考基线：\n${entries
+  return `本轮可优先参考这些参考对象：\n${entries
     .slice(0, 3)
     .map((entry) => buildReferencePromptLine(entry))
     .join("\n")}`;

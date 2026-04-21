@@ -58,6 +58,7 @@ pub(crate) struct ServiceSceneLaunchOemRuntimeContext {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ServiceSceneLaunchContext {
+    pub(crate) launch_kind: String,
     pub(crate) raw_text: Option<String>,
     pub(crate) user_input: Option<String>,
     pub(crate) scene_key: Option<String>,
@@ -66,10 +67,24 @@ pub(crate) struct ServiceSceneLaunchContext {
     pub(crate) service_skill_key: Option<String>,
     pub(crate) skill_title: Option<String>,
     pub(crate) skill_summary: Option<String>,
+    pub(crate) runner_type: Option<String>,
+    pub(crate) execution_kind: Option<String>,
+    pub(crate) execution_location: Option<String>,
+    pub(crate) slot_values: Option<serde_json::Value>,
     pub(crate) project_id: Option<String>,
     pub(crate) content_id: Option<String>,
     pub(crate) entry_source: Option<String>,
     pub(crate) oem_runtime: ServiceSceneLaunchOemRuntimeContext,
+}
+
+const CURRENT_SERVICE_SCENE_LAUNCH_KIND: &str = "local_service_skill";
+const COMPAT_SERVICE_SCENE_LAUNCH_KIND: &str = "cloud_scene";
+
+fn is_supported_service_scene_launch_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        CURRENT_SERVICE_SCENE_LAUNCH_KIND | COMPAT_SERVICE_SCENE_LAUNCH_KIND
+    )
 }
 
 fn extract_object_string(
@@ -315,9 +330,9 @@ pub(crate) fn extract_service_scene_launch_context(
         request_metadata,
         &["service_scene_launch", "serviceSceneLaunch"],
     )?;
-    let kind =
-        extract_object_string(launch, &["kind"]).unwrap_or_else(|| "cloud_scene".to_string());
-    if kind != "cloud_scene" {
+    let kind = extract_object_string(launch, &["kind"])
+        .unwrap_or_else(|| CURRENT_SERVICE_SCENE_LAUNCH_KIND.to_string());
+    if !is_supported_service_scene_launch_kind(&kind) {
         return None;
     }
 
@@ -335,6 +350,7 @@ pub(crate) fn extract_service_scene_launch_context(
         .and_then(serde_json::Value::as_object);
 
     Some(ServiceSceneLaunchContext {
+        launch_kind: kind,
         raw_text: extract_object_string(service_scene_run, &["raw_text", "rawText"]),
         user_input: extract_object_string(service_scene_run, &["user_input", "userInput"]),
         scene_key: extract_object_string(service_scene_run, &["scene_key", "sceneKey"]),
@@ -346,6 +362,20 @@ pub(crate) fn extract_service_scene_launch_context(
         service_skill_key: extract_object_string(service_scene_run, &["skill_key", "skillKey"]),
         skill_title: extract_object_string(service_scene_run, &["skill_title", "skillTitle"]),
         skill_summary: extract_object_string(service_scene_run, &["skill_summary", "skillSummary"]),
+        runner_type: extract_object_string(service_scene_run, &["runner_type", "runnerType"]),
+        execution_kind: extract_object_string(
+            service_scene_run,
+            &["execution_kind", "executionKind"],
+        ),
+        execution_location: extract_object_string(
+            service_scene_run,
+            &["execution_location", "executionLocation"],
+        ),
+        slot_values: service_scene_run
+            .get("slot_values")
+            .or_else(|| service_scene_run.get("slotValues"))
+            .cloned()
+            .filter(|value| value.is_object()),
         project_id: extract_object_string(service_scene_run, &["project_id", "projectId"]),
         content_id: extract_object_string(service_scene_run, &["content_id", "contentId"]),
         entry_source: extract_object_string(service_scene_run, &["entry_source", "entrySource"]),

@@ -89,7 +89,10 @@ pub use extension_manager::ExtensionManager;
 pub use identity::AgentIdentity;
 pub use prompt_manager::PromptManager;
 pub use subagent_task_config::TaskConfig;
-pub use types::{FrontendTool, RetryConfig, SessionConfig, SuccessCheck};
+pub use types::{
+    FrontendTool, PermissionRequestHookContext, PermissionRequestHookDecision,
+    PermissionRequestHookHandler, RetryConfig, SessionConfig, SuccessCheck,
+};
 
 // ============================================================================
 // Context Module Re-exports

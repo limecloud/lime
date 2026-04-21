@@ -114,7 +114,7 @@
 - `sceneapp_plan_launch` 只负责 preview 当前 planning，并读取已有项目级 Context Snapshot；不要再把它当成自动落盘命令
 - 显式把当前灵感对象、输入摘要与风格基线写回项目目录时，只能走 `sceneapp_save_context_baseline`
 - 新的 SceneApp UI 先消费 `SceneAppDescriptor / SceneAppPlanResult / SceneAppScorecard`，不要重新从 `serviceSkills.ts`、`skillCatalog.ts`、卡片配置和 selector 里各自拼语义
-- 真正的执行仍应通过 runtime adapter 继续挂回现有 `agent turn / browser_assist / automation_job / cloud_scene` 主链；`sceneapp_*` 不用于重新发明第二套 runtime taxonomy
+- 真正的执行仍应通过 runtime adapter 继续挂回现有本地主链，例如 `agent turn / browser_assist / automation_job / native_skill`；历史 `cloud_scene` 只允许按 compat binding family 理解，不再代表 current 执行面；`sceneapp_*` 不用于重新发明第二套 runtime taxonomy
 
 技能脚手架创建同样只允许走当前命令网关主链：
 
@@ -132,11 +132,11 @@
 
 - 发送前由 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 统一拦截 slash 场景
 - 运行时只从统一 catalog 解析 `scene -> linkedSkillId -> ServiceSkillHomeItem`，并把结构化上下文写入 `request_metadata.harness.service_scene_launch`
-- Rust 侧 `runtime_turn` 会把这类 turn 统一切到 `workbench`，并通过 `prompt_context` 强约束首刀优先调用 `lime_run_service_skill`
-- `lime_run_service_skill` 负责基于当前 session / turn 上下文读取已绑定的 `serviceSkillId + OEM runtime`，再向 OEM Scene Runtime 发起 run / poll
-- slash scene 不应再在前端直接调用 `createServiceSkillRun(...)` 或其它云端 run API；客户端当前职责只剩 catalog 解析、metadata 注入与 seeded/fallback 托底
+- Rust 侧 `runtime_turn` 会把这类 turn 统一切到 `workbench`，并通过 `prompt_context` 强约束当前回合直接按本地 `service_scene_launch` 上下文执行；如果实现里仍保留 `lime_run_service_skill` 这类历史命名，也只允许视为 compat 护栏，不属于 current 主链
+- `service_scene_launch` 只表达“目录命中 + 本地运行时路由提示”，不表达服务端 run / poll；slash scene 不应在前端或 Rust 侧继续扩成云端执行协议
+- 客户端当前职责固定为 catalog 解析、metadata 注入、seeded/fallback 托底与本地 runtime dispatch
 - 未命中统一 scene 目录的 slash 文本必须继续回到普通 slash / Codex 命令流，不能误报本地 Skill 不存在
-- `/scene` 的长期产品真相应落在 `Scene Skill`；`site_adapter` 只是 step provider，不是 scene runtime 本体
+- `/scene` 的长期产品真相应落在 `Scene Skill`；`site_adapter` 只是 step provider，不是独立执行面
 - 如果 scene 缺少 URL、项目等必填输入，前端不应只 toast 结束；应打开统一 `scene gate`，由 `slotSchema` / `readinessRequirements` 驱动补参
 - 如果某个 scene 背后绑定的是 `site_adapter / browser_assist` 型技能，前端可以继续只暴露 `scene`，不必把底层 site skill 再平铺成首页目录项；但运行时解析 `scene -> linkedSkillId` 时必须能回退完整 `ServiceSkill` 目录，而不是只看首页可见 skill 列表，否则会出现目录可见但执行找不到 skill 的协议漂移
 - 如果某个 `site_adapter / browser_assist` scene 还声明了 `readinessRequirements.requiresProject=true`，或 `saveMode=project_resource` 需要真实项目目录，输入框 slash 发送时必须沿用当前选中的项目；若当前没有项目，前端必须通过 `scene gate` 收集项目，不能静默 `getOrCreateDefaultProject()` 把结果写进 default 项目
@@ -289,7 +289,7 @@ Skill 执行链路同样遵循单一命令边界。当前前端入口为 `src/li
 
 `Claw` 的纯文本配音命令也应沿同一条服务型技能主链收敛：
 
-- Agent 驱动的配音命令：`@配音` / `@voice` / `@dubbing` / `@dub` 在 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 中保留原始用户文本发送。聊天发送边界会优先从当前 `serviceSkills` / seeded fallback 中解析配音能力（当前兜底为 `cloud-video-dubbing`），并把结构化 `service_scene_launch` 写入 `request_metadata.harness.service_scene_launch`，其中固定 `scene_key=voice_runtime`、`entry_source=at_voice_command`，同时注入 OEM `scene_base_url / tenant_id / session_token` 运行时上下文。Rust 侧 `runtime_turn.rs`、`prompt_context.rs` 与 `tool_runtime/service_skill_tools.rs` 会把当前 turn 切到 `workbench`，并强约束首刀优先调用 `lime_run_service_skill`，由 OEM scene runtime 负责 run / poll。当前上下文缺少明确配音要求时，允许 Agent 最多追问 1 个关键问题；但不能退回普通聊天解释、不能伪造“配音已完成”，也不能重新回流到旧的本地 TTS 测试命令。
+- Agent 驱动的配音命令：`@配音` / `@voice` / `@dubbing` / `@dub` 在 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 中保留原始用户文本发送。聊天发送边界会优先从当前 `serviceSkills` / seeded fallback 中解析配音能力；若现有兜底 ID 仍沿用 `cloud-video-dubbing` 之类历史命名，也只允许按“本地 service skill 标识”理解，不得再把它解释成云执行能力。后续把结构化 `service_scene_launch` 写入 `request_metadata.harness.service_scene_launch` 时，只保留 `scene_key=voice_runtime`、`entry_source=at_voice_command` 这类本地路由提示，不再注入 `scene_base_url / session_token` 一类云端运行上下文。Rust 侧 `runtime_turn.rs`、`prompt_context.rs` 与 `tool_runtime/service_skill_tools.rs` 会把当前 turn 切到 `workbench`，并强约束当前回合直接按本地 `service_scene_launch` 上下文执行；若实现里仍保留 `lime_run_service_skill` 等历史 helper 名，也必须只作为 compat 护栏，不再代表 current 执行桥。当前上下文缺少明确配音要求时，允许 Agent 最多追问 1 个关键问题；但不能退回普通聊天解释、不能伪造“配音已完成”，也不能重新回流到旧的本地 TTS 测试命令。
 
 `Claw` 的纯文本浏览器命令也应沿同一条真实浏览器工具主链收敛：
 

@@ -1,11 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import {
-  Lightbulb,
-  Globe,
-  ListChecks,
   Settings2,
-  Workflow,
   ArrowRight,
 } from "lucide-react";
 import { getConfig } from "@/lib/api/appConfig";
@@ -20,6 +16,7 @@ import {
   isTeamRuntimeRecommendation,
 } from "../utils/contextualRecommendations";
 import {
+  buildCuratedTaskRecentUsageDescription,
   buildCuratedTaskCapabilityDescription,
   buildCuratedTaskLaunchPrompt,
   findCuratedTaskTemplateById,
@@ -28,6 +25,7 @@ import {
   recordCuratedTaskTemplateUsage,
   replaceCuratedTaskLaunchPromptInInput,
   resolveCuratedTaskTemplateLaunchPrefill,
+  subscribeCuratedTaskTemplateUsageChanged,
   type CuratedTaskInputValues,
   type CuratedTaskTemplateItem,
 } from "../utils/curatedTaskTemplates";
@@ -85,10 +83,10 @@ import {
 import { resolveServiceSkillEntryDescription } from "../service-skills/entryAdapter";
 import { listFeaturedHomeServiceSkills } from "../service-skills/homeEntrySkills";
 import { buildServiceSkillCapabilityDescription } from "../service-skills/skillPresentation";
-import capabilitySkillsPlaceholder from "@/assets/entry-surface/capability-skills-lime.png";
-import capabilityAutomationsPlaceholder from "@/assets/entry-surface/capability-automations-lime.png";
-import capabilityAgentTeamsPlaceholder from "@/assets/entry-surface/capability-agent-teams-lime.png";
-import capabilityBrowserAssistPlaceholder from "@/assets/entry-surface/capability-browser-assist-lime.png";
+import {
+  buildServiceSkillLaunchPrefillSummary,
+  resolveServiceSkillLaunchPrefill,
+} from "../service-skills/serviceSkillLaunchPrefill";
 import type { SceneAppEntryCardItem } from "../sceneappEntryTypes";
 import type { RuntimeToolAvailability } from "../utils/runtimeToolAvailability";
 import type { AgentTaskRuntimeCardModel } from "../utils/agentTaskRuntime";
@@ -355,6 +353,91 @@ const RecommendationAssistFootnote = styled.div`
   font-size: 11px;
   line-height: 1.55;
   color: rgb(148 163 184);
+`;
+
+const RecommendationSupplementalPanel = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.42rem;
+  padding: 0.2rem 0.2rem 0;
+`;
+
+const RecommendationSupplementalLabel = styled.div`
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgb(148 163 184);
+`;
+
+const RecommendationSupplementalRow = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+`;
+
+const RecommendationSupplementalLink = styled.button`
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(255 255 255);
+  padding: 0.34rem 0.62rem;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: rgb(71 85 105);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease;
+
+  &:hover {
+    border-color: rgb(203 213 225);
+    background: rgb(248 250 252);
+    color: rgb(15 23 42);
+  }
+`;
+
+const RecommendationCapabilityGrid = styled.div`
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr);
+
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+`;
+
+const RecommendationCapabilityCard = styled.div`
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+  border-radius: 16px;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(248 250 252);
+  padding: 0.78rem 0.82rem;
+`;
+
+const RecommendationCapabilityCardTitle = styled.div`
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: rgb(15 23 42);
+`;
+
+const RecommendationCapabilityCardValue = styled.div`
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgb(71 85 105);
+`;
+
+const RecommendationCapabilityCardDescription = styled.div`
+  font-size: 11px;
+  line-height: 1.55;
+  color: rgb(100 116 139);
 `;
 
 interface EmptyStateProps extends SkillSelectionSourceProps {
@@ -744,6 +827,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   }, []);
 
   useEffect(() => {
+    return subscribeCuratedTaskTemplateUsageChanged(() => {
+      setCuratedTaskTemplatesVersion((previous) => previous + 1);
+    });
+  }, []);
+
+  useEffect(() => {
     return subscribeCuratedTaskRecommendationSignalsChanged(() => {
       setCuratedTaskRecommendationSignalsVersion((previous) => previous + 1);
     });
@@ -1107,92 +1196,41 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     return badges.slice(0, 5);
   }, [creationMode, showCreationModeSelector, activeSkillDisplayLabel]);
 
-  const workspaceCards = useMemo(() => {
-    const cards: Array<{
-      key: string;
-      eyebrow: string;
-      title: string;
-      value: string;
-      description: string;
-      icon: React.ReactNode;
-      imageSrc?: string;
-      imageAlt?: string;
-      tone?: "slate" | "sky" | "emerald" | "amber" | "lime";
-      action?: React.ReactNode;
-      onMediaAction?: () => void;
-      mediaActionLabel?: string;
-      mediaActionDisabled?: boolean;
-    }> = [
+  const capabilitySummaryItems = useMemo(
+    () => [
       {
         key: "skills",
-        eyebrow: "沉淀能力",
         title: "我的方法",
         value: methodSummaryLabel,
         description:
           "把跑通过的常用做法沉淀下来，下次遇到同类任务可以直接续上。",
-        icon: <Lightbulb className="h-5 w-5" />,
-        imageSrc: capabilitySkillsPlaceholder,
-        imageAlt: "方法能力卡占位图",
-        tone: "lime",
       },
       {
         key: "automation",
-        eyebrow: "沉淀能力",
         title: "持续流程",
         value: planEnabled ? "当前任务会按步骤推进" : "重复任务可持续复用",
         description:
           "适合批量任务和重复流程，让一套做法可以自己持续往下跑，不再每次从头开始。",
-        icon: <ListChecks className="h-5 w-5" />,
-        imageSrc: capabilityAutomationsPlaceholder,
-        imageAlt: "持续流程能力卡占位图",
-        tone: "lime",
       },
       {
         key: "agent-teams",
-        eyebrow: "支撑能力",
         title: "任务拆分",
         value: subagentEnabled
           ? "当前任务支持分工推进"
           : "复杂任务可拆分并行推进",
         description:
           "当一个目标需要调研、方案和执行同时推进时，可以拆成多个分工后统一回收结论。",
-        icon: <Workflow className="h-5 w-5" />,
-        imageSrc: capabilityAgentTeamsPlaceholder,
-        imageAlt: "任务拆分能力卡占位图",
-        tone: "lime",
       },
-    ];
-
-    cards.push({
-      key: "browser",
-      eyebrow: "支撑能力",
-      title: "浏览器接入",
-      value: browserAssistLoading ? "正在检查连接状态" : "网页登录与网页执行",
-      description:
-        "登录、验证和网页操作可以直接在当前任务里继续，不必再切到单独工作台。",
-      icon: <Globe className="h-5 w-5" />,
-      imageSrc: capabilityBrowserAssistPlaceholder,
-      imageAlt: "浏览器接入能力卡占位图",
-      tone: "lime",
-      onMediaAction: onLaunchBrowserAssist
-        ? () => {
-            void onLaunchBrowserAssist();
-          }
-        : undefined,
-      mediaActionLabel: browserAssistLoading
-        ? "浏览器连接准备中"
-        : "连接浏览器",
-      mediaActionDisabled: browserAssistLoading,
-    });
-
-    return cards;
-  }, [
-    browserAssistLoading,
-    planEnabled,
-    methodSummaryLabel,
-    onLaunchBrowserAssist,
-    subagentEnabled,
-  ]);
+      {
+        key: "browser",
+        title: "浏览器接入",
+        value: browserAssistLoading ? "正在检查连接状态" : "网页登录与网页执行",
+        description:
+          "登录、验证和网页操作可以直接在当前任务里继续，不必再切到单独工作台。",
+      },
+    ],
+    [browserAssistLoading, methodSummaryLabel, planEnabled, subagentEnabled],
+  );
 
   const recommendationShelfItems = useMemo<RecommendationShelfItem[]>(() => {
     const curatedTemplateRecommendations = listFeaturedHomeCuratedTaskTemplates(
@@ -1316,12 +1354,20 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         return {
           key: `solution-${template.id}`,
           title: template.title,
-          summary: buildCuratedTaskCapabilityDescription(template, {
-            includeSummary: false,
-            includeResultDestination: true,
-            includeFollowUpActions: true,
-            followUpLimit: 1,
-          }),
+          summary: [
+            buildCuratedTaskRecentUsageDescription({
+              task: template,
+              prefill: launchPrefill,
+            }),
+            buildCuratedTaskCapabilityDescription(template, {
+              includeSummary: false,
+              includeResultDestination: true,
+              includeFollowUpActions: true,
+              followUpLimit: 1,
+            }),
+          ]
+            .filter((segment) => segment.length > 0)
+            .join(" · "),
           badge: "结果模板",
           usedAt: template.recentUsedAt as number,
           testId: `entry-continuation-solution-${template.id}`,
@@ -1350,7 +1396,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         return {
           key: `installed-skill-${skill.key}`,
           title: skill.name,
-          summary: buildInstalledSkillCapabilityDescription(skill),
+          summary: [
+            usage?.replayText
+              ? `上次目标：${truncatePrompt(usage.replayText, 56)}`
+              : "",
+            buildInstalledSkillCapabilityDescription(skill),
+          ]
+            .filter((segment) => segment.length > 0)
+            .join(" · "),
           badge: "我的方法",
           usedAt,
           testId: `entry-continuation-method-${skill.key}`,
@@ -1368,6 +1421,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       typeof onSelectServiceSkill === "function"
         ? (serviceSkills ?? [])
             .map((skill) => {
+              const recentPrefill = resolveServiceSkillLaunchPrefill({
+                skill,
+              });
               const serviceSkillUsedAt =
                 typeof skill.recentUsedAt === "number" ? skill.recentUsedAt : 0;
               const sceneUsedAt = skill.sceneBinding?.sceneKey
@@ -1383,9 +1439,18 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
               return {
                 key: `method-${skill.id}`,
                 title: skill.title,
-                summary: buildServiceSkillCapabilityDescription(skill, {
-                  includeSummary: false,
-                }),
+                summary: [
+                  buildServiceSkillLaunchPrefillSummary({
+                    skill,
+                    slotValues: recentPrefill?.slotValues,
+                    launchUserInput: recentPrefill?.launchUserInput,
+                  }),
+                  buildServiceSkillCapabilityDescription(skill, {
+                    includeSummary: false,
+                  }),
+                ]
+                  .filter((segment) => segment.length > 0)
+                  .join(" · "),
                 badge: "我的方法",
                 usedAt,
                 testId: `entry-continuation-method-${skill.id}`,
@@ -1728,68 +1793,100 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     </RecommendationShelf>
   );
 
-  const generalSceneAppsPanel = shouldShowSceneAppsPanel ? (
-    <EmptyStateSceneAppsPanel
-      items={featuredSceneApps}
-      loading={sceneAppsLoading}
-      launchingSceneAppId={sceneAppLaunchingId}
-      onLaunchSceneApp={onLaunchSceneApp}
-      canResumeRecentSceneApp={canResumeRecentSceneApp}
-      onResumeRecentSceneApp={onResumeRecentSceneApp}
-      onOpenSceneAppsDirectory={onOpenSceneAppsDirectory}
-    />
-  ) : null;
-
   const shouldShowCapabilitySummaryPanel =
     showCapabilityCards ||
     Boolean(onLaunchBrowserAssist) ||
     hasAutoLaunchSiteSkill ||
     hasReusableMethodContinuation;
+  const shouldShowSupplementalPanel =
+    shouldShowSceneAppsPanel || shouldShowCapabilitySummaryPanel;
 
-  const generalCapabilitySummaryPanel = (
-    <RecommendationShelf>
-      <RecommendationShelfHeader>
-        <RecommendationShelfHeaderBody>
-          <RecommendationShelfHeaderTitle>
-            支撑能力
-          </RecommendationShelfHeaderTitle>
-          <RecommendationShelfHeaderDescription>
-            当前已有 {methodSummaryLabel}
-            ；持续流程、任务拆分和浏览器接入会按需要自动挂上，你不用先选能力。
-          </RecommendationShelfHeaderDescription>
-        </RecommendationShelfHeaderBody>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {onLaunchBrowserAssist ? (
-            <button
-              type="button"
-              data-testid="entry-connect-browser"
-              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
-              onClick={() => {
-                void onLaunchBrowserAssist();
-              }}
-            >
-              连接浏览器
-            </button>
-          ) : null}
-          <button
+  const supplementalSceneAppItems = useMemo(
+    () => featuredSceneApps.slice(0, 2),
+    [featuredSceneApps],
+  );
+
+  const generalSupplementalPanel = shouldShowSupplementalPanel ? (
+    <RecommendationSupplementalPanel data-testid="entry-supplemental-panel">
+      <RecommendationSupplementalLabel>
+        如果你已经知道怎么接着做，也可以直接从这里续上。
+      </RecommendationSupplementalLabel>
+      <RecommendationSupplementalRow>
+        {canResumeRecentSceneApp && onResumeRecentSceneApp ? (
+          <RecommendationSupplementalLink
+            type="button"
+            data-testid="entry-sceneapp-resume"
+            onClick={onResumeRecentSceneApp}
+          >
+            继续最近做法
+          </RecommendationSupplementalLink>
+        ) : null}
+
+        <EmptyStateSceneAppsPanel
+          items={supplementalSceneAppItems}
+          loading={sceneAppsLoading}
+          launchingSceneAppId={sceneAppLaunchingId}
+          onLaunchSceneApp={onLaunchSceneApp}
+        />
+
+        {onOpenSceneAppsDirectory ? (
+          <RecommendationSupplementalLink
+            type="button"
+            data-testid="entry-sceneapps-directory"
+            onClick={onOpenSceneAppsDirectory}
+          >
+            查看全部做法
+          </RecommendationSupplementalLink>
+        ) : null}
+
+        {onLaunchBrowserAssist ? (
+          <RecommendationSupplementalLink
+            type="button"
+            data-testid="entry-connect-browser"
+            onClick={() => {
+              void onLaunchBrowserAssist();
+            }}
+          >
+            {browserAssistLoading ? "浏览器连接准备中" : "连接浏览器"}
+          </RecommendationSupplementalLink>
+        ) : null}
+
+        {shouldShowCapabilitySummaryPanel ? (
+          <RecommendationSupplementalLink
             type="button"
             data-testid="entry-capability-toggle"
-            className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-900"
             onClick={() => {
               setShowCapabilityCards((previous) => !previous);
             }}
           >
             {showCapabilityCards ? "收起支撑能力" : "查看支撑能力"}
-          </button>
-        </div>
-      </RecommendationShelfHeader>
-      <RecommendationShelfEmptyState>
-        {showCapabilityCards
-          ? "下方已展开当前会自动接入的能力说明。"
-          : "默认先聚焦结果入口，只有在你想确认能力边界时再展开。"}
-      </RecommendationShelfEmptyState>
-    </RecommendationShelf>
-  );
+          </RecommendationSupplementalLink>
+        ) : null}
+      </RecommendationSupplementalRow>
+      {showCapabilityCards ? (
+        <RecommendationCapabilityGrid>
+          {capabilitySummaryItems.map((item) => (
+            <RecommendationCapabilityCard key={item.key}>
+              <RecommendationCapabilityCardTitle>
+                {item.title}
+              </RecommendationCapabilityCardTitle>
+              <RecommendationCapabilityCardValue>
+                {item.value}
+              </RecommendationCapabilityCardValue>
+              <RecommendationCapabilityCardDescription>
+                {item.description}
+              </RecommendationCapabilityCardDescription>
+            </RecommendationCapabilityCard>
+          ))}
+        </RecommendationCapabilityGrid>
+      ) : (
+        <RecommendationAssistFootnote>
+          当前已有 {methodSummaryLabel}
+          ，持续流程、任务拆分和浏览器接入会按需要自动挂上。
+        </RecommendationAssistFootnote>
+      )}
+    </RecommendationSupplementalPanel>
+  ) : null;
 
   const headerControls = onProjectChange ? (
     <div className="flex w-full justify-start sm:w-auto sm:justify-end">
@@ -1839,16 +1936,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           description={workbenchCopy.description}
           supportingDescription={workbenchCopy.supportingDescription}
           badges={workspaceBadges}
-          cards={isGeneralTheme && !showCapabilityCards ? [] : workspaceCards}
+          cards={[]}
           prioritySlot={composerPanel}
           supportingSlot={
             isGeneralTheme ? (
               <>
                 {generalResultShelfPanel}
-                {generalSceneAppsPanel}
-                {shouldShowCapabilitySummaryPanel
-                  ? generalCapabilitySummaryPanel
-                  : null}
+                {generalSupplementalPanel}
               </>
             ) : (
               defaultQuickActionsPanel

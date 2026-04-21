@@ -869,13 +869,135 @@ describe("AutomationSettings", () => {
     expect(dialogText).toContain("模型返回空结果");
   });
 
-  it("创作场景自动化任务应在详情里回流闭环摘要，并支持继续打开治理页与结果文件", async () => {
+  it("旧目录 cloud_required 任务应显示兼容标记而不是云执行", async () => {
+    mockGetAutomationJobs.mockResolvedValueOnce([
+      {
+        id: "job-service-skill-compat-1",
+        name: "账号跟踪｜旧目录兼容",
+        description: "从旧目录兼容标记迁移过来的技能任务。",
+        enabled: true,
+        workspace_id: "workspace-default",
+        execution_mode: "skill",
+        schedule: { kind: "every", every_secs: 3600 },
+        payload: {
+          kind: "agent_turn",
+          prompt: "[技能任务] 账号跟踪",
+          system_prompt: null,
+          web_search: false,
+          content_id: "content-service-skill-compat-1",
+          request_metadata: {
+            service_skill: {
+              id: "account-performance-tracking",
+              title: "账号增长跟踪",
+              runner_type: "managed",
+              execution_location: "cloud_required",
+              source: "cloud_catalog",
+              slot_values: [
+                {
+                  key: "account",
+                  label: "监测账号",
+                  value: "@lime_next",
+                },
+              ],
+            },
+            harness: {
+              theme: "growth",
+              content_id: "content-service-skill-compat-1",
+            },
+          },
+        },
+        delivery: {
+          mode: "none",
+          channel: null,
+          target: null,
+          best_effort: true,
+          output_schema: "text",
+          output_format: "text",
+        },
+        timeout_secs: 120,
+        max_retries: 1,
+        next_run_at: "2026-03-16T10:00:00Z",
+        last_status: "success",
+        last_error: null,
+        last_run_at: "2026-03-16T09:00:00Z",
+        last_finished_at: "2026-03-16T09:00:30Z",
+        running_started_at: null,
+        consecutive_failures: 0,
+        last_retry_count: 0,
+        auto_disabled_until: null,
+        last_delivery: null,
+        created_at: "2026-03-16T00:00:00Z",
+        updated_at: "2026-03-16T00:00:00Z",
+      },
+    ]);
+    mockGetAutomationRunHistory.mockResolvedValueOnce([
+      {
+        id: "run-service-skill-compat-1",
+        source: "automation",
+        source_ref: "job-service-skill-compat-1",
+        session_id: "session-service-skill-compat-1",
+        status: "success",
+        started_at: "2026-03-16T09:00:00Z",
+        finished_at: "2026-03-16T09:00:30Z",
+        duration_ms: 30_000,
+        error_code: null,
+        error_message: null,
+        metadata: JSON.stringify({
+          service_skill: {
+            id: "account-performance-tracking",
+            title: "账号增长跟踪",
+            runner_type: "managed",
+            execution_location: "client_default",
+            source: "cloud_catalog",
+            slot_values: [
+              {
+                key: "account",
+                label: "监测账号",
+                value: "@lime_next",
+              },
+            ],
+          },
+          harness: {
+            theme: "growth",
+          },
+        }),
+        created_at: "2026-03-16T09:00:00Z",
+        updated_at: "2026-03-16T09:00:30Z",
+      },
+    ]);
+
+    const container = await renderSettings({
+      mode: "workspace",
+      initialSelectedJobId: "job-service-skill-compat-1",
+    });
+    const serviceSkillSummary = container.querySelector(
+      "[data-testid='automation-job-service-skill-summary-job-service-skill-compat-1']",
+    );
+    const runServiceSkillSummary = document.body.querySelector(
+      "[data-testid='automation-run-service-skill-summary-run-service-skill-compat-1']",
+    );
+    const dialogText = document.body.textContent ?? "";
+
+    expect(serviceSkillSummary?.textContent).toContain("客户端执行");
+    expect(serviceSkillSummary?.textContent).toContain("旧目录兼容");
+    expect(serviceSkillSummary?.textContent).not.toContain("云执行");
+    expect(runServiceSkillSummary?.textContent).toContain("客户端执行");
+    expect(runServiceSkillSummary?.textContent).toContain("旧目录兼容");
+    expect(runServiceSkillSummary?.textContent).toContain(
+      "沿用旧目录兼容标记，实际仍在客户端执行。",
+    );
+    expect(dialogText).toContain("旧目录兼容");
+    expect(dialogText).toContain("沿用旧目录兼容标记，实际仍在客户端执行。");
+    expect(dialogText).not.toContain("云执行");
+  });
+
+  it("做法自动化任务应在详情里回流闭环摘要，并支持继续打开治理页与结果文件", async () => {
     const onNavigate = vi.fn();
     mockGetAutomationJobs.mockResolvedValueOnce([
       {
         id: "job-sceneapp-1",
         name: "故事短视频套件｜定时执行",
-        description: "按统一创作场景合同持续产出 Project Pack。",
+        description: "按统一做法合同持续产出 Project Pack。",
         enabled: true,
         workspace_id: "workspace-default",
         execution_mode: "intelligent",
@@ -1098,14 +1220,15 @@ describe("AutomationSettings", () => {
     });
 
     const dialogText = document.body.textContent ?? "";
-    expect(dialogText).toContain("创作场景闭环");
+    expect(dialogText).toContain("做法闭环");
     expect(dialogText).toContain("故事短视频套件");
+    expect(dialogText).toContain("结果包、复盘材料和经营判断");
     expect(dialogText).toContain("按 Project Pack 对齐");
     expect(dialogText).toContain("Project Pack");
 
     const governanceButton = Array.from(
       document.body.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("查看治理复盘"));
+    ).find((button) => button.textContent?.includes("查看做法复盘"));
     await act(async () => {
       governanceButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
@@ -1136,6 +1259,7 @@ describe("AutomationSettings", () => {
         initialProjectFileOpenTarget: expect.objectContaining({
           relativePath: "artifacts/brief.md",
         }),
+        entryBannerMessage: expect.stringContaining("已从自动化详情打开结果包文件"),
       }),
     );
   });

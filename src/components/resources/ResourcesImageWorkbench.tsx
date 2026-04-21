@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Images, LocateFixed } from "lucide-react";
+import { ImagePlus, Images } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,26 @@ interface ResourcesImageWorkbenchProps {
   projectId?: string | null;
   onNavigate?: (page: Page, params?: PageParams) => void;
   onUploadImage?: () => Promise<void> | void;
+}
+
+function normalizeImageSrc(src?: string | null): string | null {
+  const normalized = src?.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    normalized.startsWith("data:") ||
+    normalized.startsWith("http://") ||
+    normalized.startsWith("https://") ||
+    normalized.startsWith("blob:") ||
+    normalized.startsWith("asset:") ||
+    normalized.startsWith("file:")
+  ) {
+    return normalized;
+  }
+
+  return convertLocalFileSrc(normalized);
 }
 
 function normalizeCanvasType(
@@ -128,9 +148,12 @@ export function ResourcesImageWorkbench({
       return;
     }
 
-    const imageUrl = material.filePath
-      ? convertLocalFileSrc(material.filePath)
-      : material.metadata?.thumbnail || "";
+    const imageUrl =
+      normalizeImageSrc(material.filePath) ??
+      normalizeImageSrc(material.metadata?.thumbnail) ??
+      "";
+    const previewUrl =
+      normalizeImageSrc(material.metadata?.thumbnail) ?? imageUrl;
     if (!imageUrl) {
       toast.error("该素材缺少可用图片地址，无法插入");
       return;
@@ -151,7 +174,7 @@ export function ResourcesImageWorkbench({
       source: "gallery",
       image: {
         id: material.id,
-        previewUrl: material.metadata?.thumbnail || imageUrl,
+        previewUrl,
         contentUrl: imageUrl,
         title: material.name,
         width: material.metadata?.width,
@@ -210,21 +233,13 @@ export function ResourcesImageWorkbench({
 
   return (
     <section className="rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-sm shadow-slate-950/5">
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="space-y-3">
-            <Badge className="w-fit rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sky-700 hover:bg-sky-50">
-              图片工作台
-            </Badge>
-            <div>
-              <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
-                我的图片库
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                本地图片上传与图片库插图动作已经收口到资料库图片视图。双击图片可直接插入当前画布，也可以先选中后再执行插入。
-              </p>
-            </div>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-slate-900">
+                图片视图
+              </span>
               <Badge
                 variant="outline"
                 className="rounded-full border-slate-200 bg-white px-3 py-1 text-slate-600"
@@ -233,13 +248,10 @@ export function ResourcesImageWorkbench({
                   ? `已选中：${selectedMaterial.name}`
                   : "当前未选择图片"}
               </Badge>
-              <Badge
-                variant="outline"
-                className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700"
-              >
-                与当前画布联动
-              </Badge>
             </div>
+            <p className="text-sm leading-6 text-slate-500">
+              双击图片可直接插入当前画布，也可以先选中后再执行插入。
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -254,17 +266,6 @@ export function ResourcesImageWorkbench({
               <ImagePlus className="mr-2 h-4 w-4" />
               上传本地图片
             </Button>
-            {recentInsertHistory[0] && (
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-xl border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                onClick={() => handleRelocate(recentInsertHistory[0])}
-              >
-                <LocateFixed className="mr-2 h-4 w-4" />
-                再次定位
-              </Button>
-            )}
             <Button
               type="button"
               className="rounded-xl border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"

@@ -69,7 +69,7 @@ const INFRA_LABELS: Record<string, string> = {
   workspace_storage: "项目沉淀",
   artifact_bundle: "结果包",
   project_pack: "项目整包",
-  cloud_runtime: "云端编排",
+  cloud_runtime: "目录同步",
   timeline: "运行轨迹",
   browser_connector: "真实浏览器",
   site_adapter: "网页适配器",
@@ -79,7 +79,6 @@ const INFRA_LABELS: Record<string, string> = {
   document_viewer: "文档查看",
   table_report_viewer: "表格回流",
   browser_assist: "浏览器协助",
-  cloud_scene: "云端场景",
   automation_job: "自动化任务",
   agent_turn: "Agent 工作区",
   native_skill: "本机技能",
@@ -89,7 +88,7 @@ const SCENEAPP_TYPE_LABELS: Record<SceneAppType, string> = {
   local_instant: "本地即时",
   local_durable: "持续运行",
   browser_grounded: "真实浏览器",
-  cloud_managed: "云端托管",
+  cloud_managed: "目录同步",
   hybrid: "多能力组合",
 };
 
@@ -203,7 +202,7 @@ function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentation
       actionLabel: "配置自动化",
       executionLabel: "持续运行",
       executionTone: "emerald",
-      fallbackPrompt: `请启动创作场景「${descriptor.title}」，并把结果持续回流到当前工作区。`,
+      fallbackPrompt: `请启动做法「${descriptor.title}」，并把结果持续回流到当前工作区。`,
     };
   }
 
@@ -214,18 +213,18 @@ function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentation
       actionLabel: "进入生成",
       executionLabel: "浏览器上下文",
       executionTone: "amber",
-      fallbackPrompt: `请执行创作场景「${descriptor.title}」，并复用当前浏览器上下文完成任务。`,
+      fallbackPrompt: `请执行做法「${descriptor.title}」，并复用当前浏览器上下文完成任务。`,
     };
   }
 
   if (descriptor.sceneappType === "cloud_managed") {
     return {
-      businessLabel: "云端编排",
-      valueStatement: "把长链路生成和结果汇总交给云端运行时处理。",
+      businessLabel: "目录同步",
+      valueStatement: "把旧目录里的做法同步到客户端，由当前工作区继续执行并回写结果。",
       actionLabel: "进入生成",
-      executionLabel: "云端托管",
+      executionLabel: "客户端执行",
       executionTone: "sky",
-      fallbackPrompt: `请启动创作场景「${descriptor.title}」，并把结果写回当前工作区。`,
+      fallbackPrompt: `请启动做法「${descriptor.title}」，并把结果写回当前工作区。`,
     };
   }
 
@@ -236,7 +235,7 @@ function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentation
       actionLabel: "进入生成",
       executionLabel: "当前会话继续",
       executionTone: "sky",
-      fallbackPrompt: `请执行创作场景「${descriptor.title}」，并把结果整理成完整交付。`,
+      fallbackPrompt: `请执行做法「${descriptor.title}」，并把结果整理成完整交付。`,
     };
   }
 
@@ -246,7 +245,7 @@ function inferFallbackCopy(descriptor: SceneAppDescriptor): SceneAppPresentation
     actionLabel: "进入生成",
     executionLabel: "当前会话继续",
     executionTone: "slate",
-    fallbackPrompt: `请执行创作场景「${descriptor.title}」，并把结果回写到当前工作区。`,
+    fallbackPrompt: `请执行做法「${descriptor.title}」，并把结果回写到当前工作区。`,
   };
 }
 
@@ -322,18 +321,18 @@ export function getSceneAppRunInsight(params: {
   const sourceLabel = getSceneAppRunSourceLabel(run.source);
   const subject = params.descriptorTitle?.trim()
     ? `「${params.descriptorTitle.trim()}」`
-    : "这个 SceneApp";
+    : "这套做法";
   const artifactSummary =
     run.artifactCount > 0
       ? `已回流 ${run.artifactCount} 份结果`
-      : "暂时还没有记录到结果包";
+      : "暂时还没有记录到结果";
 
   const sourceHint =
     run.source === "automation"
       ? "优先检查调度频率、超时和交付设置是否匹配。"
       : run.source === "catalog_seed"
         ? "这条记录主要用来表达目录样板预期，可作为启动参考。"
-        : "如果这次试跑有效，下一步可以继续固化成更稳定的场景装配。";
+        : "如果这次试跑有效，下一步可以继续固化成更稳定的做法。";
 
   switch (run.status) {
     case "queued":

@@ -28,7 +28,7 @@ function renderHook(props?: Partial<HookProps>) {
     topics: [
       {
         id: "session-1",
-        title: "主任务",
+        title: "主助手",
       },
     ],
     turns: [{ status: "completed" }],
@@ -111,7 +111,7 @@ describe("useWorkspaceTeamSessionRuntime", () => {
     await harness.render();
 
     expect(harness.getValue()).toMatchObject({
-      currentSessionTitle: "主任务",
+      currentSessionTitle: "主助手",
       hasRuntimeSessions: true,
       teamWorkspaceEnabled: true,
     });

@@ -16,20 +16,28 @@ import {
   Monitor,
   Moon,
   Palette,
+  Puzzle,
   RotateCcw,
   Sparkles,
   Sun,
   Volume2,
+  Waypoints,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { cn } from "@/lib/utils";
 import { getConfig, saveConfig, type Config } from "@/lib/api/appConfig";
+import type { NavigationEnabledItemId } from "@/lib/api/appConfigTypes";
 import { useOnboardingState } from "@/components/onboarding";
 import { useI18nPatch } from "@/i18n/I18nPatchProvider";
 import type { Language } from "@/i18n/text-map";
 import { useSoundContext } from "@/contexts/useSoundContext";
 import { Switch } from "@/components/ui/switch";
+import {
+  CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS,
+  resolveEnabledSidebarNavItems,
+} from "@/lib/navigation/sidebarNav";
 
 type Theme = "light" | "dark" | "system";
 
@@ -53,6 +61,13 @@ interface SurfacePanelProps {
   description: string;
   aside?: ReactNode;
   children: ReactNode;
+}
+
+interface HiddenSystemEntryOption {
+  id: NavigationEnabledItemId;
+  label: string;
+  description: string;
+  icon: LucideIcon;
 }
 
 const THEME_OPTIONS: ThemeOption[] = [
@@ -86,6 +101,27 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
     id: "en",
     label: "English",
     hint: "适合英文界面与术语环境。",
+  },
+];
+
+const HIDDEN_SYSTEM_ENTRY_OPTIONS: HiddenSystemEntryOption[] = [
+  {
+    id: "plugins",
+    label: "插件中心",
+    description: "在系统区显示插件安装、管理与扩展入口。",
+    icon: Puzzle,
+  },
+  {
+    id: "openclaw",
+    label: "OpenClaw",
+    description: "在系统区显示 OpenClaw 兼容运行入口。",
+    icon: Waypoints,
+  },
+  {
+    id: "companion",
+    label: "桌宠",
+    description: "在系统区显示桌宠管理与连接诊断入口。",
+    icon: Bot,
   },
 ];
 
@@ -243,6 +279,13 @@ export function AppearanceSettings() {
     [language, soundEnabled, theme],
   );
 
+  const enabledNavigationItems = useMemo(
+    () => resolveEnabledSidebarNavItems(config?.navigation?.enabled_items),
+    [config],
+  );
+
+  const hiddenSystemEntryCount = enabledNavigationItems.length;
+
   const handleThemeChange = useCallback((nextTheme: Theme) => {
     setTheme(nextTheme);
     localStorage.setItem("theme", nextTheme);
@@ -323,6 +366,41 @@ export function AppearanceSettings() {
     [appendSelectedTextToRecommendation, config],
   );
 
+  const handleHiddenSystemEntryToggle = useCallback(
+    async (itemId: NavigationEnabledItemId, checked: boolean) => {
+      if (!config) {
+        return;
+      }
+
+      const previousConfig = config;
+      const nextEnabledItems = resolveEnabledSidebarNavItems(
+        checked
+          ? [...enabledNavigationItems, itemId]
+          : enabledNavigationItems.filter((currentItemId) => currentItemId !== itemId),
+      ) as NavigationEnabledItemId[];
+
+      const nextConfig: Config = {
+        ...config,
+        navigation: {
+          ...(config.navigation || {}),
+          enabled_items: nextEnabledItems,
+        },
+      };
+
+      setError(null);
+      setConfig(nextConfig);
+
+      try {
+        await saveConfig(nextConfig);
+      } catch (err) {
+        console.error("保存隐藏系统入口设置失败:", err);
+        setConfig(previousConfig);
+        setError("保存隐藏系统入口设置失败，请重试。");
+      }
+    },
+    [config, enabledNavigationItems],
+  );
+
   const handleResetOnboarding = useCallback(() => {
     resetOnboarding();
     window.location.reload();
@@ -356,12 +434,12 @@ export function AppearanceSettings() {
               </h1>
               <WorkbenchInfoTip
                 ariaLabel="外观设置总览说明"
-                content="管理主题、语言、提示音效，以及推荐问题的上下文带入方式。"
+                content="管理主题、语言、提示音效、推荐问题的上下文带入方式，以及隐藏系统入口的显示状态。"
                 tone="mint"
               />
             </div>
             <p className="text-[13px] text-slate-500">
-              管理主题、语言、提示音效和推荐行为。
+              管理主题、语言、提示音效、推荐行为和隐藏入口。
             </p>
           </div>
 
@@ -585,6 +663,75 @@ export function AppearanceSettings() {
           </div>
         </SurfacePanel>
       </section>
+
+      <SurfacePanel
+        icon={Puzzle}
+        iconClassName="text-cyan-600"
+        title="隐藏系统入口"
+        description="默认保持主导航简洁，只在你需要时把兼容或扩展入口挂回系统区。"
+        aside={
+          <span className={CURRENT_INFO_PILL_CLASS}>
+            已开启 {hiddenSystemEntryCount} / {CONFIGURABLE_FOOTER_SIDEBAR_NAV_ITEMS.length}
+          </span>
+        }
+      >
+        <article className="rounded-[24px] border border-slate-200/80 bg-slate-50/60 p-4">
+          <div className="space-y-3">
+            {HIDDEN_SYSTEM_ENTRY_OPTIONS.map((option) => {
+              const checked = enabledNavigationItems.includes(option.id);
+              return (
+                <div
+                  key={option.id}
+                  className="flex flex-col gap-3 rounded-[20px] border border-slate-200 bg-white/80 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
+                      <option.icon className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-slate-900">
+                          {option.label}
+                        </h3>
+                        <WorkbenchInfoTip
+                          ariaLabel={`${option.label}入口说明`}
+                          content={option.description}
+                          tone="slate"
+                        />
+                      </div>
+                      <p className="text-xs leading-5 text-slate-500">
+                        {option.description}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={
+                        checked
+                          ? CURRENT_SUCCESS_PILL_CLASS
+                          : CONTEXT_STATUS_PILL_CLASS
+                      }
+                    >
+                      {checked ? "已显示" : "已隐藏"}
+                    </span>
+                    <Switch
+                      checked={checked}
+                      onCheckedChange={(nextChecked) => {
+                        void handleHiddenSystemEntryToggle(
+                          option.id,
+                          nextChecked,
+                        );
+                      }}
+                      aria-label={`切换显示${option.label}入口`}
+                      disabled={!config}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+      </SurfacePanel>
 
       <SurfacePanel
         icon={Sparkles}

@@ -12,6 +12,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use crate::hooks::FrontmatterHooks;
 use crate::session::{query_session, resolve_named_subagent_child_session, resolve_team_context};
 use crate::tools::base::Tool;
 use crate::tools::context::{ToolContext, ToolResult};
@@ -101,6 +102,12 @@ pub struct SpawnAgentRequest {
     #[serde(alias = "output_contract")]
     pub output_contract: Option<String>,
     #[serde(default)]
+    pub hooks: Option<FrontmatterHooks>,
+    #[serde(default, alias = "allowed_tools")]
+    pub allowed_tools: Vec<String>,
+    #[serde(default, alias = "disallowed_tools")]
+    pub disallowed_tools: Vec<String>,
+    #[serde(default)]
     pub mode: Option<String>,
     #[serde(default)]
     pub isolation: Option<String>,
@@ -139,6 +146,10 @@ struct AgentToolInput {
     reasoning_effort: Option<String>,
     #[serde(default, alias = "fork_context")]
     fork_context: bool,
+    #[serde(default, alias = "allowed_tools")]
+    allowed_tools: Vec<String>,
+    #[serde(default, alias = "disallowed_tools")]
+    disallowed_tools: Vec<String>,
     #[serde(default)]
     cwd: Option<String>,
 }
@@ -266,6 +277,22 @@ fn pretty_json<T: Serialize>(value: &T) -> Result<String, ToolError> {
         .map_err(|error| ToolError::execution_failed(format!("序列化结果失败: {error}")))
 }
 
+fn normalize_optional_vec(values: &[String]) -> Vec<String> {
+    let mut normalized = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+
+    for value in values {
+        let Some(item) = normalize_optional_text(Some(value.clone())) else {
+            continue;
+        };
+        if seen.insert(item.clone()) {
+            normalized.push(item);
+        }
+    }
+
+    normalized
+}
+
 #[derive(Clone)]
 pub struct SpawnAgentTool {
     callback: SpawnAgentCallback,
@@ -300,6 +327,16 @@ impl Tool for SpawnAgentTool {
                 "team_name": { "type": "string", "description": "可选 team 名称；未传时沿用当前 team 上下文。" },
                 "mode": { "type": "string", "description": "可选权限模式；当前 runtime 是否支持由宿主决定。" },
                 "isolation": { "type": "string", "enum": ["worktree", "remote"], "description": "可选隔离模式；当前 runtime 是否支持由宿主决定。" },
+                "allowed_tools": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "可选子代理工具白名单；当前 runtime 会把它下沉到 session 级真实权限限制。"
+                },
+                "disallowed_tools": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "可选子代理工具黑名单；优先级高于 allowed_tools。"
+                },
                 "reasoning_effort": { "type": "string", "description": "可选推理强度覆盖。" },
                 "fork_context": { "type": "boolean", "description": "是否复制当前上下文给子代理。" },
                 "cwd": { "type": "string", "description": "可选工作目录绝对路径。" }
@@ -336,6 +373,9 @@ impl Tool for SpawnAgentTool {
             theme: None,
             system_overlay: None,
             output_contract: None,
+            hooks: None,
+            allowed_tools: normalize_optional_vec(&input.allowed_tools),
+            disallowed_tools: normalize_optional_vec(&input.disallowed_tools),
             mode: normalize_optional_text(input.mode),
             isolation: normalize_optional_text(input.isolation),
             cwd: normalize_optional_text(input.cwd),

@@ -44,8 +44,8 @@ function createCloudSceneSkill(): ServiceSkillHomeItem {
   return {
     id: "cloud-video-dubbing",
     skillKey: "campaign-launch",
-    title: "云端视频配音",
-    summary: "把视频文案与素材提交到云端，生成一版可继续加工的配音结果。",
+    title: "视频配音",
+    summary: "围绕视频文案与素材整理一版可继续加工的配音稿。",
     category: "视频创作",
     outputHint: "配音文案 + 结果摘要",
     source: "cloud_catalog",
@@ -56,10 +56,10 @@ function createCloudSceneSkill(): ServiceSkillHomeItem {
     badge: "云目录",
     recentUsedAt: null,
     isRecent: false,
-    runnerLabel: "云端托管执行",
+    runnerLabel: "立即开始",
     runnerTone: "slate",
-    runnerDescription: "提交到 OEM 云端执行，结果由服务端异步返回。",
-    actionLabel: "提交云端",
+    runnerDescription: "直接在当前工作区整理首版配音稿。",
+    actionLabel: "对话内补参",
     automationStatus: null,
     slotSchema: [],
   };
@@ -218,7 +218,7 @@ describe("serviceSkillSceneLaunch", () => {
     expect(request?.skill.id).toBe("x-article-export");
   });
 
-  it("应构建统一的 service scene launch request metadata", async () => {
+  it("应构建统一的本地 service scene launch request metadata", async () => {
     mockGetSkillCatalog.mockResolvedValueOnce({ entries: [] });
     mockListSkillCatalogSceneEntries.mockReturnValueOnce([
       {
@@ -232,20 +232,6 @@ describe("serviceSkillSceneLaunch", () => {
         executionKind: "cloud_scene",
       },
     ]);
-    mockResolveOemCloudRuntimeContext.mockReturnValueOnce({
-      baseUrl: "https://user.limeai.run",
-      controlPlaneBaseUrl: "https://user.limeai.run/api",
-      sceneBaseUrl: "https://user.limeai.run/scene-api",
-      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
-      tenantId: "tenant-demo",
-      sessionToken: "session-token-demo",
-      hubProviderName: null,
-      loginPath: "/login",
-      desktopClientId: "desktop-client",
-      desktopOauthRedirectUrl: "lime://oauth/callback",
-      desktopOauthNextPath: "/welcome",
-    });
-
     const request = await resolveRuntimeSceneLaunchRequest({
       rawText: "/campaign-launch 帮我做一版新品活动启动方案",
       serviceSkills: [createCloudSceneSkill()],
@@ -262,22 +248,18 @@ describe("serviceSkillSceneLaunch", () => {
     expect(requestMetadata).toMatchObject({
       harness: {
         service_scene_launch: {
-          kind: "cloud_scene",
+          kind: "local_service_skill",
           service_scene_run: {
             scene_key: "campaign-launch",
             skill_id: "cloud-video-dubbing",
             project_id: "project-1",
             content_id: "content-1",
             user_input: "帮我做一版新品活动启动方案",
-            oem_runtime: {
-              scene_base_url: "https://user.limeai.run/scene-api",
-              tenant_id: "tenant-demo",
-              session_token: "session-token-demo",
-            },
           },
         },
       },
     });
+    expect(request?.dispatchText).toContain("[技能任务] 视频配音");
   });
 
   it("site skill scene 应根据 skill 声明注入 service_skill_launch metadata", async () => {

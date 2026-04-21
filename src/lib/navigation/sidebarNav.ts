@@ -1,27 +1,24 @@
 import {
-  Bot,
+  Blocks,
   BrainCircuit,
-  CalendarRange,
-  Compass,
-  Library,
+  Bot,
+  LibraryBig,
+  MessageCircleMore,
   MessageSquare,
   Plus,
-  Send,
+  Puzzle,
   Settings,
   Sparkles,
+  Waypoints,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
 import {
   type AgentPageParams,
-  type OpenClawPageParams,
   type Page,
   type PageParams,
-  type SceneAppsPageParams,
-  type SettingsPageParams,
 } from "@/types/page";
 import { SettingsTabs } from "@/types/settings";
-import { resolveSceneAppsPageEntryParams } from "@/lib/sceneapp";
 import {
   buildClawAgentParams,
   buildHomeAgentParams,
@@ -46,143 +43,171 @@ export interface SidebarNavSectionDefinition {
   items: SidebarNavItemDefinition[];
 }
 
-const TASK_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
-  {
-    id: "home-general",
-    label: "新建任务",
-    icon: Plus,
-    page: "agent",
-    params: buildHomeAgentParams(),
-    resolveParams: (params) =>
-      buildHomeAgentParams(params as AgentPageParams | undefined),
-    isActive: (currentPage, currentParams) =>
-      currentPage === "agent" &&
-      (currentParams as AgentPageParams | undefined)?.agentEntry === "new-task",
-    configurable: false,
-  },
-  {
-    id: "claw",
-    label: "生成",
-    icon: MessageSquare,
-    page: "agent",
-    params: buildClawAgentParams(),
-    resolveParams: (params) =>
-      buildClawAgentParams(params as AgentPageParams | undefined),
-    isActive: (currentPage, currentParams) =>
-      currentPage === "agent" &&
-      (currentParams as AgentPageParams | undefined)?.agentEntry !== "new-task",
-    configurable: false,
-  },
-];
+function isAgentEntryActive(
+  currentPage: Page,
+  currentParams: PageParams | undefined,
+  expectedEntry: NonNullable<AgentPageParams["agentEntry"]>,
+): boolean {
+  return (
+    currentPage === "agent" &&
+    (currentParams as AgentPageParams | undefined)?.agentEntry === expectedEntry
+  );
+}
 
-const CAPABILITY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
-  {
-    id: "skills",
-    label: "我的方法",
-    icon: Sparkles,
-    page: "skills",
-    isActive: (currentPage) => currentPage === "skills",
-    configurable: false,
-  },
-  {
-    id: "sceneapps",
-    label: "创作场景",
-    icon: Workflow,
-    page: "sceneapps",
-    resolveParams: (params) =>
-      resolveSceneAppsPageEntryParams(
-        params as SceneAppsPageParams | undefined,
-        {
-        mode: "prefer_latest",
-      },
-      ),
-    isActive: (currentPage) => currentPage === "sceneapps",
-    configurable: false,
-  },
-  {
-    id: "automation",
-    label: "持续流程",
-    icon: CalendarRange,
-    page: "automation",
-    isActive: (currentPage) => currentPage === "automation",
-  },
-  {
-    id: "channels",
-    label: "消息渠道",
-    icon: Send,
-    page: "channels",
-    isActive: (currentPage) => currentPage === "channels",
-    configurable: false,
-  },
-];
+function isCompanionSettingsView(currentParams?: PageParams): boolean {
+  const settingsParams = currentParams as
+    | { tab?: SettingsTabs; providerView?: string }
+    | undefined;
 
-const LIBRARY_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
-  {
-    id: "resources",
-    label: "资料库",
-    icon: Library,
-    page: "resources",
-    isActive: (currentPage) => currentPage === "resources",
-    configurable: false,
-  },
-  {
-    id: "memory",
-    label: "灵感库",
-    icon: BrainCircuit,
-    page: "memory",
-    isActive: (currentPage) => currentPage === "memory",
-    configurable: false,
-  },
-];
-
-const SYSTEM_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
-  { id: "plugins", label: "插件中心", icon: Compass, page: "plugins" },
-  {
-    id: "openclaw",
-    label: "OpenClaw",
-    icon: Bot,
-    page: "openclaw",
-    params: { subpage: "runtime" } as OpenClawPageParams,
-    isActive: (currentPage) => currentPage === "openclaw",
-  },
-  {
-    id: "companion",
-    label: "桌宠",
-    icon: Bot,
-    page: "settings",
-    params: {
-      tab: SettingsTabs.Providers,
-      providerView: "companion",
-    } as SettingsPageParams,
-    isActive: (currentPage, currentParams) =>
-      currentPage === "settings" &&
-      (currentParams as SettingsPageParams | undefined)?.providerView ===
-        "companion",
-  },
-  {
-    id: "settings",
-    label: "设置",
-    icon: Settings,
-    page: "settings",
-    params: {
-      tab: SettingsTabs.Home,
-    } as SettingsPageParams,
-    isActive: (currentPage, currentParams) =>
-      currentPage === "settings" &&
-      (currentParams as SettingsPageParams | undefined)?.providerView !==
-        "companion",
-    configurable: false,
-  },
-];
+  return (
+    settingsParams?.tab === SettingsTabs.Providers &&
+    settingsParams.providerView === "companion"
+  );
+}
 
 export const MAIN_SIDEBAR_NAV_SECTIONS: SidebarNavSectionDefinition[] = [
-  { id: "tasks", title: "任务", items: TASK_SIDEBAR_NAV_ITEMS },
-  { id: "capability", title: "能力", items: CAPABILITY_SIDEBAR_NAV_ITEMS },
-  { id: "library", title: "资料", items: LIBRARY_SIDEBAR_NAV_ITEMS },
+  {
+    id: "tasks",
+    title: "任务",
+    items: [
+      {
+        id: "home-general",
+        label: "新建任务",
+        icon: Plus,
+        page: "agent",
+        params: buildHomeAgentParams(),
+        resolveParams: (params) =>
+          buildHomeAgentParams(params as AgentPageParams | undefined),
+        isActive: (currentPage, currentParams) =>
+          isAgentEntryActive(currentPage, currentParams, "new-task"),
+        configurable: false,
+      },
+      {
+        id: "claw",
+        label: "生成",
+        icon: MessageSquare,
+        page: "agent",
+        params: buildClawAgentParams(),
+        resolveParams: (params) =>
+          buildClawAgentParams(params as AgentPageParams | undefined),
+        isActive: (currentPage, currentParams) =>
+          currentPage === "agent" &&
+          (currentParams as AgentPageParams | undefined)?.agentEntry !==
+            "new-task",
+        configurable: false,
+      },
+    ],
+  },
+  {
+    id: "capabilities",
+    title: "能力",
+    items: [
+      {
+        id: "skills",
+        label: "我的方法",
+        icon: Sparkles,
+        page: "skills",
+        isActive: (currentPage) => currentPage === "skills",
+        configurable: false,
+      },
+      {
+        id: "sceneapps",
+        label: "创作场景",
+        icon: Blocks,
+        page: "sceneapps",
+        isActive: (currentPage) => currentPage === "sceneapps",
+        configurable: false,
+      },
+      {
+        id: "automation",
+        label: "持续流程",
+        icon: Workflow,
+        page: "automation",
+        isActive: (currentPage) => currentPage === "automation",
+        configurable: false,
+      },
+      {
+        id: "channels",
+        label: "消息渠道",
+        icon: MessageCircleMore,
+        page: "channels",
+        isActive: (currentPage) => currentPage === "channels",
+        configurable: false,
+      },
+    ],
+  },
+  {
+    id: "knowledge",
+    title: "资料",
+    items: [
+      {
+        id: "resources",
+        label: "资料库",
+        icon: LibraryBig,
+        page: "resources",
+        isActive: (currentPage) => currentPage === "resources",
+        configurable: false,
+      },
+      {
+        id: "memory",
+        label: "灵感库",
+        icon: BrainCircuit,
+        page: "memory",
+        isActive: (currentPage) => currentPage === "memory",
+        configurable: false,
+      },
+    ],
+  },
 ];
 
 export const FOOTER_SIDEBAR_NAV_SECTIONS: SidebarNavSectionDefinition[] = [
-  { id: "system", title: "系统", items: SYSTEM_SIDEBAR_NAV_ITEMS },
+  {
+    id: "system",
+    title: "系统",
+    items: [
+      {
+        id: "settings",
+        label: "设置",
+        icon: Settings,
+        page: "settings",
+        params: {
+          tab: SettingsTabs.Home,
+        },
+        isActive: (currentPage, currentParams) =>
+          currentPage === "settings" && !isCompanionSettingsView(currentParams),
+        configurable: false,
+      },
+      {
+        id: "plugins",
+        label: "插件中心",
+        icon: Puzzle,
+        page: "plugins",
+        isActive: (currentPage) => currentPage === "plugins",
+        configurable: true,
+      },
+      {
+        id: "openclaw",
+        label: "OpenClaw",
+        icon: Waypoints,
+        page: "openclaw",
+        isActive: (currentPage) => currentPage === "openclaw",
+        configurable: true,
+      },
+      {
+        id: "companion",
+        label: "桌宠",
+        icon: Bot,
+        page: "settings",
+        params: {
+          tab: SettingsTabs.Providers,
+          providerView: "companion",
+        },
+        isActive: (currentPage, currentParams) =>
+          currentPage === "settings" && isCompanionSettingsView(currentParams),
+        configurable: true,
+      },
+    ],
+  },
 ];
 
 export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] =

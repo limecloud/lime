@@ -42,8 +42,9 @@ export type SceneAppLaunchRequirementKind =
   | "user_input"
   | "project"
   | "browser_session"
-  | "cloud_session"
-  | "automation";
+  | "automation"
+  // legacy compat only：current 启动前置不再把云端运行时当成可执行门槛。
+  | "cloud_session";
 
 export type SceneAppEntryBindingKind =
   | "service_skill"
@@ -125,8 +126,9 @@ export interface SceneAppCatalog {
 
 export interface SceneAppRuntimeContext {
   browserSessionAttached?: boolean;
-  cloudSessionReady?: boolean;
   automationEnabled?: boolean;
+  // legacy compat only：current 本地执行面不再依赖云端 session，就算远端还回旧字段，也只允许作为兼容输入。
+  cloudSessionReady?: boolean;
 }
 
 export interface SceneAppLaunchIntent {
@@ -146,12 +148,20 @@ export interface SceneAppExecutionPlanStep {
   bindingFamily: SceneAppBindingFamily;
 }
 
-export type SceneAppRuntimeAction =
+export type SceneAppCurrentRuntimeAction =
   | "submit_agent_turn"
   | "launch_browser_assist"
   | "create_automation_job"
-  | "launch_cloud_scene"
+  | "open_service_scene_session"
   | "launch_native_skill";
+
+export type SceneAppCompatRuntimeAction =
+  // legacy compat only：允许继续读取旧 planner 输出，但 current 主链统一改回 service_scene 命名。
+  "launch_cloud_scene";
+
+export type SceneAppRuntimeAction =
+  | SceneAppCurrentRuntimeAction
+  | SceneAppCompatRuntimeAction;
 
 export interface SceneAppRuntimeAdapterPlan {
   adapterKind: SceneAppBindingFamily;
@@ -219,7 +229,7 @@ export interface SceneAppBrowserRuntimeRef {
   targetId?: string | null;
 }
 
-export interface SceneAppCloudSceneRuntimeRef {
+export interface SceneAppServiceSceneRuntimeRef {
   sceneKey?: string | null;
   skillId?: string | null;
   projectId?: string | null;
@@ -271,7 +281,7 @@ export interface SceneAppRunSummary {
   sourceRef?: string | null;
   sessionId?: string | null;
   browserRuntimeRef?: SceneAppBrowserRuntimeRef | null;
-  cloudSceneRuntimeRef?: SceneAppCloudSceneRuntimeRef | null;
+  serviceSceneRuntimeRef?: SceneAppServiceSceneRuntimeRef | null;
   nativeSkillRuntimeRef?: SceneAppNativeSkillRuntimeRef | null;
   startedAt: string;
   finishedAt?: string | null;

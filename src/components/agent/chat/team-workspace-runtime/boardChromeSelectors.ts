@@ -61,7 +61,7 @@ function buildBoardHeadline(params: {
     (statusSummary.failed ?? 0) + (statusSummary.aborted ?? 0);
 
   if (isChildSession) {
-    return parentSessionName?.trim() || "主任务总览";
+    return parentSessionName?.trim() || "主助手总览";
   }
   if (!hasRuntimeSessions) {
     return "需要时会自动拆出任务";
@@ -104,7 +104,7 @@ function buildBoardHint(params: {
   if (isChildSession) {
     return siblingCount > 0
       ? `当前任务正与 ${siblingCount} 项并行子任务一起推进`
-      : "当前正在处理这项子任务，结果会回流到主任务。";
+      : "当前正在处理这项子任务，结果会回流到主助手。";
   }
   if (!hasRuntimeSessions) {
     return "系统会在需要时自动拆出任务、安排处理顺序，并把结果回流到当前任务。";

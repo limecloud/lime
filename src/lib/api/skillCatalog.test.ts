@@ -206,6 +206,76 @@ function buildBaseSetupPackage() {
   };
 }
 
+function buildLegacyCloudSceneCatalog(): SkillCatalog {
+  const seeded = getSeededSkillCatalog();
+  const generalSkill = seeded.items[0]!;
+
+  return {
+    version: "tenant-2026-04-21",
+    tenantId: "tenant-demo",
+    syncedAt: "2026-04-21T12:00:00.000Z",
+    groups: [
+      {
+        key: "general",
+        title: "通用技能",
+        summary: "历史目录中的旧场景项。",
+        sort: 90,
+        itemCount: 1,
+      },
+    ],
+    entries: [
+      {
+        id: "command:legacy-voice-runtime",
+        kind: "command",
+        title: "旧版配音入口",
+        summary: "历史目录仍把配音命令写成 cloud_scene。",
+        commandKey: "legacy_voice_runtime",
+        triggers: [{ mode: "mention", prefix: "@旧配音" }],
+        binding: {
+          skillId: "legacy-cloud-scene-skill",
+          executionKind: "cloud_scene",
+        },
+        renderContract: {
+          resultKind: "tool_timeline",
+          detailKind: "scene_detail",
+          supportsStreaming: true,
+          supportsTimeline: true,
+        },
+      },
+      {
+        id: "scene:legacy-cloud-scene-skill",
+        kind: "scene",
+        title: "旧版云场景",
+        summary: "历史目录仍把 scene executionKind 写成 cloud_scene。",
+        sceneKey: "legacy-cloud-scene-skill",
+        commandPrefix: "/legacy-cloud-scene-skill",
+        linkedSkillId: "legacy-cloud-scene-skill",
+        executionKind: "cloud_scene",
+        renderContract: {
+          resultKind: "tool_timeline",
+          detailKind: "scene_detail",
+          supportsStreaming: true,
+          supportsTimeline: true,
+        },
+      },
+    ],
+    items: [
+      {
+        ...generalSkill,
+        id: "legacy-cloud-scene-skill",
+        title: "旧版云场景技能",
+        summary: "历史目录中的 cloud_scene 技能项。",
+        defaultExecutorBinding: "cloud_scene",
+        executionLocation: "cloud_required",
+        groupKey: "general",
+        execution: {
+          kind: "cloud_scene",
+        },
+      },
+    ],
+  };
+}
+
 describe("skillCatalog", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -275,7 +345,7 @@ describe("skillCatalog", () => {
         id: "sceneapp-service",
         groupKey: "scene-apps",
         execution: expect.objectContaining({
-          kind: "cloud_scene",
+          kind: "agent_turn",
         }),
       }),
     );
@@ -286,7 +356,7 @@ describe("skillCatalog", () => {
         summary: "把文本生成线框图、配乐、剧本和短视频串成一条场景链。",
         aliases: ["story-video", "mv-pipeline"],
         linkedSkillId: "sceneapp-service",
-        executionKind: "cloud_scene",
+        executionKind: "agent_turn",
         surfaceScopes: ["mention", "workspace"],
       }),
     );
@@ -305,13 +375,57 @@ describe("skillCatalog", () => {
         ],
         binding: {
           skillId: "sceneapp-service",
-          executionKind: "cloud_scene",
+          executionKind: "agent_turn",
         },
       }),
     );
     expect(commandEntry?.summary).not.toBe(
       "把视频或旁白需求切到云端配音技能主链，优先提交服务型技能运行。",
     );
+  });
+
+  it("读取旧版 raw skill catalog 时应把 cloud_scene 正规化为本地 agent_turn", async () => {
+    saveSkillCatalog(buildLegacyCloudSceneCatalog(), "bootstrap_sync");
+
+    const catalog = await getSkillCatalog();
+    const skillItem = catalog.items.find(
+      (item) => item.id === "legacy-cloud-scene-skill",
+    );
+    const autoSceneEntry = listSkillCatalogSceneEntries(catalog).find(
+      (entry) => entry.id === "scene:legacy-cloud-scene-skill",
+    );
+    const commandEntry = listSkillCatalogCommandEntries(catalog).find(
+      (entry) => entry.commandKey === "legacy_voice_runtime",
+    );
+
+    expect(skillItem).toEqual(
+      expect.objectContaining({
+        defaultExecutorBinding: "cloud_scene",
+        executionLocation: "cloud_required",
+        execution: expect.objectContaining({
+          kind: "agent_turn",
+        }),
+      }),
+    );
+    expect(autoSceneEntry).toEqual(
+      expect.objectContaining({
+        linkedSkillId: "legacy-cloud-scene-skill",
+        executionKind: "agent_turn",
+      }),
+    );
+    expect(commandEntry).toEqual(
+      expect.objectContaining({
+        binding: expect.objectContaining({
+          skillId: "legacy-cloud-scene-skill",
+          executionKind: "agent_turn",
+        }),
+      }),
+    );
+
+    const stored = window.localStorage.getItem("lime:skill-catalog:v1");
+    expect(stored).toContain("\"executionKind\":\"agent_turn\"");
+    expect(stored).not.toContain("\"executionKind\":\"cloud_scene\"");
+    expect(stored).not.toContain("\"kind\":\"cloud_scene\"");
   });
 
   it("应从统一目录中暴露 command 与 scene 扩展入口", async () => {

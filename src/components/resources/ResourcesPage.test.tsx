@@ -9,39 +9,34 @@ import {
 } from "@/components/image-gen/test-utils";
 import { ResourcesPage } from "./ResourcesPage";
 
-const { mockLoadResources, resourcesState } = vi.hoisted(() => {
+function createResourceItem(index: number) {
+  return {
+    id: `doc-${index}`,
+    projectId: "project-1",
+    kind: "document" as const,
+    sourceType: "content" as const,
+    name: `项目文档 ${index}`,
+    description: `说明文档 ${index}`,
+    tags: [`标签${index}`],
+    parentId: null,
+    createdAt: index,
+    updatedAt: index,
+    filePath: "",
+    fileType: "document",
+    mimeType: "text/markdown",
+  };
+}
+
+const {
+  mockLoadResources,
+  mockSetProjectId,
+  resourcesProjectsState,
+  resourcesState,
+  mockListMaterials,
+} = vi.hoisted(() => {
   const nextState = {
     projectId: "project-1",
-    items: [
-      {
-        id: "doc-1",
-        kind: "document",
-        sourceType: "content",
-        name: "项目简介",
-        description: "说明文档",
-        tags: ["说明"],
-        createdAt: 1,
-        updatedAt: 2,
-        filePath: "",
-        fileType: "document",
-        mimeType: "text/markdown",
-      },
-    ],
-    visibleItems: [
-      {
-        id: "doc-1",
-        kind: "document",
-        sourceType: "content",
-        name: "项目简介",
-        description: "说明文档",
-        tags: ["说明"],
-        createdAt: 1,
-        updatedAt: 2,
-        filePath: "",
-        fileType: "document",
-        mimeType: "text/markdown",
-      },
-    ],
+    items: [createResourceItem(1)],
     loading: false,
     saving: false,
     error: null,
@@ -49,9 +44,6 @@ const { mockLoadResources, resourcesState } = vi.hoisted(() => {
     searchQuery: "",
     sortField: "updatedAt",
     sortDirection: "desc",
-    breadcrumbs: [],
-    currentFolder: null,
-    canNavigateUp: false,
     setProjectId: vi.fn(),
     loadResources: vi.fn(),
     refresh: vi.fn(),
@@ -59,34 +51,13 @@ const { mockLoadResources, resourcesState } = vi.hoisted(() => {
     setSearchQuery: vi.fn(),
     setSortField: vi.fn(),
     setSortDirection: vi.fn(),
-    createFolder: vi.fn(),
-    createDocument: vi.fn(),
     uploadFile: vi.fn(),
     renameById: vi.fn(),
     deleteById: vi.fn(),
     moveToRoot: vi.fn(),
   };
 
-  return {
-    mockSetProjectId: nextState.setProjectId,
-    mockLoadResources: nextState.loadResources,
-    mockRefresh: nextState.refresh,
-    mockSetCurrentFolderId: nextState.setCurrentFolderId,
-    mockSetSearchQuery: nextState.setSearchQuery,
-    mockSetSortField: nextState.setSortField,
-    mockSetSortDirection: nextState.setSortDirection,
-    mockCreateFolder: nextState.createFolder,
-    mockCreateDocument: nextState.createDocument,
-    mockUploadFile: nextState.uploadFile,
-    mockRenameById: nextState.renameById,
-    mockDeleteById: nextState.deleteById,
-    mockMoveToRoot: nextState.moveToRoot,
-    resourcesState: nextState,
-  };
-});
-
-vi.mock("@/hooks/useProjects", () => ({
-  useProjects: () => ({
+  const projectsState = {
     projects: [
       {
         id: "project-1",
@@ -99,6 +70,32 @@ vi.mock("@/hooks/useProjects", () => ({
       name: "默认资料库",
       isArchived: false,
     },
+  };
+
+  const listMaterials = vi.fn();
+
+  return {
+    mockSetProjectId: nextState.setProjectId,
+    mockLoadResources: nextState.loadResources,
+    mockRefresh: nextState.refresh,
+    mockSetCurrentFolderId: nextState.setCurrentFolderId,
+    mockSetSearchQuery: nextState.setSearchQuery,
+    mockSetSortField: nextState.setSortField,
+    mockSetSortDirection: nextState.setSortDirection,
+    mockUploadFile: nextState.uploadFile,
+    mockRenameById: nextState.renameById,
+    mockDeleteById: nextState.deleteById,
+    mockMoveToRoot: nextState.moveToRoot,
+    mockListMaterials: listMaterials,
+    resourcesProjectsState: projectsState,
+    resourcesState: nextState,
+  };
+});
+
+vi.mock("@/hooks/useProjects", () => ({
+  useProjects: () => ({
+    projects: resourcesProjectsState.projects,
+    defaultProject: resourcesProjectsState.defaultProject,
     loading: false,
     error: null,
   }),
@@ -119,7 +116,7 @@ vi.mock("@/lib/api/fileSystem", () => ({
 }));
 
 vi.mock("@/lib/api/materials", () => ({
-  listMaterials: vi.fn(),
+  listMaterials: mockListMaterials,
 }));
 
 vi.mock("./services/resourceAdapter", () => ({
@@ -133,12 +130,6 @@ vi.mock("./ResourcesImageWorkbench", () => ({
 }));
 
 vi.mock("./store", () => ({
-  resourcesSelectors: {
-    visibleItems: (state: typeof resourcesState) => state.visibleItems,
-    folderBreadcrumbs: (state: typeof resourcesState) => state.breadcrumbs,
-    currentFolder: (state: typeof resourcesState) => state.currentFolder,
-    canNavigateUp: (state: typeof resourcesState) => state.canNavigateUp,
-  },
   useResourcesStore: (selector: (state: typeof resourcesState) => unknown) =>
     selector(resourcesState),
 }));
@@ -179,6 +170,28 @@ describe("ResourcesPage", () => {
     setReactActEnvironment();
     vi.clearAllMocks();
     mockLoadResources.mockResolvedValue(undefined);
+    mockListMaterials.mockResolvedValue([]);
+    resourcesProjectsState.projects = [
+      {
+        id: "project-1",
+        name: "默认资料库",
+        isArchived: false,
+      },
+    ];
+    resourcesProjectsState.defaultProject = {
+      id: "project-1",
+      name: "默认资料库",
+      isArchived: false,
+    };
+    resourcesState.projectId = "project-1";
+    resourcesState.items = [createResourceItem(1)];
+    resourcesState.loading = false;
+    resourcesState.saving = false;
+    resourcesState.error = null;
+    resourcesState.currentFolderId = null;
+    resourcesState.searchQuery = "";
+    resourcesState.sortField = "updatedAt";
+    resourcesState.sortDirection = "desc";
   });
 
   afterEach(() => {
@@ -226,5 +239,106 @@ describe("ResourcesPage", () => {
     });
 
     expect(getBodyText()).toContain("图片工作台已挂载");
+    expect(getBodyText()).toContain("当前范围");
+    expect(getBodyText()).not.toContain("当前为「图片」分类视图");
+  });
+
+  it("跨项目媒体提示应并入当前范围状态条", async () => {
+    resourcesProjectsState.projects = [
+      {
+        id: "project-1",
+        name: "默认资料库",
+        isArchived: false,
+      },
+      {
+        id: "project-2",
+        name: "参考项目",
+        isArchived: false,
+      },
+    ];
+    mockListMaterials.mockImplementation(async (projectId: string) => {
+      if (projectId === "project-2") {
+        return [
+          {
+            id: "image-1",
+            name: "封面图",
+          },
+        ];
+      }
+      return [];
+    });
+
+    const container = renderPage();
+    await flushEffects();
+
+    const imageCategoryButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("图片"));
+    expect(imageCategoryButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      imageCategoryButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await flushEffects();
+    });
+
+    expect(getBodyText()).toContain(
+      "当前资料库暂无图片，检测到「参考项目」包含 1 个图片。",
+    );
+    expect(getBodyText()).toContain("切换查看");
+
+    const switchButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "切换查看",
+    );
+    expect(switchButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      switchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await flushEffects();
+    });
+
+    expect(mockSetProjectId).toHaveBeenCalledWith("project-2");
+  });
+
+  it("应移除头部和侧栏里的旧入口", async () => {
+    renderPage();
+    await flushEffects();
+
+    expect(getBodyText()).not.toContain("添加内容");
+    expect(getBodyText()).not.toContain("新建资料库");
+    expect(getBodyText()).not.toContain("当前浏览");
+    expect(getBodyText()).not.toContain("最近更新：");
+  });
+
+  it("内容列表应固定按 20 行分页", async () => {
+    const items = Array.from({ length: 25 }, (_, index) =>
+      createResourceItem(index + 1),
+    );
+    resourcesState.items = items;
+
+    const container = renderPage();
+    await flushEffects();
+
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(20);
+    expect(getBodyText()).toContain("显示第 1-20 条，共 25 条");
+    expect(getBodyText()).toContain("第 1 / 2 页");
+    expect(getBodyText()).toContain("项目文档 25");
+    expect(getBodyText()).not.toContain("项目文档 5");
+
+    const nextButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "下一页",
+    );
+    expect(nextButton).toBeInstanceOf(HTMLButtonElement);
+
+    await act(async () => {
+      nextButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await flushEffects();
+    });
+
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(5);
+    expect(getBodyText()).toContain("显示第 21-25 条，共 25 条");
+    expect(getBodyText()).toContain("第 2 / 2 页");
+    expect(getBodyText()).toContain("项目文档 5");
   });
 });

@@ -234,9 +234,9 @@ CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge
 - 检查纯文本 `Claw @渠道预览` 是否已经走 `原始用户消息 -> displayContent 保留 -> /content_post_with_cover -> artifact` 主链，而不是退回普通聊天解释、重新长出另一套 `channel_preview_task` 协议，或静默混成正式 `@发布`；同时确认 `publish_command.intent=preview`、`entry_source=at_channel_preview_command` 与预览稿意图补齐仍然成立
 - 检查纯文本 `Claw @上传` 是否已经走 `原始用户消息 -> displayContent 保留 -> /content_post_with_cover -> artifact` 主链，而不是退回普通聊天解释、重新长出另一套 `upload_task` 协议，或静默混成正式 `@发布`；同时确认 `publish_command.intent=upload`、`entry_source=at_upload_command` 与上传稿意图补齐仍然成立；若命中平台后台，也要确认浏览器门禁继续生效
 - 检查纯文本 `Claw @发布` 是否已经走 `原始用户消息 -> displayContent 保留 -> dispatch /content_post_with_cover -> content_post workflow` 主链，而不是直接把 `@发布` 文本原样当普通聊天发送，或重新造一套 `publish_task` 协议；同时确认平台后台类输入会继续触发 `browser_requirement`
-- 检查纯文本 `Claw @配音` 是否已经走 `原始用户消息 -> harness.service_scene_launch(scene_key=voice_runtime) -> Agent 首刀 lime_run_service_skill -> OEM scene run/timeline` 主链，而不是退回普通聊天解释、误走站点型 `service_skill_launch`，或重新回流旧的本地 TTS 测试命令；同时确认 `skill_id`、OEM runtime 上下文与最近使用记录都能写回
+- 检查纯文本 `Claw @配音` 是否已经走 `原始用户消息 -> harness.service_scene_launch(scene_key=voice_runtime) -> Agent 基于本地 service-scene 上下文直接执行 -> 本地 ServiceSkill / tool timeline` 主链，而不是退回普通聊天解释、误走站点型 `service_skill_launch`，或重新回流旧的本地 TTS 测试命令；同时确认 `skill_id` 与最近使用记录都能写回，且不会再注入 `scene_base_url / session_token` 一类旧云运行上下文
 - 检查纯文本 `Claw @浏览器` 是否已经走 `原始用户消息 -> harness.browser_requirement/browser_launch_url -> Browser Assist / mcp__lime-browser__* timeline` 主链，而不是退回 WebSearch、普通聊天解释，或错误伪装成站点型 `service_skill_launch`；同时确认前端本轮 `webSearch` 已关闭
-- 检查产品型 `/scene-key` 是否已经走 `原始用户消息 -> harness.service_scene_launch -> Agent 首刀 lime_run_service_skill -> OEM run/timeline` 主链，而不是前端直接调用云端 run API
+- 检查产品型 `/scene-key` 是否已经走 `原始用户消息 -> harness.service_scene_launch -> Agent 基于本地 service-scene 上下文直接执行 -> 本地 ServiceSkill / tool timeline` 主链，而不是前端直接调用云端 run API 或在 Rust 侧重新长出云执行分支
 - 如果某个 `/scene-key` 绑定的是 `site_adapter` 型技能，还要额外检查 `scene -> linkedSkillId -> 完整 ServiceSkill 目录 -> harness.service_skill_launch` 这条绑定链是否仍然成立，避免首页隐藏 site skill 后 slash scene 变成“目录可见但执行找不到 skill”
 - 如果某个 `site_adapter` 结果开始返回 `markdown_bundle`，还要确认保存链会把 Markdown、图片和 `meta.json` 一起落到项目导出目录，并把重写后的相对图片路径写回内容 metadata；同时确认聊天轻卡或 tool timeline 能显示项目目录、Markdown 路径和图片数量，不能只把远程图片 URL 或临时 DOM 文本留在聊天结果里；进入工作区后还要实际打开项目里的真实 `index.md`，确认正文不是运行摘要副本，且相对图片已经在预览里渲染出来
 
@@ -284,9 +284,9 @@ CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge
 - 修改 `@渠道预览` parser、`useWorkspaceSendActions`、`publish_command` metadata 或 `content_post_with_cover` 预览意图编排，尤其是调整 `Claw @渠道预览 -> publish_command.intent=preview -> /content_post_with_cover -> artifact` 主链
 - 修改 `@上传` parser、`useWorkspaceSendActions`、`publish_command` metadata、浏览器门禁推导或 `content_post_with_cover` 上传意图编排，尤其是调整 `Claw @上传 -> publish_command.intent=upload -> /content_post_with_cover -> artifact` 主链
 - 修改 `@发布` parser、`useWorkspaceSendActions`、content post workflow 入口或浏览器门禁推导，尤其是调整 `Claw @发布 -> displayContent/raw -> /content_post_with_cover -> publish workflow` 主链
-- 修改 `@配音` parser、`useWorkspaceSendActions`、`service_scene_launch` 组装、OEM runtime 上下文注入或 `lime_run_service_skill` 配音场景接线，尤其是调整 `Claw @配音 -> harness.service_scene_launch(scene_key=voice_runtime) -> lime_run_service_skill -> OEM run/timeline` 主链
+- 修改 `@配音` parser、`useWorkspaceSendActions`、`service_scene_launch` 组装或 compat `lime_run_service_skill` 护栏，尤其是调整 `Claw @配音 -> harness.service_scene_launch(scene_key=voice_runtime) -> 本地 service-scene 直驱执行 -> 本地 ServiceSkill / tool timeline` 主链
 - 修改 `@浏览器` parser、`useWorkspaceSendActions`、Browser Assist 直发策略、`browser_requirement` 推导或 `mcp__lime-browser__*` 浏览器工具接线，尤其是调整 `Claw @浏览器 -> harness.browser_requirement/browser_launch_url -> Browser Assist timeline` 主链
-- 修改 `/scene-key` 解析、`serviceSkillSceneLaunch`、`useWorkspaceSendActions`、`runtime_turn`、`prompt_context`、`lime_run_service_skill` 或 `client/skills` scene 目录协议，尤其是调整 `Claw /scene-key -> harness.service_scene_launch -> Agent 首刀 lime_run_service_skill -> OEM run/timeline` 主链
+- 修改 `/scene-key` 解析、`serviceSkillSceneLaunch`、`useWorkspaceSendActions`、`runtime_turn`、`prompt_context`、compat `lime_run_service_skill` 或 `client/skills` scene 目录协议，尤其是调整 `Claw /scene-key -> harness.service_scene_launch -> 本地 service-scene 直驱执行 -> 本地 ServiceSkill / tool timeline` 主链
 - 修改 `src/lib/dev-bridge/`
 - 修改 `src/lib/tauri-mock/`
 - 修改 `src-tauri/src/app/runner.rs`
@@ -447,7 +447,7 @@ CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge
 如果本轮修改了 `Claw @配音` 或配音服务型技能接线，最低校验至少包含：
 
 - `npx vitest run "src/components/agent/chat/utils/voiceWorkbenchCommand.test.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/lib/api/skillCatalog.test.ts" "src/lib/api/serviceSkills.test.ts"`
-- 如有改动扩散到 `service_scene_launch` runtime、`lime_run_service_skill`、OEM scene run/poll 或云端结果回流，再补对应 `runtime_turn` / `prompt_context` / `tool_runtime/service_skill_tools` 定向测试
+- 如有改动扩散到 `service_scene_launch` runtime、`lime_run_service_skill`、本地 service-scene 执行桥或 compat 结果回流，再补对应 `runtime_turn` / `prompt_context` / `tool_runtime/service_skill_tools` 定向测试
 - 若 `service_scene_launch` / harness 协议继续扩散，再补 `npm run test:contracts`
 - 若 GUI 主路径受影响，再补 `npm run verify:gui-smoke`
 

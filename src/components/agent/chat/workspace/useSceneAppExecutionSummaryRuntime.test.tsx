@@ -24,7 +24,7 @@ function createInitialSummary(): SceneAppExecutionSummaryViewModel {
     summary: "把线框图、脚本、配乐和短视频草稿压成同一条结果链。",
     businessLabel: "内容闭环",
     typeLabel: "多模态组合",
-    executionChainLabel: "创作场景 -> 生成 -> Project Pack",
+    executionChainLabel: "做法 -> 生成 -> Project Pack",
     deliveryContractLabel: "Project Pack",
     planningStatusLabel: "已就绪",
     planningSummary: "当前已经带入 2 条参考与 1 条风格偏好，可直接进入生成。",

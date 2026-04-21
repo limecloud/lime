@@ -70,7 +70,8 @@ fn requirement_satisfied(
             .as_deref()
             .is_some_and(|value| !value.trim().is_empty()),
         SceneAppLaunchRequirementKind::BrowserSession => runtime.browser_session_attached,
-        SceneAppLaunchRequirementKind::CloudSession => runtime.cloud_session_ready,
+        // legacy compat only：current SceneApp 不再把云端会话视为执行门槛。
+        SceneAppLaunchRequirementKind::CloudSession => true,
         SceneAppLaunchRequirementKind::Automation => runtime.automation_enabled,
     }
 }
@@ -295,13 +296,13 @@ mod tests {
     use crate::sceneapp::context::dto::{ContextLayerSourceKind, ReferenceItem, TasteProfile};
     use crate::sceneapp::context::store::PersistedSceneAppContext;
     use crate::sceneapp::dto::{
-        SceneAppDeliveryContract, SceneAppLaunchIntent, SceneAppRuntimeAction,
-        SceneAppRuntimeContext,
+        SceneAppBindingFamily, SceneAppDeliveryContract, SceneAppLaunchIntent,
+        SceneAppRuntimeAction, SceneAppRuntimeContext,
     };
     use std::collections::BTreeMap;
 
     #[test]
-    fn should_build_cloud_scene_adapter_plan_for_hybrid_sceneapp() {
+    fn should_build_service_scene_adapter_plan_for_hybrid_sceneapp() {
         let descriptor = get_sceneapp_descriptor("story-video-suite")
             .expect("story-video-suite descriptor should exist");
         let plan = build_launch_plan(
@@ -314,10 +315,7 @@ mod tests {
                 user_input: Some("根据发布会内容生成 30 秒短视频草稿".to_string()),
                 reference_memory_ids: Vec::new(),
                 slots: BTreeMap::new(),
-                runtime_context: Some(SceneAppRuntimeContext {
-                    cloud_session_ready: true,
-                    ..SceneAppRuntimeContext::default()
-                }),
+                runtime_context: Some(SceneAppRuntimeContext::default()),
             },
             None,
             &[],
@@ -325,8 +323,10 @@ mod tests {
 
         assert_eq!(
             plan.plan.adapter_plan.runtime_action,
-            SceneAppRuntimeAction::LaunchCloudScene
+            SceneAppRuntimeAction::OpenServiceSceneSession
         );
+        assert_eq!(plan.plan.executor_kind, SceneAppBindingFamily::AgentTurn);
+        assert_eq!(plan.plan.binding_family, SceneAppBindingFamily::AgentTurn);
         assert!(plan.context_overlay.is_some());
         assert_eq!(
             plan.context_overlay
@@ -356,6 +356,30 @@ mod tests {
             .request_metadata
             .pointer("/harness/service_scene_launch/service_scene_run/scene_key")
             .is_some());
+        assert_eq!(
+            plan.plan
+                .adapter_plan
+                .request_metadata
+                .pointer("/harness/service_scene_launch/kind")
+                .and_then(|value| value.as_str()),
+            Some("local_service_skill")
+        );
+        assert_eq!(
+            plan.plan
+                .adapter_plan
+                .request_metadata
+                .pointer("/harness/service_scene_launch/service_scene_run/execution_kind")
+                .and_then(|value| value.as_str()),
+            Some("local_service_skill")
+        );
+        assert_eq!(
+            plan.plan
+                .adapter_plan
+                .request_metadata
+                .pointer("/harness/service_scene_launch/service_scene_run/execution_location")
+                .and_then(|value| value.as_str()),
+            Some("client_default")
+        );
     }
 
     #[test]
@@ -508,10 +532,7 @@ mod tests {
                 user_input: Some("根据这次发布会做 30 秒短视频".to_string()),
                 reference_memory_ids: Vec::new(),
                 slots,
-                runtime_context: Some(SceneAppRuntimeContext {
-                    cloud_session_ready: true,
-                    ..SceneAppRuntimeContext::default()
-                }),
+                runtime_context: Some(SceneAppRuntimeContext::default()),
             },
             Some(&persisted_context),
             &[],

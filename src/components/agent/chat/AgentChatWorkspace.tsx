@@ -1073,7 +1073,7 @@ export function AgentChatWorkspace({
   }, [_onNavigate]);
   const handleOpenSceneAppsDirectory = useCallback(() => {
     if (!_onNavigate) {
-      toast.error("当前入口暂不支持跳转到创作场景目录");
+      toast.error("当前入口暂不支持跳转到做法目录");
       return;
     }
 
@@ -1092,7 +1092,7 @@ export function AgentChatWorkspace({
   }, [_onNavigate, input, projectId]);
   const handleResumeRecentSceneApp = useCallback(() => {
     if (!_onNavigate) {
-      toast.error("当前入口暂不支持跳转到创作场景目录");
+      toast.error("当前入口暂不支持跳转到做法目录");
       return;
     }
 

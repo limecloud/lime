@@ -2,6 +2,7 @@
 //!
 //! Core types for the skills system.
 
+use crate::hooks::FrontmatterHooks;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -317,6 +318,12 @@ pub struct SkillFrontmatter {
     /// 当 `execution-mode` 为 `workflow` 时，此字段定义工作流的步骤、
     /// 依赖关系和执行配置。
     pub workflow: Option<WorkflowDefinition>,
+
+    /// Skill frontmatter hooks
+    ///
+    /// 对齐参考运行时的 `event -> matcher[] -> hooks[]` 结构；
+    /// 注册阶段仍会收口到 Lime 当前 hooks runtime。
+    pub hooks: Option<FrontmatterHooks>,
 }
 
 /// Skill definition
@@ -378,6 +385,10 @@ pub struct SkillDefinition {
     /// 依赖关系和执行配置。
     #[serde(default)]
     pub workflow: Option<WorkflowDefinition>,
+
+    /// Skill frontmatter hooks
+    #[serde(default)]
+    pub hooks: Option<FrontmatterHooks>,
 }
 
 impl SkillDefinition {
@@ -730,6 +741,7 @@ mod tests {
             execution_mode: SkillExecutionMode::default(),
             provider: None,
             workflow: None,
+            hooks: None,
         };
 
         assert_eq!(skill.short_name(), "my-skill");
@@ -758,6 +770,7 @@ mod tests {
             execution_mode: SkillExecutionMode::default(),
             provider: None,
             workflow: None,
+            hooks: None,
         };
 
         assert_eq!(skill.short_name(), "simple-skill");

@@ -88,13 +88,13 @@ describe("toolDisplayInfo", () => {
     expect(resolveToolDisplayLabel("AgentOutputTool")).toBe("任务输出");
     expect(resolveToolDisplayLabel("BashOutputTool")).toBe("任务输出");
     expect(resolveToolDisplayLabel("lime_create_transcription_task")).toBe(
-      "转写任务",
+      "转写",
     );
     expect(
       resolveToolDisplayLabel("lime_create_modal_resource_search_task"),
-    ).toBe("素材检索任务");
+    ).toBe("素材检索");
     expect(resolveToolDisplayLabel("lime_run_service_skill")).toBe(
-      "服务技能执行",
+      "服务技能兼容执行",
     );
     expect(resolveToolDisplayLabel("lime_site_recommend")).toBe(
       "站点能力推荐",
@@ -125,7 +125,7 @@ describe("toolDisplayInfo", () => {
     expect(resolveUserFacingToolDisplayLabel("REPLTool")).toBe("运行命令");
     expect(
       resolveUserFacingToolDisplayLabel("lime_run_service_skill"),
-    ).toBe("运行服务技能");
+    ).toBe("运行兼容服务技能");
     expect(resolveUserFacingToolDisplayLabel("lime_site_recommend")).toBe(
       "推荐站点能力",
     );

@@ -117,7 +117,7 @@ fn seeded_story_video_suite() -> SceneAppDescriptor {
             SceneAppPattern::Reviewer,
         ],
         capability_refs: vec![
-            "cloud_scene".to_string(),
+            "agent_turn".to_string(),
             "native_skill".to_string(),
             "workspace_storage".to_string(),
             "artifact_viewer".to_string(),
@@ -126,7 +126,7 @@ fn seeded_story_video_suite() -> SceneAppDescriptor {
             "composition_blueprint".to_string(),
             "project_pack".to_string(),
             "workspace_storage".to_string(),
-            "cloud_runtime".to_string(),
+            "agent_turn".to_string(),
             "timeline".to_string(),
         ],
         delivery_contract: SceneAppDeliveryContract::ProjectPack,
@@ -134,13 +134,13 @@ fn seeded_story_video_suite() -> SceneAppDescriptor {
         output_hint: "短视频项目包".to_string(),
         entry_bindings: vec![
             service_skill_binding(
-                SceneAppBindingFamily::CloudScene,
+                SceneAppBindingFamily::AgentTurn,
                 "sceneapp-service-story-video",
                 "story-video-suite",
                 &["story-video", "mv-pipeline"],
             ),
             scene_binding(
-                SceneAppBindingFamily::CloudScene,
+                SceneAppBindingFamily::AgentTurn,
                 "story-video-suite",
                 "/story-video-suite",
                 &["story-video-scene"],
@@ -154,10 +154,6 @@ fn seeded_story_video_suite() -> SceneAppDescriptor {
             requirement(
                 SceneAppLaunchRequirementKind::Project,
                 "需要项目目录承接线框图、脚本和媒体结果。",
-            ),
-            requirement(
-                SceneAppLaunchRequirementKind::CloudSession,
-                "需要可用的云端运行时来完成多模态媒体处理。",
             ),
         ],
         linked_service_skill_id: Some("sceneapp-service-story-video".to_string()),
@@ -200,13 +196,13 @@ fn seeded_story_video_suite() -> SceneAppDescriptor {
                     "music_refs",
                     4,
                     "story-video-cloud-binding",
-                    SceneAppBindingFamily::CloudScene,
+                    SceneAppBindingFamily::AgentTurn,
                 ),
                 composition_step(
                     "video_draft",
                     5,
                     "story-video-cloud-binding",
-                    SceneAppBindingFamily::CloudScene,
+                    SceneAppBindingFamily::AgentTurn,
                 ),
                 composition_step(
                     "review_note",
@@ -315,40 +311,36 @@ fn seeded_voice_runtime() -> SceneAppDescriptor {
     SceneAppDescriptor {
         id: "voice-runtime".to_string(),
         title: "配音生成".to_string(),
-        summary: "把文稿或视频内容交给托管能力完成配音，并回流成可试听的媒体产物。".to_string(),
+        summary: "把文稿或视频内容交给客户端里的服务技能完成配音，并回流成可试听的媒体产物。"
+            .to_string(),
         category: "Scene Apps".to_string(),
-        sceneapp_type: SceneAppType::CloudManaged,
+        sceneapp_type: SceneAppType::LocalInstant,
         pattern_primary: SceneAppPattern::Pipeline,
         pattern_stack: vec![SceneAppPattern::Pipeline, SceneAppPattern::Generator],
         capability_refs: vec![
-            "cloud_scene".to_string(),
+            "agent_turn".to_string(),
             "workspace_storage".to_string(),
             "artifact_viewer".to_string(),
         ],
         infra_profile: vec![
-            "cloud_runtime".to_string(),
-            "media_artifact".to_string(),
+            "agent_turn".to_string(),
+            "workspace_storage".to_string(),
+            "artifact_bundle".to_string(),
             "json_snapshot".to_string(),
         ],
         delivery_contract: SceneAppDeliveryContract::ArtifactBundle,
         artifact_kind: Some("report".to_string()),
         output_hint: "媒体结果".to_string(),
         entry_bindings: vec![service_skill_binding(
-            SceneAppBindingFamily::CloudScene,
+            SceneAppBindingFamily::AgentTurn,
             "sceneapp-service-voice-runtime",
             "voice-runtime",
             &["voiceover", "tts-scene"],
         )],
-        launch_requirements: vec![
-            requirement(
-                SceneAppLaunchRequirementKind::UserInput,
-                "需要文稿正文或待配音素材说明。",
-            ),
-            requirement(
-                SceneAppLaunchRequirementKind::CloudSession,
-                "需要云端媒体运行时或 OEM 托管会话。",
-            ),
-        ],
+        launch_requirements: vec![requirement(
+            SceneAppLaunchRequirementKind::UserInput,
+            "需要文稿正文或待配音素材说明。",
+        )],
         linked_service_skill_id: Some("sceneapp-service-voice-runtime".to_string()),
         linked_scene_key: Some("voice-runtime".to_string()),
         delivery_profile: Some(delivery_profile(

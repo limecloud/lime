@@ -120,6 +120,26 @@ function buildRemoteCatalog(): ServiceSkillCatalog {
   };
 }
 
+function buildLegacyCompatRemoteCatalog(): ServiceSkillCatalog {
+  const seeded = getSeededServiceSkillCatalog();
+  return {
+    version: "tenant-2026-04-21-legacy-compat",
+    tenantId: "tenant-demo",
+    syncedAt: "2026-04-21T12:00:00.000Z",
+    items: [
+      {
+        ...seeded.items[0]!,
+        id: "tenant-legacy-compat-skill",
+        title: "租户旧版兼容技能",
+        summary: "历史目录仍把服务技能写成 cloud_scene / cloud_required。",
+        defaultExecutorBinding: "cloud_scene",
+        executionLocation: "cloud_required",
+        version: "tenant-2026-04-21-legacy-compat",
+      },
+    ],
+  };
+}
+
 function buildStaleRemoteCatalog(): ServiceSkillCatalog {
   const seeded = getSeededServiceSkillCatalog();
   return {
@@ -278,6 +298,36 @@ describe("serviceSkills API", () => {
         }),
       }),
     );
+  });
+
+  it("旧版 compat 服务技能的派生 metadata 也应正规化为本地执行语义", async () => {
+    const remoteCatalog = buildLegacyCompatRemoteCatalog();
+    if (remoteCatalog.items[0]) {
+      delete remoteCatalog.items[0].skillBundle;
+    }
+
+    saveServiceSkillCatalog(remoteCatalog, "bootstrap_sync");
+
+    const catalog = await getServiceSkillCatalog();
+
+    expect(catalog.items[0]).toEqual(
+      expect.objectContaining({
+        defaultExecutorBinding: "cloud_scene",
+        executionLocation: "cloud_required",
+        skillBundle: expect.objectContaining({
+          metadata: expect.objectContaining({
+            Lime_execution_location: "client_default",
+            Lime_executor_binding: "agent_turn",
+          }),
+        }),
+      }),
+    );
+
+    const stored = window.localStorage.getItem("lime:service-skill-catalog:v1");
+    expect(stored).toContain("\"Lime_execution_location\":\"client_default\"");
+    expect(stored).toContain("\"Lime_executor_binding\":\"agent_turn\"");
+    expect(stored).not.toContain("\"Lime_execution_location\":\"cloud_required\"");
+    expect(stored).not.toContain("\"Lime_executor_binding\":\"cloud_scene\"");
   });
 
   it("清空缓存后应恢复到 seeded catalog", async () => {

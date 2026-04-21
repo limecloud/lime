@@ -783,6 +783,105 @@ mod tests {
     }
 
     #[test]
+    fn test_append_subagent_tool_scope_session_permissions_builds_whitelist_and_deny_rules() {
+        let metadata = serde_json::json!({
+            "subagent": {
+                "allowed_tools": ["Read", "Bash", "Read", " "],
+                "disallowed_tools": ["WebSearch", "Bash"]
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_subagent_tool_scope_session_permissions(
+            &mut permissions,
+            "session-subagent-scope-1",
+            Some(&metadata),
+        );
+
+        let default_deny = permissions
+            .iter()
+            .find(|permission| permission.tool == "*")
+            .expect("should add wildcard deny rule");
+        assert!(!default_deny.allowed);
+        assert_eq!(default_deny.priority, 1298);
+        assert_eq!(default_deny.conditions.len(), 1);
+        assert_eq!(
+            default_deny.conditions[0].value,
+            serde_json::json!("session-subagent-scope-1")
+        );
+
+        let read_allow = permissions
+            .iter()
+            .find(|permission| permission.tool == "Read" && permission.allowed)
+            .expect("should add Read allow rule");
+        assert_eq!(read_allow.priority, 1299);
+        assert_eq!(read_allow.conditions, default_deny.conditions);
+
+        let bash_deny = permissions
+            .iter()
+            .find(|permission| permission.tool == "Bash" && !permission.allowed)
+            .expect("should add Bash deny rule");
+        assert_eq!(bash_deny.priority, 1300);
+        assert_eq!(bash_deny.conditions, default_deny.conditions);
+    }
+
+    #[test]
+    fn test_append_subagent_tool_scope_session_permissions_enforces_child_session_scope() {
+        let metadata = serde_json::json!({
+            "subagent": {
+                "allowed_tools": ["Read", "Bash"],
+                "disallowed_tools": ["Bash"]
+            }
+        });
+        let mut permissions = Vec::new();
+
+        append_subagent_tool_scope_session_permissions(
+            &mut permissions,
+            "session-subagent-scope-2",
+            Some(&metadata),
+        );
+
+        let mut manager = aster::permission::ToolPermissionManager::new(None);
+        for permission in permissions {
+            manager.add_permission(permission, PermissionScope::Session);
+        }
+
+        let context = aster::permission::PermissionContext {
+            working_directory: std::path::PathBuf::from("."),
+            session_id: "session-subagent-scope-2".to_string(),
+            timestamp: chrono::Utc::now().timestamp(),
+            user: None,
+            environment: std::collections::HashMap::new(),
+            metadata: std::collections::HashMap::new(),
+        };
+        let other_context = aster::permission::PermissionContext {
+            session_id: "session-subagent-scope-other".to_string(),
+            ..context.clone()
+        };
+
+        assert!(
+            manager
+                .is_allowed("Read", &std::collections::HashMap::new(), &context)
+                .allowed
+        );
+        assert!(
+            !manager
+                .is_allowed("Edit", &std::collections::HashMap::new(), &context)
+                .allowed
+        );
+        assert!(
+            !manager
+                .is_allowed("Bash", &std::collections::HashMap::new(), &context)
+                .allowed
+        );
+        assert!(
+            manager
+                .is_allowed("Edit", &std::collections::HashMap::new(), &other_context)
+                .allowed
+        );
+    }
+
+    #[test]
     fn test_prune_fast_chat_request_tool_policy_tools_from_registry_hides_web_tools_when_disabled()
     {
         let policy = resolve_request_tool_policy(Some(false), false);
@@ -4286,7 +4385,7 @@ mod tests {
         let metadata = serde_json::json!({
             "harness": {
                 "service_scene_launch": {
-                    "kind": "cloud_scene",
+                    "kind": "local_service_skill",
                     "service_scene_run": {
                         "skill_id": "skill-scene-1",
                         "skill_title": "趋势赛题日报",
@@ -4294,6 +4393,8 @@ mod tests {
                         "scene_key": "daily-trend-brief",
                         "command_prefix": "/daily-trend-brief",
                         "user_input": "帮我输出今天的小红书趋势赛题",
+                        "execution_kind": "agent_turn",
+                        "execution_location": "client_default",
                         "entry_source": "slash_scene_command",
                         "project_id": "project-1",
                         "content_id": "content-1",
@@ -4313,11 +4414,12 @@ mod tests {
         .expect("should contain merged prompt");
 
         assert!(merged.contains(SERVICE_SKILL_LAUNCH_PROMPT_MARKER));
-        assert!(merged.contains("第一优先工具调用必须是 lime_run_service_skill"));
-        assert!(merged.contains("不要把 scene metadata 里的 session_token"));
+        assert!(merged.contains("当前主链是“目录命中 + 本地 Agent 执行”"));
+        assert!(merged.contains("不要调用 lime_run_service_skill"));
         assert!(merged.contains("当前服务型技能 ID：skill-scene-1"));
         assert!(merged.contains("当前 scene_key：daily-trend-brief"));
-        assert!(merged.contains("当前回合已绑定 OEM Session Token"));
+        assert!(merged.contains("当前 execution_kind=agent_turn"));
+        assert!(merged.contains("旧 OEM 运行时字段"));
     }
 
     #[test]
@@ -5568,7 +5670,7 @@ mod tests {
         let metadata = serde_json::json!({
             "harness": {
                 "service_scene_launch": {
-                    "kind": "cloud_scene",
+                    "kind": "local_service_skill",
                     "service_scene_run": {
                         "skill_id": "skill-scene-1",
                         "scene_key": "daily-trend-brief"
@@ -6596,6 +6698,23 @@ mod tests {
             theme: None,
             system_overlay: None,
             output_contract: None,
+            hooks: Some(
+                serde_json::from_value(serde_json::json!({
+                    "Stop": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "prompt",
+                                    "prompt": "Summarize child session"
+                                }
+                            ]
+                        }
+                    ]
+                }))
+                .expect("hooks should deserialize"),
+            ),
+            allowed_tools: vec!["Read".to_string(), "Bash".to_string()],
+            disallowed_tools: vec!["WebSearch".to_string()],
             mode: None,
             isolation: None,
             cwd: None,
@@ -6624,6 +6743,13 @@ mod tests {
         assert!(customization
             .skill_ids
             .contains(&"verification-report".to_string()));
+        assert!(customization
+            .hooks
+            .as_ref()
+            .and_then(|hooks| hooks.get(&aster::hooks::HookEvent::Stop))
+            .is_some());
+        assert_eq!(customization.allowed_tools, vec!["Read", "Bash"]);
+        assert_eq!(customization.disallowed_tools, vec!["WebSearch"]);
     }
 
     #[test]
@@ -6647,6 +6773,9 @@ mod tests {
                     source: Some("builtin".to_string()),
                     directory: None,
                 }],
+                hooks: None,
+                allowed_tools: vec!["Read".to_string(), "ToolSearch".to_string()],
+                disallowed_tools: vec!["WebSearch".to_string()],
             }))
             .expect("prompt build should succeed")
             .expect("prompt should exist");
@@ -6657,6 +6786,8 @@ mod tests {
         assert!(prompt.contains("代码排障团队"));
         assert!(prompt.contains("仓库探索"));
         assert!(prompt.contains("输出问题定位、证据与影响面。"));
+        assert!(prompt.contains("Allowed Tools：Read, ToolSearch"));
+        assert!(prompt.contains("Disallowed Tools：WebSearch"));
     }
 
     #[test]

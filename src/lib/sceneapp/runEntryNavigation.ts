@@ -8,7 +8,7 @@ import type {
 } from "@/types/page";
 import type { SceneAppRunDetailViewModel } from "./product";
 import type {
-  SceneAppCloudSceneRuntimeRef,
+  SceneAppServiceSceneRuntimeRef,
   SceneAppNativeSkillRuntimeRef,
 } from "./types";
 
@@ -53,9 +53,9 @@ export function normalizeSceneAppSlotValues(
   return Object.fromEntries(normalizedEntries);
 }
 
-export function buildCloudSceneResumeRequestMetadata(params: {
+export function buildServiceSceneResumeRequestMetadata(params: {
   sceneappId: string;
-  runtimeRef: SceneAppCloudSceneRuntimeRef;
+  runtimeRef: SceneAppServiceSceneRuntimeRef;
 }): Record<string, unknown> {
   return {
     sceneapp: {
@@ -63,12 +63,13 @@ export function buildCloudSceneResumeRequestMetadata(params: {
     },
     harness: {
       service_scene_launch: {
-        kind: "cloud_scene",
+        kind: "local_service_skill",
         service_scene_run: {
           sceneapp_id: params.sceneappId,
           scene_key: params.runtimeRef.sceneKey ?? null,
           skill_id: params.runtimeRef.skillId ?? null,
           linked_skill_id: params.runtimeRef.skillId ?? null,
+          execution_location: "client_default",
           project_id: params.runtimeRef.projectId ?? null,
           content_id: params.runtimeRef.contentId ?? null,
           workspace_id: params.runtimeRef.workspaceId ?? null,
@@ -82,9 +83,9 @@ export function buildCloudSceneResumeRequestMetadata(params: {
   };
 }
 
-export function buildCloudSceneResumePrompt(params: {
+export function buildServiceSceneResumePrompt(params: {
   title: string;
-  runtimeRef: SceneAppCloudSceneRuntimeRef;
+  runtimeRef: SceneAppServiceSceneRuntimeRef;
 }): string {
   const userInput = params.runtimeRef.userInput?.trim();
   if (userInput) {
@@ -99,10 +100,10 @@ export function buildCloudSceneResumePrompt(params: {
     .join("；");
 
   if (slotSummary) {
-    return `请继续执行创作场景「${params.title}」。场景参数：${slotSummary}。`;
+    return `请继续执行做法「${params.title}」。做法参数：${slotSummary}。`;
   }
 
-  return `请继续执行创作场景「${params.title}」，并按最近一次云端 Scene 运行上下文继续。`;
+  return `请继续执行做法「${params.title}」，并按最近一次场景执行上下文继续。`;
 }
 
 export function buildNativeSkillResumeRequestMetadata(params: {
@@ -182,7 +183,7 @@ export function resolveSceneAppRunEntryNavigationTarget(
     return null;
   }
 
-  const sourceLabel = params.sourceLabel.trim() || "创作场景";
+  const sourceLabel = params.sourceLabel.trim() || "整套做法";
 
   if (params.action.kind === "open_automation_job") {
     const targetParams: AutomationPageParams = {
@@ -219,12 +220,12 @@ export function resolveSceneAppRunEntryNavigationTarget(
     };
   }
 
-  if (params.action.kind === "open_cloud_scene_session") {
+  if (params.action.kind === "open_service_scene_session") {
     if (params.action.sessionId) {
       const targetParams: AgentPageParams = {
         agentEntry: "claw",
         initialSessionId: params.action.sessionId,
-        entryBannerMessage: buildEntryBannerMessage(sourceLabel, "云端 Scene 会话"),
+        entryBannerMessage: buildEntryBannerMessage(sourceLabel, "生成会话"),
       };
       return {
         page: "agent",
@@ -234,18 +235,18 @@ export function resolveSceneAppRunEntryNavigationTarget(
 
     const targetParams: AgentPageParams = {
       agentEntry: "claw",
-      projectId: params.action.cloudSceneRuntimeRef.projectId ?? undefined,
-      contentId: params.action.cloudSceneRuntimeRef.contentId ?? undefined,
-      initialUserPrompt: buildCloudSceneResumePrompt({
-        title: params.sceneTitle?.trim() || "创作场景",
-        runtimeRef: params.action.cloudSceneRuntimeRef,
+      projectId: params.action.serviceSceneRuntimeRef.projectId ?? undefined,
+      contentId: params.action.serviceSceneRuntimeRef.contentId ?? undefined,
+      initialUserPrompt: buildServiceSceneResumePrompt({
+        title: params.sceneTitle?.trim() || "这套做法",
+        runtimeRef: params.action.serviceSceneRuntimeRef,
       }),
-      initialAutoSendRequestMetadata: buildCloudSceneResumeRequestMetadata({
+      initialAutoSendRequestMetadata: buildServiceSceneResumeRequestMetadata({
         sceneappId: normalizedSceneAppId,
-        runtimeRef: params.action.cloudSceneRuntimeRef,
+        runtimeRef: params.action.serviceSceneRuntimeRef,
       }),
       autoRunInitialPromptOnMount: true,
-      entryBannerMessage: buildEntryBannerMessage(sourceLabel, "云端 Scene 上下文"),
+      entryBannerMessage: buildEntryBannerMessage(sourceLabel, "生成上下文"),
     };
     return {
       page: "agent",

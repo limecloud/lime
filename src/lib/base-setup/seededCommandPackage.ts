@@ -154,7 +154,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
   {
     commandKey: "video_generate",
     title: "视频",
-    summary: "根据文字描述提交视频生成任务。",
+    summary: "根据文字描述发起视频生成。",
     aliases: ["video", "shipin", "视频", "短视频", "生成视频"],
     trigger: "@视频",
     category: "视频生成",
@@ -168,7 +168,7 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
   {
     commandKey: "voice_runtime",
     title: "配音",
-    summary: "把视频或旁白需求切到云端配音技能主链，优先提交服务型技能运行。",
+    summary: "把视频或旁白需求切到本地配音技能主链，优先整理首版配音稿。",
     aliases: [
       "voice",
       "dubbing",
@@ -181,10 +181,10 @@ const SEEDED_COMMAND_PROJECTION_SPECS: SeededCommandProjectionSpec[] = [
     ],
     trigger: "@配音",
     category: "视频创作",
-    outputHint: "云端配音运行状态",
+    outputHint: "配音稿与工作区执行结果",
     commandBinding: {
       skillId: "cloud-video-dubbing",
-      executionKind: "cloud_scene",
+      executionKind: "agent_turn",
     },
     commandRenderContract: COMMAND_TIMELINE_SCENE_CONTRACT,
   },
@@ -691,8 +691,6 @@ function resolveBindingProfileRef(
   switch (binding?.executionKind) {
     case "native_skill":
       return "native-skill-instant";
-    case "cloud_scene":
-      return "cloud-scene-instant";
     default:
       return "agent-turn-instant";
   }
@@ -785,12 +783,6 @@ const SEEDED_COMMAND_PACKAGE: BaseSetupPackage = {
       runnerType: "instant",
       executionLocation: "client_default",
     },
-    {
-      id: "cloud-scene-instant",
-      bindingFamily: "cloud_scene",
-      runnerType: "instant",
-      executionLocation: "cloud_required",
-    },
   ],
   artifactProfiles: [
     {
@@ -841,7 +833,6 @@ const SEEDED_COMMAND_PACKAGE: BaseSetupPackage = {
     requiredKernelCapabilities: [
       "agent_turn",
       "native_skill",
-      "cloud_scene",
       "artifact_viewer",
       "timeline",
     ],

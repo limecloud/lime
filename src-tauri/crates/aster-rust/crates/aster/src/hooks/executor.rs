@@ -2,7 +2,10 @@
 //!
 //! 执行各种类型的 hooks
 
-use super::registry::{global_registry, SharedHookRegistry};
+use super::registry::{
+    clear_session_hooks, get_matching_session_hooks, global_registry,
+    unregister_session_hook_entry, SharedHookRegistry,
+};
 use super::types::*;
 use crate::agents::{Agent, AgentEvent, SessionConfig};
 use crate::config::{AsterMode, Config};
@@ -38,6 +41,10 @@ fn replace_command_variables(command: &str, input: &HookInput) -> String {
             &input.event.map(|e| e.to_string()).unwrap_or_default(),
         )
         .replace("$SESSION_ID", input.session_id.as_deref().unwrap_or(""))
+        .replace(
+            "$PERMISSION_MODE",
+            input.permission_mode.as_deref().unwrap_or(""),
+        )
 }
 
 const PROMPT_HOOK_SYSTEM_PROMPT: &str = r#"You are evaluating an Aster/Lime prompt hook.
@@ -662,6 +669,10 @@ async fn execute_command_hook(hook: &CommandHookConfig, input: &HookInput) -> Ho
         "CLAUDE_HOOK_SESSION_ID".to_string(),
         input.session_id.clone().unwrap_or_default(),
     );
+    env.insert(
+        "CLAUDE_HOOK_PERMISSION_MODE".to_string(),
+        input.permission_mode.clone().unwrap_or_default(),
+    );
 
     // 准备输入 JSON
     let input_json = serde_json::to_string(input).unwrap_or_default();
@@ -735,6 +746,7 @@ async fn execute_url_hook(hook: &UrlHookConfig, input: &HookInput) -> HookResult
         "toolOutput": input.tool_output,
         "message": input.message,
         "sessionId": input.session_id,
+        "permissionMode": input.permission_mode,
         "timestamp": chrono::Utc::now().to_rfc3339(),
         "tool_use_id": input.tool_use_id,
         "error": input.error,
@@ -1029,11 +1041,10 @@ pub async fn run_hooks_with_registry_and_context(
         None => return vec![],
     };
 
-    let matching_hooks = registry.get_matching(event, input.tool_name.as_deref());
     let mut results = Vec::new();
 
-    for hook in &matching_hooks {
-        let result = execute_hook(hook, &input, runtime).await;
+    for hook in registry.get_matching(event, input.tool_name.as_deref()) {
+        let result = execute_hook(&hook, &input, runtime).await;
         let is_blocked = result.blocked;
         let is_blocking = hook.is_blocking();
         results.push(result);
@@ -1041,6 +1052,29 @@ pub async fn run_hooks_with_registry_and_context(
         // 如果 hook 阻塞且是 blocking 类型，停止执行后续 hooks
         if is_blocked && is_blocking {
             break;
+        }
+    }
+
+    if let Some(session_id) = input
+        .session_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        for entry in get_matching_session_hooks(session_id, event, input.tool_name.as_deref()) {
+            let result = execute_hook(&entry.config, &input, runtime).await;
+            let is_blocked = result.blocked;
+            let is_blocking = entry.config.is_blocking();
+            let should_remove_once = entry.once && result.success;
+            results.push(result);
+
+            if should_remove_once {
+                let _ = unregister_session_hook_entry(session_id, event, entry.id);
+            }
+
+            if is_blocked && is_blocking {
+                break;
+            }
         }
     }
 
@@ -1157,17 +1191,50 @@ pub async fn run_pre_compact_hooks(
     current_tokens: Option<u64>,
     trigger: Option<CompactTrigger>,
 ) -> (bool, Option<String>) {
-    let results = run_hooks(HookInput {
-        event: Some(HookEvent::PreCompact),
-        current_tokens,
-        trigger,
-        session_id,
-        ..Default::default()
-    })
-    .await;
+    let registry = global_registry();
+    let results =
+        run_pre_compact_hooks_with_registry(session_id, current_tokens, trigger, &registry).await;
 
     let (blocked, message) = is_blocked(&results);
     (!blocked, message)
+}
+
+/// 使用指定注册表运行 PreCompact hook
+pub async fn run_pre_compact_hooks_with_registry(
+    session_id: Option<String>,
+    current_tokens: Option<u64>,
+    trigger: Option<CompactTrigger>,
+    registry: &SharedHookRegistry,
+) -> Vec<HookResult> {
+    run_pre_compact_hooks_with_registry_and_context(
+        session_id,
+        current_tokens,
+        trigger,
+        registry,
+        &HookRuntimeContext::default(),
+    )
+    .await
+}
+
+pub async fn run_pre_compact_hooks_with_registry_and_context(
+    session_id: Option<String>,
+    current_tokens: Option<u64>,
+    trigger: Option<CompactTrigger>,
+    registry: &SharedHookRegistry,
+    runtime: &HookRuntimeContext,
+) -> Vec<HookResult> {
+    run_hooks_with_registry_and_context(
+        HookInput {
+            event: Some(HookEvent::PreCompact),
+            current_tokens,
+            trigger,
+            session_id,
+            ..Default::default()
+        },
+        registry,
+        runtime,
+    )
+    .await
 }
 
 /// PostToolUseFailure hook
@@ -1239,13 +1306,43 @@ pub async fn run_session_start_hooks_with_registry_and_context(
 
 /// SessionEnd hook
 pub async fn run_session_end_hooks(session_id: String, reason: Option<SessionEndReason>) {
-    let _ = run_hooks(HookInput {
-        event: Some(HookEvent::SessionEnd),
+    let registry = global_registry();
+    let _ = run_session_end_hooks_with_registry(session_id, reason, &registry).await;
+}
+
+pub async fn run_session_end_hooks_with_registry(
+    session_id: String,
+    reason: Option<SessionEndReason>,
+    registry: &SharedHookRegistry,
+) -> Vec<HookResult> {
+    run_session_end_hooks_with_registry_and_context(
+        session_id,
         reason,
-        session_id: Some(session_id),
-        ..Default::default()
-    })
+        registry,
+        &HookRuntimeContext::default(),
+    )
+    .await
+}
+
+pub async fn run_session_end_hooks_with_registry_and_context(
+    session_id: String,
+    reason: Option<SessionEndReason>,
+    registry: &SharedHookRegistry,
+    runtime: &HookRuntimeContext,
+) -> Vec<HookResult> {
+    let results = run_hooks_with_registry_and_context(
+        HookInput {
+            event: Some(HookEvent::SessionEnd),
+            reason,
+            session_id: Some(session_id.clone()),
+            ..Default::default()
+        },
+        registry,
+        runtime,
+    )
     .await;
+    clear_session_hooks(&session_id);
+    results
 }
 
 /// SubagentStart hook

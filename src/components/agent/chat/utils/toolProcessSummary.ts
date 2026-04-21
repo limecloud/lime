@@ -359,11 +359,11 @@ function buildLimeTaskSummary(
   }
 
   const normalizedSubject = normalizeNarrativeSubject(subject);
-  const prefix = phase === "pre" ? "先提交" : "已提交";
+  const prefix = phase === "pre" ? "先发起" : "已发起";
 
   return normalizedSubject
-    ? `${prefix} ${normalizedSubject} 的${taskLabel}任务`
-    : `${prefix}${taskLabel}任务`;
+    ? `${prefix} ${normalizedSubject} 的${taskLabel}`
+    : `${prefix}${taskLabel}`;
 }
 
 function buildSiteToolSummary(
@@ -638,8 +638,8 @@ function buildGenericPostSummary(params: {
   }
   if (normalizedName === "limerunserviceskill") {
     return normalizedSubject
-      ? `已执行服务技能 ${normalizedSubject}`
-      : "已执行服务技能";
+      ? `已走服务技能兼容执行 ${normalizedSubject}`
+      : "已走服务技能兼容执行";
   }
   if (normalizedName === "mcp") {
     return "已完成 MCP 工具调用";
@@ -670,7 +670,7 @@ function buildGenericPostSummary(params: {
         ? `已获取 ${normalizedSubject} 内容`
         : "已获取外部内容";
     case "task":
-      return "已创建任务";
+      return "已发起这一步";
     case "subagent":
       return "已把任务拆给子任务继续处理";
     case "search":
@@ -887,8 +887,8 @@ function buildGenericPreSummary(params: {
 
   if (normalizedName === "limerunserviceskill") {
     return normalizedSubject
-      ? `先执行服务技能 ${normalizedSubject}`
-      : "先执行服务技能";
+      ? `先走服务技能兼容执行 ${normalizedSubject}`
+      : "先走服务技能兼容执行";
   }
 
   if (normalizedName === "mcp") {
@@ -930,7 +930,7 @@ function buildGenericPreSummary(params: {
         ? `准备修改 ${normalizedSubject}`
         : "准备修改目标文件";
     case "task":
-      return "先创建生成任务";
+      return "先发起这一步";
     case "plan":
       return normalizedSubject
         ? `先处理 ${normalizedSubject}`

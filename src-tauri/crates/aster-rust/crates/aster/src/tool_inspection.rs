@@ -132,6 +132,19 @@ impl ToolInspectionManager {
         tracing::warn!("Permission inspector not found for mode update");
     }
 
+    pub async fn current_permission_mode(&self) -> Option<AsterMode> {
+        for inspector in &self.inspectors {
+            if inspector.name() == "permission" {
+                if let Some(permission_inspector) =
+                    inspector.as_any().downcast_ref::<PermissionInspector>()
+                {
+                    return Some(permission_inspector.current_mode().await);
+                }
+            }
+        }
+        None
+    }
+
     /// Update the permission manager for a specific tool
     pub async fn update_permission_manager(
         &self,

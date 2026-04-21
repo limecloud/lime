@@ -44,9 +44,9 @@ Lime 的命令体系固定按以下关系理解：
 4. `skill` 是能力绑定抽象  
    它背后可能是：
    - 本地 CLI
-   - 服务端 API
-   - 混合链路
    - 本地 runtime
+   - 浏览器 / workspace / automation 执行器
+   - 目录控制面下发的配置绑定
 
 5. `task file` 只是异步媒体/资源能力的真相之一  
    它不是所有命令的统一产品真相。
@@ -126,16 +126,16 @@ Lime 的命令体系固定按以下关系理解：
 
 - `useWorkspaceSendActions` 先识别 `/scene-key ...`
 - 从统一 `SkillCatalog.entries` 里解析 `scene -> linkedSkillId -> ServiceSkillHomeItem`
-- 前端只负责把结构化 `service_scene_launch` 写进当前 turn metadata，不负责前端直建云端 run
-- Rust 侧会把该 turn 收口到 `workbench`，并通过系统提示强约束 Agent 首刀优先调用 `lime_run_service_skill`
-- `lime_run_service_skill` 再根据当前 turn 绑定的 `serviceSkillId + OEM runtime` 发起服务端 run / 短轮询，保证 slash scene 也走 `Agent -> tool -> timeline` 主链
+- 前端只负责把结构化 `service_scene_launch` 写进当前 turn metadata，不负责任何服务端 run 创建
+- Rust 侧会把该 turn 收口到 `workbench`，并通过系统提示强约束 Agent 直接按当前本地 `service_scene_launch` 上下文执行；如果实现里仍沿用 `lime_run_service_skill` 一类历史命名，也只允许视为 compat 护栏
+- `service_scene_launch` 只表达目录命中和本地运行时路由提示，保证 slash scene 继续走 `Agent -> tool -> timeline` 主链
 - 未命中统一目录的 slash 文本必须继续回到普通 slash 流程，不能被错误吞成“未找到本地 Skill”
 
 当前 `scene` slash 还必须遵守下面三条长期规则：
 
 - `Scene Skill` 是产品场景真相；slash 只是触发入口，不能在前端把流程写死成某个站点分支
 - 推荐用 `Pipeline` 作为主模式，再按需要叠加 `Inversion`、`Generator`、`Tool Wrapper`
-- 聊天区“saved content / viewer 预览 / 运行摘要”都只是消费层投影，不能反过来定义 scene runtime 真相
+- 聊天区“saved content / viewer 预览 / 运行摘要”都只是消费层投影，不能反过来定义 `ServiceSkill` 或 slash 场景的执行真相
 
 如果 `scene` 绑定的是 `site_adapter / browser_assist` 型技能，还要额外遵守以下边界：
 
@@ -251,8 +251,8 @@ Lime 的命令体系固定按以下关系理解：
 
 - `/scene-key` 不再直接落回本地 slash skill 预处理
 - 先按统一目录找到 `scene` 与其 `linkedSkillId`
-- 把 `service_scene_launch` 作为当前 turn 的 binding 上下文，而不是前端直接调用云端 run
-- 由 Agent 首刀调用 `lime_run_service_skill` 执行服务型技能 run
+- 把 `service_scene_launch` 作为当前 turn 的 binding 上下文，而不是任何云端 run 协议
+- 由 Agent 直接依据当前 `service_scene_launch` 上下文完成本地执行；若实现里仍保留 `lime_run_service_skill` 这类历史名字，也只应理解为 compat 护栏，而不是 current 运行时桥接
 - 服务端目录失联或 scene 未命中时，客户端 seeded/fallback 仍要保证 slash 输入能回到普通工作区主链
 - 如果 `ServiceSkill` 底层绑定的是 `site_adapter / browser_assist`，允许 Rust runtime 先做一次预执行收口浏览器上下文与保存逻辑；但这次预执行必须继续走标准 `tool_start / tool_end` 事件，并以内联过程步骤显示在当前对话中
 

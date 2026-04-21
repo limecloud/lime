@@ -38,7 +38,7 @@ function createDescriptor(
     sceneappType: "hybrid",
     patternPrimary: "pipeline",
     patternStack: ["pipeline", "generator", "inversion"],
-    capabilityRefs: ["cloud_scene"],
+    capabilityRefs: ["agent_turn"],
     infraProfile: [
       "composition_blueprint",
       "project_pack",
@@ -85,14 +85,14 @@ function createDescriptor(
         {
           id: "music_refs",
           order: 4,
-          bindingProfileRef: "story-video-cloud-binding",
-          bindingFamily: "cloud_scene",
+          bindingProfileRef: "story-video-agent-binding",
+          bindingFamily: "agent_turn",
         },
         {
           id: "video_draft",
           order: 5,
-          bindingProfileRef: "story-video-cloud-binding",
-          bindingFamily: "cloud_scene",
+          bindingProfileRef: "story-video-agent-binding",
+          bindingFamily: "agent_turn",
         },
         {
           id: "review_note",
@@ -114,7 +114,7 @@ function createDescriptor(
     entryBindings: [
       {
         kind: "service_skill",
-        bindingFamily: "cloud_scene",
+        bindingFamily: "agent_turn",
       },
       {
         kind: "workspace_card",
@@ -144,7 +144,7 @@ function createRun(
     sourceRef: "automation-job-story-video-1",
     sessionId: "session-story-video-1",
     browserRuntimeRef: null,
-    cloudSceneRuntimeRef: null,
+    serviceSceneRuntimeRef: null,
     nativeSkillRuntimeRef: null,
     startedAt: "2026-04-15T00:00:00.000Z",
     finishedAt: "2026-04-15T00:02:05.000Z",
@@ -251,7 +251,7 @@ function createPlanResult(
       compilerPlan: {
         activeLayers: ["skill", "memory", "taste", "tool"],
         memoryRefs: ["workspace:project-story-video"],
-        toolRefs: ["cloud_scene", "workspace_storage"],
+        toolRefs: ["agent_turn", "workspace_storage"],
         referenceCount: 2,
         notes: ["已装配 2 条参考素材和 1 条 memory 引用。"],
         ...(overrides.contextOverlay?.compilerPlan ?? {}),
@@ -261,7 +261,7 @@ function createPlanResult(
         projectId: "project-story-video",
         skillRefs: ["sceneapp-service-story-video"],
         memoryRefs: ["workspace:project-story-video"],
-        toolRefs: ["cloud_scene", "workspace_storage"],
+        toolRefs: ["agent_turn", "workspace_storage"],
         referenceItems: [
           {
             id: "ref-1",
@@ -314,20 +314,20 @@ function createPlanResult(
       viewerKind: "artifact_bundle",
       completionStrategy: "required_parts_complete",
       notes: [
-        "当前 SceneApp 以结果包作为默认交付单位。",
+        "当前做法以结果包作为默认交付单位。",
         "完整度将按 6 个必含部件判断。",
       ],
       ...(overrides.projectPackPlan ?? {}),
     },
     plan: {
       sceneappId: planOverrides.sceneappId ?? "story-video-suite",
-      executorKind: planOverrides.executorKind ?? "cloud_scene",
-      bindingFamily: planOverrides.bindingFamily ?? "cloud_scene",
+      executorKind: planOverrides.executorKind ?? "agent_turn",
+      bindingFamily: planOverrides.bindingFamily ?? "agent_turn",
       stepPlan: planOverrides.stepPlan ?? [],
       adapterPlan: {
-        adapterKind: adapterPlanOverrides.adapterKind ?? "cloud_scene",
+        adapterKind: adapterPlanOverrides.adapterKind ?? "agent_turn",
         runtimeAction:
-          adapterPlanOverrides.runtimeAction ?? "launch_cloud_scene",
+          adapterPlanOverrides.runtimeAction ?? "open_service_scene_session",
         targetRef:
           adapterPlanOverrides.targetRef ?? "sceneapp-service-story-video",
         targetLabel: adapterPlanOverrides.targetLabel ?? "短视频编排",
@@ -430,7 +430,7 @@ describe("sceneapp product", () => {
       expect.objectContaining({
         title: "短视频编排",
         businessLabel: "多模态组合",
-        executionChainLabel: "云端 Scene · Agent 工作区",
+        executionChainLabel: "Agent 工作区",
         launchActionLabel: "进入生成",
         launchRequirements: ["需要项目目录承接结果。"],
         artifactProfileRef: "story-video-artifacts",
@@ -455,7 +455,7 @@ describe("sceneapp product", () => {
         }),
         expect.objectContaining({
           id: "video_draft",
-          bindingLabel: "云端 Scene",
+          bindingLabel: "Agent 工作区",
         }),
       ]),
     );
@@ -931,7 +931,7 @@ describe("sceneapp product", () => {
         snapshot: {
           skillRefs: ["sceneapp-service-story-video"],
           memoryRefs: ["workspace:project-story-video"],
-          toolRefs: ["cloud_scene", "workspace_storage"],
+          toolRefs: ["agent_turn", "workspace_storage"],
           referenceItems: [
             {
               id: "ref-1",
@@ -992,7 +992,7 @@ describe("sceneapp product", () => {
         latestRunLabel: "最近运行：尚未开始",
       }),
     );
-    expect(governanceView.summary).toContain("首轮治理样本");
+    expect(governanceView.summary).toContain("首轮复盘样本");
     expect(governanceView.destinations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1150,13 +1150,13 @@ describe("sceneapp product", () => {
     );
   });
 
-  it("云端 Scene 运行引用存在时应优先恢复云端 Scene 上下文", () => {
+  it("场景运行引用存在时应优先恢复生成上下文", () => {
     const detailView = buildSceneAppRunDetailViewModel({
       descriptor: createDescriptor(),
       run: createRun({
         source: "chat",
         sessionId: "session-story-video-1",
-        cloudSceneRuntimeRef: {
+        serviceSceneRuntimeRef: {
           sceneKey: "story-video-suite",
           skillId: "sceneapp-service-story-video",
           projectId: "project-video",
@@ -1173,9 +1173,11 @@ describe("sceneapp product", () => {
 
     expect(detailView.entryAction).toEqual(
       expect.objectContaining({
-        kind: "open_cloud_scene_session",
+        kind: "open_service_scene_session",
+        label: "回到生成会话",
+        helperText: "继续把「短视频编排」最近一次运行保留的启动信息带回生成。",
         sessionId: "session-story-video-1",
-        cloudSceneRuntimeRef: expect.objectContaining({
+        serviceSceneRuntimeRef: expect.objectContaining({
           sceneKey: "story-video-suite",
           skillId: "sceneapp-service-story-video",
         }),

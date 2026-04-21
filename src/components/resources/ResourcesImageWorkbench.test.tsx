@@ -165,6 +165,7 @@ describe("ResourcesImageWorkbench", () => {
         canvasType: "document",
         source: "gallery",
         image: expect.objectContaining({
+          previewUrl: "asset://city.jpg",
           contentUrl: "asset://city.jpg",
           title: "城市夜景",
         }),

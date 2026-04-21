@@ -1,25 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  ArrowRight,
   ArrowUp,
   Clock3,
   File,
-  FilePlus2,
   FileText,
   Folder,
-  FolderPlus,
   Image as ImageIcon,
   Library,
   MoreHorizontal,
   Music2,
   Pencil,
-  Plus,
   RefreshCw,
   Search,
   Sparkles,
   Trash2,
-  Upload,
   Video,
   type LucideIcon,
 } from "lucide-react";
@@ -68,24 +63,23 @@ import { CanvasBreadcrumbHeader } from "@/lib/workspace/workbenchUi";
 import { cn } from "@/lib/utils";
 import type { Page, PageParams } from "@/types/page";
 import { ResourcesImageWorkbench } from "./ResourcesImageWorkbench";
+import {
+  canNavigateResourceFolderUp,
+  getCategoryCounts,
+  getCategoryScopedResources,
+  getCurrentFolder,
+  getFolderBreadcrumbs,
+  getFolderScopedResources,
+  type ResourceSortDirection,
+  type ResourceSortField,
+  type ResourceViewCategory,
+} from "./services/resourceQueries";
 import { fetchDocumentDetail } from "./services/resourceAdapter";
 import type { ResourceItem } from "./services/types";
-import { resourcesSelectors, useResourcesStore } from "./store";
-
-type ResourceViewCategory = "all" | "document" | "image" | "audio" | "video";
-type ResourceSortField = "updatedAt" | "createdAt" | "name";
-type ResourceSortDirection = "asc" | "desc";
+import { useResourcesStore } from "./store";
 
 interface ResourcesPageProps {
   onNavigate?: (page: Page, params?: PageParams) => void;
-}
-
-interface ResourceEmptyAction {
-  key: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  action: () => void;
 }
 
 const kindLabelMap: Record<ResourceItem["kind"], string> = {
@@ -144,21 +138,7 @@ const sortDirectionLabelMap: Record<ResourceSortDirection, string> = {
   desc: "降序",
 };
 
-const imageExtensions = new Set([
-  "png",
-  "jpg",
-  "jpeg",
-  "webp",
-  "gif",
-  "bmp",
-  "svg",
-  "ico",
-  "heic",
-]);
-
-const audioExtensions = new Set(["mp3", "wav", "aac", "m4a", "ogg", "flac"]);
-
-const videoExtensions = new Set(["mp4", "mov", "avi", "mkv", "webm", "flv"]);
+const RESOURCE_PAGE_SIZE = 20;
 
 const formatTime = (timestamp: number): string => {
   return new Date(timestamp).toLocaleString("zh-CN", {
@@ -170,114 +150,6 @@ const getKindIcon = (item: ResourceItem) => {
   if (item.kind === "folder") return Folder;
   if (item.kind === "document") return FileText;
   return File;
-};
-
-const getFileExtension = (filename: string): string => {
-  const index = filename.lastIndexOf(".");
-  if (index < 0 || index === filename.length - 1) {
-    return "";
-  }
-  return filename.slice(index + 1).toLowerCase();
-};
-
-const getResourceMediaType = (
-  item: ResourceItem,
-): "image" | "audio" | "video" | null => {
-  if (item.kind !== "file") return null;
-
-  const normalizedMimeType = item.mimeType?.toLowerCase() ?? "";
-  if (normalizedMimeType.startsWith("image/")) return "image";
-  if (normalizedMimeType.startsWith("audio/")) return "audio";
-  if (normalizedMimeType.startsWith("video/")) return "video";
-
-  const normalizedFileType = item.fileType?.toLowerCase() ?? "";
-  if (normalizedFileType === "image") return "image";
-  if (normalizedFileType === "audio") return "audio";
-  if (normalizedFileType === "video") return "video";
-
-  const extension = getFileExtension(item.filePath || item.name);
-  if (imageExtensions.has(extension)) return "image";
-  if (audioExtensions.has(extension)) return "audio";
-  if (videoExtensions.has(extension)) return "video";
-
-  return null;
-};
-
-const isImageResource = (item: ResourceItem): boolean => {
-  return getResourceMediaType(item) === "image";
-};
-
-const isAudioResource = (item: ResourceItem): boolean => {
-  return getResourceMediaType(item) === "audio";
-};
-
-const isVideoResource = (item: ResourceItem): boolean => {
-  return getResourceMediaType(item) === "video";
-};
-
-const matchResourceCategory = (
-  item: ResourceItem,
-  category: ResourceViewCategory,
-): boolean => {
-  if (category === "all") return true;
-  if (category === "document") {
-    if (item.kind === "document") return true;
-    if (item.kind !== "file") return false;
-    return (
-      !isImageResource(item) && !isAudioResource(item) && !isVideoResource(item)
-    );
-  }
-  if (category === "image") return isImageResource(item);
-  if (category === "audio") return isAudioResource(item);
-  return isVideoResource(item);
-};
-
-const matchSearch = (item: ResourceItem, keyword: string): boolean => {
-  if (!keyword) return true;
-
-  const normalizedKeyword = keyword.toLowerCase();
-  if (item.name.toLowerCase().includes(normalizedKeyword)) {
-    return true;
-  }
-
-  if (item.description?.toLowerCase().includes(normalizedKeyword)) {
-    return true;
-  }
-
-  if (item.tags?.some((tag) => tag.toLowerCase().includes(normalizedKeyword))) {
-    return true;
-  }
-
-  return false;
-};
-
-const compareBySortField = (
-  a: ResourceItem,
-  b: ResourceItem,
-  field: ResourceSortField,
-  direction: ResourceSortDirection,
-): number => {
-  let value = 0;
-
-  if (field === "name") {
-    value = a.name.localeCompare(b.name, "zh-CN");
-  } else if (field === "createdAt") {
-    value = a.createdAt - b.createdAt;
-  } else {
-    value = a.updatedAt - b.updatedAt;
-  }
-
-  return direction === "asc" ? value : -value;
-};
-
-const sortResources = (
-  resources: ResourceItem[],
-  field: ResourceSortField,
-  direction: ResourceSortDirection,
-): ResourceItem[] => {
-  return [...resources].sort((a, b) =>
-    compareBySortField(a, b, field, direction),
-  );
 };
 
 export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
@@ -306,23 +178,17 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
   const setSearchQuery = useResourcesStore((state) => state.setSearchQuery);
   const setSortField = useResourcesStore((state) => state.setSortField);
   const setSortDirection = useResourcesStore((state) => state.setSortDirection);
-  const createFolder = useResourcesStore((state) => state.createFolder);
-  const createDocument = useResourcesStore((state) => state.createDocument);
   const uploadFile = useResourcesStore((state) => state.uploadFile);
   const renameById = useResourcesStore((state) => state.renameById);
   const deleteById = useResourcesStore((state) => state.deleteById);
   const moveToRoot = useResourcesStore((state) => state.moveToRoot);
-
-  const visibleItems = useResourcesStore(resourcesSelectors.visibleItems);
-  const breadcrumbs = useResourcesStore(resourcesSelectors.folderBreadcrumbs);
-  const currentFolder = useResourcesStore(resourcesSelectors.currentFolder);
-  const canNavigateUp = useResourcesStore(resourcesSelectors.canNavigateUp);
 
   const [viewCategory, setViewCategory] = useState<ResourceViewCategory>("all");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewContent, setPreviewContent] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [crossProjectMediaHint, setCrossProjectMediaHint] = useState<{
     projectId: string;
     projectName: string;
@@ -340,36 +206,49 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     [availableProjects, projectId],
   );
 
-  const categoryCounts = useMemo(
-    () => ({
-      all: items.length,
-      document: items.filter((item) => matchResourceCategory(item, "document"))
-        .length,
-      image: items.filter((item) => matchResourceCategory(item, "image"))
-        .length,
-      audio: items.filter((item) => matchResourceCategory(item, "audio"))
-        .length,
-      video: items.filter((item) => matchResourceCategory(item, "video"))
-        .length,
-    }),
-    [items],
+  const categoryCounts = useMemo(() => getCategoryCounts(items), [items]);
+
+  const currentFolder = useMemo(
+    () => getCurrentFolder(items, currentFolderId),
+    [items, currentFolderId],
+  );
+
+  const breadcrumbs = useMemo(
+    () => getFolderBreadcrumbs(items, currentFolderId),
+    [items, currentFolderId],
+  );
+
+  const canNavigateUp = useMemo(
+    () => canNavigateResourceFolderUp(currentFolderId),
+    [currentFolderId],
+  );
+
+  const folderDisplayItems = useMemo(
+    () =>
+      getFolderScopedResources(
+        items,
+        currentFolderId,
+        searchQuery,
+        sortField,
+        sortDirection,
+      ),
+    [items, currentFolderId, searchQuery, sortField, sortDirection],
   );
 
   const isFolderMode = viewCategory === "all";
 
   const displayItems = useMemo(() => {
     if (isFolderMode) {
-      return visibleItems;
+      return folderDisplayItems;
     }
 
-    const filteredByCategory = items.filter((item) =>
-      matchResourceCategory(item, viewCategory),
+    return getCategoryScopedResources(
+      items,
+      viewCategory,
+      searchQuery,
+      sortField,
+      sortDirection,
     );
-    const searchedItems = filteredByCategory.filter((item) =>
-      matchSearch(item, searchQuery),
-    );
-
-    return sortResources(searchedItems, sortField, sortDirection);
   }, [
     isFolderMode,
     items,
@@ -377,8 +256,30 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     sortDirection,
     sortField,
     viewCategory,
-    visibleItems,
+    folderDisplayItems,
   ]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(displayItems.length / RESOURCE_PAGE_SIZE)),
+    [displayItems.length],
+  );
+
+  const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+  const pagedDisplayItems = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * RESOURCE_PAGE_SIZE;
+    return displayItems.slice(startIndex, startIndex + RESOURCE_PAGE_SIZE);
+  }, [displayItems, safeCurrentPage]);
+
+  const pageRangeStart =
+    displayItems.length === 0
+      ? 0
+      : (safeCurrentPage - 1) * RESOURCE_PAGE_SIZE + 1;
+
+  const pageRangeEnd =
+    displayItems.length === 0
+      ? 0
+      : Math.min(safeCurrentPage * RESOURCE_PAGE_SIZE, displayItems.length);
 
   useEffect(() => {
     if (projectId || projectsLoading) return;
@@ -441,6 +342,23 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     if (!projectId) return;
     void loadResources();
   }, [projectId, loadResources]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    currentFolderId,
+    projectId,
+    searchQuery,
+    sortDirection,
+    sortField,
+    viewCategory,
+  ]);
+
+  useEffect(() => {
+    if (currentPage !== safeCurrentPage) {
+      setCurrentPage(safeCurrentPage);
+    }
+  }, [currentPage, safeCurrentPage]);
 
   useEffect(() => {
     if (
@@ -510,31 +428,6 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
       disposed = true;
     };
   }, [availableProjects, categoryCounts, loading, projectId, viewCategory]);
-
-  const handleCreateFolder = useCallback(async () => {
-    const name = window.prompt("请输入文件夹名称");
-    if (!name?.trim()) return;
-    await createFolder(name.trim());
-  }, [createFolder]);
-
-  const handleCreateDocument = useCallback(async () => {
-    const name = window.prompt("请输入文档名称");
-    if (!name?.trim()) return;
-    await createDocument(name.trim());
-  }, [createDocument]);
-
-  const handleUploadFile = useCallback(async () => {
-    if (!projectId) return;
-
-    const selected = await open({
-      directory: false,
-      multiple: false,
-      title: "选择上传文件",
-    });
-    if (!selected || Array.isArray(selected)) return;
-
-    await uploadFile(selected);
-  }, [projectId, uploadFile]);
 
   const handleUploadImage = useCallback(async () => {
     if (!projectId) return;
@@ -664,20 +557,17 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     onNavigate?.("agent", buildHomeAgentParams());
   }, [onNavigate]);
 
-  const headingDescription = useMemo(() => {
-    if (!projectId) return "请选择左侧资料库";
-    if (currentFolderId && currentFolder) {
-      return `当前目录：${currentFolder.name}`;
-    }
-    return `资料库：${selectedProject?.name ?? "未命名项目"}`;
-  }, [currentFolder, currentFolderId, projectId, selectedProject?.name]);
-
   const activeCategoryLabel = resourceCategoryLabelMap[viewCategory];
   const ActiveCategoryIcon = resourceCategoryIconMap[viewCategory];
 
   const totalFolderCount = useMemo(
     () => items.filter((item) => item.kind === "folder").length,
     [items],
+  );
+
+  const contentItemCount = useMemo(
+    () => Math.max(items.length - totalFolderCount, 0),
+    [items.length, totalFolderCount],
   );
 
   const latestVisibleUpdateLabel = useMemo(() => {
@@ -718,119 +608,56 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
     projectId,
   ]);
 
-  const contentPanelDescription = useMemo(() => {
-    if (!projectId) {
-      return "选择资料库后，这里会显示当前项目的文档、素材和目录结构。";
-    }
-    if (searchQuery.trim()) {
-      return `已按“${searchQuery.trim()}”筛选，当前范围内共 ${displayItems.length} 个结果。`;
-    }
-    if (!isFolderMode) {
-      return `当前为${activeCategoryLabel}分类视图，共展示 ${displayItems.length} 个条目。`;
-    }
-    if (currentFolder) {
-      return `当前目录共展示 ${displayItems.length} 个条目，可继续进入子文件夹或直接打开文件。`;
-    }
-    return `当前位于根目录，共展示 ${displayItems.length} 个条目。`;
-  }, [
-    activeCategoryLabel,
-    currentFolder,
-    displayItems.length,
-    isFolderMode,
-    projectId,
-    searchQuery,
-  ]);
+  const scopeModeLabel = isFolderMode
+    ? "目录浏览"
+    : `${activeCategoryLabel}分类`;
 
-  const summaryCards = useMemo(
+  const scopeStatusDescription = useMemo(() => {
+    if (!crossProjectMediaHint) {
+      return currentScopeDescription;
+    }
+
+    const categoryLabel = mediaCategoryLabelMap[crossProjectMediaHint.category];
+    return `当前资料库暂无${categoryLabel}，检测到「${crossProjectMediaHint.projectName}」包含 ${crossProjectMediaHint.count} 个${categoryLabel}。`;
+  }, [crossProjectMediaHint, currentScopeDescription]);
+
+  const headerStats = useMemo(
     () => [
       {
-        key: "library",
-        title: "当前资料库",
-        value: selectedProject?.name ?? "未选择",
-        description: projectId
-          ? `${items.length} 个总条目，${availableProjects.length} 个项目可切换`
-          : "先在左侧选择一个项目资料库",
-        icon: Library,
-        iconClassName: "border-slate-200 bg-slate-100 text-slate-700",
-        valueClassName: "text-2xl leading-8",
-      },
-      {
-        key: "scope",
-        title: "浏览范围",
-        value: currentScopeLabel,
-        description: currentScopeDescription,
-        icon: ActiveCategoryIcon,
-        iconClassName: "border-sky-200 bg-sky-100 text-sky-700",
-        valueClassName: "text-2xl leading-8",
-      },
-      {
         key: "results",
-        title: "当前结果",
+        title: "结果",
         value: `${displayItems.length}`,
-        description: `${sortFieldLabelMap[sortField]} · ${sortDirectionLabelMap[sortDirection]}`,
         icon: Sparkles,
         iconClassName: "border-emerald-200 bg-emerald-100 text-emerald-700",
-        valueClassName: "text-3xl",
+      },
+      {
+        key: "folders",
+        title: "文件夹",
+        value: `${totalFolderCount}`,
+        icon: Folder,
+        iconClassName: "border-slate-200 bg-slate-100 text-slate-700",
+      },
+      {
+        key: "items",
+        title: "内容项",
+        value: `${contentItemCount}`,
+        icon: FileText,
+        iconClassName: "border-sky-200 bg-sky-100 text-sky-700",
       },
       {
         key: "updated",
         title: "最近更新",
         value: latestVisibleUpdateLabel,
-        description:
-          displayItems.length > 0
-            ? "优先展示当前筛选范围内最近发生变化的内容。"
-            : "当前范围内还没有可展示的更新记录。",
         icon: Clock3,
         iconClassName: "border-amber-200 bg-amber-100 text-amber-700",
-        valueClassName: "text-xl leading-8",
       },
     ],
     [
-      ActiveCategoryIcon,
-      availableProjects.length,
-      currentScopeDescription,
-      currentScopeLabel,
+      contentItemCount,
       displayItems.length,
-      items.length,
       latestVisibleUpdateLabel,
-      projectId,
-      selectedProject?.name,
-      sortDirection,
-      sortField,
+      totalFolderCount,
     ],
-  );
-
-  const emptyActions = useMemo<ResourceEmptyAction[]>(
-    () => [
-      {
-        key: "new-folder",
-        label: "新建文件夹",
-        description: "先搭好目录结构，再把内容放进去。",
-        icon: FolderPlus,
-        action: () => {
-          void handleCreateFolder();
-        },
-      },
-      {
-        key: "new-document",
-        label: "新建文档",
-        description: "直接开始沉淀文字内容和结构化资料。",
-        icon: FilePlus2,
-        action: () => {
-          void handleCreateDocument();
-        },
-      },
-      {
-        key: "upload-file",
-        label: "上传文件",
-        description: "把本地图片、音频、视频或普通文件加入资料库。",
-        icon: Upload,
-        action: () => {
-          void handleUploadFile();
-        },
-      },
-    ],
-    [handleCreateDocument, handleCreateFolder, handleUploadFile],
   );
 
   const showEmptyState = projectId && !loading && displayItems.length === 0;
@@ -845,180 +672,97 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
 
       <div className="flex-1 overflow-auto">
         <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-6 px-4 py-5 lg:px-6 lg:py-6">
-          <section className="relative overflow-hidden rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(243,250,247,0.98)_0%,rgba(248,250,252,0.98)_48%,rgba(241,247,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-            <div className="pointer-events-none absolute -left-20 top-[-72px] h-56 w-56 rounded-full bg-emerald-200/30 blur-3xl" />
-            <div className="pointer-events-none absolute right-[-76px] top-[-24px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
-
-            <div className="relative flex flex-col gap-6 p-6 lg:p-8">
-              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-                <div className="max-w-3xl space-y-4">
-                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/85 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                    项目资料
-                  </span>
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-                        资料库
-                      </h1>
-                      <WorkbenchInfoTip
-                        ariaLabel="资料库工作台说明"
-                        content="集中管理导入资源、项目资料和外部素材；先把内容放进资料库，再决定哪些值得继续沉淀。"
-                        tone="mint"
-                      />
-                    </div>
-                    <p className="max-w-3xl text-sm leading-7 text-slate-600">
-                      集中管理导入资源、项目资料和外部素材。
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="rounded-full border border-white/90 bg-white/90 px-3 py-1 text-slate-700 shadow-sm hover:bg-white">
-                      {selectedProject?.name ?? "未选择资料库"}
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className="rounded-full border-slate-200 bg-white/75 px-3 py-1 text-slate-600"
-                    >
-                      {isFolderMode
-                        ? currentFolder
-                          ? `目录：${currentFolder.name}`
-                          : "目录浏览"
-                        : `${activeCategoryLabel}分类视图`}
-                    </Badge>
-                    {searchQuery.trim() ? (
-                      <Badge
-                        variant="outline"
-                        className="rounded-full border-sky-200 bg-sky-50 px-3 py-1 text-sky-700"
-                      >
-                        搜索：{searchQuery.trim()}
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="rounded-full border-slate-200 bg-white/75 px-3 py-1 text-slate-500"
-                      >
-                        {sortFieldLabelMap[sortField]} ·{" "}
-                        {sortDirectionLabelMap[sortDirection]}
-                      </Badge>
+          <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0 max-w-3xl space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+                    资料库
+                  </h1>
+                  <WorkbenchInfoTip
+                    ariaLabel="资料库工作台说明"
+                    content="集中管理导入资源、项目资料和外部素材；先把内容放进资料库，再决定哪些值得继续沉淀。"
+                    tone="mint"
+                  />
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
+                      saving
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-slate-200 bg-slate-50 text-slate-600",
                     )}
-                  </div>
+                  >
+                    {saving && (
+                      <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    )}
+                    {saving ? "同步中" : "已就绪"}
+                  </span>
                 </div>
 
-                <div className="w-full max-w-[360px] rounded-[24px] border border-white/90 bg-white/88 p-5 shadow-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">
-                        当前视图
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        {headingDescription}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
-                        saving
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-slate-200 bg-white text-slate-600",
-                      )}
+                <p className="text-sm leading-6 text-slate-500">
+                  {currentScopeDescription}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="rounded-full border-slate-200 bg-slate-50 px-3 py-1 text-slate-700"
+                  >
+                    {selectedProject?.name ?? "未选择资料库"}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="rounded-full border-slate-200 bg-white px-3 py-1 text-slate-600"
+                  >
+                    {isFolderMode
+                      ? `范围：${currentScopeLabel}`
+                      : `${activeCategoryLabel}分类视图`}
+                  </Badge>
+                  {searchQuery.trim() ? (
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-sky-200 bg-sky-50 px-3 py-1 text-sky-700"
                     >
-                      {saving && (
-                        <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      )}
-                      {saving ? "同步中" : "已就绪"}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                      {displayItems.length} 个结果
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                      {totalFolderCount} 个文件夹
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                      {Math.max(items.length - totalFolderCount, 0)} 个内容项
-                    </span>
-                  </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        className="mt-5 h-11 w-full rounded-2xl border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
-                        disabled={!projectId || saving}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        添加内容
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => {
-                          void handleCreateFolder();
-                        }}
-                      >
-                        <FolderPlus className="mr-2 h-4 w-4" />
-                        新建文件夹
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          void handleCreateDocument();
-                        }}
-                      >
-                        <FilePlus2 className="mr-2 h-4 w-4" />
-                        新建文档
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          void handleUploadFile();
-                        }}
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        上传文件
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                      搜索：{searchQuery.trim()}
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-slate-200 bg-white px-3 py-1 text-slate-500"
+                    >
+                      {sortFieldLabelMap[sortField]} ·{" "}
+                      {sortDirectionLabelMap[sortDirection]}
+                    </Badge>
+                  )}
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {summaryCards.map((card) => {
-                  const CardIcon = card.icon;
+              <div className="grid gap-2 sm:grid-cols-2 xl:w-[440px]">
+                {headerStats.map((stat) => {
+                  const StatIcon = stat.icon;
                   return (
                     <div
-                      key={card.key}
-                      className="rounded-[22px] border border-white/90 bg-white/85 p-4 shadow-sm"
+                      key={stat.key}
+                      className="rounded-2xl border border-slate-200/80 bg-slate-50/80 px-4 py-3"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold text-slate-800">
-                              {card.title}
-                            </p>
-                            <WorkbenchInfoTip
-                              ariaLabel={`${card.title}说明`}
-                              content={card.description}
-                              tone="slate"
-                            />
-                          </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-slate-500">
+                            {stat.title}
+                          </p>
+                          <p className="mt-1 truncate text-base font-semibold text-slate-900">
+                            {stat.value}
+                          </p>
                         </div>
                         <div
                           className={cn(
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border",
-                            card.iconClassName,
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
+                            stat.iconClassName,
                           )}
                         >
-                          <CardIcon className="h-[18px] w-[18px]" />
+                          <StatIcon className="h-4 w-4" />
                         </div>
                       </div>
-                      <p
-                        className={cn(
-                          "mt-4 break-words font-semibold tracking-tight text-slate-900",
-                          card.valueClassName,
-                        )}
-                      >
-                        {card.value}
-                      </p>
                     </div>
                   );
                 })}
@@ -1095,49 +839,21 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
               </section>
 
               <section className="rounded-[26px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
-                <div className="flex items-start justify-between gap-3 px-1">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
-                      <span>资料库</span>
-                      <WorkbenchInfoTip
-                        ariaLabel="资料库切换说明"
-                        content="资料库来源于项目，这里只负责切换和浏览，不在当前页面直接新建项目。"
-                        tone="slate"
-                      />
-                    </div>
+                <div className="px-1">
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+                    <span>资料库</span>
+                    <WorkbenchInfoTip
+                      ariaLabel="资料库切换说明"
+                      content="资料库来源于项目，这里只负责切换和浏览，不在当前页面直接新建项目。"
+                      tone="slate"
+                    />
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                    onClick={() =>
-                      toast.info("资料库来源于项目，请在项目模块中创建")
-                    }
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    按项目切换当前资料库，避免在这里继续保留旧的创建入口。
+                  </p>
                 </div>
 
-                <button
-                  type="button"
-                  className="mt-4 flex w-full items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-3 py-3 text-left transition hover:border-slate-400 hover:bg-slate-50"
-                  onClick={() =>
-                    toast.info("资料库来源于项目，请在项目模块中创建")
-                  }
-                >
-                  <span>
-                    <span className="block text-sm font-medium text-slate-800">
-                      新建资料库
-                    </span>
-                    <span className="mt-1 block text-xs text-slate-500">
-                      跳转到项目模块创建新的资料库容器。
-                    </span>
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-slate-400" />
-                </button>
-
-                <ScrollArea className="mt-4 h-[320px] pr-1">
+                <ScrollArea className="mt-4 h-[388px] pr-1">
                   <div className="space-y-2">
                     {projectsLoading ? (
                       <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500">
@@ -1184,29 +900,50 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
 
             <section className="min-w-0 space-y-4">
               <div className="rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-sm shadow-slate-950/5">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                      <ActiveCategoryIcon className="h-4 w-4 text-emerald-600" />
-                      当前浏览
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                        {currentFolder?.name ?? activeCategoryLabel}
-                      </h2>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        {contentPanelDescription}
-                      </p>
-                    </div>
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder={
+                        isFolderMode
+                          ? "按名称、描述或标签搜索"
+                          : "搜索当前分类内容"
+                      }
+                      className="h-11 rounded-xl border-slate-200 bg-slate-50/80 pl-10 shadow-none focus-visible:ring-slate-300"
+                    />
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className="rounded-full border-slate-200 bg-white px-3 py-1 text-slate-600"
+                  <div className="flex flex-wrap items-center gap-3 xl:flex-nowrap">
+                    <Select
+                      value={sortField}
+                      onValueChange={(value) =>
+                        setSortField(value as ResourceSortField)
+                      }
                     >
-                      {displayItems.length} 个条目
-                    </Badge>
+                      <SelectTrigger className="h-11 w-[160px] rounded-xl border-slate-200 bg-white text-slate-700 shadow-none">
+                        <span>{sortFieldLabelMap[sortField]}</span>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="updatedAt">更新时间</SelectItem>
+                        <SelectItem value="createdAt">创建时间</SelectItem>
+                        <SelectItem value="name">名称</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Button
+                      variant="outline"
+                      className="h-11 rounded-xl border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      onClick={() =>
+                        setSortDirection(
+                          sortDirection === "asc" ? "desc" : "asc",
+                        )
+                      }
+                    >
+                      {sortDirectionLabelMap[sortDirection]}
+                    </Button>
+
                     <Button
                       variant="outline"
                       className="rounded-xl border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -1233,111 +970,108 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                   </div>
                 </div>
 
-                <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_110px] xl:grid-cols-[minmax(0,1fr)_160px_110px_auto]">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder={
-                        isFolderMode
-                          ? "按名称、描述或标签搜索"
-                          : "搜索当前分类内容"
-                      }
-                      className="h-11 rounded-xl border-slate-200 bg-slate-50/80 pl-10 shadow-none focus-visible:ring-slate-300"
-                    />
-                  </div>
+                <div
+                  className={cn(
+                    "mt-4 rounded-2xl border px-4 py-3",
+                    crossProjectMediaHint
+                      ? "border-amber-300/70 bg-amber-50/90"
+                      : "border-slate-200/80 bg-slate-50/80",
+                  )}
+                >
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div
+                        className={cn(
+                          "flex flex-wrap items-center gap-2 text-sm font-medium",
+                          crossProjectMediaHint
+                            ? "text-amber-900"
+                            : "text-slate-700",
+                        )}
+                      >
+                        <ActiveCategoryIcon
+                          className={cn(
+                            "h-4 w-4",
+                            crossProjectMediaHint
+                              ? "text-amber-700"
+                              : "text-emerald-600",
+                          )}
+                        />
+                        <span>当前范围</span>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "rounded-full bg-white px-3 py-1",
+                            crossProjectMediaHint
+                              ? "border-amber-200 text-amber-800"
+                              : "border-slate-200 text-slate-600",
+                          )}
+                        >
+                          {scopeModeLabel}
+                        </Badge>
+                      </div>
+                      <p
+                        className={cn(
+                          "mt-1 text-sm leading-6",
+                          crossProjectMediaHint
+                            ? "text-amber-900"
+                            : "text-slate-500",
+                        )}
+                      >
+                        {scopeStatusDescription}
+                      </p>
+                    </div>
 
-                  <Select
-                    value={sortField}
-                    onValueChange={(value) =>
-                      setSortField(value as ResourceSortField)
-                    }
-                  >
-                    <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white text-slate-700 shadow-none">
-                      <span>{sortFieldLabelMap[sortField]}</span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="updatedAt">更新时间</SelectItem>
-                      <SelectItem value="createdAt">创建时间</SelectItem>
-                      <SelectItem value="name">名称</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Button
-                    variant="outline"
-                    className="h-11 rounded-xl border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                    onClick={() =>
-                      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
-                    }
-                  >
-                    {sortDirectionLabelMap[sortDirection]}
-                  </Button>
-
-                  <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50/70 px-4 text-sm text-slate-500">
-                    {headingDescription}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {crossProjectMediaHint ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+                          onClick={() =>
+                            setProjectId(crossProjectMediaHint.projectId)
+                          }
+                        >
+                          切换查看
+                        </Button>
+                      ) : isFolderMode ? (
+                        <>
+                          <button
+                            className={cn(
+                              "rounded-full border px-3 py-1.5 text-sm transition hover:border-slate-300 hover:bg-slate-50",
+                              currentFolderId === null
+                                ? "border-slate-300 bg-slate-100 text-slate-900"
+                                : "border-slate-200 bg-white text-slate-600",
+                            )}
+                            onClick={() => setCurrentFolderId(null)}
+                            type="button"
+                          >
+                            根目录
+                          </button>
+                          {breadcrumbs.map((folder) => (
+                            <button
+                              key={folder.id}
+                              className={cn(
+                                "rounded-full border px-3 py-1.5 text-sm transition hover:border-slate-300 hover:bg-slate-50",
+                                currentFolderId === folder.id
+                                  ? "border-slate-300 bg-slate-100 text-slate-900"
+                                  : "border-slate-200 bg-white text-slate-600",
+                              )}
+                              onClick={() => setCurrentFolderId(folder.id)}
+                              type="button"
+                            >
+                              / {folder.name}
+                            </button>
+                          ))}
+                        </>
+                      ) : (
+                        <span className="rounded-full border border-sky-200 bg-white px-3 py-1.5 text-sm text-sky-700">
+                          {activeCategoryLabel}分类视图
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-
-                {isFolderMode ? (
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-sm transition hover:border-slate-300 hover:bg-slate-50",
-                        currentFolderId === null
-                          ? "border-slate-300 bg-slate-100 text-slate-900"
-                          : "border-slate-200 bg-white text-slate-600",
-                      )}
-                      onClick={() => setCurrentFolderId(null)}
-                      type="button"
-                    >
-                      根目录
-                    </button>
-                    {breadcrumbs.map((folder) => (
-                      <button
-                        key={folder.id}
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-sm transition hover:border-slate-300 hover:bg-slate-50",
-                          currentFolderId === folder.id
-                            ? "border-slate-300 bg-slate-100 text-slate-900"
-                            : "border-slate-200 bg-white text-slate-600",
-                        )}
-                        onClick={() => setCurrentFolderId(folder.id)}
-                        type="button"
-                      >
-                        / {folder.name}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-sky-200/80 bg-sky-50/80 px-4 py-3 text-sm text-sky-900">
-                    当前为「{activeCategoryLabel}
-                    」分类视图，展示整个资料库内该分类内容。
-                  </div>
-                )}
-
-                {crossProjectMediaHint && (
-                  <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-amber-300/70 bg-amber-50/90 px-4 py-3 text-sm text-amber-900 md:flex-row md:items-center md:justify-between">
-                    <span className="leading-6">
-                      当前资料库暂无
-                      {mediaCategoryLabelMap[crossProjectMediaHint.category]}
-                      ，检测到「{crossProjectMediaHint.projectName}」包含{" "}
-                      {crossProjectMediaHint.count} 个
-                      {mediaCategoryLabelMap[crossProjectMediaHint.category]}。
-                    </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="rounded-xl border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
-                      onClick={() =>
-                        setProjectId(crossProjectMediaHint.projectId)
-                      }
-                    >
-                      切换查看
-                    </Button>
-                  </div>
-                )}
               </div>
 
               {(error || projectError) && (
@@ -1356,25 +1090,15 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
 
               <div className="overflow-hidden rounded-[26px] border border-slate-200/80 bg-white/95 shadow-sm shadow-slate-950/5">
                 <div className="border-b border-slate-200/80 px-5 py-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold tracking-tight text-slate-900">
-                          内容列表
-                        </h3>
-                        <WorkbenchInfoTip
-                          ariaLabel="内容列表说明"
-                          content="按当前目录或分类范围展示内容，支持直接打开、重命名、删除与移动内容。"
-                          tone="slate"
-                        />
-                      </div>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className="rounded-full border-slate-200 bg-slate-50 px-3 py-1 text-slate-600"
-                    >
-                      最近更新：{latestVisibleUpdateLabel}
-                    </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-semibold tracking-tight text-slate-900">
+                      内容列表
+                    </h3>
+                    <WorkbenchInfoTip
+                      ariaLabel="内容列表说明"
+                      content="按当前目录或分类范围展示内容，支持直接打开、重命名、删除与移动内容。"
+                      tone="slate"
+                    />
                   </div>
                 </div>
 
@@ -1388,43 +1112,16 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                       资料加载中...
                     </div>
                   ) : showEmptyState ? (
-                    <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-300 bg-[linear-gradient(135deg,rgba(248,250,252,0.98)_0%,rgba(243,249,247,0.96)_100%)] px-6 py-12 text-center">
+                    <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-300 bg-[linear-gradient(135deg,rgba(248,250,252,0.98)_0%,rgba(243,249,247,0.96)_100%)] px-6 py-12 text-center">
                       <div className="flex h-16 w-16 items-center justify-center rounded-[20px] border border-white/90 bg-white/90 text-slate-700 shadow-sm">
-                        <Upload className="h-7 w-7" />
+                        <FileText className="h-7 w-7" />
                       </div>
-                      <h3 className="mt-6 text-3xl font-semibold tracking-tight text-slate-900">
-                        先把内容放进资料库
+                      <h3 className="mt-6 text-2xl font-semibold tracking-tight text-slate-900">
+                        当前范围内暂无内容
                       </h3>
                       <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-                        当前范围内还没有可展示的内容。可以先创建文件夹整理结构、写一份文档，或者把本地文件直接上传进来。
+                        资料库页当前只保留切换、浏览和打开主链。若要补图片，请切到上方图片视图继续上传；其他内容请回对应项目或创作链路处理。
                       </p>
-
-                      <div className="mt-8 grid w-full max-w-4xl gap-4 md:grid-cols-3">
-                        {emptyActions.map((item) => {
-                          const ItemIcon = item.icon;
-                          return (
-                            <button
-                              key={item.key}
-                              type="button"
-                              className="group rounded-[22px] border border-white/90 bg-white/92 px-5 py-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
-                              onClick={item.action}
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-700">
-                                  <ItemIcon className="h-5 w-5" />
-                                </div>
-                                <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-600" />
-                              </div>
-                              <p className="mt-4 text-base font-semibold text-slate-900">
-                                {item.label}
-                              </p>
-                              <p className="mt-1 text-sm leading-6 text-slate-500">
-                                {item.description}
-                              </p>
-                            </button>
-                          );
-                        })}
-                      </div>
                     </div>
                   ) : (
                     <div className="overflow-x-auto rounded-[22px] border border-slate-200/80">
@@ -1449,7 +1146,7 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {displayItems.map((item) => {
+                          {pagedDisplayItems.map((item) => {
                             const Icon = getKindIcon(item);
                             return (
                               <TableRow
@@ -1568,6 +1265,52 @@ export function ResourcesPage({ onNavigate }: ResourcesPageProps) {
                           })}
                         </TableBody>
                       </Table>
+
+                      <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-slate-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                          <span>
+                            显示第 {pageRangeStart}-{pageRangeEnd} 条，共{" "}
+                            {displayItems.length} 条
+                          </span>
+                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
+                            每页 {RESOURCE_PAGE_SIZE} 条
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="rounded-xl border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                            disabled={safeCurrentPage === 1}
+                            onClick={() =>
+                              setCurrentPage((previous) =>
+                                Math.max(1, previous - 1),
+                              )
+                            }
+                          >
+                            上一页
+                          </Button>
+                          <span className="min-w-[88px] text-center text-sm text-slate-600">
+                            第 {safeCurrentPage} / {totalPages} 页
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="rounded-xl border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                            disabled={safeCurrentPage === totalPages}
+                            onClick={() =>
+                              setCurrentPage((previous) =>
+                                Math.min(totalPages, previous + 1),
+                              )
+                            }
+                          >
+                            下一页
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

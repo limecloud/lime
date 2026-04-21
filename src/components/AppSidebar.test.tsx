@@ -3,20 +3,30 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentPageParams, Page, PageParams } from "@/types/page";
-import { recordSceneAppRecentVisit } from "@/lib/sceneapp";
+import { SettingsTabs } from "@/types/settings";
 import { AppSidebar } from "./AppSidebar";
 
-const { mockGetConfig, mockGetPluginsForSurface } = vi.hoisted(() => ({
+const { mockGetConfig, mockGetPluginsForSurface, mockSubscribeAppConfigChanged } =
+  vi.hoisted(() => ({
   mockGetConfig: vi.fn(),
   mockGetPluginsForSurface: vi.fn(),
+  mockSubscribeAppConfigChanged: vi.fn(),
 }));
 
 vi.mock("@/lib/api/appConfig", () => ({
   getConfig: mockGetConfig,
+  subscribeAppConfigChanged: mockSubscribeAppConfigChanged,
 }));
 
 vi.mock("@/lib/api/pluginUI", () => ({
   getPluginsForSurface: mockGetPluginsForSurface,
+}));
+
+vi.mock("@/lib/utils/scheduleMinimumDelayIdleTask", () => ({
+  scheduleMinimumDelayIdleTask: (task: () => void) => {
+    task();
+    return () => undefined;
+  },
 }));
 
 interface MountedSidebar {
@@ -51,56 +61,12 @@ function mountSidebar(options?: {
   return container;
 }
 
-function mountControlledSidebar(options?: {
-  currentPage?: Page;
-  currentPageParams?: PageParams;
-}) {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-  const navigationCalls: Array<{ page: Page; params?: PageParams }> = [];
-
-  function ControlledSidebar() {
-    const [currentPage, setCurrentPage] = React.useState<Page>(
-      options?.currentPage ?? "agent",
-    );
-    const [currentPageParams, setCurrentPageParams] = React.useState<PageParams>(
-      options?.currentPageParams ?? {},
-    );
-
-    const handleNavigate = React.useCallback(
-      (page: Page, params?: PageParams) => {
-        navigationCalls.push({ page, params });
-        setCurrentPage(page);
-        setCurrentPageParams(params ?? {});
-      },
-      [],
-    );
-
-    return (
-      <AppSidebar
-        currentPage={currentPage}
-        currentPageParams={currentPageParams}
-        onNavigate={handleNavigate}
-      />
-    );
+async function flushEffects(times = 1) {
+  for (let index = 0; index < times; index += 1) {
+    await act(async () => {
+      await Promise.resolve();
+    });
   }
-
-  act(() => {
-    root.render(<ControlledSidebar />);
-  });
-
-  mountedSidebars.push({ container, root });
-  return {
-    container,
-    navigationCalls,
-  };
-}
-
-async function flushEffects() {
-  await act(async () => {
-    await Promise.resolve();
-  });
 }
 
 describe("AppSidebar", () => {
@@ -109,6 +75,19 @@ describe("AppSidebar", () => {
     localStorage.clear();
     mockGetConfig.mockResolvedValue({});
     mockGetPluginsForSurface.mockResolvedValue([]);
+    mockSubscribeAppConfigChanged.mockImplementation(
+      (listener: () => void) => {
+        (globalThis as typeof globalThis & { __appConfigListener?: () => void })
+          .__appConfigListener = listener;
+        return () => {
+          (
+            globalThis as typeof globalThis & {
+              __appConfigListener?: () => void;
+            }
+          ).__appConfigListener = undefined;
+        };
+      },
+    );
   });
 
   afterEach(() => {
@@ -117,16 +96,23 @@ describe("AppSidebar", () => {
       if (!mounted) {
         continue;
       }
+
       act(() => {
         mounted.root.unmount();
       });
       mounted.container.remove();
     }
+
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+    (
+      globalThis as typeof globalThis & {
+        __appConfigListener?: () => void;
+      }
+    ).__appConfigListener = undefined;
   });
 
-  it("进入 Claw 生成页时应自动折叠导航栏", async () => {
+  it("进入生成页时应自动折叠导航栏", async () => {
     localStorage.setItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY, "false");
 
     const container = mountSidebar({
@@ -144,7 +130,7 @@ describe("AppSidebar", () => {
     );
   });
 
-  it("新建任务页应自动展开导航栏，不沿用上一个页面的折叠状态", async () => {
+  it("新建任务页应自动展开导航栏", async () => {
     localStorage.setItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY, "true");
 
     const container = mountSidebar({
@@ -162,10 +148,49 @@ describe("AppSidebar", () => {
     );
   });
 
-  it("旧导航配置未包含能力入口时也应显示固定能力分组和核心入口", async () => {
+  it("默认应渲染任务、能力、资料、系统四段导航，并隐藏系统扩展入口", async () => {
+    const container = mountSidebar({
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(2);
+
+    expect(container.textContent).toContain("任务");
+    expect(container.textContent).toContain("新建任务");
+    expect(container.textContent).toContain("生成");
+    expect(container.textContent).toContain("能力");
+    expect(container.textContent).toContain("我的方法");
+    expect(container.textContent).toContain("创作场景");
+    expect(container.textContent).toContain("持续流程");
+    expect(container.textContent).toContain("消息渠道");
+    expect(container.textContent).toContain("资料");
+    expect(container.textContent).toContain("资料库");
+    expect(container.textContent).toContain("灵感库");
+    expect(container.textContent).toContain("系统");
+    expect(container.textContent).toContain("设置");
+    expect(container.textContent).not.toContain("插件中心");
+    expect(container.textContent).not.toContain("OpenClaw");
+    expect(container.textContent).not.toContain("桌宠");
+    expect(container.textContent).not.toContain("支撑");
+    expect(container.textContent).not.toContain("技能");
+  });
+
+  it("恢复默认 agent 页时应把当前主舞台归到生成", async () => {
+    const container = mountSidebar({
+      currentPage: "agent",
+    });
+    await flushEffects(2);
+
+    expect(
+      container.querySelector('button[aria-label="生成"][aria-current="page"]'),
+    ).not.toBeNull();
+  });
+
+  it("显式开启后应显示隐藏的系统扩展入口", async () => {
     mockGetConfig.mockResolvedValue({
       navigation: {
-        enabled_items: ["home-general", "claw"],
+        enabled_items: ["plugins", "openclaw", "companion"],
       },
     });
 
@@ -174,46 +199,80 @@ describe("AppSidebar", () => {
         agentEntry: "new-task",
       } as AgentPageParams,
     });
-    await flushEffects();
+    await flushEffects(2);
 
-    expect(container.textContent).toContain("能力");
-    expect(container.textContent).toContain("我的方法");
-    expect(container.textContent).toContain("消息渠道");
-    expect(container.textContent).toContain("资料");
-    expect(container.textContent).toContain("资料库");
-    expect(container.textContent).toContain("灵感库");
-    expect(container.textContent).not.toContain("视频");
-    expect(container.textContent).not.toContain("持续流程");
+    expect(container.textContent).toContain("插件中心");
+    expect(container.textContent).toContain("OpenClaw");
+    expect(container.textContent).toContain("桌宠");
   });
 
-  it("进入消息渠道页时应高亮对应能力入口并保留能力分组标题", async () => {
+  it("配置变更后应重新读取隐藏入口并刷新侧栏", async () => {
+    mockGetConfig
+      .mockResolvedValueOnce({
+        navigation: {
+          enabled_items: [],
+        },
+      })
+      .mockResolvedValueOnce({
+        navigation: {
+          enabled_items: ["plugins", "companion"],
+        },
+      });
+
     const container = mountSidebar({
-      currentPage: "channels",
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
     });
-    await flushEffects();
+    await flushEffects(2);
 
-    expect(container.textContent).toContain("能力");
-    expect(
-      container.querySelector(
-        'button[aria-label="消息渠道"][aria-current="page"]',
-      ),
-    ).not.toBeNull();
+    expect(container.textContent).not.toContain("插件中心");
+    expect(container.textContent).not.toContain("桌宠");
+
+    await act(async () => {
+      (
+        globalThis as typeof globalThis & {
+          __appConfigListener?: () => void;
+        }
+      ).__appConfigListener?.();
+      await Promise.resolve();
+    });
+    await flushEffects(2);
+
+    expect(container.textContent).toContain("插件中心");
+    expect(container.textContent).toContain("桌宠");
   });
 
-  it("点击当前已激活的创作场景入口时不应重复导航", async () => {
-    const onNavigate = vi.fn();
+  it("sceneapps 页面应高亮创作场景，而不是把它并回我的方法", async () => {
     const container = mountSidebar({
       currentPage: "sceneapps",
       currentPageParams: {
         sceneappId: "story-video-suite",
         projectId: "project-9",
       },
+    });
+    await flushEffects(2);
+
+    expect(
+      container.querySelector(
+        'button[aria-label="创作场景"][aria-current="page"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('button[aria-label="我的方法"][aria-current="page"]'),
+    ).toBeNull();
+  });
+
+  it("点击当前已激活的我的方法入口时不应重复导航", async () => {
+    const onNavigate = vi.fn();
+    const container = mountSidebar({
+      currentPage: "skills",
       onNavigate,
     });
     await flushEffects();
 
     const button = container.querySelector(
-      'button[aria-label="创作场景"]',
+      'button[aria-label="我的方法"]',
     ) as HTMLButtonElement | null;
 
     expect(button).not.toBeNull();
@@ -226,10 +285,10 @@ describe("AppSidebar", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it("侧边栏重新挂载前应先恢复缓存的可选入口，避免持续流程短暂消失", () => {
+  it("旧的 enabled-items 本地缓存不应再复活历史导航", async () => {
     localStorage.setItem(
       APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
-      JSON.stringify(["automation"]),
+      JSON.stringify(["plugins", "openclaw", "companion", "video"]),
     );
     mockGetConfig.mockImplementation(() => new Promise(() => undefined));
 
@@ -238,143 +297,83 @@ describe("AppSidebar", () => {
         agentEntry: "new-task",
       } as AgentPageParams,
     });
-
-    expect(container.textContent).toContain("持续流程");
-  });
-
-  it("点击创作场景入口时应优先恢复最近一次 SceneApp 上下文", async () => {
-    const onNavigate = vi.fn();
-    recordSceneAppRecentVisit(
-      {
-        sceneappId: "story-video-suite",
-        projectId: "project-9",
-        runId: "run-2",
-      },
-      {
-        visitedAt: 600,
-      },
-    );
-
-    const container = mountSidebar({
-      currentPageParams: {
-        agentEntry: "new-task",
-      } as AgentPageParams,
-      onNavigate,
-    });
     await flushEffects();
 
-    const button = container.querySelector(
-      'button[aria-label="创作场景"]',
-    ) as HTMLButtonElement | null;
-
-    expect(button).not.toBeNull();
-
-    act(() => {
-      button?.click();
-    });
-
-    expect(onNavigate).toHaveBeenCalledWith("sceneapps", {
-      sceneappId: "story-video-suite",
-      projectId: "project-9",
-      runId: "run-2",
-    });
-  });
-
-  it("快速从持续流程切回创作场景时不应吞掉第二次导航", async () => {
-    localStorage.setItem(
-      APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
-      JSON.stringify(["automation"]),
-    );
-    mockGetConfig.mockResolvedValue({
-      navigation: {
-        enabled_items: ["automation"],
-      },
-    });
-    recordSceneAppRecentVisit(
-      {
-        sceneappId: "story-video-suite",
-        projectId: "project-9",
-        runId: "run-2",
-      },
-      {
-        visitedAt: 600,
-      },
-    );
-
-    const { container, navigationCalls } = mountControlledSidebar({
-      currentPage: "sceneapps",
-      currentPageParams: {
-        sceneappId: "story-video-suite",
-        projectId: "project-9",
-        runId: "run-2",
-      },
-    });
-    await flushEffects();
-
-    const automationButton = container.querySelector(
-      'button[aria-label="持续流程"]',
-    ) as HTMLButtonElement | null;
-    const sceneAppsButton = container.querySelector(
-      'button[aria-label="创作场景"]',
-    ) as HTMLButtonElement | null;
-
-    expect(automationButton).not.toBeNull();
-    expect(sceneAppsButton).not.toBeNull();
-
-    act(() => {
-      automationButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true, cancelable: true }),
-      );
-      sceneAppsButton?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true, cancelable: true }),
-      );
-    });
-    await flushEffects();
-
-    expect(navigationCalls).toEqual([
-      {
-        page: "automation",
-        params: undefined,
-      },
-      {
-        page: "sceneapps",
-        params: {
-          sceneappId: "story-video-suite",
-          projectId: "project-9",
-          runId: "run-2",
-        },
-      },
-    ]);
-    expect(
-      container.querySelector(
-        'button[aria-label="创作场景"][aria-current="page"]',
-      ),
-    ).not.toBeNull();
-  });
-
-  it("默认应隐藏系统区的可选入口，只保留设置", async () => {
-    const container = mountSidebar({
-      currentPageParams: {
-        agentEntry: "new-task",
-      } as AgentPageParams,
-    });
-    await flushEffects();
-
-    expect(container.textContent).toContain("系统");
-    expect(container.textContent).toContain("设置");
-    expect(container.textContent).not.toContain("终端");
+    expect(container.textContent).not.toContain("插件中心");
+    expect(container.textContent).not.toContain("OpenClaw");
     expect(container.textContent).not.toContain("桌宠");
   });
 
-  it("侧边栏不应再渲染旧主题分组标题", async () => {
+  it("桌宠入口开启后，进入 companion 视图应高亮桌宠", async () => {
+    mockGetConfig.mockResolvedValue({
+      navigation: {
+        enabled_items: ["companion"],
+      },
+    });
+
+    const container = mountSidebar({
+      currentPage: "settings",
+      currentPageParams: {
+        tab: SettingsTabs.Providers,
+        providerView: "companion",
+      },
+    });
+    await flushEffects(2);
+
+    expect(
+      container.querySelector('button[aria-label="桌宠"][aria-current="page"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('button[aria-label="设置"][aria-current="page"]'),
+    ).toBeNull();
+  });
+
+  it("插件中心未开启时不应渲染插件扩展分组", async () => {
+    mockGetPluginsForSurface.mockResolvedValue([
+      {
+        pluginId: "demo-sidebar",
+        name: "Demo Sidebar",
+        description: "demo",
+        icon: "Bot",
+        surfaces: ["sidebar"],
+      },
+    ]);
+
     const container = mountSidebar({
       currentPageParams: {
         agentEntry: "new-task",
       } as AgentPageParams,
     });
-    await flushEffects();
+    await flushEffects(3);
 
-    expect(container.textContent).not.toContain("创作主题");
-    expect(container.textContent).not.toContain("社媒内容");
+    expect(container.textContent).not.toContain("插件扩展");
+    expect(container.textContent).not.toContain("Demo Sidebar");
+  });
+
+  it("插件中心开启后才应显示插件扩展分组", async () => {
+    mockGetConfig.mockResolvedValue({
+      navigation: {
+        enabled_items: ["plugins"],
+      },
+    });
+    mockGetPluginsForSurface.mockResolvedValue([
+      {
+        pluginId: "demo-sidebar",
+        name: "Demo Sidebar",
+        description: "demo",
+        icon: "Bot",
+        surfaces: ["sidebar"],
+      },
+    ]);
+
+    const container = mountSidebar({
+      currentPageParams: {
+        agentEntry: "new-task",
+      } as AgentPageParams,
+    });
+    await flushEffects(3);
+
+    expect(container.textContent).toContain("插件扩展");
+    expect(container.textContent).toContain("Demo Sidebar");
   });
 });

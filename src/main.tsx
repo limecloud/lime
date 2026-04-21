@@ -9,8 +9,8 @@ import "./lib/tauri-mock/index";
 import "./i18n/config";
 import { initCrashReporting } from "@/lib/crashReporting";
 
-// 注册 Artifact 轻量渲染器
-import { registerLightweightRenderers } from "./components/artifact";
+// 只引入轻量渲染器注册入口，避免启动期拖入整条 Artifact 重型依赖链
+import { registerLightweightRenderers } from "./components/artifact/renderers";
 registerLightweightRenderers();
 
 void initCrashReporting();

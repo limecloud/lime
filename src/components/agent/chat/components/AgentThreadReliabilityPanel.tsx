@@ -582,7 +582,7 @@ function buildReliabilityDiagnosticText(params: {
     `- 模型：${diagnosticRuntimeContext?.model || "未知"}`,
     `- 执行策略：${diagnosticRuntimeContext?.executionStrategy || "未知"}`,
     `- 主题：${diagnosticRuntimeContext?.activeTheme || "未知"}`,
-    `- 任务方案：${diagnosticRuntimeContext?.selectedTeamLabel || "未设置"}`,
+    `- 分工方案：${diagnosticRuntimeContext?.selectedTeamLabel || "未设置"}`,
     `- 工作区根目录：${diagnosticRuntimeContext?.workingDir || "未知"}`,
     "",
     "### 当前状态",

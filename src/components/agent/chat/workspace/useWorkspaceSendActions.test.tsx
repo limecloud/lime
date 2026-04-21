@@ -138,8 +138,8 @@ function createCloudSceneSkill(): ServiceSkillHomeItem {
   return {
     id: "cloud-video-dubbing",
     skillKey: "campaign-launch",
-    title: "云端视频配音",
-    summary: "把视频文案与素材提交到云端，生成一版可继续加工的配音结果。",
+    title: "视频配音",
+    summary: "围绕视频文案与素材整理一版可继续加工的配音稿。",
     category: "视频创作",
     outputHint: "配音文案 + 结果摘要",
     source: "cloud_catalog",
@@ -150,10 +150,10 @@ function createCloudSceneSkill(): ServiceSkillHomeItem {
     badge: "云目录",
     recentUsedAt: null,
     isRecent: false,
-    runnerLabel: "云端托管执行",
+    runnerLabel: "立即开始",
     runnerTone: "slate",
-    runnerDescription: "提交到 OEM 云端执行，结果由服务端异步返回。",
-    actionLabel: "提交云端",
+    runnerDescription: "直接在当前工作区整理首版配音稿。",
+    actionLabel: "对话内补参",
     automationStatus: null,
     slotSchema: [
       {
@@ -1741,6 +1741,7 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           skillId: "research",
           runnerType: "instant",
+          launchUserInput: "AI Agent 融资 36Kr 近30天 融资额与产品发布",
           slotValues: {
             prompt: "AI Agent 融资 36Kr 近30天 融资额与产品发布",
             query: "AI Agent 融资",
@@ -1940,19 +1941,6 @@ describe("useWorkspaceSendActions", () => {
         executionKind: "cloud_scene",
       },
     ]);
-    mockResolveOemCloudRuntimeContext.mockReturnValue({
-      baseUrl: "https://user.limeai.run",
-      controlPlaneBaseUrl: "https://user.limeai.run/api",
-      sceneBaseUrl: "https://user.limeai.run/scene-api",
-      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
-      tenantId: "tenant-demo",
-      sessionToken: "session-token-demo",
-      hubProviderName: null,
-      loginPath: "/login",
-      desktopClientId: "desktop-client",
-      desktopOauthRedirectUrl: "lime://oauth/callback",
-      desktopOauthNextPath: "/welcome",
-    });
     const harness = mountHook({
       input: "帮我做一版新品活动启动方案",
       serviceSkills: [createCloudSceneSkill()],
@@ -1982,8 +1970,9 @@ describe("useWorkspaceSendActions", () => {
       });
 
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
-        "/campaign-launch 帮我做一版新品活动启动方案",
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain("[技能任务] 视频配音");
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
+        "[补充要求] 帮我做一版新品活动启动方案",
       );
       const sendOptions = mockSendMessage.mock.calls[0]?.[8];
       expect(sendOptions).toMatchObject({
@@ -1997,7 +1986,7 @@ describe("useWorkspaceSendActions", () => {
       expect(sendOptions?.requestMetadata).toMatchObject({
         harness: {
           service_scene_launch: {
-            kind: "cloud_scene",
+            kind: "local_service_skill",
             service_scene_run: expect.objectContaining({
               scene_key: "campaign-launch",
               user_input: "帮我做一版新品活动启动方案",
@@ -3796,6 +3785,7 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           skillId: "content_post_with_cover",
           runnerType: "instant",
+          launchUserInput: "帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
           slotValues: {
             prompt: "帮我把这篇春日咖啡活动文案整理成可直接上传的版本",
             content:
@@ -3888,20 +3878,7 @@ describe("useWorkspaceSendActions", () => {
     }
   });
 
-  it("@配音 应保留原始消息，并通过 service_scene_launch 交给云端技能主链", async () => {
-    mockResolveOemCloudRuntimeContext.mockReturnValue({
-      baseUrl: "https://user.limeai.run",
-      controlPlaneBaseUrl: "https://user.limeai.run/api",
-      sceneBaseUrl: "https://user.limeai.run/scene-api",
-      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
-      tenantId: "tenant-demo",
-      sessionToken: "session-token-demo",
-      hubProviderName: null,
-      loginPath: "/login",
-      desktopClientId: "desktop-client",
-      desktopOauthRedirectUrl: "lime://oauth/callback",
-      desktopOauthNextPath: "/welcome",
-    });
+  it("@配音 应保留原始消息，并通过本地 service scene launch 注入配音 prompt", async () => {
     const harness = mountHook({
       input: "@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿",
       serviceSkills: [createCloudSceneSkill()],
@@ -3914,28 +3891,26 @@ describe("useWorkspaceSendActions", () => {
       });
 
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
-        "@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿",
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain("[技能任务] 视频配音");
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
+        "[补充要求] 给这个新品视频做一版发布配音稿",
       );
       expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        displayContent: "@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿",
         requestMetadata: {
           harness: {
             service_scene_launch: {
-              kind: "cloud_scene",
+              kind: "local_service_skill",
               service_scene_run: expect.objectContaining({
                 scene_key: "voice_runtime",
                 command_prefix: "@配音",
                 skill_id: "cloud-video-dubbing",
-                skill_title: "云端视频配音",
+                skill_title: "视频配音",
                 user_input: "给这个新品视频做一版发布配音稿",
                 entry_source: "at_voice_command",
                 project_id: "project-1",
                 target_language: "英文",
                 voice_style: "科技感",
-                oem_runtime: expect.objectContaining({
-                  scene_base_url: "https://user.limeai.run/scene-api",
-                  tenant_id: "tenant-demo",
-                }),
               }),
             },
           },
@@ -3952,6 +3927,7 @@ describe("useWorkspaceSendActions", () => {
         expect.objectContaining({
           skillId: "cloud-video-dubbing",
           runnerType: "instant",
+          launchUserInput: "给这个新品视频做一版发布配音稿",
           slotValues: {
             user_input: "给这个新品视频做一版发布配音稿",
             target_language: "英文",
@@ -4102,19 +4078,6 @@ describe("useWorkspaceSendActions", () => {
         executionKind: "cloud_scene",
       },
     ]);
-    mockResolveOemCloudRuntimeContext.mockReturnValueOnce({
-      baseUrl: "https://user.limeai.run",
-      controlPlaneBaseUrl: "https://user.limeai.run/api",
-      sceneBaseUrl: "https://user.limeai.run/scene-api",
-      gatewayBaseUrl: "https://user.limeai.run/gateway-api",
-      tenantId: "tenant-demo",
-      sessionToken: "session-token-demo",
-      hubProviderName: null,
-      loginPath: "/login",
-      desktopClientId: "desktop-client",
-      desktopOauthRedirectUrl: "lime://oauth/callback",
-      desktopOauthNextPath: "/welcome",
-    });
     const harness = mountHook({
       input: "/campaign-launch 帮我做一版新品活动启动方案",
       serviceSkills: [createCloudSceneSkill()],
@@ -4127,10 +4090,12 @@ describe("useWorkspaceSendActions", () => {
       });
 
       expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
-        "/campaign-launch 帮我做一版新品活动启动方案",
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain("[技能任务] 视频配音");
+      expect(mockSendMessage.mock.calls[0]?.[0]).toContain(
+        "[补充要求] 帮我做一版新品活动启动方案",
       );
       expect(mockSendMessage.mock.calls[0]?.[8]).toMatchObject({
+        displayContent: "/campaign-launch 帮我做一版新品活动启动方案",
         capabilityRoute: {
           kind: "runtime_scene",
           sceneKey: "campaign-launch",
@@ -4139,17 +4104,13 @@ describe("useWorkspaceSendActions", () => {
         requestMetadata: {
           harness: {
             service_scene_launch: {
-              kind: "cloud_scene",
+              kind: "local_service_skill",
               service_scene_run: expect.objectContaining({
                 scene_key: "campaign-launch",
                 skill_id: "cloud-video-dubbing",
-                skill_title: "云端视频配音",
+                skill_title: "视频配音",
                 user_input: "帮我做一版新品活动启动方案",
                 project_id: "project-1",
-                oem_runtime: expect.objectContaining({
-                  scene_base_url: "https://user.limeai.run/scene-api",
-                  tenant_id: "tenant-demo",
-                }),
               }),
             },
           },

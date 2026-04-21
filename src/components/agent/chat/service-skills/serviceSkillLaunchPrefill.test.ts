@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import type { CreationReplayMetadata } from "../utils/creationReplayMetadata";
-import { resolveServiceSkillLaunchPrefill } from "./serviceSkillLaunchPrefill";
+import {
+  buildServiceSkillLaunchPrefillSummary,
+  resolveServiceSkillLaunchPrefill,
+} from "./serviceSkillLaunchPrefill";
 import { recordServiceSkillUsage } from "./storage";
 import type { ServiceSkillHomeItem } from "./types";
 
@@ -43,7 +46,6 @@ function createResearchSkill(): ServiceSkillHomeItem {
     runnerDescription: "会直接在当前工作区生成首版结果。",
     actionLabel: "对话内补参",
     automationStatus: null,
-    cloudStatus: null,
     groupKey: "general",
   };
 }
@@ -111,6 +113,7 @@ describe("resolveServiceSkillLaunchPrefill", () => {
         target_duration: "120 秒",
         ignored_empty: "   ",
       },
+      launchUserInput: "  保留更强的团队协作视角  ",
     });
 
     expect(
@@ -122,8 +125,37 @@ describe("resolveServiceSkillLaunchPrefill", () => {
         article_source: "上次沉淀的文章摘要",
         target_duration: "120 秒",
       },
+      launchUserInput: "保留更强的团队协作视角",
       hint: "已根据你上次成功执行 深度研究 时的参数自动预填，可继续修改后执行。",
     });
+  });
+
+  it("summary 应同时显影上次填写与上次补充", () => {
+    expect(
+      buildServiceSkillLaunchPrefillSummary({
+        skill: createResearchSkill(),
+        slotValues: {
+          article_source: "上次沉淀的文章摘要",
+          target_duration: "120 秒",
+        },
+        launchUserInput:
+          "保留更强的团队协作视角，并压缩成一版更利于分享的总结。",
+      }),
+    ).toBe(
+      "上次填写：文章链接/正文=上次沉淀的文章摘要；目标时长=120 秒 · 上次补充：保留更强的团队协作视角，并压缩成一版更利于分享的总结。",
+    );
+  });
+
+  it("launchUserInput 与已显影槽位重复时，不应再重复显示上次补充", () => {
+    expect(
+      buildServiceSkillLaunchPrefillSummary({
+        skill: createResearchSkill(),
+        slotValues: {
+          article_source: "上次沉淀的文章摘要",
+        },
+        launchUserInput: "上次沉淀的文章摘要",
+      }),
+    ).toBe("上次填写：文章链接/正文=上次沉淀的文章摘要");
   });
 
   it("creation replay 命中时应覆盖最近成功参数", () => {

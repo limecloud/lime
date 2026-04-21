@@ -28,9 +28,11 @@ describe("seededServiceSkillPackage", () => {
     expect(pkg.bindingProfiles.map((profile) => profile.id)).toEqual(
       expect.arrayContaining([
         "agent-turn-instant",
-        "cloud-scene-instant",
         "automation-job-managed",
       ]),
+    );
+    expect(pkg.compatibility.requiredKernelCapabilities).not.toContain(
+      "cloud_scene",
     );
   });
 
@@ -78,6 +80,12 @@ describe("seededServiceSkillPackage", () => {
                 "account-performance-tracking-automation",
             }),
           }),
+        }),
+        expect.objectContaining({
+          id: "cloud-video-dubbing",
+          title: "视频配音",
+          defaultExecutorBinding: "agent_turn",
+          executionLocation: "client_default",
         }),
       ]),
     );

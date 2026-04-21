@@ -6,14 +6,14 @@ afterEach(() => {
 });
 
 describe("resolveSceneAppRunEntryNavigationTarget", () => {
-  it("应把云端 Scene 无会话的入口恢复为生成页自动续跑请求", () => {
+  it("应把生成上下文无会话的入口恢复为生成页自动续跑请求", () => {
     const target = resolveSceneAppRunEntryNavigationTarget({
       action: {
-        kind: "open_cloud_scene_session",
-        label: "恢复云端 Scene",
-        helperText: "继续执行最近一次云端 Scene 运行。",
+        kind: "open_service_scene_session",
+        label: "恢复生成上下文",
+        helperText: "继续执行最近一次场景运行。",
         sessionId: undefined,
-        cloudSceneRuntimeRef: {
+        serviceSceneRuntimeRef: {
           projectId: "project-1",
           contentId: "content-1",
           sceneKey: "story-video-suite",
@@ -35,7 +35,14 @@ describe("resolveSceneAppRunEntryNavigationTarget", () => {
           contentId: "content-1",
           autoRunInitialPromptOnMount: true,
           initialUserPrompt: "继续补齐这轮短视频结果包。",
-          entryBannerMessage: "已从生成主执行面恢复云端 Scene 上下文。",
+          entryBannerMessage: "已从生成主执行面恢复生成上下文。",
+          initialAutoSendRequestMetadata: expect.objectContaining({
+            harness: expect.objectContaining({
+              service_scene_launch: expect.objectContaining({
+                kind: "local_service_skill",
+              }),
+            }),
+          }),
         }),
       }),
     );
@@ -60,7 +67,7 @@ describe("resolveSceneAppRunEntryNavigationTarget", () => {
       },
       sceneappId: "x-article-export",
       sceneTitle: "长文导出",
-      sourceLabel: "创作场景复盘",
+      sourceLabel: "做法复盘",
       projectId: "project-1",
       linkedServiceSkillId: "x-article-export",
       linkedSceneKey: "x-article-export",
@@ -72,7 +79,7 @@ describe("resolveSceneAppRunEntryNavigationTarget", () => {
         params: expect.objectContaining({
           agentEntry: "claw",
           projectId: "project-1",
-          entryBannerMessage: "已从创作场景复盘恢复本机技能入口。",
+          entryBannerMessage: "已从做法复盘恢复本机技能入口。",
           initialPendingServiceSkillLaunch: expect.objectContaining({
             skillId: "x-article-export",
             skillKey: "x-article-export",

@@ -30,17 +30,19 @@ interface ListFeaturedHomeServiceSkillsOptions {
 
 const DEFAULT_FEATURED_HOME_SERVICE_SKILL_LIMIT = 2;
 
+function normalizeHomeServiceSkillBinding(
+  binding: ServiceSkillExecutorBinding,
+): Exclude<ServiceSkillExecutorBinding, "cloud_scene"> {
+  return binding === "cloud_scene" ? "agent_turn" : binding;
+}
+
 function resolveServiceSkillExecutionKind(
   skill: Pick<
     ServiceSkillItem,
     "defaultExecutorBinding" | "executionLocation"
   >,
 ): SkillCatalogExecutionKind {
-  if (skill.executionLocation === "cloud_required") {
-    return "cloud_scene";
-  }
-
-  switch (skill.defaultExecutorBinding) {
+  switch (normalizeHomeServiceSkillBinding(skill.defaultExecutorBinding)) {
     case "browser_assist":
       return "site_adapter";
     case "automation_job":
@@ -49,8 +51,6 @@ function resolveServiceSkillExecutionKind(
       return "native_skill";
     case "agent_turn":
       return "agent_turn";
-    case "cloud_scene":
-      return "cloud_scene";
     default:
       return "agent_turn";
   }
@@ -70,7 +70,6 @@ function buildSeededHomeServiceSkillItem(
     runnerDescription: getServiceSkillRunnerDescription(skill),
     actionLabel: getServiceSkillActionLabel(skill),
     automationStatus: null,
-    cloudStatus: null,
   };
 }
 

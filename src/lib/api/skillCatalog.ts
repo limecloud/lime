@@ -26,6 +26,7 @@ export type SkillCatalogExecutionKind =
   | "native_skill"
   | "agent_turn"
   | "automation_job"
+  // legacy compat only：若远端或旧包仍返回 cloud_scene，当前前台会把它视作兼容输入而非真实执行面。
   | "cloud_scene"
   | "site_adapter";
 
@@ -294,10 +295,29 @@ function resolveSkillCatalogExecutionKind(
     case "automation_job":
       return "automation_job";
     case "cloud_scene":
-      return "cloud_scene";
+      return "agent_turn";
     default:
       return "agent_turn";
   }
+}
+
+function normalizeCompatSkillCatalogExecutionKind(
+  kind: SkillCatalogExecutionKind,
+): SkillCatalogExecutionKind {
+  return kind === "cloud_scene" ? "agent_turn" : kind;
+}
+
+function isLegacyCompatSceneSourceItem(
+  item: Pick<
+    ServiceSkillItem,
+    "defaultExecutorBinding" | "executionLocation" | "sceneBinding"
+  >,
+): boolean {
+  return (
+    Boolean(item.sceneBinding) ||
+    item.defaultExecutorBinding === "cloud_scene" ||
+    item.executionLocation === "cloud_required"
+  );
 }
 
 function parseCommandBindingExecutionKind(
@@ -314,7 +334,7 @@ function parseCommandBindingExecutionKind(
     normalized === "server_api" ||
     normalized === "cli"
   ) {
-    return normalized;
+    return normalized === "cloud_scene" ? "agent_turn" : normalized;
   }
   return undefined;
 }
@@ -331,7 +351,7 @@ function parseSceneExecutionKind(
     normalized === "site_adapter" ||
     normalized === "scene"
   ) {
-    return normalized;
+    return normalized === "cloud_scene" ? "agent_turn" : normalized;
   }
   return undefined;
 }
@@ -445,7 +465,7 @@ function buildSceneEntryFromCatalogItem(
   item: SkillCatalogItem,
 ): SkillCatalogSceneEntry | null {
   const explicitSceneBinding = item.sceneBinding;
-  if (!explicitSceneBinding && item.execution.kind !== "cloud_scene") {
+  if (!isLegacyCompatSceneSourceItem(item)) {
     return null;
   }
 
@@ -471,7 +491,7 @@ function buildSceneEntryFromCatalogItem(
         : item.aliases,
     surfaceScopes: item.surfaceScopes,
     linkedSkillId: item.id,
-    executionKind: item.execution.kind,
+    executionKind: normalizeCompatSkillCatalogExecutionKind(item.execution.kind),
     renderContract: {
       resultKind: "tool_timeline",
       detailKind: "scene_detail",
@@ -841,7 +861,7 @@ function parseSkillCatalogExecution(
         });
 
   return {
-    kind,
+    kind: normalizeCompatSkillCatalogExecutionKind(kind),
     siteAdapterBinding:
       siteAdapterBindingEnvelope?.items[0]?.siteCapabilityBinding,
   };

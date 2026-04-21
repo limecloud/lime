@@ -68,7 +68,7 @@ export function SceneAppGovernancePanel({
   if (!hasSelectedSceneApp) {
     return (
       <section className="rounded-[28px] border border-dashed border-slate-200 bg-white p-5 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-        先选择一个 SceneApp，治理看板才会根据最近运行、证据和评分信号一起回流。
+        先选一套做法，复盘页才会带出最近结果、证据和下一步判断。
       </section>
     );
   }
@@ -76,9 +76,9 @@ export function SceneAppGovernancePanel({
   if (loading && !governanceView) {
     return (
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="text-sm font-semibold text-slate-900">治理看板</div>
+        <div className="text-sm font-semibold text-slate-900">做法复盘</div>
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-          正在整理治理视图…
+          正在整理复盘视图…
         </div>
       </section>
     );
@@ -87,7 +87,7 @@ export function SceneAppGovernancePanel({
   if (error && !governanceView) {
     return (
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="text-sm font-semibold text-slate-900">治理看板</div>
+        <div className="text-sm font-semibold text-slate-900">做法复盘</div>
         <div className="mt-5 rounded-[22px] border border-dashed border-rose-200 bg-rose-50 px-4 py-5 text-sm text-rose-700">
           {error}
         </div>
@@ -98,9 +98,9 @@ export function SceneAppGovernancePanel({
   if (!governanceView) {
     return (
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="text-sm font-semibold text-slate-900">治理看板</div>
+        <div className="text-sm font-semibold text-slate-900">做法复盘</div>
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-          当前还没有可整理的治理信息，先跑一轮结果链再回来复盘。
+          当前还没有可整理的复盘信息，先跑一轮结果链再回来判断。
         </div>
       </section>
     );
@@ -110,10 +110,9 @@ export function SceneAppGovernancePanel({
     <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-slate-900">治理看板</div>
+          <div className="text-sm font-semibold text-slate-900">做法复盘</div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            把最近一次运行翻成业务向判断，决定这条 SceneApp
-            现在适合复盘、推进还是先停下来修。
+            把最近一轮结果翻成业务判断，决定现在适合继续、先修哪里，还是先停下来补材料。
           </p>
         </div>
 
@@ -125,7 +124,7 @@ export function SceneAppGovernancePanel({
               className="rounded-full border border-lime-200 bg-lime-50 px-3 py-1 text-[11px] font-medium text-lime-800 transition-colors hover:border-lime-300 hover:bg-lime-100"
               onClick={() => onOpenHumanReview?.()}
             >
-              {humanReviewLoading ? "准备人工复核…" : "填写人工复核"}
+              {humanReviewLoading ? "准备人工复核…" : "补人工复核"}
             </button>
           ) : null}
           {loading ? (
@@ -158,7 +157,7 @@ export function SceneAppGovernancePanel({
 
       <div className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
         <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold tracking-[0.08em] text-lime-700">
-          <span>GOVERNANCE LOOP</span>
+          <span>最近一轮判断</span>
           <span className="text-slate-400">·</span>
           <span className="text-slate-500">
             {governanceView.latestRunLabel}
@@ -175,13 +174,13 @@ export function SceneAppGovernancePanel({
         </p>
         {governanceView.topFailureSignalLabel ? (
           <div className="mt-3 text-sm text-slate-700">
-            <span className="font-medium text-slate-900">当前主要阻塞：</span>
+            <span className="font-medium text-slate-900">现在最卡的一点：</span>
             {governanceView.topFailureSignalLabel}
           </div>
         ) : null}
         {humanReviewAvailable && quickReviewActions.length ? (
           <div className="mt-4">
-            <div className="text-xs font-medium text-slate-500">轻量判断</div>
+            <div className="text-xs font-medium text-slate-500">快速判断</div>
             <div className="mt-2 grid gap-3 xl:grid-cols-2">
               {quickReviewActions.map((action) => (
                 <button
@@ -209,18 +208,18 @@ export function SceneAppGovernancePanel({
         {governanceView.contextBaseline ? (
           <div className="mt-4 rounded-[18px] border border-sky-200 bg-white px-3 py-3">
             <div className="text-xs font-medium text-slate-500">
-              Planning 基线
+              这轮带入的参考
             </div>
             <div
               data-testid="sceneapp-governance-context-reference-count"
               className="mt-2 text-sm text-slate-700"
             >
-              <span className="font-medium text-slate-900">参考注入：</span>
+              <span className="font-medium text-slate-900">参考对象：</span>
               {governanceView.contextBaseline.referenceCount} 条
             </div>
             {governanceView.contextBaseline.scopeLabel ? (
               <div className="mt-2 text-sm text-slate-700">
-                <span className="font-medium text-slate-900">作用域：</span>
+                <span className="font-medium text-slate-900">作用范围：</span>
                 {governanceView.contextBaseline.scopeLabel}
               </div>
             ) : null}
@@ -246,7 +245,7 @@ export function SceneAppGovernancePanel({
                 data-testid="sceneapp-governance-context-taste-summary"
                 className="mt-3 text-sm leading-6 text-slate-700"
               >
-                <span className="font-medium text-slate-900">风格摘要：</span>
+                <span className="font-medium text-slate-900">风格方向：</span>
                 {governanceView.contextBaseline.tasteSummary}
               </div>
             ) : null}
@@ -290,9 +289,7 @@ export function SceneAppGovernancePanel({
 
       {governanceView.destinations.length ? (
         <div className="mt-4">
-          <div className="text-xs font-medium text-slate-500">
-            当前适合投放到
-          </div>
+          <div className="text-xs font-medium text-slate-500">更适合往哪继续</div>
           <div className="mt-2 grid gap-3 md:grid-cols-2">
             {governanceView.destinations.map((destination) => (
               <article
@@ -312,7 +309,7 @@ export function SceneAppGovernancePanel({
       ) : null}
 
       <div className="mt-4">
-        <div className="text-xs font-medium text-slate-500">材料状态</div>
+        <div className="text-xs font-medium text-slate-500">现在够不够继续</div>
         <div className="mt-2 grid gap-3 md:grid-cols-2">
           {governanceView.statusItems.map((item) => (
             <article
@@ -341,7 +338,7 @@ export function SceneAppGovernancePanel({
       {governanceView.governanceActionEntries.length ||
       governanceView.entryAction ? (
         <div className="mt-4">
-          <div className="text-xs font-medium text-slate-500">推荐动作</div>
+          <div className="text-xs font-medium text-slate-500">下一步建议</div>
           <div className="mt-2 grid gap-3 xl:grid-cols-2">
             {governanceView.governanceActionEntries.map((entry) => (
               <button
@@ -386,7 +383,7 @@ export function SceneAppGovernancePanel({
 
       {governanceView.governanceArtifactEntries.length ? (
         <div className="mt-4">
-          <div className="text-xs font-medium text-slate-500">基础材料</div>
+          <div className="text-xs font-medium text-slate-500">可打开材料</div>
           <div className="mt-2 flex flex-wrap gap-2">
             {governanceView.governanceArtifactEntries.map((entry) => (
               <button

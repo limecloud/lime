@@ -1,8 +1,9 @@
 use super::runtime_project_hooks::{
+    run_runtime_session_end_project_hooks_for_session_with_runtime,
     run_runtime_session_start_project_hooks, run_runtime_session_start_project_hooks_with_runtime,
 };
 use super::*;
-use aster::hooks::SessionSource;
+use aster::hooks::{SessionEndReason, SessionSource};
 use aster::session::load_shared_session_runtime_snapshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -168,6 +169,7 @@ pub(crate) fn resolve_recent_preference_from_sources(
     extract_harness_bool(request_metadata, keys).or(session_recent_preference)
 }
 
+#[cfg(test)]
 pub(crate) async fn create_runtime_session_internal(
     db: &DbConnection,
     working_dir: Option<String>,
@@ -317,11 +319,21 @@ pub(crate) fn rename_runtime_session_internal(
     AsterAgentWrapper::rename_session_sync(db, session_id, name)
 }
 
-pub(crate) async fn delete_runtime_session_internal(
+pub(crate) async fn delete_runtime_session_internal_with_runtime(
     db: &DbConnection,
+    state: &AsterAgentState,
+    mcp_manager: &McpManagerState,
     session_id: &str,
 ) -> Result<(), String> {
     tracing::info!("[AsterAgent] 删除会话: {}", session_id);
+    run_runtime_session_end_project_hooks_for_session_with_runtime(
+        db,
+        state,
+        mcp_manager,
+        session_id,
+        SessionEndReason::Other,
+    )
+    .await;
     AsterAgentWrapper::delete_session(db, session_id).await?;
     Ok(())
 }

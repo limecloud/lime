@@ -17,6 +17,7 @@ import type {
   ServiceSkillGroup,
   ServiceSkillHomeItem,
 } from "@/components/agent/chat/service-skills/types";
+import { recordServiceSkillUsage } from "@/components/agent/chat/service-skills/storage";
 import type {
   BuiltinInputCommand,
   RuntimeSceneSlashCommand,
@@ -1457,9 +1458,35 @@ describe("CharacterMention", () => {
   });
 
   it("最近使用的服务技能应优先显示在独立分组，且不在技能组里重复", async () => {
+    act(() => {
+      recordServiceSkillUsage({
+        skillId: "recent-trend-briefing",
+        runnerType: "scheduled",
+        slotValues: {
+          platform_focus: "X + TikTok",
+          keyword_focus: "AI 内容创作",
+        },
+      });
+    });
     const recentSkill = createServiceSkill({
       id: "recent-trend-briefing",
       title: "最近趋势摘要",
+      slotSchema: [
+        {
+          key: "platform_focus",
+          label: "关注平台",
+          type: "text",
+          required: true,
+          placeholder: "例如 X + TikTok",
+        },
+        {
+          key: "keyword_focus",
+          label: "关键词",
+          type: "text",
+          required: true,
+          placeholder: "例如 AI 内容创作",
+        },
+      ],
       recentUsedAt: 1_712_345_678_000,
       isRecent: true,
     });
@@ -1476,6 +1503,9 @@ describe("CharacterMention", () => {
 
     expect(document.body.textContent).toContain("最近使用");
     expect(document.body.textContent).toContain("推荐技能");
+    expect(document.body.textContent).toContain(
+      "上次填写：关注平台=X + TikTok；关键词=AI 内容创作",
+    );
 
     const recentButtons = Array.from(
       document.body.querySelectorAll("button"),
@@ -1508,6 +1538,29 @@ describe("CharacterMention", () => {
       document.body.querySelectorAll("button"),
     ).filter((button) => button.textContent?.includes("@搜索"));
     expect(recentCommandButtons).toHaveLength(1);
+  });
+
+  it("@ 面板打开后新增内建命令 recent usage 时，应即时刷新最近使用分组", async () => {
+    const container = renderHarness();
+    const textarea = getTextarea(container);
+
+    await typeAtAndWait(textarea);
+
+    expect(document.body.textContent).not.toContain("最近使用");
+
+    await act(async () => {
+      recordMentionEntryUsage({
+        kind: "builtin_command",
+        entryId: "research",
+        usedAt: 1_712_345_678_901,
+        replayText: "关键词:AI Agent 融资 站点:36Kr",
+      });
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent).toContain("最近使用");
+    expect(document.body.textContent).toContain("@搜索");
+    expect(document.body.textContent).toContain("上次输入：关键词:AI Agent 融资");
   });
 
   it("选择最近使用的 @命令时应回填上次成功草稿", async () => {
@@ -2458,7 +2511,7 @@ describe("CharacterMention", () => {
     });
 
     expect(document.body.textContent).toContain(
-      "已选择 1 条参考基线，本轮会一起带入生成。",
+      "已选择 1 条参考对象，本轮会一起带入生成。",
     );
   });
 
@@ -2757,6 +2810,12 @@ describe("CharacterMention", () => {
       document.body.querySelectorAll("button"),
     ).find((button) => button.textContent?.includes("内容主稿生成"));
     expect(recentCuratedTaskButton).toBeTruthy();
+    expect(recentCuratedTaskButton?.textContent).toContain(
+      "上次填写：主题或产品信息=上次的品牌 campaign 主线；目标受众=海外增长负责人",
+    );
+    expect(recentCuratedTaskButton?.textContent).toContain(
+      "参考：上次 campaign 参考",
+    );
 
     await act(async () => {
       recentCuratedTaskButton?.click();
@@ -2777,7 +2836,7 @@ describe("CharacterMention", () => {
     expect(subjectInput?.value).toBe("上次的品牌 campaign 主线");
     expect(audienceInput?.value).toBe("海外增长负责人");
     expect(document.body.textContent).toContain(
-      "已选择 1 条参考基线，本轮会一起带入生成。",
+      "已选择 1 条参考对象，本轮会一起带入生成。",
     );
   });
 

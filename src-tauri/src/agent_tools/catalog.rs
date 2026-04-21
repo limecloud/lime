@@ -597,7 +597,7 @@ static NATIVE_TOOL_CATALOG: &[ToolCatalogEntry] = &[
         name: LIME_RUN_SERVICE_SKILL_TOOL_NAME,
         profiles: WORKBENCH_PROFILES,
         capabilities: EXECUTION_CAP,
-        lifecycle: ToolLifecycle::Current,
+        lifecycle: ToolLifecycle::Compat,
         source: ToolSourceKind::LimeInjected,
         permission_plane: ToolPermissionPlane::SessionAllowlist,
         workspace_default_allow: true,

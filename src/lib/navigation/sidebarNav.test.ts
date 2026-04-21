@@ -6,36 +6,63 @@ import {
 } from "./sidebarNav";
 
 describe("sidebarNav", () => {
-  it("主导航不应再暴露独立插图、视频、终端或工具箱模块入口", () => {
-    const workspaceSection = MAIN_SIDEBAR_NAV_SECTIONS.find(
-      (section) => section.id === "workspace",
-    );
-    const systemSection = FOOTER_SIDEBAR_NAV_SECTIONS.find(
-      (section) => section.id === "system",
-    );
-
-    expect(workspaceSection).toBeUndefined();
-    expect(systemSection?.items.some((item) => item.id === "terminal")).toBe(
-      false,
-    );
-    expect(systemSection?.items.some((item) => item.id === "tools")).toBe(
-      false,
-    );
-  });
-
-  it("已保存的 legacy 插图、视频、终端与工具箱导航项应在恢复时被过滤掉", () => {
+  it("应按任务、能力、资料、系统四组收口当前导航", () => {
     expect(
-      resolveEnabledSidebarNavItems(["video", "image-gen", "terminal", "tools"]),
-    ).toEqual([]);
-  });
-
-  it("能力导航应暴露 SceneApp 目录页入口", () => {
-    const capabilitySection = MAIN_SIDEBAR_NAV_SECTIONS.find(
-      (section) => section.id === "capability",
-    );
+      MAIN_SIDEBAR_NAV_SECTIONS.map((section) => ({
+        id: section.id,
+        title: section.title,
+        items: section.items.map((item) => item.label),
+      })),
+    ).toEqual([
+      {
+        id: "tasks",
+        title: "任务",
+        items: ["新建任务", "生成"],
+      },
+      {
+        id: "capabilities",
+        title: "能力",
+        items: ["我的方法", "创作场景", "持续流程", "消息渠道"],
+      },
+      {
+        id: "knowledge",
+        title: "资料",
+        items: ["资料库", "灵感库"],
+      },
+    ]);
 
     expect(
-      capabilitySection?.items.some((item) => item.id === "sceneapps"),
-    ).toBe(true);
+      FOOTER_SIDEBAR_NAV_SECTIONS.map((section) => ({
+        id: section.id,
+        title: section.title,
+        items: section.items.map((item) => item.label),
+      })),
+    ).toEqual([
+      {
+        id: "system",
+        title: "系统",
+        items: ["设置", "插件中心", "OpenClaw", "桌宠"],
+      },
+    ]);
+  });
+
+  it("恢复导航设置时应过滤旧入口，只保留显式开启的隐藏系统项", () => {
+    expect(
+      resolveEnabledSidebarNavItems([
+        "video",
+        "image-gen",
+        "terminal",
+        "tools",
+        "home-general",
+        "plugins",
+        "openclaw",
+        "companion",
+      ]),
+    ).toEqual(["plugins", "openclaw", "companion"]);
+  });
+
+  it("没有显式设置时不应默认恢复任何隐藏入口", () => {
+    expect(resolveEnabledSidebarNavItems()).toEqual([]);
+    expect(resolveEnabledSidebarNavItems(["skills", "resources"])).toEqual([]);
   });
 });

@@ -7,7 +7,6 @@ import {
   listServiceSkills,
   type ServiceSkillItem,
 } from "@/lib/api/serviceSkills";
-import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { siteGetAdapterLaunchReadiness } from "@/lib/webview-api";
 import {
   buildServiceSkillClawLaunchContext,
@@ -21,6 +20,7 @@ import {
   resolveRuntimeSceneSkillFromEntry,
 } from "../service-skills/runtimeSceneBinding";
 import type { ServiceSkillSlotValues } from "../service-skills/types";
+import { composeServiceSkillPrompt } from "../service-skills/promptComposer";
 import {
   buildRuntimeSceneGateRequest,
   formatRuntimeSceneGateValidationMessage,
@@ -57,6 +57,7 @@ interface ServiceSceneLaunchRequest {
   skill: ServiceSkillItem;
   sceneEntry: SkillCatalogSceneEntry;
   requestContext: ServiceSceneLaunchRequestContext;
+  dispatchText?: string;
 }
 
 export class RuntimeSceneLaunchValidationError extends Error {
@@ -201,20 +202,36 @@ function resolveSiteSceneProjectId(
   };
 }
 
+function normalizeLocalServiceSceneExecutionKind(
+  value?: string | null,
+): "agent_turn" | "native_skill" | "automation_job" {
+  if (value === "native_skill") {
+    return "native_skill";
+  }
+
+  if (value === "automation_job") {
+    return "automation_job";
+  }
+
+  return "agent_turn";
+}
+
 function buildServiceSceneLaunchRequestContext(params: {
   rawText: string;
   parsedCommand: ParsedRuntimeSceneCommand;
   sceneEntry: SkillCatalogSceneEntry;
   skill: ServiceSkillItem;
+  slotValues: ServiceSkillSlotValues;
   projectId?: string | null;
   contentId?: string | null;
 }): Record<string, unknown> {
   const { rawText, parsedCommand, sceneEntry, skill, projectId, contentId } =
     params;
-  const runtime = resolveOemCloudRuntimeContext();
+  const slotValues =
+    Object.keys(params.slotValues).length > 0 ? params.slotValues : undefined;
 
   return {
-    kind: "cloud_scene",
+    kind: "local_service_skill",
     service_scene_run: {
       raw_text: rawText,
       user_input:
@@ -230,20 +247,15 @@ function buildServiceSceneLaunchRequestContext(params: {
       skill_title: skill.title,
       skill_summary: skill.summary,
       runner_type: skill.runnerType,
-      execution_kind: sceneEntry.executionKind ?? skill.defaultExecutorBinding,
-      execution_location: skill.executionLocation,
+      execution_kind: normalizeLocalServiceSceneExecutionKind(
+        sceneEntry.executionKind ?? skill.defaultExecutorBinding,
+      ),
+      execution_location: "client_default",
       project_id: projectId ?? undefined,
       content_id: contentId ?? undefined,
       entry_source: "slash_scene_command",
       render_contract: sceneEntry.renderContract ?? undefined,
-      oem_runtime: runtime
-        ? {
-            base_url: runtime.baseUrl,
-            scene_base_url: runtime.sceneBaseUrl,
-            tenant_id: runtime.tenantId,
-            session_token: runtime.sessionToken ?? undefined,
-          }
-        : undefined,
+      slot_values: slotValues,
     },
   };
 }
@@ -262,7 +274,7 @@ function buildSiteSceneLaunchRequestContext(params: {
 
   if (!isServiceSkillSiteCapabilityBound(skill)) {
     throw new RuntimeSceneLaunchValidationError(
-      "当前场景没有绑定站点执行能力。",
+      "当前这套做法没有绑定站点执行能力。",
     );
   }
 
@@ -320,7 +332,7 @@ export function buildServiceSceneLaunchRequestMetadata(
         kind:
           typeof requestContext.kind === "string"
             ? requestContext.kind
-            : "cloud_scene",
+            : "local_service_skill",
         ...(serviceSceneRun
           ? {
               service_scene_run: serviceSceneRun,
@@ -363,6 +375,7 @@ export async function resolveRuntimeSceneLaunchRequest(params: {
   }
 
   let requestContext: ServiceSceneLaunchRequestContext;
+  let dispatchText: string | undefined;
   if (matchedSkill.defaultExecutorBinding === "browser_assist") {
     const slotResolution = resolveSiteSceneSlotValues({
       skill: matchedSkill,
@@ -409,13 +422,24 @@ export async function resolveRuntimeSceneLaunchRequest(params: {
       ),
     });
   } else {
+    const slotResolution = resolveSiteSceneSlotValues({
+      skill: matchedSkill,
+      userInput: parsedSceneCommand.userInput,
+      slotValueOverrides: params.slotValueOverrides,
+    });
     requestContext = buildServiceSceneLaunchRequestContext({
       rawText: params.rawText,
       parsedCommand: parsedSceneCommand,
       sceneEntry,
       skill: matchedSkill,
+      slotValues: slotResolution.resolvedSlotValues,
       projectId: params.projectId,
       contentId: params.contentId,
+    });
+    dispatchText = composeServiceSkillPrompt({
+      skill: matchedSkill,
+      slotValues: slotResolution.resolvedSlotValues,
+      userInput: normalizeOptionalText(parsedSceneCommand.userInput),
     });
   }
 
@@ -423,5 +447,6 @@ export async function resolveRuntimeSceneLaunchRequest(params: {
     skill: matchedSkill,
     sceneEntry,
     requestContext,
+    dispatchText,
   };
 }

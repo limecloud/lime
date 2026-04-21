@@ -12,24 +12,24 @@ const TYPE_FILTER_OPTIONS: Array<{
   value: SceneAppTypeFilter;
   label: string;
 }> = [
-  { value: "all", label: "全部形态" },
-  { value: "hybrid", label: "多能力组合" },
-  { value: "cloud_managed", label: "云端托管" },
-  { value: "browser_grounded", label: "真实浏览器" },
-  { value: "local_durable", label: "持续运行" },
-  { value: "local_instant", label: "本地即时" },
+  { value: "all", label: "全部做法" },
+  { value: "hybrid", label: "整套组合" },
+  { value: "cloud_managed", label: "目录同步" },
+  { value: "browser_grounded", label: "浏览器执行" },
+  { value: "local_durable", label: "持续回流" },
+  { value: "local_instant", label: "本地执行" },
 ];
 
 const PATTERN_FILTER_OPTIONS: Array<{
   value: SceneAppPatternFilter;
   label: string;
 }> = [
-  { value: "all", label: "全部模式" },
-  { value: "pipeline", label: "Pipeline" },
-  { value: "generator", label: "Generator" },
-  { value: "reviewer", label: "Reviewer" },
-  { value: "inversion", label: "Inversion" },
-  { value: "tool_wrapper", label: "Tool Wrapper" },
+  { value: "all", label: "全部路径" },
+  { value: "pipeline", label: "分步推进" },
+  { value: "generator", label: "单次生成" },
+  { value: "reviewer", label: "复盘判断" },
+  { value: "inversion", label: "反推复刻" },
+  { value: "tool_wrapper", label: "工具驱动" },
 ];
 
 interface SceneAppsCatalogPanelProps {
@@ -99,6 +99,10 @@ export function SceneAppsCatalogPanel({
   onResumeRecentVisit,
   onSelectSceneApp,
 }: SceneAppsCatalogPanelProps) {
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    typeFilter !== "all" ||
+    patternFilter !== "all";
   const STATUS_CLASSNAMES = {
     idle: "border-slate-200 bg-slate-50 text-slate-700",
     good: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -111,38 +115,81 @@ export function SceneAppsCatalogPanel({
       data-testid="sceneapps-catalog-directory"
       className="space-y-4"
     >
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div className="relative w-full max-w-[360px]">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            value={searchQuery}
-            placeholder="搜索场景标题"
-            className="h-10 rounded-full border-slate-200 bg-white pl-9"
-            onChange={(event) => onSearchQueryChange(event.target.value)}
-          />
-        </div>
-
-        <div className="flex flex-1 flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            {TYPE_FILTER_OPTIONS.map((option) => (
-              <FilterPill
-                key={option.value}
-                active={typeFilter === option.value}
-                label={option.label}
-                onClick={() => onTypeFilterChange(option.value)}
-              />
-            ))}
+      <div className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-2">
+              <div className="text-sm font-semibold text-slate-900">
+                先从目录里筛到合适做法
+              </div>
+              <p className="text-sm leading-6 text-slate-500">
+                可以按结果方向、运行方式和做法路径缩小范围，不用先理解内部能力栈。
+              </p>
+            </div>
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+                onClick={() => {
+                  onSearchQueryChange("");
+                  onTypeFilterChange("all");
+                  onPatternFilterChange("all");
+                }}
+              >
+                清空筛选
+              </button>
+            ) : null}
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {PATTERN_FILTER_OPTIONS.map((option) => (
-              <FilterPill
-                key={option.value}
-                active={patternFilter === option.value}
-                label={option.label}
-                onClick={() => onPatternFilterChange(option.value)}
-              />
-            ))}
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
+                搜索做法
+              </div>
+              <div className="relative w-full">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={searchQuery}
+                  placeholder="搜索做法标题"
+                  className="h-11 rounded-[22px] border-slate-200 bg-slate-50 pl-9"
+                  onChange={(event) => onSearchQueryChange(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-1 flex-col gap-3">
+              <div className="space-y-2">
+                <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
+                  按运行方式筛
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {TYPE_FILTER_OPTIONS.map((option) => (
+                    <FilterPill
+                      key={option.value}
+                      active={typeFilter === option.value}
+                      label={option.label}
+                      onClick={() => onTypeFilterChange(option.value)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
+                  按做法路径筛
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {PATTERN_FILTER_OPTIONS.map((option) => (
+                    <FilterPill
+                      key={option.value}
+                      active={patternFilter === option.value}
+                      label={option.label}
+                      onClick={() => onPatternFilterChange(option.value)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -175,7 +222,7 @@ export function SceneAppsCatalogPanel({
 
       {runtimeLoading ? (
         <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-          正在把最近运行和经营信号回流到场景目录…
+          正在把最近运行和经营信号回流到做法目录…
         </div>
       ) : null}
 
@@ -187,7 +234,7 @@ export function SceneAppsCatalogPanel({
 
       {items.length === 0 ? (
         <div className="text-sm leading-7 text-slate-500">
-          当前筛选条件下还没有匹配的 SceneApp。可以先放宽运行形态或设计模式筛选。
+          当前筛选条件下还没有匹配的整套做法。可以先清空关键词，或放宽筛选条件继续找。
         </div>
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">

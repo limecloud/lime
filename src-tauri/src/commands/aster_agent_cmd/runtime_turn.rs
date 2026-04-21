@@ -1,12 +1,15 @@
 #[cfg(test)]
 use super::runtime_project_hooks::enforce_runtime_turn_user_prompt_submit_hooks;
 use super::runtime_project_hooks::{
+    decide_runtime_permission_request_project_hooks_for_session_with_runtime,
+    enforce_runtime_pre_compact_project_hooks_for_session_with_runtime,
     enforce_runtime_turn_user_prompt_submit_hooks_with_runtime,
     run_runtime_session_start_project_hooks_for_session_with_runtime,
+    run_runtime_stop_project_hooks_for_session_with_runtime,
 };
 use super::service_skill_launch::build_service_skill_preload_tool_projection;
 use super::*;
-use aster::hooks::SessionSource;
+use aster::hooks::{CompactTrigger, SessionSource};
 use aster::session::TurnContextOverride;
 use aster::tools::ConfigTool;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
@@ -21,6 +24,7 @@ const ARTIFACT_DOCUMENT_PERSIST_FAILED_WARNING_CODE: &str = "artifact_document_p
 const AUTO_CONTEXT_COMPACTION_EVENT_PREFIX: &str = "agent_context_compaction_auto_internal";
 const AUTO_CONTEXT_COMPACTION_FAILED_WARNING_CODE: &str = "context_compaction_auto_failed";
 const CONTEXT_COMPACTION_NOT_NEEDED_WARNING_CODE: &str = "context_compaction_not_needed";
+const STOP_HOOK_CONTINUATION_UNSUPPORTED_WARNING_CODE: &str = "stop_hook_continuation_unsupported";
 const TURN_MEMORY_PREFETCH_PROMPT_MARKER: &str = "【运行时记忆召回】";
 const TURN_LOCAL_PATH_FOCUS_PROMPT_MARKER: &str = "【本回合本地路径焦点】";
 const LIME_RUNTIME_METADATA_KEY: &str = "lime_runtime";
@@ -80,6 +84,43 @@ async fn ensure_host_backed_config_tool_registered(
     )));
 
     Ok(())
+}
+
+async fn ensure_runtime_permission_request_hook_handler_registered(
+    state: &AsterAgentState,
+    db: &DbConnection,
+    mcp_manager: &McpManagerState,
+) -> Result<(), String> {
+    let db = db.clone();
+    let hook_state = state.clone();
+    let mcp_manager = mcp_manager.clone();
+
+    state
+        .with_agent_mut(move |agent| {
+            let db = db.clone();
+            let hook_state = hook_state.clone();
+            let mcp_manager = mcp_manager.clone();
+
+            agent.set_permission_request_hook_handler(Some(Arc::new(move |context| {
+                let db = db.clone();
+                let hook_state = hook_state.clone();
+                let mcp_manager = mcp_manager.clone();
+                Box::pin(async move {
+                    decide_runtime_permission_request_project_hooks_for_session_with_runtime(
+                        &db,
+                        &hook_state,
+                        &mcp_manager,
+                        &context.session_id,
+                        &context.tool_name,
+                        context.tool_input,
+                        &context.tool_use_id,
+                        context.permission_mode,
+                    )
+                    .await
+                })
+            })));
+        })
+        .await
 }
 
 fn merge_runtime_memory_prefetch_prompt(
@@ -815,7 +856,7 @@ struct RuntimeTurnExecutionContext {
 }
 
 impl RuntimeTurnExecutionContext {
-    fn build_run_finish_decision(&self, result: &Result<(), String>) -> RunFinishDecision {
+    fn build_run_finish_decision(&self, result: &Result<String, String>) -> RunFinishDecision {
         build_runtime_run_finish_decision(result, &self.run_start_metadata, &self.run_observation)
     }
 
@@ -824,6 +865,7 @@ impl RuntimeTurnExecutionContext {
         tracker: &ExecutionTracker,
         agent: &Agent,
         app: &AppHandle,
+        state: &AsterAgentState,
         db: &DbConnection,
         request: &AsterChatRequest,
         runtime_memory_config: &lime_core::config::MemoryConfig,
@@ -882,6 +924,7 @@ impl RuntimeTurnExecutionContext {
         finalize_runtime_turn_result(
             agent,
             app,
+            state,
             db,
             &request.event_name,
             &self.timeline_recorder,
@@ -1014,6 +1057,7 @@ impl RuntimeTurnPreparedExecution {
         agent: &Agent,
         tracker: &ExecutionTracker,
         app: &AppHandle,
+        state: &AsterAgentState,
         db: &DbConnection,
         request: &AsterChatRequest,
         runtime_memory_config: &lime_core::config::MemoryConfig,
@@ -1046,6 +1090,7 @@ impl RuntimeTurnPreparedExecution {
                 tracker,
                 agent,
                 app,
+                state,
                 db,
                 request,
                 runtime_memory_config,
@@ -2107,6 +2152,7 @@ async fn execute_runtime_turn_submit(
             agent,
             &submit_bootstrap.tracker,
             app,
+            state,
             db,
             request,
             &submit_bootstrap.runtime_memory_config,
@@ -2264,6 +2310,7 @@ async fn prepare_runtime_turn_entry(
     }
 
     ensure_host_backed_config_tool_registered(app, state).await?;
+    ensure_runtime_permission_request_hook_handler_registered(state, db, mcp_manager).await?;
     ensure_runtime_support_tools_registered(state, mcp_manager).await
 }
 
@@ -3238,7 +3285,7 @@ async fn execute_runtime_stream_attempt(
     session_config: aster::agents::types::SessionConfig,
     cancel_token: CancellationToken,
     request_tool_policy: &RequestToolPolicy,
-) -> Result<(), ReplyAttemptError> {
+) -> Result<String, ReplyAttemptError> {
     let execution = stream_reply_once(
         agent,
         app,
@@ -3287,7 +3334,7 @@ async fn execute_runtime_stream_attempt(
         &execution,
     );
 
-    Ok(())
+    Ok(execution.text_output)
 }
 
 async fn remove_code_execution_extension_if_added(
@@ -3325,7 +3372,7 @@ async fn execute_runtime_stream_with_strategy<F>(
     request_tool_policy: &RequestToolPolicy,
     effective_strategy: AsterExecutionStrategy,
     build_session_config: F,
-) -> Result<(), String>
+) -> Result<String, String>
 where
     F: Fn() -> aster::agents::types::SessionConfig,
 {
@@ -3357,7 +3404,7 @@ where
     .await;
 
     let run_result = match primary_result {
-        Ok(()) => Ok(()),
+        Ok(assistant_output) => Ok(assistant_output),
         Err(primary_error)
             if effective_strategy == AsterExecutionStrategy::CodeOrchestrated
                 && should_fallback_to_react_from_code_orchestrated(&primary_error) =>
@@ -3520,8 +3567,8 @@ fn record_runtime_stream_event(
     }
 }
 
-fn build_runtime_run_finish_decision(
-    result: &Result<(), String>,
+fn build_runtime_run_finish_decision<T>(
+    result: &Result<T, String>,
     run_start_metadata: &serde_json::Map<String, serde_json::Value>,
     run_observation: &Arc<Mutex<ChatRunObservation>>,
 ) -> RunFinishDecision {
@@ -3553,13 +3600,14 @@ fn build_runtime_run_finish_decision(
 async fn finalize_runtime_turn_result(
     agent: &Agent,
     app: &AppHandle,
+    state: &AsterAgentState,
     db: &DbConnection,
     event_name: &str,
     timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
     workspace_root: &str,
     runtime_status_session_config: &aster::agents::types::SessionConfig,
     session_id: &str,
-    result: Result<(), String>,
+    result: Result<String, String>,
 ) -> Result<(), String> {
     complete_runtime_status_projection(
         agent,
@@ -3577,13 +3625,13 @@ async fn finalize_runtime_turn_result(
             Err(error) => error.into_inner(),
         };
         match result.as_ref() {
-            Ok(()) => recorder.complete_turn_success(),
+            Ok(_) => recorder.complete_turn_success(),
             Err(error) => recorder.fail_turn(error),
         }
     };
     if let Err(error) = &terminal_events {
         let message = match result.as_ref() {
-            Ok(()) => "完成 turn 时间线失败",
+            Ok(_) => "完成 turn 时间线失败",
             Err(_) => "记录失败 turn 时间线失败",
         };
         tracing::warn!("[AsterAgent] {}（已降级继续）: {}", message, error);
@@ -3593,7 +3641,28 @@ async fn finalize_runtime_turn_result(
     }
 
     match result {
-        Ok(()) => {
+        Ok(assistant_output) => {
+            let unsupported_stop_warning = run_runtime_stop_project_hooks_for_session_with_runtime(
+                db,
+                state,
+                app.state::<crate::mcp::McpManagerState>().inner(),
+                session_id,
+                false,
+                Some(assistant_output.as_str()),
+            )
+            .await;
+            if let Some(message) = unsupported_stop_warning {
+                emit_runtime_side_event(
+                    app,
+                    event_name,
+                    timeline_recorder,
+                    workspace_root,
+                    RuntimeAgentEvent::Warning {
+                        code: Some(STOP_HOOK_CONTINUATION_UNSUPPORTED_WARNING_CODE.to_string()),
+                        message,
+                    },
+                );
+            }
             let done_event = resolve_runtime_final_done_event(session_id, Some(db)).await;
             if let RuntimeAgentEvent::FinalDone {
                 usage: Some(ref usage),
@@ -3872,6 +3941,13 @@ impl RuntimeSessionCompactionTrigger {
     }
 }
 
+fn resolve_pre_compact_hook_trigger(trigger: RuntimeSessionCompactionTrigger) -> CompactTrigger {
+    match trigger {
+        RuntimeSessionCompactionTrigger::Manual => CompactTrigger::Manual,
+        RuntimeSessionCompactionTrigger::Auto => CompactTrigger::Auto,
+    }
+}
+
 fn build_auto_context_compaction_event_name(session_id: &str) -> String {
     format!(
         "{AUTO_CONTEXT_COMPACTION_EVENT_PREFIX}_{session_id}_{}",
@@ -3897,6 +3973,18 @@ fn resolve_context_compaction_conversation<'a>(
         return Ok(None);
     }
     Ok(Some(conversation))
+}
+
+fn resolve_pre_compact_current_tokens(session: &aster::session::Session) -> Option<u64> {
+    session
+        .total_tokens
+        .and_then(|value| u64::try_from(value).ok())
+        .or_else(|| {
+            session.conversation.as_ref().map(|conversation| {
+                aster::context::TokenEstimator::estimate_total_tokens(conversation.messages())
+                    as u64
+            })
+        })
 }
 
 fn emit_context_compaction_skip(app: &AppHandle, event_name: &str, message: &str) {
@@ -4021,6 +4109,16 @@ async fn compact_runtime_session_with_trigger(
         }
         return Ok(());
     };
+    let pre_compact_current_tokens = resolve_pre_compact_current_tokens(&session);
+    enforce_runtime_pre_compact_project_hooks_for_session_with_runtime(
+        db,
+        state,
+        app.state::<crate::mcp::McpManagerState>().inner(),
+        &session_id,
+        pre_compact_current_tokens,
+        resolve_pre_compact_hook_trigger(trigger),
+    )
+    .await?;
 
     let cancel_token = state.create_cancel_token(&session_id).await;
     let agent_arc = state.get_agent_arc();

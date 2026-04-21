@@ -2799,7 +2799,7 @@ export function HarnessStatusPanel({
                     <div className="rounded-xl border border-sky-200/80 bg-sky-50/50 p-3">
                       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                         <Workflow className="h-4 w-4 text-sky-600" />
-                        <span>{selectedTeamLabel || "当前已启用任务方案"}</span>
+                        <span>{selectedTeamLabel || "当前已启用分工方案"}</span>
                       </div>
                       {selectedTeamSummary ? (
                         <div className="mt-2 text-sm text-muted-foreground">
@@ -2807,7 +2807,7 @@ export function HarnessStatusPanel({
                         </div>
                       ) : (
                         <div className="mt-2 text-sm text-muted-foreground">
-                          本次会优先参考所选任务方案的角色分工，按需拆出子任务继续处理。
+                          本次会优先参考所选分工方案，按需拆出子任务继续处理。
                         </div>
                       )}
                     </div>

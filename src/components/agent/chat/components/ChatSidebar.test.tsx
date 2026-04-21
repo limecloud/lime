@@ -150,14 +150,21 @@ describe("ChatSidebar", () => {
       topics: [],
       currentTopicId: null,
     });
+    const searchInput = container.querySelector(
+      'input[placeholder="搜索生成标题、结果或摘要"]',
+    ) as HTMLInputElement | null;
 
     expect(container.textContent).toContain("生成现场");
     expect(container.textContent).toContain(
       "在这里继续推进当前创作、回看最近结果和旧历史。",
     );
-    expect(container.textContent).toContain("还没有进行中的生成任务");
+    expect(searchInput).toBeTruthy();
+    expect(container.textContent).toContain("开始生成");
+    expect(container.textContent).toContain("全部记录");
+    expect(container.textContent).toContain("仅看待继续");
+    expect(container.textContent).toContain("还没有待继续的生成记录");
     expect(container.textContent).toContain(
-      "从“新建任务”开始也很自然，开始后会回到这里继续生成。",
+      "从“开始生成”发起也很自然，开始后会回到这里继续生成。",
     );
   });
 
@@ -458,7 +465,7 @@ describe("ChatSidebar", () => {
     ]);
     expect(cards[0]?.textContent).toContain("当前焦点");
     expect(container.textContent).toContain(
-      "当前线程来自主任务，可直接返回主任务并切换其他子任务；正在处理的任务会排在前面。",
+      "当前线程来自主助手，可直接返回主助手并切换其他子任务；正在处理的任务会排在前面。",
     );
   });
 

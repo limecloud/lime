@@ -51,7 +51,7 @@ describe("teamWorkspaceSessions", () => {
       profile_id: "profile-research",
       profile_name: "研究员",
       parent_session_id: "parent-session",
-      parent_session_name: "主任务",
+      parent_session_name: "主助手",
       role_key: "researcher",
       team_preset_id: "preset-1",
       theme: "general",
@@ -162,7 +162,7 @@ describe("teamWorkspaceSessions", () => {
   it("应按任务状态优先级构建 task schedule 顺序与默认选中项", () => {
     const orchestrator = createSessionCard({
       id: "session-main",
-      name: "主任务",
+      name: "主助手",
       sessionType: "user",
     });
     const planner = createSessionCard({
@@ -260,11 +260,11 @@ describe("teamWorkspaceSessions", () => {
         isChildSession: false,
         selectedSession: createSessionCard({
           id: "orchestrator",
-          name: "主任务",
+          name: "主助手",
           sessionType: "user",
         }),
       }),
-    ).toContain("主任务会负责整理需求、安排任务顺序");
+    ).toContain("主助手会负责整理需求、安排任务顺序");
   });
 
   it("应暴露稳定的状态与时间展示 helper", () => {

@@ -28,7 +28,7 @@
 - AI 服务商页、云端 Provider、默认来源、模型目录
 - `client/bootstrap`、`client/session`、`client/profile`
 - `client/skills`、`skillCatalog.entries`、`client/service-skills`
-- Gateway、Scene、Service Skill 云配置同步
+- Gateway、命令目录、Service Skill 配置同步
 - 任何“客户端要不要本地维护一份服务端数据”的判断
 
 ## 为什么主文档放在 `limecore`
@@ -40,7 +40,7 @@
 - `client/skills` 统一命令目录
 - 用户资料与账户能力
 - Provider Offer / 服务目录 / Scene Catalog
-- Gateway 与云端运行时策略
+- Gateway 与目录/配置策略
 
 客户端仓库更适合作为实现消费方，而不是这些能力的唯一背景事实源。
 
@@ -61,6 +61,7 @@
 - 云事实源不要在客户端长期维护第二份
 - `@` / 产品型 `/` 的统一目录优先看 `client/skills.entries`
 - Lime 客户端必须保留 seeded / fallback 韧性兜底，不能只靠服务端在线返回
+- `limecore` 只提供目录与配置，不承担 `@` / `/scene` / service skill 的执行
 - 能走运行时配置和 `bootstrap.features` 的，不要写死在前端
 - 用户界面不要直接暴露 “OEM” 技术概念
-- `scene` 目录项要稳定提供 `sceneKey` 与 `linkedSkillId`。Lime 当前会用它把 `/scene-key` 解析到现有 `ServiceSkill` 启动链；若云端 run 创建前失败，客户端会自动回退到本地工作区 prompt 主链
+- `scene` 目录项要稳定提供 `sceneKey` 与 `linkedSkillId`。Lime 当前会用它把 `/scene-key` 解析到现有 `ServiceSkill` 本地启动链；不要把目录命中误写成服务端 run

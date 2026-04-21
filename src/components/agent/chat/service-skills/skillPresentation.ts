@@ -175,9 +175,6 @@ export function buildServiceSkillCapabilityDescription(
 }
 
 export function getServiceSkillRunnerLabel(item: ServiceSkillItem): string {
-  if (item.executionLocation === "cloud_required") {
-    return "云端执行";
-  }
   if (resolveServiceSkillType(item) === "site") {
     return "浏览器采集";
   }
@@ -185,20 +182,14 @@ export function getServiceSkillRunnerLabel(item: ServiceSkillItem): string {
 }
 
 export function getServiceSkillRunnerTone(
-  item: Pick<ServiceSkillItem, "executionLocation" | "runnerType">,
+  item: Pick<ServiceSkillItem, "runnerType">,
 ): ServiceSkillTone {
-  if (item.executionLocation === "cloud_required") {
-    return "slate";
-  }
   return RUNNER_TONES[item.runnerType];
 }
 
 export function getServiceSkillRunnerDescription(
   item: ServiceSkillItem,
 ): string {
-  if (item.executionLocation === "cloud_required") {
-    return "会交给云端处理，完成后再把结果回流到当前工作区。";
-  }
   if (resolveServiceSkillType(item) === "site") {
     return "会复用当前浏览器里的真实登录态执行站点任务，并优先把结果沉淀到当前工作区。";
   }
@@ -206,9 +197,6 @@ export function getServiceSkillRunnerDescription(
 }
 
 export function getServiceSkillActionLabel(item: ServiceSkillItem): string {
-  if (item.executionLocation === "cloud_required") {
-    return "云端执行";
-  }
   if (resolveServiceSkillType(item) === "site") {
     if (hasRequiredSlots(item)) {
       return "对话内补参";
@@ -231,10 +219,6 @@ export function getServiceSkillOutputDestination(
   );
   if (outputDestinationFromBundle) {
     return outputDestinationFromBundle;
-  }
-
-  if (item.executionLocation === "cloud_required") {
-    return "运行结果会在云端完成后回流到当前工作区。";
   }
 
   if (isServiceSkillExecutableAsSiteAdapter(item)) {
@@ -281,9 +265,6 @@ export function getServiceSkillPrimaryActionLabel(
 ): string {
   if (canCreateAutomation) {
     return "创建任务并进入工作区";
-  }
-  if (skill.executionLocation === "cloud_required") {
-    return "云端执行";
   }
   if (resolveServiceSkillType(skill) === "site") {
     if (hasRequiredSlots(skill)) {

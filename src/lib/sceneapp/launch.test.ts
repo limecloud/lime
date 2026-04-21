@@ -112,7 +112,7 @@ function createPlanResult(
 }
 
 describe("sceneapp launch facade", () => {
-  it("应把 cloud_scene adapter plan 翻译成 workspace launch draft", () => {
+  it("应把 service_scene adapter plan 翻译成 workspace launch draft", () => {
     const result = createPlanResult({
       descriptor: {
         id: "story-video-suite",
@@ -122,7 +122,7 @@ describe("sceneapp launch facade", () => {
         entryBindings: [
           {
             kind: "scene",
-            bindingFamily: "cloud_scene",
+            bindingFamily: "agent_turn",
             sceneKey: "story-video-suite",
           },
         ],
@@ -131,17 +131,17 @@ describe("sceneapp launch facade", () => {
       },
       plan: {
         sceneappId: "story-video-suite",
-        executorKind: "cloud_scene",
-        bindingFamily: "cloud_scene",
+        executorKind: "agent_turn",
+        bindingFamily: "agent_turn",
         adapterPlan: {
-          adapterKind: "cloud_scene",
-          runtimeAction: "launch_cloud_scene",
+          adapterKind: "agent_turn",
+          runtimeAction: "open_service_scene_session",
           targetRef: "sceneapp-service-story-video",
           targetLabel: "短视频编排",
           requestMetadata: {
             harness: {
               service_scene_launch: {
-                kind: "cloud_scene",
+                kind: "local_service_skill",
                 service_scene_run: {
                   sceneapp_id: "story-video-suite",
                   scene_key: "story-video-suite",
@@ -164,7 +164,7 @@ describe("sceneapp launch facade", () => {
               duration: "30s",
             },
           },
-          notes: ["当前 SceneApp 规划先映射到 cloud_scene 主链。"],
+          notes: ["当前做法规划会收敛到 Agent 工作区主链，并由客户端继续执行。"],
         },
       },
     });
@@ -174,8 +174,8 @@ describe("sceneapp launch facade", () => {
     expect(draft).toEqual(
       expect.objectContaining({
         kind: "workspace_entry",
-        runtimeAction: "launch_cloud_scene",
-        adapterKind: "cloud_scene",
+        runtimeAction: "open_service_scene_session",
+        adapterKind: "agent_turn",
         targetRef: "sceneapp-service-story-video",
         workspaceId: "workspace-video",
         workspaceEntry: expect.objectContaining({
@@ -191,7 +191,7 @@ describe("sceneapp launch facade", () => {
           initialAutoSendRequestMetadata: expect.objectContaining({
             harness: expect.objectContaining({
               service_scene_launch: expect.objectContaining({
-                kind: "cloud_scene",
+                kind: "local_service_skill",
               }),
             }),
           }),
@@ -201,7 +201,29 @@ describe("sceneapp launch facade", () => {
     expect(draft.notes).toContain("已装配 1 条 memory 引用。");
     expect(draft.notes).toContain("完整度将按 2 个必含部件判断。");
     expect(draft.notes).toContain(
-      "当前 SceneApp 规划先映射到 cloud_scene 主链。",
+      "当前做法规划会收敛到 Agent 工作区主链，并由客户端继续执行。",
+    );
+  });
+
+  it("legacy launch_cloud_scene 也应正规化成当前 service_scene 动作", () => {
+    const result = createPlanResult({
+      plan: {
+        adapterPlan: {
+          adapterKind: "cloud_scene",
+          runtimeAction: "launch_cloud_scene",
+          targetRef: "sceneapp-service-story-video",
+          targetLabel: "短视频编排",
+        },
+      },
+    });
+
+    const draft = buildSceneAppExecutionDraft(result);
+
+    expect(draft).toEqual(
+      expect.objectContaining({
+        kind: "workspace_entry",
+        runtimeAction: "open_service_scene_session",
+      }),
     );
   });
 
@@ -259,7 +281,7 @@ describe("sceneapp launch facade", () => {
               target_language: "中文",
             },
           },
-          notes: ["当前 SceneApp 规划先映射到 browser_assist 主链。"],
+          notes: ["当前做法规划先映射到 browser_assist 主链。"],
         },
       },
     });
@@ -278,7 +300,7 @@ describe("sceneapp launch facade", () => {
           themeOverride: "general",
           lockTheme: true,
           prompt:
-            "请执行创作场景「X 文章转存」。目标链接：https://x.com/openai/article/123；目标语言：中文。",
+            "请执行做法「X 文章转存」。目标链接：https://x.com/openai/article/123；目标语言：中文。",
           initialAutoSendRequestMetadata: expect.objectContaining({
             harness: expect.objectContaining({
               service_skill_launch: expect.objectContaining({
@@ -347,7 +369,7 @@ describe("sceneapp launch facade", () => {
               depth: "高",
             },
           },
-          notes: ["当前 SceneApp 规划先映射到 native_skill 主链。"],
+          notes: ["当前做法规划先映射到 native_skill 主链。"],
         },
       },
     });
@@ -445,9 +467,9 @@ describe("sceneapp launch facade", () => {
               reference_memory_ids: ["memory-trend-1"],
             },
           },
-          notes: ["当前 SceneApp 规划先映射到 automation_job 主链。"],
+          notes: ["当前做法规划先映射到 automation_job 主链。"],
         },
-        warnings: ["当前 SceneApp 仍有未满足的启动前置条件。"],
+        warnings: ["当前做法仍有未满足的启动前置条件。"],
       },
       readiness: {
         ready: false,
@@ -505,6 +527,6 @@ describe("sceneapp launch facade", () => {
         }),
       }),
     );
-    expect(draft.notes).toContain("当前 SceneApp 仍有未满足的启动前置条件。");
+    expect(draft.notes).toContain("当前做法仍有未满足的启动前置条件。");
   });
 });

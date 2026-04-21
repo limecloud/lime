@@ -2,6 +2,10 @@ import type { Character } from "@/lib/api/memory";
 import type { Skill } from "@/lib/api/skills";
 import { buildServiceSkillRecommendationBuckets } from "@/components/agent/chat/service-skills/recommendedServiceSkills";
 import { buildServiceSkillCapabilityDescription } from "@/components/agent/chat/service-skills/skillPresentation";
+import {
+  buildServiceSkillLaunchPrefillSummary,
+  resolveServiceSkillLaunchPrefill,
+} from "@/components/agent/chat/service-skills/serviceSkillLaunchPrefill";
 import type {
   ServiceSkillGroup,
   ServiceSkillHomeItem,
@@ -23,6 +27,7 @@ import {
   type SlashEntryUsageKind,
 } from "./slashEntryUsage";
 import {
+  buildCuratedTaskRecentUsageDescription,
   buildCuratedTaskCapabilityDescription,
   filterCuratedTaskTemplates,
   listFeaturedHomeCuratedTaskTemplates,
@@ -356,12 +361,24 @@ function buildMentionCapabilitySections(
         continue;
       }
 
+      const recentPrefill = resolveServiceSkillLaunchPrefill({
+        skill,
+      });
       visibleRecentMentionEntries.push({
         key: `service-skill:${skill.id}`,
         kind: "service_skill",
         kindLabel: "技能",
         title: skill.title,
-        description: buildServiceSkillCapabilityDescription(skill),
+        description: [
+          buildServiceSkillLaunchPrefillSummary({
+            skill,
+            slotValues: recentPrefill?.slotValues,
+            launchUserInput: recentPrefill?.launchUserInput,
+          }),
+          buildServiceSkillCapabilityDescription(skill),
+        ]
+          .filter((segment) => segment.length > 0)
+          .join(" · "),
         usedAt: skill.recentUsedAt,
         skillId: skill.id,
       });
@@ -664,20 +681,29 @@ function buildSlashCapabilitySections(
         continue;
       }
 
+      const launchPrefill = resolveCuratedTaskTemplateLaunchPrefill(template);
       visibleRecentSlashEntries.push({
         key: `curated-task:${template.id}`,
         kind: "curated_task",
         kindLabel: "结果模板",
         title: template.title,
-        description: resolveRecentSlashEntryDescription({
-          fallbackDescription: buildCuratedTaskCapabilityDescription(template, {
-            includeSummary: false,
-            includeResultDestination: true,
-            includeFollowUpActions: true,
-            followUpLimit: 1,
+        description: [
+          buildCuratedTaskRecentUsageDescription({
+            task: template,
+            prefill: launchPrefill,
           }),
-          fallbackTitle: template.title,
-        }),
+          resolveRecentSlashEntryDescription({
+            fallbackDescription: buildCuratedTaskCapabilityDescription(template, {
+              includeSummary: false,
+              includeResultDestination: true,
+              includeFollowUpActions: true,
+              followUpLimit: 1,
+            }),
+            fallbackTitle: template.title,
+          }),
+        ]
+          .filter((segment) => segment.length > 0)
+          .join(" · "),
         usedAt: template.recentUsedAt,
         taskId: template.id,
       });

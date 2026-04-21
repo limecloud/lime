@@ -1405,7 +1405,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
                         这里是 Lime 的生成主执行面，可以继续进行中的创作、回看最近结果和旧历史。
                       </p>
                       <p className="text-sm leading-7 text-slate-500">
-                        还没有生成任务时，从新建任务开始也很自然；跑过的结果、做法和中间素材后面都会继续留在这里。
+                        还没开始生成时，从“开始生成”发起也很自然；跑过的结果、做法和中间素材后面都会继续留在这里。
                       </p>
                     </div>
                   </div>
@@ -1413,7 +1413,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
 
                 <div className="mt-6 flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
-                    左侧会继续显示正在推进的生成任务
+                    左侧会继续显示待继续的生成记录
                   </span>
                   <span className="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-3 py-1.5 text-xs text-slate-500">
                     最近结果会继续在这里回访

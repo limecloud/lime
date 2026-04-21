@@ -59,6 +59,7 @@ import {
   type AutomationJobDialogInitialValues,
 } from "./AutomationJobDialog";
 import {
+  LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL,
   resolveServiceSkillAutomationContext,
   type AutomationServiceSkillContext,
 } from "./serviceSkillContext";
@@ -857,7 +858,7 @@ export function AutomationSettings({
     ) => {
       openSelectedSceneAppFileEntry(artifactEntry, {
         missingPathMessage: "当前这条自动化任务还没有可打开的结果文件路径。",
-        bannerPrefix: "已从自动化详情打开 Project Pack 结果文件",
+        bannerPrefix: "已从自动化详情打开结果包文件",
       });
     },
     [openSelectedSceneAppFileEntry],
@@ -1417,6 +1418,13 @@ export function AutomationSettings({
                                             serviceSkillContext.executionLocationLabel
                                           }
                                         </Badge>
+                                        {serviceSkillContext.executionLocationLegacyCompat ? (
+                                          <Badge variant="outline">
+                                            {
+                                              LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL
+                                            }
+                                          </Badge>
+                                        ) : null}
                                         <Badge variant="outline">
                                           {serviceSkillContext.sourceLabel}
                                         </Badge>

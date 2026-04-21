@@ -10,12 +10,13 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
+use crate::config::AsterMode;
 use crate::mcp_utils::ToolResult;
 use crate::permission::{
     AuditLogEntry, AuditLogLevel, AuditLogger, Permission, PermissionContext, ToolPermissionManager,
 };
 use crate::tools::{ToolContext, ToolRegistry};
-use rmcp::model::{Content, ServerNotification};
+use rmcp::model::{CallToolRequestParam, Content, ServerNotification};
 
 // ToolCallResult combines the result of a tool call with an optional notification stream that
 // can be used to receive notifications from the tool.
@@ -34,7 +35,7 @@ impl From<ToolResult<rmcp::model::CallToolResult>> for ToolCallResult {
 }
 
 use super::agent::{tool_stream, ToolStream};
-use crate::agents::Agent;
+use crate::agents::{Agent, PermissionRequestHookContext, PermissionRequestHookDecision};
 use crate::conversation::message::{Message, ToolRequest};
 use crate::session::Session;
 use crate::tool_inspection::get_security_finding_id_from_results;
@@ -52,7 +53,70 @@ pub const CHAT_MODE_TOOL_SKIPPED_RESPONSE: &str = "Let the user know the tool ca
                                         2. **Outline Steps** - Break down the steps.\n \
                                         If needed, adjust the explanation based on user preferences or questions.";
 
+const PERMISSION_REQUEST_HOOK_DENIED_RESPONSE: &str = "Permission denied by PermissionRequest hook";
+
+fn map_permission_request_mode(mode: AsterMode) -> Option<String> {
+    match mode {
+        AsterMode::Auto => Some("bypassPermissions".to_string()),
+        AsterMode::Approve | AsterMode::SmartApprove => Some("default".to_string()),
+        AsterMode::Chat => None,
+    }
+}
+
+fn build_permission_request_hook_denied_message(message: Option<String>) -> String {
+    message
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| PERMISSION_REQUEST_HOOK_DENIED_RESPONSE.to_string())
+}
+
+fn apply_permission_request_updated_input(
+    tool_call: &CallToolRequestParam,
+    updated_input: Option<serde_json::Map<String, serde_json::Value>>,
+) -> CallToolRequestParam {
+    let mut rewritten_tool_call = tool_call.clone();
+    if let Some(updated_input) = updated_input {
+        rewritten_tool_call.arguments = Some(updated_input);
+    }
+    rewritten_tool_call
+}
+
 impl Agent {
+    async fn run_permission_request_hook_handler(
+        &self,
+        tool_call: &CallToolRequestParam,
+        request_id: &str,
+        session: &Session,
+    ) -> Option<PermissionRequestHookDecision> {
+        let handler = self.permission_request_hook_handler.clone()?;
+        let permission_mode = self
+            .tool_inspection_manager
+            .current_permission_mode()
+            .await
+            .and_then(map_permission_request_mode);
+
+        let input = PermissionRequestHookContext {
+            tool_name: tool_call.name.to_string(),
+            tool_input: tool_call.arguments.clone().map(serde_json::Value::Object),
+            tool_use_id: request_id.to_string(),
+            session_id: session.id.clone(),
+            permission_mode,
+        };
+
+        match handler(input).await {
+            Ok(decision) => decision,
+            Err(error) => {
+                tracing::warn!(
+                    "[AsterAgent] PermissionRequest hooks 执行失败，已回退到人工审批: tool={}, request_id={}, error={}",
+                    tool_call.name,
+                    request_id,
+                    error
+                );
+                None
+            }
+        }
+    }
+
     pub(crate) fn handle_approval_tool_requests<'a>(
         &'a self,
         tool_requests: &'a [ToolRequest],
@@ -65,6 +129,62 @@ impl Agent {
         try_stream! {
         for request in tool_requests.iter() {
             if let Ok(tool_call) = request.tool_call.clone() {
+                if let Some(decision) = self
+                    .run_permission_request_hook_handler(&tool_call, &request.id, session)
+                    .await
+                {
+                    match decision {
+                        PermissionRequestHookDecision::Allow { updated_input } => {
+                            let rewritten_tool_call =
+                                apply_permission_request_updated_input(&tool_call, updated_input);
+                            let (req_id, tool_result) = self
+                                .dispatch_tool_call(
+                                    rewritten_tool_call,
+                                    request.id.clone(),
+                                    cancellation_token.clone(),
+                                    session,
+                                )
+                                .await;
+                            let mut futures = tool_futures.lock().await;
+
+                            futures.push((
+                                req_id,
+                                match tool_result {
+                                    Ok(result) => tool_stream(
+                                        result
+                                            .notification_stream
+                                            .unwrap_or_else(|| Box::new(stream::empty())),
+                                        result.result,
+                                    ),
+                                    Err(e) => tool_stream(
+                                        Box::new(stream::empty()),
+                                        futures::future::ready(Err(e)),
+                                    ),
+                                },
+                            ));
+                            continue;
+                        }
+                        PermissionRequestHookDecision::Deny { message } => {
+                            if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                                let mut response = response_msg.lock().await;
+                                *response = response.clone().with_tool_response_with_metadata(
+                                    request.id.clone(),
+                                    Ok(rmcp::model::CallToolResult {
+                                        content: vec![Content::text(
+                                            build_permission_request_hook_denied_message(message),
+                                        )],
+                                        structured_content: None,
+                                        is_error: Some(true),
+                                        meta: None,
+                                    }),
+                                    request.metadata.as_ref(),
+                                );
+                            }
+                            continue;
+                        }
+                    }
+                }
+
                 // Find the corresponding inspection result for this tool request
                 let security_message = inspection_results.iter()
                     .find(|result| result.tool_request_id == request.id)
@@ -590,5 +710,306 @@ impl Agent {
         }
 
         audit_logger.log_permission_check(entry);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use futures::{StreamExt, TryStreamExt};
+    use rmcp::model::CallToolRequestParam;
+    use serde_json::json;
+    use std::collections::HashMap;
+    use tempfile::tempdir;
+
+    use crate::agents::agent::ToolStreamItem;
+    use crate::conversation::message::{MessageContent, ToolResponse};
+    use crate::session::{SessionManager, SessionType};
+    use crate::tools::{Tool, ToolError};
+
+    struct StaticTool {
+        name: String,
+        response: String,
+        recorded_params: Option<Arc<Mutex<Vec<serde_json::Value>>>>,
+    }
+
+    #[async_trait]
+    impl Tool for StaticTool {
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn description(&self) -> &str {
+            "static tool"
+        }
+
+        fn input_schema(&self) -> serde_json::Value {
+            json!({
+                "type": "object"
+            })
+        }
+
+        async fn execute(
+            &self,
+            params: serde_json::Value,
+            _context: &ToolContext,
+        ) -> Result<crate::tools::ToolResult, ToolError> {
+            if let Some(recorded_params) = &self.recorded_params {
+                recorded_params.lock().await.push(params);
+            }
+            Ok(crate::tools::ToolResult::success(self.response.clone()))
+        }
+    }
+
+    fn build_request(id: &str, name: &str, arguments: serde_json::Value) -> ToolRequest {
+        ToolRequest {
+            id: id.to_string(),
+            tool_call: Ok(CallToolRequestParam {
+                name: name.to_string().into(),
+                arguments: arguments.as_object().cloned(),
+            }),
+            metadata: None,
+            tool_meta: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn handle_approval_tool_requests_should_auto_allow_via_permission_request_hook() {
+        let mut agent = Agent::new();
+        {
+            let mut registry = agent.tool_registry.write().await;
+            let _ = registry.unregister("Dangerous");
+            registry.register(Box::new(StaticTool {
+                name: "Dangerous".to_string(),
+                response: "hook-allowed".to_string(),
+                recorded_params: None,
+            }));
+        }
+        agent.set_permission_request_hook_handler(Some(Arc::new(|context| {
+            Box::pin(async move {
+                assert_eq!(context.tool_name, "Dangerous");
+                assert_eq!(context.permission_mode.as_deref(), Some("default"));
+                Ok(Some(PermissionRequestHookDecision::Allow {
+                    updated_input: None,
+                }))
+            })
+        })));
+
+        let temp_dir = tempdir().expect("create temp dir");
+        let session = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            "permission-hook-allow".to_string(),
+            SessionType::User,
+        )
+        .await
+        .expect("create session");
+
+        let tool_futures = Arc::new(Mutex::new(Vec::new()));
+        let requests = [build_request(
+            "req-permission-allow",
+            "Dangerous",
+            json!({"path": "README.md"}),
+        )];
+        let request_map = HashMap::new();
+        let stream = agent.handle_approval_tool_requests(
+            &requests,
+            tool_futures.clone(),
+            &request_map,
+            None,
+            &session,
+            &[],
+        );
+
+        let messages = stream
+            .try_collect::<Vec<_>>()
+            .await
+            .expect("stream should complete");
+        assert!(messages.is_empty());
+
+        let mut futures = tool_futures.lock().await;
+        assert_eq!(futures.len(), 1);
+        let (_req_id, tool_stream) = futures.pop().expect("should enqueue tool future");
+        drop(futures);
+
+        let items = tool_stream.collect::<Vec<_>>().await;
+        assert_eq!(items.len(), 1);
+        let ToolStreamItem::Result(result) = &items[0] else {
+            panic!("expected tool result");
+        };
+        let call_result = result.as_ref().expect("tool should succeed");
+        let text = call_result
+            .content
+            .first()
+            .and_then(|content| content.as_text())
+            .map(|text| text.text.clone())
+            .expect("tool result should contain text");
+        assert_eq!(text, "hook-allowed");
+    }
+
+    #[tokio::test]
+    async fn handle_approval_tool_requests_should_execute_with_hook_updated_input() {
+        let mut agent = Agent::new();
+        let recorded_params = Arc::new(Mutex::new(Vec::new()));
+        {
+            let mut registry = agent.tool_registry.write().await;
+            let _ = registry.unregister("Dangerous");
+            registry.register(Box::new(StaticTool {
+                name: "Dangerous".to_string(),
+                response: "hook-rewrote-input".to_string(),
+                recorded_params: Some(recorded_params.clone()),
+            }));
+        }
+        agent.set_permission_request_hook_handler(Some(Arc::new(|context| {
+            Box::pin(async move {
+                assert_eq!(context.tool_name, "Dangerous");
+                let mut updated_input = serde_json::Map::new();
+                updated_input.insert(
+                    "path".to_string(),
+                    serde_json::Value::String("HOOKED.md".to_string()),
+                );
+                Ok(Some(PermissionRequestHookDecision::Allow {
+                    updated_input: Some(updated_input),
+                }))
+            })
+        })));
+
+        let temp_dir = tempdir().expect("create temp dir");
+        let session = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            "permission-hook-updated-input".to_string(),
+            SessionType::User,
+        )
+        .await
+        .expect("create session");
+
+        let tool_futures = Arc::new(Mutex::new(Vec::new()));
+        let requests = [build_request(
+            "req-permission-updated-input",
+            "Dangerous",
+            json!({"path": "README.md"}),
+        )];
+        let request_map = HashMap::new();
+        let stream = agent.handle_approval_tool_requests(
+            &requests,
+            tool_futures.clone(),
+            &request_map,
+            None,
+            &session,
+            &[],
+        );
+
+        let messages = stream
+            .try_collect::<Vec<_>>()
+            .await
+            .expect("stream should complete");
+        assert!(messages.is_empty());
+
+        let mut futures = tool_futures.lock().await;
+        assert_eq!(futures.len(), 1);
+        let (_req_id, tool_stream) = futures.pop().expect("should enqueue tool future");
+        drop(futures);
+
+        let items = tool_stream.collect::<Vec<_>>().await;
+        assert_eq!(items.len(), 1);
+        let ToolStreamItem::Result(result) = &items[0] else {
+            panic!("expected tool result");
+        };
+        let call_result = result.as_ref().expect("tool should succeed");
+        let text = call_result
+            .content
+            .first()
+            .and_then(|content| content.as_text())
+            .map(|text| text.text.clone())
+            .expect("tool result should contain text");
+        assert_eq!(text, "hook-rewrote-input");
+
+        let recorded_input = recorded_params
+            .lock()
+            .await
+            .first()
+            .cloned()
+            .expect("tool should execute with rewritten params");
+        assert_eq!(
+            recorded_input.get("path"),
+            Some(&serde_json::Value::String("HOOKED.md".to_string()))
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_approval_tool_requests_should_auto_deny_via_permission_request_hook() {
+        let mut agent = Agent::new();
+        agent.set_permission_request_hook_handler(Some(Arc::new(|context| {
+            Box::pin(async move {
+                assert_eq!(context.tool_name, "Dangerous");
+                Ok(Some(PermissionRequestHookDecision::Deny {
+                    message: Some("hook denied execution".to_string()),
+                }))
+            })
+        })));
+
+        let temp_dir = tempdir().expect("create temp dir");
+        let session = SessionManager::create_session(
+            temp_dir.path().to_path_buf(),
+            "permission-hook-deny".to_string(),
+            SessionType::User,
+        )
+        .await
+        .expect("create session");
+
+        let response_message = Arc::new(Mutex::new(Message::assistant().with_tool_response(
+            "req-permission-deny",
+            Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text("pending".to_string())],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        )));
+        let request_map =
+            HashMap::from([("req-permission-deny".to_string(), response_message.clone())]);
+        let tool_futures = Arc::new(Mutex::new(Vec::new()));
+        let requests = [build_request(
+            "req-permission-deny",
+            "Dangerous",
+            json!({"command": "git push"}),
+        )];
+        let stream = agent.handle_approval_tool_requests(
+            &requests,
+            tool_futures.clone(),
+            &request_map,
+            None,
+            &session,
+            &[],
+        );
+
+        let messages = stream
+            .try_collect::<Vec<_>>()
+            .await
+            .expect("stream should complete");
+        assert!(messages.is_empty());
+        assert!(tool_futures.lock().await.is_empty());
+
+        let response = response_message.lock().await.clone();
+        let tool_result = response
+            .content
+            .iter()
+            .rev()
+            .find_map(|content| match content {
+                MessageContent::ToolResponse(ToolResponse { tool_result, .. }) => Some(tool_result),
+                _ => None,
+            })
+            .expect("expected tool response content");
+        let call_result = tool_result
+            .as_ref()
+            .expect("tool response should be ok envelope");
+        assert_eq!(call_result.is_error, Some(true));
+        let text = call_result
+            .content
+            .first()
+            .and_then(|content| content.as_text())
+            .map(|text| text.text.clone())
+            .expect("tool deny result should contain text");
+        assert_eq!(text, "hook denied execution");
     }
 }

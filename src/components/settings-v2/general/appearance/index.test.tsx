@@ -162,17 +162,17 @@ describe("AppearanceSettings", () => {
     );
 
     expect(text).toContain("外观");
-    expect(text).toContain("管理主题、语言、提示音效和推荐行为。");
+    expect(text).toContain("管理主题、语言、提示音效、推荐行为和隐藏入口。");
     expect(text).toContain("主题：跟随系统");
     expect(text).toContain("语言：中文");
     expect(text).toContain("提示音效：已开启");
     expect(text).toContain("基础外观");
     expect(text).toContain("主题模式");
     expect(text).toContain("界面语言");
-    expect(text).not.toContain("左侧边栏导航");
-    expect(text).not.toContain("主导航入口");
-    expect(text).not.toContain("系统入口");
-    expect(text).not.toContain("OpenClaw");
+    expect(text).toContain("隐藏系统入口");
+    expect(text).toContain("插件中心");
+    expect(text).toContain("OpenClaw");
+    expect(text).toContain("桌宠");
     expect(text).toContain("推荐行为");
     expect(text).toContain("推荐自动附带选中内容");
     expect(text).toContain("重新运行引导");
@@ -227,7 +227,7 @@ describe("AppearanceSettings", () => {
     await renderPage();
 
     expect(getBodyText()).not.toContain(
-      "管理主题、语言、提示音效，以及推荐问题的上下文带入方式。",
+      "管理主题、语言、提示音效、推荐问题的上下文带入方式，以及隐藏系统入口的显示状态。",
     );
     expect(getBodyText()).not.toContain(
       "先确定全局主题、语言和声音反馈，再统一工作区里的视觉节奏。",
@@ -235,7 +235,7 @@ describe("AppearanceSettings", () => {
 
     const heroTip = await hoverTip("外观设置总览说明");
     expect(getBodyText()).toContain(
-      "管理主题、语言、提示音效，以及推荐问题的上下文带入方式。",
+      "管理主题、语言、提示音效、推荐问题的上下文带入方式，以及隐藏系统入口的显示状态。",
     );
     await leaveTip(heroTip);
 
@@ -244,5 +244,26 @@ describe("AppearanceSettings", () => {
       "先确定全局主题、语言和声音反馈，再统一工作区里的视觉节奏。",
     );
     await leaveTip(sectionTip);
+  });
+
+  it("切换隐藏系统入口时应写回 navigation.enabled_items 并保留其他配置", async () => {
+    const { container } = await renderPage();
+    const switchButton = container.querySelector(
+      'button[aria-label="切换显示插件中心入口"]',
+    );
+
+    await act(async () => {
+      switchButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const savedConfig = mockSaveConfig.mock.calls.at(-1)?.[0] as any;
+
+    expect(savedConfig.navigation.enabled_items).toEqual(["plugins"]);
+    expect(
+      savedConfig.workspace_preferences.media_defaults.voice
+        .preferredProviderId,
+    ).toBe("openai");
+    expect(savedConfig.chat_appearance.showAvatar).toBe(false);
   });
 });

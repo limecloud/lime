@@ -442,7 +442,7 @@ describe("useWorkspaceConversationSceneRuntime", () => {
     );
   });
 
-  it("应把创作场景执行摘要卡透传给 WorkspaceConversationScene", () => {
+  it("应把做法执行摘要卡透传给 WorkspaceConversationScene", () => {
     const sceneAppExecutionSummaryCard = React.createElement(
       "div",
       { "data-testid": "sceneapp-summary-card-probe" },

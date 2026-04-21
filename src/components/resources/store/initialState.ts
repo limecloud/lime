@@ -1,8 +1,12 @@
 import type { ResourceItem } from "../services/types";
-
-export type ResourceSortField = "updatedAt" | "createdAt" | "name";
-
-export type ResourceSortDirection = "asc" | "desc";
+import type {
+  ResourceSortDirection,
+  ResourceSortField,
+} from "../services/resourceQueries";
+export type {
+  ResourceSortDirection,
+  ResourceSortField,
+} from "../services/resourceQueries";
 
 export interface ResourcesState {
   projectId: string | null;
@@ -12,7 +16,6 @@ export interface ResourcesState {
   error: string | null;
   currentFolderId: string | null;
   searchQuery: string;
-  selectedIds: string[];
   sortField: ResourceSortField;
   sortDirection: ResourceSortDirection;
 }
@@ -25,7 +28,6 @@ export const initialState: ResourcesState = {
   error: null,
   currentFolderId: null,
   searchQuery: "",
-  selectedIds: [],
   sortField: "updatedAt",
   sortDirection: "desc",
 };

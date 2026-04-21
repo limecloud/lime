@@ -1,8 +1,6 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import {
-  createDocumentResource,
-  createFolderResource,
   deleteSingleResource,
   fetchProjectResources,
   moveContentResource,
@@ -52,11 +50,6 @@ export interface ResourcesActions {
   setSearchQuery: (query: string) => void;
   setSortField: (field: ResourceSortField) => void;
   setSortDirection: (direction: ResourceSortDirection) => void;
-  setSelectedIds: (ids: string[]) => void;
-  toggleSelectedId: (id: string) => void;
-  clearSelection: () => void;
-  createFolder: (name: string) => Promise<void>;
-  createDocument: (name: string) => Promise<void>;
   uploadFile: (filePath: string) => Promise<void>;
   renameById: (id: string, name: string) => Promise<void>;
   deleteById: (id: string) => Promise<void>;
@@ -72,7 +65,6 @@ export const useResourcesStore = create<ResourcesStore>((set, get) => ({
     set({
       projectId,
       currentFolderId: null,
-      selectedIds: [],
       searchQuery: "",
       error: null,
       items: [],
@@ -112,7 +104,7 @@ export const useResourcesStore = create<ResourcesStore>((set, get) => ({
   },
 
   setCurrentFolderId: (currentFolderId) => {
-    set({ currentFolderId, selectedIds: [] });
+    set({ currentFolderId });
   },
 
   setSearchQuery: (searchQuery) => {
@@ -125,59 +117,6 @@ export const useResourcesStore = create<ResourcesStore>((set, get) => ({
 
   setSortDirection: (sortDirection) => {
     set({ sortDirection });
-  },
-
-  setSelectedIds: (selectedIds) => {
-    set({ selectedIds });
-  },
-
-  toggleSelectedId: (id) => {
-    const selectedIds = get().selectedIds;
-    if (selectedIds.includes(id)) {
-      set({ selectedIds: selectedIds.filter((itemId) => itemId !== id) });
-      return;
-    }
-    set({ selectedIds: [...selectedIds, id] });
-  },
-
-  clearSelection: () => {
-    set({ selectedIds: [] });
-  },
-
-  createFolder: async (name) => {
-    const { projectId, currentFolderId } = get();
-    if (!projectId) return;
-
-    set({ saving: true, error: null });
-    try {
-      await createFolderResource(projectId, name, currentFolderId);
-      await get().loadResources();
-      toast.success("文件夹创建成功");
-    } catch (error) {
-      const message = toErrorMessage(error);
-      set({ error: message });
-      toast.error(message);
-    } finally {
-      set({ saving: false });
-    }
-  },
-
-  createDocument: async (name) => {
-    const { projectId, currentFolderId } = get();
-    if (!projectId) return;
-
-    set({ saving: true, error: null });
-    try {
-      await createDocumentResource(projectId, name, currentFolderId);
-      await get().loadResources();
-      toast.success("文档创建成功");
-    } catch (error) {
-      const message = toErrorMessage(error);
-      set({ error: message });
-      toast.error(message);
-    } finally {
-      set({ saving: false });
-    }
   },
 
   uploadFile: async (filePath) => {

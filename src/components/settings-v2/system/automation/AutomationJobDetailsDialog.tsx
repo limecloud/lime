@@ -16,7 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { AutomationServiceSkillContext } from "./serviceSkillContext";
+import {
+  LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL,
+  LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE,
+  type AutomationServiceSkillContext,
+} from "./serviceSkillContext";
 import {
   LEGACY_BROWSER_AUTOMATION_NOTICE,
   LEGACY_BROWSER_AUTOMATION_STATUS,
@@ -206,6 +210,11 @@ export function AutomationJobDetailsDialog({
                         <Badge variant="outline">
                           {serviceSkillContext.executionLocationLabel}
                         </Badge>
+                        {serviceSkillContext.executionLocationLegacyCompat ? (
+                          <Badge variant="outline">
+                            {LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL}
+                          </Badge>
+                        ) : null}
                       </div>
                     </div>
                     <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
@@ -216,6 +225,11 @@ export function AutomationJobDetailsDialog({
                         主稿绑定: {serviceSkillContext.contentId || "-"}
                       </div>
                     </div>
+                    {serviceSkillContext.executionLocationLegacyCompat ? (
+                      <div className="mt-3 text-xs leading-5 text-sky-700">
+                        {LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE}
+                      </div>
+                    ) : null}
                     {serviceSkillContext.slotSummary.length ? (
                       <div className="mt-3 rounded-[16px] border border-slate-200/80 bg-white px-3 py-3">
                         <div className="text-xs font-medium text-slate-700">
@@ -255,11 +269,11 @@ export function AutomationJobDetailsDialog({
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <div className="text-sm font-medium text-slate-900">
-                            创作场景闭环
+                            做法闭环
                           </div>
                           <div className="mt-1 text-sm leading-6 text-slate-600">
-                            这条自动化任务已经接到创作场景主链，调度状态之外，也会继续消费同一份
-                            Project Pack、治理材料和经营判断。
+                            这条自动化任务已经接到做法主链，调度状态之外，也会继续回流同一轮
+                            结果包、复盘材料和经营判断。
                           </div>
                         </div>
                         {sceneAppSummaryCard ? (
@@ -271,7 +285,7 @@ export function AutomationJobDetailsDialog({
 
                       {sceneAppLoading && !sceneAppSummaryCard ? (
                         <div className="mt-4 rounded-[18px] border border-dashed border-lime-200 bg-white/80 px-4 py-4 text-sm text-slate-600">
-                          正在回流这条自动化任务对应的创作场景摘要…
+                          正在回流这条自动化任务对应的做法摘要…
                         </div>
                       ) : null}
 
@@ -357,14 +371,14 @@ export function AutomationJobDetailsDialog({
                               variant="outline"
                               onClick={onOpenSceneAppDetail}
                             >
-                              回到创作场景准备
+                              回到做法准备
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={onOpenSceneAppGovernance}
                             >
-                              查看治理复盘
+                              查看做法复盘
                             </Button>
                           </div>
                         </>
@@ -604,10 +618,22 @@ export function AutomationJobDetailsDialog({
                                     runServiceSkillContext.executionLocationLabel
                                   }
                                 </Badge>
+                                {runServiceSkillContext.executionLocationLegacyCompat ? (
+                                  <Badge variant="outline">
+                                    {
+                                      LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_LABEL
+                                    }
+                                  </Badge>
+                                ) : null}
                               </div>
                               {runServiceSkillTaskLine ? (
                                 <div className="mt-2 text-xs leading-5 text-slate-700">
                                   {runServiceSkillTaskLine}
+                                </div>
+                              ) : null}
+                              {runServiceSkillContext.executionLocationLegacyCompat ? (
+                                <div className="mt-1 text-xs leading-5 text-sky-700">
+                                  {LEGACY_SERVICE_SKILL_EXECUTION_COMPAT_NOTE}
                                 </div>
                               ) : null}
                               {runServiceSkillSlotPreview ? (

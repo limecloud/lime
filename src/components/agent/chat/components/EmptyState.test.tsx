@@ -9,6 +9,7 @@ import type { UnifiedMemory } from "@/lib/api/unifiedMemory";
 import type { ServiceSkillHomeItem } from "../service-skills/types";
 import type { SceneAppEntryCardItem } from "../sceneappEntryTypes";
 import type { InputCapabilitySelection } from "../skill-selection/inputCapabilitySelection";
+import { recordServiceSkillUsage } from "../service-skills/storage";
 import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import {
   buildCuratedTaskLaunchPrompt,
@@ -774,6 +775,10 @@ describe("EmptyState", () => {
     expect(recentTemplateButton).toBeTruthy();
     expect(recentTemplateButton?.textContent).toContain("内容主稿生成");
     expect(recentTemplateButton?.textContent).toContain(
+      "上次填写：主题或产品信息=上次沉淀的主线升级；目标受众=品牌内容负责人",
+    );
+    expect(recentTemplateButton?.textContent).toContain("参考：上次主稿参考");
+    expect(recentTemplateButton?.textContent).toContain(
       "需要：主题或产品信息、目标受众",
     );
     expect(recentTemplateButton?.textContent).toContain(
@@ -807,7 +812,7 @@ describe("EmptyState", () => {
     expect(subjectInput?.value).toBe("上次沉淀的主线升级");
     expect(audienceInput?.value).toBe("品牌内容负责人");
     expect(document.body.textContent).toContain(
-      "已选择 1 条参考基线，本轮会一起带入生成。",
+      "已选择 1 条参考对象，本轮会一起带入生成。",
     );
 
     await act(async () => {
@@ -942,6 +947,9 @@ describe("EmptyState", () => {
     expect(installedSkillButton).toBeTruthy();
     expect(installedSkillButton?.textContent).toContain("内容主稿方法");
     expect(installedSkillButton?.textContent).toContain(
+      "上次目标：继续优化这套内容主稿",
+    );
+    expect(installedSkillButton?.textContent).toContain(
       "当你需要继续复用这套内容主稿方法时使用。",
     );
     expect(installedSkillButton?.textContent).toContain(
@@ -1001,6 +1009,50 @@ describe("EmptyState", () => {
     expect(installedSkillButton).toBeTruthy();
     expect(container.textContent).toContain("继续上次做法");
     expect(installedSkillButton?.textContent).toContain("内容主稿方法");
+    expect(installedSkillButton?.textContent).toContain(
+      "上次目标：继续完善这套内容方法",
+    );
+  });
+
+  it("最近使用的 service skill 也应显影上次补过的关键信息", async () => {
+    act(() => {
+      recordServiceSkillUsage({
+        skillId: "github-repo-radar",
+        runnerType: "instant",
+        slotValues: {
+          repository_query: "AI Agent 监控",
+        },
+      });
+    });
+
+    const onSelectServiceSkill = vi.fn<(skill: ServiceSkillHomeItem) => void>();
+    const recentMethod: ServiceSkillHomeItem = {
+      ...createGithubSearchServiceSkill(),
+      recentUsedAt: 1_900_000_000_000,
+      isRecent: true,
+    };
+
+    const container = renderEmptyState({
+      activeTheme: "general",
+      onSelectServiceSkill,
+      serviceSkills: [recentMethod],
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const recentMethodButton = container.querySelector(
+      '[data-testid="entry-continuation-method-github-repo-radar"]',
+    ) as HTMLButtonElement | null;
+    expect(recentMethodButton).toBeTruthy();
+    expect(recentMethodButton?.textContent).toContain(
+      "上次填写：检索主题=AI Agent 监控",
+    );
+    expect(recentMethodButton?.textContent).toContain("需要：检索主题");
+    expect(recentMethodButton?.textContent).toContain(
+      "交付：仓库列表 + 关键线索",
+    );
   });
 
   it("传入项目切换能力时应继续保留项目选择器入口", async () => {
@@ -1023,7 +1075,7 @@ describe("EmptyState", () => {
     ).toBeNull();
   });
 
-  it("通用首页默认收起支撑能力卡，展开后才显示 4 个能力入口", async () => {
+  it("通用首页应把补充入口收成轻量续接条，展开后再显示能力说明", async () => {
     const container = renderEmptyState({
       activeTheme: "general",
       onLaunchBrowserAssist: vi.fn(),
@@ -1034,22 +1086,17 @@ describe("EmptyState", () => {
     });
 
     const expectedLabels = ["我的方法", "持续流程", "任务拆分", "浏览器接入"];
-    const expectedAlts = [
-      "方法能力卡占位图",
-      "持续流程能力卡占位图",
-      "任务拆分能力卡占位图",
-      "浏览器接入能力卡占位图",
-    ];
 
-    expect(container.textContent).toContain("支撑能力");
+    expect(
+      container.querySelector('[data-testid="entry-supplemental-panel"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain(
+      "如果你已经知道怎么接着做，也可以直接从这里续上。",
+    );
     expect(container.textContent).toContain("查看支撑能力");
     expect(
       container.querySelector('[data-testid="entry-connect-browser"]'),
     ).toBeTruthy();
-
-    for (const alt of expectedAlts) {
-      expect(container.querySelector(`img[alt="${alt}"]`)).toBeNull();
-    }
 
     const toggleButton = container.querySelector(
       '[data-testid="entry-capability-toggle"]',
@@ -1067,12 +1114,6 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain("重复任务可持续复用");
     expect(container.textContent).toContain("复杂任务可拆分并行推进");
     expect(container.textContent).toContain("网页登录与网页执行");
-
-    for (const alt of expectedAlts) {
-      const image = container.querySelector(`img[alt="${alt}"]`);
-      expect(image).toBeTruthy();
-      expect(image?.getAttribute("src")).toBeTruthy();
-    }
   });
 
   it("通用首页不再渲染 runtime 总览层", async () => {
@@ -1141,7 +1182,7 @@ describe("EmptyState", () => {
     expect(onOpenMemoryWorkbench).not.toHaveBeenCalled();
   });
 
-  it("点击浏览器能力卡图片应触发浏览器接入", async () => {
+  it("点击补充入口里的连接浏览器应触发浏览器接入", async () => {
     const onLaunchBrowserAssist = vi.fn();
     const container = renderEmptyState({
       activeTheme: "general",
@@ -1152,17 +1193,8 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    const toggleButton = container.querySelector(
-      '[data-testid="entry-capability-toggle"]',
-    ) as HTMLButtonElement | null;
-    expect(toggleButton).toBeTruthy();
-
-    act(() => {
-      toggleButton?.click();
-    });
-
     const mediaButton = container.querySelector(
-      'button[aria-label="连接浏览器"]',
+      '[data-testid="entry-connect-browser"]',
     ) as HTMLButtonElement | null;
     expect(mediaButton).toBeTruthy();
 
@@ -1809,7 +1841,7 @@ describe("EmptyState", () => {
     });
 
     expect(onSend).toHaveBeenCalledWith(
-      expect.stringContaining("本轮可优先参考这些参考基线"),
+      expect.stringContaining("本轮可优先参考这些参考对象"),
       "react",
       undefined,
       expect.objectContaining({
@@ -1899,7 +1931,7 @@ describe("EmptyState", () => {
     });
 
     expect(document.body.textContent).toContain(
-      "已选择 1 条参考基线，本轮会一起带入生成。",
+      "已选择 1 条参考对象，本轮会一起带入生成。",
     );
   });
 
@@ -2588,7 +2620,9 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("更多起手方式");
+    expect(container.textContent).toContain(
+      "如果你已经知道怎么接着做，也可以直接从这里续上。",
+    );
     expect(container.textContent).toContain("短视频编排");
     expect(
       container.querySelector('[data-testid="sceneapps-home-directory"]'),
@@ -2655,10 +2689,9 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("更多起手方式");
-    const resumeButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("继续最近做法"),
-    );
+    const resumeButton = container.querySelector(
+      '[data-testid="entry-sceneapp-resume"]',
+    ) as HTMLButtonElement | null;
     expect(resumeButton).toBeTruthy();
 
     act(() => {

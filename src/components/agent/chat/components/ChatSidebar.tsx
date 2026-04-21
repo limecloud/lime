@@ -808,13 +808,23 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     contextVariant === "task-center"
       ? "在这里继续推进当前创作、回看最近结果和旧历史。"
       : null;
+  const searchPlaceholder =
+    contextVariant === "task-center"
+      ? "搜索生成标题、结果或摘要"
+      : "搜索任务标题或摘要";
+  const newChatLabel =
+    contextVariant === "task-center" ? "开始生成" : "新建任务";
+  const allTasksLabel =
+    contextVariant === "task-center" ? "全部记录" : "全部任务";
+  const activeTasksLabel =
+    contextVariant === "task-center" ? "仅看待继续" : "仅看进行中";
   const emptyStateTitle =
     contextVariant === "task-center"
-      ? "还没有进行中的生成任务"
+      ? "还没有待继续的生成记录"
       : "还没有任务";
   const emptyStateDescription =
     contextVariant === "task-center"
-      ? "从“新建任务”开始也很自然，开始后会回到这里继续生成。"
+      ? "从“开始生成”发起也很自然，开始后会回到这里继续生成。"
       : "从“新建任务”开始输入需求，创建后会出现在这里。";
   const olderSectionMoreLabel =
     contextVariant === "task-center"
@@ -1073,7 +1083,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               type="search"
               value={searchKeyword}
               onChange={(event) => setSearchKeyword(event.target.value)}
-              placeholder="搜索任务标题或摘要"
+              placeholder={searchPlaceholder}
               className="h-11 w-full rounded-[18px] border border-emerald-200/40 bg-white/90 pl-9 pr-3 text-sm text-slate-700 shadow-sm shadow-slate-950/5 outline-none transition focus:border-emerald-300/60 focus:ring-2 focus:ring-emerald-100/50 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:focus:border-white/20 dark:focus:ring-white/10"
             />
           </div>
@@ -1084,7 +1094,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
             className={CHAT_SIDEBAR_PRIMARY_ACTION_BUTTON_CLASSNAME}
           >
             <Plus className="h-4 w-4" />
-            新建任务
+            {newChatLabel}
           </button>
 
           <div className="flex flex-wrap items-center gap-2 rounded-[22px] border border-white/85 bg-white/72 p-2 shadow-sm shadow-slate-950/5">
@@ -1098,7 +1108,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
               )}
             >
-              全部任务
+              {allTasksLabel}
             </button>
             <button
               type="button"
@@ -1110,7 +1120,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   : "border-slate-200/80 bg-white/90 text-slate-500 hover:border-slate-300 hover:bg-white hover:text-slate-800 dark:border-white/10 dark:bg-white/5 dark:text-slate-300",
               )}
             >
-              仅看进行中
+              {activeTasksLabel}
             </button>
           </div>
         </div>
@@ -1224,7 +1234,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                         {teamSectionCollapsed
                           ? collapsedTeamSummary
                           : subagentParentContext
-                            ? "当前线程来自主任务，可直接返回主任务并切换其他子任务；正在处理的任务会排在前面。"
+                            ? "当前线程来自主助手，可直接返回主助手并切换其他子任务；正在处理的任务会排在前面。"
                             : "这里优先展示正在处理的子任务，再回到当前任务和后续节点。"}
                       </p>
                     </div>

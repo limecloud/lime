@@ -710,13 +710,13 @@ pub struct CompanionDefaultsConfig {
 
 /// 导航栏模块配置
 ///
-/// 配置左侧导航栏中显示的功能模块
+/// 配置左侧导航栏里可显式开启的隐藏系统入口
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct NavigationConfig {
     /// 工作区导航默认值版本
     #[serde(default)]
     pub schema_version: u8,
-    /// 启用的导航模块列表
+    /// 已显式开启的隐藏系统入口列表；固定主导航不写入配置
     #[serde(default = "default_enabled_nav_items")]
     pub enabled_items: Vec<String>,
 }
@@ -734,90 +734,23 @@ impl Default for NavigationConfig {
     }
 }
 
-const CURRENT_MAIN_NAV_ITEM_IDS: &[&str] = &[
-    "home-general",
-    "claw",
-    "video",
-    "image-gen",
-    "automation",
-    "terminal",
-    "plugins",
-];
+const CURRENT_CONFIGURABLE_NAV_ITEM_IDS: &[&str] = &["plugins", "openclaw", "companion"];
 
-const CURRENT_FOOTER_NAV_ITEM_IDS: &[&str] =
-    &["openclaw", "settings", "resources", "tools", "memory"];
+fn normalize_navigation_enabled_items(items: &[String]) -> Vec<String> {
+    let mut normalized = Vec::new();
 
-const REMOVED_NAV_ITEM_IDS: &[&str] = &["api-server"];
-
-const LEGACY_ONLY_NAV_ITEM_IDS: &[&str] = &["agent", "projects", "provider-pool"];
-
-const LEGACY_DEFAULT_NAV_ITEM_SETS: &[&[&str]] = &[
-    &["home-general", "claw", "video", "image-gen"],
-    &["home-general", "claw", "video", "image-gen", "automation"],
-    &["home-general", "video", "image-gen", "plugins"],
-    &["home-general", "video", "image-gen", "terminal", "plugins"],
-];
-
-const STALE_DEFAULT_NAV_ITEM_SETS: &[&[&str]] = &[
-    &[
-        "home-general",
-        "claw",
-        "video",
-        "image-gen",
-        "automation",
-        "openclaw",
-        "resources",
-        "memory",
-    ],
-    &[
-        "home-general",
-        "claw",
-        "video",
-        "automation",
-        "openclaw",
-        "resources",
-        "memory",
-    ],
-];
-
-fn has_same_members(items: &[String], expected: &[&str]) -> bool {
-    if items.len() != expected.len() {
-        return false;
+    for item in items {
+        let item_str = item.as_str();
+        if !CURRENT_CONFIGURABLE_NAV_ITEM_IDS.contains(&item_str) {
+            continue;
+        }
+        if normalized.iter().any(|current| current == item) {
+            continue;
+        }
+        normalized.push(item.clone());
     }
 
-    let item_set: std::collections::HashSet<&str> = items.iter().map(String::as_str).collect();
-    expected.iter().all(|item| item_set.contains(item))
-}
-
-fn has_stale_default_nav_items(items: &[String]) -> bool {
-    STALE_DEFAULT_NAV_ITEM_SETS
-        .iter()
-        .any(|stale_items| has_same_members(items, stale_items))
-}
-
-fn should_upgrade_legacy_navigation_defaults(items: &[String]) -> bool {
-    if items.is_empty() {
-        return true;
-    }
-
-    if LEGACY_DEFAULT_NAV_ITEM_SETS
-        .iter()
-        .any(|legacy_items| has_same_members(items, legacy_items))
-    {
-        return true;
-    }
-
-    let contains_footer_items = items
-        .iter()
-        .any(|item| CURRENT_FOOTER_NAV_ITEM_IDS.contains(&item.as_str()));
-    let contains_legacy_only_items = items
-        .iter()
-        .any(|item| LEGACY_ONLY_NAV_ITEM_IDS.contains(&item.as_str()));
-    let main_only_legacy_items = items
-        .iter()
-        .all(|item| CURRENT_MAIN_NAV_ITEM_IDS.contains(&item.as_str()));
-
-    contains_legacy_only_items || (main_only_legacy_items && !contains_footer_items)
+    normalized
 }
 
 // ============ 实验室功能配置类型 ============
@@ -2212,16 +2145,10 @@ impl Config {
         let mut changed = false;
         let current_version = current_workspace_preferences_schema_version();
 
-        let original_nav_len = self.navigation.enabled_items.len();
-        self.navigation
-            .enabled_items
-            .retain(|item| !REMOVED_NAV_ITEM_IDS.contains(&item.as_str()));
-        if self.navigation.enabled_items.len() != original_nav_len {
-            changed = true;
-        }
-
-        if has_stale_default_nav_items(&self.navigation.enabled_items) {
-            self.navigation.enabled_items = default_enabled_nav_items();
+        let normalized_navigation_items =
+            normalize_navigation_enabled_items(&self.navigation.enabled_items);
+        if self.navigation.enabled_items != normalized_navigation_items {
+            self.navigation.enabled_items = normalized_navigation_items;
             changed = true;
         }
 
@@ -2231,10 +2158,6 @@ impl Config {
         }
 
         if self.navigation.schema_version < current_version {
-            if should_upgrade_legacy_navigation_defaults(&self.navigation.enabled_items) {
-                self.navigation.enabled_items = default_enabled_nav_items();
-            }
-
             self.navigation.schema_version = current_version;
             changed = true;
         }
@@ -2864,12 +2787,7 @@ mod unit_tests {
         let mut config = Config::default();
         config.workspace_preferences.schema_version = 0;
         config.navigation.schema_version = 0;
-        config.navigation.enabled_items = vec![
-            "home-general".to_string(),
-            "claw".to_string(),
-            "resources".to_string(),
-            "tools".to_string(),
-        ];
+        config.navigation.enabled_items = vec!["plugins".to_string(), "companion".to_string()];
 
         let changed = config.normalize_workspace_preferences();
 
@@ -2878,12 +2796,7 @@ mod unit_tests {
         assert_eq!(config.navigation.schema_version, 1);
         assert_eq!(
             config.navigation.enabled_items,
-            vec![
-                "home-general".to_string(),
-                "claw".to_string(),
-                "resources".to_string(),
-                "tools".to_string(),
-            ]
+            vec!["plugins".to_string(), "companion".to_string()]
         );
     }
 
@@ -2904,17 +2817,22 @@ mod unit_tests {
         let changed = config.normalize_workspace_preferences();
 
         assert!(changed);
-        assert!(config.navigation.enabled_items.is_empty());
+        assert_eq!(
+            config.navigation.enabled_items,
+            vec!["openclaw".to_string()]
+        );
     }
 
     #[test]
-    fn test_normalize_workspace_preferences_removes_api_server_entry_even_on_current_schema() {
+    fn test_normalize_workspace_preferences_filters_legacy_fixed_and_unknown_entries() {
         let mut config = Config::default();
         config.navigation.enabled_items = vec![
+            "plugins".to_string(),
             "home-general".to_string(),
-            "claw".to_string(),
-            REMOVED_NAV_ITEM_IDS[0].to_string(),
-            "resources".to_string(),
+            "api-server".to_string(),
+            "companion".to_string(),
+            "plugins".to_string(),
+            "settings".to_string(),
         ];
 
         let changed = config.normalize_workspace_preferences();
@@ -2922,11 +2840,7 @@ mod unit_tests {
         assert!(changed);
         assert_eq!(
             config.navigation.enabled_items,
-            vec![
-                "home-general".to_string(),
-                "claw".to_string(),
-                "resources".to_string(),
-            ]
+            vec!["plugins".to_string(), "companion".to_string()]
         );
     }
 

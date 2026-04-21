@@ -12,7 +12,7 @@ function createSummary(): SceneAppExecutionSummaryViewModel {
     summary: "把线框图、脚本、配乐和短视频草稿压成同一条结果链。",
     businessLabel: "内容闭环",
     typeLabel: "多模态组合",
-    executionChainLabel: "创作场景 -> 生成 -> Project Pack",
+    executionChainLabel: "做法 -> 生成 -> Project Pack",
     deliveryContractLabel: "Project Pack",
     planningStatusLabel: "已就绪",
     planningSummary: "当前已经带入 2 条参考与 1 条风格偏好，可直接进入生成。",
@@ -158,16 +158,32 @@ describe("buildSkillsPageParamsFromSceneAppExecution", () => {
         "当你需要继续产出“短视频编排”这类内容闭环结果时使用。",
       ]),
     );
+    expect(result?.initialScaffoldDraft?.whenToUse).toEqual(
+      expect.arrayContaining([
+        "适合继续沿用这轮已验证过的 做法 -> 生成 -> Project Pack 执行路径与当前结果交付约定。",
+      ]),
+    );
     expect(result?.initialScaffoldDraft?.inputs).toEqual(
       expect.arrayContaining([
-        "执行骨架：创作场景 -> 生成 -> Project Pack",
+        "执行骨架：做法 -> 生成 -> Project Pack",
         "人工复盘：封面已经稳定，下一步继续生成渠道预览稿并整理上传稿。",
       ]),
     );
+    const steps = result?.initialScaffoldDraft?.steps ?? [];
+    expect(steps).toEqual(
+      expect.arrayContaining([
+        "先确认这次任务是否仍适合同一条场景执行路径与当前结果交付约定。",
+        "沿用当前已验证过的参考对象、风格摘要与项目结果基线，补齐最少必要输入。",
+        "输出后按当前结果判断线索与人工复盘结论，继续进入复核、发布或下一轮生成。",
+      ]),
+    );
+    expect(steps.join(" ")).not.toContain("交付合同");
+    expect(steps.join(" ")).not.toContain("Context Layer");
+    expect(steps.join(" ")).not.toContain("Scorecard");
     expect(result?.initialScaffoldDraft?.fallbackStrategy).toEqual(
       expect.arrayContaining([
         "如果仍缺少复核意见，先补齐缺失部件，再把整套做法沉淀下来。",
-        "如果再次出现复核阻塞，先回看证据与治理材料，不要直接放大复用。",
+        "如果再次出现复核阻塞，先回看证据与复盘材料，不要直接放大复用。",
       ]),
     );
   });

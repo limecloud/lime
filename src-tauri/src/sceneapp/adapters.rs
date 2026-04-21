@@ -45,6 +45,29 @@ fn primary_binding_family(descriptor: &SceneAppDescriptor) -> SceneAppBindingFam
         .unwrap_or(SceneAppBindingFamily::AgentTurn)
 }
 
+fn should_open_service_scene_session(
+    descriptor: &SceneAppDescriptor,
+    binding_family: &SceneAppBindingFamily,
+) -> bool {
+    match binding_family {
+        SceneAppBindingFamily::CloudScene => true,
+        SceneAppBindingFamily::AgentTurn => {
+            matches!(
+                descriptor.sceneapp_type,
+                SceneAppType::LocalInstant | SceneAppType::Hybrid
+            ) && (descriptor.linked_service_skill_id.is_some()
+                || descriptor.linked_scene_key.is_some())
+                && descriptor.entry_bindings.iter().any(|binding| {
+                    matches!(
+                        binding.kind,
+                        SceneAppEntryBindingKind::ServiceSkill | SceneAppEntryBindingKind::Scene
+                    )
+                })
+        }
+        _ => false,
+    }
+}
+
 fn default_sceneapp_schedule() -> TaskSchedule {
     TaskSchedule::Every { every_secs: 3600 }
 }
@@ -292,30 +315,33 @@ fn build_sceneapp_runtime_request_metadata(
         return root;
     };
 
+    if should_open_service_scene_session(descriptor, adapter_kind) {
+        harness.insert(
+            "service_scene_launch".to_string(),
+            json!({
+                "kind": "local_service_skill",
+                "service_scene_run": {
+                    "sceneapp_id": descriptor.id.clone(),
+                    "scene_key": descriptor.linked_scene_key.clone(),
+                    "linked_skill_id": descriptor.linked_service_skill_id.clone(),
+                    "skill_id": descriptor.linked_service_skill_id.clone(),
+                    "skill_title": descriptor.title.clone(),
+                    "skill_summary": descriptor.summary.clone(),
+                    "execution_kind": "local_service_skill",
+                    "execution_location": "client_default",
+                    "entry_source": launch_intent.entry_source.clone().unwrap_or_else(|| "sceneapp_plan".to_string()),
+                    "workspace_id": launch_intent.workspace_id.clone(),
+                    "project_id": launch_intent.project_id.clone(),
+                    "user_input": launch_intent.user_input.clone(),
+                    "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
+                    "slots": launch_intent.slots.clone(),
+                }
+            }),
+        );
+        return root;
+    }
+
     match adapter_kind {
-        SceneAppBindingFamily::CloudScene => {
-            harness.insert(
-                "service_scene_launch".to_string(),
-                json!({
-                    "kind": "cloud_scene",
-                    "service_scene_run": {
-                        "sceneapp_id": descriptor.id.clone(),
-                        "scene_key": descriptor.linked_scene_key.clone(),
-                        "linked_skill_id": descriptor.linked_service_skill_id.clone(),
-                        "skill_id": descriptor.linked_service_skill_id.clone(),
-                        "skill_title": descriptor.title.clone(),
-                        "skill_summary": descriptor.summary.clone(),
-                        "execution_kind": "cloud_scene",
-                        "entry_source": launch_intent.entry_source.clone().unwrap_or_else(|| "sceneapp_plan".to_string()),
-                        "workspace_id": launch_intent.workspace_id.clone(),
-                        "project_id": launch_intent.project_id.clone(),
-                        "user_input": launch_intent.user_input.clone(),
-                        "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
-                        "slots": launch_intent.slots.clone(),
-                    }
-                }),
-            );
-        }
         SceneAppBindingFamily::BrowserAssist => {
             let adapter_name = browser_assist_adapter_name(descriptor)
                 .map(str::to_string)
@@ -381,6 +407,7 @@ fn build_sceneapp_runtime_request_metadata(
                 json!("submit_agent_turn"),
             );
         }
+        SceneAppBindingFamily::CloudScene => {}
     }
 
     root
@@ -1182,9 +1209,9 @@ fn read_nested_launch_context<'a>(value: &'a Value, keys: &[&str]) -> Option<&'a
     keys.iter().find_map(|key| object.get(*key))
 }
 
-fn extract_cloud_scene_runtime_ref_from_metadata_value(
+fn extract_service_scene_runtime_ref_from_metadata_value(
     parsed: &Value,
-) -> Option<SceneAppCloudSceneRuntimeRef> {
+) -> Option<SceneAppServiceSceneRuntimeRef> {
     let launch_candidates = [
         parsed.get("service_scene_launch"),
         parsed.get("serviceSceneLaunch"),
@@ -1246,7 +1273,7 @@ fn extract_cloud_scene_runtime_ref_from_metadata_value(
         return None;
     }
 
-    Some(SceneAppCloudSceneRuntimeRef {
+    Some(SceneAppServiceSceneRuntimeRef {
         scene_key,
         skill_id,
         project_id,
@@ -1421,12 +1448,19 @@ fn build_sceneapp_request_metadata(
     ))
 }
 
-fn build_sceneapp_runtime_action(binding_family: &SceneAppBindingFamily) -> SceneAppRuntimeAction {
+fn build_sceneapp_runtime_action(
+    descriptor: &SceneAppDescriptor,
+    binding_family: &SceneAppBindingFamily,
+) -> SceneAppRuntimeAction {
+    if should_open_service_scene_session(descriptor, binding_family) {
+        return SceneAppRuntimeAction::OpenServiceSceneSession;
+    }
+
     match binding_family {
         SceneAppBindingFamily::AgentTurn => SceneAppRuntimeAction::SubmitAgentTurn,
         SceneAppBindingFamily::BrowserAssist => SceneAppRuntimeAction::LaunchBrowserAssist,
         SceneAppBindingFamily::AutomationJob => SceneAppRuntimeAction::CreateAutomationJob,
-        SceneAppBindingFamily::CloudScene => SceneAppRuntimeAction::LaunchCloudScene,
+        SceneAppBindingFamily::CloudScene => SceneAppRuntimeAction::OpenServiceSceneSession,
         SceneAppBindingFamily::NativeSkill => SceneAppRuntimeAction::LaunchNativeSkill,
     }
 }
@@ -1436,7 +1470,8 @@ pub fn build_sceneapp_runtime_adapter_plan(
     launch_intent: &SceneAppLaunchIntent,
 ) -> SceneAppRuntimeAdapterPlan {
     let adapter_kind = primary_binding_family(descriptor);
-    let runtime_action = build_sceneapp_runtime_action(&adapter_kind);
+    let service_scene_session = should_open_service_scene_session(descriptor, &adapter_kind);
+    let runtime_action = build_sceneapp_runtime_action(descriptor, &adapter_kind);
     let request_metadata = Value::Object(build_sceneapp_runtime_request_metadata(
         descriptor,
         launch_intent,
@@ -1445,7 +1480,11 @@ pub fn build_sceneapp_runtime_adapter_plan(
 
     let mut notes = vec![format!(
         "当前 SceneApp 规划先映射到 {} 主链，再由后续 runtime adapter 负责真实执行。",
-        binding_family_to_string(&adapter_kind)
+        if service_scene_session {
+            "agent_turn"
+        } else {
+            binding_family_to_string(&adapter_kind)
+        }
     )];
 
     let preferred_profile_key = match adapter_kind {
@@ -1455,31 +1494,135 @@ pub fn build_sceneapp_runtime_adapter_plan(
         _ => None,
     };
 
-    let target_ref = match adapter_kind {
-        SceneAppBindingFamily::BrowserAssist => browser_assist_adapter_name(descriptor)
-            .map(str::to_string)
-            .or_else(|| descriptor.linked_scene_key.clone())
-            .unwrap_or_else(|| descriptor.id.clone()),
-        SceneAppBindingFamily::CloudScene
-        | SceneAppBindingFamily::NativeSkill
-        | SceneAppBindingFamily::AutomationJob => descriptor
+    let target_ref = if service_scene_session {
+        descriptor
             .linked_service_skill_id
             .clone()
             .or_else(|| descriptor.linked_scene_key.clone())
-            .unwrap_or_else(|| descriptor.id.clone()),
-        SceneAppBindingFamily::AgentTurn => descriptor.id.clone(),
+            .unwrap_or_else(|| descriptor.id.clone())
+    } else {
+        match adapter_kind {
+            SceneAppBindingFamily::BrowserAssist => browser_assist_adapter_name(descriptor)
+                .map(str::to_string)
+                .or_else(|| descriptor.linked_scene_key.clone())
+                .unwrap_or_else(|| descriptor.id.clone()),
+            SceneAppBindingFamily::CloudScene
+            | SceneAppBindingFamily::NativeSkill
+            | SceneAppBindingFamily::AutomationJob => descriptor
+                .linked_service_skill_id
+                .clone()
+                .or_else(|| descriptor.linked_scene_key.clone())
+                .unwrap_or_else(|| descriptor.id.clone()),
+            SceneAppBindingFamily::AgentTurn => descriptor.id.clone(),
+        }
     };
 
-    let launch_payload = match adapter_kind {
-        SceneAppBindingFamily::CloudScene => {
-            if matches!(descriptor.sceneapp_type, SceneAppType::Hybrid) {
+    let launch_payload = if service_scene_session {
+        if matches!(descriptor.sceneapp_type, SceneAppType::Hybrid) {
+            notes.push(
+                "当前 SceneApp 属于 hybrid，但首发执行会先进入场景技能入口；后续本地编排步骤由 composition blueprint 接续。"
+                    .to_string(),
+            );
+        }
+
+        json!({
+            "sceneapp_id": descriptor.id.clone(),
+            "scene_key": descriptor.linked_scene_key.clone(),
+            "service_skill_id": descriptor.linked_service_skill_id.clone(),
+            "workspace_id": launch_intent.workspace_id.clone(),
+            "project_id": launch_intent.project_id.clone(),
+            "entry_source": launch_intent.entry_source.clone().unwrap_or_else(|| "sceneapp_plan".to_string()),
+            "user_input": launch_intent.user_input.clone(),
+            "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
+            "slots": launch_intent.slots.clone(),
+        })
+    } else {
+        match adapter_kind {
+            SceneAppBindingFamily::BrowserAssist => {
+                let args = build_browser_assist_args(descriptor, launch_intent);
+                if !args.contains_key("url") && descriptor.id == "x-article-export" {
+                    notes.push(
+                        "当前 planner 还无法仅凭 descriptor 判断 article_url 是否齐备；执行前应继续通过 scene gate 补齐目标链接。"
+                            .to_string(),
+                    );
+                }
+
+                json!({
+                    "sceneapp_id": descriptor.id.clone(),
+                    "service_skill_id": descriptor.linked_service_skill_id.clone(),
+                    "adapter_name": target_ref.clone(),
+                    "profile_key": preferred_profile_key.clone(),
+                    "args": Value::Object(args),
+                    "project_id": launch_intent.project_id.clone(),
+                    "workspace_id": launch_intent.workspace_id.clone(),
+                    "save_mode": "project_resource",
+                })
+            }
+            SceneAppBindingFamily::AutomationJob => {
+                notes.push("当前 planner 只生成 durable automation draft；具体 schedule、delivery 与 run-now 策略可继续由 UI 调整。".to_string());
+
+                json!({
+                    "sceneapp_id": descriptor.id.clone(),
+                    "name": format!("{} 自动化", descriptor.title),
+                    "enabled": true,
+                    "execution_mode": "intelligent",
+                    "schedule": {
+                        "kind": "every",
+                        "every_secs": 3600,
+                    },
+                    "delivery": {
+                        "mode": "none",
+                        "channel": null,
+                        "target": null,
+                        "best_effort": false,
+                        "output_schema": null,
+                        "output_format": null,
+                    },
+                    "launch_intent": {
+                        "sceneapp_id": launch_intent.sceneapp_id.clone(),
+                        "entry_source": launch_intent.entry_source.clone(),
+                        "workspace_id": launch_intent.workspace_id.clone(),
+                        "project_id": launch_intent.project_id.clone(),
+                        "user_input": launch_intent.user_input.clone(),
+                        "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
+                        "slots": launch_intent.slots.clone(),
+                        "runtime_context": launch_intent.runtime_context.clone(),
+                    },
+                })
+            }
+            SceneAppBindingFamily::NativeSkill => {
                 notes.push(
-                    "当前 SceneApp 属于 hybrid，但首发执行仍先收敛到 cloud_scene；本地编排步骤由后续 composition blueprint 接续。"
+                    "native_skill 目前仍建议由统一 SceneApp UI 继续补参后，再把 draft 投递给本地 skill 执行入口。"
                         .to_string(),
                 );
-            }
 
-            json!({
+                json!({
+                    "sceneapp_id": descriptor.id.clone(),
+                    "service_skill_id": descriptor.linked_service_skill_id.clone(),
+                    "skill_key": descriptor.linked_scene_key.clone(),
+                    "workspace_id": launch_intent.workspace_id.clone(),
+                    "project_id": launch_intent.project_id.clone(),
+                    "user_input": launch_intent.user_input.clone(),
+                    "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
+                    "slots": launch_intent.slots.clone(),
+                })
+            }
+            SceneAppBindingFamily::AgentTurn => {
+                notes.push(
+                    "agent_turn 类型 SceneApp 当前仍建议走统一聊天 turn，并把 sceneapp_launch metadata 合并进 request_metadata。"
+                        .to_string(),
+                );
+
+                json!({
+                    "sceneapp_id": descriptor.id.clone(),
+                    "message": launch_intent.user_input.clone().unwrap_or_default(),
+                    "workspace_id": launch_intent.workspace_id.clone(),
+                    "project_id": launch_intent.project_id.clone(),
+                    "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
+                    "slots": launch_intent.slots.clone(),
+                })
+            }
+            SceneAppBindingFamily::CloudScene => json!({
                 "sceneapp_id": descriptor.id.clone(),
                 "scene_key": descriptor.linked_scene_key.clone(),
                 "service_skill_id": descriptor.linked_service_skill_id.clone(),
@@ -1489,91 +1632,7 @@ pub fn build_sceneapp_runtime_adapter_plan(
                 "user_input": launch_intent.user_input.clone(),
                 "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
                 "slots": launch_intent.slots.clone(),
-            })
-        }
-        SceneAppBindingFamily::BrowserAssist => {
-            let args = build_browser_assist_args(descriptor, launch_intent);
-            if !args.contains_key("url") && descriptor.id == "x-article-export" {
-                notes.push(
-                    "当前 planner 还无法仅凭 descriptor 判断 article_url 是否齐备；执行前应继续通过 scene gate 补齐目标链接。"
-                        .to_string(),
-                );
-            }
-
-            json!({
-                "sceneapp_id": descriptor.id.clone(),
-                "service_skill_id": descriptor.linked_service_skill_id.clone(),
-                "adapter_name": target_ref.clone(),
-                "profile_key": preferred_profile_key.clone(),
-                "args": Value::Object(args),
-                "project_id": launch_intent.project_id.clone(),
-                "workspace_id": launch_intent.workspace_id.clone(),
-                "save_mode": "project_resource",
-            })
-        }
-        SceneAppBindingFamily::AutomationJob => {
-            notes.push("当前 planner 只生成 durable automation draft；具体 schedule、delivery 与 run-now 策略可继续由 UI 调整。".to_string());
-
-            json!({
-                "sceneapp_id": descriptor.id.clone(),
-                "name": format!("{} 自动化", descriptor.title),
-                "enabled": true,
-                "execution_mode": "intelligent",
-                "schedule": {
-                    "kind": "every",
-                    "every_secs": 3600,
-                },
-                "delivery": {
-                    "mode": "none",
-                    "channel": null,
-                    "target": null,
-                    "best_effort": false,
-                    "output_schema": null,
-                    "output_format": null,
-                },
-                "launch_intent": {
-                    "sceneapp_id": launch_intent.sceneapp_id.clone(),
-                    "entry_source": launch_intent.entry_source.clone(),
-                    "workspace_id": launch_intent.workspace_id.clone(),
-                    "project_id": launch_intent.project_id.clone(),
-                    "user_input": launch_intent.user_input.clone(),
-                    "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
-                    "slots": launch_intent.slots.clone(),
-                    "runtime_context": launch_intent.runtime_context.clone(),
-                },
-            })
-        }
-        SceneAppBindingFamily::NativeSkill => {
-            notes.push(
-                "native_skill 目前仍建议由统一 SceneApp UI 继续补参后，再把 draft 投递给本地 skill 执行入口。"
-                    .to_string(),
-            );
-
-            json!({
-                "sceneapp_id": descriptor.id.clone(),
-                "service_skill_id": descriptor.linked_service_skill_id.clone(),
-                "skill_key": descriptor.linked_scene_key.clone(),
-                "workspace_id": launch_intent.workspace_id.clone(),
-                "project_id": launch_intent.project_id.clone(),
-                "user_input": launch_intent.user_input.clone(),
-                "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
-                "slots": launch_intent.slots.clone(),
-            })
-        }
-        SceneAppBindingFamily::AgentTurn => {
-            notes.push(
-                "agent_turn 类型 SceneApp 当前仍建议走统一聊天 turn，并把 sceneapp_launch metadata 合并进 request_metadata。"
-                    .to_string(),
-            );
-
-            json!({
-                "sceneapp_id": descriptor.id.clone(),
-                "message": launch_intent.user_input.clone().unwrap_or_default(),
-                "workspace_id": launch_intent.workspace_id.clone(),
-                "project_id": launch_intent.project_id.clone(),
-                "reference_memory_ids": launch_intent.reference_memory_ids.clone(),
-                "slots": launch_intent.slots.clone(),
-            })
+            }),
         }
     };
 
@@ -1829,9 +1888,9 @@ fn build_sceneapp_run_summary_from_agent_run_inner(
         browser_runtime_ref: parsed
             .as_ref()
             .and_then(extract_browser_runtime_ref_from_metadata_value),
-        cloud_scene_runtime_ref: parsed
+        service_scene_runtime_ref: parsed
             .as_ref()
-            .and_then(extract_cloud_scene_runtime_ref_from_metadata_value),
+            .and_then(extract_service_scene_runtime_ref_from_metadata_value),
         native_skill_runtime_ref: parsed
             .as_ref()
             .and_then(extract_native_skill_runtime_ref_from_metadata_value),
@@ -1920,7 +1979,7 @@ pub fn build_sceneapp_run_summary_from_automation_job(
         source_ref: Some(job.id.clone()),
         session_id: None,
         browser_runtime_ref: None,
-        cloud_scene_runtime_ref: None,
+        service_scene_runtime_ref: None,
         native_skill_runtime_ref: None,
         started_at: job
             .last_run_at
@@ -2111,7 +2170,7 @@ mod tests {
             ]
         );
         assert_eq!(summary.browser_runtime_ref, None);
-        assert_eq!(summary.cloud_scene_runtime_ref, None);
+        assert_eq!(summary.service_scene_runtime_ref, None);
         assert_eq!(summary.native_skill_runtime_ref, None);
         assert_eq!(
             summary.delivery_completed_parts,
@@ -2160,18 +2219,18 @@ mod tests {
                 target_id: Some("target-1".to_string()),
             })
         );
-        assert_eq!(summary.cloud_scene_runtime_ref, None);
+        assert_eq!(summary.service_scene_runtime_ref, None);
         assert_eq!(summary.native_skill_runtime_ref, None);
     }
 
     #[test]
-    fn build_sceneapp_run_summary_from_agent_run_should_extract_cloud_scene_runtime_ref() {
+    fn build_sceneapp_run_summary_from_agent_run_should_extract_service_scene_runtime_ref() {
         let run = create_agent_run(json!({
             "sceneapp": { "id": "story-video-suite" },
             "request_metadata": {
                 "harness": {
                     "service_scene_launch": {
-                        "kind": "cloud_scene",
+                        "kind": "local_service_skill",
                         "service_scene_run": {
                             "scene_key": "story-video-suite",
                             "skill_id": "sceneapp-service-story-video",
@@ -2193,8 +2252,8 @@ mod tests {
             build_sceneapp_run_summary_from_agent_run(&run, None, "story-video-suite".to_string());
 
         assert_eq!(
-            summary.cloud_scene_runtime_ref,
-            Some(SceneAppCloudSceneRuntimeRef {
+            summary.service_scene_runtime_ref,
+            Some(SceneAppServiceSceneRuntimeRef {
                 scene_key: Some("story-video-suite".to_string()),
                 skill_id: Some("sceneapp-service-story-video".to_string()),
                 project_id: Some("project-video".to_string()),
@@ -2460,7 +2519,7 @@ mod tests {
         assert_eq!(summary.source_ref.as_deref(), Some("job-1"));
         assert_eq!(summary.session_id, None);
         assert_eq!(summary.browser_runtime_ref, None);
-        assert_eq!(summary.cloud_scene_runtime_ref, None);
+        assert_eq!(summary.service_scene_runtime_ref, None);
         assert_eq!(summary.native_skill_runtime_ref, None);
         assert_eq!(
             summary.delivery_required_parts,

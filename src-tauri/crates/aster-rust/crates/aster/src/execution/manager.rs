@@ -3,6 +3,7 @@ use crate::agents::{Agent, SessionConfig};
 use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::conversation::message::Message;
+use crate::hooks::register_agent_session_frontmatter_hooks;
 use crate::scheduler::Scheduler;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::{
@@ -118,6 +119,29 @@ fn session_name_for_spawn(request: &SpawnAgentRequest) -> String {
     normalize_optional_text(request.name.clone())
         .or_else(|| normalize_optional_text(request.agent_type.clone()))
         .unwrap_or_else(|| "Background agent".to_string())
+}
+
+fn register_spawned_agent_frontmatter_hooks(
+    session_id: &str,
+    hooks: Option<&crate::hooks::FrontmatterHooks>,
+) {
+    let Some(hooks) = hooks else {
+        return;
+    };
+
+    let report = register_agent_session_frontmatter_hooks(session_id, hooks);
+    if report.registered > 0 {
+        info!(
+            "Registered {} agent frontmatter hook(s) for spawned session {}",
+            report.registered, session_id
+        );
+    }
+    for skipped in report.skipped {
+        warn!(
+            "Skipped agent frontmatter hook for spawned session {}: {}",
+            session_id, skipped
+        );
+    }
 }
 
 fn build_agent_control_tool_config(runtime: AgentManagerRuntime) -> AgentControlToolConfig {
@@ -419,6 +443,7 @@ async fn spawn_agent_with_runtime(
             );
         }
     }
+    register_spawned_agent_frontmatter_hooks(&child_session.id, request.hooks.as_ref());
 
     let submission = send_input_with_runtime(
         runtime,
@@ -760,6 +785,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_spawned_named_agent_registers_name_route_for_parent_session() {
+        use crate::hooks::{clear_session_hooks, get_matching_session_hooks, HookEvent};
         use crate::providers::testprovider::TestProvider;
         use crate::session::{resolve_named_subagent_child_session, SessionManager, SessionType};
         use crate::tools::SpawnAgentRequest;
@@ -807,6 +833,23 @@ mod tests {
                 theme: None,
                 system_overlay: None,
                 output_contract: None,
+                hooks: Some(
+                    serde_json::from_value(serde_json::json!({
+                        "Stop": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "prompt",
+                                        "prompt": "Summarize child session"
+                                    }
+                                ]
+                            }
+                        ]
+                    }))
+                    .expect("hooks should deserialize"),
+                ),
+                allowed_tools: Vec::new(),
+                disallowed_tools: Vec::new(),
                 mode: None,
                 isolation: None,
                 cwd: None,
@@ -821,6 +864,13 @@ mod tests {
             .expect("应能按名字解析刚创建的子 agent");
 
         assert_eq!(resolved.id, response.agent_id);
+        assert!(get_matching_session_hooks(&response.agent_id, HookEvent::Stop, None).is_empty());
+        assert_eq!(
+            get_matching_session_hooks(&response.agent_id, HookEvent::SubagentStop, None).len(),
+            1
+        );
+
+        clear_session_hooks(&response.agent_id);
     }
 
     #[tokio::test]
@@ -891,6 +941,9 @@ mod tests {
                 theme: None,
                 system_overlay: None,
                 output_contract: None,
+                hooks: None,
+                allowed_tools: Vec::new(),
+                disallowed_tools: Vec::new(),
                 mode: None,
                 isolation: None,
                 cwd: Some(temp_dir.path().display().to_string()),

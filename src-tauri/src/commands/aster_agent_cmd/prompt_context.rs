@@ -370,26 +370,14 @@ fn build_service_scene_launch_system_prompt(
 ) -> Option<String> {
     let context =
         super::service_skill_launch::extract_service_scene_launch_context(request_metadata)?;
-    let tool_input = if let Some(user_input) = context
-        .user_input
-        .clone()
-        .filter(|value| !value.trim().is_empty())
-    {
-        serde_json::json!({ "input": user_input }).to_string()
-    } else {
-        "{}".to_string()
-    };
 
     let mut lines = vec![
         SERVICE_SKILL_LAUNCH_PROMPT_MARKER.to_string(),
         "- 当前回合来自服务型场景启动，不要把它当成普通聊天或纯文本分析。".to_string(),
-        "- 先快速确认当前 slash 场景目标，然后立刻调用服务型技能运行工具；不要停留在泛泛解释。".to_string(),
-        "- 第一优先工具调用必须是 lime_run_service_skill。".to_string(),
-        "- lime_run_service_skill 会自动读取当前回合绑定的 serviceSkillId 与 OEM 运行时上下文，通常不需要手动补鉴权字段。".to_string(),
-        format!("- 推荐第一工具调用参数 JSON：{tool_input}。"),
-        "- 如果用户没有追加补充要求，直接传 {} 也可以；不要把 scene metadata 里的 session_token、tenant_id、scene_base_url 重新抄进工具参数。".to_string(),
-        "- 调用 lime_run_service_skill 后，若返回 queued/running，可以继续等待一次或基于当前状态向用户汇报“已提交云端，正在处理中”；不要伪造已完成结果。".to_string(),
-        "- 如果工具返回缺少 OEM 配置、缺少 Session Token 或授权失败，不要伪造成功结果；直接说明当前云端会话不可用，并引导用户先完成登录或注入会话。".to_string(),
+        "- 当前主链是“目录命中 + 本地 Agent 执行”；直接在当前回合使用可见的本地工具、技能和工作区能力完成任务。".to_string(),
+        "- 不要调用 lime_run_service_skill；它只为历史兼容保留，不再代表 current 执行桥。".to_string(),
+        "- 不要向用户汇报“已提交云端 / 正在云端处理中”，也不要再把 OEM Session Token、scene_base_url、tenant_id 当作当前执行前提。".to_string(),
+        "- 优先依据当前 user_input、scene_key、skill_title、skill_summary 与 slot_values 直接推进任务；需要额外工具时，只选当前本地回合真正需要的那一个。".to_string(),
         format!("- 当前服务型技能 ID：{}。", context.service_skill_id),
         format!(
             "- 当前服务型技能标题：{}。",
@@ -421,6 +409,28 @@ fn build_service_scene_launch_system_prompt(
         ),
     ];
 
+    match context.execution_kind.as_deref() {
+        Some("automation_job") => lines.push(
+            "- 当前 execution_kind=automation_job：本回合先产出首轮结果、调度建议或仍需补齐的信息；除非用户明确要求，不要伪造“任务已经开始自动运行”。"
+                .to_string(),
+        ),
+        Some("native_skill") => lines.push(
+            "- 当前 execution_kind=native_skill：若当前回合里已有明确的本地 Skill/工具入口可以直接完成任务，就优先复用；否则继续在当前本地回合完成，不要回退 compat 云桥。"
+                .to_string(),
+        ),
+        _ => lines.push(
+            "- 当前 execution_kind=agent_turn：直接在本地回合完成分析、生成、检索、整理与结果回写。"
+                .to_string(),
+        ),
+    }
+
+    if context.launch_kind == "cloud_scene" {
+        lines.push(
+            "- 当前 launch kind=cloud_scene 只是旧目录兼容输入；执行仍以本地 current 主链为准。"
+                .to_string(),
+        );
+    }
+
     if let Some(value) = context.user_input.as_deref() {
         lines.push(format!("- 当前补充要求：{value}"));
     } else if let Some(value) = context.raw_text.as_deref() {
@@ -435,19 +445,29 @@ fn build_service_scene_launch_system_prompt(
     if let Some(value) = context.skill_summary.as_deref() {
         lines.push(format!("- 当前技能说明：{value}"));
     }
-    if let Some(value) = context.oem_runtime.scene_base_url.as_deref() {
-        lines.push(format!("- 当前 scene_base_url：{value}。"));
-    } else {
+    if let Some(value) = context.service_skill_key.as_deref() {
+        lines.push(format!("- 当前服务型技能 key：{value}。"));
+    }
+    if let Some(value) = context.runner_type.as_deref() {
+        lines.push(format!("- 当前 runner_type：{value}。"));
+    }
+    if let Some(value) = context.execution_kind.as_deref() {
+        lines.push(format!("- 当前 execution_kind：{value}。"));
+    }
+    if let Some(value) = context.execution_location.as_deref() {
+        lines.push(format!("- 当前 execution_location：{value}。"));
+    }
+    if let Some(value) = render_json_inline(context.slot_values.as_ref()) {
+        lines.push(format!("- 当前 slot_values(JSON)：{value}。"));
+    }
+    if context.oem_runtime.scene_base_url.is_some()
+        || context.oem_runtime.session_token.is_some()
+        || context.oem_runtime.tenant_id.is_some()
+    {
         lines.push(
-            "- 当前缺少 scene_base_url。若工具返回缺少 OEM 配置，直接向用户说明未完成云端接线。"
+            "- 当前 metadata 中仍带有旧 OEM 运行时字段；它们只再作为 compat 输入保留，不是 current 执行门槛。"
                 .to_string(),
         );
-    }
-    if context.oem_runtime.session_token.is_some() {
-        lines
-            .push("- 当前回合已绑定 OEM Session Token，可直接调用服务型技能运行工具。".to_string());
-    } else {
-        lines.push("- 当前回合尚未绑定 OEM Session Token。若工具返回授权失败，不要重试伪造结果，直接要求用户先登录 OEM 云端。".to_string());
     }
 
     Some(lines.join("\n"))

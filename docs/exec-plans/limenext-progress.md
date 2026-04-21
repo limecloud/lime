@@ -6,9 +6,583 @@
 >
 > 补充说明（2026-04-18）：旧 Ribbi 过渡目录已清理。历史条目若继续出现旧 Ribbi 路径，默认按“当时旧路径、现已由 `docs/research/ribbi/*` 替代”理解。
 
+## 2026-04-21
+
+### 已完成
+
+- 把 Rust `service_scene_launch` 提取器的 current 默认值收回 `local_service_skill`，避免前端 metadata 已改成本地执行，但后端解析层仍把缺省 `kind` 视作 `cloud_scene`：
+  - 已更新：
+    - `src-tauri/src/commands/aster_agent_cmd/service_skill_launch.rs`
+    - `src-tauri/src/commands/aster_agent_cmd/tool_runtime/service_skill_tools.rs`
+    - `src-tauri/src/commands/aster_agent_cmd/tests.rs`
+  - 当前统一结论：
+    - `extract_service_scene_launch_context(...)` 当前默认按 `local_service_skill` 解析
+    - Rust 侧当前同时接受 `local_service_skill / cloud_scene`，其中前者是 current，后者只再作为 compat alias
+    - `aster_agent_cmd` 的 current 定向测试样例也已切到 `local_service_skill`，避免测试事实源继续把 `cloud_scene` 当默认值
+  - 当前计划中的最小验证：
+    - `rustfmt --edition 2021 "src-tauri/src/commands/aster_agent_cmd/service_skill_launch.rs" "src-tauri/src/commands/aster_agent_cmd/tool_runtime/service_skill_tools.rs" "src-tauri/src/commands/aster_agent_cmd/tests.rs"`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" service_scene_launch`
+    - `cargo test --manifest-path "src-tauri/Cargo.toml" should_extract_launch_context_from_environment_payload -- --exact`
+  - 本轮验证备注：
+    - 已完成 `rustfmt --edition 2021`
+    - 上述两条 Rust 定向测试会触发 `aster` crate 长时间重编；本轮已发起但未在可接受窗口内拿到最终结果，已主动中止，不记为已通过
+
+- 把 `quality-workflow` 中仍残留的 `OEM run/timeline` 旧叙事改回 current 本地执行事实源，避免后续按质量清单做回归时又把 `@配音 / /scene-key` 理解成云执行链：
+  - 已更新：
+    - `docs/aiprompts/quality-workflow.md`
+  - 当前统一结论：
+    - `@配音` 的质量清单当前明确收口为 `service_scene_launch -> 本地 service-scene 直驱执行 -> 本地 ServiceSkill / tool timeline`
+    - `/scene-key` 的质量清单当前也明确收口为 `service_scene_launch -> 本地 service-scene 直驱执行 -> tool timeline` 主链，不再允许用 `OEM run/timeline` 或“Rust 侧云执行分支”描述 current 事实
+    - `lime_run_service_skill` 当前已只作为 compat 护栏保留，不再允许在质量清单里被写成 current 执行桥
+    - `service_scene_launch runtime` 的补充校验当前只再围绕本地 service-scene 执行桥与 compat 结果回流，不再暗示云端 run/poll
+
+- 把 `automation / service skill` 的 current 消费面继续收回“客户端执行 + 兼容目录标记”语义，避免设置页任务列表、详情弹窗和运行摘要仍把 `cloud_required` 展示成无差别的当前执行位置：
+  - 已更新：
+    - `src/components/settings-v2/system/automation/serviceSkillContext.ts`
+    - `src/components/settings-v2/system/automation/serviceSkillContext.test.ts`
+    - `src/components/settings-v2/system/automation/index.tsx`
+    - `src/components/settings-v2/system/automation/index.test.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx`
+  - 当前统一结论：
+    - `cloud_required` 当前在 automation 上下文里会继续显示为 `客户端执行`，但会额外标记为 `旧目录兼容`
+    - 任务列表、任务详情和运行摘要当前都会把 compat 信息显式展示成“沿用旧目录兼容标记，实际仍在客户端执行”，不再让旧目录字段伪装成 current 执行面
+    - `run metadata = client_default`、`job payload = cloud_required` 这类混合输入当前也会继续保留 compat 标记，避免运行层正规化后把旧目录来源洗掉
+  - 当前计划中的最小验证：
+    - `npx eslint "src/components/settings-v2/system/automation/serviceSkillContext.ts" "src/components/settings-v2/system/automation/serviceSkillContext.test.ts" "src/components/settings-v2/system/automation/index.tsx" "src/components/settings-v2/system/automation/index.test.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx"`
+    - `npm exec vitest run "src/components/settings-v2/system/automation/serviceSkillContext.test.ts" "src/components/settings-v2/system/automation/index.test.tsx"`
+
+- 把 `service skill` 的旧云特例执行暗示继续压回“目录兼容标记”，避免 current 文档已经切到“目录云同步、本地执行”，但入口投影和工作区测试仍在暗示 `cloud_required = 云端执行`：
+  - 已更新：
+    - `src/lib/api/serviceSkills.ts`
+    - `src/components/agent/chat/service-skills/promptComposer.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.test.tsx`
+  - 当前统一结论：
+    - `cloud_required` 当前只再表示旧目录兼容标记，不再表示“云端完成后回流”
+    - `ServiceSkill` bundle 推导出的 `output destination / compatibility` 当前都已收口到客户端执行语义
+    - `workspace service skill entry` 的 current 测试也已同步改成“legacy 标记 -> 仍走本地执行主链”，并清掉未被当前主链使用的旧 `serviceSkillRuns` mock
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/api/serviceSkills.ts" "src/components/agent/chat/service-skills/promptComposer.ts" "src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.test.tsx"`
+    - `npm exec vitest run "src/lib/api/serviceSkills.test.ts" "src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.test.tsx"`
+
+- 把 `Base Setup -> ServiceSkillCatalog` 的 compat 编译投影也收回 current 本地执行语义，避免包里还沿用 `cloud_scene / cloud_required` 时，前台 catalog item 又重新把它当成当前执行真相：
+  - 已更新：
+    - `src/lib/base-setup/compat/serviceSkillCatalogProjection.ts`
+    - `src/lib/api/skillCatalog.test.ts`
+  - 当前统一结论：
+    - `bindingFamily = cloud_scene` 当前在编译成 `ServiceSkillItem` 时会被正规化成 `defaultExecutorBinding = agent_turn`
+    - `executionLocation = cloud_required` 当前在编译投影里也会被正规化成 `client_default`
+    - 因此前台消费到的 `ServiceSkillCatalog / SkillCatalogItem` 当前不再把旧包标记继续投射成 current 执行边界；旧标记当前只允许停留在 legacy Base Setup / 远端 compat 输入层
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/base-setup/compat/serviceSkillCatalogProjection.ts" "src/lib/api/skillCatalog.test.ts"`
+    - `npm exec vitest run "src/lib/base-setup/seededServiceSkillPackage.test.ts" "src/lib/api/skillCatalog.test.ts" "src/lib/base-setup/compat/commandCatalogProjection.test.ts"`
+
+- 把 `Base Setup -> command/scene catalog` 的 compat execution kind 也往 current 本地语义收回，避免目录项明明已经只负责本地路由提示，却还继续对外暴露 `cloud_scene` 作为 current 执行真相：
+  - 已更新：
+    - `src/lib/base-setup/compat/commandCatalogProjection.ts`
+    - `src/lib/base-setup/compat/sceneCatalogProjection.ts`
+    - `src/lib/base-setup/compat/commandCatalogProjection.test.ts`
+    - `src/lib/api/skillCatalog.test.ts`
+  - 当前统一结论：
+    - `bindingFamily = cloud_scene` 当前在编译成 `command/scene` projection 时会被正规化成 `executionKind = agent_turn`
+    - `scene_detail` 这类 viewer/render contract 当前保持不变；只收口 current 执行语义，不改结果展示合同
+    - 因此前台目录里的 command/scene 当前不再把旧 `cloud_scene` 继续显影成当前执行面；它当前只再是 legacy Base Setup / compat projection 的输入信号
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/base-setup/compat/commandCatalogProjection.ts" "src/lib/base-setup/compat/sceneCatalogProjection.ts" "src/lib/base-setup/compat/commandCatalogProjection.test.ts" "src/lib/api/skillCatalog.test.ts"`
+    - `npm exec vitest run "src/lib/base-setup/compat/commandCatalogProjection.test.ts" "src/lib/base-setup/seededCommandPackage.test.ts" "src/lib/api/skillCatalog.test.ts"`
+
+- 把 current seeded package 里还在主动产出的 `cloud_scene / cloud-scene-instant` dead compat surface 直接删掉，避免目录编译已经正规化成本地执行，但源包本身还继续给旧云语义续命：
+  - 已更新：
+    - `src/lib/base-setup/seededCommandPackage.ts`
+    - `src/lib/base-setup/seededServiceSkillPackage.ts`
+    - `src/lib/base-setup/seededCommandPackage.test.ts`
+    - `src/lib/base-setup/seededServiceSkillPackage.test.ts`
+  - 当前统一结论：
+    - `seededCommandPackage` 当前不再保留 `cloud-scene-instant` binding profile，也不再声明 `cloud_scene` kernel capability
+    - `seededServiceSkillPackage` 当前也不再保留 `cloud-scene-instant` binding profile 或 `cloud_scene` capability；`cloud-video-dubbing` 仅保留历史 skill id，不再携带云执行 binding
+    - 因此 current Base Setup 事实源当前已不再主动产出 `cloud_scene` 执行面；剩余旧命名仅留在 compat projection、sceneapp 规划与历史数据锚点
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/base-setup/seededCommandPackage.ts" "src/lib/base-setup/seededServiceSkillPackage.ts" "src/lib/base-setup/seededCommandPackage.test.ts" "src/lib/base-setup/seededServiceSkillPackage.test.ts"`
+    - `npm exec vitest run "src/lib/base-setup/seededCommandPackage.test.ts" "src/lib/base-setup/seededServiceSkillPackage.test.ts"`
+    - `npm run typecheck`
+
+- 给 `cloud_required / cloud_scene` 的类型定义补上 legacy compat 护栏注释，避免后续实现再次把“仍保留 union 分支”误读成“仍允许 current 云执行”：
+  - 已更新：
+    - `src/lib/base-setup/types.ts`
+    - `src/lib/api/serviceSkills.ts`
+    - `src/lib/api/skillCatalog.ts`
+  - 当前统一结论：
+    - `cloud_required` 当前在类型层被明确标注为旧目录兼容标记
+    - `cloud_scene` 当前在 Base Setup / ServiceSkill / SkillCatalog 三处类型层都被明确标注为 legacy compat input，而不是 current 执行面
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/base-setup/types.ts" "src/lib/api/serviceSkills.ts" "src/lib/api/skillCatalog.ts"`
+    - `npm run typecheck`
+
+- 把 `SkillCatalog` 的 raw compat 输入也收回 current 本地执行语义，避免远端缓存或旧目录把 `cloud_scene` 直接写进前台目录对象后，又被 UI 当成当前执行面：
+  - 已更新：
+    - `src/lib/api/skillCatalog.ts`
+    - `src/lib/api/skillCatalog.test.ts`
+  - 当前统一结论：
+    - raw `skillCatalog.items[*].execution.kind = cloud_scene` 当前会在解析时正规化成 `agent_turn`
+    - raw `command.binding.executionKind = cloud_scene` 与 `scene.executionKind = cloud_scene` 当前也会一并正规化成 `agent_turn`
+    - 旧目录若仍依赖 `defaultExecutorBinding = cloud_scene` 或 `executionLocation = cloud_required` 自动生成 scene entry，当前仍可保留 auto scene 行为，但前台对象不会再显影 `cloud_scene`
+    - 因此 `SkillCatalog` 当前对象、缓存落盘与 UI 消费层继续统一回到本地执行语义；`cloud_scene` 只再允许停留在 compat 输入层
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/api/skillCatalog.ts" "src/lib/api/skillCatalog.test.ts"`
+    - `npm exec vitest run "src/lib/api/skillCatalog.test.ts"`
+    - `npm run typecheck`
+
+- 把 `ServiceSkill.skillBundle.metadata` 的 compat 泄漏也收回 current 本地语义，避免展示文案已经纠偏，但自动补齐的 bundle metadata 仍把 `cloud_required / cloud_scene` 写回当前前台对象：
+  - 已更新：
+    - `src/lib/api/serviceSkills.ts`
+    - `src/lib/api/serviceSkills.test.ts`
+  - 当前统一结论：
+    - 旧版 compat 服务技能若缺少 `skillBundle`，当前自动派生的 `Lime_execution_location` 会正规化为 `client_default`
+    - 同一条链路下的 `Lime_executor_binding` 当前也会正规化为 `agent_turn`
+    - `ServiceSkillItem` 原始 compat 字段仍可保留用于目录兼容，但当前 bundle metadata 不会再把它们显影成当前执行真相
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/api/serviceSkills.ts" "src/lib/api/serviceSkills.test.ts"`
+    - `npm exec vitest run "src/lib/api/serviceSkills.test.ts"`
+    - `npm run typecheck`
+
+- 把 `sceneapp/catalog` 的目录描述对象也继续去云执行化，避免 current 目录页虽然已经只谈“做法 / 本地执行”，但 `SceneAppDescriptor` 仍向前台显影 `cloud_scene / cloud_session / cloud_runtime`：
+  - 已更新：
+    - `src/lib/sceneapp/catalog.ts`
+    - `src/lib/sceneapp/catalog.test.ts`
+  - 当前统一结论：
+    - compat 输入里的 `bindingFamily = cloud_scene` 当前在 `SceneAppDescriptor.entryBindings / compositionProfile.steps` 中会正规化成 `agent_turn`
+    - compat 输入里的 `capabilityRefs = [cloud_scene]` 当前也会在目录描述对象里正规化成 `agent_turn`
+    - `launchRequirements` 当前不再因为 `cloud_scene / cloud_required` 自动长出 `cloud_session`
+    - `infraProfile` 当前也不再继续显影 `cloud_runtime`
+    - 单一旧 `cloud_scene` SceneApp 当前会在目录层被理解为 `local_instant`；混合编排场景则继续保留 `hybrid`，但不再把 compat 云绑定显影成当前执行真相
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/sceneapp/catalog.ts" "src/lib/sceneapp/catalog.test.ts"`
+    - `npm exec vitest run "src/lib/sceneapp/catalog.test.ts"`
+    - `npm run typecheck`
+
+- 把 `sceneapp presentation / product` 的 compat 展示词也收回 current 口径，避免目录对象已经正规化，但详情页和卡片摘要仍把 `cloud_scene / cloud_managed / cloud_runtime` 讲成当前产品语义：
+  - 已更新：
+    - `src/lib/sceneapp/presentation.ts`
+    - `src/lib/sceneapp/presentation.test.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/product.test.ts`
+  - 当前统一结论：
+    - compat `cloud_scene` 当前在展示层不再显示为“场景技能”，统一收成 `Agent 工作区`
+    - compat `cloud_runtime` 当前在基础设施摘要里不再显示为“目录控制面”，统一收成 `目录同步`
+    - compat `cloud_managed` 当前在类型标签与 fallback copy 里不再显示为“目录托管”，统一收成 `目录同步`
+    - 因此即使后续还有 compat descriptor 漏进展示层，前台也不会再继续讲“云执行/托管”叙事
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/sceneapp/presentation.ts" "src/lib/sceneapp/presentation.test.ts" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts"`
+    - `npm exec vitest run "src/lib/sceneapp/presentation.test.ts" "src/lib/sceneapp/product.test.ts"`
+    - `npm run typecheck`
+
+- 把 `sceneapp launch` 的 current 启动草稿也继续收回本地执行主链，避免 compat `launch_cloud_scene` 还通过启动文案、notes 和 draft 适配器继续向工作区泄露旧“场景技能”语义：
+  - 已更新：
+    - `src/lib/sceneapp/launch.ts`
+    - `src/lib/sceneapp/launch.test.ts`
+    - `src/lib/tauri-mock/core.ts`
+  - 当前统一结论：
+    - `launch_cloud_scene` 当前仍保留为 compat runtime action 名，不直接删协议
+    - 但 `workspace execution draft.adapterKind` 当前已正规化成 `agent_turn`
+    - `launch` 输出的 notes 当前会把“场景技能主链 / 场景技能入口”统一收成 `Agent 工作区主链 / Agent 工作区入口`
+    - `launch_cloud_scene` 在无显式用户输入时的 current prompt 也已改成“执行做法 / 在 Agent 工作区推进”，不再显影旧云场景语气
+    - mock planner 与注入工具说明同步改成 current 口径，避免 dev/mock 场景继续把旧词带回前台
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/sceneapp/launch.ts" "src/lib/sceneapp/launch.test.ts" "src/lib/tauri-mock/core.ts"`
+    - `npm exec vitest run "src/lib/sceneapp/launch.test.ts" "src/components/agent/chat/workspace/sceneAppLaunch.test.ts" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.test.tsx"`
+    - `npm run typecheck`
+
+- 把 `sceneapp run detail -> entry action` 的 current 文案也收回 `生成` 主执行面，避免结果页仍把 compat `open_service_scene_session` 讲成“场景会话 / 场景上下文”：
+  - 已更新：
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/product.test.ts`
+    - `src/lib/sceneapp/runEntryNavigation.ts`
+    - `src/lib/sceneapp/runEntryNavigation.test.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+  - 当前统一结论：
+    - compat action kind `open_service_scene_session` 当前继续保留为内部协议，不直接删名
+    - 但 run detail entry action 的用户可见标签当前已收成 `回到生成会话 / 恢复生成上下文`
+    - 结果页跳转到 Agent 页时的 banner 文案也同步改成 `恢复生成会话 / 恢复生成上下文`
+    - 因此 current 结果视图不再继续把 `sceneapp` 的恢复动作讲成另一套“场景会话”产品面
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts" "src/lib/sceneapp/runEntryNavigation.ts" "src/lib/sceneapp/runEntryNavigation.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm exec vitest run "src/lib/sceneapp/product.test.ts" "src/lib/sceneapp/runEntryNavigation.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm run typecheck`
+
+- 把 `sceneapp API` 的 raw compat planner 输出也收回 current 对象语义，避免前面 catalog / launch / product 都已经正规化，但 `safeInvoke(sceneapp_*)` 仍直接把 `cloud_scene / launch_cloud_scene / cloud_runtime` 透给前端：
+  - 已更新：
+    - `src/lib/api/sceneapp.ts`
+    - `src/lib/api/sceneapp.test.ts`
+  - 当前统一结论：
+    - `listSceneAppCatalog` / `getSceneAppDescriptor` 当前会先正规化 descriptor：
+      - `capabilityRefs.cloud_scene -> agent_turn`
+      - `entryBindings.bindingFamily.cloud_scene -> agent_turn`
+      - `compositionProfile.steps.bindingFamily.cloud_scene -> agent_turn`
+      - `infraProfile.cloud_runtime` 不再继续显影
+    - `planSceneAppLaunch` / `saveSceneAppContextBaseline` 当前会先正规化 `SceneAppPlanResult.plan`：
+      - `executorKind.cloud_scene -> agent_turn`
+      - `bindingFamily.cloud_scene -> agent_turn`
+      - `adapterPlan.adapterKind.cloud_scene -> agent_turn`
+      - `adapterPlan.runtimeAction.launch_cloud_scene -> open_service_scene_session`
+    - 因此 current API 对象层现在也和 `skillCatalog / serviceSkills / sceneapp catalog / launch draft` 保持同一套本地执行语义
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/api/sceneapp.ts" "src/lib/api/sceneapp.test.ts"`
+    - `npm exec vitest run "src/lib/api/sceneapp.test.ts" "src/lib/sceneapp/launch.test.ts"`
+    - `npm run typecheck`
+
+- 给 `sceneapp` 的剩余旧云 runtime 类型补上 current/compat 分层护栏，避免实现面已经收回本地执行，但类型层仍把 `cloud_session / launch_cloud_scene` 看起来像 current 分支：
+  - 已更新：
+    - `src/lib/sceneapp/types.ts`
+  - 当前统一结论：
+    - `SceneAppLaunchRequirementKind.cloud_session` 当前明确标注为 `legacy compat only`
+    - `SceneAppRuntimeContext.cloudSessionReady` 当前明确标注为 compat 输入，而不是 current 运行时门槛
+    - `SceneAppRuntimeAction` 当前拆成：
+      - `SceneAppCurrentRuntimeAction`
+      - `SceneAppCompatRuntimeAction(launch_cloud_scene)`
+    - 因此类型层现在也更接近 `current = open_service_scene_session / 本地执行`，`compat = launch_cloud_scene / 旧云痕迹` 的事实源
+  - 当前计划中的最小验证：
+    - `npx eslint "src/lib/sceneapp/types.ts"`
+    - `npm run typecheck`
+
+- 把首页 `service skill` 入口里的 compat binding 判断也收回 current 分支结构，避免首页推荐逻辑继续把 `cloud_scene` 写成并列执行面：
+  - 已更新：
+    - `src/components/agent/chat/service-skills/homeEntrySkills.ts`
+  - 当前统一结论：
+    - 首页推荐与 seeded fallback 当前会先把 `cloud_scene` 正规化成 `agent_turn`
+    - `resolveServiceSkillExecutionKind(...)` 当前不再把 `cloud_scene` 当 current switch 分支，而是只在 compat normalizer 里处理
+    - 因此首页 skill 推荐这条 current 入口现在也更接近“先正规化、再按本地执行判断”的统一模型
+  - 当前计划中的最小验证：
+    - `npx eslint "src/components/agent/chat/service-skills/homeEntrySkills.ts"`
+    - `npm run typecheck`
+
+- 把 `@命令` 的 recent 也补成可订阅的 live loop，避免输入层已经写入新的 builtin command recent，但面板还要关掉重开才刷新：
+  - 已更新：
+    - `src/components/agent/chat/skill-selection/mentionEntryUsage.ts`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `mentionEntryUsage` 当前新增统一 changed event，并同时支持同页 custom event 与跨窗口 storage 监听
+    - `CharacterMention` 当前会订阅这条事实源，并即时重建 `@` 面板里的 `最近使用`
+    - 因此 builtin command recent 当前会在面板已打开时直接刷新，不再停留在静态快照
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/skill-selection/mentionEntryUsage.ts" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+  - 当前环境备注：
+    - `npm run typecheck` 当前被工作区中既有的 `src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.ts` 断链阻塞，报错集中在缺失 `createServiceSkillRun / recordServiceSkillCloudRun / getServiceSkillRunStatusLabel / sleep / prepareServiceSkillCloudResultWorkspacePayload` 等符号，不属于本轮 `@命令` recent live loop 改动
+    - `npm run verify:gui-smoke` 当前也在 `smoke:agent-service-skill-entry` 被同一条 `useWorkspaceServiceSkillEntryActions.test.tsx` 既有失败阻塞，并非本轮输入层 recent 面板刷新引起
+
+- 把 `service skill usage` 也补成可订阅的 recent 事实源，避免 `Generate` 或 `@命令` 已经成功写入 recent，但首页 / `我的方法` / slash 面板还停在旧排序：
+  - 已更新：
+    - `src/components/agent/chat/service-skills/storage.ts`
+    - `src/components/agent/chat/service-skills/useServiceSkills.ts`
+    - `src/components/agent/chat/service-skills/useServiceSkills.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `service skill usage` 当前新增统一 changed event，并同时支持同页 custom event 与跨窗口 storage 监听
+    - `useServiceSkills(...)` 当前会订阅这条事实源，统一重算 `recentUsedAt / isRecent / badge`
+    - 因此首页 `继续上次做法`、`我的方法` 页分组排序，以及 slash 面板里的 recent service skill，当前都会在同页即时刷新，而不是等 catalog refresh
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/service-skills/storage.ts" "src/components/agent/chat/service-skills/useServiceSkills.ts" "src/components/agent/chat/service-skills/useServiceSkills.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/service-skills/useServiceSkills.test.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 `curated task` 的 recent writeback 从“只在 launcher 确认时记录”补成“Generate 内成功发送也会更新”，避免工作台 continuation、初始 capability bootstrap 或输入区二次编辑后，recent 仍停留在旧启动参数：
+  - 已更新：
+    - `src/components/agent/chat/utils/curatedTaskTemplates.ts`
+    - `src/components/agent/chat/utils/curatedTaskTemplates.test.ts`
+    - `src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts`
+    - `src/components/agent/chat/components/Inputbar/index.test.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMention.tsx`
+    - `src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `curated task usage` 当前新增统一 changed event，首页、`我的方法` 页与 slash 面板都能订阅同一条 recent 事实源
+    - `Generate` 内成功发送激活中的 `curated_task` 时，当前会把最新 `launchInputValues + referenceMemoryIds + referenceEntries` 写回 recent usage
+    - 因此 `GeneralWorkbench` 的建议下一步、`initialInputCapability(curated_task)` 启动，以及输入区里二次编辑结果模板后再发送，当前都不再把 recent 留在旧参数上
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/utils/curatedTaskTemplates.ts" "src/components/agent/chat/utils/curatedTaskTemplates.test.ts" "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.tsx" "src/components/agent/chat/skill-selection/CharacterMentionPanel.tsx" "src/components/skills/SkillsWorkspacePage.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/utils/curatedTaskTemplates.test.ts" "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/EmptyState.test.tsx" "src/components/agent/chat/skill-selection/CharacterMention.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 `@命令 -> service skill` 的 recent continuation 也补成“字段 + 意图”双恢复，避免命令入口已经成功触发 service skill，但后续 recent 里只剩字段快照：
+  - 已更新：
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx`
+    - `src/components/agent/chat/service-skills/serviceSkillLaunchPrefill.ts`
+    - `src/components/agent/chat/service-skills/serviceSkillLaunchPrefill.test.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `resolveMentionCommandUsage(...)` 当前会从现有 command metadata 抽取 `prompt / user_input`
+    - 这条显式意图当前会一并写进 `service skill usage.launchUserInput`
+    - 因此 command-bound service skill recent 当前也能和 direct service skill recent 一样显影 `上次补充`
+    - recent summary 当前还补了最小去重：如果 `launchUserInput` 与已有槽位值一致，不再重复显示第二遍
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/workspace/useWorkspaceSendActions.ts" "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/components/agent/chat/service-skills/serviceSkillLaunchPrefill.ts" "src/components/agent/chat/service-skills/serviceSkillLaunchPrefill.test.ts"`
+    - `npm exec vitest run "src/components/agent/chat/workspace/useWorkspaceSendActions.test.tsx" "src/components/agent/chat/service-skills/serviceSkillLaunchPrefill.test.ts"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 `service skill` recent continuation 从“只恢复 slotValues”补到“显式补充目标也能继续带回生成”，避免 recent 卡片已经显影 `上次填写`，但上一轮补充要求在再启动时静默丢失：
+  - 已更新：
+    - `src/components/agent/chat/service-skills/types.ts`
+    - `src/components/agent/chat/service-skills/storage.ts`
+    - `src/components/agent/chat/service-skills/serviceSkillLaunchPrefill.ts`
+    - `src/components/agent/chat/service-skills/serviceSkillLaunchPrefill.test.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.ts`
+    - `src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.test.tsx`
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/skill-selection/inputCapabilitySections.ts`
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `service skill usage` 当前可选记录 `launchUserInput`
+    - recent summary 当前会同时显影：
+      - `上次填写`
+      - `上次补充`
+    - `我的方法 -> 生成` 的 `initialPendingServiceSkillLaunch` 当前也会一并带回这条补充信息
+    - `useWorkspaceServiceSkillEntryActions` 当前会把显式透传的 `launchUserInput` 继续写回 recent usage，保证后续 continuation 真能续上同一条方法
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/service-skills/serviceSkillLaunchPrefill.ts" "src/components/agent/chat/service-skills/serviceSkillLaunchPrefill.test.ts" "src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.ts" "src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.test.tsx" "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/skill-selection/inputCapabilitySections.ts"`
+    - `npm exec vitest run "src/components/agent/chat/service-skills/serviceSkillLaunchPrefill.test.ts" "src/components/agent/chat/workspace/useWorkspaceServiceSkillEntryActions.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/skill-selection/CharacterMention.test.tsx"`
+    - `npm run typecheck`
+    - `npm run verify:gui-smoke`
+
+- 把 `我的方法库 -> 生成` 的 installed skill continuation 补成真闭环，避免卡片已经显影 `上次目标`，点进去却还得自己重打一遍：
+  - 已更新：
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `我的方法库` 里的 installed skill 卡片如果已有 `slash usage.replayText`
+    - 点击 `进入生成` 时当前会同时带上：
+      - `initialInputCapability(installed_skill)`
+      - `initialUserPrompt(replayText)`
+    - 因此这条链路当前已经和首页 `继续上次做法` 的 installed skill continuation 对齐，不再只是“看得到上次目标”，而是能真正沿用它进入 `生成`
+  - 当前已确认通过：
+    - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm run verify:local`
+
+- 修复桌面端启动白屏的两条 current 主路径兜底，避免窗口已经起来但用户只看到空白页：
+  - 已更新：
+    - `src/i18n/withI18nPatch.tsx`
+    - `src/i18n/withI18nPatch.test.tsx`
+    - `src/components/agent/chat/index.tsx`
+    - `src/components/agent/chat/agentChatWorkspaceLoader.ts`
+    - `src/components/agent/chat/agentChatWorkspaceLoader.test.ts`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `withI18nPatch` 启动期不再直接 `return null`，而是先渲染轻量启动屏，避免 `get_config` 尚未返回时桌面端出现整窗白屏
+    - `withI18nPatch` 的 ready 提交不再只依赖 `requestAnimationFrame`，额外补了超时兜底，避免窗口可见前 `opacity=0` 长时间挂住
+    - `AgentChatPage` 当前对 `AgentChatWorkspace` 的懒加载增加了模块导入瞬时失败重试，并把 `fallback={null}` 收成可见加载态，避免 Vite dev 热启动或重连期间直接落成空白页
+    - 这一步服务的不是旧 compat，而是 current `生成` 主执行面启动稳定性
+
+- 把 `sceneapps` 内层详情/复盘面板继续从“工程说明页”收成更接近 Ribbi 的结果视角，避免外层已经叫 `全部做法 / 生成准备 / 做法复盘`，真正点进去后却又退回 `Project Pack / Governance Loop / Planning 基线`：
+  - 已更新：
+    - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppGovernancePanel.tsx`
+    - `src/components/sceneapps/SceneAppRunDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppScorecardPanel.tsx`
+    - `src/components/sceneapps/SceneAppProjectPackRuntimePanel.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `src/lib/sceneapp/presentation.ts`
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/reviewDecision.ts`
+    - `src/lib/sceneapp/executionPromptActions.ts`
+    - `src/lib/sceneapp/product.test.ts`
+    - `src/lib/sceneapp/executionPromptActions.test.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `生成准备` 内层当前已围绕 `默认会拿到 / 通常会这样推进 / 默认怎么判断 / 这轮准备情况 / 默认结果去向 / 开始这次生成` 收口，不再默认暴露工程说明词
+    - `做法复盘` 左右两块当前也已继续收成 `做法复盘 / 这轮结果 / 做法表现` 这组前台语言，优先讲这轮拿到了什么、卡在哪里、下一步怎么走
+    - `sceneapp` 的 runtime summary、运行建议、缺件补齐 prompt 与轻量反馈文案当前也已同步收口，不再默认把 `SceneApp / Project Pack / 治理材料 / Artifact` 直接暴露给用户
+    - `Project Pack / Governance Loop / Planning 基线 / PRIMARY` 这类词当前已经从这些面板的首层用户可见文案里移走；保留的只是内部实现锚点与测试 id
+    - 这一步继续服务 P1：不是删掉复盘能力，而是把它们翻译成用户能直接理解的结果与判断页面
+  - 当前已确认通过：
+    - `npx eslint "src/components/sceneapps/SceneAppDetailPanel.tsx" "src/components/sceneapps/SceneAppGovernancePanel.tsx" "src/components/sceneapps/SceneAppRunDetailPanel.tsx" "src/components/sceneapps/SceneAppScorecardPanel.tsx" "src/components/sceneapps/SceneAppProjectPackRuntimePanel.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npx eslint "src/lib/sceneapp/presentation.ts" "src/lib/sceneapp/executionPromptActions.ts" "src/lib/sceneapp/reviewDecision.ts" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/product.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm exec vitest run "src/lib/sceneapp/product.test.ts" "src/lib/sceneapp/executionPromptActions.test.ts" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 当前环境备注：
+    - 已再次尝试 `npm run verify:gui-smoke -- --timeout-ms 1200000`
+    - 这次没有进入页面级断言失败，而是长时间停留在 `bridge:health` 等待阶段
+    - 具体现象是 headless Tauri 冷启动后，Rust 构建持续占用十多分钟，`http://127.0.0.1:3030/health` 始终返回 `fetch failed`
+    - 因为阻塞点仍停在冷编译/DevBridge 就绪前，当前更像本地 GUI smoke 环境成本问题，而不是这轮 `sceneapps` 内层面板收口引入的新断链
+
+- 把 `全部做法` 页继续从“分页控制面”收成更接近技能页的线性前台容器，避免 `sceneapps` 虽然退成内部锚点，但真实页面仍然像另一块并列工作台：
+  - 已更新：
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `全部做法` 页首当前不再强调 `ALL FLOWS` 之类工程词，而是直接说明这页只回答“做什么 / 会拿到什么 / 下一步去哪”
+    - `做法目录 / 生成准备 / 做法复盘` 当前改成带摘要的步骤卡，用户更容易理解这是同一条线性路径，而不是三块平级控制台
+    - 目录筛选当前也不再直接把 `Pipeline / Reviewer / Inversion` 这类英文模式甩给用户，而是翻成更像做法路径的中文，并补显式 `清空筛选`
+    - `当前已带入` 与 `当前做法` 当前改成轻量状态卡，不再像顶部控制栏
+    - `治理复盘` 对外当前继续收成 `做法复盘`，进一步和 `做法目录 / 做法准备` 主词对齐
+  - 当前已确认通过：
+    - `npx eslint "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx"`
+  - 当前环境备注：
+    - 本轮再次尝试 `npm run verify:gui-smoke`
+    - `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface` 当前都已通过
+    - 仍失败在 `smoke:agent-runtime-tool-surface-page`
+    - 这次症状不再是 `fetch failed`，而是等待 `Runtime 能力摘要` 出现超时，最后结果为 `hasWorkbench=true`、`hasRuntimeSummary=false`
+    - 当前更像既有 agent runtime page smoke 的环境/时序抖动，不像这轮 `全部做法` 页收口本身引入的新断链
+
+- 把 `技能` 页继续从“信息摊平的合同目录”收成更接近 Ribbi 的前台结构，只保留少数强入口与方法目录，不再默认把整套系统结构暴露给用户：
+  - 已更新：
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `先拿结果` 当前提升到主列顶部，成为技能页真正的第一起手层
+    - `方法目录` 当前退回第二层，继续承担“知道方向后按组找做法”的角色
+    - `继续常用做法 / 我的方法库` 当前继续保留在右侧，但卡片改成紧凑摘要，不再把一整页切成多块重说明板
+    - `curated task` 卡片仍保留 `你来给 / 可选参考 / 会拿到 / 结果去向 / 下一步可继续` 这套 current 事实，只是改成单卡内的紧凑合同，不再用多层内嵌子卡放大结构感
+  - 当前已确认通过：
+    - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+    - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx"`
+  - 当前环境备注：
+    - 本轮再次尝试 `npm run verify:gui-smoke`
+    - `workspace-ready / browser-runtime / site-adapters / agent-service-skill-entry / agent-runtime-tool-surface` 当前都已通过
+    - 仍失败在 `smoke:agent-runtime-tool-surface-page`
+    - 具体现象是 `browser_execute_action / close_cdp_session / close_chrome_profile_session` 连续 `fetch failed`
+    - 这更像复用 headless 浏览器 page 会话时的既有环境抖动，不像这轮技能页布局收口本身引入的新断链
+
 ## 2026-04-20
 
 ### 已完成
+
+- 把 `memory / automation` 旁路页继续收口到 `做法` 主词，避免用户离开主路径后又被旧 `创作场景` 文案拉回去：
+  - 已更新：
+    - `src/components/memory/MemoryPage.tsx`
+    - `src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx`
+    - `src/components/memory/MemoryPage.test.tsx`
+    - `src/components/settings-v2/system/automation/index.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `灵感库` 当前会把“带参考进入 sceneapps”这类动作明确写成 `去做法目录`
+    - `taste` 和灵感条目说明当前统一改成服务 `做法 planning`
+    - 自动化详情里的闭环摘要当前改成 `做法闭环 / 回到做法准备`，不再把自动化旁路继续描述成另一条 `创作场景` 主链
+  - 当前已确认通过：
+    - `npx eslint "src/components/memory/MemoryPage.tsx" "src/components/settings-v2/system/automation/AutomationJobDetailsDialog.tsx" "src/components/memory/MemoryPage.test.tsx" "src/components/settings-v2/system/automation/index.test.tsx"`
+    - `npm exec vitest run "src/components/memory/MemoryPage.test.tsx" "src/components/settings-v2/system/automation/index.test.tsx"`
+
+- 把 `sceneapps` 深层运行态的 current 前台旧词继续收掉，避免只收页首和侧栏、真正进入做法详情和生成回桥后又退回 `创作场景`：
+  - 已更新：
+    - `src/components/sceneapps/useSceneAppsPageRuntime.ts`
+    - `src/components/sceneapps/SceneAppDetailPanel.tsx`
+    - `src/components/sceneapps/SceneAppsCatalogPanel.tsx`
+    - `src/components/agent/chat/AgentChatWorkspace.tsx`
+    - `src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.ts`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx`
+    - `src/lib/sceneapp/product.ts`
+    - `src/lib/sceneapp/presentation.ts`
+    - `src/lib/sceneapp/launch.ts`
+    - `src/lib/sceneapp/reviewDecision.ts`
+    - `src/lib/sceneapp/runEntryNavigation.ts`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx`
+    - `src/lib/sceneapp/launch.test.ts`
+    - `src/lib/sceneapp/runEntryNavigation.test.ts`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `做法目录 / 做法复盘 / 当前做法基线 / 做法执行摘要` 当前已经进入 `sceneapps` 详情页、治理页、生成回桥和轻量反馈主链
+    - `SceneAppsCatalogPanel` 的搜索框当前也已改成 `搜索做法标题`，目录页不再一半讲“做法”、一半讲“场景”
+    - `presentation / launch / reviewDecision / runEntryNavigation` 这批 current fallback prompt 与回跳文案当前也开始同步改成 `做法` 口径，避免外层文案收口后，真实启动和复盘链又把用户拉回旧词
+  - 当前已确认通过：
+    - `npx eslint "src/components/sceneapps/useSceneAppsPageRuntime.ts" "src/components/sceneapps/SceneAppDetailPanel.tsx" "src/components/sceneapps/SceneAppsCatalogPanel.tsx" "src/components/agent/chat/AgentChatWorkspace.tsx" "src/components/agent/chat/workspace/useWorkspaceSceneAppEntryActions.ts" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.tsx" "src/lib/sceneapp/product.ts" "src/lib/sceneapp/presentation.ts" "src/lib/sceneapp/launch.ts" "src/lib/sceneapp/reviewDecision.ts" "src/lib/sceneapp/runEntryNavigation.ts" "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/lib/sceneapp/launch.test.ts" "src/lib/sceneapp/runEntryNavigation.test.ts"`
+    - `npm exec vitest run "src/components/sceneapps/SceneAppsPage.test.tsx" "src/components/agent/chat/workspace/SceneAppExecutionSummaryCard.test.tsx" "src/lib/sceneapp/launch.test.ts" "src/lib/sceneapp/runEntryNavigation.test.ts"`
+  - 当前环境备注：
+    - `npm run verify:gui-smoke` 本轮仍失败在复用 headless 环境下的 `smoke:browser-runtime`
+    - 具体现象是 `launch_browser_session` 与后续 `close_chrome_profile_session` 连续返回 `fetch failed`
+    - 这次阻塞发生在既有浏览器运行时 smoke 链，不像本轮 `sceneapps / 生成回桥 / 做法文案` 收口本身引入的新断链；后续应单独回到 `browser-runtime` 复用环境继续排查
+
+- 把 `技能 -> 全部做法 -> SceneApps` 这条回桥补回 current 主线，并同步把 `sceneapps` 首屏从“创作场景主舞台”收回“全部做法”角色：
+  - 已更新：
+    - `src/components/skills/SkillsWorkspacePage.tsx`
+    - `src/components/skills/SkillsWorkspacePage.test.tsx`
+    - `src/components/sceneapps/SceneAppsPage.tsx`
+    - `src/components/sceneapps/SceneAppsPage.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/roadmap/limenextv2/information-architecture.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - `技能` 页的 `方法目录` 当前已新增弱入口 `查看全部做法`，用于显式进入 `sceneapps` 目录页
+    - 如果用户已在 `技能` 页输入搜索词，这个入口当前会继续带着当前关键词打开 `sceneapps` 的 `catalog` 视图，避免再从头找一次
+    - `sceneapps` 页首当前改成 `全部做法`，`场景目录` 当前改成 `做法目录`，空态和首轮治理提示也开始按“整套做法”的角色来讲自己
+    - 因此这条页面已经不再像一块并列主舞台，而更像 `技能` 下的完整做法目录与后续装配页
+  - 当前已确认通过：
+    - `npx eslint "src/components/skills/SkillsWorkspacePage.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/sceneapps/SceneAppsPage.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+    - `npm exec vitest run "src/components/skills/SkillsWorkspacePage.test.tsx" "src/components/sceneapps/SceneAppsPage.test.tsx"`
+
+- 把左侧导航继续收回 `技能 / 灵感库 / 生成` 主词，避免 `创作场景` 仍以一级入口身份和 current 主舞台抢叙事：
+  - 已更新：
+    - `src/lib/navigation/sidebarNav.ts`
+    - `src/lib/navigation/sidebarNav.test.ts`
+    - `src/components/AppSidebar.tsx`
+    - `src/components/AppSidebar.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 左侧一级侧栏当前改成 `创作 / 支撑 / 系统` 三段；`创作` 下固定只保留 `新建任务 / 技能 / 灵感库 / 生成`
+    - `创作场景` 当前不再作为一级侧栏入口直接暴露；`SceneApps` 仍保留为 current route，但它的对外进入点改回 `查看全部做法` 与 `技能` 所属区域
+    - 当用户当前位于 `sceneapps` 页面时，侧栏当前会把它归属到 `技能` 主入口；因此 `SceneApps` 继续存在，但不再伪装成和 `技能 / 灵感库 / 生成` 平级的主舞台
+  - 当前已确认通过：
+    - `npx eslint "src/lib/navigation/sidebarNav.ts" "src/lib/navigation/sidebarNav.test.ts" "src/components/AppSidebar.tsx" "src/components/AppSidebar.test.tsx"`
+    - `npm exec vitest run "src/lib/navigation/sidebarNav.test.ts" "src/components/AppSidebar.test.tsx"`
+
+- 把首页底部原来并列的 `更多起手方式` 与 `支撑能力` 继续收成一条更弱的续接条，避免结果入口下面又长出两个“平台补位块”：
+  - 已更新：
+    - `src/components/agent/chat/components/EmptyState.tsx`
+    - `src/components/agent/chat/components/EmptyState.test.tsx`
+    - `docs/roadmap/limenextv2/implementation-roadmap.md`
+    - `docs/roadmap/limenextv2/skill-first-system.md`
+    - `docs/exec-plans/limenext-progress.md`
+  - 当前统一结论：
+    - 首页底部当前默认只保留 `继续最近做法 / 查看全部做法 / 连接浏览器 / 查看支撑能力` 这类轻入口
+    - 旧的能力大卡当前不再从 hero 底部长成第二视觉中心；展开 `查看支撑能力` 时，当前只显示轻量说明列表
+    - `SceneApp` 补位、浏览器接入与能力边界说明，当前都退回“如果你已经知道怎么接着做”的辅助层，不再与主结果入口平级竞争
+  - 当前已确认通过：
+    - `npx eslint "src/components/agent/chat/components/EmptyState.tsx" "src/components/agent/chat/components/EmptyState.test.tsx"`
+    - `npm exec vitest run "src/components/agent/chat/components/EmptyState.test.tsx"`
+  - 当前环境备注：
+    - 已额外尝试 `npm run verify:gui-smoke`
+    - 第一次卡在复用旧 headless 链路后的 `smoke:browser-runtime` 过期 session 清理异常
+    - 第二次主链 smoke 通过到最后一步，但 `smoke:agent-runtime-tool-surface-page` 卡在 `launch_browser_session / close_chrome_profile_session`
+    - 这轮应按 `DevBridge 浏览器会话层环境抖动` 理解，而不是首页 `EmptyState` 结构改动本身阻塞
 
 - 把首页 `结果入口` 与 `CuratedTaskLauncherDialog` 一起继续收口，避免 current 主路径虽然已经 skill-first，但前台仍像“结果模板货架 + 重表单弹窗”：
   - 已更新：

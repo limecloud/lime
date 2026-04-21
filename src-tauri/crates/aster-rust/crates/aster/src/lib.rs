@@ -14,6 +14,7 @@ pub mod blueprint;
 pub mod checkpoint;
 pub mod chrome;
 pub mod chrome_mcp;
+pub mod claude_plugin_cache;
 pub mod codesign;
 pub mod config;
 pub mod context;

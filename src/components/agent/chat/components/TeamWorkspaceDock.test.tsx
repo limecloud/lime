@@ -175,9 +175,9 @@ describe("TeamWorkspaceDock", () => {
     });
 
     expect(document.body.textContent).toContain("等待任务接手");
-    expect(document.body.textContent).toContain("任务方案");
+    expect(document.body.textContent).toContain("分工方案");
     expect(document.body.textContent).toContain("不遮挡画布");
-    expect(document.body.textContent).toContain("当前任务方案：前端联调团队");
+    expect(document.body.textContent).toContain("当前分工方案：前端联调团队");
     expect(document.body.textContent).toContain("分析、实现、验证三段式推进。");
     expect(document.body.textContent).not.toContain("查看详情");
     const emptyCard = document.body.querySelector<HTMLElement>(
@@ -411,7 +411,7 @@ describe("TeamWorkspaceDock", () => {
     );
 
     expect(toggleButton).toBeTruthy();
-    expect(toggleButton?.textContent).toContain("修复任务方案");
+    expect(toggleButton?.textContent).toContain("修复分工方案");
     expect(toggleButton?.textContent).toContain("1 项处理中");
     expect(toggleButton?.textContent).not.toContain("查看当前进展");
 
@@ -769,7 +769,7 @@ describe("TeamWorkspaceDock", () => {
     });
 
     expect(document.body.textContent).toContain("任务分工已准备好");
-    expect(document.body.textContent).toContain("修复任务方案");
+    expect(document.body.textContent).toContain("修复分工方案");
     expect(document.body.textContent).toContain("分析");
   });
 });

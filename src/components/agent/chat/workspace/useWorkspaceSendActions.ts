@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Dispatch, SetStateAction } from "react";
 import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
-import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 import { getOrCreateDefaultProject } from "@/lib/api/project";
 import { parseAnalysisWorkbenchCommand } from "../utils/analysisWorkbenchCommand";
 import { parseBrowserWorkbenchCommand } from "../utils/browserWorkbenchCommand";
@@ -111,6 +110,7 @@ import {
 } from "../skill-selection/mentionEntryUsage";
 import { useRuntimeMentionCommandCatalog } from "../skill-selection/runtimeInputCapabilityCatalog";
 import { recordServiceSkillUsage } from "../service-skills/storage";
+import { composeServiceSkillPrompt } from "../service-skills/promptComposer";
 import { recordSlashEntryUsage } from "../skill-selection/slashEntryUsage";
 import { CONTENT_POST_SKILL_KEY } from "../utils/contentPostSkill";
 
@@ -195,6 +195,7 @@ type CompletedMentionUsage = {
   skillId: string;
   runnerType: ServiceSkillHomeItem["runnerType"];
   slotValues?: ServiceSkillSlotValues;
+  launchUserInput?: string;
 };
 type CompletedMentionCommandUsage = {
   entryId: string;
@@ -353,7 +354,7 @@ const MENTION_USAGE_REQUEST_FIELDS: Readonly<Record<string, readonly string[]>> 
       "style",
       "tech_stack",
     ],
-    cloud_scene: ["user_input", "target_language", "voice_style"],
+    service_scene: ["user_input", "target_language", "voice_style"],
     publish_command: [
       "prompt",
       "content",
@@ -490,7 +491,7 @@ function resolveMentionCommandUsageSlotValues(
   if (serviceSceneRun) {
     return pickUsageSlotValues(
       serviceSceneRun,
-      MENTION_USAGE_REQUEST_FIELDS.cloud_scene,
+      MENTION_USAGE_REQUEST_FIELDS.service_scene,
     );
   }
 
@@ -511,6 +512,51 @@ function resolveMentionCommandUsageSlotValues(
     return pickUsageSlotValues(
       scopedRequestContext,
       MENTION_USAGE_REQUEST_FIELDS[launch.requestContextKey],
+    );
+  }
+
+  return undefined;
+}
+
+function resolveMentionCommandUsageLaunchUserInput(
+  requestMetadata: Record<string, unknown> | undefined,
+): string | undefined {
+  const harness = asRecord(requestMetadata?.harness);
+  if (!harness) {
+    return undefined;
+  }
+
+  const publishCommand = asRecord(harness.publish_command);
+  if (publishCommand) {
+    return normalizeOptionalText(publishCommand.prompt as string | undefined);
+  }
+
+  const serviceSceneRun = asRecord(
+    asRecord(harness.service_scene_launch)?.service_scene_run,
+  );
+  if (serviceSceneRun) {
+    return normalizeOptionalText(
+      serviceSceneRun.user_input as string | undefined,
+    );
+  }
+
+  for (const launch of MENTION_USAGE_MODEL_SKILL_LAUNCHES) {
+    const launchMetadata = asRecord(harness[launch.launchKey]);
+    if (!launchMetadata) {
+      continue;
+    }
+
+    const scopedRequestContext = resolveLaunchScopedRequestContext(
+      launchMetadata,
+      launch.requestContextKey,
+    );
+    if (!scopedRequestContext) {
+      continue;
+    }
+
+    return normalizeOptionalText(
+      ((scopedRequestContext.user_input ??
+        scopedRequestContext.prompt) as string | undefined) ?? undefined,
     );
   }
 
@@ -1094,11 +1140,15 @@ function resolveMentionCommandUsage(params: {
   const slotValues = resolveMentionCommandUsageSlotValues(
     params.requestMetadata,
   );
+  const launchUserInput = resolveMentionCommandUsageLaunchUserInput(
+    params.requestMetadata,
+  );
 
   return {
     skillId: matchedSkill.id,
     runnerType: matchedSkill.runnerType,
     ...(slotValues ? { slotValues } : {}),
+    ...(launchUserInput ? { launchUserInput } : {}),
   };
 }
 
@@ -2160,12 +2210,35 @@ function resolveVoiceCommandServiceSkill(
     serviceSkills.find(
       (skill) =>
         matchesVoiceCommandSkill(skill) &&
-        (skill.defaultExecutorBinding === "cloud_scene" ||
-          skill.executionLocation === "cloud_required"),
+        skill.defaultExecutorBinding !== "browser_assist" &&
+        skill.slotSchema.some((slot) =>
+          ["reference_video", "target_language", "voice_style"].includes(
+            slot.key,
+          ),
+        ),
     ) ||
     serviceSkills.find((skill) => matchesVoiceCommandSkill(skill)) ||
     null
   );
+}
+
+function normalizeLocalServiceSkillExecutionKind(
+  value?: string | null,
+): "agent_turn" | "native_skill" | "automation_job" {
+  if (value === "native_skill") {
+    return "native_skill";
+  }
+
+  if (value === "automation_job") {
+    return "automation_job";
+  }
+
+  return "agent_turn";
+}
+
+interface VoiceSkillLaunchRequest {
+  dispatchText: string;
+  requestContext: Record<string, unknown>;
 }
 
 async function resolveVoiceSkillLaunchRequestContext(params: {
@@ -2174,7 +2247,7 @@ async function resolveVoiceSkillLaunchRequestContext(params: {
   serviceSkills: ServiceSkillHomeItem[];
   projectId?: string | null;
   contentId?: string | null;
-}): Promise<Record<string, unknown> | null> {
+}): Promise<VoiceSkillLaunchRequest | null> {
   const skill = resolveVoiceCommandServiceSkill(params.serviceSkills);
   if (!skill) {
     toast.error("当前未安装可用的配音技能，请先同步技能目录后再试");
@@ -2203,39 +2276,49 @@ async function resolveVoiceSkillLaunchRequestContext(params: {
     return null;
   }
 
-  const runtime = resolveOemCloudRuntimeContext();
-  if (!runtime) {
-    toast.error("当前未连接云端运行时，请稍后再试");
-    return null;
-  }
+  const slotValues: ServiceSkillSlotValues = {
+    ...(params.parsedCommand.targetLanguage
+      ? {
+          target_language: params.parsedCommand.targetLanguage,
+        }
+      : {}),
+    ...(params.parsedCommand.voiceStyle
+      ? {
+          voice_style: params.parsedCommand.voiceStyle,
+        }
+      : {}),
+  };
 
   return {
-    kind: "cloud_scene",
-    service_scene_run: {
-      raw_text: params.rawText,
-      user_input: prompt,
-      entry_id: "command:voice_runtime",
-      scene_key: "voice_runtime",
-      command_prefix: params.parsedCommand.trigger,
-      linked_skill_id: skill.id,
-      skill_id: skill.id,
-      skill_key: skill.skillKey || undefined,
-      skill_title: skill.title,
-      skill_summary: skill.summary,
-      runner_type: skill.runnerType,
-      execution_kind: skill.defaultExecutorBinding,
-      execution_location: skill.executionLocation,
-      project_id: resolvedProjectId,
-      content_id: normalizeOptionalText(params.contentId),
-      entry_source: "at_voice_command",
-      target_language: params.parsedCommand.targetLanguage,
-      voice_style: params.parsedCommand.voiceStyle,
-      oem_runtime: {
-        scene_base_url: runtime.sceneBaseUrl,
-        tenant_id: runtime.tenantId,
-        session_token: runtime.sessionToken,
-        base_url: runtime.baseUrl,
-        gateway_base_url: runtime.gatewayBaseUrl,
+    dispatchText: composeServiceSkillPrompt({
+      skill,
+      slotValues,
+      userInput: prompt,
+    }),
+    requestContext: {
+      kind: "local_service_skill",
+      service_scene_run: {
+        raw_text: params.rawText,
+        user_input: prompt,
+        entry_id: "command:voice_runtime",
+        scene_key: "voice_runtime",
+        command_prefix: params.parsedCommand.trigger,
+        linked_skill_id: skill.id,
+        skill_id: skill.id,
+        skill_key: skill.skillKey || undefined,
+        skill_title: skill.title,
+        skill_summary: skill.summary,
+        runner_type: skill.runnerType,
+        execution_kind: normalizeLocalServiceSkillExecutionKind(
+          skill.defaultExecutorBinding,
+        ),
+        execution_location: "client_default",
+        project_id: resolvedProjectId,
+        content_id: normalizeOptionalText(params.contentId),
+        entry_source: "at_voice_command",
+        target_language: params.parsedCommand.targetLanguage,
+        voice_style: params.parsedCommand.voiceStyle,
+        slot_values: Object.keys(slotValues).length > 0 ? slotValues : undefined,
       },
     },
   };
@@ -4056,24 +4139,25 @@ export function useWorkspaceSendActions({
           ? parseVoiceWorkbenchCommand(sourceText)
           : null;
       if (parsedVoiceWorkbenchCommand) {
-        const requestContext = await resolveVoiceSkillLaunchRequestContext({
+        const voiceSkillLaunch = await resolveVoiceSkillLaunchRequestContext({
           rawText: sourceText,
           parsedCommand: parsedVoiceWorkbenchCommand,
           serviceSkills,
           projectId,
           contentId,
         });
-        if (!requestContext) {
+        if (!voiceSkillLaunch) {
           clearSubmissionPreview();
           return { kind: "done", result: false };
         }
 
         ensureSubmissionPreview();
+        dispatchText = voiceSkillLaunch.dispatchText;
         sendOptions = {
           ...(sendOptions || {}),
           requestMetadata: buildServiceSceneLaunchRequestMetadata(
             sendOptions?.requestMetadata,
-            requestContext,
+            voiceSkillLaunch.requestContext,
           ),
         };
         markCompletedMentionCommand(
@@ -4154,6 +4238,9 @@ export function useWorkspaceSendActions({
           throw error;
         }
         if (sceneLaunchRequest) {
+          if (sceneLaunchRequest.dispatchText) {
+            dispatchText = sceneLaunchRequest.dispatchText;
+          }
           sendOptions = {
             ...(sendOptions || {}),
             requestMetadata: buildServiceSceneLaunchRequestMetadata(

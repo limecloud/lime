@@ -927,7 +927,7 @@ export function TeamWorkspaceDock({
                 <EmptyStateDetailHint>
                   {dispatchPreviewState
                     ? "查看当前任务分工与参考方案"
-                    : "查看当前任务方案与分工"}
+                    : "查看当前分工方案"}
                 </EmptyStateDetailHint>
               </div>
               {teamDetailExpanded ? (

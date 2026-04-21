@@ -217,6 +217,94 @@ function buildSnapshot(): StoredBaseSetupPackageSnapshot {
   });
 }
 
+function buildLegacyCompatCloudOnlySceneAppPackage(): BaseSetupPackage {
+  return {
+    id: "legacy-cloud-sceneapp",
+    version: "2026-04-21",
+    title: "Legacy Cloud SceneApp",
+    summary: "历史目录仍使用 cloud_scene / cloud_required。",
+    bundleRefs: [
+      {
+        id: "legacy-cloud-bundle",
+        source: "remote",
+        pathOrUri: "lime://bundles/legacy-cloud",
+        kind: "skill_bundle",
+      },
+    ],
+    catalogProjections: [
+      {
+        id: "legacy-cloud-service",
+        targetCatalog: "service_skill_catalog",
+        entryKey: "legacy-cloud-service",
+        title: "旧版云场景",
+        summary: "历史目录中的云场景兼容投影。",
+        category: "Legacy",
+        outputHint: "结果包",
+        bundleRefId: "legacy-cloud-bundle",
+        slotProfileRef: "legacy-cloud-slots",
+        bindingProfileRef: "legacy-cloud-binding",
+        artifactProfileRef: "legacy-cloud-artifacts",
+        scorecardProfileRef: "legacy-cloud-scorecard",
+        policyProfileRef: "legacy-cloud-policy",
+        skillKey: "legacy-cloud-service",
+        sceneBinding: {
+          sceneKey: "legacy-cloud-service",
+          commandPrefix: "/legacy-cloud-service",
+        },
+      },
+    ],
+    slotProfiles: [
+      {
+        id: "legacy-cloud-slots",
+        slots: [
+          {
+            key: "topic",
+            label: "主题",
+            type: "text",
+            required: true,
+            placeholder: "输入主题",
+          },
+        ],
+      },
+    ],
+    bindingProfiles: [
+      {
+        id: "legacy-cloud-binding",
+        bindingFamily: "cloud_scene",
+        executionLocation: "cloud_required",
+        capabilityRefs: ["cloud_scene", "timeline"],
+      },
+    ],
+    artifactProfiles: [
+      {
+        id: "legacy-cloud-artifacts",
+        deliveryContract: "artifact_bundle",
+        requiredParts: ["index.md"],
+        viewerKind: "artifact_bundle",
+        outputDestination: "workspace",
+      },
+    ],
+    scorecardProfiles: [
+      {
+        id: "legacy-cloud-scorecard",
+        metrics: ["success_rate"],
+      },
+    ],
+    policyProfiles: [
+      {
+        id: "legacy-cloud-policy",
+        enabled: true,
+        rolloutStage: "limited",
+      },
+    ],
+    compatibility: {
+      minAppVersion: "1.11.0",
+      requiredKernelCapabilities: ["cloud_scene"],
+      seededFallback: true,
+    },
+  };
+}
+
 describe("sceneapp catalog", () => {
   it("应把基础设置包投影为 SceneApp 统一读模型", () => {
     const catalog = compileSceneAppCatalogFromPackage(buildSceneAppPackage(), {
@@ -237,7 +325,7 @@ describe("sceneapp catalog", () => {
         infraProfile: expect.arrayContaining([
           "composition_blueprint",
           "project_pack",
-          "cloud_runtime",
+          "agent_turn",
           "workspace_storage",
         ]),
         linkedServiceSkillId: "story-video-service",
@@ -253,7 +341,7 @@ describe("sceneapp catalog", () => {
       expect.arrayContaining([
         expect.objectContaining({
           kind: "service_skill",
-          bindingFamily: "cloud_scene",
+          bindingFamily: "agent_turn",
         }),
         expect.objectContaining({
           kind: "scene",
@@ -266,7 +354,23 @@ describe("sceneapp catalog", () => {
       expect.arrayContaining([
         expect.objectContaining({ kind: "user_input" }),
         expect.objectContaining({ kind: "project" }),
-        expect.objectContaining({ kind: "cloud_session" }),
+      ]),
+    );
+    expect(catalog.items[0]?.launchRequirements).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "cloud_session" })]),
+    );
+    expect(catalog.items[0]?.capabilityRefs).not.toContain("cloud_scene");
+    expect(catalog.items[0]?.infraProfile).not.toContain("cloud_runtime");
+    expect(catalog.items[0]?.compositionProfile?.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "music_refs",
+          bindingFamily: "agent_turn",
+        }),
+        expect.objectContaining({
+          id: "video_draft",
+          bindingFamily: "agent_turn",
+        }),
       ]),
     );
     expect(catalog.items[0]).toEqual(
@@ -303,6 +407,46 @@ describe("sceneapp catalog", () => {
           ],
         },
       }),
+    );
+  });
+
+  it("应把纯 compat cloud_scene SceneApp 正规化成当前本地目录语义", () => {
+    const catalog = compileSceneAppCatalogFromPackage(
+      buildLegacyCompatCloudOnlySceneAppPackage(),
+      {
+        generatedAt: "2026-04-21T00:00:00.000Z",
+      },
+    );
+
+    expect(catalog.items).toHaveLength(1);
+    expect(catalog.items[0]).toEqual(
+      expect.objectContaining({
+        id: "legacy-cloud-service",
+        sceneappType: "local_instant",
+        capabilityRefs: ["agent_turn", "timeline"],
+        infraProfile: expect.arrayContaining([
+          "agent_turn",
+          "artifact_bundle",
+          "workspace_storage",
+        ]),
+        entryBindings: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "service_skill",
+            bindingFamily: "agent_turn",
+          }),
+          expect.objectContaining({
+            kind: "scene",
+            bindingFamily: "agent_turn",
+          }),
+        ]),
+        launchRequirements: expect.arrayContaining([
+          expect.objectContaining({ kind: "user_input" }),
+        ]),
+      }),
+    );
+    expect(catalog.items[0]?.infraProfile).not.toContain("cloud_runtime");
+    expect(catalog.items[0]?.launchRequirements).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "cloud_session" })]),
     );
   });
 

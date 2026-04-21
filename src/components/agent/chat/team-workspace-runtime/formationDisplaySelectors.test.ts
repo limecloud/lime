@@ -20,7 +20,7 @@ describe("formationDisplaySelectors", () => {
 
     expect(state.hasSelectedTeamPlan).toBe(true);
     expect(state.summaryBadges.map((badge) => badge.text)).toEqual([
-      "任务方案 · 代码排障团队",
+      "分工方案 · 代码排障团队",
       "1 个计划分工",
     ]);
     expect(state.roleCards).toEqual([
@@ -66,7 +66,7 @@ describe("formationDisplaySelectors", () => {
     expect(state.hasRuntimeFormation).toBe(true);
     expect(state.hint).toContain("当前任务的分工已经准备好");
     expect(state.summaryBadges.map((badge) => badge.text)).toEqual([
-      "任务方案 · 修复任务方案",
+      "分工方案 · 修复分工方案",
       "已就绪",
       "1 条当前进展",
       "参考方案 · 代码排障团队",
@@ -80,7 +80,7 @@ describe("formationDisplaySelectors", () => {
       label: "分析",
       summary: "先定位问题与影响面。",
     });
-    expect(state.noticeText).toContain("当前任务方案已就绪");
+    expect(state.noticeText).toContain("当前分工方案已就绪");
     expect(state.noticeText).toContain("任务拆出后");
     expect(state.noticeText).toContain("当前进展");
   });
@@ -99,8 +99,8 @@ describe("formationDisplaySelectors", () => {
       },
     });
 
-    expect(state.panelDescription).toBe("Provider 认证失败，无法生成任务方案。");
-    expect(state.emptyDetail).toBe("Provider 认证失败，无法生成任务方案。");
-    expect(state.noticeText).toBe("Provider 认证失败，无法生成任务方案。");
+    expect(state.panelDescription).toBe("Provider 认证失败，无法生成分工方案。");
+    expect(state.emptyDetail).toBe("Provider 认证失败，无法生成分工方案。");
+    expect(state.noticeText).toBe("Provider 认证失败，无法生成分工方案。");
   });
 });

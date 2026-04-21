@@ -3,9 +3,17 @@
 //! Handles parsing and loading skills from SKILL.md files.
 
 use super::types::{SkillDefinition, SkillExecutionMode, SkillFrontmatter, SkillSource};
-use std::collections::HashMap;
+use crate::claude_plugin_cache::{
+    load_cached_plugin_manifest_json, resolve_claude_manifest_relative_path,
+    resolve_claude_plugin_cache_entries, resolve_enabled_claude_plugin_ids,
+    ClaudeManifestRelativePathKind,
+};
+use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 /// Parse frontmatter from skill content
 ///
@@ -191,6 +199,7 @@ pub fn load_skill_from_file(
         execution_mode,
         provider: frontmatter.provider,
         workflow: frontmatter.workflow,
+        hooks: frontmatter.hooks,
     })
 }
 
@@ -201,176 +210,282 @@ pub fn load_skill_from_file(
 pub fn load_skills_from_directory(dir_path: &Path, source: SkillSource) -> Vec<SkillDefinition> {
     let mut results = Vec::new();
 
-    if !dir_path.exists() {
-        return results;
-    }
-
-    // 1. Check for SKILL.md in root directory (single skill mode)
-    let root_skill_file = dir_path.join("SKILL.md");
-    if root_skill_file.exists() {
+    for skill_file in discover_skill_markdown_files(dir_path) {
         let skill_name = format!(
             "{}:{}",
             source,
-            dir_path
-                .file_name()
+            skill_file
+                .parent()
+                .and_then(|path| path.file_name())
                 .and_then(|n| n.to_str())
                 .unwrap_or("unknown")
         );
 
-        if let Ok(skill) = load_skill_from_file(&skill_name, &root_skill_file, source) {
+        if let Ok(skill) = load_skill_from_file(&skill_name, &skill_file, source) {
             results.push(skill);
-        }
-        return results;
-    }
-
-    // 2. Scan subdirectories for SKILL.md files
-    if let Ok(entries) = fs::read_dir(dir_path) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if !path.is_dir() {
-                continue;
-            }
-
-            let skill_file = path.join("SKILL.md");
-            if skill_file.exists() {
-                let skill_name = format!(
-                    "{}:{}",
-                    source,
-                    path.file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown")
-                );
-
-                if let Ok(skill) = load_skill_from_file(&skill_name, &skill_file, source) {
-                    results.push(skill);
-                }
-            }
         }
     }
 
     results
 }
 
-/// Get enabled plugins from settings
-pub fn get_enabled_plugins() -> std::collections::HashSet<String> {
-    let mut enabled = std::collections::HashSet::new();
+#[derive(Debug, Serialize)]
+struct PluginSkillRegistrySnapshot {
+    skipped: Vec<String>,
+    plugins: Vec<PluginSkillRegistrySnapshotPlugin>,
+}
 
-    if let Some(home) = dirs::home_dir() {
-        let settings_path = home.join(".claude/settings.json");
-        if let Ok(content) = fs::read_to_string(&settings_path) {
-            if let Ok(settings) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(plugins) = settings.get("enabledPlugins").and_then(|v| v.as_object()) {
-                    for (plugin_id, is_enabled) in plugins {
-                        if is_enabled.as_bool().unwrap_or(false) {
-                            enabled.insert(plugin_id.clone());
-                        }
-                    }
-                }
-            }
-        }
+#[derive(Debug, Serialize)]
+struct PluginSkillRegistrySnapshotPlugin {
+    plugin_id: String,
+    plugin_name: String,
+    marketplace: String,
+    root: String,
+    skills: Vec<PluginSkillRegistrySnapshotSkill>,
+}
+
+#[derive(Debug, Serialize)]
+struct PluginSkillRegistrySnapshotSkill {
+    path: String,
+    len: u64,
+    modified_unix_nanos: Option<u128>,
+    content_hash: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+enum PluginSkillDirectorySpec {
+    AutoDetectDefault,
+    Explicit(Vec<PathBuf>),
+}
+
+fn discover_skill_markdown_files(dir_path: &Path) -> Vec<PathBuf> {
+    if !dir_path.exists() {
+        return Vec::new();
     }
 
-    enabled
+    let root_skill_file = dir_path.join("SKILL.md");
+    if root_skill_file.exists() {
+        return vec![root_skill_file];
+    }
+
+    let mut skill_files = match fs::read_dir(dir_path) {
+        Ok(entries) => entries
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| path.is_dir())
+            .map(|path| path.join("SKILL.md"))
+            .filter(|path| path.exists())
+            .collect::<Vec<_>>(),
+        Err(_) => Vec::new(),
+    };
+    skill_files.sort();
+    skill_files
+}
+
+fn resolve_plugin_skill_directory_spec(
+    plugin_root: &Path,
+) -> Result<PluginSkillDirectorySpec, String> {
+    let Some((_manifest_path, manifest)) = load_cached_plugin_manifest_json(plugin_root)? else {
+        return Ok(PluginSkillDirectorySpec::AutoDetectDefault);
+    };
+    let Some(skills_value) = manifest.get("skills") else {
+        return Ok(PluginSkillDirectorySpec::AutoDetectDefault);
+    };
+
+    Ok(PluginSkillDirectorySpec::Explicit(
+        resolve_explicit_plugin_skill_directories(plugin_root, skills_value)?,
+    ))
+}
+
+fn resolve_explicit_plugin_skill_directories(
+    plugin_root: &Path,
+    skills_value: &serde_json::Value,
+) -> Result<Vec<PathBuf>, String> {
+    match skills_value {
+        serde_json::Value::String(relative_path) => Ok(vec![resolve_plugin_relative_directory(
+            plugin_root,
+            relative_path,
+        )?]),
+        serde_json::Value::Array(paths) => paths
+            .iter()
+            .map(|value| {
+                let Some(relative_path) = value.as_str() else {
+                    return Err("manifest.skills 只能是 string 或 string[]".to_string());
+                };
+                resolve_plugin_relative_directory(plugin_root, relative_path)
+            })
+            .collect(),
+        _ => Err("manifest.skills 只能是 string 或 string[]".to_string()),
+    }
+}
+
+fn resolve_plugin_relative_directory(
+    plugin_root: &Path,
+    relative_path: &str,
+) -> Result<PathBuf, String> {
+    resolve_claude_manifest_relative_path(
+        plugin_root,
+        relative_path,
+        ClaudeManifestRelativePathKind::Any,
+    )
+    .map_err(|error| format!("manifest.skills 路径无效（{}）：{}", relative_path, error))
+}
+
+fn collect_plugin_skill_markdown_files_with_report(
+    plugin_root: &Path,
+) -> (Vec<PathBuf>, Vec<String>) {
+    let mut skipped = Vec::new();
+    let skill_roots = match resolve_plugin_skill_directory_spec(plugin_root) {
+        Ok(PluginSkillDirectorySpec::AutoDetectDefault) => {
+            let default_skills_path = plugin_root.join("skills");
+            default_skills_path
+                .exists()
+                .then_some(vec![default_skills_path])
+                .unwrap_or_default()
+        }
+        Ok(PluginSkillDirectorySpec::Explicit(paths)) => paths
+            .into_iter()
+            .filter_map(|path| {
+                if path.exists() {
+                    Some(path)
+                } else {
+                    skipped.push(format!("manifest.skills 路径不存在 ({})", path.display()));
+                    None
+                }
+            })
+            .collect(),
+        Err(error) => return (Vec::new(), vec![error]),
+    };
+
+    let mut seen = HashSet::<PathBuf>::new();
+    let mut skill_files = skill_roots
+        .into_iter()
+        .flat_map(|path| discover_skill_markdown_files(&path))
+        .filter(|path| {
+            let normalized = path.canonicalize().unwrap_or_else(|_| path.clone());
+            seen.insert(normalized)
+        })
+        .collect::<Vec<_>>();
+    skill_files.sort();
+    (skill_files, skipped)
+}
+
+fn hash_plugin_skill_content(path: &Path) -> Option<u64> {
+    let content = fs::read(path).ok()?;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    content.hash(&mut hasher);
+    Some(hasher.finish())
+}
+
+fn plugin_skill_modified_unix_nanos(metadata: &fs::Metadata) -> Option<u128> {
+    metadata
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_nanos())
+}
+
+pub fn build_plugin_skill_registry_snapshot_with_context(
+    workspace_root: Option<&Path>,
+    home_dir: Option<&Path>,
+) -> String {
+    let resolution = resolve_claude_plugin_cache_entries(workspace_root, home_dir);
+    let mut skipped = resolution.skipped;
+    let mut plugins = Vec::new();
+
+    for plugin in resolution.plugins {
+        let (skill_files, plugin_skipped) =
+            collect_plugin_skill_markdown_files_with_report(&plugin.root);
+        skipped.extend(
+            plugin_skipped
+                .into_iter()
+                .map(|reason| format!("{}: {}", plugin.plugin_id, reason)),
+        );
+        plugins.push(PluginSkillRegistrySnapshotPlugin {
+            plugin_id: plugin.plugin_id,
+            plugin_name: plugin.plugin_name,
+            marketplace: plugin.marketplace,
+            root: plugin.root.display().to_string(),
+            skills: skill_files
+                .into_iter()
+                .map(|path| {
+                    let metadata = fs::metadata(&path).ok();
+                    PluginSkillRegistrySnapshotSkill {
+                        path: path.display().to_string(),
+                        len: metadata.as_ref().map(|value| value.len()).unwrap_or(0),
+                        modified_unix_nanos: metadata
+                            .as_ref()
+                            .and_then(plugin_skill_modified_unix_nanos),
+                        content_hash: hash_plugin_skill_content(&path),
+                    }
+                })
+                .collect(),
+        });
+    }
+
+    let snapshot = PluginSkillRegistrySnapshot { skipped, plugins };
+
+    serde_json::to_string(&snapshot).unwrap_or_else(|_| "{\"plugins\":[],\"skipped\":[]}".into())
+}
+
+/// Get enabled plugins from settings
+pub fn get_enabled_plugins() -> std::collections::HashSet<String> {
+    let workspace_root = std::env::current_dir().ok();
+    let home_dir = dirs::home_dir();
+    resolve_enabled_claude_plugin_ids(workspace_root.as_deref(), home_dir.as_deref())
+        .plugin_ids
+        .into_iter()
+        .collect()
 }
 
 /// Load skills from plugin cache
 ///
 pub fn load_skills_from_plugin_cache() -> Vec<SkillDefinition> {
+    let workspace_root = std::env::current_dir().ok();
+    let home_dir = dirs::home_dir();
+    load_skills_from_plugin_cache_with_context(workspace_root.as_deref(), home_dir.as_deref())
+}
+
+pub fn load_skills_from_plugin_cache_with_context(
+    workspace_root: Option<&Path>,
+    home_dir: Option<&Path>,
+) -> Vec<SkillDefinition> {
     let mut results = Vec::new();
+    let resolution = resolve_claude_plugin_cache_entries(workspace_root, home_dir);
+    let mut skipped = resolution.skipped;
+    let plugins = resolution.plugins;
 
-    let home = match dirs::home_dir() {
-        Some(h) => h,
-        None => return results,
-    };
+    for plugin in plugins {
+        let (skill_files, plugin_skipped) =
+            collect_plugin_skill_markdown_files_with_report(&plugin.root);
+        skipped.extend(
+            plugin_skipped
+                .into_iter()
+                .map(|reason| format!("{}: {}", plugin.plugin_id, reason)),
+        );
 
-    let plugins_cache_dir = home.join(".claude/plugins/cache");
-    if !plugins_cache_dir.exists() {
-        return results;
-    }
-
-    let enabled_plugins = get_enabled_plugins();
-
-    // Traverse marketplace directories
-    let marketplaces = match fs::read_dir(&plugins_cache_dir) {
-        Ok(entries) => entries,
-        Err(_) => return results,
-    };
-
-    for marketplace_entry in marketplaces.flatten() {
-        if !marketplace_entry.path().is_dir() {
-            continue;
-        }
-
-        let marketplace_name = marketplace_entry.file_name();
-        let marketplace_path = marketplace_entry.path();
-
-        let plugins = match fs::read_dir(&marketplace_path) {
-            Ok(entries) => entries,
-            Err(_) => continue,
-        };
-
-        for plugin_entry in plugins.flatten() {
-            if !plugin_entry.path().is_dir() {
-                continue;
-            }
-
-            let plugin_name = plugin_entry.file_name();
-            let plugin_id = format!(
-                "{}@{}",
-                plugin_name.to_string_lossy(),
-                marketplace_name.to_string_lossy()
+        for skill_md_path in skill_files {
+            let skill_name = format!(
+                "{}:{}",
+                plugin.plugin_name,
+                skill_md_path
+                    .parent()
+                    .and_then(|path| path.file_name())
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "unknown".to_string())
             );
 
-            // Check if plugin is enabled
-            if !enabled_plugins.contains(&plugin_id) {
-                continue;
-            }
-
-            let plugin_path = plugin_entry.path();
-            let versions = match fs::read_dir(&plugin_path) {
-                Ok(entries) => entries,
-                Err(_) => continue,
-            };
-
-            for version_entry in versions.flatten() {
-                if !version_entry.path().is_dir() {
-                    continue;
-                }
-
-                let skills_path = version_entry.path().join("skills");
-                if !skills_path.exists() {
-                    continue;
-                }
-
-                let skill_dirs = match fs::read_dir(&skills_path) {
-                    Ok(entries) => entries,
-                    Err(_) => continue,
-                };
-
-                for skill_dir_entry in skill_dirs.flatten() {
-                    if !skill_dir_entry.path().is_dir() {
-                        continue;
-                    }
-
-                    let skill_md_path = skill_dir_entry.path().join("SKILL.md");
-                    if !skill_md_path.exists() {
-                        continue;
-                    }
-
-                    let skill_name = format!(
-                        "{}:{}",
-                        plugin_name.to_string_lossy(),
-                        skill_dir_entry.file_name().to_string_lossy()
-                    );
-
-                    if let Ok(skill) =
-                        load_skill_from_file(&skill_name, &skill_md_path, SkillSource::Plugin)
-                    {
-                        results.push(skill);
-                    }
-                }
+            if let Ok(skill) =
+                load_skill_from_file(&skill_name, &skill_md_path, SkillSource::Plugin)
+            {
+                results.push(skill);
             }
         }
+    }
+
+    if !skipped.is_empty() {
+        tracing::warn!("[Aster] plugin skill 部分跳过: {}", skipped.join(" | "));
     }
 
     results
@@ -635,6 +750,36 @@ Content.
     }
 
     #[test]
+    fn test_parse_frontmatter_with_skill_hooks() {
+        let content = r#"---
+name: hook-skill
+description: Skill with hooks
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: echo "before bash"
+          timeout: 5
+          once: true
+---
+
+# Hook Skill
+
+Content.
+"#;
+
+        let (fm, _) = parse_frontmatter(content);
+        let hooks = fm.hooks.expect("skill hooks should parse");
+        let matchers = hooks
+            .get(&crate::hooks::HookEvent::PreToolUse)
+            .expect("PreToolUse hooks should exist");
+        assert_eq!(matchers.len(), 1);
+        assert_eq!(matchers[0].matcher.as_deref(), Some("Bash"));
+        assert_eq!(matchers[0].hooks.len(), 1);
+    }
+
+    #[test]
     fn test_parse_frontmatter_execution_mode_default() {
         // 不指定 execution-mode 时应为 None
         let content = r#"---
@@ -730,6 +875,7 @@ Instructions here.
         assert_eq!(skill.skill_name, "user:workflow-skill");
         assert_eq!(skill.execution_mode, SkillExecutionMode::Workflow);
         assert_eq!(skill.provider, Some("gemini".to_string()));
+        assert!(skill.hooks.is_none());
     }
 
     #[test]
@@ -814,6 +960,312 @@ Content.
         assert_eq!(skill.execution_mode, SkillExecutionMode::Prompt);
         assert!(skill.provider.is_none());
         assert!(skill.workflow.is_none());
+    }
+
+    fn write_enabled_plugin_settings(
+        root: &Path,
+        file_name: &str,
+        enabled_plugins: serde_json::Value,
+    ) {
+        let claude_dir = root.join(".claude");
+        fs::create_dir_all(&claude_dir).expect("创建 .claude 目录失败");
+        fs::write(
+            claude_dir.join(file_name),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "enabledPlugins": enabled_plugins
+            }))
+            .expect("序列化 enabledPlugins 失败"),
+        )
+        .expect("写入 enabledPlugins 配置失败");
+    }
+
+    fn write_cached_plugin_skill(
+        home_root: &Path,
+        plugin_name: &str,
+        marketplace: &str,
+        version: &str,
+        skill_dir_name: &str,
+        skill_body: &str,
+    ) {
+        let skill_root = home_root
+            .join(".claude")
+            .join("plugins")
+            .join("cache")
+            .join(marketplace)
+            .join(plugin_name)
+            .join(version)
+            .join("skills")
+            .join(skill_dir_name);
+        write_cached_plugin_skill_at_root(&skill_root, skill_body);
+    }
+
+    fn write_cached_plugin_skill_at_root(skill_root: &Path, skill_body: &str) {
+        fs::create_dir_all(&skill_root).expect("创建 plugin skill 目录失败");
+        fs::write(skill_root.join("SKILL.md"), skill_body).expect("写入 plugin SKILL.md 失败");
+    }
+
+    fn write_cached_plugin_manifest_at_root(manifest_path: &Path, manifest: serde_json::Value) {
+        if let Some(parent) = manifest_path.parent() {
+            fs::create_dir_all(parent).expect("创建 plugin manifest 目录失败");
+        }
+        fs::write(
+            manifest_path,
+            serde_json::to_string_pretty(&manifest).expect("序列化 plugin manifest 失败"),
+        )
+        .expect("写入 plugin manifest 失败");
+    }
+
+    #[test]
+    fn test_load_skills_from_plugin_cache_uses_workspace_settings_local_and_latest_version() {
+        let temp_home = TempDir::new().expect("create temp home");
+        let temp_workspace = TempDir::new().expect("create temp workspace");
+        let plugin_id = "capsule@demo-market";
+
+        write_enabled_plugin_settings(
+            temp_home.path(),
+            "settings.json",
+            serde_json::json!({
+                plugin_id: false
+            }),
+        );
+        write_enabled_plugin_settings(
+            temp_workspace.path(),
+            "settings.local.json",
+            serde_json::json!({
+                plugin_id: true
+            }),
+        );
+        write_cached_plugin_skill(
+            temp_home.path(),
+            "capsule",
+            "demo-market",
+            "1.0.0",
+            "writer",
+            r#"---
+name: writer
+description: old plugin skill
+---
+old
+"#,
+        );
+        write_cached_plugin_skill(
+            temp_home.path(),
+            "capsule",
+            "demo-market",
+            "2.0.0",
+            "writer",
+            r#"---
+name: writer
+description: latest plugin skill
+---
+latest
+"#,
+        );
+
+        let skills = load_skills_from_plugin_cache_with_context(
+            Some(temp_workspace.path()),
+            Some(temp_home.path()),
+        );
+
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].skill_name, "capsule:writer");
+        assert_eq!(skills[0].description, "latest plugin skill");
+        assert!(skills[0]
+            .file_path
+            .to_string_lossy()
+            .contains("/2.0.0/skills/writer/SKILL.md"));
+    }
+
+    #[test]
+    fn test_load_skills_from_plugin_cache_uses_sanitized_plugin_cache_paths() {
+        let temp_home = TempDir::new().expect("create temp home");
+        let temp_workspace = TempDir::new().expect("create temp workspace");
+        let plugin_id = "@scope/capsule@demo.market";
+
+        write_enabled_plugin_settings(
+            temp_workspace.path(),
+            "settings.local.json",
+            serde_json::json!({
+                plugin_id: true
+            }),
+        );
+        write_cached_plugin_skill_at_root(
+            &temp_home
+                .path()
+                .join(".claude")
+                .join("plugins")
+                .join("cache")
+                .join("demo-market")
+                .join("-scope-capsule")
+                .join("2.0.0")
+                .join("skills")
+                .join("writer"),
+            r#"---
+name: writer
+description: sanitized plugin skill
+---
+sanitized
+"#,
+        );
+
+        let skills = load_skills_from_plugin_cache_with_context(
+            Some(temp_workspace.path()),
+            Some(temp_home.path()),
+        );
+
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].skill_name, "@scope/capsule:writer");
+        assert_eq!(skills[0].description, "sanitized plugin skill");
+        assert!(skills[0]
+            .file_path
+            .to_string_lossy()
+            .contains("/demo-market/-scope-capsule/2.0.0/skills/writer/SKILL.md"));
+    }
+
+    #[test]
+    fn test_load_skills_from_plugin_cache_prefers_manifest_skills_paths_and_legacy_manifest() {
+        let temp_home = TempDir::new().expect("create temp home");
+        let temp_workspace = TempDir::new().expect("create temp workspace");
+        let plugin_id = "capsule@demo-market";
+        let plugin_root = temp_home
+            .path()
+            .join(".claude")
+            .join("plugins")
+            .join("cache")
+            .join("demo-market")
+            .join("capsule")
+            .join("2.0.0");
+
+        write_enabled_plugin_settings(
+            temp_workspace.path(),
+            "settings.local.json",
+            serde_json::json!({
+                plugin_id: true
+            }),
+        );
+        write_cached_plugin_manifest_at_root(
+            &plugin_root.join("plugin.json"),
+            serde_json::json!({
+                "name": "capsule",
+                "version": "2.0.0",
+                "skills": "./extra-skill"
+            }),
+        );
+        write_cached_plugin_skill(
+            temp_home.path(),
+            "capsule",
+            "demo-market",
+            "2.0.0",
+            "default-writer",
+            r#"---
+name: default-writer
+description: default plugin skill
+---
+default
+"#,
+        );
+        write_cached_plugin_skill_at_root(
+            &plugin_root.join("extra-skill"),
+            r#"---
+name: extra-skill
+description: manifest plugin skill
+---
+manifest
+"#,
+        );
+
+        let skills = load_skills_from_plugin_cache_with_context(
+            Some(temp_workspace.path()),
+            Some(temp_home.path()),
+        );
+
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].skill_name, "capsule:extra-skill");
+        assert_eq!(skills[0].description, "manifest plugin skill");
+        assert!(skills[0]
+            .file_path
+            .to_string_lossy()
+            .contains("/demo-market/capsule/2.0.0/extra-skill/SKILL.md"));
+    }
+
+    #[test]
+    fn test_load_skills_from_plugin_cache_requires_dot_slash_manifest_skill_paths() {
+        let temp_home = TempDir::new().expect("create temp home");
+        let temp_workspace = TempDir::new().expect("create temp workspace");
+        let plugin_id = "capsule@demo-market";
+        let plugin_root = temp_home
+            .path()
+            .join(".claude")
+            .join("plugins")
+            .join("cache")
+            .join("demo-market")
+            .join("capsule")
+            .join("2.0.0");
+
+        write_enabled_plugin_settings(
+            temp_workspace.path(),
+            "settings.local.json",
+            serde_json::json!({
+                plugin_id: true
+            }),
+        );
+        write_cached_plugin_manifest_at_root(
+            &plugin_root.join("plugin.json"),
+            serde_json::json!({
+                "name": "capsule",
+                "version": "2.0.0",
+                "skills": "extra-skill"
+            }),
+        );
+        write_cached_plugin_skill(
+            temp_home.path(),
+            "capsule",
+            "demo-market",
+            "2.0.0",
+            "default-writer",
+            r#"---
+name: default-writer
+description: default plugin skill
+---
+default
+"#,
+        );
+        write_cached_plugin_skill_at_root(
+            &plugin_root.join("extra-skill"),
+            r#"---
+name: extra-skill
+description: manifest plugin skill
+---
+manifest
+"#,
+        );
+
+        let snapshot = build_plugin_skill_registry_snapshot_with_context(
+            Some(temp_workspace.path()),
+            Some(temp_home.path()),
+        );
+        let snapshot_json: serde_json::Value =
+            serde_json::from_str(&snapshot).expect("snapshot 应为合法 JSON");
+        let skipped = snapshot_json
+            .get("skipped")
+            .and_then(serde_json::Value::as_array)
+            .expect("snapshot.skipped 应存在");
+        assert!(
+            skipped.iter().any(|item| item
+                .as_str()
+                .map(|text| text.contains("manifest.skills 路径无效（extra-skill）"))
+                .unwrap_or(false)),
+            "应显式报告缺少 ./ 前缀的 manifest.skills 路径"
+        );
+
+        let skills = load_skills_from_plugin_cache_with_context(
+            Some(temp_workspace.path()),
+            Some(temp_home.path()),
+        );
+        assert!(
+            skills.is_empty(),
+            "manifest.skills 不符合 Claude 当前路径语义时，不应回退加载默认 skills/"
+        );
     }
 
     // ==================== Workflow YAML 解析综合测试 ====================

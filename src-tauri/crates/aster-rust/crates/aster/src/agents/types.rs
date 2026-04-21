@@ -4,6 +4,9 @@ use crate::providers::base::Provider;
 use crate::session::TurnContextOverride;
 use rmcp::model::{CallToolResult, Tool};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use utoipa::ToSchema;
@@ -14,6 +17,31 @@ pub type ToolResultReceiver = Arc<Mutex<mpsc::Receiver<(String, ToolResult<CallT
 
 // We use double Arc here to allow easy provider swaps while sharing concurrent access
 pub type SharedProvider = Arc<Mutex<Option<Arc<dyn Provider>>>>;
+
+pub type PermissionRequestHookHandlerFuture =
+    Pin<Box<dyn Future<Output = Result<Option<PermissionRequestHookDecision>, String>> + Send>>;
+
+pub type PermissionRequestHookHandler =
+    Arc<dyn Fn(PermissionRequestHookContext) -> PermissionRequestHookHandlerFuture + Send + Sync>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PermissionRequestHookContext {
+    pub tool_name: String,
+    pub tool_input: Option<Value>,
+    pub tool_use_id: String,
+    pub session_id: String,
+    pub permission_mode: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PermissionRequestHookDecision {
+    Allow {
+        updated_input: Option<serde_json::Map<String, Value>>,
+    },
+    Deny {
+        message: Option<String>,
+    },
+}
 
 /// Default timeout for retry operations (5 minutes)
 pub const DEFAULT_RETRY_TIMEOUT_SECONDS: u64 = 300;

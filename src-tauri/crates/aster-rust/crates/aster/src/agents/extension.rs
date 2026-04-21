@@ -70,8 +70,9 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             skills_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: skills_extension::EXTENSION_NAME,
-                description: "Load and use skills from relevant directories",
-                default_enabled: true,
+                description:
+                    "Legacy skill loader extension; prefer the native Skill tool current surface",
+                default_enabled: false,
                 client_factory: |ctx| Box::new(skills_extension::SkillsClient::new(ctx).unwrap()),
             },
         );

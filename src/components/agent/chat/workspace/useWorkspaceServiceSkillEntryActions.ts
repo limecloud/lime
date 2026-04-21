@@ -3,12 +3,6 @@ import { toast } from "sonner";
 import { siteGetAdapterLaunchReadiness } from "@/lib/webview-api";
 import { createAutomationJob } from "@/lib/api/automation";
 import {
-  createServiceSkillRun,
-  getServiceSkillRun,
-  isTerminalServiceSkillRunStatus,
-  type ServiceSkillRun,
-} from "@/lib/api/serviceSkillRuns";
-import {
   createContent,
   getOrCreateDefaultProject,
   listProjects,
@@ -40,7 +34,6 @@ import {
   supportsServiceSkillLocalAutomation,
 } from "../service-skills/automationDraft";
 import { recordServiceSkillAutomationLink } from "../service-skills/automationLinkStorage";
-import { recordServiceSkillCloudRun } from "../service-skills/cloudRunStorage";
 import {
   buildServiceSkillLaunchA2UIResponse,
   readServiceSkillLaunchSlotValuesFromFormData,
@@ -67,21 +60,6 @@ import type {
 } from "../service-skills/types";
 import type { TeamDefinition } from "../utils/teamDefinitions";
 import { attachSelectedTeamToRequestMetadata } from "../utils/teamRequestMetadata";
-
-const SERVICE_SKILL_RUN_STATUS_LABELS: Record<string, string> = {
-  queued: "排队中",
-  running: "运行中",
-  success: "已完成",
-  failed: "执行失败",
-  canceled: "已取消",
-  timeout: "已超时",
-};
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -116,7 +94,6 @@ function siteSkillRequiresProject(skill: ServiceSkillHomeItem): boolean {
 
 interface ServiceSkillLaunchOptions {
   launchUserInput?: string | null;
-  fallbackToWorkspaceOnCloudSubmitFailure?: boolean;
 }
 
 interface ServiceSkillSelectionOptions {
@@ -135,35 +112,6 @@ function resolveServiceSkillLaunchUserInput(
   }
 
   return normalizeOptionalText(currentInput);
-}
-
-function buildServiceSkillCloudResultBody(
-  skill: ServiceSkillHomeItem,
-  run: ServiceSkillRun,
-): string {
-  return (
-    normalizeOptionalText(run.outputText) ||
-    normalizeOptionalText(run.outputSummary) ||
-    `# ${skill.title}\n\n云端结果已生成。`
-  );
-}
-
-function buildServiceSkillCloudResultMetadata(
-  run: ServiceSkillRun,
-): Record<string, unknown> {
-  return {
-    cloudRun: {
-      id: run.id,
-      status: run.status,
-      executorKind: run.executorKind ?? null,
-      outputSummary: normalizeOptionalText(run.outputSummary) ?? null,
-      errorCode: run.errorCode ?? null,
-      errorMessage: run.errorMessage ?? null,
-      startedAt: run.startedAt ?? null,
-      finishedAt: run.finishedAt ?? null,
-      updatedAt: run.updatedAt ?? null,
-    },
-  };
 }
 
 function resolveFallbackProjectType(theme?: string): Project["workspaceType"] {
@@ -208,22 +156,6 @@ function prioritizeAutomationWorkspaces(
   );
 
   return [fallbackWorkspace, ...remaining];
-}
-
-function getServiceSkillRunStatusLabel(status: string): string {
-  return SERVICE_SKILL_RUN_STATUS_LABELS[status] ?? status;
-}
-
-function buildServiceSkillRunSuccessMessage(
-  skill: ServiceSkillHomeItem,
-  run: ServiceSkillRun,
-): string {
-  const summary = run.outputSummary || run.outputText || run.inputSummary;
-  if (summary) {
-    return `${skill.title} 云端运行完成：${summary}，正在回流本地工作区。`;
-  }
-
-  return `${skill.title} 云端运行完成，正在回流本地工作区。`;
 }
 
 interface PendingServiceSkillAutomationLaunch {
@@ -553,42 +485,6 @@ export function useWorkspaceServiceSkillEntryActions({
     ],
   );
 
-  const prepareServiceSkillCloudResultWorkspacePayload = useCallback(
-    async (
-      skill: ServiceSkillHomeItem,
-      run: ServiceSkillRun,
-    ): Promise<WorkspaceEntryPayload | null> => {
-      const seed = buildServiceSkillWorkspaceSeed(
-        skill,
-        skill.themeTarget ?? activeTheme,
-      );
-
-      if (!currentProjectId || !seed) {
-        return null;
-      }
-
-      const created = await createServiceSkillSeededContent(
-        skill,
-        currentProjectId,
-        {
-          body: buildServiceSkillCloudResultBody(skill, run),
-          metadata: buildServiceSkillCloudResultMetadata(run),
-        },
-      );
-
-      if (!created) {
-        return null;
-      }
-
-      return {
-        contentId: created.id,
-        themeOverride: skill.themeTarget,
-        initialRequestMetadata: seed.requestMetadata,
-      };
-    },
-    [activeTheme, createServiceSkillSeededContent, currentProjectId],
-  );
-
   const handleServiceSkillBrowserRuntimeLaunch = useCallback(
     async (
       skill: ServiceSkillHomeItem,
@@ -702,6 +598,11 @@ export function useWorkspaceServiceSkillEntryActions({
       slotValues: ServiceSkillSlotValues,
       options?: ServiceSkillLaunchOptions,
     ): Promise<boolean> => {
+      const persistedLaunchUserInput =
+        options && "launchUserInput" in options
+          ? normalizeOptionalText(options.launchUserInput)
+          : undefined;
+
       if (isServiceSkillExecutableAsSiteAdapter(skill)) {
         let resolvedCapability: ResolvedServiceSkillSiteCapabilityExecution;
         try {
@@ -753,149 +654,22 @@ export function useWorkspaceServiceSkillEntryActions({
           skillId: skill.id,
           runnerType: skill.runnerType,
           slotValues,
+          ...(persistedLaunchUserInput
+            ? {
+                launchUserInput: persistedLaunchUserInput,
+              }
+            : {}),
         });
         setPendingServiceSkillLaunchInput(null);
         return true;
       }
 
+      const launchUserInput = resolveServiceSkillLaunchUserInput(input, options);
       const prompt = composeServiceSkillPrompt({
         skill,
         slotValues,
-        userInput: resolveServiceSkillLaunchUserInput(input, options),
+        userInput: launchUserInput,
       });
-
-      if (skill.executionLocation === "cloud_required") {
-        const toastId = toast.loading(`正在开始 ${skill.title} 的云端执行...`);
-        let runCreated = false;
-
-        try {
-          setPendingServiceSkillLaunchInput(null);
-
-          let run = await createServiceSkillRun(skill.id, prompt);
-          runCreated = true;
-          recordServiceSkillCloudRun(skill.id, run);
-          recordServiceSkillUsage({
-            skillId: skill.id,
-            runnerType: skill.runnerType,
-            slotValues,
-          });
-
-          if (!isTerminalServiceSkillRunStatus(run.status)) {
-            toast.loading(
-              `${skill.title} ${getServiceSkillRunStatusLabel(run.status)}，正在等待结果...`,
-              {
-                id: toastId,
-              },
-            );
-
-            for (let attempt = 0; attempt < 12; attempt += 1) {
-              await sleep(2_000);
-              run = await getServiceSkillRun(run.id);
-              recordServiceSkillCloudRun(skill.id, run);
-              if (isTerminalServiceSkillRunStatus(run.status)) {
-                break;
-              }
-            }
-          }
-
-          if (run.status === "success") {
-            let workspacePayload: WorkspaceEntryPayload | null = null;
-            let workspaceErrorMessage: string | null = null;
-
-            try {
-              workspacePayload =
-                await prepareServiceSkillCloudResultWorkspacePayload(
-                  skill,
-                  run,
-                );
-            } catch (error) {
-              workspaceErrorMessage = getErrorMessage(error);
-            }
-
-            toast.success(buildServiceSkillRunSuccessMessage(skill, run), {
-              id: toastId,
-            });
-
-            if (workspacePayload) {
-              const entered = navigateToServiceSkillWorkspace(workspacePayload);
-              if (!entered) {
-                toast.error(
-                  "云端结果已生成，但进入工作区失败，请稍后手动打开。",
-                );
-                return false;
-              }
-            } else if (workspaceErrorMessage) {
-              toast.error(
-                `云端结果已生成，但回流本地工作区失败：${workspaceErrorMessage}`,
-              );
-            }
-            return true;
-          }
-
-          if (isTerminalServiceSkillRunStatus(run.status)) {
-            throw new Error(
-              run.errorMessage ||
-                `${skill.title} ${getServiceSkillRunStatusLabel(run.status)}`,
-            );
-          }
-
-          toast.info(
-            `${skill.title} 已开始云端执行，当前仍在 ${getServiceSkillRunStatusLabel(run.status)}。`,
-            {
-              id: toastId,
-            },
-          );
-          return true;
-        } catch (error) {
-          if (options?.fallbackToWorkspaceOnCloudSubmitFailure && !runCreated) {
-            let workspacePayload: WorkspaceEntryPayload;
-            try {
-              workspacePayload = await prepareServiceSkillWorkspacePayload(
-                skill,
-                prompt,
-              );
-            } catch (workspaceError) {
-              toast.error(
-                `云端执行失败：${getErrorMessage(error)}；本地回退失败：${getErrorMessage(workspaceError)}`,
-                {
-                  id: toastId,
-                },
-              );
-              return false;
-            }
-
-            const entered = navigateToServiceSkillWorkspace(workspacePayload);
-            if (!entered) {
-              toast.error(
-                `云端执行失败：${getErrorMessage(error)}；进入本地工作区失败，请稍后重试。`,
-                {
-                  id: toastId,
-                },
-              );
-              return false;
-            }
-
-            recordServiceSkillUsage({
-              skillId: skill.id,
-              runnerType: skill.runnerType,
-              slotValues,
-            });
-            toast.info(
-              `${skill.title} 云端暂不可用，已切换到本地工作区继续。`,
-              {
-                id: toastId,
-              },
-            );
-            setPendingServiceSkillLaunchInput(null);
-            return true;
-          }
-
-          toast.error(`云端执行失败：${getErrorMessage(error)}`, {
-            id: toastId,
-          });
-          return false;
-        }
-      }
 
       if (skill.runnerType !== "instant") {
         toast.info(
@@ -923,6 +697,11 @@ export function useWorkspaceServiceSkillEntryActions({
         skillId: skill.id,
         runnerType: skill.runnerType,
         slotValues,
+        ...(persistedLaunchUserInput
+          ? {
+              launchUserInput: persistedLaunchUserInput,
+            }
+          : {}),
       });
       setPendingServiceSkillLaunchInput(null);
       return true;
@@ -931,7 +710,6 @@ export function useWorkspaceServiceSkillEntryActions({
       input,
       navigateToServiceSkillWorkspace,
       setPendingServiceSkillLaunchInput,
-      prepareServiceSkillCloudResultWorkspacePayload,
       prepareServiceSkillSiteWorkspacePayload,
       prepareServiceSkillWorkspacePayload,
       recordServiceSkillUsage,
@@ -1013,6 +791,9 @@ export function useWorkspaceServiceSkillEntryActions({
         skill,
         creationReplay,
       });
+      const resolvedLaunchUserInput =
+        normalizeOptionalText(options?.launchUserInput) ??
+        replayPrefill?.launchUserInput;
       const initialSlotValues = {
         ...createDefaultServiceSkillSlotValues(skill),
         ...(replayPrefill?.slotValues || {}),
@@ -1022,7 +803,7 @@ export function useWorkspaceServiceSkillEntryActions({
 
       if (skill.slotSchema.length === 0 || validation.valid) {
         void handleServiceSkillLaunch(skill, initialSlotValues, {
-          launchUserInput: options?.launchUserInput,
+          launchUserInput: resolvedLaunchUserInput,
         });
         return;
       }
@@ -1036,7 +817,7 @@ export function useWorkspaceServiceSkillEntryActions({
         skill,
         initialSlotValues,
         prefillHint: options?.prefillHint ?? replayPrefill?.hint,
-        launchUserInput: normalizeOptionalText(options?.launchUserInput),
+        launchUserInput: resolvedLaunchUserInput,
       });
     },
     [creationReplay, handleServiceSkillLaunch],

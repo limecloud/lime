@@ -21,18 +21,18 @@ interface SceneAppsPageProps {
 const VIEW_OPTIONS = [
   {
     key: "catalog",
-    label: "场景目录",
-    summary: "先找一条创作场景，再决定是否进入生成准备或治理复盘。",
+    label: "做法目录",
+    summary: "先选一套能直接复用的做法，再决定下一步。",
   },
   {
     key: "detail",
     label: "生成准备",
-    summary: "集中查看交付合同、上下文基线和进入生成前的准备。",
+    summary: "确认参考、结果约定和启动信息，再进入生成。",
   },
   {
     key: "governance",
-    label: "治理复盘",
-    summary: "专门处理最近运行、治理材料与后续放量判断。",
+    label: "做法复盘",
+    summary: "回看最近结果、复核材料和下一步判断。",
   },
 ] as const;
 
@@ -66,31 +66,72 @@ export function SceneAppsPage({
   return (
     <div className="flex-1 overflow-auto px-6 py-6">
       <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-6">
-        <section className="space-y-4">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-[860px]">
-              <div className="text-[11px] font-semibold tracking-[0.12em] text-lime-700">
-                CREATE SCENES
+        <section className="rounded-[32px] border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-950/5">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div className="max-w-[900px] space-y-3">
+                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold tracking-[0.12em] text-emerald-700">
+                  全部做法 · 进入生成前的准备层
+                </span>
+                <div className="space-y-2">
+                  <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                    全部做法
+                  </h1>
+                  <p className="text-sm leading-7 text-slate-600 md:text-base">
+                    这里先帮你回答三件事：做什么、会拿到什么、下一步往哪走。先从目录里选一套做法，再进入生成准备或做法复盘，不需要先理解内部实现名词。
+                  </p>
+                </div>
               </div>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-                按创作场景组织完整结果链
-              </h1>
-              <p className="mt-3 text-sm leading-7 text-slate-600 md:text-base">
-                这里前台讲的是创作场景，不是内部 SceneApp
-                名词。每条场景都会带上参考素材、风格摘要、工具能力和交付合同，帮助你先完成选路与装配，再进入生成、结果交付和复盘。
-              </p>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+                  onClick={() => {
+                    void runtime.refreshCatalog();
+                  }}
+                >
+                  刷新目录
+                </button>
+              </div>
             </div>
 
-            <button
-              type="button"
-              className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
-              onClick={() => {
-                void runtime.refreshCatalog();
-              }}
-            >
-              刷新目录
-            </button>
-          </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
+                  当前目录
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950">
+                  {runtime.filteredDescriptors.length}
+                </div>
+                <div className="mt-1 text-sm leading-6 text-slate-600">
+                  当前筛选后可直接进入的做法数量。
+                </div>
+              </div>
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
+                  最近继续
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-slate-950">
+                  {runtime.recentVisits.length}
+                </div>
+                <div className="mt-1 text-sm leading-6 text-slate-600">
+                  最近看过的做法会保留上下文，方便直接续上。
+                </div>
+              </div>
+              <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
+                  当前焦点
+                </div>
+                <div className="mt-2 text-base font-semibold text-slate-950">
+                  {runtime.selectedDescriptor?.title ?? "先选一套做法"}
+                </div>
+                <div className="mt-1 text-sm leading-6 text-slate-600">
+                  {runtime.selectedDescriptor?.summary ??
+                    "选中后会继续带你进入生成准备或做法复盘。"}
+                </div>
+              </div>
+            </div>
 
           {runtime.catalogError ? (
             <div className="text-sm leading-6 text-amber-700">
@@ -98,8 +139,8 @@ export function SceneAppsPage({
             </div>
           ) : null}
 
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="space-y-4 border-t border-slate-100 pt-5">
+              <div className="grid gap-3 lg:grid-cols-3">
               {VIEW_OPTIONS.map((option) => {
                 const active = runtime.viewMode === option.key;
                 return (
@@ -109,65 +150,90 @@ export function SceneAppsPage({
                     data-testid={`sceneapps-view-${option.key}`}
                     className={
                       active
-                        ? "text-sm font-semibold text-slate-950"
-                        : "text-sm font-medium text-slate-500 transition-colors hover:text-slate-900"
+                        ? "rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] px-4 py-4 text-left shadow-sm shadow-emerald-950/10"
+                        : "rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4 text-left transition-colors hover:border-slate-300 hover:bg-white"
                     }
                     onClick={() => runtime.handleViewModeChange(option.key)}
                   >
-                    {option.label}
+                    <div
+                      className={
+                        active
+                          ? "text-sm font-semibold text-slate-950"
+                          : "text-sm font-semibold text-slate-800"
+                      }
+                    >
+                      {option.label}
+                    </div>
+                    <div className="mt-1 text-sm leading-6 text-slate-500">
+                      {option.summary}
+                    </div>
                   </button>
                 );
               })}
+              </div>
+              {runtime.launchInput.trim() ||
+              runtime.selectedReferenceMemoryIds.length > 0 ? (
+                <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/70 px-4 py-4 text-sm leading-6 text-emerald-900">
+                  <div className="text-[11px] font-semibold tracking-[0.08em] text-emerald-700">
+                    当前已带入
+                  </div>
+                  {runtime.selectedReferenceMemoryIds.length > 0 ? (
+                    <div className="mt-2">
+                      <span className="font-medium">灵感对象：</span>
+                      {runtime.selectedReferenceMemoryIds.length}
+                      条，后续 planning 会把它们编译成正式参考对象。
+                    </div>
+                  ) : null}
+                  {runtime.launchInput.trim() ? (
+                    <div className="mt-1">
+                      <span className="font-medium">启动意图：</span>
+                      {runtime.launchInput}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {runtime.selectedDescriptor ? (
+                <div className="rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
+                        当前做法
+                      </div>
+                      <div className="mt-2 text-base font-semibold text-slate-950">
+                        {runtime.selectedDescriptor.title}
+                      </div>
+                      <div className="mt-1 text-sm leading-6 text-slate-600">
+                        {runtime.selectedDescriptor.summary}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        data-testid="sceneapps-open-detail"
+                        className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
+                        onClick={() => runtime.handleViewModeChange("detail")}
+                      >
+                        去做法准备
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="sceneapps-open-governance"
+                        className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
+                        onClick={() =>
+                          runtime.runListItems.length > 0
+                            ? runtime.handleViewModeChange("governance")
+                            : runtime.handleViewModeChange("detail")
+                        }
+                      >
+                        {runtime.runListItems.length > 0
+                          ? "去做法复盘"
+                          : "先去生成准备"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
-            <p className="text-sm leading-6 text-slate-500">
-              {VIEW_OPTIONS.find((option) => option.key === runtime.viewMode)
-                ?.summary ?? "按分页方式浏览创作场景。"}
-            </p>
-            {runtime.launchInput.trim() ||
-            runtime.selectedReferenceMemoryIds.length > 0 ? (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm leading-6 text-emerald-900">
-                {runtime.selectedReferenceMemoryIds.length > 0 ? (
-                  <div>
-                    <span className="font-medium">已带入灵感对象：</span>
-                    {runtime.selectedReferenceMemoryIds.length} 条，后续
-                    planning 会把它们编译成正式参考对象。
-                  </div>
-                ) : null}
-                {runtime.launchInput.trim() ? (
-                  <div>
-                    <span className="font-medium">已带入灵感输入：</span>
-                    {runtime.launchInput}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {runtime.selectedDescriptor ? (
-              <div className="flex flex-wrap items-center gap-3 text-sm leading-6 text-slate-600">
-                <span className="font-medium text-slate-900">当前场景：</span>
-                <span>{runtime.selectedDescriptor.title}</span>
-                <span>{runtime.selectedDescriptor.summary}</span>
-                <button
-                  type="button"
-                  data-testid="sceneapps-open-detail"
-                  className="font-medium text-slate-700 transition-colors hover:text-slate-950"
-                  onClick={() => runtime.handleViewModeChange("detail")}
-                >
-                  查看准备
-                </button>
-                <button
-                  type="button"
-                  data-testid="sceneapps-open-governance"
-                  className="font-medium text-slate-700 transition-colors hover:text-slate-950"
-                  onClick={() =>
-                    runtime.runListItems.length > 0
-                      ? runtime.handleViewModeChange("governance")
-                      : runtime.handleViewModeChange("detail")
-                  }
-                >
-                  {runtime.runListItems.length > 0 ? "查看治理" : "进入生成"}
-                </button>
-              </div>
-            ) : null}
           </div>
         </section>
 
@@ -192,16 +258,16 @@ export function SceneAppsPage({
         {runtime.viewMode === "detail" ? (
           hasNoCatalogSelection ? (
             <SceneAppsPageEmptyState
-              eyebrow="SCENE DETAIL"
+              eyebrow="做法准备"
               title={
                 runtime.filteredDescriptors.length === 0
-                  ? "当前筛选后还没有可进入准备页的创作场景"
-                  : "先从场景目录选择一条创作场景"
+                  ? "当前筛选后还没有可进入准备页的整套做法"
+                  : "先从做法目录选择一套做法"
               }
               description={
                 runtime.filteredDescriptors.length === 0
-                  ? "准备页只承接已经选中的创作场景。当前搜索条件下没有匹配项，先回目录放宽筛选，再决定要进入哪条场景的生成准备页。"
-                  : "生成准备页会集中显示启动前置、交付合同、上下文基线和经营口径。先回到场景目录选中一条创作场景，再继续补启动输入并进入生成。"
+                  ? "准备页只承接已经选中的整套做法。当前搜索条件下没有匹配项，先回目录放宽筛选，再决定要进入哪套做法的生成准备页。"
+                  : "生成准备页会集中显示启动前确认项、结果约定、这轮带入对象和默认判断标准。先回到做法目录选中一套做法，再继续补启动输入并进入生成。"
               }
               detail={
                 hasActiveCatalogFilters
@@ -209,7 +275,7 @@ export function SceneAppsPage({
                   : undefined
               }
               primaryAction={{
-                label: "回到场景目录",
+                label: "回到做法目录",
                 onClick: () => runtime.handleViewModeChange("catalog"),
                 testId: "sceneapps-empty-open-catalog",
               }}
@@ -269,16 +335,16 @@ export function SceneAppsPage({
         {runtime.viewMode === "governance" ? (
           hasNoCatalogSelection ? (
             <SceneAppsPageEmptyState
-              eyebrow="SCENE GOVERNANCE"
+              eyebrow="做法复盘"
               title={
                 runtime.filteredDescriptors.length === 0
-                  ? "当前筛选后还没有可进入治理复盘的创作场景"
-                  : "先从场景目录选择一条创作场景"
+                  ? "当前筛选后还没有可进入做法复盘的整套做法"
+                  : "先从做法目录选择一套做法"
               }
               description={
                 runtime.filteredDescriptors.length === 0
-                  ? "治理分页只处理已经选中的创作场景。当前搜索条件下没有匹配项，先回目录放宽筛选，再决定要看哪条场景的运行与治理材料。"
-                  : "治理分页会集中展示最近运行、证据材料和放量判断。先回到场景目录选一条创作场景，再继续查看治理复盘。"
+                  ? "做法复盘只处理已经选中的整套做法。当前搜索条件下没有匹配项，先回目录放宽筛选，再决定要看哪套做法的运行与复盘材料。"
+                  : "做法复盘会集中展示最近运行、证据材料和放量判断。先回到做法目录选一套做法，再继续查看做法复盘。"
               }
               detail={
                 hasActiveCatalogFilters
@@ -286,7 +352,7 @@ export function SceneAppsPage({
                   : undefined
               }
               primaryAction={{
-                label: "回到场景目录",
+                label: "回到做法目录",
                 onClick: () => runtime.handleViewModeChange("catalog"),
                 testId: "sceneapps-governance-open-catalog",
               }}
@@ -302,17 +368,17 @@ export function SceneAppsPage({
             />
           ) : shouldShowGovernanceFirstRunEmpty ? (
             <SceneAppsPageEmptyState
-              eyebrow="GOVERNANCE FIRST RUN"
-              title="这条创作场景还没有首轮治理样本"
-              description="治理分页只有在至少完成一轮正式运行后，才会回流最近运行、证据材料和复核判断。当前更适合先去详情页补齐项目与启动意图，跑出第一轮结果包。"
-              detail="首轮结果跑出来之后，再回到这里查看运行记录、治理动作和放量判断。"
+              eyebrow="首轮复盘前"
+              title="这套做法还没有首轮治理样本"
+              description="做法复盘只有在至少完成一轮正式运行后，才会回流最近运行、证据材料和复核判断。当前更适合先去详情页补齐项目与启动意图，跑出第一轮结果包。"
+              detail="首轮结果跑出来之后，再回到这里查看运行记录、复盘动作和放量判断。"
               primaryAction={{
-                label: "回到场景详情启动",
+                label: "回到做法准备",
                 onClick: () => runtime.handleViewModeChange("detail"),
                 testId: "sceneapps-governance-open-detail",
               }}
               secondaryAction={{
-                label: "返回场景目录换场景",
+                label: "返回做法目录换一套",
                 onClick: () => runtime.handleViewModeChange("catalog"),
                 testId: "sceneapps-governance-open-catalog",
               }}

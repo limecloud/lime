@@ -1,7 +1,8 @@
 /**
  * 全局应用侧边栏
  *
- * 参考生成主执行面信息架构：任务、工作台、能力、资料库、系统入口分层展示
+ * 参考 LimeNext V2 current IA：任务 / 能力 / 资料 / 系统 四段式导航，
+ * 默认只暴露主线入口，历史系统面收回到显式开启的隐藏项。
  */
 
 import { useState, useEffect, useMemo, useRef, type ReactElement } from "react";
@@ -20,7 +21,7 @@ import {
 import * as LucideIcons from "lucide-react";
 import { getPluginsForSurface, PluginUIInfo } from "@/lib/api/pluginUI";
 import { AgentPageParams, Page, PageParams } from "@/types/page";
-import { getConfig } from "@/lib/api/appConfig";
+import { getConfig, subscribeAppConfigChanged } from "@/lib/api/appConfig";
 import {
   buildHomeAgentParams,
 } from "@/lib/workspace/navigation";
@@ -55,7 +56,7 @@ type SidebarNavItem = SidebarNavItemDefinition;
 type SidebarNavSection = SidebarNavSectionDefinition;
 
 const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
-const APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY = "lime.app-sidebar.enabled-items";
+const SIDEBAR_PLUGIN_CENTER_NAV_ITEM_ID = "plugins";
 const SIDEBAR_PLUGIN_IDLE_TIMEOUT_MS = 1200;
 const SIDEBAR_PLUGIN_BROWSER_IDLE_TIMEOUT_MS = 6000;
 
@@ -112,45 +113,6 @@ function isSameSidebarNavigationTarget(
   return (
     target.page === page && target.paramsKey === serializeNavigationParams(params)
   );
-}
-
-function readCachedEnabledNavItems(): string[] {
-  if (typeof window === "undefined") {
-    return [...DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(
-      APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
-    );
-    if (!raw) {
-      return [...DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS];
-    }
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [...DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS];
-    }
-
-    return resolveEnabledSidebarNavItems(parsed);
-  } catch {
-    return [...DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS];
-  }
-}
-
-function persistEnabledNavItems(items: string[]): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(
-      APP_SIDEBAR_ENABLED_ITEMS_STORAGE_KEY,
-      JSON.stringify(items),
-    );
-  } catch {
-    // ignore
-  }
 }
 
 const Container = styled.aside<{
@@ -559,8 +521,9 @@ export function AppSidebar({
     return "light";
   });
 
-  const [enabledNavItems, setEnabledNavItems] =
-    useState<string[]>(readCachedEnabledNavItems);
+  const [enabledNavItems, setEnabledNavItems] = useState<string[]>(
+    DEFAULT_ENABLED_SIDEBAR_NAV_ITEM_IDS,
+  );
   const [sidebarPlugins, setSidebarPlugins] = useState<PluginUIInfo[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>(() =>
@@ -578,7 +541,6 @@ export function AppSidebar({
           config.navigation?.enabled_items,
         );
         setEnabledNavItems(resolvedItems);
-        persistEnabledNavItems(resolvedItems);
       } catch (error) {
         console.error("加载配置失败:", error);
       }
@@ -586,15 +548,9 @@ export function AppSidebar({
 
     loadNavConfig();
 
-    const handleConfigChange = () => {
-      loadNavConfig();
-    };
-
-    window.addEventListener("nav-config-changed", handleConfigChange);
-
-    return () => {
-      window.removeEventListener("nav-config-changed", handleConfigChange);
-    };
+    return subscribeAppConfigChanged(() => {
+      void loadNavConfig();
+    });
   }, []);
 
   const filteredMainSections = useMemo<SidebarNavSection[]>(() => {
@@ -618,6 +574,11 @@ export function AppSidebar({
   }, [enabledNavItems]);
 
   useEffect(() => {
+    if (!enabledNavItems.includes(SIDEBAR_PLUGIN_CENTER_NAV_ITEM_ID)) {
+      setSidebarPlugins([]);
+      return;
+    }
+
     let cancelled = false;
 
     const loadSidebarPlugins = async (forceRefresh = false) => {
@@ -648,7 +609,7 @@ export function AppSidebar({
       cancelled = true;
       cancelScheduledLoad();
     };
-  }, [refreshTrigger]);
+  }, [enabledNavItems, refreshTrigger]);
 
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
@@ -718,6 +679,9 @@ export function AppSidebar({
       };
     });
   }, [sidebarPlugins]);
+  const shouldShowPluginExtensionsSection =
+    enabledNavItems.includes(SIDEBAR_PLUGIN_CENTER_NAV_ITEM_ID) &&
+    assistantItems.length > 0;
 
   const isActive = (item: SidebarNavItem): boolean => {
     if (item.children && item.children.length > 0) {
@@ -781,17 +745,6 @@ export function AppSidebar({
     const target = resolveSidebarNavigationTarget(item);
 
     if (!target) {
-      return;
-    }
-
-    if (
-      isActive(item) &&
-      isSameSidebarNavigationTarget(
-        requestedNavigationTargetRef.current,
-        activeNavigationTarget.page,
-        activeNavigationTarget.rawParams,
-      )
-    ) {
       return;
     }
 
@@ -953,9 +906,9 @@ export function AppSidebar({
             </Section>
           ))}
 
-          {assistantItems.length > 0 && (
+          {shouldShowPluginExtensionsSection && (
             <Section $collapsed={collapsed}>
-              <SectionTitle $collapsed={collapsed}>助手</SectionTitle>
+              <SectionTitle $collapsed={collapsed}>插件扩展</SectionTitle>
               {assistantItems.map((item) => renderNavItem(item))}
             </Section>
           )}

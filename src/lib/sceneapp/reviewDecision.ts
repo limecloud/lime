@@ -51,12 +51,12 @@ export function buildSceneAppQuickReviewDecisionRequest(params: {
   sourceLabel?: string;
 }): AgentRuntimeSaveReviewDecisionRequest {
   const sceneLabel = params.sceneTitle?.trim()
-    ? `创作场景「${params.sceneTitle.trim()}」`
-    : "当前创作场景";
+    ? `做法「${params.sceneTitle.trim()}」`
+    : "当前做法";
   const riskTags = params.failureSignal?.trim()
     ? [params.failureSignal.trim()]
     : [];
-  const sourceLabel = params.sourceLabel?.trim() || "创作场景";
+  const sourceLabel = params.sourceLabel?.trim() || "整套做法";
 
   switch (params.action.key) {
     case "accepted":
@@ -64,7 +64,7 @@ export function buildSceneAppQuickReviewDecisionRequest(params: {
         session_id: params.template.session_id,
         decision_status: "accepted",
         decision_summary: `${sceneLabel} 这轮结果可继续复用。`,
-        chosen_fix_strategy: "沿当前参考、风格与结果包基线继续放量。",
+        chosen_fix_strategy: "沿当前参考、风格与这轮结果基线继续放量。",
         risk_level: "low",
         risk_tags: riskTags,
         human_reviewer: params.template.decision.human_reviewer,
@@ -84,7 +84,7 @@ export function buildSceneAppQuickReviewDecisionRequest(params: {
         risk_tags: riskTags,
         human_reviewer: params.template.decision.human_reviewer,
         reviewed_at: undefined,
-        followup_actions: ["补下一轮样本，再回到治理页复盘。"],
+        followup_actions: ["补下一轮样本，再回到做法复盘继续判断。"],
         regression_requirements:
           params.template.decision.regression_requirements,
         notes: `来自${sourceLabel}轻量反馈入口。`,
@@ -109,12 +109,12 @@ export function buildSceneAppQuickReviewDecisionRequest(params: {
         session_id: params.template.session_id,
         decision_status: "rejected",
         decision_summary: `${sceneLabel} 当前结果暂不建议继续复用。`,
-        chosen_fix_strategy: "先修主卡点，再重新启动这条创作场景。",
+        chosen_fix_strategy: "先修主卡点，再重新启动这套做法。",
         risk_level: "high",
         risk_tags: riskTags,
         human_reviewer: params.template.decision.human_reviewer,
         reviewed_at: undefined,
-        followup_actions: ["先修主要阻塞，再重新启动场景。"],
+        followup_actions: ["先修主要阻塞，再重新启动这套做法。"],
         regression_requirements:
           params.template.decision.regression_requirements,
         notes: `来自${sourceLabel}轻量反馈入口。`,

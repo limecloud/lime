@@ -1,5 +1,4 @@
 import {
-  createContent,
   deleteContent,
   getContent,
   listContents,
@@ -244,39 +243,6 @@ export const fetchProjectResources = async (
   );
 
   return [...contentResources, ...materialResources];
-};
-
-export const createFolderResource = async (
-  projectId: string,
-  name: string,
-  parentId: string | null,
-): Promise<void> => {
-  await createContent({
-    project_id: projectId,
-    title: name,
-    content_type: "document",
-    metadata: {
-      parentId,
-      resourceKind: "folder",
-    },
-  });
-};
-
-export const createDocumentResource = async (
-  projectId: string,
-  name: string,
-  parentId: string | null,
-): Promise<void> => {
-  await createContent({
-    project_id: projectId,
-    title: name,
-    content_type: "document",
-    body: "",
-    metadata: {
-      parentId,
-      resourceKind: "document",
-    },
-  });
 };
 
 export const renameResource = async (

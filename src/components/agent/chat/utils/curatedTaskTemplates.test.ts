@@ -1,10 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   findCuratedTaskTemplateById,
+  recordCuratedTaskTemplateUsage,
   resolveCuratedTaskFollowUpActionTarget,
+  subscribeCuratedTaskTemplateUsageChanged,
 } from "./curatedTaskTemplates";
 
 describe("curatedTaskTemplates", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("复盘模板的下游动作应能路由到正确的结果模板", () => {
     const resolved = resolveCuratedTaskFollowUpActionTarget({
       taskId: "account-project-review",
@@ -24,5 +30,20 @@ describe("curatedTaskTemplates", () => {
         action: "继续展开其中一个选题",
       }),
     ).toBeNull();
+  });
+
+  it("记录 recent usage 时应发出统一 changed 事件", () => {
+    const callback = vi.fn();
+    const unsubscribe = subscribeCuratedTaskTemplateUsageChanged(callback);
+
+    recordCuratedTaskTemplateUsage({
+      templateId: "daily-trend-briefing",
+      launchInputValues: {
+        theme_target: "AI 内容创作",
+      },
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    unsubscribe();
   });
 });

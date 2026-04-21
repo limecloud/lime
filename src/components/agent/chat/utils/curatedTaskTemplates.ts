@@ -92,6 +92,8 @@ interface CuratedTaskTemplateUsageRecord {
 const CURATED_TASK_TEMPLATE_USAGE_STORAGE_KEY =
   "lime:curated-task-template-usage:v2";
 const MAX_CURATED_TASK_TEMPLATE_USAGE_RECORDS = 12;
+export const CURATED_TASK_TEMPLATE_USAGE_CHANGED_EVENT =
+  "lime:curated-task-template-usage-changed";
 
 export interface CuratedTaskTemplateLaunchPrefill {
   inputValues?: CuratedTaskInputValues;
@@ -544,6 +546,50 @@ function getCuratedTaskTemplateUsageMap(): Map<
   );
 }
 
+function emitCuratedTaskTemplateUsageChanged(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(CURATED_TASK_TEMPLATE_USAGE_CHANGED_EVENT),
+  );
+}
+
+export function subscribeCuratedTaskTemplateUsageChanged(
+  callback: () => void,
+): () => void {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const customEventHandler = () => {
+    callback();
+  };
+
+  const storageHandler = (event: StorageEvent) => {
+    if (event.key !== CURATED_TASK_TEMPLATE_USAGE_STORAGE_KEY) {
+      return;
+    }
+
+    callback();
+  };
+
+  window.addEventListener(
+    CURATED_TASK_TEMPLATE_USAGE_CHANGED_EVENT,
+    customEventHandler,
+  );
+  window.addEventListener("storage", storageHandler);
+
+  return () => {
+    window.removeEventListener(
+      CURATED_TASK_TEMPLATE_USAGE_CHANGED_EVENT,
+      customEventHandler,
+    );
+    window.removeEventListener("storage", storageHandler);
+  };
+}
+
 export function resolveCuratedTaskTemplateLaunchPrefill(
   task:
     | Pick<CuratedTaskTemplateItem, "id" | "title">
@@ -673,6 +719,72 @@ export function summarizeCuratedTaskFollowUpActions(
   limit = 2,
 ): string {
   return summarizeCuratedTaskFactItems(task.followUpActions, limit);
+}
+
+function summarizeCuratedTaskRecentValue(
+  value: string,
+  maxLength = 36,
+): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength).trimEnd()}...`;
+}
+
+export function buildCuratedTaskRecentUsageDescription(params: {
+  task: Pick<CuratedTaskTemplateItem, "requiredInputFields">;
+  prefill?: CuratedTaskTemplateLaunchPrefill | null;
+  fieldLimit?: number;
+}): string {
+  const fieldLimit = params.fieldLimit ?? 2;
+  const launchInputSummaryItems = params.task.requiredInputFields
+    .map((field) => {
+      const rawValue = params.prefill?.inputValues?.[field.key];
+      const normalizedValue = normalizeCuratedTaskInputValue(rawValue);
+      if (!normalizedValue) {
+        return null;
+      }
+
+      return `${field.label}=${summarizeCuratedTaskRecentValue(
+        normalizedValue,
+      )}`;
+    })
+    .filter((item): item is string => Boolean(item));
+
+  const segments: string[] = [];
+
+  if (launchInputSummaryItems.length > 0) {
+    const visibleItems = launchInputSummaryItems.slice(0, fieldLimit);
+    segments.push(
+      `上次填写：${visibleItems.join("；")}${
+        launchInputSummaryItems.length > fieldLimit
+          ? ` 等 ${launchInputSummaryItems.length} 项`
+          : ""
+      }`,
+    );
+  }
+
+  const referenceEntries =
+    mergeCuratedTaskReferenceEntries(params.prefill?.referenceEntries ?? []);
+  if (referenceEntries.length > 0) {
+    const referenceTitles = referenceEntries
+      .map((entry) => entry.title.trim())
+      .filter((title) => title.length > 0);
+    const visibleTitles = referenceTitles.slice(0, fieldLimit);
+    segments.push(
+      visibleTitles.length > 0
+        ? `参考：${visibleTitles.join("；")}${
+            referenceTitles.length > fieldLimit
+              ? ` 等 ${referenceTitles.length} 条`
+              : ""
+          }`
+        : `参考：${referenceEntries.length} 条参考对象`,
+    );
+  }
+
+  return segments.join(" · ");
 }
 
 export function buildCuratedTaskFollowUpDescription(
@@ -1187,6 +1299,7 @@ export function recordCuratedTaskTemplateUsage(
       CURATED_TASK_TEMPLATE_USAGE_STORAGE_KEY,
       JSON.stringify(nextRecords),
     );
+    emitCuratedTaskTemplateUsageChanged();
   } catch {
     // ignore write errors
   }

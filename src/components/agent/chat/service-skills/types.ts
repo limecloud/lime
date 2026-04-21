@@ -65,14 +65,6 @@ export interface ServiceSkillAutomationLinkRecord {
   linkedAt: number;
 }
 
-export interface ServiceSkillCloudRunStatus {
-  runId: string;
-  statusLabel: string;
-  tone: ServiceSkillTone;
-  detail: string | null;
-  updatedAt: number;
-}
-
 export interface ServiceSkillHomeItem extends ServiceSkillItem {
   groupKey?: string;
   executionKind?: SkillCatalogExecutionKind;
@@ -84,7 +76,6 @@ export interface ServiceSkillHomeItem extends ServiceSkillItem {
   runnerDescription: string;
   actionLabel: string;
   automationStatus: ServiceSkillAutomationStatus | null;
-  cloudStatus?: ServiceSkillCloudRunStatus | null;
 }
 
 export interface ServiceSkillCatalogMeta {
@@ -102,6 +93,7 @@ export interface ServiceSkillUsageRecord {
   usedAt: number;
   runnerType: ServiceSkillRunnerType;
   slotValues?: ServiceSkillSlotValues;
+  launchUserInput?: string;
 }
 
 export interface RecordServiceSkillUsageInput {
@@ -109,4 +101,5 @@ export interface RecordServiceSkillUsageInput {
   usedAt?: number;
   runnerType: ServiceSkillRunnerType;
   slotValues?: ServiceSkillSlotValues;
+  launchUserInput?: string;
 }

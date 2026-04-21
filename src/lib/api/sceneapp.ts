@@ -3,11 +3,13 @@ import type { AutomationCycleResult } from "./automation";
 import type {
   SceneAppCatalog,
   SceneAppAutomationIntent,
+  SceneAppBindingFamily,
   SceneAppDescriptor,
   SceneAppGovernanceArtifactKind,
   SceneAppLaunchIntent,
   SceneAppPlanResult,
   SceneAppRunSummary,
+  SceneAppRuntimeAction,
   SceneAppScorecard,
 } from "@/lib/sceneapp";
 
@@ -18,7 +20,7 @@ export type {
   ReferenceItem,
   SceneAppBrowserRuntimeRef,
   SceneAppCatalog,
-  SceneAppCloudSceneRuntimeRef,
+  SceneAppServiceSceneRuntimeRef,
   SceneAppContextOverlay,
   SceneAppAutomationIntent,
   SceneAppDeliveryContract,
@@ -43,26 +45,141 @@ export type {
   TasteProfile,
 } from "@/lib/sceneapp";
 
+function dedupeStrings(values: Array<string | undefined>): string[] {
+  return Array.from(
+    new Set(
+      values
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function normalizeCompatSceneAppBindingFamily(
+  bindingFamily: SceneAppBindingFamily,
+): SceneAppBindingFamily {
+  return bindingFamily === "cloud_scene" ? "agent_turn" : bindingFamily;
+}
+
+function normalizeCompatSceneAppCapabilityRef(capabilityRef: string): string {
+  return capabilityRef === "cloud_scene" ? "agent_turn" : capabilityRef;
+}
+
+function normalizeCompatSceneAppRuntimeAction(
+  runtimeAction: SceneAppRuntimeAction,
+): SceneAppRuntimeAction {
+  return runtimeAction === "launch_cloud_scene"
+    ? "open_service_scene_session"
+    : runtimeAction;
+}
+
+function normalizeSceneAppDescriptor(
+  descriptor: SceneAppDescriptor,
+): SceneAppDescriptor {
+  const capabilityRefs = Array.isArray(descriptor.capabilityRefs)
+    ? descriptor.capabilityRefs
+    : [];
+  const infraProfile = Array.isArray(descriptor.infraProfile)
+    ? descriptor.infraProfile
+    : [];
+  const entryBindings = Array.isArray(descriptor.entryBindings)
+    ? descriptor.entryBindings
+    : [];
+  const compositionSteps = Array.isArray(descriptor.compositionProfile?.steps)
+    ? descriptor.compositionProfile.steps
+    : [];
+
+  return {
+    ...descriptor,
+    capabilityRefs: dedupeStrings(
+      capabilityRefs.map(normalizeCompatSceneAppCapabilityRef),
+    ),
+    infraProfile: dedupeStrings(
+      infraProfile
+        .filter((item) => item !== "cloud_runtime")
+        .map(normalizeCompatSceneAppCapabilityRef),
+    ),
+    entryBindings: entryBindings.map((binding) => ({
+      ...binding,
+      bindingFamily: normalizeCompatSceneAppBindingFamily(
+        binding.bindingFamily,
+      ),
+    })),
+    compositionProfile: descriptor.compositionProfile
+      ? {
+          ...descriptor.compositionProfile,
+          steps: compositionSteps.map((step) => ({
+            ...step,
+            bindingFamily: step.bindingFamily
+              ? normalizeCompatSceneAppBindingFamily(step.bindingFamily)
+              : undefined,
+          })),
+        }
+      : undefined,
+  };
+}
+
+function normalizeSceneAppPlanResult(result: SceneAppPlanResult): SceneAppPlanResult {
+  return {
+    ...result,
+    descriptor: normalizeSceneAppDescriptor(result.descriptor),
+    plan: {
+      ...result.plan,
+      executorKind: normalizeCompatSceneAppBindingFamily(result.plan.executorKind),
+      bindingFamily: normalizeCompatSceneAppBindingFamily(result.plan.bindingFamily),
+      stepPlan: result.plan.stepPlan.map((step) => ({
+        ...step,
+        bindingFamily: normalizeCompatSceneAppBindingFamily(step.bindingFamily),
+      })),
+      adapterPlan: {
+        ...result.plan.adapterPlan,
+        adapterKind: normalizeCompatSceneAppBindingFamily(
+          result.plan.adapterPlan.adapterKind,
+        ),
+        runtimeAction: normalizeCompatSceneAppRuntimeAction(
+          result.plan.adapterPlan.runtimeAction,
+        ),
+      },
+    },
+  };
+}
+
 export async function listSceneAppCatalog(): Promise<SceneAppCatalog> {
-  return safeInvoke("sceneapp_list_catalog");
+  const catalog = await safeInvoke<SceneAppCatalog>("sceneapp_list_catalog");
+  return {
+    ...catalog,
+    items: catalog.items.map(normalizeSceneAppDescriptor),
+  };
 }
 
 export async function getSceneAppDescriptor(
   id: string,
 ): Promise<SceneAppDescriptor | null> {
-  return safeInvoke("sceneapp_get_descriptor", { id });
+  const descriptor = await safeInvoke<SceneAppDescriptor | null>(
+    "sceneapp_get_descriptor",
+    { id },
+  );
+  return descriptor ? normalizeSceneAppDescriptor(descriptor) : null;
 }
 
 export async function planSceneAppLaunch(
   intent: SceneAppLaunchIntent,
 ): Promise<SceneAppPlanResult> {
-  return safeInvoke("sceneapp_plan_launch", { intent });
+  const result = await safeInvoke<SceneAppPlanResult>("sceneapp_plan_launch", {
+    intent,
+  });
+  return normalizeSceneAppPlanResult(result);
 }
 
 export async function saveSceneAppContextBaseline(
   intent: SceneAppLaunchIntent,
 ): Promise<SceneAppPlanResult> {
-  return safeInvoke("sceneapp_save_context_baseline", { intent });
+  const result = await safeInvoke<SceneAppPlanResult>(
+    "sceneapp_save_context_baseline",
+    { intent },
+  );
+  return normalizeSceneAppPlanResult(result);
 }
 
 export type SceneAppAutomationRunResult = AutomationCycleResult;

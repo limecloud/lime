@@ -318,8 +318,8 @@ npm run test:contracts
 1. 在 `Claw` 对话框输入 `@配音 目标语言: 英文 风格: 科技感 给这个新品视频做一版发布配音稿`
 2. 确认聊天区保留原始 `@配音 ...` 文本，而不是被改写成 slash scene 或其它内部协议
 3. 如页面可查看发送详情或运行时摘要，确认 `request_metadata.harness.service_scene_launch.service_scene_run.scene_key=voice_runtime`，并且 `skill_id` 已绑定到当前可用的配音 service skill
-4. 确认首刀进入 `lime_run_service_skill` 主链，而不是普通聊天解释、站点型 `lime_site_run`，或旧的本地 TTS 测试命令
-5. 如果当前 OEM 云端会话缺失，确认界面明确提示需要登录 / 注入会话，而不是伪造“配音已完成”
+4. 确认首轮执行直接依据 `service_scene_launch` 进入本地 service-scene 主链，而不是普通聊天解释、站点型 `lime_site_run`，或旧的本地 TTS 测试命令
+5. 确认界面与时间线不会再把 `scene_base_url / session_token / OEM 云会话` 当作 current 执行前提，也不会伪造“配音已提交云端”
 6. 刷新页面或切换会话后再返回原话题，确认该配音任务的时间线与最近使用状态仍可恢复
 
 ### Claw `@浏览器` 真实浏览器任务验证
@@ -386,7 +386,7 @@ npm run test:contracts
 1. 进入 `Claw` 对话框，确认当前租户目录里存在一个 `entries.kind=scene` 的场景，例如 `/daily-trend-brief`
 2. 输入 `/daily-trend-brief 帮我整理今天的小红书趋势赛题`
 3. 确认聊天区先出现正常的用户消息，再进入 Agent 执行态，而不是前端静默直接提交云端 run
-4. 打开时间线，确认首个执行器是 `lime_run_service_skill`，而不是前端本地直接产出结果卡
+4. 打开时间线，确认执行链落在本地 service-scene / tool timeline，而不是前端本地直接产出结果卡或旧 `lime_run_service_skill` compat 桥
 5. 如当前 OEM 会话可用，确认工具结果会回流 run 状态或摘要；若当前会话缺失，确认聊天区明确提示需要登录或注入会话，而不是伪造成功
 6. 未命中 scene 目录时，确认 `/unknown-scene ...` 仍回到普通 slash / Codex 流程，不会被误报为本地技能异常
 7. 如果当前 scene 绑定的是站点型 skill，例如 `/x文章转存 https://x.com/.../article/...`，确认 slash 菜单可见后仍能成功解析到底层 site skill，而不是因为首页未暴露 site skill 就在发送时失配

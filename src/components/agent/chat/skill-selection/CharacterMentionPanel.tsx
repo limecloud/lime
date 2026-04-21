@@ -48,7 +48,9 @@ interface CharacterMentionPanelProps {
   projectId?: string | null;
   sessionId?: string | null;
   referenceEntries?: CuratedTaskReferenceEntry[];
+  curatedTaskTemplatesVersion?: number;
   curatedTaskRecommendationSignalsVersion?: number;
+  mentionEntryUsageVersion?: number;
   slashEntryUsageVersion?: number;
   commandRef: React.RefObject<HTMLDivElement>;
   onQueryChange: (query: string) => void;
@@ -97,7 +99,9 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   projectId,
   sessionId,
   referenceEntries = [],
+  curatedTaskTemplatesVersion = 0,
   curatedTaskRecommendationSignalsVersion = 0,
+  mentionEntryUsageVersion = 0,
   slashEntryUsageVersion = 0,
   commandRef,
   onQueryChange,
@@ -113,7 +117,9 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
 }) => {
   const sections = React.useMemo(
     () => {
+      void curatedTaskTemplatesVersion;
       void curatedTaskRecommendationSignalsVersion;
+      void mentionEntryUsageVersion;
       void slashEntryUsageVersion;
       return buildInputCapabilitySections({
         mode,
@@ -134,9 +140,11 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
     [
       availableSkills,
       builtinCommands,
+      curatedTaskTemplatesVersion,
       curatedTaskRecommendationSignalsVersion,
       filteredCharacters,
       installedSkills,
+      mentionEntryUsageVersion,
       mentionQuery,
       mentionServiceSkills,
       mode,

@@ -131,7 +131,7 @@ describe("appConfig API", () => {
   it("getConfig 应缓存并复用同一轮读取结果", async () => {
     vi.mocked(safeInvoke).mockResolvedValueOnce({
       default_provider: "claude",
-      navigation: { enabled_items: ["agent"] },
+      navigation: { enabled_items: ["plugins"] },
     });
 
     const [first, second] = await Promise.all([getConfig(), getConfig()]);
@@ -151,14 +151,14 @@ describe("appConfig API", () => {
 
     const nextConfig = {
       default_provider: "kiro",
-      navigation: { enabled_items: ["agent", "plugins"] },
+      navigation: { enabled_items: ["plugins", "companion"] },
     } as never;
 
     await expect(saveConfig(nextConfig)).resolves.toBeUndefined();
     await expect(getConfig()).resolves.toEqual(
       expect.objectContaining({
         default_provider: "kiro",
-        navigation: { enabled_items: ["agent", "plugins"] },
+        navigation: { enabled_items: ["plugins", "companion"] },
       }),
     );
 
@@ -169,7 +169,7 @@ describe("appConfig API", () => {
     vi.mocked(safeInvoke)
       .mockResolvedValueOnce({
         default_provider: "claude",
-        navigation: { enabled_items: ["agent"] },
+        navigation: { enabled_items: ["plugins"] },
       })
       .mockResolvedValueOnce("gemini");
 
@@ -186,12 +186,12 @@ describe("appConfig API", () => {
     vi.mocked(safeInvoke)
       .mockResolvedValueOnce({
         default_provider: "claude",
-        navigation: { enabled_items: ["agent"] },
+        navigation: { enabled_items: ["plugins"] },
       })
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
         default_provider: "openai",
-        navigation: { enabled_items: ["agent", "plugins"] },
+        navigation: { enabled_items: ["plugins", "openclaw"] },
       });
 
     await getConfig();
@@ -199,7 +199,7 @@ describe("appConfig API", () => {
     await expect(getConfig()).resolves.toEqual(
       expect.objectContaining({
         default_provider: "openai",
-        navigation: { enabled_items: ["agent", "plugins"] },
+        navigation: { enabled_items: ["plugins", "openclaw"] },
       }),
     );
 

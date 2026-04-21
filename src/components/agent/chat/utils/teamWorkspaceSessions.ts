@@ -173,7 +173,7 @@ export function buildOrchestratorSession(
     name: currentSessionName?.trim() || TEAM_WORKSPACE_MAIN_ASSISTANT_LABEL,
     runtimeStatus: currentSessionRuntimeStatus,
     taskSummary:
-      "当前主任务会负责拆解任务、安排处理顺序，并把各部分结果汇总到同一份内容里。",
+      "当前主助手会负责拆解任务、安排处理顺序，并把各部分结果汇总到同一份内容里。",
     roleHint: "orchestrator",
     sessionType: "user",
     isCurrent: true,
@@ -492,10 +492,10 @@ export function buildFallbackSummary(params: {
     return "还没有任务接入。需要时系统会自动补充分工，并在这里展示最新进展。";
   }
   if (selectedSession?.sessionType === "user") {
-    return "主任务会负责整理需求、安排任务顺序，并把各部分结果汇总到当前内容里。";
+    return "主助手会负责整理需求、安排任务顺序，并把各部分结果汇总到当前内容里。";
   }
   if (isChildSession) {
-    return "这项任务正在处理主任务分配的内容，你可以在这里切换查看其他并行任务的进展。";
+    return "这项任务正在处理主助手分配的内容，你可以在这里切换查看其他并行任务的进展。";
   }
   return "选中一项任务后，这里会展示它正在推进什么，以及目前进展到哪一步。";
 }
